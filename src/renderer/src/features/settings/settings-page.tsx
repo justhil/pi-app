@@ -1,7 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope, Moon, Sun, Monitor, Bell, Folder, Zap } from 'lucide-react'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import {
+  Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope,
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench
+} from 'lucide-react'
 
 type SettingsPage = 'general' | 'appearance' | 'pi' | 'extensions' | 'resources' | 'diagnostics'
 
@@ -84,18 +88,38 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 function GeneralSettings() {
+  const [autoOpen, setAutoOpen] = useState(true)
+  const [autoCheck, setAutoCheck] = useState(true)
+  const [recentProjects, setRecentProjects] = useState<string[]>([])
+
+  useEffect(() => {
+    ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
+      if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
+    })
+  }, [])
+
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-3">常规</h3>
       <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
-        <Toggle on={true} onChange={() => {}} />
+        <Toggle on={autoOpen} onChange={setAutoOpen} />
       </SettingRow>
       <SettingRow label="自动检查更新" description="启动时检查适配器 registry 更新">
-        <Toggle on={true} onChange={() => {}} />
+        <Toggle on={autoCheck} onChange={setAutoCheck} />
       </SettingRow>
-      <SettingRow label="最近项目数量" description="保留的最近项目数量">
-        <span className="text-[13px] text-muted-foreground tabular-nums">10</span>
-      </SettingRow>
+      {recentProjects.length > 0 && (
+        <div className="pt-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">最近项目</div>
+          <div className="space-y-1">
+            {recentProjects.map((p, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
+                <Folder className="h-3 w-3 text-muted-foreground/50" />
+                <span className="truncate font-mono text-muted-foreground">{p}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -103,6 +127,27 @@ function GeneralSettings() {
 function AppearanceSettings() {
   const { t } = useTranslation()
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
+
+  useEffect(() => {
+    ipcClient.invoke('settings.get', { key: 'theme' }).then((res) => {
+      if (res?.settings?.theme) setTheme(res.settings.theme)
+    })
+  }, [])
+
+  const applyTheme = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme)
+    ipcClient.invoke('settings.set', { key: 'theme', value: newTheme })
+    // Apply to document
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else if (newTheme === 'light') {
+      document.documentElement.classList.remove('dark')
+    } else {
+      // System
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.classList.toggle('dark', isDark)
+    }
+  }
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: any }[] = [
     { key: 'light', icon: Sun },
@@ -113,12 +158,12 @@ function AppearanceSettings() {
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-3">{t('settings.appearance')}</h3>
-      <SettingRow label={t('settings.theme.title') || '主题'} description="选择界面主题">
+      <SettingRow label="主题" description="选择界面主题">
         <div className="flex gap-1.5">
           {themes.map(({ key, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setTheme(key)}
+              onClick={() => applyTheme(key)}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease',
                 theme === key
@@ -132,73 +177,133 @@ function AppearanceSettings() {
           ))}
         </div>
       </SettingRow>
-      <SettingRow label="字号" description="界面文字大小">
-        <span className="text-[13px] text-muted-foreground">13px</span>
-      </SettingRow>
     </div>
   )
 }
 
 function PiSettings() {
+  const [info, setInfo] = useState<any>(null)
+
+  useEffect(() => {
+    ipcClient.invoke('pi.getInfo').then(setInfo).catch(() => {})
+  }, [])
+
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-3">Pi</h3>
       <SettingRow label="SDK 版本" description="内置 pi-coding-agent 版本">
-        <span className="text-[13px] font-mono text-muted-foreground">0.79.x</span>
+        <span className="text-[13px] font-mono text-muted-foreground">{info?.sdkVersion || '...'}</span>
       </SettingRow>
       <SettingRow label="agentDir" description="pi 配置目录">
-        <span className="text-[12px] font-mono text-muted-foreground">~/.pi/agent</span>
+        <span className="text-[12px] font-mono text-muted-foreground">{info?.agentDir || '~/.pi/agent'}</span>
       </SettingRow>
-      <SettingRow label="认证状态" description="API key / OAuth">
-        <span className="text-[12px] text-muted-foreground">检测中...</span>
+      <SettingRow label="认证状态" description="API key / OAuth / 订阅">
+        <div className="flex items-center gap-1.5">
+          {info?.authStatus === 'configured' ? (
+            <>
+              <Check className="h-3.5 w-3.5 text-green-500" />
+              <span className="text-[12px] text-green-600 dark:text-green-400">已配置</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/40" />
+              <span className="text-[12px] text-muted-foreground">未配置</span>
+            </>
+          )}
+        </div>
       </SettingRow>
+      {info?.authProviders?.length > 0 && (
+        <div className="pt-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">已配置的 Provider</div>
+          <div className="space-y-1">
+            {info.authProviders.map((p: any) => (
+              <div key={p.provider} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
+                <span className="font-mono font-medium">{p.provider}</span>
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">{p.type}</span>
+                {p.configured && <Check className="ml-auto h-3 w-3 text-green-500" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function ExtensionsSettings() {
+  const [extensions, setExtensions] = useState<any[]>([])
+
+  useEffect(() => {
+    ipcClient.invoke('extensions.list').then((res) => {
+      setExtensions(res?.extensions || [])
+    })
+  }, [])
+
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-3">插件</h3>
-      <div className="space-y-2">
-        {[
-          { name: 'Trellis', level: 'native', enabled: true },
-          { name: 'Ask', level: 'native', enabled: true },
-          { name: 'Image', level: 'native', enabled: true },
-        ].map((ext) => (
-          <div key={ext.name} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/40 p-2.5">
-            <div>
-              <div className="text-[13px] font-medium">{ext.name}</div>
-              <div className="text-[11px] text-muted-foreground/60">
-                <span className={cn(
-                  'rounded px-1.5 py-0.5 font-medium',
-                  ext.level === 'native' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-muted'
-                )}>
-                  {ext.level}
-                </span>
+      {extensions.length === 0 ? (
+        <div className="text-[12px] text-muted-foreground/50 py-4">暂无已安装插件</div>
+      ) : (
+        <div className="space-y-2">
+          {extensions.map((ext) => (
+            <div key={ext.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/40 p-2.5">
+              <div>
+                <div className="text-[13px] font-medium">{ext.name}</div>
+                <div className="text-[11px] text-muted-foreground/60">
+                  <span className="rounded bg-muted px-1.5 py-0.5 font-medium uppercase">{ext.compatibility}</span>
+                  <span className="ml-1.5">{ext.source}</span>
+                </div>
               </div>
+              <Toggle on={ext.enabled} onChange={() => {}} />
             </div>
-            <Toggle on={ext.enabled} onChange={() => {}} />
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 function ResourcesSettings() {
+  const [resources, setResources] = useState<any>(null)
+
+  useEffect(() => {
+    ipcClient.invoke('resources.list').then(setResources).catch(() => {})
+  }, [])
+
+  if (!resources) return <div className="text-[12px] text-muted-foreground">加载中...</div>
+
+  const sections = [
+    { label: 'Skills', items: resources.skills, icon: Zap },
+    { label: 'Prompts', items: resources.prompts, icon: Wrench },
+    { label: 'Extensions', items: resources.extensions, icon: Puzzle },
+    { label: 'Themes', items: resources.themes, icon: Palette },
+  ]
+
   return (
-    <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-3">资源</h3>
-      <SettingRow label="Skills" description="已安装的技能">
-        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
-      </SettingRow>
-      <SettingRow label="Prompts" description="已安装的提示模板">
-        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
-      </SettingRow>
-      <SettingRow label="Themes" description="已安装的主题">
-        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
-      </SettingRow>
+    <div className="space-y-4">
+      <h3 className="text-[15px] font-semibold">资源</h3>
+      {sections.map(({ label, items, icon: Icon }) => (
+        <div key={label}>
+          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
+            <Icon className="h-3 w-3" />
+            {label}
+            <span className="tabular-nums text-muted-foreground/40">({items?.length || 0})</span>
+          </div>
+          {items?.length > 0 ? (
+            <div className="space-y-1">
+              {items.map((item: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
+                  <span className="font-medium">{item.name}</span>
+                  <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground/40">{item.source}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[11px] text-muted-foreground/40 px-1">暂无</div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -209,10 +314,13 @@ function DiagnosticsSettings() {
       <h3 className="text-[15px] font-semibold mb-3">诊断</h3>
       <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 font-mono text-[11px] leading-relaxed">
         <div className="text-muted-foreground">
-          <span className="text-green-500">●</span> Worker: 空闲
+          <span className="text-green-500">●</span> Worker: 正常运行
         </div>
         <div className="text-muted-foreground">
           <span className="text-muted-foreground/40">●</span> Registry: 未检查
+        </div>
+        <div className="text-muted-foreground">
+          <span className="text-green-500">●</span> Renderer: 正常
         </div>
         <div className="text-muted-foreground">
           <span className="text-muted-foreground/40">●</span> Errors: 无

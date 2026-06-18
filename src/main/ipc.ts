@@ -3,6 +3,7 @@ import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
 import { readTrellisState } from './trellis-reader'
+import { readPiInfo, readResourceList } from './pi-info'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, basename, dirname } from 'path'
@@ -293,5 +294,16 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:settings.set', async (req) => {
     configStore.set(req.key as any, req.value)
     return { key: req.key, value: req.value }
+  })
+
+  // ── Pi Info ──
+  registerHandler('ipc:pi.getInfo', async () => {
+    return readPiInfo()
+  })
+
+  // ── Resources ──
+  registerHandler('ipc:resources.list', async () => {
+    const cwd = workerManager.cwd || process.cwd()
+    return readResourceList(cwd)
   })
 }
