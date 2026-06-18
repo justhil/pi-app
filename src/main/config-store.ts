@@ -1,4 +1,5 @@
-import Store from 'electron-store'
+import pkg from 'electron-store'
+const Store = pkg as any
 
 interface StoreSchema {
   recentProjects: string[]

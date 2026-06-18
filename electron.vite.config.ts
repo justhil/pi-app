@@ -36,7 +36,8 @@ export default defineConfig({
           index: resolve(__dirname, 'src/preload/index.ts'),
         },
         output: {
-          entryFileNames: '[name].js',
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
         },
       },
     },

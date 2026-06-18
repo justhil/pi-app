@@ -14,8 +14,8 @@ export function createWindow(): BrowserWindow {
     autoHideMenuBar: false,
     title: 'pi Desktop',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -25,6 +25,18 @@ export function createWindow(): BrowserWindow {
     mainWindow?.show()
   })
 
+  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+    console.log(`[Renderer:${level}] ${message} (${sourceId}:${line})`)
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Renderer] Failed to load: ${errorCode} ${errorDescription} URL: ${validatedURL}`)
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error(`[Renderer] Process gone: ${details.reason}`)
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -32,6 +44,22 @@ export function createWindow(): BrowserWindow {
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.webContents.openDevTools({ mode: 'right' })
+    // Temp debug: dump DOM after 5s
+    setTimeout(async () => {
+      try {
+        const html = await mainWindow.webContents.executeJavaScript(
+          `document.getElementById('root')?.innerHTML?.substring(0, 500) || 'ROOT EMPTY'`
+        )
+        console.log(`[DEBUG] Root innerHTML: ${html}`)
+        const bodyClass = await mainWindow.webContents.executeJavaScript(
+          `document.body.className`
+        )
+        console.log(`[DEBUG] Body class: ${bodyClass}`)
+      } catch (e) {
+        console.error('[DEBUG] Failed to get DOM:', e)
+      }
+    }, 5000)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

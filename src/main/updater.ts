@@ -1,5 +1,7 @@
-import { autoUpdater } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import log from 'electron-log'
+import { is } from '@electron-toolkit/utils'
 
 export function initUpdater(): void {
   autoUpdater.logger = log
@@ -22,8 +24,10 @@ export function initUpdater(): void {
     log.info(`Download progress: ${progress.percent}%`)
   })
 
-  // Check for updates on startup (non-blocking)
-  autoUpdater.checkForUpdates().catch((err) => {
-    log.warn('Update check failed:', err)
-  })
+  // Only check for updates in production (packaged app)
+  if (!is.dev) {
+    autoUpdater.checkForUpdates().catch((err) => {
+      log.warn('Update check failed:', err)
+    })
+  }
 }

@@ -1,4 +1,5 @@
-import Database from 'better-sqlite3'
+import pkg from 'better-sqlite3'
+const Database = pkg as any
 import { app } from 'electron'
 import { join } from 'path'
 
