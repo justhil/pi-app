@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { Sidebar, SidebarContent, SidebarItem } from '@renderer/components/ui/sidebar'
 import { SessionList, ProjectHeader } from '@renderer/features/workspace/session-list'
 import { Timeline } from '@renderer/features/timeline/timeline'
@@ -33,6 +34,7 @@ export default function App() {
   ]
 
   return (
+    <ErrorBoundary>
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <TopBar />
       <div className="flex flex-1 overflow-hidden">
@@ -79,5 +81,6 @@ export default function App() {
         </aside>
       </div>
     </div>
+    </ErrorBoundary>
   )
 }
