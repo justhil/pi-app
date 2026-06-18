@@ -1,14 +1,23 @@
-// IPC Client - Renderer side typed IPC access
-// Full implementation in ipc-contract task
+import type { IpcMethodName, IpcRequest, IpcResponse, IpcInvoker } from '@shared/ipc-contract'
+import type { AppEvent } from '@shared/app-events'
 
 declare global {
   interface Window {
-    piDesktop: {
+    piDesktop: IpcInvoker & {
+      onEvent: (callback: (event: AppEvent) => void) => () => void
       ping: () => string
     }
   }
 }
 
-export const ipcClient = {
-  ping: () => window.piDesktop?.ping() ?? 'no-bridge',
+class IpcClientImpl implements IpcInvoker {
+  async invoke<M extends IpcMethodName>(method: M, request: IpcRequest<M>): Promise<IpcResponse<M>> {
+    return window.piDesktop.invoke(method, request)
+  }
+}
+
+export const ipcClient = new IpcClientImpl()
+
+export function onAppEvent(callback: (event: AppEvent) => void): () => void {
+  return window.piDesktop.onEvent(callback)
 }

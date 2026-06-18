@@ -1,5 +1,4 @@
-// AppEvent - Unified event model for Renderer/Main/Worker communication
-// This file will be fully implemented in the ipc-contract task
+// AppEvent - Unified event model for Renderer/Main/Worker
 
 export interface AppEventBase {
   seq: number
@@ -54,4 +53,14 @@ export interface RunEvent extends AppEventBase {
   }
 }
 
-export type AppEvent = MessageEvent | ToolEvent | FileEvent | RunEvent
+export interface CompactionEvent extends AppEventBase {
+  type: 'compaction'
+  phase: 'start' | 'end'
+  tokensBefore?: number
+  tokensSaved?: number
+  summary?: string
+}
+
+export type AppEvent = MessageEvent | ToolEvent | FileEvent | RunEvent | CompactionEvent
+
+export const APP_EVENT_CHANNEL = 'app:event'
