@@ -87,6 +87,17 @@ export class WorkerManager {
       this.worker = null
       this.workerPort?.close()
       this.workerPort = null
+
+      // Auto-restart if unexpected exit and we have a cwd
+      if (code !== 0 && this.currentCwd) {
+        console.log('[WorkerManager] Auto-restarting worker...')
+        const cwd = this.currentCwd
+        this.currentCwd = null
+        setTimeout(() => {
+          this.start(cwd).catch((e) => console.error('[WorkerManager] Restart failed:', e))
+        }, 2000)
+      }
+
       // Notify renderer
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: this.currentCwd })

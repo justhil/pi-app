@@ -4,6 +4,7 @@ import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
 import { readTrellisState } from './trellis-reader'
 import { readPiInfo, readResourceList } from './pi-info'
+import { probeExtensions } from '../extension-compat/extension-probe'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, basename, dirname } from 'path'
@@ -239,37 +240,9 @@ export function registerAllHandlers(): void {
 
   // ── Extensions ──
   registerHandler('ipc:extensions.list', async (_req) => {
-    // List extensions from .pi/extensions and ~/.pi/agent/extensions
-    const extensions: any[] = []
     const cwd = workerManager.cwd || process.cwd()
-    const agentDir = join(homedir(), '.pi', 'agent')
-
-    const checkDir = (dir: string, source: string) => {
-      if (!existsSync(dir)) return
-      try {
-        for (const name of readdirSync(dir)) {
-          const extPath = join(dir, name)
-          if (statSync(extPath).isDirectory() || name.endsWith('.ts')) {
-            extensions.push({
-              id: name.replace(/\.ts$/, ''),
-              name: name.replace(/\.ts$/, ''),
-              version: 'unknown',
-              description: '',
-              enabled: true,
-              compatibility: 'basic',
-              source,
-              registeredTools: [],
-              registeredCommands: [],
-            })
-          }
-        }
-      } catch {}
-    }
-
-    checkDir(join(cwd, '.pi', 'extensions'), 'project')
-    checkDir(join(agentDir, 'extensions'), 'global')
-
-    return { extensions }
+    const probes = probeExtensions(cwd)
+    return { extensions: probes }
   })
 
   registerHandler('ipc:extensions.setOverride', async (req) => {
