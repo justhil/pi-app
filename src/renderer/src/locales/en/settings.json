@@ -1,1 +1,15 @@
-{}
+{
+  "general": "General",
+  "appearance": "Appearance",
+  "pi": "Pi",
+  "extensions": "Extensions",
+  "resources": "Resources",
+  "diagnostics": "Diagnostics",
+  "title": "Settings",
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "title": "Theme"
+  }
+}

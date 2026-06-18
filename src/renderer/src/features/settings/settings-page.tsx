@@ -88,6 +88,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 function GeneralSettings() {
+  const { i18n } = useTranslation()
   const [autoOpen, setAutoOpen] = useState(true)
   const [autoCheck, setAutoCheck] = useState(true)
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -106,6 +107,27 @@ function GeneralSettings() {
       </SettingRow>
       <SettingRow label="自动检查更新" description="启动时检查适配器 registry 更新">
         <Toggle on={autoCheck} onChange={setAutoCheck} />
+      </SettingRow>
+      <SettingRow label="语言" description="界面语言">
+        <div className="flex gap-1.5">
+          {[
+            { key: 'zh', label: '中文' },
+            { key: 'en', label: 'English' },
+          ].map((l) => (
+            <button
+              key={l.key}
+              onClick={() => i18n.changeLanguage(l.key)}
+              className={cn(
+                'rounded-lg border px-2.5 py-1 text-[12px] transition-all duration-motion-fast ease-motion-ease',
+                i18n.language === l.key
+                  ? 'border-primary bg-primary/5 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-accent/50',
+              )}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
       </SettingRow>
       {recentProjects.length > 0 && (
         <div className="pt-3">

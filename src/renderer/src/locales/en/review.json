@@ -1,1 +1,11 @@
-{}
+{
+  "scope": {
+    "turn": "This turn",
+    "session": "Session total",
+    "git": "Git workspace"
+  },
+  "empty": "No changes",
+  "copyPath": "Copy path",
+  "openFile": "Open file",
+  "title": "Code Changes"
+}

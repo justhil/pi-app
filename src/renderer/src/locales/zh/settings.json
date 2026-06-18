@@ -5,9 +5,11 @@
   "extensions": "插件",
   "resources": "资源",
   "diagnostics": "诊断",
+  "title": "设置",
   "theme": {
     "light": "浅色",
     "dark": "深色",
-    "system": "跟随系统"
+    "system": "跟随系统",
+    "title": "主题"
   }
 }
