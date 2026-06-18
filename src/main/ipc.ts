@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
+import { readTrellisState } from './trellis-reader'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, basename, dirname } from 'path'
@@ -217,19 +218,22 @@ export function registerAllHandlers(): void {
     const cwd = workerManager.cwd || process.cwd()
     try {
       if (req.scope === 'git') {
-        // Get full working tree diff
         const diff = execSync('git diff HEAD', { cwd, encoding: 'utf-8', timeout: 10000 })
         const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8', timeout: 5000 })
         return { diff: { raw: diff, status, scope: 'git' } }
       } else {
-        // For turn/session scope, use git diff as fallback
         const diff = execSync('git diff', { cwd, encoding: 'utf-8', timeout: 10000 })
         return { diff: { raw: diff, status: '', scope: req.scope } }
       }
     } catch (e: any) {
-      // Not a git repo or git not available
       return { diff: { raw: '', status: '', scope: req.scope, error: e.message } }
     }
+  })
+
+  // ── Trellis ──
+  registerHandler('ipc:trellis.getState', async () => {
+    const cwd = workerManager.cwd || process.cwd()
+    return readTrellisState(cwd)
   })
 
   // ── Extensions ──

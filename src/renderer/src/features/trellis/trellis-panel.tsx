@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { CheckSquare, ListTree, BookOpen, FolderTree } from 'lucide-react'
+import { CheckSquare, ListTree, BookOpen, FolderTree, RefreshCw } from 'lucide-react'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 
 interface TrellisData {
   hasTrellis: boolean
@@ -16,10 +18,41 @@ interface TrellisData {
 
 export function TrellisPanel() {
   const [data, setData] = useState<TrellisData>({ hasTrellis: false })
+  const [loading, setLoading] = useState(false)
+  const workspace = useUIStore((s) => s.currentWorkspace)
+
+  const fetchData = async () => {
+    if (!workspace) return
+    setLoading(true)
+    try {
+      const result = await ipcClient.invoke('trellis.getState')
+      setData(result || { hasTrellis: false })
+    } catch (e) {
+      console.error('Trellis read failed:', e)
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
-    setData({ hasTrellis: false })
-  }, [])
+    if (workspace) {
+      fetchData()
+    } else {
+      setData({ hasTrellis: false })
+    }
+  }, [workspace])
+
+  if (!workspace) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/30 text-muted-foreground/30">
+          <FolderTree className="h-6 w-6" />
+        </div>
+        <div className="text-[12px] text-muted-foreground/50">
+          请先打开项目
+        </div>
+      </div>
+    )
+  }
 
   if (!data.hasTrellis) {
     return (
@@ -36,10 +69,21 @@ export function TrellisPanel() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">Trellis</span>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="rounded p-1 text-muted-foreground/40 hover:bg-accent hover:text-foreground transition-all"
+        >
+          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
       {data.currentTask && (
         <div className="rounded-lg border border-border/60 bg-card/50 p-2.5">
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1">当前任务</div>
-          <div className="text-[13px] font-semibold">{data.currentTask.title || data.currentTask.name}</div>
+          <div className="text-[13px] font-semibold leading-tight">{data.currentTask.title || data.currentTask.name}</div>
           <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
             <span className="rounded bg-muted px-1.5 py-0.5 font-medium">{data.currentTask.status}</span>
             {data.currentTask.priority && (
