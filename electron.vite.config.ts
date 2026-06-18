@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [externalizeDepsPlugin({ exclude: ['@earendil-works/pi-ai'] })],
     resolve: {
       alias: {
         '@shared': resolve('packages/shared'),
@@ -12,6 +12,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: ['@earendil-works/pi-ai', '@earendil-works/pi-coding-agent'],
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
           worker: resolve(__dirname, 'src/worker/index.ts'),

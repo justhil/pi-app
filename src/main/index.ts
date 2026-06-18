@@ -1,7 +1,8 @@
-import { app, Menu, shell } from 'electron'
+import { app, Menu, shell, BrowserWindow } from 'electron'
 import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { initUpdater } from './updater'
+import { workerManager } from './worker-manager'
 import { is } from '@electron-toolkit/utils'
 
 function createMenu(): void {
@@ -64,22 +65,22 @@ function createMenu(): void {
 app.whenReady().then(() => {
   createMenu()
   registerAllHandlers()
-  createWindow()
+  const win = createWindow()
+  workerManager.setMainWindow(win)
   initUpdater()
 
   app.on('activate', () => {
     const windows = BrowserWindow.getAllWindows()
     if (windows.length === 0) {
-      createWindow()
+      const w = createWindow()
+      workerManager.setMainWindow(w)
     }
   })
 })
 
 app.on('window-all-closed', () => {
+  workerManager.stop()
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
-
-// Re-export for external use
-import { BrowserWindow } from 'electron'
