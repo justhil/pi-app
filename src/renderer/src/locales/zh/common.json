@@ -1,0 +1,28 @@
+{
+  "app": {
+    "name": "pi Desktop",
+    "status": {
+      "idle": "空闲",
+      "running": "运行中",
+      "failed": "失败"
+    }
+  },
+  "sidebar": {
+    "sessions": "会话列表",
+    "settings": "设置"
+  },
+  "composer": {
+    "placeholder": "输入消息或 / 命令...",
+    "send": "发送",
+    "stop": "停止"
+  },
+  "panel": {
+    "review": "Review",
+    "trellis": "Trellis",
+    "run": "Run"
+  },
+  "topbar": {
+    "project": "当前项目",
+    "session": "当前会话"
+  }
+}

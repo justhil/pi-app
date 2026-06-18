@@ -1,0 +1,7 @@
+{
+  "placeholder": "执行时间线 - 待实现",
+  "compaction": {
+    "summary": "已压缩 {{count}} 条历史",
+    "expand": "展开查看完整摘要"
+  }
+}
