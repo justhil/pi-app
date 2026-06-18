@@ -1,22 +1,24 @@
-import type { IpcMethodName, IpcRequest, IpcResponse, IpcInvoker } from '@shared/ipc-contract'
 import type { AppEvent } from '@shared/app-events'
 
 declare global {
   interface Window {
-    piDesktop?: IpcInvoker & {
+    piDesktop?: {
+      invoke: (channel: string, request?: any) => Promise<any>
       onEvent: (callback: (event: AppEvent) => void) => () => void
+      onWorkerExit: (callback: (info: { code: number; cwd: string }) => void) => () => void
+      onAutoOpened: (callback: (info: { workspaceId: string }) => void) => () => void
       ping: () => string
     }
   }
 }
 
-class IpcClientImpl implements IpcInvoker {
-  async invoke<M extends IpcMethodName>(method: M, request: IpcRequest<M>): Promise<IpcResponse<M>> {
+class IpcClientImpl {
+  async invoke<M extends string>(method: M, request?: any): Promise<any> {
     if (!window.piDesktop) {
       console.warn(`[IPC] piDesktop not available, stubbing ${method}`)
-      return {} as IpcResponse<M>
+      return {}
     }
-    return window.piDesktop.invoke(method, request)
+    return window.piDesktop.invoke(`ipc:${method}`, request)
   }
 }
 
@@ -28,4 +30,14 @@ export function onAppEvent(callback: (event: AppEvent) => void): () => void {
     return () => {}
   }
   return window.piDesktop.onEvent(callback)
+}
+
+export function onWorkerExit(callback: (info: { code: number; cwd: string }) => void): () => void {
+  if (!window.piDesktop) return () => {}
+  return window.piDesktop.onWorkerExit(callback)
+}
+
+export function onAutoOpened(callback: (info: { workspaceId: string }) => void): () => void {
+  if (!window.piDesktop) return () => {}
+  return window.piDesktop.onAutoOpened(callback)
 }

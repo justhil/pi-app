@@ -9,17 +9,45 @@
   },
   "sidebar": {
     "sessions": "会话列表",
-    "settings": "设置"
+    "settings": "设置",
+    "openProject": "打开项目"
   },
   "composer": {
     "placeholder": "输入消息或 / 命令...",
     "send": "发送",
-    "stop": "停止"
+    "stop": "停止",
+    "selectProjectFirst": "请先打开一个项目目录..."
   },
   "panel": {
     "review": "Review",
     "trellis": "Trellis",
     "run": "Run"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "常规",
+    "appearance": "外观",
+    "pi": "Pi",
+    "extensions": "插件",
+    "resources": "资源",
+    "diagnostics": "诊断",
+    "theme": {
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    }
+  },
+  "timeline": {
+    "placeholder": "开始对话或选择一个历史会话"
+  },
+  "review": {
+    "scope": {
+      "turn": "本轮",
+      "session": "本会话",
+      "git": "Git"
+    },
+    "empty": "暂无文件变更",
+    "copyPath": "复制路径"
   },
   "topbar": {
     "project": "当前项目",

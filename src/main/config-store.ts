@@ -13,6 +13,7 @@ interface StoreSchema {
 }
 
 const store = new Store<StoreSchema>({
+  projectName: 'pi-desktop',
   defaults: {
     recentProjects: [],
     currentProject: null,
@@ -28,6 +29,10 @@ const store = new Store<StoreSchema>({
 export const configStore = {
   get<K extends keyof StoreSchema>(key: K): StoreSchema[K] {
     return store.get(key)
+  },
+
+  getAll(): Partial<StoreSchema> {
+    return store.store
   },
 
   set<K extends keyof StoreSchema>(key: K, value: StoreSchema[K]): void {

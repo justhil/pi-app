@@ -10,7 +10,7 @@
     --motion-slow: 320ms;
     --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-    /* Design tokens - Light theme (zinc) */
+    /* Design tokens - Light theme (zinc, refined) */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -21,38 +21,49 @@
     --primary-foreground: 0 0% 98%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
+    --muted: 240 4.8% 96.1%;
     --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
+    --accent: 240 4.8% 94%;
     --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;
+
+    /* Accent colors for tool types */
+    --tool-read: 220 90% 56%;
+    --tool-edit: 38 92% 50%;
+    --tool-write: 142 71% 45%;
+    --tool-bash: 280 65% 60%;
   }
 
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+    --card: 240 6% 6%;
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 240 3.7% 13%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
+    --muted: 240 3.7% 10%;
     --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+    --accent: 240 3.7% 14%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 240 3.7% 14%;
+    --input: 240 3.7% 16%;
     --ring: 240 4.9% 83.9%;
+
+    --tool-read: 220 90% 60%;
+    --tool-edit: 38 92% 55%;
+    --tool-write: 142 71% 50%;
+    --tool-bash: 280 65% 65%;
   }
 }
 
@@ -71,5 +82,51 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted-foreground/20;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+
+  /* Smooth fade-in animation */
+  .animate-in {
+    animation: animate-in var(--motion-normal) var(--motion-ease) both;
+  }
+  .fade-in {
+    animation-name: fade-in;
+  }
+  .slide-in-from-bottom-1 {
+    animation-name: slide-in-from-bottom-1;
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in-from-bottom-1 {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-in.fade-in.slide-in-from-bottom-1 {
+    animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
+  }
+
+  /* Subtle glow for running indicator */
+  .glow-running {
+    box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
   }
 }

@@ -1,17 +1,30 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { IpcMethodName, IpcRequest, IpcResponse } from '@shared/ipc-contract'
-import { EVENTS_CHANNEL } from '@shared/ipc-contract'
 import type { AppEvent } from '@shared/app-events'
 
+const EVENTS_CHANNEL = 'ipc:events'
+const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
+
 const api = {
-  invoke<M extends IpcMethodName>(method: M, request: IpcRequest<M>): Promise<IpcResponse<M>> {
-    return ipcRenderer.invoke(`ipc:${method}`, request)
+  invoke(channel: string, request?: any): Promise<any> {
+    return ipcRenderer.invoke(channel, request)
   },
 
   onEvent(callback: (event: AppEvent) => void): () => void {
     const handler = (_event: unknown, data: AppEvent): void => callback(data)
     ipcRenderer.on(EVENTS_CHANNEL, handler)
     return () => ipcRenderer.off(EVENTS_CHANNEL, handler)
+  },
+
+  onWorkerExit(callback: (info: { code: number; cwd: string }) => void): () => void {
+    const handler = (_event: unknown, data: { code: number; cwd: string }): void => callback(data)
+    ipcRenderer.on(WORKER_EXIT_CHANNEL, handler)
+    return () => ipcRenderer.off(WORKER_EXIT_CHANNEL, handler)
+  },
+
+  onAutoOpened(callback: (info: { workspaceId: string }) => void): () => void {
+    const handler = (_event: unknown, data: { workspaceId: string }): void => callback(data)
+    ipcRenderer.on('ipc:auto-opened', handler)
+    return () => ipcRenderer.off('ipc:auto-opened', handler)
   },
 
   ping: (): string => 'pong',

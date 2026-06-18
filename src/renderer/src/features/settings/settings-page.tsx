@@ -1,9 +1,7 @@
-// Settings page with 6 sub-pages
-
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope } from 'lucide-react'
+import { Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope, Moon, Sun, Monitor, Bell, Folder, Zap } from 'lucide-react'
 
 type SettingsPage = 'general' | 'appearance' | 'pi' | 'extensions' | 'resources' | 'diagnostics'
 
@@ -22,17 +20,19 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full">
-      {/* Settings sidebar */}
-      <div className="w-48 border-r border-border bg-muted/20">
+      <div className="w-48 border-r border-border/80 bg-muted/20">
+        <div className="px-3 py-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
+          {t('settings.title')}
+        </div>
         {PAGES.map((p) => (
           <button
             key={p.key}
             onClick={() => setPage(p.key)}
             className={cn(
-              'flex w-full items-center gap-2 px-3 py-2.5 text-sm transition-colors duration-motion-fast ease-motion-ease',
+              'flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-all duration-motion-fast ease-motion-ease',
               page === p.key
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
             )}
           >
             <p.icon className="h-4 w-4" />
@@ -40,98 +40,184 @@ export function SettingsPage() {
           </button>
         ))}
       </div>
-
-      {/* Settings content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {page === 'general' && <GeneralSettings />}
-        {page === 'appearance' && <AppearanceSettings />}
-        {page === 'pi' && <PiSettings />}
-        {page === 'extensions' && <ExtensionsSettings />}
-        {page === 'resources' && <ResourcesSettings />}
-        {page === 'diagnostics' && <DiagnosticsSettings />}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-xl">
+          {page === 'general' && <GeneralSettings />}
+          {page === 'appearance' && <AppearanceSettings />}
+          {page === 'pi' && <PiSettings />}
+          {page === 'extensions' && <ExtensionsSettings />}
+          {page === 'resources' && <ResourcesSettings />}
+          {page === 'diagnostics' && <DiagnosticsSettings />}
+        </div>
       </div>
     </div>
   )
 }
 
+function SettingRow({ label, description, children }: any) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border/40 last:border-0">
+      <div className="flex-1">
+        <div className="text-[13px] font-medium text-foreground">{label}</div>
+        {description && <div className="text-[11px] text-muted-foreground/60 mt-0.5">{description}</div>}
+      </div>
+      <div className="ml-4 shrink-0">{children}</div>
+    </div>
+  )
+}
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!on)}
+      className={cn(
+        'relative h-5 w-9 rounded-full transition-colors duration-motion-fast ease-motion-ease',
+        on ? 'bg-primary' : 'bg-muted-foreground/20'
+      )}
+    >
+      <div className={cn(
+        'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-motion-fast ease-motion-ease',
+        on ? 'left-4' : 'left-0.5'
+      )} />
+    </button>
+  )
+}
+
 function GeneralSettings() {
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">常规</h3>
-    <div>启动行为、最近项目、registry 自动检查 - 待实现</div>
-  </div>
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">常规</h3>
+      <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
+        <Toggle on={true} onChange={() => {}} />
+      </SettingRow>
+      <SettingRow label="自动检查更新" description="启动时检查适配器 registry 更新">
+        <Toggle on={true} onChange={() => {}} />
+      </SettingRow>
+      <SettingRow label="最近项目数量" description="保留的最近项目数量">
+        <span className="text-[13px] text-muted-foreground tabular-nums">10</span>
+      </SettingRow>
+    </div>
+  )
 }
 
 function AppearanceSettings() {
   const { t } = useTranslation()
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">{t('settings.appearance')}</h3>
-    <div className="space-y-2">
-      <label className="text-muted-foreground">主题</label>
-      <div className="flex gap-2">
-        {['light', 'dark', 'system'].map(theme => (
-          <button key={theme} className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent transition-colors duration-motion-fast ease-motion-ease">
-            {t(`settings.theme.${theme}`)}
-          </button>
-        ))}
-      </div>
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
+
+  const themes: { key: 'light' | 'dark' | 'system'; icon: any }[] = [
+    { key: 'light', icon: Sun },
+    { key: 'dark', icon: Moon },
+    { key: 'system', icon: Monitor },
+  ]
+
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">{t('settings.appearance')}</h3>
+      <SettingRow label={t('settings.theme.title') || '主题'} description="选择界面主题">
+        <div className="flex gap-1.5">
+          {themes.map(({ key, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTheme(key)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease',
+                theme === key
+                  ? 'border-primary bg-primary/5 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-accent/50'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t(`settings.theme.${key}`)}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+      <SettingRow label="字号" description="界面文字大小">
+        <span className="text-[13px] text-muted-foreground">13px</span>
+      </SettingRow>
     </div>
-  </div>
+  )
 }
 
 function PiSettings() {
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">Pi</h3>
-    <div className="space-y-1 text-muted-foreground">
-      <div>SDK Version: 内置</div>
-      <div>agentDir: ~/.pi/agent</div>
-      <div>Auth: 检测中...</div>
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">Pi</h3>
+      <SettingRow label="SDK 版本" description="内置 pi-coding-agent 版本">
+        <span className="text-[13px] font-mono text-muted-foreground">0.79.x</span>
+      </SettingRow>
+      <SettingRow label="agentDir" description="pi 配置目录">
+        <span className="text-[12px] font-mono text-muted-foreground">~/.pi/agent</span>
+      </SettingRow>
+      <SettingRow label="认证状态" description="API key / OAuth">
+        <span className="text-[12px] text-muted-foreground">检测中...</span>
+      </SettingRow>
     </div>
-  </div>
+  )
 }
 
 function ExtensionsSettings() {
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">插件</h3>
-    <div className="space-y-2">
-      <div className="flex items-center justify-between rounded-md border border-border p-2">
-        <div>
-          <div className="font-medium">Trellis</div>
-          <div className="text-xs text-muted-foreground">native · 已启用</div>
-        </div>
-        <div className="h-5 w-9 rounded-full bg-primary" />
-      </div>
-      <div className="flex items-center justify-between rounded-md border border-border p-2">
-        <div>
-          <div className="font-medium">Ask</div>
-          <div className="text-xs text-muted-foreground">native · 已启用</div>
-        </div>
-        <div className="h-5 w-9 rounded-full bg-primary" />
-      </div>
-      <div className="flex items-center justify-between rounded-md border border-border p-2">
-        <div>
-          <div className="font-medium">Image</div>
-          <div className="text-xs text-muted-foreground">native · 已启用</div>
-        </div>
-        <div className="h-5 w-9 rounded-full bg-primary" />
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">插件</h3>
+      <div className="space-y-2">
+        {[
+          { name: 'Trellis', level: 'native', enabled: true },
+          { name: 'Ask', level: 'native', enabled: true },
+          { name: 'Image', level: 'native', enabled: true },
+        ].map((ext) => (
+          <div key={ext.name} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/40 p-2.5">
+            <div>
+              <div className="text-[13px] font-medium">{ext.name}</div>
+              <div className="text-[11px] text-muted-foreground/60">
+                <span className={cn(
+                  'rounded px-1.5 py-0.5 font-medium',
+                  ext.level === 'native' ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-muted'
+                )}>
+                  {ext.level}
+                </span>
+              </div>
+            </div>
+            <Toggle on={ext.enabled} onChange={() => {}} />
+          </div>
+        ))}
       </div>
     </div>
-  </div>
+  )
 }
 
 function ResourcesSettings() {
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">资源</h3>
-    <div className="text-muted-foreground">skills / prompts / MCP / themes / packages - 待实现</div>
-  </div>
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">资源</h3>
+      <SettingRow label="Skills" description="已安装的技能">
+        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
+      </SettingRow>
+      <SettingRow label="Prompts" description="已安装的提示模板">
+        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
+      </SettingRow>
+      <SettingRow label="Themes" description="已安装的主题">
+        <span className="text-[13px] text-muted-foreground tabular-nums">0</span>
+      </SettingRow>
+    </div>
+  )
 }
 
 function DiagnosticsSettings() {
-  return <div className="space-y-4 text-sm">
-    <h3 className="text-base font-semibold">诊断</h3>
-    <div className="space-y-1 font-mono text-xs text-muted-foreground">
-      <div>Worker: 空闲</div>
-      <div>Registry: 未检查</div>
-      <div>Errors: 无</div>
+  return (
+    <div className="space-y-1">
+      <h3 className="text-[15px] font-semibold mb-3">诊断</h3>
+      <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 font-mono text-[11px] leading-relaxed">
+        <div className="text-muted-foreground">
+          <span className="text-green-500">●</span> Worker: 空闲
+        </div>
+        <div className="text-muted-foreground">
+          <span className="text-muted-foreground/40">●</span> Registry: 未检查
+        </div>
+        <div className="text-muted-foreground">
+          <span className="text-muted-foreground/40">●</span> Errors: 无
+        </div>
+      </div>
     </div>
-  </div>
+  )
 }

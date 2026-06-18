@@ -1,21 +1,17 @@
-// Pi Worker - runs pi SDK in a utilityProcess
-// This file is the entry point spawned by Electron utilityProcess
+// Pi Worker - runs pi SDK in a utilityProcess via MessagePort
+// Entry point spawned by Electron utilityProcess as ESM (.mjs)
 
 import {
   createAgentSession,
-  createAgentSessionRuntime,
   type AgentSession,
-  type AgentSessionRuntime,
+  type AgentSessionEvent,
   SessionManager,
-  AuthStorage,
-  ModelRegistry,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
 
 let session: AgentSession | null = null
-let runtime: AgentSessionRuntime | null = null
 let seq = 0
-let currentWorkspaceId = ''
+let currentCwd = ''
 let currentSessionId = ''
 let currentRunId = ''
 let currentTurnId = ''
@@ -33,175 +29,165 @@ function now(): number {
   return Date.now()
 }
 
+function baseEvent() {
+  return {
+    seq: nextSeq(),
+    workspaceId: currentCwd,
+    sessionId: currentSessionId,
+    runId: currentRunId,
+    turnId: currentTurnId,
+    timestamp: now(),
+  }
+}
+
 async function initSession(cwd: string): Promise<void> {
-  // Clean up existing session
   if (unsubscribe) {
     unsubscribe()
     unsubscribe = null
   }
-  session = null
-  runtime = null
-
-  currentWorkspaceId = cwd
-
-  const authStorage = AuthStorage.create()
-  const modelRegistry = ModelRegistry.create(authStorage)
-  const sessionManager = SessionManager.create(cwd)
-
-  const createRuntime = async ({ cwd: rtCwd, sessionManager: rtSm, sessionStartEvent }: any) => {
-    const { createAgentSessionServices, createAgentSessionFromServices } = await import(
-      '@earendil-works/pi-coding-agent'
-    )
-    const services = await createAgentSessionServices({ cwd: rtCwd })
-    return {
-      ...(await createAgentSessionFromServices({
-        services,
-        sessionManager: rtSm,
-        sessionStartEvent,
-      })),
-      services,
-      diagnostics: services.diagnostics,
-    }
+  if (session) {
+    session.dispose()
+    session = null
   }
 
-  runtime = await createAgentSessionRuntime(createRuntime, {
-    cwd,
-    agentDir: undefined, // use default ~/.pi/agent
-    sessionManager,
-  })
+  currentCwd = cwd
 
-  session = runtime.session
+  const { session: newSession, modelFallbackMessage } = await createAgentSession({ cwd })
+
+  session = newSession
   currentSessionId = session.sessionId
 
-  // Subscribe to events and convert to AppEvent
-  unsubscribe = session.subscribe((event: any) => {
-    const base = {
-      seq: nextSeq(),
-      workspaceId: currentWorkspaceId,
-      sessionId: currentSessionId,
-      runId: currentRunId,
-      turnId: currentTurnId,
-      timestamp: now(),
-    }
-
-    switch (event.type) {
-      case 'message_update':
-        if (event.assistantMessageEvent?.type === 'text_delta') {
-          emit({ ...base, type: 'message', role: 'assistant', phase: 'delta', text: event.assistantMessageEvent.delta })
-        }
-        break
-      case 'message_start':
-        emit({ ...base, type: 'message', role: 'assistant', phase: 'start' })
-        break
-      case 'message_end':
-        emit({ ...base, type: 'message', role: 'assistant', phase: 'end' })
-        break
-      case 'tool_execution_start':
-        emit({
-          ...base,
-          type: 'tool',
-          toolCallId: event.toolCallId || '',
-          toolName: event.toolName || '',
-          phase: 'start',
-          input: event.input,
-        })
-        break
-      case 'tool_execution_update':
-        emit({
-          ...base,
-          type: 'tool',
-          toolCallId: event.toolCallId || '',
-          toolName: event.toolName || '',
-          phase: 'update',
-          output: event.output,
-        })
-        break
-      case 'tool_execution_end':
-        emit({
-          ...base,
-          type: 'tool',
-          toolCallId: event.toolCallId || '',
-          toolName: event.toolName || '',
-          phase: 'end',
-          output: event.result,
-          isError: event.isError,
-        })
-        // Track file changes from edit/write
-        if (event.toolName === 'edit' || event.toolName === 'write') {
-          const input = event.input as any
-          if (input?.path) {
-            emit({ ...base, type: 'file', source: event.toolName, path: input.path, changeType: 'modified' })
-          }
-        }
-        break
-      case 'agent_start':
-        currentRunId = `run-${nextSeq()}`
-        currentTurnId = `turn-${nextSeq()}`
-        emit({ ...base, type: 'run', phase: 'started' })
-        break
-      case 'agent_end':
-        emit({ ...base, type: 'run', phase: 'idle' })
-        break
-      case 'turn_start':
-        currentTurnId = `turn-${nextSeq()}`
-        break
-      case 'turn_end':
-        if (event.message?.usage) {
-          const u = event.message.usage
-          emit({
-            ...base,
-            type: 'run',
-            phase: 'running',
-            usage: {
-              input: u.input || 0,
-              output: u.output || 0,
-              cacheRead: u.cacheRead || 0,
-              cacheWrite: u.cacheWrite || 0,
-              cost: u.cost?.total || 0,
-            },
-          })
-        }
-        break
-      case 'compaction_start':
-        emit({ ...base, type: 'compaction', phase: 'start' })
-        break
-      case 'compaction_end':
-        emit({
-          ...base,
-          type: 'compaction',
-          phase: 'end',
-          tokensSaved: event.result?.tokensSaved,
-          summary: event.result?.summary,
-        })
-        break
-    }
+  unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+    handleSessionEvent(event)
   })
 
-  emit({ seq: nextSeq(), workspaceId: currentWorkspaceId, sessionId: currentSessionId, type: 'run', phase: 'idle', timestamp: now() })
+  emit({ ...baseEvent(), type: 'run', phase: 'idle' })
+
+  if (modelFallbackMessage) {
+    console.warn('[Worker] Model fallback:', modelFallbackMessage)
+  }
 }
 
-// Message handler from Main process
-process.parentPort?.on('message', async (msg: any) => {
+function handleSessionEvent(event: AgentSessionEvent): void {
+  const base = baseEvent()
+
+  switch (event.type) {
+    case 'agent_start': {
+      currentRunId = `run-${nextSeq()}`
+      currentTurnId = `turn-${nextSeq()}`
+      emit({ ...base, type: 'run', phase: 'running' })
+      break
+    }
+    case 'agent_end': {
+      emit({ ...base, type: 'run', phase: 'idle' })
+      break
+    }
+    case 'turn_start': {
+      currentTurnId = `turn-${nextSeq()}`
+      break
+    }
+    case 'turn_end': {
+      const msg = event.message as any
+      if (msg?.usage) {
+        const u = msg.usage
+        emit({
+          ...base,
+          type: 'run',
+          phase: 'running',
+          usage: {
+            input: u.input || 0,
+            output: u.output || 0,
+            cacheRead: u.cacheRead || 0,
+            cacheWrite: u.cacheWrite || 0,
+            cost: u.cost?.total || 0,
+          },
+        })
+      }
+      break
+    }
+    case 'message_start': {
+      const msg = event.message as any
+      if (msg?.role === 'assistant') {
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'start' })
+      }
+      break
+    }
+    case 'message_update': {
+      const ame = event.assistantMessageEvent
+      if (ame?.type === 'text_delta') {
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'delta', text: ame.delta })
+      }
+      break
+    }
+    case 'message_end': {
+      const msg = event.message as any
+      if (msg?.role === 'assistant') {
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'end' })
+      }
+      break
+    }
+    case 'tool_execution_start': {
+      emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'start', input: event.args })
+      break
+    }
+    case 'tool_execution_update': {
+      emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'update', output: event.partialResult })
+      break
+    }
+    case 'tool_execution_end': {
+      emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'end', output: event.result, isError: event.isError })
+      if (event.toolName === 'edit' || event.toolName === 'write') {
+        const args = event.args as any
+        if (args?.path) {
+          emit({ ...base, type: 'file', source: event.toolName, path: args.path, changeType: event.toolName === 'write' ? 'added' : 'modified' })
+        }
+      }
+      break
+    }
+    case 'compaction_start': {
+      emit({ ...base, type: 'compaction', phase: 'start' })
+      break
+    }
+    case 'compaction_end': {
+      emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: event.result?.tokensBefore, summary: event.result?.summary })
+      break
+    }
+  }
+}
+
+async function listSessions(cwd: string): Promise<any[]> {
+  try {
+    return await SessionManager.list(cwd)
+  } catch (e) {
+    console.error('[Worker] listSessions failed:', e)
+    return []
+  }
+}
+
+// In utilityProcess, parentPort messages come as MessageEvent with data property
+process.parentPort?.on('message', async (event: any) => {
+  // Handle both direct message and MessageEvent
+  const msg = event?.data ?? event
+  console.log('[Worker] Received:', msg?.type)
+
   try {
     switch (msg.type) {
       case 'init': {
-        await initSession(msg.cwd)
-        process.parentPort?.postMessage({ type: 'init-done', sessionId: currentSessionId })
+        try {
+          console.log('[Worker] Initializing session for:', msg.cwd)
+          await initSession(msg.cwd)
+          console.log('[Worker] Init done, sessionId:', currentSessionId)
+          process.parentPort?.postMessage({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel })
+        } catch (e: any) {
+          console.error('[Worker] Init FAILED:', e.message, e.stack)
+          process.parentPort?.postMessage({ type: 'error', error: `Init failed: ${e.message}`, stack: e.stack })
+        }
         break
       }
       case 'prompt': {
-        if (!session) {
-          process.parentPort?.postMessage({ type: 'error', error: 'No session' })
-          break
-        }
-        currentRunId = `run-${nextSeq()}`
-        currentTurnId = `turn-${nextSeq()}`
-        emit({ seq: nextSeq(), workspaceId: currentWorkspaceId, sessionId: currentSessionId, runId: currentRunId, turnId: currentTurnId, type: 'run', phase: 'running', timestamp: now() })
-
-        // Emit user message
-        emit({ seq: nextSeq(), workspaceId: currentWorkspaceId, sessionId: currentSessionId, runId: currentRunId, turnId: currentTurnId, type: 'message', role: 'user', phase: 'start', text: msg.text, timestamp: now() })
-        emit({ seq: nextSeq(), workspaceId: currentWorkspaceId, sessionId: currentSessionId, runId: currentRunId, turnId: currentTurnId, type: 'message', role: 'user', phase: 'end', timestamp: now() })
-
+        if (!session) { process.parentPort?.postMessage({ type: 'error', error: 'No session' }); break }
+        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
+        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
         await session.prompt(msg.text, msg.options)
         process.parentPort?.postMessage({ type: 'prompt-done' })
         break
@@ -222,16 +208,12 @@ process.parentPort?.on('message', async (msg: any) => {
         break
       }
       case 'setModel': {
-        // Model setting via dynamic import - will be resolved at runtime
-        // The pi-ai package is available as a dependency of pi-coding-agent
-        try {
-          const piAi = require('@earendil-works/pi-ai')
-          const model = piAi.getModel?.(msg.provider, msg.modelId)
-          if (model && session) {
-            await session.setModel(model)
-          }
-        } catch (e) {
-          console.error('Failed to set model:', e)
+        if (session) {
+          try {
+            const { getModel } = await import('@earendil-works/pi-ai')
+            const model = getModel(msg.provider, msg.modelId)
+            if (model) await session.setModel(model)
+          } catch (e) { console.error('[Worker] setModel failed:', e) }
         }
         process.parentPort?.postMessage({ type: 'setModel-done' })
         break
@@ -242,20 +224,41 @@ process.parentPort?.on('message', async (msg: any) => {
         break
       }
       case 'newSession': {
-        await runtime?.newSession()
-        session = runtime?.session ?? null
-        currentSessionId = session?.sessionId ?? ''
-        if (session) {
-          unsubscribe?.()
-          unsubscribe = session.subscribe(() => {}) // re-subscribe will be handled by re-init
-        }
+        if (unsubscribe) { unsubscribe(); unsubscribe = null }
+        if (session) { session.dispose(); session = null }
+        const { session: newSession } = await createAgentSession({ cwd: currentCwd })
+        session = newSession
+        currentSessionId = session.sessionId
+        unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
         process.parentPort?.postMessage({ type: 'newSession-done', sessionId: currentSessionId })
+        break
+      }
+      case 'listSessions': {
+        const sessions = await listSessions(msg.cwd || currentCwd)
+        process.parentPort?.postMessage({ type: 'listSessions-done', sessions })
+        break
+      }
+      case 'getState': {
+        if (session) {
+          process.parentPort?.postMessage({
+            type: 'getState-done',
+            state: {
+              sessionId: session.sessionId,
+              sessionName: session.sessionName,
+              model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined,
+              thinkingLevel: session.thinkingLevel,
+              isStreaming: session.isStreaming,
+              sessionFile: session.sessionFile,
+              messageCount: session.messages.length,
+            },
+          })
+        }
         break
       }
       case 'dispose': {
         unsubscribe?.()
         session?.dispose()
-        await runtime?.dispose()
+        session = null
         process.parentPort?.postMessage({ type: 'dispose-done' })
         break
       }
@@ -265,6 +268,8 @@ process.parentPort?.on('message', async (msg: any) => {
       }
     }
   } catch (error) {
-    process.parentPort?.postMessage({ type: 'error', error: String(error) })
+    process.parentPort?.postMessage({ type: 'error', error: String(error), stack: (error as Error)?.stack })
   }
 })
+
+console.log('[Worker] Ready')

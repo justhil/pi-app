@@ -3,6 +3,7 @@ import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { initUpdater } from './updater'
 import { workerManager } from './worker-manager'
+import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
 
 function createMenu(): void {
@@ -68,6 +69,14 @@ app.whenReady().then(() => {
   const win = createWindow()
   workerManager.setMainWindow(win)
   initUpdater()
+
+  // Auto-open last project if exists
+  const lastProject = configStore.get('currentProject')
+  if (lastProject) {
+    workerManager.start(lastProject).then(() => {
+      win.webContents.send('ipc:auto-opened', { workspaceId: lastProject })
+    }).catch((e) => console.error('Auto-open failed:', e))
+  }
 
   app.on('activate', () => {
     const windows = BrowserWindow.getAllWindows()

@@ -1,1 +1,56 @@
-{}
+{
+  "app": {
+    "name": "pi Desktop",
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "failed": "Failed"
+    }
+  },
+  "sidebar": {
+    "sessions": "Sessions",
+    "settings": "Settings",
+    "openProject": "Open Project"
+  },
+  "composer": {
+    "placeholder": "Type a message or / command...",
+    "send": "Send",
+    "stop": "Stop",
+    "selectProjectFirst": "Please open a project directory first..."
+  },
+  "panel": {
+    "review": "Review",
+    "trellis": "Trellis",
+    "run": "Run"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "appearance": "Appearance",
+    "pi": "Pi",
+    "extensions": "Extensions",
+    "resources": "Resources",
+    "diagnostics": "Diagnostics",
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    }
+  },
+  "timeline": {
+    "placeholder": "Start a conversation or select a past session"
+  },
+  "review": {
+    "scope": {
+      "turn": "Turn",
+      "session": "Session",
+      "git": "Git"
+    },
+    "empty": "No file changes",
+    "copyPath": "Copy path"
+  },
+  "topbar": {
+    "project": "Current project",
+    "session": "Current session"
+  }
+}

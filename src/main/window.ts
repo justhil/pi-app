@@ -1,6 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { workerManager } from './worker-manager'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -44,22 +45,6 @@ export function createWindow(): BrowserWindow {
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.webContents.openDevTools({ mode: 'right' })
-    // Temp debug: dump DOM after 5s
-    setTimeout(async () => {
-      try {
-        const html = await mainWindow.webContents.executeJavaScript(
-          `document.getElementById('root')?.innerHTML?.substring(0, 500) || 'ROOT EMPTY'`
-        )
-        console.log(`[DEBUG] Root innerHTML: ${html}`)
-        const bodyClass = await mainWindow.webContents.executeJavaScript(
-          `document.body.className`
-        )
-        console.log(`[DEBUG] Body class: ${bodyClass}`)
-      } catch (e) {
-        console.error('[DEBUG] Failed to get DOM:', e)
-      }
-    }, 5000)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

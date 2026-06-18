@@ -18,7 +18,10 @@ export default defineConfig({
           worker: resolve(__dirname, 'src/worker/index.ts'),
         },
         output: {
-          entryFileNames: '[name].js',
+          entryFileNames: (chunk) => {
+            return chunk.name === 'worker' ? '[name].mjs' : '[name].js'
+          },
+          format: 'es',
         },
       },
     },
