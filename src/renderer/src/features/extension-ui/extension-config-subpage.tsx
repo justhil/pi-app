@@ -50,10 +50,10 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
         displayName: jsonAdapter.displayName || extensionId,
         description: jsonAdapter.description,
         registeredTools: jsonAdapter.match?.tools || [],
-        registeredCommands: [
+        registeredCommands: Array.from(new Set([
           ...Object.keys(jsonAdapter.slash || {}),
           ...(jsonAdapter.match?.commands || []).map((c) => (c.startsWith('/') ? c : `/${c}`)),
-        ],
+        ])),
       }
     : null
   const headerName = v2Info?.displayName || adapter?.displayName || extensionId
