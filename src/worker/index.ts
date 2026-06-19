@@ -169,6 +169,10 @@ process.parentPort?.on('message', async (event: any) => {
   // Handle both direct message and MessageEvent
   const msg = event?.data ?? event
   console.log('[Worker] Received:', msg?.type)
+  // Helper: reply preserves requestId so manager can resolve the pending promise
+  const reply = (payload: any) => {
+    process.parentPort?.postMessage({ requestId: msg?.requestId, ...payload })
+  }
 
   try {
     switch (msg.type) {
@@ -177,34 +181,34 @@ process.parentPort?.on('message', async (event: any) => {
           console.log('[Worker] Initializing session for:', msg.cwd)
           await initSession(msg.cwd)
           console.log('[Worker] Init done, sessionId:', currentSessionId)
-          process.parentPort?.postMessage({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel })
+          reply({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel })
         } catch (e: any) {
           console.error('[Worker] Init FAILED:', e.message, e.stack)
-          process.parentPort?.postMessage({ type: 'error', error: `Init failed: ${e.message}`, stack: e.stack })
+          reply({ type: 'error', error: `Init failed: ${e.message}`, stack: e.stack })
         }
         break
       }
       case 'prompt': {
-        if (!session) { process.parentPort?.postMessage({ type: 'error', error: 'No session' }); break }
+        if (!session) { reply({ type: 'error', error: 'No session' }); break }
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
         await session.prompt(msg.text, msg.options)
-        process.parentPort?.postMessage({ type: 'prompt-done' })
+        reply({ type: 'prompt-done' })
         break
       }
       case 'abort': {
         await session?.abort()
-        process.parentPort?.postMessage({ type: 'abort-done' })
+        reply({ type: 'abort-done' })
         break
       }
       case 'steer': {
         await session?.steer(msg.text)
-        process.parentPort?.postMessage({ type: 'steer-done' })
+        reply({ type: 'steer-done' })
         break
       }
       case 'followUp': {
         await session?.followUp(msg.text)
-        process.parentPort?.postMessage({ type: 'followUp-done' })
+        reply({ type: 'followUp-done' })
         break
       }
       case 'setModel': {
@@ -215,12 +219,12 @@ process.parentPort?.on('message', async (event: any) => {
             if (model) await session.setModel(model)
           } catch (e) { console.error('[Worker] setModel failed:', e) }
         }
-        process.parentPort?.postMessage({ type: 'setModel-done' })
+        reply({ type: 'setModel-done' })
         break
       }
       case 'setThinkingLevel': {
         session?.setThinkingLevel(msg.level)
-        process.parentPort?.postMessage({ type: 'setThinkingLevel-done' })
+        reply({ type: 'setThinkingLevel-done' })
         break
       }
       case 'newSession': {
@@ -230,12 +234,12 @@ process.parentPort?.on('message', async (event: any) => {
         session = newSession
         currentSessionId = session.sessionId
         unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
-        process.parentPort?.postMessage({ type: 'newSession-done', sessionId: currentSessionId })
+        reply({ type: 'newSession-done', sessionId: currentSessionId })
         break
       }
       case 'listSessions': {
         const sessions = await listSessions(msg.cwd || currentCwd)
-        process.parentPort?.postMessage({ type: 'listSessions-done', sessions })
+        reply({ type: 'listSessions-done', sessions })
         break
       }
       case 'getState': {
@@ -259,16 +263,16 @@ process.parentPort?.on('message', async (event: any) => {
         unsubscribe?.()
         session?.dispose()
         session = null
-        process.parentPort?.postMessage({ type: 'dispose-done' })
+        reply({ type: 'dispose-done' })
         break
       }
       case 'ping': {
-        process.parentPort?.postMessage({ type: 'pong' })
+        reply({ type: 'pong' })
         break
       }
     }
   } catch (error) {
-    process.parentPort?.postMessage({ type: 'error', error: String(error), stack: (error as Error)?.stack })
+    reply({ type: 'error', error: String(error), stack: (error as Error)?.stack })
   }
 })
 

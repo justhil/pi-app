@@ -1,6 +1,6 @@
-// Worker Manager - manages Pi Worker lifecycle from Main process via utilityProcess + MessageChannel
+// Worker Manager - manages Pi Worker lifecycle via utilityProcess built-in message channel
 
-import { utilityProcess, MessageChannelMain, type BrowserWindow, type MessagePortMain } from 'electron'
+import { utilityProcess, type BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 
@@ -12,11 +12,12 @@ interface InitResult {
 
 export class WorkerManager {
   private worker: Electron.UtilityProcess | null = null
-  private workerPort: MessagePortMain | null = null
   private mainWindow: BrowserWindow | null = null
   private currentCwd: string | null = null
-  private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>()
+  private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void; timer: NodeJS.Timeout }>()
   private requestCounter = 0
+  private initResolver: ((r: InitResult) => void) | null = null
+  private initRejecter: ((e: any) => void) | null = null
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
@@ -28,52 +29,20 @@ export class WorkerManager {
     }
 
     await this.stop()
-
     this.currentCwd = cwd
-
-    const { port1, port2 } = new MessageChannelMain()
-    this.workerPort = port1
-
-    // Forward events from worker to renderer
-    port1.on('message', (event: Electron.MessageEvent) => {
-      const data = event.data
-      if (!data) return
-
-      if (data.type === 'app-event' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:events', data.event as AppEvent)
-      }
-
-      // Handle response to a request
-      if (data.requestId && this.pendingRequests.has(data.requestId)) {
-        const pending = this.pendingRequests.get(data.requestId)!
-        this.pendingRequests.delete(data.requestId)
-        if (data.type === 'error') {
-          pending.reject(new Error(data.error))
-        } else {
-          pending.resolve(data)
-        }
-      }
-    })
-    port1.start()
 
     this.worker = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
       stdio: 'pipe',
     })
 
-    // Capture worker stderr/stdout for debugging - MUST handle errors to avoid EPIPE crash
+    // Capture worker stdout/stderr safely (avoid EPIPE)
     const safeWrite = (msg: string) => {
-      try {
-        process.stderr.write(msg + '\n')
-      } catch {}
+      try { process.stderr.write(msg + '\n') } catch {}
     }
     if (this.worker.stderr) {
-      let stderrBuf = ''
       this.worker.stderr.on('error', () => {})
       this.worker.stderr.on('data', (chunk: Buffer) => {
-        stderrBuf += chunk.toString()
-        const lines = stderrBuf.split('\n')
-        stderrBuf = lines.pop() || ''
-        for (const line of lines) {
+        for (const line of chunk.toString().split('\n')) {
           if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
         }
       })
@@ -81,148 +50,124 @@ export class WorkerManager {
     if (this.worker.stdout) {
       this.worker.stdout.on('error', () => {})
       this.worker.stdout.on('data', (chunk: Buffer) => {
-        const lines = chunk.toString().split('\n')
-        for (const line of lines) {
+        for (const line of chunk.toString().split('\n')) {
           if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
         }
       })
     }
 
-    // Handle worker exit
-    this.worker.on('exit', (code) => {
-      console.warn(`[WorkerManager] Worker exited with code ${code}`)
-      this.worker = null
-      this.workerPort?.close()
-      this.workerPort = null
+    // Receive ALL messages from worker on the built-in channel
+    // (worker uses process.parentPort.postMessage which arrives here)
+    this.worker.on('message', (event: any) => {
+      const data = event?.data ?? event
+      if (!data) return
 
-      // Auto-restart if unexpected exit and we have a cwd
-      if (code !== 0 && this.currentCwd) {
-        console.log('[WorkerManager] Auto-restarting worker...')
-        const cwd = this.currentCwd
-        this.currentCwd = null
-        setTimeout(() => {
-          this.start(cwd).catch((e) => console.error('[WorkerManager] Restart failed:', e))
-        }, 2000)
+      // Forward app events to renderer
+      if (data.type === 'app-event' && this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ipc:events', data.event as AppEvent)
       }
 
-      // Notify renderer
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: this.currentCwd })
+      // Resolve init promise
+      if (data.type === 'init-done' && this.initResolver) {
+        this.initResolver({ sessionId: data.sessionId, model: data.model, thinkingLevel: data.thinkingLevel })
+        this.initResolver = null
+        this.initRejecter = null
+      }
+      if (data.type === 'error' && data.phase === 'init' && this.initRejecter) {
+        this.initRejecter(new Error(data.error))
+        this.initResolver = null
+        this.initRejecter = null
+      }
+
+      // Resolve pending requests
+      if (data.requestId && this.pendingRequests.has(data.requestId)) {
+        const pending = this.pendingRequests.get(data.requestId)!
+        clearTimeout(pending.timer)
+        this.pendingRequests.delete(data.requestId)
+        if (data.type === 'error') pending.reject(new Error(data.error))
+        else pending.resolve(data)
       }
     })
 
-    // Send init message with the port
-    this.worker.postMessage({ type: 'init', cwd }, [port2])
+    // Handle worker exit
+    this.worker.on('exit', (code) => {
+      safeWrite(`[WorkerManager] Worker exited with code ${code}`)
+      this.worker = null
+      const cwd = this.currentCwd
+      this.currentCwd = null
 
-    // Wait for init-done
-    return new Promise<InitResult>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Worker init timeout')), 30000)
-      const onInit = (event: Electron.MessageEvent) => {
-        const data = event.data
-        if (data?.type === 'init-done') {
-          clearTimeout(timeout)
-          port1.off('message', onInit)
-          resolve({
-            sessionId: data.sessionId,
-            model: data.model,
-            thinkingLevel: data.thinkingLevel,
-          })
-        }
-        if (data?.type === 'error') {
-          clearTimeout(timeout)
-          port1.off('message', onInit)
-          reject(new Error(data.error))
-        }
+      // Auto-restart on unexpected crash (not on graceful dispose)
+      if (code !== 0 && cwd) {
+        safeWrite('[WorkerManager] Auto-restarting worker...')
+        setTimeout(() => {
+          this.start(cwd).catch((e) => safeWrite(`[WorkerManager] Restart failed: ${e}`))
+        }, 2000)
       }
-      port1.on('message', onInit)
+
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd })
+      }
+    })
+
+    // Send init (no port transfer — worker replies via process.parentPort)
+    this.worker.postMessage({ type: 'init', cwd })
+
+    return new Promise<InitResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.initResolver = null
+        this.initRejecter = null
+        reject(new Error('Worker init timeout (60s)'))
+      }, 60000)
+      this.initResolver = (r) => { clearTimeout(timer); resolve(r) }
+      this.initRejecter = (e) => { clearTimeout(timer); reject(e) }
     })
   }
 
   async stop(): Promise<void> {
-    // Mark as intentionally stopping to prevent auto-restart
-    const wasRunning = this.worker !== null
-    const prevCwd = this.currentCwd
     this.currentCwd = null
-
-    if (this.workerPort) {
-      try {
-        this.workerPort.postMessage({ type: 'dispose' })
-      } catch {}
-      this.workerPort.close()
-      this.workerPort = null
-    }
     if (this.worker) {
-      this.worker.kill()
+      try { this.worker.postMessage({ type: 'dispose' }) } catch {}
+      // Give worker a moment to dispose gracefully
+      await new Promise((r) => setTimeout(r, 100))
+      try { this.worker.kill() } catch {}
       this.worker = null
     }
+    this.pendingRequests.clear()
   }
 
-  private async request(type: string, data?: any): Promise<any> {
-    if (!this.workerPort) throw new Error('Worker not started')
+  private request(type: string, data?: any): Promise<any> {
+    if (!this.worker) return Promise.reject(new Error('Worker not started'))
     const requestId = `req-${++this.requestCounter}`
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(requestId, { resolve, reject })
-      this.workerPort!.postMessage({ type, requestId, ...data })
-      // Timeout after 60s
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           this.pendingRequests.delete(requestId)
           reject(new Error(`Worker request ${type} timed out`))
         }
-      }, 60000)
+      }, 120000)
+      this.pendingRequests.set(requestId, { resolve, reject, timer })
+      this.worker!.postMessage({ type, requestId, ...data })
     })
   }
 
-  // Public API used by IPC handlers
-  async sendPrompt(text: string): Promise<void> {
-    await this.request('prompt', { text })
+  async sendPrompt(text: string): Promise<void> { await this.request('prompt', { text }) }
+  async sendPromptWithImages(text: string, images: any[]): Promise<void> {
+    await this.request('prompt', { text, options: { images } })
   }
-
-  async sendPromptWithImages(text: string, images: { name: string; mimeType: string; data: string }[]): Promise<void> {
-    await this.request('prompt', { text, options: { images: images.map(i => ({ type: 'image', source: { type: 'base64', mediaType: i.mimeType, data: i.data } })) } })
-  }
-
-  async abort(): Promise<void> {
-    await this.request('abort')
-  }
-
-  async steer(text: string): Promise<void> {
-    await this.request('steer', { text })
-  }
-
-  async followUp(text: string): Promise<void> {
-    await this.request('followUp', { text })
-  }
-
-  async setModel(provider: string, modelId: string): Promise<void> {
-    await this.request('setModel', { provider, modelId })
-  }
-
-  async setThinkingLevel(level: string): Promise<void> {
-    await this.request('setThinkingLevel', { level })
-  }
-
-  async newSession(): Promise<{ sessionId: string }> {
-    return await this.request('newSession')
-  }
-
+  async abort(): Promise<void> { await this.request('abort') }
+  async steer(text: string): Promise<void> { await this.request('steer', { text }) }
+  async followUp(text: string): Promise<void> { await this.request('followUp', { text }) }
+  async setModel(provider: string, modelId: string): Promise<void> { await this.request('setModel', { provider, modelId }) }
+  async setThinkingLevel(level: string): Promise<void> { await this.request('setThinkingLevel', { level }) }
+  async newSession(): Promise<{ sessionId: string }> { return await this.request('newSession') }
   async listSessions(cwd?: string): Promise<any[]> {
-    const result = await this.request('listSessions', { cwd })
-    return result.sessions || []
+    const r = await this.request('listSessions', { cwd })
+    return r.sessions || []
   }
+  async getState(): Promise<any> { return (await this.request('getState')).state }
 
-  async getState(): Promise<any> {
-    const result = await this.request('getState')
-    return result.state
-  }
-
-  get isRunning(): boolean {
-    return this.worker !== null
-  }
-
-  get cwd(): string | null {
-    return this.currentCwd
-  }
+  get isRunning(): boolean { return this.worker !== null }
+  get cwd(): string | null { return this.currentCwd }
 }
 
 export const workerManager = new WorkerManager()

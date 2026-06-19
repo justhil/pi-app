@@ -50,12 +50,17 @@ export function registerAllHandlers(): void {
 
   // ── Workspace ──
   registerHandler('ipc:workspace.open', async (req) => {
-    const result = await workerManager.start(req.path)
-    configStore.addRecentProject(req.path)
-    configStore.set('currentProject', req.path)
-    const name = req.path.split(/[\\/]/).pop() || req.path
-    sqliteIndex.upsertWorkspace(req.path, name, req.path)
-    return { workspaceId: req.path, path: req.path, name, ...result }
+    const path = req.path
+    const name = path.split(/[\\/]/).pop() || path
+    // Update config immediately so UI and other IPCs (extensions, resources) work right away
+    configStore.addRecentProject(path)
+    configStore.set('currentProject', path)
+    sqliteIndex.upsertWorkspace(path, name, path)
+    // Start worker in the background (don't block the response)
+    workerManager.start(path).then((result) => {
+      console.log('[IPC] Worker started for', path, result.sessionId)
+    }).catch((e) => console.error('[IPC] Worker start failed:', e))
+    return { workspaceId: path, path, name }
   })
 
   registerHandler('ipc:workspace.switch', async (req) => {

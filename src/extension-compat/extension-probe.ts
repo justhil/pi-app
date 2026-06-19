@@ -1,193 +1,326 @@
-// Extension Probe - inspects extension capabilities before formal Worker loads
-// Scans .pi/extensions (project) and ~/.pi/agent/extensions (global)
+// Extension Probe - inspects extension capabilities
+// Scans: .pi/extensions (project), ~/.pi/agent/extensions (global), pi packages
 
 import { existsSync, readdirSync, statSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { homedir } from 'os'
 
 export interface ExtensionProbeResult {
   id: string
   name: string
   description?: string
-  source: 'project' | 'global'
+  version?: string
+  source: 'project' | 'global' | 'package'
+  packageName?: string
   registeredTools: string[]
   registeredCommands: string[]
   hasUI: boolean
   compatibility: 'native' | 'basic' | 'headless' | 'blocked'
   adapterId?: string
   loadError?: string
+  enabled: boolean
 }
 
-// Built-in compatibility whitelist: tool name -> native adapter
-// These are tools the desktop app has dedicated renderers for.
+// Native whitelist: tool/command name -> adapter with dedicated desktop renderer
 const TOOL_ADAPTERS: Record<string, string> = {
   trellis_subagent: 'trellis',
   ask_user_question: 'ask',
   image_gen: 'image',
   image_review: 'image',
-  // Common pi ecosystem tools that map to generic but supported renderers
+  analyze_image: 'image',
   browser_bridge: 'browser',
   web_scan: 'browser',
   web_execute_js: 'browser',
-  analyze_image: 'image',
   preview_export: 'doc',
   studio_export_pdf: 'doc',
   studio_export_html: 'doc',
-  intercom: 'intercom',
   studio_repl_send: 'repl',
+  intercom: 'intercom',
   image_gen_config: 'image',
+  // subagent / observational-memory etc are widely used and render fine as cards
+  subagent: 'subagent',
+  contact_supervisor: 'subagent',
 }
 
-// UI-capable patterns that indicate TUI/interactive features
-const UI_PATTERNS = [
-  'ctx.ui', 'pi.ui', 'ctx.ui.custom', 'pi.ui.custom',
-  'registerShortcut', 'setWidget', 'customComponent',
-]
+const UI_PATTERNS = ['ctx.ui', 'pi.ui', 'registerShortcut', 'setWidget', 'customComponent', 'ctx.ui.custom', 'pi.ui.custom']
 
-export function probeExtensions(cwd: string): ExtensionProbeResult[] {
-  const results: ExtensionProbeResult[] = []
-  const agentDir = join(homedir(), '.pi', 'agent')
-
-  const probe = (dir: string, source: 'project' | 'global') => {
-    if (!existsSync(dir)) return
-    let entries: string[]
-    try {
-      entries = readdirSync(dir)
-    } catch {
-      return
-    }
-
-    for (const name of entries) {
-      const extPath = join(dir, name)
-      let isDir: boolean
-      try {
-        isDir = statSync(extPath).isDirectory()
-      } catch {
-        continue
-      }
-      // Only directories and .ts/.js files are real extensions
-      if (!isDir && !/\.(ts|js)$/.test(name)) continue
-      // Skip non-extension stray files
-      if (!isDir && /\.(json|md|bak)$/.test(name)) continue
-
-      const id = name.replace(/\.(ts|js)$/, '')
-      const result: ExtensionProbeResult = {
-        id,
-        name: id,
-        source,
-        registeredTools: [],
-        registeredCommands: [],
-        hasUI: false,
-        compatibility: 'blocked',
-      }
-
-      // Find the source file
-      const sourceFile = isDir
-        ? (existsSync(join(extPath, 'index.ts'))
-            ? join(extPath, 'index.ts')
-            : existsSync(join(extPath, 'src', 'index.ts'))
-              ? join(extPath, 'src', 'index.ts')
-              : existsSync(join(extPath, 'index.js'))
-                ? join(extPath, 'index.js')
-                : null)
-        : extPath
-
-      if (sourceFile && existsSync(sourceFile)) {
-        try {
-          const src = readFileSync(sourceFile, 'utf-8')
-          const parsed = parseExtensionSource(src, id, source, result)
-          Object.assign(result, parsed)
-
-          // Read package.json for name/description if it's a package
-          if (isDir) {
-            const pkgPath = join(extPath, 'package.json')
-            if (existsSync(pkgPath)) {
-              try {
-                const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-                if (pkg.name) result.name = pkg.name
-                if (pkg.description) result.description = pkg.description
-              } catch {}
-            }
-          }
-        } catch (e) {
-          result.loadError = String(e)
-        }
-      }
-
-      results.push(result)
-    }
-  }
-
-  probe(join(cwd, '.pi', 'extensions'), 'project')
-  probe(join(agentDir, 'extensions'), 'global')
-
-  return results
-}
-
-function parseExtensionSource(
-  src: string,
-  _id: string,
-  _source: 'project' | 'global',
-  result: ExtensionProbeResult,
-): ExtensionProbeResult {
+// Parse a single extension source file -> tools/commands/ui/compat
+function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   const tools = new Set<string>()
   const commands = new Set<string>()
 
-  // Detect pi.registerTool({ name: "..." }) - object form
-  for (const m of src.matchAll(/registerTool\??\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) {
-    tools.add(m[1])
-  }
-  // Detect pi.registerTool('name', ...) - string form
-  for (const m of src.matchAll(/registerTool\??\s*\(\s*['"]([^'"]+)['"]/g)) {
-    tools.add(m[1])
-  }
-  // Detect defineTool({ name: "..." })
-  for (const m of src.matchAll(/defineTool\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) {
-    tools.add(m[1])
-  }
-  // Detect tools object: { name: "..." } inside arrays (customTools)
+  for (const m of src.matchAll(/registerTool\??\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) tools.add(m[1])
+  for (const m of src.matchAll(/registerTool\??\s*\(\s*['"]([^'"]+)['"]/g)) tools.add(m[1])
+  for (const m of src.matchAll(/defineTool\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) tools.add(m[1])
+  // pick up known tool names from object literals
   for (const m of src.matchAll(/\bname:\s*['"]([a-z_][a-z0-9_]*)['"]/gi)) {
-    const candidate = m[1]
-    // Only pick known tool-like names
-    if (TOOL_ADAPTERS[candidate]) {
-      tools.add(candidate)
-    }
+    if (TOOL_ADAPTERS[m[1]]) tools.add(m[1])
   }
-
-  // Detect registerCommand calls
-  for (const m of src.matchAll(/registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g)) {
-    commands.add(m[1])
-  }
+  for (const m of src.matchAll(/registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g)) commands.add(m[1])
 
   result.registeredTools = Array.from(tools)
   result.registeredCommands = Array.from(commands)
   result.hasUI = UI_PATTERNS.some((p) => src.includes(p))
 
-  // Determine compatibility level
-  let bestLevel: ExtensionProbeResult['compatibility'] = 'blocked'
-  for (const tool of result.registeredTools) {
-    if (TOOL_ADAPTERS[tool]) {
-      result.adapterId = TOOL_ADAPTERS[tool]
-      bestLevel = 'native'
-      break
-    }
+  let best: ExtensionProbeResult['compatibility'] = 'blocked'
+  for (const t of result.registeredTools) {
+    if (TOOL_ADAPTERS[t]) { result.adapterId = TOOL_ADAPTERS[t]; best = 'native'; break }
   }
-  if (bestLevel === 'blocked') {
-    if (result.registeredTools.length > 0 || result.registeredCommands.length > 0) {
-      bestLevel = result.hasUI ? 'basic' : 'headless'
+  if (best === 'blocked') {
+    if (result.registeredTools.length || result.registeredCommands.length) {
+      best = result.hasUI ? 'basic' : 'headless'
     } else if (result.hasUI) {
-      bestLevel = 'basic'
+      best = 'basic'
     } else {
-      // Has a source file but no detectable tools/commands - treat as headless (could provide context)
-      bestLevel = 'headless'
+      best = 'headless'
     }
   }
-  result.compatibility = bestLevel
-
-  return result
+  result.compatibility = best
 }
 
-// Map adapterId -> display label for UI
+function readPackageJson(pkgDir: string): any | null {
+  const p = join(pkgDir, 'package.json')
+  if (!existsSync(p)) return null
+  try { return JSON.parse(readFileSync(p, 'utf-8')) } catch { return null }
+}
+
+// Find a package's install directory by name from settings.json "npm:" / "git:" sources
+function resolvePackageDir(name: string): string | null {
+  const nm = join(homedir(), '.pi', 'agent', 'npm', 'node_modules')
+  // scoped: @scope/name
+  const direct = join(nm, name)
+  if (existsSync(direct) && statSync(direct).isDirectory()) return direct
+  return null
+}
+
+// Parse source string from settings.json package entries
+function parsePackageSource(source: any): { type: 'npm' | 'git' | 'local'; name: string } | null {
+  if (typeof source === 'string') {
+    if (source.startsWith('npm:')) return { type: 'npm', name: source.slice(4) }
+    if (source.startsWith('git:') || source.startsWith('http')) {
+      // github.com/justhil/pi-image-gen -> pi-image-gen
+      const m = source.match(/\/([^/]+?)(?:\.git)?$/)
+      if (m) return { type: 'git', name: m[1] }
+    }
+    return { type: 'local', name: source }
+  }
+  return null
+}
+
+export function probeExtensions(cwd: string): ExtensionProbeResult[] {
+  const results: ExtensionProbeResult[] = []
+  const agentDir = join(homedir(), '.pi', 'agent')
+
+  // 1. Scan project .pi/extensions
+  scanExtDir(join(cwd, '.pi', 'extensions'), 'project', results)
+  // 2. Scan global ~/.pi/agent/extensions
+  scanExtDir(join(agentDir, 'extensions'), 'global', results)
+  // 3. Scan pi packages from settings.json
+  scanPackages(agentDir, results)
+
+  return results
+}
+
+function scanExtDir(dir: string, source: 'project' | 'global', results: ExtensionProbeResult[]) {
+  if (!existsSync(dir)) return
+  let entries: string[]
+  try { entries = readdirSync(dir) } catch { return }
+
+  for (const name of entries) {
+    const extPath = join(dir, name)
+    let isDir = false
+    try { isDir = statSync(extPath).isDirectory() } catch { continue }
+    if (!isDir && !/\.(ts|js|mjs)$/.test(name)) continue
+    if (!isDir && /\.(json|md|bak|d\.ts)$/.test(name)) continue
+
+    const id = `${source}:${name.replace(/\.(ts|js|mjs)$/, '')}`
+    const result: ExtensionProbeResult = {
+      id, name: name.replace(/\.(ts|js|mjs)$/, ''), source, enabled: true,
+      registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
+    }
+
+    const sourceFile = isDir
+      ? (existsSync(join(extPath, 'index.ts')) ? join(extPath, 'index.ts')
+        : existsSync(join(extPath, 'src', 'index.ts')) ? join(extPath, 'src', 'index.ts')
+        : existsSync(join(extPath, 'index.js')) ? join(extPath, 'index.js') : null)
+      : extPath
+
+    if (sourceFile && existsSync(sourceFile)) {
+      try {
+        parseExtensionSource(readFileSync(sourceFile, 'utf-8'), result)
+        if (isDir) {
+          const pkg = readPackageJson(extPath)
+          if (pkg?.name) result.name = pkg.name
+          if (pkg?.description) result.description = pkg.description
+          if (pkg?.version) result.version = pkg.version
+        }
+      } catch (e) { result.loadError = String(e) }
+    }
+    results.push(result)
+  }
+}
+
+function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
+  const settingsPath = join(agentDir, 'settings.json')
+  if (!existsSync(settingsPath)) return
+  let settings: any
+  try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) } catch { return }
+
+  const packages = settings.packages || []
+  if (!Array.isArray(packages)) return
+
+  for (const entry of packages) {
+    // entry can be a string ("npm:foo") or { source: "npm:foo", extensions: ["+index.ts", "-x.ts"], ... }
+    let sourceStr: string
+    let overrides: string[] | undefined
+    if (typeof entry === 'string') {
+      sourceStr = entry
+    } else if (entry && typeof entry === 'object') {
+      sourceStr = entry.source
+      overrides = entry.extensions
+    } else {
+      continue
+    }
+
+    const parsed = parsePackageSource(sourceStr)
+    if (!parsed) continue
+
+    const pkgDir = resolvePackageDir(parsed.name)
+    if (!pkgDir) continue
+
+    const pkg = readPackageJson(pkgDir)
+    if (!pkg) continue
+
+    // Find extension files declared in package.json "pi.extensions"
+    let extFiles: string[] = []
+    if (pkg.pi?.extensions && Array.isArray(pkg.pi.extensions)) {
+      extFiles = pkg.pi.extensions
+    } else if (pkg.main) {
+      extFiles = [pkg.main]
+    } else if (existsSync(join(pkgDir, 'index.ts'))) {
+      extFiles = ['./index.ts']
+    }
+
+    if (extFiles.length === 0) {
+      // Even without declared pi.extensions, scan the package for known tools
+      scanPackageForKnownTools(pkgDir, merged)
+      if (merged.registeredTools.length === 0 && merged.registeredCommands.length === 0 && !merged.hasUI) continue
+      finalizeCompat(merged)
+      results.push(merged)
+      continue
+    }
+
+    // Apply + / - overrides from settings.json
+    const disabled = new Set<string>()
+    const enabled = new Set<string>()
+    for (const o of overrides || []) {
+      if (o.startsWith('-')) disabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
+      else if (o.startsWith('+')) enabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
+    }
+
+    const pkgEnabled = extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
+    merged.enabled = pkgEnabled
+
+    // Create one result entry per package (merge all extension files)
+    const merged: ExtensionProbeResult = {
+      id: `package:${parsed.name}`,
+      name: pkg.name || parsed.name,
+      description: pkg.description,
+      version: pkg.version,
+      source: 'package',
+      packageName: parsed.name,
+      enabled: pkgEnabled,
+      registeredTools: [],
+      registeredCommands: [],
+      hasUI: false,
+      compatibility: 'blocked',
+    }
+
+    for (const rel of extFiles) {
+      const cleanRel = rel.replace(/^\.\//, '')
+      if (disabled.has(cleanRel)) continue
+      const fullPath = resolve(pkgDir, cleanRel)
+      if (!existsSync(fullPath)) continue
+      try { statSync(fullPath) } catch { continue }
+      let isDir = false
+      try { isDir = statSync(fullPath).isDirectory() } catch { continue }
+      if (isDir) continue
+      try {
+        const src = readFileSync(fullPath, 'utf-8')
+        const tmp: ExtensionProbeResult = {
+          id: '', name: '', source: 'package', enabled: true,
+          registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
+        }
+        parseExtensionSource(src, tmp)
+        mergeResult(merged, tmp)
+      } catch {}
+    }
+
+    // Also scan whole package dir for known tool names (catches tools in subfiles)
+    scanPackageForKnownTools(pkgDir, merged)
+
+    finalizeCompat(merged)
+    results.push(merged)
+  }
+}
+
+function mergeResult(merged: ExtensionProbeResult, tmp: ExtensionProbeResult): void {
+  tmp.registeredTools.forEach((t) => { if (!merged.registeredTools.includes(t)) merged.registeredTools.push(t) })
+  tmp.registeredCommands.forEach((c) => { if (!merged.registeredCommands.includes(c)) merged.registeredCommands.push(c) })
+  if (tmp.hasUI) merged.hasUI = true
+  if (tmp.adapterId && !merged.adapterId) {
+    merged.adapterId = tmp.adapterId
+    merged.compatibility = 'native'
+  }
+}
+
+function finalizeCompat(merged: ExtensionProbeResult): void {
+  if (merged.compatibility === 'native') return
+  if (merged.registeredTools.length || merged.registeredCommands.length) {
+    merged.compatibility = merged.hasUI ? 'basic' : 'headless'
+  } else if (merged.hasUI) {
+    merged.compatibility = 'basic'
+  } else {
+    merged.compatibility = 'headless'
+  }
+}
+
+// Recursively scan a package dir for known tool/command names and UI patterns
+function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult): void {
+  let files: string[] = []
+  try {
+    const walk = (d: string) => {
+      for (const name of readdirSync(d)) {
+        if (name === 'node_modules' || name.startsWith('.')) continue
+        const full = join(d, name)
+        let st
+        try { st = statSync(full) } catch { continue }
+        if (st.isDirectory()) walk(full)
+        else if (/\.(ts|js|mjs)$/.test(name) && !/\.d\.ts$/.test(name) && !/\.test\./.test(name) && !/\.spec\./.test(name)) files.push(full)
+      }
+    }
+    walk(pkgDir)
+  } catch { return }
+
+  for (const f of files.slice(0, 60)) { // cap scan
+    try {
+      const src = readFileSync(f, 'utf-8')
+      // match known tool names
+      for (const toolName of Object.keys(TOOL_ADAPTERS)) {
+        const re = new RegExp(`(['\""])${toolName}\\1`, 'g')
+        if (re.test(src) && !merged.registeredTools.includes(toolName)) {
+          merged.registeredTools.push(toolName)
+          if (!merged.adapterId) {
+            merged.adapterId = TOOL_ADAPTERS[toolName]
+            merged.compatibility = 'native'
+          }
+        }
+      }
+      if (UI_PATTERNS.some((p) => src.includes(p))) merged.hasUI = true
+    } catch {}
+  }
+}
+
 export const ADAPTER_LABELS: Record<string, string> = {
   trellis: 'Trellis',
   ask: 'Ask User',
@@ -196,4 +329,5 @@ export const ADAPTER_LABELS: Record<string, string> = {
   doc: 'Document',
   intercom: 'Intercom',
   repl: 'REPL',
+  subagent: 'Subagent',
 }
