@@ -124,6 +124,13 @@
   .animate-in.fade-in.slide-in-from-bottom-1 {
     animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
   }
+  @keyframes slide-in-from-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .animate-in.fade-in.slide-in-from-right {
+    animation: slide-in-from-right var(--motion-normal) var(--motion-ease) both;
+  }
 
   /* Subtle glow for running indicator */
   .glow-running {

@@ -47,11 +47,13 @@ export async function executeSlashCommand(
 
   switch (cmd) {
     case 'model': {
+      // No arg -> open picker panel; with arg -> set directly
+      if (!arg) {
+        store.setModelPickerOpen(true)
+        return true
+      }
       try {
-        if (!arg) {
-          await ipcClient.invoke('model.cycle', {})
-          toast.success('已切换到下一个模型')
-        } else if (arg.includes('/')) {
+        if (arg.includes('/')) {
           const [provider, modelId] = arg.split('/')
           await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
           toast.success(`模型已设为 ${provider}/${modelId}`)
@@ -72,16 +74,18 @@ export async function executeSlashCommand(
       return true
     }
     case 'thinking': {
-      let level: string
-      if (arg && THINKING_ORDER.includes(arg)) {
-        level = arg
-      } else {
-        const cur = store.runState.thinkingLevel || 'medium'
-        level = THINKING_ORDER[(THINKING_ORDER.indexOf(cur) + 1) % THINKING_ORDER.length]
+      // No arg -> open picker; with valid arg -> set directly
+      if (!arg) {
+        store.setThinkingPickerOpen(true)
+        return true
+      }
+      if (!THINKING_ORDER.includes(arg)) {
+        toast.error(`无效等级: ${arg}（可选 ${THINKING_ORDER.join('/')}）`)
+        return true
       }
       try {
-        await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level })
-        toast.success(`Thinking: ${level}`)
+        await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level: arg })
+        toast.success(`Thinking: ${arg}`)
       } catch (e) {
         console.error('/thinking failed:', e)
         toast.error('切换 thinking 失败')

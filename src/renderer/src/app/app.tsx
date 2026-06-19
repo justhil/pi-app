@@ -15,7 +15,8 @@ import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity } from 'lucide-react'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
-import { ExtensionConfigHost } from '@renderer/features/extension-ui/extension-config-host'
+import { ModelPicker } from '@renderer/features/composer/model-picker'
+import { ThinkingPicker } from '@renderer/features/composer/thinking-picker'
 
 type View = 'main' | 'settings'
 
@@ -28,6 +29,7 @@ export default function App() {
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
+  const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const projectName = currentWorkspace ? currentWorkspace.split(/[\\/]/).pop() : undefined
 
@@ -45,6 +47,13 @@ export default function App() {
       unsubAuto()
     }
   }, [processEvent, setWorkspace])
+
+  // B-layer slash config-page routing: open settings view + adapters config subpage
+  useEffect(() => {
+    if (pendingExtensionConfig) {
+      setView('settings')
+    }
+  }, [pendingExtensionConfig])
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -174,7 +183,8 @@ export default function App() {
         </div>
       </div>
       <ExtensionUIHost />
-      <ExtensionConfigHost />
+      <ModelPicker />
+      <ThinkingPicker />
     </ErrorBoundary>
   )
 }

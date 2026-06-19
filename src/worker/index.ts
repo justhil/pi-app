@@ -351,6 +351,27 @@ process.parentPort?.on('message', async (event: any) => {
         reply({ type: 'listSessions-done', sessions })
         break
       }
+      case 'getModels': {
+        try {
+          const models = session
+            ? await session.modelRegistry.getAvailable()
+            : []
+          reply({
+            type: 'getModels-done',
+            models: models.map((m: any) => ({
+              id: m.id,
+              name: m.name || m.id,
+              provider: m.provider,
+              contextWindow: m.contextWindow || 0,
+              maxOutput: m.maxOutput || 0,
+              available: true,
+            })),
+          })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getModels failed: ${e.message}` })
+        }
+        break
+      }
       case 'getCommands': {
         // Authoritative command list from the live AgentSession (per docs/tui-replacement-and-adapters.md §2.2)
         const commands: any[] = []

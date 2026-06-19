@@ -173,6 +173,10 @@ export class WorkerManager {
     const r = await this.request('getCommands')
     return { commands: r.commands || [], hasSession: !!r.hasSession }
   }
+  async getModels(): Promise<any[]> {
+    const r = await this.request('getModels')
+    return r.models || []
+  }
   async getPiSettings(): Promise<any> { return (await this.request('getPiSettings')).settings }
   async setPiSettings(patch: any): Promise<void> { await this.request('setPiSettings', { patch }) }
   async getMessages(sessionFile: string): Promise<any[]> {

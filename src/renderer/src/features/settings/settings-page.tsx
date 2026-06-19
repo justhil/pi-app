@@ -5,7 +5,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench, Layers
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench, Layers, ChevronLeft
 } from 'lucide-react'
 
 type SettingsPage = 'general' | 'appearance' | 'pi' | 'extensions' | 'adapters' | 'resources' | 'diagnostics'
@@ -23,6 +23,41 @@ const PAGES: { key: SettingsPage; icon: any; labelKey: string }[] = [
 export function SettingsPage() {
   const { t } = useTranslation()
   const [page, setPage] = useState<SettingsPage>('general')
+  const [configExt, setConfigExt] = useState<string | null>(null)
+  const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
+  const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
+
+  // B-layer slash config-page routing -> open embedded config subpage
+  useEffect(() => {
+    if (pendingExtensionConfig) {
+      setConfigExt(pendingExtensionConfig)
+      setPage('adapters')
+      requestExtensionConfig(null)
+    }
+  }, [pendingExtensionConfig, requestExtensionConfig])
+
+  // Config detail subpage (replaces modal)
+  if (configExt) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+          <button
+            onClick={() => setConfigExt(null)}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            返回适配器
+          </button>
+          <span className="text-[13px] font-medium">{configExt} 配置</span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 animate-in fade-in slide-in-from-right">
+          <div className="max-w-xl">
+            <ExtensionConfigSubpage extensionId={configExt} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full">

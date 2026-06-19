@@ -187,7 +187,16 @@ export function registerAllHandlers(): void {
 
   // ── Model ──
   registerHandler('ipc:model.list', async (_req) => {
-    // Read available models from ModelRegistry
+    // Authoritative source = Worker session modelRegistry
+    if (workerManager.isRunning) {
+      try {
+        const models = await workerManager.getModels()
+        return { models }
+      } catch (e) {
+        console.error('[IPC] model.list worker failed:', e)
+      }
+    }
+    // Fallback: standalone ModelRegistry in main (may return empty if auth not loaded)
     try {
       const { ModelRegistry, AuthStorage } = await import('@earendil-works/pi-coding-agent')
       const auth = AuthStorage.create()
@@ -195,7 +204,7 @@ export function registerAllHandlers(): void {
       const models = registry.listAvailable()
       return {
         models: models.map((m: any) => ({
-          id: `${m.provider}/${m.modelId}`,
+          id: m.modelId,
           name: m.name || m.modelId,
           provider: m.provider,
           contextWindow: m.contextWindow || 0,

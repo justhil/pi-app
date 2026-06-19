@@ -81,6 +81,14 @@ interface UIState {
   pendingExtensionConfig: string | null
   requestExtensionConfig: (pluginName: string | null) => void
 
+  // Model picker (A-layer: /model opens panel, not silent cycle)
+  modelPickerOpen: boolean
+  setModelPickerOpen: (open: boolean) => void
+
+  // Thinking picker
+  thinkingPickerOpen: boolean
+  setThinkingPickerOpen: (open: boolean) => void
+
   // Event processing
   processEvent: (event: AppEvent) => void
 }
@@ -124,6 +132,12 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   pendingExtensionConfig: null,
   requestExtensionConfig: (pluginName) => set({ pendingExtensionConfig: pluginName }),
+
+  modelPickerOpen: false,
+  setModelPickerOpen: (open) => set({ modelPickerOpen: open }),
+
+  thinkingPickerOpen: false,
+  setThinkingPickerOpen: (open) => set({ thinkingPickerOpen: open }),
 
   processEvent: (event) => {
     const state = get()

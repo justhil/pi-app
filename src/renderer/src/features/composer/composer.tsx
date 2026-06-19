@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -47,6 +47,11 @@ export function Composer() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
+  const model = useUIStore((s) => s.runState.model)
+  const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
+  const usage = useUIStore((s) => s.runState.usage)
+  const setModelPickerOpen = useUIStore((s) => s.setModelPickerOpen)
+  const setThinkingPickerOpen = useUIStore((s) => s.setThinkingPickerOpen)
 
   const autoResize = useCallback(() => {
     const el = textareaRef.current
@@ -297,6 +302,65 @@ export function Composer() {
           </button>
         )}
       </div>
+
+      {/* Agent 桌面-style status bar: model / thinking / context */}
+      {currentWorkspace && (
+        <div className="mt-1.5 flex items-center gap-1 px-1 text-[11px] text-muted-foreground/70">
+          <button
+            onClick={() => setModelPickerOpen(true)}
+            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono transition-colors hover:bg-accent hover:text-foreground"
+            title="切换模型"
+          >
+            <Cpu className="h-3 w-3" />
+            <span className="max-w-[180px] truncate">{model || '未选择模型'}</span>
+            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+          </button>
+
+          <span className="text-muted-foreground/30">·</span>
+
+          <button
+            onClick={() => setThinkingPickerOpen(true)}
+            className={cn(
+              'flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono uppercase transition-colors hover:bg-accent hover:text-foreground',
+              thinkingLevel && thinkingLevel !== 'off' ? 'text-purple-600 dark:text-purple-400' : '',
+            )}
+            title="切换 thinking 等级"
+          >
+            <Brain className="h-3 w-3" />
+            <span>{thinkingLevel || 'off'}</span>
+            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+          </button>
+
+          {usage && (
+            <>
+              <span className="text-muted-foreground/30">·</span>
+              <span className="flex items-center gap-1 tabular-nums" title="本轮 token 用量">
+                <Gauge className="h-3 w-3" />
+                {formatTokens(usage.input + usage.output)}
+                {usage.cacheRead > 0 && <span className="text-muted-foreground/40">（缓存 {formatTokens(usage.cacheRead)}）</span>}
+              </span>
+              {usage.cost > 0 && (
+                <>
+                  <span className="text-muted-foreground/30">·</span>
+                  <span className="tabular-nums text-muted-foreground/50">${usage.cost.toFixed(4)}</span>
+                </>
+              )}
+            </>
+          )}
+
+          {isRunning && (
+            <span className="ml-auto flex items-center gap-1 text-green-600 dark:text-green-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+              运行中
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return String(n)
 }
