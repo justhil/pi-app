@@ -7,6 +7,8 @@ import { Composer } from '@renderer/features/composer/composer'
 import { ReviewPanel } from '@renderer/features/review/review-panel'
 import { RunPanel } from '@renderer/features/run/run-panel'
 import { TrellisPanel } from '@renderer/features/trellis/trellis-panel'
+import { ContextPanel } from '@renderer/features/context/context-panel'
+import { IntercomPanel } from '@renderer/features/intercom/intercom-panel'
 import { SettingsPage } from '@renderer/features/settings/settings-page'
 import { TopBar } from '@renderer/components/app/top-bar'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -15,7 +17,7 @@ import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity } from 'lucide-react'
+import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { ModelPicker } from '@renderer/features/composer/model-picker'
 import { ThinkingPicker } from '@renderer/features/composer/thinking-picker'
@@ -98,6 +100,8 @@ export default function App() {
     { key: 'review' as const, label: t('panel.review'), icon: GitBranch },
     { key: 'trellis' as const, label: t('panel.trellis'), icon: ListTree },
     { key: 'run' as const, label: t('panel.run'), icon: Activity },
+    { key: 'context' as const, label: 'Context', icon: FileSearch },
+    { key: 'intercom' as const, label: 'Intercom', icon: Radio },
   ]
 
   if (view === 'settings') {
@@ -177,6 +181,8 @@ export default function App() {
                 {activePanel === 'review' && <ReviewPanel />}
                 {activePanel === 'trellis' && <TrellisPanel />}
                 {activePanel === 'run' && <RunPanel />}
+                {activePanel === 'context' && <ContextPanel />}
+                {activePanel === 'intercom' && <IntercomPanel />}
               </ErrorBoundary>
             </div>
           </aside>

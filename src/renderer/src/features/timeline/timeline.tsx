@@ -8,10 +8,56 @@ import {
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import { ImageToolCard } from './image-tool-card'
+import { SubagentToolCard } from './subagent-tool-card'
 
 // Enhanced tool output renderer: special cards for ask/image/trellis, default code block otherwise.
+// Render artifact paths from tool details (preview_export / studio_export_* / image_gen etc.)
+function ArtifactPaths({ paths, format }: { paths: string[]; format?: string }) {
+  if (!paths || paths.length === 0) return null
+  const open = (p: string) => ipcClient.invoke('shell.openPath', { path: p }).catch(() => {})
+  const reveal = (p: string) => ipcClient.invoke('shell.showItemInFolder', { path: p }).catch(() => {})
+  return (
+    <div className="mt-1 mb-1 flex flex-wrap gap-1.5">
+      {paths.map((p, i) => {
+        const name = p.split(/[\\/]/).pop() || p
+        const fmt = format ? format.toUpperCase() : ''
+        return (
+          <div key={i} className="flex items-center gap-1 rounded-md border border-border/60 bg-background px-1.5 py-0.5">
+            <FileText className="h-3 w-3 text-blue-500" />
+            <span className="font-mono text-[10px]">{fmt && <span className="text-muted-foreground/50 mr-1">{fmt}</span>}{name}</span>
+            <button onClick={() => open(p)} className="rounded px-1 text-[10px] text-primary hover:underline">打开</button>
+            <button onClick={() => reveal(p)} className="rounded px-1 text-[10px] text-muted-foreground hover:text-foreground">文件夹</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ToolOutputExpanded({ item }: { item: any }) {
   const out = item.toolOutput || ''
+  const details = item.toolDetails
+  const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
+
+  // Export-type tools (preview_export, studio_export_pdf/html, studio_export_pdf) -> artifact paths first
+  const isExportTool =
+    item.toolName === 'preview_export' ||
+    item.toolName === 'studio_export_pdf' ||
+    item.toolName === 'studio_export_html'
+  if (isExportTool && detailPaths.length > 0) {
+    return (
+      <div className="mt-1">
+        <ArtifactPaths paths={detailPaths} format={details?.format} />
+        <div className="mt-1 overflow-hidden rounded-lg border border-border/50 bg-muted/40">
+          <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-40 text-green-600/80">
+            已导出 {detailPaths.length} 个文件（{details?.format?.toUpperCase() || '文件'}）。点击上方按钮打开或定位。
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ask_user_question: try to parse question payload
   if (item.toolName === 'ask_user_question') {
@@ -38,24 +84,12 @@ function ToolOutputExpanded({ item }: { item: any }) {
     }
   }
 
-  // image_gen / analyze_image: show image paths/urls if present
+  if (item.toolName === 'subagent' || item.toolName === 'trellis_subagent' || item.toolName === 'contact_supervisor') {
+    return <SubagentToolCard item={item} />
+  }
+
   if (item.toolName === 'image_gen' || item.toolName === 'analyze_image' || item.toolName === 'image_review') {
-    let parsed: any = null
-    try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
-    const images = parsed?.images || parsed?.result?.images
-    if (Array.isArray(images) && images.length > 0) {
-      return (
-        <div className="mt-1 space-y-2 rounded-lg border border-pink-500/30 bg-pink-500/5 p-2.5">
-          {images.map((img: any, i: number) => (
-            <div key={i} className="text-[11px] font-mono text-muted-foreground">
-              {img.url && <a href={img.url} target="_blank" rel="noreferrer" className="text-pink-600 hover:underline">{img.url}</a>}
-              {img.path && <span>📁 {img.path}</span>}
-              {img.name && <span className="ml-1">({img.name})</span>}
-            </div>
-          ))}
-        </div>
-      )
-    }
+    return <ImageToolCard item={item} />
   }
 
   // default: syntax-highlighted code block
@@ -75,7 +109,7 @@ function ToolIcon({ name }: { name: string }) {
   if (name === 'bash') return <Terminal className={cn(cls, "text-[hsl(var(--tool-bash))]")} />
   if (name === 'ask_user_question') return <MessageCircleQuestion className={cn(cls, "text-purple-500")} />
   if (name === 'image_gen' || name === 'image_review' || name === 'analyze_image') return <ImageIcon className={cn(cls, "text-pink-500")} />
-  if (name === 'trellis_subagent') return <GitBranch className={cn(cls, "text-blue-500")} />
+  if (name === 'trellis_subagent' || name === 'subagent' || name === 'contact_supervisor') return <GitBranch className={cn(cls, "text-blue-500")} />
   return <Wrench className={cn(cls, "text-muted-foreground")} />
 }
 
@@ -153,7 +187,8 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
     const status = item.slashStatus || 'dispatched'
     const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
-    const label = status === 'error' ? '执行失败' : status === 'ok' ? '执行成功' : '已发送'
+    const label =
+      status === 'error' ? '执行失败' : status === 'ok' ? '完成' : item.text?.includes('失败') ? '失败' : '已派发'
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-1.5">

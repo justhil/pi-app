@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
@@ -9,7 +9,8 @@ import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
 import { resolveSlashBehavior } from '../extension-compat/plugin-adapter-meta'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
-import { join, basename, dirname } from 'path'
+const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
+import { join, basename, dirname, extname } from 'path'
 import { homedir } from 'os'
 
 type HandlerFn = (request: any) => Promise<any>
@@ -64,6 +65,41 @@ export function registerAllHandlers(): void {
       return { path: null }
     }
     return { path: result.filePaths[0] }
+  })
+
+  // R1: open a local file/path in the OS default app or reveal in folder.
+  // Used by preview_export / image_gen / studio_export tool cards.
+  registerHandler('ipc:shell.openPath', async (req) => {
+    const p = String(req.path || '')
+    if (!p) return { ok: false }
+    try { await shell.openPath(p); return { ok: true } } catch (e) { return { ok: false, error: String(e) } }
+  })
+  registerHandler('ipc:shell.showItemInFolder', async (req) => {
+    const p = String(req.path || '')
+    if (!p) return { ok: false }
+    shell.showItemInFolder(p)
+    return { ok: true }
+  })
+  registerHandler('ipc:shell.readImagePreview', async (req) => {
+    const p = String(req.path || '')
+    if (!p || !existsSync(p)) return { ok: false, error: 'not_found' }
+    try {
+      const st = statSync(p)
+      if (!st.isFile() || st.size > IMAGE_PREVIEW_MAX_BYTES) return { ok: false, error: 'too_large' }
+      const ext = extname(p).toLowerCase()
+      const mime =
+        ext === '.png' ? 'image/png' :
+        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+        ext === '.gif' ? 'image/gif' :
+        ext === '.webp' ? 'image/webp' :
+        ext === '.svg' ? 'image/svg+xml' :
+        'application/octet-stream'
+      const buf = readFileSync(p)
+      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+      return { ok: true, dataUrl, mimeType: mime }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
   })
 
   // ── Workspace ──
@@ -253,6 +289,43 @@ export function registerAllHandlers(): void {
     if (!workerManager.isRunning) return { state: null }
     const state = await workerManager.getState()
     return { state }
+  })
+
+  registerHandler('ipc:context.preview', async () => {
+    if (!workerManager.isRunning) return { preview: null }
+    try {
+      const preview = await workerManager.getSessionContextPreview()
+      return { preview }
+    } catch (e) {
+      console.error('[IPC] context.preview failed:', e)
+      return { preview: null }
+    }
+  })
+
+  registerHandler('ipc:intercom.snapshot', async () => {
+    const agentDir = join(homedir(), '.pi', 'agent')
+    const intercomDir = join(agentDir, 'intercom')
+    const configPath = join(intercomDir, 'config.json')
+    let config: Record<string, unknown> | null = null
+    try {
+      if (existsSync(configPath)) config = JSON.parse(readFileSync(configPath, 'utf8'))
+    } catch { /* ignore */ }
+    const notes: string[] = []
+    if (existsSync(intercomDir)) notes.push(`目录: ${intercomDir}`)
+    else notes.push('未找到 ~/.pi/agent/intercom（扩展可能未启用 broker）')
+    notes.push('完整收件箱需 pi-intercom broker 运行；桌面仅只读配置与路径说明。')
+    return { config, notes, intercomDir: existsSync(intercomDir) ? intercomDir : null }
+  })
+
+  registerHandler('ipc:skills.list', async () => {
+    if (!workerManager.isRunning) return { skills: [] }
+    try {
+      const skills = await workerManager.getSkillsList()
+      return { skills }
+    } catch (e) {
+      console.error('[IPC] skills.list failed:', e)
+      return { skills: [] }
+    }
   })
 
   registerHandler('ipc:commands.completions', async (req) => {

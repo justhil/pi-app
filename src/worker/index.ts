@@ -185,6 +185,10 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'tool_execution_start': {
+      if (event.toolName === 'ask_user_question' && uiBridge && event.args) {
+        const qs = (event.args as any)?.questions
+        if (Array.isArray(qs)) uiBridge.setAskToolQuestions(qs)
+      }
       emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'start', input: event.args })
       break
     }
@@ -193,7 +197,17 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'tool_execution_end': {
-      emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'end', output: event.result, isError: event.isError })
+      const endResult = event.result as any
+      emit({
+        ...base,
+        type: 'tool',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        phase: 'end',
+        output: endResult,
+        details: endResult?.details,
+        isError: event.isError,
+      })
       if (event.toolName === 'edit' || event.toolName === 'write') {
         const args = event.args as any
         if (args?.path) {
@@ -349,6 +363,15 @@ process.parentPort?.on('message', async (event: any) => {
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
         try {
           await session.prompt(msg.text, msg.options)
+          if (slashMatch) {
+            emit({
+              ...baseEvent(),
+              type: 'slash',
+              command: slashMatch[1],
+              status: 'ok',
+              text: '命令已执行（详见下方助手/工具输出）',
+            })
+          }
           reply({ type: 'prompt-done' })
         } catch (e: any) {
           if (slashMatch) {
@@ -476,6 +499,56 @@ process.parentPort?.on('message', async (event: any) => {
           } catch (e) { console.error('[Worker] getSkills failed:', e) }
         }
         reply({ type: 'getCommands-done', commands, hasSession: !!session })
+        break
+      }
+      case 'getSessionContextPreview': {
+        try {
+          const lines: string[] = []
+          let msgCount = 0
+          let estChars = 0
+          if (session) {
+            for (const m of session.messages || []) {
+              msgCount++
+              const t = extractText(m)
+              estChars += t.length
+              if (lines.length < 12 && t) {
+                const role = (m as any).role || '?'
+                lines.push(`[${role}] ${t.slice(0, 200)}${t.length > 200 ? '…' : ''}`)
+              }
+            }
+          }
+          reply({
+            type: 'getSessionContextPreview-done',
+            preview: {
+              sessionId: currentSessionId,
+              messageCount: msgCount,
+              estimatedChars: estChars,
+              snippets: lines,
+            },
+          })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getSessionContextPreview failed: ${e.message}` })
+        }
+        break
+      }
+      case 'getSkillsList': {
+        try {
+          const skills: any[] = []
+          if (session) {
+            const raw = (session.resourceLoader as any).getSkills?.()
+            for (const sk of raw?.skills || []) {
+              skills.push({
+                name: sk.name,
+                description: sk.description || '',
+                path: sk.path || sk.filePath,
+                source: sk.sourceInfo?.source || sk.source,
+              })
+            }
+          }
+          reply({ type: 'getSkillsList-done', skills })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getSkillsList failed: ${e.message}` })
+        }
         break
       }
       case 'getCommandCompletions': {

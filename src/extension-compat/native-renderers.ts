@@ -59,6 +59,39 @@ export interface ImageGenResult {
   prompt: string
 }
 
+export interface SubagentRunSummary {
+  mode?: string
+  runId?: string
+  results: { agent?: string; status?: string; error?: string; sessionFile?: string }[]
+  progressSummary?: { completed?: number; failed?: number; running?: number }
+}
+
+export function parseSubagentToolDetails(details: any, toolName: string): SubagentRunSummary | null {
+  if (!details) return null
+  if (toolName === 'trellis_subagent') {
+    return {
+      mode: 'trellis',
+      runId: details.runId,
+      results: [{ agent: details.agent, status: details.status, error: details.error }],
+    }
+  }
+  if (toolName === 'subagent' || toolName === 'contact_supervisor') {
+    const results = Array.isArray(details.results) ? details.results : []
+    return {
+      mode: details.mode || toolName,
+      runId: details.runId || details.asyncId,
+      results: results.map((r: any) => ({
+        agent: r.agent || r.name,
+        status: r.status || r.state,
+        error: r.error,
+        sessionFile: r.sessionFile,
+      })),
+      progressSummary: details.progressSummary,
+    }
+  }
+  return null
+}
+
 export function parseImageGenEvent(event: any): ImageGenResult | null {
   if (!event) return null
   if ((event.toolName === 'image_gen' || event.toolName === 'image_review') && event.result) {

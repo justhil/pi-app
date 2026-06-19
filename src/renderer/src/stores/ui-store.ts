@@ -34,6 +34,7 @@ interface TimelineItem {
   toolName?: string
   toolPhase?: string
   toolOutput?: string
+  toolDetails?: any
   isError?: boolean
   slashCommand?: string
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
@@ -79,8 +80,8 @@ interface UIState {
   clearFileChanges: () => void
 
   // Panel
-  activePanel: 'review' | 'trellis' | 'run'
-  setActivePanel: (p: 'review' | 'trellis' | 'run') => void
+  activePanel: 'review' | 'trellis' | 'run' | 'context' | 'intercom'
+  setActivePanel: (p: 'review' | 'trellis' | 'run' | 'context' | 'intercom') => void
 
   // Extension config routing (B-layer: adapter config page requests)
   pendingExtensionConfig: string | null
@@ -220,6 +221,7 @@ export const useUIStore = create<UIState>((set, get) => ({
             state.updateTimelineItem(lastTool.id, {
               toolPhase: 'end',
               toolOutput: typeof event.output === 'string' ? event.output : JSON.stringify(event.output, null, 2),
+              toolDetails: (event as any).details,
               isError: event.isError,
             })
           }

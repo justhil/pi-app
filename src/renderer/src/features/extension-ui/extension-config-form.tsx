@@ -3,6 +3,8 @@
 // explanatory note instead of fabricated fields.
 
 import { useMemo, useState } from 'react'
+import { SkillsManagerConfig } from './skills-manager-config'
+import { McpDiagnostics } from './mcp-diagnostics'
 
 interface Props {
   extensionId: string
@@ -39,7 +41,11 @@ export function ExtensionConfigForm({ extensionId, config, adapter, onChange }: 
         </div>
       )}
 
-      {configKeys.length > 0 ? (
+      {extensionId === '@vanillagreen/pi-skills-manager' ? (
+        <SkillsManagerConfig extensionId={extensionId} onChange={onChange} />
+      ) : extensionId === 'pi-mcp-adapter' || extensionId.includes('mcp-adapter') ? (
+        <McpDiagnostics />
+      ) : configKeys.length > 0 ? (
         <div className="space-y-2">
           <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">配置项</div>
           {configKeys.map((k: any) => (

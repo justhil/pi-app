@@ -109,14 +109,23 @@ const META: PluginAdapterMeta[] = [
     },
   },
   {
-    matchNames: ['pi-multimodal-proxy', 'pi-image-gen'],
+    matchNames: ['pi-multimodal-proxy'],
     tier: 'partial',
-    desktopSupport: 'analyze_image / 生图工具卡片；无完整 image_gen TUI',
+    desktopSupport: 'analyze_image 工具卡片；无完整 vision TUI',
+    configKeys: [
+      { key: 'showInlinePreview', type: 'boolean', label: '时间线内联图像预览（输入图路径）', default: true },
+    ],
+    configNote: '多模态代理由扩展自管；此处仅控制桌面卡片展示。',
+    slashBehavior: { '/multimodal-proxy': 'notify', '/vision-proxy': 'notify' },
+  },
+  {
+    matchNames: ['pi-image-gen'],
+    tier: 'partial',
+    desktopSupport: 'image_gen / image_review 工具卡片；无完整 image_gen TUI',
     configKeys: [
       { key: 'showInlinePreview', type: 'boolean', label: '时间线内联图像预览', default: true },
     ],
-    configNote: '图像生成由扩展工具驱动；此处仅控制桌面卡片展示。',
-    slashBehavior: { '/multimodal-proxy': 'notify', '/vision-proxy': 'notify' },
+    configNote: '生图由扩展工具驱动；此处仅控制桌面卡片内联预览与打开按钮。',
   },
   {
     matchNames: ['pi-intercom'],
@@ -186,6 +195,7 @@ const META: PluginAdapterMeta[] = [
     matchNames: ['pi-mcp-adapter'],
     tier: 'headless',
     desktopSupport: 'MCP 适配器；工具可执行',
+    configNote: '连接与服务器配置由扩展在 pi/TUI 自管；桌面配置页仅展示诊断说明。',
   },
   {
     matchNames: ['@kinarajv/pi-tps-extensions'],

@@ -22,6 +22,8 @@ type Pending = {
 export type DesktopUIBridge = {
   uiContext: Record<string, unknown>
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
+  /** Cache ask_user_question tool args for preview text (R1-1). */
+  setAskToolQuestions: (questions: unknown[] | null) => void
   dispose: () => void
 }
 
@@ -77,6 +79,8 @@ export function createDesktopUIBridge(
 ): DesktopUIBridge {
   const pending = new Map<string, Pending>()
   let lastAskPayload: { questions: unknown } | null = null
+  /** Full questions from ask_user_question tool args (includes option.preview; event omits preview text). */
+  let lastAskToolQuestions: unknown[] | null = null
 
   const emitReq = (req: ExtensionUIRequest) => {
     onRequest(req)
@@ -85,6 +89,22 @@ export function createDesktopUIBridge(
   const unsubAsk = eventBus.on(ASK_USER_PROMPT_EVENT, (payload: { questions: unknown }) => {
     lastAskPayload = payload
   })
+
+  const mergeAskQuestionsForUi = (): unknown[] => {
+    const eventQs = (lastAskPayload?.questions as any[]) || []
+    const toolQs = (lastAskToolQuestions as any[]) || []
+    if (toolQs.length === 0) return eventQs
+    return eventQs.map((eq: any, qi: number) => {
+      const tq = toolQs[qi]
+      if (!tq?.options) return eq
+      const opts = (eq.options || []).map((eo: any, oi: number) => {
+        const to = tq.options[oi]
+        const preview = typeof to?.preview === 'string' ? to.preview : undefined
+        return preview ? { ...eo, preview } : eo
+      })
+      return { ...eq, options: opts }
+    })
+  }
 
   const uiContext = {
     select: (title: string, options: string[], opts?: { signal?: AbortSignal; timeout?: number }) =>
@@ -135,8 +155,9 @@ export function createDesktopUIBridge(
 
     async custom<T>(_factory: unknown, _options?: unknown): Promise<T> {
       const id = randomUUID()
-      const questions = lastAskPayload?.questions ?? []
+      const questions = mergeAskQuestionsForUi()
       lastAskPayload = null
+      lastAskToolQuestions = null
       return createDialogPromise(
         emitReq,
         pending,
@@ -180,8 +201,12 @@ export function createDesktopUIBridge(
       p.cleanup()
       p.resolve(response)
     },
+    setAskToolQuestions(questions: unknown[] | null) {
+      lastAskToolQuestions = questions
+    },
     dispose() {
       unsubAsk()
+      lastAskToolQuestions = null
       for (const p of pending.values()) {
         p.cleanup()
         p.reject(new Error('UI bridge disposed'))

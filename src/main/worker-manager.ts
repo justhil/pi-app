@@ -173,6 +173,14 @@ export class WorkerManager {
     const r = await this.request('getCommands')
     return { commands: r.commands || [], hasSession: !!r.hasSession }
   }
+  async getSessionContextPreview(): Promise<any> {
+    const r = await this.request('getSessionContextPreview')
+    return r.preview || null
+  }
+  async getSkillsList(): Promise<any[]> {
+    const r = await this.request('getSkillsList')
+    return r.skills || []
+  }
   async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<any[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
     return r.items || []

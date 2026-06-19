@@ -5,7 +5,7 @@ export type AskQuestionPayload = {
   question: string
   header?: string
   multiSelect?: boolean
-  options: { label: string; description?: string; hasPreview?: boolean }[]
+  options: { label: string; description?: string; hasPreview?: boolean; preview?: string }[]
 }
 
 type QuestionnaireDialogProps = {
@@ -55,9 +55,70 @@ export function QuestionnaireDialog({
 
   if (!q) return null
 
+  const hasPreviewLayout =
+    !q.multiSelect && q.options.some((o) => typeof o.preview === 'string' && o.preview.length > 0)
+  const selectedLabel = singleChoice[tab]
+  const previewOpt = q.options.find((o) => o.label === selectedLabel)
+  const previewText =
+    typeof previewOpt?.preview === 'string' && previewOpt.preview.length > 0
+      ? previewOpt.preview
+      : q.options.find((o) => typeof o.preview === 'string' && o.preview)?.preview
+
+  const optionList = (
+    <div className="space-y-2">
+      {q.options.map((opt) => {
+        const checked = q.multiSelect
+          ? (multiChoice[tab] || []).includes(opt.label)
+          : singleChoice[tab] === opt.label
+        return (
+          <button
+            key={opt.label}
+            type="button"
+            onClick={() => {
+              if (q.multiSelect) {
+                const prev = multiChoice[tab] || []
+                setMultiChoice({
+                  ...multiChoice,
+                  [tab]: checked ? prev.filter((x) => x !== opt.label) : [...prev, opt.label],
+                })
+              } else {
+                setSingleChoice({ ...singleChoice, [tab]: opt.label })
+              }
+            }}
+            className={cn(
+              'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
+              checked ? 'border-primary/50 bg-accent' : 'hover:bg-accent/40',
+            )}
+          >
+            <span
+              className={cn(
+                'mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2',
+                checked ? 'border-primary bg-primary' : 'border-muted-foreground/40',
+              )}
+            />
+            <div className="min-w-0">
+              <div className="text-[13px] font-medium">{opt.label}</div>
+              {opt.description && (
+                <div className="text-[12px] text-muted-foreground">{opt.description}</div>
+              )}
+              {opt.hasPreview && !opt.preview && (
+                <div className="text-[10px] text-amber-600/80">含预览（选此项后右侧显示）</div>
+              )}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border border-border bg-background shadow-xl">
+      <div
+        className={cn(
+          'flex max-h-[85vh] flex-col rounded-xl border border-border bg-background shadow-xl',
+          hasPreviewLayout ? 'w-full max-w-4xl' : 'w-full max-w-lg',
+        )}
+      >
         <div className="border-b px-5 py-4">
           <div className="mb-1 flex gap-2 text-[11px] text-muted-foreground">
             {q.header && <span className="rounded bg-muted px-2 py-0.5">{q.header}</span>}
@@ -68,49 +129,28 @@ export function QuestionnaireDialog({
           <h2 className="text-[15px] font-medium leading-snug">{q.question}</h2>
         </div>
 
-        <div className="max-h-[50vh] overflow-y-auto px-5 py-4">
-          <div className="space-y-2">
-            {q.options.map((opt) => {
-              const checked = q.multiSelect
-                ? (multiChoice[tab] || []).includes(opt.label)
-                : singleChoice[tab] === opt.label
-              return (
-                <button
-                  key={opt.label}
-                  type="button"
-                  onClick={() => {
-                    if (q.multiSelect) {
-                      const prev = multiChoice[tab] || []
-                      setMultiChoice({
-                        ...multiChoice,
-                        [tab]: checked ? prev.filter((x) => x !== opt.label) : [...prev, opt.label],
-                      })
-                    } else {
-                      setSingleChoice({ ...singleChoice, [tab]: opt.label })
-                    }
-                  }}
-                  className={cn(
-                    'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left',
-                    checked ? 'border-primary/50 bg-accent' : 'hover:bg-accent/40',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2',
-                      checked ? 'border-primary bg-primary' : 'border-muted-foreground/40',
-                    )}
-                  />
-                  <div>
-                    <div className="text-[13px] font-medium">{opt.label}</div>
-                    {opt.description && (
-                      <div className="text-[12px] text-muted-foreground">{opt.description}</div>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-          {!q.multiSelect && !q.options.some((o) => o.hasPreview) && (
+        <div
+          className={cn(
+            'max-h-[55vh] overflow-y-auto px-5 py-4',
+            hasPreviewLayout && 'grid grid-cols-1 gap-4 md:grid-cols-2',
+          )}
+        >
+          <div>{optionList}</div>
+          {hasPreviewLayout && (
+            <div className="min-h-[120px] rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                选项预览
+              </div>
+              {previewText ? (
+                <pre className="max-h-[40vh] overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground/90">
+                  {previewText}
+                </pre>
+              ) : (
+                <p className="text-[12px] text-muted-foreground/60">选择左侧选项以查看预览内容</p>
+              )}
+            </div>
+          )}
+          {!hasPreviewLayout && !q.multiSelect && (
             <textarea
               className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px]"
               rows={2}

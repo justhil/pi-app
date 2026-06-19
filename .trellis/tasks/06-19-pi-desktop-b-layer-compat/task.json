@@ -22,7 +22,17 @@
     "06-19-r0-1-slash-result-bus",
     "06-19-r0-2-slash-arg-completions",
     "06-19-r0-3-config-host-honesty",
-    "06-19-r0-4-fill-unregistered-meta"
+    "06-19-r0-4-fill-unregistered-meta",
+    "06-19-r1-1-ask-preview",
+    "06-19-r1-2-markdown-preview-panel",
+    "06-19-r1-3-studio-export-open",
+    "06-19-r1-4-image-card-host",
+    "06-19-r1-5-skills-manager-list",
+    "06-19-r2-1-subagent-cards",
+    "06-19-r2-2-intercom-sidebar",
+    "06-19-r2-3-context-panel",
+    "06-19-r2-4-slash-outcome-unify",
+    "06-19-r2-5-mcp-diagnostics"
   ],
   "parent": null,
   "relatedFiles": [],
