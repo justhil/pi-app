@@ -255,6 +255,17 @@ export function registerAllHandlers(): void {
     return { state }
   })
 
+  registerHandler('ipc:commands.completions', async (req) => {
+    if (!workerManager.isRunning) return { items: [] }
+    try {
+      const items = await workerManager.getCommandCompletions(req.commandName, req.argumentPrefix || '')
+      return { items }
+    } catch (e) {
+      console.error('[IPC] commands.completions failed:', e)
+      return { items: [] }
+    }
+  })
+
   // ── Commands ──
   // Authoritative source = Worker session getCommands (A-layer, tui-replacement-and-adapters.md §2.2).
   // Directory scan is a fallback ONLY when Worker not started yet.

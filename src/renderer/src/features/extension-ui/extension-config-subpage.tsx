@@ -53,7 +53,7 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
       <ExtensionConfigForm
         extensionId={extensionId}
         config={config}
-        schema={adapter ? { adapter } : null}
+        adapter={adapter ? { displayName: adapter.displayName, desktopSupport: adapter.desktopSupport, configKeys: adapter.configKeys, configNote: adapter.configNote } : null}
         onChange={save}
       />
 

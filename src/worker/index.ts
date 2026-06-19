@@ -478,6 +478,22 @@ process.parentPort?.on('message', async (event: any) => {
         reply({ type: 'getCommands-done', commands, hasSession: !!session })
         break
       }
+      case 'getCommandCompletions': {
+        try {
+          const items: any[] = []
+          if (session) {
+            const cmd = session.extensionRunner.getCommand(msg.commandName)
+            if (cmd?.getArgumentCompletions) {
+              const result = await cmd.getArgumentCompletions(msg.argumentPrefix || '')
+              if (Array.isArray(result)) items.push(...result)
+            }
+          }
+          reply({ type: 'getCommandCompletions-done', items })
+        } catch (e: any) {
+          reply({ type: 'getCommandCompletions-done', items: [], error: e.message })
+        }
+        break
+      }
       case 'getState': {
         reply({
           type: 'getState-done',

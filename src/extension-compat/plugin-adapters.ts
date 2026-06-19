@@ -1,7 +1,7 @@
 // One installed plugin → one desktop adapter entry (adapter id = plugin name)
 
 import type { ExtensionProbeResult } from './extension-probe.js'
-import { resolvePluginAdapterMeta, type PluginAdapterTier } from './plugin-adapter-meta.js'
+import { resolvePluginAdapterMeta, type PluginAdapterTier, type ConfigKey } from './plugin-adapter-meta.js'
 
 export interface PluginAdapterEntry {
   /** Same as plugin/package display name */
@@ -21,6 +21,8 @@ export interface PluginAdapterEntry {
   adapterVersion?: string
   notes?: string
   /** Trace back to pi package / path */
+  configKeys?: ConfigKey[]
+  configNote?: string
   matchMeta: {
     probeId: string
     npmPackage?: string
@@ -58,6 +60,8 @@ export function buildPluginAdapters(extensions: ExtensionProbeResult[]): PluginA
       desktopSupport: meta.desktopSupport,
       adapterVersion: meta.adapterVersion,
       notes: meta.notes,
+      configKeys: meta.configKeys,
+      configNote: meta.configNote,
       matchMeta: {
         probeId: ext.id,
         npmPackage: ext.packageName,

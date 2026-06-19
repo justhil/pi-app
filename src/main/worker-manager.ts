@@ -173,6 +173,10 @@ export class WorkerManager {
     const r = await this.request('getCommands')
     return { commands: r.commands || [], hasSession: !!r.hasSession }
   }
+  async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<any[]> {
+    const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
+    return r.items || []
+  }
   async getModels(): Promise<any[]> {
     const r = await this.request('getModels')
     return r.models || []

@@ -3,6 +3,16 @@
 export type PluginAdapterTier = 'native' | 'partial' | 'headless' | 'none'
 export type SlashBehavior = 'notify' | 'config-page' | 'execute'
 
+export interface ConfigKey {
+  key: string
+  type: 'boolean' | 'number' | 'string'
+  label?: string
+  description?: string
+  default?: unknown
+  /** If true, this key is informational only; not editable here. */
+  readOnly?: boolean
+}
+
 export interface PluginAdapterMeta {
   /** npm / folder name keys (exact or suffix match) */
   matchNames: string[]
@@ -15,6 +25,10 @@ export interface PluginAdapterMeta {
   configPageCommands?: string[]
   /** Per-command desktop behavior. Defaults to 'notify' for command-only plugins. */
   slashBehavior?: Record<string, SlashBehavior>
+  /** Declared editable config keys (R0-3). If absent, config subpage shows an explanatory note instead of fake fields. */
+  configKeys?: ConfigKey[]
+  /** Human-readable note shown when no configKeys are declared */
+  configNote?: string
 }
 
 const META: PluginAdapterMeta[] = [
@@ -23,6 +37,10 @@ const META: PluginAdapterMeta[] = [
     tier: 'native',
     adapterVersion: '1',
     desktopSupport: 'Trellis 只读面板 + trellis_subagent 工具卡片',
+    configKeys: [
+      { key: 'showRecentJournal', type: 'boolean', label: '显示最近日志', default: true },
+      { key: 'journalLimit', type: 'number', label: '日志条数上限', default: 5 },
+    ],
   },
   {
     matchNames: ['@juicesharp/rpiv-ask-user-question', 'rpiv-ask-user-question'],
@@ -35,6 +53,10 @@ const META: PluginAdapterMeta[] = [
     tier: 'headless',
     desktopSupport: '缓存优化开关；斜杠输出状态提示',
     slashBehavior: { '/cache-optimizer': 'config-page' },
+    configKeys: [
+      { key: 'enabled', type: 'boolean', label: '启用桌面缓存提示', default: true },
+    ],
+    configNote: '缓存优化逻辑由扩展自管；此处仅控制桌面状态提示开关，不影响扩展行为。',
   },
   {
     matchNames: ['@agnishc/edb-context-viewer'],
@@ -90,6 +112,10 @@ const META: PluginAdapterMeta[] = [
     matchNames: ['pi-multimodal-proxy', 'pi-image-gen'],
     tier: 'partial',
     desktopSupport: 'analyze_image / 生图工具卡片；无完整 image_gen TUI',
+    configKeys: [
+      { key: 'showInlinePreview', type: 'boolean', label: '时间线内联图像预览', default: true },
+    ],
+    configNote: '图像生成由扩展工具驱动；此处仅控制桌面卡片展示。',
     slashBehavior: { '/multimodal-proxy': 'notify', '/vision-proxy': 'notify' },
   },
   {
@@ -184,6 +210,34 @@ const META: PluginAdapterMeta[] = [
     matchNames: ['amp-themes'],
     tier: 'none',
     desktopSupport: 'Amp 风格主题/编辑器装饰；桌面无对应组件',
+  },
+  {
+    matchNames: ['pi-ace-tool'],
+    tier: 'headless',
+    desktopSupport: 'ACE 工具扩展；工具随扩展加载执行，无桌面专属 UI',
+    configNote: 'ACE 工具行为由扩展自管；桌面仅执行其注册的工具。',
+  },
+  {
+    matchNames: ['@feniix/pi-sequential-thinking'],
+    tier: 'headless',
+    desktopSupport: 'sequential thinking 工具；阶段/思考链默认以通用工具卡展示',
+    configNote: '思考链数据由扩展工具输出；桌面按工具结果渲染。',
+  },
+  {
+    matchNames: ['Aegis', 'GanyuanRan/Aegis'],
+    tier: 'headless',
+    desktopSupport: 'Aegis 工作流扩展集；工具/技能随包加载，复用通用与 trellis 卡',
+    configNote: 'Aegis 能力由其扩展与技能集合定义；桌面按已注册工具渲染。',
+  },
+  {
+    matchNames: ['@victor-software-house/pi-curated-themes', 'pi-curated-themes'],
+    tier: 'none',
+    desktopSupport: 'pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题',
+  },
+  {
+    matchNames: ['@firstpick/pi-themes-bundle', 'pi-themes-bundle'],
+    tier: 'none',
+    desktopSupport: 'pi 终端主题 bundle；桌面用独立 Appearance 设置，主题资源在 Resources 只读列表',
   },
 ]
 

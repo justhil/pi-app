@@ -106,6 +106,22 @@ export function Composer() {
     }).slice(0, 8)
   }, [commands, slashQuery])
 
+  // Argument completions: when text is "/cmd args...", fetch completions for the arg prefix
+  const [argCompletions, setArgCompletions] = useState<{ label: string; description?: string }[]>([])
+  const [argIdx, setArgIdx] = useState(0)
+  useEffect(() => { setArgIdx(0) }, [argCompletions])
+  const argMatch = useMemo(() => text.match(/(?:^|\n)\/(\S+)\s+(\S*)$/), [text])
+  useEffect(() => {
+    if (!argMatch) { setArgCompletions([]); return }
+    const cmdName = argMatch[1].replace(/^\//, '')
+    const prefix = argMatch[2]
+    let cancelled = false
+    ipcClient.invoke('commands.completions', { commandName: cmdName, argumentPrefix: prefix })
+      .then((res) => { if (!cancelled) setArgCompletions((res?.items || []).slice(0, 6)) })
+      .catch(() => { if (!cancelled) setArgCompletions([]) })
+    return () => { cancelled = true }
+  }, [argMatch])
+
   useEffect(() => {
     setSelectedIdx(0)
   }, [slashQuery])
@@ -164,6 +180,12 @@ export function Composer() {
       const prefix = offset > 0 ? '\n' : ''
       return `${prefix}${cmd.name} `
     }))
+    textareaRef.current?.focus()
+  }
+
+  const acceptArg = (label: string) => {
+    setText((prev) => prev.replace(/(?:^|\n)(\/\S+\s+)\S*$/, (_m, p1) => `${p1}${label} `))
+    setArgCompletions([])
     textareaRef.current?.focus()
   }
 
@@ -256,6 +278,26 @@ export function Composer() {
                 )}
               </button>
             ))}
+            {argCompletions.length > 0 && (
+              <div className="border-t border-border/40 mt-1 pt-1">
+                <div className="px-3 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/50">参数补全</div>
+                {argCompletions.map((a, i) => (
+                  <button
+                    key={i}
+                    onMouseEnter={() => setArgIdx(i)}
+                    onClick={() => acceptArg(a.label)}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors',
+                      i === argIdx ? 'bg-accent' : 'hover:bg-accent/50',
+                    )}
+                  >
+                    <CornerDownLeft className="h-3 w-3 text-muted-foreground/50" />
+                    <span className="font-mono text-[12px]">{a.label}</span>
+                    {a.description && <span className="ml-auto truncate text-[11px] text-muted-foreground">{a.description}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 border-t border-border/40 px-3 py-1.5 text-[10px] text-muted-foreground/70">
             <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> 选择</span>
