@@ -22,8 +22,8 @@
 | 直接读 JSONL 文件 | 应该走 Worker → SDK |
 | remote registry 下发 JS/React | 安全红线 |
 | extension 注入任意前端组件 | 安全红线 |
-| 改 ~/.pi/agent/settings.json | App 不改 pi 全局配置 |
-| 改项目 .pi/settings.json | App 不改项目配置 |
+| 改 ~/.pi/agent/settings.json | **A 层原生配置除外**：原生设置允许写回（见 docs/tui-replacement-and-adapters.md §2.5）；**扩展配置**仍禁止 |
+| 改项目 .pi/settings.json | **A 层项目覆盖除外**：原生项目设置允许写回；**扩展配置**仍禁止 |
 | blocked extension 不经用户确认就启用 | 必须有风险提示 + 确认 |
 | Registry 更新在 running turn 中途生效 | 应等 reload / 新 session |
 | 不校验 remote registry JSON | 必须签名 + schema 校验 |
@@ -40,7 +40,10 @@
 | AppEvent 走 normalizer | Renderer 不直接吃 SDK event |
 | Worker 一个项目一个 | 切项目换 Worker |
 | extension 探测与正式运行分离 | probe process → allowed list → 正式 Worker |
-| extension 兼容按整体判定 | 不做 tool 粒度拆分 |
+| extension 兼容按整体判定 | 不做 tool 粒度拆分（B 层） |
+| 命令权威源 = Worker session get_commands | 不用 Main 扫目录（A 层硬约束） |
+| 扩展 / 命令桌面表现按语义分流 | 启停类→提示渲染；进配置页类→适配器配置页 |
+| 未登记扩展不显示「桌面适配器」 | 仅 plugin-adapter-meta 登记且 tier≠none 才显示 |
 | blocked extension 用 active tools 过滤 | fallback 方案 |
 | remote registry 必须签名 | Ed25519 |
 | rendererId 必须本地存在 | 未知则降级或 blocked |
@@ -65,6 +68,10 @@
 - [ ] IPC 方法是否在 packages/shared 定义？
 - [ ] AppEvent 是否经过 normalizer？
 - [ ] Worker 是否一个项目一个？
+- [ ] 是否误把 A 层原生命令塞进适配器？（/model、/skill:、/prompt: 属 A）
+- [ ] 是否误给未登记扩展显示「桌面适配器：包名」？
+- [ ] 原生 settings 改动是否经 Worker SettingsManager 写回（而非手写 JSON）？
+- [ ] 扩展配置是否仍走 app-local（未写 pi settings）？
 - [ ] Extension 兼容是否按整体判定？
 - [ ] Remote registry 是否签名 + schema 校验？
 - [ ] rendererId 是否在本地白名单？

@@ -186,7 +186,10 @@ Timeline 在 compaction 处显示分隔标记：
 ### 斜杠命令补全
 
 - 输入 `/` 触发补全弹窗。
-- 数据来源走 IPC `commands.list`（合并 pi skills + prompts + extension commands）。
+- **数据源权威性**：走 IPC `commands.list`，但底层必须来自 **Worker session `get_commands`**（含 pi 内置命令 + skills + prompts + extension commands），**不**用 Main 扫目录作为权威源。Worker 未启动时目录扫描仅作降级静态列表。
+- 列表项标 `category: builtin | prompt | skill | extension`，执行路径按 category 分支。
+- **A 层命令**（builtin / prompt / skill）：展开模板或走对应 IPC（`/model`→`model.set/cycle`、`/skill:`/`/prompt:`→展开再发）。
+- **B 层扩展命令**：执行统一走 pi command API；桌面表现按语义分流——启停/状态类→前端渲染 TUI 等价提示（Toast/Timeline/Run）；进配置页类→路由到适配器配置页。详见 `docs/tui-replacement-and-adapters.md §3`。
 - 选中后插入或直接执行。
 - 用 shadcn Command 组件或自定义 popover。
 

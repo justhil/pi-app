@@ -16,6 +16,8 @@
 |------|------|------|
 | Worker crash | Pi Worker 进程崩溃 | 重启 Worker，从 pi session 恢复历史 |
 | Extension load error | extension 加载失败 | 记录到 Diagnostics，不阻塞 session |
+| A 层原生 settings 写回失败 | SettingsManager 写盘失败 | 提示用户并回滚 UI 状态 |
+| 未登记扩展被当作适配器 | 探测分类错误 | 不显示「桌面适配器」，仅走插件页 |
 | Extension probe error | 探测进程失败 | 降级为 blocked，记日志 |
 | Registry fetch failure | 远程 registry 拉取失败 | 静默使用缓存或 built-in |
 | Registry verify failure | 签名/schema 校验失败 | 拒绝更新，用上次缓存 |

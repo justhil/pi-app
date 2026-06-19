@@ -33,6 +33,7 @@
 | 用 width 动画三栏布局 | 拖动即时跟手，松手后 snap |
 | Renderer 直接 import Node 模块 | 必须走 IPC |
 | Renderer 直接 import pi SDK | 必须走 Worker + AppEvent |
+| Renderer 手写 pi settings.json | A 层原生写回必须经 Worker SettingsManager，不手写 JSON |
 | 删除焦点环 | 无障碍违规 |
 | 颜色作为唯一信息传达 | 必须加图标或文字 |
 

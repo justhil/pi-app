@@ -41,6 +41,9 @@ These guides help you **ask the right questions before coding**.
 - [ ] **Adding a new IPC method**
 - [ ] **Adding a new extension adapter or rendererId**
 - [ ] **Changing extension compatibility judgment**
+- [ ] **Adding/changing a pi-native slash command（A 层）**：确认走 Worker session get_commands，不走 Main 扫目录
+- [ ] **Adding an extension config page（B 层）**：确认 app-local 存储 + 适配器 Host 路由，未写 pi settings
+- [ ] **Writing back pi settings.json**：确认是 A 层原生字段、经 Worker SettingsManager，而非扩展配置或手写 JSON
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
 → Also read `docs/architecture.md` for ADR and process boundary rules

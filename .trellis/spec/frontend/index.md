@@ -1,6 +1,8 @@
 # Frontend Development Guidelines
 
-> pi Desktop 前端开发规范。与 `docs/architecture.md` 和 `docs/frontend-design.md` 并列，是前端实现的硬约束。
+> pi Desktop 前端开发规范。与 `docs/architecture.md`、`docs/frontend-design.md` 和 **`docs/tui-replacement-and-adapters.md`** 并列，是前端实现的硬约束。
+>
+> **A/B/C 分层**：Composer `/` 联想、设置页 IA、扩展配置页都遵循该文档的 A/B/C 边界，不得偏移。
 
 ---
 

@@ -1,7 +1,9 @@
 # Backend Development Guidelines
 
 > pi Desktop 后端规范：Electron Main、Pi Worker、IPC、本地存储、Extension 兼容层。
-> 与 `docs/architecture.md` 并列。
+> 与 `docs/architecture.md` 和 **`docs/tui-replacement-and-adapters.md`** 并列。
+>
+> **A/B/C 分层**：A 层(pi/TUI 原生复刻)、B 层(扩展适配器)、C 层(纯 TUI 装饰)是后端命令系统、settings 写回、扩展兼容的硬约束，见该文档。
 
 ---
 
