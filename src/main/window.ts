@@ -38,6 +38,10 @@ export function createWindow(): BrowserWindow {
     console.error(`[Renderer] Process gone: ${details.reason}`)
   })
 
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[Renderer] Unresponsive')
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }

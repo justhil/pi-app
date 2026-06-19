@@ -38,10 +38,10 @@ export function sendEvent(win: BrowserWindow, event: unknown): void {
 export function registerAllHandlers(): void {
   // ── Dialog ──
   registerHandler('ipc:dialog:openDirectory', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      title: '选择项目目录',
-    })
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const result = win
+      ? await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '选择项目目录' })
+      : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择项目目录' })
     if (result.canceled || result.filePaths.length === 0) {
       return { path: null }
     }
@@ -184,7 +184,7 @@ export function registerAllHandlers(): void {
     // Read slash commands from prompts and skills
     const commands: any[] = []
     const agentDir = join(homedir(), '.pi', 'agent')
-    const cwd = workerManager.cwd || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
 
     // Check project prompts
     const projectPromptsDir = join(cwd, '.pi', 'prompts')
@@ -217,7 +217,7 @@ export function registerAllHandlers(): void {
 
   // ── Review ──
   registerHandler('ipc:review.getDiff', async (req) => {
-    const cwd = workerManager.cwd || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     try {
       if (req.scope === 'git') {
         const diff = execSync('git diff HEAD', { cwd, encoding: 'utf-8', timeout: 10000 })
@@ -234,13 +234,13 @@ export function registerAllHandlers(): void {
 
   // ── Trellis ──
   registerHandler('ipc:trellis.getState', async () => {
-    const cwd = workerManager.cwd || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     return readTrellisState(cwd)
   })
 
   // ── Extensions ──
   registerHandler('ipc:extensions.list', async (_req) => {
-    const cwd = workerManager.cwd || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const probes = probeExtensions(cwd)
     return { extensions: probes }
   })
@@ -276,7 +276,7 @@ export function registerAllHandlers(): void {
 
   // ── Resources ──
   registerHandler('ipc:resources.list', async () => {
-    const cwd = workerManager.cwd || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     return readResourceList(cwd)
   })
 }

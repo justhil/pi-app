@@ -53,17 +53,24 @@ export default function App() {
   }, [currentWorkspace, setSessions])
 
   const handleOpenProject = async () => {
-    if (!window.piDesktop) return
+    if (!window.piDesktop) {
+      console.error('piDesktop not available')
+      return
+    }
     try {
+      console.log('[App] Opening directory dialog...')
       const res = await window.piDesktop.invoke('ipc:dialog:openDirectory')
+      console.log('[App] Dialog result:', res)
       if (res?.path) {
+        console.log('[App] Opening workspace:', res.path)
         const wsResult = await ipcClient.invoke('workspace.open', { path: res.path })
+        console.log('[App] Workspace result:', wsResult)
         if (wsResult?.workspaceId) {
           setWorkspace(res.path)
         }
       }
     } catch (e) {
-      console.error('Failed to open project:', e)
+      console.error('[App] Failed to open project:', e)
     }
   }
 

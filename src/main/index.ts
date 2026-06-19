@@ -6,6 +6,16 @@ import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
 
+// Prevent EPIPE / write errors from crashing the main process
+process.stdout?.on?.('error', () => {})
+process.stderr?.on?.('error', () => {})
+process.on('uncaughtException', (err) => {
+  // EPIPE is common when worker stdout pipe closes; ignore it
+  const code = (err as any)?.code
+  if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') return
+  console.error('[Main] Uncaught exception:', err)
+})
+
 function createMenu(): void {
   const isMac = process.platform === 'darwin'
   const template: Electron.MenuItemConstructorOptions[] = [

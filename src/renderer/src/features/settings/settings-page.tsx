@@ -254,32 +254,100 @@ function PiSettings() {
 
 function ExtensionsSettings() {
   const [extensions, setExtensions] = useState<any[]>([])
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     ipcClient.invoke('extensions.list').then((res) => {
       setExtensions(res?.extensions || [])
     })
+    ipcClient.invoke('settings.get', { key: 'extensionOverrides' }).then((res) => {
+      if (res?.settings?.extensionOverrides) setOverrides(res.settings.extensionOverrides)
+    })
   }, [])
+
+  const handleToggle = (ext: any) => {
+    const isOn = overrides[ext.id] !== false // default on
+    const newVal = !isOn
+    setOverrides({ ...overrides, [ext.id]: newVal })
+    ipcClient.invoke('extensions.setOverride', { extensionId: ext.id, enabled: newVal })
+  }
+
+  const COMPAT_STYLES: Record<string, string> = {
+    native: 'bg-green-500/10 text-green-600 dark:text-green-400',
+    basic: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    headless: 'bg-muted text-muted-foreground',
+    blocked: 'bg-destructive/10 text-destructive',
+  }
+
+  const COMPAT_LABELS: Record<string, string> = {
+    native: 'Native',
+    basic: 'Basic',
+    headless: 'Headless',
+    blocked: 'Blocked',
+  }
 
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-3">插件</h3>
       {extensions.length === 0 ? (
-        <div className="text-[12px] text-muted-foreground/50 py-4">暂无已安装插件</div>
+        <div className="text-[12px] text-muted-foreground/50 py-4">
+          未检测到插件。将 .ts 扩展文件或目录放在 .pi/extensions/ 下即可被检测。
+        </div>
       ) : (
         <div className="space-y-2">
-          {extensions.map((ext) => (
-            <div key={ext.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/40 p-2.5">
-              <div>
-                <div className="text-[13px] font-medium">{ext.name}</div>
-                <div className="text-[11px] text-muted-foreground/60">
-                  <span className="rounded bg-muted px-1.5 py-0.5 font-medium uppercase">{ext.compatibility}</span>
-                  <span className="ml-1.5">{ext.source}</span>
+          {extensions.map((ext) => {
+            const isOn = overrides[ext.id] !== false
+            return (
+              <div key={`${ext.source}-${ext.id}`} className="rounded-lg border border-border/60 bg-card/40 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-medium">{ext.name}</span>
+                      <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider', COMPAT_STYLES[ext.compatibility])}>
+                        {COMPAT_LABELS[ext.compatibility] || ext.compatibility}
+                      </span>
+                      <span className={cn(
+                        'rounded px-1.5 py-0.5 text-[9px] font-medium uppercase',
+                        ext.source === 'project' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                      )}>
+                        {ext.source === 'project' ? '项目' : '全局'}
+                      </span>
+                    </div>
+                    {ext.description && (
+                      <div className="mt-0.5 text-[11px] text-muted-foreground/60 truncate">{ext.description}</div>
+                    )}
+                    {ext.registeredTools.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {ext.registeredTools.map((t: string) => (
+                          <span key={t} className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {ext.registeredCommands.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {ext.registeredCommands.map((c: string) => (
+                          <span key={c} className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                            /{c}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {ext.adapterId && (
+                      <div className="mt-1 text-[10px] text-green-600 dark:text-green-400">
+                        适配器: {ext.adapterId}
+                      </div>
+                    )}
+                    {ext.loadError && (
+                      <div className="mt-1 text-[10px] text-destructive">{ext.loadError}</div>
+                    )}
+                  </div>
+                  <Toggle on={isOn} onChange={() => handleToggle(ext)} />
                 </div>
               </div>
-              <Toggle on={ext.enabled} onChange={() => {}} />
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

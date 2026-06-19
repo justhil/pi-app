@@ -60,23 +60,30 @@ export class WorkerManager {
       stdio: 'pipe',
     })
 
-    // Capture worker stderr for debugging
+    // Capture worker stderr/stdout for debugging - MUST handle errors to avoid EPIPE crash
+    const safeWrite = (msg: string) => {
+      try {
+        process.stderr.write(msg + '\n')
+      } catch {}
+    }
     if (this.worker.stderr) {
       let stderrBuf = ''
+      this.worker.stderr.on('error', () => {})
       this.worker.stderr.on('data', (chunk: Buffer) => {
         stderrBuf += chunk.toString()
         const lines = stderrBuf.split('\n')
         stderrBuf = lines.pop() || ''
         for (const line of lines) {
-          if (line.trim()) console.error(`[Worker:stderr] ${line}`)
+          if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
         }
       })
     }
     if (this.worker.stdout) {
+      this.worker.stdout.on('error', () => {})
       this.worker.stdout.on('data', (chunk: Buffer) => {
         const lines = chunk.toString().split('\n')
         for (const line of lines) {
-          if (line.trim()) console.log(`[Worker:stdout] ${line}`)
+          if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
         }
       })
     }
@@ -132,6 +139,11 @@ export class WorkerManager {
   }
 
   async stop(): Promise<void> {
+    // Mark as intentionally stopping to prevent auto-restart
+    const wasRunning = this.worker !== null
+    const prevCwd = this.currentCwd
+    this.currentCwd = null
+
     if (this.workerPort) {
       try {
         this.workerPort.postMessage({ type: 'dispose' })
@@ -143,7 +155,6 @@ export class WorkerManager {
       this.worker.kill()
       this.worker = null
     }
-    this.currentCwd = null
   }
 
   private async request(type: string, data?: any): Promise<any> {
