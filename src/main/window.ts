@@ -12,7 +12,7 @@ export function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
     title: 'pi Desktop',
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),

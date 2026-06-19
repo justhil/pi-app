@@ -1,4 +1,4 @@
-import { app, Menu, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { initUpdater } from './updater'
@@ -17,60 +17,21 @@ process.on('uncaughtException', (err) => {
 })
 
 function createMenu(): void {
-  const isMac = process.platform === 'darwin'
-  const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: 'appMenu' as const }] : []),
-    {
-      label: 'File',
-      submenu: [isMac ? { role: 'close' } : { role: 'quit' }],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        ...(isMac
-          ? [{ type: 'separator' as const }, { role: 'front' as const }]
-          : [{ role: 'close' }]),
-      ],
-    },
-    {
-      role: 'help',
-      submenu: [
-        {
-          label: 'Documentation',
-          click: () => shell.openExternal('https://pi.dev'),
-        },
-      ],
-    },
-  ]
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  // macOS keeps a minimal app menu (system convention); Windows/Linux remove the menu bar entirely.
+  if (process.platform === 'darwin') {
+    const { Menu } = require('electron')
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        { role: 'appMenu' },
+        { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' }] },
+        { role: 'window', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }] },
+        { role: 'help', submenu: [{ label: 'Documentation', click: () => shell.openExternal('https://pi.dev') }] },
+      ] as Electron.MenuItemConstructorOptions[]),
+    )
+    return
+  }
+  const { Menu } = require('electron')
+  Menu.setApplicationMenu(null)
 }
 
 app.whenReady().then(() => {
