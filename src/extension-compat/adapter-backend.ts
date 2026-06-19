@@ -186,3 +186,42 @@ function pickPath(data: any, path: string): unknown {
   }
   return cur
 }
+
+/** Fetch dynamic options for a select field (e.g. pi-search model list from its API). */
+export async function fetchFieldOptions(adapterId: string, fieldKey: string): Promise<{ options: string[]; error?: string }> {
+  const adapter = findAdapterById(adapterId)
+  const field = (adapter?.config?.sections || [])
+    .flatMap((s) => s.fields || [])
+    .find((f) => f.key === fieldKey)
+  const src = field?.optionsFrom
+  if (!field || !src) return { options: [], error: 'field has no optionsFrom' }
+  // Note: env-override values (e.g. real API keys) are NOT exposed in the masked view,
+  // so read the raw shared file / env to template the request.
+  const view = readAdapterConfig(adapterId, '')
+  // Backfill raw secret from env / shared file for the request header (not returned to renderer).
+  const rawView: Record<string, unknown> = { ...view }
+  const envOverride = adapter?.config?.envOverride || {}
+  for (const [formKey, envName] of Object.entries(envOverride)) {
+    if (process.env[envName] && !rawView[formKey]) rawView[formKey] = process.env[envName]
+  }
+  const url = tpl(src.url, rawView)
+  const headers = mapTpl(src.headers || {}, rawView)
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(src.timeoutMs || 15000) } as any)
+    if (!res.ok) return { options: [], error: `HTTP ${res.status}` }
+    const data: any = await res.json().catch(() => null)
+    const items = pickPath(data, src.itemsPath)
+    if (!Array.isArray(items)) return { options: [], error: 'itemsPath not an array' }
+    const valueKey = src.valueFrom || 'id'
+    const labelKey = src.labelFrom || valueKey
+    const options = items.map((it: any) => {
+      if (typeof it === 'string') return it
+      const val = it?.[valueKey]
+      const lab = it?.[labelKey]
+      return lab && lab !== val ? `${lab} (${val})` : String(val ?? '')
+    }).filter(Boolean)
+    return { options }
+  } catch (e: any) {
+    return { options: [], error: e?.message || String(e) }
+  }
+}

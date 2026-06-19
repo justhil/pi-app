@@ -8,7 +8,7 @@ import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
 import { resolveSlashBehavior } from '../extension-compat/plugin-adapter-meta'
 import { loadAdapterCatalog } from '../extension-compat/adapter-loader'
-import { readAdapterConfig, writeAdapterConfig, runAdapterAction } from '../extension-compat/adapter-backend'
+import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
@@ -69,6 +69,9 @@ export function registerAllHandlers(): void {
   })
   registerHandler('ipc:adapter.action.run', async (req) => {
     return runAdapterAction(req.adapterId, req.actionId)
+  })
+  registerHandler('ipc:adapter.field.options', async (req) => {
+    return fetchFieldOptions(req.adapterId, req.fieldKey)
   })
   registerHandler('ipc:adapters.json.catalog', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || ''

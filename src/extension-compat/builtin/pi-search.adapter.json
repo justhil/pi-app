@@ -56,7 +56,13 @@
         "fields": [
           { "key": "searchApiUrl", "type": "text", "label": "Search API URL", "default": "https://api.openai.com/v1" },
           { "key": "searchApiKey", "type": "secret", "label": "Search API Key" },
-          { "key": "searchModel", "type": "text", "label": "搜索模型" },
+          { "key": "searchModel", "type": "select", "label": "搜索模型", "optionsFrom": {
+            "url": "${searchApiUrl}/models",
+            "headers": { "Authorization": "Bearer ${searchApiKey}" },
+            "itemsPath": "data",
+            "valueFrom": "id",
+            "timeoutMs": 15000
+          } },
           { "key": "searchProfile", "type": "select", "label": "搜索模式 (profile)", "options": ["general", "docs", "code", "news", "social"], "default": "general" },
           { "key": "fallbackMode", "type": "select", "label": "Fallback", "options": ["auto", "off"], "default": "auto" },
           { "key": "minimumProfile", "type": "select", "label": "Minimum profile", "options": ["standard", "off"], "default": "standard" }

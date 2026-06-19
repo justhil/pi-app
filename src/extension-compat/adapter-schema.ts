@@ -11,7 +11,16 @@ export interface ConfigField {
   label?: string
   description?: string
   default?: unknown
-  options?: string[] // for select
+  options?: string[] // for select (static)
+  /** Dynamic options for select: fetch from an endpoint using ${field} templating (env-aware view values). */
+  optionsFrom?: {
+    url: string
+    headers?: Record<string, string>
+    itemsPath: string // JSONPath into response, e.g. "data" → array of strings or {id}
+    valueFrom?: string // if items are objects, which key is the value (default "id")
+    labelFrom?: string // if items are objects, which key is the label (default same as value)
+    timeoutMs?: number
+  }
   readOnly?: boolean
 }
 

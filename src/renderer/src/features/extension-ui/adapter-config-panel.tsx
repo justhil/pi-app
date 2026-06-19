@@ -19,7 +19,7 @@ export function evalTpl(tplStr: string | undefined, view: Record<string, unknown
   })
 }
 
-function FieldRow({ field, value, isSet, onChange }: { field: ConfigField; value: unknown; isSet?: boolean; onChange: (v: unknown) => void }) {
+function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigField; value: unknown; isSet?: boolean; adapterId: string; onChange: (v: unknown) => void }) {
   const label = field.label || field.key
   if (field.type === 'boolean') {
     return (
@@ -36,18 +36,7 @@ function FieldRow({ field, value, isSet, onChange }: { field: ConfigField; value
     )
   }
   if (field.type === 'select') {
-    return (
-      <label className="block py-2">
-        <span className="text-[10px] text-muted-foreground/70">{label}</span>
-        <select
-          className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1.5 text-[12px]"
-          value={String(value ?? '')}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </label>
-    )
+    return <SelectField field={field} value={value} adapterId={adapterId} onChange={onChange} />
   }
   if (field.type === 'secret') {
     const set = !!isSet
@@ -74,6 +63,67 @@ function FieldRow({ field, value, isSet, onChange }: { field: ConfigField; value
         onChange={(e) => onChange(field.type === 'number' ? Number(e.target.value) : e.target.value)}
       />
     </label>
+  )
+}
+
+function SelectField({ field, value, adapterId, onChange }: { field: ConfigField; value: unknown; adapterId: string; onChange: (v: unknown) => void }) {
+  const label = field.label || field.key
+  const isDynamic = !!field.optionsFrom
+  const [dynamicOpts, setDynamicOpts] = useState<string[] | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const [hint, setHint] = useState<string | null>(null)
+
+  const fetchOpts = useCallback(async () => {
+    setFetching(true)
+    setHint(null)
+    try {
+      const r = await ipcClient.invoke('adapter.field.options', { adapterId, fieldKey: field.key })
+      if (r?.error) setHint(r.error)
+      setDynamicOpts(Array.isArray(r?.options) ? r.options : [])
+    } catch (e: any) {
+      setHint(e?.message || String(e))
+    } finally {
+      setFetching(false)
+    }
+  }, [adapterId, field.key])
+
+  useEffect(() => {
+    if (isDynamic && dynamicOpts === null) fetchOpts()
+  }, [isDynamic, dynamicOpts, fetchOpts])
+
+  const options = isDynamic ? (dynamicOpts || []) : (field.options || [])
+  const currentVal = String(value ?? '')
+  const currentInList = options.includes(currentVal)
+
+  return (
+    <div className="py-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground/70">{label}</span>
+        {isDynamic && (
+          <button
+            type="button"
+            onClick={fetchOpts}
+            disabled={fetching}
+            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-40"
+            title="重新拉取模型列表"
+          >
+            <RefreshCw className={cn('h-3 w-3', fetching && 'animate-spin')} />
+            {fetching ? '拉取中' : '刷新'}
+          </button>
+        )}
+      </div>
+      <select
+        className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1.5 text-[12px]"
+        value={currentVal}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {!currentInList && currentVal && <option value={currentVal}>{currentVal}（当前）</option>}
+        {!currentVal && <option value="">未选择</option>}
+        {isDynamic && options.length === 0 && !fetching && <option value="" disabled>（点刷新拉取）</option>}
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+      {hint && <div className="mt-0.5 text-[10px] text-destructive/70">{hint}</div>}
+    </div>
   )
 }
 
@@ -198,6 +248,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
               field={f}
               value={draft[f.key]}
               isSet={!!view[`${f.key}Set`]}
+              adapterId={adapter.id}
               onChange={(v) => setDraft((p) => ({ ...p, [f.key]: v }))}
             />
           ))}
