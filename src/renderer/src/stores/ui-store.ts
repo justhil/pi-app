@@ -3,8 +3,10 @@ import type { AppEvent } from '@shared/app-events'
 
 interface SessionItem {
   sessionId: string
+  sessionFile?: string
   title: string
   updatedAt: number
+  messageCount?: number
   modelId: string
 }
 
@@ -54,6 +56,7 @@ interface UIState {
   currentSessionId: string | null
   setSessions: (s: SessionItem[]) => void
   setCurrentSession: (id: string) => void
+  loadHistoryItems: (items: TimelineItem[]) => void
 
   // Timeline
   timelineItems: TimelineItem[]
@@ -92,7 +95,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   currentSessionId: null,
   setSessions: (s) => set({ sessions: s }),
   setCurrentSession: (id) => {
-    set({ currentSessionId: id, timelineItems: [], fileChanges: [], runState: { status: 'idle', toolCount: 0, errorCount: 0 } })
+    set({ currentSessionId: id })
+  },
+  loadHistoryItems: (items: TimelineItem[]) => {
+    set({ timelineItems: items, fileChanges: [], runState: { status: 'idle', toolCount: 0, errorCount: 0 } })
   },
 
   timelineItems: [],

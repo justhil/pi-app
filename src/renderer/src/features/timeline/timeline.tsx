@@ -5,7 +5,7 @@ import {
   FileText, FileEdit, Terminal, Wrench, AlertCircle, Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot
 } from 'lucide-react'
-import { useState, memo } from 'react'
+import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
 
 function ToolIcon({ name }: { name: string }) {
@@ -123,6 +123,47 @@ export function Timeline() {
   const hasWorkspace = useUIStore((s) => s.currentWorkspace)
   const { t } = useTranslation()
 
+  // Virtualization: render only a window of items, grow on scroll up
+  const PAGE = 40
+  const [renderCount, setRenderCount] = useState(PAGE)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const wasNearBottomRef = useRef(true)
+
+  // Reset window when session changes (item list replaced)
+  const firstId = items[0]?.id
+  useEffect(() => {
+    setRenderCount(PAGE)
+    // jump to bottom when new session loaded
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    })
+  }, [firstId])
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    // If near top, load more
+    if (el.scrollTop < 100 && renderCount < items.length) {
+ const prevHeight = el.scrollHeight
+      setRenderCount((c) => Math.min(c + PAGE, items.length))
+      // keep scroll position stable after prepending
+      requestAnimationFrame(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight
+      })
+    }
+    wasNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  }, [renderCount, items.length])
+
+  // Auto-scroll to bottom when new items arrive (only if user was already near bottom)
+  const lastId = items[items.length - 1]?.id
+  useEffect(() => {
+    if (wasNearBottomRef.current && scrollRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      })
+    }
+  }, [lastId])
+
   if (!hasWorkspace) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -149,9 +190,17 @@ export function Timeline() {
     )
   }
 
+  const visible = items.slice(Math.max(0, items.length - renderCount))
+  const hiddenCount = items.length - visible.length
+
   return (
-    <div className="flex-1 overflow-y-auto px-5 py-3">
-      {items.map((item) => (
+    <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-3">
+      {hiddenCount > 0 && (
+        <div className="py-2 text-center text-[11px] text-muted-foreground/40">
+          ↑ 上还有 {hiddenCount} 条，滚动加载更多
+        </div>
+      )}
+      {visible.map((item) => (
         <TimelineItemBase key={item.id} item={item} />
       ))}
       <div className="h-4" />

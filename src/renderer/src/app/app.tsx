@@ -47,7 +47,16 @@ export default function App() {
   useEffect(() => {
     if (currentWorkspace) {
       ipcClient.invoke('session.list', { workspaceId: currentWorkspace }).then((res) => {
+        const ss = res?.sessions || []
         if (res?.sessions) setSessions(res.sessions)
+        // Auto-open the most recent session to show history immediately
+        if (ss.length > 0 && ss[0].sessionFile) {
+          const latest = ss[0]
+          useUIStore.getState().setCurrentSession(latest.sessionId)
+          ipcClient.invoke('session.getMessages', { sessionFile: latest.sessionFile }).then((r) => {
+            if (r?.items) useUIStore.getState().loadHistoryItems(r.items)
+          }).catch(() => {})
+        }
       }).catch(() => {})
     }
   }, [currentWorkspace, setSessions])

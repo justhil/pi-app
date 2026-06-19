@@ -73,10 +73,12 @@ export function registerAllHandlers(): void {
     const sessions = await workerManager.listSessions(req.workspaceId)
     const formatted = sessions.map((s: any) => ({
       sessionId: s.id,
+      sessionFile: s.path,
       workspaceId: s.cwd || workerManager.cwd || '',
       title: s.name || s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
       createdAt: s.created?.getTime() || 0,
       updatedAt: s.modified?.getTime() || 0,
+      messageCount: s.messageCount || 0,
       modelId: '',
       status: 'idle' as const,
     }))
@@ -84,8 +86,30 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:session.open', async (req) => {
-    // For now, just return a stub - opening a specific session requires restarting worker with that session
-    return { session: { sessionId: req.sessionId, workspaceId: workerManager.cwd || '', title: '', createdAt: 0, updatedAt: 0, modelId: '', status: 'idle' as const } }
+    // Load the specific session into the worker and return its info
+    let sessionId = req.sessionId
+    let model: string | undefined
+    try {
+      if (req.sessionFile) {
+        const r = await workerManager.loadSession(req.sessionFile)
+        sessionId = r.sessionId
+        model = r.model
+      }
+    } catch (e) {
+      console.error('[IPC] session.open load failed:', e)
+    }
+    return { session: { sessionId, workspaceId: workerManager.cwd || '', title: '', createdAt: 0, updatedAt: 0, modelId: model || '', status: 'idle' as const } }
+  })
+
+  registerHandler('ipc:session.getMessages', async (req) => {
+    if (!req.sessionFile) return { items: [] }
+    try {
+      const items = await workerManager.getMessages(req.sessionFile)
+      return { items }
+    } catch (e) {
+      console.error('[IPC] session.getMessages failed:', e)
+      return { items: [] }
+    }
   })
 
   registerHandler('ipc:session.new', async (req) => {

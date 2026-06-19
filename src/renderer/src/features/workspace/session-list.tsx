@@ -10,7 +10,24 @@ export function SessionList() {
   const sessions = useUIStore((s) => s.sessions)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const setCurrentSession = useUIStore((s) => s.setCurrentSession)
+  const loadHistoryItems = useUIStore((s) => s.loadHistoryItems)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+
+  const handleOpenSession = async (sessionId: string, sessionFile?: string) => {
+    setCurrentSession(sessionId)
+    if (sessionFile) {
+      // Only fetch history for display; loadSession into worker deferred until user sends a prompt
+      try {
+        const res = await ipcClient.invoke('session.getMessages', { sessionFile })
+        if (res?.items) loadHistoryItems(res.items)
+        else loadHistoryItems([])
+      } catch {
+        loadHistoryItems([])
+      }
+    } else {
+      loadHistoryItems([])
+    }
+  }
 
   const handleNewSession = async () => {
     if (!currentWorkspace) return
@@ -52,7 +69,7 @@ export function SessionList() {
           {sessions.map((s) => (
             <div
               key={s.sessionId}
-              onClick={() => setCurrentSession(s.sessionId)}
+              onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               className={cn(
                 'group flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 transition-all duration-motion-fast ease-motion-ease',
                 currentSessionId === s.sessionId

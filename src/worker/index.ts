@@ -164,6 +164,83 @@ async function listSessions(cwd: string): Promise<any[]> {
   }
 }
 
+// Normalize pi AgentMessage[] into timeline items for the desktop renderer
+let msgSeq = 0
+function normalizeMessages(messages: any[]): any[] {
+  const items: any[] = []
+  const now = Date.now()
+  for (const m of messages) {
+    const ts = (m as any).timestamp ? new Date((m as any).timestamp).getTime() : now
+    const content = m.content || []
+
+    if (m.role === 'user') {
+      const text = extractText(m)
+      if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
+    } else if (m.role === 'assistant') {
+      // Split assistant message into text + toolCall cards so each renders cleanly
+      const text = extractText(m)
+      const toolCalls = content.filter((c: any) => c.type === 'toolCall')
+      if (text) {
+        items.push({ id: `hist-${++msgSeq}`, type: 'assistant-message', text, timestamp: ts })
+      }
+      for (const c of toolCalls) {
+        const name = c.toolCall?.name || 'tool'
+        const input = c.toolCall?.input || c.toolCall?.arguments
+        items.push({
+          id: `hist-${++msgSeq}`,
+          type: 'tool-call',
+          toolName: name,
+          toolPhase: 'end',
+          toolOutput: input ? (typeof input === 'string' ? input : JSON.stringify(input, null, 2)).slice(0, 600) : '',
+          timestamp: ts,
+        })
+      }
+      if (!text && toolCalls.length === 0) {
+        // skip empty
+      }
+    } else if (m.role === 'toolResult') {
+      // toolResult carries the execution output as text content
+      const text = extractText(m)
+      if (text) {
+        // Attach as a follow-up tool card output (toolName unknown here, mark generic)
+        items.push({
+          id: `hist-${++msgSeq}`,
+          type: 'tool-call',
+          toolName: 'result',
+          toolPhase: 'end',
+          toolOutput: text.slice(0, 2000),
+          timestamp: ts,
+        })
+      }
+    } else if (m.role === 'compactionSummary' || m.role === 'branchSummary') {
+      const text = extractText(m)
+      items.push({ id: `hist-${++msgSeq}`, type: 'compaction', text, timestamp: ts })
+    }
+  }
+  return items
+}
+
+function extractText(message: any): string {
+  if (!message?.content) return typeof message === 'string' ? message : ''
+  if (typeof message.content === 'string') return message.content
+  return (message.content as any[])
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text || '')
+    .join('')
+}
+
+function extractToolResult(message: any): string {
+  if (!message?.content) return ''
+  const parts = (message.content as any[])
+    .filter((c) => c.type === 'toolResult')
+    .map((c) => {
+      if (typeof c.content === 'string') return c.content
+      if (Array.isArray(c.content)) return c.content.map((x: any) => x.text || '').join('')
+      return ''
+    })
+  return parts.join('\n')
+}
+
 // In utilityProcess, parentPort messages come as MessageEvent with data property
 process.parentPort?.on('message', async (event: any) => {
   // Handle both direct message and MessageEvent
@@ -264,6 +341,43 @@ process.parentPort?.on('message', async (event: any) => {
         session?.dispose()
         session = null
         reply({ type: 'dispose-done' })
+        break
+      }
+      case 'getMessages': {
+        // Read a session JSONL file and return normalized timeline items
+        try {
+          const { pathToFileURL, fileURLToPath } = await import('node:url')
+          const { dirname, join } = await import('node:path')
+          // Resolve the package dir via import.meta.resolve (handles exports field)
+          const mainUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
+          const resolved = fileURLToPath(mainUrl)
+          const pkgRoot = dirname(dirname(resolved))
+          const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
+          const sm: any = await import(pathToFileURL(smPath).href)
+          const entries = sm.loadEntriesFromFile(msg.sessionFile)
+          const ctx = sm.buildSessionContext(entries)
+          const items = normalizeMessages(ctx.messages)
+          reply({ type: 'getMessages-done', items })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getMessages failed: ${e.message}` })
+        }
+        break
+      }
+      case 'loadSession': {
+        // Re-init worker with a specific session file so future prompts continue it
+        try {
+          if (unsubscribe) { unsubscribe(); unsubscribe = null }
+          session?.dispose()
+          const { SessionManager, createAgentSession } = await import('@earendil-works/pi-coding-agent')
+          const sm = SessionManager.open(msg.sessionFile)
+          const { session: newSession } = await createAgentSession({ cwd: currentCwd, sessionManager: sm })
+          session = newSession
+          currentSessionId = session.sessionId
+          unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
+          reply({ type: 'loadSession-done', sessionId: currentSessionId, model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined })
+        } catch (e: any) {
+          reply({ type: 'error', error: `loadSession failed: ${e.message}` })
+        }
         break
       }
       case 'ping': {

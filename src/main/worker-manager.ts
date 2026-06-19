@@ -165,6 +165,13 @@ export class WorkerManager {
     return r.sessions || []
   }
   async getState(): Promise<any> { return (await this.request('getState')).state }
+  async getMessages(sessionFile: string): Promise<any[]> {
+    const r = await this.request('getMessages', { sessionFile })
+    return r.items || []
+  }
+  async loadSession(sessionFile: string): Promise<{ sessionId: string; model?: string }> {
+    return await this.request('loadSession', { sessionFile })
+  }
 
   get isRunning(): boolean { return this.worker !== null }
   get cwd(): string | null { return this.currentCwd }

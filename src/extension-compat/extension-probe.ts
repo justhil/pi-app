@@ -201,6 +201,21 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
       extFiles = ['./index.ts']
     }
 
+    // Create one result entry per package (merge all extension files)
+    const merged: ExtensionProbeResult = {
+      id: `package:${parsed.name}`,
+      name: pkg.name || parsed.name,
+      description: pkg.description,
+      version: pkg.version,
+      source: 'package',
+      packageName: parsed.name,
+      enabled: true,
+      registeredTools: [],
+      registeredCommands: [],
+      hasUI: false,
+      compatibility: 'blocked',
+    }
+
     if (extFiles.length === 0) {
       // Even without declared pi.extensions, scan the package for known tools
       scanPackageForKnownTools(pkgDir, merged)
@@ -220,21 +235,6 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
 
     const pkgEnabled = extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
     merged.enabled = pkgEnabled
-
-    // Create one result entry per package (merge all extension files)
-    const merged: ExtensionProbeResult = {
-      id: `package:${parsed.name}`,
-      name: pkg.name || parsed.name,
-      description: pkg.description,
-      version: pkg.version,
-      source: 'package',
-      packageName: parsed.name,
-      enabled: pkgEnabled,
-      registeredTools: [],
-      registeredCommands: [],
-      hasUI: false,
-      compatibility: 'blocked',
-    }
 
     for (const rel of extFiles) {
       const cleanRel = rel.replace(/^\.\//, '')
