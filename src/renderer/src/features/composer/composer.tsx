@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
+import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
 
 interface SlashCommand {
   id: string
@@ -67,7 +68,6 @@ export function Composer() {
     try {
       const res = await ipcClient.invoke('commands.list')
       const cmds = (res?.commands || []) as SlashCommand[]
-      // Merge builtins (worker doesn't know app-native ones like /model)
       const names = new Set(cmds.map((c) => c.name))
       const merged = [...BUILTIN_COMMANDS.filter((b) => !names.has(b.name)), ...cmds]
       setCommands(merged)
@@ -119,14 +119,12 @@ export function Composer() {
   }
 
   const handleSend = async () => {
-    // If this looks like a slash command, try to execute via slash semantics first (A3)
     const trimmed = text.trim()
+    if (!trimmed) return
+    // A-layer: app-native builtin -> execute directly with feedback
     if (trimmed.startsWith('/') && isExecutableBuiltin(trimmed)) {
       const handled = await executeSlashCommand(trimmed, { refreshCommands })
-      if (handled) {
-        setText('')
-        return
-      }
+      if (handled) { setText(''); return }
     }
     // B-layer: extension slash dispatch (notify vs config-page)
     const token = firstToken(trimmed)
@@ -134,12 +132,11 @@ export function Composer() {
       try {
         const r = await ipcClient.invoke('slash.resolve', { command: token })
         if (r?.behavior === 'config-page' && r?.meta) {
-          // Route to adapter config page
           useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
           setText('')
+          toast.info(`已打开 ${r.meta.matchNames[0] || token} 配置`)
           return
         }
-        // notify / passthrough / execute -> send to pi; pi will execute and emit results
       } catch (e) {
         console.error('slash.resolve failed:', e)
       }
@@ -180,9 +177,10 @@ export function Composer() {
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
         e.preventDefault()
         const cmd = filteredCommands[selectedIdx]
-        // Builtin / model / thinking -> execute immediately; others -> accept then Enter to send
-        if (cmd.category === 'builtin' || isExecutableBuiltin(cmd.name)) {
-          acceptCommand(cmd)
+        // Builtin commands -> execute immediately and clear; others -> insert for editing
+        if (cmd.category === 'builtin' && isExecutableBuiltin(cmd.name)) {
+          setText('')
+          executeSlashCommand(cmd.name, { refreshCommands })
         } else {
           acceptCommand(cmd)
         }

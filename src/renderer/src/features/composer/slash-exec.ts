@@ -1,13 +1,17 @@
 // Slash command execution semantics (A-layer, tui-replacement-and-adapters.md §2.4)
-// - builtin (app-native) -> route to dedicated IPC (NOT sent as prompt text)
-// - /skill:, /prompt: -> expand then send (sent as prompt text for now; expansion hook reserved)
-// - extension commands -> sent as prompt text so pi can dispatch (pi handles slash in message)
+// - builtin (app-native) -> route to dedicated IPC (NOT sent as prompt text) + toast feedback
+// - /skill:, /prompt: -> expand then send (sent as prompt text; pi handles slash in message)
+// - extension commands -> resolved via slash.resolve, notify/send to pi
 
+import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 
-/** Built-in commands handled directly in the app, not forwarded as plain prompt text. */
-const APP_BUILTIN = new Set(['model', 'thinking', 'clear', 'compact', 'new'])
+/** App-native builtins handled directly in the renderer (not forwarded as plain prompt text). */
+const APP_BUILTIN = new Set([
+  'model', 'thinking', 'clear', 'compact', 'new',
+  'help', 'settings', 'review', 'run', 'trellis', 'skills', 'prompts',
+])
 
 export function isExecutableBuiltin(input: string): boolean {
   const m = input.match(/^\/(\w+)/)
@@ -18,17 +22,17 @@ export interface SlashExecContext {
   refreshCommands?: () => Promise<void>
 }
 
-/**
- * Resolve the first token of the input. Returns the command name (with leading /) or null.
- */
 function firstToken(input: string): string | null {
   const m = input.match(/^(\/\S+)/)
   return m ? m[1] : null
 }
 
+export { firstToken }
+
+const THINKING_ORDER = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+
 /**
- * Execute an app-native slash command. Returns true if handled (sender should clear input).
- * Returns false to let the caller send the text as a regular prompt.
+ * Execute an app-native slash command. Returns true if handled (caller clears input).
  */
 export async function executeSlashCommand(
   input: string,
@@ -39,52 +43,63 @@ export async function executeSlashCommand(
   const cmd = m[1]
   const arg = (m[2] || '').trim()
   const store = useUIStore.getState()
+  const setActivePanel = store.setActivePanel
 
   switch (cmd) {
     case 'model': {
-      // No arg -> cycle to next; with arg -> set by provider/modelId (best effort)
       try {
         if (!arg) {
           await ipcClient.invoke('model.cycle', {})
+          toast.success('已切换到下一个模型')
+        } else if (arg.includes('/')) {
+          const [provider, modelId] = arg.split('/')
+          await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
+          toast.success(`模型已设为 ${provider}/${modelId}`)
         } else {
-          // arg forms: "provider/modelId" or just "modelId"
-          const slash = arg.includes('/')
-          if (slash) {
-            const [provider, modelId] = arg.split('/')
-            await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
+          const res = await ipcClient.invoke('model.list', {})
+          const hit = (res?.models || []).find((mm: any) => mm.id === arg || mm.name === arg)
+          if (hit) {
+            await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
+            toast.success(`模型已设为 ${hit.provider}/${hit.id}`)
           } else {
-            // Try to resolve via model.list
-            const res = await ipcClient.invoke('model.list', {})
-            const hit = (res?.models || []).find((mm: any) => mm.id === arg || mm.name === arg)
-            if (hit) {
-              await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
-            }
+            toast.error(`未找到模型: ${arg}`)
           }
         }
       } catch (e) {
         console.error('/model failed:', e)
+        toast.error('切换模型失败')
       }
       return true
     }
     case 'thinking': {
-      // arg in {off,minimal,low,medium,high,xhigh}; empty -> cycle not exposed, default medium
-      const level = (arg || 'medium') as any
+      let level: string
+      if (arg && THINKING_ORDER.includes(arg)) {
+        level = arg
+      } else {
+        const cur = store.runState.thinkingLevel || 'medium'
+        level = THINKING_ORDER[(THINKING_ORDER.indexOf(cur) + 1) % THINKING_ORDER.length]
+      }
       try {
         await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level })
+        toast.success(`Thinking: ${level}`)
       } catch (e) {
         console.error('/thinking failed:', e)
+        toast.error('切换 thinking 失败')
       }
       return true
     }
     case 'clear': {
       store.clearTimeline()
+      toast.success('已清空时间线')
       return true
     }
     case 'compact': {
       try {
         await ipcClient.invoke('session.compact', { sessionId: '' })
+        toast.success('已压缩会话历史')
       } catch (e) {
         console.error('/compact failed:', e)
+        toast.error('压缩失败')
       }
       return true
     }
@@ -92,9 +107,21 @@ export async function executeSlashCommand(
       try {
         await ipcClient.invoke('session.new', { workspaceId: '', title: arg || undefined })
         await ctx.refreshCommands?.()
+        toast.success('已新建会话')
       } catch (e) {
         console.error('/new failed:', e)
+        toast.error('新建会话失败')
       }
+      return true
+    }
+    case 'review': { setActivePanel('review'); toast.info('已切换到 Review 面板'); return true }
+    case 'run': { setActivePanel('run'); toast.info('已切换到 Run 面板'); return true }
+    case 'trellis': { setActivePanel('trellis'); toast.info('已切换到 Trellis 面板'); return true }
+    case 'settings': { toast.info('请从左侧栏打开设置'); return true }
+    case 'skills':
+    case 'prompts':
+    case 'help': {
+      toast.info(`/${cmd} 请直接在输入框继续输入查看可用列表`)
       return true
     }
     default:

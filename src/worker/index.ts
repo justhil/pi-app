@@ -354,12 +354,13 @@ process.parentPort?.on('message', async (event: any) => {
       case 'getCommands': {
         // Authoritative command list from the live AgentSession (per docs/tui-replacement-and-adapters.md §2.2)
         const commands: any[] = []
+        const withSlash = (n: string) => n.startsWith('/') ? n : `/${n}`
         if (session) {
           try {
             for (const cmd of session.extensionRunner.getRegisteredCommands()) {
               commands.push({
                 id: cmd.invocationName,
-                name: cmd.invocationName,
+                name: withSlash(cmd.invocationName),
                 description: cmd.description || '',
                 category: 'extension',
                 source: cmd.sourceInfo as any,
@@ -370,7 +371,7 @@ process.parentPort?.on('message', async (event: any) => {
             for (const tpl of session.promptTemplates) {
               commands.push({
                 id: tpl.name,
-                name: tpl.name,
+                name: withSlash(tpl.name),
                 description: tpl.description || '',
                 category: 'prompt',
                 source: tpl.sourceInfo as any,
@@ -381,10 +382,9 @@ process.parentPort?.on('message', async (event: any) => {
             const skills = (session.resourceLoader as any).getSkills?.()
             for (const sk of skills?.skills || []) {
               const sname = sk.name?.startsWith('skill:') ? sk.name : `skill:${sk.name}`
-              const slash = sname.startsWith('/') ? sname : `/${sname}`
               commands.push({
                 id: sk.name,
-                name: slash,
+                name: withSlash(sname),
                 description: sk.description || '',
                 category: 'skill',
                 source: sk.sourceInfo as any,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope,
   Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench, Layers
@@ -484,6 +485,7 @@ const TIER_LABELS: Record<string, string> = {
 function AdaptersSettings() {
   const [adapters, setAdapters] = useState<any[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
 
   useEffect(() => {
     setError(null)
@@ -543,6 +545,16 @@ function AdaptersSettings() {
                   {a.registeredTools.map((t: string) => (
                     <span key={t} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">{t}</span>
                   ))}
+                </div>
+              )}
+              {a.tier !== 'none' && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    onClick={() => requestExtensionConfig(a.id)}
+                    className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] font-medium hover:bg-accent"
+                  >
+                    打开配置
+                  </button>
                 </div>
               )}
             </div>
