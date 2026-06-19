@@ -1,0 +1,111 @@
+{
+  "$schema": "pi-desktop-adapter/v1",
+  "id": "pi-search",
+  "displayName": "Pi Search",
+  "description": "pi-search 网络/文档/Context7 搜索工具集",
+  "match": {
+    "names": ["pi-search"],
+    "tools": [
+      "search", "search_sources", "search_config",
+      "context7_resolve_library_id", "context7_query_docs", "context7_get_library_docs", "context7_get_cached_doc_raw",
+      "docs_search", "web_fetch", "web_map", "search_planning",
+      "plan_intent", "plan_complexity", "plan_sub_query", "plan_search_term", "plan_tool_mapping", "plan_execution"
+    ],
+    "commands": ["/search", "/search-config", "/search-model", "/pi-ext-docs"]
+  },
+  "tier": "partial",
+  "config": {
+    "configFile": "~/.config/pi-search/config.json",
+    "fileKeyMap": {
+      "searchApiUrl": "apiUrl",
+      "searchApiKey": "apiKey",
+      "searchModel": "model",
+      "searchProfile": "searchProfile",
+      "fallbackMode": "fallbackMode",
+      "minimumProfile": "minimumProfile",
+      "tavilyApiUrl": "tavilyApiUrl",
+      "tavilyApiKey": "tavilyApiKey",
+      "firecrawlApiUrl": "firecrawlApiUrl",
+      "firecrawlApiKey": "firecrawlApiKey",
+      "context7BaseUrl": "context7BaseUrl",
+      "context7ApiKey": "context7ApiKey",
+      "context7ResolveTtlHours": "context7ResolveTtlHours",
+      "context7DocsTtlHours": "context7DocsTtlHours",
+      "exaBaseUrl": "exaBaseUrl",
+      "exaApiKey": "exaApiKey"
+    },
+    "envOverride": {
+      "searchApiUrl": "SEARCH_API_URL",
+      "searchApiKey": "SEARCH_API_KEY",
+      "searchModel": "SEARCH_MODEL",
+      "searchProfile": "SEARCH_PROFILE",
+      "fallbackMode": "SEARCH_FALLBACK_MODE",
+      "minimumProfile": "SEARCH_MINIMUM_PROFILE",
+      "tavilyApiUrl": "TAVILY_API_URL",
+      "tavilyApiKey": "TAVILY_API_KEY",
+      "firecrawlApiUrl": "FIRECRAWL_API_URL",
+      "firecrawlApiKey": "FIRECRAWL_API_KEY",
+      "context7BaseUrl": "CONTEXT7_BASE_URL",
+      "context7ApiKey": "CONTEXT7_API_KEY",
+      "exaBaseUrl": "EXA_BASE_URL",
+      "exaApiKey": "EXA_API_KEY"
+    },
+    "sections": [
+      {
+        "title": "主搜索 API",
+        "fields": [
+          { "key": "searchApiUrl", "type": "text", "label": "Search API URL", "default": "https://api.openai.com/v1" },
+          { "key": "searchApiKey", "type": "secret", "label": "Search API Key" },
+          { "key": "searchModel", "type": "text", "label": "搜索模型" },
+          { "key": "searchProfile", "type": "select", "label": "搜索模式 (profile)", "options": ["general", "docs", "code", "news", "social"], "default": "general" },
+          { "key": "fallbackMode", "type": "select", "label": "Fallback", "options": ["auto", "off"], "default": "auto" },
+          { "key": "minimumProfile", "type": "select", "label": "Minimum profile", "options": ["standard", "off"], "default": "standard" }
+        ]
+      },
+      {
+        "title": "补充信源",
+        "fields": [
+          { "key": "tavilyApiUrl", "type": "text", "label": "Tavily URL", "default": "https://api.tavily.com" },
+          { "key": "tavilyApiKey", "type": "secret", "label": "Tavily Key" },
+          { "key": "firecrawlApiUrl", "type": "text", "label": "Firecrawl URL", "default": "https://api.firecrawl.dev/v2" },
+          { "key": "firecrawlApiKey", "type": "secret", "label": "Firecrawl Key" },
+          { "key": "context7BaseUrl", "type": "text", "label": "Context7 URL", "default": "https://context7.com" },
+          { "key": "context7ApiKey", "type": "secret", "label": "Context7 Key" },
+          { "key": "exaBaseUrl", "type": "text", "label": "Exa URL", "default": "https://api.exa.ai" },
+          { "key": "exaApiKey", "type": "secret", "label": "Exa Key" }
+        ]
+      },
+      {
+        "title": "能力状态",
+        "derived": [
+          { "label": "main_search", "available": "${searchApiKeySet}", "detail": "openai:${searchApiKeySet?on:off}" },
+          { "label": "web_search", "available": "${tavilyApiKeySet?true:false}", "detail": "tavily:${tavilyApiKeySet?on:off}, firecrawl:${firecrawlApiKeySet?on:off}" }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "test",
+        "type": "httpCheck",
+        "label": "快速连通性",
+        "method": "GET",
+        "url": "${searchApiUrl}/models",
+        "headers": { "Authorization": "Bearer ${searchApiKey}" },
+        "timeoutMs": 15000,
+        "report": { "countPath": "data.length", "label": "模型数" }
+      }
+    ],
+    "note": "写入与 pi-search 扩展相同的 ~/.config/pi-search/config.json；环境变量仍优先生效。密钥留空表示不修改已保存值。"
+  },
+  "toolCard": {
+    "template": "list",
+    "statusField": "$.output.text",
+    "icon": "globe"
+  },
+  "slash": {
+    "/search": "notify",
+    "/search-config": "config-page",
+    "/search-model": "notify",
+    "/pi-ext-docs": "notify"
+  }
+}

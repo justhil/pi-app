@@ -1,8 +1,10 @@
 # Frontend Development Guidelines
 
-> pi Desktop 前端开发规范。与 `docs/architecture.md`、`docs/frontend-design.md` 和 **`docs/tui-replacement-and-adapters.md`** 并列，是前端实现的硬约束。
+> pi Desktop 前端开发规范。与 `docs/architecture.md`、`docs/frontend-design.md`、`docs/tui-replacement-and-adapters.md`、**`docs/adapter-layer-plan.md`** 并列，是前端实现的硬约束。
 >
-> **A/B/C 分层**：Composer `/` 联想、设置页 IA、扩展配置页都遵循该文档的 A/B/C 边界，不得偏移。
+> **A/B/C 分层**：Composer `/` 联想、设置页 IA、扩展配置页都遵循该文档的 A/B/C 边界。
+>
+> **兼容层 v2（最高边界）**：App 本体除 pi 内核外**零具体插件专属代码**（含 trellis/ask）。Timeline / Config Host / 交互 Host **禁止 `if (id===...)` / `if (toolName===...)` 插件分支**，全部查 `adapter.json` 表。新增普通插件只写一个 JSON，不改 App 源码。权威文档 `docs/adapter-layer-plan.md`。
 
 ---
 
@@ -10,7 +12,7 @@
 
 pi Desktop 是一个基于 Electron + React 的 pi 桌面 GUI。前端气质定位为**工具型 Agent 工作台**：偏 VS Code / Linear / Agent 桌面 的克制工具感。
 
-技术栈：React 18+ / electron-vite / Tailwind CSS 3+ / shadcn/ui (new-york + zinc) / Zustand / lucide-react / Geist Sans + Geist Mono / i18next + react-i18next。
+技术栈：React 18+ / electron-vite / Tailwind CSS 3+ / shadcn/ui (new-york + zinc) / Zustand / lucide-react / 系统字体栈（system-ui+Segoe UI+PingFang/Microsoft YaHei，不装 webfont）/ i18next + react-i18next。
 
 ---
 

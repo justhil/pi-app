@@ -57,7 +57,7 @@ packages/shared/
 
 - `components/ui`：不放业务逻辑，只放 shadcn 生成/微调。
 - `components/app`：不放 shadcn 原始组件，放业务组合件。
-- Extension 原生卡：放 `features/timeline/cards/` 或 `extension-compat/renderers/`，不放进 `components/ui`。
+- Extension 工具卡：走兼容层原语模板（`src/extension-compat/` 声明式 adapter.json + 预设模板 default/list/media/tree/kv），不放进 `components/ui`，也不在 `features/timeline/` 写插件名专属卡。
 - Timeline 逻辑：不放进 `components/ui`。
 
 ### i18n 目录

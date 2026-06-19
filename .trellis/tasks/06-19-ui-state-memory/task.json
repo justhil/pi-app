@@ -1,0 +1,29 @@
+{
+  "id": "ui-state-memory",
+  "name": "ui-state-memory",
+  "title": "UI子任务: ui-state-memory",
+  "description": "UI 状态记忆：ui-store 加 zustand persist，model/thinking 跨会话记忆，partialize 白名单。无依赖。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "justhil",
+  "assignee": "justhil",
+  "createdAt": "2026-06-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "06-19-ui-polish",
+  "relatedFiles": [
+    "docs/ui-design-notes.md",
+    "src/renderer/src/stores/ui-store.ts"
+  ],
+  "notes": "",
+  "meta": {}
+}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope,
   Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench, Layers, ChevronLeft
@@ -51,7 +52,7 @@ export function SettingsPage() {
           <span className="text-[13px] font-medium">{configExt} 配置</span>
         </div>
         <div className="flex-1 overflow-y-auto p-6 animate-in fade-in slide-in-from-right">
-          <div className="max-w-xl">
+          <div className="mx-auto max-w-2xl px-2">
             <ExtensionConfigSubpage extensionId={configExt} />
           </div>
         </div>
@@ -61,8 +62,8 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full">
-      <div className="w-48 border-r border-border/80 bg-muted/20">
-        <div className="px-3 py-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
+      <div className="w-52 shrink-0 border-r border-border/60 bg-surface-sidebar">
+        <div className="px-4 py-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
           {t('settings.title')}
         </div>
         {PAGES.map((p) => (
@@ -70,19 +71,19 @@ export function SettingsPage() {
             key={p.key}
             onClick={() => setPage(p.key)}
             className={cn(
-              'flex w-full items-center gap-2.5 px-3 py-2 text-[13px] transition-all duration-motion-fast ease-motion-ease',
+              'flex w-full items-center gap-2.5 px-4 py-2 text-[13px] transition-all duration-motion-fast ease-motion-ease',
               page === p.key
                 ? 'bg-accent text-accent-foreground font-medium'
                 : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
             )}
           >
-            <p.icon className="h-4 w-4" />
+            <p.icon className="h-4 w-4 shrink-0" />
             {t(p.labelKey)}
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-xl">
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl px-8 py-8">
           {page === 'general' && <GeneralSettings />}
           {page === 'appearance' && <AppearanceSettings />}
           {page === 'pi' && <PiSettings />}
@@ -197,6 +198,7 @@ function AppearanceSettings() {
   const applyTheme = (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme)
     ipcClient.invoke('settings.set', { key: 'theme', value: newTheme })
+    useUIStore.getState().setTheme(newTheme)  // mirror to persisted ui-store for anti-FOUC
     // Apply to document
     if (newTheme === 'dark') {
       document.documentElement.classList.add('dark')

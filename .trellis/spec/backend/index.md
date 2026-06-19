@@ -1,9 +1,11 @@
 # Backend Development Guidelines
 
 > pi Desktop 后端规范：Electron Main、Pi Worker、IPC、本地存储、Extension 兼容层。
-> 与 `docs/architecture.md` 和 **`docs/tui-replacement-and-adapters.md`** 并列。
+> 与 `docs/architecture.md`、`docs/tui-replacement-and-adapters.md`、**`docs/adapter-layer-plan.md`** 并列。
 >
-> **A/B/C 分层**：A 层(pi/TUI 原生复刻)、B 层(扩展适配器)、C 层(纯 TUI 装饰)是后端命令系统、settings 写回、扩展兼容的硬约束，见该文档。
+> **A/B/C 分层**：A 层(pi/TUI 原生复刻)、B 层(扩展适配器)、C 层(纯 TUI 装饰)是后端命令系统、settings 写回、扩展兼容的硬约束。
+>
+> **兼容层 v2（最高边界）**：App 本体除 pi 内核外**零具体插件专属代码**，包括 trellis/ask（不再作为 native 例外）。所有插件走声明式 `adapter.json` + 预设 UI 原语（配置页 / 工具卡 / 交互式工具 UI）。权威文档 `docs/adapter-layer-plan.md`；旧 `tui-replacement-and-adapters.md` 的 native 例外处理作废。
 
 ---
 

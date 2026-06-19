@@ -130,8 +130,8 @@ export const ADAPTERS: Record<string, AdapterDefinition> = {
       'plan_intent', 'plan_complexity', 'plan_sub_query', 'plan_search_term', 'plan_tool_mapping', 'plan_execution',
     ],
     commandPrefixes: ['search', 'search-config', 'search-model', 'pi-ext-docs'],
-    tier: 'headless',
-    desktopSupport: '工具可执行；搜索配置/信源管理由扩展自管，桌面显示通用工具输出',
+    tier: 'partial',
+    desktopSupport: '配置页 + 搜索状态/信源卡片；工具执行由扩展',
   },
   'ui-bridge': {
     id: 'ui-bridge',

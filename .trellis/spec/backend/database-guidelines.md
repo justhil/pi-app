@@ -34,7 +34,7 @@
 - 主题选择。
 - 面板宽度。
 - extension 启用覆盖。
-- native extension 配置（按 workspaceId + extensionId）。
+- extension 配置（App 私有兜底：adapter.json 未声明 configFile 时按 workspaceId + extensionId 存）。
 - remote registry 更新时间。
 
 配置结构示例：

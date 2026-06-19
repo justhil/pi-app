@@ -143,6 +143,8 @@ interface DesktopPluginAdapter {
 }
 ```
 
+> **兼容层 v2 注记**：上述 `renderers`/`configSchema` 模型正被声明式 `adapter.json` + 预设原语取代（见 `docs/adapter-layer-plan.md`）。后续类型应按 `adapter.json` schema（config/toolCard/interact）重新表达，`tier` 不再赋予 trellis/ask 等插件留 native 专属组件的特权。
+
 ---
 
 ## Validation

@@ -83,6 +83,7 @@ packages/shared/
 
 ### Extension Compat
 
+- 兼容层 v2：`adapter.json` 加载/合并/校验、通用 `adapter.*` IPC、预设原语组件库。权威文档 `docs/adapter-layer-plan.md`。
 - extension 兼容判断、registry 加载校验、renderer 映射。
 - 不包含 extension 本身的执行逻辑。
 

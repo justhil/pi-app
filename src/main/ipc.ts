@@ -7,6 +7,8 @@ import { readPiInfo, readResourceList } from './pi-info'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
 import { resolveSlashBehavior } from '../extension-compat/plugin-adapter-meta'
+import { loadAdapterCatalog } from '../extension-compat/adapter-loader'
+import { readAdapterConfig, writeAdapterConfig, runAdapterAction } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
@@ -54,6 +56,23 @@ export function registerAllHandlers(): void {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     configStore.setExtensionConfig(workspaceId, req.extensionId, req.config || {})
     return { ok: true }
+  })
+
+  // ── Adapter Layer v2 (docs/adapter-layer-plan.md §6) — generic per-adapter config/action IPC ──
+  registerHandler('ipc:adapter.config.get', async (req) => {
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    return { view: readAdapterConfig(req.adapterId, workspaceId) }
+  })
+  registerHandler('ipc:adapter.config.set', async (req) => {
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    return { view: writeAdapterConfig(req.adapterId, workspaceId, req.patch || {}) }
+  })
+  registerHandler('ipc:adapter.action.run', async (req) => {
+    return runAdapterAction(req.adapterId, req.actionId)
+  })
+  registerHandler('ipc:adapters.json.catalog', async () => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || ''
+    return loadAdapterCatalog(cwd)
   })
 
   registerHandler('ipc:dialog:openDirectory', async () => {

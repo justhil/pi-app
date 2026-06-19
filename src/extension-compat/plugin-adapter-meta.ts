@@ -90,15 +90,16 @@ const META: PluginAdapterMeta[] = [
   },
   {
     matchNames: ['pi-search'],
-    tier: 'headless',
-    desktopSupport: 'search / context7 / web_fetch 等工具可执行；桌面显示通用工具输出',
+    tier: 'partial',
+    adapterVersion: '1',
+    desktopSupport: '配置页读写 ~/.config/pi-search/config.json；Timeline 搜索状态与信源卡片；工具执行仍由扩展',
     slashBehavior: {
       '/search': 'notify',
       '/search-config': 'config-page',
       '/search-model': 'notify',
       '/pi-ext-docs': 'notify',
     },
-    configNote: 'Pi Search 配置由扩展维护（~/.config/pi-search/config.json 及相关 API key）；桌面不写入该配置。',
+    configNote: '桌面适配器提供配置表单与连通性探测；完整 search_config action=test 仍在会话内由扩展执行。',
   },
   {
     matchNames: ['@narumitw/pi-sync'],

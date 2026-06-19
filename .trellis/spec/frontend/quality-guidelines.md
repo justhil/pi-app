@@ -16,7 +16,7 @@
 
 | 模式 | 原因 |
 |------|------|
-| Inter 字体 | AI 默认脸，应该用 Geist 或 IBM Plex |
+| Inter 字体 | AI 默认脸，应该用系统字体栈（system-ui/-apple-system/Segoe UI/PingFang/Microsoft YaHei），不装 webfont |
 | 紫粉霓虹渐变标题 | AI 设计 cliché |
 | 纯 #000 / 纯 #fff | 死黑白，应该用 zinc/slate 中性色 |
 | 三等宽卡片横排 | feature row 套路，应该非对称或列表 |
@@ -34,6 +34,8 @@
 | Renderer 直接 import Node 模块 | 必须走 IPC |
 | Renderer 直接 import pi SDK | 必须走 Worker + AppEvent |
 | Renderer 手写 pi settings.json | A 层原生写回必须经 Worker SettingsManager，不手写 JSON |
+| **Timeline / Config Host / 交互 Host 写插件名分支** | 兼容层 v2 硬边界：`if(isPiSearchTool)` / `if(image_gen)` / `if(id==='pi-search')` 一律禁止，全部查 `adapter.json` 表 |
+| **给 trellis/ask 留 native 专属 React 组件** | 不再例外；进度树走 `toolCard.tree`，问卷走 `interact.questions` 原语 |
 | 删除焦点环 | 无障碍违规 |
 | 颜色作为唯一信息传达 | 必须加图标或文字 |
 
@@ -95,6 +97,8 @@
 - [ ] AppEvent 是否走 IPC 而非直接消费 SDK 事件？
 - [ ] 是否有错误边界（全局 + Timeline 区域 + per-card）？
 - [ ] UI 文案是否走 i18n key 而非硬编码？
+- [ ] **Timeline / 配置页 / 交互 Host 是否还有插件名 `if` 分支？**（禁止；查 `adapter.json` 原语表）
+- [ ] **新增插件是否改了 App 源码？**（普通插件应只加一个 adapter.json）
 - [ ] 右键菜单是否只做了第一版范围（复制/路径/重命名/删除）？
 - [ ] Git 操作是否只读？
 

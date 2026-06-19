@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>pi Desktop</title>
+    <script>
+      // Anti-FOUC: restore theme before React mounts (see docs/ui-design-notes.md §7).
+      // Reads from ui-store persist (pi-desktop-ui) which lives in localStorage.
+      (function () {
+        try {
+          var raw = localStorage.getItem('pi-desktop-ui');
+          var theme = raw ? (JSON.parse(raw).state || {}).theme : null;
+          var isDark = theme === 'dark'
+            || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body class="bg-background text-foreground">
     <div id="root"></div>

@@ -4,22 +4,30 @@ import { useEffect, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigForm } from './extension-config-form'
+import { AdapterConfigPanel } from './adapter-config-panel'
+import type { AdapterJson } from '../../../../extension-compat/adapter-schema'
 
 export function ExtensionConfigSubpage({ extensionId }: { extensionId: string }) {
   const workspace = useUIStore((s) => s.currentWorkspace)
   const [config, setConfig] = useState<Record<string, unknown>>({})
   const [adapter, setAdapter] = useState<any>(null)
+  const [jsonAdapter, setJsonAdapter] = useState<AdapterJson | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
       ipcClient.invoke('extension.config.get', { extensionId, workspaceId: workspace || '' }),
       ipcClient.invoke('adapters.catalog'),
+      ipcClient.invoke('adapters.json.catalog'),
     ])
-      .then(([cfgRes, catRes]) => {
+      .then(([cfgRes, catRes, jsonRes]) => {
         setConfig(cfgRes?.config || {})
         const hit = (catRes?.adapters || []).find((a: any) => a?.id === extensionId || a?.matchMeta?.npmPackage === extensionId)
         setAdapter(hit || null)
+        // v2: match by id / match.names (plugin package name)
+        const jhit = (jsonRes?.adapters || []).find((a: AdapterJson) =>
+          a.id === extensionId || (a.match?.names || []).some((n) => extensionId === n || extensionId.endsWith(n) || extensionId.includes(n)))
+        setJsonAdapter(jhit || null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -50,12 +58,17 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
         </div>
       )}
 
-      <ExtensionConfigForm
-        extensionId={extensionId}
-        config={config}
-        adapter={adapter ? { displayName: adapter.displayName, desktopSupport: adapter.desktopSupport, configKeys: adapter.configKeys, configNote: adapter.configNote } : null}
-        onChange={save}
-      />
+      {/* v2 adapter.json takes precedence; legacy ExtensionConfigForm is fallback (dual-track) */}
+      {jsonAdapter ? (
+        <AdapterConfigPanel adapter={jsonAdapter} />
+      ) : (
+        <ExtensionConfigForm
+          extensionId={extensionId}
+          config={config}
+          adapter={adapter ? { displayName: adapter.displayName, desktopSupport: adapter.desktopSupport, configKeys: adapter.configKeys, configNote: adapter.configNote } : null}
+          onChange={save}
+        />
+      )}
 
       {adapter?.registeredTools?.length > 0 && (
         <div>

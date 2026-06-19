@@ -99,6 +99,9 @@ export function RunPanel() {
           {isRunning && runState.activeTool && (
             <div className="text-[11px] text-muted-foreground">
               正在执行: <span className="font-mono text-foreground/70">{runState.activeTool}</span>
+              {runState.activeToolStatus && (
+                <div className="mt-0.5 truncate text-sky-600/90 dark:text-sky-400">{runState.activeToolStatus}</div>
+              )}
             </div>
           )}
         </div>

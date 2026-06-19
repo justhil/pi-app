@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, ChevronDown } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, ChevronDown, X, FileText, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -44,6 +44,11 @@ export function Composer() {
   const [commands, setCommands] = useState<SlashCommand[]>([])
   const [commandsSource, setCommandsSource] = useState<'worker' | 'fallback' | null>(null)
   const [selectedIdx, setSelectedIdx] = useState(0)
+  // File attachments: dragged/pasted files rendered as a single block of chips.
+  // Only paths are carried (file reading is pi's job); the composer just assembles references.
+  const [attachments, setAttachments] = useState<{ path: string; name: string; kind: 'file' | 'image' }[]>([])
+  const [isDragActive, setIsDragActive] = useState(false)
+  const dragDepth = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
@@ -129,14 +134,18 @@ export function Composer() {
   const showPopover = slashQuery !== null && filteredCommands.length > 0
 
   const sendText = async (raw: string) => {
-    if (!raw.trim() || !currentWorkspace) return
+    if (!raw.trim() && attachments.length === 0) return
+    if (!currentWorkspace) return
     setIsStreaming(true)
+    // Append attachment paths as @-references so pi tools can act on them.
+    const refs = attachments.length > 0 ? '\n' + attachments.map((a) => `@${a.path}`).join(' ') : ''
     try {
-      await ipcClient.invoke('prompt.send', { sessionId: '', text: raw.trim() })
+      await ipcClient.invoke('prompt.send', { sessionId: '', text: (raw.trim() + refs).trim() })
     } catch (e) {
       console.error('Send failed:', e)
     }
     setText('')
+    setAttachments([])
   }
 
   const handleSend = async () => {
@@ -254,8 +263,76 @@ export function Composer() {
     }
   }
 
+  // Drag & drop files into the composer. Electron exposes real file paths via path.
+  const addDroppedFiles = useCallback((fileList: FileList | File[]) => {
+    const files = Array.from(fileList)
+    if (files.length === 0) return
+    setAttachments((prev) => {
+      const seen = new Set(prev.map((a) => a.path))
+      const next = [...prev]
+      for (const f of files) {
+        const path = (f as any).path || f.name
+        if (!path || seen.has(path)) continue
+        seen.add(path)
+        next.push({
+          path,
+          name: f.name || path.split(/[\\/]/).pop() || path,
+          kind: f.type.startsWith('image/') ? 'image' : 'file',
+        })
+      }
+      return next
+    })
+  }, [])
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer?.types?.includes('Files')) return
+    e.preventDefault()
+    dragDepth.current += 1
+    setIsDragActive(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragDepth.current -= 1
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0
+      setIsDragActive(false)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer?.files?.length) return
+    e.preventDefault()
+    dragDepth.current = 0
+    setIsDragActive(false)
+    addDroppedFiles(e.dataTransfer.files)
+  }, [addDroppedFiles])
+
+  const removeAttachment = (idx: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== idx))
+  }
+
   return (
-    <div className="relative border-t border-border/80 px-4 pb-3 pt-2.5">
+    <div
+      className="relative border-t border-border/80 px-4 pb-3 pt-2.5"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drop overlay (跨端客户端-inspired full-zone hint) */}
+      {isDragActive && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-primary/5 backdrop-blur-[1px]">
+          <div className="flex flex-col items-center gap-1 text-primary/70">
+            <Upload className="h-5 w-5" />
+            <span className="text-[12px] font-medium">松开以添加文件</span>
+          </div>
+        </div>
+      )}
       {showPopover && (
         <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-lg border border-border/70 bg-popover shadow-lg">
           <div className="max-h-72 overflow-y-auto py-1">
@@ -311,9 +388,32 @@ export function Composer() {
         </div>
       )}
       <div className={cn(
-        'flex items-end gap-2 rounded-xl border bg-card transition-all duration-motion-fast ease-motion-ease',
+        'flex flex-col gap-1.5 rounded-xl border bg-card transition-all duration-motion-fast ease-motion-ease',
         'border-border/70 focus-within:border-ring/50 focus-within:ring-1 focus-within:ring-ring/30',
+        isDragActive && 'border-primary/60 ring-2 ring-primary/20',
       )}>
+        {/* Attachment chips block (single-block layout, not scattered text) */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+            {attachments.map((a, idx) => (
+              <span
+                key={`${a.path}-${idx}`}
+                className="group inline-flex items-center gap-1 rounded-md border border-border/60 bg-surface-2 py-1 pl-2 pr-1.5 text-[11px]"
+              >
+                <FileText className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                <span className="max-w-[180px] truncate font-mono">{a.name}</span>
+                <button
+                  onClick={() => removeAttachment(idx)}
+                  className="ml-0.5 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="移除文件"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={text}
@@ -325,24 +425,25 @@ export function Composer() {
           rows={1}
           disabled={!currentWorkspace}
         />
-        {isStreaming ? (
-          <button
-            onClick={handleAbort}
-            className="m-1.5 flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-destructive/90 active:scale-[0.97]"
-          >
-            <Square className="h-3 w-3 fill-current" />
-            {t('composer.stop')}
-          </button>
-        ) : (
-          <button
-            onClick={handleSend}
-            disabled={!text.trim() || !currentWorkspace}
-            className="m-1.5 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-30 disabled:pointer-events-none"
-          >
-            <Send className="h-3 w-3" />
-            {t('composer.send')}
-          </button>
-        )}
+          {isStreaming ? (
+            <button
+              onClick={handleAbort}
+              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-destructive/90 active:scale-[0.97]"
+            >
+              <Square className="h-3 w-3 fill-current" />
+              {t('composer.stop')}
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={(!text.trim() && attachments.length === 0) || !currentWorkspace}
+              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-30 disabled:pointer-events-none"
+            >
+              <Send className="h-3 w-3" />
+              {t('composer.send')}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Agent 桌面-style status bar: model / thinking / context */}

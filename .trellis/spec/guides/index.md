@@ -40,9 +40,10 @@ These guides help you **ask the right questions before coding**.
 - [ ] **Adding a new AppEvent type or field**
 - [ ] **Adding a new IPC method**
 - [ ] **Adding a new extension adapter or rendererId**
+- [ ] **Adding adapter.json or changing its schema**：确认走声明式 adapter.json + 预设原语，不在 App 本体写插件名分支（兼容层 v2，见 `docs/adapter-layer-plan.md`）
 - [ ] **Changing extension compatibility judgment**
-- [ ] **Adding/changing a pi-native slash command（A 层）**：确认走 Worker session get_commands，不走 Main 扫目录
-- [ ] **Adding an extension config page（B 层）**：确认 app-local 存储 + 适配器 Host 路由，未写 pi settings
+- [ ] **Adding a new pi-native slash command（A 层）**：确认走 Worker session get_commands，不走 Main 扫目录
+- [ ] **Adding an extension config page（B 层）**：走 `adapter.json` 的 config 原语；声明 configFile 则读写该文件，否则 App 私有，不写 pi settings
 - [ ] **Writing back pi settings.json**：确认是 A 层原生字段、经 Worker SettingsManager，而非扩展配置或手写 JSON
 
 → Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)

@@ -9,8 +9,8 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Geist', 'system-ui', 'sans-serif'],
-        mono: ['Geist Mono', 'ui-monospace', 'monospace'],
+        sans: ['var(--font-sans)'],
+        mono: ['var(--font-mono)'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -46,6 +46,12 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Surface elevation tiers (跨端客户端-inspired, see docs/ui-design-notes.md §2)
+        'surface-0': 'hsl(var(--surface-0))',
+        'surface-1': 'hsl(var(--surface-1))',
+        'surface-2': 'hsl(var(--surface-2))',
+        'surface-3': 'hsl(var(--surface-3))',
+        'surface-sidebar': 'hsl(var(--surface-sidebar))',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -59,6 +65,19 @@ const config: Config = {
       },
       transitionTimingFunction: {
         'motion-ease': 'var(--motion-ease)',
+      },
+      keyframes: {
+        'caret-blink': {
+          '0%, 100%': { opacity: '0.2' },
+          '50%': { opacity: '1' },
+        },
+        'shimmer-scan': {
+          '0%': { backgroundPosition: '100% 0' },
+          '100%': { backgroundPosition: '-100% 0' },
+        },
+      },
+      animation: {
+        'caret-blink': 'caret-blink 1s ease-in-out infinite',
       },
     },
   },

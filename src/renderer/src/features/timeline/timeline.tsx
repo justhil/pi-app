@@ -4,13 +4,15 @@ import { useTranslation } from 'react-i18next'
 import {
   FileText, FileEdit, Terminal, Wrench, AlertCircle, Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
-  MessageCircleQuestion, Image as ImageIcon, GitBranch, CornerDownLeft
+  MessageCircleQuestion, Image as ImageIcon, GitBranch, CornerDownLeft, Globe
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { ImageToolCard } from './image-tool-card'
 import { SubagentToolCard } from './subagent-tool-card'
+import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
+import { resolveToolCard, EXPORT_TOOLS, ASK_TOOL } from './tool-card-registry'
 
 // Enhanced tool output renderer: special cards for ask/image/trellis, default code block otherwise.
 // Render artifact paths from tool details (preview_export / studio_export_* / image_gen etc.)
@@ -41,11 +43,8 @@ function ToolOutputExpanded({ item }: { item: any }) {
   const details = item.toolDetails
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
 
-  // Export-type tools (preview_export, studio_export_pdf/html, studio_export_pdf) -> artifact paths first
-  const isExportTool =
-    item.toolName === 'preview_export' ||
-    item.toolName === 'studio_export_pdf' ||
-    item.toolName === 'studio_export_html'
+  // Export-type tools -> artifact paths first
+  const isExportTool = EXPORT_TOOLS.has(item.toolName || '')
   if (isExportTool && detailPaths.length > 0) {
     return (
       <div className="mt-1">
@@ -60,7 +59,7 @@ function ToolOutputExpanded({ item }: { item: any }) {
   }
 
   // ask_user_question: try to parse question payload
-  if (item.toolName === 'ask_user_question') {
+  if (item.toolName === ASK_TOOL) {
     let parsed: any = null
     try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
     const questions = parsed?.questions || parsed?.input?.questions
@@ -84,12 +83,9 @@ function ToolOutputExpanded({ item }: { item: any }) {
     }
   }
 
-  if (item.toolName === 'subagent' || item.toolName === 'trellis_subagent' || item.toolName === 'contact_supervisor') {
-    return <SubagentToolCard item={item} />
-  }
-
-  if (item.toolName === 'image_gen' || item.toolName === 'analyze_image' || item.toolName === 'image_review') {
-    return <ImageToolCard item={item} />
+  const SpecializedCard = resolveToolCard(item.toolName)
+  if (SpecializedCard) {
+    return <SpecializedCard item={item} />
   }
 
   // default: syntax-highlighted code block
@@ -109,6 +105,7 @@ function ToolIcon({ name }: { name: string }) {
   if (name === 'bash') return <Terminal className={cn(cls, "text-[hsl(var(--tool-bash))]")} />
   if (name === 'ask_user_question') return <MessageCircleQuestion className={cn(cls, "text-purple-500")} />
   if (name === 'image_gen' || name === 'image_review' || name === 'analyze_image') return <ImageIcon className={cn(cls, "text-pink-500")} />
+  if (name === 'search' || name === 'search_sources' || name === 'docs_search' || name === 'web_fetch' || name === 'web_map' || name.startsWith('context7_') || name.startsWith('plan_') || name === 'search_config' || name === 'search_planning') return <Globe className={cn(cls, 'text-sky-500')} />
   if (name === 'trellis_subagent' || name === 'subagent' || name === 'contact_supervisor') return <GitBranch className={cn(cls, "text-blue-500")} />
   return <Wrench className={cn(cls, "text-muted-foreground")} />
 }
@@ -128,56 +125,64 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
 
   if (item.type === 'assistant-message') {
     if (!item.text) {
-      return (
-        <div className="flex items-center gap-2 py-2.5">
-          <Bot className="h-3.5 w-3.5 text-muted-foreground animate-pulse" />
-          <div className="flex gap-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-            <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '120ms' }} />
-            <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-bounce" style={{ animationDelay: '240ms' }} />
-          </div>
-        </div>
-      )
+      return <ThinkingIndicator label="思考中" />
     }
+    // Streaming: text is non-final while the streaming flag is set on this item.
+    const streaming = (useUIStore.getState().streamingAssistantId === item.id)
+    const stalled = useStalledHint(streaming, item.text?.length)
     return (
       <div className="py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-start gap-2.5">
           <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
           <div className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
             {item.text}
+            {streaming && <StreamingCaret />}
           </div>
         </div>
+        {stalled && (
+          <div className="mt-1 pl-6 text-[10px] text-muted-foreground/50">思考中…</div>
+        )}
       </div>
     )
   }
 
   if (item.type === 'tool-call') {
-    const isRunning = item.toolPhase === 'start'
+    const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
+    const hasToolBody = !!item.toolOutput || (!!item.toolDetails)
+    // Dimmed single-line summary (ui-timeline-polish): statusLine preferred, else first line of output truncated.
+    const rawSum = (item.toolStatusLine as string | undefined)
+      || (() => { const o = (item.toolOutput || '').trim(); if (!o) return ''; const l = o.split('\n').find((x: string) => x.trim()) || ''; return l.length > 72 ? l.slice(0, 72) + '…' : l })()
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => hasToolBody && setExpanded(!expanded)}
           className={cn(
             'group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 transition-all duration-motion-fast ease-motion-ease',
             item.isError
-              ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/8'
+              ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
               : 'border-border/70 bg-muted/30 hover:bg-muted/50',
+            !hasToolBody && 'cursor-default',
           )}
         >
-          <ToolIcon name={item.toolName} />
-          <span className="text-[12px] font-mono font-medium text-foreground/80">{item.toolName}</span>
-          {isRunning && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-          {!isRunning && item.isError && <XCircle className="ml-auto h-3.5 w-3.5 text-destructive" />}
-          {!isRunning && !item.isError && <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-green-500/70" />}
-          {item.toolOutput && (
+          {hasToolBody && (
             <ChevronRight className={cn(
-              'h-3 w-3 text-muted-foreground/40 transition-transform',
+              'h-3 w-3 shrink-0 text-muted-foreground/40 transition-transform duration-motion-fast',
               expanded && 'rotate-90'
             )} />
           )}
+          <ToolIcon name={item.toolName} />
+          <span className="text-[12px] font-mono font-medium text-foreground/80">{item.toolName}</span>
+          {rawSum && (
+            <span className="ml-1 max-w-[260px] truncate text-[10px] text-muted-foreground/55">{rawSum}</span>
+          )}
+          {isRunning && <Loader2 className="ml-auto h-3 w-3 animate-spin text-muted-foreground" />}
+          {!isRunning && item.isError && <XCircle className="ml-auto h-3.5 w-3.5 text-destructive" />}
+          {!isRunning && !item.isError && <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-green-500/70" />}
         </button>
-        {expanded && item.toolOutput && (
-          <ToolOutputExpanded item={item} />
+        {expanded && hasToolBody && (
+          <div className="animate-in fade-in slide-in-from-bottom-1 duration-motion-fast ease-motion-ease">
+            <ToolOutputExpanded item={item} />
+          </div>
         )}
       </div>
     )
