@@ -1,0 +1,9 @@
+{
+  "id": "pi-ace-tool",
+  "displayName": "ACE Tool",
+  "description": "ACE 工具扩展（工具随扩展加载执行）",
+  "match": { "names": ["pi-ace-tool"] },
+  "tier": "headless",
+  "toolCard": { "template": "default" },
+  "config": { "note": "ACE 工具行为由扩展自管；桌面仅执行其注册的工具。" }
+}

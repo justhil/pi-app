@@ -5,9 +5,8 @@ import { sqliteIndex } from './sqlite-index'
 import { readTrellisState } from './trellis-reader'
 import { readPiInfo, readResourceList } from './pi-info'
 import { probeExtensions } from '../extension-compat/extension-probe'
-import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
-import { resolveSlashBehavior } from '../extension-compat/plugin-adapter-meta'
-import { loadAdapterCatalog } from '../extension-compat/adapter-loader'
+import { buildPluginAdapters, orphanV2Adapters } from '../extension-compat/plugin-adapters'
+import { loadAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
@@ -440,14 +439,32 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:adapters.catalog', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const extensions = probeExtensions(cwd)
-    return { adapters: buildPluginAdapters(extensions) }
+    const probed = buildPluginAdapters(extensions, cwd)
+    // Append v2-only adapters not matched by any probed plugin so the list is complete.
+    const orphans = orphanV2Adapters(extensions, cwd).map((a) => ({
+      id: a.id,
+      displayName: a.displayName || a.id,
+      pluginId: a.id,
+      packageName: a.id,
+      source: 'package',
+      description: a.description,
+      registeredTools: a.match?.tools || [],
+      registeredCommands: Object.keys(a.slash || {}),
+      enabled: true,
+      tier: a.tier,
+      compatibility: a.tier === 'native' ? 'native' : a.tier === 'partial' ? 'basic' : 'headless',
+      desktopSupport: a.description || '',
+      adapterJson: a,
+      matchMeta: { probeId: `adapter.json:${a.id}` },
+    }))
+    return { adapters: [...probed, ...orphans] }
   })
 
-  // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute)
+  // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute) — v2-only
   registerHandler('ipc:slash.resolve', async (req) => {
-    const r = resolveSlashBehavior(req.command || '')
+    const r = resolveV2Slash(req.command || '')
     if (!r) return { behavior: 'passthrough', meta: null }
-    return { behavior: r.behavior, meta: { matchNames: r.meta.matchNames, desktopSupport: r.meta.desktopSupport, tier: r.meta.tier } }
+    return { behavior: r.behavior, meta: { matchNames: r.matchNames, desktopSupport: r.desktopSupport } }
   })
 
   // ── Registry ──

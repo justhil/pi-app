@@ -1,0 +1,9 @@
+{
+  "id": "@narumitw/pi-sync",
+  "displayName": "Pi Sync",
+  "description": "配置同步（斜杠状态输出）",
+  "match": { "names": ["@narumitw/pi-sync"], "commands": ["/pisync"] },
+  "tier": "headless",
+  "config": { "note": "配置同步由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/pisync": "notify" }
+}

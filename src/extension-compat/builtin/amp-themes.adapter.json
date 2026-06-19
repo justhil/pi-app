@@ -1,0 +1,8 @@
+{
+  "id": "amp-themes",
+  "displayName": "Amp Themes",
+  "description": "Amp 风格主题/编辑器装饰（桌面无对应组件）",
+  "match": { "names": ["amp-themes"] },
+  "tier": "none",
+  "config": { "note": "Amp 风格主题/编辑器装饰；桌面用独立 Appearance 设置。" }
+}

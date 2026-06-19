@@ -1,0 +1,22 @@
+{
+  "id": "pi-image-gen",
+  "displayName": "Image Gen",
+  "description": "生图与审图工具卡片（内联预览 + 打开/定位）",
+  "match": {
+    "names": ["pi-image-gen"],
+    "tools": ["image_gen", "image_review"]
+  },
+  "tier": "partial",
+  "toolCard": { "template": "media", "icon": "Image", "statusField": "$.output.text" },
+  "config": {
+    "note": "生图由扩展工具驱动；此处仅控制桌面卡片内联预览与打开按钮。",
+    "sections": [
+      {
+        "title": "桌面卡片",
+        "fields": [
+          { "key": "showInlinePreview", "type": "boolean", "label": "时间线内联图像预览", "default": true }
+        ]
+      }
+    ]
+  }
+}

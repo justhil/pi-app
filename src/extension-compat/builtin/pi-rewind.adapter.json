@@ -1,0 +1,9 @@
+{
+  "id": "pi-rewind",
+  "displayName": "Rewind",
+  "description": "检查点/回溯（斜杠状态输出）",
+  "match": { "names": ["pi-rewind"], "commands": ["/rewind"] },
+  "tier": "headless",
+  "config": { "note": "检查点逻辑由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/rewind": "notify" }
+}

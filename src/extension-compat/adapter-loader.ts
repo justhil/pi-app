@@ -7,8 +7,49 @@ import type { AdapterCatalog, AdapterJson, AdapterLoadError } from './adapter-sc
 
 // Builtin adapters are imported as modules so they survive bundling (no runtime fs read needed).
 import piSearchAdapter from './builtin/pi-search.adapter.json'
+import trellisAdapter from './builtin/trellis.adapter.json'
+import askAdapter from './builtin/rpiv-ask-user-question.adapter.json'
+import imageGenAdapter from './builtin/pi-image-gen.adapter.json'
+import multimodalAdapter from './builtin/pi-multimodal-proxy.adapter.json'
+import markdownPreviewAdapter from './builtin/pi-markdown-preview.adapter.json'
+import studioAdapter from './builtin/pi-studio.adapter.json'
+import fastContextAdapter from './builtin/pi-fast-context.adapter.json'
+import intercomAdapter from './builtin/pi-intercom.adapter.json'
+import subagentsAdapter from './builtin/pi-subagents.adapter.json'
+import cacheOptimizerAdapter from './builtin/pi-cache-optimizer.adapter.json'
+import skillsManagerAdapter from './builtin/pi-skills-manager.adapter.json'
+import mcpAdapter from './builtin/pi-mcp-adapter.adapter.json'
+import contextViewerAdapter from './builtin/edb-context-viewer.adapter.json'
+import fffAdapter from './builtin/pi-fff.adapter.json'
+import syncAdapter from './builtin/pi-sync.adapter.json'
+import rewindAdapter from './builtin/pi-rewind.adapter.json'
+import continueAdapter from './builtin/pi-continue.adapter.json'
+import goalAdapter from './builtin/pi-goal.adapter.json'
+import btwAdapter from './builtin/pi-btw.adapter.json'
+import simplifyAdapter from './builtin/pi-simplify.adapter.json'
+import advisorAdapter from './builtin/rpiv-advisor.adapter.json'
+import observationalMemoryAdapter from './builtin/pi-observational-memory.adapter.json'
+import toolDisplayAdapter from './builtin/pi-tool-display.adapter.json'
+import agentsmdAdapter from './builtin/pi-agentsmd.adapter.json'
+import aceToolAdapter from './builtin/pi-ace-tool.adapter.json'
+import sequentialThinkingAdapter from './builtin/pi-sequential-thinking.adapter.json'
+import aegisAdapter from './builtin/aegis.adapter.json'
+import tpsExtensionsAdapter from './builtin/pi-tps-extensions.adapter.json'
+import nanoContextAdapter from './builtin/pi-nano-context.adapter.json'
+import powerlineFooterAdapter from './builtin/pi-powerline-footer.adapter.json'
+import ampThemesAdapter from './builtin/amp-themes.adapter.json'
+import curatedThemesAdapter from './builtin/pi-curated-themes.adapter.json'
+import themesBundleAdapter from './builtin/pi-themes-bundle.adapter.json'
 
-const BUILTIN: AdapterJson[] = [piSearchAdapter as unknown as AdapterJson]
+const BUILTIN: AdapterJson[] = [
+  piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
+  markdownPreviewAdapter, studioAdapter, fastContextAdapter, intercomAdapter, subagentsAdapter,
+  cacheOptimizerAdapter, skillsManagerAdapter, mcpAdapter, contextViewerAdapter, fffAdapter,
+  syncAdapter, rewindAdapter, continueAdapter, goalAdapter, btwAdapter, simplifyAdapter,
+  advisorAdapter, observationalMemoryAdapter, toolDisplayAdapter, agentsmdAdapter, aceToolAdapter,
+  sequentialThinkingAdapter, aegisAdapter, tpsExtensionsAdapter, nanoContextAdapter,
+  powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
+].map((a) => a as unknown as AdapterJson)
 const USER_DIR = join(homedir(), '.pi', 'desktop', 'adapters')
 let cachedCatalog: AdapterCatalog | null = null
 let cachedProjectDir: string | null = null
@@ -208,4 +249,27 @@ export function v2DisplayInfo(adapterId: string, projectDir?: string): {
     registeredTools: a.match?.tools || [],
     registeredCommands: Array.from(new Set([...slashCmds, ...matchCmds])),
   }
+}
+
+function norm(s: string): string {
+  return s.toLowerCase().replace(/^package:/, '')
+}
+
+/** Resolve an installed plugin (by name / packageName) to its v2 adapter.
+ *  Replaces v1 resolvePluginAdapterMeta. Returns null if no v2 adapter claims it. */
+export function resolveV2ByPluginName(
+  name: string,
+  packageName?: string,
+  projectDir?: string,
+): AdapterJson | null {
+  const candidates = [name, packageName].filter(Boolean) as string[]
+  if (candidates.length === 0) return null
+  const norms = candidates.map(norm)
+  for (const a of loadAdapterCatalog(projectDir).adapters) {
+    const names = (a.match?.names || []).map(norm)
+    if (names.some((n) => norms.some((c) => c === n || c.endsWith(n) || c.includes(n)))) {
+      return a
+    }
+  }
+  return null
 }

@@ -1,0 +1,8 @@
+{
+  "id": "pi-observational-memory",
+  "displayName": "Observational Memory",
+  "description": "观察记忆（自动生效，无斜杠入口）",
+  "match": { "names": ["pi-observational-memory"] },
+  "tier": "headless",
+  "config": { "note": "观察/反思记忆由扩展自动维护（compactAfterTokens）；桌面无配置项。" }
+}

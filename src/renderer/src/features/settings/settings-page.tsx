@@ -551,43 +551,16 @@ function AdaptersSettings() {
 
   useEffect(() => {
     setError(null)
-    // Merge v1 probe-based catalog (installed plugins) with v2 adapter.json catalog (declarative).
-    // v2 entries (e.g. pi-search after v1 cleanup) are added even if not probed; v1 entries keep probe meta.
-    Promise.all([
-      ipcClient.invoke('adapters.catalog').catch(() => null),
-      ipcClient.invoke('adapters.json.catalog').catch(() => null),
-    ]).then(([v1Res, v2Res]) => {
-      const v1 = Array.isArray(v1Res?.adapters) ? v1Res.adapters : []
-      const v2 = Array.isArray(v2Res?.adapters) ? v2Res.adapters : []
-      const byId = new Map<string, any>()
-      for (const a of v1) byId.set(a.id || a.pluginId, a)
-      for (const a of v2) {
-        const id = a.id
-        const existing = byId.get(id)
-        if (existing) {
-          // upgrade v1 entry with v2 tools/description/desktopSupport
-          existing.registeredTools = Array.from(new Set([...(existing.registeredTools || []), ...(a.match?.tools || [])]))
-          if (a.description) existing.description = existing.description || a.description
-        } else {
-          // v2-only adapter (not probed as installed plugin) — synthesize an entry
-          byId.set(id, {
-            id,
-            pluginId: id,
-            displayName: a.displayName || id,
-            description: a.description,
-            tier: a.tier,
-            source: (v2Res?.sources?.[id]) || 'builtin',
-            desktopSupport: a.config?.note || '声明式适配器（adapter.json）',
-            registeredTools: a.match?.tools || [],
-            matchMeta: { probeId: 'adapter.json' },
-          })
-        }
-      }
-      setAdapters(Array.from(byId.values()))
-    }).catch((e) => {
-      setAdapters([])
-      setError(String(e))
-    })
+    // v2-only catalog: adapters.catalog already merges probed plugins with v2 adapter.json + orphans.
+    ipcClient
+      .invoke('adapters.catalog')
+      .then((res) => {
+        setAdapters(Array.isArray(res?.adapters) ? res.adapters : [])
+      })
+      .catch((e) => {
+        setAdapters([])
+        setError(String(e))
+      })
   }, [])
 
   if (adapters === null) {
@@ -598,13 +571,13 @@ function AdaptersSettings() {
     <div className="space-y-3 max-w-2xl">
       <h3 className="text-[15px] font-semibold">桌面适配器</h3>
       <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-        列出已登记的桌面适配器：<code className="text-[10px] bg-muted px-1 rounded">adapter.json</code>（声明式）与 <code className="text-[10px] bg-muted px-1 rounded">plugin-adapter-meta</code>（探测）。
-        <strong>一插件一适配器</strong>，名称与包名相同。
+        列出已登记的桌面适配器（<code className="text-[10px] bg-muted px-1 rounded">adapter.json</code> 声明式兼容层）。
+        <strong>一插件一适配器</strong>，名称与包名相同；所有插件均经兼容层接入。
       </p>
       {error && <div className="text-[11px] text-destructive">{error}</div>}
       {adapters.length === 0 ? (
         <div className="text-[12px] text-muted-foreground/50 py-4">
-          当前没有已登记的桌面适配器。插件仍可在「插件」页看到；要新增适配请在 meta 里登记包名。
+          当前没有已登记的桌面适配器。插件仍可在「插件」页看到；要接入新插件请在兼容层声明 adapter.json。
         </div>
       ) : (
         <div className="space-y-3">

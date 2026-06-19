@@ -1,0 +1,8 @@
+{
+  "id": "pi-nano-context",
+  "displayName": "Nano Context",
+  "description": "TUI 上下文进度条（桌面无对应组件）",
+  "match": { "names": ["pi-nano-context"] },
+  "tier": "none",
+  "config": { "note": "TUI 编辑器下方的上下文进度条；桌面无对应组件。" }
+}

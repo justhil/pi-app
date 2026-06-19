@@ -1,0 +1,9 @@
+{
+  "id": "pi-continue",
+  "displayName": "Continue",
+  "description": "中途续跑（斜杠状态输出）",
+  "match": { "names": ["pi-continue"], "commands": ["/continue"] },
+  "tier": "headless",
+  "config": { "note": "续跑逻辑由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/continue": "notify" }
+}

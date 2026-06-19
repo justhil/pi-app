@@ -1,0 +1,9 @@
+{
+  "id": "@ff-labs/pi-fff",
+  "displayName": "FFF",
+  "description": "模糊路径搜索（斜杠状态输出）",
+  "match": { "names": ["@ff-labs/pi-fff"], "commands": ["/fff-mode", "/fff-health", "/fff-rescan"] },
+  "tier": "headless",
+  "config": { "note": "FFF 搜索由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/fff-mode": "notify", "/fff-health": "notify", "/fff-rescan": "notify" }
+}

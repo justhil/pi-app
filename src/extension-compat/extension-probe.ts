@@ -25,13 +25,12 @@ export interface ExtensionProbeResult {
   enabled: boolean
 }
 
-import { TOOL_TO_ADAPTER } from './adapters-registry.js'
-import { resolvePluginAdapterMeta } from './plugin-adapter-meta.js'
-import { v2ToolMap } from './adapter-loader.js'
+import { v2ToolMap, resolveV2ByPluginName } from './adapter-loader.js'
 
-// Merged known-tools map: v1 registry ∪ v2 adapter.json. Refreshed per probeExtensions() call.
-// Lets v2-only adapters (e.g. pi-search after v1 cleanup) still be recognized by the probe.
-let KNOWN_TOOLS: Record<string, string> = { ...TOOL_TO_ADAPTER }
+// Merged known-tools map from v2 adapter.json. Refreshed per probeExtensions() call.
+let KNOWN_TOOLS: Record<string, string> = {}
+// cwd for the current probe pass (avoids threading cwd through every helper).
+let CURRENT_CWD = ''
 
 function tierToCompatibility(tier: string): ExtensionProbeResult['compatibility'] {
   if (tier === 'native') return 'native'
@@ -39,20 +38,19 @@ function tierToCompatibility(tier: string): ExtensionProbeResult['compatibility'
   return 'headless'
 }
 
-/** Only plugins in plugin-adapter-meta.ts (tier != 'none') get adapterId; 'none' tier shows as TUI-only; others are installed-only. */
+/** Resolve adapter meta from v2 catalog (single source). tier 'none' => TUI-only decoration. */
 function applyPluginAdapterFields(result: ExtensionProbeResult): void {
-  const meta = resolvePluginAdapterMeta(result.name, result.packageName)
-  if (meta && meta.tier !== 'none') {
+  const adapter = resolveV2ByPluginName(result.name, result.packageName, CURRENT_CWD)
+  if (adapter && adapter.tier !== 'none') {
     const adapterName = result.packageName || result.name
     result.adapterId = adapterName
     result.adapterIds = [adapterName]
-    result.compatibility = tierToCompatibility(meta.tier)
+    result.compatibility = tierToCompatibility(adapter.tier)
     return
   }
   result.adapterId = undefined
   result.adapterIds = undefined
-  if (meta && meta.tier === 'none') {
-    // C-layer: TUI-only decoration
+  if (adapter && adapter.tier === 'none') {
     result.compatibility = 'blocked'
     result.tuiOnly = true
     return
@@ -155,9 +153,10 @@ function parsePackageSource(source: any): { type: 'npm' | 'git' | 'local'; name:
 export function probeExtensions(cwd: string): ExtensionProbeResult[] {
   const results: ExtensionProbeResult[] = []
   const agentDir = join(homedir(), '.pi', 'agent')
+  CURRENT_CWD = cwd
 
-  // Refresh merged known-tools (v1 registry + v2 adapter.json for this project).
-  try { KNOWN_TOOLS = { ...TOOL_TO_ADAPTER, ...v2ToolMap(cwd) } } catch { KNOWN_TOOLS = { ...TOOL_TO_ADAPTER } }
+  // Refresh known-tools from v2 adapter.json for this project.
+  try { KNOWN_TOOLS = { ...v2ToolMap(cwd) } } catch { KNOWN_TOOLS = {} }
 
   // 1. Scan project .pi/extensions
   scanExtDir(join(cwd, '.pi', 'extensions'), 'project', results)
@@ -374,4 +373,3 @@ function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult):
   }
 }
 
-export { ADAPTER_LABELS } from './adapters-registry.js'

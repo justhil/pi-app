@@ -1,0 +1,20 @@
+{
+  "id": "pi-fast-context",
+  "displayName": "Fast Context",
+  "description": "语义代码搜索（工具执行 + 配置只读说明）",
+  "match": {
+    "names": ["pi-fast-context"],
+    "tools": ["fast_context_search"],
+    "commands": ["/fast-context-status", "/fast-context-config", "/fast-context-import-key"]
+  },
+  "tier": "headless",
+  "toolCard": { "template": "list", "icon": "Search", "statusField": "$.output.text" },
+  "config": {
+    "note": "Fast Context 配置由扩展维护（~/.pi/agent/fast-context.json / 环境变量 / Windsurf 自动发现）；桌面不写入该配置。"
+  },
+  "slash": {
+    "/fast-context-status": "notify",
+    "/fast-context-config": "config-page",
+    "/fast-context-import-key": "notify"
+  }
+}

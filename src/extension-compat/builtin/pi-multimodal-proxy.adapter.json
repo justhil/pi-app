@@ -1,0 +1,23 @@
+{
+  "id": "pi-multimodal-proxy",
+  "displayName": "Multimodal Vision",
+  "description": "图像分析（analyze_image）工具卡片与内联预览",
+  "match": {
+    "names": ["pi-multimodal-proxy"],
+    "tools": ["analyze_image"]
+  },
+  "tier": "partial",
+  "toolCard": { "template": "media", "icon": "Eye" },
+  "config": {
+    "note": "多模态代理由扩展自管；此处仅控制桌面卡片展示。",
+    "sections": [
+      {
+        "title": "桌面卡片",
+        "fields": [
+          { "key": "showInlinePreview", "type": "boolean", "label": "时间线内联图像预览（输入图路径）", "default": true }
+        ]
+      }
+    ]
+  },
+  "slash": { "/multimodal-proxy": "notify", "/vision-proxy": "notify" }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "Aegis",
+  "displayName": "Aegis",
+  "description": "Aegis 工作流扩展集（复用通用与 trellis 卡）",
+  "match": { "names": ["Aegis", "GanyuanRan/Aegis"] },
+  "tier": "headless",
+  "toolCard": { "template": "default", "icon": "ShieldCheck" },
+  "config": { "note": "Aegis 能力由其扩展与技能集合定义；桌面按已注册工具渲染，复用通用与 trellis 卡。" }
+}

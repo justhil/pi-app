@@ -1,40 +1,54 @@
-// Embedded extension config subpage (replaces modal). Same look as other settings pages.
+// Embedded extension config subpage (v2-only). All metadata from adapter.json catalog.
 
 import { useEffect, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ExtensionConfigForm } from './extension-config-form'
 import { AdapterConfigPanel } from './adapter-config-panel'
+import { CUSTOM_CONFIG_RENDERERS } from './custom-config-renderers'
 import type { AdapterJson } from '../../../../extension-compat/adapter-schema'
 
 export function ExtensionConfigSubpage({ extensionId }: { extensionId: string }) {
   const workspace = useUIStore((s) => s.currentWorkspace)
-  const [config, setConfig] = useState<Record<string, unknown>>({})
-  const [adapter, setAdapter] = useState<any>(null)
   const [jsonAdapter, setJsonAdapter] = useState<AdapterJson | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      ipcClient.invoke('extension.config.get', { extensionId, workspaceId: workspace || '' }),
-      ipcClient.invoke('adapters.catalog'),
-      ipcClient.invoke('adapters.json.catalog'),
-    ])
-      .then(([cfgRes, catRes, jsonRes]) => {
-        setConfig(cfgRes?.config || {})
-        const hit = (catRes?.adapters || []).find((a: any) => a?.id === extensionId || a?.matchMeta?.npmPackage === extensionId)
-        setAdapter(hit || null)
-        // v2: match by id / match.names (plugin package name)
-        const jhit = (jsonRes?.adapters || []).find((a: AdapterJson) =>
-          a.id === extensionId || (a.match?.names || []).some((n) => extensionId === n || extensionId.endsWith(n) || extensionId.includes(n)))
-        setJsonAdapter(jhit || null)
+    ipcClient
+      .invoke('adapters.json.catalog')
+      .then((res) => {
+        const hit = (res?.adapters || []).find(
+          (a: AdapterJson) =>
+            a.id === extensionId ||
+            (a.match?.names || []).some((n) => extensionId === n || extensionId.endsWith(n) || extensionId.includes(n)),
+        )
+        setJsonAdapter(hit || null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [extensionId, workspace])
+  }, [extensionId])
 
-  const save = async (next: Record<string, unknown>) => {
-    setConfig(next)
+  if (loading) return <div className="text-[12px] text-muted-foreground/50">加载中…</div>
+
+  const info = jsonAdapter
+    ? {
+        displayName: jsonAdapter.displayName || extensionId,
+        description: jsonAdapter.description,
+        tools: jsonAdapter.match?.tools || [],
+        commands: Array.from(
+          new Set([
+            ...Object.keys(jsonAdapter.slash || {}),
+            ...(jsonAdapter.match?.commands || []).map((c) => (c.startsWith('/') ? c : `/${c}`)),
+          ]),
+        ),
+      }
+    : { displayName: extensionId, description: '', tools: [], commands: [] }
+
+  // Dynamic specialized renderer (skills-manager / mcp) takes precedence when declared.
+  const CustomRenderer = jsonAdapter?.config?.customRenderer
+    ? CUSTOM_CONFIG_RENDERERS[jsonAdapter.config.customRenderer]
+    : null
+
+  const saveAppLocal = async (next: Record<string, unknown>) => {
     try {
       await ipcClient.invoke('extension.config.set', { extensionId, workspaceId: workspace || '', config: next })
     } catch (e) {
@@ -42,68 +56,45 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
     }
   }
 
-  if (loading) return <div className="text-[12px] text-muted-foreground/50">加载中…</div>
-
-  // When a v2 adapter.json matches, build header info from it (independent of v1 catalog).
-  const v2Info = jsonAdapter
-    ? {
-        displayName: jsonAdapter.displayName || extensionId,
-        description: jsonAdapter.description,
-        registeredTools: jsonAdapter.match?.tools || [],
-        registeredCommands: Array.from(new Set([
-          ...Object.keys(jsonAdapter.slash || {}),
-          ...(jsonAdapter.match?.commands || []).map((c) => (c.startsWith('/') ? c : `/${c}`)),
-        ])),
-      }
-    : null
-  const headerName = v2Info?.displayName || adapter?.displayName || extensionId
-  const headerDesc = v2Info?.description || adapter?.description
-  const headerTools = v2Info?.registeredTools || adapter?.registeredTools || []
-  const headerCmds = v2Info?.registeredCommands || adapter?.registeredCommands || []
-
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-[15px] font-semibold">{headerName}</h3>
-        {headerDesc && <p className="mt-0.5 text-[12px] text-muted-foreground/70">{headerDesc}</p>}
+        <h3 className="text-[15px] font-semibold">{info.displayName}</h3>
+        {info.description && <p className="mt-0.5 text-[12px] text-muted-foreground/70">{info.description}</p>}
       </div>
 
-      {adapter?.desktopSupport && !jsonAdapter && (
-        <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-[12px] text-muted-foreground">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">桌面支持</div>
-          <div className="mt-0.5">{adapter.desktopSupport}</div>
+      {jsonAdapter ? (
+        CustomRenderer ? (
+          <CustomRenderer extensionId={extensionId} workspace={workspace || ''} onChange={saveAppLocal} />
+        ) : (
+          <AdapterConfigPanel adapter={jsonAdapter} />
+        )
+      ) : (
+        <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4">
+          <div className="text-[12px] font-medium text-foreground/80">未登记桌面适配</div>
+          <div className="mt-1 text-[12px] text-muted-foreground/70">
+            该扩展尚未登记桌面适配器（adapter.json）。如需接入，请在兼容层声明。
+          </div>
         </div>
       )}
 
-      {/* v2 adapter.json takes precedence; legacy ExtensionConfigForm is fallback (dual-track) */}
-      {jsonAdapter ? (
-        <AdapterConfigPanel adapter={jsonAdapter} />
-      ) : (
-        <ExtensionConfigForm
-          extensionId={extensionId}
-          config={config}
-          adapter={adapter ? { displayName: adapter.displayName, desktopSupport: adapter.desktopSupport, configKeys: adapter.configKeys, configNote: adapter.configNote } : null}
-          onChange={save}
-        />
-      )}
-
-      {headerTools.length > 0 && (
+      {info.tools.length > 0 && (
         <div>
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">注册的工具</div>
           <div className="flex flex-wrap gap-1">
-            {headerTools.map((t: string) => (
+            {info.tools.map((t) => (
               <span key={t} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">{t}</span>
             ))}
           </div>
         </div>
       )}
 
-      {headerCmds.length > 0 && (
+      {info.commands.length > 0 && (
         <div>
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">注册的命令</div>
           <div className="flex flex-wrap gap-1">
-            {headerCmds.map((c: string) => (
-              <span key={c} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">/{c.replace(/^\//, '')}</span>
+            {info.commands.map((c) => (
+              <span key={c} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">{c}</span>
             ))}
           </div>
         </div>

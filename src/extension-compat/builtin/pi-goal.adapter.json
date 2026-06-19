@@ -1,0 +1,9 @@
+{
+  "id": "pi-goal",
+  "displayName": "Goal",
+  "description": "目标循环（斜杠状态输出）",
+  "match": { "names": ["pi-goal"], "commands": ["/goal"] },
+  "tier": "headless",
+  "config": { "note": "目标循环由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/goal": "notify" }
+}

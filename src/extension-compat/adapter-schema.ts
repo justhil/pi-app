@@ -57,6 +57,8 @@ export interface AdapterConfig {
   sections?: ConfigSection[]
   actions?: AdapterAction[]
   note?: string
+  /** Hint for a specialized renderer (e.g. skills-manager / mcp-diagnostics) instead of generic sections. */
+  customRenderer?: string
 }
 
 export type ToolCardTemplate = 'default' | 'list' | 'media' | 'tree' | 'kv'
