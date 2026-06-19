@@ -90,13 +90,29 @@ function readPackageJson(pkgDir: string): any | null {
   try { return JSON.parse(readFileSync(p, 'utf-8')) } catch { return null }
 }
 
-// Find a package's install directory by name from settings.json "npm:" / "git:" sources
-function resolvePackageDir(name: string): string | null {
+function resolveGitPackageDir(agentDir: string, repoName: string): string | null {
+  const gitRoot = join(agentDir, 'git')
+  if (!existsSync(gitRoot)) return null
+  let hosts: string[] = []
+  try { hosts = readdirSync(gitRoot) } catch { return null }
+  for (const host of hosts) {
+    const candidate = join(gitRoot, host, repoName)
+    try {
+      if (existsSync(candidate) && statSync(candidate).isDirectory() && existsSync(join(candidate, 'package.json'))) {
+        return candidate
+      }
+    } catch { /* ignore */ }
+  }
+  return null
+}
+
+// Find install dir: npm node_modules first, then ~/.pi/agent/git/<host>/<repoName>
+function resolvePackageDir(name: string, agentDir?: string): string | null {
   const nm = join(homedir(), '.pi', 'agent', 'npm', 'node_modules')
-  // scoped: @scope/name
   const direct = join(nm, name)
   if (existsSync(direct) && statSync(direct).isDirectory()) return direct
-  return null
+  const ad = agentDir || join(homedir(), '.pi', 'agent')
+  return resolveGitPackageDir(ad, name)
 }
 
 // Parse source string from settings.json package entries
@@ -124,7 +140,104 @@ export function probeExtensions(cwd: string): ExtensionProbeResult[] {
   // 3. Scan pi packages from settings.json
   scanPackages(agentDir, results)
 
+  // 4. Git clones under ~/.pi/agent/git (often not duplicated in settings.packages)
+  scanGitClones(agentDir, results)
+
   return results
+}
+
+/** Probe git-installed packages even when missing from settings.packages (desktop visibility only). */
+function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
+  const gitRoot = join(agentDir, 'git')
+  if (!existsSync(gitRoot)) return
+  const seen = new Set(results.map((r) => r.packageName || r.name))
+  let hosts: string[] = []
+  try { hosts = readdirSync(gitRoot) } catch { return }
+  for (const host of hosts) {
+    const hostDir = join(gitRoot, host)
+    let repos: string[] = []
+    try { repos = readdirSync(hostDir) } catch { continue }
+    for (const repo of repos) {
+      const pkgDir = join(hostDir, repo)
+      if (!existsSync(join(pkgDir, 'package.json'))) continue
+      const pkg = readPackageJson(pkgDir)
+      if (!pkg) continue
+      const pkgName = pkg.name || repo
+      if (seen.has(pkgName) || seen.has(repo)) continue
+      const merged = buildPackageProbeResult(pkgDir, pkg, repo, undefined)
+      if (!merged) continue
+      merged.id = `git:${host}/${repo}`
+      merged.packageName = repo
+      results.push(merged)
+      seen.add(pkgName)
+      seen.add(repo)
+    }
+  }
+}
+
+function buildPackageProbeResult(
+  pkgDir: string,
+  pkg: any,
+  parsedName: string,
+  overrides: string[] | undefined,
+): ExtensionProbeResult | null {
+  let extFiles: string[] = []
+  if (pkg.pi?.extensions && Array.isArray(pkg.pi.extensions)) {
+    extFiles = pkg.pi.extensions
+  } else if (pkg.main) {
+    extFiles = [pkg.main]
+  } else if (existsSync(join(pkgDir, 'index.ts'))) {
+    extFiles = ['./index.ts']
+  }
+
+  const merged: ExtensionProbeResult = {
+    id: `package:${parsedName}`,
+    name: pkg.name || parsedName,
+    description: pkg.description,
+    version: pkg.version,
+    source: 'package',
+    packageName: parsedName,
+    enabled: true,
+    registeredTools: [],
+    registeredCommands: [],
+    hasUI: false,
+    compatibility: 'blocked',
+  }
+
+  if (extFiles.length === 0) {
+    scanPackageForKnownTools(pkgDir, merged)
+    if (merged.registeredTools.length === 0 && merged.registeredCommands.length === 0 && !merged.hasUI) return null
+    finalizeCompat(merged)
+    return merged
+  }
+
+  const disabled = new Set<string>()
+  for (const o of overrides || []) {
+    if (o.startsWith('-')) disabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
+  }
+  merged.enabled = extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
+
+  for (const rel of extFiles) {
+    const cleanRel = rel.replace(/^\.\//, '')
+    if (disabled.has(cleanRel)) continue
+    const fullPath = resolve(pkgDir, cleanRel)
+    if (!existsSync(fullPath)) continue
+    try {
+      if (statSync(fullPath).isDirectory()) continue
+    } catch { continue }
+    try {
+      const src = readFileSync(fullPath, 'utf-8')
+      const tmp: ExtensionProbeResult = {
+        id: '', name: '', source: 'package', enabled: true,
+        registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
+      }
+      parseExtensionSource(src, tmp)
+      mergeResult(merged, tmp)
+    } catch { /* ignore */ }
+  }
+  scanPackageForKnownTools(pkgDir, merged)
+  finalizeCompat(merged)
+  return merged
 }
 
 function scanExtDir(dir: string, source: 'project' | 'global', results: ExtensionProbeResult[]) {
@@ -191,82 +304,14 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
     const parsed = parsePackageSource(sourceStr)
     if (!parsed) continue
 
-    const pkgDir = resolvePackageDir(parsed.name)
+    const pkgDir = resolvePackageDir(parsed.name, agentDir)
     if (!pkgDir) continue
 
     const pkg = readPackageJson(pkgDir)
     if (!pkg) continue
 
-    // Find extension files declared in package.json "pi.extensions"
-    let extFiles: string[] = []
-    if (pkg.pi?.extensions && Array.isArray(pkg.pi.extensions)) {
-      extFiles = pkg.pi.extensions
-    } else if (pkg.main) {
-      extFiles = [pkg.main]
-    } else if (existsSync(join(pkgDir, 'index.ts'))) {
-      extFiles = ['./index.ts']
-    }
-
-    // Create one result entry per package (merge all extension files)
-    const merged: ExtensionProbeResult = {
-      id: `package:${parsed.name}`,
-      name: pkg.name || parsed.name,
-      description: pkg.description,
-      version: pkg.version,
-      source: 'package',
-      packageName: parsed.name,
-      enabled: true,
-      registeredTools: [],
-      registeredCommands: [],
-      hasUI: false,
-      compatibility: 'blocked',
-    }
-
-    if (extFiles.length === 0) {
-      // Even without declared pi.extensions, scan the package for known tools
-      scanPackageForKnownTools(pkgDir, merged)
-      if (merged.registeredTools.length === 0 && merged.registeredCommands.length === 0 && !merged.hasUI) continue
-      finalizeCompat(merged)
-      results.push(merged)
-      continue
-    }
-
-    // Apply + / - overrides from settings.json
-    const disabled = new Set<string>()
-    const enabled = new Set<string>()
-    for (const o of overrides || []) {
-      if (o.startsWith('-')) disabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
-      else if (o.startsWith('+')) enabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
-    }
-
-    const pkgEnabled = extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
-    merged.enabled = pkgEnabled
-
-    for (const rel of extFiles) {
-      const cleanRel = rel.replace(/^\.\//, '')
-      if (disabled.has(cleanRel)) continue
-      const fullPath = resolve(pkgDir, cleanRel)
-      if (!existsSync(fullPath)) continue
-      try { statSync(fullPath) } catch { continue }
-      let isDir = false
-      try { isDir = statSync(fullPath).isDirectory() } catch { continue }
-      if (isDir) continue
-      try {
-        const src = readFileSync(fullPath, 'utf-8')
-        const tmp: ExtensionProbeResult = {
-          id: '', name: '', source: 'package', enabled: true,
-          registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
-        }
-        parseExtensionSource(src, tmp)
-        mergeResult(merged, tmp)
-      } catch {}
-    }
-
-    // Also scan whole package dir for known tool names (catches tools in subfiles)
-    scanPackageForKnownTools(pkgDir, merged)
-
-    finalizeCompat(merged)
-    results.push(merged)
+    const merged = buildPackageProbeResult(pkgDir, pkg, parsed.name, overrides)
+    if (merged) results.push(merged)
   }
 }
 

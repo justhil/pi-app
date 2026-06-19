@@ -78,6 +78,29 @@ const META: PluginAdapterMeta[] = [
     slashBehavior: { '/fff-mode': 'notify', '/fff-health': 'notify', '/fff-rescan': 'notify' },
   },
   {
+    matchNames: ['pi-fast-context'],
+    tier: 'headless',
+    desktopSupport: 'fast_context_search 可执行；桌面显示通用工具输出，配置命令仅提示/路由',
+    slashBehavior: {
+      '/fast-context-status': 'notify',
+      '/fast-context-config': 'config-page',
+      '/fast-context-import-key': 'notify',
+    },
+    configNote: 'Fast Context 配置由扩展维护（~/.pi/agent/fast-context.json / 环境变量 / Windsurf 自动发现）；桌面不写入该配置。',
+  },
+  {
+    matchNames: ['pi-search'],
+    tier: 'headless',
+    desktopSupport: 'search / context7 / web_fetch 等工具可执行；桌面显示通用工具输出',
+    slashBehavior: {
+      '/search': 'notify',
+      '/search-config': 'config-page',
+      '/search-model': 'notify',
+      '/pi-ext-docs': 'notify',
+    },
+    configNote: 'Pi Search 配置由扩展维护（~/.config/pi-search/config.json 及相关 API key）；桌面不写入该配置。',
+  },
+  {
     matchNames: ['@narumitw/pi-sync'],
     tier: 'headless',
     desktopSupport: '配置同步；斜杠输出状态',

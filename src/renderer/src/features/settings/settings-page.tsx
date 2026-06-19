@@ -393,6 +393,7 @@ function PiSettings() {
 function ExtensionsSettings() {
   const [extensions, setExtensions] = useState<any[]>([])
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const [runtimeTools, setRuntimeTools] = useState<any[]>([])
 
   useEffect(() => {
     ipcClient.invoke('extensions.list').then((res) => {
@@ -401,6 +402,9 @@ function ExtensionsSettings() {
     ipcClient.invoke('settings.get', { key: 'extensionOverrides' }).then((res) => {
       if (res?.settings?.extensionOverrides) setOverrides(res.settings.extensionOverrides)
     })
+    ipcClient.invoke('runtime.getState').then((res) => {
+      setRuntimeTools(Array.isArray(res?.state?.tools) ? res.state.tools : [])
+    }).catch(() => setRuntimeTools([]))
   }, [])
 
   const handleToggle = (ext: any) => {
@@ -424,12 +428,33 @@ function ExtensionsSettings() {
     blocked: 'Blocked',
   }
 
+  const runtimeNames = new Set(runtimeTools.map((t) => t.name))
+  const watchedTools = ['fast_context_search', 'search', 'search_sources', 'ffgrep', 'fffind']
+
   return (
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-1">插件</h3>
       <p className="text-[11px] text-muted-foreground/60 mb-3">
-        已安装的 pi 扩展包。仅<strong>在适配器页登记</strong>的插件才有桌面适配；其余只在 pi 里运行，显示「未登记桌面适配」。
+        已安装的 pi 扩展包。静态探测显示包/源码；下方「当前 Worker 工具」才代表本会话实际可调用工具。
       </p>
+      <div className="mb-3 rounded-lg border border-border/50 bg-muted/20 p-2.5">
+        <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+          当前 Worker 工具 {runtimeTools.length ? `(${runtimeTools.length})` : '(Worker 未启动或无会话)'}
+        </div>
+        <div className="mt-1 flex flex-wrap gap-1">
+          {watchedTools.map((name) => (
+            <span
+              key={name}
+              className={cn(
+                'rounded px-1.5 py-0.5 font-mono text-[10px]',
+                runtimeNames.has(name) ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground/45',
+              )}
+            >
+              {runtimeNames.has(name) ? '✓ ' : '· '}{name}
+            </span>
+          ))}
+        </div>
+      </div>
       {extensions.length === 0 ? (
         <div className="text-[12px] text-muted-foreground/50 py-4">
           未检测到插件。将 .ts 扩展文件或目录放在 .pi/extensions/ 下即可被检测。

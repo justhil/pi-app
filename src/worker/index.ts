@@ -579,6 +579,10 @@ process.parentPort?.on('message', async (event: any) => {
                 isStreaming: session.isStreaming,
                 sessionFile: session.sessionFile,
                 messageCount: session.messages.length,
+                tools: ((session as any).agent?._state?.tools || []).map((t: any) => ({
+                  name: t.name,
+                  description: t.description,
+                })),
               }
             : null,
         })
