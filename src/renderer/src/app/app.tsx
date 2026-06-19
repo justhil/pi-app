@@ -11,6 +11,7 @@ import { SettingsPage } from '@renderer/features/settings/settings-page'
 import { TopBar } from '@renderer/components/app/top-bar'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
+import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity } from 'lucide-react'
@@ -40,6 +41,7 @@ export default function App() {
     })
     const unsubAuto = onAutoOpened((info) => {
       setWorkspace(info.workspaceId)
+      void syncRunStateFromWorker()
     })
     return () => {
       unsubEvents()
@@ -87,6 +89,7 @@ export default function App() {
         console.log('[App] Workspace result:', wsResult)
         if (wsResult?.workspaceId) {
           setWorkspace(res.path)
+          setTimeout(() => void syncRunStateFromWorker(), 800)
         }
       }
     } catch (e) {

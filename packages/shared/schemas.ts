@@ -39,7 +39,7 @@ export const fileEventSchema = appEventBaseSchema.extend({
 
 export const runEventSchema = appEventBaseSchema.extend({
   type: z.literal('run'),
-  phase: z.enum(['started', 'running', 'idle', 'failed', 'cancelled']),
+  phase: z.enum(['started', 'running', 'idle', 'failed', 'cancelled', 'state']),
   model: z.string().optional(),
   thinkingLevel: z.string().optional(),
   usage: z.object({

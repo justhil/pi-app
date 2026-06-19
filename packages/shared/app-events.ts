@@ -36,7 +36,7 @@ export interface FileEvent extends AppEventBase {
 
 export interface RunEvent extends AppEventBase {
   type: 'run'
-  phase: 'started' | 'running' | 'idle' | 'failed' | 'cancelled'
+  phase: 'started' | 'running' | 'idle' | 'failed' | 'cancelled' | 'state'
   model?: string
   thinkingLevel?: string
   usage?: {

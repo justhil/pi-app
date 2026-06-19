@@ -25,6 +25,7 @@ export function ThinkingPicker() {
   const pick = async (level: string) => {
     try {
       await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level })
+      useUIStore.getState().setRunState({ thinkingLevel: level })
       toast.success(`Thinking: ${level}`)
     } catch (e) {
       console.error('thinkingLevel.set failed:', e)

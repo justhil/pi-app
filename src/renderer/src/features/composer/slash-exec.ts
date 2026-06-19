@@ -56,12 +56,14 @@ export async function executeSlashCommand(
         if (arg.includes('/')) {
           const [provider, modelId] = arg.split('/')
           await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
+          store.setRunState({ model: `${provider}/${modelId}` })
           toast.success(`模型已设为 ${provider}/${modelId}`)
         } else {
           const res = await ipcClient.invoke('model.list', {})
           const hit = (res?.models || []).find((mm: any) => mm.id === arg || mm.name === arg)
           if (hit) {
             await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
+            store.setRunState({ model: `${hit.provider}/${hit.id}` })
             toast.success(`模型已设为 ${hit.provider}/${hit.id}`)
           } else {
             toast.error(`未找到模型: ${arg}`)
@@ -85,6 +87,7 @@ export async function executeSlashCommand(
       }
       try {
         await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level: arg })
+        store.setRunState({ thinkingLevel: arg })
         toast.success(`Thinking: ${arg}`)
       } catch (e) {
         console.error('/thinking failed:', e)

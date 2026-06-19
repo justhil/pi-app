@@ -28,9 +28,11 @@ export function ModelPicker() {
   if (!open) return null
 
   const pick = async (m: any) => {
+    const key = `${m.provider}/${m.id}`
     try {
       await ipcClient.invoke('model.set', { sessionId: '', provider: m.provider, modelId: m.id })
-      toast.success(`已切换到 ${m.provider}/${m.id}`)
+      useUIStore.getState().setRunState({ model: key })
+      toast.success(`已切换到 ${key}`)
     } catch (e) {
       console.error('model.set failed:', e)
       toast.error('切换失败')

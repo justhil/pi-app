@@ -85,6 +85,10 @@ async function initSession(cwd: string): Promise<void> {
   })
 
   emit({ ...baseEvent(), type: 'run', phase: 'idle' })
+  if (session) {
+    const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+    emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
+  }
 
   if (modelFallbackMessage) {
     console.warn('[Worker] Model fallback:', modelFallbackMessage)
@@ -185,6 +189,15 @@ function handleSessionEvent(event: AgentSessionEvent): void {
     }
     case 'compaction_end': {
       emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: event.result?.tokensBefore, summary: event.result?.summary })
+      break
+    }
+    case 'session_info_changed':
+    case 'thinking_level_changed': {
+      // Push current model + thinking level to renderer for live status bar update
+      if (session) {
+        const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+        emit({ ...base, type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
+      }
       break
     }
   }
@@ -329,6 +342,8 @@ process.parentPort?.on('message', async (event: any) => {
             const { getModel } = await import('@earendil-works/pi-ai')
             const model = getModel(msg.provider, msg.modelId)
             if (model) await session.setModel(model)
+            const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+            emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
           } catch (e) { console.error('[Worker] setModel failed:', e) }
         }
         reply({ type: 'setModel-done' })
@@ -336,6 +351,10 @@ process.parentPort?.on('message', async (event: any) => {
       }
       case 'setThinkingLevel': {
         session?.setThinkingLevel(msg.level)
+        if (session) {
+          const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+          emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
+        }
         reply({ type: 'setThinkingLevel-done' })
         break
       }
@@ -417,20 +436,20 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'getState': {
-        if (session) {
-          process.parentPort?.postMessage({
-            type: 'getState-done',
-            state: {
-              sessionId: session.sessionId,
-              sessionName: session.sessionName,
-              model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined,
-              thinkingLevel: session.thinkingLevel,
-              isStreaming: session.isStreaming,
-              sessionFile: session.sessionFile,
-              messageCount: session.messages.length,
-            },
-          })
-        }
+        reply({
+          type: 'getState-done',
+          state: session
+            ? {
+                sessionId: session.sessionId,
+                sessionName: session.sessionName,
+                model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined,
+                thinkingLevel: session.thinkingLevel,
+                isStreaming: session.isStreaming,
+                sessionFile: session.sessionFile,
+                messageCount: session.messages.length,
+              }
+            : null,
+        })
         break
       }
       case 'getMessages': {

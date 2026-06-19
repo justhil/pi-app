@@ -215,6 +215,11 @@ export const useUIStore = create<UIState>((set, get) => ({
           state.setRunState({ status: 'idle', activeTool: undefined })
         } else if (event.phase === 'failed') {
           state.setRunState({ status: 'failed' })
+        } else if (event.phase === 'state') {
+          const patch: Record<string, string | undefined> = {}
+          if (event.model !== undefined) patch.model = event.model
+          if (event.thinkingLevel !== undefined) patch.thinkingLevel = event.thinkingLevel
+          state.setRunState(patch)
         }
         if (event.usage) {
           state.setRunState({ usage: event.usage })

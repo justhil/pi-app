@@ -40,6 +40,7 @@ export function RunPanel() {
   const switchModel = async (provider: string, modelId: string) => {
     try {
       await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
+      useUIStore.getState().setRunState({ model: `${provider}/${modelId}` })
     } catch (e) {
       console.error('model.set failed:', e)
     }
@@ -52,6 +53,7 @@ export function RunPanel() {
     const next = order[(order.indexOf(cur) + 1) % order.length]
     try {
       await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level: next })
+      useUIStore.getState().setRunState({ thinkingLevel: next })
     } catch (e) {
       console.error('thinkingLevel.set failed:', e)
     }

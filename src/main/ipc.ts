@@ -219,9 +219,22 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:model.set', async (req) => {
-    const [provider, modelId] = req.modelId.includes('/') ? req.modelId.split('/') : ['anthropic', req.modelId]
+    let provider: string
+    let modelId: string
+    if (req.provider && req.modelId) {
+      provider = req.provider
+      modelId = req.modelId
+    } else {
+      const raw = req.modelId || ''
+      if (raw.includes('/')) {
+        ;[provider, modelId] = raw.split('/') as [string, string]
+      } else {
+        provider = 'anthropic'
+        modelId = raw
+      }
+    }
     await workerManager.setModel(provider, modelId)
-    return { modelId: req.modelId }
+    return { modelId: `${provider}/${modelId}` }
   })
 
   registerHandler('ipc:model.cycle', async (_req) => {
@@ -233,6 +246,12 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:thinkingLevel.set', async (req) => {
     await workerManager.setThinkingLevel(req.level)
     return { level: req.level }
+  })
+
+  registerHandler('ipc:runtime.getState', async () => {
+    if (!workerManager.isRunning) return { state: null }
+    const state = await workerManager.getState()
+    return { state }
   })
 
   // ── Commands ──
