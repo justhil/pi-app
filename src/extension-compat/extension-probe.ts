@@ -90,23 +90,41 @@ function readPackageJson(pkgDir: string): any | null {
   try { return JSON.parse(readFileSync(p, 'utf-8')) } catch { return null }
 }
 
-function resolveGitPackageDir(agentDir: string, repoName: string): string | null {
+function findGitPackageDirs(agentDir: string): string[] {
   const gitRoot = join(agentDir, 'git')
-  if (!existsSync(gitRoot)) return null
-  let hosts: string[] = []
-  try { hosts = readdirSync(gitRoot) } catch { return null }
-  for (const host of hosts) {
-    const candidate = join(gitRoot, host, repoName)
-    try {
-      if (existsSync(candidate) && statSync(candidate).isDirectory() && existsSync(join(candidate, 'package.json'))) {
-        return candidate
+  if (!existsSync(gitRoot)) return []
+  const dirs: string[] = []
+  const walk = (dir: string, depth: number) => {
+    if (depth > 4) return
+    let entries: string[] = []
+    try { entries = readdirSync(dir) } catch { return }
+    for (const name of entries) {
+      if (name === '.git' || name === 'node_modules' || name.startsWith('.')) continue
+      const full = join(dir, name)
+      let isDir = false
+      try { isDir = statSync(full).isDirectory() } catch { continue }
+      if (!isDir) continue
+      if (existsSync(join(full, 'package.json'))) {
+        dirs.push(full)
+        continue
       }
-    } catch { /* ignore */ }
+      walk(full, depth + 1)
+    }
+  }
+  walk(gitRoot, 0)
+  return dirs
+}
+
+function resolveGitPackageDir(agentDir: string, repoName: string): string | null {
+  for (const dir of findGitPackageDirs(agentDir)) {
+    if (dir.endsWith(`/${repoName}`) || dir.endsWith(`\\${repoName}`)) return dir
+    const pkg = readPackageJson(dir)
+    if (pkg?.name === repoName) return dir
   }
   return null
 }
 
-// Find install dir: npm node_modules first, then ~/.pi/agent/git/<host>/<repoName>
+// Find install dir: npm node_modules first, then ~/.pi/agent/git/<host>/<owner>/<repoName>
 function resolvePackageDir(name: string, agentDir?: string): string | null {
   const nm = join(homedir(), '.pi', 'agent', 'npm', 'node_modules')
   const direct = join(nm, name)
@@ -148,30 +166,20 @@ export function probeExtensions(cwd: string): ExtensionProbeResult[] {
 
 /** Probe git-installed packages even when missing from settings.packages (desktop visibility only). */
 function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
-  const gitRoot = join(agentDir, 'git')
-  if (!existsSync(gitRoot)) return
-  const seen = new Set(results.map((r) => r.packageName || r.name))
-  let hosts: string[] = []
-  try { hosts = readdirSync(gitRoot) } catch { return }
-  for (const host of hosts) {
-    const hostDir = join(gitRoot, host)
-    let repos: string[] = []
-    try { repos = readdirSync(hostDir) } catch { continue }
-    for (const repo of repos) {
-      const pkgDir = join(hostDir, repo)
-      if (!existsSync(join(pkgDir, 'package.json'))) continue
-      const pkg = readPackageJson(pkgDir)
-      if (!pkg) continue
-      const pkgName = pkg.name || repo
-      if (seen.has(pkgName) || seen.has(repo)) continue
-      const merged = buildPackageProbeResult(pkgDir, pkg, repo, undefined)
-      if (!merged) continue
-      merged.id = `git:${host}/${repo}`
-      merged.packageName = repo
-      results.push(merged)
-      seen.add(pkgName)
-      seen.add(repo)
-    }
+  const seen = new Set(results.flatMap((r) => [r.packageName, r.name].filter(Boolean) as string[]))
+  for (const pkgDir of findGitPackageDirs(agentDir)) {
+    const pkg = readPackageJson(pkgDir)
+    if (!pkg) continue
+    const repo = pkgDir.split(/[\\/]/).pop() || pkg.name
+    const pkgName = pkg.name || repo
+    if (seen.has(pkgName) || seen.has(repo)) continue
+    const merged = buildPackageProbeResult(pkgDir, pkg, repo, undefined)
+    if (!merged) continue
+    merged.id = `git:${pkgDir.slice(join(agentDir, 'git').length + 1).replace(/\\/g, '/')}`
+    merged.packageName = repo
+    results.push(merged)
+    seen.add(pkgName)
+    seen.add(repo)
   }
 }
 
