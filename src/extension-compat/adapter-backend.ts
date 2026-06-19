@@ -74,6 +74,27 @@ export function readAdapterConfig(adapterId: string, workspaceId: string): Recor
   return configStore.getExtensionConfig(workspaceId, adapterId) || {}
 }
 
+/** Read adapter config as RAW values (secrets NOT masked) for outbound HTTP requests
+ *  (httpCheck / optionsFrom). Pulls env-override first, then shared file. */
+export function readRawView(adapterId: string): Record<string, unknown> {
+  const adapter = findAdapterById(adapterId)
+  const cfg = adapter?.config
+  if (!cfg?.configFile) {
+    // app-local: no secrets masking in place, return as-is
+    return configStore.getExtensionConfig('', adapterId) || {}
+  }
+  const file = readSharedFile(cfg.configFile)
+  const fileKeyMap = cfg.fileKeyMap || {}
+  const envOverride = cfg.envOverride || {}
+  const view: Record<string, unknown> = {}
+  for (const [formKey, fileKey] of Object.entries(fileKeyMap)) {
+    const envName = envOverride[formKey]
+    const val = (envName ? process.env[envName] : undefined) ?? file[fileKey]
+    if (val !== undefined) view[formKey] = val
+  }
+  return view
+}
+
 /** Apply a patch: shared-file respects fileKeyMap + secret-skip-empty; app-local stores as-is. */
 export function writeAdapterConfig(adapterId: string, workspaceId: string, patch: Record<string, unknown>): Record<string, unknown> {
   const adapter = findAdapterById(adapterId)
@@ -124,7 +145,7 @@ export async function runAdapterAction(adapterId: string, actionId: string): Pro
     return { ok: true, lines: [target] }
   }
   if (action.type === 'httpCheck') {
-    const view = readAdapterConfig(adapterId, '')
+    const view = readRawView(adapterId)
     const url = tpl(action.url || '', view)
     const headers = mapTpl(action.headers || {}, view)
     const method = (action.method || 'GET').toUpperCase()
@@ -195,17 +216,10 @@ export async function fetchFieldOptions(adapterId: string, fieldKey: string): Pr
     .find((f) => f.key === fieldKey)
   const src = field?.optionsFrom
   if (!field || !src) return { options: [], error: 'field has no optionsFrom' }
-  // Note: env-override values (e.g. real API keys) are NOT exposed in the masked view,
-  // so read the raw shared file / env to template the request.
-  const view = readAdapterConfig(adapterId, '')
-  // Backfill raw secret from env / shared file for the request header (not returned to renderer).
-  const rawView: Record<string, unknown> = { ...view }
-  const envOverride = adapter?.config?.envOverride || {}
-  for (const [formKey, envName] of Object.entries(envOverride)) {
-    if (process.env[envName] && !rawView[formKey]) rawView[formKey] = process.env[envName]
-  }
-  const url = tpl(src.url, rawView)
-  const headers = mapTpl(src.headers || {}, rawView)
+  // Use raw (unmasked) values for the outbound request — secrets come from env / shared file.
+  const view = readRawView(adapterId)
+  const url = tpl(src.url, view)
+  const headers = mapTpl(src.headers || {}, view)
   try {
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(src.timeoutMs || 15000) } as any)
     if (!res.ok) return { options: [], error: `HTTP ${res.status}` }
