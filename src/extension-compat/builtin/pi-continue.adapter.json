@@ -1,9 +1,58 @@
 {
   "id": "pi-continue",
   "displayName": "Continue",
-  "description": "中途续跑（斜杠状态输出）",
+  "description": "中途续跑（配置 ~/.pi/agent/extensions/pi-continue.json）",
   "match": { "names": ["pi-continue"], "commands": ["/continue"] },
   "tier": "headless",
-  "config": { "note": "续跑逻辑由扩展自管；桌面仅展示斜杠状态输出。" },
-  "slash": { "/continue": "notify" }
+  "toolCard": { "template": "default", "icon": "Play" },
+  "config": {
+    "configFile": "~/.pi/agent/extensions/pi-continue.json",
+    "fileKeyMap": {
+      "enabled": "enabled",
+      "summarizerModel": "summarizerModel",
+      "reasoning": "reasoning",
+      "historyMaxTokens": "historyMaxTokens",
+      "continuationArtifactMode": "continuationArtifactMode",
+      "agentGuidePath": "agentGuidePath",
+      "agentGuideSyncMode": "agentGuideSyncMode",
+      "midRunGuardEnabled": "midRunGuardEnabled",
+      "appendCompactionMetadata": "appendCompactionMetadata",
+      "appendReadFileTags": "appendReadFileTags",
+      "appendModifiedFileTags": "appendModifiedFileTags",
+      "promptOverridePolicy": "promptOverridePolicy",
+      "showAfterCompact": "showAfterCompact"
+    },
+    "sections": [
+      {
+        "title": "续跑",
+        "fields": [
+          { "key": "enabled", "type": "boolean", "label": "启用续跑", "default": true },
+          { "key": "summarizerModel", "type": "text", "label": "交接模型", "default": "inherit", "description": "provider/model 或 inherit 继承当前模型" },
+          { "key": "reasoning", "type": "select", "label": "推理等级", "default": "inherit", "options": ["inherit", "off", "minimal", "low", "medium", "high", "xhigh"] },
+          { "key": "historyMaxTokens", "type": "number", "label": "历史最大 token", "description": "留空/0 用 Pi 默认" },
+          { "key": "midRunGuardEnabled", "type": "boolean", "label": "中途守卫", "default": true },
+          { "key": "showAfterCompact", "type": "boolean", "label": "压缩后显示", "default": true }
+        ]
+      },
+      {
+        "title": "产物与指南",
+        "fields": [
+          { "key": "continuationArtifactMode", "type": "select", "label": "续跑产物写入", "default": "always", "options": ["always", "off"] },
+          { "key": "agentGuidePath", "type": "text", "label": "AGENTS.md 路径", "default": "AGENTS.md" },
+          { "key": "agentGuideSyncMode", "type": "select", "label": "指南同步模式", "default": "off", "options": ["off", "always"] },
+          { "key": "promptOverridePolicy", "type": "select", "label": "提示词覆盖策略", "default": "project-override", "options": ["package-default", "global-override", "project-override"] }
+        ]
+      },
+      {
+        "title": "上下文标签",
+        "fields": [
+          { "key": "appendCompactionMetadata", "type": "boolean", "label": "附加压缩元数据", "default": false },
+          { "key": "appendReadFileTags", "type": "boolean", "label": "附加读取文件标签", "default": false },
+          { "key": "appendModifiedFileTags", "type": "boolean", "label": "附加修改文件标签", "default": true }
+        ]
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/extensions/pi-continue.json（项目级 .pi/extensions/pi-continue.json 优先，与扩展 /continue config 共享）。"
+  },
+  "slash": { "/continue": "notify", "/continue config": "config-page" }
 }

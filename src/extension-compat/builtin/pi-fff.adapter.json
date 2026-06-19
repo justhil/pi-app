@@ -1,9 +1,27 @@
 {
   "id": "@ff-labs/pi-fff",
   "displayName": "FFF",
-  "description": "模糊路径搜索（斜杠状态输出）",
+  "description": "模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag）",
   "match": { "names": ["@ff-labs/pi-fff"], "commands": ["/fff-mode", "/fff-health", "/fff-rescan"] },
   "tier": "headless",
-  "config": { "note": "FFF 搜索由扩展自管；桌面仅展示斜杠状态输出。" },
-  "slash": { "/fff-mode": "notify", "/fff-health": "notify", "/fff-rescan": "notify" }
+  "config": {
+    "piSettingsKey": "fff-mode",
+    "sections": [
+      {
+        "title": "FFF 模式",
+        "fields": [
+          {
+            "key": "fff-mode",
+            "type": "select",
+            "label": "搜索工具模式",
+            "default": "tools-and-ui",
+            "description": "tools-and-ui=注册 fffind/fffgrep 覆盖 find/grep；tools-only=仅注册；override=保留原工具",
+            "options": ["tools-and-ui", "tools-only", "override"]
+          }
+        ]
+      }
+    ],
+    "note": "写入 ~/.pi/agent/settings.json 的 fff-mode（与扩展 /fff-mode 共享），下次会话生效。"
+  },
+  "slash": { "/fff-mode": "config-page", "/fff-health": "notify", "/fff-rescan": "notify" }
 }

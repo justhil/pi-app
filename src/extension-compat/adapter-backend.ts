@@ -30,6 +30,34 @@ function readSharedFile(path: string): Record<string, unknown> {
   }
 }
 
+/** Path to the pi global settings.json (~/.pi/agent/settings.json). */
+function piSettingsPath(): string {
+  return join(homedir(), '.pi', 'agent', 'settings.json')
+}
+
+/** Read a single top-level key from pi global settings.json. */
+function readPiSettingsKey(key: string): unknown {
+  const p = piSettingsPath()
+  if (!existsSync(p)) return undefined
+  try {
+    const obj = JSON.parse(readFileSync(p, 'utf8'))
+    return obj?.[key]
+  } catch {
+    return undefined
+  }
+}
+
+/** Atomically write a single top-level key into pi global settings.json. */
+function writePiSettingsKey(key: string, value: unknown): void {
+  const p = piSettingsPath()
+  let obj: Record<string, unknown> = {}
+  if (existsSync(p)) {
+    try { obj = JSON.parse(readFileSync(p, 'utf8')) } catch { obj = {} }
+  }
+  obj[key] = value
+  atomicWrite(p, JSON.stringify(obj, null, 2))
+}
+
 function atomicWrite(path: string, data: string): void {
   const full = expandPath(path)
   mkdirSync(dirname(full), { recursive: true })
@@ -46,17 +74,39 @@ function atomicWrite(path: string, data: string): void {
   renameSync(tmp, full)
 }
 
-/** Read adapter config as a renderable view: env-override applied, secrets masked, derived flags computed. */
+/** Read adapter config as a renderable view: env-override applied, secrets masked, derived flags computed.
+ *  configFile fields come from the shared file; localKeys come from app-local configStore. */
 export function readAdapterConfig(adapterId: string, workspaceId: string): Record<string, unknown> {
   const adapter = findAdapterById(adapterId)
   const cfg = adapter?.config
+  const localKeys = new Set(cfg?.localKeys || [])
+  const local = configStore.getExtensionConfig(workspaceId, adapterId) || {}
+
+  // pi flag-backed settings (e.g. fff-mode): read from ~/.pi/agent/settings.json
+  if (cfg?.piSettingsKey) {
+    const key = cfg.piSettingsKey
+    const field = (cfg.sections || []).flatMap((s) => s.fields || []).find((f) => f.key === key)
+    const val = readPiSettingsKey(key)
+    return { [key]: val ?? field?.default ?? '', __piSettings: true }
+  }
+
   if (cfg?.configFile) {
     const file = readSharedFile(cfg.configFile)
     const fileKeyMap = cfg.fileKeyMap || {}
     const envOverride = cfg.envOverride || {}
     const view: Record<string, unknown> = {}
-    for (const [formKey, fileKey] of Object.entries(fileKeyMap)) {
+    const allKeys = new Set<string>([
+      ...Object.keys(fileKeyMap),
+      ...(cfg.sections || []).flatMap((s) => s.fields || []).map((f) => f.key),
+    ])
+    for (const formKey of allKeys) {
       const field = (cfg.sections || []).flatMap((s) => s.fields || []).find((f) => f.key === formKey)
+      if (localKeys.has(formKey)) {
+        view[formKey] = local[formKey] ?? field?.default ?? ''
+        continue
+      }
+      const fileKey = fileKeyMap[formKey]
+      if (!fileKey) continue
       const envName = envOverride[formKey]
       const rawVal = envName ? process.env[envName] : undefined
       const val = rawVal ?? file[fileKey]
@@ -71,7 +121,7 @@ export function readAdapterConfig(adapterId: string, workspaceId: string): Recor
     return view
   }
   // app-local fallback (existing configStore path)
-  return configStore.getExtensionConfig(workspaceId, adapterId) || {}
+  return local
 }
 
 /** Read adapter config as RAW values (secrets NOT masked) for outbound HTTP requests
@@ -79,6 +129,9 @@ export function readAdapterConfig(adapterId: string, workspaceId: string): Recor
 export function readRawView(adapterId: string): Record<string, unknown> {
   const adapter = findAdapterById(adapterId)
   const cfg = adapter?.config
+  if (cfg?.piSettingsKey) {
+    return { [cfg.piSettingsKey]: readPiSettingsKey(cfg.piSettingsKey) }
+  }
   if (!cfg?.configFile) {
     // app-local: no secrets masking in place, return as-is
     return configStore.getExtensionConfig('', adapterId) || {}
@@ -95,10 +148,29 @@ export function readRawView(adapterId: string): Record<string, unknown> {
   return view
 }
 
-/** Apply a patch: shared-file respects fileKeyMap + secret-skip-empty; app-local stores as-is. */
+/** Apply a patch: shared-file respects fileKeyMap + secret-skip-empty;
+ *  localKeys go to app-local configStore. */
 export function writeAdapterConfig(adapterId: string, workspaceId: string, patch: Record<string, unknown>): Record<string, unknown> {
   const adapter = findAdapterById(adapterId)
   const cfg = adapter?.config
+
+  // pi flag-backed settings: write to ~/.pi/agent/settings.json
+  if (cfg?.piSettingsKey) {
+    const key = cfg.piSettingsKey
+    if (patch[key] !== undefined) writePiSettingsKey(key, patch[key])
+    return readAdapterConfig(adapterId, workspaceId)
+  }
+
+  const localKeys = new Set(cfg?.localKeys || [])
+  // Always merge localKeys into app-local store (independent of configFile).
+  const local = configStore.getExtensionConfig(workspaceId, adapterId) || {}
+  let localDirty = false
+  for (const [k, v] of Object.entries(patch)) {
+    if (localKeys.has(k)) {
+      local[k] = v
+      localDirty = true
+    }
+  }
   if (cfg?.configFile) {
     const file = readSharedFile(cfg.configFile)
     const fileKeyMap = cfg.fileKeyMap || {}
@@ -107,6 +179,7 @@ export function writeAdapterConfig(adapterId: string, workspaceId: string, patch
     )
     for (const [formKey, val] of Object.entries(patch)) {
       if (val === undefined) continue
+      if (localKeys.has(formKey)) continue
       const fileKey = fileKeyMap[formKey]
       if (!fileKey) continue
       const field = fields.get(formKey)
@@ -122,10 +195,10 @@ export function writeAdapterConfig(adapterId: string, workspaceId: string, patch
       file[fileKey] = val
     }
     atomicWrite(cfg.configFile, JSON.stringify(file, null, 2))
+    if (localDirty) configStore.setExtensionConfig(workspaceId, adapterId, local)
     return readAdapterConfig(adapterId, workspaceId)
   }
-  const existing = configStore.getExtensionConfig(workspaceId, adapterId) || {}
-  const next = { ...existing, ...patch }
+  const next = { ...local, ...patch }
   configStore.setExtensionConfig(workspaceId, adapterId, next)
   return next
 }

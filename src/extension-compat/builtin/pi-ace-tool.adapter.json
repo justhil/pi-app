@@ -1,9 +1,56 @@
 {
   "id": "pi-ace-tool",
   "displayName": "ACE Tool",
-  "description": "ACE 工具扩展（工具随扩展加载执行）",
+  "description": "ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试）",
   "match": { "names": ["pi-ace-tool"] },
   "tier": "headless",
-  "toolCard": { "template": "default" },
-  "config": { "note": "ACE 工具行为由扩展自管；桌面仅执行其注册的工具。" }
+  "toolCard": { "template": "default", "icon": "Sparkles" },
+  "config": {
+    "configFile": "~/.pi/agent/ace-tool.json",
+    "fileKeyMap": {
+      "apiMode": "apiMode",
+      "baseUrl": "baseUrl",
+      "token": "token",
+      "autoIndexOnSessionStart": "autoIndexOnSessionStart",
+      "promptEnhancerMode": "promptEnhancerMode",
+      "promptEnhancerModel": "promptEnhancerModel",
+      "promptEnhancerIncludeSearchContext": "promptEnhancerIncludeSearchContext"
+    },
+    "envOverride": {
+      "baseUrl": "ACE_TOOL_BASE_URL",
+      "token": "ACE_TOOL_TOKEN",
+      "promptEnhancerModel": "ACE_TOOL_PROMPT_ENHANCER_MODEL"
+    },
+    "sections": [
+      {
+        "title": "API 连接",
+        "fields": [
+          { "key": "apiMode", "type": "select", "label": "API 模式", "default": "auto", "description": "auto=按可用凭证自动选择；compat=兼容代理；official-oauth=官方 OAuth", "options": ["auto", "compat", "official-oauth"] },
+          { "key": "baseUrl", "type": "text", "label": "Compat Base URL", "description": "compat 模式的中转地址（含尾斜杠）" },
+          { "key": "token", "type": "secret", "label": "Compat Token", "description": "输入 - 清除已保存 token" },
+          { "key": "autoIndexOnSessionStart", "type": "boolean", "label": "会话开始自动索引", "default": false }
+        ]
+      },
+      {
+        "title": "提示词增强",
+        "fields": [
+          { "key": "promptEnhancerMode", "type": "select", "label": "增强模式", "default": "pi-model", "options": ["official", "pi-model"] },
+          { "key": "promptEnhancerModel", "type": "text", "label": "增强模型", "default": "CloseAI/minimax-m2.7", "description": "provider/model 格式" },
+          { "key": "promptEnhancerIncludeSearchContext", "type": "boolean", "label": "增强时包含搜索上下文", "default": true }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "test",
+        "type": "httpCheck",
+        "label": "测试连接",
+        "method": "GET",
+        "url": "${baseUrl}health",
+        "headers": { "Authorization": "Bearer ${token}" },
+        "timeoutMs": 15000
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/ace-tool.json（与扩展共享）。apiMode=official-oauth 需先在终端 /ace-login 完成 OAuth。"
+  }
 }

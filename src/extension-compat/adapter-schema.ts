@@ -54,6 +54,11 @@ export interface AdapterConfig {
   configFile?: string // shared-file path; omitted => app-local
   fileKeyMap?: Record<string, string> // form key -> file key
   envOverride?: Record<string, string> // form key -> env var name (read priority)
+  /** Form keys stored in app-local configStore instead of the shared file (desktop-only UI toggles). */
+  localKeys?: string[]
+  /** When set, the entire config value (or a named field) reads/writes ~/.pi/agent/settings.json under this key.
+   *  Used for pi flag-backed adapter settings (e.g. fff-mode). */
+  piSettingsKey?: string
   sections?: ConfigSection[]
   actions?: AdapterAction[]
   note?: string

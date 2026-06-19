@@ -1,19 +1,20 @@
 {
   "id": "pi-cache-optimizer",
   "displayName": "Cache Optimizer",
-  "description": "缓存优化（桌面状态提示开关）",
+  "description": "缓存优化（运行时开关，影响新会话启动）",
   "match": { "names": ["pi-cache-optimizer"], "commands": ["/cache-optimizer"] },
   "tier": "headless",
   "config": {
-    "note": "缓存优化逻辑由扩展自管；此处仅控制桌面状态提示开关，不影响扩展行为。",
     "sections": [
       {
-        "title": "桌面提示",
+        "title": "优化开关（环境变量）",
         "fields": [
-          { "key": "enabled", "type": "boolean", "label": "启用桌面缓存提示", "default": true }
+          { "key": "PI_CACHE_OPTIMIZER_NO_OPENAI_CACHE_KEY", "type": "boolean", "label": "禁用 OpenAI cache key 优化", "default": false },
+          { "key": "PI_CACHE_OPTIMIZER_NO_SKILL_COMPRESSION", "type": "boolean", "label": "禁用技能压缩", "default": false }
         ]
       }
-    ]
+    ],
+    "note": "这些开关对应环境变量，仅在新会话启动时生效（与扩展 /cache-optimizer disable 行为一致）。运行中切换请在终端用 /cache-optimizer。"
   },
   "slash": { "/cache-optimizer": "config-page" }
 }
