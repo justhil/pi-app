@@ -17,29 +17,48 @@ export interface ExtensionProbeResult {
   hasUI: boolean
   compatibility: 'native' | 'basic' | 'headless' | 'blocked'
   adapterId?: string
+  /** All adapters matched by this package's tools */
+  adapterIds?: string[]
+  /** C-layer TUI-only decoration flag */
+  tuiOnly?: boolean
   loadError?: string
   enabled: boolean
 }
 
-// Native whitelist: tool/command name -> adapter with dedicated desktop renderer
-const TOOL_ADAPTERS: Record<string, string> = {
-  trellis_subagent: 'trellis',
-  ask_user_question: 'ask',
-  image_gen: 'image',
-  image_review: 'image',
-  analyze_image: 'image',
-  browser_bridge: 'browser',
-  web_scan: 'browser',
-  web_execute_js: 'browser',
-  preview_export: 'doc',
-  studio_export_pdf: 'doc',
-  studio_export_html: 'doc',
-  studio_repl_send: 'repl',
-  intercom: 'intercom',
-  image_gen_config: 'image',
-  // subagent / observational-memory etc are widely used and render fine as cards
-  subagent: 'subagent',
-  contact_supervisor: 'subagent',
+import { TOOL_TO_ADAPTER } from './adapters-registry.js'
+import { resolvePluginAdapterMeta } from './plugin-adapter-meta.js'
+
+function tierToCompatibility(tier: string): ExtensionProbeResult['compatibility'] {
+  if (tier === 'native') return 'native'
+  if (tier === 'partial') return 'basic'
+  return 'headless'
+}
+
+/** Only plugins in plugin-adapter-meta.ts (tier != 'none') get adapterId; 'none' tier shows as TUI-only; others are installed-only. */
+function applyPluginAdapterFields(result: ExtensionProbeResult): void {
+  const meta = resolvePluginAdapterMeta(result.name, result.packageName)
+  if (meta && meta.tier !== 'none') {
+    const adapterName = result.packageName || result.name
+    result.adapterId = adapterName
+    result.adapterIds = [adapterName]
+    result.compatibility = tierToCompatibility(meta.tier)
+    return
+  }
+  result.adapterId = undefined
+  result.adapterIds = undefined
+  if (meta && meta.tier === 'none') {
+    // C-layer: TUI-only decoration
+    result.compatibility = 'blocked'
+    result.tuiOnly = true
+    return
+  }
+  if (result.registeredTools.length || result.registeredCommands.length) {
+    result.compatibility = result.hasUI ? 'basic' : 'headless'
+  } else if (result.hasUI) {
+    result.compatibility = 'basic'
+  } else {
+    result.compatibility = 'headless'
+  }
 }
 
 const UI_PATTERNS = ['ctx.ui', 'pi.ui', 'registerShortcut', 'setWidget', 'customComponent', 'ctx.ui.custom', 'pi.ui.custom']
@@ -54,7 +73,7 @@ function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   for (const m of src.matchAll(/defineTool\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) tools.add(m[1])
   // pick up known tool names from object literals
   for (const m of src.matchAll(/\bname:\s*['"]([a-z_][a-z0-9_]*)['"]/gi)) {
-    if (TOOL_ADAPTERS[m[1]]) tools.add(m[1])
+    if (TOOL_TO_ADAPTER[m[1]]) tools.add(m[1])
   }
   for (const m of src.matchAll(/registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g)) commands.add(m[1])
 
@@ -62,20 +81,7 @@ function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   result.registeredCommands = Array.from(commands)
   result.hasUI = UI_PATTERNS.some((p) => src.includes(p))
 
-  let best: ExtensionProbeResult['compatibility'] = 'blocked'
-  for (const t of result.registeredTools) {
-    if (TOOL_ADAPTERS[t]) { result.adapterId = TOOL_ADAPTERS[t]; best = 'native'; break }
-  }
-  if (best === 'blocked') {
-    if (result.registeredTools.length || result.registeredCommands.length) {
-      best = result.hasUI ? 'basic' : 'headless'
-    } else if (result.hasUI) {
-      best = 'basic'
-    } else {
-      best = 'headless'
-    }
-  }
-  result.compatibility = best
+  applyPluginAdapterFields(result)
 }
 
 function readPackageJson(pkgDir: string): any | null {
@@ -268,21 +274,11 @@ function mergeResult(merged: ExtensionProbeResult, tmp: ExtensionProbeResult): v
   tmp.registeredTools.forEach((t) => { if (!merged.registeredTools.includes(t)) merged.registeredTools.push(t) })
   tmp.registeredCommands.forEach((c) => { if (!merged.registeredCommands.includes(c)) merged.registeredCommands.push(c) })
   if (tmp.hasUI) merged.hasUI = true
-  if (tmp.adapterId && !merged.adapterId) {
-    merged.adapterId = tmp.adapterId
-    merged.compatibility = 'native'
-  }
+  applyPluginAdapterFields(merged)
 }
 
 function finalizeCompat(merged: ExtensionProbeResult): void {
-  if (merged.compatibility === 'native') return
-  if (merged.registeredTools.length || merged.registeredCommands.length) {
-    merged.compatibility = merged.hasUI ? 'basic' : 'headless'
-  } else if (merged.hasUI) {
-    merged.compatibility = 'basic'
-  } else {
-    merged.compatibility = 'headless'
-  }
+  applyPluginAdapterFields(merged)
 }
 
 // Recursively scan a package dir for known tool/command names and UI patterns
@@ -306,14 +302,10 @@ function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult):
     try {
       const src = readFileSync(f, 'utf-8')
       // match known tool names
-      for (const toolName of Object.keys(TOOL_ADAPTERS)) {
+      for (const toolName of Object.keys(TOOL_TO_ADAPTER)) {
         const re = new RegExp(`(['\""])${toolName}\\1`, 'g')
         if (re.test(src) && !merged.registeredTools.includes(toolName)) {
           merged.registeredTools.push(toolName)
-          if (!merged.adapterId) {
-            merged.adapterId = TOOL_ADAPTERS[toolName]
-            merged.compatibility = 'native'
-          }
         }
       }
       if (UI_PATTERNS.some((p) => src.includes(p))) merged.hasUI = true
@@ -321,13 +313,4 @@ function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult):
   }
 }
 
-export const ADAPTER_LABELS: Record<string, string> = {
-  trellis: 'Trellis',
-  ask: 'Ask User',
-  image: 'Image',
-  browser: 'Browser',
-  doc: 'Document',
-  intercom: 'Intercom',
-  repl: 'REPL',
-  subagent: 'Subagent',
-}
+export { ADAPTER_LABELS } from './adapters-registry.js'

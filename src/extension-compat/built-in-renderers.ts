@@ -2,41 +2,29 @@
 
 import type { ExtensionProbeResult, CompatibilityLevel, RemoteAdapterEntry } from '@shared/extension-types'
 
-const BUILTIN_REGISTRY: Record<string, RemoteAdapterEntry> = {
-  trellis: {
-    id: 'trellis',
-    displayName: 'Trellis',
-    compatibility: 'native',
-    match: { tools: ['trellis_subagent'] },
-    rendererMap: {
-      'trellis-subagent-progress': 'trellis.subagentProgress',
-      'trellis-task-status': 'trellis.taskStatus',
-    },
-    risk: { level: 'low', message: 'Trellis adapter only reads task state and renders subagent progress.' },
-  },
-  ask: {
-    id: 'ask',
-    displayName: 'Ask User Question',
-    compatibility: 'native',
-    match: { tools: ['ask_user_question'] },
-    rendererMap: {
-      'ask.choice': 'ask.choice',
-      'ask.confirm': 'ask.confirm',
-    },
-    risk: { level: 'low', message: 'Ask adapter renders user interaction as desktop dialogs.' },
-  },
-  image: {
-    id: 'image',
-    displayName: 'Image Generation/Review',
-    compatibility: 'native',
-    match: { tools: ['image_gen', 'image_review'] },
-    rendererMap: {
-      'image.gen': 'image.gen',
-      'image.review': 'image.review',
-    },
-    risk: { level: 'low', message: 'Image adapter renders generation results and review cards.' },
-  },
+import { ADAPTERS } from './adapters-registry.js'
+
+function entryFromAdapter(id: string): RemoteAdapterEntry | null {
+  const a = ADAPTERS[id]
+  if (!a || id === 'ui-bridge') return null
+  const compatibility = a.tier === 'native' ? 'native' : a.tier === 'partial' ? 'basic' : 'headless'
+  return {
+    id: a.id,
+    displayName: a.displayName,
+    compatibility,
+    match: { tools: a.tools },
+    risk: { level: 'low', message: a.desktopSupport },
+  }
 }
+
+const BUILTIN_REGISTRY: Record<string, RemoteAdapterEntry> = Object.fromEntries(
+  ['trellis', 'ask', 'image', 'doc', 'repl', 'intercom', 'subagent']
+    .map((id) => {
+      const e = entryFromAdapter(id)
+      return e ? [id, e] as const : null
+    })
+    .filter(Boolean) as [string, RemoteAdapterEntry][],
+)
 
 export function evaluateCompatibility(
   probeResult: ExtensionProbeResult,

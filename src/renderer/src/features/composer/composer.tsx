@@ -1,14 +1,48 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, Paperclip } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown } from 'lucide-react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
+import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
+
+interface SlashCommand {
+  id: string
+  name: string
+  description?: string
+  category: 'builtin' | 'prompt' | 'skill' | 'extension'
+}
+
+// Minimal builtin command surface (handled directly in app, not via pi command API)
+const BUILTIN_COMMANDS: SlashCommand[] = [
+  { id: 'model', name: '/model', description: '切换或查看当前模型', category: 'builtin' },
+  { id: 'thinking', name: '/thinking', description: '切换 thinking 等级', category: 'builtin' },
+  { id: 'clear', name: '/clear', description: '清空当前时间线', category: 'builtin' },
+  { id: 'compact', name: '/compact', description: '压缩会话历史', category: 'builtin' },
+  { id: 'new', name: '/new', description: '新建会话', category: 'builtin' },
+]
+
+const CATEGORY_COLORS: Record<string, string> = {
+  builtin: 'bg-primary/15 text-primary',
+  prompt: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+  skill: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+  extension: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  builtin: '内置',
+  prompt: 'Prompt',
+  skill: 'Skill',
+  extension: '扩展',
+}
 
 export function Composer() {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [commands, setCommands] = useState<SlashCommand[]>([])
+  const [commandsSource, setCommandsSource] = useState<'worker' | 'fallback' | null>(null)
+  const [selectedIdx, setSelectedIdx] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
@@ -28,15 +62,89 @@ export function Composer() {
     setIsStreaming(isRunning)
   }, [isRunning])
 
-  const handleSend = async () => {
-    if (!text.trim() || !currentWorkspace) return
+  // Load authoritative command list from Worker (A-layer)
+  const refreshCommands = useCallback(async () => {
+    try {
+      const res = await ipcClient.invoke('commands.list')
+      const cmds = (res?.commands || []) as SlashCommand[]
+      // Merge builtins (worker doesn't know app-native ones like /model)
+      const names = new Set(cmds.map((c) => c.name))
+      const merged = [...BUILTIN_COMMANDS.filter((b) => !names.has(b.name)), ...cmds]
+      setCommands(merged)
+      setCommandsSource(res?.source || 'worker')
+    } catch (e) {
+      console.error('commands.list failed:', e)
+      setCommands(BUILTIN_COMMANDS)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (currentWorkspace) refreshCommands()
+  }, [currentWorkspace, refreshCommands])
+
+  // Slash popover: triggered when text starts with '/' (anchored at line start or message start)
+  const slashQuery = useMemo(() => {
+    const m = text.match(/(?:^|\n)\/(\S*)$/)
+    if (!m) return null
+    return m[1] // without leading slash
+  }, [text])
+
+  const filteredCommands = useMemo(() => {
+    if (slashQuery === null) return []
+    const q = slashQuery.toLowerCase()
+    const seen = new Set<string>()
+    return commands.filter((c) => {
+      const key = c.name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return !q || key.includes(q) || (c.description || '').toLowerCase().includes(q)
+    }).slice(0, 8)
+  }, [commands, slashQuery])
+
+  useEffect(() => {
+    setSelectedIdx(0)
+  }, [slashQuery])
+
+  const showPopover = slashQuery !== null && filteredCommands.length > 0
+
+  const sendText = async (raw: string) => {
+    if (!raw.trim() || !currentWorkspace) return
     setIsStreaming(true)
     try {
-      await ipcClient.invoke('prompt.send', { sessionId: '', text: text.trim() })
+      await ipcClient.invoke('prompt.send', { sessionId: '', text: raw.trim() })
     } catch (e) {
       console.error('Send failed:', e)
     }
     setText('')
+  }
+
+  const handleSend = async () => {
+    // If this looks like a slash command, try to execute via slash semantics first (A3)
+    const trimmed = text.trim()
+    if (trimmed.startsWith('/') && isExecutableBuiltin(trimmed)) {
+      const handled = await executeSlashCommand(trimmed, { refreshCommands })
+      if (handled) {
+        setText('')
+        return
+      }
+    }
+    // B-layer: extension slash dispatch (notify vs config-page)
+    const token = firstToken(trimmed)
+    if (token && !isExecutableBuiltin(trimmed)) {
+      try {
+        const r = await ipcClient.invoke('slash.resolve', { command: token })
+        if (r?.behavior === 'config-page' && r?.meta) {
+          // Route to adapter config page
+          useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
+          setText('')
+          return
+        }
+        // notify / passthrough / execute -> send to pi; pi will execute and emit results
+      } catch (e) {
+        console.error('slash.resolve failed:', e)
+      }
+    }
+    await sendText(trimmed)
   }
 
   const handleAbort = async () => {
@@ -48,7 +156,44 @@ export function Composer() {
     setIsStreaming(false)
   }
 
+  const acceptCommand = (cmd: SlashCommand) => {
+    // Insert/replace the in-progress slash token with the chosen command name
+    setText((prev) => prev.replace(/(?:^|\n)\/(\S*)$/, (_m, _p1, offset) => {
+      const prefix = offset > 0 ? '\n' : ''
+      return `${prefix}${cmd.name} `
+    }))
+    textareaRef.current?.focus()
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showPopover) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedIdx((i) => (i + 1) % filteredCommands.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedIdx((i) => (i - 1 + filteredCommands.length) % filteredCommands.length)
+        return
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault()
+        const cmd = filteredCommands[selectedIdx]
+        // Builtin / model / thinking -> execute immediately; others -> accept then Enter to send
+        if (cmd.category === 'builtin' || isExecutableBuiltin(cmd.name)) {
+          acceptCommand(cmd)
+        } else {
+          acceptCommand(cmd)
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setText((prev) => prev.replace(/(?:^|\n)\/(\S*)$/, ''))
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (!isStreaming) handleSend()
@@ -85,7 +230,41 @@ export function Composer() {
   }
 
   return (
-    <div className="border-t border-border/80 px-4 pb-3 pt-2.5">
+    <div className="relative border-t border-border/80 px-4 pb-3 pt-2.5">
+      {showPopover && (
+        <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-lg border border-border/70 bg-popover shadow-lg">
+          <div className="max-h-72 overflow-y-auto py-1">
+            {filteredCommands.map((cmd, idx) => (
+              <button
+                key={`${cmd.category}-${cmd.id}`}
+                onMouseEnter={() => setSelectedIdx(idx)}
+                onClick={() => acceptCommand(cmd)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
+                  idx === selectedIdx ? 'bg-accent' : 'hover:bg-accent/50',
+                )}
+              >
+                <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', CATEGORY_COLORS[cmd.category])}>
+                  {CATEGORY_LABEL[cmd.category]}
+                </span>
+                <span className="font-mono text-[12px] font-medium">{cmd.name}</span>
+                {cmd.description && (
+                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{cmd.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 border-t border-border/40 px-3 py-1.5 text-[10px] text-muted-foreground/70">
+            <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> 选择</span>
+            <span className="flex items-center gap-1"><CornerDownLeft className="h-2.5 w-2.5" /> 确认</span>
+            <span className="flex items-center gap-1">Tab 补全</span>
+            <span>Esc 取消</span>
+            {commandsSource === 'fallback' && (
+              <span className="ml-auto text-amber-600 dark:text-amber-400">静态列表（Worker 未启动）</span>
+            )}
+          </div>
+        </div>
+      )}
       <div className={cn(
         'flex items-end gap-2 rounded-xl border bg-card transition-all duration-motion-fast ease-motion-ease',
         'border-border/70 focus-within:border-ring/50 focus-within:ring-1 focus-within:ring-ring/30',

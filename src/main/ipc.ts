@@ -5,6 +5,8 @@ import { sqliteIndex } from './sqlite-index'
 import { readTrellisState } from './trellis-reader'
 import { readPiInfo, readResourceList } from './pi-info'
 import { probeExtensions } from '../extension-compat/extension-probe'
+import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
+import { resolveSlashBehavior } from '../extension-compat/plugin-adapter-meta'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, basename, dirname } from 'path'
@@ -29,6 +31,11 @@ export function registerHandler(channel: string, handler: HandlerFn): void {
   })
 }
 
+registerHandler('ipc:extension.respondUI', async (req) => {
+  workerManager.respondExtensionUI(req)
+  return { ok: true }
+})
+
 export function sendEvent(win: BrowserWindow, event: unknown): void {
   if (!win.isDestroyed()) {
     win.webContents.send('ipc:events', event)
@@ -37,6 +44,17 @@ export function sendEvent(win: BrowserWindow, event: unknown): void {
 
 export function registerAllHandlers(): void {
   // ── Dialog ──
+  registerHandler('ipc:extension.config.get', async (req) => {
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    return { config: configStore.getExtensionConfig(workspaceId, req.extensionId) || {} }
+  })
+
+  registerHandler('ipc:extension.config.set', async (req) => {
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    configStore.setExtensionConfig(workspaceId, req.extensionId, req.config || {})
+    return { ok: true }
+  })
+
   registerHandler('ipc:dialog:openDirectory', async () => {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
     const result = win
@@ -209,13 +227,21 @@ export function registerAllHandlers(): void {
   })
 
   // ── Commands ──
+  // Authoritative source = Worker session getCommands (A-layer, tui-replacement-and-adapters.md §2.2).
+  // Directory scan is a fallback ONLY when Worker not started yet.
   registerHandler('ipc:commands.list', async (_req) => {
-    // Read slash commands from prompts and skills
-    const commands: any[] = []
-    const agentDir = join(homedir(), '.pi', 'agent')
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    if (workerManager.isRunning) {
+      try {
+        const r = await workerManager.getCommands()
+        return { commands: r.commands, source: 'worker' }
+      } catch (e) {
+        console.error('[IPC] commands.list worker failed:', e)
+      }
+    }
 
-    // Check project prompts
+    // Fallback: static scan (Worker not started). NOT authoritative for execution.
+    const commands: any[] = []
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const projectPromptsDir = join(cwd, '.pi', 'prompts')
     if (existsSync(projectPromptsDir)) {
       try {
@@ -227,8 +253,6 @@ export function registerAllHandlers(): void {
         }
       } catch {}
     }
-
-    // Check project skills
     const projectSkillsDir = join(cwd, '.pi', 'skills')
     if (existsSync(projectSkillsDir)) {
       try {
@@ -240,8 +264,7 @@ export function registerAllHandlers(): void {
         }
       } catch {}
     }
-
-    return { commands }
+    return { commands, source: 'fallback' }
   })
 
   // ── Review ──
@@ -279,6 +302,19 @@ export function registerAllHandlers(): void {
     return { extensionId: req.extensionId, enabled: req.enabled }
   })
 
+  registerHandler('ipc:adapters.catalog', async () => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const extensions = probeExtensions(cwd)
+    return { adapters: buildPluginAdapters(extensions) }
+  })
+
+  // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute)
+  registerHandler('ipc:slash.resolve', async (req) => {
+    const r = resolveSlashBehavior(req.command || '')
+    if (!r) return { behavior: 'passthrough', meta: null }
+    return { behavior: r.behavior, meta: { matchNames: r.meta.matchNames, desktopSupport: r.meta.desktopSupport, tier: r.meta.tier } }
+  })
+
   // ── Registry ──
   registerHandler('ipc:registry.refresh', async (req) => {
     // TODO: fetch remote registry
@@ -301,6 +337,26 @@ export function registerAllHandlers(): void {
   // ── Pi Info ──
   registerHandler('ipc:pi.getInfo', async () => {
     return readPiInfo()
+  })
+
+  // ── Pi Settings (A-layer write-back, tui-replacement-and-adapters.md §2.5) ──
+  registerHandler('ipc:pi.settings.get', async () => {
+    if (!workerManager.isRunning) return { settings: null, error: 'Worker not started' }
+    try {
+      const settings = await workerManager.getPiSettings()
+      return { settings }
+    } catch (e: any) {
+      return { settings: null, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:pi.settings.set', async (req) => {
+    try {
+      await workerManager.setPiSettings(req.patch || {})
+      return { ok: true }
+    } catch (e: any) {
+      return { ok: false, error: e.message }
+    }
   })
 
   // ── Resources ──

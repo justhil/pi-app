@@ -14,6 +14,8 @@ import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity } from 'lucide-react'
+import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
+import { ExtensionConfigHost } from '@renderer/features/extension-ui/extension-config-host'
 
 type View = 'main' | 'settings'
 
@@ -171,6 +173,8 @@ export default function App() {
           </aside>
         </div>
       </div>
+      <ExtensionUIHost />
+      <ExtensionConfigHost />
     </ErrorBoundary>
   )
 }

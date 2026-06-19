@@ -1,7 +1,8 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useEffect, useState } from 'react'
-import { Clock, Coins, Wrench, AlertCircle, Cpu, Activity, Timer } from 'lucide-react'
+import { Clock, Coins, Wrench, AlertCircle, Cpu, Activity, Timer, ChevronDown } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { ipcClient } from '@renderer/lib/ipc-client'
 
 function formatDuration(ms: number): string {
   const s = Math.floor(ms / 1000)
@@ -29,6 +30,32 @@ function StatCard({ icon: Icon, label, value, sublabel, accent }: any) {
 export function RunPanel() {
   const runState = useUIStore((s) => s.runState)
   const [elapsed, setElapsed] = useState('0s')
+  const [models, setModels] = useState<any[]>([])
+  const [showModelMenu, setShowModelMenu] = useState(false)
+
+  useEffect(() => {
+    ipcClient.invoke('model.list').then((res) => setModels(res?.models || [])).catch(() => {})
+  }, [])
+
+  const switchModel = async (provider: string, modelId: string) => {
+    try {
+      await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
+    } catch (e) {
+      console.error('model.set failed:', e)
+    }
+    setShowModelMenu(false)
+  }
+
+  const cycleThinking = async () => {
+    const order = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+    const cur = runState.thinkingLevel || 'medium'
+    const next = order[(order.indexOf(cur) + 1) % order.length]
+    try {
+      await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level: next })
+    } catch (e) {
+      console.error('thinkingLevel.set failed:', e)
+    }
+  }
 
   useEffect(() => {
     if (runState.status === 'running' && runState.startTime) {
@@ -75,18 +102,49 @@ export function RunPanel() {
         </div>
       </div>
 
-      {/* Model */}
-      {runState.model && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2">
-          <Cpu className="h-3.5 w-3.5 text-muted-foreground/60" />
-          <span className="truncate font-mono text-[12px] text-foreground/80">{runState.model}</span>
-          {runState.thinkingLevel && runState.thinkingLevel !== 'off' && (
-            <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase">
-              {runState.thinkingLevel}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Model selector */}
+      <div className="relative">
+        <button
+          onClick={() => setShowModelMenu((v) => !v)}
+          className="flex w-full items-center gap-2.5 rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-left hover:bg-accent/40"
+        >
+          <Cpu className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+          <span className="truncate font-mono text-[12px] text-foreground/80">{runState.model || '未选择'}</span>
+          <ChevronDown className="ml-auto h-3 w-3 shrink-0 text-muted-foreground/60" />
+        </button>
+        {showModelMenu && (
+          <div className="absolute bottom-full left-0 right-0 z-20 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border/70 bg-popover shadow-lg">
+            {models.length === 0 && <div className="px-2.5 py-2 text-[11px] text-muted-foreground/60">无可用模型</div>}
+            {models.map((m: any) => (
+              <button
+                key={`${m.provider}/${m.id}`}
+                onClick={() => switchModel(m.provider, m.id)}
+                className={cn(
+                  'flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[12px] hover:bg-accent',
+                  runState.model === `${m.provider}/${m.id}` && 'bg-accent/60'
+                )}
+              >
+                <span className="font-mono">{m.provider}/{m.id}</span>
+                {!m.available && <span className="text-[10px] text-muted-foreground/50">不可用</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Thinking toggle */}
+      <button
+        onClick={cycleThinking}
+        className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-card/50 px-2.5 py-2 text-left hover:bg-accent/40"
+      >
+        <span className="text-[12px] text-muted-foreground">Thinking 等级</span>
+        <span className={cn(
+          'rounded px-1.5 py-0.5 text-[9px] font-medium uppercase',
+          (runState.thinkingLevel || 'off') === 'off' ? 'bg-muted text-muted-foreground' : 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+        )}>
+          {runState.thinkingLevel || 'off'}
+        </span>
+      </button>
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-2">

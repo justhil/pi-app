@@ -3,13 +3,20 @@
 
 import {
   createAgentSession,
+  createEventBus,
+  DefaultResourceLoader,
+  getAgentDir,
+  SettingsManager,
   type AgentSession,
   type AgentSessionEvent,
   SessionManager,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
+import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 
 let session: AgentSession | null = null
+let uiBridge: DesktopUIBridge | null = null
+let sharedEventBus = createEventBus()
 let seq = 0
 let currentCwd = ''
 let currentSessionId = ''
@@ -52,10 +59,26 @@ async function initSession(cwd: string): Promise<void> {
 
   currentCwd = cwd
 
-  const { session: newSession, modelFallbackMessage } = await createAgentSession({ cwd })
+  const agentDir = getAgentDir()
+  const settingsManager = SettingsManager.create(cwd, agentDir)
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    settingsManager,
+    eventBus: sharedEventBus,
+  })
+  await resourceLoader.reload()
+
+  const { session: newSession, modelFallbackMessage } = await createAgentSession({
+    cwd,
+    agentDir,
+    settingsManager,
+    resourceLoader,
+  })
 
   session = newSession
   currentSessionId = session.sessionId
+  await bindDesktopExtensions(session)
 
   unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     handleSessionEvent(event)
@@ -66,6 +89,18 @@ async function initSession(cwd: string): Promise<void> {
   if (modelFallbackMessage) {
     console.warn('[Worker] Model fallback:', modelFallbackMessage)
   }
+}
+
+async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
+  if (!uiBridge) {
+    uiBridge = createDesktopUIBridge(sharedEventBus, (req) => {
+      process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+    })
+  }
+  await sess.bindExtensions({
+    uiContext: uiBridge.uiContext as never,
+    mode: 'rpc',
+  })
 }
 
 function handleSessionEvent(event: AgentSessionEvent): void {
@@ -307,16 +342,57 @@ process.parentPort?.on('message', async (event: any) => {
       case 'newSession': {
         if (unsubscribe) { unsubscribe(); unsubscribe = null }
         if (session) { session.dispose(); session = null }
-        const { session: newSession } = await createAgentSession({ cwd: currentCwd })
-        session = newSession
-        currentSessionId = session.sessionId
-        unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
+        await initSession(currentCwd)
         reply({ type: 'newSession-done', sessionId: currentSessionId })
         break
       }
       case 'listSessions': {
         const sessions = await listSessions(msg.cwd || currentCwd)
         reply({ type: 'listSessions-done', sessions })
+        break
+      }
+      case 'getCommands': {
+        // Authoritative command list from the live AgentSession (per docs/tui-replacement-and-adapters.md §2.2)
+        const commands: any[] = []
+        if (session) {
+          try {
+            for (const cmd of session.extensionRunner.getRegisteredCommands()) {
+              commands.push({
+                id: cmd.invocationName,
+                name: cmd.invocationName,
+                description: cmd.description || '',
+                category: 'extension',
+                source: cmd.sourceInfo as any,
+              })
+            }
+          } catch (e) { console.error('[Worker] getRegisteredCommands failed:', e) }
+          try {
+            for (const tpl of session.promptTemplates) {
+              commands.push({
+                id: tpl.name,
+                name: tpl.name,
+                description: tpl.description || '',
+                category: 'prompt',
+                source: tpl.sourceInfo as any,
+              })
+            }
+          } catch (e) { console.error('[Worker] promptTemplates failed:', e) }
+          try {
+            const skills = (session.resourceLoader as any).getSkills?.()
+            for (const sk of skills?.skills || []) {
+              const sname = sk.name?.startsWith('skill:') ? sk.name : `skill:${sk.name}`
+              const slash = sname.startsWith('/') ? sname : `/${sname}`
+              commands.push({
+                id: sk.name,
+                name: slash,
+                description: sk.description || '',
+                category: 'skill',
+                source: sk.sourceInfo as any,
+              })
+            }
+          } catch (e) { console.error('[Worker] getSkills failed:', e) }
+        }
+        reply({ type: 'getCommands-done', commands, hasSession: !!session })
         break
       }
       case 'getState': {
@@ -334,13 +410,6 @@ process.parentPort?.on('message', async (event: any) => {
             },
           })
         }
-        break
-      }
-      case 'dispose': {
-        unsubscribe?.()
-        session?.dispose()
-        session = null
-        reply({ type: 'dispose-done' })
         break
       }
       case 'getMessages': {
@@ -364,20 +433,96 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'loadSession': {
-        // Re-init worker with a specific session file so future prompts continue it
         try {
           if (unsubscribe) { unsubscribe(); unsubscribe = null }
           session?.dispose()
-          const { SessionManager, createAgentSession } = await import('@earendil-works/pi-coding-agent')
+          const agentDir = getAgentDir()
+          const settingsManager = SettingsManager.create(currentCwd, agentDir)
+          const resourceLoader = new DefaultResourceLoader({
+            cwd: currentCwd,
+            agentDir,
+            settingsManager,
+            eventBus: sharedEventBus,
+          })
+          await resourceLoader.reload()
           const sm = SessionManager.open(msg.sessionFile)
-          const { session: newSession } = await createAgentSession({ cwd: currentCwd, sessionManager: sm })
+          const { session: newSession } = await createAgentSession({
+            cwd: currentCwd,
+            agentDir,
+            settingsManager,
+            resourceLoader,
+            sessionManager: sm,
+          })
           session = newSession
           currentSessionId = session.sessionId
+          await bindDesktopExtensions(session)
           unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
           reply({ type: 'loadSession-done', sessionId: currentSessionId, model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined })
         } catch (e: any) {
           reply({ type: 'error', error: `loadSession failed: ${e.message}` })
         }
+        break
+      }
+      case 'extension-ui-response': {
+        uiBridge?.handleExtensionUIResponse(msg.response as ExtensionUIResponse)
+        reply({ type: 'extension-ui-response-done' })
+        break
+      }
+      case 'getPiSettings': {
+        try {
+          const sm = session?.settingsManager
+            ?? SettingsManager.create(currentCwd || process.cwd(), getAgentDir())
+          reply({
+            type: 'getPiSettings-done',
+            settings: {
+              defaultProvider: sm.getDefaultProvider(),
+              defaultModel: sm.getDefaultModel(),
+              defaultThinkingLevel: sm.getDefaultThinkingLevel(),
+              steeringMode: sm.getSteeringMode(),
+              followUpMode: sm.getFollowUpMode(),
+              transport: sm.getTransport(),
+              compactionEnabled: sm.getCompactionEnabled(),
+              shellPath: sm.getShellPath(),
+              imageAutoResize: sm.getImageAutoResize(),
+              enabledModels: sm.getEnabledModels(),
+              sessionDir: sm.getSessionDir(),
+            },
+          })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getPiSettings failed: ${e.message}` })
+        }
+        break
+      }
+      case 'setPiSettings': {
+        try {
+          const sm = session?.settingsManager
+            ?? SettingsManager.create(currentCwd || process.cwd(), getAgentDir())
+          const patch = msg.patch || {}
+          if (patch.defaultProvider !== undefined && patch.defaultModel !== undefined) {
+            sm.setDefaultModelAndProvider(patch.defaultProvider, patch.defaultModel)
+          } else if (patch.defaultProvider !== undefined) sm.setDefaultProvider(patch.defaultProvider)
+          else if (patch.defaultModel !== undefined) sm.setDefaultModel(patch.defaultModel)
+          if (patch.defaultThinkingLevel !== undefined) sm.setDefaultThinkingLevel(patch.defaultThinkingLevel)
+          if (patch.steeringMode !== undefined) sm.setSteeringMode(patch.steeringMode)
+          if (patch.followUpMode !== undefined) sm.setFollowUpMode(patch.followUpMode)
+          if (patch.transport !== undefined) sm.setTransport(patch.transport)
+          if (patch.compactionEnabled !== undefined) sm.setCompactionEnabled(patch.compactionEnabled)
+          if (patch.shellPath !== undefined) sm.setShellPath(patch.shellPath)
+          if (patch.imageAutoResize !== undefined) sm.setImageAutoResize(patch.imageAutoResize)
+          if (patch.enabledModels !== undefined) sm.setEnabledModels(patch.enabledModels)
+          reply({ type: 'setPiSettings-done', ok: true })
+        } catch (e: any) {
+          reply({ type: 'error', error: `setPiSettings failed: ${e.message}` })
+        }
+        break
+      }
+      case 'dispose': {
+        uiBridge?.dispose()
+        uiBridge = null
+        if (unsubscribe) { unsubscribe(); unsubscribe = null }
+        session?.dispose()
+        session = null
+        reply({ type: 'dispose-done' })
         break
       }
       case 'ping': {

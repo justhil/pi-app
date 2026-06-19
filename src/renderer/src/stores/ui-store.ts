@@ -77,6 +77,10 @@ interface UIState {
   activePanel: 'review' | 'trellis' | 'run'
   setActivePanel: (p: 'review' | 'trellis' | 'run') => void
 
+  // Extension config routing (B-layer: adapter config page requests)
+  pendingExtensionConfig: string | null
+  requestExtensionConfig: (pluginName: string | null) => void
+
   // Event processing
   processEvent: (event: AppEvent) => void
 }
@@ -117,6 +121,9 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   activePanel: 'review',
   setActivePanel: (p) => set({ activePanel: p }),
+
+  pendingExtensionConfig: null,
+  requestExtensionConfig: (pluginName) => set({ pendingExtensionConfig: pluginName }),
 
   processEvent: (event) => {
     const state = get()

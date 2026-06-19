@@ -3,16 +3,79 @@ import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
   FileText, FileEdit, Terminal, Wrench, AlertCircle, Archive,
-  ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot
+  ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
+  MessageCircleQuestion, Image as ImageIcon, GitBranch
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
+
+// Enhanced tool output renderer: special cards for ask/image/trellis, default code block otherwise.
+function ToolOutputExpanded({ item }: { item: any }) {
+  const out = item.toolOutput || ''
+
+  // ask_user_question: try to parse question payload
+  if (item.toolName === 'ask_user_question') {
+    let parsed: any = null
+    try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
+    const questions = parsed?.questions || parsed?.input?.questions
+    if (Array.isArray(questions) && questions.length > 0) {
+      return (
+        <div className="mt-1 space-y-2 rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5">
+          {questions.map((q: any, i: number) => (
+            <div key={i}>
+              <div className="text-[12px] font-medium">{q.question}</div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {(q.options || []).map((o: any) => (
+                  <span key={o.label} className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-700 dark:text-purple-300">
+                    {o.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    }
+  }
+
+  // image_gen / analyze_image: show image paths/urls if present
+  if (item.toolName === 'image_gen' || item.toolName === 'analyze_image' || item.toolName === 'image_review') {
+    let parsed: any = null
+    try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
+    const images = parsed?.images || parsed?.result?.images
+    if (Array.isArray(images) && images.length > 0) {
+      return (
+        <div className="mt-1 space-y-2 rounded-lg border border-pink-500/30 bg-pink-500/5 p-2.5">
+          {images.map((img: any, i: number) => (
+            <div key={i} className="text-[11px] font-mono text-muted-foreground">
+              {img.url && <a href={img.url} target="_blank" rel="noreferrer" className="text-pink-600 hover:underline">{img.url}</a>}
+              {img.path && <span>📁 {img.path}</span>}
+              {img.name && <span className="ml-1">({img.name})</span>}
+            </div>
+          ))}
+        </div>
+      )
+    }
+  }
+
+  // default: syntax-highlighted code block
+  return (
+    <div className="mt-1 overflow-hidden rounded-lg border border-border/50 bg-muted/40">
+      <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
+        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(out, item.toolName) }} />
+      </div>
+    </div>
+  )
+}
 
 function ToolIcon({ name }: { name: string }) {
   const cls = "h-3.5 w-3.5"
   if (name === 'read') return <FileText className={cn(cls, "text-[hsl(var(--tool-read))]")} />
   if (name === 'edit' || name === 'write') return <FileEdit className={cn(cls, "text-[hsl(var(--tool-edit))]")} />
   if (name === 'bash') return <Terminal className={cn(cls, "text-[hsl(var(--tool-bash))]")} />
+  if (name === 'ask_user_question') return <MessageCircleQuestion className={cn(cls, "text-purple-500")} />
+  if (name === 'image_gen' || name === 'image_review' || name === 'analyze_image') return <ImageIcon className={cn(cls, "text-pink-500")} />
+  if (name === 'trellis_subagent') return <GitBranch className={cn(cls, "text-blue-500")} />
   return <Wrench className={cn(cls, "text-muted-foreground")} />
 }
 
@@ -80,11 +143,7 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
           )}
         </button>
         {expanded && item.toolOutput && (
-          <div className="mt-1 overflow-hidden rounded-lg border border-border/50 bg-muted/40">
-            <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
-              <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(item.toolOutput, item.toolName) }} />
-            </div>
-          </div>
+          <ToolOutputExpanded item={item} />
         )}
       </div>
     )

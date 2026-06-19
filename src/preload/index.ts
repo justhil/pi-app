@@ -3,6 +3,7 @@ import type { AppEvent } from '@shared/app-events'
 
 const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
+const EXT_UI_CHANNEL = 'ipc:extension-ui-request'
 
 const api = {
   invoke(channel: string, request?: any): Promise<any> {
@@ -25,6 +26,12 @@ const api = {
     const handler = (_event: unknown, data: { workspaceId: string }): void => callback(data)
     ipcRenderer.on('ipc:auto-opened', handler)
     return () => ipcRenderer.off('ipc:auto-opened', handler)
+  },
+
+  onExtensionUIRequest(callback: (request: unknown) => void): () => void {
+    const handler = (_event: unknown, data: unknown): void => callback(data)
+    ipcRenderer.on(EXT_UI_CHANNEL, handler)
+    return () => ipcRenderer.off(EXT_UI_CHANNEL, handler)
   },
 
   ping: (): string => 'pong',

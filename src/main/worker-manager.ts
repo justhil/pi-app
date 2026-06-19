@@ -67,6 +67,10 @@ export class WorkerManager {
         this.mainWindow.webContents.send('ipc:events', data.event as AppEvent)
       }
 
+      if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
+      }
+
       // Resolve init promise
       if (data.type === 'init-done' && this.initResolver) {
         this.initResolver({ sessionId: data.sessionId, model: data.model, thinkingLevel: data.thinkingLevel })
@@ -165,12 +169,23 @@ export class WorkerManager {
     return r.sessions || []
   }
   async getState(): Promise<any> { return (await this.request('getState')).state }
+  async getCommands(): Promise<{ commands: any[]; hasSession: boolean }> {
+    const r = await this.request('getCommands')
+    return { commands: r.commands || [], hasSession: !!r.hasSession }
+  }
+  async getPiSettings(): Promise<any> { return (await this.request('getPiSettings')).settings }
+  async setPiSettings(patch: any): Promise<void> { await this.request('setPiSettings', { patch }) }
   async getMessages(sessionFile: string): Promise<any[]> {
     const r = await this.request('getMessages', { sessionFile })
     return r.items || []
   }
   async loadSession(sessionFile: string): Promise<{ sessionId: string; model?: string }> {
     return await this.request('loadSession', { sessionFile })
+  }
+
+  respondExtensionUI(response: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean; result?: unknown }): void {
+    if (!this.worker) return
+    this.worker.postMessage({ type: 'extension-ui-response', response })
   }
 
   get isRunning(): boolean { return this.worker !== null }
