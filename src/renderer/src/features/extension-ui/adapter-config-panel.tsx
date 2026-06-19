@@ -19,7 +19,7 @@ export function evalTpl(tplStr: string | undefined, view: Record<string, unknown
   })
 }
 
-function FieldRow({ field, value, onChange }: { field: ConfigField; value: unknown; onChange: (v: unknown) => void }) {
+function FieldRow({ field, value, isSet, onChange }: { field: ConfigField; value: unknown; isSet?: boolean; onChange: (v: unknown) => void }) {
   const label = field.label || field.key
   if (field.type === 'boolean') {
     return (
@@ -50,7 +50,7 @@ function FieldRow({ field, value, onChange }: { field: ConfigField; value: unkno
     )
   }
   if (field.type === 'secret') {
-    const set = !!(view as Record<string, unknown>)[`${field.key}Set`]
+    const set = !!isSet
     return (
       <label className="block py-2">
         <span className="text-[10px] text-muted-foreground/70">{label}</span>
@@ -197,6 +197,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
               key={f.key}
               field={f}
               value={draft[f.key]}
+              isSet={!!view[`${f.key}Set`]}
               onChange={(v) => setDraft((p) => ({ ...p, [f.key]: v }))}
             />
           ))}
