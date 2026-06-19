@@ -27,6 +27,11 @@ export interface ExtensionProbeResult {
 
 import { TOOL_TO_ADAPTER } from './adapters-registry.js'
 import { resolvePluginAdapterMeta } from './plugin-adapter-meta.js'
+import { v2ToolMap } from './adapter-loader.js'
+
+// Merged known-tools map: v1 registry ∪ v2 adapter.json. Refreshed per probeExtensions() call.
+// Lets v2-only adapters (e.g. pi-search after v1 cleanup) still be recognized by the probe.
+let KNOWN_TOOLS: Record<string, string> = { ...TOOL_TO_ADAPTER }
 
 function tierToCompatibility(tier: string): ExtensionProbeResult['compatibility'] {
   if (tier === 'native') return 'native'
@@ -73,7 +78,7 @@ function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   for (const m of src.matchAll(/defineTool\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs)) tools.add(m[1])
   // pick up known tool names from object literals
   for (const m of src.matchAll(/\bname:\s*['"]([a-z_][a-z0-9_]*)['"]/gi)) {
-    if (TOOL_TO_ADAPTER[m[1]]) tools.add(m[1])
+    if (KNOWN_TOOLS[m[1]]) tools.add(m[1])
   }
   for (const m of src.matchAll(/registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g)) commands.add(m[1])
 
@@ -150,6 +155,9 @@ function parsePackageSource(source: any): { type: 'npm' | 'git' | 'local'; name:
 export function probeExtensions(cwd: string): ExtensionProbeResult[] {
   const results: ExtensionProbeResult[] = []
   const agentDir = join(homedir(), '.pi', 'agent')
+
+  // Refresh merged known-tools (v1 registry + v2 adapter.json for this project).
+  try { KNOWN_TOOLS = { ...TOOL_TO_ADAPTER, ...v2ToolMap(cwd) } } catch { KNOWN_TOOLS = { ...TOOL_TO_ADAPTER } }
 
   // 1. Scan project .pi/extensions
   scanExtDir(join(cwd, '.pi', 'extensions'), 'project', results)
@@ -355,7 +363,7 @@ function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult):
     try {
       const src = readFileSync(f, 'utf-8')
       // match known tool names
-      for (const toolName of Object.keys(TOOL_TO_ADAPTER)) {
+      for (const toolName of Object.keys(KNOWN_TOOLS)) {
         const re = new RegExp(`(['\""])${toolName}\\1`, 'g')
         if (re.test(src) && !merged.registeredTools.includes(toolName)) {
           merged.registeredTools.push(toolName)

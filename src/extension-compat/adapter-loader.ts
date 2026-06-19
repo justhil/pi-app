@@ -160,3 +160,52 @@ export function findAdapterByTool(toolName: string, projectDir?: string): Adapte
 export function findAdapterById(id: string, projectDir?: string): AdapterJson | undefined {
   return loadAdapterCatalog(projectDir).adapters.find((a) => a.id === id)
 }
+
+// ── v2 query helpers (used by probe / slash.resolve / subpage to prefer v2 over v1 registry) ──
+
+/** Build toolName → adapterId map from all v2 adapters. */
+export function v2ToolMap(projectDir?: string): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const a of loadAdapterCatalog(projectDir).adapters) {
+    for (const t of a.match?.tools || []) map[t] = a.id
+  }
+  return map
+}
+
+/** Resolve slash command behavior from v2 catalog. Returns null if no v2 adapter claims it. */
+export function resolveV2Slash(
+  commandName: string,
+  projectDir?: string,
+): { adapterId: string; behavior: 'notify' | 'config-page' | 'execute'; matchNames: string[]; desktopSupport?: string } | null {
+  const cmd = commandName.startsWith('/') ? commandName : `/${commandName}`
+  for (const a of loadAdapterCatalog(projectDir).adapters) {
+    const behavior = a.slash?.[cmd]
+    if (behavior) {
+      return { adapterId: a.id, behavior, matchNames: a.match?.names || [], desktopSupport: a.description }
+    }
+    // match.commands also implies the adapter claims this command; default to notify if no slash entry
+    if (a.match?.commands?.includes(cmd) && !a.slash?.[cmd]) {
+      return { adapterId: a.id, behavior: 'notify', matchNames: a.match?.names || [], desktopSupport: a.description }
+    }
+  }
+  return null
+}
+
+/** Display info for a v2 adapter (subpage header): tools/commands come from match + slash keys. */
+export function v2DisplayInfo(adapterId: string, projectDir?: string): {
+  displayName?: string
+  description?: string
+  registeredTools: string[]
+  registeredCommands: string[]
+} | null {
+  const a = findAdapterById(adapterId, projectDir)
+  if (!a) return null
+  const slashCmds = Object.keys(a.slash || {})
+  const matchCmds = (a.match?.commands || []).map((c) => (c.startsWith('/') ? c : `/${c}`))
+  return {
+    displayName: a.displayName || a.id,
+    description: a.description,
+    registeredTools: a.match?.tools || [],
+    registeredCommands: Array.from(new Set([...slashCmds, ...matchCmds])),
+  }
+}

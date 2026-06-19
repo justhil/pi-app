@@ -44,14 +44,31 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
 
   if (loading) return <div className="text-[12px] text-muted-foreground/50">加载中…</div>
 
+  // When a v2 adapter.json matches, build header info from it (independent of v1 catalog).
+  const v2Info = jsonAdapter
+    ? {
+        displayName: jsonAdapter.displayName || extensionId,
+        description: jsonAdapter.description,
+        registeredTools: jsonAdapter.match?.tools || [],
+        registeredCommands: [
+          ...Object.keys(jsonAdapter.slash || {}),
+          ...(jsonAdapter.match?.commands || []).map((c) => (c.startsWith('/') ? c : `/${c}`)),
+        ],
+      }
+    : null
+  const headerName = v2Info?.displayName || adapter?.displayName || extensionId
+  const headerDesc = v2Info?.description || adapter?.description
+  const headerTools = v2Info?.registeredTools || adapter?.registeredTools || []
+  const headerCmds = v2Info?.registeredCommands || adapter?.registeredCommands || []
+
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-[15px] font-semibold">{adapter?.displayName || extensionId}</h3>
-        {adapter?.description && <p className="mt-0.5 text-[12px] text-muted-foreground/70">{adapter.description}</p>}
+        <h3 className="text-[15px] font-semibold">{headerName}</h3>
+        {headerDesc && <p className="mt-0.5 text-[12px] text-muted-foreground/70">{headerDesc}</p>}
       </div>
 
-      {adapter?.desktopSupport && (
+      {adapter?.desktopSupport && !jsonAdapter && (
         <div className="rounded-lg border border-border/50 bg-muted/30 p-3 text-[12px] text-muted-foreground">
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">桌面支持</div>
           <div className="mt-0.5">{adapter.desktopSupport}</div>
@@ -70,23 +87,23 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
         />
       )}
 
-      {adapter?.registeredTools?.length > 0 && (
+      {headerTools.length > 0 && (
         <div>
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">注册的工具</div>
           <div className="flex flex-wrap gap-1">
-            {adapter.registeredTools.map((t: string) => (
+            {headerTools.map((t: string) => (
               <span key={t} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">{t}</span>
             ))}
           </div>
         </div>
       )}
 
-      {adapter?.registeredCommands?.length > 0 && (
+      {headerCmds.length > 0 && (
         <div>
           <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-1.5">注册的命令</div>
           <div className="flex flex-wrap gap-1">
-            {adapter.registeredCommands.map((c: string) => (
-              <span key={c} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">/{c}</span>
+            {headerCmds.map((c: string) => (
+              <span key={c} className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px]">/{c.replace(/^\//, '')}</span>
             ))}
           </div>
         </div>

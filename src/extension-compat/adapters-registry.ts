@@ -31,23 +31,6 @@ export const TOOL_TO_ADAPTER: Record<string, string> = {
   contact_supervisor: 'intercom',
   subagent: 'subagent',
   fast_context_search: 'fast-context',
-  search: 'pi-search',
-  search_sources: 'pi-search',
-  search_config: 'pi-search',
-  context7_resolve_library_id: 'pi-search',
-  context7_query_docs: 'pi-search',
-  context7_get_library_docs: 'pi-search',
-  context7_get_cached_doc_raw: 'pi-search',
-  docs_search: 'pi-search',
-  web_fetch: 'pi-search',
-  web_map: 'pi-search',
-  search_planning: 'pi-search',
-  plan_intent: 'pi-search',
-  plan_complexity: 'pi-search',
-  plan_sub_query: 'pi-search',
-  plan_search_term: 'pi-search',
-  plan_tool_mapping: 'pi-search',
-  plan_execution: 'pi-search',
 }
 
 export const ADAPTERS: Record<string, AdapterDefinition> = {
@@ -119,20 +102,6 @@ export const ADAPTERS: Record<string, AdapterDefinition> = {
     tier: 'headless',
     desktopSupport: '工具可执行；配置命令在桌面仅提示/路由，搜索结果走通用工具输出卡',
   },
-  'pi-search': {
-    id: 'pi-search',
-    displayName: 'Pi Search',
-    description: 'pi-search 网络/文档/Context7 搜索工具集',
-    tools: [
-      'search', 'search_sources', 'search_config',
-      'context7_resolve_library_id', 'context7_query_docs', 'context7_get_library_docs', 'context7_get_cached_doc_raw',
-      'docs_search', 'web_fetch', 'web_map', 'search_planning',
-      'plan_intent', 'plan_complexity', 'plan_sub_query', 'plan_search_term', 'plan_tool_mapping', 'plan_execution',
-    ],
-    commandPrefixes: ['search', 'search-config', 'search-model', 'pi-ext-docs'],
-    tier: 'partial',
-    desktopSupport: '配置页 + 搜索状态/信源卡片；工具执行由扩展',
-  },
   'ui-bridge': {
     id: 'ui-bridge',
     displayName: 'Extension UI 桥',
@@ -164,7 +133,7 @@ export function getAdaptersCatalog(): AdapterDefinition[] {
 /** Legacy single adapter: first by stable order */
 export function primaryAdapterId(toolNames: string[]): string | undefined {
   const ids = adapterIdsForTools(toolNames)
-  const order = ['trellis', 'ask', 'image', 'doc', 'repl', 'intercom', 'subagent', 'fast-context', 'pi-search']
+  const order = ['trellis', 'ask', 'image', 'doc', 'repl', 'intercom', 'subagent', 'fast-context']
   for (const id of order) {
     if (ids.includes(id)) return id
   }

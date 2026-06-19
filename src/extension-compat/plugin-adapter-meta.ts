@@ -89,19 +89,6 @@ const META: PluginAdapterMeta[] = [
     configNote: 'Fast Context 配置由扩展维护（~/.pi/agent/fast-context.json / 环境变量 / Windsurf 自动发现）；桌面不写入该配置。',
   },
   {
-    matchNames: ['pi-search'],
-    tier: 'partial',
-    adapterVersion: '1',
-    desktopSupport: '配置页读写 ~/.config/pi-search/config.json；Timeline 搜索状态与信源卡片；工具执行仍由扩展',
-    slashBehavior: {
-      '/search': 'notify',
-      '/search-config': 'config-page',
-      '/search-model': 'notify',
-      '/pi-ext-docs': 'notify',
-    },
-    configNote: '桌面适配器提供配置表单与连通性探测；完整 search_config action=test 仍在会话内由扩展执行。',
-  },
-  {
     matchNames: ['@narumitw/pi-sync'],
     tier: 'headless',
     desktopSupport: '配置同步；斜杠输出状态',
@@ -292,8 +279,22 @@ export function resolvePluginAdapterMeta(name: string, packageName?: string): Pl
   return null
 }
 
+import { resolveV2Slash } from './adapter-loader'
+
 /** Resolve slash behavior for a given command name (e.g. /studio). Returns null if no adapter claims it. */
 export function resolveSlashBehavior(commandName: string): { meta: PluginAdapterMeta; behavior: SlashBehavior } | null {
+  // v2 adapter.json takes precedence (per docs/adapter-layer-plan.md)
+  const v2 = resolveV2Slash(commandName)
+  if (v2) {
+    return {
+      meta: {
+        matchNames: v2.matchNames,
+        tier: 'partial',
+        desktopSupport: v2.desktopSupport || '',
+      } as PluginAdapterMeta,
+      behavior: v2.behavior,
+    }
+  }
   const cmd = commandName.startsWith('/') ? commandName : `/${commandName}`
   for (const m of META) {
     if (m.slashBehavior && m.slashBehavior[cmd]) {
