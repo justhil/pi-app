@@ -29,12 +29,14 @@ interface RunState {
 
 interface TimelineItem {
   id: string
-  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error'
+  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'
   text?: string
   toolName?: string
   toolPhase?: string
   toolOutput?: string
   isError?: boolean
+  slashCommand?: string
+  slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
   timestamp: number
 }
 
@@ -60,8 +62,11 @@ interface UIState {
 
   // Timeline
   timelineItems: TimelineItem[]
+  streamingAssistantId: string | null
   appendTimeline: (item: TimelineItem) => void
   updateTimelineItem: (id: string, patch: Partial<TimelineItem>) => void
+  appendDeltaToStreamingAssistant: (delta: string) => void
+  setStreamingAssistantFinalText: (text: string) => void
   clearTimeline: () => void
 
   // Run
@@ -110,15 +115,40 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ currentSessionId: id })
   },
   loadHistoryItems: (items: TimelineItem[]) => {
-    set({ timelineItems: items, fileChanges: [], runState: { status: 'idle', toolCount: 0, errorCount: 0 } })
+    set({
+      timelineItems: items,
+      streamingAssistantId: null,
+      fileChanges: [],
+      runState: { status: 'idle', toolCount: 0, errorCount: 0 },
+    })
   },
 
   timelineItems: [],
+  streamingAssistantId: null,
   appendTimeline: (item) => set((s) => ({ timelineItems: [...s.timelineItems, item] })),
   updateTimelineItem: (id, patch) => set((s) => ({
     timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, ...patch } : i)),
   })),
-  clearTimeline: () => set({ timelineItems: [] }),
+  appendDeltaToStreamingAssistant: (delta) =>
+    set((s) => {
+      const id = s.streamingAssistantId
+      if (!id || !delta) return s
+      return {
+        timelineItems: s.timelineItems.map((i) =>
+          i.id === id ? { ...i, text: (i.text || '') + delta } : i,
+        ),
+      }
+    }),
+  setStreamingAssistantFinalText: (text) =>
+    set((s) => {
+      const id = s.streamingAssistantId
+      if (!id) return { streamingAssistantId: null }
+      return {
+        streamingAssistantId: null,
+        timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, text } : i)),
+      }
+    }),
+  clearTimeline: () => set({ timelineItems: [], streamingAssistantId: null }),
 
   runState: { status: 'idle', toolCount: 0, errorCount: 0 },
   setRunState: (patch) => set((s) => ({ runState: { ...s.runState, ...patch } })),
@@ -153,19 +183,21 @@ export const useUIStore = create<UIState>((set, get) => ({
           })
         } else if (event.role === 'assistant') {
           if (event.phase === 'start') {
+            const id = nextItemId()
             state.appendTimeline({
-              id: nextItemId(),
+              id,
               type: 'assistant-message',
               text: '',
               timestamp: event.timestamp,
             })
+            set({ streamingAssistantId: id })
           } else if (event.phase === 'delta' && event.text) {
-            const items = get().timelineItems
-            const lastAssistant = [...items].reverse().find((i) => i.type === 'assistant-message')
-            if (lastAssistant) {
-              state.updateTimelineItem(lastAssistant.id, {
-                text: (lastAssistant.text || '') + event.text,
-              })
+            state.appendDeltaToStreamingAssistant(event.text)
+          } else if (event.phase === 'end') {
+            if (event.text !== undefined) {
+              state.setStreamingAssistantFinalText(event.text)
+            } else {
+              set({ streamingAssistantId: null })
             }
           }
         }
@@ -238,6 +270,18 @@ export const useUIStore = create<UIState>((set, get) => ({
             timestamp: event.timestamp,
           })
         }
+        break
+      }
+      case 'slash': {
+        state.appendTimeline({
+          id: nextItemId(),
+          type: 'slash',
+          slashCommand: event.command,
+          slashStatus: event.status,
+          text: event.text,
+          isError: event.status === 'error',
+          timestamp: event.timestamp,
+        })
         break
       }
     }

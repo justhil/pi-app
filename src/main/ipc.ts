@@ -115,6 +115,7 @@ export function registerAllHandlers(): void {
       }
     } catch (e) {
       console.error('[IPC] session.open load failed:', e)
+      throw e
     }
     return { session: { sessionId, workspaceId: workerManager.cwd || '', title: '', createdAt: 0, updatedAt: 0, modelId: model || '', status: 'idle' as const } }
   })

@@ -22,7 +22,7 @@ export interface SessionInfo {
 }
 export interface SessionListRequest { workspaceId?: string }
 export interface SessionListResponse { sessions: SessionInfo[] }
-export interface SessionOpenRequest { sessionId: string }
+export interface SessionOpenRequest { sessionId: string; sessionFile?: string }
 export interface SessionOpenResponse { session: SessionInfo }
 export interface SessionNewRequest { workspaceId: string; title?: string; modelId?: string }
 export interface SessionNewResponse { session: SessionInfo }

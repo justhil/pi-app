@@ -4,29 +4,17 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Search, MessageSquare, Clock } from 'lucide-react'
 import { useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { openSessionIntoWorker } from '@renderer/lib/open-session'
+import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 
 export function SessionList() {
   const { t } = useTranslation()
   const sessions = useUIStore((s) => s.sessions)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
-  const setCurrentSession = useUIStore((s) => s.setCurrentSession)
-  const loadHistoryItems = useUIStore((s) => s.loadHistoryItems)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
 
-  const handleOpenSession = async (sessionId: string, sessionFile?: string) => {
-    setCurrentSession(sessionId)
-    if (sessionFile) {
-      // Only fetch history for display; loadSession into worker deferred until user sends a prompt
-      try {
-        const res = await ipcClient.invoke('session.getMessages', { sessionFile })
-        if (res?.items) loadHistoryItems(res.items)
-        else loadHistoryItems([])
-      } catch {
-        loadHistoryItems([])
-      }
-    } else {
-      loadHistoryItems([])
-    }
+  const handleOpenSession = (sessionId: string, sessionFile?: string) => {
+    void openSessionIntoWorker(sessionId, sessionFile)
   }
 
   const handleNewSession = async () => {
@@ -34,11 +22,12 @@ export function SessionList() {
     try {
       const res = await ipcClient.invoke('session.new', { workspaceId: currentWorkspace })
       if (res?.session) {
-        // Refresh list
         const listRes = await ipcClient.invoke('session.list', { workspaceId: currentWorkspace })
-        if (listRes?.sessions) {
-          useUIStore.getState().setSessions(listRes.sessions)
-        }
+        if (listRes?.sessions) useUIStore.getState().setSessions(listRes.sessions)
+        useUIStore.getState().setCurrentSession(res.session.sessionId)
+        useUIStore.getState().loadHistoryItems([])
+        useUIStore.getState().clearFileChanges()
+        await syncRunStateFromWorker()
       }
     } catch (e) {
       console.error('New session failed:', e)

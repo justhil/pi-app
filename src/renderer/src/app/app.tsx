@@ -12,6 +12,7 @@ import { TopBar } from '@renderer/components/app/top-bar'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
+import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity } from 'lucide-react'
@@ -26,7 +27,6 @@ export default function App() {
   const [view, setView] = useState<View>('main')
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
-  const processEvent = useUIStore((s) => s.processEvent)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
@@ -35,7 +35,7 @@ export default function App() {
   const projectName = currentWorkspace ? currentWorkspace.split(/[\\/]/).pop() : undefined
 
   useEffect(() => {
-    const unsubEvents = onAppEvent((event) => processEvent(event))
+    const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
     })
@@ -48,7 +48,7 @@ export default function App() {
       unsubExit()
       unsubAuto()
     }
-  }, [processEvent, setWorkspace])
+  }, [setWorkspace])
 
   // B-layer slash config-page routing: open settings view + adapters config subpage
   useEffect(() => {
@@ -65,10 +65,7 @@ export default function App() {
         // Auto-open the most recent session to show history immediately
         if (ss.length > 0 && ss[0].sessionFile) {
           const latest = ss[0]
-          useUIStore.getState().setCurrentSession(latest.sessionId)
-          ipcClient.invoke('session.getMessages', { sessionFile: latest.sessionFile }).then((r) => {
-            if (r?.items) useUIStore.getState().loadHistoryItems(r.items)
-          }).catch(() => {})
+          void openSessionIntoWorker(latest.sessionId, latest.sessionFile)
         }
       }).catch(() => {})
     }

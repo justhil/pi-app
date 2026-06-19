@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   FileText, FileEdit, Terminal, Wrench, AlertCircle, Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
-  MessageCircleQuestion, Image as ImageIcon, GitBranch
+  MessageCircleQuestion, Image as ImageIcon, GitBranch, CornerDownLeft
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
@@ -145,6 +145,25 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
         {expanded && item.toolOutput && (
           <ToolOutputExpanded item={item} />
         )}
+      </div>
+    )
+  }
+
+  if (item.type === 'slash') {
+    const status = item.slashStatus || 'dispatched'
+    const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
+    const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
+    const label = status === 'error' ? '执行失败' : status === 'ok' ? '执行成功' : '已发送'
+    return (
+      <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+        <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-1.5">
+          <Icon className={cn('h-3.5 w-3.5 shrink-0', iconCls)} />
+          <span className="font-mono text-[11px] font-medium">{item.slashCommand}</span>
+          <span className={cn('text-[10px] uppercase tracking-wide', iconCls)}>{label}</span>
+          {item.text && (
+            <span className="truncate text-[11px] text-muted-foreground/50">{item.text}</span>
+          )}
+        </div>
       </div>
     )
   }

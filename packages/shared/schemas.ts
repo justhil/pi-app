@@ -64,12 +64,20 @@ export const compactionEventSchema = appEventBaseSchema.extend({
   summary: z.string().optional(),
 })
 
+export const slashEventSchema = appEventBaseSchema.extend({
+  type: z.literal('slash'),
+  command: z.string(),
+  status: z.enum(['dispatched', 'ok', 'error', 'info']),
+  text: z.string().optional(),
+})
+
 export const appEventSchema = z.discriminatedUnion('type', [
   messageEventSchema,
   toolEventSchema,
   fileEventSchema,
   runEventSchema,
   compactionEventSchema,
+  slashEventSchema,
 ])
 
 // ── Diff schemas ──

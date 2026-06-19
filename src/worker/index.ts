@@ -24,6 +24,24 @@ let currentRunId = ''
 let currentTurnId = ''
 let unsubscribe: (() => void) | null = null
 
+// Safety net: some extensions (e.g. pi-powerline-footer) keep timers running on a
+// captured ctx that becomes stale after session replacement; the SDK throws but
+// it is harmless to the desktop pipeline. We cannot patch the plugin, so swallow
+// this specific class of error to keep the Worker process alive.
+process.on('uncaughtException', (err) => {
+  const msg = err?.message || String(err)
+  if (msg.includes('stale') && (msg.includes('extension ctx') || msg.includes('ExtensionRunner'))) {
+    console.warn('[Worker] swallowed stale extension ctx error:', msg)
+    return
+  }
+  console.error('[Worker] uncaughtException:', err)
+})
+process.on('unhandledRejection', (reason) => {
+  const msg = (reason as any)?.message || String(reason)
+  if (msg.includes('stale') && msg.includes('extension ctx')) return
+  console.error('[Worker] unhandledRejection:', reason)
+})
+
 function nextSeq(): number {
   return ++seq
 }
@@ -161,7 +179,8 @@ function handleSessionEvent(event: AgentSessionEvent): void {
     case 'message_end': {
       const msg = event.message as any
       if (msg?.role === 'assistant') {
-        emit({ ...base, type: 'message', role: 'assistant', phase: 'end' })
+        const text = extractText(msg)
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'end', text })
       }
       break
     }
@@ -315,10 +334,34 @@ process.parentPort?.on('message', async (event: any) => {
       }
       case 'prompt': {
         if (!session) { reply({ type: 'error', error: 'No session' }); break }
+        // B-layer slash observability (R0-1): if the prompt is a slash command, emit a slash event
+        const slashMatch = typeof msg.text === 'string' ? msg.text.match(/^(\/\S+)/) : null
+        if (slashMatch) {
+          emit({
+            ...baseEvent(),
+            type: 'slash',
+            command: slashMatch[1],
+            status: 'dispatched',
+            text: '已发送给 pi 执行',
+          })
+        }
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
-        await session.prompt(msg.text, msg.options)
-        reply({ type: 'prompt-done' })
+        try {
+          await session.prompt(msg.text, msg.options)
+          reply({ type: 'prompt-done' })
+        } catch (e: any) {
+          if (slashMatch) {
+            emit({
+              ...baseEvent(),
+              type: 'slash',
+              command: slashMatch[1],
+              status: 'error',
+              text: `执行失败: ${e?.message || String(e)}`,
+            })
+          }
+          reply({ type: 'error', error: `Prompt failed: ${e?.message || String(e)}` })
+        }
         break
       }
       case 'abort': {
@@ -497,7 +540,9 @@ process.parentPort?.on('message', async (event: any) => {
           currentSessionId = session.sessionId
           await bindDesktopExtensions(session)
           unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
-          reply({ type: 'loadSession-done', sessionId: currentSessionId, model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined })
+          const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+          emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
+          reply({ type: 'loadSession-done', sessionId: currentSessionId, model: modelStr, thinkingLevel: session.thinkingLevel })
         } catch (e: any) {
           reply({ type: 'error', error: `loadSession failed: ${e.message}` })
         }

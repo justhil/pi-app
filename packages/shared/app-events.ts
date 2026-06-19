@@ -61,6 +61,14 @@ export interface CompactionEvent extends AppEventBase {
   summary?: string
 }
 
-export type AppEvent = MessageEvent | ToolEvent | FileEvent | RunEvent | CompactionEvent
+// B-layer slash command dispatch (R0-1): observable slash execution
+export interface SlashEvent extends AppEventBase {
+  type: 'slash'
+  command: string
+  status: 'dispatched' | 'ok' | 'error' | 'info'
+  text?: string
+}
+
+export type AppEvent = MessageEvent | ToolEvent | FileEvent | RunEvent | CompactionEvent | SlashEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'

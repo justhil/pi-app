@@ -1,0 +1,31 @@
+{
+  "id": "pi-desktop-b-layer-compat",
+  "name": "pi-desktop-b-layer-compat",
+  "title": "B 层兼容 Phase R0-R2",
+  "description": "对照 docs/compatibility-matrix-and-roadmap.md 推进 B 层扩展兼容：R0 管线、R1 native/partial 抬升、R2 headless 体验。底线：不动插件源码、不动 pi SDK、扩展配置 app-local、C 层不复刻。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "justhil",
+  "assignee": "justhil",
+  "createdAt": "2026-06-19",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-19-r0-1-slash-result-bus",
+    "06-19-r0-2-slash-arg-completions",
+    "06-19-r0-3-config-host-honesty",
+    "06-19-r0-4-fill-unregistered-meta"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
