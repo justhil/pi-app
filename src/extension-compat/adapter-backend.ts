@@ -110,11 +110,11 @@ export function writeAdapterConfig(adapterId: string, workspaceId: string, patch
       const fileKey = fileKeyMap[formKey]
       if (!fileKey) continue
       const field = fields.get(formKey)
-      // secret: skip empty / masked-unchanged
+      // secret: skip empty / masked-unchanged (maskKey uses • for short keys, … for long keys)
       if (field?.type === 'secret') {
         const s = String(val)
         if (!s) continue
-        if (s.includes('…')) continue
+        if (s.includes('•') || s.includes('…')) continue
         file[fileKey] = s
         continue
       }
