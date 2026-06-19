@@ -551,15 +551,43 @@ function AdaptersSettings() {
 
   useEffect(() => {
     setError(null)
-    ipcClient
-      .invoke('adapters.catalog')
-      .then((res) => {
-        setAdapters(Array.isArray(res?.adapters) ? res.adapters : [])
-      })
-      .catch((e) => {
-        setAdapters([])
-        setError(String(e))
-      })
+    // Merge v1 probe-based catalog (installed plugins) with v2 adapter.json catalog (declarative).
+    // v2 entries (e.g. pi-search after v1 cleanup) are added even if not probed; v1 entries keep probe meta.
+    Promise.all([
+      ipcClient.invoke('adapters.catalog').catch(() => null),
+      ipcClient.invoke('adapters.json.catalog').catch(() => null),
+    ]).then(([v1Res, v2Res]) => {
+      const v1 = Array.isArray(v1Res?.adapters) ? v1Res.adapters : []
+      const v2 = Array.isArray(v2Res?.adapters) ? v2Res.adapters : []
+      const byId = new Map<string, any>()
+      for (const a of v1) byId.set(a.id || a.pluginId, a)
+      for (const a of v2) {
+        const id = a.id
+        const existing = byId.get(id)
+        if (existing) {
+          // upgrade v1 entry with v2 tools/description/desktopSupport
+          existing.registeredTools = Array.from(new Set([...(existing.registeredTools || []), ...(a.match?.tools || [])]))
+          if (a.description) existing.description = existing.description || a.description
+        } else {
+          // v2-only adapter (not probed as installed plugin) — synthesize an entry
+          byId.set(id, {
+            id,
+            pluginId: id,
+            displayName: a.displayName || id,
+            description: a.description,
+            tier: a.tier,
+            source: (v2Res?.sources?.[id]) || 'builtin',
+            desktopSupport: a.config?.note || '声明式适配器（adapter.json）',
+            registeredTools: a.match?.tools || [],
+            matchMeta: { probeId: 'adapter.json' },
+          })
+        }
+      }
+      setAdapters(Array.from(byId.values()))
+    }).catch((e) => {
+      setAdapters([])
+      setError(String(e))
+    })
   }, [])
 
   if (adapters === null) {
@@ -570,8 +598,8 @@ function AdaptersSettings() {
     <div className="space-y-3 max-w-2xl">
       <h3 className="text-[15px] font-semibold">桌面适配器</h3>
       <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-        仅列出已在 <code className="text-[10px] bg-muted px-1 rounded">plugin-adapter-meta.ts</code> 登记的插件。
-        <strong>一插件一适配器</strong>，名称与包名相同；未登记的插件不会出现在本页。
+        列出已登记的桌面适配器：<code className="text-[10px] bg-muted px-1 rounded">adapter.json</code>（声明式）与 <code className="text-[10px] bg-muted px-1 rounded">plugin-adapter-meta</code>（探测）。
+        <strong>一插件一适配器</strong>，名称与包名相同。
       </p>
       {error && <div className="text-[11px] text-destructive">{error}</div>}
       {adapters.length === 0 ? (
