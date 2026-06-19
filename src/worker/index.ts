@@ -189,6 +189,17 @@ function handleSessionEvent(event: AgentSessionEvent): void {
         const qs = (event.args as any)?.questions
         if (Array.isArray(qs)) uiBridge.setAskToolQuestions(qs)
       }
+      if (event.toolName === 'image_review' && uiBridge && event.args) {
+        const a = event.args as any
+        uiBridge.setImageReviewArgs({
+          image: String(a?.image || ''),
+          title: a?.title,
+          question: a?.question,
+          context: a?.context,
+          options: Array.isArray(a?.options) ? a.options : undefined,
+          allow_feedback: a?.allow_feedback,
+        })
+      }
       emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'start', input: event.args })
       break
     }

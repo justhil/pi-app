@@ -12,6 +12,7 @@ export type ExtensionUIRequest =
   | { id: string; method: 'editor'; title: string; prefill?: string }
   | { id: string; method: 'notify'; message: string; notifyType?: 'info' | 'warning' | 'error' }
   | { id: string; method: 'custom'; kind: 'ask_user_question'; questions: unknown }
+  | { id: string; method: 'custom'; kind: 'image_review'; image: string; title: string; question: string; context?: string; options: string[]; allowFeedback: boolean }
 
 type Pending = {
   resolve: (v: unknown) => void
@@ -24,6 +25,8 @@ export type DesktopUIBridge = {
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
   /** Cache ask_user_question tool args for preview text (R1-1). */
   setAskToolQuestions: (questions: unknown[] | null) => void
+  /** Cache image_review tool args so custom() can build a desktop review dialog. */
+  setImageReviewArgs: (args: { image: string; title?: string; question?: string; context?: string; options?: string[]; allow_feedback?: boolean } | null) => void
   dispose: () => void
 }
 
@@ -81,6 +84,11 @@ export function createDesktopUIBridge(
   let lastAskPayload: { questions: unknown } | null = null
   /** Full questions from ask_user_question tool args (includes option.preview; event omits preview text). */
   let lastAskToolQuestions: unknown[] | null = null
+  /** Cached image_review tool args so custom() can render a desktop review overlay. */
+  let imageReviewArgs: {
+    image: string; title?: string; question?: string; context?: string
+    options?: string[]; allow_feedback?: boolean
+  } | null = null
 
   const emitReq = (req: ExtensionUIRequest) => {
     onRequest(req)
@@ -155,6 +163,33 @@ export function createDesktopUIBridge(
 
     async custom<T>(_factory: unknown, _options?: unknown): Promise<T> {
       const id = randomUUID()
+      // image_review tool: pi-image-gen's showReviewOverlay uses a native TUI custom factory the
+      // desktop cannot execute; route to a dedicated desktop review dialog using cached tool args.
+      if (imageReviewArgs) {
+        const a = imageReviewArgs
+        imageReviewArgs = null
+        const opts = (a.options && a.options.length > 0)
+          ? a.options.slice(0, 4)
+          : ['通过', '需要修改', '重做', '取消']
+        const req: ExtensionUIRequest = {
+          id, method: 'custom', kind: 'image_review',
+          image: a.image,
+          title: a.title?.trim() || '图片审查',
+          question: a.question?.trim() || '这张图片是否可用？',
+          context: a.context?.trim() || undefined,
+          options: opts,
+          allowFeedback: a.allow_feedback !== false,
+        }
+        return createDialogPromise(
+          emitReq,
+          pending,
+          req,
+          (r) => (r.cancelled
+            ? ({ choice: 'cancel', label: '取消' } as T)
+            : ({ choice: (r as any).choice, label: (r as any).label, feedback: (r as any).feedback } as T)),
+          { choice: 'cancel', label: '取消' } as T,
+        )
+      }
       const questions = mergeAskQuestionsForUi()
       lastAskPayload = null
       lastAskToolQuestions = null
@@ -203,6 +238,9 @@ export function createDesktopUIBridge(
     },
     setAskToolQuestions(questions: unknown[] | null) {
       lastAskToolQuestions = questions
+    },
+    setImageReviewArgs(args) {
+      imageReviewArgs = args
     },
     dispose() {
       unsubAsk()

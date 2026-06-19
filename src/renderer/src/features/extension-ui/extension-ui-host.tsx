@@ -46,6 +46,21 @@ export function ExtensionUIHost() {
         })
         return
       }
+      if (method === 'custom' && req.kind === 'image_review') {
+        setPending({
+          id,
+          method: 'image_review',
+          payload: {
+            image: (req.image as string) || '',
+            title: (req.title as string) || '图片审查',
+            question: (req.question as string) || '这张图片是否可用？',
+            context: req.context as string | undefined,
+            options: (req.options as string[]) || ['通过', '需要修改', '重做', '取消'],
+            allowFeedback: req.allowFeedback !== false,
+          },
+        })
+        return
+      }
       if (method === 'select') {
         setPending({ id, method: 'select', title: req.title as string, options: (req.options as string[]) || [] })
         return
@@ -88,7 +103,22 @@ export function ExtensionUIHost() {
             respond({ id: pending.id, result })
             setPending(null)
           }}
-          onCancel={() => setPending(null)}
+          onCancel={() => {
+            respond({ id: pending.id, cancelled: true })
+            setPending(null)
+          }}
+        />
+      ) : pending.method === 'image_review' ? (
+        <ImageReviewDialog
+          payload={pending.payload}
+          onCancel={() => {
+            respond({ id: pending.id, cancelled: true })
+            setPending(null)
+          }}
+          onSubmit={(r) => {
+            respond({ id: pending.id, result: r })
+            setPending(null)
+          }}
         />
       ) : pending.method === 'select' ? (
         overlay(

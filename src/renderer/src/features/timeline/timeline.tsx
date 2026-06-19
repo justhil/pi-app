@@ -2,114 +2,21 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
-  FileText, FileEdit, Terminal, Wrench, AlertCircle, Archive,
+  Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
-  MessageCircleQuestion, Image as ImageIcon, GitBranch, CornerDownLeft, Globe
+  CornerDownLeft
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
-import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { ImageToolCard } from './image-tool-card'
-import { SubagentToolCard } from './subagent-tool-card'
 import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
-import { resolveToolCard, EXPORT_TOOLS, ASK_TOOL } from './tool-card-registry'
-
-// Enhanced tool output renderer: special cards for ask/image/trellis, default code block otherwise.
-// Render artifact paths from tool details (preview_export / studio_export_* / image_gen etc.)
-function ArtifactPaths({ paths, format }: { paths: string[]; format?: string }) {
-  if (!paths || paths.length === 0) return null
-  const open = (p: string) => ipcClient.invoke('shell.openPath', { path: p }).catch(() => {})
-  const reveal = (p: string) => ipcClient.invoke('shell.showItemInFolder', { path: p }).catch(() => {})
-  return (
-    <div className="mt-1 mb-1 flex flex-wrap gap-1.5">
-      {paths.map((p, i) => {
-        const name = p.split(/[\\/]/).pop() || p
-        const fmt = format ? format.toUpperCase() : ''
-        return (
-          <div key={i} className="flex items-center gap-1 rounded-md border border-border/60 bg-background px-1.5 py-0.5">
-            <FileText className="h-3 w-3 text-blue-500" />
-            <span className="font-mono text-[10px]">{fmt && <span className="text-muted-foreground/50 mr-1">{fmt}</span>}{name}</span>
-            <button onClick={() => open(p)} className="rounded px-1 text-[10px] text-primary hover:underline">打开</button>
-            <button onClick={() => reveal(p)} className="rounded px-1 text-[10px] text-muted-foreground hover:text-foreground">文件夹</button>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+import { ToolIcon } from './tool-icon'
+import { renderToolCard } from './tool-card-templates'
+import { resolveToolCardTemplate } from './tool-card-registry'
 
 function ToolOutputExpanded({ item }: { item: any }) {
-  const out = item.toolOutput || ''
-  const details = item.toolDetails
-  const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
-
-  // Export-type tools -> artifact paths first
-  const isExportTool = EXPORT_TOOLS.has(item.toolName || '')
-  if (isExportTool && detailPaths.length > 0) {
-    return (
-      <div className="mt-1">
-        <ArtifactPaths paths={detailPaths} format={details?.format} />
-        <div className="mt-1 overflow-hidden rounded-lg border border-border/50 bg-muted/40">
-          <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-40 text-green-600/80">
-            已导出 {detailPaths.length} 个文件（{details?.format?.toUpperCase() || '文件'}）。点击上方按钮打开或定位。
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ask_user_question: try to parse question payload
-  if (item.toolName === ASK_TOOL) {
-    let parsed: any = null
-    try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
-    const questions = parsed?.questions || parsed?.input?.questions
-    if (Array.isArray(questions) && questions.length > 0) {
-      return (
-        <div className="mt-1 space-y-2 rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5">
-          {questions.map((q: any, i: number) => (
-            <div key={i}>
-              <div className="text-[12px] font-medium">{q.question}</div>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {(q.options || []).map((o: any) => (
-                  <span key={o.label} className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-700 dark:text-purple-300">
-                    {o.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )
-    }
-  }
-
-  const SpecializedCard = resolveToolCard(item.toolName)
-  if (SpecializedCard) {
-    return <SpecializedCard item={item} />
-  }
-
-  // default: syntax-highlighted code block
-  return (
-    <div className="mt-1 overflow-hidden rounded-lg border border-border/50 bg-muted/40">
-      <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
-        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(out, item.toolName) }} />
-      </div>
-    </div>
-  )
+  const template = resolveToolCardTemplate(item.toolName)
+  return <>{renderToolCard(item, template)}</>
 }
-
-function ToolIcon({ name }: { name: string }) {
-  const cls = "h-3.5 w-3.5"
-  if (name === 'read') return <FileText className={cn(cls, "text-[hsl(var(--tool-read))]")} />
-  if (name === 'edit' || name === 'write') return <FileEdit className={cn(cls, "text-[hsl(var(--tool-edit))]")} />
-  if (name === 'bash') return <Terminal className={cn(cls, "text-[hsl(var(--tool-bash))]")} />
-  if (name === 'ask_user_question') return <MessageCircleQuestion className={cn(cls, "text-purple-500")} />
-  if (name === 'image_gen' || name === 'image_review' || name === 'analyze_image') return <ImageIcon className={cn(cls, "text-pink-500")} />
-  if (name === 'search' || name === 'search_sources' || name === 'docs_search' || name === 'web_fetch' || name === 'web_map' || name.startsWith('context7_') || name.startsWith('plan_') || name === 'search_config' || name === 'search_planning') return <Globe className={cn(cls, 'text-sky-500')} />
-  if (name === 'trellis_subagent' || name === 'subagent' || name === 'contact_supervisor') return <GitBranch className={cn(cls, "text-blue-500")} />
-  return <Wrench className={cn(cls, "text-muted-foreground")} />
-}
-
 const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
   const [expanded, setExpanded] = useState(false)
 
