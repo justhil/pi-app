@@ -8,6 +8,18 @@
   },
   "tier": "partial",
   "toolCard": { "template": "media", "icon": "Image", "statusField": "$.output.text" },
+  "interact": {
+    "trigger": { "tool": "image_review" },
+    "schema": "review",
+    "fields": {
+      "image": "$.image",
+      "title": "$.title",
+      "question": "$.question",
+      "context": "$.context",
+      "options": "$.options",
+      "allow_feedback": "$.allow_feedback"
+    }
+  },
   "config": {
     "configFile": "~/.pi/agent/image-gen.json",
     "fileKeyMap": {

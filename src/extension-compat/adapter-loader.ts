@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
-import type { AdapterCatalog, AdapterJson, AdapterLoadError } from './adapter-schema'
+import type { AdapterCatalog, AdapterJson, AdapterLoadError, InteractDef } from './adapter-schema'
 
 // Builtin adapters are imported as modules so they survive bundling (no runtime fs read needed).
 import piSearchAdapter from './builtin/pi-search.adapter.json'
@@ -249,6 +249,20 @@ export function v2DisplayInfo(adapterId: string, projectDir?: string): {
     registeredTools: a.match?.tools || [],
     registeredCommands: Array.from(new Set([...slashCmds, ...matchCmds])),
   }
+}
+
+/** Resolve interact definition for a tool (trigger.tool match). Returns schema + field mappings. */
+export function resolveInteractByTool(
+  toolName: string,
+  projectDir?: string,
+): { adapterId: string; schema: InteractDef['schema']; fields?: Record<string, string> } | null {
+  for (const a of loadAdapterCatalog(projectDir).adapters) {
+    const interact = a.interact
+    if (interact?.trigger?.tool === toolName) {
+      return { adapterId: a.id, schema: interact.schema, fields: interact.fields }
+    }
+  }
+  return null
 }
 
 function norm(s: string): string {

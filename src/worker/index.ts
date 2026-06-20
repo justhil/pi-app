@@ -13,6 +13,19 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
+import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
+
+/** Extract a value from an object via a simple JSONPath ("$.field" or "$.a.b"). */
+function extractJsonPath(obj: unknown, path: string): unknown {
+  if (!obj || typeof obj !== 'object') return undefined
+  const parts = path.replace(/^\$\.?/, '').split('.')
+  let cur: unknown = obj
+  for (const p of parts) {
+    if (cur == null || typeof cur !== 'object') return undefined
+    cur = (cur as Record<string, unknown>)[p]
+  }
+  return cur
+}
 
 let session: AgentSession | null = null
 let uiBridge: DesktopUIBridge | null = null
@@ -185,20 +198,17 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'tool_execution_start': {
-      if (event.toolName === 'ask_user_question' && uiBridge && event.args) {
-        const qs = (event.args as any)?.questions
-        if (Array.isArray(qs)) uiBridge.setAskToolQuestions(qs)
-      }
-      if (event.toolName === 'image_review' && uiBridge && event.args) {
-        const a = event.args as any
-        uiBridge.setImageReviewArgs({
-          image: String(a?.image || ''),
-          title: a?.title,
-          question: a?.question,
-          context: a?.context,
-          options: Array.isArray(a?.options) ? a.options : undefined,
-          allow_feedback: a?.allow_feedback,
-        })
+      // Generic interact caching: if any adapter declares interact.trigger.tool for this toolName,
+      // extract args per interact.fields and cache for the bridge custom() call.
+      if (uiBridge && event.args) {
+        const interact = resolveInteractByTool(event.toolName)
+        if (interact) {
+          const extracted: Record<string, unknown> = {}
+          for (const [field, path] of Object.entries(interact.fields || {})) {
+            extracted[field] = extractJsonPath(event.args, path)
+          }
+          uiBridge.setInteractArgs(interact.schema, extracted)
+        }
       }
       emit({ ...base, type: 'tool', toolCallId: event.toolCallId, toolName: event.toolName, phase: 'start', input: event.args })
       break

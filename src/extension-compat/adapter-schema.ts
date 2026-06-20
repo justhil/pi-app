@@ -77,8 +77,9 @@ export interface ToolCardDef {
 
 export interface InteractDef {
   trigger: { tool?: string; argsMatch?: Record<string, unknown> }
-  schema: 'questions' | 'clarify'
-  fields?: Record<string, string> // extract from tool args
+  schema: 'questions' | 'clarify' | 'review'
+  /** Map dialog field → tool-arg JSONPath (e.g. "image": "$.image"). */
+  fields?: Record<string, string>
 }
 
 export interface AdapterSlash {

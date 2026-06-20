@@ -23,10 +23,8 @@ type Pending = {
 export type DesktopUIBridge = {
   uiContext: Record<string, unknown>
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
-  /** Cache ask_user_question tool args for preview text (R1-1). */
-  setAskToolQuestions: (questions: unknown[] | null) => void
-  /** Cache image_review tool args so custom() can build a desktop review dialog. */
-  setImageReviewArgs: (args: { image: string; title?: string; question?: string; context?: string; options?: string[]; allow_feedback?: boolean } | null) => void
+  /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
+  setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
   dispose: () => void
 }
 
@@ -82,13 +80,8 @@ export function createDesktopUIBridge(
 ): DesktopUIBridge {
   const pending = new Map<string, Pending>()
   let lastAskPayload: { questions: unknown } | null = null
-  /** Full questions from ask_user_question tool args (includes option.preview; event omits preview text). */
-  let lastAskToolQuestions: unknown[] | null = null
-  /** Cached image_review tool args so custom() can render a desktop review overlay. */
-  let imageReviewArgs: {
-    image: string; title?: string; question?: string; context?: string
-    options?: string[]; allow_feedback?: boolean
-  } | null = null
+  /** Interact args cached by Worker from adapter.json interact.fields, keyed by schema type. */
+  let interactArgs: { schema: string; args: Record<string, unknown> } | null = null
 
   const emitReq = (req: ExtensionUIRequest) => {
     onRequest(req)
@@ -98,10 +91,13 @@ export function createDesktopUIBridge(
     lastAskPayload = payload
   })
 
-  const mergeAskQuestionsForUi = (): unknown[] => {
+  const buildAskQuestions = (): unknown[] => {
+    // Prefer interact-cached questions (from tool args, has preview text) merged with event questions.
     const eventQs = (lastAskPayload?.questions as any[]) || []
-    const toolQs = (lastAskToolQuestions as any[]) || []
+    const interactQs = (interactArgs?.schema === 'questions' ? interactArgs.args.questions : null) as any[] | undefined
+    const toolQs = interactQs || []
     if (toolQs.length === 0) return eventQs
+    if (eventQs.length === 0) return toolQs
     return eventQs.map((eq: any, qi: number) => {
       const tq = toolQs[qi]
       if (!tq?.options) return eq
@@ -163,21 +159,20 @@ export function createDesktopUIBridge(
 
     async custom<T>(_factory: unknown, _options?: unknown): Promise<T> {
       const id = randomUUID()
-      // image_review tool: pi-image-gen's showReviewOverlay uses a native TUI custom factory the
-      // desktop cannot execute; route to a dedicated desktop review dialog using cached tool args.
-      if (imageReviewArgs) {
-        const a = imageReviewArgs
-        imageReviewArgs = null
-        const opts = (a.options && a.options.length > 0)
+      // Route by interact schema (cached by Worker from adapter.json interact.fields).
+      if (interactArgs?.schema === 'review') {
+        const a = interactArgs.args
+        interactArgs = null
+        const opts = (Array.isArray(a.options) && a.options.length > 0)
           ? a.options.slice(0, 4)
           : ['通过', '需要修改', '重做', '取消']
         const req: ExtensionUIRequest = {
           id, method: 'custom', kind: 'image_review',
-          image: a.image,
-          title: a.title?.trim() || '图片审查',
-          question: a.question?.trim() || '这张图片是否可用？',
-          context: a.context?.trim() || undefined,
-          options: opts,
+          image: String(a.image || ''),
+          title: String(a.title || '').trim() || '图片审查',
+          question: String(a.question || '').trim() || '这张图片是否可用？',
+          context: a.context ? String(a.context).trim() || undefined : undefined,
+          options: opts as string[],
           allowFeedback: a.allow_feedback !== false,
         }
         return createDialogPromise(
@@ -192,9 +187,10 @@ export function createDesktopUIBridge(
           { choice: 'cancel', label: '取消' } as T,
         )
       }
-      const questions = mergeAskQuestionsForUi()
+      // Default: questions schema (ask_user_question) or generic questionnaire.
+      const questions = buildAskQuestions()
       lastAskPayload = null
-      lastAskToolQuestions = null
+      interactArgs = null
       return createDialogPromise(
         emitReq,
         pending,
@@ -238,15 +234,12 @@ export function createDesktopUIBridge(
       p.cleanup()
       p.resolve(response)
     },
-    setAskToolQuestions(questions: unknown[] | null) {
-      lastAskToolQuestions = questions
-    },
-    setImageReviewArgs(args) {
-      imageReviewArgs = args
+    setInteractArgs(schema, args) {
+      interactArgs = args ? { schema, args } : null
     },
     dispose() {
       unsubAsk()
-      lastAskToolQuestions = null
+      interactArgs = null
       for (const p of pending.values()) {
         p.cleanup()
         p.reject(new Error('UI bridge disposed'))
