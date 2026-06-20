@@ -12,6 +12,7 @@ import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-p
 import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveToolCardTemplate } from './tool-card-registry'
+import MarkdownView from './markdown-view'
 
 function ToolOutputExpanded({ item }: { item: any }) {
   const template = resolveToolCardTemplate(item.toolName)
@@ -41,8 +42,8 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
       <div className="py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-start gap-2.5">
           <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-          <div className="text-[13px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
-            {item.text}
+          <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground/90">
+            <MarkdownView>{item.text}</MarkdownView>
             {streaming && <StreamingCaret />}
           </div>
         </div>

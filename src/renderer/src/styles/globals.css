@@ -162,4 +162,21 @@
   .glow-running {
     box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
   }
+
+  /* Markdown chat typography (桌面 Agent UI-inspired, minimal prose) */
+  .prose-chat {
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  .prose-chat > :first-child { margin-top: 0; }
+  .prose-chat > :last-child { margin-bottom: 0; }
+  .prose-chat p { margin: 0.35em 0; }
+  .prose-chat strong { font-weight: 600; color: hsl(var(--foreground)); }
+  .prose-chat code:not(pre code) {
+    font-size: 0.86em;
+  }
+  .prose-chat pre {
+    margin: 0;
+    background: transparent;
+  }
 }
