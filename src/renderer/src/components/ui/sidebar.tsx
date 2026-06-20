@@ -13,10 +13,12 @@ export function Sidebar({ children }: SidebarProps) {
   const width = useUIStore((s) => s.sidebarWidth)
   const setWidth = useUIStore((s) => s.setSidebarWidth)
   const draggingRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
 
   const onMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     draggingRef.current = true
+    setDragging(true)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }
@@ -29,6 +31,7 @@ export function Sidebar({ children }: SidebarProps) {
     const onUp = () => {
       if (draggingRef.current) {
         draggingRef.current = false
+        setDragging(false)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
       }
@@ -48,6 +51,7 @@ export function Sidebar({ children }: SidebarProps) {
       className={cn(
         'relative flex shrink-0 flex-col border-r border-border/60 overflow-hidden panel-width-animate',
         collapsed && 'sidebar-collapsed',
+        dragging && 'panel-dragging',
       )}
       style={{
         background: 'var(--bg-1)',
@@ -103,10 +107,12 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
   const collapsed = useUIStore((s) => s.rightPanelCollapsed)
   const setWidth = useUIStore((s) => s.setRightPanelWidth)
   const draggingRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
 
   const onMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     draggingRef.current = true
+    setDragging(true)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }
@@ -119,6 +125,7 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
     const onUp = () => {
       if (draggingRef.current) {
         draggingRef.current = false
+        setDragging(false)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
       }
@@ -138,6 +145,7 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
       className={cn(
         'relative flex shrink-0 flex-col border-l border-border/60 overflow-hidden panel-width-animate',
         collapsed && 'sidebar-collapsed',
+        dragging && 'panel-dragging',
       )}
       style={{
         background: 'var(--bg-1)',
@@ -166,7 +174,7 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        'row-hover flex cursor-pointer items-center rounded-lg',
+        'sider-item-motion row-hover flex cursor-pointer items-center rounded-lg',
         collapsed ? 'mx-auto h-9 w-9 justify-center' : 'mx-1.5 gap-2.5 px-3 py-2 text-[14px] leading-6',
         active
           ? 'bg-[var(--bg-active)] text-foreground font-medium shadow-sm'

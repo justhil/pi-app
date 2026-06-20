@@ -5,8 +5,8 @@
 @layer base {
   :root {
     /* Motion tokens (桌面 Agent UI: 150/240/320ms, cubic-bezier(0.22,1,0.36,1)) */
-    --motion-fast: 150ms;
-    --motion-normal: 240ms;
+    --motion-fast: 200ms;
+    --motion-normal: 280ms;
     --motion-slow: 320ms;
     --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
@@ -201,8 +201,8 @@
     transform: translateY(6px);
     pointer-events: none;
     transition:
-      opacity var(--motion-normal) var(--motion-ease),
-      transform var(--motion-normal) var(--motion-ease);
+      opacity var(--motion-slow) var(--motion-ease),
+      transform var(--motion-slow) var(--motion-ease);
   }
   .group:hover .hover-reveal,
   .group:focus-within .hover-reveal {
@@ -220,9 +220,11 @@
     overflow: hidden;
     white-space: nowrap;
     transition:
-      opacity var(--motion-normal) var(--motion-ease),
-      max-width var(--motion-normal) var(--motion-ease),
-      margin var(--motion-normal) var(--motion-ease);
+      opacity var(--motion-slow) var(--motion-ease),
+      max-width var(--motion-slow) var(--motion-ease),
+      margin var(--motion-slow) var(--motion-ease),
+      transform var(--motion-slow) var(--motion-ease);
+    transform-origin: left center;
     max-width: 240px;
     opacity: 1;
   }
@@ -230,6 +232,7 @@
     max-width: 0;
     opacity: 0;
     margin-inline: 0;
+    transform: translateX(-6px);
     pointer-events: none;
   }
   .sidebar-icon-fade {
@@ -243,7 +246,7 @@
   .expand-panel {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows var(--motion-normal) var(--motion-ease);
+    transition: grid-template-rows var(--motion-slow) var(--motion-ease);
   }
   .expand-panel-open,
   .expand-panel[data-open='true'] {
@@ -254,7 +257,7 @@
     min-height: 0;
   }
   .chevron-expand {
-    transition: transform var(--motion-normal) var(--motion-ease);
+    transition: transform var(--motion-fast) var(--motion-ease);
   }
   .chevron-expand[data-open='true'] {
     transform: rotate(90deg);
@@ -540,4 +543,55 @@
   .prose-chat li { margin-block: 6px; }
   .prose-chat th { padding: 8px; border: 1px solid var(--bg-3); background: var(--bg-1); font-weight: bold; }
   .prose-chat td { padding: 8px; border: 1px solid var(--bg-3); min-width: 120px; }
+}
+
+/* 桌面 Agent UI motion layer (layout.css timings) */
+@layer components {
+  .sider-item-motion {
+    transition:
+      padding 200ms ease,
+      margin 200ms ease,
+      background-color 200ms ease,
+      color 200ms ease,
+      box-shadow 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sider-label-motion {
+    transition:
+      opacity 250ms ease,
+      transform 250ms ease,
+      max-width 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: left center;
+  }
+  .panel-dragging,
+  .panel-dragging * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .tab-indicator-motion {
+    transition:
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease,
+      width 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .popover-motion {
+    animation: popover-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: bottom center;
+  }
+  @keyframes popover-rise {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .backdrop-motion {
+    animation: backdrop-fade 300ms ease both;
+  }
+  @keyframes backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .stagger-1 { animation-delay: 40ms; }
+  .stagger-2 { animation-delay: 80ms; }
+  .stagger-3 { animation-delay: 120ms; }
+  .stagger-4 { animation-delay: 160ms; }
+  .stagger-5 { animation-delay: 200ms; }
 }

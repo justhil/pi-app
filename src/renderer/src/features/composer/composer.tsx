@@ -330,7 +330,7 @@ export function Composer() {
     >
       {/* Drop overlay (跨端客户端-inspired full-zone hint) */}
       {isDragActive && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-primary/5 backdrop-blur-[1px]">
+        <div className="backdrop-motion pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-dashed border-brand/30 bg-brand/5 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-1 text-primary/70">
             <Upload className="h-5 w-5" />
             <span className="text-[12px] font-medium">松开以添加文件</span>
@@ -338,7 +338,7 @@ export function Composer() {
         </div>
       )}
       {showPopover && (
-        <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-lg border border-border/70 bg-popover shadow-lg">
+        <div className="popover-motion absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg">
           <div className="max-h-72 overflow-y-auto py-1">
             {filteredCommands.map((cmd, idx) => (
               <button
@@ -368,8 +368,8 @@ export function Composer() {
                     onMouseEnter={() => setArgIdx(i)}
                     onClick={() => acceptArg(a.label)}
                     className={cn(
-                      'flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors',
-                      i === argIdx ? 'bg-accent' : 'hover:bg-accent/50',
+                      'picker-row flex w-full items-center gap-2 px-3 py-1.5 text-left',
+                      i === argIdx && 'bg-[var(--bg-active)]',
                     )}
                   >
                     <CornerDownLeft className="h-3 w-3 text-muted-foreground/50" />

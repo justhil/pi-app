@@ -64,7 +64,7 @@ export function SessionList() {
       ) : (
       <>
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <span className="sidebar-label-fade text-[13px] font-semibold text-foreground-secondary">
+        <span className="sidebar-label-fade sider-label-motion text-[13px] font-semibold text-foreground-secondary">
           {t('sidebar.sessions')}
         </span>
         <button
@@ -87,7 +87,7 @@ export function SessionList() {
               key={s.sessionId}
               onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               className={cn(
-                'group row-hover flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
+                'group sider-item-motion row-hover flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
                 currentSessionId === s.sessionId
                   ? 'bg-[var(--bg-active)] text-foreground shadow-sm'
                   : 'text-foreground-secondary hover:text-foreground',

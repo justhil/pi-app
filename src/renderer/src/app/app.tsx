@@ -222,7 +222,7 @@ function RightPanelTabs({
           <p.icon className="h-3 w-3 shrink-0" />
           <span className="truncate">{p.label}</span>
           {activePanel === p.key && (
-            <div className="absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-primary" />
+            <div className="tab-indicator-motion absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-brand" />
           )}
         </button>
       ))}

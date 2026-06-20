@@ -9,7 +9,7 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
   const { label, running, hasError } = summarizeToolGroup(tools)
 
   return (
-    <div className="py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-[var(--motion-normal)] ease-[var(--motion-ease)]">
+    <div className="ui-enter py-0.5">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -29,8 +29,10 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
       </button>
       <CollapsiblePanel open={expanded} className="mt-1">
         <div className="space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
-          {tools.map((t) => (
-            <ToolCallRow key={t.id} item={t} compact />
+          {tools.map((t, i) => (
+            <div key={t.id} className={cn('ui-enter', i < 5 && `stagger-${i + 1}`)}>
+              <ToolCallRow item={t} compact />
+            </div>
           ))}
         </div>
       </CollapsiblePanel>
