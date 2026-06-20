@@ -56,6 +56,7 @@ interface TimelineItem {
   toolPhase?: string
   toolOutput?: string
   toolDetails?: any
+  toolArgs?: any
   toolStatusLine?: string
   isError?: boolean
   slashCommand?: string
@@ -276,6 +277,7 @@ export const useUIStore = create<UIState>()(
             toolCallId: event.toolCallId,
             toolName: event.toolName,
             toolPhase: 'start',
+            toolArgs: (event as any).input,
             timestamp: event.timestamp,
           })
           state.setRunState({ activeTool: event.toolName })

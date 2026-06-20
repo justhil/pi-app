@@ -22,10 +22,10 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   }
 
   return (
-    <div className="group relative my-2 overflow-hidden rounded-lg border border-border/50 bg-[#0d1117]">
+    <div className="group relative my-2 overflow-hidden rounded-lg border border-border/50 bg-[#0d1117] shadow-sm">
       {lang && (
-        <div className="flex items-center justify-between border-b border-white/5 px-3 py-1">
-          <span className="font-mono text-[10px] text-zinc-400">{lang}</span>
+        <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] px-3 py-1">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-blue-400">{lang}</span>
           <button onClick={copy} className="text-[10px] text-zinc-500 hover:text-zinc-200">
             {copied ? '已复制' : '复制'}
           </button>

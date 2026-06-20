@@ -17,7 +17,7 @@ import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity, FileSearch, Radio, PanelRight } from 'lucide-react'
+import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { ModelPicker } from '@renderer/features/composer/model-picker'
 import { ThinkingPicker } from '@renderer/features/composer/thinking-picker'
@@ -182,7 +182,6 @@ function RightPanelTabs({
   setActivePanel: (p: any) => void
 }) {
   const collapsed = useUIStore((s) => s.rightPanelCollapsed)
-  const toggle = useUIStore((s) => s.toggleRightPanel)
 
   if (collapsed) {
     return (
@@ -202,20 +201,12 @@ function RightPanelTabs({
             <p.icon className="h-3.5 w-3.5" />
           </button>
         ))}
-        <div className="my-1 h-px w-6 bg-border/50" />
-        <button
-          onClick={toggle}
-          title="展开面板"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/60 hover:bg-accent/60 hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
-        >
-          <PanelRight className="h-3.5 w-3.5" />
-        </button>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center border-b border-border/50 pr-1">
+    <div className="flex items-center border-b border-border/50">
       {panels.map((p) => (
         <button
           key={p.key}
@@ -234,13 +225,6 @@ function RightPanelTabs({
           )}
         </button>
       ))}
-      <button
-        onClick={toggle}
-        title="收起面板"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/50 hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
-      >
-        <PanelRight className="h-3.5 w-3.5" />
-      </button>
     </div>
   )
 }

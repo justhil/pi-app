@@ -13,6 +13,7 @@ export interface ToolItem {
   toolName?: string
   toolOutput?: string
   toolDetails?: any
+  toolArgs?: any
   toolPhase?: string
   toolStatusLine?: string
   isError?: boolean
@@ -275,7 +276,7 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
           })}
         </div>
       )}
-      {textSummary && (
+      {textSummary && !nativePreview && (
         <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/40">
           <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
             <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(textSummary, item.toolName || '') }} />

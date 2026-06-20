@@ -70,16 +70,21 @@ const config: Config = {
       },
       keyframes: {
         'caret-blink': {
-          '0%, 100%': { opacity: '0.2' },
-          '50%': { opacity: '1' },
+          '0%, 100%': { opacity: '0.15', transform: 'translateY(2px) scaleY(0.8)' },
+          '50%': { opacity: '1', transform: 'translateY(2px) scaleY(1)' },
         },
         'shimmer-scan': {
           '0%': { backgroundPosition: '100% 0' },
           '100%': { backgroundPosition: '-100% 0' },
         },
+        'stream-fade': {
+          '0%': { opacity: '0.4' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
-        'caret-blink': 'caret-blink 1s ease-in-out infinite',
+        'caret-blink': 'caret-blink 1.1s ease-in-out infinite',
+        'stream-fade': 'stream-fade 0.3s ease-out forwards',
       },
     },
   },

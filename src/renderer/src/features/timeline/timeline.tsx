@@ -42,7 +42,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       <div className={cn('animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-3')}>
         <div className="flex items-start gap-2.5">
           <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
-          <div className="min-w-0 flex-1 text-[14px] leading-relaxed text-foreground">
+          <div className={cn('min-w-0 flex-1 text-[14px] leading-relaxed text-foreground', streaming && 'animate-stream-fade')}>
             <MarkdownView>{item.text}</MarkdownView>
             {streaming && <StreamingCaret />}
           </div>

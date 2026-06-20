@@ -1,4 +1,4 @@
-import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot, PanelLeft } from 'lucide-react'
+import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot, PanelLeft, PanelRight } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 
@@ -12,6 +12,9 @@ interface TopBarProps {
 export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const rightCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
+  const showRightToggle = !onBack
   return (
     <div className="flex h-11 items-center justify-between border-b border-border/60 px-3">
       <div className="flex items-center gap-2.5">
@@ -55,6 +58,15 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
             <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
             <span className="text-[11px] text-muted-foreground">空闲</span>
           </div>
+        )}
+        {showRightToggle && (
+          <button
+            onClick={toggleRightPanel}
+            title={rightCollapsed ? '展开右侧面板' : '收起右侧面板'}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
+          >
+            <PanelRight className={cn('h-3.5 w-3.5 transition-transform duration-motion-normal ease-motion-ease', rightCollapsed && 'rotate-180')} />
+          </button>
         )}
       </div>
     </div>
