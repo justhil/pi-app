@@ -229,7 +229,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
           type="button"
           onClick={save}
           disabled={saving}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
         >
           {saving ? '保存中…' : '保存'}
         </button>

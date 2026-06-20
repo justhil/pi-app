@@ -106,7 +106,7 @@ export function ImageReviewDialog({
                 key={opt}
                 onClick={() => choose(opt, i)}
                 className={cn(
-                  'rounded-md border px-3 py-1.5 text-[12px] transition-colors',
+                  'rounded-md border px-3 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease active:scale-[0.97]',
                   selected === opt
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border bg-background text-foreground/80 hover:bg-muted',

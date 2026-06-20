@@ -203,11 +203,14 @@ export function Timeline() {
   if (items.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
-          <Bot className="h-7 w-7" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
+          <Bot className="h-8 w-8" />
         </div>
-        <div className="text-[14px] text-muted-foreground/60">
+        <div className="text-[15px] font-medium text-muted-foreground/70">
           {t('timeline.placeholder')}
+        </div>
+        <div className="text-[12px] text-muted-foreground/45">
+          在下方输入框输入消息, 或使用 / 查看可用命令
         </div>
       </div>
     )

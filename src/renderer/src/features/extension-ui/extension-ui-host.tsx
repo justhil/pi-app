@@ -160,7 +160,7 @@ export function ExtensionUIHost() {
               </button>
               <button
                 type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground"
+                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97]"
                 onClick={() => {
                   respond({ id: pending.id, confirmed: true })
                   setPending(null)
@@ -184,7 +184,7 @@ export function ExtensionUIHost() {
             <div className="flex justify-end">
               <button
                 type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground"
+                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97]"
                 onClick={() => {
                   respond({ id: pending.id, value: inputValue })
                   setPending(null)
