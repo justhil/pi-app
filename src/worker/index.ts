@@ -416,8 +416,9 @@ process.parentPort?.on('message', async (event: any) => {
       case 'setModel': {
         if (session) {
           try {
-            const { getModel } = await import('@earendil-works/pi-ai')
-            const model = getModel(msg.provider, msg.modelId)
+            // Resolve model from the session's modelRegistry (no dynamic pi-ai import — it's a nested dep not hoisted).
+            const model = (session.modelRegistry as any)?.find?.(msg.provider, msg.modelId)
+              ?? (session.modelRegistry as any)?.get?.(msg.provider, msg.modelId)
             if (model) await session.setModel(model)
             const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
             emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })

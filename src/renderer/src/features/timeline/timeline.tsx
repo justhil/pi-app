@@ -19,6 +19,9 @@ function ToolOutputExpanded({ item }: { item: any }) {
 }
 const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
   const [expanded, setExpanded] = useState(false)
+  // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
+  const streaming = (useUIStore.getState().streamingAssistantId === item.id)
+  const stalled = useStalledHint(streaming, item.text?.length)
 
   if (item.type === 'user-message') {
     return (
@@ -34,9 +37,6 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
     if (!item.text) {
       return <ThinkingIndicator label="思考中" />
     }
-    // Streaming: text is non-final while the streaming flag is set on this item.
-    const streaming = (useUIStore.getState().streamingAssistantId === item.id)
-    const stalled = useStalledHint(streaming, item.text?.length)
     return (
       <div className="py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-start gap-2.5">
