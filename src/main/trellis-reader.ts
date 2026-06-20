@@ -31,25 +31,14 @@ export function readTrellisState(cwd: string): TrellisState {
       cwd,
       encoding: 'utf-8',
       timeout: 5000,
-    })
-    // Parse output to find task name and status
-    const lines = output.trim().split('\n')
-    for (const line of lines) {
-      if (line.includes('Current task')) {
-        const match = line.match(/tasks\/([^\s]+)/)
-        if (match) {
-          state.currentTask = {
-            name: match[1],
-            status: 'in_progress',
-            title: match[1],
-          }
-        }
-      }
-      if (line.includes('Status:')) {
-        const statusMatch = line.match(/Status:\s*(\S+)/)
-        if (statusMatch && state.currentTask) {
-          state.currentTask.status = statusMatch[1]
-        }
+    }).trim()
+    // task.py current outputs a path like ".trellis/tasks/06-19-xxx"
+    const pathMatch = output.match(/tasks\/([^\s]+)/)
+    if (pathMatch) {
+      state.currentTask = {
+        name: pathMatch[1],
+        status: 'in_progress',
+        title: pathMatch[1],
       }
     }
 
@@ -97,24 +86,32 @@ export function readTrellisState(cwd: string): TrellisState {
     // Phase not available
   }
 
-  // Read recent journals
+  // Read recent journals (per-developer: .trellis/workspace/<developer>/*.md)
   try {
-    const journalDir = join(trellisDir, 'workspace', 'journal')
-    if (existsSync(journalDir)) {
-      const files = readdirSync(journalDir)
-        .filter((f) => f.endsWith('.md'))
-        .sort()
-        .reverse()
-        .slice(0, 5)
-      state.recentJournals = files.map((f) => {
-        const content = readFileSync(join(journalDir, f), 'utf-8')
-        const titleMatch = content.match(/^#\s+(.+)$/m)
-        return {
-          title: titleMatch ? titleMatch[1] : f,
-          date: f.replace('.md', ''),
-          lines: content.split('\n').length,
-        }
+    const workspaceDir = join(trellisDir, 'workspace')
+    if (existsSync(workspaceDir)) {
+      const devs = readdirSync(workspaceDir).filter((d) => {
+        try { return readdirSync(join(workspaceDir, d)).some((f) => f.endsWith('.md')) } catch { return false }
       })
+      const journals: { file: string; dev: string; title: string; date: string; lines: number; mtime: number }[] = []
+      for (const dev of devs) {
+        const devDir = join(workspaceDir, dev)
+        for (const f of readdirSync(devDir).filter((f) => f.endsWith('.md'))) {
+          const filePath = join(devDir, f)
+          const content = readFileSync(filePath, 'utf-8')
+          const titleMatch = content.match(/^#\s+(.+)$/m)
+          const stat = require('fs').statSync(filePath)
+          journals.push({
+            file: f,
+            dev,
+            title: titleMatch ? titleMatch[1] : f,
+            date: f.replace('.md', ''),
+            lines: content.split('\n').length,
+            mtime: stat.mtimeMs,
+          })
+        }
+      }
+      state.recentJournals = journals.sort((a, b) => b.mtime - a.mtime).slice(0, 5)
     }
   } catch (e) {
     // Journals not available

@@ -95,6 +95,7 @@ interface SidebarItemProps {
 
 export function RightPanel({ children }: { children: React.ReactNode }) {
   const width = useUIStore((s) => s.rightPanelWidth)
+  const collapsed = useUIStore((s) => s.rightPanelCollapsed)
   const setWidth = useUIStore((s) => s.setRightPanelWidth)
   const draggingRef = useRef(false)
 
@@ -125,18 +126,25 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
     }
   }, [setWidth])
 
+  const effectiveWidth = collapsed ? 44 : width
+
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-l border-border/60 bg-surface-sidebar"
-      style={{ width }}
+      className="relative flex shrink-0 flex-col border-l border-border/60 bg-surface-sidebar overflow-hidden"
+      style={{
+        width: effectiveWidth,
+        transition: 'width var(--motion-normal) var(--motion-ease)',
+      }}
     >
       <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-      <div
-        onMouseDown={onMouseDown}
-        className="absolute cursor-col-resize"
-        style={{ width: 4, left: -2, top: 0, bottom: 0, zIndex: 20 }}
-        aria-hidden
-      />
+      {!collapsed && (
+        <div
+          onMouseDown={onMouseDown}
+          className="absolute cursor-col-resize"
+          style={{ width: 4, left: -2, top: 0, bottom: 0, zIndex: 20 }}
+          aria-hidden
+        />
+      )}
     </aside>
   )
 }

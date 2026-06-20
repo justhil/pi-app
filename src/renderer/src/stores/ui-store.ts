@@ -114,6 +114,8 @@ interface UIState {
   toggleSidebar: () => void
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
+  rightPanelCollapsed: boolean
+  toggleRightPanel: () => void
 
   // Last picker selections (persisted, cross-session memory)
   lastModel: string | null
@@ -220,6 +222,8 @@ export const useUIStore = create<UIState>()(
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   rightPanelWidth: 288,
   setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 240), 420) }),
+  rightPanelCollapsed: false,
+  toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
 
   pendingExtensionConfig: null,
   requestExtensionConfig: (pluginName) => set({ pendingExtensionConfig: pluginName }),
@@ -384,6 +388,7 @@ export const useUIStore = create<UIState>()(
         sidebarWidth: s.sidebarWidth,
         sidebarCollapsed: s.sidebarCollapsed,
         rightPanelWidth: s.rightPanelWidth,
+        rightPanelCollapsed: s.rightPanelCollapsed,
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
