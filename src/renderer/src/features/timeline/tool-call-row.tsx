@@ -5,6 +5,7 @@ import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveToolCardTemplate } from './tool-card-registry'
 import { buildToolSummary } from './tool-previews'
+import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
 function ToolOutputExpanded({ item }: { item: any }) {
   const template = resolveToolCardTemplate(item.toolName)
@@ -47,10 +48,8 @@ export function ToolCallRow({
       >
         {hasToolBody && (
           <ChevronRight
-            className={cn(
-              'h-3 w-3 shrink-0 text-aou-4 transition-transform duration-[var(--motion-fast)]',
-              expanded && 'rotate-90',
-            )}
+            className="chevron-expand h-3 w-3 shrink-0 text-aou-4"
+            data-open={expanded ? 'true' : 'false'}
           />
         )}
         <ToolIcon name={item.toolName} />
@@ -64,11 +63,11 @@ export function ToolCallRow({
           <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/50" />
         )}
       </button>
-      {expanded && hasToolBody && (
-        <div className="mt-0.5 ml-3 border-l border-border/40 pl-2 animate-in fade-in slide-in-from-bottom-1 duration-[var(--motion-fast)]">
+      <CollapsiblePanel open={expanded && hasToolBody} className="mt-0.5">
+        <div className="ml-3 border-l border-border/40 pl-2 pb-1">
           <ToolOutputExpanded item={item} />
         </div>
-      )}
+      </CollapsiblePanel>
     </div>
   )
 }

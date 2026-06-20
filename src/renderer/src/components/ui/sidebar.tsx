@@ -45,14 +45,18 @@ export function Sidebar({ children }: SidebarProps) {
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-r border-border/60 overflow-hidden"
+      className={cn(
+        'relative flex shrink-0 flex-col border-r border-border/60 overflow-hidden panel-width-animate',
+        collapsed && 'sidebar-collapsed',
+      )}
       style={{
         background: 'var(--bg-1)',
         width: effectiveWidth,
-        transition: 'width var(--motion-normal) var(--motion-ease)',
       }}
     >
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div key={collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'} className="animate-ui-enter flex min-w-0 flex-1 flex-col">
+        {children}
+      </div>
       {!collapsed && (
         <div
           onMouseDown={onMouseDown}
@@ -131,14 +135,18 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-l border-border/60 overflow-hidden"
+      className={cn(
+        'relative flex shrink-0 flex-col border-l border-border/60 overflow-hidden panel-width-animate',
+        collapsed && 'sidebar-collapsed',
+      )}
       style={{
         background: 'var(--bg-1)',
         width: effectiveWidth,
-        transition: 'width var(--motion-normal) var(--motion-ease)',
       }}
     >
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div key={collapsed ? 'right-collapsed' : 'right-expanded'} className="animate-ui-enter flex min-w-0 flex-1 flex-col">
+        {children}
+      </div>
       {!collapsed && (
         <div
           onMouseDown={onMouseDown}
@@ -166,7 +174,7 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
       )}
     >
       {icon}
-      {!collapsed && label}
+      {!collapsed && <span className="sidebar-label-fade">{label}</span>}
     </div>
   )
 }

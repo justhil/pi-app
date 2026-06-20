@@ -64,7 +64,7 @@ export function SessionList() {
       ) : (
       <>
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <span className="text-[13px] font-semibold text-foreground-secondary">
+        <span className="sidebar-label-fade text-[13px] font-semibold text-foreground-secondary">
           {t('sidebar.sessions')}
         </span>
         <button
@@ -98,10 +98,10 @@ export function SessionList() {
                 currentSessionId === s.sessionId ? 'text-foreground' : 'text-foreground-secondary/70 group-hover:text-foreground'
               )} />
               <div className="flex-1 min-w-0">
-                <div className="truncate text-[14px] font-normal leading-6 text-foreground">
+                <div className="sidebar-label-fade truncate text-[14px] font-normal leading-6 text-foreground">
                   {s.title || s.sessionId.slice(0, 8)}
                 </div>
-                <div className="text-[12px] leading-5 text-foreground-secondary tabular-nums">
+                <div className="sidebar-label-fade text-[12px] leading-5 text-foreground-secondary tabular-nums">
                   {new Date(s.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
                 </div>
               </div>
@@ -140,7 +140,7 @@ export function ProjectHeader() {
       )}>
         {workspace ? name.charAt(0).toUpperCase() : '?'}
       </div>
-      <span className="truncate text-[14px] font-semibold leading-6 text-foreground">{name}</span>
+      <span className="sidebar-label-fade truncate text-[14px] font-semibold leading-6 text-foreground">{name}</span>
     </div>
   )
 }
@@ -166,8 +166,8 @@ export function OpenProjectButton({ onClick, label }: { onClick: () => void; lab
         onClick={onClick}
         className="row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-[14px] leading-6 text-foreground-secondary hover:text-foreground"
       >
-        <FolderOpen className="h-3.5 w-3.5" />
-        {label}
+        <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+        <span className="sidebar-label-fade">{label}</span>
       </button>
     </div>
   )

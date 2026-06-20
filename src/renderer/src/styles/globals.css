@@ -195,16 +195,69 @@
   .interactive-row {
     transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-normal) ease, opacity var(--motion-fast) ease;
   }
-  /* Smooth hover-reveal for group-hover elements (copy buttons, action menus) */
+  /* Message hover: copy + time fade/slide in (桌面 Agent UI) */
   .hover-reveal {
     opacity: 0;
-    transition: opacity var(--motion-fast) ease;
+    transform: translateY(6px);
     pointer-events: none;
+    transition:
+      opacity var(--motion-normal) var(--motion-ease),
+      transform var(--motion-normal) var(--motion-ease);
   }
   .group:hover .hover-reveal,
   .group:focus-within .hover-reveal {
     opacity: 1;
+    transform: translateY(0);
     pointer-events: auto;
+  }
+  /* Sidebar / panel width */
+  .panel-width-animate {
+    transition:
+      width var(--motion-normal) var(--motion-ease),
+      min-width var(--motion-normal) var(--motion-ease);
+  }
+  .sidebar-label-fade {
+    overflow: hidden;
+    white-space: nowrap;
+    transition:
+      opacity var(--motion-normal) var(--motion-ease),
+      max-width var(--motion-normal) var(--motion-ease),
+      margin var(--motion-normal) var(--motion-ease);
+    max-width: 240px;
+    opacity: 1;
+  }
+  .sidebar-collapsed .sidebar-label-fade {
+    max-width: 0;
+    opacity: 0;
+    margin-inline: 0;
+    pointer-events: none;
+  }
+  .sidebar-icon-fade {
+    transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+  }
+  .sidebar-collapsed .sidebar-icon-only {
+    opacity: 1;
+    transform: scale(1);
+  }
+  /* Tool / group expand */
+  .expand-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--motion-normal) var(--motion-ease);
+  }
+  .expand-panel-open,
+  .expand-panel[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+  .expand-panel-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .chevron-expand {
+    transition: transform var(--motion-normal) var(--motion-ease);
+  }
+  .chevron-expand[data-open='true'] {
+    transform: rotate(90deg);
   }
   /* Electron frameless: drag title region */
   .electron-drag {
@@ -372,6 +425,19 @@
   }
   .animate-in.fade-in.slide-in-from-bottom-1 {
     animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
+  }
+  .ui-enter {
+    animation: ui-enter var(--motion-normal) var(--motion-ease) both;
+  }
+  @keyframes ui-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   @keyframes slide-in-from-right {
     from { opacity: 0; transform: translateX(16px); }

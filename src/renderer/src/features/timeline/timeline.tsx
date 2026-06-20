@@ -48,7 +48,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
   if (item.type === 'user-message') {
     return (
-      <div className={cn('group flex flex-col items-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+      <div className={cn('group ui-enter flex flex-col items-end', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
         <div
           className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words"
           style={{
@@ -68,7 +68,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className={cn('group animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+      <div className={cn('group ui-enter', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
         <div className={cn('min-w-0 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
           <MarkdownView>{item.text}</MarkdownView>
           {streaming && <StreamingCaret />}
@@ -223,7 +223,9 @@ export function Timeline() {
           return (
             <Fragment key={block.groupId}>
               {showGroupGap && <div className="h-2" />}
-              <ToolGroupSummary tools={block.tools} />
+              <div className="ui-enter">
+                <ToolGroupSummary tools={block.tools} />
+              </div>
             </Fragment>
           )
         }
@@ -232,7 +234,9 @@ export function Timeline() {
         if (item.type === 'tool-call') {
           return (
             <Fragment key={item.id}>
-              <ToolCallRow item={item} />
+              <div className="ui-enter">
+                <ToolCallRow item={item} />
+              </div>
             </Fragment>
           )
         }

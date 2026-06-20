@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronRight, ListTree, Loader2, XCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolCallRow, summarizeToolGroup } from './tool-call-row'
+import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
 export function ToolGroupSummary({ tools }: { tools: any[] }) {
   const [expanded, setExpanded] = useState(false)
@@ -16,10 +17,8 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
         style={{ background: 'color-mix(in srgb, var(--bg-2) 80%, transparent)' }}
       >
         <ChevronRight
-          className={cn(
-            'h-3.5 w-3.5 shrink-0 text-foreground-secondary transition-transform duration-[var(--motion-normal)] ease-[var(--motion-ease)]',
-            expanded && 'rotate-90',
-          )}
+          className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary"
+          data-open={expanded ? 'true' : 'false'}
         />
         <ListTree className="h-3.5 w-3.5 shrink-0 text-aou-6" />
         <span className="min-w-0 flex-1 truncate text-[12px] text-foreground-secondary group-hover:text-foreground">
@@ -28,13 +27,13 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
         {running && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-aou-5" />}
         {!running && hasError && <XCircle className="h-3 w-3 shrink-0 text-destructive/70" />}
       </button>
-      {expanded && (
-        <div className="mt-1 space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
+      <CollapsiblePanel open={expanded} className="mt-1">
+        <div className="space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
           {tools.map((t) => (
             <ToolCallRow key={t.id} item={t} compact />
           ))}
         </div>
-      )}
+      </CollapsiblePanel>
     </div>
   )
 }
