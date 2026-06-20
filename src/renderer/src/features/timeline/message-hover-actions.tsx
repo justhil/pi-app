@@ -20,7 +20,7 @@ export function MessageHoverActions({
     })
   }
   return (
-    <div className={cn('mt-1 flex h-7 items-center gap-2', align === 'right' && 'flex-row-reverse justify-end')}>
+    <div className={cn('flex h-8 items-center gap-2', align === 'right' && 'flex-row-reverse justify-end')}>
       <button
         type="button"
         onClick={copy}
@@ -48,12 +48,15 @@ export function MessageHoverShell({
   const [hovered, setHovered] = useState(false)
   return (
     <div
-      className={cn('message-hover-shell', align === 'right' && 'items-end', hovered && 'message-hover-shell-active')}
+      className={cn('message-hover-shell', align === 'right' && 'items-end')}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       {children}
-      <div className={cn('message-actions-fade', hovered && 'message-actions-fade-visible')}>{actions}</div>
+      {/* 固定高度占位，仅 opacity 变化，避免 hover 顶开布局（对齐 桌面 Agent UI h-32px） */}
+      <div className={cn('message-actions-slot', hovered && 'message-actions-slot-visible')}>
+        {actions}
+      </div>
     </div>
   )
 }
