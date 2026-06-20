@@ -225,6 +225,100 @@
   .row-hover:active {
     transform: scale(0.995);
   }
+  /* Composer input shell */
+  .composer-shell {
+    background: var(--bg-base);
+    border-color: var(--border-base);
+    transition:
+      border-color var(--motion-normal) var(--motion-ease),
+      box-shadow var(--motion-normal) var(--motion-ease),
+      background-color var(--motion-fast) ease,
+      transform var(--motion-fast) ease;
+  }
+  .composer-shell:hover:not(.composer-shell-focused) {
+    border-color: color-mix(in srgb, var(--brand) 28%, var(--border-base));
+    background: color-mix(in srgb, var(--bg-1) 70%, var(--bg-base));
+  }
+  .composer-shell-focused {
+    border-color: var(--focus-border) !important;
+    box-shadow: var(--focus-shadow);
+    background: var(--bg-base);
+  }
+  .composer-textarea {
+    transition: color var(--motion-fast) ease;
+  }
+  .composer-textarea::placeholder {
+    transition: opacity var(--motion-fast) ease;
+  }
+  .composer-shell-focused .composer-textarea::placeholder {
+    opacity: 0.55;
+  }
+  /* Model / thinking pills */
+  .composer-pill {
+    border-color: var(--border-base);
+    background: var(--bg-2);
+    color: var(--text-secondary);
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      transform var(--motion-fast) ease,
+      color var(--motion-fast) ease;
+  }
+  .composer-pill:hover {
+    background: var(--bg-hover);
+    border-color: color-mix(in srgb, var(--brand) 35%, var(--border-base));
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--brand) 8%, transparent);
+  }
+  .composer-pill:active {
+    transform: scale(0.97);
+    background: var(--bg-active);
+  }
+  .composer-pill-open {
+    border-color: var(--focus-border);
+    background: color-mix(in srgb, var(--brand-light) 40%, var(--bg-2));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 12%, transparent);
+  }
+  .composer-pill-active {
+    color: var(--brand);
+  }
+  .composer-send {
+    transition:
+      background-color var(--motion-fast) ease,
+      transform var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      opacity var(--motion-fast) ease;
+  }
+  .composer-send:not(:disabled):hover {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+  .composer-send:not(:disabled):active {
+    transform: scale(0.96);
+  }
+  /* Picker overlay */
+  .picker-backdrop {
+    animation: picker-fade-in var(--motion-normal) var(--motion-ease) both;
+  }
+  .picker-panel {
+    animation: picker-scale-in var(--motion-normal) var(--motion-ease) both;
+  }
+  @keyframes picker-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes picker-scale-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .picker-row {
+    transition: background-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+  }
+  .picker-row:hover {
+    background: var(--bg-hover);
+  }
+  .picker-row:active {
+    transform: scale(0.995);
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);

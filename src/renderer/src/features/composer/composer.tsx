@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, ChevronDown, X, FileText, Upload } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, X, FileText, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
+import { ComposerPill } from './composer-pill'
 
 interface SlashCommand {
   id: string
@@ -55,8 +56,11 @@ export function Composer() {
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
   const usage = useUIStore((s) => s.runState.usage)
+  const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const setModelPickerOpen = useUIStore((s) => s.setModelPickerOpen)
+  const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setThinkingPickerOpen = useUIStore((s) => s.setThinkingPickerOpen)
+  const [composerFocused, setComposerFocused] = useState(false)
 
   const autoResize = useCallback(() => {
     const el = textareaRef.current
@@ -342,8 +346,8 @@ export function Composer() {
                 onMouseEnter={() => setSelectedIdx(idx)}
                 onClick={() => acceptCommand(cmd)}
                 className={cn(
-                  'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
-                  idx === selectedIdx ? 'bg-accent' : 'hover:bg-accent/50',
+                  'picker-row flex w-full items-center gap-2.5 px-3 py-2 text-left',
+                  idx === selectedIdx && 'bg-[var(--bg-active)]',
                 )}
               >
                 <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', CATEGORY_COLORS[cmd.category])}>
@@ -387,11 +391,13 @@ export function Composer() {
           </div>
         </div>
       )}
-      <div className={cn(
-        'flex flex-col gap-1.5 rounded-2xl border bg-card transition-all duration-motion-normal ease-motion-ease',
-        'border-border/50 focus-within:border-[var(--focus-border)] focus-within:shadow-[var(--focus-shadow)]',
-        isDragActive && 'border-dashed border-primary/60',
-      )}>
+      <div
+        className={cn(
+          'composer-shell flex flex-col gap-1.5 rounded-2xl border',
+          composerFocused && 'composer-shell-focused',
+          isDragActive && 'border-dashed !border-primary/50',
+        )}
+      >
         {/* Attachment chips block (single-block layout, not scattered text) */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
@@ -420,7 +426,9 @@ export function Composer() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.7] placeholder:text-muted-foreground/50 focus-visible:outline-none"
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
+          className="composer-textarea flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.7] text-foreground placeholder:text-foreground-secondary/60 focus-visible:outline-none"
           placeholder={currentWorkspace ? t('composer.placeholder') : t('composer.selectProjectFirst')}
           rows={1}
           disabled={!currentWorkspace}
@@ -437,7 +445,7 @@ export function Composer() {
             <button
               onClick={handleSend}
               disabled={(!text.trim() && attachments.length === 0) || !currentWorkspace}
-              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-30 disabled:pointer-events-none"
+              className="composer-send m-1.5 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:pointer-events-none disabled:shadow-none"
             >
               <Send className="h-3 w-3" />
               {t('composer.send')}
@@ -448,31 +456,22 @@ export function Composer() {
 
       {/* Agent 桌面-style status bar: model / thinking / context */}
       {currentWorkspace && (
-        <div className="mt-1.5 flex items-center gap-1 px-1 text-[11px] text-foreground-secondary">
-          <button
+        <div className="mt-2 flex flex-wrap items-center gap-2 px-0.5 text-[11px]">
+          <ComposerPill
+            icon={<Cpu className="h-3.5 w-3.5" />}
+            label={model || '未选择模型'}
+            open={modelPickerOpen}
             onClick={() => setModelPickerOpen(true)}
-            className="row-hover flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-foreground-secondary hover:text-foreground"
             title="切换模型"
-          >
-            <Cpu className="h-3 w-3" />
-            <span className="max-w-[180px] truncate">{model || '未选择模型'}</span>
-            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
-          </button>
-
-          <span className="text-muted-foreground/30">·</span>
-
-          <button
+          />
+          <ComposerPill
+            icon={<Brain className="h-3.5 w-3.5" />}
+            label={<span className="uppercase">{thinkingLevel || 'off'}</span>}
+            open={thinkingPickerOpen}
+            active={!!thinkingLevel && thinkingLevel !== 'off'}
             onClick={() => setThinkingPickerOpen(true)}
-            className={cn(
-              'row-hover flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono uppercase text-foreground-secondary hover:text-foreground',
-              thinkingLevel && thinkingLevel !== 'off' ? 'text-purple-600 dark:text-purple-400' : '',
-            )}
             title="切换 thinking 等级"
-          >
-            <Brain className="h-3 w-3" />
-            <span>{thinkingLevel || 'off'}</span>
-            <ChevronDown className="h-2.5 w-2.5 opacity-60" />
-          </button>
+          />
 
           {usage && (
             <>
