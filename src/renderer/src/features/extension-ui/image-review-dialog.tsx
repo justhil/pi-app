@@ -32,6 +32,7 @@ export function ImageReviewDialog({
   const [src, setSrc] = useState<string | null>(null)
   const [previewErr, setPreviewErr] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [feedback, setFeedback] = useState('')
 
   const isUrl = /^https?:\/\//i.test(payload.image) || payload.image.startsWith('data:')
@@ -53,13 +54,18 @@ export function ImageReviewDialog({
     return () => { cancelled = true }
   }, [payload.image, isUrl])
 
-  const choose = (label: string) => {
+  const CHOICE_ENUM = ['approve', 'revise', 'reject', 'cancel'] as const
+
+  const choose = (label: string, index: number) => {
     setSelected(label)
+    setSelectedIndex(index)
   }
 
   const submit = () => {
+    const idx = selectedIndex ?? 0
     const label = selected || payload.options[0]
-    onSubmit({ choice: label, label, feedback: payload.allowFeedback ? feedback : undefined })
+    const choice = CHOICE_ENUM[idx] ?? 'approve'
+    onSubmit({ choice, label, feedback: payload.allowFeedback ? feedback : undefined })
   }
 
   return (
@@ -95,10 +101,10 @@ export function ImageReviewDialog({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {payload.options.map((opt) => (
+            {payload.options.map((opt, i) => (
               <button
                 key={opt}
-                onClick={() => choose(opt)}
+                onClick={() => choose(opt, i)}
                 className={cn(
                   'rounded-md border px-3 py-1.5 text-[12px] transition-colors',
                   selected === opt

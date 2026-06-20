@@ -184,9 +184,11 @@ export function createDesktopUIBridge(
           emitReq,
           pending,
           req,
-          (r) => (r.cancelled
-            ? ({ choice: 'cancel', label: '取消' } as T)
-            : ({ choice: (r as any).choice, label: (r as any).label, feedback: (r as any).feedback } as T)),
+          (r) => {
+            if (r.cancelled) return { choice: 'cancel', label: '取消' } as T
+            const res = (r.result || {}) as any
+            return { choice: res.choice, label: res.label, feedback: res.feedback } as T
+          },
           { choice: 'cancel', label: '取消' } as T,
         )
       }
