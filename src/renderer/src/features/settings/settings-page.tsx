@@ -12,6 +12,12 @@ import {
 } from 'lucide-react'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
+import {
+  SettingsMain,
+  SettingsNav,
+  SettingsNavItem,
+  SettingsPageHeader,
+} from '@renderer/features/settings/settings-shell'
 
 type SettingsPage = 'general' | 'appearance' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
@@ -44,7 +50,7 @@ export function SettingsPage() {
   // Config detail subpage (replaces modal)
   if (configExt) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-h-0 w-full flex-col">
         <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
           <button
             onClick={() => setConfigExt(null)}
@@ -55,53 +61,40 @@ export function SettingsPage() {
           </button>
           <span className="text-[13px] font-medium">{configExt} 配置</span>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 animate-in fade-in slide-in-from-right">
-          <div className="mx-auto max-w-2xl px-2">
+        <SettingsMain wide>
+          <div className="animate-in fade-in slide-in-from-right duration-motion-normal">
             <ExtensionConfigSubpage extensionId={configExt} />
           </div>
-        </div>
+        </SettingsMain>
       </div>
     )
   }
 
+  const widePages: SettingsPage[] = ['pi', 'skills', 'prompts', 'extensions', 'adapters']
+  const wide = widePages.includes(page)
+
   return (
-    <div className="flex h-full">
-      <div className="w-52 shrink-0 border-r border-border/60 bg-surface-sidebar">
-        <div className="px-4 py-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50">
-          {t('settings.title')}
-        </div>
+    <div className="flex h-full min-h-0 w-full">
+      <SettingsNav title={t('settings.title')}>
         {PAGES.map((p) => (
-          <button
+          <SettingsNavItem
             key={p.key}
+            active={page === p.key}
+            icon={p.icon}
+            label={p.label}
             onClick={() => setPage(p.key)}
-            className={cn(
-              'flex w-full items-center gap-2.5 px-4 py-2 text-[13px] transition-all duration-motion-fast ease-motion-ease',
-              page === p.key
-                ? 'bg-accent text-accent-foreground font-medium'
-                : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
-            )}
-          >
-            <p.icon className="h-4 w-4 shrink-0" />
-            {p.label}
-          </button>
+          />
         ))}
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        <div
-          className={cn(
-            'mx-auto px-8 py-8',
-            page === 'prompts' ? 'max-w-5xl' : 'max-w-2xl',
-          )}
-        >
-          {page === 'general' && <GeneralSettings />}
-          {page === 'appearance' && <AppearanceSettings />}
-          {page === 'pi' && <PiSettings />}
-          {page === 'skills' && <SkillsSettingsPanel />}
-          {page === 'prompts' && <PromptsSettingsPanel />}
-          {page === 'extensions' && <ExtensionsSettings />}
-          {page === 'adapters' && <AdaptersSettings />}
-        </div>
-      </div>
+      </SettingsNav>
+      <SettingsMain wide={wide}>
+        {page === 'general' && <GeneralSettings />}
+        {page === 'appearance' && <AppearanceSettings />}
+        {page === 'pi' && <PiSettings />}
+        {page === 'skills' && <SkillsSettingsPanel />}
+        {page === 'prompts' && <PromptsSettingsPanel />}
+        {page === 'extensions' && <ExtensionsSettings />}
+        {page === 'adapters' && <AdaptersSettings />}
+      </SettingsMain>
     </div>
   )
 }
@@ -149,7 +142,7 @@ function GeneralSettings() {
 
   return (
     <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-3">常规</h3>
+      <SettingsPageHeader title="常规" description="启动、语言与本机偏好（写入应用配置）。" />
       <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
         <Toggle on={autoOpen} onChange={setAutoOpen} />
       </SettingRow>
@@ -228,7 +221,7 @@ function AppearanceSettings() {
 
   return (
     <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-3">{t('settings.appearance')}</h3>
+      <SettingsPageHeader title={t('settings.appearance')} description="主题与界面密度；与主界面 anti-FOUC 同步。" />
       <SettingRow label="主题" description="选择界面主题">
         <div className="flex gap-1.5">
           {themes.map(({ key, icon: Icon }) => (
@@ -307,11 +300,13 @@ function ExtensionsSettings() {
   const watchedTools = ['fast_context_search', 'search', 'search_sources', 'ffgrep', 'fffind']
 
   return (
-    <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-1">插件</h3>
-      <p className="text-[11px] text-muted-foreground/60 mb-3">
-        列表含本应用对磁盘的<strong className="font-medium text-foreground-secondary">额外探测</strong>（含未进 packages 的 git 克隆），不等于已加载。<strong className="font-medium text-foreground-secondary">终端 pi TUI 与桌面 Worker 同源</strong>：都走 SDK 的 DefaultResourceLoader——<code className="text-[10px]">settings.packages</code>、<code className="text-[10px]">settings.extensions</code>、<code className="text-[10px]">~/.pi/agent/extensions/</code>、项目 <code className="text-[10px]">.pi/extensions/</code>；<strong className="font-medium text-foreground-secondary">不会</strong>仅因 <code className="text-[10px]">~/.pi/agent/git/…</code> 里有目录就加载。下方「当前 Worker 工具」才是本会话可调用工具。
-      </p>
+    <div className="space-y-1 w-full">
+      <SettingsPageHeader
+        title="插件"
+        description={
+          '列表含磁盘探测结果；实际可调用工具以当前 Worker 为准。与终端 pi 同源：settings.packages、extensions 路径与 ~/.pi/agent/extensions。'
+        }
+      />
       {missingRuntime.length > 0 && (
         <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3">
           <div className="text-[12px] font-medium text-amber-800 dark:text-amber-200">未进 Worker 的扩展</div>
@@ -474,12 +469,11 @@ function AdaptersSettings() {
   }
 
   return (
-    <div className="space-y-3 max-w-2xl">
-      <h3 className="text-[15px] font-semibold">桌面适配器</h3>
-      <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-        列出已登记的桌面适配器（<code className="text-[10px] bg-muted px-1 rounded">adapter.json</code> 声明式兼容层）。
-        <strong>一插件一适配器</strong>，名称与包名相同；所有插件均经兼容层接入。
-      </p>
+    <div className="w-full space-y-3">
+      <SettingsPageHeader
+        title="桌面适配器"
+        description="已登记的 adapter.json 兼容层；一插件一适配器，经兼容层接入桌面 UI 与配置。"
+      />
       {error && <div className="text-[11px] text-destructive">{error}</div>}
       {adapters.length === 0 ? (
         <div className="text-[12px] text-muted-foreground/50 py-4">

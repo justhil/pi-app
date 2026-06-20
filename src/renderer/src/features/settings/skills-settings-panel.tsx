@@ -38,7 +38,7 @@ export function SkillsSettingsPanel() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[15px] font-semibold">Skills</h3>

@@ -147,7 +147,7 @@ export default function App() {
       <ErrorBoundary>
         <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
           <TopBar onBack={() => setView('main')} title={t('settings.title')} />
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <ErrorBoundary label="settings">
               <SettingsPage />
             </ErrorBoundary>

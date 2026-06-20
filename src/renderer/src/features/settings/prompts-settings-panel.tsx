@@ -84,7 +84,7 @@ export function PromptsSettingsPanel() {
   }, [groups, flat])
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[15px] font-semibold">提示词与上下文</h3>
@@ -100,7 +100,7 @@ export function PromptsSettingsPanel() {
         </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_1fr]">
+      <div className="grid min-h-[min(72vh,640px)] gap-4 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
         <div className="max-h-[min(70vh,560px)] overflow-y-auto rounded-xl border border-border/50">
           {loading && flat.length === 0 ? (
             <p className="p-4 text-[12px] text-muted-foreground">加载中…</p>
