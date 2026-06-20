@@ -53,7 +53,29 @@ const config: Config = {
         'surface-3': 'hsl(var(--surface-3))',
         'surface-sidebar': 'hsl(var(--surface-sidebar))',
         // Secondary text token (桌面 Agent UI-inspired: readable but not loud)
-        'foreground-secondary': 'hsl(var(--text-secondary))',
+        'foreground-secondary': 'hsl(var(--text-secondary-hsl))',
+        // 桌面 Agent UI AOU brand palette
+        aou: {
+          1: 'var(--aou-1)',
+          2: 'var(--aou-2)',
+          3: 'var(--aou-3)',
+          4: 'var(--aou-4)',
+          5: 'var(--aou-5)',
+          6: 'var(--aou-6)',
+          7: 'var(--aou-7)',
+          8: 'var(--aou-8)',
+          9: 'var(--aou-9)',
+          10: 'var(--aou-10)',
+        },
+        brand: {
+          DEFAULT: 'var(--brand)',
+          light: 'var(--brand-light)',
+          hover: 'var(--brand-hover)',
+        },
+        'bg-base': 'var(--bg-base)',
+        'bg-1': 'var(--bg-1)',
+        'bg-2': 'var(--bg-2)',
+        'bg-3': 'var(--bg-3)',
       },
       borderRadius: {
         lg: 'var(--radius)',

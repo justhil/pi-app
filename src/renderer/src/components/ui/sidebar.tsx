@@ -45,8 +45,9 @@ export function Sidebar({ children }: SidebarProps) {
 
   return (
     <aside
-      className="flex shrink-0 flex-col border-r border-border/60 bg-surface-sidebar overflow-hidden"
+      className="flex shrink-0 flex-col border-r border-border/60 overflow-hidden"
       style={{
+        background: 'var(--bg-1)',
         width: effectiveWidth,
         transition: 'width var(--motion-normal) var(--motion-ease)',
       }}
@@ -130,8 +131,9 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-l border-border/60 bg-surface-sidebar overflow-hidden"
+      className="relative flex shrink-0 flex-col border-l border-border/60 overflow-hidden"
       style={{
+        background: 'var(--bg-1)',
         width: effectiveWidth,
         transition: 'width var(--motion-normal) var(--motion-ease)',
       }}

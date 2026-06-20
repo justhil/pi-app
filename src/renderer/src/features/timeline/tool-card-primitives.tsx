@@ -7,9 +7,9 @@ export function ThinkingIndicator({ label = '思考中' }: { label?: string }) {
   return (
     <div className="flex items-center gap-2 py-2.5">
       <span
-        className="text-[12px] text-muted-foreground"
+        className="text-[13px]"
         style={{
-          background: 'linear-gradient(90deg, hsl(var(--muted-foreground)) 0%, hsl(var(--foreground)) 50%, hsl(var(--muted-foreground)) 100%)',
+          background: 'linear-gradient(90deg, var(--aou-5) 0%, var(--aou-7) 50%, var(--aou-5) 100%)',
           backgroundSize: '200% 100%',
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
@@ -27,8 +27,8 @@ export function ThinkingIndicator({ label = '思考中' }: { label?: string }) {
 export function StreamingCaret() {
   return (
     <span
-      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] rounded-full bg-primary/80"
-      style={{ animation: 'caret-blink 1.1s ease-in-out infinite' }}
+      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] rounded-full"
+      style={{ background: 'var(--brand)', animation: 'caret-blink 1.1s ease-in-out infinite' }}
       aria-hidden
     />
   )

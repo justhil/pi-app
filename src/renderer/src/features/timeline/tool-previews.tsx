@@ -41,10 +41,10 @@ function EditPreview({ args, output, isError }: { args: any; output: string; isE
   const maxLen = Math.max(oldLines.length, newLines.length, 1)
 
   return (
-    <div className="overflow-hidden rounded-md border border-border/40 bg-[#0d1117]">
+    <div className="overflow-hidden rounded-md border border-border/40" style={{background:"var(--bg-2)"}}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-1.5 border-b border-white/5 px-2.5 py-1.5 text-left"
+        className="flex w-full items-center gap-1.5 border-b border-border/30 px-2.5 py-1.5 text-left"
       >
         <FileText className="h-3 w-3 text-amber-400" />
         <span className="font-mono text-[11px] text-zinc-300">{fileName}</span>
@@ -102,8 +102,8 @@ function ReadPreview({ args, output }: { args: any; output: string }) {
   if (lines.length === 0) return null
 
   return (
-    <div className="overflow-hidden rounded-md border border-border/40 bg-[#0d1117]">
-      <div className="flex items-center gap-1.5 border-b border-white/5 px-2.5 py-1.5">
+    <div className="overflow-hidden rounded-md border border-border/40" style={{background:"var(--bg-2)"}}>
+      <div className="flex items-center gap-1.5 border-b border-border/30 px-2.5 py-1.5">
         <FileText className="h-3 w-3 text-blue-400" />
         <span className="font-mono text-[11px] text-zinc-300">{fileName}</span>
         <span className="ml-auto text-[9px] text-zinc-500">{lines.length} 行</span>
@@ -119,7 +119,7 @@ function ReadPreview({ args, output }: { args: any; output: string }) {
       {lines.length > PREVIEW_LINES && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-center gap-1 border-t border-white/5 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-1 border-t border-border/30 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
           {expanded ? '收起' : `展开 (${lines.length} 行)`}
@@ -190,9 +190,9 @@ function BashPreview({ args, output, isError }: { args: any; output: string; isE
   const showLines = expanded ? lines : lines.slice(0, PREVIEW_LINES)
 
   return (
-    <div className="overflow-hidden rounded-md border border-border/40 bg-[#0d1117]">
+    <div className="overflow-hidden rounded-md border border-border/40" style={{background:"var(--bg-2)"}}>
       {command && (
-        <div className="flex items-center gap-1.5 border-b border-white/5 px-2.5 py-1.5">
+        <div className="flex items-center gap-1.5 border-b border-border/30 px-2.5 py-1.5">
           <Terminal className="h-3 w-3 shrink-0 text-green-400" />
           <span className="font-mono text-[11px] text-green-300">$ {command}</span>
         </div>
@@ -209,7 +209,7 @@ function BashPreview({ args, output, isError }: { args: any; output: string; isE
       {lines.length > PREVIEW_LINES && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-center gap-1 border-t border-white/5 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-1 border-t border-border/30 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
           {expanded ? '收起' : `展开 (${lines.length} 行)`}

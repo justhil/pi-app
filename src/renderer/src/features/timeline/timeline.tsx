@@ -27,8 +27,14 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
   if (item.type === 'user-message') {
     return (
-      <div className={cn('flex justify-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-3')}>
-        <div className="max-w-[78%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[14px] leading-relaxed text-primary-foreground shadow-sm">
+      <div className={cn('flex justify-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+        <div
+          className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words"
+          style={{
+            background: 'var(--message-user-bg)',
+            borderRadius: '8px 0 8px 8px',
+          }}
+        >
           {item.text}
         </div>
       </div>
@@ -40,10 +46,10 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className={cn('animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-3')}>
+      <div className={cn('animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
         <div className="flex items-start gap-2.5">
-          <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
-          <div className={cn('min-w-0 flex-1 text-[14px] leading-relaxed text-foreground', streaming && 'animate-stream-fade')}>
+          <Bot className="mt-0.5 h-4 w-4 shrink-0 text-aou-6" />
+          <div className={cn('min-w-0 flex-1 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
             <MarkdownView>{item.text}</MarkdownView>
             {streaming && <StreamingCaret />}
           </div>
@@ -73,16 +79,16 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
         >
           {hasToolBody && (
             <ChevronRight className={cn(
-              'h-3 w-3 shrink-0 text-foreground-secondary/50 transition-transform duration-motion-fast',
+              'h-3 w-3 shrink-0 text-aou-4 transition-transform duration-motion-fast',
               expanded && 'rotate-90'
             )} />
           )}
           <ToolIcon name={item.toolName} />
-          <span className="text-[12px] font-mono text-foreground-secondary">{item.toolName}</span>
+          <span className="text-[12px] font-mono text-aou-7">{item.toolName}</span>
           {rawSum && (
-            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary/70">{rawSum}</span>
+            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary/80">{rawSum}</span>
           )}
-          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-foreground-secondary/70" />}
+          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-aou-5" />}
           {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
           {!isRunning && !item.isError && hasToolBody && <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/60" />}
         </button>
@@ -222,7 +228,7 @@ export function Timeline() {
   const hiddenCount = items.length - visible.length
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="mx-auto max-w-[720px] flex-1 overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} onScroll={handleScroll} className="mx-auto max-w-[780px] flex-1 overflow-y-auto px-4 py-4">
       {hiddenCount > 0 && (
         <div className="py-2 text-center text-[11px] text-muted-foreground/40">
           ↑ 上还有 {hiddenCount} 条，滚动加载更多

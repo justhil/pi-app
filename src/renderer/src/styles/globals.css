@@ -4,17 +4,60 @@
 
 @layer base {
   :root {
-    /* Motion tokens */
+    /* Motion tokens (桌面 Agent UI: 150/240/320ms, cubic-bezier(0.22,1,0.36,1)) */
     --motion-fast: 150ms;
     --motion-normal: 240ms;
     --motion-slow: 320ms;
     --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-    /* Font tokens (system stack, no webfont — see docs/ui-design-notes.md §1) */
+    /* Font tokens (system stack, 桌面 Agent UI rejects Inter for thin-text issue) */
     --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 
-    /* Design tokens - Light theme (zinc, refined, surface-tiered per ui-design-notes.md §2) */
+    /* ── 桌面 Agent UI AOU Purple brand palette (light) ── */
+    --aou-1: #eff0f6;
+    --aou-2: #e5e7f0;
+    --aou-3: #d1d5e5;
+    --aou-4: #b5bcd6;
+    --aou-5: #97a0c5;
+    --aou-6: #7583b2;
+    --aou-7: #596590;
+    --aou-8: #3f4868;
+    --aou-9: #262c41;
+    --aou-10: #0d101c;
+    --brand: #7583b2;
+    --brand-light: #eff0f6;
+    --brand-hover: #b5bcd6;
+
+    /* ── 桌面 Agent UI multi-level background (light) ── */
+    --bg-base: #ffffff;
+    --bg-1: #f9fafb;
+    --bg-2: #f2f3f5;
+    --bg-3: #e5e6eb;
+    --bg-hover: #f3f4f6;
+    --bg-active: #e5e6eb;
+    --message-user-bg: #e9efff;
+
+    /* ── 桌面 Agent UI text colors (light: 7.5:1 contrast) ── */
+    --text-primary: #000000;
+    --text-secondary: #454d5f;
+    --text-disabled: #c9cdd4;
+
+    /* Semantic */
+    --primary-semantic: #165dff;
+    --success-semantic: #00b42a;
+    --warning-semantic: #ff7d00;
+    --danger-semantic: #f53f3f;
+
+    /* Border */
+    --border-base: #e5e6eb;
+    --border-light: #f2f3f5;
+
+    /* Focus ring (桌面 Agent UI useInputFocusRing) */
+    --focus-border: #e1e0ff;
+    --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
+
+    /* ── Tailwind HSL-compatible tokens (light) ── */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
@@ -36,15 +79,15 @@
     --ring: 240 5.9% 10%;
     --radius: 0.625rem;
 
-    /* Surface elevation tiers (跨端客户端-inspired): hover/badge/sheet layering without extra shadows */
-    --surface-0: 0 0% 100%;        /* app background */
-    --surface-1: 240 20% 98%;       /* subtle hover */
-    --surface-2: 240 4.8% 96%;      /* elevated: input/badge */
-    --surface-3: 240 5.9% 92%;      /* highest elevation */
-    --surface-sidebar: 240 6% 97%;  /* sidebar (slightly deeper than main) */
+    /* Surface elevation tiers (跨端客户端-inspired) */
+    --surface-0: 0 0% 100%;
+    --surface-1: 240 20% 98%;
+    --surface-2: 240 4.8% 96%;
+    --surface-3: 240 5.9% 92%;
+    --surface-sidebar: 240 6% 97%;
 
-    /* Secondary text (桌面 Agent UI-inspired): readable but not loud, for tool rows / hints */
-    --text-secondary: 240 5% 35%;
+    /* Secondary text (桌面 Agent UI) */
+    --text-secondary-hsl: 240 5% 35%;
 
     /* Accent colors for tool types */
     --tool-read: 220 90% 56%;
@@ -54,6 +97,50 @@
   }
 
   .dark {
+    /* ── 桌面 Agent UI AOU Purple brand palette (dark) ── */
+    --aou-1: #2a2a2a;
+    --aou-2: #3d4150;
+    --aou-3: #525a77;
+    --aou-4: #6a749b;
+    --aou-5: #838fba;
+    --aou-6: #a1aacb;
+    --aou-7: #b5bcd6;
+    --aou-8: #d1d5e5;
+    --aou-9: #e5e7f0;
+    --aou-10: #eff0f6;
+    --brand: #a1aacb;
+    --brand-light: #3d4150;
+    --brand-hover: #6a749b;
+
+    /* ── 桌面 Agent UI multi-level background (dark) ── */
+    --bg-base: #0e0e0e;
+    --bg-1: #1a1a1a;
+    --bg-2: #262626;
+    --bg-3: #333333;
+    --bg-hover: #1f1f1f;
+    --bg-active: #2d2d2d;
+    --message-user-bg: #1e2a3a;
+
+    /* ── 桌面 Agent UI text colors (dark: 11:1 contrast) ── */
+    --text-primary: #ffffff;
+    --text-secondary: #ced3da;
+    --text-disabled: #737373;
+
+    /* Semantic */
+    --primary-semantic: #4d9fff;
+    --success-semantic: #23c343;
+    --warning-semantic: #ff9a2e;
+    --danger-semantic: #f76560;
+
+    /* Border */
+    --border-base: #333333;
+    --border-light: #262626;
+
+    /* Focus ring (桌面 Agent UI dark) */
+    --focus-border: #4d4b87;
+    --focus-shadow: 0 2px 20px rgba(77, 75, 135, 0.45);
+
+    /* ── Tailwind HSL-compatible tokens (dark) ── */
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 6% 6%;
@@ -80,8 +167,7 @@
     --surface-3: 240 5% 16%;
     --surface-sidebar: 240 8% 7%;
 
-    /* Secondary text (桌面 Agent UI-inspired): readable but not loud, for tool rows / hints */
-    --text-secondary: 240 5% 65%;
+    --text-secondary-hsl: 240 5% 65%;
 
     --tool-read: 220 90% 60%;
     --tool-edit: 38 92% 55%;
@@ -113,13 +199,12 @@
   code, pre, kbd, samp {
     font-family: var(--font-mono);
   }
-  /* utility: font-mono fallback to --font-mono token */
   .font-mono {
     font-family: var(--font-mono);
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar (桌面 Agent UI: thin, blends with surface) */
 @layer utilities {
   ::-webkit-scrollbar {
     width: 6px;
@@ -129,22 +214,19 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-muted-foreground/20;
+    background-color: rgba(127, 127, 127, 0.25);
+    border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/40;
+    background-color: rgba(127, 127, 127, 0.45);
   }
 
-  /* Smooth fade-in animation */
+  /* ── Animations ── */
   .animate-in {
     animation: animate-in var(--motion-normal) var(--motion-ease) both;
   }
-  .fade-in {
-    animation-name: fade-in;
-  }
-  .slide-in-from-bottom-1 {
-    animation-name: slide-in-from-bottom-1;
-  }
+  .fade-in { animation-name: fade-in; }
+  .slide-in-from-bottom-1 { animation-name: slide-in-from-bottom-1; }
   @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -164,26 +246,97 @@
     animation: slide-in-from-right var(--motion-normal) var(--motion-ease) both;
   }
 
+  /* 桌面 Agent UI breathe: color + glow ring, NO scale (for stop button / running badge) */
+  @keyframes breathe-glow {
+    0%, 100% {
+      opacity: 1;
+      background-color: transparent;
+      box-shadow: none;
+    }
+    50% {
+      opacity: 0.85;
+      background-color: color-mix(in srgb, var(--brand) 18%, transparent);
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--brand) 30%, transparent);
+    }
+  }
+  .animate-breathe {
+    animation: breathe-glow 1.5s ease-in-out infinite;
+  }
+
+  /* 桌面 Agent UI stop-button breathe: background color shift + expanding glow ring */
+  @keyframes stop-breathe {
+    0% {
+      background-color: var(--aou-2);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent);
+    }
+    100% {
+      background-color: var(--aou-5);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 22%, transparent);
+    }
+  }
+  .animate-stop-breathe {
+    animation: stop-breathe 1.4s ease-in-out infinite alternate;
+  }
+
+  /* 桌面 Agent UI skeleton shimmer */
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
   /* Subtle glow for running indicator */
   .glow-running {
     box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
   }
 
-  /* Markdown chat typography (桌面 Agent UI-inspired, minimal prose) */
+  /* ── Markdown chat typography (桌面 Agent UI desktop-ui-markdown) ── */
   .prose-chat {
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 15px;
+    line-height: 1.7;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
   }
   .prose-chat > :first-child { margin-top: 0; }
   .prose-chat > :last-child { margin-bottom: 0; }
-  .prose-chat p { margin: 0.35em 0; }
-  .prose-chat strong { font-weight: 600; color: hsl(var(--foreground)); }
+  .prose-chat p { margin-block: 16px; }
+  .prose-chat > p:first-child { margin-top: 0; }
+  .prose-chat > p:last-child { margin-bottom: 0; }
+  .prose-chat strong { font-weight: 600; color: var(--text-primary); }
+  .prose-chat h1 { font-size: 24px; line-height: 32px; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
+  .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
+    font-size: 16px; line-height: 24px; margin-top: 20px; margin-bottom: 12px; font-weight: bold;
+  }
+  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
+  .prose-chat a:hover { text-decoration: underline; }
   .prose-chat code:not(pre code) {
-    font-size: 0.86em;
+    background: var(--bg-3);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
   }
   .prose-chat pre {
-    margin: 0;
+    margin-block: 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
     background: transparent;
   }
+  .prose-chat blockquote {
+    border-left: 3px solid var(--bg-3);
+    padding-left: 12px;
+    color: var(--text-primary);
+    margin: 16px 0;
+  }
+  .prose-chat hr {
+    border: none;
+    border-top: 1px solid var(--bg-3);
+    margin: 28px 0;
+  }
+  .prose-chat ol, .prose-chat ul { padding-inline-start: 24px; }
+  .prose-chat li { margin-block: 6px; }
+  .prose-chat th { padding: 8px; border: 1px solid var(--bg-3); background: var(--bg-1); font-weight: bold; }
+  .prose-chat td { padding: 8px; border: 1px solid var(--bg-3); min-width: 120px; }
 }

@@ -22,11 +22,11 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   }
 
   return (
-    <div className="group relative my-2 overflow-hidden rounded-lg border border-border/50 bg-[#0d1117] shadow-sm">
+    <div className="group relative my-2 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-2)' }}>
       {lang && (
-        <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] px-3 py-1">
-          <span className="font-mono text-[10px] font-medium uppercase tracking-wide text-blue-400">{lang}</span>
-          <button onClick={copy} className="text-[10px] text-zinc-500 hover:text-zinc-200">
+        <div className="flex items-center justify-between border-b px-3 py-1" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-3)' }}>
+          <span className="font-mono text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--brand)' }}>{lang}</span>
+          <button onClick={copy} className="text-[10px] transition-colors" style={{ color: 'var(--text-secondary)' }} onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}>
             {copied ? '已复制' : '复制'}
           </button>
         </div>
@@ -34,21 +34,25 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
       {!lang && (
         <button
           onClick={copy}
-          className="absolute right-2 top-2 z-10 rounded px-1.5 py-0.5 text-[10px] text-zinc-500 opacity-0 transition-opacity hover:text-zinc-200 group-hover:opacity-100"
+          className="absolute right-2 top-2 z-10 rounded px-1.5 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
+          style={{ color: 'var(--text-secondary)' }}
         >
           <Copy className="h-3 w-3" />
         </button>
       )}
       <pre
-        className={cn('overflow-auto p-3 text-[13px] leading-[21px]', !expanded && 'max-h-[90px]')}
-        style={{ margin: 0 }}
+        className={cn('overflow-auto p-3 text-[13px] leading-[1.5] font-mono', !expanded && 'max-h-[90px]')}
+        style={{ margin: 0, color: 'var(--text-primary)' }}
       >
-        <code className="font-mono text-zinc-200">{code}</code>
+        <code>{code}</code>
       </pre>
       {code.split('\n').length > PREVIEW_LINES && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-center gap-1 border-t border-white/5 py-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-1 border-t py-1 text-[10px] transition-colors"
+          style={{ borderColor: 'var(--bg-3)', color: 'var(--text-secondary)' }}
+          onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'}
+          onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
           {expanded ? '收起' : `展开 (${code.split('\n').length} 行)`}

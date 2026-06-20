@@ -388,9 +388,9 @@ export function Composer() {
         </div>
       )}
       <div className={cn(
-        'flex flex-col gap-1.5 rounded-xl border bg-card shadow-sm transition-all duration-motion-fast ease-motion-ease',
-        'border-border/60 focus-within:border-ring/50 focus-within:ring-1 focus-within:ring-ring/30',
-        isDragActive && 'border-primary/60 ring-2 ring-primary/20',
+        'flex flex-col gap-1.5 rounded-2xl border bg-card transition-all duration-motion-normal ease-motion-ease',
+        'border-border/50 focus-within:border-[var(--focus-border)] focus-within:shadow-[var(--focus-shadow)]',
+        isDragActive && 'border-dashed border-primary/60',
       )}>
         {/* Attachment chips block (single-block layout, not scattered text) */}
         {attachments.length > 0 && (
@@ -420,7 +420,7 @@ export function Composer() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[14px] leading-relaxed placeholder:text-muted-foreground/50 focus-visible:outline-none"
+          className="flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.7] placeholder:text-muted-foreground/50 focus-visible:outline-none"
           placeholder={currentWorkspace ? t('composer.placeholder') : t('composer.selectProjectFirst')}
           rows={1}
           disabled={!currentWorkspace}
@@ -428,7 +428,7 @@ export function Composer() {
           {isStreaming ? (
             <button
               onClick={handleAbort}
-              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-destructive/90 active:scale-[0.97]"
+              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground transition-all duration-motion-normal ease-motion-ease hover:bg-destructive/90 animate-stop-breathe"
             >
               <Square className="h-3 w-3 fill-current" />
               {t('composer.stop')}
