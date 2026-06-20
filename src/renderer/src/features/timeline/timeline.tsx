@@ -6,7 +6,7 @@ import {
   CheckCircle2, XCircle,
   CornerDownLeft, AlertCircle, Terminal, Copy, Check
 } from 'lucide-react'
-import { useState, memo, useRef, useEffect, useCallback, Fragment } from 'react'
+import { useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
 import { ToolCallRow } from './tool-call-row'
@@ -139,12 +139,34 @@ export function Timeline() {
   const [renderCount, setRenderCount] = useState(PAGE)
   const scrollRef = useRef<HTMLDivElement>(null)
   const wasNearBottomRef = useRef(true)
+  const scrollHeightBeforeLoadRef = useRef<number | null>(null)
+  const renderCountRef = useRef(renderCount)
+  renderCountRef.current = renderCount
+  const itemsLengthRef = useRef(items.length)
+  itemsLengthRef.current = items.length
+
+  const loadMoreHistory = useCallback(() => {
+    const el = scrollRef.current
+    const total = itemsLengthRef.current
+    const current = renderCountRef.current
+    if (!el || current >= total || scrollHeightBeforeLoadRef.current != null) return
+    scrollHeightBeforeLoadRef.current = el.scrollHeight
+    setRenderCount((c) => Math.min(c + PAGE, total))
+  }, [])
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    const prevH = scrollHeightBeforeLoadRef.current
+    if (!el || prevH == null) return
+    scrollHeightBeforeLoadRef.current = null
+    el.scrollTop = el.scrollHeight - prevH
+  }, [renderCount])
 
   // Reset window when session changes (item list replaced)
   const firstId = items[0]?.id
   useEffect(() => {
     setRenderCount(PAGE)
-    // jump to bottom when new session loaded
+    scrollHeightBeforeLoadRef.current = null
     requestAnimationFrame(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     })
@@ -153,17 +175,11 @@ export function Timeline() {
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
-    // If near top, load more
-    if (el.scrollTop < 100 && renderCount < items.length) {
- const prevHeight = el.scrollHeight
-      setRenderCount((c) => Math.min(c + PAGE, items.length))
-      // keep scroll position stable after prepending
-      requestAnimationFrame(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevHeight
-      })
+    if (el.scrollTop < 160 && renderCountRef.current < itemsLengthRef.current) {
+      loadMoreHistory()
     }
     wasNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }, [renderCount, items.length])
+  }, [loadMoreHistory])
 
   // Auto-scroll to bottom when new items arrive (only if user was already near bottom)
   const lastId = items[items.length - 1]?.id
@@ -205,11 +221,16 @@ export function Timeline() {
   const displayItems = buildTimelineDisplayItems(visible as any[])
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="min-w-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 sm:px-6">
       {hiddenCount > 0 && (
-        <div className="py-2 text-center text-[11px] text-muted-foreground/40">
-          ↑ 上还有 {hiddenCount} 条，滚动加载更多
-        </div>
+        <button
+          type="button"
+          onClick={loadMoreHistory}
+          className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground"
+        >
+          ↑ 上还有 {hiddenCount} 条 · 点击或继续上滑加载
+        </button>
       )}
       {displayItems.map((block, i) => {
         const prev = displayItems[i - 1]
@@ -249,6 +270,7 @@ export function Timeline() {
         )
       })}
       <div className="h-4" />
+    </div>
     </div>
   )
 }
