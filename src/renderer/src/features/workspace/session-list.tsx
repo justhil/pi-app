@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
-import { useUIStore } from '@renderer/stores/ui-store'
 
 export function SessionList() {
   const { t } = useTranslation()
