@@ -1,8 +1,8 @@
 # pi Desktop
 
-面向个人开发者的 **pi 桌面 GUI**：在 Electron 里跑 pi SDK，复用 `~/.pi/agent` 的认证、配置与会话 JSONL，用时间线、工具卡片、改动审查和扩展兼容层替代终端 TUI 的日常操作。
+面向个人开发者的 **pi 桌面 GUI**：在 Electron 里跑 pi SDK，复用 `~/.pi/agent` 的认证、配置与会话 JSONL，用时间线、工具卡片、改动审查和**扩展兼容层**替代终端里那套 TUI 交互。
 
-> 定位：pi 的新壳，不是另一个通用聊天客户端。会话与执行历史的**事实来源**仍是 pi 的 session 文件，桌面端只做展示、编排与 TUI 能力桥接。
+> 定位：pi 的新壳，不是另一个通用聊天客户端。会话与执行历史的**事实来源**仍是 pi 的 session 文件；桌面端负责展示、编排，并把扩展在终端里的弹窗/卡片「翻译」成窗口 UI。
 
 ---
 
@@ -12,10 +12,10 @@
 |---|---|
 | Node.js | **18+**（推荐 20+） |
 | npm | 与仓库 `package-lock.json` 一致 |
-| Electron | **35+**（依赖 pi 传递的 undici / Node 22 能力） |
-| 系统 | **Windows 10+** 为主验证环境；macOS / Linux 可构建，未作为一等目标 |
+| Electron | **35+** |
+| 系统 | **Windows 10+** 为主验证环境；macOS / Linux 可构建 |
 
-pi 侧需已配置认证（`~/.pi/agent/auth.json` 或各厂商环境变量）。扩展与包与终端 pi 共用同一份 `settings.json`；部分 git 安装的包若未写入 `packages`，可在设置 → 扩展中同步进 `settings.packages` 并重启 Worker。
+pi 侧需已配置认证（`~/.pi/agent/auth.json` 或各厂商环境变量）。扩展与终端 pi 共用 `~/.pi/agent/settings.json`；若某扩展在终端能用、桌面里工具列表没有，可在 **设置 → 扩展** 把缺失的包写入 `packages` 并重启后台会话进程。
 
 ---
 
@@ -30,12 +30,12 @@ npm run dev
 
 首次使用：
 
-1. **打开磁盘项目**：侧栏「打开项目」选择工作目录；或 **对话分区** 新建临时沙箱（`userData/sandbox-workspaces/`，与真实仓库隔离）。
-2. **选会话 / 新建**：项目下会话列表；`+` 新建会话；支持重命名、删除（磁盘项目会改 session JSONL / 元数据）。
-3. **对话**：底部 Composer 输入；`/` 斜杠命令（内置 + pi 扩展）；流式过程中可 **排队 follow-up**；支持拖拽/选择文件、粘贴图片。
-4. **右栏**：Review（本轮/本对话/Git）、Run、Context、Intercom、Trellis（只读）、**Tree**（会话树跳转，对齐 pi `/tree`）。
+1. **打开磁盘项目**：侧栏「打开项目」；或 **对话分区** 新建临时对话（沙箱目录，与真实仓库隔离）。
+2. **选会话 / 新建**：会话列表、`+` 新建；支持重命名、删除。
+3. **对话**：底部输入框；`/` 斜杠命令；运行中可继续发送（排队跟进）；拖拽/选文件、粘贴图片。
+4. **右栏**：改动审查、运行状态、上下文、Intercom、Trellis（只读）、**会话树**（与 pi `/tree` 同类跳转）。
 
-开发时若界面异常，可清 Vite 缓存后重试：`rm -rf node_modules/.vite && npm run dev`。
+界面异常时可清缓存：`rm -rf node_modules/.vite && npm run dev`。
 
 ---
 
@@ -43,34 +43,61 @@ npm run dev
 
 ### 工作区与会话
 
-- 单活动 **cwd**（磁盘路径或沙箱路径），最近项目列表，启动可恢复上次项目。
-- 会话列表来自 pi `SessionManager`；历史消息 **尾部分页** 加载，切换会话时优先快显 Timeline，完整 `AgentSession` 绑定可在首条发送或树跳转时完成。
-- **会话树**：右栏 Tree / 双击 Esc 浮层；节点跳转调用 pi `navigateTree`；用户节点可把原文预填到 Composer。
+- 同时只活动一个工作目录（磁盘或沙箱），可记最近项目并恢复。
+- 历史消息按需从尾部加载，切换会话时先快出最近一段，再在需要时绑定完整 pi 会话。
+- **会话树**：侧栏树面板或双击 Esc 浮层；点节点回到该分支继续；点到用户消息时原文可回到输入框。
 
 ### 对话与执行
 
-- Worker 内 `createAgentSession` + 事件归一为 **AppEvent** 驱动 Timeline / Run。
-- 工具调用：原生 read/edit/bash/grep 等结构化预览（diff、Shiki）；扩展工具走 **v2 `adapter.json`** 模板卡片与交互桥（问卷、图片审查等）。
-- 模型 / 思考等级：Composer 内选择；设置 → Pi 可写回 `settings.json`（默认模型、压缩、重试等）。
+- 中间时间线展示用户消息、助手回复、工具调用与结果。
+- 内置工具（读文件、改文件、终端命令、搜索等）支持折叠预览、diff、语法高亮。
+- **扩展注册的工具**在桌面上的展示与弹窗，由下面的兼容层与适配器负责（见下一节）。
+- 模型与思考等级在输入区切换；**设置 → Pi** 可改全局 pi 配置并写回 `settings.json`。
 
-### 设置（应用内）
+### 设置
 
 | 页面 | 作用 |
 |------|------|
-| 常规 / 外观 | 启动、主题、密度 |
-| Pi | 全局 pi 设置、可搜索默认模型 |
-| 扩展 | 探测结果、Worker 实际工具列表、`packages` 同步 |
-| 桌面适配器 | 每插件一条 v2 适配声明与配置 |
-| Skills | 启用/禁用（写入 `settings.json` 的 `desktopSkillOverrides`） |
-| 提示词 | 分组：项目上下文、pi 内置、模板、插件注入；可编辑与版本回退 |
+| 常规 / 外观 | 启动、主题 |
+| Pi | 默认模型、压缩、重试等 pi 全局项 |
+| 扩展 | 已安装扩展列表、当前会话实际加载的工具 |
+| **桌面适配器** | 每个扩展在桌面上的兼容说明与配置页 |
+| Skills | 启用/禁用技能（与全局配置同步） |
+| 提示词 | 按类别查看/编辑会进入上下文的提示词，支持版本回退 |
 
-已移除「资源」「诊断」独立页；MCP/主题等仍在扩展与适配器流程中体现。
+---
 
-### 扩展兼容层（B 层）
+## 扩展兼容层与适配器
 
-- 内置 `src/extension-compat/builtin/*.adapter.json`，用户可覆盖 `~/.pi/desktop/adapters/*.json`（仅 JSON）。
-- 扩展的 `ctx.ui.*` 经 Worker **desktop-ui-bridge** 映射到 Electron 对话框/卡片；不修改各 npm 扩展源码。
-- 详见 `docs/adapter-layer-plan.md`、`docs/compatibility-matrix-and-roadmap.md`、`docs/tui-replacement-and-adapters.md`。
+很多 pi **扩展**在终端里依赖 TUI：选择题、确认框、状态条、工具结果卡片、`/命令` 打开配置等。桌面没有终端画布，若每个扩展各写一套 Electron 界面，应用会臃肿且难维护。
+
+**兼容层**是 pi Desktop 里专门解决这件事的一层：
+
+- **不修改**你已安装的扩展包，也**不改** pi 本体；只在应用和 Worker 里把扩展的 UI 请求接到窗口组件（对话框、侧栏卡片、设置表单）。
+- 扩展照常注册工具和斜杠命令；需要人机交互时，由后台会话把请求发给界面，你在窗口里点选/填写，结果再回传给扩展。
+- 与终端 pi **共用**同一份扩展列表、配置路径和 session 文件，尽量做到「终端能用的扩展，桌面尽量也能用」，差异会在适配器说明里写清楚。
+
+**适配器**可以理解为「某个扩展在桌面上的说明书 + 界面配方」，通常包括：
+
+| 适配器管什么 | 你在哪看到 |
+|-------------|-----------|
+| 扩展配置项（API、开关、路径等） | **设置 → 桌面适配器** 点进对应扩展的配置页 |
+| 工具执行结果怎么展示 | 时间线里的工具行（列表、预览图、导出文件链接等） |
+| 需要弹窗的互动（问卷、审图、确认） | 对话过程中弹出的窗口 |
+| 部分 `/命令` 的行为 | 打开配置页、提示说明，或交给 pi 按终端逻辑执行 |
+
+应用**内置**各常见扩展的适配描述（随版本发布）；你也可在 `~/.pi/desktop/adapters/` 放**仅 JSON** 的覆盖配置（高级用法）。新增扩展时，理想情况是**只增加适配描述**，而不必改主界面业务代码——具体约定见仓库内 `docs/adapter-layer-plan.md`。
+
+**和终端 pi 的关系（简表）**
+
+| 能力 | 终端 pi | pi Desktop |
+|------|---------|------------|
+| 对话、工具、session | TUI | 图形时间线 + 输入区 |
+| 扩展弹窗 | 终端组件 | 兼容层 → Electron 对话框/卡片 |
+| 扩展配置 | TUI 或配置文件 | 设置里适配器配置页（仍写扩展自己的配置文件） |
+| Skills / 提示词 | 文件 + settings | 设置里集中查看/编辑（带本地修订历史） |
+
+更细的兼容状态与路线图：`docs/compatibility-matrix-and-roadmap.md`、`docs/tui-replacement-and-adapters.md`。
 
 ---
 
@@ -78,25 +105,22 @@ npm run dev
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  Renderer (React + Vite)                                     │
-│  Timeline · Composer · Settings · 右栏面板 · Extension UI Host │
+│  界面 (React) — 时间线、输入区、设置、扩展弹窗宿主              │
 └────────────────────────────┬────────────────────────────────┘
-                             │ preload 白名单 IPC
+                             │ 安全 IPC（preload）
 ┌────────────────────────────┴────────────────────────────────┐
-│  Main                                                         │
-│  窗口 · ipc 契约 · configStore · Worker 生命周期 · 沙箱/资源 IO   │
+│  主进程 — 窗口、配置、沙箱与文件、扩展配置读写                    │
 └────────────────────────────┬────────────────────────────────┘
-                             │ utilityProcess.postMessage
+                             │
 ┌────────────────────────────┴────────────────────────────────┐
-│  Pi Worker (ESM)                                              │
-│  AgentSession · SessionManager · bindExtensions(uiContext)    │
+│  Pi 后台进程 — 运行 pi SDK、加载扩展、把事件与 UI 请求送给界面   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-- **安全**：`contextIsolation` + 精简 preload；Renderer 无 Node。
-- **存储**：会话 = `~/.pi/agent/sessions/`；应用配置 = electron-store；可选 SQLite 索引；Skills/提示词修订 = `~/.pi/agent/desktop-revisions/`。
+- 界面进程不直接访问 Node；会话数据仍以 `~/.pi/agent/sessions/` 为准。
+- 应用自身偏好存在本机配置里；提示词/技能编辑可选版本快照在 `~/.pi/agent/desktop-revisions/`。
 
-更完整说明见 [`docs/architecture.md`](docs/architecture.md)。
+细节见 [`docs/architecture.md`](docs/architecture.md)。
 
 ---
 
@@ -104,37 +128,32 @@ npm run dev
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | 开发模式（electron-vite） |
-| `npm run build` | 构建 main / preload / renderer |
+| `npm run dev` | 开发模式 |
+| `npm run build` | 构建 |
 | `npm run typecheck` | TypeScript 检查 |
-| `npm run icon:export` | 从 `resources/icon.svg` 生成 `build/icon.png` |
-| `npm run package:win` | Windows NSIS 安装包（需先 icon） |
-| `npm run package` | 当前平台打包 |
+| `npm run icon:export` | 生成应用图标 PNG |
+| `npm run package:win` | Windows 安装包 |
 
 ---
 
 ## 技术栈
 
-- **Electron 35** · **electron-vite** · **React 18** · **TypeScript**
-- **Tailwind** · **shadcn/Radix** · **Zustand** · **TanStack Query**
-- **i18next**（中文为主）· **react-markdown** · **Shiki**（工具输出高亮）
-- **@earendil-works/pi-coding-agent** ^0.79
-- **electron-store** · **better-sqlite3** · **electron-updater**
+Electron 35 · electron-vite · React 18 · TypeScript · Tailwind · shadcn/Radix · Zustand · i18next · **@earendil-works/pi-coding-agent** · electron-store · better-sqlite3
 
-UI 规范：[`docs/frontend-design.md`](docs/frontend-design.md)、[`.trellis/spec/frontend/`](.trellis/spec/frontend/)、[`docs/ui-design-notes.md`](docs/ui-design-notes.md)。
+UI 说明：[`docs/frontend-design.md`](docs/frontend-design.md)、[`docs/ui-design-notes.md`](docs/ui-design-notes.md)。
 
 ---
 
-## 仓库与文档
+## 目录提示
 
 | 路径 | 内容 |
 |------|------|
-| `packages/shared/` | IPC 契约、AppEvent、Zod schema |
-| `src/main/` | Electron 主进程、IPC、沙箱、Trellis 只读、资源编辑 |
-| `src/worker/` | pi SDK 集成与 UI 桥 |
-| `src/extension-compat/` | 适配器加载、探测、builtin JSON |
-| `src/renderer/` | React 应用 |
-| `docs/` | 架构、前端、适配层、兼容矩阵 |
+| `packages/shared/` | 前后端共用的消息与 IPC 类型 |
+| `src/renderer/` | 界面 |
+| `src/main/` | 主进程 |
+| `src/worker/` | pi SDK 与扩展 UI 桥接 |
+| `src/extension-compat/` | **兼容层与内置适配器** |
+| `docs/` | 架构与兼容说明 |
 
 ---
 
