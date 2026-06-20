@@ -9,7 +9,7 @@
 ### 1.1 宽度与排版
 
 - 容器：包在 **`chat-content-column`** 内（**比例限宽 + clamp**，见 `product-intent-and-shell.md`）；Timeline 仅 `py-4`，水平 padding 由 column 承担
-- 正文：**15px / line-height 1.7**（桌面 Agent UI 对齐）；用户气泡 **max-w-[80%]**，背景 `var(--message-user-bg)`，圆角 **`8px 0 8px 8px`**
+- 正文：**15px / line-height 1.7**（参考桌面客户端 对齐）；用户气泡 **max-w-[80%]**，背景 `var(--message-user-bg)`，圆角 **`8px 0 8px 8px`**
 - 助手消息：**无左侧 Bot 头像**；Markdown 渲染必选（`MarkdownView` + `remark-gfm`）
 
 ### 1.2 助手流式输出
@@ -22,7 +22,7 @@
 
 | 层级 | 行为 |
 |------|------|
-| **折叠行** | 约 **12px**、次要色 `foreground-secondary`；优先 **`buildToolSummary(toolArgs)`**（桌面 Agent UI param summary）；**不要**大块 Card 占屏 |
+| **折叠行** | 约 **12px**、次要色 `foreground-secondary`；优先 **`buildToolSummary(toolArgs)`**（参考桌面客户端 param summary）；**不要**大块 Card 占屏 |
 | **连续工具** | **`buildTimelineDisplayItems`**：相邻 ≥2 个 `tool-call` → **`ToolGroupSummary`**（「N 次工具 · read, edit…」）；单条仍 **`ToolCallRow`** |
 | **展开体** | **`CollapsiblePanel`**（grid `0fr→1fr`），禁止仅 mount/unmount 无高度动画 |
 | **插件工具卡** | **仅** `tool-card-templates.tsx` + `adapter.json` 的 `toolCard.template`；**禁止** `features/timeline` 里 `if (toolName===插件名)` |
@@ -42,7 +42,7 @@
 ### 1.6 消息 hover（布局稳定）
 
 - **禁止** hover 时用 `max-height` 把复制行「挤」进布局（快速移动鼠标会**抽动消息**）
-- 模式：**固定 32px `message-actions-slot`**（桌面 Agent UI h-32px），仅 **opacity 280ms**；`MessageHoverShell` 用 **React `onMouseEnter/Leave`** 切 `message-actions-slot-visible`（比纯 CSS `group-hover` 更稳）
+- 模式：**固定 32px `message-actions-slot`**（参考桌面客户端 h-32px），仅 **opacity 280ms**；`MessageHoverShell` 用 **React `onMouseEnter/Leave`** 切 `message-actions-slot-visible`（比纯 CSS `group-hover` 更稳）
 - 复制钮：`chrome-icon-btn`（hover 底 + active scale 0.92）
 - **完整 hover/动效清单**：见 **`motion-and-interaction.md` §4.1、§5、§6**
 
@@ -50,7 +50,7 @@
 
 ## 2. Composer
 
-### 2.1 外壳（桌面 Agent UI sendbox）
+### 2.1 外壳（参考桌面客户端 sendbox）
 
 - `composer-shell` / `composer-shell-focused`：`rounded-2xl`、focus 时 `var(--focus-border)` + `var(--focus-shadow)`
 - 停止：`animate-stop-breathe`（运行中发送钮变停止）
@@ -64,7 +64,7 @@
 
 ### 2.3 附件
 
-- 拖拽：**全区域 overlay** + 上方 **file chips**（跨端客户端 思路）；发送时路径以 **`@`** 引用拼接
+- 拖拽：**全区域 overlay** + 上方 **file chips**（参考跨端客户端 思路）；发送时路径以 **`@`** 引用拼接
 - 空内容且无附件时禁用发送
 
 ### 2.4 Run 面板边界

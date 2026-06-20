@@ -1,4 +1,4 @@
-# 动效与微交互规范（桌面 Agent UI 对齐版）
+# 动效与微交互规范（参考桌面客户端 对齐版）
 
 > **Supersedes** `component-guidelines.md` 里 §动效 的时长默认值。实现以 **`src/renderer/src/styles/globals.css`** 为准（动效已内联在 `@layer base` + `@layer components` + `@layer utilities`，**不要**单独 import `motion-desktop-ui.css`，曾导致 PostCSS 失败）。
 
@@ -6,7 +6,7 @@
 
 ## 1. 用户意图
 
-- 「参考 桌面 Agent UI **所有**动效」：数量、时长、缓动都要够，不能只有颜色 token
+- 「参考 参考桌面客户端 **所有**动效」：数量、时长、缓动都要够，不能只有颜色 token
 - 「淡出/侧栏收起/hover 选中」：**要能感知**，不能几乎静态
 - 「hover 舒服」：**不等于**只有 hover——还有密度、默认折叠、语义动效、token 一致（见 quality-guidelines）
 - **消息 hover 复制**：固定占位 + 只淡入，**禁止** hover 顶开正文（用户反馈「消息被抽出」）

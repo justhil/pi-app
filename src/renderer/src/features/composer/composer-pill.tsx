@@ -1,7 +1,7 @@
 import { cn } from '@renderer/lib/utils'
 import type { ReactNode } from 'react'
 
-/** 模型 / Thinking 等可点击状态药丸（桌面 Agent UI sendbox 底部 chip 手感） */
+/** 模型 / Thinking 等可点击状态药丸（参考桌面客户端 sendbox 底部 chip 手感） */
 export function ComposerPill({
   icon,
   label,

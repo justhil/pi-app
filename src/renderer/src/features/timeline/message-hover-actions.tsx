@@ -72,7 +72,7 @@ export function MessageHoverShell({
       onMouseLeave={() => setHovered(false)}
     >
       {children}
-      {/* 固定高度占位，仅 opacity 变化，避免 hover 顶开布局（对齐 桌面 Agent UI h-32px） */}
+      {/* 固定高度占位，仅 opacity 变化，避免 hover 顶开布局（对齐 参考桌面客户端 h-32px） */}
       <div className={cn('message-actions-slot', hovered && 'message-actions-slot-visible')}>
         {actions}
       </div>

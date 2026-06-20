@@ -61,3 +61,9 @@ temp/
 
 # Native addons rebuild noise (keep package-lock)
 *.node.map
+
+# Local-only git history rewrite helpers (do not publish)
+scripts/filter_repo_message*.py
+scripts/replace-text-history.txt
+scripts/rewrite-commit-messages.txt
+scripts/fix-arrow-syntax.py

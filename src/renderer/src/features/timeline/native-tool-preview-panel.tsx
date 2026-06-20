@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 
-/** Agent 桌面/Cursor 风格：默认折叠摘要，展开看详情 */
+/** 主流 Agent 桌面/Cursor 风格：默认折叠摘要，展开看详情 */
 export function NativePreviewPanel({
   icon,
   title,

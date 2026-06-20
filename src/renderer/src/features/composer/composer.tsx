@@ -391,7 +391,7 @@ export function Composer() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Drop overlay (跨端客户端-inspired full-zone hint) */}
+      {/* Drop overlay (参考跨端客户端-inspired full-zone hint) */}
       {isDragActive && (
         <div className="backdrop-motion pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-dashed border-brand/30 bg-brand/5 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-1 text-primary/70">

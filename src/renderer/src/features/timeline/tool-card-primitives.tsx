@@ -2,7 +2,7 @@
 // No tool icon or plugin rendering here — those live in tool-icon.tsx / tool-card-templates.tsx.
 import { useState, useEffect } from 'react'
 
-// Thinking/streaming indicator: shimmer text instead of 3 bounce dots (桌面 Agent UI-inspired)
+// Thinking/streaming indicator: shimmer text instead of 3 bounce dots (参考桌面客户端-inspired)
 export function ThinkingIndicator({ label = '思考中' }: { label?: string }) {
   return (
     <div className="flex items-center gap-2 py-2.5">

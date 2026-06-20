@@ -1,5 +1,5 @@
 // Pi 原生工具预览：read / edit / write / grep / find / bash
-// 参考 Agent 桌面、Cursor、桌面 Agent UI：默认折叠、可展开、diff、Shiki 语法高亮
+// 主流 主流 Agent 桌面与 IDE：默认折叠、可展开、diff、Shiki 语法高亮
 import { useState, type ReactNode } from 'react'
 import { FileText, Search, Terminal, Plus, Minus, FolderSearch } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'

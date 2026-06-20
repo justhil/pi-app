@@ -11,8 +11,8 @@
 | 意图 | 含义 | 实现约束 |
 |------|------|----------|
 | **pi 的新壳** | 不是聊天套壳，是 **TUI 的桌面替代** | A/B/C 分层见 `docs/tui-replacement-and-adapters.md`；App 本体零插件专属渲染，走 `adapter.json` |
-| **贴近 Agent 桌面** | **长期方向**，非 v0 全量对标 | 借鉴分区与 Composer 信息密度；不一次性抄全功能 |
-| **审美与舒适** | 「尽可能美观优雅」「字体刺眼要修」「动效要像成熟产品」 | 参考 **桌面 Agent UI / 跨端客户端** 的**视觉与动效**，不复刻业务逻辑；clone 仅放临时目录调研 |
+| **贴近 主流 Agent 桌面** | **长期方向**，非 v0 全量对标 | 借鉴分区与 Composer 信息密度；不一次性抄全功能 |
+| **审美与舒适** | 「尽可能美观优雅」「字体刺眼要修」「动效要像成熟产品」 | 参考 **参考桌面客户端 / 参考跨端客户端** 的**视觉与动效**，不复刻业务逻辑；clone 仅放临时目录调研 |
 | **沉浸主对话** | 少 chrome、少装饰头像 | 主界面 **无厚重 TopBar**、**无助手轮次左侧 Bot 头像**、无边框窗口 |
 
 ---
@@ -22,7 +22,7 @@
 | 区域 | 规则 |
 |------|------|
 | **中间列** | 外层 `flex-1 min-w-0` **占满**左右侧栏之间的空间 |
-| **对话内容区** | `.chat-content-column` 居中；**非固定 780px**：`<768px` 满宽（同 桌面 Agent UI `max-w-full`）；`≥768px` 为 `clamp(min(560px,100%), 72%, min(1280px,100%))` — **随中间列可用宽度比例伸缩**，大屏可宽于 780；变量 `--chat-content-min/ratio/cap` 在 `globals.css` |
+| **对话内容区** | `.chat-content-column` 居中；**非固定 780px**：`<768px` 满宽（同 参考桌面客户端 `max-w-full`）；`≥768px` 为 `clamp(min(560px,100%), 72%, min(1280px,100%))` — **随中间列可用宽度比例伸缩**，大屏可宽于 780；变量 `--chat-content-min/ratio/cap` 在 `globals.css` |
 | **左栏** | 默认 **260px**，拖拽 **200–360px**；**收起 = 宽度 0，不渲染**（无窄条图标轨），顶栏 `PanelLeft` 再展开 |
 | **右栏** | 默认 **288px**，拖拽 **240–420px**；**收起 = 不渲染**；对话区右上角 `MainColRightPanelToggle` 展开；收起时滚动条 `ChatTimelineProgressRail` 贴主列右缘 |
 | **右栏收起按钮** | **`MainColRightPanelToggle`**：浮在**中间列右上角**（对话区右上），不占右栏单独一行 |
@@ -71,7 +71,7 @@
 
 ## 5. 模型与思考等级（Composer 权威）
 
-- **展示与切换**在 **Composer 底栏**（Agent 桌面 式可点芯片 + Picker），**不在 RunPanel**
+- **展示与切换**在 **Composer 底栏**（主流 Agent 桌面 式可点芯片 + Picker），**不在 RunPanel**
 - `/model`、`/thinking` **无参数**时打开 **ModelPicker / ThinkingPicker**（可搜索、可见当前值），**禁止**静默 cycle 让用户不知道当前模型
 - 状态同步：`RunEvent` + Worker `getState` + `session_info_changed` / `thinking_level_changed`；`ui-store` 的 `lastModel` / `lastThinking` **persist**，切会话 **`loadHistoryItems` 时恢复**，避免 Composer 底栏空白
 - 模型列表权威：`Worker getModels` / `model.list`，**禁止** Main 空 Registry 当唯一源

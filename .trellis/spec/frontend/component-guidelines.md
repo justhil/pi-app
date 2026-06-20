@@ -105,7 +105,7 @@ skeleton sonner collapsible resizable
 
 ### 定调
 
-默认体验：Agent 桌面/桌面 Agent UI 级丝滑（侧栏、Picker、工具折叠）。侧栏、右栏 Tab、面板切换、卡片入场用短 ease-out 的 transform/opacity。系统开启「减少动态效果」时，保留布局与状态，关闭位移与 stagger。
+默认体验：主流 Agent 桌面/参考桌面客户端 级丝滑（侧栏、Picker、工具折叠）。侧栏、右栏 Tab、面板切换、卡片入场用短 ease-out 的 transform/opacity。系统开启「减少动态效果」时，保留布局与状态，关闭位移与 stagger。
 
 ### 原则
 

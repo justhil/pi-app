@@ -1,4 +1,4 @@
-// Markdown renderer for assistant messages (桌面 Agent UI-inspired).
+// Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm (GFM tables/task lists/strikethrough) + 自定义 code/img/table 组件。
 // 代码块默认折叠到 3 行预览，点击展开；图片走内联；表格可滚动。
 import { memo, useMemo, useState } from 'react'
@@ -80,7 +80,7 @@ const MarkdownView = memo(function MarkdownView({
 }: {
   children: string
   className?: string
-  /** 流式中也走 Markdown（对齐 桌面 Agent UI MessageText + MarkdownView） */
+  /** 流式中也走 Markdown（对齐 参考桌面客户端 MessageText + MarkdownView） */
   streaming?: boolean
 }) {
   const components = useMemo(

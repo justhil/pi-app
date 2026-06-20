@@ -10,11 +10,11 @@
 
 ## Overview
 
-pi Desktop 是一个基于 Electron + React 的 pi 桌面 GUI。前端气质定位为**工具型 Agent 工作台**：偏 VS Code / Linear / Agent 桌面 的克制工具感。
+pi Desktop 是一个基于 Electron + React 的 pi 桌面 GUI。前端气质定位为**工具型 Agent 工作台**：偏 VS Code / Linear / 成熟 主流 Agent 桌面 的克制工具感。
 
 技术栈：React 18+ / electron-vite / Tailwind CSS 3+ / shadcn/ui (new-york + zinc) / Zustand / lucide-react / 系统字体栈（system-ui+Segoe UI+PingFang/Microsoft YaHei，不装 webfont）/ i18next + react-i18next。
 
-**视觉实现**：对话区与动效以 **桌面 Agent UI 视觉 token + 交互模式** 为参考（非 Agent 桌面 全量对标）；调研见 `docs/ui-design-notes.md`。
+**视觉实现**：对话区与动效以 **参考桌面客户端 视觉 token + 交互模式** 为参考（非全量对标）；调研见 `docs/ui-design-notes.md`。
 
 ---
 
