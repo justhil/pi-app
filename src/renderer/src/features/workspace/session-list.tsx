@@ -64,7 +64,7 @@ export function SessionList() {
       ) : (
       <>
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        <span className="text-[13px] font-semibold text-foreground-secondary">
           {t('sidebar.sessions')}
         </span>
         <button
@@ -77,31 +77,31 @@ export function SessionList() {
         </button>
       </div>
       {sessions.length === 0 ? (
-        <div className="px-3 py-3 text-[11px] text-muted-foreground/40">
+        <div className="px-3 py-3 text-[13px] text-foreground-secondary">
           {currentWorkspace ? '暂无会话' : '请先打开项目'}
         </div>
       ) : (
-        <div className="space-y-px px-1.5">
+        <div className="space-y-0.5 px-1.5">
           {sessions.map((s) => (
             <div
               key={s.sessionId}
               onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               className={cn(
-                'group row-hover flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                'group row-hover flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
                 currentSessionId === s.sessionId
                   ? 'bg-[var(--bg-active)] text-foreground shadow-sm'
                   : 'text-foreground-secondary hover:text-foreground',
               )}
             >
               <MessageSquare className={cn(
-                'h-3 w-3 shrink-0 transition-colors',
-                currentSessionId === s.sessionId ? 'text-foreground' : 'text-muted-foreground/40 group-hover:text-muted-foreground'
+                'h-4 w-4 shrink-0 transition-colors',
+                currentSessionId === s.sessionId ? 'text-foreground' : 'text-foreground-secondary/70 group-hover:text-foreground'
               )} />
               <div className="flex-1 min-w-0">
-                <div className="truncate text-[12px] font-medium leading-tight">
+                <div className="truncate text-[14px] font-normal leading-6 text-foreground">
                   {s.title || s.sessionId.slice(0, 8)}
                 </div>
-                <div className="text-[10px] text-foreground-secondary tabular-nums">
+                <div className="text-[12px] leading-5 text-foreground-secondary tabular-nums">
                   {new Date(s.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
                 </div>
               </div>
@@ -140,7 +140,7 @@ export function ProjectHeader() {
       )}>
         {workspace ? name.charAt(0).toUpperCase() : '?'}
       </div>
-      <span className="truncate text-[13px] font-semibold tracking-tight">{name}</span>
+      <span className="truncate text-[14px] font-semibold leading-6 text-foreground">{name}</span>
     </div>
   )
 }
@@ -164,7 +164,7 @@ export function OpenProjectButton({ onClick, label }: { onClick: () => void; lab
     <div className="px-2 py-1">
       <button
         onClick={onClick}
-        className="flex w-full items-center gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.98]"
+        className="row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-[14px] leading-6 text-foreground-secondary hover:text-foreground"
       >
         <FolderOpen className="h-3.5 w-3.5" />
         {label}

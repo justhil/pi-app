@@ -322,7 +322,7 @@ export function Composer() {
 
   return (
     <div
-      className="relative px-4 pb-4 pt-2"
+      className="relative min-w-0 px-5 pb-4 pt-2 sm:px-6"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}

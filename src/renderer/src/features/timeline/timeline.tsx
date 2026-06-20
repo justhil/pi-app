@@ -252,7 +252,7 @@ export function Timeline() {
   const hiddenCount = items.length - visible.length
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="mx-auto max-w-[780px] flex-1 overflow-y-auto px-4 py-4">
+    <div ref={scrollRef} onScroll={handleScroll} className="min-w-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
       {hiddenCount > 0 && (
         <div className="py-2 text-center text-[11px] text-muted-foreground/40">
           ↑ 上还有 {hiddenCount} 条，滚动加载更多

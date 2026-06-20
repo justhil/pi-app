@@ -217,8 +217,8 @@ export const useUIStore = create<UIState>()(
 
   theme: 'system',
   setTheme: (t) => set({ theme: t }),
-  sidebarWidth: 224,
-  setSidebarWidth: (w) => set({ sidebarWidth: Math.min(Math.max(w, 180), 340) }),
+  sidebarWidth: 260,
+  setSidebarWidth: (w) => set({ sidebarWidth: Math.min(Math.max(w, 200), 360) }),
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   rightPanelWidth: 288,

@@ -135,7 +135,7 @@ export default function App() {
             <div className="border-t border-border/50 p-1.5">
               <SidebarItem
                 label={t('sidebar.settings')}
-                icon={<SettingsIcon className="h-3.5 w-3.5" />}
+                icon={<SettingsIcon className="h-4 w-4" />}
                 onClick={() => setView('settings')}
               />
             </div>

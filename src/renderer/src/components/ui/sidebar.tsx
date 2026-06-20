@@ -70,7 +70,7 @@ export function SidebarHeader({ label }: { label: string }) {
   if (collapsed) return null
   return (
     <div className="flex h-11 items-center border-b border-border/50 px-3">
-      <span className="text-[12px] font-semibold tracking-tight">{label}</span>
+      <span className="text-[13px] font-semibold text-foreground-secondary">{label}</span>
     </div>
   )
 }
@@ -159,7 +159,7 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
       title={collapsed ? label : undefined}
       className={cn(
         'row-hover flex cursor-pointer items-center rounded-lg',
-        collapsed ? 'mx-auto h-8 w-8 justify-center' : 'mx-1.5 gap-2 px-2.5 py-2 text-[13px]',
+        collapsed ? 'mx-auto h-9 w-9 justify-center' : 'mx-1.5 gap-2.5 px-3 py-2 text-[14px] leading-6',
         active
           ? 'bg-[var(--bg-active)] text-foreground font-medium shadow-sm'
           : 'text-foreground-secondary hover:text-foreground',
