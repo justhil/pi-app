@@ -292,8 +292,9 @@ function normalizeMessages(messages: any[]): any[] {
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
           toolName: name,
+          toolArgs: input || undefined,
           toolPhase: 'end',
-          toolOutput: input ? (typeof input === 'string' ? input : JSON.stringify(input, null, 2)).slice(0, 600) : '',
+          toolOutput: '',
           timestamp: ts,
         })
       }
@@ -301,18 +302,22 @@ function normalizeMessages(messages: any[]): any[] {
         // skip empty
       }
     } else if (m.role === 'toolResult') {
-      // toolResult carries the execution output as text content
+      // toolResult carries the execution output; attach to the most recent tool-call card.
       const text = extractText(m)
       if (text) {
-        // Attach as a follow-up tool card output (toolName unknown here, mark generic)
-        items.push({
-          id: `hist-${++msgSeq}`,
-          type: 'tool-call',
-          toolName: 'result',
-          toolPhase: 'end',
-          toolOutput: text.slice(0, 2000),
-          timestamp: ts,
-        })
+        const lastTool = [...items].reverse().find((i) => i.type === 'tool-call' && i.toolPhase === 'end' && !i.toolOutput)
+        if (lastTool) {
+          lastTool.toolOutput = text.slice(0, 4000)
+        } else {
+          items.push({
+            id: `hist-${++msgSeq}`,
+            type: 'tool-call',
+            toolName: 'result',
+            toolPhase: 'end',
+            toolOutput: text.slice(0, 2000),
+            timestamp: ts,
+          })
+        }
       }
     } else if (m.role === 'compactionSummary' || m.role === 'branchSummary') {
       const text = extractText(m)

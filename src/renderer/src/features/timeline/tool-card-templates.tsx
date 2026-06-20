@@ -250,6 +250,8 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
 
 // ── default template (syntax-highlighted text + artifact paths) ──
 const DefaultTemplate: ToolCardComponent = ({ item }) => {
+  // Native pi tools (read/edit/write/grep/bash) get structured previews.
+  const nativePreview = renderNativeToolPreview(item)
   const details = item.toolDetails
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
   const isExportTool = detailPaths.length > 0 && (item.toolName === 'preview_export' || item.toolName === 'studio_export_pdf' || item.toolName === 'studio_export_html')
@@ -259,7 +261,8 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
   const textSummary = extractText(out)
 
   return (
-    <div className="mt-1">
+    <div className="mt-1 space-y-1">
+      {nativePreview}
       {isExportTool && detailPaths.length > 0 && (
         <div className="mb-1 flex flex-wrap gap-1.5">
           {detailPaths.map((p, i) => {
