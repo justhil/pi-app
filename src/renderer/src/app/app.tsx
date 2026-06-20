@@ -11,6 +11,7 @@ import { ContextPanel } from '@renderer/features/context/context-panel'
 import { IntercomPanel } from '@renderer/features/intercom/intercom-panel'
 import { SettingsPage } from '@renderer/features/settings/settings-page'
 import { TopBar } from '@renderer/components/app/top-bar'
+import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
@@ -122,7 +123,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-        <TopBar isRunning={isRunning} projectName={projectName} />
+        <ImmersiveChrome isRunning={isRunning} projectName={projectName} />
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
           <Sidebar>
@@ -192,10 +193,10 @@ function RightPanelTabs({
             onClick={() => setActivePanel(p.key)}
             title={p.label}
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]',
+              'row-hover flex h-8 w-8 items-center justify-center rounded-lg active:scale-[0.94]',
               activePanel === p.key
-                ? 'bg-accent text-foreground'
-                : 'text-muted-foreground/60 hover:bg-accent/60 hover:text-foreground',
+                ? 'bg-[var(--bg-active)] text-foreground'
+                : 'text-foreground-secondary hover:text-foreground',
             )}
           >
             <p.icon className="h-3.5 w-3.5" />
@@ -212,10 +213,10 @@ function RightPanelTabs({
           key={p.key}
           onClick={() => setActivePanel(p.key)}
  className={cn(
-            'relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md transition-all duration-motion-fast ease-motion-ease hover:bg-accent/40',
+            'row-hover relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md',
             activePanel === p.key
               ? 'text-foreground'
-              : 'text-muted-foreground/60 hover:text-muted-foreground',
+              : 'text-foreground-secondary hover:text-foreground',
           )}
         >
           <p.icon className="h-3 w-3 shrink-0" />

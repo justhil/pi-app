@@ -87,10 +87,10 @@ export function SessionList() {
               key={s.sessionId}
               onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               className={cn(
-                'group flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 transition-all duration-motion-fast ease-motion-ease active:scale-[0.99]',
+                'group row-hover flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
                 currentSessionId === s.sessionId
-                  ? 'bg-accent text-accent-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                  ? 'bg-[var(--bg-active)] text-foreground shadow-sm'
+                  : 'text-foreground-secondary hover:text-foreground',
               )}
             >
               <MessageSquare className={cn(
@@ -101,7 +101,7 @@ export function SessionList() {
                 <div className="truncate text-[12px] font-medium leading-tight">
                   {s.title || s.sessionId.slice(0, 8)}
                 </div>
-                <div className="text-[10px] text-muted-foreground/50 tabular-nums">
+                <div className="text-[10px] text-foreground-secondary tabular-nums">
                   {new Date(s.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
                 </div>
               </div>

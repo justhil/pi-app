@@ -398,7 +398,7 @@ export function Composer() {
             {attachments.map((a, idx) => (
               <span
                 key={`${a.path}-${idx}`}
-                className="group inline-flex items-center gap-1 rounded-md border border-border/60 bg-surface-2 py-1 pl-2 pr-1.5 text-[11px]"
+                className="group row-hover inline-flex items-center gap-1 rounded-md border border-border/50 py-1 pl-2 pr-1.5 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-2)' }}
               >
                 <FileText className="h-3 w-3 shrink-0 text-muted-foreground/60" />
                 <span className="max-w-[180px] truncate font-mono">{a.name}</span>
@@ -448,10 +448,10 @@ export function Composer() {
 
       {/* Agent 桌面-style status bar: model / thinking / context */}
       {currentWorkspace && (
-        <div className="mt-1.5 flex items-center gap-1 px-1 text-[11px] text-muted-foreground/70">
+        <div className="mt-1.5 flex items-center gap-1 px-1 text-[11px] text-foreground-secondary">
           <button
             onClick={() => setModelPickerOpen(true)}
-            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono transition-colors hover:bg-accent hover:text-foreground"
+            className="row-hover flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-foreground-secondary hover:text-foreground"
             title="切换模型"
           >
             <Cpu className="h-3 w-3" />
@@ -464,7 +464,7 @@ export function Composer() {
           <button
             onClick={() => setThinkingPickerOpen(true)}
             className={cn(
-              'flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono uppercase transition-colors hover:bg-accent hover:text-foreground',
+              'row-hover flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono uppercase text-foreground-secondary hover:text-foreground',
               thinkingLevel && thinkingLevel !== 'off' ? 'text-purple-600 dark:text-purple-400' : '',
             )}
             title="切换 thinking 等级"

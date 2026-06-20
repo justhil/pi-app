@@ -1,4 +1,7 @@
 import { BrowserWindow, shell } from 'electron'
+
+const isMac = process.platform === 'darwin'
+const useFrameless = process.platform === 'win32' || isMac
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { workerManager } from './worker-manager'
@@ -13,6 +16,10 @@ export function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    frame: !useFrameless,
+    ...(isMac && useFrameless
+      ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 10 } }
+      : {}),
     title: 'pi Desktop',
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),

@@ -206,6 +206,25 @@
     opacity: 1;
     pointer-events: auto;
   }
+  /* Electron frameless: drag title region */
+  .electron-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .electron-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  /* List rows: visible hover + press (桌面 Agent UI fill-2) */
+  .row-hover {
+    transition: background-color var(--motion-fast) ease, transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+  }
+  .row-hover:hover {
+    background-color: var(--bg-hover);
+  }
+  .row-hover:active {
+    transform: scale(0.995);
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);

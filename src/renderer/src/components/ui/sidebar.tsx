@@ -45,7 +45,7 @@ export function Sidebar({ children }: SidebarProps) {
 
   return (
     <aside
-      className="flex shrink-0 flex-col border-r border-border/60 overflow-hidden"
+      className="relative flex shrink-0 flex-col border-r border-border/60 overflow-hidden"
       style={{
         background: 'var(--bg-1)',
         width: effectiveWidth,
@@ -158,11 +158,11 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        'flex cursor-pointer items-center rounded-lg transition-all duration-motion-fast ease-motion-ease active:scale-[0.97]',
+        'row-hover flex cursor-pointer items-center rounded-lg',
         collapsed ? 'mx-auto h-8 w-8 justify-center' : 'mx-1.5 gap-2 px-2.5 py-2 text-[13px]',
         active
-          ? 'bg-accent text-accent-foreground font-medium shadow-sm'
-          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+          ? 'bg-[var(--bg-active)] text-foreground font-medium shadow-sm'
+          : 'text-foreground-secondary hover:text-foreground',
       )}
     >
       {icon}

@@ -3,7 +3,7 @@ import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
   Archive,
-  ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
+  ChevronRight, CheckCircle2, XCircle, Loader2,
   CornerDownLeft, AlertCircle, Terminal, Copy, Check
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback, Fragment } from 'react'
@@ -33,13 +33,13 @@ function MessageHoverActions({ text, timestamp, align }: { text: string; timesta
       <button
         type="button"
         onClick={copy}
-        className="flex h-5 w-5 items-center justify-center rounded text-foreground-secondary/60 hover:bg-accent hover:text-foreground"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary transition-all duration-[var(--motion-fast)] ease-[var(--motion-ease)] hover:bg-[var(--bg-hover)] hover:text-foreground active:scale-95"
         title="复制"
       >
         {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
       </button>
       {timestamp != null && (
-        <span className="select-none text-[10px] tabular-nums text-foreground-secondary/50">
+        <span className="select-none text-[11px] tabular-nums text-foreground-secondary">
           {new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
         </span>
       )}
@@ -76,15 +76,12 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
     }
     return (
       <div className={cn('group animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
-        <div className="flex items-start gap-2.5">
-          <Bot className="mt-0.5 h-4 w-4 shrink-0 text-aou-6" />
-          <div className={cn('min-w-0 flex-1 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
-            <MarkdownView>{item.text}</MarkdownView>
-            {streaming && <StreamingCaret />}
-          </div>
+        <div className={cn('min-w-0 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
+          <MarkdownView>{item.text}</MarkdownView>
+          {streaming && <StreamingCaret />}
         </div>
         {stalled && (
-          <div className="mt-1 pl-6 text-[11px] text-foreground-secondary/70">思考中…</div>
+          <div className="mt-1 text-[11px] text-foreground-secondary">思考中…</div>
         )}
         {!streaming && <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />}
       </div>
@@ -103,7 +100,8 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
         <button
           onClick={() => hasToolBody && setExpanded(!expanded)}
           className={cn(
-            'group flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent/40',
+            'group row-hover flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left',
+            hasToolBody && 'cursor-pointer',
             !hasToolBody && 'cursor-default',
           )}
         >
@@ -116,7 +114,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
           <ToolIcon name={item.toolName} />
           <span className="text-[12px] font-mono text-aou-7">{item.toolName}</span>
           {rawSum && (
-            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary/80">{rawSum}</span>
+            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary">{rawSum}</span>
           )}
           {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-aou-5" />}
           {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
@@ -139,12 +137,12 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       status === 'error' ? '执行失败' : status === 'ok' ? '完成' : item.text?.includes('失败') ? '失败' : '已派发'
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
-        <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-1.5">
-          <Icon className={cn('h-3.5 w-3.5 shrink-0', iconCls)} />
-          <span className="font-mono text-[11px] font-medium">{item.slashCommand}</span>
+        <div className="flex items-center gap-2 rounded-lg border border-border/40 px-2.5 py-1 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
+          <Icon className={cn('h-3 w-3 shrink-0 opacity-80', iconCls)} />
+          <span className="font-mono font-medium text-foreground">{item.slashCommand}</span>
           <span className={cn('text-[10px] uppercase tracking-wide', iconCls)}>{label}</span>
           {item.text && (
-            <span className="truncate text-[11px] text-muted-foreground/50">{item.text}</span>
+            <span className="truncate text-foreground-secondary">{item.text}</span>
           )}
         </div>
       </div>
@@ -154,11 +152,11 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
   if (item.type === 'compaction') {
     return (
       <div className="py-2">
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2">
-          <Archive className="h-3.5 w-3.5 text-muted-foreground/60" />
-          <span className="text-[11px] text-muted-foreground">已压缩历史</span>
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/50 px-2.5 py-1.5 text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
+          <Archive className="h-3 w-3 opacity-70" />
+          <span className="text-[11px]">已压缩历史</span>
           {item.text && (
-            <span className="truncate text-[11px] text-muted-foreground/40">{item.text.slice(0, 100)}...</span>
+            <span className="truncate text-[11px] opacity-80">{item.text.slice(0, 100)}...</span>
           )}
         </div>
       </div>
@@ -231,25 +229,21 @@ export function Timeline() {
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
           <Terminal className="h-7 w-7" />
         </div>
-        <div className="text-[14px] text-muted-foreground/60">
-          点击左侧「打开项目」选择一个工作目录
-        </div>
+        <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
+          点击左侧「打开项目」选择工作目录，即可加载会话与 pi 配置
+        </p>
       </div>
     )
   }
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
-          <Bot className="h-8 w-8" />
-        </div>
-        <div className="text-[15px] font-medium text-muted-foreground/70">
-          {t('timeline.placeholder')}
-        </div>
-        <div className="text-[12px] text-muted-foreground/45">
-          在下方输入框输入消息, 或使用 / 查看可用命令
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
+        <div className="text-[15px] font-medium text-foreground">{t('timeline.placeholder')}</div>
+        <p className="max-w-sm text-[13px] leading-relaxed text-foreground-secondary">
+          在下方输入消息开始对话。输入 <span className="font-mono text-foreground">/</span> 可查看命令与技能。
+        </p>
+        <p className="text-[12px] text-foreground-secondary/80">侧栏可切换会话 · 右侧可查看 Review / Run / Trellis</p>
       </div>
     )
   }
