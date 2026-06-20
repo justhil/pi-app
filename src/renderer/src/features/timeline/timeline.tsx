@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
-  CornerDownLeft, AlertCircle, Terminal
+  CornerDownLeft, AlertCircle, Terminal, Copy, Check
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -19,6 +19,34 @@ function ToolOutputExpanded({ item }: { item: any }) {
   const template = resolveToolCardTemplate(item.toolName)
   return <>{renderToolCard(item, template)}</>
 }
+
+function MessageHoverActions({ text, timestamp, align }: { text: string; timestamp?: number; align: 'left' | 'right' }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <div className={cn('hover-reveal mt-1 flex h-6 items-center gap-1.5', align === 'right' && 'flex-row-reverse')}>
+      <button
+        type="button"
+        onClick={copy}
+        className="flex h-5 w-5 items-center justify-center rounded text-foreground-secondary/60 hover:bg-accent hover:text-foreground"
+        title="复制"
+      >
+        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+      </button>
+      {timestamp != null && (
+        <span className="select-none text-[10px] tabular-nums text-foreground-secondary/50">
+          {new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      )}
+    </div>
+  )
+}
+
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
   const [expanded, setExpanded] = useState(false)
   // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
@@ -27,7 +55,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
   if (item.type === 'user-message') {
     return (
-      <div className={cn('flex justify-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+      <div className={cn('group flex flex-col items-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
         <div
           className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words"
           style={{
@@ -37,6 +65,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
         >
           {item.text}
         </div>
+        <MessageHoverActions text={item.text} timestamp={item.timestamp} align="right" />
       </div>
     )
   }
@@ -46,7 +75,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className={cn('animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+      <div className={cn('group animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
         <div className="flex items-start gap-2.5">
           <Bot className="mt-0.5 h-4 w-4 shrink-0 text-aou-6" />
           <div className={cn('min-w-0 flex-1 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
@@ -57,6 +86,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
         {stalled && (
           <div className="mt-1 pl-6 text-[11px] text-foreground-secondary/70">思考中…</div>
         )}
+        {!streaming && <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />}
       </div>
     )
   }
@@ -73,7 +103,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
         <button
           onClick={() => hasToolBody && setExpanded(!expanded)}
           className={cn(
-            'group flex w-full items-center gap-1.5 px-0.5 py-0.5 text-left transition-colors',
+            'group flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-accent/40',
             !hasToolBody && 'cursor-default',
           )}
         >

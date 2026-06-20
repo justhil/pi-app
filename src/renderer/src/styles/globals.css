@@ -188,6 +188,24 @@
   * {
     @apply border-border;
   }
+  /* 桌面 Agent UI-style global micro-interactions: buttons, list items, cards
+     get a soft background transition so hover always feels responsive. */
+  button,
+  [role="button"],
+  .interactive-row {
+    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-normal) ease, opacity var(--motion-fast) ease;
+  }
+  /* Smooth hover-reveal for group-hover elements (copy buttons, action menus) */
+  .hover-reveal {
+    opacity: 0;
+    transition: opacity var(--motion-fast) ease;
+    pointer-events: none;
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal {
+    opacity: 1;
+    pointer-events: auto;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
@@ -214,8 +232,12 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(127, 127, 127, 0.25);
+    background-color: rgba(127, 127, 127, 0.15);
     border-radius: 3px;
+    transition: background-color 0.3s;
+  }
+  *:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(127, 127, 127, 0.25);
   }
   ::-webkit-scrollbar-thumb:hover {
     background-color: rgba(127, 127, 127, 0.45);

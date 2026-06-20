@@ -161,7 +161,7 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
         'flex cursor-pointer items-center rounded-lg transition-all duration-motion-fast ease-motion-ease active:scale-[0.97]',
         collapsed ? 'mx-auto h-8 w-8 justify-center' : 'mx-1.5 gap-2 px-2.5 py-2 text-[13px]',
         active
-          ? 'bg-accent text-accent-foreground font-medium'
+          ? 'bg-accent text-accent-foreground font-medium shadow-sm'
           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
       )}
     >

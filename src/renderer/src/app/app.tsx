@@ -212,7 +212,7 @@ function RightPanelTabs({
           key={p.key}
           onClick={() => setActivePanel(p.key)}
  className={cn(
-            'relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap transition-all duration-motion-fast ease-motion-ease',
+            'relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md transition-all duration-motion-fast ease-motion-ease hover:bg-accent/40',
             activePanel === p.key
               ? 'text-foreground'
               : 'text-muted-foreground/60 hover:text-muted-foreground',
