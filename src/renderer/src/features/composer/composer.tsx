@@ -318,7 +318,7 @@ export function Composer() {
 
   return (
     <div
-      className="relative border-t border-border/80 px-4 pb-3 pt-2.5"
+      className="relative px-4 pb-4 pt-2"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -388,8 +388,8 @@ export function Composer() {
         </div>
       )}
       <div className={cn(
-        'flex flex-col gap-1.5 rounded-xl border bg-card transition-all duration-motion-fast ease-motion-ease',
-        'border-border/70 focus-within:border-ring/50 focus-within:ring-1 focus-within:ring-ring/30',
+        'flex flex-col gap-1.5 rounded-xl border bg-card shadow-sm transition-all duration-motion-fast ease-motion-ease',
+        'border-border/60 focus-within:border-ring/50 focus-within:ring-1 focus-within:ring-ring/30',
         isDragActive && 'border-primary/60 ring-2 ring-primary/20',
       )}>
         {/* Attachment chips block (single-block layout, not scattered text) */}
@@ -420,7 +420,7 @@ export function Composer() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          className="flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[13px] leading-relaxed placeholder:text-muted-foreground/50 focus-visible:outline-none"
+          className="flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[14px] leading-relaxed placeholder:text-muted-foreground/50 focus-visible:outline-none"
           placeholder={currentWorkspace ? t('composer.placeholder') : t('composer.selectProjectFirst')}
           rows={1}
           disabled={!currentWorkspace}

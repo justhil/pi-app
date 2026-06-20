@@ -6,7 +6,7 @@ import {
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
   CornerDownLeft, AlertCircle, Terminal
 } from 'lucide-react'
-import { useState, memo, useRef, useEffect, useCallback } from 'react'
+import { useState, memo, useRef, useEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
 import { ToolIcon } from './tool-icon'
@@ -18,7 +18,7 @@ function ToolOutputExpanded({ item }: { item: any }) {
   const template = resolveToolCardTemplate(item.toolName)
   return <>{renderToolCard(item, template)}</>
 }
-const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
+const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
   const [expanded, setExpanded] = useState(false)
   // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
   const streaming = (useUIStore.getState().streamingAssistantId === item.id)
@@ -26,7 +26,7 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
 
   if (item.type === 'user-message') {
     return (
-      <div className="flex justify-end py-3 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+      <div className={cn('flex justify-end animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'user-message' ? 'py-1' : 'py-3')}>
         <div className="max-w-[78%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[14px] leading-relaxed text-primary-foreground shadow-sm">
           {item.text}
         </div>
@@ -39,7 +39,7 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className="py-3 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+      <div className={cn('animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease', prevType === 'assistant-message' ? 'py-1.5' : 'py-3')}>
         <div className="flex items-start gap-2.5">
           <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
           <div className="min-w-0 flex-1 text-[14px] leading-relaxed text-foreground">
@@ -223,9 +223,16 @@ export function Timeline() {
           ↑ 上还有 {hiddenCount} 条，滚动加载更多
         </div>
       )}
-      {visible.map((item) => (
-        <TimelineItemBase key={item.id} item={item} />
-      ))}
+      {visible.map((item, i) => {
+        const prev = visible[i - 1]
+        const showGroupGap = prev?.type === 'tool-call' && item.type === 'assistant-message'
+        return (
+          <Fragment key={item.id}>
+            {showGroupGap && <div className="h-2" />}
+            <TimelineItemBase item={item} prevType={prev?.type} />
+          </Fragment>
+        )
+      })}
       <div className="h-4" />
     </div>
   )
