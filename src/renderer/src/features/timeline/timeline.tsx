@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Archive,
   ChevronRight, CheckCircle2, XCircle, Loader2, User, Bot,
-  CornerDownLeft
+  CornerDownLeft, AlertCircle, Terminal
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -26,8 +26,8 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
 
   if (item.type === 'user-message') {
     return (
-      <div className="flex justify-end py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
-        <div className="max-w-[78%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[13px] leading-relaxed text-primary-foreground shadow-sm">
+      <div className="flex justify-end py-3 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+        <div className="max-w-[78%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-[14px] leading-relaxed text-primary-foreground shadow-sm">
           {item.text}
         </div>
       </div>
@@ -39,16 +39,16 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className="py-2.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+      <div className="py-3 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-start gap-2.5">
-          <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-          <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-foreground/90">
+          <Bot className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
+          <div className="min-w-0 flex-1 text-[14px] leading-relaxed text-foreground">
             <MarkdownView>{item.text}</MarkdownView>
             {streaming && <StreamingCaret />}
           </div>
         </div>
         {stalled && (
-          <div className="mt-1 pl-6 text-[10px] text-muted-foreground/50">思考中…</div>
+          <div className="mt-1 pl-6 text-[11px] text-foreground-secondary/70">思考中…</div>
         )}
       </div>
     )
@@ -71,18 +71,18 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
         >
           {hasToolBody && (
             <ChevronRight className={cn(
-              'h-3 w-3 shrink-0 text-muted-foreground/30 transition-transform duration-motion-fast',
+              'h-3 w-3 shrink-0 text-foreground-secondary/50 transition-transform duration-motion-fast',
               expanded && 'rotate-90'
             )} />
           )}
           <ToolIcon name={item.toolName} />
-          <span className="text-[11px] font-mono text-muted-foreground/70">{item.toolName}</span>
+          <span className="text-[12px] font-mono text-foreground-secondary">{item.toolName}</span>
           {rawSum && (
-            <span className="ml-1 max-w-[300px] truncate text-[10px] text-muted-foreground/40">{rawSum}</span>
+            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary/70">{rawSum}</span>
           )}
-          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-muted-foreground/50" />}
+          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-foreground-secondary/70" />}
           {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
-          {!isRunning && !item.isError && hasToolBody && <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/50" />}
+          {!isRunning && !item.isError && hasToolBody && <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/60" />}
         </button>
         {expanded && hasToolBody && (
           <div className="mt-1 ml-4 animate-in fade-in slide-in-from-bottom-1 duration-motion-fast ease-motion-ease">
@@ -193,7 +193,7 @@ export function Timeline() {
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
           <Terminal className="h-7 w-7" />
         </div>
-        <div className="text-[13px] text-muted-foreground/50">
+        <div className="text-[14px] text-muted-foreground/60">
           点击左侧「打开项目」选择一个工作目录
         </div>
       </div>
@@ -206,7 +206,7 @@ export function Timeline() {
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
           <Bot className="h-7 w-7" />
         </div>
-        <div className="text-[13px] text-muted-foreground/50">
+        <div className="text-[14px] text-muted-foreground/60">
           {t('timeline.placeholder')}
         </div>
       </div>
@@ -217,7 +217,7 @@ export function Timeline() {
   const hiddenCount = items.length - visible.length
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-5 py-3">
+    <div ref={scrollRef} onScroll={handleScroll} className="mx-auto max-w-[720px] flex-1 overflow-y-auto px-4 py-4">
       {hiddenCount > 0 && (
         <div className="py-2 text-center text-[11px] text-muted-foreground/40">
           ↑ 上还有 {hiddenCount} 条，滚动加载更多

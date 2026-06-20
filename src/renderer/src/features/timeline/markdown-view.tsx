@@ -40,7 +40,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
         </button>
       )}
       <pre
-        className={cn('overflow-auto p-3 text-[12px] leading-[20px]', !expanded && 'max-h-[86px]')}
+        className={cn('overflow-auto p-3 text-[13px] leading-[21px]', !expanded && 'max-h-[90px]')}
         style={{ margin: 0 }}
       >
         <code className="font-mono text-zinc-200">{code}</code>
@@ -69,7 +69,7 @@ const MarkdownView = memo(function MarkdownView({ children, className }: { child
             const isInline = !cn2 && !String(ch).includes('\n')
             if (isInline) {
               return (
-                <code className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[11px] text-foreground/90" {...rest}>
+                <code className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[12px] text-foreground/90" {...rest}>
                   {ch}
                 </code>
               )
@@ -83,7 +83,7 @@ const MarkdownView = memo(function MarkdownView({ children, className }: { child
           ),
           table: ({ children: ch }: any) => (
             <div className="my-2 overflow-x-auto">
-              <table className="w-full border-collapse text-[12px]">{ch}</table>
+              <table className="w-full border-collapse text-[13px]">{ch}</table>
             </div>
           ),
           th: ({ children: ch }: any) => (
@@ -98,9 +98,9 @@ const MarkdownView = memo(function MarkdownView({ children, className }: { child
           ),
           ul: ({ children: ch }: any) => <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>,
           ol: ({ children: ch }: any) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>,
-          h1: ({ children: ch }: any) => <h1 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h1>,
-          h2: ({ children: ch }: any) => <h2 className="mb-1 mt-3 text-[15px] font-semibold">{ch}</h2>,
-          h3: ({ children: ch }: any) => <h3 className="mb-1 mt-2 text-[14px] font-semibold">{ch}</h3>,
+          h1: ({ children: ch }: any) => <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>,
+          h2: ({ children: ch }: any) => <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>,
+          h3: ({ children: ch }: any) => <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>,
           p: ({ children: ch }: any) => <p className="my-1 leading-relaxed">{ch}</p>,
           hr: () => <hr className="my-3 border-border/40" />,
         }}

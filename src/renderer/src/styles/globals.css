@@ -43,6 +43,9 @@
     --surface-3: 240 5.9% 92%;      /* highest elevation */
     --surface-sidebar: 240 6% 97%;  /* sidebar (slightly deeper than main) */
 
+    /* Secondary text (桌面 Agent UI-inspired): readable but not loud, for tool rows / hints */
+    --text-secondary: 240 5% 35%;
+
     /* Accent colors for tool types */
     --tool-read: 220 90% 56%;
     --tool-edit: 38 92% 50%;
@@ -76,6 +79,9 @@
     --surface-2: 240 5% 13%;
     --surface-3: 240 5% 16%;
     --surface-sidebar: 240 8% 7%;
+
+    /* Secondary text (桌面 Agent UI-inspired): readable but not loud, for tool rows / hints */
+    --text-secondary: 240 5% 65%;
 
     --tool-read: 220 90% 60%;
     --tool-edit: 38 92% 55%;
@@ -165,6 +171,7 @@
 
   /* Markdown chat typography (桌面 Agent UI-inspired, minimal prose) */
   .prose-chat {
+    font-size: 14px;
     line-height: 1.6;
     word-break: break-word;
   }

@@ -52,6 +52,8 @@ const config: Config = {
         'surface-2': 'hsl(var(--surface-2))',
         'surface-3': 'hsl(var(--surface-3))',
         'surface-sidebar': 'hsl(var(--surface-sidebar))',
+        // Secondary text token (桌面 Agent UI-inspired: readable but not loud)
+        'foreground-secondary': 'hsl(var(--text-secondary))',
       },
       borderRadius: {
         lg: 'var(--radius)',
