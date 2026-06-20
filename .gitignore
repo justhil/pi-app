@@ -1,11 +1,63 @@
+# Dependencies
 node_modules/
+
+# Build / pack output (regenerate: npm run build, npm run icon:export)
 out/
 dist/
+build/icon.png
+
+# Logs & debug
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# IDE (optional local)
+.idea/
+*.swp
+*.swo
+*~
+
+# Pi / Trellis local runtime (not app source)
 .trellis/.developer
 .trellis/.runtime/
+.trellis/workspace/
+.trellis/tasks/**/*.jsonl
+
+# Project-local pi assets (user machine)
 .pi/assets/research/
-nul
-.image-gen/
-dist/
 .pi/continue/
+.pi/settings.json
+
+# Generated / scratch / test artifacts
+.image-gen/
+screenshot*.png
+screenshot*.jpg
+screenshot*.jpeg
+*-result.txt
+*.tmp
+*.temp
+.cache/
+coverage/
+.nyc_output/
+tmp/
+temp/
+
+# Electron / Vite
+*.tsbuildinfo
+.vite/
+
+# Native addons rebuild noise (keep package-lock)
+*.node.map
