@@ -58,7 +58,7 @@ export function Sidebar({ children }: SidebarProps) {
         width: effectiveWidth,
       }}
     >
-      <div key={collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'} className="animate-ui-enter flex min-w-0 flex-1 flex-col">
+      <div className="sidebar-content-fade flex min-w-0 flex-1 flex-col">
         {children}
       </div>
       {!collapsed && (
@@ -152,7 +152,7 @@ export function RightPanel({ children }: { children: React.ReactNode }) {
         width: effectiveWidth,
       }}
     >
-      <div key={collapsed ? 'right-collapsed' : 'right-expanded'} className="animate-ui-enter flex min-w-0 flex-1 flex-col">
+      <div className="sidebar-content-fade flex min-w-0 flex-1 flex-col">
         {children}
       </div>
       {!collapsed && (
@@ -174,11 +174,9 @@ export function SidebarItem({ label, active, onClick, icon }: SidebarItemProps) 
       onClick={onClick}
       title={collapsed ? label : undefined}
       className={cn(
-        'sider-item-motion row-hover flex cursor-pointer items-center rounded-lg',
+        'nav-row sider-item-motion flex cursor-pointer items-center rounded-lg',
         collapsed ? 'mx-auto h-9 w-9 justify-center' : 'mx-1.5 gap-2.5 px-3 py-2 text-[14px] leading-6',
-        active
-          ? 'bg-[var(--bg-active)] text-foreground font-medium shadow-sm'
-          : 'text-foreground-secondary hover:text-foreground',
+        active ? 'nav-row-active text-foreground font-medium' : 'text-foreground-secondary hover:text-foreground',
       )}
     >
       {icon}

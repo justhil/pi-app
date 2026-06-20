@@ -25,7 +25,7 @@ export function ImmersiveChrome({
           type="button"
           onClick={toggleSidebar}
           title={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary transition-all duration-[var(--motion-fast)] ease-[var(--motion-ease)] hover:bg-[var(--bg-hover)] hover:text-foreground active:scale-[0.94]"
+          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary"
         >
           <PanelLeft
             className={cn(
@@ -58,7 +58,7 @@ export function ImmersiveChrome({
           type="button"
           onClick={toggleRightPanel}
           title={rightCollapsed ? '展开右侧面板' : '收起右侧面板'}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary transition-all duration-[var(--motion-fast)] ease-[var(--motion-ease)] hover:bg-[var(--bg-hover)] hover:text-foreground active:scale-[0.94]"
+          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary"
         >
           <PanelRight
             className={cn(

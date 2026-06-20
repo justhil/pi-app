@@ -193,9 +193,9 @@ function RightPanelTabs({
             onClick={() => setActivePanel(p.key)}
             title={p.label}
             className={cn(
-              'row-hover flex h-8 w-8 items-center justify-center rounded-lg active:scale-[0.94]',
+              'nav-row chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg',
               activePanel === p.key
-                ? 'bg-[var(--bg-active)] text-foreground'
+                ? 'nav-row-active text-foreground'
                 : 'text-foreground-secondary hover:text-foreground',
             )}
           >
@@ -213,9 +213,9 @@ function RightPanelTabs({
           key={p.key}
           onClick={() => setActivePanel(p.key)}
  className={cn(
-            'row-hover relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md',
+            'nav-row row-hover relative flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md',
             activePanel === p.key
-              ? 'text-foreground'
+              ? 'nav-row-active text-foreground'
               : 'text-foreground-secondary hover:text-foreground',
           )}
         >

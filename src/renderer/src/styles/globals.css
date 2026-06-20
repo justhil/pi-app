@@ -195,14 +195,36 @@
   .interactive-row {
     transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-normal) ease, opacity var(--motion-fast) ease;
   }
-  /* Message hover: copy + time fade/slide in (桌面 Agent UI) */
-  .hover-reveal {
+  /* Message hover shell (React toggles .message-hover-shell-active) */
+  .message-hover-shell {
+    display: flex;
+    flex-direction: column;
+    transition: opacity 200ms ease;
+  }
+  .message-actions-fade {
+    max-height: 0;
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
+    overflow: hidden;
     pointer-events: none;
     transition:
-      opacity var(--motion-slow) var(--motion-ease),
-      transform var(--motion-slow) var(--motion-ease);
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .message-actions-fade-visible {
+    max-height: 40px;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .hover-reveal {
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .group:hover .hover-reveal,
   .group:focus-within .hover-reveal {
@@ -213,8 +235,14 @@
   /* Sidebar / panel width */
   .panel-width-animate {
     transition:
-      width var(--motion-normal) var(--motion-ease),
-      min-width var(--motion-normal) var(--motion-ease);
+      width 360ms cubic-bezier(0.22, 1, 0.36, 1),
+      min-width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sidebar-content-fade {
+    transition: opacity 280ms ease;
+  }
+  .sidebar-collapsed .sidebar-content-fade {
+    opacity: 1;
   }
   .sidebar-label-fade {
     overflow: hidden;
@@ -273,13 +301,62 @@
   }
   /* List rows: visible hover + press (桌面 Agent UI fill-2) */
   .row-hover {
-    transition: background-color var(--motion-fast) ease, transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 200ms ease;
   }
   .row-hover:hover {
     background-color: var(--bg-hover);
   }
   .row-hover:active {
-    transform: scale(0.995);
+    transform: scale(0.98);
+  }
+  .nav-row {
+    position: relative;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-row::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 3px;
+    height: 0;
+    border-radius: 2px;
+    background: var(--brand);
+    transform: translateY(-50%);
+    transition: height 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
+    opacity: 0;
+  }
+  .nav-row:hover {
+    background-color: var(--bg-hover);
+  }
+  .nav-row-active {
+    background-color: var(--bg-active) !important;
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--brand) 10%, transparent);
+  }
+  .nav-row-active::before {
+    height: 60%;
+    opacity: 1;
+  }
+  .chrome-icon-btn {
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .chrome-icon-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--foreground);
+  }
+  .chrome-icon-btn:active {
+    transform: scale(0.92);
   }
   /* Composer input shell */
   .composer-shell {
@@ -430,7 +507,7 @@
     animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
   }
   .ui-enter {
-    animation: ui-enter var(--motion-normal) var(--motion-ease) both;
+    animation: ui-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @keyframes ui-enter {
     from {

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Archive,
   CheckCircle2, XCircle,
-  CornerDownLeft, AlertCircle, Terminal, Copy, Check
+  CornerDownLeft, AlertCircle, Terminal
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -13,33 +13,7 @@ import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
 import { buildTimelineDisplayItems } from './timeline-display-items'
 import MarkdownView from './markdown-view'
-
-function MessageHoverActions({ text, timestamp, align }: { text: string; timestamp?: number; align: 'left' | 'right' }) {
-  const [copied, setCopied] = useState(false)
-  const copy = () => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
-  return (
-    <div className={cn('hover-reveal mt-1 flex h-6 items-center gap-1.5', align === 'right' && 'flex-row-reverse')}>
-      <button
-        type="button"
-        onClick={copy}
-        className="flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary transition-all duration-[var(--motion-fast)] ease-[var(--motion-ease)] hover:bg-[var(--bg-hover)] hover:text-foreground active:scale-95"
-        title="复制"
-      >
-        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-      </button>
-      {timestamp != null && (
-        <span className="select-none text-[11px] tabular-nums text-foreground-secondary">
-          {new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      )}
-    </div>
-  )
-}
+import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
   // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
@@ -48,17 +22,21 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
   if (item.type === 'user-message') {
     return (
-      <div className={cn('group ui-enter flex flex-col items-end', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
-        <div
-          className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words"
-          style={{
-            background: 'var(--message-user-bg)',
-            borderRadius: '8px 0 8px 8px',
-          }}
+      <div className={cn('ui-enter', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+        <MessageHoverShell
+          align="right"
+          actions={<MessageHoverActions text={item.text} timestamp={item.timestamp} align="right" />}
         >
-          {item.text}
-        </div>
-        <MessageHoverActions text={item.text} timestamp={item.timestamp} align="right" />
+          <div
+            className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words transition-shadow duration-300 ease-out"
+            style={{
+              background: 'var(--message-user-bg)',
+              borderRadius: '8px 0 8px 8px',
+            }}
+          >
+            {item.text}
+          </div>
+        </MessageHoverShell>
       </div>
     )
   }
@@ -68,15 +46,23 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       return <ThinkingIndicator label="思考中" />
     }
     return (
-      <div className={cn('group ui-enter', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
-        <div className={cn('min-w-0 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
-          <MarkdownView>{item.text}</MarkdownView>
-          {streaming && <StreamingCaret />}
-        </div>
-        {stalled && (
-          <div className="mt-1 text-[11px] text-foreground-secondary">思考中…</div>
-        )}
-        {!streaming && <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />}
+      <div className={cn('ui-enter', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+        <MessageHoverShell
+          align="left"
+          actions={
+            !streaming ? (
+              <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />
+            ) : null
+          }
+        >
+          <div className={cn('min-w-0 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
+            <MarkdownView>{item.text}</MarkdownView>
+            {streaming && <StreamingCaret />}
+          </div>
+          {stalled && (
+            <div className="mt-1 text-[11px] text-foreground-secondary">思考中…</div>
+          )}
+        </MessageHoverShell>
       </div>
     )
   }

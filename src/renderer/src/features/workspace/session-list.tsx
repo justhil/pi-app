@@ -43,7 +43,7 @@ export function SessionList() {
             onClick={handleNewSession}
             disabled={!currentWorkspace}
             title="新建会话"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93] disabled:opacity-30"
+            className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-foreground-secondary disabled:opacity-30"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -53,8 +53,8 @@ export function SessionList() {
               onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               title={s.title || s.sessionId.slice(0, 8)}
               className={cn(
-                'flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg transition-all duration-motion-fast ease-motion-ease',
-                currentSessionId === s.sessionId ? 'bg-accent text-accent-foreground' : 'text-muted-foreground/60 hover:bg-accent/60 hover:text-foreground',
+                'nav-row flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg',
+                currentSessionId === s.sessionId ? 'nav-row-active text-foreground' : 'text-foreground-secondary hover:text-foreground',
               )}
             >
               <MessageSquare className="h-3.5 w-3.5" />
@@ -70,7 +70,7 @@ export function SessionList() {
         <button
           onClick={handleNewSession}
           disabled={!currentWorkspace}
-          className="rounded p-0.5 text-muted-foreground/60 hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease disabled:opacity-30 disabled:pointer-events-none"
+          className="chrome-icon-btn rounded-md p-1 text-foreground-secondary disabled:opacity-30 disabled:pointer-events-none"
           title="新建会话"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -87,9 +87,9 @@ export function SessionList() {
               key={s.sessionId}
               onClick={() => handleOpenSession(s.sessionId, s.sessionFile)}
               className={cn(
-                'group sider-item-motion row-hover flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
+                'group nav-row sider-item-motion flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
                 currentSessionId === s.sessionId
-                  ? 'bg-[var(--bg-active)] text-foreground shadow-sm'
+                  ? 'nav-row-active text-foreground'
                   : 'text-foreground-secondary hover:text-foreground',
               )}
             >
@@ -153,7 +153,7 @@ export function OpenProjectButton({ onClick, label }: { onClick: () => void; lab
         <button
           onClick={onClick}
           title={label}
-          className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
+          className="chrome-icon-btn mx-auto flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 text-foreground-secondary"
         >
           <FolderOpen className="h-3.5 w-3.5" />
         </button>
@@ -164,7 +164,7 @@ export function OpenProjectButton({ onClick, label }: { onClick: () => void; lab
     <div className="px-2 py-1">
       <button
         onClick={onClick}
-        className="row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-[14px] leading-6 text-foreground-secondary hover:text-foreground"
+        className="nav-row row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-[14px] leading-6 text-foreground-secondary hover:text-foreground"
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
         <span className="sidebar-label-fade">{label}</span>
