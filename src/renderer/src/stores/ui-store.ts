@@ -110,6 +110,8 @@ interface UIState {
   setTheme: (t: 'light' | 'dark' | 'system') => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
+  sidebarCollapsed: boolean
+  toggleSidebar: () => void
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
 
@@ -209,6 +211,15 @@ export const useUIStore = create<UIState>()(
 
   activePanel: 'review',
   setActivePanel: (p) => set({ activePanel: p }),
+
+  theme: 'system',
+  setTheme: (t) => set({ theme: t }),
+  sidebarWidth: 224,
+  setSidebarWidth: (w) => set({ sidebarWidth: Math.min(Math.max(w, 180), 340) }),
+  sidebarCollapsed: false,
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  rightPanelWidth: 288,
+  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 240), 420) }),
 
   pendingExtensionConfig: null,
   requestExtensionConfig: (pluginName) => set({ pendingExtensionConfig: pluginName }),
@@ -371,6 +382,7 @@ export const useUIStore = create<UIState>()(
         activePanel: s.activePanel,
         theme: s.theme,
         sidebarWidth: s.sidebarWidth,
+        sidebarCollapsed: s.sidebarCollapsed,
         rightPanelWidth: s.rightPanelWidth,
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,

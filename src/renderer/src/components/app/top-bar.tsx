@@ -1,5 +1,6 @@
-import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot } from 'lucide-react'
+import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot, PanelLeft } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { useUIStore } from '@renderer/stores/ui-store'
 
 interface TopBarProps {
   onBack?: () => void
@@ -9,9 +10,20 @@ interface TopBarProps {
 }
 
 export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
+  const collapsed = useUIStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   return (
-    <div className="flex h-11 items-center justify-between border-b border-border/80 px-3">
+    <div className="flex h-11 items-center justify-between border-b border-border/60 px-3">
       <div className="flex items-center gap-2.5">
+        {!onBack && (
+          <button
+            onClick={toggleSidebar}
+            title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
+          >
+            <PanelLeft className={cn('h-3.5 w-3.5 transition-transform duration-motion-normal ease-motion-ease', collapsed && 'rotate-180')} />
+          </button>
+        )}
         {onBack && (
           <button
             onClick={onBack}

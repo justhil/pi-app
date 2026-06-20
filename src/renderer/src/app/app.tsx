@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
-import { Sidebar, SidebarContent, SidebarItem } from '@renderer/components/ui/sidebar'
-import { SessionList, ProjectHeader } from '@renderer/features/workspace/session-list'
+import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
+import { SessionList, ProjectHeader, OpenProjectButton } from '@renderer/features/workspace/session-list'
 import { Timeline } from '@renderer/features/timeline/timeline'
 import { Composer } from '@renderer/features/composer/composer'
 import { ReviewPanel } from '@renderer/features/review/review-panel'
@@ -128,18 +128,10 @@ export default function App() {
           <Sidebar>
             <ProjectHeader />
             <SidebarContent>
-              <div className="px-2 py-1">
-                <button
-                  onClick={handleOpenProject}
-                  className="flex w-full items-center gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease"
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  {t('sidebar.openProject')}
-                </button>
-              </div>
+              <OpenProjectButton onClick={handleOpenProject} label={t('sidebar.openProject')} />
               <SessionList />
             </SidebarContent>
-            <div className="border-t border-border/80 p-1.5">
+            <div className="border-t border-border/50 p-1.5">
               <SidebarItem
                 label={t('sidebar.settings')}
                 icon={<SettingsIcon className="h-3.5 w-3.5" />}
@@ -155,8 +147,8 @@ export default function App() {
           </div>
 
           {/* Right panels */}
-          <aside className="flex w-72 shrink-0 flex-col border-l border-border/80 bg-muted/10">
-            <div className="flex border-b border-border/80">
+          <RightPanel>
+            <div className="flex border-b border-border/50">
               {PANELS.map((p) => (
                 <button
                   key={p.key}
@@ -185,7 +177,7 @@ export default function App() {
                 {activePanel === 'intercom' && <IntercomPanel />}
               </ErrorBoundary>
             </div>
-          </aside>
+          </RightPanel>
         </div>
       </div>
       <ExtensionUIHost />
