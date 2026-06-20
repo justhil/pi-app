@@ -61,34 +61,31 @@ const TimelineItemBase = memo(function TimelineItem({ item }: { item: any }) {
     const rawSum = (item.toolStatusLine as string | undefined)
       || (() => { const o = (item.toolOutput || '').trim(); if (!o) return ''; const l = o.split('\n').find((x: string) => x.trim()) || ''; return l.length > 72 ? l.slice(0, 72) + '…' : l })()
     return (
-      <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
+      <div className="py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <button
           onClick={() => hasToolBody && setExpanded(!expanded)}
           className={cn(
-            'group flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 transition-all duration-motion-fast ease-motion-ease',
-            item.isError
-              ? 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10'
-              : 'border-border/70 bg-muted/30 hover:bg-muted/50',
+            'group flex w-full items-center gap-1.5 px-0.5 py-0.5 text-left transition-colors',
             !hasToolBody && 'cursor-default',
           )}
         >
           {hasToolBody && (
             <ChevronRight className={cn(
-              'h-3 w-3 shrink-0 text-muted-foreground/40 transition-transform duration-motion-fast',
+              'h-3 w-3 shrink-0 text-muted-foreground/30 transition-transform duration-motion-fast',
               expanded && 'rotate-90'
             )} />
           )}
           <ToolIcon name={item.toolName} />
-          <span className="text-[12px] font-mono font-medium text-foreground/80">{item.toolName}</span>
+          <span className="text-[11px] font-mono text-muted-foreground/70">{item.toolName}</span>
           {rawSum && (
-            <span className="ml-1 max-w-[260px] truncate text-[10px] text-muted-foreground/55">{rawSum}</span>
+            <span className="ml-1 max-w-[300px] truncate text-[10px] text-muted-foreground/40">{rawSum}</span>
           )}
-          {isRunning && <Loader2 className="ml-auto h-3 w-3 animate-spin text-muted-foreground" />}
-          {!isRunning && item.isError && <XCircle className="ml-auto h-3.5 w-3.5 text-destructive" />}
-          {!isRunning && !item.isError && <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-green-500/70" />}
+          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-muted-foreground/50" />}
+          {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
+          {!isRunning && !item.isError && hasToolBody && <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/50" />}
         </button>
         {expanded && hasToolBody && (
-          <div className="animate-in fade-in slide-in-from-bottom-1 duration-motion-fast ease-motion-ease">
+          <div className="mt-1 ml-4 animate-in fade-in slide-in-from-bottom-1 duration-motion-fast ease-motion-ease">
             <ToolOutputExpanded item={item} />
           </div>
         )}
