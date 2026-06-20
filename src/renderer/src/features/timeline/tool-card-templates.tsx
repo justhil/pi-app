@@ -7,6 +7,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
 import { FileText } from 'lucide-react'
+import { renderNativeToolPreview } from './tool-previews'
 
 export interface ToolItem {
   id?: string
