@@ -76,6 +76,8 @@ trellis/ask 不再作为 native 例外，一律走兼容层原语。
 
 - [x] Phase A 骨架
 - [x] Phase B pi-search 首样本
-- [ ] Phase C native 迁移（trellis/ask）
-- [ ] Phase D 其余迁移
-- [ ] Phase E 收尾
+- [x] Phase C native 迁移（trellis/ask）
+- [x] Phase D 其余迁移
+- [x] Phase E 收尾
+
+DoD 全部满足, 任务完成。
