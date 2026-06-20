@@ -3,22 +3,16 @@ import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
   Archive,
-  ChevronRight, CheckCircle2, XCircle, Loader2,
+  CheckCircle2, XCircle,
   CornerDownLeft, AlertCircle, Terminal, Copy, Check
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
-import { ToolIcon } from './tool-icon'
-import { renderToolCard } from './tool-card-templates'
-import { resolveToolCardTemplate } from './tool-card-registry'
-import { buildToolSummary } from './tool-previews'
+import { ToolCallRow } from './tool-call-row'
+import { ToolGroupSummary } from './tool-group-summary'
+import { buildTimelineDisplayItems } from './timeline-display-items'
 import MarkdownView from './markdown-view'
-
-function ToolOutputExpanded({ item }: { item: any }) {
-  const template = resolveToolCardTemplate(item.toolName)
-  return <>{renderToolCard(item, template)}</>
-}
 
 function MessageHoverActions({ text, timestamp, align }: { text: string; timestamp?: number; align: 'left' | 'right' }) {
   const [copied, setCopied] = useState(false)
@@ -48,7 +42,6 @@ function MessageHoverActions({ text, timestamp, align }: { text: string; timesta
 }
 
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
-  const [expanded, setExpanded] = useState(false)
   // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
   const streaming = (useUIStore.getState().streamingAssistantId === item.id)
   const stalled = useStalledHint(streaming, item.text?.length)
@@ -84,47 +77,6 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
           <div className="mt-1 text-[11px] text-foreground-secondary">思考中…</div>
         )}
         {!streaming && <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />}
-      </div>
-    )
-  }
-
-  if (item.type === 'tool-call') {
-    const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
-    const hasToolBody = !!item.toolOutput || (!!item.toolDetails) || !!item.toolArgs
-    // Summary: prefer args param summary (read path, grep pattern, bash command), then statusLine, then output first line.
-    const argSummary = buildToolSummary(item.toolName || '', item.toolArgs)
-    const rawSum = argSummary || (item.toolStatusLine as string | undefined)
-      || (() => { const o = (item.toolOutput || '').trim(); if (!o) return ''; const l = o.split('\n').find((x: string) => x.trim()) || ''; return l.length > 72 ? l.slice(0, 72) + '…' : l })()
-    return (
-      <div className="py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
-        <button
-          onClick={() => hasToolBody && setExpanded(!expanded)}
-          className={cn(
-            'group row-hover flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left',
-            hasToolBody && 'cursor-pointer',
-            !hasToolBody && 'cursor-default',
-          )}
-        >
-          {hasToolBody && (
-            <ChevronRight className={cn(
-              'h-3 w-3 shrink-0 text-aou-4 transition-transform duration-motion-fast',
-              expanded && 'rotate-90'
-            )} />
-          )}
-          <ToolIcon name={item.toolName} />
-          <span className="text-[12px] font-mono text-aou-7">{item.toolName}</span>
-          {rawSum && (
-            <span className="ml-1 max-w-[300px] truncate text-[11px] text-foreground-secondary">{rawSum}</span>
-          )}
-          {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-aou-5" />}
-          {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
-          {!isRunning && !item.isError && hasToolBody && <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/60" />}
-        </button>
-        {expanded && hasToolBody && (
-          <div className="mt-1 ml-4 animate-in fade-in slide-in-from-bottom-1 duration-motion-fast ease-motion-ease">
-            <ToolOutputExpanded item={item} />
-          </div>
-        )}
       </div>
     )
   }
@@ -250,6 +202,7 @@ export function Timeline() {
 
   const visible = items.slice(Math.max(0, items.length - renderCount))
   const hiddenCount = items.length - visible.length
+  const displayItems = buildTimelineDisplayItems(visible as any[])
 
   return (
     <div ref={scrollRef} onScroll={handleScroll} className="min-w-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
@@ -258,13 +211,36 @@ export function Timeline() {
           ↑ 上还有 {hiddenCount} 条，滚动加载更多
         </div>
       )}
-      {visible.map((item, i) => {
-        const prev = visible[i - 1]
-        const showGroupGap = prev?.type === 'tool-call' && item.type === 'assistant-message'
+      {displayItems.map((block, i) => {
+        const prev = displayItems[i - 1]
+        const prevWasTool =
+          prev?.kind === 'tool-group' ||
+          (prev?.kind === 'single' && prev.item.type === 'tool-call')
+        const curIsAssistant = block.kind === 'single' && block.item.type === 'assistant-message'
+        const showGroupGap = prevWasTool && curIsAssistant
+
+        if (block.kind === 'tool-group') {
+          return (
+            <Fragment key={block.groupId}>
+              {showGroupGap && <div className="h-2" />}
+              <ToolGroupSummary tools={block.tools} />
+            </Fragment>
+          )
+        }
+
+        const { item, prevType } = block
+        if (item.type === 'tool-call') {
+          return (
+            <Fragment key={item.id}>
+              <ToolCallRow item={item} />
+            </Fragment>
+          )
+        }
+
         return (
           <Fragment key={item.id}>
             {showGroupGap && <div className="h-2" />}
-            <TimelineItemBase item={item} prevType={prev?.type} />
+            <TimelineItemBase item={item} prevType={prevType} />
           </Fragment>
         )
       })}
