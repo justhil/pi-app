@@ -240,3 +240,33 @@ export function renderNativeToolPreview(item: { toolName?: string; toolArgs?: an
   }
   return null
 }
+
+// Build a short parameter summary for the collapsed tool row (桌面 Agent UI buildParamSummary style).
+export function buildToolSummary(toolName: string, args: any): string {
+  if (!args) return ''
+  const a = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch { return null } })() : args
+  if (!a || typeof a !== 'object') return ''
+  if (toolName === 'read' || toolName === 'write' || toolName === 'edit') {
+    return a.path || a.file_path || a.file_name || ''
+  }
+  if (toolName === 'bash') {
+    return a.command || a.cmd || ''
+  }
+  if (toolName === 'grep' || toolName === 'ffgrep') {
+    const parts: string[] = []
+    if (a.pattern) parts.push(`"${a.pattern}"`)
+    if (a.path) parts.push(`in ${a.path}`)
+    else if (a.glob) parts.push(`in ${a.glob}`)
+    return parts.join(' ')
+  }
+  if (toolName === 'fffind' || toolName === 'find') {
+    return a.pattern || a.glob || ''
+  }
+  if (toolName === 'ls') {
+    return a.path || ''
+  }
+  for (const key of ['file_path', 'command', 'path', 'pattern', 'query', 'url']) {
+    if (a[key] && typeof a[key] === 'string') return a[key]
+  }
+  return ''
+}

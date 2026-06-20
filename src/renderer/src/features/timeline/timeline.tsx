@@ -12,6 +12,7 @@ import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-p
 import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveToolCardTemplate } from './tool-card-registry'
+import { buildToolSummary } from './tool-previews'
 import MarkdownView from './markdown-view'
 
 function ToolOutputExpanded({ item }: { item: any }) {
@@ -56,9 +57,10 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
   if (item.type === 'tool-call') {
     const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
-    const hasToolBody = !!item.toolOutput || (!!item.toolDetails)
-    // Dimmed single-line summary (ui-timeline-polish): statusLine preferred, else first line of output truncated.
-    const rawSum = (item.toolStatusLine as string | undefined)
+    const hasToolBody = !!item.toolOutput || (!!item.toolDetails) || !!item.toolArgs
+    // Summary: prefer args param summary (read path, grep pattern, bash command), then statusLine, then output first line.
+    const argSummary = buildToolSummary(item.toolName || '', item.toolArgs)
+    const rawSum = argSummary || (item.toolStatusLine as string | undefined)
       || (() => { const o = (item.toolOutput || '').trim(); if (!o) return ''; const l = o.split('\n').find((x: string) => x.trim()) || ''; return l.length > 72 ? l.slice(0, 72) + '…' : l })()
     return (
       <div className="py-0.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">

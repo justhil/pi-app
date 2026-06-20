@@ -271,6 +271,9 @@ let msgSeq = 0
 function normalizeMessages(messages: any[]): any[] {
   const items: any[] = []
   const now = Date.now()
+  // Map toolCallId → item index for precise toolResult attachment
+  const toolCallIndex = new Map<string, number>()
+
   for (const m of messages) {
     const ts = (m as any).timestamp ? new Date((m as any).timestamp).getTime() : now
     const content = m.content || []
@@ -279,7 +282,6 @@ function normalizeMessages(messages: any[]): any[] {
       const text = extractText(m)
       if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
     } else if (m.role === 'assistant') {
-      // Split assistant message into text + toolCall cards so each renders cleanly
       const text = extractText(m)
       const toolCalls = content.filter((c: any) => c.type === 'toolCall')
       if (text) {
@@ -288,7 +290,8 @@ function normalizeMessages(messages: any[]): any[] {
       for (const c of toolCalls) {
         const name = c.toolCall?.name || 'tool'
         const input = c.toolCall?.input || c.toolCall?.arguments
-        items.push({
+        const callId = c.toolCall?.id || ''
+        const item: any = {
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
           toolName: name,
@@ -296,28 +299,38 @@ function normalizeMessages(messages: any[]): any[] {
           toolPhase: 'end',
           toolOutput: '',
           timestamp: ts,
-        })
-      }
-      if (!text && toolCalls.length === 0) {
-        // skip empty
+        }
+        const idx = items.length
+        items.push(item)
+        if (callId) toolCallIndex.set(callId, idx)
       }
     } else if (m.role === 'toolResult') {
-      // toolResult carries the execution output; attach to the most recent tool-call card.
+      // toolResult has toolCallId + toolName; attach output to the matching tool-call card.
       const text = extractText(m)
-      if (text) {
-        const lastTool = [...items].reverse().find((i) => i.type === 'tool-call' && i.toolPhase === 'end' && !i.toolOutput)
-        if (lastTool) {
-          lastTool.toolOutput = text.slice(0, 4000)
-        } else {
-          items.push({
-            id: `hist-${++msgSeq}`,
-            type: 'tool-call',
-            toolName: 'result',
-            toolPhase: 'end',
-            toolOutput: text.slice(0, 2000),
-            timestamp: ts,
-          })
+      const callId = m.toolCallId || ''
+      const toolName = m.toolName || ''
+      // Try precise match by toolCallId first
+      let targetIdx = callId ? toolCallIndex.get(callId) : undefined
+      // Fallback: most recent tool-call with matching name and empty output
+      if (targetIdx === undefined) {
+        for (let i = items.length - 1; i >= 0; i--) {
+          if (items[i].type === 'tool-call' && !items[i].toolOutput && (!toolName || items[i].toolName === toolName)) {
+            targetIdx = i; break
+          }
         }
+      }
+      if (targetIdx !== undefined && items[targetIdx]) {
+        items[targetIdx].toolOutput = text.slice(0, 4000)
+        if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
+      } else if (text) {
+        items.push({
+          id: `hist-${++msgSeq}`,
+          type: 'tool-call',
+          toolName: toolName || 'result',
+          toolPhase: 'end',
+          toolOutput: text.slice(0, 2000),
+          timestamp: ts,
+        })
       }
     } else if (m.role === 'compactionSummary' || m.role === 'branchSummary') {
       const text = extractText(m)
