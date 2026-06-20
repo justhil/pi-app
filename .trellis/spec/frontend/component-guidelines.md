@@ -101,9 +101,11 @@ skeleton sonner collapsible resizable
 
 ## 动效约束
 
+> **时长与类名以 [Motion & Interaction](./motion-and-interaction.md) 为准**（200/280/320ms、panel-width-animate、固定复制槽等）。下文保留原则摘要。
+
 ### 定调
 
-默认体验：Agent 桌面 级丝滑。侧栏、右栏 Tab、面板切换、卡片入场用短 ease-out 的 transform/opacity。系统开启「减少动态效果」时，保留布局与状态，关闭位移与 stagger。
+默认体验：Agent 桌面/桌面 Agent UI 级丝滑（侧栏、Picker、工具折叠）。侧栏、右栏 Tab、面板切换、卡片入场用短 ease-out 的 transform/opacity。系统开启「减少动态效果」时，保留布局与状态，关闭位移与 stagger。
 
 ### 原则
 
@@ -118,8 +120,8 @@ skeleton sonner collapsible resizable
 
 ```css
 :root {
-  --motion-fast: 150ms;
-  --motion-normal: 240ms;
+  --motion-fast: 200ms;
+  --motion-normal: 280ms;
   --motion-slow: 320ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }

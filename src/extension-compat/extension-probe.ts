@@ -23,6 +23,12 @@ export interface ExtensionProbeResult {
   tuiOnly?: boolean
   loadError?: string
   enabled: boolean
+  /** 是否已进入 settings.packages，会被 pi Worker 加载 */
+  inSettingsPackages?: boolean
+  /** 未进 Worker 时的说明 */
+  workerLoadHint?: string
+  /** 建议写入 settings.packages 的条目 */
+  suggestedPackageEntry?: string
 }
 
 import { v2ToolMap, resolveV2ByPluginName } from './adapter-loader.js'
@@ -184,6 +190,10 @@ function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
     if (!merged) continue
     merged.id = `git:${pkgDir.slice(join(agentDir, 'git').length + 1).replace(/\\/g, '/')}`
     merged.packageName = repo
+    merged.inSettingsPackages = false
+    merged.suggestedPackageEntry = suggestPackageEntryFromDir(pkgDir, pkg)
+    merged.workerLoadHint =
+      '已在 ~/.pi/agent/git 发现，但未写入 settings.json → packages，Pi Worker 不会加载其扩展。'
     results.push(merged)
     seen.add(pkgName)
     seen.add(repo)
@@ -326,8 +336,25 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
     if (!pkg) continue
 
     const merged = buildPackageProbeResult(pkgDir, pkg, parsed.name, overrides)
-    if (merged) results.push(merged)
+    if (merged) {
+      merged.inSettingsPackages = true
+      results.push(merged)
+    }
   }
+}
+
+function suggestPackageEntryFromDir(pkgDir: string, pkg: any): string | undefined {
+  const norm = pkgDir.replace(/\\/g, '/')
+  const marker = '/.pi/agent/git/'
+  const idx = norm.indexOf(marker)
+  if (idx >= 0) {
+    const suffix = norm.slice(idx + marker.length)
+    return `git:${suffix}`
+  }
+  if (pkg?.name && String(pkg.name).startsWith('npm:') === false) {
+    return `npm:${pkg.name}`
+  }
+  return undefined
 }
 
 function mergeResult(merged: ExtensionProbeResult, tmp: ExtensionProbeResult): void {

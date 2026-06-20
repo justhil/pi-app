@@ -6,5 +6,6 @@ dist/
 .trellis/.runtime/
 .pi/assets/research/
 nul
+.image-gen/
 dist/
 .pi/continue/

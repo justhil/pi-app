@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Search, MessageSquare, Clock, FolderOpen } from 'lucide-react'
 import { useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { openSessionIntoWorker } from '@renderer/lib/open-session'
+import { switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 
 export function SessionList() {
@@ -15,7 +15,7 @@ export function SessionList() {
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
 
   const handleOpenSession = (sessionId: string, sessionFile?: string) => {
-    void openSessionIntoWorker(sessionId, sessionFile)
+    void switchSessionInPlace(sessionId, sessionFile)
   }
 
   const handleNewSession = async () => {
@@ -64,7 +64,7 @@ export function SessionList() {
       ) : (
       <>
       <div className="flex items-center justify-between px-3 pb-1 pt-2">
-        <span className="sidebar-label-fade sider-label-motion text-[13px] font-semibold text-foreground-secondary">
+        <span className="sidebar-label-fade sider-label-motion text-[13px] font-semibold tracking-wide text-foreground-secondary/90">
           {t('sidebar.sessions')}
         </span>
         <button
@@ -77,7 +77,7 @@ export function SessionList() {
         </button>
       </div>
       {sessions.length === 0 ? (
-        <div className="px-3 py-3 text-[13px] text-foreground-secondary">
+        <div className="px-3 py-4 text-[13px] leading-relaxed text-foreground-secondary/90">
           {currentWorkspace ? '暂无会话' : '请先打开项目'}
         </div>
       ) : (
@@ -98,11 +98,11 @@ export function SessionList() {
                 currentSessionId === s.sessionId ? 'text-foreground' : 'text-foreground-secondary/70 group-hover:text-foreground'
               )} />
               <div className="flex-1 min-w-0">
-                <div className="sidebar-label-fade truncate text-[14px] font-normal leading-6 text-foreground">
+                <div className="sidebar-label-fade truncate text-[14px] font-medium leading-[22px] text-foreground">
                   {s.title || s.sessionId.slice(0, 8)}
                 </div>
-                <div className="sidebar-label-fade text-[12px] leading-5 text-foreground-secondary tabular-nums">
-                  {new Date(s.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                <div className="sidebar-label-fade text-[12px] leading-[18px] text-foreground-secondary/85 tabular-nums">
+                  {new Date(s.updatedAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
@@ -140,7 +140,7 @@ export function ProjectHeader() {
       )}>
         {workspace ? name.charAt(0).toUpperCase() : '?'}
       </div>
-      <span className="sidebar-label-fade truncate text-[14px] font-semibold leading-6 text-foreground">{name}</span>
+      <span className="sidebar-label-fade truncate text-[14px] font-semibold leading-[22px] text-foreground" title={workspace || undefined}>{name}</span>
     </div>
   )
 }
@@ -164,7 +164,7 @@ export function OpenProjectButton({ onClick, label }: { onClick: () => void; lab
     <div className="px-2 py-1">
       <button
         onClick={onClick}
-        className="nav-row row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2 text-[14px] leading-6 text-foreground-secondary hover:text-foreground"
+        className="nav-row row-hover flex w-full items-center gap-2 rounded-lg border border-border/60 px-3 py-2.5 text-[13px] font-medium leading-[20px] text-foreground-secondary hover:text-foreground"
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0" />
         <span className="sidebar-label-fade">{label}</span>

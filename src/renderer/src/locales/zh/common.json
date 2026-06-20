@@ -43,8 +43,8 @@
   "review": {
     "scope": {
       "turn": "本轮",
-      "session": "本会话",
-      "git": "Git"
+      "session": "本对话",
+      "git": "Git 工作区"
     },
     "empty": "暂无文件变更",
     "copyPath": "复制路径"

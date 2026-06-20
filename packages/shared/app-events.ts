@@ -14,6 +14,10 @@ export interface MessageEvent extends AppEventBase {
   role: 'user' | 'assistant' | 'system'
   phase: 'start' | 'delta' | 'end'
   text?: string
+  /** assistant 流：正文 vs 思维链 */
+  contentKind?: 'text' | 'thinking'
+  /** pi JSONL entry id（跳转 /tree 用） */
+  sessionEntryId?: string
 }
 
 export interface ToolEvent extends AppEventBase {

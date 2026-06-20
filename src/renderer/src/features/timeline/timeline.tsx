@@ -8,24 +8,37 @@ import {
 } from 'lucide-react'
 import { useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { ThinkingIndicator, StreamingCaret, useStalledHint } from './tool-card-primitives'
+import { StreamingCaret } from './tool-card-primitives'
+import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
 import { buildTimelineDisplayItems } from './timeline-display-items'
 import MarkdownView from './markdown-view'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
+import { registerTimelineScrollEl } from './timeline-scroll-bridge'
+import { rafThrottle } from '@renderer/lib/raf-throttle'
+import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
+import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
-  // Hooks must be unconditional (Rules of Hooks): compute streaming/stalled before any early return.
-  const streaming = (useUIStore.getState().streamingAssistantId === item.id)
-  const stalled = useStalledHint(streaming, item.text?.length)
+  const streamingId = useUIStore((s) => s.streamingAssistantId)
+  const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const streaming = streamingId === item.id
 
   if (item.type === 'user-message') {
     return (
-      <div className={cn('ui-enter', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+      <div className={cn('timeline-message-row', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
         <MessageHoverShell
           align="right"
-          actions={<MessageHoverActions text={item.text} timestamp={item.timestamp} align="right" />}
+          actions={
+            <MessageHoverActions
+              text={item.text}
+              timestamp={item.timestamp}
+              align="right"
+              sessionEntryId={item.sessionEntryId}
+              onRewind={(id) => void navigateSessionToEntry(id)}
+            />
+          }
         >
           <div
             className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words transition-shadow duration-300 ease-out"
@@ -42,26 +55,43 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
   }
 
   if (item.type === 'assistant-message') {
-    if (!item.text) {
-      return <ThinkingIndicator label="思考中" />
+    const hasText = !!(item.text && item.text.trim())
+    const hasThinking = !!(item.thinkingText && item.thinkingText.trim())
+    if (!hasText && !hasThinking) {
+      if (!streaming || !agentRunning) return null
+      return (
+        <div className="timeline-message-row py-1.5">
+          <span className="text-[12px] text-foreground-secondary/50">等待回复…</span>
+        </div>
+      )
     }
     return (
-      <div className={cn('ui-enter', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+      <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
         <MessageHoverShell
           align="left"
           actions={
             !streaming ? (
-              <MessageHoverActions text={item.text} timestamp={item.timestamp} align="left" />
+              <MessageHoverActions
+                text={item.text || ''}
+                timestamp={item.timestamp}
+                align="left"
+                sessionEntryId={item.sessionEntryId}
+                onRewind={(id) => void navigateSessionToEntry(id)}
+              />
             ) : null
           }
         >
-          <div className={cn('min-w-0 text-[15px] leading-[1.7] text-foreground', streaming && 'animate-stream-fade')}>
-            <MarkdownView>{item.text}</MarkdownView>
-            {streaming && <StreamingCaret />}
-          </div>
-          {stalled && (
-            <div className="mt-1 text-[11px] text-foreground-secondary">思考中…</div>
+          {hasThinking && (
+            <ThinkingChainBlock text={item.thinkingText} streaming={streaming} />
           )}
+          {hasText ? (
+            <div className="min-w-0 text-[15px] leading-[1.7] text-foreground">
+              <MarkdownView streaming={streaming}>{item.text}</MarkdownView>
+              {streaming && <StreamingCaret />}
+            </div>
+          ) : streaming && agentRunning ? (
+            <span className="text-[12px] text-foreground-secondary/50">生成正文…</span>
+          ) : null}
         </MessageHoverShell>
       </div>
     )
@@ -117,13 +147,37 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
 export function Timeline() {
   const items = useUIStore((s) => s.timelineItems)
-  const hasWorkspace = useUIStore((s) => s.currentWorkspace)
+  const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const ephemeralDraft = useUIStore((s) => s.ephemeralSandboxDraft)
+  const hasWorkspace = !!currentWorkspace || ephemeralDraft
+  const isEphemeralEmpty = ephemeralDraft && !currentWorkspace
+  const historyTotalCount = useUIStore((s) => s.historyTotalCount)
+  const historyLoadedCount = useUIStore((s) => s.historyLoadedCount)
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const historyLoading = useUIStore((s) => s.historyLoading)
+  const prependHistoryItems = useUIStore((s) => s.prependHistoryItems)
   const { t } = useTranslation()
 
   // Virtualization: render only a window of items, grow on scroll up
   const PAGE = 40
   const [renderCount, setRenderCount] = useState(PAGE)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    registerTimelineScrollEl(el)
+    if (!el) return () => registerTimelineScrollEl(null)
+    const notify = rafThrottle(() => window.dispatchEvent(new Event('timeline-scroll')))
+    el.addEventListener('scroll', notify, { passive: true })
+    const ro = new ResizeObserver(notify)
+    ro.observe(el)
+    notify()
+    return () => {
+      registerTimelineScrollEl(null)
+      el.removeEventListener('scroll', notify)
+      ro.disconnect()
+    }
+  }, [items.length, renderCount, hasWorkspace])
   const wasNearBottomRef = useRef(true)
   const scrollHeightBeforeLoadRef = useRef<number | null>(null)
   const renderCountRef = useRef(renderCount)
@@ -131,14 +185,37 @@ export function Timeline() {
   const itemsLengthRef = useRef(items.length)
   itemsLengthRef.current = items.length
 
+  const [fetchingOlder, setFetchingOlder] = useState(false)
+
   const loadMoreHistory = useCallback(() => {
     const el = scrollRef.current
     const total = itemsLengthRef.current
     const current = renderCountRef.current
-    if (!el || current >= total || scrollHeightBeforeLoadRef.current != null) return
+    if (!el || scrollHeightBeforeLoadRef.current != null) return
+
+    const st = useUIStore.getState()
+    if (
+      st.historySessionFile &&
+      st.historyLoadedCount < st.historyTotalCount &&
+      !fetchingOlder
+    ) {
+      setFetchingOlder(true)
+      scrollHeightBeforeLoadRef.current = el.scrollHeight
+      const offset = st.historyLoadedCount
+      void fetchSessionHistoryOlder(st.historySessionFile, offset)
+        .then(({ items: older }) => {
+          if (older.length) prependHistoryItems(older as any[])
+          setRenderCount((c) => Math.min(c + PAGE, useUIStore.getState().timelineItems.length))
+        })
+        .catch((e) => console.error('[Timeline] load older failed', e))
+        .finally(() => setFetchingOlder(false))
+      return
+    }
+
+    if (current >= total) return
     scrollHeightBeforeLoadRef.current = el.scrollHeight
     setRenderCount((c) => Math.min(c + PAGE, total))
-  }, [])
+  }, [prependHistoryItems, fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
@@ -184,38 +261,77 @@ export function Timeline() {
           <Terminal className="h-7 w-7" />
         </div>
         <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
-          点击左侧「打开项目」选择工作目录，即可加载会话与 pi 配置
+          点击左侧「打开项目」选择工作目录，或对话分区右侧 + 开始临时对话
         </p>
       </div>
     )
   }
 
   if (items.length === 0) {
+    if (historyLoading) {
+      return (
+        <div className="flex flex-1 flex-col px-4 py-6 animate-in fade-in duration-200">
+          <div className="chat-content-column space-y-3">
+            {[0.72, 0.45, 0.88].map((w, i) => (
+              <div
+                key={i}
+                className="h-12 rounded-lg bg-muted/40 animate-pulse"
+                style={{ width: `${w * 100}%`, marginLeft: i % 2 ? 'auto' : 0, maxWidth: '85%' }}
+              />
+            ))}
+          </div>
+          <p className="mt-6 text-center text-[11px] text-muted-foreground">加载最近消息…</p>
+        </div>
+      )
+    }
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
-        <div className="text-[15px] font-medium text-foreground">{t('timeline.placeholder')}</div>
+        <div className="text-[15px] font-medium text-foreground">
+          {isEphemeralEmpty ? '新对话' : t('timeline.placeholder')}
+        </div>
         <p className="max-w-sm text-[13px] leading-relaxed text-foreground-secondary">
-          在下方输入消息开始对话。输入 <span className="font-mono text-foreground">/</span> 可查看命令与技能。
+          {isEphemeralEmpty
+            ? '在下方输入首条消息；发送后将保存为临时对话，并以该消息作为标题。'
+            : (
+              <>
+                在下方输入消息开始对话。输入 <span className="font-mono text-foreground">/</span> 可查看命令与技能。
+              </>
+            )}
         </p>
-        <p className="text-[12px] text-foreground-secondary/80">侧栏可切换会话 · 右侧可查看 Review / Run / Trellis</p>
+        {!isEphemeralEmpty && (
+          <p className="text-[12px] text-foreground-secondary/80">侧栏可切换会话 · 右侧可查看 Review / Run / Trellis</p>
+        )}
       </div>
     )
   }
 
   const visible = items.slice(Math.max(0, items.length - renderCount))
-  const hiddenCount = items.length - visible.length
+  const hiddenInMemory = items.length - visible.length
+  const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
+  const hiddenCount = hiddenOnServer + hiddenInMemory
   const displayItems = buildTimelineDisplayItems(visible as any[])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-    <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 sm:px-6">
-      {hiddenCount > 0 && (
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="timeline-scroll-viewport timeline-scroll-with-dock min-h-0 flex-1 overflow-y-auto overflow-x-hidden w-full"
+    >
+      <div
+        key={historySessionFile || 'timeline'}
+        className="chat-content-column py-4 animate-in fade-in duration-200 ease-out"
+      >
+      {(hiddenCount > 0 || historyLoading) && (
         <button
           type="button"
           onClick={loadMoreHistory}
-          className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground"
+          disabled={historyLoading || fetchingOlder}
+          className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground disabled:opacity-60"
         >
-          ↑ 上还有 {hiddenCount} 条 · 点击或继续上滑加载
+          {historyLoading
+            ? '正在加载会话…'
+            : `↑ 上还有 ${hiddenCount} 条 · 点击或继续上滑加载`}
         </button>
       )}
       {displayItems.map((block, i) => {
@@ -230,7 +346,7 @@ export function Timeline() {
           return (
             <Fragment key={block.groupId}>
               {showGroupGap && <div className="h-2" />}
-              <div className="ui-enter">
+              <div className="timeline-message-row">
                 <ToolGroupSummary tools={block.tools} />
               </div>
             </Fragment>
@@ -241,7 +357,7 @@ export function Timeline() {
         if (item.type === 'tool-call') {
           return (
             <Fragment key={item.id}>
-              <div className="ui-enter">
+              <div className="timeline-message-row">
                 <ToolCallRow item={item} />
               </div>
             </Fragment>
@@ -256,6 +372,7 @@ export function Timeline() {
         )
       })}
       <div className="h-4" />
+      </div>
     </div>
     </div>
   )

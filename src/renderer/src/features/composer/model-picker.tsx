@@ -6,6 +6,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { X, Search, Check, Cpu } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatModelFull } from '@renderer/lib/format-run-display'
 
 export function ModelPicker() {
   const open = useUIStore((s) => s.modelPickerOpen)
@@ -53,7 +54,7 @@ export function ModelPicker() {
             <div>
               <div className="text-[14px] font-medium">选择模型</div>
               <div className="text-[11px] text-muted-foreground">
-                当前：<span className="font-mono">{currentModel || '未选择'}</span>
+                当前：<span className="font-mono">{formatModelFull(currentModel)}</span>
               </div>
             </div>
           </div>

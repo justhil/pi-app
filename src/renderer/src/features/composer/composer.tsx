@@ -1,12 +1,15 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Cpu, Brain, Gauge, X, FileText, Upload } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, X, FileText, Upload, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
-import { ComposerPill } from './composer-pill'
+import { ComposerModelStrip } from './composer-model-strip'
+import { ComposerMetricsFooter } from './composer-metrics-footer'
+import { useComposerMetrics } from './use-composer-metrics'
+import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 
 interface SlashCommand {
   id: string
@@ -52,6 +55,9 @@ export function Composer() {
   const dragDepth = useRef(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
+  const canCompose = !!currentWorkspace || ephemeralSandboxDraft
   const isRunning = useUIStore((s) => s.runState.status === 'running')
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
@@ -61,12 +67,22 @@ export function Composer() {
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setThinkingPickerOpen = useUIStore((s) => s.setThinkingPickerOpen)
   const [composerFocused, setComposerFocused] = useState(false)
+  const composerPrefill = useUIStore((s) => s.composerPrefill)
+  const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
+  const metrics = useComposerMetrics()
+
+  useEffect(() => {
+    if (composerPrefill == null) return
+    setText((prev) => (prev.trim() ? prev : composerPrefill))
+    setComposerPrefill(null)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [composerPrefill, setComposerPrefill])
 
   const autoResize = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+    el.style.height = Math.min(el.scrollHeight, 112) + 'px'
   }, [])
 
   useEffect(() => {
@@ -76,6 +92,11 @@ export function Composer() {
   useEffect(() => {
     setIsStreaming(isRunning)
   }, [isRunning])
+
+  useEffect(() => {
+    if (!canCompose) return
+    void refreshComposerRunDisplay()
+  }, [canCompose, currentWorkspace, currentSessionId, ephemeralSandboxDraft])
 
   // Load authoritative command list from Worker (A-layer)
   const refreshCommands = useCallback(async () => {
@@ -93,8 +114,8 @@ export function Composer() {
   }, [])
 
   useEffect(() => {
-    if (currentWorkspace) refreshCommands()
-  }, [currentWorkspace, refreshCommands])
+    if (canCompose) refreshCommands()
+  }, [canCompose, refreshCommands])
 
   // Slash popover: triggered when text starts with '/' (anchored at line start or message start)
   const slashQuery = useMemo(() => {
@@ -139,17 +160,30 @@ export function Composer() {
 
   const sendText = async (raw: string) => {
     if (!raw.trim() && attachments.length === 0) return
-    if (!currentWorkspace) return
-    setIsStreaming(true)
-    // Append attachment paths as @-references so pi tools can act on them.
+    const draft = useUIStore.getState().ephemeralSandboxDraft
+    if (!currentWorkspace && !draft) return
     const refs = attachments.length > 0 ? '\n' + attachments.map((a) => `@${a.path}`).join(' ') : ''
-    try {
-      await ipcClient.invoke('prompt.send', { sessionId: '', text: (raw.trim() + refs).trim() })
-    } catch (e) {
-      console.error('Send failed:', e)
-    }
+    const payload = (raw.trim() + refs).trim()
     setText('')
     setAttachments([])
+    textareaRef.current?.focus()
+    const running = useUIStore.getState().runState.status === 'running'
+    try {
+      if (!running && draft) {
+        const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
+        await finalizeEphemeralSandboxOnFirstSend(raw.trim())
+      }
+      if (running) {
+        await ipcClient.invoke('prompt.followUp', { sessionId: '', text: payload })
+      } else {
+        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+        const { onWorkerSessionBound } = await import('@renderer/lib/open-session')
+        await onWorkerSessionBound()
+      }
+    } catch (e) {
+      console.error('Send failed:', e)
+      toast.error('发送失败')
+    }
   }
 
   const handleSend = async () => {
@@ -169,6 +203,11 @@ export function Composer() {
           useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
           setText('')
           toast.info(`已打开 ${r.meta.matchNames[0] || token} 配置`)
+          return
+        }
+        if (r?.behavior === 'execute') {
+          setText('')
+          await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
           return
         }
       } catch (e) {
@@ -234,7 +273,7 @@ export function Composer() {
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (!isStreaming) handleSend()
+      if (text.trim() || attachments.length > 0) handleSend()
     }
   }
 
@@ -320,9 +359,33 @@ export function Composer() {
     setAttachments((prev) => prev.filter((_, i) => i !== idx))
   }
 
+  const pickAttachments = useCallback(async () => {
+    if (!canCompose) return
+    try {
+      const res = await ipcClient.invoke('dialog:openFiles', { multiple: true })
+      const paths = (res?.paths || []) as string[]
+      if (paths.length === 0) return
+      setAttachments((prev) => {
+        const seen = new Set(prev.map((a) => a.path))
+        const next = [...prev]
+        for (const path of paths) {
+          if (!path || seen.has(path)) continue
+          seen.add(path)
+          const name = path.split(/[\\/]/).pop() || path
+          const kind = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file'
+          next.push({ path, name, kind })
+        }
+        return next
+      })
+    } catch (e) {
+      console.error('pick attachments failed', e)
+    }
+  }, [canCompose])
+
   return (
     <div
-      className="relative min-w-0 px-5 pb-4 pt-2 sm:px-6"
+      data-composer-root
+      className="relative min-w-0"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -393,116 +456,101 @@ export function Composer() {
       )}
       <div
         className={cn(
-          'composer-shell flex flex-col gap-1.5 rounded-2xl border',
+          'composer-shell flex flex-col rounded-2xl border',
           composerFocused && 'composer-shell-focused',
           isDragActive && 'border-dashed !border-primary/50',
         )}
       >
-        {/* Attachment chips block (single-block layout, not scattered text) */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-3 pt-2.5">
+          <div className="flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2 pt-2.5">
             {attachments.map((a, idx) => (
               <span
                 key={`${a.path}-${idx}`}
-                className="group row-hover inline-flex items-center gap-1 rounded-md border border-border/50 py-1 pl-2 pr-1.5 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-2)' }}
+                className="inline-flex items-center gap-1 rounded-md border border-border/40 bg-[var(--bg-2)]/80 py-0.5 pl-2 pr-1 text-[10px] text-foreground-secondary"
               >
-                <FileText className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                <FileText className="h-2.5 w-2.5 shrink-0 opacity-60" />
                 <span className="max-w-[180px] truncate font-mono">{a.name}</span>
                 <button
+                  type="button"
                   onClick={() => removeAttachment(idx)}
-                  className="ml-0.5 rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  className="rounded p-0.5 opacity-50 hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
                   aria-label="移除文件"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-2.5 w-2.5" />
                 </button>
               </span>
             ))}
           </div>
         )}
-        <div className="flex items-end gap-2">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onFocus={() => setComposerFocused(true)}
-          onBlur={() => setComposerFocused(false)}
-          className="composer-textarea flex-1 resize-none bg-transparent px-3.5 py-2.5 text-[15px] leading-[1.7] text-foreground placeholder:text-foreground-secondary/60 focus-visible:outline-none"
-          placeholder={currentWorkspace ? t('composer.placeholder') : t('composer.selectProjectFirst')}
-          rows={1}
-          disabled={!currentWorkspace}
-        />
-          {isStreaming ? (
+        <div className="flex flex-col gap-1 px-2.5 pb-2 pt-2">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onFocus={() => setComposerFocused(true)}
+            onBlur={() => setComposerFocused(false)}
+            className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none"
+            placeholder={
+              ephemeralSandboxDraft && !currentWorkspace
+                ? '输入首条消息开始临时对话（将作为标题）'
+                : canCompose
+                  ? t('composer.placeholder')
+                  : t('composer.selectProjectFirst')
+            }
+            rows={1}
+            disabled={!canCompose}
+          />
+          <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
             <button
-              onClick={handleAbort}
-              className="m-1.5 flex items-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[12px] font-medium text-destructive-foreground transition-all duration-motion-normal ease-motion-ease hover:bg-destructive/90 animate-stop-breathe"
+              type="button"
+              onClick={pickAttachments}
+              disabled={!canCompose}
+              title="添加文件"
+              className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
             >
-              <Square className="h-3 w-3 fill-current" />
-              {t('composer.stop')}
+              <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={(!text.trim() && attachments.length === 0) || !currentWorkspace}
-              className="composer-send m-1.5 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-30 disabled:pointer-events-none disabled:shadow-none"
-            >
-              <Send className="h-3 w-3" />
-              {t('composer.send')}
-            </button>
-          )}
+            <div className="min-w-0 flex-1">
+              {canCompose && (
+                <ComposerModelStrip
+                  model={model}
+                  thinkingLevel={thinkingLevel}
+                  modelPickerOpen={modelPickerOpen}
+                  thinkingPickerOpen={thinkingPickerOpen}
+                  onModelClick={() => setModelPickerOpen(true)}
+                  onThinkingClick={() => setThinkingPickerOpen(true)}
+                />
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {isStreaming && (
+                <button
+                  type="button"
+                  onClick={handleAbort}
+                  title={t('composer.stop')}
+                  className="composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={(!text.trim() && attachments.length === 0) || !canCompose}
+                title={isStreaming ? '加入队列 (follow-up)' : t('composer.send')}
+                className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Agent 桌面-style status bar: model / thinking / context */}
-      {currentWorkspace && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 px-0.5 text-[11px]">
-          <ComposerPill
-            icon={<Cpu className="h-3.5 w-3.5" />}
-            label={model || '未选择模型'}
-            open={modelPickerOpen}
-            onClick={() => setModelPickerOpen(true)}
-            title="切换模型"
-          />
-          <ComposerPill
-            icon={<Brain className="h-3.5 w-3.5" />}
-            label={<span className="uppercase">{thinkingLevel || 'off'}</span>}
-            open={thinkingPickerOpen}
-            active={!!thinkingLevel && thinkingLevel !== 'off'}
-            onClick={() => setThinkingPickerOpen(true)}
-            title="切换 thinking 等级"
-          />
-
-          {usage && (
-            <>
-              <span className="text-muted-foreground/30">·</span>
-              <span className="flex items-center gap-1 tabular-nums" title="本轮 token 用量">
-                <Gauge className="h-3 w-3" />
-                {formatTokens(usage.input + usage.output)}
-                {usage.cacheRead > 0 && <span className="text-muted-foreground/40">（缓存 {formatTokens(usage.cacheRead)}）</span>}
-              </span>
-              {usage.cost > 0 && (
-                <>
-                  <span className="text-muted-foreground/30">·</span>
-                  <span className="tabular-nums text-muted-foreground/50">${usage.cost.toFixed(4)}</span>
-                </>
-              )}
-            </>
-          )}
-
-          {isRunning && (
-            <span className="ml-auto flex items-center gap-1 text-green-600 dark:text-green-400">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-              运行中
-            </span>
-          )}
-        </div>
+      {canCompose && (
+        <ComposerMetricsFooter usage={usage} isRunning={isRunning} metrics={metrics} />
       )}
     </div>
   )
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return String(n)
 }

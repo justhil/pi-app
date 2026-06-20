@@ -126,6 +126,28 @@ async function initSession(cwd: string): Promise<void> {
   }
 }
 
+/** Same wiring as pi RPC mode — required for pi-rewind /rewind (navigateTree + hasUI). */
+function buildCommandContextActions(sess: AgentSession) {
+  return {
+    waitForIdle: () => sess.agent.waitForIdle(),
+    newSession: async () => ({ cancelled: true }),
+    fork: async () => ({ cancelled: true }),
+    navigateTree: async (targetId: string, options?: { summarize?: boolean; customInstructions?: string; replaceInstructions?: boolean; label?: string }) => {
+      const result = await sess.navigateTree(targetId, {
+        summarize: options?.summarize ?? false,
+        customInstructions: options?.customInstructions,
+        replaceInstructions: options?.replaceInstructions,
+        label: options?.label,
+      })
+      return { cancelled: result.cancelled }
+    },
+    switchSession: async () => ({ cancelled: true }),
+    reload: async () => {
+      await sess.reload()
+    },
+  }
+}
+
 async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   if (!uiBridge) {
     uiBridge = createDesktopUIBridge(sharedEventBus, (req) => {
@@ -135,6 +157,7 @@ async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   await sess.bindExtensions({
     uiContext: uiBridge.uiContext as never,
     mode: 'rpc',
+    commandContextActions: buildCommandContextActions(sess),
   })
 }
 
@@ -183,17 +206,31 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'message_update': {
-      const ame = event.assistantMessageEvent
-      if (ame?.type === 'text_delta') {
-        emit({ ...base, type: 'message', role: 'assistant', phase: 'delta', text: ame.delta })
+      const ame = event.assistantMessageEvent as { type?: string; delta?: string; content?: string; text?: string } | undefined
+      const chunk =
+        typeof ame?.delta === 'string'
+          ? ame.delta
+          : typeof ame?.content === 'string'
+            ? ame.content
+            : typeof ame?.text === 'string'
+              ? ame.text
+              : ''
+      if (!chunk) break
+      if (ame?.type === 'thinking_delta') {
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'delta', text: chunk, contentKind: 'thinking' })
+      } else if (ame?.type === 'text_delta') {
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'delta', text: chunk, contentKind: 'text' })
       }
       break
     }
     case 'message_end': {
       const msg = event.message as any
+      const entryId = session?.sessionManager?.getLeafId?.() ?? undefined
       if (msg?.role === 'assistant') {
         const text = extractText(msg)
-        emit({ ...base, type: 'message', role: 'assistant', phase: 'end', text })
+        emit({ ...base, type: 'message', role: 'assistant', phase: 'end', text, sessionEntryId: entryId })
+      } else if (msg?.role === 'user') {
+        emit({ ...base, type: 'message', role: 'user', phase: 'end', sessionEntryId: entryId })
       }
       break
     }
@@ -340,6 +377,108 @@ function normalizeMessages(messages: any[]): any[] {
   return items
 }
 
+/** 按当前 leaf 的 getBranch() 顺序建时间线，与 TUI 树上路径一致，避免 role 对齐错位。 */
+function timelineItemsFromBranchPath(path: any[]): any[] {
+  const items: any[] = []
+  const toolCallIndex = new Map<string, number>()
+  const now = Date.now()
+
+  for (const entry of path) {
+    const ts = entry.timestamp ? new Date(entry.timestamp).getTime() : now
+    const sid = entry.id as string | undefined
+
+    if (entry.type === 'compaction' && entry.summary) {
+      items.push({
+        id: `hist-${++msgSeq}`,
+        type: 'compaction',
+        text: String(entry.summary),
+        timestamp: ts,
+        sessionEntryId: sid,
+      })
+      continue
+    }
+    if (entry.type === 'branch_summary' && entry.summary) {
+      items.push({
+        id: `hist-${++msgSeq}`,
+        type: 'compaction',
+        text: String(entry.summary),
+        timestamp: ts,
+        sessionEntryId: sid,
+      })
+      continue
+    }
+    if (entry.type !== 'message' || !entry.message) continue
+
+    const m = entry.message
+    const content = m.content || []
+
+    if (m.role === 'user') {
+      const text = extractText(m)
+      if (text) {
+        items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts, sessionEntryId: sid })
+      }
+    } else if (m.role === 'assistant') {
+      const text = extractText(m)
+      const toolCalls = content.filter((c: any) => c.type === 'toolCall')
+      if (text) {
+        items.push({
+          id: `hist-${++msgSeq}`,
+          type: 'assistant-message',
+          text,
+          timestamp: ts,
+          sessionEntryId: sid,
+        })
+      }
+      for (const c of toolCalls) {
+        const name = c.name || c.toolCall?.name || 'tool'
+        const input = c.arguments ?? c.toolCall?.input ?? c.toolCall?.arguments
+        const callId = c.id || c.toolCall?.id || ''
+        const item: any = {
+          id: `hist-${++msgSeq}`,
+          type: 'tool-call',
+          toolName: name,
+          toolArgs: input || undefined,
+          toolPhase: 'end',
+          toolOutput: '',
+          timestamp: ts,
+          sessionEntryId: sid,
+        }
+        const idx = items.length
+        items.push(item)
+        if (callId) toolCallIndex.set(callId, idx)
+      }
+    } else if (m.role === 'toolResult') {
+      const text = extractText(m)
+      const callId = m.toolCallId || ''
+      const toolName = m.toolName || ''
+      let targetIdx = callId ? toolCallIndex.get(callId) : undefined
+      if (targetIdx === undefined) {
+        for (let i = items.length - 1; i >= 0; i--) {
+          if (items[i].type === 'tool-call' && !items[i].toolOutput && (!toolName || items[i].toolName === toolName)) {
+            targetIdx = i
+            break
+          }
+        }
+      }
+      if (targetIdx !== undefined && items[targetIdx]) {
+        items[targetIdx].toolOutput = text.slice(0, 4000)
+        if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
+      } else if (text) {
+        items.push({
+          id: `hist-${++msgSeq}`,
+          type: 'tool-call',
+          toolName: toolName || 'result',
+          toolPhase: 'end',
+          toolOutput: text.slice(0, 2000),
+          timestamp: ts,
+          sessionEntryId: sid,
+        })
+      }
+    }
+  }
+  return items
+}
+
 function extractText(message: any): string {
   if (!message?.content) return typeof message === 'string' ? message : ''
   if (typeof message.content === 'string') return message.content
@@ -359,6 +498,30 @@ function extractToolResult(message: any): string {
       return ''
     })
   return parts.join('\n')
+}
+
+/** Pi SettingsManager has getters but no setters for compaction token fields — write via globalSettings + markModified. */
+function patchPiCompactionTokens(
+  sm: InstanceType<typeof SettingsManager>,
+  patch: { compactionReserveTokens?: unknown; compactionKeepRecentTokens?: unknown },
+) {
+  const gs = (sm as any).globalSettings as Record<string, any>
+  if (!gs.compaction) gs.compaction = {}
+  if (patch.compactionReserveTokens !== undefined) {
+    const n = Math.floor(Number(patch.compactionReserveTokens))
+    if (!Number.isFinite(n) || n < 0) throw new Error('Invalid compaction.reserveTokens')
+    gs.compaction.reserveTokens = n
+    ;(sm as any).markModified('compaction', 'reserveTokens')
+  }
+  if (patch.compactionKeepRecentTokens !== undefined) {
+    const n = Math.floor(Number(patch.compactionKeepRecentTokens))
+    if (!Number.isFinite(n) || n < 0) throw new Error('Invalid compaction.keepRecentTokens')
+    gs.compaction.keepRecentTokens = n
+    ;(sm as any).markModified('compaction', 'keepRecentTokens')
+  }
+  if (patch.compactionReserveTokens !== undefined || patch.compactionKeepRecentTokens !== undefined) {
+    ;(sm as any).save()
+  }
 }
 
 // In utilityProcess, parentPort messages come as MessageEvent with data property
@@ -400,30 +563,32 @@ process.parentPort?.on('message', async (event: any) => {
         }
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
         emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
-        try {
-          await session.prompt(msg.text, msg.options)
-          if (slashMatch) {
-            emit({
-              ...baseEvent(),
-              type: 'slash',
-              command: slashMatch[1],
-              status: 'ok',
-              text: '命令已执行（详见下方助手/工具输出）',
-            })
+        reply({ type: 'prompt-done' })
+        void (async () => {
+          try {
+            await session.prompt(msg.text, msg.options)
+            if (slashMatch) {
+              emit({
+                ...baseEvent(),
+                type: 'slash',
+                command: slashMatch[1],
+                status: 'ok',
+                text: '命令已执行（详见下方助手/工具输出）',
+              })
+            }
+          } catch (e: any) {
+            console.error('[Worker] prompt failed:', e)
+            if (slashMatch) {
+              emit({
+                ...baseEvent(),
+                type: 'slash',
+                command: slashMatch[1],
+                status: 'error',
+                text: `执行失败: ${e?.message || String(e)}`,
+              })
+            }
           }
-          reply({ type: 'prompt-done' })
-        } catch (e: any) {
-          if (slashMatch) {
-            emit({
-              ...baseEvent(),
-              type: 'slash',
-              command: slashMatch[1],
-              status: 'error',
-              text: `执行失败: ${e?.message || String(e)}`,
-            })
-          }
-          reply({ type: 'error', error: `Prompt failed: ${e?.message || String(e)}` })
-        }
+        })()
         break
       }
       case 'abort': {
@@ -437,8 +602,13 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'followUp': {
-        await session?.followUp(msg.text)
+        if (!session) { reply({ type: 'error', error: 'No session' }); break }
+        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
+        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
         reply({ type: 'followUp-done' })
+        void session.followUp(msg.text).catch((e: any) => {
+          console.error('[Worker] followUp failed:', e)
+        })
         break
       }
       case 'setModel': {
@@ -544,6 +714,7 @@ process.parentPort?.on('message', async (event: any) => {
       case 'getSessionContextPreview': {
         try {
           const lines: string[] = []
+          const segments: { index: number; role: string; chars: number; preview: string; label?: string }[] = []
           let msgCount = 0
           let estChars = 0
           if (session) {
@@ -551,8 +722,24 @@ process.parentPort?.on('message', async (event: any) => {
               msgCount++
               const t = extractText(m)
               estChars += t.length
+              const role = (m as any).role || '?'
+              let label: string | undefined
+              if (role === 'toolResult' && (m as any).toolName) label = (m as any).toolName
+              if (role === 'assistant') {
+                const blocks = (m as any).content
+                if (Array.isArray(blocks)) {
+                  const tools = blocks.filter((c: any) => c.type === 'toolCall').map((c: any) => c.toolCall?.name).filter(Boolean)
+                  if (tools.length) label = tools.join(', ')
+                }
+              }
+              segments.push({
+                index: segments.length,
+                role,
+                chars: t.length,
+                preview: t.slice(0, 280),
+                label,
+              })
               if (lines.length < 12 && t) {
-                const role = (m as any).role || '?'
                 lines.push(`[${role}] ${t.slice(0, 200)}${t.length > 200 ? '…' : ''}`)
               }
             }
@@ -564,6 +751,7 @@ process.parentPort?.on('message', async (event: any) => {
               messageCount: msgCount,
               estimatedChars: estChars,
               snippets: lines,
+              segments,
             },
           })
         } catch (e: any) {
@@ -580,7 +768,7 @@ process.parentPort?.on('message', async (event: any) => {
               skills.push({
                 name: sk.name,
                 description: sk.description || '',
-                path: sk.path || sk.filePath,
+                path: sk.path || sk.filePath || sk.skillPath,
                 source: sk.sourceInfo?.source || sk.source,
               })
             }
@@ -588,6 +776,56 @@ process.parentPort?.on('message', async (event: any) => {
           reply({ type: 'getSkillsList-done', skills })
         } catch (e: any) {
           reply({ type: 'error', error: `getSkillsList failed: ${e.message}` })
+        }
+        break
+      }
+      case 'getPromptTemplatesList': {
+        try {
+          const prompts: any[] = []
+          if (session) {
+            for (const tpl of session.promptTemplates || []) {
+              prompts.push({
+                name: tpl.name,
+                description: tpl.description || '',
+                path: (tpl as any).path || (tpl as any).filePath,
+                source: (tpl as any).sourceInfo?.source,
+              })
+            }
+          }
+          reply({ type: 'getPromptTemplatesList-done', prompts })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getPromptTemplatesList failed: ${e.message}` })
+        }
+        break
+      }
+      case 'getContextPrompts': {
+        try {
+          const rl = session?.resourceLoader
+          const agentsFiles = rl?.getAgentsFiles?.()?.agentsFiles ?? []
+          const systemPromptFile = rl?.getSystemPrompt?.() ?? undefined
+          const appendParts = rl?.getAppendSystemPrompt?.() ?? []
+          const builtSystemPreview = session?.systemPrompt?.slice(0, 12000) ?? ''
+          reply({
+            type: 'getContextPrompts-done',
+            agentsFiles,
+            systemPromptFile: systemPromptFile ?? null,
+            appendSystemPromptParts: appendParts,
+            builtSystemPreview,
+            projectTrusted: session?.settingsManager?.isProjectTrusted?.() ?? true,
+          })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getContextPrompts failed: ${e.message}` })
+        }
+        break
+      }
+      case 'reloadResources': {
+        try {
+          if (session) {
+            await (session as any).reload?.()
+          }
+          reply({ type: 'reloadResources-done', ok: true })
+        } catch (e: any) {
+          reply({ type: 'error', error: `reloadResources failed: ${e.message}` })
         }
         break
       }
@@ -614,10 +852,20 @@ process.parentPort?.on('message', async (event: any) => {
             ? {
                 sessionId: session.sessionId,
                 sessionName: session.sessionName,
-                model: session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined,
-                thinkingLevel: session.thinkingLevel,
+                model: (() => {
+                  const m = session.model as { provider?: string; modelId?: string } | null
+                  if (!m?.provider || !m?.modelId) return undefined
+                  const id = String(m.modelId)
+                  if (!id || id === 'undefined') return undefined
+                  return `${m.provider}/${id}`
+                })(),
+                thinkingLevel:
+                  session.thinkingLevel != null && String(session.thinkingLevel).trim()
+                    ? String(session.thinkingLevel)
+                    : undefined,
                 isStreaming: session.isStreaming,
                 sessionFile: session.sessionFile,
+                leafId: session.sessionManager.getLeafId?.() ?? null,
                 messageCount: session.messages.length,
                 tools: ((session as any).agent?._state?.tools || []).map((t: any) => ({
                   name: t.name,
@@ -629,20 +877,42 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'getMessages': {
-        // Read a session JSONL file and return normalized timeline items
         try {
           const { pathToFileURL, fileURLToPath } = await import('node:url')
           const { dirname, join } = await import('node:path')
-          // Resolve the package dir via import.meta.resolve (handles exports field)
           const mainUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
           const resolved = fileURLToPath(mainUrl)
           const pkgRoot = dirname(dirname(resolved))
           const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
           const sm: any = await import(pathToFileURL(smPath).href)
-          const entries = sm.loadEntriesFromFile(msg.sessionFile)
-          const ctx = sm.buildSessionContext(entries)
-          const items = normalizeMessages(ctx.messages)
-          reply({ type: 'getMessages-done', items })
+          const smOpen = sm.SessionManager.open(msg.sessionFile)
+          if (session?.sessionFile === msg.sessionFile) {
+            const leafId = session.sessionManager.getLeafId?.() ?? null
+            if (leafId === null) smOpen.resetLeaf()
+            else smOpen.branch(leafId)
+          }
+          const ctx = smOpen.buildSessionContext()
+          const sessionMeta: { model?: string; thinkingLevel?: string } = {}
+          if (ctx.thinkingLevel) sessionMeta.thinkingLevel = String(ctx.thinkingLevel)
+          if (ctx.model?.provider && ctx.model?.modelId) {
+            sessionMeta.model = `${ctx.model.provider}/${ctx.model.modelId}`
+          }
+          const branchPath = smOpen.getBranch()
+          const all = timelineItemsFromBranchPath(branchPath)
+          const totalCount = all.length
+          const offset = Math.max(0, Number(msg.offset) || 0)
+          const limit = Math.min(500, Math.max(1, Number(msg.limit) || totalCount || 1))
+          let items: typeof all
+          if (offset === 0 && limit < totalCount) {
+            items = all.slice(Math.max(0, totalCount - limit))
+          } else if (offset > 0) {
+            const end = totalCount - offset
+            const start = Math.max(0, end - limit)
+            items = all.slice(start, end)
+          } else {
+            items = all
+          }
+          reply({ type: 'getMessages-done', items, totalCount, sessionMeta })
         } catch (e: any) {
           reply({ type: 'error', error: `getMessages failed: ${e.message}` })
         }
@@ -681,6 +951,151 @@ process.parentPort?.on('message', async (event: any) => {
         }
         break
       }
+      case 'sessionRenameFile': {
+        try {
+          const file = msg.sessionFile as string
+          const title = String(msg.title || '').trim()
+          if (!file || !title) {
+            reply({ type: 'sessionRenameFile-done', ok: false, error: 'missing file or title' })
+            break
+          }
+          if (session?.sessionFile === file) {
+            session.setSessionName(title)
+          } else {
+            const sm = SessionManager.open(file, undefined, currentCwd)
+            sm.appendSessionInfo(title)
+          }
+          reply({ type: 'sessionRenameFile-done', ok: true, title })
+        } catch (e: any) {
+          reply({ type: 'sessionRenameFile-done', ok: false, error: e.message })
+        }
+        break
+      }
+      case 'getSessionTree': {
+        if (!session) {
+          reply({ type: 'getSessionTree-done', nodes: [], leafId: null })
+          break
+        }
+        try {
+          const sm = session.sessionManager
+          const leafId = sm.getLeafId?.() ?? null
+          type FlatNode = {
+            id: string
+            parentId: string | null
+            depth: number
+            label?: string
+            entryType: string
+            timestamp?: string
+            isLeaf: boolean
+            role?: string
+            preview?: string
+          }
+          const previewFromMsg = (msg: any): string => {
+            const c = msg?.content
+            if (typeof c === 'string') return c.trim().slice(0, 120)
+            if (!Array.isArray(c)) return ''
+            return c
+              .filter((p: any) => p?.type === 'text')
+              .map((p: any) => p.text || '')
+              .join('')
+              .trim()
+              .slice(0, 120)
+          }
+          const flat: FlatNode[] = []
+          const walk = (nodes: any[], depth: number, parentId: string | null) => {
+            for (const n of nodes) {
+              const e = n.entry
+              const id = e?.id as string
+              if (!id) continue
+              const row: FlatNode = {
+                id,
+                parentId,
+                depth,
+                label: n.label || undefined,
+                entryType: e?.type || 'unknown',
+                timestamp: e?.timestamp,
+                isLeaf: id === leafId,
+              }
+              if (e?.type === 'message' && e.message) {
+                row.role = e.message.role
+                row.preview = previewFromMsg(e.message)
+              }
+              flat.push(row)
+              if (n.children?.length) walk(n.children, depth + 1, id)
+            }
+          }
+          walk(sm.getTree(), 0, null)
+          reply({ type: 'getSessionTree-done', nodes: flat, leafId })
+        } catch (e: any) {
+          reply({ type: 'error', error: `getSessionTree failed: ${e.message}` })
+        }
+        break
+      }
+      case 'navigateTree': {
+        if (!session) { reply({ type: 'error', error: 'No session' }); break }
+        try {
+          const result = await session.navigateTree(msg.targetId, {
+            summarize: msg.summarize === true,
+            customInstructions: msg.customInstructions,
+            replaceInstructions: msg.replaceInstructions,
+            label: msg.label,
+          })
+          const leafId = session.sessionManager.getLeafId?.() ?? null
+          reply({
+            type: 'navigateTree-done',
+            cancelled: result.cancelled,
+            editorText: result.editorText,
+            leafId,
+            sessionMeta: session.model
+              ? {
+                  model: `${(session.model as any).provider}/${(session.model as any).modelId}`,
+                  thinkingLevel: session.thinkingLevel,
+                }
+              : { thinkingLevel: session.thinkingLevel },
+          })
+        } catch (e: any) {
+          reply({ type: 'error', error: `navigateTree failed: ${e.message}` })
+        }
+        break
+      }
+      case 'runExtensionCommand': {
+        if (!session) { reply({ type: 'error', error: 'No session' }); break }
+        const text = String(msg.text || '').trim()
+        if (!text.startsWith('/')) {
+          reply({ type: 'error', error: 'Expected slash command' })
+          break
+        }
+        reply({ type: 'runExtensionCommand-done' })
+        void (async () => {
+          try {
+            await session!.prompt(text)
+          } catch (e: any) {
+            console.error('[Worker] runExtensionCommand failed:', e)
+          }
+        })()
+        break
+      }
+      case 'sessionDeleteFile': {
+        try {
+          const file = msg.sessionFile as string
+          if (!file) {
+            reply({ type: 'sessionDeleteFile-done', ok: false, error: 'missing file' })
+            break
+          }
+          const fs = await import('node:fs')
+          if (session?.sessionFile === file) {
+            if (unsubscribe) { unsubscribe(); unsubscribe = null }
+            session.dispose()
+            session = null
+            await initSession(currentCwd)
+          }
+          if (fs.existsSync(file)) fs.unlinkSync(file)
+          reply({ type: 'sessionDeleteFile-done', ok: true })
+        } catch (e: any) {
+          reply({ type: 'sessionDeleteFile-done', ok: false, error: e.message })
+        }
+        break
+      }
       case 'extension-ui-response': {
         uiBridge?.handleExtensionUIResponse(msg.response as ExtensionUIResponse)
         reply({ type: 'extension-ui-response-done' })
@@ -690,6 +1105,9 @@ process.parentPort?.on('message', async (event: any) => {
         try {
           const sm = session?.settingsManager
             ?? SettingsManager.create(currentCwd || process.cwd(), getAgentDir())
+          const compaction = sm.getCompactionSettings()
+          const retry = sm.getRetrySettings()
+          const branchSummary = sm.getBranchSummarySettings()
           reply({
             type: 'getPiSettings-done',
             settings: {
@@ -699,11 +1117,36 @@ process.parentPort?.on('message', async (event: any) => {
               steeringMode: sm.getSteeringMode(),
               followUpMode: sm.getFollowUpMode(),
               transport: sm.getTransport(),
-              compactionEnabled: sm.getCompactionEnabled(),
+              compactionEnabled: compaction.enabled,
+              compactionReserveTokens: compaction.reserveTokens,
+              compactionKeepRecentTokens: compaction.keepRecentTokens,
+              retryEnabled: retry.enabled,
+              retryMaxRetries: retry.maxRetries,
+              retryBaseDelayMs: retry.baseDelayMs,
+              branchSummaryReserveTokens: branchSummary.reserveTokens,
+              branchSummarySkipPrompt: branchSummary.skipPrompt,
+              httpIdleTimeoutMs: sm.getHttpIdleTimeoutMs(),
               shellPath: sm.getShellPath(),
+              shellCommandPrefix: sm.getShellCommandPrefix(),
+              npmCommand: sm.getNpmCommand(),
               imageAutoResize: sm.getImageAutoResize(),
+              showImages: sm.getShowImages(),
+              blockImages: sm.getBlockImages(),
+              hideThinkingBlock: sm.getHideThinkingBlock(),
+              enableSkillCommands: sm.getEnableSkillCommands(),
+              quietStartup: sm.getQuietStartup(),
+              defaultProjectTrust: sm.getDefaultProjectTrust(),
+              treeFilterMode: sm.getTreeFilterMode(),
+              doubleEscapeAction: sm.getDoubleEscapeAction(),
               enabledModels: sm.getEnabledModels(),
+              packages: sm.getPackages(),
+              extensionPaths: sm.getExtensionPaths(),
+              skillPaths: sm.getSkillPaths(),
               sessionDir: sm.getSessionDir(),
+              isProjectTrusted: sm.isProjectTrusted(),
+              desktopSkillOverrides:
+                (sm.getGlobalSettings() as { desktopSkillOverrides?: Record<string, boolean> })
+                  ?.desktopSkillOverrides ?? {},
             },
           })
         } catch (e: any) {
@@ -725,9 +1168,24 @@ process.parentPort?.on('message', async (event: any) => {
           if (patch.followUpMode !== undefined) sm.setFollowUpMode(patch.followUpMode)
           if (patch.transport !== undefined) sm.setTransport(patch.transport)
           if (patch.compactionEnabled !== undefined) sm.setCompactionEnabled(patch.compactionEnabled)
+          patchPiCompactionTokens(sm, patch)
           if (patch.shellPath !== undefined) sm.setShellPath(patch.shellPath)
           if (patch.imageAutoResize !== undefined) sm.setImageAutoResize(patch.imageAutoResize)
           if (patch.enabledModels !== undefined) sm.setEnabledModels(patch.enabledModels)
+          if (patch.retryEnabled !== undefined) sm.setRetryEnabled(patch.retryEnabled)
+          if (patch.hideThinkingBlock !== undefined) sm.setHideThinkingBlock(patch.hideThinkingBlock)
+          if (patch.showImages !== undefined) sm.setShowImages(patch.showImages)
+          if (patch.blockImages !== undefined) sm.setBlockImages(patch.blockImages)
+          if (patch.enableSkillCommands !== undefined) sm.setEnableSkillCommands(patch.enableSkillCommands)
+          if (patch.quietStartup !== undefined) sm.setQuietStartup(patch.quietStartup)
+          if (patch.defaultProjectTrust !== undefined) sm.setDefaultProjectTrust(patch.defaultProjectTrust)
+          if (patch.shellCommandPrefix !== undefined) sm.setShellCommandPrefix(patch.shellCommandPrefix)
+          if (patch.npmCommand !== undefined) sm.setNpmCommand(patch.npmCommand)
+          if (patch.treeFilterMode !== undefined) sm.setTreeFilterMode(patch.treeFilterMode)
+          if (patch.doubleEscapeAction !== undefined) sm.setDoubleEscapeAction(patch.doubleEscapeAction)
+          if (patch.httpIdleTimeoutMs !== undefined) sm.setHttpIdleTimeoutMs(Number(patch.httpIdleTimeoutMs))
+          if (patch.isProjectTrusted === true) sm.setProjectTrusted(true)
+          if (patch.isProjectTrusted === false) sm.setProjectTrusted(false)
           reply({ type: 'setPiSettings-done', ok: true })
         } catch (e: any) {
           reply({ type: 'error', error: `setPiSettings failed: ${e.message}` })

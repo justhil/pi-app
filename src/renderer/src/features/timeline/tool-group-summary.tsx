@@ -1,18 +1,25 @@
 import { useState } from 'react'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, ListTree, Loader2, XCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolCallRow, summarizeToolGroup } from './tool-call-row'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
 export function ToolGroupSummary({ tools }: { tools: any[] }) {
-  const [expanded, setExpanded] = useState(false)
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
+  const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const activeRunId = useUIStore((s) => s.runState.activeRunId)
   const { label, running, hasError } = summarizeToolGroup(tools)
+  const groupRunId = tools[0]?.runId as string | undefined
+  const isCurrentRun = !!groupRunId && groupRunId === activeRunId
+  const autoExpanded = agentRunning && isCurrentRun
+  const expanded = userExpanded ?? autoExpanded
 
   return (
-    <div className="ui-enter py-0.5">
+    <div className="timeline-message-row py-0.5">
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setUserExpanded(!(userExpanded ?? autoExpanded))}
         className="group row-hover flex w-full items-center gap-2 rounded-lg border border-border/35 px-2.5 py-1.5 text-left"
         style={{ background: 'color-mix(in srgb, var(--bg-2) 80%, transparent)' }}
       >
@@ -30,7 +37,7 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
       <CollapsiblePanel open={expanded} className="mt-1">
         <div className="space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
           {tools.map((t, i) => (
-            <div key={t.id} className={cn('ui-enter', i < 5 && `stagger-${i + 1}`)}>
+            <div key={t.id}>
               <ToolCallRow item={t} compact />
             </div>
           ))}

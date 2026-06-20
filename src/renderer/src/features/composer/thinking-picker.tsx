@@ -5,6 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { X, Brain, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import { normalizeThinkingLevel } from '@renderer/lib/format-run-display'
 
 const LEVELS: { key: string; label: string; desc: string }[] = [
   { key: 'off', label: 'Off', desc: '不思考，直接回答' },
@@ -18,7 +19,7 @@ const LEVELS: { key: string; label: string; desc: string }[] = [
 export function ThinkingPicker() {
   const open = useUIStore((s) => s.thinkingPickerOpen)
   const setOpen = useUIStore((s) => s.setThinkingPickerOpen)
-  const current = useUIStore((s) => s.runState.thinkingLevel || 'medium')
+  const current = normalizeThinkingLevel(useUIStore((s) => s.runState.thinkingLevel)) ?? 'medium'
 
   if (!open) return null
 

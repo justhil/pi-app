@@ -57,6 +57,11 @@
     --focus-border: #e1e0ff;
     --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
 
+    /* 对话阅读宽：随中间列比例伸缩（参考 桌面 Agent UI max-w-full / md:max-w-780px，桌面用比例+上下限替代死 780） */
+    --chat-content-min: 560px;
+    --chat-content-ratio: 72%;
+    --chat-content-cap: 1280px;
+
     /* ── Tailwind HSL-compatible tokens (light) ── */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
@@ -230,11 +235,55 @@
     transform: translateY(0);
     pointer-events: auto;
   }
-  /* Sidebar / panel width */
+  /* 三栏 Grid 收起：只过渡 grid-template-columns，中间 1fr 由引擎插值，减轻 Timeline 掉帧 */
+  .shell-three-col {
+    display: grid;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    transition: grid-template-columns 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    contain: layout style;
+  }
+  .shell-left-dragging.shell-three-col,
+  .shell-right-dragging.shell-three-col {
+    transition: none;
+  }
+  .shell-track-left,
+  .shell-track-right {
+    contain: layout paint;
+    min-height: 0;
+  }
+  .shell-track-center {
+    min-height: 0;
+    contain: layout;
+  }
+  .shell-track-inner {
+    transition: opacity 280ms ease;
+  }
+  .shell-track-collapsed .shell-track-inner {
+    opacity: 0;
+  }
+  .shell-resize-handle-left {
+    width: 4px;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    z-index: 20;
+  }
+  .shell-resize-handle-left:hover {
+    background: color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+  /* Sidebar / panel width（旧 flex 方案，Grid 壳层已替代） */
   .panel-width-animate {
     transition:
-      width 360ms cubic-bezier(0.22, 1, 0.36, 1),
-      min-width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      min-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 320ms ease,
+      opacity 200ms ease;
+  }
+  .panel-width-animate.sidebar-collapsed .sidebar-content-fade {
+    opacity: 0;
+    transition: opacity 180ms ease;
   }
   .sidebar-content-fade {
     transition: opacity 280ms ease;
@@ -246,10 +295,8 @@
     overflow: hidden;
     white-space: nowrap;
     transition:
-      opacity var(--motion-slow) var(--motion-ease),
-      max-width var(--motion-slow) var(--motion-ease),
-      margin var(--motion-slow) var(--motion-ease),
-      transform var(--motion-slow) var(--motion-ease);
+      opacity var(--motion-normal) var(--motion-ease),
+      transform var(--motion-normal) var(--motion-ease);
     transform-origin: left center;
     max-width: 240px;
     opacity: 1;
@@ -268,11 +315,11 @@
     opacity: 1;
     transform: scale(1);
   }
-  /* Tool / group expand */
+  /* Tool / group expand（避免 grid-template-rows 动画引发布局；仅瞬时切换） */
   .expand-panel {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows var(--motion-slow) var(--motion-ease);
+    transition: none;
   }
   .expand-panel-open,
   .expand-panel[data-open='true'] {
@@ -356,7 +403,31 @@
   .chrome-icon-btn:active {
     transform: scale(0.92);
   }
+  .win-ctrl-btn {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  /* 右栏左缘拖拽条（附在侧栏左侧，非浮在对话区上） */
+  .right-panel-resize-edge {
+    width: 6px;
+    align-self: stretch;
+    background: transparent;
+    transition: background-color 200ms ease;
+  }
+  .right-panel-resize-edge:hover,
+  .right-panel-resize-edge-active {
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  .chat-scroll-rail {
+    pointer-events: auto;
+  }
   /* Composer input shell */
+  .native-code-shiki .shiki {
+    background: transparent !important;
+    padding: 0;
+  }
+  .native-code-shiki pre {
+    margin: 0;
+  }
   .composer-shell {
     background: var(--bg-base);
     border-color: var(--border-base);
@@ -375,8 +446,16 @@
     box-shadow: var(--focus-shadow);
     background: var(--bg-base);
   }
+  .composer-shell-upper:empty {
+    display: none;
+  }
   .composer-textarea {
     transition: color var(--motion-fast) ease;
+    caret-color: var(--aou-6);
+    letter-spacing: 0.01em;
+  }
+  .dark .composer-textarea {
+    caret-color: var(--aou-7);
   }
   .composer-textarea::placeholder {
     transition: opacity var(--motion-fast) ease;
@@ -425,6 +504,19 @@
   }
   .composer-send:not(:disabled):active {
     transform: scale(0.96);
+  }
+  .composer-toolbar-btn {
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .composer-toolbar-btn:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    color: var(--foreground-secondary);
+  }
+  .composer-toolbar-send {
+    transition: transform 200ms ease, background-color 200ms ease, opacity 200ms ease;
+  }
+  .composer-toolbar-send:not(:disabled):active {
+    transform: scale(0.94);
   }
   /* Picker overlay */
   .picker-backdrop {
@@ -504,8 +596,33 @@
   .animate-in.fade-in.slide-in-from-bottom-1 {
     animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
   }
+  /* 列表行默认无入场动画，避免滚动/流式时大量 keyframes 掉帧 */
+  .timeline-message-row {
+    contain: layout style;
+  }
+  .timeline-scroll-viewport {
+    overscroll-behavior: contain;
+    contain: layout style;
+  }
+  /* 底部留白 = 悬浮输入区高度，消息滚入空白而非贴在输入框下 */
+  .timeline-scroll-with-dock {
+    padding-bottom: calc(var(--composer-dock-h, 11rem) + 0.5rem);
+    scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 0.5rem);
+  }
+  .composer-dock-fade {
+    background: linear-gradient(
+      to top,
+      var(--bg-base) 0%,
+      var(--bg-base) 42%,
+      color-mix(in srgb, var(--bg-base) 88%, transparent) 72%,
+      transparent 100%
+    );
+  }
+  .composer-dock-panel {
+    border-radius: 1rem;
+  }
   .ui-enter {
-    animation: ui-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: ui-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   @keyframes ui-enter {
     from {
@@ -556,6 +673,13 @@
   .animate-stop-breathe {
     animation: stop-breathe 1.4s ease-in-out infinite alternate;
   }
+  @keyframes thinking-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+  .animate-thinking-pulse {
+    animation: thinking-pulse 1.2s ease-in-out infinite;
+  }
 
   /* 桌面 Agent UI skeleton shimmer */
   @keyframes skeleton-shimmer {
@@ -566,6 +690,31 @@
   /* Subtle glow for running indicator */
   .glow-running {
     box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
+  }
+
+  /* 主对话区：中间列 flex-1 拉满；内容区居中，宽 = clamp(最小, 中间列比例, 上限) */
+  .chat-content-column {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+    box-sizing: border-box;
+  }
+  /* 对齐 桌面 Agent UI：窄屏（<768）满宽 */
+  @media (min-width: 768px) {
+    .chat-content-column {
+      max-width: clamp(
+        min(var(--chat-content-min), 100%),
+        var(--chat-content-ratio),
+        min(var(--chat-content-cap), 100%)
+      );
+      padding-inline: 1.25rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .chat-content-column {
+      padding-inline: 1.5rem;
+    }
   }
 
   /* ── Markdown chat typography (桌面 Agent UI desktop-ui-markdown) ── */

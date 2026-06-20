@@ -8,6 +8,8 @@ interface StoreSchema {
   theme: 'light' | 'dark' | 'system'
   panelWidths: { sidebar: number; right: number } | null
   extensionOverrides: Record<string, boolean>
+  /** Skill 启用：key 为 skillStorageKey，false=禁用，缺省=启用 */
+  skillOverrides: Record<string, boolean>
   extensionConfigs: Record<string, Record<string, unknown>>
   registryLastCheck: number | null
 }
@@ -21,6 +23,7 @@ const store = new Store<StoreSchema>({
     theme: 'system',
     panelWidths: null,
     extensionOverrides: {},
+    skillOverrides: {},
     extensionConfigs: {},
     registryLastCheck: null,
   },
@@ -49,6 +52,17 @@ export const configStore = {
     const overrides = store.get('extensionOverrides')
     overrides[extensionId] = enabled
     store.set('extensionOverrides', overrides)
+  },
+
+  setSkillOverride(key: string, enabled: boolean): void {
+    const overrides = { ...store.get('skillOverrides') }
+    if (enabled) delete overrides[key]
+    else overrides[key] = false
+    store.set('skillOverrides', overrides)
+  },
+
+  getSkillOverrides(): Record<string, boolean> {
+    return store.get('skillOverrides') || {}
   },
 
   getExtensionConfig(workspaceId: string, extensionId: string): Record<string, unknown> | undefined {

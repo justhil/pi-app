@@ -12,7 +12,11 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@earendil-works/pi-ai', '@earendil-works/pi-coding-agent'],
+        external: [
+          '@earendil-works/pi-ai',
+          '@earendil-works/pi-coding-agent',
+          'better-sqlite3',
+        ],
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
           worker: resolve(__dirname, 'src/worker/index.ts'),

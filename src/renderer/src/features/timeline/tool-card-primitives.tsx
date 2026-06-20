@@ -6,17 +6,7 @@ import { useState, useEffect } from 'react'
 export function ThinkingIndicator({ label = '思考中' }: { label?: string }) {
   return (
     <div className="flex items-center gap-2 py-2.5">
-      <span
-        className="text-[13px]"
-        style={{
-          background: 'linear-gradient(90deg, var(--aou-5) 0%, var(--aou-7) 50%, var(--aou-5) 100%)',
-          backgroundSize: '200% 100%',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          color: 'transparent',
-          animation: 'shimmer-scan 2s linear infinite',
-        }}
-      >
+      <span className="text-[13px] text-foreground-secondary animate-thinking-pulse">
         {label}…
       </span>
     </div>

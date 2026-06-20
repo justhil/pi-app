@@ -1,13 +1,22 @@
 import { useState } from 'react'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveToolCardTemplate } from './tool-card-registry'
+import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
+const NATIVE_TOOLS = new Set(['read', 'edit', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
+
 function ToolOutputExpanded({ item }: { item: any }) {
+  const name = item.toolName || ''
+  if (NATIVE_TOOLS.has(name)) {
+    const native = renderNativeToolPreview(item)
+    if (native) return <>{native}</>
+  }
   const template = resolveToolCardTemplate(item.toolName)
   return <>{renderToolCard(item, template)}</>
 }
@@ -29,16 +38,21 @@ export function ToolCallRow({
   item: any
   compact?: boolean
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
+  const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const activeRunId = useUIStore((s) => s.runState.activeRunId)
+  const isCurrentRun = !!item.runId && item.runId === activeRunId
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
   const hasToolBody = !!item.toolOutput || !!item.toolDetails || !!item.toolArgs
+  const autoExpanded = agentRunning && isCurrentRun && hasToolBody
+  const expanded = userExpanded ?? autoExpanded
   const rawSum = toolSummaryLine(item)
 
   return (
     <div className={cn(compact ? 'py-0' : 'py-0.5')}>
       <button
         type="button"
-        onClick={() => hasToolBody && setExpanded(!expanded)}
+        onClick={() => hasToolBody && setUserExpanded(!(userExpanded ?? autoExpanded))}
         className={cn(
           'group row-hover flex w-full items-center gap-1.5 rounded-md text-left',
           compact ? 'px-1.5 py-1' : 'rounded-lg px-2 py-1.5',

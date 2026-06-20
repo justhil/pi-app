@@ -4,6 +4,27 @@ import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
 import { readTrellisState } from './trellis-reader'
 import { readPiInfo, readResourceList } from './pi-info'
+import {
+  listSkillsOnDisk,
+  listPromptsOnDisk,
+  readTextFileSafe,
+  writeTextFileSafe,
+  skillStorageKey,
+} from './pi-resources-editor'
+import {
+  getDesktopSkillOverrides,
+  isSkillEnabled,
+  setSkillEnabledInGlobal,
+  migrateElectronSkillOverrides,
+} from './pi-skill-overrides'
+import {
+  listAgentsContextFiles,
+  listPiBuiltinPromptFiles,
+  listPluginInjectedPromptFiles,
+  groupPromptCatalog,
+  type PromptCatalogItem,
+} from './pi-prompt-catalog'
+import { listRevisions, pushRevision, restoreRevision, readRevision } from './resource-revisions'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters, orphanV2Adapters } from '../extension-compat/plugin-adapters'
 import { loadAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
@@ -13,6 +34,25 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 import { join, basename, dirname, extname } from 'path'
 import { homedir } from 'os'
+import {
+  createSandboxWorkspace,
+  listSandboxWorkspaces,
+  renameSandboxWorkspace,
+  deleteSandboxWorkspace,
+  isSandboxWorkspacePath,
+} from './sandbox-workspaces'
+import {
+  setPendingWorkerSessionFile,
+  getPendingWorkerSessionFile,
+  ensureWorkerSessionBound,
+  setPendingEphemeralSandboxDraft,
+} from './session-bind-state'
+import { readGitWorkspaceSnapshot } from './git-workspace'
+import { listMissingRuntimePackages, appendMissingGitPackagesToSettings } from './pi-packages-sync'
+import { listRewindCheckpoints } from './pi-rewind-read'
+import { listMessageAnchorsFromSessionFile } from './session-branch-anchors'
+import { readSessionIdFromFile } from './session-file-meta'
+import { flattenTreeFromSessionFile } from './session-tree-from-file'
 
 type HandlerFn = (request: any) => Promise<any>
 
@@ -88,6 +128,23 @@ export function registerAllHandlers(): void {
     return { path: result.filePaths[0] }
   })
 
+  registerHandler('ipc:dialog:openFiles', async (req) => {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const props: ('openFile' | 'multiSelections')[] = ['openFile']
+    if (req?.multiple !== false) props.push('multiSelections')
+    const opts = {
+      properties: props,
+      title: req?.title || '添加附件',
+    }
+    const result = win
+      ? await dialog.showOpenDialog(win, opts)
+      : await dialog.showOpenDialog(opts)
+    if (result.canceled || !result.filePaths.length) {
+      return { paths: [] as string[] }
+    }
+    return { paths: result.filePaths }
+  })
+
   // R1: open a local file/path in the OS default app or reveal in folder.
   // Used by preview_export / image_gen / studio_export tool cards.
   registerHandler('ipc:shell.openPath', async (req) => {
@@ -132,15 +189,47 @@ export function registerAllHandlers(): void {
     configStore.set('currentProject', path)
     sqliteIndex.upsertWorkspace(path, name, path)
     // Start worker in the background (don't block the response)
-    workerManager.start(path).then((result) => {
-      console.log('[IPC] Worker started for', path, result.sessionId)
-    }).catch((e) => console.error('[IPC] Worker start failed:', e))
+    if (req.awaitWorker) {
+      try {
+        await workerManager.start(path)
+      } catch (e) {
+        console.error('[IPC] Worker start failed:', e)
+        throw e
+      }
+    } else {
+      workerManager.start(path).then((result) => {
+        console.log('[IPC] Worker started for', path, result.sessionId)
+      }).catch((e) => console.error('[IPC] Worker start failed:', e))
+    }
     return { workspaceId: path, path, name }
   })
 
   registerHandler('ipc:workspace.switch', async (req) => {
     const result = await workerManager.start(req.workspaceId)
     return { workspaceId: req.workspaceId, path: req.workspaceId, name: req.workspaceId.split(/[\\/]/).pop(), ...result }
+  })
+
+  registerHandler('ipc:workspace.sandbox.create', async (req) => {
+    const box = createSandboxWorkspace(req.label)
+    return { sandbox: { ...box, kind: 'sandbox' as const } }
+  })
+
+  registerHandler('ipc:workspace.sandbox.list', async () => {
+    return { sandboxes: listSandboxWorkspaces().map((s) => ({ ...s, kind: 'sandbox' as const })) }
+  })
+
+  registerHandler('ipc:workspace.sandbox.rename', async (req) => {
+    const ok = renameSandboxWorkspace(req.path, req.label || '')
+    return { ok }
+  })
+
+  registerHandler('ipc:workspace.sandbox.delete', async (req) => {
+    const ok = deleteSandboxWorkspace(req.path)
+    return { ok }
+  })
+
+  registerHandler('ipc:workspace.isSandbox', async (req) => {
+    return { sandbox: isSandboxWorkspacePath(req.path || '') }
   })
 
   // ── Session ──
@@ -161,36 +250,158 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:session.open', async (req) => {
-    // Load the specific session into the worker and return its info
     let sessionId = req.sessionId
-    let model: string | undefined
-    try {
-      if (req.sessionFile) {
-        const r = await workerManager.loadSession(req.sessionFile)
-        sessionId = r.sessionId
-        model = r.model
-      }
-    } catch (e) {
-      console.error('[IPC] session.open load failed:', e)
-      throw e
+    if (req.sessionFile) {
+      setPendingWorkerSessionFile(req.sessionFile)
     }
-    return { session: { sessionId, workspaceId: workerManager.cwd || '', title: '', createdAt: 0, updatedAt: 0, modelId: model || '', status: 'idle' as const } }
+    return {
+      session: {
+        sessionId,
+        workspaceId: workerManager.cwd || '',
+        title: '',
+        createdAt: 0,
+        updatedAt: 0,
+        modelId: '',
+        status: 'idle' as const,
+      },
+    }
+  })
+
+  registerHandler('ipc:session.setPendingBind', async (req) => {
+    setPendingWorkerSessionFile(req.sessionFile ?? null)
+    return { ok: true }
+  })
+
+  /** 切换会话时立即 loadSession，便于 Rewind 树 / ↩ / pi-rewind 与当前 JSONL 一致 */
+  registerHandler('ipc:session.prepare', async (req) => {
+    const sessionFile = req.sessionFile as string | undefined
+    if (!sessionFile) {
+      setPendingWorkerSessionFile(null)
+      return { bound: false, sessionId: null as string | null }
+    }
+    try {
+      const r = await workerManager.loadSession(sessionFile)
+      setPendingWorkerSessionFile(null)
+      return { bound: true, sessionId: r.sessionId, model: r.model, thinkingLevel: (r as any).thinkingLevel }
+    } catch (e: any) {
+      setPendingWorkerSessionFile(sessionFile)
+      return { bound: false, sessionId: readSessionIdFromFile(sessionFile), error: e.message }
+    }
+  })
+
+  registerHandler('ipc:session.setEphemeralDraft', async (req) => {
+    setPendingEphemeralSandboxDraft(!!req.active)
+    if (req.active) setPendingWorkerSessionFile(null)
+    return { ok: true }
+  })
+
+  registerHandler('ipc:session.tree', async (req) => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    let sessionFile = req?.sessionFile as string | undefined
+    if (!sessionFile) sessionFile = getPendingWorkerSessionFile() || undefined
+    if (!sessionFile) {
+      const st = await workerManager.getState().catch(() => null)
+      sessionFile = (st as { sessionFile?: string } | null)?.sessionFile
+    }
+    let leafOverride: string | null | undefined
+    if (sessionFile && workerManager.isRunning) {
+      try {
+        const st = await workerManager.getState()
+        if (st?.sessionFile === sessionFile && 'leafId' in st) {
+          leafOverride = st.leafId ?? null
+        }
+      } catch { /* */ }
+    }
+    if (sessionFile) {
+      try {
+        const r = await flattenTreeFromSessionFile(sessionFile, cwd, leafOverride ?? undefined)
+        return { nodes: r.nodes, leafId: r.leafId, workerBound: !!workerManager.isRunning }
+      } catch (e: any) {
+        return { nodes: [], leafId: null, error: e.message }
+      }
+    }
+    try {
+      const p = workerManager.getSessionTree()
+      const timeout = new Promise<{ nodes: []; leafId: null; error: string }>((resolve) =>
+        setTimeout(() => resolve({ nodes: [], leafId: null, error: 'timeout' }), 15000),
+      )
+      return await Promise.race([p, timeout])
+    } catch (e: any) {
+      return { nodes: [], leafId: null, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:session.navigateTree', async (req) => {
+    const targetId = String(req.targetId || '')
+    if (!targetId) return { cancelled: true, error: 'missing targetId' }
+    try {
+      await ensureWorkerSessionBound((f) => workerManager.loadSession(f))
+      return await workerManager.navigateTree(targetId, {
+        summarize: req.summarize === true,
+        label: req.label,
+      })
+    } catch (e: any) {
+      return { cancelled: true, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:session.branchAnchors', async (req) => {
+    const file =
+      req.sessionFile ||
+      (await workerManager.getState().catch(() => null) as { sessionFile?: string } | null)?.sessionFile
+    if (!file) return { anchors: [] }
+    return { anchors: listMessageAnchorsFromSessionFile(file) }
+  })
+
+  registerHandler('ipc:rewind.checkpoints', async (req) => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || ''
+    if (!cwd) return { checkpoints: [] }
+    let sessionId = req.sessionId as string | undefined
+    if (!sessionId) {
+      const state = await workerManager.getState().catch(() => null)
+      sessionId = (state as { sessionId?: string } | null)?.sessionId
+    }
+    if (!sessionId && req.sessionFile) sessionId = readSessionIdFromFile(req.sessionFile) || undefined
+    const checkpoints = listRewindCheckpoints(cwd, sessionId || undefined)
+    return { checkpoints }
+  })
+
+  registerHandler('ipc:rewind.runCommand', async (req) => {
+    const text = String(req.text || '/rewind').trim()
+    await workerManager.runExtensionCommand(text)
+    return { ok: true }
   })
 
   registerHandler('ipc:session.getMessages', async (req) => {
-    if (!req.sessionFile) return { items: [] }
+    if (!req.sessionFile) return { items: [], totalCount: 0 }
     try {
-      const items = await workerManager.getMessages(req.sessionFile)
-      return { items }
+      const offset = req.offset ?? 0
+      const limit = req.limit ?? 0
+      const r = await workerManager.getMessages(req.sessionFile, offset, limit || undefined)
+      return { items: r.items, totalCount: r.totalCount, sessionMeta: r.sessionMeta }
     } catch (e) {
       console.error('[IPC] session.getMessages failed:', e)
-      return { items: [] }
+      return { items: [], totalCount: 0 }
     }
   })
 
   registerHandler('ipc:session.new', async (req) => {
+    setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession()
-    return { session: { sessionId: result.sessionId, workspaceId: req.workspaceId, title: 'New Session', createdAt: Date.now(), updatedAt: Date.now(), modelId: '', status: 'idle' as const } }
+    const state = await workerManager.getState().catch(() => ({}))
+    const sessionFile = (state as { sessionFile?: string })?.sessionFile
+    return {
+      session: {
+        sessionId: result.sessionId,
+        sessionFile,
+        workspaceId: req.workspaceId || workerManager.cwd || '',
+        title: '新会话',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        modelId: '',
+        status: 'idle' as const,
+      },
+    }
   })
 
   registerHandler('ipc:session.fork', async (_req) => {
@@ -203,8 +414,28 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:session.rename', async (req) => {
-    // TODO: implement via session manager
-    return { session: { sessionId: req.sessionId, workspaceId: '', title: req.title, createdAt: 0, updatedAt: Date.now(), modelId: '', status: 'idle' as const } }
+    const title = (req.title || '').trim()
+    if (!title) return { ok: false, title: req.title }
+    const cwd = workerManager.cwd || configStore.get('currentProject') || ''
+    if (req.sandboxPath && isSandboxWorkspacePath(req.sandboxPath)) {
+      renameSandboxWorkspace(req.sandboxPath, title)
+      return { ok: true, title }
+    }
+    if (isSandboxWorkspacePath(cwd) && !req.sessionFile) {
+      renameSandboxWorkspace(cwd, title)
+      return { ok: true, title }
+    }
+    const file = req.sessionFile as string | undefined
+    if (!file) return { ok: false, title, error: 'missing sessionFile' }
+    const r = await workerManager.renameSessionFile(file, title)
+    return { ok: !!r.ok, title, error: r.error }
+  })
+
+  registerHandler('ipc:session.delete', async (req) => {
+    const file = req.sessionFile as string | undefined
+    if (!file) return { ok: false, error: 'missing sessionFile' }
+    const r = await workerManager.deleteSessionFile(file)
+    return { ok: !!r.ok, error: r.error }
   })
 
   registerHandler('ipc:session.compact', async (_req) => {
@@ -218,22 +449,30 @@ export function registerAllHandlers(): void {
   })
 
   // ── Prompt ──
+  const bindBeforePrompt = async () => {
+    await ensureWorkerSessionBound((f) => workerManager.loadSession(f))
+  }
+
   registerHandler('ipc:prompt.send', async (req) => {
+    await bindBeforePrompt()
     await workerManager.sendPrompt(req.text)
     return { messageId: `msg-${Date.now()}` }
   })
 
   registerHandler('ipc:prompt.sendWithImages', async (req) => {
+    await bindBeforePrompt()
     await workerManager.sendPromptWithImages(req.text, req.images)
     return { messageId: `msg-${Date.now()}` }
   })
 
   registerHandler('ipc:prompt.steer', async (req) => {
+    await bindBeforePrompt()
     await workerManager.steer(req.text)
     return { steered: true }
   })
 
   registerHandler('ipc:prompt.followUp', async (req) => {
+    await bindBeforePrompt()
     await workerManager.followUp(req.text)
     return { messageId: `msg-${Date.now()}` }
   })
@@ -339,13 +578,211 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:skills.list', async () => {
-    if (!workerManager.isRunning) return { skills: [] }
+    const legacy = configStore.getSkillOverrides()
+    if (legacy && Object.keys(legacy).length > 0) {
+      migrateElectronSkillOverrides(legacy)
+      configStore.set('skillOverrides', {})
+    }
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const overrides = getDesktopSkillOverrides()
+    const disk = listSkillsOnDisk(cwd)
+    let worker: any[] = []
+    if (workerManager.isRunning) {
+      try {
+        worker = await workerManager.getSkillsList()
+      } catch (e) {
+        console.error('[IPC] skills.list worker failed:', e)
+      }
+    }
+    const byPath = new Map<string, any>()
+    for (const s of disk) {
+      const key = skillStorageKey(s.name, s.path)
+      byPath.set(s.path, {
+        ...s,
+        key,
+        enabled: isSkillEnabled(s.name, s.path, overrides),
+        command: `/skill:${s.name}`,
+      })
+    }
+    for (const s of worker) {
+      const path = s.path || ''
+      const key = skillStorageKey(s.name, path || undefined)
+      const existing = path ? byPath.get(path) : undefined
+      const row = {
+        name: s.name,
+        description: s.description || existing?.description || '',
+        path: path || existing?.path,
+        source: s.source || existing?.source || 'unknown',
+        key,
+        enabled: isSkillEnabled(s.name, path || existing?.path, overrides),
+        command: `/skill:${s.name}`,
+        fromWorker: true,
+      }
+      if (path) byPath.set(path, { ...existing, ...row })
+      else if (![...byPath.values()].some((x) => x.name === s.name)) {
+        byPath.set(`worker:${s.name}`, row)
+      }
+    }
+    return { skills: [...byPath.values()] }
+  })
+
+  registerHandler('ipc:skills.setEnabled', async (req) => {
+    const name = String(req.name || '')
+    const path = req.path ? String(req.path) : undefined
+    const enabled = req.enabled !== false
+    if (!name && !path) return { ok: false }
+    const overrides = setSkillEnabledInGlobal(name || 'unknown', path, enabled)
+    const key = skillStorageKey(name, path)
+    if (workerManager.isRunning) {
+      await workerManager.reloadResources().catch(() => {})
+    }
+    return { ok: true, key, enabled: isSkillEnabled(name, path, overrides) }
+  })
+
+  registerHandler('ipc:prompts.list', async () => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    let projectTrusted = true
+    let defaultSystemPreview = ''
+    if (workerManager.isRunning) {
+      try {
+        const ctx = await workerManager.getContextPrompts()
+        projectTrusted = ctx.projectTrusted !== false
+        defaultSystemPreview = String(ctx.builtSystemPreview || '')
+      } catch {
+        /* */
+      }
+    }
+
+    const byPath = new Map<string, PromptCatalogItem>()
+    const push = (item: PromptCatalogItem) => {
+      const k = item.path?.toLowerCase() || item.id
+      if (!byPath.has(k)) byPath.set(k, item)
+    }
+
+    for (const a of listAgentsContextFiles(cwd)) push(a)
+    for (const b of listPiBuiltinPromptFiles(cwd, projectTrusted)) {
+      if (b.id === 'builtin:system:default' && defaultSystemPreview) {
+        push({ ...b, description: '当前会话实际组装的 system 提示词（只读预览）' })
+      } else push(b)
+    }
+    for (const plug of listPluginInjectedPromptFiles(cwd)) push(plug)
+
+    const disk = listPromptsOnDisk(cwd)
+    const tplByPath = new Map<string, (typeof disk)[0]>()
+    for (const p of disk) tplByPath.set(p.path, p)
+    if (workerManager.isRunning) {
+      try {
+        const worker = await workerManager.getPromptTemplatesList()
+        for (const t of worker) {
+          const path = t.path || ''
+          if (path && tplByPath.has(path)) {
+            const cur = tplByPath.get(path)!
+            tplByPath.set(path, { ...cur, description: t.description || cur.description })
+          } else if (path) {
+            tplByPath.set(path, {
+              name: t.name,
+              description: t.description || '',
+              path,
+              source: (t.source as any) || 'unknown',
+              command: `/${t.name}`,
+            })
+          }
+        }
+      } catch (e) {
+        console.error('[IPC] prompts.list templates worker failed:', e)
+      }
+    }
+    for (const p of tplByPath.values()) {
+      push({
+        id: `template:${p.path}`,
+        category: 'prompt_template',
+        name: p.name,
+        description: p.description,
+        path: p.path,
+        command: p.command,
+        source: p.source,
+        editable: true,
+        inSystemContext: false,
+      })
+    }
+
+    const prompts = [...byPath.values()]
+    return {
+      prompts,
+      groups: groupPromptCatalog(prompts),
+      defaultSystemPreview,
+      virtualSystemPreviewPath: 'pi-desktop://system-prompt-preview',
+    }
+  })
+
+  registerHandler('ipc:resource.read', async (req) => {
+    const path = String(req.path || '')
+    if (!path) return { error: 'missing path' }
+    if (path === 'pi-desktop://system-prompt-preview') {
+      try {
+        if (!workerManager.isRunning) {
+          return { content: '（Worker 未启动，打开工作区后重试）', path, revisions: [] }
+        }
+        const ctx = await workerManager.getContextPrompts()
+        return {
+          content: String(ctx.builtSystemPreview || '（空）'),
+          path,
+          revisions: [],
+        }
+      } catch (e: any) {
+        return { error: e.message }
+      }
+    }
     try {
-      const skills = await workerManager.getSkillsList()
-      return { skills }
-    } catch (e) {
-      console.error('[IPC] skills.list failed:', e)
-      return { skills: [] }
+      const { content, path: resolved } = readTextFileSafe(path)
+      return { content, path: resolved, revisions: listRevisions(resolved) }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  })
+
+  registerHandler('ipc:resource.write', async (req) => {
+    const path = String(req.path || '')
+    if (path.startsWith('pi-desktop://')) return { ok: false, error: '只读预览不可保存' }
+    const content = String(req.content ?? '')
+    if (!path) return { ok: false, error: 'missing path' }
+    try {
+      pushRevision(path, req.revisionLabel || '保存前')
+      writeTextFileSafe(path, content)
+      if (workerManager.isRunning) {
+        await workerManager.reloadResources().catch(() => {})
+      }
+      return { ok: true, revisions: listRevisions(path) }
+    } catch (e: any) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:resource.revisions', async (req) => {
+    const path = String(req.path || '')
+    return { revisions: path ? listRevisions(path) : [] }
+  })
+
+  registerHandler('ipc:resource.restore', async (req) => {
+    const path = String(req.path || '')
+    const revisionId = String(req.revisionId || '')
+    if (!path || !revisionId) return { ok: false }
+    try {
+      restoreRevision(path, revisionId)
+      if (workerManager.isRunning) await workerManager.reloadResources().catch(() => {})
+      const { content } = readTextFileSafe(path)
+      return { ok: true, content, revisions: listRevisions(path) }
+    } catch (e: any) {
+      return { ok: false, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:resource.revision.read', async (req) => {
+    try {
+      const content = readRevision(String(req.path), String(req.revisionId))
+      return { content }
+    } catch (e: any) {
+      return { error: e.message }
     }
   })
 
@@ -367,7 +804,14 @@ export function registerAllHandlers(): void {
     if (workerManager.isRunning) {
       try {
         const r = await workerManager.getCommands()
-        return { commands: r.commands, source: 'worker' }
+        const overrides = getDesktopSkillOverrides()
+        const commands = (r.commands || []).filter((c: any) => {
+          if (c.category !== 'skill') return true
+          const id = String(c.id || c.name || '').replace(/^\/?skill:/, '')
+          const path = c.source?.path || c.source?.filePath
+          return isSkillEnabled(id, path, overrides)
+        })
+        return { commands, source: 'worker' }
       } catch (e) {
         console.error('[IPC] commands.list worker failed:', e)
       }
@@ -404,18 +848,21 @@ export function registerAllHandlers(): void {
   // ── Review ──
   registerHandler('ipc:review.getDiff', async (req) => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    try {
-      if (req.scope === 'git') {
-        const diff = execSync('git diff HEAD', { cwd, encoding: 'utf-8', timeout: 10000 })
-        const status = execSync('git status --porcelain', { cwd, encoding: 'utf-8', timeout: 5000 })
-        return { diff: { raw: diff, status, scope: 'git' } }
-      } else {
-        const diff = execSync('git diff', { cwd, encoding: 'utf-8', timeout: 10000 })
-        return { diff: { raw: diff, status: '', scope: req.scope } }
+    if (req.scope === 'git') {
+      const snap = readGitWorkspaceSnapshot(cwd)
+      return {
+        diff: {
+          raw: snap.raw,
+          status: snap.status,
+          scope: 'git',
+          branch: snap.branch,
+          log: snap.log,
+          isRepo: snap.isRepo,
+          message: snap.message,
+        },
       }
-    } catch (e: any) {
-      return { diff: { raw: '', status: '', scope: req.scope, error: e.message } }
     }
+    return { diff: { raw: '', status: '', scope: req.scope, isRepo: true } }
   })
 
   // ── Trellis ──
@@ -434,6 +881,24 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:extensions.setOverride', async (req) => {
     configStore.setExtensionOverride(req.extensionId, req.enabled)
     return { extensionId: req.extensionId, enabled: req.enabled }
+  })
+
+  registerHandler('ipc:extensions.missingRuntimePackages', async () => {
+    return { missing: listMissingRuntimePackages() }
+  })
+
+  registerHandler('ipc:extensions.syncGitPackages', async () => {
+    const result = appendMissingGitPackagesToSettings()
+    const cwd = workerManager.cwd || configStore.get('currentProject')
+    if (result.added.length > 0 && cwd) {
+      try {
+        await workerManager.stop()
+        await workerManager.start(cwd)
+      } catch (e) {
+        console.error('[IPC] Worker restart after package sync failed:', e)
+      }
+    }
+    return result
   })
 
   registerHandler('ipc:adapters.catalog', async () => {

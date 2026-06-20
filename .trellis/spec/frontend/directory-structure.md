@@ -14,17 +14,19 @@
 
 ```
 src/renderer/
-  app/                 # 壳、路由（若只有一屏可极简）
+  app/                 # app.tsx 三栏壳、RightPanelTabs
   features/
     workspace/         # 项目、会话列表
-    timeline/          # 消息、工具卡、extension 原生卡
+    timeline/          # timeline.tsx, markdown-view, tool-call-row, tool-group-summary,
+                       # tool-card-templates, tool-previews, message-hover-actions, timeline-display-items
     review/            # Diff viewer
     trellis/           # 只读面板
     run/               # 运行摘要
     composer/          # 底部输入
     settings/          # General / Pi / Extensions / Resources / Diagnostics
-  components/ui/       # shadcn 组件，只放 CLI 生成/微调
-  components/app/      # 业务组合件（SessionRow, ToolCallCard…）
+  components/ui/       # shadcn + CollapsiblePanel 等，只放 CLI 生成/微调
+  components/app/      # ImmersiveChrome, WindowControls, SessionRow…
+  components/brand/    # PiMark 等品牌 SVG
   lib/
     ipc-client.ts      # typed IPC 调用
     app-events.ts      # AppEvent 类型定义

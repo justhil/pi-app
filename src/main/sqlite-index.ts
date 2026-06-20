@@ -1,21 +1,40 @@
-import pkg from 'better-sqlite3'
-const Database = pkg as any
+import { createRequire } from 'module'
 import { app } from 'electron'
 import { join } from 'path'
 
-let db: Database.Database | null = null
+const require = createRequire(import.meta.url)
 
-function getDb(): Database.Database {
+let DatabaseCtor: (new (path: string) => any) | null = null
+let db: any = null
+let loadFailed = false
+
+function loadBetterSqlite(): (new (path: string) => any) | null {
+  if (loadFailed) return null
+  if (DatabaseCtor) return DatabaseCtor
+  try {
+    const pkg = require('better-sqlite3')
+    DatabaseCtor = (pkg.default || pkg) as new (path: string) => any
+    return DatabaseCtor
+  } catch (e) {
+    loadFailed = true
+    console.warn('[sqlite-index] better-sqlite3 not loaded (dev/prod native); index disabled:', (e as Error).message)
+    return null
+  }
+}
+
+function getDb(): any | null {
+  const Ctor = loadBetterSqlite()
+  if (!Ctor) return null
   if (!db) {
     const dbPath = join(app.getPath('userData'), 'pi-desktop-index.db')
-    db = new Database(dbPath)
+    db = new Ctor(dbPath)
     db.pragma('journal_mode = WAL')
     initSchema(db)
   }
   return db
 }
 
-function initSchema(d: Database.Database): void {
+function initSchema(d: any): void {
   d.exec(`
     CREATE TABLE IF NOT EXISTS workspace_index (
       workspace_id TEXT PRIMARY KEY,
@@ -76,43 +95,57 @@ function initSchema(d: Database.Database): void {
 
 export const sqliteIndex = {
   upsertWorkspace(workspaceId: string, name: string, path: string): void {
-    getDb().prepare(
+    const d = getDb()
+    if (!d) return
+    d.prepare(
       'INSERT OR REPLACE INTO workspace_index (workspace_id, name, path, last_opened) VALUES (?, ?, ?, ?)',
     ).run(workspaceId, name, path, Date.now())
   },
 
   upsertSession(sessionId: string, workspaceId: string, title: string, modelId: string): void {
-    getDb().prepare(
+    const d = getDb()
+    if (!d) return
+    d.prepare(
       'INSERT OR REPLACE INTO session_index (session_id, workspace_id, title, created_at, updated_at, model_id) VALUES (?, ?, ?, ?, ?, ?)',
     ).run(sessionId, workspaceId, title, Date.now(), Date.now(), modelId)
   },
 
   addFileChange(sessionId: string, turnId: string, path: string, source: string, changeType: string): void {
-    getDb().prepare(
+    const d = getDb()
+    if (!d) return
+    d.prepare(
       'INSERT INTO file_change_index (session_id, turn_id, path, source, change_type, timestamp) VALUES (?, ?, ?, ?, ?, ?)',
     ).run(sessionId, turnId, path, source, changeType, Date.now())
   },
 
   getFileChangesBySession(sessionId: string): any[] {
-    return getDb().prepare(
+    const d = getDb()
+    if (!d) return []
+    return d.prepare(
       'SELECT * FROM file_change_index WHERE session_id = ? ORDER BY timestamp DESC',
     ).all(sessionId)
   },
 
   getFileChangesByTurn(turnId: string): any[] {
-    return getDb().prepare(
+    const d = getDb()
+    if (!d) return []
+    return d.prepare(
       'SELECT * FROM file_change_index WHERE turn_id = ? ORDER BY timestamp DESC',
     ).all(turnId)
   },
 
   setRegistryCache(key: string, value: string): void {
-    getDb().prepare(
+    const d = getDb()
+    if (!d) return
+    d.prepare(
       'INSERT OR REPLACE INTO registry_cache (key, value, updated_at) VALUES (?, ?, ?)',
     ).run(key, value, Date.now())
   },
 
   getRegistryCache(key: string): string | null {
-    const row = getDb().prepare('SELECT value FROM registry_cache WHERE key = ?').get(key) as any
+    const d = getDb()
+    if (!d) return null
+    const row = d.prepare('SELECT value FROM registry_cache WHERE key = ?').get(key) as any
     return row?.value ?? null
   },
 }

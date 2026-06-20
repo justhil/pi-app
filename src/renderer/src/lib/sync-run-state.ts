@@ -1,17 +1,6 @@
-import { ipcClient } from '@renderer/lib/ipc-client'
-import { useUIStore } from '@renderer/stores/ui-store'
+import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 
-/** Pull model + thinking from Worker session after init / workspace open. */
+/** Pull model + thinking from Worker / pi 默认配置（切项目、新会话后调用） */
 export async function syncRunStateFromWorker(): Promise<void> {
-  try {
-    const res = await ipcClient.invoke('runtime.getState' as any)
-    const st = res?.state
-    if (!st) return
-    const patch: { model?: string; thinkingLevel?: string } = {}
-    if (st.model !== undefined) patch.model = st.model
-    if (st.thinkingLevel !== undefined) patch.thinkingLevel = st.thinkingLevel
-    if (Object.keys(patch).length) useUIStore.getState().setRunState(patch)
-  } catch {
-    /* worker not ready */
-  }
+  await refreshComposerRunDisplay()
 }

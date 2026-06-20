@@ -1,24 +1,28 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
+import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import {
-  Settings as SettingsIcon, Palette, Cpu, Puzzle, Package, Stethoscope,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Zap, Wrench, Layers, ChevronLeft
+  Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText,
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft
 } from 'lucide-react'
+import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
+import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
 
-type SettingsPage = 'general' | 'appearance' | 'pi' | 'extensions' | 'adapters' | 'resources' | 'diagnostics'
+type SettingsPage = 'general' | 'appearance' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
-const PAGES: { key: SettingsPage; icon: any; labelKey: string }[] = [
-  { key: 'general', icon: SettingsIcon, labelKey: 'settings.general' },
-  { key: 'appearance', icon: Palette, labelKey: 'settings.appearance' },
-  { key: 'pi', icon: Cpu, labelKey: 'settings.pi' },
-  { key: 'extensions', icon: Puzzle, labelKey: 'settings.extensions' },
-  { key: 'adapters', icon: Layers, labelKey: 'settings.adapters' },
-  { key: 'resources', icon: Package, labelKey: 'settings.resources' },
-  { key: 'diagnostics', icon: Stethoscope, labelKey: 'settings.diagnostics' },
+const PAGES: { key: SettingsPage; icon: any; label: string }[] = [
+  { key: 'general', icon: SettingsIcon, label: '通用' },
+  { key: 'appearance', icon: Palette, label: '外观' },
+  { key: 'pi', icon: Cpu, label: 'Pi' },
+  { key: 'skills', icon: Zap, label: 'Skills' },
+  { key: 'prompts', icon: MessageSquareText, label: '提示词' },
+  { key: 'extensions', icon: Puzzle, label: '扩展' },
+  { key: 'adapters', icon: Layers, label: '适配器' },
 ]
 
 export function SettingsPage() {
@@ -78,19 +82,24 @@ export function SettingsPage() {
             )}
           >
             <p.icon className="h-4 w-4 shrink-0" />
-            {t(p.labelKey)}
+            {p.label}
           </button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-8 py-8">
+        <div
+          className={cn(
+            'mx-auto px-8 py-8',
+            page === 'prompts' ? 'max-w-5xl' : 'max-w-2xl',
+          )}
+        >
           {page === 'general' && <GeneralSettings />}
           {page === 'appearance' && <AppearanceSettings />}
           {page === 'pi' && <PiSettings />}
+          {page === 'skills' && <SkillsSettingsPanel />}
+          {page === 'prompts' && <PromptsSettingsPanel />}
           {page === 'extensions' && <ExtensionsSettings />}
           {page === 'adapters' && <AdaptersSettings />}
-          {page === 'resources' && <ResourcesSettings />}
-          {page === 'diagnostics' && <DiagnosticsSettings />}
         </div>
       </div>
     </div>
@@ -244,169 +253,33 @@ function AppearanceSettings() {
 }
 
 function PiSettings() {
-  const [info, setInfo] = useState<any>(null)
-  const [settings, setSettings] = useState<any>(null)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    ipcClient.invoke('pi.getInfo').then(setInfo).catch(() => {})
-    ipcClient.invoke('pi.settings.get').then((res) => setSettings(res?.settings || null)).catch(() => {})
-  }, [])
-
-  const patch = async (p: Record<string, unknown>) => {
-    setSaving(true)
-    try {
-      await ipcClient.invoke('pi.settings.set', { patch: p })
-      const res = await ipcClient.invoke('pi.settings.get')
-      setSettings(res?.settings || settings)
-    } catch (e) {
-      console.error('pi.settings.set failed:', e)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-1">Pi 配置</h3>
-      <p className="text-[11px] text-muted-foreground/70 mb-3">
-        改动写回 <code className="bg-muted px-1 rounded text-[10px]">~/.pi/agent/settings.json</code> 或项目级 .pi/settings.json，经 Worker SettingsManager，与终端 pi 一致。
-      </p>
-
-      <SettingRow label="SDK 版本" description="内置 pi-coding-agent 版本">
-        <span className="text-[13px] font-mono text-muted-foreground">{info?.sdkVersion || '...'}</span>
-      </SettingRow>
-      <SettingRow label="agentDir" description="pi 配置目录">
-        <span className="text-[12px] font-mono text-muted-foreground">{info?.agentDir || '~/.pi/agent'}</span>
-      </SettingRow>
-      <SettingRow label="认证状态" description="API key / OAuth / 订阅">
-        <div className="flex items-center gap-1.5">
-          {info?.authStatus === 'configured' ? (
-            <><Check className="h-3.5 w-3.5 text-green-500" /><span className="text-[12px] text-green-600 dark:text-green-400">已配置</span></>
-          ) : (
-            <><AlertCircle className="h-3.5 w-3.5 text-muted-foreground/40" /><span className="text-[12px] text-muted-foreground">未配置</span></>
-          )}
-        </div>
-      </SettingRow>
-
-      {info?.authProviders?.length > 0 && (
-        <div className="pt-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">已配置的 Provider</div>
-          <div className="space-y-1">
-            {info.authProviders.map((p: any) => (
-              <div key={p.provider} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
-                <span className="font-mono font-medium">{p.provider}</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50">{p.type}</span>
-                {p.configured && <Check className="ml-auto h-3 w-3 text-green-500" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="pt-4">
-        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-          默认模型 {saving && <span className="text-amber-500 normal-case">保存中…</span>}
-        </div>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-mono"
-            placeholder="provider"
-            defaultValue={settings?.defaultProvider || ''}
-            onBlur={(e) => e.target.value !== (settings?.defaultProvider || '') && patch({ defaultProvider: e.target.value })}
-          />
-          <input
-            className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-mono"
-            placeholder="modelId"
-            defaultValue={settings?.defaultModel || ''}
-            onBlur={(e) => e.target.value !== (settings?.defaultModel || '') && patch({ defaultModel: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <SettingRow label="默认 Thinking" description="新会话默认 thinking 等级">
-        <select
-          className="rounded-md border border-border bg-background px-2 py-1 text-[12px]"
-          value={settings?.defaultThinkingLevel || 'medium'}
-          onChange={(e) => patch({ defaultThinkingLevel: e.target.value })}
-        >
-          {['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((lv) => <option key={lv} value={lv}>{lv}</option>)}
-        </select>
-      </SettingRow>
-
-      <SettingRow label="自动压缩" description="上下文超阈时自动压缩历史">
-        <Toggle on={!!settings?.compactionEnabled} onChange={(v) => patch({ compactionEnabled: v })} />
-      </SettingRow>
-
-      <SettingRow label="Steering 模式" description="插入消息时的排队方式">
-        <select
-          className="rounded-md border border-border bg-background px-2 py-1 text-[12px]"
-          value={settings?.steeringMode || 'all'}
-          onChange={(e) => patch({ steeringMode: e.target.value })}
-        >
-          <option value="all">all</option>
-          <option value="one-at-a-time">one-at-a-time</option>
-        </select>
-      </SettingRow>
-
-      <SettingRow label="FollowUp 模式" description="后续追问排队方式">
-        <select
-          className="rounded-md border border-border bg-background px-2 py-1 text-[12px]"
-          value={settings?.followUpMode || 'all'}
-          onChange={(e) => patch({ followUpMode: e.target.value })}
-        >
-          <option value="all">all</option>
-          <option value="one-at-a-time">one-at-a-time</option>
-        </select>
-      </SettingRow>
-
-      <SettingRow label="传输方式" description="provider transport (sse / http / auto)">
-        <select
-          className="rounded-md border border-border bg-background px-2 py-1 text-[12px]"
-          value={settings?.transport || 'auto'}
-          onChange={(e) => patch({ transport: e.target.value })}
-        >
-          <option value="auto">auto</option>
-          <option value="sse">sse</option>
-          <option value="http">http</option>
-        </select>
-      </SettingRow>
-
-      <SettingRow label="Shell 路径" description="bash 工具使用的 shell（留空用默认）">
-        <input
-          className="w-40 rounded-md border border-border bg-background px-2 py-1 text-[12px] font-mono"
-          placeholder="默认"
-          defaultValue={settings?.shellPath || ''}
-          onBlur={(e) => e.target.value !== (settings?.shellPath || '') && patch({ shellPath: e.target.value || undefined })}
-        />
-      </SettingRow>
-
-      <SettingRow label="图片自动缩放" description="read 工具读取图片时自动缩放">
-        <Toggle on={!!settings?.imageAutoResize} onChange={(v) => patch({ imageAutoResize: v })} />
-      </SettingRow>
-
-      <div className="pt-2 text-[10px] text-muted-foreground/50">
-        sessionDir: <span className="font-mono">{settings?.sessionDir || '(默认)'}</span>
-      </div>
-    </div>
-  )
+  return <PiSettingsPanel />
 }
 
 function ExtensionsSettings() {
   const [extensions, setExtensions] = useState<any[]>([])
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [runtimeTools, setRuntimeTools] = useState<any[]>([])
+  const [missingRuntime, setMissingRuntime] = useState<any[]>([])
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
+  const refreshExtensions = () => {
     ipcClient.invoke('extensions.list').then((res) => {
       setExtensions(res?.extensions || [])
     })
-    ipcClient.invoke('settings.get', { key: 'extensionOverrides' }).then((res) => {
-      if (res?.settings?.extensionOverrides) setOverrides(res.settings.extensionOverrides)
+    ipcClient.invoke('extensions.missingRuntimePackages').then((res) => {
+      setMissingRuntime(res?.missing || [])
     })
     ipcClient.invoke('runtime.getState').then((res) => {
       setRuntimeTools(Array.isArray(res?.state?.tools) ? res.state.tools : [])
     }).catch(() => setRuntimeTools([]))
+  }
+
+  useEffect(() => {
+    refreshExtensions()
+    ipcClient.invoke('settings.get', { key: 'extensionOverrides' }).then((res) => {
+      if (res?.settings?.extensionOverrides) setOverrides(res.settings.extensionOverrides)
+    })
   }, [])
 
   const handleToggle = (ext: any) => {
@@ -437,8 +310,36 @@ function ExtensionsSettings() {
     <div className="space-y-1">
       <h3 className="text-[15px] font-semibold mb-1">插件</h3>
       <p className="text-[11px] text-muted-foreground/60 mb-3">
-        已安装的 pi 扩展包。静态探测显示包/源码；下方「当前 Worker 工具」才代表本会话实际可调用工具。
+        列表含本应用对磁盘的<strong className="font-medium text-foreground-secondary">额外探测</strong>（含未进 packages 的 git 克隆），不等于已加载。<strong className="font-medium text-foreground-secondary">终端 pi TUI 与桌面 Worker 同源</strong>：都走 SDK 的 DefaultResourceLoader——<code className="text-[10px]">settings.packages</code>、<code className="text-[10px]">settings.extensions</code>、<code className="text-[10px]">~/.pi/agent/extensions/</code>、项目 <code className="text-[10px]">.pi/extensions/</code>；<strong className="font-medium text-foreground-secondary">不会</strong>仅因 <code className="text-[10px]">~/.pi/agent/git/…</code> 里有目录就加载。下方「当前 Worker 工具」才是本会话可调用工具。
       </p>
+      {missingRuntime.length > 0 && (
+        <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3">
+          <div className="text-[12px] font-medium text-amber-800 dark:text-amber-200">未进 Worker 的扩展</div>
+          <p className="mt-1 text-[11px] text-foreground-secondary leading-relaxed">
+            本机已有 git 克隆，但未列入 settings.packages（终端可能用别的方式加载，桌面不会）。
+          </p>
+          <ul className="mt-2 space-y-1 text-[11px] font-mono text-foreground-secondary">
+            {missingRuntime.map((m: any) => (
+              <li key={m.entry}>· {m.repoFolder} → {m.entry}</li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            disabled={syncing}
+            className="mt-2 rounded-md bg-primary px-3 py-1.5 text-[12px] text-primary-foreground disabled:opacity-50"
+            onClick={() => {
+              setSyncing(true)
+              ipcClient.invoke('extensions.syncGitPackages').then((r) => {
+                if (r?.added?.length) toast.success(`已写入 packages 并重启 Worker：${r.added.join(', ')}`)
+                else if (r?.error) toast.error(r.error)
+                refreshExtensions()
+              }).catch(() => toast.error('同步失败')).finally(() => setSyncing(false))
+            }}
+          >
+            {syncing ? '同步中…' : '写入 settings.packages 并重启 Worker'}
+          </button>
+        </div>
+      )}
       <div className="mb-3 rounded-lg border border-border/50 bg-muted/20 p-2.5">
         <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
           当前 Worker 工具 {runtimeTools.length ? `(${runtimeTools.length})` : '(Worker 未启动或无会话)'}
@@ -513,6 +414,11 @@ function ExtensionsSettings() {
                     ) : (
                       <div className="mt-1 text-[10px] text-muted-foreground/55 italic">
                         未登记桌面适配（无专属桌面实现，工具/命令仍可在会话中加载）
+                      </div>
+                    )}
+                    {ext.inSettingsPackages === false && ext.workerLoadHint && (
+                      <div className="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-900 dark:text-amber-200">
+                        {ext.workerLoadHint}
                       </div>
                     )}
                     {ext.loadError && (
@@ -628,68 +534,3 @@ function AdaptersSettings() {
   )
 }
 
-function ResourcesSettings() {
-  const [resources, setResources] = useState<any>(null)
-
-  useEffect(() => {
-    ipcClient.invoke('resources.list').then(setResources).catch(() => {})
-  }, [])
-
-  if (!resources) return <div className="text-[12px] text-muted-foreground">加载中...</div>
-
-  const sections = [
-    { label: 'Skills', items: resources.skills, icon: Zap },
-    { label: 'Prompts', items: resources.prompts, icon: Wrench },
-    { label: 'Extensions', items: resources.extensions, icon: Puzzle },
-    { label: 'Themes', items: resources.themes, icon: Palette },
-  ]
-
-  return (
-    <div className="space-y-4">
-      <h3 className="text-[15px] font-semibold">资源</h3>
-      {sections.map(({ label, items, icon: Icon }) => (
-        <div key={label}>
-          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">
-            <Icon className="h-3 w-3" />
-            {label}
-            <span className="tabular-nums text-muted-foreground/40">({items?.length || 0})</span>
-          </div>
-          {items?.length > 0 ? (
-            <div className="space-y-1">
-              {items.map((item: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
-                  <span className="font-medium">{item.name}</span>
-                  <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground/40">{item.source}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-[11px] text-muted-foreground/40 px-1">暂无</div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function DiagnosticsSettings() {
-  return (
-    <div className="space-y-1">
-      <h3 className="text-[15px] font-semibold mb-3">诊断</h3>
-      <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 font-mono text-[11px] leading-relaxed">
-        <div className="text-muted-foreground">
-          <span className="text-green-500">●</span> Worker: 正常运行
-        </div>
-        <div className="text-muted-foreground">
-          <span className="text-muted-foreground/40">●</span> Registry: 未检查
-        </div>
-        <div className="text-muted-foreground">
-          <span className="text-green-500">●</span> Renderer: 正常
-        </div>
-        <div className="text-muted-foreground">
-          <span className="text-muted-foreground/40">●</span> Errors: 无
-        </div>
-      </div>
-    </div>
-  )
-}

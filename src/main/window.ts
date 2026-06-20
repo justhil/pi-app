@@ -1,8 +1,20 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, shell, nativeImage } from 'electron'
+import { existsSync } from 'fs'
+import { join } from 'path'
 
 const isMac = process.platform === 'darwin'
 const useFrameless = process.platform === 'win32' || isMac
-import { join } from 'path'
+
+function resolveWindowIcon() {
+  const candidates = [
+    join(__dirname, '../../build/icon.png'),
+    join(__dirname, '../../resources/icon.png'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return nativeImage.createFromPath(p)
+  }
+  return undefined
+}
 import { is } from '@electron-toolkit/utils'
 import { workerManager } from './worker-manager'
 
@@ -21,6 +33,7 @@ export function createWindow(): BrowserWindow {
       ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 10 } }
       : {}),
     title: 'pi Desktop',
+    icon: resolveWindowIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,

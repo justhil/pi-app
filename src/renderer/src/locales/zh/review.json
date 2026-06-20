@@ -1,7 +1,7 @@
 {
   "scope": {
-    "turn": "当前轮次",
-    "session": "会话累计",
+    "turn": "本轮",
+    "session": "本对话",
     "git": "Git 工作区"
   },
   "empty": "暂无改动",

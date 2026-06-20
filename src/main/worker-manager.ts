@@ -181,6 +181,16 @@ export class WorkerManager {
     const r = await this.request('getSkillsList')
     return r.skills || []
   }
+  async getPromptTemplatesList(): Promise<any[]> {
+    const r = await this.request('getPromptTemplatesList')
+    return r.prompts || []
+  }
+  async getContextPrompts(): Promise<any> {
+    return this.request('getContextPrompts')
+  }
+  async reloadResources(): Promise<void> {
+    await this.request('reloadResources')
+  }
   async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<any[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
     return r.items || []
@@ -191,12 +201,50 @@ export class WorkerManager {
   }
   async getPiSettings(): Promise<any> { return (await this.request('getPiSettings')).settings }
   async setPiSettings(patch: any): Promise<void> { await this.request('setPiSettings', { patch }) }
-  async getMessages(sessionFile: string): Promise<any[]> {
-    const r = await this.request('getMessages', { sessionFile })
-    return r.items || []
+  async getMessages(
+    sessionFile: string,
+    offset?: number,
+    limit?: number,
+  ): Promise<{ items: any[]; totalCount: number; sessionMeta?: { model?: string; thinkingLevel?: string } }> {
+    const r = await this.request('getMessages', { sessionFile, offset, limit })
+    return {
+      items: r.items || [],
+      totalCount: typeof r.totalCount === 'number' ? r.totalCount : (r.items || []).length,
+      sessionMeta: r.sessionMeta,
+    }
   }
   async loadSession(sessionFile: string): Promise<{ sessionId: string; model?: string }> {
     return await this.request('loadSession', { sessionFile })
+  }
+  async renameSessionFile(sessionFile: string, title: string): Promise<{ ok: boolean; title?: string; error?: string }> {
+    return await this.request('sessionRenameFile', { sessionFile, title })
+  }
+  async deleteSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
+    return await this.request('sessionDeleteFile', { sessionFile })
+  }
+  async getSessionTree(sessionFile?: string): Promise<{ nodes: any[]; leafId: string | null; error?: string }> {
+    const r = await this.request('getSessionTree', sessionFile ? { sessionFile } : {})
+    return { nodes: r.nodes || [], leafId: r.leafId ?? null, error: r.error }
+  }
+  async navigateTree(
+    targetId: string,
+    options?: { summarize?: boolean; label?: string },
+  ): Promise<{
+    cancelled: boolean
+    editorText?: string
+    leafId?: string | null
+    sessionMeta?: { model?: string; thinkingLevel?: string }
+  }> {
+    const r = await this.request('navigateTree', { targetId, ...options })
+    return {
+      cancelled: !!r.cancelled,
+      editorText: r.editorText,
+      leafId: r.leafId ?? null,
+      sessionMeta: r.sessionMeta,
+    }
+  }
+  async runExtensionCommand(text: string): Promise<void> {
+    await this.request('runExtensionCommand', { text })
   }
 
   respondExtensionUI(response: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean; result?: unknown }): void {

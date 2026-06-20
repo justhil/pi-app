@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, Undo2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
 /** 消息 hover 复制行：用 React hover 状态驱动，比纯 CSS group 更稳定可见 */
@@ -7,10 +7,14 @@ export function MessageHoverActions({
   text,
   timestamp,
   align,
+  sessionEntryId,
+  onRewind,
 }: {
   text: string
   timestamp?: number
   align: 'left' | 'right'
+  sessionEntryId?: string
+  onRewind?: (entryId: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const copy = () => {
@@ -21,6 +25,21 @@ export function MessageHoverActions({
   }
   return (
     <div className={cn('flex h-8 items-center gap-2', align === 'right' && 'flex-row-reverse justify-end')}>
+      {onRewind && (
+        <button
+          type="button"
+          disabled={!sessionEntryId}
+          onClick={() => sessionEntryId && onRewind(sessionEntryId)}
+          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
+          title={
+            sessionEntryId
+              ? '跳转到此节点（同 TUI /tree）'
+              : '跳转需会话 entry id（切换会话或发送一条消息后再试）'
+          }
+        >
+          <Undo2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={copy}
