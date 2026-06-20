@@ -24,22 +24,16 @@ nul
 .env.*
 !.env.example
 
-# IDE (optional local)
+# IDE / editor local (not shipped)
+.cursor/
 .idea/
 *.swp
 *.swo
 *~
 
-# Pi / Trellis local runtime (not app source)
-.trellis/.developer
-.trellis/.runtime/
-.trellis/workspace/
-.trellis/tasks/**/*.jsonl
-
-# Project-local pi assets (user machine)
-.pi/assets/research/
-.pi/continue/
-.pi/settings.json
+# Project-local pi + Trellis (machine / workflow, not app source)
+.pi/
+.trellis/
 
 # Generated / scratch / test artifacts
 .image-gen/

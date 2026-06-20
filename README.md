@@ -246,7 +246,6 @@ pi-app/
 │   ├── ui-design-notes.md
 │   └── sandbox-workspaces.md
 │
-├── .trellis/spec/frontend/        # 前端实现硬约束（与 docs 互补）
 └── scripts/                       # 图标导出等构建脚本
 ```
 
