@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { toast, Toaster } from 'sonner'
 import { onExtensionUIRequest, ipcClient } from '@renderer/lib/ipc-client'
 import { QuestionnaireDialog, type AskQuestionPayload } from './questionnaire-dialog'
+import { ImageReviewDialog, type ImageReviewPayload } from './image-review-dialog'
 
 type PendingUI =
   | { id: string; method: 'ask_user_question'; questions: AskQuestionPayload[] }
