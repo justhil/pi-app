@@ -134,7 +134,7 @@ npm run dev
 | 需要中途互动的工具 | 对话中弹窗，点选后对话继续 |
 | 部分 `/命令` | 打开配置页、提示，或按 pi 原逻辑执行 |
 
-内置适配随应用发布；可在 `~/.pi/desktop/adapters/` 或项目 `.pi/desktop/adapters/` 放 JSON 覆盖（高级）。约定见 `docs/adapter-layer-plan.md`。
+内置适配随应用发布；可在 `~/.pi/desktop/adapters/` 或项目 `.pi/desktop/adapters/` 放 JSON 覆盖（高级）。
 
 **与终端 pi**
 
@@ -144,10 +144,6 @@ npm run dev
 | 扩展弹窗 | 终端组件 | 兼容层 → 窗口 |
 | 扩展配置 | TUI / 文件 | 设置 → 适配器（仍写扩展常用配置文件） |
 | Skills / 提示词 | 目录 + settings | 设置集中管理 + 本地修订历史 |
-
-兼容清单与规划：`docs/compatibility-matrix-and-roadmap.md`、`docs/tui-replacement-and-adapters.md`。
-
----
 
 ## 架构概览
 
@@ -174,10 +170,6 @@ npm run dev
 | 应用偏好（主题、侧栏宽度等） | 本机 electron-store |
 | 提示词/技能编辑快照 | `~/.pi/agent/desktop-revisions/` |
 | 临时对话沙箱 | 应用 `userData/sandbox-workspaces/` |
-
-详见 [`docs/architecture.md`](docs/architecture.md)。
-
----
 
 ## 目录结构
 
@@ -237,22 +229,13 @@ pi-app/
 │           ├── locales/           # i18n
 │           └── styles/            # globals.css、动效 token
 │
-├── docs/                          # 设计文档（开发/贡献者）
-│   ├── architecture.md
-│   ├── frontend-design.md
-│   ├── adapter-layer-plan.md
-│   ├── compatibility-matrix-and-roadmap.md
-│   ├── tui-replacement-and-adapters.md
-│   ├── ui-design-notes.md
-│   └── sandbox-workspaces.md
-│
 └── scripts/                       # 图标导出等构建脚本
 ```
 
 **改界面** → 优先 `src/renderer/src/features/`。  
 **改 IPC 或沙箱/资源文件** → `src/main/` + `packages/shared/`。  
 **改 pi 会话行为** → `src/worker/`。  
-**新扩展桌面支持** → `src/extension-compat/builtin/` 增加适配 JSON（见 `docs/adapter-layer-plan.md`）。
+**新扩展桌面支持** → `src/extension-compat/builtin/` 增加适配 JSON。
 
 ---
 
@@ -271,20 +254,6 @@ pi-app/
 ## 技术栈
 
 Electron 35 · electron-vite · React 18 · TypeScript · Tailwind · shadcn/Radix · Zustand · TanStack Query · i18next · react-markdown · Shiki · **@earendil-works/pi-coding-agent** ^0.79 · electron-store · better-sqlite3 · electron-updater
-
----
-
-## 文档索引
-
-| 文档 | 适合谁 | 内容 |
-|------|--------|------|
-| [architecture.md](docs/architecture.md) | 贡献者 | 进程边界、IPC、存储、演进 |
-| [frontend-design.md](docs/frontend-design.md) | 做 UI | 气质、组件、Skill 纪律 |
-| [ui-design-notes.md](docs/ui-design-notes.md) | 做 UI | 字体、动效、布局笔记 |
-| [adapter-layer-plan.md](docs/adapter-layer-plan.md) | 做扩展兼容 | 适配器格式、配置存储、原语 |
-| [compatibility-matrix-and-roadmap.md](docs/compatibility-matrix-and-roadmap.md) | 用户/贡献者 | 各扩展兼容程度 |
-| [tui-replacement-and-adapters.md](docs/tui-replacement-and-adapters.md) | 贡献者 | 终端能力在桌面的对应关系 |
-| [sandbox-workspaces.md](docs/sandbox-workspaces.md) | 用户 | 对话分区与沙箱路径 |
 
 ---
 

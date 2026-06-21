@@ -6,6 +6,9 @@ out/
 dist/
 build/icon.png
 
+# Removed remote docs directory
+docs/
+
 # Logs & debug
 *.log
 npm-debug.log*
