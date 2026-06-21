@@ -6,19 +6,20 @@ import {
   CheckCircle2, XCircle,
   CornerDownLeft, AlertCircle, Terminal
 } from 'lucide-react'
-import { useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
+import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { StreamingCaret } from './tool-card-primitives'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
 import { buildTimelineDisplayItems } from './timeline-display-items'
-import MarkdownView from './markdown-view'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+
+const MarkdownView = lazy(() => import('./markdown-view'))
 
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
   const streamingId = useUIStore((s) => s.streamingAssistantId)
@@ -86,7 +87,9 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
           )}
           {hasText ? (
             <div className="min-w-0 text-[15px] leading-[1.7] text-foreground">
-              <MarkdownView streaming={streaming}>{item.text}</MarkdownView>
+              <Suspense fallback={<p className="whitespace-pre-wrap break-words">{item.text}</p>}>
+                <MarkdownView streaming={streaming}>{item.text}</MarkdownView>
+              </Suspense>
               {streaming && <StreamingCaret />}
             </div>
           ) : streaming && agentRunning ? (

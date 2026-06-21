@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { ChevronDown, ChevronRight, FolderOpen, MessageSquare, Plus, Folder, Inbox } from 'lucide-react'
@@ -9,6 +9,15 @@ import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-conte
 import { useSessionContextMenu, SessionContextMenuPortal } from './session-context-menu'
 
 type SandboxEntry = { id: string; path: string; label: string; createdAt: number; kind: 'sandbox' }
+
+type SessionItem = {
+  sessionId: string
+  sessionFile?: string
+  title: string
+  updatedAt: number
+  messageCount?: number
+  modelId: string
+}
 
 function diskProjectName(path: string) {
   return path.split(/[\\/]/).pop() || path
@@ -32,6 +41,7 @@ export function ProjectSidebar({
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const sessions = useUIStore((s) => s.sessions)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionItem[]>>({})
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [sectionOpen, setSectionOpen] = useState(true)
@@ -45,15 +55,34 @@ export function ProjectSidebar({
 
   const sandboxMenu = useSandboxContextMenu(refreshSandboxes)
 
-  const refreshSessions = useCallback(() => {
-    const wid = useUIStore.getState().currentWorkspace
-    if (!wid) return
-    ipcClient.invoke('session.list', { workspaceId: wid }).then((listRes) => {
-      if (listRes?.sessions) useUIStore.getState().setSessions(listRes.sessions)
-    }).catch(() => {})
+  const refreshSessionsForWorkspace = useCallback(async (workspaceId: string) => {
+    if (!workspaceId || isSandboxPath(workspaceId)) return
+    try {
+      const listRes = await ipcClient.invoke('session.list', { workspaceId })
+      const list = (listRes?.sessions || []) as SessionItem[]
+      setSessionsByWorkspace((prev) => ({ ...prev, [workspaceId]: list }))
+      if (useUIStore.getState().currentWorkspace === workspaceId) {
+        useUIStore.getState().setSessions(list)
+      }
+    } catch {
+      setSessionsByWorkspace((prev) => ({ ...prev, [workspaceId]: [] }))
+      if (useUIStore.getState().currentWorkspace === workspaceId) {
+        useUIStore.getState().setSessions([])
+      }
+    }
   }, [])
 
-  const sessionMenu = useSessionContextMenu(refreshSessions)
+  const refreshAllSessionLists = useCallback(async () => {
+    const paths = new Set<string>()
+    const wid = useUIStore.getState().currentWorkspace
+    if (wid && !isSandboxPath(wid)) paths.add(wid)
+    for (const p of useUIStore.getState().recentProjects) {
+      if (!isSandboxPath(p)) paths.add(p)
+    }
+    await Promise.all([...paths].map((p) => refreshSessionsForWorkspace(p)))
+  }, [refreshSessionsForWorkspace])
+
+  const sessionMenu = useSessionContextMenu(refreshAllSessionLists)
 
   useEffect(() => {
     const onChanged = () => refreshSandboxes()
@@ -74,7 +103,11 @@ export function ProjectSidebar({
         useUIStore.setState({ recentProjects: [...new Set(merged)].slice(0, 16) })
       }
     }).catch(() => {})
-  }, [refreshSandboxes])
+  }, [refreshSandboxes, currentWorkspace])
+
+  useEffect(() => {
+    void refreshAllSessionLists()
+  }, [currentWorkspace, recentProjects, refreshAllSessionLists])
 
   useEffect(() => {
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
@@ -130,12 +163,22 @@ export function ProjectSidebar({
     }
   }
 
-  const renderSessionTree = (workspacePath: string) => (
+  const mergedSessionsByWorkspace = useMemo(() => {
+    const next = { ...sessionsByWorkspace }
+    if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
+      next[currentWorkspace] = sessions
+    }
+    return next
+  }, [sessionsByWorkspace, currentWorkspace, sessions])
+
+  const renderSessionTree = (workspacePath: string) => {
+    const projectSessions = mergedSessionsByWorkspace[workspacePath] || []
+    return (
     <div className="ml-3 border-l border-border/40 pl-1.5">
-      {sessions.length === 0 ? (
+      {projectSessions.length === 0 ? (
         <p className="px-2 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">暂无会话</p>
       ) : (
-        sessions.map((s) => (
+        projectSessions.map((s) => (
           <div
             key={s.sessionId}
             role="button"
@@ -194,7 +237,8 @@ export function ProjectSidebar({
         ))
       )}
     </div>
-  )
+    )
+  }
 
   const renderDiskProjectRow = (path: string) => {
     const active = path === currentWorkspace
@@ -252,16 +296,7 @@ export function ProjectSidebar({
             </button>
           )}
         </div>
-        {open && active && renderSessionTree(path)}
-        {open && !active && (
-          <button
-            type="button"
-            onClick={() => void switchDiskProject(path)}
-            className="ml-7 px-2 py-1.5 text-[12px] text-brand/90 hover:underline"
-          >
-            切换到此项目
-          </button>
-        )}
+        {open && renderSessionTree(path)}
       </div>
     )
   }
@@ -375,7 +410,7 @@ export function ProjectSidebar({
       <SessionContextMenuPortal
         menu={sessionMenu.menu}
         onClose={sessionMenu.close}
-        onSessionsChange={refreshSessions}
+        onSessionsChange={refreshAllSessionLists}
       />
 
       <div className="mt-2 px-1.5">

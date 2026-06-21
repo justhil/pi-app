@@ -1,4 +1,4 @@
-import { createHighlighter, type Highlighter } from 'shiki'
+import type { Highlighter } from 'shiki'
 
 let highlighter: Highlighter | null = null
 let loadPromise: Promise<Highlighter> | null = null
@@ -30,30 +30,32 @@ function isDark(): boolean {
 async function getHighlighter(): Promise<Highlighter> {
   if (highlighter) return highlighter
   if (!loadPromise) {
-    loadPromise = createHighlighter({
-      themes: ['github-light', 'github-dark'],
-      langs: [
-        'typescript',
-        'tsx',
-        'javascript',
-        'jsx',
-        'json',
-        'python',
-        'rust',
-        'go',
-        'bash',
-        'shell',
-        'yaml',
-        'markdown',
-        'css',
-        'html',
-        'sql',
-        'xml',
-      ],
-    }).then((h) => {
+    loadPromise = (async () => {
+      const { createHighlighter } = await import('shiki')
+      const h = await createHighlighter({
+        themes: ['github-light', 'github-dark'],
+        langs: [
+          'typescript',
+          'tsx',
+          'javascript',
+          'jsx',
+          'json',
+          'python',
+          'rust',
+          'go',
+          'bash',
+          'shell',
+          'yaml',
+          'markdown',
+          'css',
+          'html',
+          'sql',
+          'xml',
+        ],
+      })
       highlighter = h
       return h
-    })
+    })()
   }
   return loadPromise
 }

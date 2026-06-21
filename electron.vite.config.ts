@@ -59,8 +59,23 @@ export default defineConfig({
     },
     plugins: [react()],
     build: {
+      modulePreload: {
+        resolveDependencies(filename, deps) {
+          if (filename.startsWith('assets/index-')) {
+            return deps.filter((dep) => !dep.startsWith('assets/shiki-'))
+          }
+          return deps
+        },
+      },
       rollupOptions: {
         input: resolve(__dirname, 'src/renderer/index.html'),
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/shiki') || id.includes('@shikijs')) return 'shiki'
+            if (id.includes('node_modules/react-dom')) return 'react-dom'
+            if (id.includes('node_modules/react/')) return 'react'
+          },
+        },
       },
     },
   },

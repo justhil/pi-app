@@ -7,11 +7,15 @@ const useFrameless = process.platform === 'win32' || isMac
 
 function resolveWindowIcon() {
   const candidates = [
+    join(process.resourcesPath, 'build', 'icon.png'),
     join(__dirname, '../../build/icon.png'),
     join(__dirname, '../../resources/icon.png'),
   ]
   for (const p of candidates) {
-    if (existsSync(p)) return nativeImage.createFromPath(p)
+    if (existsSync(p)) {
+      const img = nativeImage.createFromPath(p)
+      if (!img.isEmpty()) return img
+    }
   }
   return undefined
 }
@@ -19,6 +23,7 @@ import { is } from '@electron-toolkit/utils'
 import { workerManager } from './worker-manager'
 
 let mainWindow: BrowserWindow | null = null
+let rendererReloadAfterCrash = false
 
 export function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -55,7 +60,15 @@ export function createWindow(): BrowserWindow {
   })
 
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
-    console.error(`[Renderer] Process gone: ${details.reason}`)
+    console.error(`[Renderer] Process gone: ${details.reason} exitCode=${details.exitCode}`)
+    if (details.reason === 'crashed' || details.reason === 'killed' || details.reason === 'oom') {
+      void workerManager.stop()
+      if (!rendererReloadAfterCrash && mainWindow && !mainWindow.isDestroyed()) {
+        rendererReloadAfterCrash = true
+        console.error('[Renderer] Reloading once after crash')
+        mainWindow.webContents.reload()
+      }
+    }
   })
 
   mainWindow.webContents.on('unresponsive', () => {

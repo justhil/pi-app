@@ -18,6 +18,9 @@ export class WorkerManager {
   private requestCounter = 0
   private initResolver: ((r: InitResult) => void) | null = null
   private initRejecter: ((e: any) => void) | null = null
+  private stopping = false
+  /** When true, worker exit will not spawn another process (avoids task-manager process storms). */
+  private autoRestartEnabled = false
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
@@ -29,6 +32,8 @@ export class WorkerManager {
     }
 
     await this.stop()
+    this.stopping = false
+    this.autoRestartEnabled = true
     this.currentCwd = cwd
 
     this.worker = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
@@ -100,16 +105,21 @@ export class WorkerManager {
       const cwd = this.currentCwd
       this.currentCwd = null
 
-      // Auto-restart on unexpected crash (not on graceful dispose)
-      if (code !== 0 && cwd) {
-        safeWrite('[WorkerManager] Auto-restarting worker...')
-        setTimeout(() => {
-          this.start(cwd).catch((e) => safeWrite(`[WorkerManager] Restart failed: ${e}`))
-        }, 2000)
-      }
-
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd })
+      }
+
+      if (this.stopping || code === 0 || !cwd || !this.autoRestartEnabled) {
+        return
+      }
+
+      safeWrite('[WorkerManager] Worker crashed; auto-restart is disabled — not spawning another worker')
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ipc:worker-fatal', {
+          code,
+          cwd,
+          message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
+        })
       }
     })
 
@@ -128,6 +138,7 @@ export class WorkerManager {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true
     this.currentCwd = null
     if (this.worker) {
       try { this.worker.postMessage({ type: 'dispose' }) } catch {}

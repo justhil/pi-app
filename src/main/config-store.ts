@@ -11,7 +11,6 @@ interface StoreSchema {
   /** Skill 启用：key 为 skillStorageKey，false=禁用，缺省=启用 */
   skillOverrides: Record<string, boolean>
   extensionConfigs: Record<string, Record<string, unknown>>
-  registryLastCheck: number | null
 }
 
 const store = new Store<StoreSchema>({
@@ -25,7 +24,6 @@ const store = new Store<StoreSchema>({
     extensionOverrides: {},
     skillOverrides: {},
     extensionConfigs: {},
-    registryLastCheck: null,
   },
 })
 

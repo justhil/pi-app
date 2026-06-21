@@ -85,11 +85,6 @@ function initSchema(d: any): void {
       load_error TEXT,
       discovered_at INTEGER
     );
-    CREATE TABLE IF NOT EXISTS registry_cache (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      updated_at INTEGER
-    );
   `)
 }
 
@@ -134,18 +129,4 @@ export const sqliteIndex = {
     ).all(turnId)
   },
 
-  setRegistryCache(key: string, value: string): void {
-    const d = getDb()
-    if (!d) return
-    d.prepare(
-      'INSERT OR REPLACE INTO registry_cache (key, value, updated_at) VALUES (?, ?, ?)',
-    ).run(key, value, Date.now())
-  },
-
-  getRegistryCache(key: string): string | null {
-    const d = getDb()
-    if (!d) return null
-    const row = d.prepare('SELECT value FROM registry_cache WHERE key = ?').get(key) as any
-    return row?.value ?? null
-  },
 }

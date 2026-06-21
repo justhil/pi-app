@@ -235,13 +235,22 @@ export const useUIStore = create<UIState>()(
     )
   },
   setWorkspace: (path) =>
-    set((s) => ({
-      currentWorkspace: path,
-      ephemeralSandboxDraft: false,
-      recentProjects: path
-        ? [path, ...s.recentProjects.filter((p) => p !== path)].slice(0, 16)
-        : s.recentProjects,
-    })),
+    set((s) => {
+      const changed = path !== s.currentWorkspace
+      return {
+        currentWorkspace: path,
+        ephemeralSandboxDraft: false,
+        recentProjects: path
+          ? [path, ...s.recentProjects.filter((p) => p !== path)].slice(0, 16)
+          : s.recentProjects,
+        ...(changed
+          ? {
+              sessions: [],
+              currentSessionId: null,
+            }
+          : {}),
+      }
+    }),
 
   sessions: [],
   currentSessionId: null,

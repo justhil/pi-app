@@ -60,12 +60,6 @@ export function SessionContextMenuPortal({
   const defaultTitle = target.title || target.sessionId.slice(0, 8)
 
   const refreshList = async () => {
-    const wid = target.workspacePath || useUIStore.getState().currentWorkspace
-    if (!wid) return
-    const listRes = await ipcClient.invoke('session.list', { workspaceId: wid })
-    if (wid === useUIStore.getState().currentWorkspace) {
-      useUIStore.getState().setSessions(listRes?.sessions || [])
-    }
     onSessionsChange()
   }
 

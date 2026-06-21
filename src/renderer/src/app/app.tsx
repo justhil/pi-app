@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
 import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
@@ -9,35 +9,40 @@ import { ComposerDock } from '@renderer/components/app/composer-dock'
 import { ChatTimelineProgressRail } from '@renderer/features/timeline/chat-timeline-progress-rail'
 import { Timeline } from '@renderer/features/timeline/timeline'
 import { Composer } from '@renderer/features/composer/composer'
-import { ReviewPanel } from '@renderer/features/review/review-panel'
-import { RunPanel } from '@renderer/features/run/run-panel'
-import { TrellisPanel } from '@renderer/features/trellis/trellis-panel'
-import { ContextPanel } from '@renderer/features/context/context-panel'
-import { IntercomPanel } from '@renderer/features/intercom/intercom-panel'
-import { TreePanel } from '@renderer/features/rewind/tree-panel'
-import { SettingsPage } from '@renderer/features/settings/settings-page'
+
 import { TopBar } from '@renderer/components/app/top-bar'
 import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
-import { switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, FolderOpen, GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
+import { Settings as SettingsIcon, GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
-import { ModelPicker } from '@renderer/features/composer/model-picker'
-import { ThinkingPicker } from '@renderer/features/composer/thinking-picker'
-import { SessionTreeOverlay } from '@renderer/features/rewind/session-tree-overlay'
+
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
 type View = 'main' | 'settings'
+
+const ReviewPanel = lazy(() => import('@renderer/features/review/review-panel').then((m) => ({ default: m.ReviewPanel })))
+const RunPanel = lazy(() => import('@renderer/features/run/run-panel').then((m) => ({ default: m.RunPanel })))
+const TrellisPanel = lazy(() => import('@renderer/features/trellis/trellis-panel').then((m) => ({ default: m.TrellisPanel })))
+const ContextPanel = lazy(() => import('@renderer/features/context/context-panel').then((m) => ({ default: m.ContextPanel })))
+const IntercomPanel = lazy(() => import('@renderer/features/intercom/intercom-panel').then((m) => ({ default: m.IntercomPanel })))
+const TreePanel = lazy(() => import('@renderer/features/rewind/tree-panel').then((m) => ({ default: m.TreePanel })))
+const SettingsPage = lazy(() => import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })))
+const ModelPicker = lazy(() => import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })))
+const ThinkingPicker = lazy(() => import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })))
+const SessionTreeOverlay = lazy(() => import('@renderer/features/rewind/session-tree-overlay').then((m) => ({ default: m.SessionTreeOverlay })))
 
 export default function App() {
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
+  const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
@@ -119,14 +124,8 @@ export default function App() {
       console.log('[App] Dialog result:', res)
       if (res?.path) {
         console.log('[App] Opening workspace:', res.path)
-        const wsResult = await ipcClient.invoke('workspace.open', { path: res.path })
-        console.log('[App] Workspace result:', wsResult)
-        if (wsResult?.workspaceId) {
-          setWorkspace(res.path)
-          const listRes = await ipcClient.invoke('session.list', { workspaceId: res.path })
-          if (listRes?.sessions) setSessions(listRes.sessions)
-          setTimeout(() => void syncRunStateFromWorker(), 800)
-        }
+        await activateWorkspace(res.path)
+        setTimeout(() => void syncRunStateFromWorker(), 800)
       }
     } catch (e) {
       console.error('[App] Failed to open project:', e)
@@ -149,7 +148,9 @@ export default function App() {
           <TopBar onBack={() => setView('main')} title={t('settings.title')} />
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <ErrorBoundary label="settings">
-              <SettingsPage />
+              <Suspense fallback={null}>
+                <SettingsPage />
+              </Suspense>
             </ErrorBoundary>
           </div>
         </div>
@@ -195,16 +196,18 @@ export default function App() {
               />
               <div className="flex-1 overflow-hidden">
                 <ErrorBoundary label="panel">
-                  {activePanel === 'review' && <ReviewPanel />}
-                  {activePanel === 'trellis' && <TrellisPanel />}
-                  {activePanel === 'run' && <RunPanel />}
-                  {activePanel === 'context' && <ContextPanel />}
-                  {activePanel === 'intercom' && <IntercomPanel />}
-                  {activePanel === 'tree' && (
-                    <ErrorBoundary label="tree">
-                      <TreePanel />
-                    </ErrorBoundary>
-                  )}
+                  <Suspense fallback={null}>
+                    {activePanel === 'review' && <ReviewPanel />}
+                    {activePanel === 'trellis' && <TrellisPanel />}
+                    {activePanel === 'run' && <RunPanel />}
+                    {activePanel === 'context' && <ContextPanel />}
+                    {activePanel === 'intercom' && <IntercomPanel />}
+                    {activePanel === 'tree' && (
+                      <ErrorBoundary label="tree">
+                        <TreePanel />
+                      </ErrorBoundary>
+                    )}
+                  </Suspense>
                 </ErrorBoundary>
               </div>
             </RightPanel>
@@ -212,9 +215,11 @@ export default function App() {
         />
       </div>
       <ExtensionUIHost />
-      <ModelPicker />
-      <ThinkingPicker />
-      <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />
+      <Suspense fallback={null}>
+        {modelPickerOpen && <ModelPicker />}
+        {thinkingPickerOpen && <ThinkingPicker />}
+        {treeOpen && <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />}
+      </Suspense>
     </ErrorBoundary>
   )
 }

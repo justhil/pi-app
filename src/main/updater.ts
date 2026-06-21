@@ -24,10 +24,9 @@ export function initUpdater(): void {
     log.info(`Download progress: ${progress.percent}%`)
   })
 
-  // Only check for updates in production (packaged app)
-  if (!is.dev) {
-    autoUpdater.checkForUpdates().catch((err) => {
-      log.warn('Update check failed:', err)
-    })
-  }
+  if (is.dev || process.env.PI_DESKTOP_AUTO_UPDATE !== '1') return
+
+  autoUpdater.checkForUpdates().catch((err) => {
+    log.warn('Update check failed:', err)
+  })
 }

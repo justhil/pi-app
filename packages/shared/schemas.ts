@@ -133,32 +133,6 @@ export const extensionInfoSchema = z.object({
   loadError: z.string().optional(),
 })
 
-// ── Registry schema ──
-export const remoteAdapterEntrySchema = z.object({
-  id: z.string(),
-  displayName: z.string(),
-  compatibility: compatibilityLevelSchema,
-  match: z.object({
-    tools: z.array(z.string()).optional(),
-    commands: z.array(z.string()).optional(),
-  }),
-  versionRange: z.string().optional(),
-  rendererMap: z.record(z.string(), z.string()).optional(),
-  configSchema: z.record(z.string(), z.unknown()).optional(),
-  defaultConfig: z.record(z.string(), z.unknown()).optional(),
-  risk: z.object({
-    level: z.enum(['low', 'medium', 'high']),
-    message: z.string(),
-  }).optional(),
-  docsUrl: z.string().optional(),
-})
-
-export const registryFileSchema = z.object({
-  version: z.string(),
-  minAppVersion: z.string().optional(),
-  adapters: z.array(remoteAdapterEntrySchema),
-})
-
 // ── Session/Model schemas ──
 export const sessionInfoSchema = z.object({
   sessionId: z.string(),

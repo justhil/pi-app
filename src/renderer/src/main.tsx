@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import App from './app/app'
 import './styles/globals.css'
 import './lib/i18n'
+
+const App = React.lazy(() => import('./app/app'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,7 +18,9 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <Suspense fallback={null}>
+        <App />
+      </Suspense>
     </QueryClientProvider>
   </React.StrictMode>,
 )

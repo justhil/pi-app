@@ -2,7 +2,6 @@ import { app, shell, BrowserWindow } from 'electron'
 import { createWindow } from './window'
 import { registerWindowControlHandlers } from './window-controls'
 import { registerAllHandlers } from './ipc'
-import { initUpdater } from './updater'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
@@ -35,13 +34,33 @@ function createMenu(): void {
   Menu.setApplicationMenu(null)
 }
 
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+}
+
 app.whenReady().then(() => {
+  if (!gotLock) return
   createMenu()
   registerAllHandlers()
   registerWindowControlHandlers()
   const win = createWindow()
   workerManager.setMainWindow(win)
-  initUpdater()
+  win.once('show', () => {
+    setTimeout(() => {
+      import('./updater').then(({ initUpdater }) => initUpdater()).catch((e) => {
+        console.warn('[Updater] Failed to initialize:', e)
+      })
+    }, 3000)
+  })
 
   // Auto-open last project if exists
   const lastProject = configStore.get('currentProject')
