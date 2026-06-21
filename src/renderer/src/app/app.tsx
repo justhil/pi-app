@@ -16,7 +16,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
-import { guardSessionSwitch, markSessionSwitchGuardReady } from '@renderer/lib/session-switch-guard'
+import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon } from 'lucide-react'
@@ -83,7 +83,6 @@ export default function App() {
 
   useEffect(() => {
     markExtensionNotifyAppReady()
-    markSessionSwitchGuardReady()
     useExtensionUIStore.getState().resetForSessionContext()
   }, [])
 
@@ -125,12 +124,9 @@ export default function App() {
       if (res?.sessions) setSessions(res.sessions)
       if (currentSessionId) return
       if (ss.length > 0 && ss[0].sessionFile) {
-        guardSessionSwitch(
-          () => {
-            void switchSessionInPlace(ss[0].sessionId, ss[0].sessionFile)
-          },
-          { silentBlock: true },
-        )
+        guardSessionSwitch(() => {
+          void switchSessionInPlace(ss[0].sessionId, ss[0].sessionFile)
+        })
       }
     }).catch(() => {})
   }, [currentWorkspace, setSessions, currentSessionId])

@@ -89,7 +89,3 @@ export function extensionUiBlocksComposer(): boolean {
   return hasOpenExtensionDialog()
 }
 
-export function extensionUIBlocksSessionSwitch(agentRunning: boolean): boolean {
-  pruneStaleSuspension()
-  return hasOpenExtensionDialog() || agentRunning
-}
