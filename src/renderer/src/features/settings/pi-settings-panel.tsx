@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { toast } from 'sonner'
 import { Check, AlertCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 
 export type PiSettingsSnapshot = Record<string, unknown>
@@ -47,6 +47,8 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean
 
 const selectCls = 'max-w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] min-w-[10rem]'
 const inputCls = 'w-full max-w-xs rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] font-mono'
+const btnPrimary = 'rounded-md bg-primary px-2.5 py-1.5 text-[12px] text-primary-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none'
+const btnOutline = 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] transition-colors disabled:opacity-40 disabled:pointer-events-none hover:bg-accent'
 
 const THINKING_OPTS = [
   { v: 'off', l: '关' },
@@ -63,6 +65,15 @@ export function PiSettingsPanel() {
   const [models, setModels] = useState<any[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // SDK 升级 / 切换 / 回退
+  const [sdkStatus, setSdkStatus] = useState<any>(null)
+  const [registry, setRegistry] = useState<{ versions: string[]; latest: string | null } | null>(null)
+  const [selectedVersion, setSelectedVersion] = useState('')
+  const [installing, setInstalling] = useState(false)
+  const [installOutput, setInstallOutput] = useState<string[]>([])
+  const [switching, setSwitching] = useState(false)
+  const [envTarget, setEnvTarget] = useState<'builtin' | 'global' | 'user'>('builtin')
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -84,6 +95,71 @@ export function PiSettingsPanel() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const reloadSdk = useCallback(async () => {
+    try {
+      const [status, avail] = await Promise.all([
+        ipcClient.invoke('sdk.status'),
+        ipcClient.invoke('sdk.listAvailable'),
+      ])
+      setSdkStatus(status)
+      setRegistry(avail)
+      setEnvTarget(status?.active?.kind || 'builtin')
+      setSelectedVersion((cur) => cur || (avail?.latest ?? ''))
+    } catch (e) {
+      console.error('sdk status load failed', e)
+    }
+  }, [])
+
+  useEffect(() => { void reloadSdk() }, [reloadSdk])
+
+  // 订阅 SDK 安装进度事件
+  useEffect(() => {
+    return onAppEvent((event) => {
+      if (event.type !== 'sdk-install-progress') return
+      if (event.line) setInstallOutput((prev) => [...prev, event.line!])
+      if (event.done) {
+        setInstalling(false)
+        if (event.error) toast.error(`升级失败: ${event.error}`)
+        else toast.success('SDK 升级完成，已切换到独立环境')
+        void reloadSdk()
+      }
+    })
+  }, [reloadSdk])
+
+  const onInstall = useCallback(async () => {
+    if (!selectedVersion) return
+    setInstalling(true)
+    setInstallOutput([])
+    try {
+      const res = await ipcClient.invoke('sdk.install', { version: selectedVersion })
+      if (res?.ok === false) {
+        setInstalling(false)
+        toast.error(res.error || '升级失败')
+      }
+    } catch (e: any) {
+      setInstalling(false)
+      toast.error(e?.message || '升级失败')
+    }
+  }, [selectedVersion])
+
+  const onSwitchEnv = useCallback(async (target: 'builtin' | 'global' | 'user') => {
+    setSwitching(true)
+    try {
+      const res = await ipcClient.invoke('sdk.switch', { target })
+      if (res?.ok === false) {
+        toast.error(res.error || '切换失败')
+        return
+      }
+      const label = target === 'builtin' ? '内置版本' : target === 'global' ? '全局版本' : '独立环境'
+      toast.success(`已切换到${label}`)
+      void reloadSdk()
+    } catch (e: any) {
+      toast.error(e?.message || '切换失败')
+    } finally {
+      setSwitching(false)
+    }
+  }, [reloadSdk])
 
   const patch = async (p: Record<string, unknown>) => {
     setSaving(true)
@@ -146,9 +222,102 @@ export function PiSettingsPanel() {
       )}
 
       <Section title="环境与认证">
-        <Row label="SDK 版本">
-          <span className="font-mono text-[12px] text-muted-foreground">{info?.sdkVersion || '—'}</span>
-        </Row>
+        {/* SDK 版本管理 */}
+        <div className="py-3 border-b border-border/40">
+          <div className="mb-2 text-[13px] font-medium text-foreground">SDK 版本管理</div>
+          <div className="grid grid-cols-1 gap-1.5 text-[12px]">
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">内置版本</span>
+              <span className="font-mono text-muted-foreground">{sdkStatus?.builtinVersion || info?.sdkVersion || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">全局版本</span>
+              <span className="font-mono text-muted-foreground">{sdkStatus?.globalVersion || '未检测到'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">独立环境</span>
+              <span className="font-mono text-muted-foreground">{sdkStatus?.userVersion || '未安装'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">当前生效</span>
+              <span className="font-mono text-foreground">
+                {sdkStatus?.active?.version || '—'} ({sdkStatus?.active?.kind === 'global' ? '全局' : sdkStatus?.active?.kind === 'user' ? '独立环境' : '内置'})
+              </span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">registry 最新</span>
+              <span className="font-mono text-muted-foreground">{registry?.latest || (registry ? '—' : '加载中…')}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">npm</span>
+              <span className="font-mono text-muted-foreground">
+                {sdkStatus?.npmAvailable ? '可用 ✓' : '未检测到 ✗（升级需本机 npm）'}
+              </span>
+            </div>
+          </div>
+          {sdkStatus?.active?.fallbackReason && (
+            <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+              {sdkStatus.active.kind === 'user' ? '独立环境' : '全局版本'}不可用，已回退内置
+            </div>
+          )}
+          {sdkStatus?.workerFallback && (
+            <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+              目标 SDK 加载失败，已回退内置
+            </div>
+          )}
+          {/* 切换生效环境 */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted-foreground/70">切换生效环境</span>
+            <select
+              className={cn(selectCls, 'min-w-[8rem]')}
+              value={envTarget}
+              disabled={switching || installing}
+              onChange={(e) => setEnvTarget(e.target.value as 'builtin' | 'global' | 'user')}
+            >
+              <option value="builtin">内置</option>
+              <option value="global" disabled={!sdkStatus?.globalVersion}>全局{!sdkStatus?.globalVersion ? '（未检测到）' : ''}</option>
+              <option value="user" disabled={!sdkStatus?.userVersion}>独立环境{!sdkStatus?.userVersion ? '（未安装）' : ''}</option>
+            </select>
+            <button
+              type="button"
+              className={btnOutline}
+              disabled={switching || installing || envTarget === sdkStatus?.active?.kind || (envTarget === 'global' && !sdkStatus?.globalVersion) || (envTarget === 'user' && !sdkStatus?.userVersion)}
+              onClick={() => onSwitchEnv(envTarget)}
+            >
+              {switching ? '切换中…' : '切换'}
+            </button>
+          </div>
+          {/* 升级独立环境（覆盖式安装） */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted-foreground/70">升级独立环境</span>
+            <select
+              className={cn(selectCls, 'min-w-[8rem]')}
+              value={selectedVersion}
+              disabled={installing || !sdkStatus?.npmAvailable}
+              onChange={(e) => setSelectedVersion(e.target.value)}
+            >
+              <option value="">选择版本…</option>
+              {(registry?.versions || []).slice().reverse().map((v) => (
+                <option key={v} value={v}>
+                  {v}{v === registry?.latest ? ' (latest)' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
+              onClick={onInstall}
+            >
+              {installing ? '安装中…' : '升级并切换'}
+            </button>
+          </div>
+          {(installing || installOutput.length > 0) && (
+            <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted/50 p-2 text-[10px] font-mono whitespace-pre-wrap text-muted-foreground">
+              {installOutput.join('\n')}{installing ? '\n…' : ''}
+            </pre>
+          )}
+        </div>
         <Row label="agentDir" description="全局 pi 配置目录">
           <span className="max-w-[220px] truncate font-mono text-[11px] text-muted-foreground" title={info?.agentDir}>
             {info?.agentDir || '~/.pi/agent'}

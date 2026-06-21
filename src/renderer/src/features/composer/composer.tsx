@@ -7,9 +7,11 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
 import { ComposerModelStrip } from './composer-model-strip'
-import { ComposerMetricsFooter } from './composer-metrics-footer'
+import { ComposerMetricsInline } from './composer-metrics-inline'
+import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
+import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
 
 interface SlashCommand {
   id: string
@@ -61,7 +63,6 @@ export function Composer() {
   const isRunning = useUIStore((s) => s.runState.status === 'running')
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
-  const usage = useUIStore((s) => s.runState.usage)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const setModelPickerOpen = useUIStore((s) => s.setModelPickerOpen)
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
@@ -242,6 +243,26 @@ export function Composer() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    const alt = e.altKey
+    if (alt && e.key === 'ArrowUp' && !showPopover) {
+      e.preventDefault()
+      void restoreQueuedToComposer({ currentText: text, setText })
+      return
+    }
+    if (e.key === 'Escape' && isRunning && !showPopover) {
+      e.preventDefault()
+      void restoreQueuedToComposer({ abort: true, currentText: text, setText })
+      return
+    }
+    if (alt && e.key === 'Enter') {
+      e.preventDefault()
+      if (isRunning && (text.trim() || attachments.length > 0)) {
+        void sendText(text.trim())
+      } else if (!isRunning && (text.trim() || attachments.length > 0)) {
+        void handleSend()
+      }
+      return
+    }
     if (showPopover) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -454,6 +475,7 @@ export function Composer() {
           </div>
         </div>
       )}
+      <ComposerPendingQueue />
       <div
         className={cn(
           'composer-shell flex flex-col rounded-2xl border',
@@ -512,6 +534,9 @@ export function Composer() {
             >
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
+            {canCompose && (
+              <ComposerMetricsInline metrics={metrics} isRunning={isRunning} />
+            )}
             <div className="min-w-0 flex-1">
               {canCompose && (
                 <ComposerModelStrip
@@ -548,9 +573,6 @@ export function Composer() {
           </div>
         </div>
       </div>
-      {canCompose && (
-        <ComposerMetricsFooter usage={usage} isRunning={isRunning} metrics={metrics} />
-      )}
     </div>
   )
 }

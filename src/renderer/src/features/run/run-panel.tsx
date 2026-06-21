@@ -54,7 +54,7 @@ export function RunPanel() {
     metrics.tps != null && metrics.tps > 0 ? Math.round(metrics.tps / 4) : null
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto p-3 space-y-3">
+    <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto p-3 space-y-3">
       <div
         className={cn(
           'rounded-xl border p-3 transition-colors',

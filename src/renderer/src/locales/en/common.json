@@ -21,7 +21,10 @@
   "panel": {
     "review": "Review",
     "trellis": "Trellis",
-    "run": "Run"
+    "run": "Run",
+    "context": "Context",
+    "intercom": "Intercom",
+    "tree": "Tree"
   },
   "settings": {
     "title": "Settings",

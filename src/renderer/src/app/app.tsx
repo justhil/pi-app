@@ -16,9 +16,11 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
-import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon, GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
+import { Settings as SettingsIcon } from 'lucide-react'
+import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
+import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
+import { normalizeRightPanelPrefs } from '@shared/right-panels'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
@@ -44,6 +46,8 @@ export default function App() {
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
+  const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
+  const applyRightPanelPrefs = useUIStore((s) => s.applyRightPanelPrefs)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
@@ -75,6 +79,12 @@ export default function App() {
   }, [currentWorkspace, ephemeralSandboxDraft])
 
   const projectName = workspaceTitle
+
+  useEffect(() => {
+    ipcClient.invoke('settings.get', { key: 'rightPanelPrefs' }).then((res) => {
+      applyRightPanelPrefs(normalizeRightPanelPrefs(res?.settings?.rightPanelPrefs))
+    }).catch(() => {})
+  }, [applyRightPanelPrefs])
 
   useEffect(() => {
     const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
@@ -132,14 +142,7 @@ export default function App() {
     }
   }
 
-  const PANELS = [
-    { key: 'review' as const, label: t('panel.review'), icon: GitBranch },
-    { key: 'trellis' as const, label: t('panel.trellis'), icon: ListTree },
-    { key: 'run' as const, label: t('panel.run'), icon: Activity },
-    { key: 'context' as const, label: 'Context', icon: FileSearch },
-    { key: 'intercom' as const, label: 'Intercom', icon: Radio },
-    { key: 'tree' as const, label: 'Tree', icon: GitBranch },
-  ]
+  const PANELS = buildRightPanelTabs(t).filter((p) => rightPanelPrefs[p.key as keyof typeof rightPanelPrefs])
 
   if (view === 'settings') {
     return (
@@ -179,12 +182,14 @@ export default function App() {
           }
           center={
             <MainColumnWithTimelineScroll className="main-chat-column h-full">
-              {rightPanelCollapsed && <ChatTimelineProgressRail placement="main-column-edge" />}
               <Timeline />
               <MainColRightPanelToggle />
               <ComposerDock>
                 <Composer />
               </ComposerDock>
+              {rightPanelCollapsed && (
+                <ChatTimelineProgressRail placement="main-column-edge" />
+              )}
             </MainColumnWithTimelineScroll>
           }
           right={
@@ -224,32 +229,3 @@ export default function App() {
   )
 }
 
-function RightPanelTabs({
-  panels,
-  activePanel,
-  setActivePanel,
-}: {
-  panels: { key: string; label: string; icon: any }[]
-  activePanel: string
-  setActivePanel: (p: any) => void
-}) {
-  return (
-    <div className="flex items-center border-b border-border/50">
-      {panels.map((p) => (
-        <button
-          key={p.key}
-          onClick={() => setActivePanel(p.key)}
-          className={cn(
-            'row-hover flex flex-1 items-center justify-center gap-1.5 px-1 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md transition-colors duration-200',
-            activePanel === p.key
-              ? 'bg-[var(--bg-active)] text-foreground'
-              : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
-          )}
-        >
-          <p.icon className="h-3 w-3 shrink-0" />
-          <span className="truncate">{p.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}

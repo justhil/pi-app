@@ -12,9 +12,12 @@ export function ComposerDock({ className, children }: { className?: string; chil
     const dock = dockRef.current
     const host = hostRef.current
     if (!dock || !host) return
+    const column = host.closest('.main-chat-column') as HTMLElement | null
 
     const sync = () => {
-      host.style.setProperty('--composer-dock-h', `${dock.offsetHeight}px`)
+      const h = `${dock.offsetHeight}px`
+      host.style.setProperty('--composer-dock-h', h)
+      column?.style.setProperty('--composer-dock-h', h)
     }
     sync()
     const ro = new ResizeObserver(sync)
@@ -24,6 +27,7 @@ export function ComposerDock({ className, children }: { className?: string; chil
       ro.disconnect()
       window.removeEventListener('resize', sync)
       host.style.removeProperty('--composer-dock-h')
+      column?.style.removeProperty('--composer-dock-h')
     }
   }, [])
 

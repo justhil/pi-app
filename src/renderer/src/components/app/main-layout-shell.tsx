@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChatTimelineProgressRail } from '@renderer/features/timeline/chat-timeline-progress-rail'
+import { PanelResizeEdge } from '@renderer/components/app/panel-resize-edge'
 
 /**
  * 三栏 Grid：侧栏用 0fr ↔ 固定宽 过渡，中间列 1fr 由浏览器插值，避免 width 动画每帧重排 Timeline。
@@ -82,29 +83,22 @@ export function MainLayoutShell({
     >
       <div
         className={cn(
-          'shell-track-left relative min-w-0 overflow-hidden border-r border-border/60',
-          leftCollapsed && 'shell-track-collapsed',
+          'shell-track-left relative flex min-w-0 flex-row items-stretch overflow-hidden border-r border-border/60',
+          leftCollapsed && 'shell-track-collapsed border-r-0',
         )}
         style={{ background: 'var(--bg-1)' }}
         aria-hidden={leftCollapsed}
       >
         <div
           className={cn(
-            'shell-track-inner h-full min-w-0',
+            'shell-track-inner h-full min-h-0 min-w-0 flex-1',
             leftCollapsed && 'pointer-events-none',
           )}
         >
           {left}
         </div>
         {!leftCollapsed && (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            title="拖动调整宽度"
-            onMouseDown={startLeftDrag}
-            className="shell-resize-handle-left absolute cursor-col-resize"
-            aria-hidden
-          />
+          <PanelResizeEdge dragging={leftDragging} onMouseDown={startLeftDrag} />
         )}
       </div>
 
@@ -121,16 +115,7 @@ export function MainLayoutShell({
         {!rightCollapsed && (
           <>
             <ChatTimelineProgressRail placement="panel-edge" />
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              title="拖动调整宽度"
-              onMouseDown={startRightDrag}
-              className={cn(
-                'right-panel-resize-edge shrink-0 cursor-col-resize',
-                rightDragging && 'right-panel-resize-edge-active',
-              )}
-            />
+            <PanelResizeEdge dragging={rightDragging} onMouseDown={startRightDrag} />
           </>
         )}
         <div

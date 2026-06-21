@@ -18,6 +18,7 @@ import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 
 const MarkdownView = lazy(() => import('./markdown-view'))
 
@@ -316,10 +317,12 @@ export function Timeline() {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-    <div
-      ref={scrollRef}
+    <OverlayScrollHost
+      className="timeline-scroll-viewport timeline-scroll-with-dock min-h-0 flex-1 w-full"
+      scrollClassName="timeline-scroll-with-dock-pane w-full"
+      showRailOnHostHover
+      scrollRef={scrollRef}
       onScroll={handleScroll}
-      className="timeline-scroll-viewport timeline-scroll-with-dock min-h-0 flex-1 overflow-y-auto overflow-x-hidden w-full"
     >
       <div
         key={historySessionFile || 'timeline'}
@@ -376,7 +379,7 @@ export function Timeline() {
       })}
       <div className="h-4" />
       </div>
-    </div>
+    </OverlayScrollHost>
     </div>
   )
 }

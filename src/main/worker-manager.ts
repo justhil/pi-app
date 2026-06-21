@@ -1,8 +1,9 @@
 // Worker Manager - manages Pi Worker lifecycle via utilityProcess built-in message channel
 
-import { utilityProcess, type BrowserWindow } from 'electron'
+import { utilityProcess, app, type BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
+import { resolveActiveSdk } from './sdk-loader'
 
 interface InitResult {
   sessionId: string
@@ -18,56 +19,65 @@ export class WorkerManager {
   private requestCounter = 0
   private initResolver: ((r: InitResult) => void) | null = null
   private initRejecter: ((e: any) => void) | null = null
+  private initPromise: Promise<InitResult> | null = null
   private stopping = false
   /** When true, worker exit will not spawn another process (avoids task-manager process storms). */
   private autoRestartEnabled = false
+  /** Worker init 时全局 pi 加载失败已回退内置（UI 提示用）。 */
+  private sdkFallback = false
+  /** 串行化 start/stop，避免 SDK 切换时并行 fork 多个 worker。 */
+  private lifecycleChain: Promise<unknown> = Promise.resolve()
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
   }
 
   async start(cwd: string): Promise<InitResult> {
-    if (this.worker && this.currentCwd === cwd) {
-      return { sessionId: 'already-running' }
+    const run = this.lifecycleChain.then(() => this.startUnlocked(cwd))
+    this.lifecycleChain = run.then(() => undefined, () => undefined)
+    return run
+  }
+
+  private async startUnlocked(cwd: string): Promise<InitResult> {
+    if (this.worker && this.currentCwd === cwd && this.initPromise) {
+      return this.initPromise
     }
 
-    await this.stop()
+    await this.stopUnlocked()
     this.stopping = false
     this.autoRestartEnabled = true
     this.currentCwd = cwd
 
-    this.worker = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
+    const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
       stdio: 'pipe',
     })
+    this.worker = forked
 
-    // Capture worker stdout/stderr safely (avoid EPIPE)
     const safeWrite = (msg: string) => {
       try { process.stderr.write(msg + '\n') } catch {}
     }
-    if (this.worker.stderr) {
-      this.worker.stderr.on('error', () => {})
-      this.worker.stderr.on('data', (chunk: Buffer) => {
+    if (forked.stderr) {
+      forked.stderr.on('error', () => {})
+      forked.stderr.on('data', (chunk: Buffer) => {
         for (const line of chunk.toString().split('\n')) {
           if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
         }
       })
     }
-    if (this.worker.stdout) {
-      this.worker.stdout.on('error', () => {})
-      this.worker.stdout.on('data', (chunk: Buffer) => {
+    if (forked.stdout) {
+      forked.stdout.on('error', () => {})
+      forked.stdout.on('data', (chunk: Buffer) => {
         for (const line of chunk.toString().split('\n')) {
           if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
         }
       })
     }
 
-    // Receive ALL messages from worker on the built-in channel
-    // (worker uses process.parentPort.postMessage which arrives here)
-    this.worker.on('message', (event: any) => {
+    forked.on('message', (event: any) => {
+      if (this.worker !== forked) return
       const data = event?.data ?? event
       if (!data) return
 
-      // Forward app events to renderer
       if (data.type === 'app-event' && this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('ipc:events', data.event as AppEvent)
       }
@@ -76,19 +86,20 @@ export class WorkerManager {
         this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
       }
 
-      // Resolve init promise
       if (data.type === 'init-done' && this.initResolver) {
+        this.sdkFallback = !!data.sdkFallback
+        if (this.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')
         this.initResolver({ sessionId: data.sessionId, model: data.model, thinkingLevel: data.thinkingLevel })
         this.initResolver = null
         this.initRejecter = null
       }
-      if (data.type === 'error' && data.phase === 'init' && this.initRejecter) {
+      if (data.type === 'error' && this.initRejecter) {
         this.initRejecter(new Error(data.error))
         this.initResolver = null
         this.initRejecter = null
+        this.initPromise = null
       }
 
-      // Resolve pending requests
       if (data.requestId && this.pendingRequests.has(data.requestId)) {
         const pending = this.pendingRequests.get(data.requestId)!
         clearTimeout(pending.timer)
@@ -98,18 +109,28 @@ export class WorkerManager {
       }
     })
 
-    // Handle worker exit
-    this.worker.on('exit', (code) => {
+    forked.on('exit', (code) => {
+      if (this.worker !== forked) {
+        safeWrite(`[WorkerManager] Ignoring stale worker exit (code ${code})`)
+        return
+      }
       safeWrite(`[WorkerManager] Worker exited with code ${code}`)
       this.worker = null
-      const cwd = this.currentCwd
+      const cwdOnExit = this.currentCwd
       this.currentCwd = null
-
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd })
+      this.initPromise = null
+      if (this.initRejecter) {
+        this.initRejecter(new Error(`Worker exited during init with code ${code}`))
+        this.initResolver = null
+        this.initRejecter = null
+        this.initPromise = null
       }
 
-      if (this.stopping || code === 0 || !cwd || !this.autoRestartEnabled) {
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: cwdOnExit })
+      }
+
+      if (this.stopping || code === 0 || !cwdOnExit || !this.autoRestartEnabled) {
         return
       }
 
@@ -117,42 +138,63 @@ export class WorkerManager {
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('ipc:worker-fatal', {
           code,
-          cwd,
+          cwd: cwdOnExit,
           message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
         })
       }
     })
 
-    // Send init (no port transfer — worker replies via process.parentPort)
-    this.worker.postMessage({ type: 'init', cwd })
-
-    return new Promise<InitResult>((resolve, reject) => {
+    this.initPromise = new Promise<InitResult>((resolve, reject) => {
       const timer = setTimeout(() => {
+        if (this.worker !== forked) return
         this.initResolver = null
         this.initRejecter = null
+        this.initPromise = null
         reject(new Error('Worker init timeout (60s)'))
       }, 60000)
       this.initResolver = (r) => { clearTimeout(timer); resolve(r) }
       this.initRejecter = (e) => { clearTimeout(timer); reject(e) }
     })
+
+    const activeSdk = resolveActiveSdk(app.getPath('userData'))
+    const sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
+
+    forked.postMessage({ type: 'init', cwd, sdkPath })
+
+    return this.initPromise
   }
 
   async stop(): Promise<void> {
+    const run = this.lifecycleChain.then(() => this.stopUnlocked())
+    this.lifecycleChain = run.then(() => undefined, () => undefined)
+    return run
+  }
+
+  private async stopUnlocked(): Promise<void> {
     this.stopping = true
-    this.currentCwd = null
-    if (this.worker) {
-      try { this.worker.postMessage({ type: 'dispose' }) } catch {}
-      // Give worker a moment to dispose gracefully
-      await new Promise((r) => setTimeout(r, 100))
-      try { this.worker.kill() } catch {}
-      this.worker = null
+    const toStop = this.worker
+    if (this.initRejecter) {
+      this.initRejecter(new Error('Worker stopped'))
+      this.initResolver = null
+      this.initRejecter = null
+    }
+    this.initPromise = null
+    if (toStop) {
+      try { toStop.postMessage({ type: 'dispose' }) } catch {}
+      await new Promise((r) => setTimeout(r, 150))
+      try { toStop.kill() } catch {}
+      if (this.worker === toStop) {
+        this.worker = null
+      }
     }
     this.pendingRequests.clear()
+    this.sdkFallback = false
   }
 
   private request(type: string, data?: any): Promise<any> {
     if (!this.worker) return Promise.reject(new Error('Worker not started'))
     const requestId = `req-${++this.requestCounter}`
+    const proc = this.worker
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
@@ -161,7 +203,13 @@ export class WorkerManager {
         }
       }, 120000)
       this.pendingRequests.set(requestId, { resolve, reject, timer })
-      this.worker!.postMessage({ type, requestId, ...data })
+      try {
+        proc.postMessage({ type, requestId, ...data })
+      } catch (e) {
+        clearTimeout(timer)
+        this.pendingRequests.delete(requestId)
+        reject(e)
+      }
     })
   }
 
@@ -172,6 +220,10 @@ export class WorkerManager {
   async abort(): Promise<void> { await this.request('abort') }
   async steer(text: string): Promise<void> { await this.request('steer', { text }) }
   async followUp(text: string): Promise<void> { await this.request('followUp', { text }) }
+  async clearPromptQueue(): Promise<{ steering: string[]; followUp: string[] }> {
+    const r = await this.request('clearQueue')
+    return { steering: r.steering || [], followUp: r.followUp || [] }
+  }
   async setModel(provider: string, modelId: string): Promise<void> { await this.request('setModel', { provider, modelId }) }
   async setThinkingLevel(level: string): Promise<void> { await this.request('setThinkingLevel', { level }) }
   async newSession(): Promise<{ sessionId: string }> { return await this.request('newSession') }
@@ -265,6 +317,7 @@ export class WorkerManager {
 
   get isRunning(): boolean { return this.worker !== null }
   get cwd(): string | null { return this.currentCwd }
+  get lastSdkFallback(): boolean { return this.sdkFallback }
 }
 
 export const workerManager = new WorkerManager()

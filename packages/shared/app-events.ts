@@ -73,6 +73,30 @@ export interface SlashEvent extends AppEventBase {
   text?: string
 }
 
-export type AppEvent = MessageEvent | ToolEvent | FileEvent | RunEvent | CompactionEvent | SlashEvent
+/** pi AgentSession queue_update：运行中已入队的 steer / follow-up（对齐 TUI 输入框上方淡色展示） */
+export interface QueueEvent extends AppEventBase {
+  type: 'queue'
+  steering: string[]
+  followUp: string[]
+}
+
+// SDK 安装进度（设置页 UI 用，与会话无关，不继承 AppEventBase）
+export interface SdkInstallProgressEvent {
+  type: 'sdk-install-progress'
+  version: string
+  line?: string
+  done?: boolean
+  error?: string
+}
+
+export type AppEvent =
+  | MessageEvent
+  | ToolEvent
+  | FileEvent
+  | RunEvent
+  | CompactionEvent
+  | SlashEvent
+  | QueueEvent
+  | SdkInstallProgressEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'

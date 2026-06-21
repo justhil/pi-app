@@ -175,7 +175,7 @@ export function ReviewPanel() {
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="scrollbar-overlay flex-1 overflow-y-auto">
         {scope === 'git' && gitData?.log && (
           <div className="border-b border-border/40 px-3 py-2">
             <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-foreground-secondary/70">

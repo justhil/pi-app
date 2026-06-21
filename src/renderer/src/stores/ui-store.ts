@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AppEvent } from '@shared/app-events'
+import {
+  coerceActivePanel,
+  defaultRightPanelPrefs,
+  normalizeRightPanelPrefs,
+  type RightPanelId,
+  type RightPanelPrefs,
+} from '@shared/right-panels'
 import { sanitizeRunStatePatch } from '@renderer/lib/format-run-display'
 
 // Generic status-line extractor (replaces pi-search-specific piSearchStatusFromUpdate).
@@ -132,8 +139,10 @@ interface UIState {
   setComposerPrefill: (text: string | null) => void
 
   // Panel
-  activePanel: 'review' | 'trellis' | 'run' | 'context' | 'intercom' | 'tree'
-  setActivePanel: (p: UIState['activePanel']) => void
+  activePanel: RightPanelId
+  setActivePanel: (p: RightPanelId) => void
+  rightPanelPrefs: RightPanelPrefs
+  applyRightPanelPrefs: (prefs: RightPanelPrefs) => void
 
   rewindKey: string
   rewindCheckpoints: Array<{ id: string; trigger: string; description?: string; branch: string; timestamp: number }>
@@ -181,6 +190,12 @@ interface UIState {
   // Thinking picker
   thinkingPickerOpen: boolean
   setThinkingPickerOpen: (open: boolean) => void
+
+  /** 运行中已入队、尚未送达的消息（来自 queue_update，对齐 TUI） */
+  pendingSteering: string[]
+  pendingFollowUp: string[]
+  setPendingQueue: (steering: string[], followUp: string[]) => void
+  clearPendingQueue: () => void
 
   // Event processing
   processEvent: (event: AppEvent) => void
@@ -386,7 +401,16 @@ export const useUIStore = create<UIState>()(
   setComposerPrefill: (text) => set({ composerPrefill: text }),
 
   activePanel: 'review',
-  setActivePanel: (p) => set({ activePanel: p }),
+  setActivePanel: (p) =>
+    set((s) => ({
+      activePanel: s.rightPanelPrefs[p] ? p : coerceActivePanel(p, s.rightPanelPrefs),
+    })),
+  rightPanelPrefs: defaultRightPanelPrefs(),
+  applyRightPanelPrefs: (prefs) =>
+    set((s) => ({
+      rightPanelPrefs: prefs,
+      activePanel: coerceActivePanel(s.activePanel, prefs),
+    })),
 
   theme: 'system',
   setTheme: (t) => set({ theme: t }),
@@ -407,6 +431,11 @@ export const useUIStore = create<UIState>()(
 
   thinkingPickerOpen: false,
   setThinkingPickerOpen: (open) => set({ thinkingPickerOpen: open }),
+
+  pendingSteering: [],
+  pendingFollowUp: [],
+  setPendingQueue: (steering, followUp) => set({ pendingSteering: steering, pendingFollowUp: followUp }),
+  clearPendingQueue: () => set({ pendingSteering: [], pendingFollowUp: [] }),
 
   processEvent: (event) => {
     const state = get()
@@ -565,6 +594,7 @@ export const useUIStore = create<UIState>()(
             activeTool: undefined,
             activeToolStatus: undefined,
           })
+          state.clearPendingQueue()
           set({ streamingAssistantId: null })
           state.pruneEmptyAssistantBubbles()
         } else if (event.phase === 'failed') {
@@ -604,6 +634,10 @@ export const useUIStore = create<UIState>()(
           isError: event.status === 'error',
           timestamp: event.timestamp,
         })
+        break
+      }
+      case 'queue': {
+        state.setPendingQueue(event.steering, event.followUp)
         break
       }
     }

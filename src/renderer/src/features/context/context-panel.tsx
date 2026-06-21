@@ -160,7 +160,7 @@ export function ContextPanel() {
             </p>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+          <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2 py-2">
             {segments.length === 0 ? (
               <p className="px-2 py-4 text-[12px] text-foreground-secondary/70">暂无消息片段</p>
             ) : (

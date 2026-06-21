@@ -1,15 +1,10 @@
 // Pi Worker - runs pi SDK in a utilityProcess via MessagePort
 // Entry point spawned by Electron utilityProcess as ESM (.mjs)
 
-import {
-  createAgentSession,
-  createEventBus,
-  DefaultResourceLoader,
-  getAgentDir,
-  SettingsManager,
-  type AgentSession,
-  type AgentSessionEvent,
-  SessionManager,
+import type {
+  AgentSession,
+  AgentSessionEvent,
+  EventBus,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
@@ -27,9 +22,11 @@ function extractJsonPath(obj: unknown, path: string): unknown {
   return cur
 }
 
+let sdk: typeof import('@earendil-works/pi-coding-agent') | null = null
+let activeSdkPath: string | null = null
+let sharedEventBus: EventBus | null = null
 let session: AgentSession | null = null
 let uiBridge: DesktopUIBridge | null = null
-let sharedEventBus = createEventBus()
 let seq = 0
 let currentCwd = ''
 let currentSessionId = ''
@@ -90,17 +87,17 @@ async function initSession(cwd: string): Promise<void> {
 
   currentCwd = cwd
 
-  const agentDir = getAgentDir()
-  const settingsManager = SettingsManager.create(cwd, agentDir)
-  const resourceLoader = new DefaultResourceLoader({
+  const agentDir = sdk!.getAgentDir()
+  const settingsManager = sdk!.SettingsManager.create(cwd, agentDir)
+  const resourceLoader = new sdk!.DefaultResourceLoader({
     cwd,
     agentDir,
     settingsManager,
-    eventBus: sharedEventBus,
+    eventBus: sharedEventBus!,
   })
   await resourceLoader.reload()
 
-  const { session: newSession, modelFallbackMessage } = await createAgentSession({
+  const { session: newSession, modelFallbackMessage } = await sdk!.createAgentSession({
     cwd,
     agentDir,
     settingsManager,
@@ -150,7 +147,7 @@ function buildCommandContextActions(sess: AgentSession) {
 
 async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   if (!uiBridge) {
-    uiBridge = createDesktopUIBridge(sharedEventBus, (req) => {
+    uiBridge = createDesktopUIBridge(sharedEventBus!, (req) => {
       process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
     })
   }
@@ -291,12 +288,22 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       }
       break
     }
+    case 'queue_update': {
+      emit({
+        ...base,
+        type: 'queue',
+        steering: [...(event.steering || [])],
+        followUp: [...(event.followUp || [])],
+      })
+      break
+    }
   }
 }
 
 async function listSessions(cwd: string): Promise<any[]> {
+  if (!sdk) return []
   try {
-    return await SessionManager.list(cwd)
+    return await sdk.SessionManager.list(cwd)
   } catch (e) {
     console.error('[Worker] listSessions failed:', e)
     return []
@@ -502,7 +509,7 @@ function extractToolResult(message: any): string {
 
 /** Pi SettingsManager has getters but no setters for compaction token fields — write via globalSettings + markModified. */
 function patchPiCompactionTokens(
-  sm: InstanceType<typeof SettingsManager>,
+  sm: any,
   patch: { compactionReserveTokens?: unknown; compactionKeepRecentTokens?: unknown },
 ) {
   const gs = (sm as any).globalSettings as Record<string, any>
@@ -539,9 +546,30 @@ process.parentPort?.on('message', async (event: any) => {
       case 'init': {
         try {
           console.log('[Worker] Initializing session for:', msg.cwd)
+          activeSdkPath = typeof msg.sdkPath === 'string' && msg.sdkPath ? msg.sdkPath : null
+          let sdkFallback = false
+          try {
+            if (activeSdkPath) {
+              const { isAbsolute } = await import('node:path')
+              const { pathToFileURL } = await import('node:url')
+              if (isAbsolute(activeSdkPath)) {
+                sdk = await import(pathToFileURL(activeSdkPath).href)
+              } else {
+                sdk = await import(activeSdkPath)
+              }
+            } else {
+              sdk = await import('@earendil-works/pi-coding-agent')
+            }
+          } catch (e: any) {
+            console.error('[Worker] Dynamic import SDK failed, fallback to builtin:', e.message)
+            activeSdkPath = null
+            sdk = await import('@earendil-works/pi-coding-agent')
+            sdkFallback = true
+          }
+          if (!sharedEventBus) sharedEventBus = sdk.createEventBus()
           await initSession(msg.cwd)
           console.log('[Worker] Init done, sessionId:', currentSessionId)
-          reply({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel })
+          reply({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel, sdkFallback })
         } catch (e: any) {
           console.error('[Worker] Init FAILED:', e.message, e.stack)
           reply({ type: 'error', error: `Init failed: ${e.message}`, stack: e.stack })
@@ -603,12 +631,16 @@ process.parentPort?.on('message', async (event: any) => {
       }
       case 'followUp': {
         if (!session) { reply({ type: 'error', error: 'No session' }); break }
-        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
-        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
         reply({ type: 'followUp-done' })
         void session.followUp(msg.text).catch((e: any) => {
           console.error('[Worker] followUp failed:', e)
         })
+        break
+      }
+      case 'clearQueue': {
+        if (!session) { reply({ type: 'clearQueue-done', steering: [], followUp: [] }); break }
+        const cleared = session.clearQueue()
+        reply({ type: 'clearQueue-done', steering: cleared.steering || [], followUp: cleared.followUp || [] })
         break
       }
       case 'setModel': {
@@ -879,10 +911,16 @@ process.parentPort?.on('message', async (event: any) => {
       case 'getMessages': {
         try {
           const { pathToFileURL, fileURLToPath } = await import('node:url')
-          const { dirname, join } = await import('node:path')
-          const mainUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
-          const resolved = fileURLToPath(mainUrl)
-          const pkgRoot = dirname(dirname(resolved))
+          const { dirname, join, isAbsolute } = await import('node:path')
+          // activeSdkPath 现为完整入口文件路径（.../dist/index.js）；两分支统一 dirname(dirname) 得包根
+          let pkgRoot: string
+          if (activeSdkPath && isAbsolute(activeSdkPath)) {
+            pkgRoot = dirname(dirname(activeSdkPath))
+          } else {
+            const mainUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
+            const resolved = fileURLToPath(mainUrl)
+            pkgRoot = dirname(dirname(resolved))
+          }
           const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
           const sm: any = await import(pathToFileURL(smPath).href)
           const smOpen = sm.SessionManager.open(msg.sessionFile)
@@ -922,17 +960,17 @@ process.parentPort?.on('message', async (event: any) => {
         try {
           if (unsubscribe) { unsubscribe(); unsubscribe = null }
           session?.dispose()
-          const agentDir = getAgentDir()
-          const settingsManager = SettingsManager.create(currentCwd, agentDir)
-          const resourceLoader = new DefaultResourceLoader({
+          const agentDir = sdk!.getAgentDir()
+          const settingsManager = sdk!.SettingsManager.create(currentCwd, agentDir)
+          const resourceLoader = new sdk!.DefaultResourceLoader({
             cwd: currentCwd,
             agentDir,
             settingsManager,
-            eventBus: sharedEventBus,
+            eventBus: sharedEventBus!,
           })
           await resourceLoader.reload()
-          const sm = SessionManager.open(msg.sessionFile)
-          const { session: newSession } = await createAgentSession({
+          const sm = sdk!.SessionManager.open(msg.sessionFile)
+          const { session: newSession } = await sdk!.createAgentSession({
             cwd: currentCwd,
             agentDir,
             settingsManager,
@@ -962,7 +1000,7 @@ process.parentPort?.on('message', async (event: any) => {
           if (session?.sessionFile === file) {
             session.setSessionName(title)
           } else {
-            const sm = SessionManager.open(file, undefined, currentCwd)
+            const sm = sdk!.SessionManager.open(file, undefined, currentCwd)
             sm.appendSessionInfo(title)
           }
           reply({ type: 'sessionRenameFile-done', ok: true, title })
@@ -1104,7 +1142,7 @@ process.parentPort?.on('message', async (event: any) => {
       case 'getPiSettings': {
         try {
           const sm = session?.settingsManager
-            ?? SettingsManager.create(currentCwd || process.cwd(), getAgentDir())
+            ?? sdk!.SettingsManager.create(currentCwd || process.cwd(), sdk!.getAgentDir())
           const compaction = sm.getCompactionSettings()
           const retry = sm.getRetrySettings()
           const branchSummary = sm.getBranchSummarySettings()
@@ -1157,7 +1195,7 @@ process.parentPort?.on('message', async (event: any) => {
       case 'setPiSettings': {
         try {
           const sm = session?.settingsManager
-            ?? SettingsManager.create(currentCwd || process.cwd(), getAgentDir())
+            ?? sdk!.SettingsManager.create(currentCwd || process.cwd(), sdk!.getAgentDir())
           const patch = msg.patch || {}
           if (patch.defaultProvider !== undefined && patch.defaultModel !== undefined) {
             sm.setDefaultModelAndProvider(patch.defaultProvider, patch.defaultModel)

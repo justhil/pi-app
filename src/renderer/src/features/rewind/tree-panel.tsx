@@ -40,7 +40,7 @@ export function TreePanel() {
 等同 TUI <span className="font-mono">/tree</span>：点用户消息会回到发送前（正文进输入框）；点助手消息则保留到该条回复。
       </p>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">
+      <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">
         {!sessionFile ? (
           <p className="px-3 py-6 text-[11px] text-muted-foreground/70">未选择会话</p>
         ) : loading ? (

@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, FolderOpen, MessageSquare, Plus, Folder, Inb
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { startNewSession } from '@renderer/lib/new-session'
+import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
 import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-context-menu'
 import { useSessionContextMenu, SessionContextMenuPortal } from './session-context-menu'
 
@@ -42,6 +43,7 @@ export function ProjectSidebar({
   const sessions = useUIStore((s) => s.sessions)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionItem[]>>({})
+  const [loadingSessionPaths, setLoadingSessionPaths] = useState<Set<string>>(() => new Set())
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [sectionOpen, setSectionOpen] = useState(true)
@@ -57,6 +59,7 @@ export function ProjectSidebar({
 
   const refreshSessionsForWorkspace = useCallback(async (workspaceId: string) => {
     if (!workspaceId || isSandboxPath(workspaceId)) return
+    setLoadingSessionPaths((prev) => new Set(prev).add(workspaceId))
     try {
       const listRes = await ipcClient.invoke('session.list', { workspaceId })
       const list = (listRes?.sessions || []) as SessionItem[]
@@ -64,11 +67,18 @@ export function ProjectSidebar({
       if (useUIStore.getState().currentWorkspace === workspaceId) {
         useUIStore.getState().setSessions(list)
       }
-    } catch {
+    } catch (e) {
+      console.error('[ProjectSidebar] session list failed:', workspaceId, e)
       setSessionsByWorkspace((prev) => ({ ...prev, [workspaceId]: [] }))
       if (useUIStore.getState().currentWorkspace === workspaceId) {
         useUIStore.getState().setSessions([])
       }
+    } finally {
+      setLoadingSessionPaths((prev) => {
+        const next = new Set(prev)
+        next.delete(workspaceId)
+        return next
+      })
     }
   }, [])
 
@@ -158,6 +168,8 @@ export function ProjectSidebar({
     }
     try {
       await startNewSession(workspacePath)
+      await refreshSessionsForWorkspace(workspacePath)
+      setExpandedPaths((prev) => new Set(prev).add(workspacePath))
     } catch (e) {
       console.error('New session failed:', e)
     }
@@ -173,9 +185,12 @@ export function ProjectSidebar({
 
   const renderSessionTree = (workspacePath: string) => {
     const projectSessions = mergedSessionsByWorkspace[workspacePath] || []
+    const loading = loadingSessionPaths.has(workspacePath) && projectSessions.length === 0
     return (
-    <div className="ml-3 border-l border-border/40 pl-1.5">
-      {projectSessions.length === 0 ? (
+    <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
+      {loading ? (
+        <p className="px-2 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">加载中…</p>
+      ) : projectSessions.length === 0 ? (
         <p className="px-2 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">暂无会话</p>
       ) : (
         projectSessions.map((s) => (
@@ -213,7 +228,7 @@ export function ProjectSidebar({
               })
             }
             className={cn(
-              'nav-row sider-item-motion mb-0.5 flex min-h-[38px] cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5',
+              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center gap-2 rounded-lg px-2.5 py-1.5',
               currentSessionId === s.sessionId && workspacePath === currentWorkspace
                 ? 'nav-row-active'
                 : 'text-foreground-secondary hover:text-foreground',
@@ -244,35 +259,39 @@ export function ProjectSidebar({
     const active = path === currentWorkspace
     const open = expandedPaths.has(path)
     const name = diskProjectName(path)
+    const toggleOpen = () =>
+      setExpandedPaths((prev) => {
+        const next = new Set(prev)
+        if (next.has(path)) next.delete(path)
+        else next.add(path)
+        return next
+      })
+
     return (
-      <div key={path} className="mb-0.5">
+      <div key={path} className="sidebar-project-row mb-0.5">
         <div
           className={cn(
-            'nav-row sider-item-motion flex min-h-[36px] items-center gap-1 rounded-lg px-1.5',
-            active && 'bg-[var(--bg-hover)]/80',
+            'nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5',
+            (active || open) && 'bg-[var(--bg-hover)]/80',
           )}
         >
           <button
             type="button"
-            onClick={() =>
-              setExpandedPaths((prev) => {
-                const next = new Set(prev)
-                if (next.has(path)) next.delete(path)
-                else next.add(path)
-                return next
-              })
-            }
-            className="chrome-icon-btn flex h-7 w-6 shrink-0 items-center justify-center rounded"
-          >
-            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => void switchDiskProject(path)}
-            className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
+            onClick={toggleOpen}
+            className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1.5 text-left"
             title={path}
+            aria-expanded={open}
           >
-            <Folder className={cn('h-4 w-4 shrink-0', active ? 'text-brand' : 'text-foreground-secondary/70')} />
+            <ChevronRight
+              className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/80"
+              data-open={open ? 'true' : 'false'}
+            />
+            <Folder
+              className={cn(
+                'folder-icon h-4 w-4 shrink-0 transition-colors duration-200',
+                active ? 'text-brand' : 'text-foreground-secondary/70',
+              )}
+            />
             <span
               className={cn(
                 'truncate text-[14px] leading-[20px]',
@@ -282,21 +301,21 @@ export function ProjectSidebar({
               {name}
             </span>
           </button>
-          {active && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                void handleNewSessionInProject(path)
-              }}
-              title="新建会话"
-              className="chrome-icon-btn mr-0.5 rounded p-1"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              void handleNewSessionInProject(path)
+            }}
+            title="新建会话"
+            className="chrome-icon-btn ml-0.5 cursor-pointer rounded p-1"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </div>
-        {open && renderSessionTree(path)}
+        <SidebarAnimatedCollapse open={open}>
+          {renderSessionTree(path)}
+        </SidebarAnimatedCollapse>
       </div>
     )
   }
@@ -312,7 +331,7 @@ export function ProjectSidebar({
         onKeyDown={(e) => e.key === 'Enter' && void openSandboxDialog(box.path)}
         onContextMenu={(e) => sandboxMenu.open(e, box.path, box.label)}
         className={cn(
-          'nav-row sider-item-motion mb-0.5 flex min-h-[40px] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2',
+          'nav-row sidebar-session-row mb-0.5 flex min-h-[40px] items-center gap-2.5 rounded-lg px-3 py-2',
           active ? 'nav-row-active' : 'text-foreground-secondary hover:text-foreground',
         )}
       >
@@ -351,7 +370,7 @@ export function ProjectSidebar({
         <button
           type="button"
           onClick={onOpenProject}
-          className="nav-row row-hover flex w-full items-center gap-2 rounded-lg border border-border/50 px-3 py-2.5 text-[13px] font-medium text-foreground-secondary hover:text-foreground"
+          className="nav-row row-hover flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border/50 px-3 py-2.5 text-[13px] font-medium text-foreground-secondary hover:text-foreground"
         >
           <FolderOpen className="h-4 w-4 shrink-0" />
           {openProjectLabel}
@@ -363,9 +382,13 @@ export function ProjectSidebar({
           <button
             type="button"
             onClick={() => setSectionOpen(!sectionOpen)}
-            className="flex min-w-0 flex-1 items-center gap-1 text-left"
+            className="sidebar-section-hit flex min-w-0 flex-1 items-center gap-1 px-1 py-0.5 text-left"
+            aria-expanded={sectionOpen}
           >
-            {sectionOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+            <ChevronRight
+              className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80"
+              data-open={sectionOpen ? 'true' : 'false'}
+            />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">对话分区</span>
             <span className="text-[10px] tabular-nums text-foreground-secondary/60">{sandboxes.length}</span>
           </button>
@@ -373,12 +396,12 @@ export function ProjectSidebar({
             type="button"
             onClick={() => void handleNewSandboxDialog()}
             title="新建独立临时对话"
-            className="chrome-icon-btn shrink-0 rounded-md p-1.5"
+            className="chrome-icon-btn shrink-0 cursor-pointer rounded-md p-1.5"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
-        {sectionOpen && (
+        <SidebarAnimatedCollapse open={sectionOpen}>
           <>
             <div className="px-0.5">
               {ephemeralSandboxDraft && (
@@ -400,7 +423,7 @@ export function ProjectSidebar({
               点 + 进入空白对话，首条消息将作为标题。
             </p>
           </>
-        )}
+        </SidebarAnimatedCollapse>
       </div>
       <SandboxContextMenuPortal
         menu={sandboxMenu.menu}

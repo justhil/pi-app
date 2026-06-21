@@ -36,11 +36,12 @@ export function useDoubleEscapeTree(enabled: boolean) {
       const gap = now - lastEscRef.current
       lastEscRef.current = now
 
-      if (gap > 450 || gap < 40) return
+      if (gap > 500 || gap < 40) return
       if (!composerTextEmpty()) return
 
       if (actionRef.current === 'fork') {
         e.preventDefault()
+        setTreeOpen(true)
         return
       }
       if (actionRef.current === 'tree') {

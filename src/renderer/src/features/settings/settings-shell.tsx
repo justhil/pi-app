@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
+import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 
 /** 设置主内容区：占满 TopBar 下方剩余宽度，宽页不套窄 max-w */
 export function SettingsMain({
@@ -13,18 +14,16 @@ export function SettingsMain({
 }) {
   return (
     <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
-      <div
-        className={cn(
-          'min-h-0 flex-1 overflow-y-auto',
-          wide
-            ? 'w-full px-5 py-6 sm:px-8 lg:px-10'
-            : 'w-full px-5 py-6 sm:px-8 lg:px-10',
+      <OverlayScrollHost
+        className="min-h-0 flex-1"
+        scrollClassName={cn(
+          wide ? 'w-full px-5 py-6 sm:px-8 lg:px-10' : 'w-full px-5 py-6 sm:px-8 lg:px-10',
         )}
       >
         <div className={cn('w-full', wide ? 'max-w-none' : 'mx-auto max-w-3xl')}>
           {children}
         </div>
-      </div>
+      </OverlayScrollHost>
     </main>
   )
 }
@@ -60,13 +59,15 @@ export function SettingsNav({
 }) {
   return (
     <nav
-      className="flex w-[220px] shrink-0 flex-col border-r border-border/50 bg-[var(--surface-sidebar)] sm:w-56"
+      className="flex h-full min-h-0 w-[220px] shrink-0 flex-col overflow-hidden border-r border-border/50 bg-[var(--surface-sidebar)] sm:w-56"
       aria-label={title}
     >
-      <div className="px-4 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
+      <div className="shrink-0 px-4 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/45">
         {title}
       </div>
-      <div className="flex flex-1 flex-col gap-0.5 px-2 pb-4">{children}</div>
+      <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-2 pb-4">
+        <div className="flex flex-col gap-0.5">{children}</div>
+      </OverlayScrollHost>
     </nav>
   )
 }

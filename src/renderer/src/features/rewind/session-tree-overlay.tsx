@@ -134,7 +134,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
           ))}
         </div>
 
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        <div ref={listRef} className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2 py-2">
           {!sessionFile ? (
             <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">未选择会话</p>
           ) : loading && rawTree.length === 0 ? (

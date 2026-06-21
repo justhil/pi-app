@@ -56,7 +56,7 @@ export function ChatTimelineProgressRail({ placement = 'panel-edge' }: { placeme
         'chat-scroll-rail electron-no-drag w-[4px] shrink-0 cursor-pointer',
         placement === 'panel-edge' && 'h-full self-stretch',
         placement === 'main-column-edge' &&
-          'electron-no-drag absolute bottom-0 right-0 top-0 z-10',
+          'chat-scroll-rail--main-column electron-no-drag pointer-events-auto absolute right-0 top-0 z-[50]',
       )}
       onClick={onTrackClick}
     >

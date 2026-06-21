@@ -258,21 +258,17 @@
     contain: layout;
   }
   .shell-track-inner {
-    transition: opacity 280ms ease;
+    transition:
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateX(0);
   }
   .shell-track-collapsed .shell-track-inner {
     opacity: 0;
+    transform: translateX(-12px);
+    pointer-events: none;
   }
-  .shell-resize-handle-left {
-    width: 4px;
-    right: -2px;
-    top: 0;
-    bottom: 0;
-    z-index: 20;
-  }
-  .shell-resize-handle-left:hover {
-    background: color-mix(in srgb, var(--brand) 18%, transparent);
-  }
+
   /* Sidebar / panel width（旧 flex 方案，Grid 壳层已替代） */
   .panel-width-animate {
     transition:
@@ -315,7 +311,7 @@
     opacity: 1;
     transform: scale(1);
   }
-  /* Tool / group expand（避免 grid-template-rows 动画引发布局；仅瞬时切换） */
+  /* Tool / group expand：默认瞬时，避免时间线大量工具卡同时做高度动画 */
   .expand-panel {
     display: grid;
     grid-template-rows: 0fr;
@@ -329,11 +325,92 @@
     overflow: hidden;
     min-height: 0;
   }
+  /* 侧栏折叠：height 由组件精确测量，避免 max-height 过大导致视觉上瞬间展开 */
+  .sidebar-collapse {
+    overflow: hidden;
+    height: 0;
+    opacity: 0;
+    transition:
+      height 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sidebar-collapse-inner {
+    transform: translateY(-10px) scaleY(0.98);
+    transform-origin: top;
+    transition:
+      transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0.6;
+  }
+  .sidebar-collapse-open .sidebar-collapse-inner,
+  .sidebar-collapse[data-open='true'] .sidebar-collapse-inner {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+  @keyframes sidebar-tree-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-collapse {
+      transition: none !important;
+      opacity: 1 !important;
+      height: auto !important;
+    }
+    .sidebar-collapse:not(.sidebar-collapse-open):not([data-open='true']) {
+      display: none;
+    }
+    .sidebar-collapse-inner {
+      transform: none !important;
+    }
+    .chevron-expand,
+    .nav-row,
+    .chrome-icon-btn,
+    .sider-item-motion,
+    .sidebar-project-hit,
+    .sidebar-section-hit {
+      transition: none !important;
+    }
+  }
   .chevron-expand {
-    transition: transform var(--motion-fast) var(--motion-ease);
+    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 200ms ease;
   }
   .chevron-expand[data-open='true'] {
     transform: rotate(90deg);
+    color: var(--brand);
+  }
+  .sidebar-project-row .nav-row {
+    border-radius: 0.5rem;
+  }
+  .sidebar-project-hit {
+    cursor: pointer;
+    border-radius: 0.5rem;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+  .sidebar-project-hit:hover {
+    background-color: var(--bg-hover);
+  }
+  .sidebar-project-hit:hover .folder-icon {
+    color: var(--brand);
+  }
+  .sidebar-session-row {
+    cursor: pointer;
+  }
+  .sidebar-section-hit {
+    cursor: pointer;
+    border-radius: 0.375rem;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .sidebar-section-hit:hover {
+    background-color: var(--bg-hover);
   }
   /* Electron frameless: drag title region */
   .electron-drag {
@@ -406,16 +483,16 @@
   .win-ctrl-btn {
     transition: background-color 150ms ease, color 150ms ease;
   }
-  /* 右栏左缘拖拽条（附在侧栏左侧，非浮在对话区上） */
-  .right-panel-resize-edge {
+  /* 左/右栏分界拖拽条：悬停与拖动时淡蓝高亮 */
+  .panel-resize-edge {
     width: 6px;
     align-self: stretch;
     background: transparent;
     transition: background-color 200ms ease;
   }
-  .right-panel-resize-edge:hover,
-  .right-panel-resize-edge-active {
-    background: color-mix(in srgb, var(--brand) 22%, transparent);
+  .panel-resize-edge-armed,
+  .panel-resize-edge-active {
+    background: color-mix(in srgb, #8ec8f0 38%, transparent);
   }
   .chat-scroll-rail {
     pointer-events: auto;
@@ -542,6 +619,12 @@
   .picker-row:active {
     transform: scale(0.995);
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
@@ -560,24 +643,17 @@
 
 /* Custom scrollbar (参考桌面客户端: thin, blends with surface) */
 @layer utilities {
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* 右侧 Tab：隐藏系统横向滚动条，用自绘 1px 轨道 */
+  .right-panel-tabs-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
+  .right-panel-tabs-scroll::-webkit-scrollbar {
+    display: none;
+    height: 0;
+    width: 0;
   }
-  ::-webkit-scrollbar-thumb {
-    background-color: rgba(127, 127, 127, 0.15);
-    border-radius: 3px;
-    transition: background-color 0.3s;
-  }
-  *:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(127, 127, 127, 0.25);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(127, 127, 127, 0.45);
-  }
+  /* 滚动条样式见 scrollbar-overlay.css（独立文件、非 @layer） */
 
   /* ── Animations ── */
   .animate-in {
@@ -604,12 +680,15 @@
     overscroll-behavior: contain;
     contain: layout style;
   }
-  /* 底部留白 = 悬浮输入区高度，消息滚入空白而非贴在输入框下 */
-  .timeline-scroll-with-dock {
-    padding-bottom: calc(var(--composer-dock-h, 11rem) + 0.5rem);
-    scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 0.5rem);
+  /* 向下滚到底：最后一条停在输入框上方（留白 + scroll-padding）；向上滚：内容可穿过悬浮层由渐变+模糊处理 */
+  .timeline-scroll-with-dock .overlay-scroll-pane {
+    padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
+    scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
   }
+  /* 右侧留出轨道区，进度条/自绘滚动条不被渐变盖住 */
   .composer-dock-fade {
+    left: 0;
+    right: 18px;
     background: linear-gradient(
       to top,
       var(--bg-base) 0%,
@@ -620,6 +699,14 @@
   }
   .composer-dock-panel {
     border-radius: 1rem;
+  }
+  .main-chat-column .chat-scroll-rail--main-column {
+    bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
+    z-index: 50;
+  }
+  .main-chat-column .overlay-scrollbar-rail {
+    bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
+    z-index: 50;
   }
   .ui-enter {
     animation: ui-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;

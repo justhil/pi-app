@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
@@ -31,6 +31,7 @@ import { loadAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
+import { pathToFileURL } from 'node:url'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 import { join, basename, dirname, extname } from 'path'
 import { homedir } from 'os'
@@ -53,10 +54,26 @@ import { listRewindCheckpoints } from './pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from './session-branch-anchors'
 import { readSessionIdFromFile } from './session-file-meta'
 import { flattenTreeFromSessionFile } from './session-tree-from-file'
+import { resolveActiveSdk } from './sdk-loader'
+import { readSdkStatus, listRegistryVersions, installVersion, switchTo } from './sdk-manager'
 
 type HandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, HandlerFn>()
+
+/** 按当前生效 SDK（内置/全局/独立环境）动态 import SDK 模块。 */
+function getActiveSdkModule(): Promise<typeof import('@earendil-works/pi-coding-agent')> {
+  const active = resolveActiveSdk(app.getPath('userData'))
+  if (active.kind === 'builtin') {
+    return import(active.entryPath)
+  }
+  return import(pathToFileURL(active.entryPath).href)
+}
+
+async function listSessionsOnDisk(workspaceId: string): Promise<any[]> {
+  const { SessionManager } = await getActiveSdkModule()
+  return await SessionManager.list(workspaceId)
+}
 
 export function registerHandler(channel: string, handler: HandlerFn): void {
   if (handlers.has(channel)) {
@@ -234,11 +251,12 @@ export function registerAllHandlers(): void {
 
   // ── Session ──
   registerHandler('ipc:session.list', async (req) => {
-    const sessions = await workerManager.listSessions(req.workspaceId)
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    const sessions = workspaceId ? await listSessionsOnDisk(workspaceId) : []
     const formatted = sessions.map((s: any) => ({
       sessionId: s.id,
       sessionFile: s.path,
-      workspaceId: s.cwd || workerManager.cwd || '',
+      workspaceId: s.cwd || workspaceId,
       title: s.name || s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
       createdAt: s.created?.getTime() || 0,
       updatedAt: s.modified?.getTime() || 0,
@@ -386,6 +404,9 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:session.new', async (req) => {
+    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    if (!workspaceId) throw new Error('workspaceId is required')
+    await workerManager.start(workspaceId)
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession()
     const state = await workerManager.getState().catch(() => ({}))
@@ -394,7 +415,7 @@ export function registerAllHandlers(): void {
       session: {
         sessionId: result.sessionId,
         sessionFile,
-        workspaceId: req.workspaceId || workerManager.cwd || '',
+        workspaceId,
         title: '新会话',
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -482,6 +503,18 @@ export function registerAllHandlers(): void {
     return { aborted: true }
   })
 
+  /** 清空 pi 侧 steer/follow-up 队列并返回文案（对齐 TUI Alt+↑ / app.message.dequeue） */
+  registerHandler('ipc:prompt.dequeueClearQueue', async (req) => {
+    const abort = !!req?.abort
+    const currentText = typeof req?.currentText === 'string' ? req.currentText : ''
+    const cleared = await workerManager.clearPromptQueue()
+    const all = [...(cleared.steering || []), ...(cleared.followUp || [])]
+    const queuedText = all.join('\n\n')
+    const combined = [queuedText, currentText.trim()].filter(Boolean).join('\n\n')
+    if (abort) await workerManager.abort()
+    return { restoredCount: all.length, combinedText: combined }
+  })
+
   // ── Model ──
   registerHandler('ipc:model.list', async (_req) => {
     // Authoritative source = Worker session modelRegistry
@@ -495,14 +528,14 @@ export function registerAllHandlers(): void {
     }
     // Fallback: standalone ModelRegistry in main (may return empty if auth not loaded)
     try {
-      const { ModelRegistry, AuthStorage } = await import('@earendil-works/pi-coding-agent')
+      const { ModelRegistry, AuthStorage } = await getActiveSdkModule()
       const auth = AuthStorage.create()
       const registry = ModelRegistry.create(auth)
-      const models = registry.listAvailable()
+      const models = await registry.getAvailable()
       return {
         models: models.map((m: any) => ({
-          id: m.modelId,
-          name: m.name || m.modelId,
+          id: m.id,
+          name: m.name || m.id,
           provider: m.provider,
           contextWindow: m.contextWindow || 0,
           maxOutput: m.maxOutput || 0,
@@ -954,6 +987,54 @@ export function registerAllHandlers(): void {
   // ── Pi Info ──
   registerHandler('ipc:pi.getInfo', async () => {
     return readPiInfo()
+  })
+
+  // ── SDK 升级 / 切换 / 回退 ──
+  registerHandler('ipc:sdk.status', async () => {
+    const status = readSdkStatus(app.getPath('userData'))
+    status.workerFallback = workerManager.lastSdkFallback
+    return status
+  })
+
+  registerHandler('ipc:sdk.listAvailable', async () => {
+    return await listRegistryVersions()
+  })
+
+  registerHandler('ipc:sdk.install', async (req) => {
+    const version = String(req?.version || '').trim()
+    if (!version) return { ok: false, error: 'missing version' }
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    try {
+      await installVersion(version, (line) => {
+        if (win) sendEvent(win, { type: 'sdk-install-progress', version, line })
+      })
+      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
+      const cwd = workerManager.cwd || configStore.get('currentProject')
+      if (cwd) {
+        await workerManager.stop()
+        await workerManager.start(cwd)
+      }
+      return { ok: true }
+    } catch (e: any) {
+      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error: e.message })
+      return { ok: false, error: e.message }
+    }
+  })
+
+  registerHandler('ipc:sdk.switch', async (req) => {
+    const target: 'builtin' | 'global' | 'user' =
+      req?.target === 'global' ? 'global' : req?.target === 'user' ? 'user' : 'builtin'
+    try {
+      await switchTo(target)
+      const cwd = workerManager.cwd || configStore.get('currentProject')
+      if (cwd) {
+        await workerManager.stop()
+        await workerManager.start(cwd)
+      }
+      return { ok: true, active: target }
+    } catch (e: any) {
+      return { ok: false, error: e.message }
+    }
   })
 
   // ── Pi Settings (A-layer write-back, tui-replacement-and-adapters.md §2.5) ──

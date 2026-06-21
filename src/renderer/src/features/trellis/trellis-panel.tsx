@@ -83,7 +83,7 @@ export function TrellisPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">Trellis</span>

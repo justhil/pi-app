@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import { execSync } from 'child_process'
+import { app } from 'electron'
+import { resolveActiveSdk } from './sdk-loader'
 
 export interface PiInfo {
   sdkVersion: string
@@ -28,13 +30,9 @@ export function readPiInfo(): PiInfo {
     modelsFile: join(agentDir, 'models.json'),
   }
 
-  // SDK version
+  // SDK version（内置或全局，取决于 current.json active）
   try {
-    const pkgPath = join(__dirname, '..', '..', 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json')
-    if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-      info.sdkVersion = pkg.version || ''
-    }
+    info.sdkVersion = resolveActiveSdk(app.getPath('userData')).version
   } catch {}
 
   // Auth status

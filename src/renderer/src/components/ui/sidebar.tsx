@@ -21,7 +21,7 @@ export function SidebarHeader({ label }: { label: string }) {
 }
 
 export function SidebarContent({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">{children}</div>
+  return <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">{children}</div>
 }
 
 export function RightPanel({ children }: { children: React.ReactNode }) {

@@ -8,7 +8,7 @@ import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extensio
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft
 } from 'lucide-react'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
@@ -18,12 +18,14 @@ import {
   SettingsNavItem,
   SettingsPageHeader,
 } from '@renderer/features/settings/settings-shell'
+import { RightPanelsSettings } from '@renderer/features/settings/right-panels-settings'
 
-type SettingsPage = 'general' | 'appearance' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
 const PAGES: { key: SettingsPage; icon: any; label: string }[] = [
   { key: 'general', icon: SettingsIcon, label: '通用' },
   { key: 'appearance', icon: Palette, label: '外观' },
+  { key: 'rightPanels', icon: LayoutPanelLeft, label: '右侧栏' },
   { key: 'pi', icon: Cpu, label: 'Pi' },
   { key: 'skills', icon: Zap, label: 'Skills' },
   { key: 'prompts', icon: MessageSquareText, label: '提示词' },
@@ -50,8 +52,8 @@ export function SettingsPage() {
   // Config detail subpage (replaces modal)
   if (configExt) {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2.5">
           <button
             onClick={() => setConfigExt(null)}
             className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -70,11 +72,11 @@ export function SettingsPage() {
     )
   }
 
-  const widePages: SettingsPage[] = ['pi', 'skills', 'prompts', 'extensions', 'adapters']
+  const widePages: SettingsPage[] = ['rightPanels', 'pi', 'skills', 'prompts', 'extensions', 'adapters']
   const wide = widePages.includes(page)
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
       <SettingsNav title={t('settings.title')}>
         {PAGES.map((p) => (
           <SettingsNavItem
@@ -89,6 +91,7 @@ export function SettingsPage() {
       <SettingsMain wide={wide}>
         {page === 'general' && <GeneralSettings />}
         {page === 'appearance' && <AppearanceSettings />}
+        {page === 'rightPanels' && <RightPanelsSettings />}
         {page === 'pi' && <PiSettings />}
         {page === 'skills' && <SkillsSettingsPanel />}
         {page === 'prompts' && <PromptsSettingsPanel />}
