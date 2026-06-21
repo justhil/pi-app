@@ -4,6 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import { ChevronDown, ChevronRight, FolderOpen, MessageSquare, Plus, Folder, Inbox } from 'lucide-react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { startNewSession } from '@renderer/lib/new-session'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
 import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-context-menu'
@@ -189,9 +190,9 @@ export function ProjectSidebar({
     return (
     <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
       {loading ? (
-        <p className="px-2 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">加载中…</p>
+        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">加载中</p>
       ) : projectSessions.length === 0 ? (
-        <p className="px-2 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">暂无会话</p>
+        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">无会话</p>
       ) : (
         projectSessions.map((s) => (
           <div
@@ -199,25 +200,29 @@ export function ProjectSidebar({
             role="button"
             tabIndex={0}
             onClick={() => {
-              if (workspacePath === currentWorkspace) {
-                void switchSessionInPlace(s.sessionId, s.sessionFile)
-              } else {
-                void activateWorkspace(workspacePath, {
-                  sessionId: s.sessionId,
-                  sessionFile: s.sessionFile,
-                })
-              }
+              guardSessionSwitch(() => {
+                if (workspacePath === currentWorkspace) {
+                  void switchSessionInPlace(s.sessionId, s.sessionFile)
+                } else {
+                  void activateWorkspace(workspacePath, {
+                    sessionId: s.sessionId,
+                    sessionFile: s.sessionFile,
+                  })
+                }
+              })
             }}
             onKeyDown={(e) => {
               if (e.key !== 'Enter') return
-              if (workspacePath === currentWorkspace) {
-                void switchSessionInPlace(s.sessionId, s.sessionFile)
-              } else {
-                void activateWorkspace(workspacePath, {
-                  sessionId: s.sessionId,
-                  sessionFile: s.sessionFile,
-                })
-              }
+              guardSessionSwitch(() => {
+                if (workspacePath === currentWorkspace) {
+                  void switchSessionInPlace(s.sessionId, s.sessionFile)
+                } else {
+                  void activateWorkspace(workspacePath, {
+                    sessionId: s.sessionId,
+                    sessionFile: s.sessionFile,
+                  })
+                }
+              })
             }}
             onContextMenu={(e) =>
               sessionMenu.open(e, {
@@ -307,7 +312,7 @@ export function ProjectSidebar({
               e.stopPropagation()
               void handleNewSessionInProject(path)
             }}
-            title="新建会话"
+            title="新会话"
             className="chrome-icon-btn ml-0.5 cursor-pointer rounded p-1"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -354,7 +359,7 @@ export function ProjectSidebar({
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-1">
-        <button type="button" onClick={() => void handleNewSandboxDialog()} title="新建临时对话" className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
+        <button type="button" onClick={() => void handleNewSandboxDialog()} title="临时对话" className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
           <Plus className="h-4 w-4" />
         </button>
         <button type="button" onClick={onOpenProject} title={openProjectLabel} className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
@@ -389,13 +394,13 @@ export function ProjectSidebar({
               className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80"
               data-open={sectionOpen ? 'true' : 'false'}
             />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">对话分区</span>
+            <span className="text-[11px] font-medium tracking-wide text-foreground-secondary/75">对话</span>
             <span className="text-[10px] tabular-nums text-foreground-secondary/60">{sandboxes.length}</span>
           </button>
           <button
             type="button"
             onClick={() => void handleNewSandboxDialog()}
-            title="新建独立临时对话"
+            title="新建临时对话"
             className="chrome-icon-btn shrink-0 cursor-pointer rounded-md p-1.5"
           >
             <Plus className="h-4 w-4" />
@@ -409,19 +414,17 @@ export function ProjectSidebar({
                   <Inbox className="h-4 w-4 shrink-0 text-brand" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] text-foreground">新对话</div>
-                    <div className="text-[11px] text-foreground-secondary/85">发送首条消息后保存</div>
+                    <div className="text-[11px] text-foreground-secondary/80">首条消息即标题</div>
                   </div>
                 </div>
               )}
               {sandboxes.length === 0 && !ephemeralSandboxDraft ? (
-                <p className="px-3 py-2 text-[12px] leading-relaxed text-foreground-secondary/85">点右侧 + 开始临时对话</p>
+                <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">点 + 新建</p>
               ) : (
                 sandboxes.map(renderSandboxDialogRow)
               )}
             </div>
-            <p className="px-2 pt-1 text-[10px] leading-relaxed text-foreground-secondary/65">
-              点 + 进入空白对话，首条消息将作为标题。
-            </p>
+
           </>
         </SidebarAnimatedCollapse>
       </div>
@@ -437,9 +440,9 @@ export function ProjectSidebar({
       />
 
       <div className="mt-2 px-1.5">
-        <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">磁盘项目</div>
+        <div className="px-2 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/75">项目</div>
         {diskPaths.length === 0 ? (
-          <p className="px-3 py-2 text-[13px] leading-relaxed text-foreground-secondary/85">打开本地文件夹</p>
+          <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">打开文件夹</p>
         ) : (
           diskPaths.map(renderDiskProjectRow)
         )}

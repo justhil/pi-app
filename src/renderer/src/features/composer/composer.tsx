@@ -12,6 +12,7 @@ import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
+import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 
 interface SlashCommand {
   id: string
@@ -160,6 +161,10 @@ export function Composer() {
   const showPopover = slashQuery !== null && filteredCommands.length > 0
 
   const sendText = async (raw: string) => {
+    if (extensionUiBlocksComposer()) {
+      toast.message('请先完成扩展弹窗，或点右上角稍后作答')
+      return
+    }
     if (!raw.trim() && attachments.length === 0) return
     const draft = useUIStore.getState().ephemeralSandboxDraft
     if (!currentWorkspace && !draft) return
@@ -188,6 +193,10 @@ export function Composer() {
   }
 
   const handleSend = async () => {
+    if (extensionUiBlocksComposer()) {
+      toast.message('请先完成扩展弹窗，或点右上角稍后作答')
+      return
+    }
     const trimmed = text.trim()
     if (!trimmed) return
     // A-layer: app-native builtin -> execute directly with feedback
@@ -204,6 +213,23 @@ export function Composer() {
           useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
           setText('')
           toast.info(`已打开 ${r.meta.matchNames[0] || token} 配置`)
+          return
+        }
+        if (r?.behavior === 'open-panel') {
+          const panel = r.meta?.panelId || `adapter:${r.meta?.adapterId || ''}`
+          if (!panel || panel === 'adapter:') {
+            toast.error('斜杠未配置 panelId')
+            return
+          }
+          useUIStore.getState().setActivePanel(panel)
+          setText('')
+          toast.info(r.meta?.desktopSupport || `已打开 ${panel} 面板`)
+          return
+        }
+        if (r?.behavior === 'notify' && r?.meta?.desktopSupport) {
+          setText('')
+          toast.info(r.meta.desktopSupport)
+          await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
           return
         }
         if (r?.behavior === 'execute') {
@@ -414,10 +440,10 @@ export function Composer() {
     >
       {/* Drop overlay (参考跨端客户端-inspired full-zone hint) */}
       {isDragActive && (
-        <div className="backdrop-motion pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-2xl border border-dashed border-brand/30 bg-brand/5 backdrop-blur-[2px]">
+        <div className="backdrop-motion pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border border-dashed border-brand/30 bg-brand/5 backdrop-blur-[2px]">
           <div className="flex flex-col items-center gap-1 text-primary/70">
             <Upload className="h-5 w-5" />
-            <span className="text-[12px] font-medium">松开以添加文件</span>
+            <span className="text-[12px] font-medium">松手添加</span>
           </div>
         </div>
       )}
@@ -468,9 +494,9 @@ export function Composer() {
             <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> 选择</span>
             <span className="flex items-center gap-1"><CornerDownLeft className="h-2.5 w-2.5" /> 确认</span>
             <span className="flex items-center gap-1">Tab 补全</span>
-            <span>Esc 取消</span>
+            <span>Esc 关闭</span>
             {commandsSource === 'fallback' && (
-              <span className="ml-auto text-amber-600 dark:text-amber-400">静态列表（Worker 未启动）</span>
+              <span className="ml-auto text-amber-600 dark:text-amber-400">离线命令表</span>
             )}
           </div>
         </div>
@@ -478,7 +504,7 @@ export function Composer() {
       <ComposerPendingQueue />
       <div
         className={cn(
-          'composer-shell flex flex-col rounded-2xl border',
+          'composer-shell flex flex-col rounded-xl border',
           composerFocused && 'composer-shell-focused',
           isDragActive && 'border-dashed !border-primary/50',
         )}
@@ -516,7 +542,7 @@ export function Composer() {
             className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none"
             placeholder={
               ephemeralSandboxDraft && !currentWorkspace
-                ? '输入首条消息开始临时对话（将作为标题）'
+                ? '首条消息即对话标题'
                 : canCompose
                   ? t('composer.placeholder')
                   : t('composer.selectProjectFirst')
@@ -555,7 +581,7 @@ export function Composer() {
                   type="button"
                   onClick={handleAbort}
                   title={t('composer.stop')}
-                  className="composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className="composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                 </button>
@@ -565,7 +591,7 @@ export function Composer() {
                 onClick={handleSend}
                 disabled={(!text.trim() && attachments.length === 0) || !canCompose}
                 title={isStreaming ? '加入队列 (follow-up)' : t('composer.send')}
-                className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
+                className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
               >
                 <Send className="h-3.5 w-3.5" />
               </button>

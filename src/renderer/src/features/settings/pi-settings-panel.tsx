@@ -4,8 +4,15 @@ import { Check, AlertCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
+import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
+import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
 
 export type PiSettingsSnapshot = Record<string, unknown>
+
+function settingsEqual(a: PiSettingsSnapshot | null, b: PiSettingsSnapshot | null): boolean {
+  if (!a || !b) return a === b
+  return JSON.stringify(a) === JSON.stringify(b)
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -64,7 +71,9 @@ export function PiSettingsPanel() {
   const [settings, setSettings] = useState<PiSettingsSnapshot | null>(null)
   const [models, setModels] = useState<any[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [baseline, setBaseline] = useState<PiSettingsSnapshot | null>(null)
+  const [draft, setDraft] = useState<PiSettingsSnapshot | null>(null)
+  const [formEpoch, setFormEpoch] = useState(0)
 
   // SDK 升级 / 切换 / 回退
   const [sdkStatus, setSdkStatus] = useState<any>(null)
@@ -85,7 +94,11 @@ export function PiSettingsPanel() {
       ])
       setInfo(infoRes)
       if (settingsRes?.error) setLoadError(settingsRes.error)
-      setSettings(settingsRes?.settings ?? null)
+      const snap = settingsRes?.settings ?? null
+      setSettings(snap)
+      setBaseline(snap)
+      setDraft(snap ? { ...snap } : null)
+      setFormEpoch((n) => n + 1)
       setModels((modelsRes?.models || []).filter((m: any) => m.available !== false))
     } catch (e: any) {
       setLoadError(e?.message || '加载失败')
@@ -161,44 +174,59 @@ export function PiSettingsPanel() {
     }
   }, [reloadSdk])
 
-  const patch = async (p: Record<string, unknown>) => {
-    setSaving(true)
-    try {
-      const res = await ipcClient.invoke('pi.settings.set', { patch: p })
+  const queuePatch = useCallback((p: Record<string, unknown>) => {
+    setDraft((prev) => ({ ...(prev || {}), ...p }))
+    notifySettingsDirtyChanged()
+  }, [])
+
+  const reloadPiForm = useCallback(async () => {
+    const settingsRes = await ipcClient.invoke('pi.settings.get')
+    const snap = settingsRes?.settings ?? null
+    setSettings(snap)
+    setBaseline(snap)
+    setDraft(snap ? { ...snap } : null)
+    setFormEpoch((n) => n + 1)
+  }, [])
+
+  useSettingsDirtySlice({
+    id: 'pi',
+    label: 'Pi 配置',
+    isDirty: () => !settingsEqual(draft, baseline),
+    commit: async () => {
+      if (!draft || settingsEqual(draft, baseline)) return
+      const res = await ipcClient.invoke('pi.settings.set', { patch: draft })
       if (res?.ok === false) throw new Error(res.error || '保存失败')
-      const refreshed = await ipcClient.invoke('pi.settings.get')
-      setSettings(refreshed?.settings ?? settings)
+      await reloadPiForm()
       void refreshComposerRunDisplay()
-      toast.success('已保存 Pi 配置')
-    } catch (e: any) {
-      console.error('pi.settings.set failed:', e)
-      toast.error(e?.message || '保存失败')
-    } finally {
-      setSaving(false)
-    }
-  }
+    },
+    discard: () => {
+      void reloadPiForm()
+    },
+  })
+
+  const ui = draft ?? settings
 
   const modelOptions = useMemo(() => {
     const list = [...models]
-    const curP = String(settings?.defaultProvider || '')
-    const curM = String(settings?.defaultModel || '')
+    const curP = String(ui?.defaultProvider || '')
+    const curM = String(ui?.defaultModel || '')
     if (curP && curM && !list.some((m) => m.provider === curP && m.id === curM)) {
       list.unshift({ provider: curP, id: curM, name: `${curP}/${curM}`, available: true })
     }
     return list.sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`))
-  }, [models, settings?.defaultProvider, settings?.defaultModel])
+  }, [models, ui?.defaultProvider, ui?.defaultModel])
 
-  const currentModelKey = settings?.defaultProvider && settings?.defaultModel
-    ? `${settings.defaultProvider}/${settings.defaultModel}`
+  const currentModelKey = ui?.defaultProvider && ui?.defaultModel
+    ? `${ui.defaultProvider}/${ui.defaultModel}`
     : ''
 
   const onModelSelect = (key: string) => {
     const i = key.indexOf('/')
     if (i < 0) return
-    void patch({ defaultProvider: key.slice(0, i), defaultModel: key.slice(i + 1) })
+    queuePatch({ defaultProvider: key.slice(0, i), defaultModel: key.slice(i + 1) })
   }
 
-  if (!settings && !loadError) {
+  if (!ui && !loadError) {
     return <p className="text-[13px] text-muted-foreground">加载 Pi 配置…</p>
   }
 
@@ -209,10 +237,9 @@ export function PiSettingsPanel() {
           <h3 className="text-[15px] font-semibold">Pi 配置</h3>
           <p className="mt-1 text-[11px] text-muted-foreground/70">
             写入 <code className="rounded bg-muted px-1 text-[10px]">~/.pi/agent/settings.json</code> 与项目{' '}
-            <code className="rounded bg-muted px-1 text-[10px]">.pi/settings.json</code>（经 Worker SettingsManager，与终端 pi 一致）。
+            <code className="rounded bg-muted px-1 text-[10px]">.pi/settings.json</code>（经 Worker SettingsManager，与终端 pi 一致）。修改后请用页面底部「保存」。
           </p>
         </div>
-        {saving && <span className="text-[11px] text-amber-600">保存中…</span>}
       </div>
 
       {loadError && (
@@ -351,7 +378,7 @@ export function PiSettingsPanel() {
         )}
         <Row label="会话目录" description="sessionDir（只读）">
           <span className="max-w-[220px] truncate font-mono text-[11px] text-muted-foreground">
-            {String(settings?.sessionDir || '(默认)')}
+            {String(ui?.sessionDir || '(默认)')}
           </span>
         </Row>
       </Section>
@@ -361,7 +388,7 @@ export function PiSettingsPanel() {
           <select
             className={cn(selectCls, 'min-w-[min(280px,70vw)]')}
             value={currentModelKey}
-            disabled={!settings || modelOptions.length === 0}
+            disabled={!ui || modelOptions.length === 0}
             onChange={(e) => onModelSelect(e.target.value)}
           >
             <option value="">未设置</option>
@@ -379,9 +406,9 @@ export function PiSettingsPanel() {
         <Row label="默认 Thinking" description="defaultThinkingLevel">
           <select
             className={selectCls}
-            value={String(settings?.defaultThinkingLevel || 'medium')}
-            disabled={!settings}
-            onChange={(e) => void patch({ defaultThinkingLevel: e.target.value })}
+            value={String(ui?.defaultThinkingLevel || 'medium')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ defaultThinkingLevel: e.target.value })}
           >
             {THINKING_OPTS.map((o) => (
               <option key={o.v} value={o.v}>
@@ -393,21 +420,22 @@ export function PiSettingsPanel() {
         <Row label="模型白名单" description="enabledModels，逗号分隔 glob（留空=全部）">
           <input
             className={inputCls}
-            disabled={!settings}
-            defaultValue={Array.isArray(settings?.enabledModels) ? (settings.enabledModels as string[]).join(', ') : ''}
+            disabled={!ui}
+            key={`enabledModels-${formEpoch}`}
+            defaultValue={Array.isArray(ui?.enabledModels) ? (ui.enabledModels as string[]).join(', ') : ''}
             placeholder="例如 anthropic/*, openai/gpt-*"
             onBlur={(e) => {
               const raw = e.target.value.trim()
               const patterns = raw ? raw.split(/,\s*/).filter(Boolean) : undefined
-              void patch({ enabledModels: patterns })
+              queuePatch({ enabledModels: patterns })
             }}
           />
         </Row>
         <Row label="隐藏思考块" description="hideThinkingBlock（TUI/展示）">
           <Toggle
-            on={!!settings?.hideThinkingBlock}
-            disabled={!settings}
-            onChange={(v) => void patch({ hideThinkingBlock: v })}
+            on={!!ui?.hideThinkingBlock}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ hideThinkingBlock: v })}
           />
         </Row>
       </Section>
@@ -416,9 +444,9 @@ export function PiSettingsPanel() {
         <Row label="Steering 模式" description="插入消息排队">
           <select
             className={selectCls}
-            value={String(settings?.steeringMode || 'all')}
-            disabled={!settings}
-            onChange={(e) => void patch({ steeringMode: e.target.value })}
+            value={String(ui?.steeringMode || 'all')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ steeringMode: e.target.value })}
           >
             <option value="all">all — 全部插入</option>
             <option value="one-at-a-time">one-at-a-time</option>
@@ -427,9 +455,9 @@ export function PiSettingsPanel() {
         <Row label="Follow-up 模式" description="后续追问排队">
           <select
             className={selectCls}
-            value={String(settings?.followUpMode || 'all')}
-            disabled={!settings}
-            onChange={(e) => void patch({ followUpMode: e.target.value })}
+            value={String(ui?.followUpMode || 'all')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ followUpMode: e.target.value })}
           >
             <option value="all">all</option>
             <option value="one-at-a-time">one-at-a-time</option>
@@ -438,26 +466,27 @@ export function PiSettingsPanel() {
         <Row label="Transport" description="LLM 请求传输">
           <select
             className={selectCls}
-            value={String(settings?.transport || 'auto')}
-            disabled={!settings}
-            onChange={(e) => void patch({ transport: e.target.value })}
+            value={String(ui?.transport || 'auto')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ transport: e.target.value })}
           >
             <option value="auto">auto</option>
             <option value="sse">sse</option>
             <option value="http">http</option>
           </select>
         </Row>
-        <Row label="HTTP 空闲超时" description={`httpIdleTimeoutMs（当前 ${settings?.httpIdleTimeoutMs ?? '—'} ms）`}>
+        <Row label="HTTP 空闲超时" description={`httpIdleTimeoutMs（当前 ${ui?.httpIdleTimeoutMs ?? '—'} ms）`}>
           <input
             type="number"
             className={cn(inputCls, 'max-w-[8rem]')}
-            disabled={!settings}
-            defaultValue={String(settings?.httpIdleTimeoutMs ?? '')}
+            disabled={!ui}
+            key={`httpIdle-${formEpoch}`}
+            defaultValue={String(ui?.httpIdleTimeoutMs ?? '')}
             min={0}
             step={1000}
             onBlur={(e) => {
               const n = Number(e.target.value)
-              if (Number.isFinite(n) && n >= 0) void patch({ httpIdleTimeoutMs: n })
+              if (Number.isFinite(n) && n >= 0) queuePatch({ httpIdleTimeoutMs: n })
             }}
           />
         </Row>
@@ -466,24 +495,24 @@ export function PiSettingsPanel() {
       <Section title="压缩与重试">
         <Row label="自动压缩" description="compaction.enabled">
           <Toggle
-            on={settings?.compactionEnabled !== false}
-            disabled={!settings}
-            onChange={(v) => void patch({ compactionEnabled: v })}
+            on={ui?.compactionEnabled !== false}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ compactionEnabled: v })}
           />
         </Row>
         <Row label="压缩 reserve" description="compaction.reserveTokens，为回复预留的 token（默认 16384）">
           <input
             type="number"
             className={cn(inputCls, 'max-w-[9rem]')}
-            disabled={!settings}
-            key={`reserve-${settings?.compactionReserveTokens}`}
-            defaultValue={String(settings?.compactionReserveTokens ?? 16384)}
+            disabled={!ui}
+            key={`reserve-${formEpoch}-${ui?.compactionReserveTokens}`}
+            defaultValue={String(ui?.compactionReserveTokens ?? 16384)}
             min={0}
             step={512}
             onBlur={(e) => {
               const n = Number(e.target.value)
               if (!Number.isFinite(n) || n < 0) return
-              void patch({ compactionReserveTokens: Math.floor(n) })
+              queuePatch({ compactionReserveTokens: Math.floor(n) })
             }}
           />
         </Row>
@@ -491,34 +520,34 @@ export function PiSettingsPanel() {
           <input
             type="number"
             className={cn(inputCls, 'max-w-[9rem]')}
-            disabled={!settings}
-            key={`keep-${settings?.compactionKeepRecentTokens}`}
-            defaultValue={String(settings?.compactionKeepRecentTokens ?? 20000)}
+            disabled={!ui}
+            key={`keep-${formEpoch}-${ui?.compactionKeepRecentTokens}`}
+            defaultValue={String(ui?.compactionKeepRecentTokens ?? 20000)}
             min={0}
             step={512}
             onBlur={(e) => {
               const n = Number(e.target.value)
               if (!Number.isFinite(n) || n < 0) return
-              void patch({ compactionKeepRecentTokens: Math.floor(n) })
+              queuePatch({ compactionKeepRecentTokens: Math.floor(n) })
             }}
           />
         </Row>
         <Row label="请求重试" description="retry.enabled">
           <Toggle
-            on={settings?.retryEnabled !== false}
-            disabled={!settings}
-            onChange={(v) => void patch({ retryEnabled: v })}
+            on={ui?.retryEnabled !== false}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ retryEnabled: v })}
           />
         </Row>
         <Row label="重试参数" description="只读">
           <span className="font-mono text-[11px] text-muted-foreground">
-            max {String(settings?.retryMaxRetries)} · delay {String(settings?.retryBaseDelayMs)}ms
+            max {String(ui?.retryMaxRetries)} · delay {String(ui?.retryBaseDelayMs)}ms
           </span>
         </Row>
         <Row label="分支摘要" description="branchSummary（树跳转摘要）">
           <span className="font-mono text-[11px] text-muted-foreground">
-            reserve {String(settings?.branchSummaryReserveTokens)} · skipPrompt{' '}
-            {settings?.branchSummarySkipPrompt ? '是' : '否'}
+            reserve {String(ui?.branchSummaryReserveTokens)} · skipPrompt{' '}
+            {ui?.branchSummarySkipPrompt ? '是' : '否'}
           </span>
         </Row>
       </Section>
@@ -527,48 +556,51 @@ export function PiSettingsPanel() {
         <Row label="Shell 路径" description="bash 工具 shellPath">
           <input
             className={inputCls}
-            disabled={!settings}
+            disabled={!ui}
+            key={`shellPath-${formEpoch}`}
             placeholder="系统默认"
-            defaultValue={String(settings?.shellPath || '')}
-            onBlur={(e) => void patch({ shellPath: e.target.value || undefined })}
+            defaultValue={String(ui?.shellPath || '')}
+            onBlur={(e) => queuePatch({ shellPath: e.target.value || undefined })}
           />
         </Row>
         <Row label="Shell 命令前缀" description="shellCommandPrefix">
           <input
             className={inputCls}
-            disabled={!settings}
-            defaultValue={String(settings?.shellCommandPrefix || '')}
-            onBlur={(e) => void patch({ shellCommandPrefix: e.target.value || undefined })}
+            disabled={!ui}
+            key={`shellPrefix-${formEpoch}`}
+            defaultValue={String(ui?.shellCommandPrefix || '')}
+            onBlur={(e) => queuePatch({ shellCommandPrefix: e.target.value || undefined })}
           />
         </Row>
         <Row label="npm 命令" description="npmCommand">
           <input
             className={inputCls}
-            disabled={!settings}
-            defaultValue={String(settings?.npmCommand || '')}
+            disabled={!ui}
+            key={`npm-${formEpoch}`}
+            defaultValue={String(ui?.npmCommand || '')}
             placeholder="npm"
-            onBlur={(e) => void patch({ npmCommand: e.target.value || undefined })}
+            onBlur={(e) => queuePatch({ npmCommand: e.target.value || undefined })}
           />
         </Row>
         <Row label="图片自动缩放" description="imageAutoResize">
           <Toggle
-            on={!!settings?.imageAutoResize}
-            disabled={!settings}
-            onChange={(v) => void patch({ imageAutoResize: v })}
+            on={!!ui?.imageAutoResize}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ imageAutoResize: v })}
           />
         </Row>
         <Row label="展示图片" description="showImages">
           <Toggle
-            on={settings?.showImages !== false}
-            disabled={!settings}
-            onChange={(v) => void patch({ showImages: v })}
+            on={ui?.showImages !== false}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ showImages: v })}
           />
         </Row>
         <Row label="阻止图片" description="blockImages">
           <Toggle
-            on={!!settings?.blockImages}
-            disabled={!settings}
-            onChange={(v) => void patch({ blockImages: v })}
+            on={!!ui?.blockImages}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ blockImages: v })}
           />
         </Row>
       </Section>
@@ -577,9 +609,9 @@ export function PiSettingsPanel() {
         <Row label="默认项目信任" description="defaultProjectTrust（打开新项目时）">
           <select
             className={selectCls}
-            value={String(settings?.defaultProjectTrust || 'ask')}
-            disabled={!settings}
-            onChange={(e) => void patch({ defaultProjectTrust: e.target.value })}
+            value={String(ui?.defaultProjectTrust || 'ask')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ defaultProjectTrust: e.target.value })}
           >
             <option value="ask">ask</option>
             <option value="always">always</option>
@@ -588,13 +620,13 @@ export function PiSettingsPanel() {
         </Row>
         <Row label="Skill 斜杠命令" description="enableSkillCommands">
           <Toggle
-            on={settings?.enableSkillCommands !== false}
-            disabled={!settings}
-            onChange={(v) => void patch({ enableSkillCommands: v })}
+            on={ui?.enableSkillCommands !== false}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ enableSkillCommands: v })}
           />
         </Row>
         <Row label="安静启动" description="quietStartup">
-          <Toggle on={!!settings?.quietStartup} disabled={!settings} onChange={(v) => void patch({ quietStartup: v })} />
+          <Toggle on={!!ui?.quietStartup} disabled={!ui} onChange={(v) => queuePatch({ quietStartup: v })} />
         </Row>
       </Section>
       <p className="pt-2 text-[10px] text-muted-foreground/55">

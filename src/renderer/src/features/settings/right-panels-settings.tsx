@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { LayoutPanelLeft } from 'lucide-react'
+import { GripVertical, LayoutPanelLeft } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import { ipcClient } from '@renderer/lib/ipc-client'
-import { useUIStore } from '@renderer/stores/ui-store'
-import {
-  RIGHT_PANEL_CATALOG,
-  RIGHT_PANEL_IDS,
-  defaultRightPanelPrefs,
-  normalizeRightPanelPrefs,
-  type RightPanelPrefs,
-} from '@shared/right-panels'
+import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
+import type { RightPanelCatalogItem } from '@shared/right-panels'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 
 function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
@@ -21,7 +14,7 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean
       disabled={disabled}
       onClick={() => onChange(!on)}
       className={cn(
-        'relative h-5 w-9 rounded-full transition-colors duration-motion-fast ease-motion-ease disabled:opacity-40',
+        'relative h-5 w-9 shrink-0 rounded-full transition-colors duration-motion-fast ease-motion-ease disabled:opacity-40',
         on ? 'bg-primary' : 'bg-muted-foreground/20',
       )}
       aria-pressed={on}
@@ -38,86 +31,167 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean
 
 export function RightPanelsSettings() {
   const { t } = useTranslation()
-  const [prefs, setPrefs] = useState<RightPanelPrefs>(() => defaultRightPanelPrefs())
-  const [saving, setSaving] = useState(false)
+  const {
+    draft,
+    setRightPanelPref,
+    reorderRightPanels,
+    resetRightPanelsToDefault,
+    refreshRightPanelCatalog,
+  } = useSettingsDraft()
 
-  const load = useCallback(async () => {
-    const res = await ipcClient.invoke('settings.get', { key: 'rightPanelPrefs' })
-    const next = normalizeRightPanelPrefs(res?.settings?.rightPanelPrefs)
-    setPrefs(next)
-    useUIStore.getState().applyRightPanelPrefs(next)
-  }, [])
+  const { rightPanelCatalog: catalog, rightPanelPrefs: prefs, rightPanelOrder: order } = draft
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const orderedItems = useMemo(() => {
+    const byId = new Map(catalog.map((c) => [c.id, c]))
+    return order.map((id) => byId.get(id)).filter((x): x is RightPanelCatalogItem => !!x)
+  }, [catalog, order])
 
-  const enabledCount = RIGHT_PANEL_IDS.filter((id) => prefs[id]).length
+  const enabledCount = order.filter((id) => prefs[id]).length
 
-  const persist = async (next: RightPanelPrefs) => {
-    setSaving(true)
-    try {
-      await ipcClient.invoke('settings.set', { key: 'rightPanelPrefs', value: next })
-      useUIStore.getState().applyRightPanelPrefs(next)
-      setPrefs(next)
-      toast.success('右侧栏已更新')
-    } catch (e) {
-      console.error(e)
-      toast.error('保存失败')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const setOne = (id: (typeof RIGHT_PANEL_IDS)[number], on: boolean) => {
+  const setOne = (id: string, on: boolean) => {
     if (!on && enabledCount <= 1) {
       toast.message('至少保留一个栏目')
       return
     }
-    const next = { ...prefs, [id]: on }
-    void persist(next)
+    setRightPanelPref(id, on)
   }
-
-  const resetDefaults = () => void persist(defaultRightPanelPrefs())
 
   return (
     <div className="space-y-1">
       <SettingsPageHeader
         title="右侧栏"
-        description="自定义主界面右侧 Tab：关闭后不再显示标签与面板内容；设置写入本机应用配置（electron-store）。"
+        description="拖拽排序与开关仅修改草稿，请使用页面底部「保存」写入本机并更新主界面 Tab。"
         action={
-          <button
-            type="button"
-            onClick={resetDefaults}
-            disabled={saving}
-            className="rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-          >
-            恢复默认
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => resetRightPanelsToDefault()}
+              className="rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={() => void refreshRightPanelCatalog()}
+              className="rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              刷新目录
+            </button>
+          </div>
         }
       />
 
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-border/40 bg-[var(--bg-1)]/50 px-3 py-2 text-[12px] text-muted-foreground">
         <LayoutPanelLeft className="h-4 w-4 shrink-0 opacity-60" />
-        <span>已启用 {enabledCount} / {RIGHT_PANEL_IDS.length} 个栏目</span>
+        <span>
+          已启用 {enabledCount} / {order.length} 个栏目 · 拖拽排序
+        </span>
       </div>
 
-      <ul className="divide-y divide-border/40 rounded-lg border border-border/40">
-        {RIGHT_PANEL_CATALOG.map((item) => {
-          const label = t(item.labelKey, { defaultValue: item.fallbackLabel })
-          const on = prefs[item.id]
+      <ul
+        className="relative space-y-1.5 rounded-lg border border-border/40 p-1.5"
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setOverIndex(null)
+        }}
+      >
+        {orderedItems.map((item, index) => {
+          const label = item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel
+          const on = !!prefs[item.id]
           const lastOne = on && enabledCount <= 1
+          const isDragging = dragId === item.id
+          const showLineBefore = overIndex === index && dragId !== item.id
+
           return (
-            <li key={item.id} className="flex items-center justify-between gap-4 px-4 py-3.5">
-              <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-medium text-foreground">{label}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground/70">{item.description}</div>
-                <div className="mt-1 font-mono text-[10px] text-muted-foreground/45">{item.id}</div>
+            <li key={item.id} className="relative list-none">
+              {showLineBefore && (
+                <div
+                  className="pointer-events-none absolute -top-1 left-2 right-2 z-10 h-0.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
+                  aria-hidden
+                />
+              )}
+              <div
+                draggable
+                onDragStart={(e) => {
+                  setDragId(item.id)
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('text/plain', item.id)
+                }}
+                onDragEnd={() => {
+                  setDragId(null)
+                  setOverIndex(null)
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  setOverIndex(index)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const from = dragId || e.dataTransfer.getData('text/plain')
+                  if (!from) return
+                  reorderRightPanels(from, index)
+                  setDragId(null)
+                  setOverIndex(null)
+                }}
+                className={cn(
+                  'group flex items-center gap-2 rounded-lg border border-border/40 bg-card/40 px-2 py-2.5 transition-all duration-motion-normal ease-motion-ease',
+                  'hover:border-border/70 hover:bg-accent/30 hover:shadow-sm',
+                  isDragging && 'scale-[0.98] border-primary/40 bg-accent/50 opacity-80 shadow-md',
+                )}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="text-[13px] font-medium text-foreground">{label}</div>
+                    {item.source === 'adapter' && (
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">适配器</span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground/70">{item.description}</div>
+                  <div className="mt-1 font-mono text-[10px] text-muted-foreground/45">
+                    {item.id}
+                    {item.adapterId ? ` · ${item.adapterId}` : ''}
+                  </div>
+                </div>
+
+                <Toggle on={on} onChange={(v) => setOne(item.id, v)} disabled={lastOne && on} />
+                <div
+                  aria-hidden
+                  className={cn(
+                    'flex h-9 w-8 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground/35',
+                    'hover:bg-muted/60 hover:text-muted-foreground active:cursor-grabbing',
+                    isDragging && 'cursor-grabbing text-primary',
+                  )}
+                >
+                  <GripVertical className="h-4 w-4" />
+                </div>
               </div>
-              <Toggle on={on} onChange={(v) => setOne(item.id, v)} disabled={saving || (lastOne && on)} />
             </li>
           )
         })}
+        {overIndex === orderedItems.length && dragId && (
+          <li className="relative h-0 list-none">
+            <div className="absolute -top-1 left-2 right-2 h-0.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]" />
+          </li>
+        )}
+        {orderedItems.length > 0 && (
+          <li
+            className="h-2 list-none"
+            onDragOver={(e) => {
+              e.preventDefault()
+              setOverIndex(orderedItems.length)
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              const from = dragId || e.dataTransfer.getData('text/plain')
+              if (!from) return
+              reorderRightPanels(from, orderedItems.length)
+              setDragId(null)
+              setOverIndex(null)
+            }}
+          />
+        )}
       </ul>
     </div>
   )

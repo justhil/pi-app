@@ -109,7 +109,7 @@ builtin[]
 }
 ```
 
-要点：`names` 必须包含用户机器上 probe 到的包名；改完后 **重启应用** 或切换工作区（会按 `projectDir` 重载 catalog）。
+要点：`names` 必须包含用户机器上 probe 到的包名。改外置文件后：**切换工作区**、**打开设置页**（自动 `refresh` 缓存），或重启应用。详见 `adapter-layer-plan.md` **§2.1–§2.2**（性能与缓存刷新）。
 
 ### 2.6 如何确认当前生效的是哪一份
 
@@ -502,31 +502,58 @@ Composer 输入 `/foo` 时：
 - 出现在主界面右栏 Tab（受用户开关控制）  
 - 可被 `slash` → `open-panel` 打开  
 
+### 10.1 已注册原语（键名在 JSON 里填写，App 无插件名分支）
+
+| `stateProvider` | `panelComponent` | 能力 | 典型 JSON 用法 |
+|-----------------|------------------|------|----------------|
+| `workspace-trellis` | `workspace-tasks` | 读项目根 `.trellis/`（tasks、prd、journal、`task.py current`），任务列表 + 日志 UI | Trellis 扩展 `builtin/trellis.adapter.json` |
+| （自定义，需 PR 注册） | `generic-json` | 任意 `getState` 返回 JSON，只读树 | 新扩展调试 / 简单状态 |
+
+**核心右栏**（Review / Run / Context / Intercom / Tree）由 App 固定，**不**在 adapter 里声明。任务类右栏一律走 **适配器栏目**（`source: adapter`），`panelId` 建议 `adapter:{id}`。
+
+### 10.2 示例（Trellis 扩展 — 仅 JSON，无 App 内 `if (trellis)`）
+
 ```json
 "sidePanel": {
-  "stateProvider": "trellis",
-  "panelComponent": "trellis",
-  "panelId": "trellis",
+  "stateProvider": "workspace-trellis",
+  "panelComponent": "workspace-tasks",
+  "panelId": "adapter:trellis",
   "label": "Trellis",
   "description": "任务与阶段（只读）",
   "icon": "ListTree",
   "defaultEnabled": true
-}
+},
+"slash": { "/trellis": "open-panel" }
 ```
+
+`open-panel` 时桌面用 `slash.resolve` 返回的 **`panelId`**（上例为 `adapter:trellis`）切换右栏；**无**默认面板 id。
+
+### 10.3 字段说明
 
 | 字段 | 说明 |
 |------|------|
-| `stateProvider` | **必填**。Main `side-panel-registry.ts` 中注册的数据函数名 |
-| `panelComponent` | **必填**。Renderer 面板组件键：`trellis` 或 `generic-json` 等 |
-| `panelId` | Tab / prefs 键；默认 `adapter:{id}`。与核心栏目同 id 可 **增强** 核心项（如 trellis） |
+| `stateProvider` | **必填**。Main `side-panel-registry.ts` 已注册的原语名（如 `workspace-trellis`） |
+| `panelComponent` | **必填**。Renderer `side-panel-host` 已注册的原语名（如 `workspace-tasks`、`generic-json`） |
+| `panelId` | Tab / `rightPanelPrefs` 键；省略则为 `adapter:{id}` |
 | `label` / `description` / `icon` | 设置与 Tab 文案；icon 为 lucide 名 |
-| `defaultEnabled` | 新用户默认是否勾选 |
+| `defaultEnabled` | 新用户默认是否勾选该 Tab |
 
-**数据拉取**：Renderer 调 `adapter.sidePanel.getState { adapterId, workspaceId }` → Main 用 `stateProvider` 聚合（可读磁盘、adapter 配置等）。
+### 10.4 数据流
 
-**新插件快速方案**：`panelComponent: "generic-json"` + 注册 `stateProvider` → 右栏显示 JSON 树（只读）。
+1. Renderer：`adapter.sidePanel.getState { adapterId, workspaceId }`（**必须**传 `adapterId`，无兜底）  
+2. Main：`workspaceId` 优先作为读盘 `cwd`；`findAdapterById` → `sidePanel.stateProvider` → 返回 `state`  
+3. `workspace-tasks` 面板期望 `state.ready === true`（无布局时 `ready: false`）；兼容旧字段 `hasTrellis`  
+4. 面板标题用目录项 `fallbackLabel`（来自 adapter `sidePanel.label`）
 
-**限制**：`stateProvider` / 复杂 `panelComponent` 需在 pi-desktop **注册一次**（与 `customRenderer` 相同哲学），不能仅靠 JSON 动态加载任意 TS。
+### 10.5 新扩展如何接右栏
+
+| 目标 | 做法 |
+|------|------|
+| 与 Trellis 同级任务面板 | JSON 使用 `workspace-trellis` + `workspace-tasks`（读同一 `.trellis/` 布局） |
+| 只展示自定义状态 | PR 注册新 `stateProvider` + 可选新 `panelComponent`，或先用 `generic-json` |
+| 禁止 | 在 `src/main/ipc.ts` 增加 `ipc:myPlugin.getState`；在 Host 写 `if (adapterId==='…')` |
+
+**prefs 迁移**：旧版核心栏 id `trellis` 已移除；`normalizeRightPanelPrefs` 会把旧 `trellis` 开关同步到 `adapter:trellis`。
 
 ---
 
@@ -606,7 +633,7 @@ Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<m
 
 ### 12.5 Trellis（右栏 + tree 卡 + open-panel）
 
-参考：`builtin/trellis.adapter.json`。
+参考：`builtin/trellis.adapter.json`（`sidePanel`: `workspace-trellis` + `workspace-tasks`，`panelId`: `adapter:trellis`）。
 
 ### 12.6 纯 TUI（桌面不适配）
 
@@ -691,12 +718,13 @@ Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<m
 | 配置读写 | `src/extension-compat/adapter-backend.ts` |
 | JSONPath / 状态行 | `src/extension-compat/json-path.ts` |
 | 右栏目录合并 | `src/extension-compat/side-panel-catalog.ts`、`packages/shared/right-panels.ts` |
-| 右栏状态 | `src/main/side-panel-registry.ts` |
+| 右栏状态原语 | `src/main/side-panel-registry.ts`、`src/main/workspace-task-panel-reader.ts` |
+| 右栏 UI 原语 | `src/renderer/src/features/side-panels/workspace-tasks-side-panel.tsx`、`side-panel-host.tsx` |
 | UI 桥 / 弹窗 | `src/worker/desktop-ui-bridge.ts`、`src/renderer/src/features/extension-ui/*`、`extension-ui-store.ts` |
 | 配置表单 | `src/renderer/src/features/extension-ui/adapter-config-panel.tsx` |
 | 工具卡 | `src/renderer/src/features/timeline/tool-card-*.tsx` |
 | 内置样例 | `src/extension-compat/builtin/*.adapter.json` |
-| 架构短文 | `docs/adapter-layer-plan.md` |
+| 架构短文 | `doc/adapter-layer-plan.md` |
 
 ---
 
@@ -728,7 +756,19 @@ Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<m
 }
 ```
 
-按上表逐块替换并删除不需要的节（如无 config 则删 `config`，无弹窗则勿写 `interact`）。
+按上表逐块替换并删除不需要的节（如无 config 则删 `config`，无弹窗则勿写 `interact`）。  
+**右栏（任务布局）** 可追加：
+
+```json
+"sidePanel": {
+  "stateProvider": "workspace-trellis",
+  "panelComponent": "workspace-tasks",
+  "panelId": "adapter:REPLACE_ADAPTER_ID",
+  "label": "任务",
+  "icon": "ListTree",
+  "defaultEnabled": true
+}
+```
 
 ---
 

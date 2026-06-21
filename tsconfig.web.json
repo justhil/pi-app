@@ -8,6 +8,8 @@
   },
   "include": [
     "src/renderer/**/*",
-    "packages/shared/**/*"
+    "packages/shared/**/*",
+    "src/extension-compat/adapter-schema.ts",
+    "src/extension-compat/json-path.ts"
   ]
 }

@@ -1,10 +1,10 @@
-// Trellis Reader - reads .trellis state in read-only mode
+// 兼容层原语：读取工作区 `.trellis/` 任务布局（stateProvider: workspace-trellis）
 
 import { execSync } from 'child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 
-export interface TrellisTask {
+export interface WorkspaceTaskRow {
   name: string
   title: string
   status: string
@@ -16,76 +16,97 @@ export interface TrellisTask {
   isCurrent?: boolean
 }
 
-export interface TrellisState {
-  hasTrellis: boolean
+export interface WorkspaceTaskPanelState {
+  /** 工作区存在可识别的任务目录布局 */
+  ready: boolean
+  layout: 'tasks'
   currentTaskName?: string
-  tasks: TrellisTask[]
+  tasks: WorkspaceTaskRow[]
   recentJournals?: { title: string; date: string; lines: number; preview: string }[]
 }
 
-function readTaskJson(trellisDir: string, taskName: string): any | null {
+function readTaskJson(rootDir: string, taskName: string): any | null {
   try {
-    const p = join(trellisDir, 'tasks', taskName, 'task.json')
+    const p = join(rootDir, 'tasks', taskName, 'task.json')
     if (!existsSync(p)) return null
     return JSON.parse(readFileSync(p, 'utf-8'))
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
-function readTaskPrd(trellisDir: string, taskName: string): { title?: string; acceptanceCriteria?: string[]; description?: string } {
+function readTaskPrd(
+  rootDir: string,
+  taskName: string,
+): { title?: string; acceptanceCriteria?: string[]; description?: string } {
   try {
-    const prdPath = join(trellisDir, 'tasks', taskName, 'prd.md')
+    const prdPath = join(rootDir, 'tasks', taskName, 'prd.md')
     if (!existsSync(prdPath)) return {}
     const prd = readFileSync(prdPath, 'utf-8')
     const titleMatch = prd.match(/^#\s+(.+)$/m)
-    const acSection = prd.match(/##\s+验收条件[\s\S]*?(?=##\s|$)/i) ||
-                      prd.match(/##\s+Acceptance[\s\S]*?(?=##\s|$)/i) ||
-                      prd.match(/##\s+DoD[\s\S]*?(?=##\s|$)/i)
+    const acSection =
+      prd.match(/##\s+验收条件[\s\S]*?(?=##\s|$)/i) ||
+      prd.match(/##\s+Acceptance[\s\S]*?(?=##\s|$)/i) ||
+      prd.match(/##\s+DoD[\s\S]*?(?=##\s|$)/i)
     let acceptanceCriteria: string[] | undefined
     if (acSection) {
       const acLines = acSection[0]
         .split('\n')
         .filter((l: string) => l.match(/^\s*[-*]\s/) || l.match(/^AC\d+/) || l.match(/^\d+\.\s/))
-        .map((l: string) => l.replace(/^\s*[-*]\s*/, '').replace(/^AC\d+:\s*/, '').replace(/^\d+\.\s*/, '').trim())
+        .map((l: string) =>
+          l
+            .replace(/^\s*[-*]\s*/, '')
+            .replace(/^AC\d+:\s*/, '')
+            .replace(/^\d+\.\s*/, '')
+            .trim(),
+        )
         .filter((l: string) => l.length > 0)
       if (acLines.length > 0) acceptanceCriteria = acLines.slice(0, 8)
     }
-    // Extract first paragraph as description (after title, before next ##)
     const descMatch = prd.match(/^#\s+.+\n+(.*?)(?=\n##\s|\n---|$)/s)
     const description = descMatch ? descMatch[1].trim().slice(0, 200) : undefined
     return { title: titleMatch?.[1], acceptanceCriteria, description }
-  } catch { return {} }
+  } catch {
+    return {}
+  }
 }
 
-export function readTrellisState(cwd: string): TrellisState {
-  const trellisDir = join(cwd, '.trellis')
-  if (!existsSync(trellisDir)) {
-    return { hasTrellis: false, tasks: [] }
+export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelState {
+  const rootDir = join(cwd, '.trellis')
+  if (!existsSync(rootDir)) {
+    return { ready: false, layout: 'tasks', tasks: [] }
   }
 
-  const state: TrellisState = { hasTrellis: true, tasks: [] }
+  const state: WorkspaceTaskPanelState = { ready: true, layout: 'tasks', tasks: [] }
 
-  // Get current task name
   let currentTaskName: string | undefined
   try {
     const output = execSync('python ./.trellis/scripts/task.py current', {
-      cwd, encoding: 'utf-8', timeout: 5000,
+      cwd,
+      encoding: 'utf-8',
+      timeout: 5000,
     }).trim()
     const pathMatch = output.match(/tasks\/([^\s]+)/)
     if (pathMatch) currentTaskName = pathMatch[1]
-  } catch { /* no current task */ }
+  } catch {
+    /* no current task */
+  }
   state.currentTaskName = currentTaskName
 
-  // Scan all active task directories (not archive)
-  const tasksDir = join(trellisDir, 'tasks')
+  const tasksDir = join(rootDir, 'tasks')
   if (existsSync(tasksDir)) {
     const taskDirs = readdirSync(tasksDir).filter((d) => {
       const p = join(tasksDir, d)
-      try { return statSync(p).isDirectory() && d !== 'archive' } catch { return false }
+      try {
+        return statSync(p).isDirectory() && d !== 'archive'
+      } catch {
+        return false
+      }
     })
 
     for (const taskName of taskDirs) {
-      const tj = readTaskJson(trellisDir, taskName)
-      const prd = readTaskPrd(trellisDir, taskName)
+      const tj = readTaskJson(rootDir, taskName)
+      const prd = readTaskPrd(rootDir, taskName)
       const isCurrent = taskName === currentTaskName
       state.tasks.push({
         name: taskName,
@@ -100,7 +121,6 @@ export function readTrellisState(cwd: string): TrellisState {
       })
     }
 
-    // Sort: current task first, then by priority (P1 > P2), then by name
     state.tasks.sort((a, b) => {
       if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1
       const pa = a.priority || 'P9'
@@ -110,12 +130,15 @@ export function readTrellisState(cwd: string): TrellisState {
     })
   }
 
-  // Read recent journals (per-developer)
   try {
-    const workspaceDir = join(trellisDir, 'workspace')
+    const workspaceDir = join(rootDir, 'workspace')
     if (existsSync(workspaceDir)) {
       const devs = readdirSync(workspaceDir).filter((d) => {
-        try { return readdirSync(join(workspaceDir, d)).some((f) => f.endsWith('.md')) } catch { return false }
+        try {
+          return readdirSync(join(workspaceDir, d)).some((f) => f.endsWith('.md'))
+        } catch {
+          return false
+        }
       })
       const journals: { title: string; date: string; lines: number; preview: string; mtime: number }[] = []
       for (const dev of devs) {
@@ -124,9 +147,16 @@ export function readTrellisState(cwd: string): TrellisState {
           const filePath = join(devDir, f)
           const content = readFileSync(filePath, 'utf-8')
           const titleMatch = content.match(/^#\s+(.+)$/m)
-          // Extract preview: first non-empty, non-heading, non-quote line
           const lines = content.split('\n')
-          const previewLine = lines.find((l) => l.trim() && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('<!--') && !l.startsWith('|') && !l.startsWith('---'))
+          const previewLine = lines.find(
+            (l) =>
+              l.trim() &&
+              !l.startsWith('#') &&
+              !l.startsWith('>') &&
+              !l.startsWith('<!--') &&
+              !l.startsWith('|') &&
+              !l.startsWith('---'),
+          )
           journals.push({
             title: titleMatch ? titleMatch[1] : f,
             date: f.replace('.md', ''),
@@ -138,7 +168,9 @@ export function readTrellisState(cwd: string): TrellisState {
       }
       state.recentJournals = journals.sort((a, b) => b.mtime - a.mtime).slice(0, 5)
     }
-  } catch { /* journals not available */ }
+  } catch {
+    /* journals optional */
+  }
 
   return state
 }

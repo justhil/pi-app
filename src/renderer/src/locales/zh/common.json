@@ -10,13 +10,13 @@
   "sidebar": {
     "sessions": "会话列表",
     "settings": "设置",
-    "openProject": "打开项目"
+    "openProject": "打开文件夹"
   },
   "composer": {
-    "placeholder": "输入消息或 / 命令...",
+    "placeholder": "消息或 / 命令",
     "send": "发送",
     "stop": "停止",
-    "selectProjectFirst": "请先打开一个项目目录..."
+    "selectProjectFirst": "请先打开项目"
   },
   "panel": {
     "review": "Review",
@@ -41,7 +41,10 @@
     }
   },
   "timeline": {
-    "placeholder": "开始对话或选择一个历史会话"
+    "placeholder": "发一条消息开始",
+    "emptyWorkspace": "打开文件夹，或「对话」里新建临时对话",
+    "loadOlder": "上滑或点此加载更早消息",
+    "loadingSession": "加载会话…"
   },
   "review": {
     "scope": {

@@ -196,7 +196,8 @@ pi-app/
 │   │   ├── session-tree-from-file.ts  # 未绑定会话时从 JSONL 读树
 │   │   ├── pi-resources-editor.ts # Skills/提示词磁盘读写
 │   │   ├── resource-revisions.ts  # 编辑版本回退
-│   │   ├── trellis-reader.ts      # Trellis 只读
+│   │   ├── workspace-task-panel-reader.ts  # 右栏原语 workspace-trellis
+│   │   ├── side-panel-registry.ts   # adapter sidePanel.stateProvider
 │   │   └── …
 │   │
 │   ├── preload/                   # contextBridge 暴露给界面的安全 API

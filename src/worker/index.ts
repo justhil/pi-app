@@ -9,18 +9,7 @@ import type {
 import type { AppEvent } from '@shared/app-events'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
-
-/** Extract a value from an object via a simple JSONPath ("$.field" or "$.a.b"). */
-function extractJsonPath(obj: unknown, path: string): unknown {
-  if (!obj || typeof obj !== 'object') return undefined
-  const parts = path.replace(/^\$\.?/, '').split('.')
-  let cur: unknown = obj
-  for (const p of parts) {
-    if (cur == null || typeof cur !== 'object') return undefined
-    cur = (cur as Record<string, unknown>)[p]
-  }
-  return cur
-}
+import { extractJsonPath } from '../extension-compat/json-path.js'
 
 let sdk: typeof import('@earendil-works/pi-coding-agent') | null = null
 let activeSdkPath: string | null = null

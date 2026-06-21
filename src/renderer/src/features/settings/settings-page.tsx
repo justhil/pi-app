@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import {
@@ -19,6 +20,9 @@ import {
   SettingsPageHeader,
 } from '@renderer/features/settings/settings-shell'
 import { RightPanelsSettings } from '@renderer/features/settings/right-panels-settings'
+import { SettingsDraftProvider } from '@renderer/features/settings/settings-draft-context'
+import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
+import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
 
 type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
@@ -39,6 +43,12 @@ export function SettingsPage() {
   const [configExt, setConfigExt] = useState<string | null>(null)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
+
+  // 外置 adapter.json 可能在设置外被修改；进入设置时刷新 Main 缓存与右栏目录
+  useEffect(() => {
+    invalidateRightPanelCatalog()
+    void ipcClient.invoke('adapters.json.catalog', { refresh: true })
+  }, [])
 
   // B-layer slash config-page routing -> open embedded config subpage
   useEffect(() => {
@@ -76,29 +86,31 @@ export function SettingsPage() {
   const wide = widePages.includes(page)
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden">
-      <SettingsNav title={t('settings.title')}>
-        {PAGES.map((p) => (
-          <SettingsNavItem
-            key={p.key}
-            active={page === p.key}
-            icon={p.icon}
-            label={p.label}
-            onClick={() => setPage(p.key)}
-          />
-        ))}
-      </SettingsNav>
-      <SettingsMain wide={wide}>
-        {page === 'general' && <GeneralSettings />}
-        {page === 'appearance' && <AppearanceSettings />}
-        {page === 'rightPanels' && <RightPanelsSettings />}
-        {page === 'pi' && <PiSettings />}
-        {page === 'skills' && <SkillsSettingsPanel />}
-        {page === 'prompts' && <PromptsSettingsPanel />}
-        {page === 'extensions' && <ExtensionsSettings />}
-        {page === 'adapters' && <AdaptersSettings />}
-      </SettingsMain>
-    </div>
+    <SettingsDraftProvider>
+      <div className="flex h-full min-h-0 w-full overflow-hidden">
+        <SettingsNav title={t('settings.title')}>
+          {PAGES.map((p) => (
+            <SettingsNavItem
+              key={p.key}
+              active={page === p.key}
+              icon={p.icon}
+              label={p.label}
+              onClick={() => setPage(p.key)}
+            />
+          ))}
+        </SettingsNav>
+        <SettingsMain wide={wide} footer={<SettingsSaveBar />}>
+          {page === 'general' && <GeneralSettings />}
+          {page === 'appearance' && <AppearanceSettings />}
+          {page === 'rightPanels' && <RightPanelsSettings />}
+          {page === 'pi' && <PiSettings />}
+          {page === 'skills' && <SkillsSettingsPanel />}
+          {page === 'prompts' && <PromptsSettingsPanel />}
+          {page === 'extensions' && <ExtensionsSettings />}
+          {page === 'adapters' && <AdaptersSettings />}
+        </SettingsMain>
+      </div>
+    </SettingsDraftProvider>
   )
 }
 
@@ -132,9 +144,16 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
 }
 
 function GeneralSettings() {
-  const { i18n } = useTranslation()
-  const [autoOpen, setAutoOpen] = useState(true)
-  const [autoCheck, setAutoCheck] = useState(true)
+  const {
+    draft,
+    setAutoOpenLastProject,
+    setAutoCheckRegistryUpdates,
+    setLanguage,
+    setAlertSoundEnabled,
+    setAlertNotificationEnabled,
+    setAlertOnExtensionUi,
+    setAlertOnRunIdle,
+  } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
 
   useEffect(() => {
@@ -145,25 +164,42 @@ function GeneralSettings() {
 
   return (
     <div className="space-y-1">
-      <SettingsPageHeader title="常规" description="启动、语言与本机偏好（写入应用配置）。" />
+      <SettingsPageHeader title="常规" description="修改后请使用页面底部「保存」写入本机配置。" />
       <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
-        <Toggle on={autoOpen} onChange={setAutoOpen} />
+        <Toggle on={draft.autoOpenLastProject} onChange={setAutoOpenLastProject} />
       </SettingRow>
       <SettingRow label="自动检查更新" description="启动时检查适配器 registry 更新">
-        <Toggle on={autoCheck} onChange={setAutoCheck} />
+        <Toggle on={draft.autoCheckRegistryUpdates} onChange={setAutoCheckRegistryUpdates} />
+      </SettingRow>
+      <div className="pt-4 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70">提醒</div>
+      <SettingRow label="提示音" description="用户提醒时播放短提示音（与下方场景配合）">
+        <Toggle on={draft.alertSoundEnabled} onChange={setAlertSoundEnabled} />
+      </SettingRow>
+      <SettingRow label="系统通知" description="使用操作系统通知中心（通知本身静音，可与提示音叠加）">
+        <Toggle on={draft.alertNotificationEnabled} onChange={setAlertNotificationEnabled} />
+      </SettingRow>
+      <SettingRow
+        label="扩展问答弹窗"
+        description="兼容层弹窗需你作答/确认时提醒（Agent 会暂停等待）"
+      >
+        <Toggle on={draft.alertOnExtensionUi} onChange={setAlertOnExtensionUi} />
+      </SettingRow>
+      <SettingRow label="一轮运行结束" description="Agent 状态变为空闲（本轮 loop 结束）时提醒">
+        <Toggle on={draft.alertOnRunIdle} onChange={setAlertOnRunIdle} />
       </SettingRow>
       <SettingRow label="语言" description="界面语言">
         <div className="flex gap-1.5">
           {[
-            { key: 'zh', label: '中文' },
-            { key: 'en', label: 'English' },
+            { key: 'zh' as const, label: '中文' },
+            { key: 'en' as const, label: 'English' },
           ].map((l) => (
             <button
               key={l.key}
-              onClick={() => i18n.changeLanguage(l.key)}
+              type="button"
+              onClick={() => setLanguage(l.key)}
               className={cn(
                 'rounded-lg border px-2.5 py-1 text-[12px] transition-all duration-motion-fast ease-motion-ease',
-                i18n.language === l.key
+                draft.language === l.key
                   ? 'border-primary bg-primary/5 text-foreground'
                   : 'border-border text-muted-foreground hover:bg-accent/50',
               )}
@@ -192,29 +228,7 @@ function GeneralSettings() {
 
 function AppearanceSettings() {
   const { t } = useTranslation()
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
-
-  useEffect(() => {
-    ipcClient.invoke('settings.get', { key: 'theme' }).then((res) => {
-      if (res?.settings?.theme) setTheme(res.settings.theme)
-    })
-  }, [])
-
-  const applyTheme = (newTheme: 'light' | 'dark' | 'system') => {
-    setTheme(newTheme)
-    ipcClient.invoke('settings.set', { key: 'theme', value: newTheme })
-    useUIStore.getState().setTheme(newTheme)  // mirror to persisted ui-store for anti-FOUC
-    // Apply to document
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else if (newTheme === 'light') {
-      document.documentElement.classList.remove('dark')
-    } else {
-      // System
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      document.documentElement.classList.toggle('dark', isDark)
-    }
-  }
+  const { draft, setTheme } = useSettingsDraft()
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: any }[] = [
     { key: 'light', icon: Sun },
@@ -224,16 +238,17 @@ function AppearanceSettings() {
 
   return (
     <div className="space-y-1">
-      <SettingsPageHeader title={t('settings.appearance')} description="主题与界面密度；与主界面 anti-FOUC 同步。" />
+      <SettingsPageHeader title={t('settings.appearance')} description="主题预览即时生效；持久化需点页面底部「保存」。" />
       <SettingRow label="主题" description="选择界面主题">
         <div className="flex gap-1.5">
           {themes.map(({ key, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => applyTheme(key)}
+              type="button"
+              onClick={() => setTheme(key)}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease',
-                theme === key
+                draft.theme === key
                   ? 'border-primary bg-primary/5 text-foreground'
                   : 'border-border text-muted-foreground hover:bg-accent/50'
               )}
@@ -253,8 +268,8 @@ function PiSettings() {
 }
 
 function ExtensionsSettings() {
+  const { draft, setExtensionOverride } = useSettingsDraft()
   const [extensions, setExtensions] = useState<any[]>([])
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [runtimeTools, setRuntimeTools] = useState<any[]>([])
   const [missingRuntime, setMissingRuntime] = useState<any[]>([])
   const [syncing, setSyncing] = useState(false)
@@ -273,16 +288,11 @@ function ExtensionsSettings() {
 
   useEffect(() => {
     refreshExtensions()
-    ipcClient.invoke('settings.get', { key: 'extensionOverrides' }).then((res) => {
-      if (res?.settings?.extensionOverrides) setOverrides(res.settings.extensionOverrides)
-    })
   }, [])
 
   const handleToggle = (ext: any) => {
-    const isOn = overrides[ext.id] !== false // default on
-    const newVal = !isOn
-    setOverrides({ ...overrides, [ext.id]: newVal })
-    ipcClient.invoke('extensions.setOverride', { extensionId: ext.id, enabled: newVal })
+    const isOn = draft.extensionOverrides[ext.id] !== false
+    setExtensionOverride(ext.id, !isOn)
   }
 
   const COMPAT_STYLES: Record<string, string> = {
@@ -363,7 +373,7 @@ function ExtensionsSettings() {
       ) : (
         <div className="space-y-2">
           {extensions.map((ext) => {
-            const isOn = overrides[ext.id] !== false
+            const isOn = draft.extensionOverrides[ext.id] !== false
             return (
               <div key={`${ext.source}-${ext.id}`} className="rounded-lg border border-border/60 bg-card/40 p-3">
                 <div className="flex items-center justify-between">

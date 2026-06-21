@@ -13,7 +13,8 @@
     "baseUrl": ".",
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
-      "@shared/*": ["packages/shared/*"]
+      "@shared/*": ["packages/shared/*"],
+      "@extension-compat/*": ["src/extension-compat/*"]
     }
   },
   "references": [

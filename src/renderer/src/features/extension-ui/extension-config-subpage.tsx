@@ -5,7 +5,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { AdapterConfigPanel } from './adapter-config-panel'
 import { CUSTOM_CONFIG_RENDERERS } from './custom-config-renderers'
-import type { AdapterJson } from '../../../../extension-compat/adapter-schema'
+import type { AdapterJson } from '@extension-compat/adapter-schema'
 
 export function ExtensionConfigSubpage({ extensionId }: { extensionId: string }) {
   const workspace = useUIStore((s) => s.currentWorkspace)

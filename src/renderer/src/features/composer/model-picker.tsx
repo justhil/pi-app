@@ -44,7 +44,7 @@ export function ModelPicker() {
   return (
     <div className="picker-backdrop backdrop-motion fixed inset-0 z-[110] flex items-end justify-center bg-black/40 p-4 pb-28 sm:items-start sm:pt-20" onClick={() => setOpen(false)}>
       <div
-        className="picker-panel w-full max-w-lg overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
+        className="picker-panel w-full max-w-lg overflow-hidden rounded-xl border border-border/80 bg-background shadow-2xl"
         style={{ boxShadow: '0 16px 48px color-mix(in srgb, var(--foreground) 12%, transparent)' }}
         onClick={(e) => e.stopPropagation()}
       >

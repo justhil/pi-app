@@ -1,5 +1,6 @@
 // adapter.json 加载与合并 (兼容层 v2 — docs/adapter-layer-plan.md §5)
-// 优先级：项目级 .pi/desktop/adapters > 用户级 ~/.pi/desktop/adapters > 内置 builtin/*.adapter.json
+// 优先级：项目 .pi/desktop/adapters > ~/.pi/desktop/adapters > builtin
+// 外部文件按 match.names（扩展包名）覆盖内置整份适配器，而非仅同 id 深合并
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -77,59 +78,53 @@ function readDir(dir: string): { name: string; text: string }[] {
   return out
 }
 
-function deepMerge(base: AdapterJson, override: AdapterJson): AdapterJson {
-  return {
-    ...base,
-    ...override,
-    match: {
-      names: mergeUnique(base.match?.names, override.match?.names),
-      tools: mergeUnique(base.match?.tools, override.match?.tools),
-      commands: mergeUnique(base.match?.commands, override.match?.commands),
-    },
-    config: mergeConfig(base.config, override.config),
-  }
+/** 用于覆盖判定的包名键（match.names + id） */
+export function adapterPackageKeys(a: AdapterJson): string[] {
+  const names = [...(a.match?.names || []), a.id]
+  return Array.from(new Set(names.map(norm)))
 }
 
-function mergeUnique(a?: string[], b?: string[]): string[] | undefined {
-  if (!b) return a
-  if (!a) return b
-  return Array.from(new Set([...a, ...b]))
-}
-
-function mergeConfig(a?: AdapterJson['config'], b?: AdapterJson['config']): AdapterJson['config'] | undefined {
-  if (!b) return a
-  if (!a) return b
-  const merged = { ...a, ...b }
-  // sections merge by field key (append non-duplicate fields), derived by label
-  if (a.sections && b.sections) {
-    merged.sections = [...a.sections, ...b.sections].reduce<AdapterJson['config']['sections']>((acc, sec) => {
-      const existing = acc.find((s) => s?.title === sec?.title)
-      if (existing) {
-        existing.fields = mergeByKeys(existing.fields, sec.fields)
-        existing.derived = mergeByLabels(existing.derived, sec.derived)
-      } else {
-        acc.push(sec)
+/** 两适配器是否认领同一扩展包（与 resolveV2ByPluginName 同套模糊规则） */
+export function adaptersSharePackage(a: AdapterJson, b: AdapterJson): boolean {
+  const keysA = adapterPackageKeys(a)
+  const keysB = adapterPackageKeys(b)
+  for (const ka of keysA) {
+    for (const kb of keysB) {
+      if (ka === kb || ka.endsWith(kb) || kb.endsWith(ka) || ka.includes(kb) || kb.includes(ka)) {
+        return true
       }
-      return acc
-    }, [])
+    }
   }
-  return merged
+  return false
 }
 
-function mergeByKeys<T extends { key: string }>(a?: T[], b?: T[]): T[] | undefined {
-  if (!b) return a
-  if (!a) return b
-  const map = new Map(a.map((x) => [x.key, x]))
-  for (const y of b) map.set(y.key, { ...map.get(y.key), ...y })
-  return Array.from(map.values())
+function parseAdapterFiles(files: { name: string; text: string }[], errors: AdapterLoadError[]): AdapterJson[] {
+  const out: AdapterJson[] = []
+  for (const f of files) {
+    try {
+      const raw = JSON.parse(f.text)
+      if (!looksLikeAdapter(raw)) {
+        errors.push({ adapterId: f.name, source: 'override', message: 'invalid shape' })
+        continue
+      }
+      out.push(raw)
+    } catch (e: any) {
+      errors.push({ adapterId: f.name, source: 'override', message: e.message })
+    }
+  }
+  return out
 }
 
-function mergeByLabels<T extends { label: string }>(a?: T[], b?: T[]): T[] | undefined {
-  if (!b) return a
-  if (!a) return b
-  const map = new Map(a.map((x) => [x.label, x]))
-  for (const y of b) map.set(y.label, y)
-  return Array.from(map.values())
+/**
+ * 外部层整份替换：凡 match.names 与外部适配器重合的内置/低优先级项移除，再追加外部（可更新 id）。
+ */
+function applyPackageOverrides(base: AdapterJson[], overrides: AdapterJson[]): AdapterJson[] {
+  let list = [...base]
+  for (const ext of overrides) {
+    list = list.filter((b) => !adaptersSharePackage(ext, b))
+    list.push(ext)
+  }
+  return list
 }
 
 export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
@@ -137,55 +132,37 @@ export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
   if (cachedCatalog && cachedProjectDir === (projectDir || null)) return cachedCatalog
   cachedProjectDir = projectDir || null
 
-  const byId = new Map<string, AdapterJson>()
-  const sources: Record<string, 'builtin' | 'override' | 'probe'> = {}
   const errors: AdapterLoadError[] = []
+  const sources: Record<string, 'builtin' | 'override' | 'probe'> = {}
 
-  // 1. builtin (lowest priority) — imported modules
+  let adapters: AdapterJson[] = []
   for (const raw of BUILTIN) {
     if (!looksLikeAdapter(raw)) {
       errors.push({ adapterId: raw?.id || 'unknown', source: 'builtin', message: 'invalid shape' })
       continue
     }
-    byId.set(raw.id, raw)
+    adapters.push(raw)
     sources[raw.id] = 'builtin'
   }
 
-  // 2. user override (~/.pi/desktop/adapters)
-  for (const f of readDir(USER_DIR)) {
-    try {
-      const raw = JSON.parse(f.text)
-      if (!looksLikeAdapter(raw)) {
-        errors.push({ adapterId: f.name, source: 'override', message: 'invalid shape' })
-        continue
-      }
-      const prev = byId.get(raw.id)
-      byId.set(raw.id, prev ? deepMerge(prev, raw) : raw)
-      sources[raw.id] = 'override'
-    } catch (e: any) {
-      errors.push({ adapterId: f.name, source: 'override', message: e.message })
-    }
-  }
+  const userOverrides = parseAdapterFiles(readDir(USER_DIR), errors)
+  adapters = applyPackageOverrides(adapters, userOverrides)
+  for (const a of userOverrides) sources[a.id] = 'override'
 
-  // 3. project override (<project>/.pi/desktop/adapters) — highest priority
   if (projectOverrideDir) {
-    for (const f of readDir(projectOverrideDir)) {
-      try {
-        const raw = JSON.parse(f.text)
-        if (!looksLikeAdapter(raw)) {
-          errors.push({ adapterId: f.name, source: 'override', message: 'invalid shape' })
-          continue
-        }
-        const prev = byId.get(raw.id)
-        byId.set(raw.id, prev ? deepMerge(prev, raw) : raw)
-        sources[raw.id] = 'override'
-      } catch (e: any) {
-        errors.push({ adapterId: f.name, source: 'override', message: e.message })
-      }
-    }
+    const projectOverrides = parseAdapterFiles(readDir(projectOverrideDir), errors)
+    adapters = applyPackageOverrides(adapters, projectOverrides)
+    for (const a of projectOverrides) sources[a.id] = 'override'
   }
 
-  cachedCatalog = { adapters: Array.from(byId.values()), errors, sources }
+  // 重建 sources：仍在列表中的 builtin 保留 builtin，其余 override
+  const finalSources: Record<string, 'builtin' | 'override' | 'probe'> = {}
+  const builtinIds = new Set(BUILTIN.filter(looksLikeAdapter).map((b) => b.id))
+  for (const a of adapters) {
+    finalSources[a.id] = sources[a.id] === 'override' ? 'override' : builtinIds.has(a.id) ? 'builtin' : 'override'
+  }
+
+  cachedCatalog = { adapters, errors, sources: finalSources }
   return cachedCatalog
 }
 
@@ -217,12 +194,27 @@ export function v2ToolMap(projectDir?: string): Record<string, string> {
 export function resolveV2Slash(
   commandName: string,
   projectDir?: string,
-): { adapterId: string; behavior: 'notify' | 'config-page' | 'execute'; matchNames: string[]; desktopSupport?: string } | null {
+): {
+  adapterId: string
+  behavior: 'notify' | 'config-page' | 'execute' | 'open-panel'
+  matchNames: string[]
+  desktopSupport?: string
+  panelId?: string
+} | null {
   const cmd = commandName.startsWith('/') ? commandName : `/${commandName}`
   for (const a of loadAdapterCatalog(projectDir).adapters) {
     const behavior = a.slash?.[cmd]
     if (behavior) {
-      return { adapterId: a.id, behavior, matchNames: a.match?.names || [], desktopSupport: a.description }
+      return {
+        adapterId: a.id,
+        behavior,
+        matchNames: a.match?.names || [],
+        desktopSupport: a.description,
+        panelId:
+          behavior === 'open-panel'
+            ? a.sidePanel?.panelId || `adapter:${a.id}`
+            : undefined,
+      }
     }
     // match.commands also implies the adapter claims this command; default to notify if no slash entry
     if (a.match?.commands?.includes(cmd) && !a.slash?.[cmd]) {

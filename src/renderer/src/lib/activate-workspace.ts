@@ -2,6 +2,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
 export type ActivateWorkspaceOptions = {
   preferEmpty?: boolean
@@ -21,6 +22,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   store.setWorkspace(path)
   store.clearTimeline()
   store.clearFileChanges()
+  useExtensionUIStore.getState().resetForSessionContext()
 
   const openPromise = !sameProject
     ? ipcClient.invoke('workspace.open', { path }).catch((e) => {

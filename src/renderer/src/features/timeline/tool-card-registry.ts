@@ -3,7 +3,7 @@
 // 模板渲染器在 tool-card-templates.tsx（list/media/tree/kv/default）。
 // 渲染器都是通用的，由 adapter.toolCard.template 声明调用，不含插件专属逻辑。
 import { useEffect, useState } from 'react'
-import type { AdapterJson, ToolCardTemplate } from '../../../../extension-compat/adapter-schema'
+import type { AdapterJson, ToolCardTemplate } from '@extension-compat/adapter-schema'
 import { ipcClient } from '@renderer/lib/ipc-client'
 
 let cachedCatalog: AdapterJson[] | null = null

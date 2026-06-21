@@ -48,7 +48,12 @@ export function createWindow(): BrowserWindow {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    // 避免与 Vite HMR / 二次实例抢焦点时连响系统提示音
+    if (is.dev) {
+      mainWindow?.showInactive()
+    } else {
+      mainWindow?.show()
+    }
   })
 
   mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {

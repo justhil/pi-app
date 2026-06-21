@@ -83,7 +83,22 @@ export interface InteractDef {
 }
 
 export interface AdapterSlash {
-  [command: string]: 'notify' | 'config-page' | 'execute'
+  [command: string]: 'notify' | 'config-page' | 'execute' | 'open-panel'
+}
+
+/** 声明右栏 Tab：设置页自动出现开关；slash open-panel 可打开。 */
+export interface AdapterSidePanel {
+  /** main/side-panel-registry.ts 中的状态提供者 */
+  stateProvider: string
+  /** 渲染器键：workspace-tasks、generic-json 等（见 side-panel-registry） */
+  panelComponent: string
+  /** Tab / prefs 键；默认 adapter:{id} */
+  panelId?: string
+  label?: string
+  description?: string
+  /** lucide 图标名 */
+  icon?: string
+  defaultEnabled?: boolean
 }
 
 export interface AdapterMatch {
@@ -103,6 +118,7 @@ export interface AdapterJson {
   toolCard?: ToolCardDef
   interact?: InteractDef
   slash?: AdapterSlash
+  sidePanel?: AdapterSidePanel
 }
 
 export interface AdapterLoadError {

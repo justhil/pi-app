@@ -58,6 +58,29 @@ export function setSkillEnabledInGlobal(name: string, path: string | undefined, 
   return overrides
 }
 
+/** 批量写入 desktopSkillOverrides，只落盘一次 */
+export function applySkillOverridesBatch(
+  changes: Array<{ name: string; path?: string; enabled: boolean }>,
+): DesktopSkillOverrides {
+  if (changes.length === 0) return getDesktopSkillOverrides()
+  const settings = readGlobalSettingsJson()
+  const overrides: DesktopSkillOverrides = { ...getDesktopSkillOverrides() }
+  for (const { name, path, enabled } of changes) {
+    const key = skillStorageKey(name, path || undefined)
+    if (enabled) {
+      delete overrides[key]
+      delete overrides[skillStorageKey(name)]
+    } else {
+      overrides[key] = false
+    }
+  }
+  settings.desktopSkillOverrides = overrides
+  const dir = join(homedir(), '.pi', 'agent')
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  writeFileSync(GLOBAL_SETTINGS, JSON.stringify(settings, null, 2), 'utf-8')
+  return overrides
+}
+
 /** 一次性：把旧版 electron-store skillOverrides 迁到全局 settings */
 export function migrateElectronSkillOverrides(
   legacy: Record<string, boolean> | undefined,

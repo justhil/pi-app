@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './styles/globals.css'
 import './styles/scrollbar-overlay.css'
 import './lib/i18n'
+import './lib/startup-toast-guard'
+import { ensureExtensionUIChannel } from './lib/extension-ui-channel'
+
+ensureExtensionUIChannel()
 
 const App = React.lazy(() => import('./app/app'))
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type WheelEvent } from 'react'
 import { cn } from '@renderer/lib/utils'
-import type { RightPanelId } from '@shared/right-panels'
+
 
 export function RightPanelTabs({
   panels,
@@ -9,7 +9,7 @@ export function RightPanelTabs({
 }: {
   panels: { key: string; label: string; icon: ComponentType<{ className?: string }> }[]
   activePanel: string
-  setActivePanel: (p: RightPanelId) => void
+  setActivePanel: (p: string) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState(false)
@@ -71,7 +71,7 @@ export function RightPanelTabs({
               type="button"
               role="tab"
               aria-selected={activePanel === p.key}
-              onClick={() => setActivePanel(p.key as RightPanelId)}
+              onClick={() => setActivePanel(p.key)}
               className={cn(
                 'row-hover flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md transition-colors duration-200',
                 activePanel === p.key

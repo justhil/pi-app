@@ -5,6 +5,19 @@ import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 import { resolveActiveSdk } from './sdk-loader'
 
+const MAIN_BOOT = Date.now()
+/** 启动期不向渲染进程转发扩展 info/warning notify（Windows 常伴系统提示音） */
+const EXT_NOTIFY_SILENCE_MS = 25_000
+
+function shouldForwardExtensionUiRequest(request: unknown): boolean {
+  if (!request || typeof request !== 'object') return true
+  const req = request as { method?: string; notifyType?: string }
+  if (req.method !== 'notify') return true
+  if (Date.now() - MAIN_BOOT >= EXT_NOTIFY_SILENCE_MS) return true
+  const t = req.notifyType || 'info'
+  return t === 'error'
+}
+
 interface InitResult {
   sessionId: string
   model?: string
@@ -83,7 +96,9 @@ export class WorkerManager {
       }
 
       if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
+        if (shouldForwardExtensionUiRequest(data.request)) {
+          this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
+        }
       }
 
       if (data.type === 'init-done' && this.initResolver) {

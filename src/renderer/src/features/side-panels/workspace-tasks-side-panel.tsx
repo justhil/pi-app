@@ -3,8 +3,9 @@ import { CheckSquare, ListTree, BookOpen, FolderTree, RefreshCw, ChevronRight, T
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
+import type { SidePanelComponentProps } from './side-panel-registry'
 
-interface TrellisTask {
+interface TaskRow {
   name: string
   title: string
   status: string
@@ -16,10 +17,10 @@ interface TrellisTask {
   isCurrent?: boolean
 }
 
-interface TrellisState {
-  hasTrellis: boolean
+interface TasksPanelState {
+  ready: boolean
   currentTaskName?: string
-  tasks: TrellisTask[]
+  tasks: TaskRow[]
   recentJournals?: { title: string; date: string; lines: number; preview: string }[]
 }
 
@@ -37,32 +38,51 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-muted text-muted-foreground',
 }
 
-export function TrellisPanel() {
-  const [data, setData] = useState<TrellisState>({ hasTrellis: false, tasks: [] })
+export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanelComponentProps) {
+  const headerTitle = title || panelId
+  const [data, setData] = useState<TasksPanelState>({ ready: false, tasks: [] })
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const workspace = useUIStore((s) => s.currentWorkspace)
 
   const fetchData = async () => {
-    if (!workspace) return
+    if (!workspace || !adapterId) return
     setLoading(true)
+    setLoadError(null)
     try {
-      const result = await ipcClient.invoke('trellis.getState')
-      const state = result || { hasTrellis: false, tasks: [] }
+      const result = await ipcClient.invoke('adapter.sidePanel.getState', {
+        adapterId,
+        workspaceId: workspace,
+      })
+      if (!result?.ok) {
+        setLoadError(result?.error || 'load_failed')
+        setData({ ready: false, tasks: [] })
+        return
+      }
+      const raw = result.state as { ready?: boolean; hasTrellis?: boolean; tasks?: TaskRow[]; recentJournals?: TasksPanelState['recentJournals'] }
+      const state: TasksPanelState = {
+        ready: raw?.ready ?? raw?.hasTrellis ?? false,
+        tasks: raw?.tasks || [],
+        recentJournals: raw?.recentJournals,
+      }
       setData(state)
-      // Auto-expand current task or first task
-      const current = state.tasks?.find((t: TrellisTask) => t.isCurrent)
+      const current = state.tasks?.find((t) => t.isCurrent)
       setExpandedTask(current?.name || state.tasks?.[0]?.name || null)
     } catch (e) {
-      console.error('Trellis read failed:', e)
+      console.error('[workspace-tasks] load failed:', e)
     }
     setLoading(false)
   }
 
   useEffect(() => {
-    if (workspace) fetchData()
-    else setData({ hasTrellis: false, tasks: [] })
-  }, [workspace])
+    if (workspace && adapterId) void fetchData()
+    else setData({ ready: false, tasks: [] })
+  }, [workspace, adapterId])
+
+  if (!adapterId) {
+    return <div className="p-4 text-[12px] text-muted-foreground">未绑定 adapterId（{panelId}）</div>
+  }
 
   if (!workspace) {
     return (
@@ -73,11 +93,23 @@ export function TrellisPanel() {
     )
   }
 
-  if (!data.hasTrellis) {
+  if (loadError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
         <FolderTree className="h-8 w-8 text-muted-foreground/30" />
-        <span className="text-[12px] text-muted-foreground/50">当前项目未启用 Trellis</span>
+        <span className="text-[12px] text-muted-foreground/50">无法加载面板状态</span>
+        <span className="text-[10px] font-mono text-muted-foreground/40">{loadError}</span>
+        <button type="button" onClick={fetchData} className="text-[11px] text-primary hover:underline">重试</button>
+      </div>
+    )
+  }
+
+  if (!data.ready) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
+        <FolderTree className="h-8 w-8 text-muted-foreground/30" />
+        <span className="text-[12px] text-muted-foreground/50">当前项目无任务工作区布局</span>
+        <span className="text-[10px] text-muted-foreground/40">需在项目根存在 `.trellis/`（stateProvider: workspace-trellis）</span>
       </div>
     )
   }
@@ -86,7 +118,7 @@ export function TrellisPanel() {
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">Trellis</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{headerTitle}</span>
         <button
           onClick={fetchData}
           disabled={loading}

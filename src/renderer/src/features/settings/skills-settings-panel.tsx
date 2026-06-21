@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
+import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
 
 type SkillRow = {
   name: string
@@ -13,15 +15,44 @@ type SkillRow = {
   command: string
 }
 
+function overridesFromRows(rows: SkillRow[]): Record<string, boolean> {
+  const o: Record<string, boolean> = {}
+  for (const r of rows) o[r.key] = r.enabled
+  return o
+}
+
+function overridesEqual(a: Record<string, boolean>, b: Record<string, boolean>): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const k of keys) {
+    if (a[k] !== b[k]) return false
+  }
+  return true
+}
+
 export function SkillsSettingsPanel() {
   const [skills, setSkills] = useState<SkillRow[]>([])
+  const [baseline, setBaseline] = useState<Record<string, boolean>>({})
+  const [draft, setDraft] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
+
+  const skillsRef = useRef(skills)
+  const draftRef = useRef(draft)
+  const baselineRef = useRef(baseline)
+  skillsRef.current = skills
+  draftRef.current = draft
+  baselineRef.current = baseline
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await ipcClient.invoke('skills.list')
-      setSkills(res?.skills || [])
+      const rows: SkillRow[] = res?.skills || []
+      setSkills(rows)
+      const o = overridesFromRows(rows)
+      setBaseline(o)
+      setDraft({ ...o })
+      baselineRef.current = o
+      draftRef.current = o
     } finally {
       setLoading(false)
     }
@@ -31,10 +62,52 @@ export function SkillsSettingsPanel() {
     void load()
   }, [load])
 
-  const toggle = async (row: SkillRow) => {
-    const next = !row.enabled
-    setSkills((prev) => prev.map((s) => (s.key === row.key ? { ...s, enabled: next } : s)))
-    await ipcClient.invoke('skills.setEnabled', { key: row.key, name: row.name, path: row.path, enabled: next })
+  const displayRows = useMemo(
+    () => skills.map((s) => ({ ...s, enabled: draft[s.key] ?? s.enabled })),
+    [skills, draft],
+  )
+
+  useSettingsDirtySlice({
+    id: 'skills',
+    label: 'Skills',
+    isDirty: () => !overridesEqual(draftRef.current, baselineRef.current),
+    commit: async () => {
+      const list = skillsRef.current
+      const d = draftRef.current
+      const b = baselineRef.current
+      const changes: Array<{ name: string; path?: string; enabled: boolean }> = []
+      for (const s of list) {
+        const want = d[s.key] ?? s.enabled
+        const was = b[s.key] ?? s.enabled
+        if (want === was) continue
+        changes.push({ name: s.name, path: s.path, enabled: want })
+      }
+      if (changes.length > 0) {
+        await ipcClient.invoke('skills.applyOverrides', { changes })
+      }
+      const nextBaseline = { ...d }
+      setBaseline(nextBaseline)
+      setDraft({ ...nextBaseline })
+      baselineRef.current = nextBaseline
+      draftRef.current = nextBaseline
+      notifySettingsDirtyChanged()
+    },
+    discard: () => {
+      const b = baselineRef.current
+      setDraft({ ...b })
+      draftRef.current = { ...b }
+      notifySettingsDirtyChanged()
+    },
+  })
+
+  const toggle = (row: SkillRow) => {
+    const next = !(draft[row.key] ?? row.enabled)
+    setDraft((prev) => {
+      const n = { ...prev, [row.key]: next }
+      draftRef.current = n
+      return n
+    })
+    notifySettingsDirtyChanged()
   }
 
   return (
@@ -44,7 +117,7 @@ export function SkillsSettingsPanel() {
           <h3 className="text-[15px] font-semibold">Skills</h3>
           <p className="mt-1 text-[11px] text-muted-foreground/75 leading-relaxed">
             默认全部启用。启停写入 <code className="rounded bg-muted px-1 text-[10px]">~/.pi/agent/settings.json</code> 的{' '}
-            <code className="text-[10px]">desktopSkillOverrides</code>（与终端 pi 共用全局配置，项目设置继承全局）。
+            <code className="text-[10px]">desktopSkillOverrides</code>。修改后请用页面底部「保存」（即时写盘，不重载 Worker）。
           </p>
         </div>
         <button type="button" className="rounded-md p-2 hover:bg-muted" title="刷新" onClick={() => void load()}>
@@ -55,17 +128,17 @@ export function SkillsSettingsPanel() {
       <div className="rounded-xl border border-border/50 bg-card/20">
         {loading ? (
           <p className="p-4 text-[12px] text-muted-foreground">加载…</p>
-        ) : skills.length === 0 ? (
+        ) : displayRows.length === 0 ? (
           <p className="p-4 text-[12px] text-muted-foreground">未发现 skill（先打开工作区）</p>
         ) : (
           <ul className="divide-y divide-border/40">
-            {skills.map((s) => (
+            {displayRows.map((s) => (
               <li key={s.key} className="flex items-center gap-3 px-4 py-3">
                 <button
                   type="button"
                   role="switch"
                   aria-checked={s.enabled}
-                  onClick={() => void toggle(s)}
+                  onClick={() => toggle(s)}
                   className={cn(
                     'h-5 w-9 shrink-0 rounded-full transition-colors',
                     s.enabled ? 'bg-primary' : 'bg-muted-foreground/25',
@@ -79,25 +152,13 @@ export function SkillsSettingsPanel() {
                   />
                 </button>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-mono text-[13px] font-medium">{s.name}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground">{s.command}</span>
-                    <span
-                      className={cn(
-                        'rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide',
-                        s.enabled ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      {s.enabled ? '启用' : '禁用'}
-                    </span>
-                  </div>
-                  {s.description ? (
-                    <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.description}</p>
+                  <div className="text-[13px] font-medium">{s.name}</div>
+                  {s.command ? (
+                    <div className="font-mono text-[10px] text-muted-foreground">{s.command}</div>
                   ) : null}
-                  <p className="mt-0.5 text-[10px] text-muted-foreground/55">
-                    {s.source}
-                    {s.path ? ` · ${s.path}` : ''}
-                  </p>
+                  {s.description ? (
+                    <div className="mt-0.5 text-[11px] text-muted-foreground/70 line-clamp-2">{s.description}</div>
+                  ) : null}
                 </div>
               </li>
             ))}

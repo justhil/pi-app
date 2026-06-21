@@ -3,30 +3,15 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AppEvent } from '@shared/app-events'
 import {
   coerceActivePanel,
-  defaultRightPanelPrefs,
-  normalizeRightPanelPrefs,
-  type RightPanelId,
+  CORE_RIGHT_PANEL_CATALOG,
+  defaultCoreRightPanelPrefs,
+  type RightPanelCatalogItem,
   type RightPanelPrefs,
 } from '@shared/right-panels'
 import { sanitizeRunStatePatch } from '@renderer/lib/format-run-display'
-
-// Generic status-line extractor (replaces pi-search-specific piSearchStatusFromUpdate).
-// Pulls the first meaningful line from a tool update output, truncated for the timeline summary.
-function extractStatusLine(output: unknown): string | null {
-  if (!output) return null
-  const text =
-    typeof output === 'string'
-      ? output
-      : Array.isArray((output as any)?.content)
-        ? (output as any).content.map((c: any) => c?.text || '').join('')
-        : typeof (output as any)?.text === 'string'
-          ? (output as any).text
-          : ''
-  const t = text.trim()
-  if (!t) return null
-  if (t.length > 120) return `${t.slice(0, 120)}…`
-  return t
-}
+import { extractStatusFromOutput } from '@extension-compat/json-path'
+import { resolveToolCardDef } from '@renderer/features/timeline/tool-card-registry'
+import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 
 interface SessionItem {
   sessionId: string
@@ -73,6 +58,8 @@ interface TimelineItem {
   toolDetails?: any
   toolArgs?: any
   toolStatusLine?: string
+  extensionUiSuspended?: boolean
+  extensionUiRequestId?: string
   runId?: string
   isError?: boolean
   slashCommand?: string
@@ -139,10 +126,12 @@ interface UIState {
   setComposerPrefill: (text: string | null) => void
 
   // Panel
-  activePanel: RightPanelId
-  setActivePanel: (p: RightPanelId) => void
+  activePanel: string
+  setActivePanel: (p: string) => void
+  rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
-  applyRightPanelPrefs: (prefs: RightPanelPrefs) => void
+  rightPanelOrder: string[]
+  applyRightPanelRuntime: (catalog: RightPanelCatalogItem[], prefs: RightPanelPrefs, order?: string[]) => void
 
   rewindKey: string
   rewindCheckpoints: Array<{ id: string; trigger: string; description?: string; branch: string; timestamp: number }>
@@ -401,16 +390,25 @@ export const useUIStore = create<UIState>()(
   setComposerPrefill: (text) => set({ composerPrefill: text }),
 
   activePanel: 'review',
+  rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],
   setActivePanel: (p) =>
     set((s) => ({
-      activePanel: s.rightPanelPrefs[p] ? p : coerceActivePanel(p, s.rightPanelPrefs),
+      activePanel: s.rightPanelPrefs[p]
+        ? p
+        : coerceActivePanel(p, s.rightPanelPrefs, s.rightPanelCatalog, s.rightPanelOrder),
     })),
-  rightPanelPrefs: defaultRightPanelPrefs(),
-  applyRightPanelPrefs: (prefs) =>
-    set((s) => ({
-      rightPanelPrefs: prefs,
-      activePanel: coerceActivePanel(s.activePanel, prefs),
-    })),
+  rightPanelPrefs: defaultCoreRightPanelPrefs(),
+  rightPanelOrder: [],
+  applyRightPanelRuntime: (catalog, prefs, order) =>
+    set((s) => {
+      const nextOrder = order?.length ? order : s.rightPanelOrder
+      return {
+        rightPanelCatalog: catalog,
+        rightPanelPrefs: prefs,
+        rightPanelOrder: nextOrder,
+        activePanel: coerceActivePanel(s.activePanel, prefs, catalog, nextOrder),
+      }
+    }),
 
   theme: 'system',
   setTheme: (t) => set({ theme: t }),
@@ -515,7 +513,7 @@ export const useUIStore = create<UIState>()(
           const items = get().timelineItems
           const lastTool = [...items].reverse().find((i) => i.type === 'tool-call' && i.toolCallId === event.toolCallId)
             || [...items].reverse().find((i) => i.type === 'tool-call' && i.toolName === event.toolName && (i.toolPhase === 'start' || i.toolPhase === 'update'))
-          const line = extractStatusLine(event.output)
+          const line = extractStatusFromOutput(event.output, resolveToolCardDef(event.toolName)?.statusField)
           if (lastTool && line) {
             state.updateTimelineItem(lastTool.id, {
               toolPhase: 'update',
@@ -584,6 +582,7 @@ export const useUIStore = create<UIState>()(
           state.setRunState(runPatch)
         } else if (event.phase === 'idle') {
           const rs = get().runState
+          const wasActive = rs.status === 'running' || rs.status === 'failed'
           const prevRun = rs.activeRunId
           const durationMs = rs.startTime ? Math.max(0, Date.now() - rs.startTime) : rs.lastRunDurationMs
           state.setRunState({
@@ -597,6 +596,13 @@ export const useUIStore = create<UIState>()(
           state.clearPendingQueue()
           set({ streamingAssistantId: null })
           state.pruneEmptyAssistantBubbles()
+          if (wasActive) {
+            const sec = durationMs != null ? Math.round(durationMs / 1000) : undefined
+            void signalDesktopAlert('run_idle', {
+              title: 'pi Desktop · 运行结束',
+              body: sec != null && sec > 0 ? `Agent 已空闲（约 ${sec} 秒）` : 'Agent 已空闲，可继续输入',
+            })
+          }
         } else if (event.phase === 'failed') {
           state.setRunState({ status: 'failed' })
         } else if (event.phase === 'state') {

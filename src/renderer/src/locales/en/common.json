@@ -10,13 +10,13 @@
   "sidebar": {
     "sessions": "Sessions",
     "settings": "Settings",
-    "openProject": "Open Project"
+    "openProject": "Open folder"
   },
   "composer": {
-    "placeholder": "Type a message or / command...",
+    "placeholder": "Message or / command",
     "send": "Send",
     "stop": "Stop",
-    "selectProjectFirst": "Please open a project directory first..."
+    "selectProjectFirst": "Open a project first"
   },
   "panel": {
     "review": "Review",
@@ -41,7 +41,10 @@
     }
   },
   "timeline": {
-    "placeholder": "Start a conversation or select a past session"
+    "placeholder": "Send a message to start",
+    "emptyWorkspace": "Open a folder, or start a temp chat under Chats",
+    "loadOlder": "Scroll up or tap to load older messages",
+    "loadingSession": "Loading session…"
   },
   "review": {
     "scope": {

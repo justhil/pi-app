@@ -1,8 +1,9 @@
 import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
+import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
-import { readTrellisState } from './trellis-reader'
+import { resolveSidePanelState } from './side-panel-registry'
 import { readPiInfo, readResourceList } from './pi-info'
 import {
   listSkillsOnDisk,
@@ -15,6 +16,7 @@ import {
   getDesktopSkillOverrides,
   isSkillEnabled,
   setSkillEnabledInGlobal,
+  applySkillOverridesBatch,
   migrateElectronSkillOverrides,
 } from './pi-skill-overrides'
 import {
@@ -27,7 +29,15 @@ import {
 import { listRevisions, pushRevision, restoreRevision, readRevision } from './resource-revisions'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters, orphanV2Adapters } from '../extension-compat/plugin-adapters'
-import { loadAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
+import { loadAdapterCatalog, invalidateAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
+import { listAdapterSidePanelMetas } from '../extension-compat/side-panel-catalog'
+import {
+  mergeRightPanelCatalog,
+  defaultRightPanelPrefsForCatalog,
+  normalizeRightPanelPrefs,
+  normalizeRightPanelOrder,
+  type RightPanelCatalogItem,
+} from '@shared/right-panels'
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
@@ -129,9 +139,36 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:adapter.field.options', async (req) => {
     return fetchFieldOptions(req.adapterId, req.fieldKey)
   })
-  registerHandler('ipc:adapters.json.catalog', async () => {
+  registerHandler('ipc:adapters.json.catalog', async (req) => {
+    if (req?.refresh) invalidateAdapterCatalog()
     const cwd = workerManager.cwd || configStore.get('currentProject') || ''
     return loadAdapterCatalog(cwd)
+  })
+
+  registerHandler('ipc:rightPanels.catalog', async () => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const adapterPanels = listAdapterSidePanelMetas(cwd)
+    const catalog = mergeRightPanelCatalog(adapterPanels)
+    const stored = configStore.get('rightPanelPrefs')
+    const prefs = normalizeRightPanelPrefs(stored, catalog)
+    const order = normalizeRightPanelOrder(configStore.get('rightPanelOrder'), catalog)
+    return {
+      catalog,
+      adapterPanels,
+      prefs,
+      order,
+      defaultPrefs: defaultRightPanelPrefsForCatalog(catalog, adapterPanels),
+    }
+  })
+
+  registerHandler('ipc:rightPanels.saveLayout', async (req) => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const adapterPanels = listAdapterSidePanelMetas(cwd)
+    const catalog = mergeRightPanelCatalog(adapterPanels)
+    const prefs = normalizeRightPanelPrefs(req?.prefs, catalog)
+    const order = normalizeRightPanelOrder(req?.order, catalog)
+    configStore.setRightPanelLayout(prefs, order)
+    return { ok: true, prefs, order }
   })
 
   registerHandler('ipc:dialog:openDirectory', async () => {
@@ -201,6 +238,7 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:workspace.open', async (req) => {
     const path = req.path
     const name = path.split(/[\\/]/).pop() || path
+    invalidateAdapterCatalog()
     // Update config immediately so UI and other IPCs (extensions, resources) work right away
     configStore.addRecentProject(path)
     configStore.set('currentProject', path)
@@ -672,6 +710,21 @@ export function registerAllHandlers(): void {
     return { ok: true, key, enabled: isSkillEnabled(name, path, overrides) }
   })
 
+  registerHandler('ipc:skills.applyOverrides', async (req) => {
+    const changes = Array.isArray(req?.changes) ? req.changes : []
+    const normalized = changes
+      .map((c: any) => ({
+        name: String(c?.name || ''),
+        path: c?.path ? String(c.path) : undefined,
+        enabled: c?.enabled !== false,
+      }))
+      .filter((c) => c.name || c.path)
+    applySkillOverridesBatch(normalized)
+    // 不 reload Worker：启停只写 global settings，skills.list 由 Main 读 desktopSkillOverrides 合并；
+    // session.reload() 会重扫扩展/技能，保存设置时动辄数秒且无必要。
+    return { ok: true, count: normalized.length }
+  })
+
   registerHandler('ipc:prompts.list', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     let projectTrusted = true
@@ -898,10 +951,16 @@ export function registerAllHandlers(): void {
     return { diff: { raw: '', status: '', scope: req.scope, isRepo: true } }
   })
 
-  // ── Trellis ──
-  registerHandler('ipc:trellis.getState', async () => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    return readTrellisState(cwd)
+  registerHandler('ipc:adapter.sidePanel.getState', async (req) => {
+    const fallback = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    // 右栏状态按「当前打开的项目」读盘，不能只用 Worker cwd（未启动/沙箱时会错目录）
+    const cwd = (req.workspaceId && String(req.workspaceId).trim()) || fallback
+    const workspaceId = cwd
+    const adapterId = String(req.adapterId || '').trim()
+    if (!adapterId) return { ok: false, error: 'adapter_id_required', state: null }
+    const r = resolveSidePanelState(adapterId, cwd, workspaceId)
+    if (!r.ok) return { ok: false, error: r.error, state: null }
+    return { ok: true, state: r.state }
   })
 
   // ── Extensions ──
@@ -934,7 +993,8 @@ export function registerAllHandlers(): void {
     return result
   })
 
-  registerHandler('ipc:adapters.catalog', async () => {
+  registerHandler('ipc:adapters.catalog', async (req) => {
+    if (req?.refresh) invalidateAdapterCatalog()
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const extensions = probeExtensions(cwd)
     const probed = buildPluginAdapters(extensions, cwd)
@@ -962,7 +1022,15 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:slash.resolve', async (req) => {
     const r = resolveV2Slash(req.command || '')
     if (!r) return { behavior: 'passthrough', meta: null }
-    return { behavior: r.behavior, meta: { matchNames: r.matchNames, desktopSupport: r.desktopSupport } }
+    return {
+      behavior: r.behavior,
+      meta: {
+        matchNames: r.matchNames,
+        desktopSupport: r.desktopSupport,
+        panelId: r.panelId,
+        adapterId: r.adapterId,
+      },
+    }
   })
 
   // ── Registry ──
@@ -982,6 +1050,18 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:settings.set', async (req) => {
     configStore.set(req.key as any, req.value)
     return { key: req.key, value: req.value }
+  })
+
+  registerHandler('ipc:alerts.signal', async (req) => {
+    const { deliverDesktopAlert } = await import('./desktop-alerts')
+    const win = getMainWindow()
+    const kind = req.kind === 'run_idle' ? 'run_idle' : 'extension_ui'
+    deliverDesktopAlert(win, {
+      kind,
+      title: String(req.title || 'pi Desktop'),
+      body: String(req.body || ''),
+    })
+    return { ok: true }
   })
 
   // ── Pi Info ──

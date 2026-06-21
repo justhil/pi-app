@@ -10,7 +10,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 /** App-native builtins handled directly in the renderer (not forwarded as plain prompt text). */
 const APP_BUILTIN = new Set([
   'model', 'thinking', 'clear', 'compact', 'new',
-  'help', 'settings', 'review', 'run', 'trellis', 'tree', 'skills', 'prompts',
+  'help', 'settings', 'review', 'run', 'tree', 'skills', 'prompts',
 ])
 
 export function isExecutableBuiltin(input: string): boolean {
@@ -129,7 +129,6 @@ export async function executeSlashCommand(
     }
     case 'review': { setActivePanel('review'); toast.info('已切换到 Review 面板'); return true }
     case 'run': { setActivePanel('run'); toast.info('已切换到 Run 面板'); return true }
-    case 'trellis': { setActivePanel('trellis'); toast.info('已切换到 Trellis 面板'); return true }
     case 'tree': { setActivePanel('tree'); return true }
     case 'settings': { toast.info('请从左侧栏打开设置'); return true }
     case 'skills':

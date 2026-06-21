@@ -55,6 +55,7 @@ export default defineConfig({
       alias: {
         '@renderer': resolve('src/renderer/src'),
         '@shared': resolve('packages/shared'),
+        '@extension-compat': resolve('src/extension-compat'),
       },
     },
     plugins: [react()],

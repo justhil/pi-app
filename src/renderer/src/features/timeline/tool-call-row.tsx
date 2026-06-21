@@ -8,6 +8,7 @@ import { resolveToolCardTemplate } from './tool-card-registry'
 import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
 const NATIVE_TOOLS = new Set(['read', 'edit', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
 
@@ -68,10 +69,21 @@ export function ToolCallRow({
         )}
         <ToolIcon name={item.toolName} />
         <span className="text-[12px] font-mono text-aou-7">{item.toolName}</span>
-        {rawSum && (
+        {item.extensionUiSuspended ? (
+          <button
+            type="button"
+            className="ml-1 shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-500/20"
+            onClick={(e) => {
+              e.stopPropagation()
+              useExtensionUIStore.getState().resumeSuspended()
+            }}
+          >
+            继续作答
+          </button>
+        ) : rawSum ? (
           <span className="ml-1 min-w-0 flex-1 truncate text-[11px] text-foreground-secondary">{rawSum}</span>
-        )}
-        {isRunning && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-aou-5" />}
+        ) : null}
+        {isRunning && !item.extensionUiSuspended && <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-aou-5" />}
         {!isRunning && item.isError && <XCircle className="ml-auto h-3 w-3 shrink-0 text-destructive/70" />}
         {!isRunning && !item.isError && hasToolBody && (
           <CheckCircle2 className="ml-auto h-3 w-3 shrink-0 text-green-500/50" />

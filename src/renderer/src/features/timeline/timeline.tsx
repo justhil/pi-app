@@ -106,7 +106,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
     const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
     const label =
-      status === 'error' ? '执行失败' : status === 'ok' ? '完成' : item.text?.includes('失败') ? '失败' : '已派发'
+      status === 'error' ? '失败' : status === 'ok' ? '完成' : item.text?.includes('失败') ? '失败' : '已执行'
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-center gap-2 rounded-lg border border-border/40 px-2.5 py-1 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
@@ -126,7 +126,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       <div className="py-2">
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/50 px-2.5 py-1.5 text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
           <Archive className="h-3 w-3 opacity-70" />
-          <span className="text-[11px]">已压缩历史</span>
+          <span className="text-[11px]">已压缩</span>
           {item.text && (
             <span className="truncate text-[11px] opacity-80">{item.text.slice(0, 100)}...</span>
           )}
@@ -261,11 +261,11 @@ export function Timeline() {
   if (!hasWorkspace) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground/40">
-          <Terminal className="h-7 w-7" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground/40">
+          <Terminal className="h-6 w-6" />
         </div>
         <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
-          点击左侧「打开项目」选择工作目录，或对话分区右侧 + 开始临时对话
+          {t('timeline.emptyWorkspace')}
         </p>
       </div>
     )
@@ -336,8 +336,8 @@ export function Timeline() {
           className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground disabled:opacity-60"
         >
           {historyLoading
-            ? '正在加载会话…'
-            : `↑ 上还有 ${hiddenCount} 条 · 点击或继续上滑加载`}
+            ? t('timeline.loadingSession')
+            : `${t('timeline.loadOlder')}（${hiddenCount}）`}
         </button>
       )}
       {displayItems.map((block, i) => {

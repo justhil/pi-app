@@ -1,20 +1,47 @@
 import type { LucideIcon } from 'lucide-react'
-import { GitBranch, ListTree, Activity, FileSearch, Radio } from 'lucide-react'
-import { RIGHT_PANEL_CATALOG, type RightPanelId } from '@shared/right-panels'
+import {
+  GitBranch,
+  ListTree,
+  Activity,
+  FileSearch,
+  Radio,
+  PanelRight,
+} from 'lucide-react'
+import * as LucideIcons from 'lucide-react'
+import type { RightPanelCatalogItem } from '@shared/right-panels'
 
-const ICONS: Record<RightPanelId, LucideIcon> = {
+const CORE_ICONS: Record<string, LucideIcon> = {
   review: GitBranch,
-  trellis: ListTree,
   run: Activity,
   context: FileSearch,
   intercom: Radio,
   tree: GitBranch,
 }
 
-export function buildRightPanelTabs(t: (key: string) => string) {
-  return RIGHT_PANEL_CATALOG.map((item) => ({
-    key: item.id,
-    label: t(item.labelKey, { defaultValue: item.fallbackLabel }),
-    icon: ICONS[item.id],
-  }))
+function resolveIcon(name?: string): LucideIcon {
+  if (!name) return PanelRight
+  const fromCore = CORE_ICONS[name]
+  if (fromCore) return fromCore
+  const icon = (LucideIcons as Record<string, LucideIcon>)[name]
+  return icon || PanelRight
+}
+
+export function buildRightPanelTabs(
+  catalog: RightPanelCatalogItem[],
+  prefs: Record<string, boolean>,
+  t: (key: string, opts?: { defaultValue?: string }) => string,
+  order?: string[],
+) {
+  const byId = new Map(catalog.map((c) => [c.id, c]))
+  const seq = order?.length
+    ? order.map((id) => byId.get(id)).filter((x): x is RightPanelCatalogItem => !!x)
+    : catalog
+  return seq
+    .filter((item) => prefs[item.id])
+    .map((item) => ({
+      key: item.id,
+      label: item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel,
+      icon: resolveIcon(item.icon || item.id),
+      catalogItem: item,
+    }))
 }

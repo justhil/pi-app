@@ -21,5 +21,14 @@
       }
     ]
   },
-  "slash": { "/trellis": "notify" }
+  "sidePanel": {
+    "stateProvider": "workspace-trellis",
+    "panelComponent": "workspace-tasks",
+    "panelId": "adapter:trellis",
+    "label": "Trellis",
+    "description": "任务与阶段（只读）",
+    "icon": "ListTree",
+    "defaultEnabled": true
+  },
+  "slash": { "/trellis": "open-panel" }
 }

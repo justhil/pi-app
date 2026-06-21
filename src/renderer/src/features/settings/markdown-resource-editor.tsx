@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { History, Save, Eye, FileCode } from 'lucide-react'
+import { History, Eye, FileCode } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import MarkdownView from '@renderer/features/timeline/markdown-view'
+import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
+import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
 
 type Revision = { id: string; at: number; label: string; hash: string }
 
@@ -60,9 +62,34 @@ export function MarkdownResourceEditor({
   const [content, setContent] = useState('')
   const [loadedPath, setLoadedPath] = useState<string | null>(null)
   const [revisions, setRevisions] = useState<Revision[]>([])
-  const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<'edit' | 'preview' | 'split'>('split')
   const [dirty, setDirty] = useState(false)
+  const [savedContent, setSavedContent] = useState('')
+
+  const markDirty = (v: boolean) => {
+    setDirty(v)
+    notifySettingsDirtyChanged()
+  }
+
+  useSettingsDirtySlice({
+    id: 'prompts-editor',
+    label: '提示词',
+    isDirty: () => dirty && !readOnly && !!loadedPath,
+    commit: async () => {
+      if (!loadedPath || readOnly || !dirty) return
+      const res = await ipcClient.invoke('resource.write', { path: loadedPath, content })
+      if (!res?.ok) throw new Error(res?.error || '保存失败')
+      setRevisions(res.revisions || [])
+      setSavedContent(content)
+      markDirty(false)
+      onSaved?.()
+    },
+    discard: () => {
+      if (!loadedPath) return
+      setContent(savedContent)
+      markDirty(false)
+    },
+  })
 
   const load = useCallback(async (p: string) => {
     const res = await ipcClient.invoke('resource.read', { path: p })
@@ -70,10 +97,12 @@ export function MarkdownResourceEditor({
       toast.error(res.error)
       return
     }
-    setContent(res.content || '')
+    const text = res.content || ''
+    setContent(text)
+    setSavedContent(text)
     setLoadedPath(res.path || p)
     setRevisions(res.revisions || [])
-    setDirty(false)
+    markDirty(false)
   }, [])
 
   useEffect(() => {
@@ -86,26 +115,10 @@ export function MarkdownResourceEditor({
       setContent('')
       setLoadedPath(null)
       setRevisions([])
-      setDirty(false)
+      markDirty(false)
+      setSavedContent('')
     }
   }, [path, load])
-
-  const save = async () => {
-    if (!loadedPath || readOnly) return
-    setSaving(true)
-    try {
-      const res = await ipcClient.invoke('resource.write', { path: loadedPath, content })
-      if (!res?.ok) throw new Error(res?.error || '保存失败')
-      setRevisions(res.revisions || [])
-      setDirty(false)
-      toast.success('已保存')
-      onSaved?.()
-    } catch (e: any) {
-      toast.error(e?.message || '保存失败')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const restore = async (revisionId: string) => {
     if (!loadedPath || readOnly) return
@@ -116,7 +129,8 @@ export function MarkdownResourceEditor({
     }
     setContent(res.content || '')
     setRevisions(res.revisions || [])
-    setDirty(false)
+    setSavedContent(res.content || '')
+    markDirty(false)
     toast.success('已回退到该版本')
     onSaved?.()
   }
@@ -155,16 +169,8 @@ export function MarkdownResourceEditor({
           {!readOnly && revisions.length > 0 && (
             <RevisionMenu revisions={revisions} onRestore={(id) => void restore(id)} />
           )}
-          {!readOnly && (
-            <button
-              type="button"
-              disabled={!dirty || saving || !loadedPath}
-              onClick={() => void save()}
-              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] text-primary-foreground disabled:opacity-40"
-            >
-              <Save className="h-3.5 w-3.5" />
-              {saving ? '保存中' : '保存'}
-            </button>
+          {!readOnly && dirty && (
+            <span className="text-[10px] text-amber-600 dark:text-amber-400">未保存 · 用页面底部保存</span>
           )}
         </div>
       </div>
@@ -188,7 +194,7 @@ export function MarkdownResourceEditor({
               onChange={(e) => {
                 if (readOnly) return
                 setContent(e.target.value)
-                setDirty(true)
+                markDirty(true)
               }}
             />
           </div>

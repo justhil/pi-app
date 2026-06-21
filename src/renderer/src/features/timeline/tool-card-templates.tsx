@@ -8,6 +8,8 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
 import { FileText } from 'lucide-react'
 import { renderNativeToolPreview } from './tool-previews'
+import { applyToolCardFields } from '@extension-compat/json-path'
+import { resolveToolCardDef } from './tool-card-registry'
 
 export interface ToolItem {
   id?: string
@@ -227,9 +229,14 @@ const ListTemplate: ToolCardComponent = ({ item }) => {
 
 // ── kv template (ask_user_question structured preview) ──
 const KvTemplate: ToolCardComponent = ({ item }) => {
+  const cardDef = resolveToolCardDef(item.toolName)
+  const mapped = applyToolCardFields(
+    { args: item.toolArgs, details: item.toolDetails, output: item.toolOutput },
+    cardDef?.fields,
+  )
   let parsed: any = null
   try { parsed = typeof item.toolOutput === 'string' ? JSON.parse(item.toolOutput) : item.toolOutput } catch { parsed = null }
-  const questions = parsed?.questions || parsed?.input?.questions
+  const questions = mapped.questions ?? parsed?.questions ?? parsed?.input?.questions ?? item.toolArgs?.questions
   if (!Array.isArray(questions) || questions.length === 0) {
     return <ToolTextOutput item={item} />
   }

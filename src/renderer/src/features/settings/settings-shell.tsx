@@ -7,10 +7,12 @@ export function SettingsMain({
   wide = false,
   className,
   children,
+  footer,
 }: {
   wide?: boolean
   className?: string
   children: ReactNode
+  footer?: ReactNode
 }) {
   return (
     <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
@@ -24,6 +26,7 @@ export function SettingsMain({
           {children}
         </div>
       </OverlayScrollHost>
+      {footer}
     </main>
   )
 }

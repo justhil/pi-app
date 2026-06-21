@@ -3,6 +3,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { fetchSessionHistoryTail, clearSessionHistoryCache } from '@renderer/lib/session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
 /**
  * 切换会话：只拉 Timeline 尾部 + pendingBind；Worker 在首条 prompt.send 时再 loadSession（快切会话）。
@@ -12,6 +13,7 @@ export async function openSessionIntoWorker(sessionId: string, sessionFile?: str
   store.setCurrentSession(sessionId)
   store.clearTimeline()
   store.clearFileChanges()
+  useExtensionUIStore.getState().resetForSessionContext()
   store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
 
   if (!sessionFile) {

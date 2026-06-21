@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { RefreshCw, Plug } from 'lucide-react'
-import type { AdapterJson, ConfigField, DerivedRow } from '../../../extension-compat/adapter-schema'
+import type { AdapterJson, ConfigField, DerivedRow } from '@extension-compat/adapter-schema'
 
 // Template resolver: ${field} + simple ternary ${cond?true:false}
 export function evalTpl(tplStr: string | undefined, view: Record<string, unknown>): string {

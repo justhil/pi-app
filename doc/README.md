@@ -7,7 +7,7 @@
 | 文件 | 用途 |
 |------|------|
 | **[adapter-authoring-guide.md](./adapter-authoring-guide.md)** | **主文档**：从零写适配器、§1 外置覆盖内置、config / toolCard / 弹窗 / slash / 右栏、IPC、示例、模板、自检清单 |
-| [adapter-layer-plan.md](./adapter-layer-plan.md) | 架构短文：A/B/C 分层、加载合并、原语一览、禁止事项 |
+| [adapter-layer-plan.md](./adapter-layer-plan.md) | 架构短文：A/B/C 分层、加载合并、原语一览、**右栏原语 workspace-trellis / workspace-tasks**、禁止事项 |
 
 ## 给 AI 的提示词（可直接粘贴）
 
@@ -22,7 +22,8 @@
 2. 外置文件放在 ~/.pi/desktop/adapters/ 或项目 .pi/desktop/adapters/ 时，按 match.names 整份覆盖内置，不是同 id 深合并（见指南 §1）。
 3. 弹窗走通用 Extension UI；复杂参数用 interact + toolCard（见指南 §8）。
 4. 禁止假设会在 pi-desktop 源码里加插件专用 IPC 或 if (pluginId)。
-5. 输出完整 JSON + 放置路径 + 验证步骤。
+5. 右栏用 sidePanel 已注册键（任务布局：workspace-trellis + workspace-tasks，见指南 §10）。
+6. 输出完整 JSON + 放置路径 + 验证步骤。
 
 若信息不足，先列出需要从扩展 README/源码确认的项，再生成 adapter.json。
 ```
@@ -31,7 +32,7 @@
 
 - **内置**适配器在 pi-app 仓库 `src/extension-compat/builtin/*.adapter.json`。
 - 本目录文档与实现同步维护；Schema 以 `adapter-schema.ts` 为准，文档冲突时以代码为准。
-- 用户/项目外置 JSON 可 **不等 App 发版** 覆盖内置（按包名），见 authoring-guide **§1**。
+- 用户/项目外置 JSON 可 **不等 App 发版** 覆盖内置（按包名），见 authoring-guide **§1**；缓存与刷新见 **adapter-layer-plan.md §2.1–§2.2**。
 
 ## 存档与获取
 

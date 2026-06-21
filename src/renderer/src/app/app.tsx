@@ -16,23 +16,22 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { guardSessionSwitch, markSessionSwitchGuardReady } from '@renderer/lib/session-switch-guard'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon } from 'lucide-react'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
-import { normalizeRightPanelPrefs } from '@shared/right-panels'
+import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
+import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
+import { AppToaster } from '@renderer/components/app/app-toaster'
+import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
 type View = 'main' | 'settings'
 
-const ReviewPanel = lazy(() => import('@renderer/features/review/review-panel').then((m) => ({ default: m.ReviewPanel })))
-const RunPanel = lazy(() => import('@renderer/features/run/run-panel').then((m) => ({ default: m.RunPanel })))
-const TrellisPanel = lazy(() => import('@renderer/features/trellis/trellis-panel').then((m) => ({ default: m.TrellisPanel })))
-const ContextPanel = lazy(() => import('@renderer/features/context/context-panel').then((m) => ({ default: m.ContextPanel })))
-const IntercomPanel = lazy(() => import('@renderer/features/intercom/intercom-panel').then((m) => ({ default: m.IntercomPanel })))
-const TreePanel = lazy(() => import('@renderer/features/rewind/tree-panel').then((m) => ({ default: m.TreePanel })))
 const SettingsPage = lazy(() => import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })))
 const ModelPicker = lazy(() => import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })))
 const ThinkingPicker = lazy(() => import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })))
@@ -47,7 +46,9 @@ export default function App() {
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
-  const applyRightPanelPrefs = useUIStore((s) => s.applyRightPanelPrefs)
+  const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
+  const applyRightPanelRuntime = useUIStore((s) => s.applyRightPanelRuntime)
+  const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
@@ -81,10 +82,16 @@ export default function App() {
   const projectName = workspaceTitle
 
   useEffect(() => {
-    ipcClient.invoke('settings.get', { key: 'rightPanelPrefs' }).then((res) => {
-      applyRightPanelPrefs(normalizeRightPanelPrefs(res?.settings?.rightPanelPrefs))
-    }).catch(() => {})
-  }, [applyRightPanelPrefs])
+    markExtensionNotifyAppReady()
+    markSessionSwitchGuardReady()
+    useExtensionUIStore.getState().resetForSessionContext()
+  }, [])
+
+  useEffect(() => {
+    loadNormalizedRightPanelPrefs()
+      .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
+      .catch(() => {})
+  }, [applyRightPanelRuntime])
 
   useEffect(() => {
     const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
@@ -118,7 +125,12 @@ export default function App() {
       if (res?.sessions) setSessions(res.sessions)
       if (currentSessionId) return
       if (ss.length > 0 && ss[0].sessionFile) {
-        void switchSessionInPlace(ss[0].sessionId, ss[0].sessionFile)
+        guardSessionSwitch(
+          () => {
+            void switchSessionInPlace(ss[0].sessionId, ss[0].sessionFile)
+          },
+          { silentBlock: true },
+        )
       }
     }).catch(() => {})
   }, [currentWorkspace, setSessions, currentSessionId])
@@ -142,7 +154,8 @@ export default function App() {
     }
   }
 
-  const PANELS = buildRightPanelTabs(t).filter((p) => rightPanelPrefs[p.key as keyof typeof rightPanelPrefs])
+  const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
+  const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
   if (view === 'settings') {
     return (
@@ -202,16 +215,7 @@ export default function App() {
               <div className="flex-1 overflow-hidden">
                 <ErrorBoundary label="panel">
                   <Suspense fallback={null}>
-                    {activePanel === 'review' && <ReviewPanel />}
-                    {activePanel === 'trellis' && <TrellisPanel />}
-                    {activePanel === 'run' && <RunPanel />}
-                    {activePanel === 'context' && <ContextPanel />}
-                    {activePanel === 'intercom' && <IntercomPanel />}
-                    {activePanel === 'tree' && (
-                      <ErrorBoundary label="tree">
-                        <TreePanel />
-                      </ErrorBoundary>
-                    )}
+                    <SidePanelHost item={activeCatalogItem} />
                   </Suspense>
                 </ErrorBoundary>
               </div>
@@ -219,6 +223,7 @@ export default function App() {
           }
         />
       </div>
+      <AppToaster />
       <ExtensionUIHost />
       <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}
