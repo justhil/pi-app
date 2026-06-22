@@ -15,7 +15,6 @@ import multimodalAdapter from './builtin/pi-multimodal-proxy.adapter.json'
 import markdownPreviewAdapter from './builtin/pi-markdown-preview.adapter.json'
 import studioAdapter from './builtin/pi-studio.adapter.json'
 import fastContextAdapter from './builtin/pi-fast-context.adapter.json'
-import intercomAdapter from './builtin/pi-intercom.adapter.json'
 import subagentsAdapter from './builtin/pi-subagents.adapter.json'
 import cacheOptimizerAdapter from './builtin/pi-cache-optimizer.adapter.json'
 import skillsManagerAdapter from './builtin/pi-skills-manager.adapter.json'
@@ -44,7 +43,7 @@ import themesBundleAdapter from './builtin/pi-themes-bundle.adapter.json'
 
 const BUILTIN: AdapterJson[] = [
   piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
-  markdownPreviewAdapter, studioAdapter, fastContextAdapter, intercomAdapter, subagentsAdapter,
+  markdownPreviewAdapter, studioAdapter, fastContextAdapter, subagentsAdapter,
   cacheOptimizerAdapter, skillsManagerAdapter, mcpAdapter, contextViewerAdapter, fffAdapter,
   syncAdapter, rewindAdapter, continueAdapter, goalAdapter, btwAdapter, simplifyAdapter,
   advisorAdapter, observationalMemoryAdapter, toolDisplayAdapter, agentsmdAdapter, aceToolAdapter,

@@ -4,7 +4,6 @@ import {
   ListTree,
   Activity,
   FileSearch,
-  Radio,
   PanelRight,
 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
@@ -14,7 +13,6 @@ const CORE_ICONS: Record<string, LucideIcon> = {
   review: GitBranch,
   run: Activity,
   context: FileSearch,
-  intercom: Radio,
   tree: GitBranch,
 }
 

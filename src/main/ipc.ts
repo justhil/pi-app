@@ -643,21 +643,6 @@ export function registerAllHandlers(): void {
     }
   })
 
-  registerHandler('ipc:intercom.snapshot', async () => {
-    const agentDir = join(homedir(), '.pi', 'agent')
-    const intercomDir = join(agentDir, 'intercom')
-    const configPath = join(intercomDir, 'config.json')
-    let config: Record<string, unknown> | null = null
-    try {
-      if (existsSync(configPath)) config = JSON.parse(readFileSync(configPath, 'utf8'))
-    } catch { /* ignore */ }
-    const notes: string[] = []
-    if (existsSync(intercomDir)) notes.push(`目录: ${intercomDir}`)
-    else notes.push('未找到 ~/.pi/agent/intercom（扩展可能未启用 broker）')
-    notes.push('完整收件箱需 pi-intercom broker 运行；桌面仅只读配置与路径说明。')
-    return { config, notes, intercomDir: existsSync(intercomDir) ? intercomDir : null }
-  })
-
   registerHandler('ipc:skills.list', async () => {
     const legacy = configStore.getSkillOverrides()
     if (legacy && Object.keys(legacy).length > 0) {

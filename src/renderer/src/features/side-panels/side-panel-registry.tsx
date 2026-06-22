@@ -12,14 +12,12 @@ export type SidePanelComponentProps = {
 const LazyReview = lazy(() => import('@renderer/features/review/review-panel').then((m) => ({ default: m.ReviewPanel })))
 const LazyRun = lazy(() => import('@renderer/features/run/run-panel').then((m) => ({ default: m.RunPanel })))
 const LazyContext = lazy(() => import('@renderer/features/context/context-panel').then((m) => ({ default: m.ContextPanel })))
-const LazyIntercom = lazy(() => import('@renderer/features/intercom/intercom-panel').then((m) => ({ default: m.IntercomPanel })))
 const LazyTree = lazy(() => import('@renderer/features/rewind/tree-panel').then((m) => ({ default: m.TreePanel })))
 
 const CORE_BY_ID: Record<string, ComponentType<SidePanelComponentProps>> = {
   review: () => <LazyReview />,
   run: () => <LazyRun />,
   context: () => <LazyContext />,
-  intercom: () => <LazyIntercom />,
   tree: () => <LazyTree />,
 }
 

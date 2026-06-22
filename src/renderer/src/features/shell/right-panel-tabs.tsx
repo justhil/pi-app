@@ -73,9 +73,9 @@ export function RightPanelTabs({
               aria-selected={activePanel === p.key}
               onClick={() => setActivePanel(p.key)}
               className={cn(
-                'row-hover flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-[11px] font-medium whitespace-nowrap rounded-md transition-colors duration-200',
+                'row-hover flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium whitespace-nowrap transition-colors duration-200',
                 activePanel === p.key
-                  ? 'bg-[var(--bg-active)] text-foreground'
+                  ? 'bg-[var(--bg-hover)] text-foreground'
                   : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
               )}
             >

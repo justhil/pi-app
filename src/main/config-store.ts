@@ -47,7 +47,7 @@ const store = new Store<StoreSchema>({
       'adapter:trellis': true,
       run: true,
       context: true,
-      intercom: true,
+      intercom: false,
       tree: true,
     },
     rightPanelOrder: [],
