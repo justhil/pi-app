@@ -93,7 +93,7 @@
     --surface-1: 240 20% 98%;
     --surface-2: 240 4.8% 96%;
     --surface-3: 240 5.9% 92%;
-    --surface-sidebar: 240 6% 97%;
+    --surface-sidebar: #F3F3F3;
 
     /* Secondary text (参考桌面客户端) */
     --text-secondary-hsl: 240 5% 35%;
@@ -174,7 +174,7 @@
     --surface-1: 240 6% 10%;
     --surface-2: 240 5% 13%;
     --surface-3: 240 5% 16%;
-    --surface-sidebar: 240 8% 7%;
+    --surface-sidebar: #161616;
 
     --text-secondary-hsl: 240 5% 65%;
 

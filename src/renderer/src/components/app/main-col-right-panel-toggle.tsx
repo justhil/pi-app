@@ -17,7 +17,7 @@ export function MainColRightPanelToggle() {
         'flex h-7 w-7 items-center justify-center rounded-md border border-border/50 shadow-sm',
         'text-foreground-secondary',
       )}
-      style={{ background: 'color-mix(in srgb, var(--bg-base) 92%, transparent)' }}
+      style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
     >
       <PanelRight
         className={cn(

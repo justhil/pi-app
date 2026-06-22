@@ -18,7 +18,7 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
   const showRightToggle = !onBack
   const isSettings = !!onBack
   return (
-    <div className="electron-drag flex h-11 items-center justify-between border-b border-border/60 px-3">
+    <div className="electron-drag flex h-11 items-center justify-between border-b border-border/60 px-3" style={{ background: 'var(--surface-sidebar)' }}>
       <div className="electron-no-drag flex min-w-0 items-center gap-2.5">
         {!onBack && (
           <button

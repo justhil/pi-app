@@ -151,7 +151,7 @@ export default function App() {
   if (view === 'settings') {
     return (
       <ErrorBoundary>
-        <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+        <div className="flex h-screen flex-col overflow-hidden text-foreground" style={{ background: 'var(--surface-sidebar)' }}>
           <TopBar onBack={() => setView('main')} title={t('settings.title')} />
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <ErrorBoundary label="settings">
@@ -167,7 +167,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+      <div className="flex h-screen flex-col overflow-hidden text-foreground" style={{ background: 'var(--surface-sidebar)' }}>
         <ImmersiveChrome isRunning={isRunning} projectName={projectName} />
         <MainLayoutShell
           left={
