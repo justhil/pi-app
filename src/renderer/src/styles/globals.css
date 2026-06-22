@@ -270,12 +270,13 @@
   .shell-track-center {
     min-height: 0;
     contain: layout;
-    padding: 6px;
     background: var(--surface-sidebar);
   }
   .shell-track-center .main-chat-column {
     background: var(--bg-base);
     overflow: hidden;
+    margin: 6px;
+    height: calc(100% - 12px);
   }
   .shell-track-inner {
     transition:
