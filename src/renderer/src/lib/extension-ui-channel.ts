@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { onExtensionUIRequest } from '@renderer/lib/ipc-client'
+import { onExtensionUIRequest, onExtensionUIDismiss } from '@renderer/lib/ipc-client'
 import { useExtensionUIStore, type ExtensionUIPending } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { shouldShowExtensionNotify } from '@renderer/lib/extension-notify-policy'
@@ -58,10 +58,31 @@ export function clearExtensionDialogDedupe(): void {
   seenDialogIds.clear()
 }
 
+/** Worker 侧对话框超时/中止或 compaction 开始时，清理 Renderer 悬挂的 activePending */
+export function dismissExtensionDialogState(id?: string): void {
+  const st = useExtensionUIStore.getState()
+  const active = st.activePending
+  if (!active) return
+  if (id && active.id !== id) return
+  if (id) seenDialogIds.delete(id)
+  st.clearAfterRespond()
+}
+
 /** 只注册一次 IPC 监听，避免 StrictMode 双挂载导致重复 toast / 双提示音 */
 export function ensureExtensionUIChannel(): void {
   if (started) return
   started = true
+
+  onExtensionUIDismiss((payload) => {
+    if (payload.type === 'extension-ui-dismiss-all') {
+      seenDialogIds.clear()
+      useExtensionUIStore.getState().clearAfterRespond()
+      return
+    }
+    if (payload.type === 'extension-ui-dismiss' && payload.id) {
+      dismissExtensionDialogState(payload.id)
+    }
+  })
 
   onExtensionUIRequest((raw) => {
     const req = raw as Record<string, unknown>

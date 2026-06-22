@@ -102,6 +102,18 @@ export class WorkerManager {
         this.mainWindow.webContents.send('ipc:events', ev)
       }
 
+      if (
+        (data.type === 'extension-ui-dismiss' || data.type === 'extension-ui-dismiss-all') &&
+        this.mainWindow &&
+        !this.mainWindow.isDestroyed()
+      ) {
+        this.mainWindow.webContents.send('ipc:extension-ui-dismiss', {
+          type: data.type,
+          id: data.id,
+          reason: data.reason,
+        })
+      }
+
       if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
         const req = data.request as { method?: string; notifyType?: string; message?: string }
         const method = req?.method || ''

@@ -177,9 +177,13 @@ function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').Extensio
   process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
 }
 
+function postExtensionUiDismiss(id: string, reason: 'timeout' | 'abort'): void {
+  process.parentPort?.postMessage({ type: 'extension-ui-dismiss', id, reason })
+}
+
 async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   if (!uiBridge) {
-    uiBridge = createDesktopUIBridge(sharedEventBus!, postExtensionUiToDesktop)
+    uiBridge = createDesktopUIBridge(sharedEventBus!, postExtensionUiToDesktop, postExtensionUiDismiss)
   }
   await sess.bindExtensions({
     uiContext: uiBridge.uiContext as never,
@@ -346,6 +350,7 @@ function handleSessionEvent(event: AgentSessionEvent): void {
     }
     case 'compaction_start': {
       emit({ ...base, type: 'compaction', phase: 'start' })
+      process.parentPort?.postMessage({ type: 'extension-ui-dismiss-all', reason: 'compaction' })
       break
     }
     case 'session_info_changed':

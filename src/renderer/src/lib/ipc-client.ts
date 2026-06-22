@@ -8,6 +8,7 @@ declare global {
       onWorkerExit: (callback: (info: { code: number; cwd: string }) => void) => () => void
       onAutoOpened: (callback: (info: { workspaceId: string }) => void) => () => void
       onExtensionUIRequest: (callback: (request: unknown) => void) => () => void
+      onExtensionUIDismiss: (callback: (payload: { type: string; id?: string; reason?: string }) => void) => () => void
       ping: () => string
     }
   }
@@ -46,4 +47,11 @@ export function onAutoOpened(callback: (info: { workspaceId: string }) => void):
 export function onExtensionUIRequest(callback: (request: unknown) => void): () => void {
   if (!window.piDesktop) return () => {}
   return window.piDesktop.onExtensionUIRequest(callback)
+}
+
+export function onExtensionUIDismiss(
+  callback: (payload: { type: string; id?: string; reason?: string }) => void,
+): () => void {
+  if (!window.piDesktop) return () => {}
+  return window.piDesktop.onExtensionUIDismiss(callback)
 }

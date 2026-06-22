@@ -42,7 +42,7 @@ function createDialogPromise<T>(
   request: ExtensionUIRequest,
   parse: (r: ExtensionUIResponse) => T,
   defaultValue: T,
-  opts?: { signal?: AbortSignal; timeout?: number },
+  opts?: { signal?: AbortSignal; timeout?: number; onDismiss?: (id: string, reason: 'timeout' | 'abort') => void },
 ): Promise<T> {
   if (opts?.signal?.aborted) return Promise.resolve(defaultValue)
 
@@ -56,12 +56,14 @@ function createDialogPromise<T>(
     }
     const onAbort = () => {
       cleanup()
+      opts?.onDismiss?.(id, 'abort')
       resolve(defaultValue)
     }
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
     if (opts?.timeout) {
       timeoutId = setTimeout(() => {
         cleanup()
+        opts?.onDismiss?.(id, 'timeout')
         resolve(defaultValue)
       }, opts.timeout)
     }
@@ -77,7 +79,9 @@ function createDialogPromise<T>(
 export function createDesktopUIBridge(
   eventBus: EventBus,
   onRequest: (req: ExtensionUIRequest) => void,
+  onDialogDismiss?: (id: string, reason: 'timeout' | 'abort') => void,
 ): DesktopUIBridge {
+  const dismissOpts = onDialogDismiss ? { onDismiss: onDialogDismiss } : undefined
   const pending = new Map<string, Pending>()
   let lastAskPayload: { questions: unknown } | null = null
   /** Interact args cached by Worker from adapter.json interact.fields, keyed by schema type. */
@@ -118,7 +122,7 @@ export function createDesktopUIBridge(
         { id: randomUUID(), method: 'select', title, options, timeout: opts?.timeout },
         (r) => (r.cancelled ? undefined : r.value),
         undefined,
-        opts,
+        { ...opts, ...dismissOpts },
       ),
 
     confirm: (title: string, message: string, opts?: { signal?: AbortSignal; timeout?: number }) =>
@@ -128,7 +132,7 @@ export function createDesktopUIBridge(
         { id: randomUUID(), method: 'confirm', title, message, timeout: opts?.timeout },
         (r) => (r.cancelled ? false : !!r.confirmed),
         false,
-        opts,
+        { ...opts, ...dismissOpts },
       ),
 
     input: (title: string, placeholder?: string, opts?: { signal?: AbortSignal; timeout?: number }) =>
@@ -138,7 +142,7 @@ export function createDesktopUIBridge(
         { id: randomUUID(), method: 'input', title, placeholder, timeout: opts?.timeout },
         (r) => (r.cancelled ? undefined : r.value),
         undefined,
-        opts,
+        { ...opts, ...dismissOpts },
       ),
 
     notify: (message: string, notifyType?: 'info' | 'warning' | 'error') => {
@@ -185,6 +189,7 @@ export function createDesktopUIBridge(
             return { choice: res.choice, label: res.label, feedback: res.feedback } as T
           },
           { choice: 'cancel', label: '取消' } as T,
+          dismissOpts,
         )
       }
       // Default: questions schema (ask_user_question) or generic questionnaire.
@@ -197,6 +202,7 @@ export function createDesktopUIBridge(
         { id, method: 'custom', kind: 'ask_user_question', questions },
         (r) => (r.cancelled ? { cancelled: true, answers: [] } : (r.result as T)),
         { cancelled: true, answers: [] } as T,
+        dismissOpts,
       )
     },
 
@@ -210,6 +216,7 @@ export function createDesktopUIBridge(
         { id: randomUUID(), method: 'editor', title, prefill },
         (r) => (r.cancelled ? undefined : r.value),
         undefined,
+        dismissOpts,
       ),
 
     addAutocompleteProvider: () => {},

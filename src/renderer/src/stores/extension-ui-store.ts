@@ -90,7 +90,11 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
 export function extensionUiBlocksComposer(): boolean {
   pruneStaleSuspension()
   if (!hasOpenExtensionDialog()) return false
-  // 空闲/占位首条消息：忽略误触发的扩展 UI 状态，仅运行中阻塞发送
-  return useUIStore.getState().runState.status === 'running'
+  const running = useUIStore.getState().runState.status === 'running'
+  // 无弹窗宿主可渲染的 pending（如 Worker 已超时 resolve）不应阻塞
+  const p = useExtensionUIStore.getState().activePending
+  if (!p) return false
+  if (!running) return false
+  return true
 }
 

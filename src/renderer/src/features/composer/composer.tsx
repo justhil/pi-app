@@ -273,6 +273,8 @@ export function Composer() {
   }
 
   const handleAbort = async () => {
+    const { dismissExtensionDialogState } = await import('@renderer/lib/extension-ui-channel')
+    dismissExtensionDialogState()
     try {
       await ipcClient.invoke('prompt.abort', { sessionId: '' })
     } catch (e) {

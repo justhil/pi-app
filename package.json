@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",

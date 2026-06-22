@@ -748,7 +748,15 @@ export const useUIStore = create<UIState>()(
         break
       }
       case 'compaction': {
-        if (event.phase === 'end') {
+        if (event.phase === 'start') {
+          void Promise.all([
+            import('@renderer/lib/extension-ui-channel'),
+            import('@renderer/stores/extension-ui-store'),
+          ]).then(([ch, st]) => {
+            ch.clearExtensionDialogDedupe()
+            st.useExtensionUIStore.getState().clearAfterRespond()
+          })
+        } else if (event.phase === 'end') {
           state.appendTimeline({
             id: nextItemId(),
             type: 'compaction',
