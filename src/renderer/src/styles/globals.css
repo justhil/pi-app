@@ -257,13 +257,29 @@
     contain: layout paint;
     min-height: 0;
   }
+  /* 左栏 → 对话区分割线 */
+  .shell-track-left {
+    box-shadow: inset -1px 0 0 0 var(--border-base);
+  }
+  /* 对话区：圆角 + 底色，与左栏 #F3F3F3 形成对比 */
   .shell-track-center {
     min-height: 0;
     contain: layout;
+    padding: 6px 0 6px 6px;
+    background: var(--surface-sidebar);
   }
   .shell-track-center .main-chat-column {
+    border-radius: var(--radius-xl);
     background: var(--bg-base);
     overflow: hidden;
+    height: 100%;
+  }
+  /* 对话区 → 右栏分割线 */
+  .shell-track-right {
+    box-shadow: inset 1px 0 0 0 var(--border-base);
+  }
+  .shell-track-collapsed {
+    box-shadow: none !important;
   }
   .shell-track-inner {
     transition:
