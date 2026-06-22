@@ -57,7 +57,7 @@ npm run dev
 2. **临时对话**：「对话分区」新建沙箱（与真实仓库隔离，工具 cwd 在应用用户数据目录下）。  
 3. **会话**：列表中选历史会话或 `+` 新建；右键可重命名/删除（磁盘项目会改 pi 会话文件）。  
 4. **输入区**：回车发送；`/` 斜杠命令；运行中可继续发（排队跟进）；拖入文件或 `+` 选附件；可粘贴图片。  
-5. **右栏**：改动审查、运行状态、上下文、Intercom、Trellis（只读）、**会话树**（等同 pi `/tree` 式跳转）。空白输入时 **双击 Esc** 可打开会话树浮层。
+5. **右栏**：改动审查、运行状态、上下文、**会话树**（等同 pi `/tree` 式跳转）。空白输入时 **双击 Esc** 可打开会话树浮层。
 
 **常见问题**
 
@@ -68,6 +68,29 @@ npm run dev
 | 切换会话慢 | 先加载最近一段历史；发第一条消息后再完整绑定会话（设计如此） |
 
 打包 Windows：`npm run icon:export && npm run package:win`。
+
+---
+
+## 键盘快捷键与基本操作
+
+| 操作 | 快捷键 / 方式 | 说明 |
+|------|-------------|------|
+| **发送消息** | `Enter` | 发送当前输入框内容；`Shift+Enter` 换行 |
+| **停止生成** | `Esc`（单次） | Agent 运行中按一下 Esc 中止当前轮次 |
+| **会话树 / 回退** | `Esc Esc`（双击） | 输入框为空时双击 Esc 打开会话树浮层，可跳转到任意历史节点 |
+| **斜杠命令** | `/` | 输入 `/` 触发命令补全（扩展命令、`/new`、`/tree` 等） |
+| **附加文件** | 拖拽到输入框 | 从文件管理器拖入文件自动附加为引用；也可点 `+` 按钮选择 |
+| **粘贴图片** | `Ctrl+V` | 剪贴板有图片时粘贴到输入框，自动转为 multimodal 输入 |
+| **排队跟进** | 运行中继续输入 | Agent 运行时发送的消息排队，当前轮次结束后自动跟进 |
+| **消息回退** | 悬停消息 → Undo 图标 | 时间线消息悬停出现回退按钮，点击跳转到该消息节点 |
+| **复制消息** | 悬停消息 → Copy 图标 | 复制消息纯文本到剪贴板 |
+| **模型切换** | 输入区底部 pill | 点击模型名切换当前会话模型 |
+| **思考等级** | 输入区底部 pill | 点击切换 thinking level |
+| **侧栏开关** | 顶栏左侧图标 | 折叠 / 展开左侧项目栏 |
+| **右栏开关** | 顶栏右侧图标 | 折叠 / 展开右侧面板栏 |
+| **侧栏拖拽调宽** | 拖动列分界线 | 左栏右缘、右栏左缘可拖动调整宽度 |
+| **会话右键菜单** | 右键会话条目 | 重命名 / 删除会话 |
+| **扩展弹窗** | 自动弹出 | 扩展请求选择/确认/问卷时自动弹窗；可点「稍后作答」挂起，时间线可「继续作答」 |
 
 ---
 
@@ -82,7 +105,6 @@ npm run dev
 │ 磁盘项目树 │ 用户 / 助手 / 工具行 / 思考链        │ 审查·运行·    │
 │ 会话列表   │                                     │ 上下文·树…    │
 │ 对话分区   │                                     │               │
-│ 打开项目   │                                     │               │
 └────────────┴─────────────────────────────────────┴───────────────┘
 ```
 
@@ -96,7 +118,7 @@ npm run dev
 
 - 单活动 cwd（磁盘路径或沙箱）；最近项目；启动可恢复上次目录。
 - 历史消息**从尾部按需加载**；切换会话先显示最近一段，完整会话在发送或树跳转时再绑定。
-- **会话树**：右栏或 Esc 浮层；节点跳转回到该分支；用户消息节点可把原文填回输入框。
+- **会话树**：右栏或双击 Esc 浮层；节点跳转回到该分支；用户消息节点可把原文填回输入框。有 git 仓库时 pi-rewind 扩展会询问是否同时回退文件。
 
 ### 对话与执行
 
@@ -136,6 +158,46 @@ npm run dev
 | 部分 `/命令` | 打开配置页、提示，或按 pi 原逻辑执行 |
 
 内置适配随应用发布；可在 `~/.pi/desktop/adapters/` 或项目 `.pi/desktop/adapters/` 放 JSON 覆盖（高级）。
+
+### 内置适配器列表
+
+以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）：
+
+| 适配器 | 扩展包 | 说明 |
+|--------|--------|------|
+| Trellis | `pi-trellis` | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
+| pi-rewind | `pi-rewind` | Git 检查点回退；会话树跳转时询问是否恢复文件 |
+| Ask User Question | `@juicesharp/rpiv-ask-user-question` | 结构化问答弹窗 |
+| Image Gen | `pi-image-gen` | 图片生成 / 审查弹窗 |
+| Multimodal Vision | `pi-multimodal-proxy` | 多模态视觉代理 |
+| Markdown Preview | `pi-markdown-preview` | Markdown 实时预览卡片 |
+| Studio | `pi-studio` | Studio REPL 集成 |
+| Fast Context | `pi-fast-context` | 快速上下文检索 |
+| Subagents | `pi-subagents` | 子 Agent 派发与管理 |
+| Cache Optimizer | `pi-cache-optimizer` | 缓存优化配置 |
+| Skills Manager | `pi-skills-manager` | Skills 管理配置 UI |
+| MCP Adapter | `pi-mcp-adapter` | MCP 服务器适配 |
+| Context Viewer | `edb-context-viewer` | 上下文查看器 |
+| FFF | `pi-fff` |uzzy 文件查找 |
+| Sync | `pi-sync` | 会话同步配置 |
+| Continue | `pi-continue` | 继续对话配置 |
+| Goal | `pi-goal` | 目标管理 |
+| BTW | `pi-btw` | 旁注记录 |
+| Simplify | `pi-simplify` | 代码简化建议 |
+| Advisor | `rpiv-advisor` | 顾问建议弹窗 |
+| Observational Memory | `pi-observational-memory` | 观察记忆配置 |
+| Tool Display | `pi-tool-display` | 工具展示卡片 |
+| Agents.md | `pi-agentsmd` | AGENTS.md 管理配置 |
+| ACE Tool | `pi-ace-tool` | ACE 工具集成 |
+| Sequential Thinking | `pi-sequential-thinking` | 顺序思考配置 |
+| Aegis | `aegis` | Aegis 工作流引擎 |
+| TPS Extensions | `pi-tps-extensions` | TPS 扩展配置 |
+| Nano Context | `pi-nano-context` | 纳米上下文 |
+| Powerline Footer | `pi-powerline-footer` | 底栏状态行 |
+| Amp Themes | `amp-themes` | Amp 主题 |
+| Curated Themes | `pi-curated-themes` | 精选主题 |
+| Themes Bundle | `pi-themes-bundle` | 主题合集 |
+| Pi Search | `pi-search` | 搜索工具 |
 
 **与终端 pi**
 
@@ -221,7 +283,7 @@ pi-app/
 │           │   ├── timeline/      # 时间线、Markdown、工具预览
 │           │   ├── composer/      # 输入区、斜杠、模型选择
 │           │   ├── review/        # 改动审查
-│           │   ├── run/ context/ intercom/ trellis/ rewind/
+│           │   ├── run/ context/ trellis/ rewind/
 │           │   ├── settings/      # 设置各页
 │           │   ├── extension-ui/  # 扩展弹窗、适配器配置表单
 │           │   └── workspace/     # 侧栏项目与会话
