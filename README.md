@@ -167,7 +167,7 @@ npm run dev
 
 | 适配器 | 扩展包 | 说明 |
 |--------|--------|------|
-| Trellis | [`trellis`](https://github.com/trentbrew/trellis) | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
+| Trellis | [`trellis`](https://github.com/mindfold-ai/Trellis) | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
 | pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | Git 检查点回退；会话树跳转时询问是否恢复文件 |
 | Ask User Question | [`@juicesharp/rpiv-ask-user-question`](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) | 结构化问答弹窗 |
 | Image Gen | [`pi-image-gen`](https://github.com/justhil/pi-image-gen) | 图片生成 / 审查弹窗 |
