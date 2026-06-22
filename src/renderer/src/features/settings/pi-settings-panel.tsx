@@ -5,6 +5,7 @@ import { cn } from '@renderer/lib/utils'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
+import { applyPiDefaultModelToWorkerSession } from '@renderer/lib/sync-session-model'
 import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
 import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
 
@@ -217,10 +218,17 @@ export function PiSettingsPanel() {
     isDirty: () => !settingsEqual(draft, baseline),
     commit: async () => {
       if (!draft || settingsEqual(draft, baseline)) return
+      const defaultModelChanged =
+        String(baseline?.defaultProvider ?? '') !== String(draft.defaultProvider ?? '') ||
+        String(baseline?.defaultModel ?? '') !== String(draft.defaultModel ?? '')
       const res = await ipcClient.invoke('pi.settings.set', { patch: draft })
       if (res?.ok === false) throw new Error(res.error || '保存失败')
       await reloadPiForm()
-      void refreshComposerRunDisplay()
+      if (defaultModelChanged) {
+        await applyPiDefaultModelToWorkerSession()
+      } else {
+        await refreshComposerRunDisplay()
+      }
     },
     discard: () => {
       void reloadPiForm()

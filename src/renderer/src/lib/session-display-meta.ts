@@ -25,28 +25,26 @@ export async function fetchPiDefaultDisplayMeta(): Promise<SessionDisplayMeta> {
   }
 }
 
-/** 合并：会话 JSONL 元数据优先，其次 Worker 状态，再次 pi 默认，最后持久化的 lastModel */
+/** 合并：Worker 实际会话状态优先（与请求一致），其次 JSONL 元数据，再次 pi 默认，最后 lastModel */
 export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null): Promise<void> {
   const store = useUIStore.getState()
   const patch: SessionDisplayMeta = {}
 
+  try {
+    const res = await ipcClient.invoke('runtime.getState' as any)
+    const st = res?.state
+    const wm = normalizeModelKey(st?.model)
+    const wt = normalizeThinkingLevel(st?.thinkingLevel)
+    if (wm) patch.model = wm
+    if (wt) patch.thinkingLevel = wt
+  } catch {
+    /* worker not ready */
+  }
+
   const fromMetaModel = normalizeModelKey(meta?.model)
   const fromMetaThink = normalizeThinkingLevel(meta?.thinkingLevel)
-  if (fromMetaModel) patch.model = fromMetaModel
-  if (fromMetaThink) patch.thinkingLevel = fromMetaThink
-
-  if (!patch.model || !patch.thinkingLevel) {
-    try {
-      const res = await ipcClient.invoke('runtime.getState' as any)
-      const st = res?.state
-      const wm = normalizeModelKey(st?.model)
-      const wt = normalizeThinkingLevel(st?.thinkingLevel)
-      if (!patch.model && wm) patch.model = wm
-      if (!patch.thinkingLevel && wt) patch.thinkingLevel = wt
-    } catch {
-      /* worker not ready */
-    }
-  }
+  if (!patch.model && fromMetaModel) patch.model = fromMetaModel
+  if (!patch.thinkingLevel && fromMetaThink) patch.thinkingLevel = fromMetaThink
 
   if (!patch.model || !patch.thinkingLevel) {
     const defaults = await fetchPiDefaultDisplayMeta()

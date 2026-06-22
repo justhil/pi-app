@@ -17,6 +17,7 @@ import { onAppEvent, onWorkerExit, ipcClient } from '@renderer/lib/ipc-client'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-worker'
+import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon } from 'lucide-react'
@@ -157,6 +158,7 @@ export default function App() {
             onBack={() => {
               useUIStore.getState().requestExtensionConfig(null)
               setView('main')
+              void refreshComposerRunDisplay()
             }}
             title={t('settings.title')}
           />
