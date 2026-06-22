@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { Check, AlertCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
 import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
@@ -84,13 +85,23 @@ export function PiSettingsPanel() {
   const [switching, setSwitching] = useState(false)
   const [envTarget, setEnvTarget] = useState<'builtin' | 'global' | 'user'>('builtin')
 
+  const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+
+  const loadModelsForDropdown = useCallback(async () => {
+    try {
+      const modelsRes = await ipcClient.invoke('model.list', { scope: 'catalog' })
+      setModels((modelsRes?.models || []).filter((m: any) => m.available !== false))
+    } catch {
+      setModels([])
+    }
+  }, [])
+
   const load = useCallback(async () => {
     setLoadError(null)
     try {
-      const [infoRes, settingsRes, modelsRes] = await Promise.all([
+      const [infoRes, settingsRes] = await Promise.all([
         ipcClient.invoke('pi.getInfo'),
         ipcClient.invoke('pi.settings.get'),
-        ipcClient.invoke('model.list'),
       ])
       setInfo(infoRes)
       if (settingsRes?.error) setLoadError(settingsRes.error)
@@ -99,15 +110,27 @@ export function PiSettingsPanel() {
       setBaseline(snap)
       setDraft(snap ? { ...snap } : null)
       setFormEpoch((n) => n + 1)
-      setModels((modelsRes?.models || []).filter((m: any) => m.available !== false))
+      await loadModelsForDropdown()
     } catch (e: any) {
       setLoadError(e?.message || '加载失败')
     }
-  }, [])
+  }, [loadModelsForDropdown])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadModelsForDropdown()
+  }, [currentWorkspace, loadModelsForDropdown])
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') void loadModelsForDropdown()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [loadModelsForDropdown])
 
   const reloadSdk = useCallback(async () => {
     try {
@@ -384,7 +407,7 @@ export function PiSettingsPanel() {
       </Section>
 
       <Section title="模型与推理">
-        <Row label="默认模型" description="新会话默认 provider / model（下拉来自 model.list）">
+        <Row label="默认模型" description="新会话默认 provider / model（来自 ~/.pi/agent/models.json，与当前项目无关）">
           <select
             className={cn(selectCls, 'min-w-[min(280px,70vw)]')}
             value={currentModelKey}

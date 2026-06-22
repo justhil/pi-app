@@ -85,6 +85,34 @@ async function validateWithPiSdk(config: PiModelsConfig): Promise<string | undef
   }
 }
 
+export type ModelsJsonCatalogEntry = {
+  id: string
+  name: string
+  provider: string
+  contextWindow: number
+  maxOutput: number
+  available: boolean
+}
+
+/** 从 ~/.pi/agent/models.json 展开全部 provider/model（与项目无关） */
+export function modelsCatalogFromConfig(config: PiModelsConfig): ModelsJsonCatalogEntry[] {
+  const out: ModelsJsonCatalogEntry[] = []
+  for (const [providerKey, prov] of Object.entries(config.providers || {})) {
+    for (const model of prov.models || []) {
+      if (!model?.id) continue
+      out.push({
+        id: model.id,
+        name: model.name || model.id,
+        provider: providerKey,
+        contextWindow: model.contextWindow ?? 0,
+        maxOutput: model.maxTokens ?? 0,
+        available: true,
+      })
+    }
+  }
+  return out
+}
+
 export async function readModelsConfig(): Promise<{
   path: string
   config: PiModelsConfig

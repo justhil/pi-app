@@ -61,7 +61,11 @@ export interface ModelInfo {
   maxOutput: number
   available: boolean
 }
-export interface ModelListRequest { workspaceId?: string }
+export interface ModelListRequest {
+  workspaceId?: string
+  /** catalog=~/.pi/agent/models.json 全部条目（设置默认模型）；available=已配置鉴权（Composer） */
+  scope?: 'catalog' | 'available'
+}
 export interface ModelListResponse { models: ModelInfo[] }
 export interface ModelSetRequest { sessionId: string; modelId: string }
 export interface ModelSetResponse { modelId: string }

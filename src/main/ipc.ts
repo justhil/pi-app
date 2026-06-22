@@ -5,7 +5,13 @@ import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
 import { resolveSidePanelState } from './side-panel-registry'
 import { readPiInfo, readResourceList } from './pi-info'
-import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from './pi-models-json'
+import {
+  readModelsConfig,
+  writeModelsConfig,
+  fetchRemoteModelIds,
+  modelsCatalogFromConfig,
+  readModelsConfigRaw,
+} from './pi-models-json'
 import {
   listSkillsOnDisk,
   listPromptsOnDisk,
@@ -578,36 +584,47 @@ export function registerAllHandlers(): void {
   })
 
   // ── Model ──
-  registerHandler('ipc:model.list', async (_req) => {
-    // Authoritative source = Worker session modelRegistry
+  registerHandler('ipc:model.list', async (req) => {
+    const scope = req?.scope === 'available' ? 'available' : 'catalog'
+    const mapRegistry = (models: any[]) =>
+      models.map((m: any) => ({
+        id: m.id,
+        name: m.name || m.id,
+        provider: m.provider,
+        contextWindow: m.contextWindow || 0,
+        maxOutput: m.maxOutput || m.maxTokens || 0,
+        available: true,
+      }))
+
+    const catalogFromDisk = () => {
+      const { config, parseError } = readModelsConfigRaw()
+      if (parseError) return { models: [] as any[] }
+      return { models: modelsCatalogFromConfig(config) }
+    }
+
+    if (scope === 'catalog') {
+      return catalogFromDisk()
+    }
+
+    // scope=available：会话 / Composer 用（需鉴权）
     if (workerManager.isRunning) {
       try {
         const models = await workerManager.getModels()
-        return { models }
+        if (models.length > 0) return { models }
       } catch (e) {
         console.error('[IPC] model.list worker failed:', e)
       }
     }
-    // Fallback: standalone ModelRegistry in main (may return empty if auth not loaded)
     try {
       const { ModelRegistry, AuthStorage } = await getActiveSdkModule()
       const auth = AuthStorage.create()
       const registry = ModelRegistry.create(auth)
       const models = await registry.getAvailable()
-      return {
-        models: models.map((m: any) => ({
-          id: m.id,
-          name: m.name || m.id,
-          provider: m.provider,
-          contextWindow: m.contextWindow || 0,
-          maxOutput: m.maxOutput || 0,
-          available: true,
-        })),
-      }
+      if (models.length > 0) return { models: mapRegistry(models) }
     } catch (e) {
       console.error('[IPC] model.list failed:', e)
-      return { models: [] }
     }
+    return catalogFromDisk()
   })
 
   registerHandler('ipc:model.set', async (req) => {
