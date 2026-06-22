@@ -121,8 +121,8 @@ export function OverlayScrollbarRail({
   return (
     <div
       ref={railRef}
-      className={cn('overlay-scrollbar-rail absolute right-0 top-0 z-[50] w-3', className)}
-      style={{ bottom: 0 }}
+      className={cn('overlay-scrollbar-rail absolute right-0 top-0 z-[50]', className)}
+      style={{ bottom: 0, width: 'var(--scrollbar-rail-hit)' }}
       onMouseEnter={() => setRailHover(true)}
       onMouseLeave={() => !dragging && setRailHover(false)}
       onMouseDown={onTrackDown}
@@ -133,7 +133,7 @@ export function OverlayScrollbarRail({
         role="scrollbar"
         aria-orientation="vertical"
         className={cn(
-          'absolute right-0.5 w-[5px] cursor-grab rounded-full bg-[rgba(127,127,127,0.42)] transition-opacity duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] active:cursor-grabbing',
+          'overlay-scrollbar-rail__thumb absolute right-0.5 cursor-grab rounded-full transition-opacity duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] active:cursor-grabbing',
           show ? 'opacity-100' : 'opacity-0 pointer-events-none',
           dragging && 'opacity-100 pointer-events-auto',
         )}

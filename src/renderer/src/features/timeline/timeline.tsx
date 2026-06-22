@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   Archive,
   CheckCircle2, XCircle,
-  CornerDownLeft, AlertCircle, Terminal
+  CornerDownLeft, AlertCircle
 } from 'lucide-react'
 import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -263,10 +263,7 @@ export function Timeline() {
 
   if (!hasWorkspace) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground/40">
-          <Terminal className="h-6 w-6" />
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
         <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
           {t('timeline.emptyWorkspace')}
         </p>

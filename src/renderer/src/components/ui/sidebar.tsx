@@ -1,5 +1,6 @@
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 
 interface SidebarProps {
   children: React.ReactNode
@@ -21,7 +22,15 @@ export function SidebarHeader({ label }: { label: string }) {
 }
 
 export function SidebarContent({ children }: { children: React.ReactNode }) {
-  return <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">{children}</div>
+  return (
+    <OverlayScrollHost
+      className="sidebar-scroll-host min-h-0 flex-1"
+      scrollClassName="py-1"
+      showRailOnHostHover
+    >
+      {children}
+    </OverlayScrollHost>
+  )
 }
 
 export function RightPanel({ children }: { children: React.ReactNode }) {

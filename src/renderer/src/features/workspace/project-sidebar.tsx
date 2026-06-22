@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { ChevronDown, ChevronRight, FolderOpen, MessageSquare, Plus, Folder, Inbox } from 'lucide-react'
+import { ChevronDown, ChevronRight, FolderOpen, Plus, Folder, Inbox } from 'lucide-react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
@@ -236,13 +236,12 @@ export function ProjectSidebar({
               })
             }
             className={cn(
-              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center gap-2 rounded-lg px-2.5 py-1.5',
+              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center rounded-lg px-2.5 py-1.5',
               currentSessionId === s.sessionId && workspacePath === currentWorkspace
                 ? 'nav-row-active'
                 : 'text-foreground-secondary hover:text-foreground',
             )}
           >
-            <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-70" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] leading-[18px] text-foreground">
                 {s.title || s.sessionId.slice(0, 8)}

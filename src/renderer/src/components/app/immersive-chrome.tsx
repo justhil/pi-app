@@ -16,7 +16,7 @@ export function ImmersiveChrome({
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   return (
     <div
-      className="electron-drag relative z-20 flex h-9 shrink-0 items-center justify-between border-b border-border/40 px-2"
+      className="electron-drag relative z-20 flex h-9 shrink-0 items-center justify-between px-2"
       style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
     >
       <div className="electron-no-drag flex items-center gap-1">

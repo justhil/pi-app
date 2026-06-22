@@ -36,7 +36,7 @@
     --bg-3: #e5e6eb;
     --bg-hover: #f3f4f6;
     --bg-active: #e5e6eb;
-    --message-user-bg: #e9efff;
+    --message-user-bg: #F3F3F4;
 
     /* ── 参考桌面客户端 text colors (light: 7.5:1 contrast) ── */
     --text-primary: #000000;
@@ -257,11 +257,14 @@
     contain: layout paint;
     min-height: 0;
   }
-  /* 对话区：左/上/下 padding 露出 #F3F3F3，右侧紧贴右栏不圆角 */
+  /* 左栏与对话区 grid 贴齐；圆角处由 center 的 #F3F3F3 衬底，不额外留灰条 */
+  .shell-track-left {
+    box-shadow: none;
+  }
   .shell-track-center {
     min-height: 0;
     contain: layout;
-    padding: 6px 0 6px 6px;
+    padding: 0;
     background: var(--surface-sidebar);
   }
   .shell-track-center .main-chat-column {
@@ -271,12 +274,14 @@
     height: 100%;
     box-shadow: 0 0 0 1px var(--border-base);
   }
-  /* 右栏和对话区同为白色，用左侧分割线区分 */
+  /* 右栏与对话区同高、同色；左侧竖线 + 顶部分割线与对话区顶边对齐 */
   .shell-track-right {
     box-shadow: inset 1px 0 0 0 var(--border-base);
+    border-top: 1px solid var(--border-base);
   }
   .shell-track-collapsed {
     box-shadow: none !important;
+    border-top: none !important;
   }
   .shell-track-inner {
     transition:

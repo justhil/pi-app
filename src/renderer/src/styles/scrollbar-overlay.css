@@ -1,6 +1,14 @@
 /**
  * 悬停才显示滚动条 + 无箭头 + 淡入（勿包 @layer，Electron/Win 才稳定生效）
+ * 侧栏 / 主对话区自绘轨道共用 --scrollbar-* 变量
  */
+:root {
+  --scrollbar-thumb: rgba(127, 127, 127, 0.32);
+  --scrollbar-thumb-hover: rgba(127, 127, 127, 0.48);
+  --scrollbar-thumb-active: rgba(127, 127, 127, 0.42);
+  --scrollbar-thumb-width: 5px;
+  --scrollbar-rail-hit: 12px;
+}
 
 /* 全局去掉滚动条箭头（含未加 scrollbar-overlay 的区域） */
 ::-webkit-scrollbar-button,
@@ -15,7 +23,7 @@
 }
 
 .scrollbar-overlay:hover {
-  scrollbar-color: rgba(127, 127, 127, 0.32) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .scrollbar-overlay::-webkit-scrollbar {
@@ -51,20 +59,16 @@
 }
 
 .scrollbar-overlay:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(127, 127, 127, 0.32);
+  background-color: var(--scrollbar-thumb);
 }
 
 .scrollbar-overlay::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(127, 127, 127, 0.48);
+  background-color: var(--scrollbar-thumb-hover);
 }
 
-/* 聊天列：鼠标在中间列任意位置即显示 Timeline 滚动条 */
-.main-chat-column:hover .timeline-scroll-viewport.scrollbar-overlay::-webkit-scrollbar-thumb {
-  background-color: rgba(127, 127, 127, 0.32);
-}
-
-.main-chat-column:hover .timeline-scroll-viewport.scrollbar-overlay {
-  scrollbar-color: rgba(127, 127, 127, 0.32) transparent;
+.overlay-scrollbar-rail__thumb {
+  width: var(--scrollbar-thumb-width);
+  background-color: var(--scrollbar-thumb-active);
 }
 
 .overlay-scroll-pane {
