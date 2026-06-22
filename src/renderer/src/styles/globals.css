@@ -911,17 +911,63 @@
   .stagger-5 { animation-delay: 200ms; }
 }
 
-/* Project Home: composer hero (居中) → dock 下落动画 */
+/* ── Project Home: hero → dock 过渡动画 ── */
+
+/* Composer hero 居中位置：上移到视口中心偏上 */
 .composer-dock-hero {
-  transform: translateY(calc(-50vh + 50%));
+  transform: translateY(calc(-50vh + 50% - 2rem));
 }
 
-/* Project Home view 淡入 */
+/* hero 态输入框更宽、更柔和 */
+.composer-dock-hero .composer-dock-inner {
+  max-width: 680px !important;
+  transition: max-width var(--motion-slow) var(--motion-ease);
+}
+.composer-dock-hero .composer-shell {
+  border-color: var(--border-base);
+  box-shadow: 0 8px 40px -12px rgba(0,0,0,0.18), 0 2px 8px -4px rgba(0,0,0,0.08);
+  transition:
+    border-color var(--motion-slow) var(--motion-ease),
+    box-shadow var(--motion-slow) var(--motion-ease),
+    background-color var(--motion-normal) ease,
+    transform var(--motion-slow) var(--motion-ease);
+}
+.composer-dock-hero .composer-shell-focused {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border-base));
+  box-shadow: 0 8px 48px -10px rgba(0,0,0,0.22), 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+/* Project Home view 淡入/淡出 */
 .project-home-view {
-  animation: project-home-fade-in 0.3s var(--motion-ease) both;
+  animation: project-home-fade-in 0.32s var(--motion-ease) both;
+}
+.project-home-view-exit {
+  animation: project-home-fade-out 0.24s var(--motion-ease) both;
+}
+@keyframes project-home-fade-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes project-home-fade-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.98); }
 }
 
-@keyframes project-home-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ComposerDock hero → dock 下落过渡：spring-like 缓动 */
+.composer-dock-host {
+  transition-property: transform;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+/* hero 态隐藏底部渐变层（已在 ComposerDock 里条件渲染，这里保底） */
+.composer-dock-hero .composer-dock-fade { opacity: 0; }
+
+/* 项目选择器卡片入场 */
+.project-picker-card {
+  animation: picker-card-rise 0.22s var(--motion-ease) both;
+}
+@keyframes picker-card-rise {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 }

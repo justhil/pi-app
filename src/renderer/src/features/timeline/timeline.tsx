@@ -329,7 +329,7 @@ export function Timeline() {
     >
       <div
         key={historySessionFile || 'timeline'}
-        className="chat-content-column py-4 animate-in fade-in duration-200 ease-out"
+        className="chat-content-column py-4 ui-enter"
       >
       {(hiddenCount > 0 || historyLoading) && (
         <button

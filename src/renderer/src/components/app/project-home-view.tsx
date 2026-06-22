@@ -109,7 +109,7 @@ export function ProjectHomeView({
             transform: 'translateX(-50%)',
             zIndex: 9999,
           }}
-          className="project-picker-card w-[340px] animate-in fade-in zoom-in-95 duration-200"
+          className="project-picker-card w-[340px]"
         >
           <div className="overflow-hidden rounded-xl border border-border/70 bg-popover shadow-xl">
             <div className="border-b border-border/40 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground">

@@ -566,7 +566,7 @@ export function Composer() {
             onPaste={handlePaste}
             onFocus={() => setComposerFocused(true)}
             onBlur={() => setComposerFocused(false)}
-            className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none"
+            className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
             placeholder={
               ephemeralSandboxDraft && !currentWorkspace
                 ? '首条消息即对话标题'

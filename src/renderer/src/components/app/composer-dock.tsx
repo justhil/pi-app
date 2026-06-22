@@ -35,7 +35,7 @@ export function ComposerDock({ className, children, heroMode }: { className?: st
     <div
       ref={hostRef}
       className={cn(
-        'composer-dock-host pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-transform duration-[var(--motion-slow)] ease-[var(--motion-ease)]',
+        'composer-dock-host pointer-events-none absolute inset-x-0 bottom-0 z-30',
         heroMode && 'composer-dock-hero',
         className,
       )}
