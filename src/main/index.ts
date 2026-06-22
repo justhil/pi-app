@@ -4,7 +4,6 @@ import { registerWindowControlHandlers } from './window-controls'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
-import { resolveStartupWorkspace } from './startup-workspace'
 import { is } from '@electron-toolkit/utils'
 
 // Prevent EPIPE / write errors from crashing the main process
@@ -68,12 +67,7 @@ app.whenReady().then(() => {
     }, 3000)
   })
 
-  // Auto-open last project if exists (lazy worker: only set workspace + load sidebar,
-  // Worker starts on first message or when a history session is opened)
-  const lastProject = resolveStartupWorkspace()
-  if (lastProject) {
-    win.webContents.send('ipc:auto-opened', { workspaceId: lastProject })
-  }
+  // 不自动打开上次项目：进 app 显示空 Project Home，用户自行选择项目
 
   app.on('activate', () => {
     const windows = BrowserWindow.getAllWindows()

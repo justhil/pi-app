@@ -13,8 +13,8 @@ import { Composer } from '@renderer/features/composer/composer'
 import { TopBar } from '@renderer/components/app/top-bar'
 import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
-import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
+import { onAppEvent, onWorkerExit, ipcClient } from '@renderer/lib/ipc-client'
+
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
@@ -84,16 +84,7 @@ export default function App() {
   useEffect(() => {
     markExtensionNotifyAppReady()
     useExtensionUIStore.getState().resetForSessionContext()
-    const done = useUIStore.persist.onFinishHydration(() => {
-      const ws = useUIStore.getState().currentWorkspace
-      if (!ws || ws.replace(/\\/g, '/').includes('sandbox-workspaces/')) return
-      void ipcClient.invoke('settings.get', { key: 'currentProject' }).then((r) => {
-        const mainPath = r?.settings?.currentProject as string | undefined
-        if (mainPath === ws) return
-        void activateWorkspace(ws)
-      })
-    })
-    return () => done()
+    // 不再 hydration 时自动 activateWorkspace；Project Home 等用户选项目
   }, [])
 
   useEffect(() => {
@@ -107,16 +98,10 @@ export default function App() {
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
     })
-    const unsubAuto = onAutoOpened((info) => {
-      setWorkspace(info.workspaceId)
-      ipcClient.invoke('session.list', { workspaceId: info.workspaceId }).then((res) => {
-        if (res?.sessions) setSessions(res.sessions)
-      }).catch(() => {})
-    })
+    // 不再从 auto-opened 自动设 workspace；用户在 Project Home 自行选择项目
     return () => {
       unsubEvents()
       unsubExit()
-      unsubAuto()
     }
   }, [setWorkspace])
 
@@ -143,25 +128,25 @@ export default function App() {
       return
     }
     try {
-      console.log('[App] Opening directory dialog...')
       const res = await window.piDesktop.invoke('ipc:dialog:openDirectory')
-      console.log('[App] Dialog result:', res)
       if (res?.path) {
-        console.log('[App] Opening workspace:', res.path)
-        await activateWorkspace(res.path)
-        setTimeout(() => void syncRunStateFromWorker(), 800)
+        await activateWorkspace(res.path, { preferHome: true })
       }
     } catch (e) {
       console.error('[App] Failed to open project:', e)
     }
   }
 
+  const recentProjects = useUIStore((s) => s.recentProjects)
   const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
-  const isHomeMode =
-    !!currentWorkspace && !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft
+  const isHomeMode = !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
+
+  const handleSelectProject = async (path: string) => {
+    await activateWorkspace(path, { preferHome: true })
+  }
 
   if (view === 'settings') {
     return (
@@ -206,6 +191,10 @@ export default function App() {
                   <ProjectHomeView
                     projectName={ephemeralSandboxDraft ? '新对话' : projectName}
                     subtitle={ephemeralSandboxDraft ? '首条消息即对话标题' : undefined}
+                    recentProjects={recentProjects}
+                    currentWorkspace={currentWorkspace}
+                    onSelectProject={(p) => void handleSelectProject(p)}
+                    onOpenProject={handleOpenProject}
                   />
                 </Suspense>
               ) : (

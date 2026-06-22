@@ -98,8 +98,8 @@ export function Composer() {
   const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
   useEffect(() => {
     if (!canCompose) return
-    // placeholder / sandbox draft 不触发 Worker IPC（Worker 可能还在 init，会卡住）
-    if (pendingNew || ephemeralSandboxDraft) return
+    // home mode / placeholder / sandbox draft 不触发 Worker IPC（Worker 可能未启动，会卡住）
+    if (!currentSessionId || pendingNew || ephemeralSandboxDraft) return
     void refreshComposerRunDisplay()
   }, [canCompose, currentWorkspace, currentSessionId, ephemeralSandboxDraft, pendingNew])
 
