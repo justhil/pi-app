@@ -83,10 +83,10 @@ export function MainLayoutShell({
     >
       <div
         className={cn(
-          'shell-track-left relative flex min-w-0 flex-row items-stretch overflow-hidden border-r border-border/60',
-          leftCollapsed && 'shell-track-collapsed border-r-0',
+          'shell-track-left relative flex min-w-0 flex-row items-stretch overflow-hidden',
+          leftCollapsed && 'shell-track-collapsed',
         )}
-        style={{ background: 'var(--bg-1)' }}
+        style={{ background: 'var(--surface-sidebar)' }}
         aria-hidden={leftCollapsed}
       >
         <div
@@ -106,10 +106,10 @@ export function MainLayoutShell({
 
       <div
         className={cn(
-          'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-hidden border-l border-border/60',
-          rightCollapsed && 'shell-track-collapsed border-l-0',
+          'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-hidden',
+          rightCollapsed && 'shell-track-collapsed',
         )}
-        style={{ background: 'var(--bg-1)' }}
+        style={{ background: 'var(--surface-sidebar)' }}
         aria-hidden={rightCollapsed}
       >
         {!rightCollapsed && (

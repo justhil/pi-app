@@ -257,6 +257,16 @@
     contain: layout paint;
     min-height: 0;
   }
+  /* 侧栏与对话区过渡：用微弱内阴影代替硬边框 */
+  .shell-track-left {
+    box-shadow: inset -1px 0 0 0 var(--border-base);
+  }
+  .shell-track-right {
+    box-shadow: inset 1px 0 0 0 var(--border-base);
+  }
+  .shell-track-collapsed {
+    box-shadow: none !important;
+  }
   .shell-track-center {
     min-height: 0;
     contain: layout;
