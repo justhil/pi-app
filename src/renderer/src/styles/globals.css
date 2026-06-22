@@ -271,6 +271,9 @@
     min-height: 0;
     contain: layout;
   }
+  .shell-track-center .main-chat-column {
+    border-radius: var(--radius-xl);
+  }
   .shell-track-inner {
     transition:
       opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
