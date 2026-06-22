@@ -249,7 +249,15 @@ pi-app/
 | `npm run build` | 构建 main / preload / renderer / worker |
 | `npm run typecheck` | TypeScript 检查 |
 | `npm run icon:export` | `resources/icon.svg` → `build/icon.png` |
-| `npm run package:win` | Windows NSIS 安装包 |
+| `npm run package:win` | Windows NSIS 安装包 + 便携版（`dist/`） |
+
+**GitHub Release（CI）**
+
+- 工作流：`.github/workflows/release.yml`
+- 推送标签 `v*`（如 `v0.1.0`）或 Actions 里手动 **Run workflow**，在 Windows 上构建并上传：
+  - `pi Desktop-Setup-<version>-x64.exe`（安装包）
+  - `pi Desktop-Portable-<version>-x64.exe`（便携包）
+- 打标签示例：`git tag v0.1.0 && git push origin v0.1.0`
 
 ---
 

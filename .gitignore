@@ -27,6 +27,9 @@ nul
 .env.*
 !.env.example
 
+# Agent / local assistant instructions (not shipped)
+AGENTS.md
+
 # IDE / editor local (not shipped)
 .cursor/
 .idea/
