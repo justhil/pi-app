@@ -15,22 +15,13 @@ export async function openSessionIntoWorker(
   navToken?: number,
 ): Promise<void> {
   const store = useUIStore.getState()
-  // Lazy worker start: home mode may not have started the Worker yet. Clicking a
-  // history session needs the Worker for getMessages + later loadSession.
-  if (sessionFile) {
-    const ws = useUIStore.getState().currentWorkspace
-    if (ws) {
-      await ipcClient.invoke('workspace.switch', { workspaceId: ws }).catch(() => {})
-      if (navToken != null && !assertSessionNavigation(navToken)) return
-    }
-  }
-  store.setCurrentSession(sessionId)
-  store.clearTimeline()
-  store.clearFileChanges()
-  useExtensionUIStore.getState().resetForSessionContext()
-  store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
 
   if (!sessionFile) {
+    store.setCurrentSession(sessionId)
+    store.clearTimeline()
+    store.clearFileChanges()
+    useExtensionUIStore.getState().resetForSessionContext()
+    store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
     store.setHistoryMeta(0, 0, null)
     store.loadHistoryItems([])
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
@@ -40,7 +31,23 @@ export async function openSessionIntoWorker(
     return
   }
 
+  // 立即进入会话视图并显示加载动画（含 workspace.switch / Worker 冷启动）
+  store.setCurrentSession(sessionId)
+  store.clearTimeline()
+  store.clearFileChanges()
+  useExtensionUIStore.getState().resetForSessionContext()
+  store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
   store.setHistoryLoading(true)
+  store.setHistoryMeta(0, 0, sessionFile)
+
+  const ws = useUIStore.getState().currentWorkspace
+  if (ws) {
+    await ipcClient.invoke('workspace.switch', { workspaceId: ws }).catch(() => {})
+    if (navToken != null && !assertSessionNavigation(navToken)) {
+      store.setHistoryLoading(false)
+      return
+    }
+  }
   clearSessionHistoryCache(sessionFile)
   try {
     const [, hist] = await Promise.all([

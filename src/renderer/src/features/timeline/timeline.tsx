@@ -9,6 +9,7 @@ import {
 import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { StreamingCaret, ThinkingIndicator } from './tool-card-primitives'
+import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
@@ -273,20 +274,7 @@ export function Timeline() {
 
   if (items.length === 0) {
     if (historyLoading) {
-      return (
-        <div className="flex flex-1 flex-col px-4 py-6 animate-in fade-in duration-200">
-          <div className="chat-content-column space-y-3">
-            {[0.72, 0.45, 0.88].map((w, i) => (
-              <div
-                key={i}
-                className="h-12 rounded-lg bg-muted/40 animate-pulse"
-                style={{ width: `${w * 100}%`, marginLeft: i % 2 ? 'auto' : 0, maxWidth: '85%' }}
-              />
-            ))}
-          </div>
-          <p className="mt-6 text-center text-[11px] text-muted-foreground">加载最近消息…</p>
-        </div>
-      )
+      return <SessionOpenLoadingView />
     }
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
