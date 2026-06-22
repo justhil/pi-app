@@ -15,6 +15,15 @@ export async function openSessionIntoWorker(
   navToken?: number,
 ): Promise<void> {
   const store = useUIStore.getState()
+  // Lazy worker start: home mode may not have started the Worker yet. Clicking a
+  // history session needs the Worker for getMessages + later loadSession.
+  if (sessionFile) {
+    const ws = useUIStore.getState().currentWorkspace
+    if (ws) {
+      await ipcClient.invoke('workspace.switch', { workspaceId: ws }).catch(() => {})
+      if (navToken != null && !assertSessionNavigation(navToken)) return
+    }
+  }
   store.setCurrentSession(sessionId)
   store.clearTimeline()
   store.clearFileChanges()

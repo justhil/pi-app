@@ -101,7 +101,7 @@ interface UIState {
   sessions: SessionItem[]
   currentSessionId: string | null
   setSessions: (s: SessionItem[]) => void
-  setCurrentSession: (id: string) => void
+  setCurrentSession: (id: string | null) => void
   loadHistoryItems: (items: TimelineItem[]) => void
   prependHistoryItems: (items: TimelineItem[]) => void
   historyTotalCount: number
@@ -308,6 +308,15 @@ export const useUIStore = create<UIState>()(
   currentSessionId: null,
   setSessions: (s) => set({ sessions: s }),
   setCurrentSession: (id) => {
+    if (id === null) {
+      set({
+        currentSessionId: null,
+        rewindTreeNodes: [],
+        rewindWorkerBound: false,
+        rewindLoadingTree: false,
+      })
+      return
+    }
     set({
       currentSessionId: id,
       rewindTreeNodes: [],

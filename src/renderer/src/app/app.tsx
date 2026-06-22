@@ -15,8 +15,7 @@ import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onAutoOpened, ipcClient } from '@renderer/lib/ipc-client'
 import { syncRunStateFromWorker } from '@renderer/lib/sync-run-state'
-import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
-import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
+import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon } from 'lucide-react'
@@ -36,6 +35,7 @@ const SettingsPage = lazy(() => import('@renderer/features/settings/settings-pag
 const ModelPicker = lazy(() => import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })))
 const ThinkingPicker = lazy(() => import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })))
 const SessionTreeOverlay = lazy(() => import('@renderer/features/rewind/session-tree-overlay').then((m) => ({ default: m.SessionTreeOverlay })))
+const ProjectHomeView = lazy(() => import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })))
 
 export default function App() {
   const { t } = useTranslation()
@@ -108,15 +108,10 @@ export default function App() {
       console.warn('Worker exited:', info)
     })
     const unsubAuto = onAutoOpened((info) => {
-      const persisted = useUIStore.getState().currentWorkspace
-      const norm = (p: string) => p.replace(/\\/g, '/')
-      const isSandbox = (p: string) => norm(p).includes('sandbox-workspaces/')
-      if (persisted && !isSandbox(persisted) && isSandbox(info.workspaceId)) {
-        void activateWorkspace(persisted)
-        return
-      }
       setWorkspace(info.workspaceId)
-      void syncRunStateFromWorker()
+      ipcClient.invoke('session.list', { workspaceId: info.workspaceId }).then((res) => {
+        if (res?.sessions) setSessions(res.sessions)
+      }).catch(() => {})
     })
     return () => {
       unsubEvents()
@@ -133,20 +128,14 @@ export default function App() {
   }, [pendingExtensionConfig])
 
   const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const timelineItems = useUIStore((s) => s.timelineItems)
 
   useEffect(() => {
     if (!currentWorkspace) return
     ipcClient.invoke('session.list', { workspaceId: currentWorkspace }).then((res) => {
-      const ss = res?.sessions || []
       if (res?.sessions) setSessions(res.sessions)
-      if (currentSessionId) return
-      if (ss.length > 0 && ss[0].sessionFile) {
-        guardSessionSwitch(() => {
-          void switchSessionInPlace(ss[0].sessionId, ss[0].sessionFile)
-        })
-      }
     }).catch(() => {})
-  }, [currentWorkspace, setSessions, currentSessionId])
+  }, [currentWorkspace, setSessions])
 
   const handleOpenProject = async () => {
     if (!window.piDesktop) {
@@ -169,6 +158,10 @@ export default function App() {
 
   const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
+
+  const isHomeMode =
+    !!currentWorkspace && !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft
+  const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
 
   if (view === 'settings') {
     return (
@@ -208,9 +201,18 @@ export default function App() {
           }
           center={
             <MainColumnWithTimelineScroll className="main-chat-column h-full">
-              <Timeline />
+              {showHome ? (
+                <Suspense fallback={null}>
+                  <ProjectHomeView
+                    projectName={ephemeralSandboxDraft ? '新对话' : projectName}
+                    subtitle={ephemeralSandboxDraft ? '首条消息即对话标题' : undefined}
+                  />
+                </Suspense>
+              ) : (
+                <Timeline />
+              )}
               <MainColRightPanelToggle />
-              <ComposerDock>
+              <ComposerDock heroMode={showHome}>
                 <Composer />
               </ComposerDock>
               {rightPanelCollapsed && (

@@ -95,10 +95,13 @@ export function Composer() {
     setIsStreaming(isRunning)
   }, [isRunning])
 
+  const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
   useEffect(() => {
     if (!canCompose) return
+    // placeholder / sandbox draft 不触发 Worker IPC（Worker 可能还在 init，会卡住）
+    if (pendingNew || ephemeralSandboxDraft) return
     void refreshComposerRunDisplay()
-  }, [canCompose, currentWorkspace, currentSessionId, ephemeralSandboxDraft])
+  }, [canCompose, currentWorkspace, currentSessionId, ephemeralSandboxDraft, pendingNew])
 
   // Load authoritative command list from Worker (A-layer)
   const refreshCommands = useCallback(async () => {
@@ -177,6 +180,7 @@ export function Composer() {
     const store = useUIStore.getState()
     const running = store.runState.status === 'running'
     const pendingNew = store.pendingNewSessionPlaceholder
+    const homeMode = !store.currentSessionId && store.timelineItems.length === 0
     const { appendOptimisticOutgoingMessage, clearOptimisticOutgoing } = await import(
       '@renderer/lib/optimistic-send'
     )
@@ -190,7 +194,7 @@ export function Composer() {
         await afterPromptSent()
         return
       }
-      if (!running && pendingNew && store.currentWorkspace) {
+      if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
         appendOptimisticOutgoingMessage(displayText, { bootstrap: true })
         const { materializePendingNewSession } = await import('@renderer/lib/new-session')
         await materializePendingNewSession(store.currentWorkspace, displayText)

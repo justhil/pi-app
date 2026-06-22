@@ -7,7 +7,7 @@ import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/s
 import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 
 export type ActivateWorkspaceOptions = {
-  preferEmpty?: boolean
+  preferHome?: boolean
   sessionId?: string
   sessionFile?: string
 }
@@ -49,14 +49,18 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     if (!assertSessionNavigation(navToken)) return
   }
 
-  if (options?.preferEmpty) {
-    store.enterPendingNewSessionPlaceholder()
+  if (options?.preferHome) {
+    store.clearPendingNewSessionPlaceholder()
+    store.setCurrentSession(null)
+    store.setHistoryMeta(0, 0, null)
     void refreshComposerRunDisplay()
     return
   }
 
   if (sessions.length === 0) {
-    store.enterPendingNewSessionPlaceholder()
+    store.clearPendingNewSessionPlaceholder()
+    store.setCurrentSession(null)
+    store.setHistoryMeta(0, 0, null)
     void refreshComposerRunDisplay()
     return
   }
@@ -69,7 +73,8 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
         sessions[0]
 
   if (!pick?.sessionFile) {
-    store.enterPendingNewSessionPlaceholder()
+    store.clearPendingNewSessionPlaceholder()
+    store.setCurrentSession(null)
     return
   }
 

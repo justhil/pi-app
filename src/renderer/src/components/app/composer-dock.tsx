@@ -4,7 +4,7 @@ import { cn } from '@renderer/lib/utils'
 /**
  * 底部悬浮输入区：Timeline 滚入底部留白；输入/指标在独立层，不透明底挡住背后文字。
  */
-export function ComposerDock({ className, children }: { className?: string; children: ReactNode }) {
+export function ComposerDock({ className, children, heroMode }: { className?: string; children: ReactNode; heroMode?: boolean }) {
   const dockRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
 
@@ -34,12 +34,18 @@ export function ComposerDock({ className, children }: { className?: string; chil
   return (
     <div
       ref={hostRef}
-      className={cn('composer-dock-host pointer-events-none absolute inset-x-0 bottom-0 z-30', className)}
+      className={cn(
+        'composer-dock-host pointer-events-none absolute inset-x-0 bottom-0 z-30 transition-transform duration-[var(--motion-slow)] ease-[var(--motion-ease)]',
+        heroMode && 'composer-dock-hero',
+        className,
+      )}
     >
-      <div
-        className="composer-dock-fade pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--composer-dock-h,10rem)+1.25rem)]"
-        aria-hidden
-      />
+      {!heroMode && (
+        <div
+          className="composer-dock-fade pointer-events-none absolute inset-x-0 bottom-0 h-[calc(var(--composer-dock-h,10rem)+1.25rem)]"
+          aria-hidden
+        />
+      )}
       <div
         ref={dockRef}
         className="composer-dock-inner relative mx-auto w-full max-w-[var(--chat-content-max)] px-4 pb-3 pt-1 sm:px-6"

@@ -68,12 +68,11 @@ app.whenReady().then(() => {
     }, 3000)
   })
 
-  // Auto-open last project if exists
+  // Auto-open last project if exists (lazy worker: only set workspace + load sidebar,
+  // Worker starts on first message or when a history session is opened)
   const lastProject = resolveStartupWorkspace()
   if (lastProject) {
-    workerManager.start(lastProject).then(() => {
-      win.webContents.send('ipc:auto-opened', { workspaceId: lastProject })
-    }).catch((e) => console.error('Auto-open failed:', e))
+    win.webContents.send('ipc:auto-opened', { workspaceId: lastProject })
   }
 
   app.on('activate', () => {

@@ -112,15 +112,18 @@ export async function executeSlashCommand(
     }
     case 'new': {
       try {
-        const wid = useUIStore.getState().currentWorkspace
+        const store = useUIStore.getState()
+        const wid = store.currentWorkspace
         if (!wid) {
           toast.error('请先打开项目或临时对话分区')
           return true
         }
-        const { enterNewSessionPlaceholder } = await import('@renderer/lib/new-session')
-        enterNewSessionPlaceholder()
-        await ctx.refreshCommands?.()
-        toast.success('已创建新会话占位，发送首条消息即可')
+        store.clearTimeline()
+        store.setCurrentSession(null)
+        store.setHistoryMeta(0, 0, null)
+        void ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
+        void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
+        toast.info('已新建对话，发送首条消息即可开始')
       } catch (e) {
         console.error('/new failed:', e)
         toast.error('新建会话失败')

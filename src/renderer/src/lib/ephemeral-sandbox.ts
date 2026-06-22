@@ -28,7 +28,6 @@ export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string):
     void ipcClient.invoke('workspace.open', { path: box.path }).catch((e) => console.error(e))
   }
   store.setWorkspace(box.path)
-  store.enterPendingNewSessionPlaceholder({ keepTimeline: true })
 
   await materializePendingNewSession(box.path, firstMessage)
 

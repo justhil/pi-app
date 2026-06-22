@@ -11,7 +11,6 @@ export function enterNewSessionPlaceholder(): void {
 export async function materializePendingNewSession(workspaceId: string, firstMessage: string): Promise<void> {
   if (!workspaceId) return
   const store = useUIStore.getState()
-  if (!store.pendingNewSessionPlaceholder) return
 
   const title = titleFromFirstMessage(firstMessage, 48) || '新会话'
 

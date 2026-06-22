@@ -910,3 +910,18 @@
   .stagger-4 { animation-delay: 160ms; }
   .stagger-5 { animation-delay: 200ms; }
 }
+
+/* Project Home: composer hero (居中) → dock 下落动画 */
+.composer-dock-hero {
+  transform: translateY(calc(-50vh + 50%));
+}
+
+/* Project Home view 淡入 */
+.project-home-view {
+  animation: project-home-fade-in 0.3s var(--motion-ease) both;
+}
+
+@keyframes project-home-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
