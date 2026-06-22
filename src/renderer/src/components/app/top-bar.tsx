@@ -67,7 +67,7 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
         )}
         {!isSettings && (
           isRunning ? (
-            <div className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5 animate-breathe">
+            <div className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5">
               <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
               <span className="text-[11px] font-medium text-green-600 dark:text-green-400">运行中</span>
             </div>
