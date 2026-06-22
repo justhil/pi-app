@@ -54,6 +54,7 @@ export function SessionTreeList({
   onActivate,
   className,
   rowClassName,
+  showGuides = true,
 }: {
   nodes: SessionTreeNode[]
   selectedId?: string | null
@@ -61,6 +62,8 @@ export function SessionTreeList({
   onActivate?: (id: string) => void
   className?: string
   rowClassName?: string
+  /** 大树关闭引导线，避免 O(n²) 卡 UI */
+  showGuides?: boolean
 }) {
   return (
     <ul className={cn('w-full min-w-0', className)} role="tree">
@@ -73,7 +76,7 @@ export function SessionTreeList({
               title={n.isLeaf ? '当前位置' : onActivate ? 'Enter 或双击跳转' : '跳转到此节点'}
               onClick={() => {
                 onSelect?.(n.id)
-                if (!n.isLeaf && onActivate && !onSelect) onActivate(n.id)
+                if (!n.isLeaf && onActivate) onActivate(n.id)
               }}
               onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
               className={cn(
@@ -84,7 +87,7 @@ export function SessionTreeList({
                 rowClassName,
               )}
             >
-              <SessionTreeGuideRails nodes={nodes} index={index} />
+              {showGuides && <SessionTreeGuideRails nodes={nodes} index={index} />}
               <span className="flex min-w-0 flex-1 items-start gap-1.5 pl-1.5">
                 <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-45" />
                 <span className="min-w-0 flex-1 break-words text-[12px] leading-snug text-foreground-secondary">

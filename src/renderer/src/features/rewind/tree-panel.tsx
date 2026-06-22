@@ -3,6 +3,7 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
+import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import { SessionTreeList, type SessionTreeNode } from '@renderer/features/rewind/session-tree-list'
 
 export function TreePanel() {
@@ -53,12 +54,25 @@ export function TreePanel() {
         ) : tree.length === 0 ? (
           <p className="px-3 py-6 text-[11px] text-muted-foreground/70">树为空</p>
         ) : (
-          <SessionTreeList
-            className="px-1"
-            rowClassName="text-[11px]"
-            nodes={tree}
-            onSelect={(id) => void navigateSessionToEntry(id)}
-          />
+          (() => {
+            const { nodes: display, truncated, hiddenCount } = capSessionTreeForDisplay(tree)
+            return (
+              <>
+                {truncated && (
+                  <p className="px-3 pb-1 text-[10px] text-muted-foreground/80">
+                    显示最近 {display.length} 节点，省略 {hiddenCount} 个
+                  </p>
+                )}
+                <SessionTreeList
+                  className="px-1"
+                  rowClassName="text-[11px]"
+                  nodes={display}
+                  onActivate={(id) => void navigateSessionToEntry(id)}
+                  showGuides={display.length <= 120}
+                />
+              </>
+            )
+          })()
         )}
       </div>
     </div>

@@ -160,14 +160,18 @@ function traceWorkerUi(req: import('./desktop-ui-bridge.js').ExtensionUIRequest,
 }
 
 function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').ExtensionUIRequest): void {
-  if (!agentTurnActive) {
-    if (req.method === 'notify' && req.notifyType === 'error') {
-      traceWorkerUi(req, true)
-      process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
-    } else {
-      traceWorkerUi(req, false)
+  // Dialog requests (confirm/select/input/editor/custom) must always be forwarded so
+  // navigateTree and other non-turn UI calls can complete. Only notify is gated by agentTurnActive.
+  if (req.method === 'notify') {
+    if (!agentTurnActive) {
+      if (req.notifyType === 'error') {
+        traceWorkerUi(req, true)
+        process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+      } else {
+        traceWorkerUi(req, false)
+      }
+      return
     }
-    return
   }
   traceWorkerUi(req, true)
   process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })

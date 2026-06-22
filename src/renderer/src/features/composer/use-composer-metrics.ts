@@ -14,6 +14,7 @@ export function useComposerMetrics() {
   const model = useUIStore((s) => s.runState.model)
   const usage = useUIStore((s) => s.runState.usage)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
+  const historyLoading = useUIStore((s) => s.historyLoading)
   const streamingId = useUIStore((s) => s.streamingAssistantId)
   const streamLen = useUIStore((s) => {
     if (!s.streamingAssistantId) return 0
@@ -34,6 +35,7 @@ export function useComposerMetrics() {
     }
     let cancelled = false
     const load = () => {
+      if (historyLoading) return
       ipcClient
         .invoke('context.preview')
         .then((r) => {
@@ -52,7 +54,7 @@ export function useComposerMetrics() {
       cancelled = true
       clearInterval(id)
     }
-  }, [workspace, currentSessionId])
+  }, [workspace, currentSessionId, historyLoading])
 
   useEffect(() => {
     if (!workspace || !model) {

@@ -65,8 +65,9 @@ export function SettingsPage() {
       <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2.5">
           <button
+            type="button"
             onClick={() => setConfigExt(null)}
-            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="electron-no-drag chrome-icon-btn flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             返回适配器

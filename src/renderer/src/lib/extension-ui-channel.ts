@@ -90,21 +90,12 @@ export function ensureExtensionUIChannel(): void {
     const p = rawToPending(req)
     if (!p) return
 
-    const running = useUIStore.getState().runState.status === 'running'
-    if (!running) return
-
+    // Dialog requests (select/confirm/input/custom) must always be shown, even when
+    // the agent is not running — pi-rewind and other extensions call ui.select()/confirm()
+    // during session_before_tree / session_before_fork which happen outside agent turns.
     if (seenDialogIds.has(p.id)) return
     seenDialogIds.add(p.id)
     pruneSeenIds()
-
-    const hasLiveInteractiveTool = useUIStore.getState().timelineItems.some(
-      (i) =>
-        i.type === 'tool-call' &&
-        (i.toolPhase === 'start' || i.toolPhase === 'update') &&
-        !!i.toolName &&
-        INTERACTIVE_TOOL_NAMES.has(i.toolName),
-    )
-    if (!hasLiveInteractiveTool) return
 
     traceAudioRenderer('extension-ui.dialog', { method: p.method, id: p.id })
     useExtensionUIStore.getState().setActivePending(p)
@@ -117,6 +108,7 @@ export function ensureExtensionUIChannel(): void {
           : p.method === 'confirm' || p.method === 'select' || p.method === 'input'
             ? p.title || '需要你的操作'
             : '需要你的操作'
+    // Desktop alert only when running (idle dialog doesn't need system notification)
     if (useUIStore.getState().runState.status === 'running') {
       void signalDesktopAlert('extension_ui', {
         title: 'pi Desktop · 等待操作',

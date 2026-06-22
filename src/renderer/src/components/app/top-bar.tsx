@@ -37,7 +37,7 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
               e.stopPropagation()
               onBack()
             }}
-            className="chrome-icon-btn flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] text-foreground-secondary hover:text-foreground"
+            className="electron-no-drag chrome-icon-btn flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] text-foreground-secondary hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
             返回

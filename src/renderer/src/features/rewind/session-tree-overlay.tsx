@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import {
   SessionTreeList,
   filterSessionTreeNodes,
@@ -34,25 +36,39 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
 
   useEffect(() => {
     if (!open) return
-    if (sessionFile) void refreshSessionTree(sessionFile)
-    const leaf = rawTree.find((n) => n.isLeaf)
-    setSelectedId(leaf?.id ?? rawTree[0]?.id ?? null)
+    const tid = window.setTimeout(() => {
+      if (sessionFile) void refreshSessionTree(sessionFile)
+    }, 0)
+    return () => clearTimeout(tid)
   }, [open, sessionFile])
 
-  const visible = useMemo(() => filterSessionTreeNodes(rawTree, filter), [rawTree, filter])
+  const filtered = useMemo(() => filterSessionTreeNodes(rawTree, filter), [rawTree, filter])
+  const { nodes: visible, truncated, hiddenCount } = useMemo(
+    () => capSessionTreeForDisplay(filtered),
+    [filtered],
+  )
+  const showGuides = visible.length <= 120
 
   useEffect(() => {
     if (!open) return
     if (selectedId && visible.some((n) => n.id === selectedId)) return
-    const leaf = visible.find((n) => n.isLeaf)
-    setSelectedId(leaf?.id ?? visible[0]?.id ?? null)
+    const prefer =
+      [...visible].reverse().find((n) => !n.isLeaf) ?? visible.find((n) => n.isLeaf) ?? visible[0]
+    setSelectedId(prefer?.id ?? null)
   }, [open, visible, selectedId])
 
   const activate = useCallback(
     async (id: string) => {
       const node = rawTree.find((n) => n.id === id)
-      if (!node || node.isLeaf) return
+      console.log('[rewind-overlay] activate called:', { id, nodeFound: !!node, isLeaf: node?.isLeaf })
+      if (!node) return
+      if (node.isLeaf) {
+        toast.info('已是当前对话位置')
+        return
+      }
       onClose()
+      // 延迟一帧再跳转，确保浮层卸载不中断异步链
+      await new Promise((r) => requestAnimationFrame(() => r(null)))
       await navigateSessionToEntry(id)
     },
     [rawTree, onClose],
@@ -147,12 +163,20 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
           ) : visible.length === 0 ? (
             <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">无匹配节点</p>
           ) : (
-            <SessionTreeList
-              nodes={visible}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onActivate={(id) => void activate(id)}
-            />
+            <>
+              {truncated && (
+                <p className="mb-2 px-2 text-center text-[11px] text-muted-foreground">
+                  仅显示最近 {visible.length} 个节点（另有 {hiddenCount} 个已省略，可在右栏会话树查看）
+                </p>
+              )}
+              <SessionTreeList
+                nodes={visible}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onActivate={(id) => void activate(id)}
+                showGuides={showGuides}
+              />
+            </>
           )}
         </div>
       </div>

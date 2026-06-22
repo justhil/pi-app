@@ -105,9 +105,12 @@ export class WorkerManager {
       if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
         const req = data.request as { method?: string; notifyType?: string; message?: string }
         const method = req?.method || ''
+        // Only gate notify by agentTurnActive; dialog requests (confirm/select/input/editor/custom)
+        // must always pass so navigateTree and other non-turn UI calls can complete.
         const allow =
+          method !== 'notify' ||
           this.agentTurnActive ||
-          (method === 'notify' && req.notifyType === 'error')
+          req.notifyType === 'error'
         if (!allow) {
           void import('./audio-trace').then(({ traceAudio }) => {
             traceAudio('main.dropExtensionUi', {
