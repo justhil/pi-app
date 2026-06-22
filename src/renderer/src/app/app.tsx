@@ -185,7 +185,7 @@ export default function App() {
             </Sidebar>
           }
           center={
-            <MainColumnWithTimelineScroll className="main-chat-column h-full">
+            <MainColumnWithTimelineScroll className="h-full">
               {showHome ? (
                 <Suspense fallback={null}>
                   <ProjectHomeView

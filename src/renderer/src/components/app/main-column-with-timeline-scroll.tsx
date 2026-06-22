@@ -30,7 +30,10 @@ export function MainColumnWithTimelineScroll({
   return (
     <div
       ref={ref}
-      className={cn('main-chat-column relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden', className)}
+      className={cn(
+        'main-chat-column relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl',
+        className,
+      )}
     >
       {children}
     </div>

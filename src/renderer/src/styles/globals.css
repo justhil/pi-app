@@ -270,11 +270,10 @@
   .shell-track-center {
     min-height: 0;
     contain: layout;
-    padding: 4px;
+    padding: 6px;
     background: var(--surface-sidebar);
   }
   .shell-track-center .main-chat-column {
-    border-radius: var(--radius-xl);
     background: var(--bg-base);
     overflow: hidden;
   }
