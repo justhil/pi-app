@@ -61,7 +61,7 @@ app.whenReady().then(() => {
   workerManager.setMainWindow(win)
   win.once('show', () => {
     setTimeout(() => {
-      import('./updater').then(({ initUpdater }) => initUpdater()).catch((e) => {
+      import('./updater').then(({ initUpdater }) => initUpdater(win)).catch((e) => {
         console.warn('[Updater] Failed to initialize:', e)
       })
     }, 3000)

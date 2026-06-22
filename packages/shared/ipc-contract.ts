@@ -117,6 +117,19 @@ export interface SettingsGetResponse { settings: Record<string, unknown> }
 export interface SettingsSetRequest { key: string; value: unknown }
 export interface SettingsSetResponse { key: string; value: unknown }
 
+// ── App update (GitHub Releases) ──
+export interface AppCheckUpdateRequest {}
+export interface AppCheckUpdateResponse {
+  ok: boolean
+  currentVersion: string
+  latestVersion: string | null
+  hasUpdate: boolean
+  releaseUrl: string
+  error?: string
+}
+export interface AppOpenReleaseRequest { url?: string }
+export interface AppOpenReleaseResponse { ok: boolean }
+
 // ── Events ──
 export interface EventsSubscribeRequest { channels?: string[] }
 export interface EventsSubscribeResponse { subscriptionId: string }
@@ -149,6 +162,8 @@ export interface IpcMethodMap {
   'registry.refresh': { request: RegistryRefreshRequest; response: RegistryRefreshResponse }
   'settings.get': { request: SettingsGetRequest; response: SettingsGetResponse }
   'settings.set': { request: SettingsSetRequest; response: SettingsSetResponse }
+  'app.checkUpdate': { request: AppCheckUpdateRequest; response: AppCheckUpdateResponse }
+  'app.openRelease': { request: AppOpenReleaseRequest; response: AppOpenReleaseResponse }
   'events.subscribe': { request: EventsSubscribeRequest; response: EventsSubscribeResponse; stream: AppEvent }
 }
 

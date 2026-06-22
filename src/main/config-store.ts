@@ -19,7 +19,7 @@ interface StoreSchema {
   language: 'zh' | 'en'
   /** 启动时打开上次项目 */
   autoOpenLastProject: boolean
-  /** 启动时检查适配器 registry 更新 */
+  /** 启动时检查 GitHub Releases 是否有新版本 */
   autoCheckRegistryUpdates: boolean
   /** 全局：用户提醒是否播放提示音 */
   alertSoundEnabled: boolean

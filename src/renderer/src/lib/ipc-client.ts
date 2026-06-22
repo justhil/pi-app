@@ -9,6 +9,9 @@ declare global {
       onAutoOpened: (callback: (info: { workspaceId: string }) => void) => () => void
       onExtensionUIRequest: (callback: (request: unknown) => void) => () => void
       onExtensionUIDismiss: (callback: (payload: { type: string; id?: string; reason?: string }) => void) => () => void
+      onAppUpdateAvailable: (
+        callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
+      ) => () => void
       ping: () => string
     }
   }
@@ -54,4 +57,11 @@ export function onExtensionUIDismiss(
 ): () => void {
   if (!window.piDesktop) return () => {}
   return window.piDesktop.onExtensionUIDismiss(callback)
+}
+
+export function onAppUpdateAvailable(
+  callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
+): () => void {
+  if (!window.piDesktop) return () => {}
+  return window.piDesktop.onAppUpdateAvailable(callback)
 }

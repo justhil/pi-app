@@ -156,6 +156,8 @@ function GeneralSettings() {
     setAlertOnRunIdle,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [updateCheck, setUpdateCheck] = useState<string | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   useEffect(() => {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
@@ -163,14 +165,59 @@ function GeneralSettings() {
     })
   }, [])
 
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true)
+    setUpdateCheck(null)
+    try {
+      const r = await ipcClient.invoke('app.checkUpdate', {})
+      if (!r?.ok) {
+        setUpdateCheck(r?.error || '检查失败')
+        return
+      }
+      if (r.hasUpdate && r.latestVersion) {
+        setUpdateCheck(`有新版本 v${r.latestVersion}（当前 v${r.currentVersion}）`)
+        toast.info(`发现新版本 v${r.latestVersion}`, {
+          action: {
+            label: '打开发布页',
+            onClick: () => void ipcClient.invoke('app.openRelease', { url: r.releaseUrl }),
+          },
+        })
+      } else {
+        setUpdateCheck(`已是最新（v${r.currentVersion}）`)
+      }
+    } catch {
+      setUpdateCheck('检查失败')
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
   return (
     <div className="space-y-1">
       <SettingsPageHeader title="常规" description="修改后请使用页面底部「保存」写入本机配置。" />
       <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
         <Toggle on={draft.autoOpenLastProject} onChange={setAutoOpenLastProject} />
       </SettingRow>
-      <SettingRow label="自动检查更新" description="启动时检查适配器 registry 更新">
+      <SettingRow
+        label="自动检查更新"
+        description="启动时查询 GitHub Releases（justhil/pi-app）是否有新版本"
+      >
         <Toggle on={draft.autoCheckRegistryUpdates} onChange={setAutoCheckRegistryUpdates} />
+      </SettingRow>
+      <SettingRow label="应用版本" description="手动检查 GitHub 发布页">
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            disabled={checkingUpdate}
+            onClick={() => void handleCheckUpdate()}
+            className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50 disabled:opacity-50"
+          >
+            {checkingUpdate ? '检查中…' : '检查更新'}
+          </button>
+          {updateCheck && (
+            <span className="max-w-[220px] text-right text-[11px] text-muted-foreground">{updateCheck}</span>
+          )}
+        </div>
       </SettingRow>
       <div className="pt-4 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70">提醒</div>
       <SettingRow label="提示音" description="用户提醒时播放短提示音（与下方场景配合）">

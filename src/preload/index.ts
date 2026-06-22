@@ -5,6 +5,7 @@ const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
 const EXT_UI_CHANNEL = 'ipc:extension-ui-request'
 const EXT_UI_DISMISS_CHANNEL = 'ipc:extension-ui-dismiss'
+const APP_UPDATE_CHANNEL = 'ipc:app-update-available'
 
 const api = {
   invoke(channel: string, request?: any): Promise<any> {
@@ -40,6 +41,17 @@ const api = {
       callback(data)
     ipcRenderer.on(EXT_UI_DISMISS_CHANNEL, handler)
     return () => ipcRenderer.off(EXT_UI_DISMISS_CHANNEL, handler)
+  },
+
+  onAppUpdateAvailable(
+    callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
+  ): () => void {
+    const handler = (
+      _event: unknown,
+      data: { currentVersion: string; latestVersion: string; releaseUrl: string },
+    ): void => callback(data)
+    ipcRenderer.on(APP_UPDATE_CHANNEL, handler)
+    return () => ipcRenderer.off(APP_UPDATE_CHANNEL, handler)
   },
 
   ping: (): string => 'pong',

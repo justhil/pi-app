@@ -1031,6 +1031,19 @@ export function registerAllHandlers(): void {
     return { key: req.key, value: req.value }
   })
 
+  registerHandler('ipc:app.checkUpdate', async () => {
+    const { checkGitHubReleaseUpdate } = await import('./github-release-check')
+    return checkGitHubReleaseUpdate()
+  })
+
+  registerHandler('ipc:app.openRelease', async (req) => {
+    const { shell } = await import('electron')
+    const slug = (process.env.PI_DESKTOP_GITHUB_REPO || 'justhil/pi-app').trim()
+    const url = (req.url && String(req.url).trim()) || `https://github.com/${slug}/releases`
+    await shell.openExternal(url)
+    return { ok: true }
+  })
+
   registerHandler('ipc:alerts.signal', async (req) => {
     const { traceAudio } = await import('./audio-trace')
     traceAudio('ipc.alerts.signal', {
