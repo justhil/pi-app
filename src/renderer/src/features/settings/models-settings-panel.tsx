@@ -124,7 +124,7 @@ export function ModelsSettingsPanel() {
 
   useSettingsDirtySlice({
     id: 'pi-models',
-    label: '模型站点',
+    label: '模型配置',
     isDirty: () => !configEqual(draft, baseline),
     commit: async () => {
       if (!draft || configEqual(draft, baseline)) return
@@ -178,7 +178,7 @@ export function ModelsSettingsPanel() {
         name: templ.name || prev.name,
       }
     })
-    toast.success(`已套用「${preset.label}」连接模板（保留现有模型列表）`)
+    toast.success(`已套用 ${preset.label} 模板`)
   }
 
   const fetchRemoteCatalog = async (providerId: string) => {
@@ -276,19 +276,19 @@ export function ModelsSettingsPanel() {
     <div className="space-y-5">
       <SettingsPageHeader
         title="模型供应商"
-        description={`管理 pi 自定义端点（${filePath || '~/.pi/agent/models.json'}）。内置厂商仍由 pi SDK 提供；此处配置的中转会与内置合并。保存后自动 reload。`}
+        description={`编辑 ${filePath || '~/.pi/agent/models.json'}，与终端 pi 一致。保存后重载模型列表。`}
         action={
           <button type="button" className={btnOutline} onClick={() => void load()}>
             <RefreshCw className="mr-1 inline h-3.5 w-3.5" />
-            重读磁盘
+            重新加载
           </button>
         }
       />
 
       {(parseError || schemaError) && (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap">
-          {parseError && <div>解析：{parseError}</div>}
-          {schemaError && <div>Schema：{schemaError}</div>}
+          {parseError && <div>{parseError}</div>}
+          {schemaError && <div>{schemaError}</div>}
         </div>
       )}
 
@@ -318,7 +318,7 @@ export function ModelsSettingsPanel() {
               />
               <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2 shadow-lg">
                 <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  从预设添加（参考 CC Switch 供应商模板）
+                  选择模板
                 </div>
                 <div className="max-h-[min(420px,60vh)] overflow-y-auto">
                   {PROVIDER_PRESETS.map((preset) => (
@@ -334,7 +334,7 @@ export function ModelsSettingsPanel() {
                         <div className="text-[11px] text-muted-foreground">{preset.tagline}</div>
                         <div className="mt-0.5 font-mono text-[10px] text-muted-foreground/60">
                           键名 {preset.defaultKey}
-                          {preset.starterModels?.length ? ` · ${preset.starterModels.length} 个起始模型` : ' · 建议拉取模型'}
+                          {preset.starterModels?.length ? ` · 含 ${preset.starterModels.length} 个模型` : ' · 需自行拉取模型'}
                         </div>
                       </div>
                     </button>
@@ -349,10 +349,8 @@ export function ModelsSettingsPanel() {
       {providerIds.length === 0 ? (
         <div className="ui-enter rounded-xl border border-dashed border-border/60 bg-muted/15 px-6 py-10 text-center">
           <Sparkles className="mx-auto h-8 w-8 text-muted-foreground/35" />
-          <p className="mt-3 text-[13px] font-medium text-foreground/90">还没有自定义供应商</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">
-            点击「添加供应商」选择 OpenAI、Anthropic、Gemini、Ollama 等预设，或配置中转站。
-          </p>
+          <p className="mt-3 text-[13px] font-medium text-foreground/90">暂无供应商</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">点「添加供应商」选模板或自建中转。</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -412,7 +410,7 @@ export function ModelsSettingsPanel() {
                   <div className="settings-expand-inner">
                     <div className="settings-expand-content space-y-4 border-t border-border/40 bg-background/30 px-4 py-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground">套用预设</span>
+                      <span className="text-[11px] text-muted-foreground">换模板</span>
                       {PROVIDER_PRESETS.slice(0, 6).map((pr) => (
                         <button
                           key={pr.id}
@@ -422,7 +420,7 @@ export function ModelsSettingsPanel() {
                           onClick={() => {
                             if (
                               window.confirm(
-                                `将「${displayName}」的 baseUrl / api 等替换为「${pr.label}」模板？\n已有 apiKey 与模型列表会保留。`,
+                                `用 ${pr.label} 模板覆盖连接配置？\n保留当前 Key 与已添加模型。`,
                               )
                             ) {
                               applyPresetToExisting(pid, pr)
@@ -436,7 +434,7 @@ export function ModelsSettingsPanel() {
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="mb-1 block text-[11px] text-muted-foreground">显示名称</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">名称</label>
                         <input
                           className={inputCls}
                           value={p.name || ''}
@@ -444,7 +442,7 @@ export function ModelsSettingsPanel() {
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block text-[11px] text-muted-foreground">API 类型</label>
+                        <label className="mb-1 block text-[11px] text-muted-foreground">接口</label>
                         <select
                           className={cn(selectCls, 'w-full')}
                           value={p.api || 'openai-completions'}
@@ -487,7 +485,7 @@ export function ModelsSettingsPanel() {
                         onClick={() => void fetchRemoteCatalog(pid)}
                       >
                         <CloudDownload className="mr-1 inline h-3.5 w-3.5" />
-                        {fetching === pid ? '拉取中…' : '拉取模型列表'}
+                        {fetching === pid ? '拉取中…' : '拉取模型'}
                       </button>
                       <button type="button" className={btnOutline} onClick={() => addManualModel(pid)}>
                         手动添加
@@ -505,7 +503,7 @@ export function ModelsSettingsPanel() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-[11px] font-medium text-muted-foreground">远端目录</div>
+                      <div className="text-[11px] font-medium text-muted-foreground">远端模型</div>
                       <ModelCatalogPicker
                         ids={remoteCatalog[pid]?.ids || []}
                         localIds={new Set((p.models || []).map((m) => m.id))}
@@ -519,9 +517,9 @@ export function ModelsSettingsPanel() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium text-muted-foreground">
-                          本地已添加（{modelCount}）
+                          本地（{modelCount}）
                         </span>
-                        <span className="text-[10px] text-muted-foreground/60">展开可单独配置参数</span>
+                        <span className="text-[10px] text-muted-foreground/60">展开改参数</span>
                       </div>
                       {modelCount > 0 ? (
                         <div className="space-y-2">
@@ -543,14 +541,14 @@ export function ModelsSettingsPanel() {
                         </div>
                       ) : (
                         <p className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-[11px] text-muted-foreground/70">
-                          从上方目录点击圆形加号添加模型，或使用「手动添加」
+                          在远端列表点 + 添加，或手动添加
                         </p>
                       )}
                     </div>
 
                     {hasOverrides && (
                       <p className="text-[10px] text-muted-foreground">
-                        含 modelOverrides，保存时原样写入 models.json。
+                        含 modelOverrides，随配置一并保存。
                       </p>
                     )}
                     </div>
@@ -562,9 +560,7 @@ export function ModelsSettingsPanel() {
         </div>
       )}
 
-      <p className="text-[10px] leading-relaxed text-muted-foreground/55">
-        预设对齐 pi 官方 models.json 字段；拉取走 OpenAI 兼容 /v1/models。CC Switch 侧重 Claude/Codex 配置切换，本页仅管理 pi 可用模型端点。
-      </p>
+
     </div>
   )
 }

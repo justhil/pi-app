@@ -27,7 +27,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'openai',
     label: 'OpenAI',
-    tagline: 'Chat Completions · 官方或兼容网关',
+    tagline: '官方或 OpenAI 兼容',
     defaultKey: 'openai',
     accentClass: 'bg-emerald-500',
     config: {
@@ -45,7 +45,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'anthropic',
     label: 'Anthropic',
-    tagline: 'Messages API · Claude 系列',
+    tagline: 'Claude Messages API',
     defaultKey: 'anthropic',
     accentClass: 'bg-orange-500',
     config: {
@@ -62,7 +62,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'gemini',
     label: 'Google Gemini',
-    tagline: 'Generative AI · AI Studio / Vertex 兼容',
+    tagline: 'Gemini API',
     defaultKey: 'google',
     accentClass: 'bg-blue-500',
     config: {
@@ -93,7 +93,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'groq',
     label: 'Groq',
-    tagline: 'OpenAI 兼容 · 低延迟',
+    tagline: 'OpenAI 兼容',
     defaultKey: 'groq',
     accentClass: 'bg-fuchsia-600',
     config: {
@@ -125,7 +125,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'openrouter',
     label: 'OpenRouter',
-    tagline: '多模型聚合 · OpenAI 兼容',
+    tagline: 'OpenAI 兼容聚合',
     defaultKey: 'openrouter',
     accentClass: 'bg-violet-600',
     config: {
@@ -166,7 +166,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'custom-openai',
     label: '自定义中转',
-    tagline: 'OpenAI 兼容 · 自填 baseUrl',
+    tagline: '自定义 baseUrl',
     defaultKey: 'my-proxy',
     accentClass: 'bg-muted-foreground/50',
     config: {

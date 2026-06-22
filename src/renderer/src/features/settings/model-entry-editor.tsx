@@ -90,7 +90,7 @@ export function ModelEntryEditor({
         <div className="settings-expand-inner">
           <div className="settings-model-entry-panel grid gap-3 border-t border-border/40 bg-muted/10 px-3 py-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className={labelCls}>显示名称 name</label>
+              <label className={labelCls}>显示名</label>
               <input
                 className={cn(inputCls, 'font-sans')}
                 value={model.name || ''}
@@ -99,7 +99,7 @@ export function ModelEntryEditor({
               />
             </div>
             <div>
-              <label className={labelCls}>API（可选覆盖）</label>
+              <label className={labelCls}>接口（覆盖）</label>
               <select
                 className={cn(inputCls, 'font-sans')}
                 value={model.api || ''}
@@ -120,11 +120,11 @@ export function ModelEntryEditor({
                   checked={!!model.reasoning}
                   onChange={(e) => onChange({ reasoning: e.target.checked || undefined })}
                 />
-                支持推理 reasoning
+                推理模型
               </label>
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls}>输入类型 input</label>
+              <label className={labelCls}>输入</label>
               <div className="mt-1 flex gap-2">
                 <ToggleChip active={hasText} onClick={() => setInput(!hasText, hasImage)} label="文本" />
                 <ToggleChip active={hasImage} onClick={() => setInput(hasText, !hasImage)} label="图片" />
@@ -146,7 +146,7 @@ export function ModelEntryEditor({
               />
             </div>
             <div>
-              <label className={labelCls}>maxTokens（输出上限）</label>
+              <label className={labelCls}>最大输出 token</label>
               <input
                 type="number"
                 className={inputCls}
