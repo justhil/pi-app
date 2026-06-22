@@ -163,41 +163,41 @@ npm run dev
 
 以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）：
 
-| 适配器 | 扩展包 | 说明 |
-|--------|--------|------|
-| Trellis | `pi-trellis` | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
-| pi-rewind | `pi-rewind` | Git 检查点回退；会话树跳转时询问是否恢复文件 |
-| Ask User Question | `@juicesharp/rpiv-ask-user-question` | 结构化问答弹窗 |
-| Image Gen | `pi-image-gen` | 图片生成 / 审查弹窗 |
-| Multimodal Vision | `pi-multimodal-proxy` | 多模态视觉代理 |
-| Markdown Preview | `pi-markdown-preview` | Markdown 实时预览卡片 |
-| Studio | `pi-studio` | Studio REPL 集成 |
-| Fast Context | `pi-fast-context` | 快速上下文检索 |
-| Subagents | `pi-subagents` | 子 Agent 派发与管理 |
-| Cache Optimizer | `pi-cache-optimizer` | 缓存优化配置 |
-| Skills Manager | `pi-skills-manager` | Skills 管理配置 UI |
-| MCP Adapter | `pi-mcp-adapter` | MCP 服务器适配 |
-| Context Viewer | `edb-context-viewer` | 上下文查看器 |
-| FFF | `pi-fff` |uzzy 文件查找 |
-| Sync | `pi-sync` | 会话同步配置 |
-| Continue | `pi-continue` | 继续对话配置 |
-| Goal | `pi-goal` | 目标管理 |
-| BTW | `pi-btw` | 旁注记录 |
-| Simplify | `pi-simplify` | 代码简化建议 |
-| Advisor | `rpiv-advisor` | 顾问建议弹窗 |
-| Observational Memory | `pi-observational-memory` | 观察记忆配置 |
-| Tool Display | `pi-tool-display` | 工具展示卡片 |
-| Agents.md | `pi-agentsmd` | AGENTS.md 管理配置 |
-| ACE Tool | `pi-ace-tool` | ACE 工具集成 |
-| Sequential Thinking | `pi-sequential-thinking` | 顺序思考配置 |
-| Aegis | `aegis` | Aegis 工作流引擎 |
-| TPS Extensions | `pi-tps-extensions` | TPS 扩展配置 |
-| Nano Context | `pi-nano-context` | 纳米上下文 |
-| Powerline Footer | `pi-powerline-footer` | 底栏状态行 |
-| Amp Themes | `amp-themes` | Amp 主题 |
-| Curated Themes | `pi-curated-themes` | 精选主题 |
-| Themes Bundle | `pi-themes-bundle` | 主题合集 |
-| Pi Search | `pi-search` | 搜索工具 |
+| 适配器 | 扩展包 | 链接 | 说明 |
+|--------|--------|------|------|
+| Trellis | `trellis` | [GitHub](https://github.com/trentbrew/trellis) | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
+| pi-rewind | `pi-rewind` | [GitHub](https://github.com/arpagon/pi-rewind) | Git 检查点回退；会话树跳转时询问是否恢复文件 |
+| Ask User Question | `@juicesharp/rpiv-ask-user-question` | [GitHub](https://github.com/juicesharp/rpiv-mono) | 结构化问答弹窗 |
+| Image Gen | `pi-image-gen` | [GitHub](https://github.com/jvm/pi-mono) | 图片生成 / 审查弹窗 |
+| Multimodal Vision | `pi-multimodal-proxy` | [GitHub](https://github.com/pungggi/pi-vision-proxy) | 多模态视觉代理 |
+| Markdown Preview | `pi-markdown-preview` | [GitHub](https://github.com/omaclaren/pi-markdown-preview) | Markdown 实时预览卡片 |
+| Studio | `pi-studio` | [GitHub](https://github.com/omaclaren/pi-studio) | Studio REPL 集成 |
+| Fast Context | `pi-fast-context` | [GitHub](https://github.com/MattDevy/pi-extensions) | 快速上下文检索 |
+| Subagents | `pi-subagents` | [GitHub](https://github.com/nicobailon/pi-subagents) | 子 Agent 派发与管理 |
+| Cache Optimizer | `pi-cache-optimizer` | [GitHub](https://github.com/jiangge/pi-cache-optimizer) | 缓存优化配置 |
+| Skills Manager | `@vanillagreen/pi-skills-manager` | [GitHub](https://github.com/vanillagreencom/vstack) | Skills 管理配置 UI |
+| MCP Adapter | `pi-mcp-adapter` | [GitHub](https://github.com/nicobailon/pi-mcp-adapter) | MCP 服务器适配 |
+| Context Viewer | `@agnishc/edb-context-viewer` | [GitHub](https://github.com/agnishcc/pi-extention-monorepo) | 上下文查看器 |
+| FFF | `@ff-labs/pi-fff` | [GitHub](https://github.com/dmtrKovalenko/fff) |uzzy 文件查找 |
+| Sync | `@narumitw/pi-sync` | [GitHub](https://github.com/narumiruna/pi-extensions) | 会话同步配置 |
+| Continue | `pi-continue` | [GitHub](https://github.com/Tiziano-AI/pi-continue) | 继续对话配置 |
+| Goal | `pi-goal` | [GitHub](https://github.com/jvm/pi-mono) | 目标管理 |
+| BTW | `pi-btw` | [GitHub](https://github.com/dbachelder/pi-btw) | 旁注记录 |
+| Simplify | `pi-simplify` | [GitHub](https://github.com/MattDevy/pi-extensions) | 代码简化建议 |
+| Advisor | `@juicesharp/rpiv-advisor` | [GitHub](https://github.com/juicesharp/rpiv-mono) | 顾问建议弹窗 |
+| Observational Memory | `pi-observational-memory` | [GitHub](https://github.com/elpapi42/pi-observational-memory) | 观察记忆配置 |
+| Tool Display | `pi-tool-display` | [GitHub](https://github.com/MasuRii/pi-tool-display) | 工具展示卡片 |
+| Agents.md | `pi-agentsmd` | [GitHub](https://github.com/jvm/pi-mono) | AGENTS.md 管理配置 |
+| ACE Tool | `pi-ace-tool` | [npm](https://www.npmjs.com/package/pi-ace-tool) | ACE 工具集成 |
+| Sequential Thinking | `@feniix/pi-sequential-thinking` | [GitHub](https://github.com/feniix/pi-extensions) | 顺序思考配置 |
+| Aegis | `aegis` | [GitHub](https://github.com/killdream/aegis) | Aegis 工作流引擎 |
+| TPS Extensions | `@kinarajv/pi-tps-extensions` | [GitHub](https://github.com/kinarajv/pi-tps-extensions) | TPS 扩展配置 |
+| Nano Context | `pi-nano-context` | [GitHub](https://github.com/daynin/nano-context) | 纳米上下文 |
+| Powerline Footer | `pi-powerline-footer` | [GitHub](https://github.com/nicobailon/pi-powerline-footer) | 底栏状态行 |
+| Amp Themes | `amp-themes` | [npm](https://www.npmjs.com/package/amp-themes) | Amp 主题 |
+| Curated Themes | `@victor-software-house/pi-curated-themes` | [GitHub](https://github.com/victor-software-house/pi-curated-themes) | 精选主题 |
+| Themes Bundle | `@firstpick/pi-themes-bundle` | [GitHub](https://github.com/Firstp1ck/npm-packages) | 主题合集 |
+| Pi Search | `pi-search` | [GitHub](https://github.com/MattDevy/pi-extensions) | 搜索工具 |
 
 **与终端 pi**
 
