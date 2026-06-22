@@ -18,6 +18,7 @@ import {
   normalizeTimelineMessageText,
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
+import { agentErrorKind, formatAgentErrorForTimeline } from '@renderer/lib/agent-error-text'
 
 interface SessionItem {
   sessionId: string
@@ -70,6 +71,7 @@ export interface TimelineItem {
   isError?: boolean
   slashCommand?: string
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
+  errorKind?: 'error' | 'aborted' | 'retry'
   /** Pi session tree entry id (for navigateTree / rewind) */
   sessionEntryId?: string
   timestamp: number
@@ -770,6 +772,25 @@ export const useUIStore = create<UIState>()(
       }
       case 'queue': {
         state.setPendingQueue(event.steering, event.followUp)
+        break
+      }
+      case 'agent_error': {
+        set({ optimisticPendingUserText: null, agentTurnBootstrapping: false, streamingAssistantId: null })
+        state.pruneEmptyAssistantBubbles()
+        const raw = event.text || '未知错误'
+        const kind = event.kind || agentErrorKind(raw)
+        const formatted = formatAgentErrorForTimeline(raw)
+        const items = get().timelineItems
+        const last = items[items.length - 1]
+        if (last?.type === 'error' && last.text === formatted) break
+        state.appendTimeline({
+          id: nextItemId(),
+          type: 'error',
+          text: formatted,
+          errorKind: kind,
+          timestamp: event.timestamp,
+        })
+        state.setRunState({ status: kind === 'aborted' ? 'idle' : 'failed' })
         break
       }
     }

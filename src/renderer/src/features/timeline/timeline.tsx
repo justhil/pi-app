@@ -140,11 +140,23 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
   }
 
   if (item.type === 'error') {
+    const kind = item.errorKind as string | undefined
+    const isAbort = kind === 'aborted'
+    const borderCls = isAbort ? 'border-amber-500/35 bg-amber-500/5' : 'border-destructive/30 bg-destructive/5'
+    const textCls = isAbort ? 'text-amber-800 dark:text-amber-200' : 'text-destructive'
+    const title = isAbort ? '已中止' : kind === 'retry' ? '重试后失败' : '运行出错'
     return (
       <div className="py-1.5">
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
-          <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-          <span className="text-[12px] text-destructive">{item.text}</span>
+        <div className={cn('rounded-lg border px-3 py-2', borderCls)}>
+          <div className="flex items-center gap-2">
+            <AlertCircle className={cn('h-3.5 w-3.5 shrink-0', textCls)} />
+            <span className={cn('text-[11px] font-medium', textCls)}>{title}</span>
+          </div>
+          {item.text && (
+            <pre className={cn('mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed', textCls)}>
+              {item.text}
+            </pre>
+          )}
         </div>
       </div>
     )

@@ -80,6 +80,14 @@ export interface QueueEvent extends AppEventBase {
   followUp: string[]
 }
 
+/** Agent 轮次失败 / 中止 / 重试耗尽（时间线 error 卡片） */
+export interface AgentErrorEvent extends AppEventBase {
+  type: 'agent_error'
+  text: string
+  kind?: 'error' | 'aborted' | 'retry'
+  stopReason?: string
+}
+
 // SDK 安装进度（设置页 UI 用，与会话无关，不继承 AppEventBase）
 export interface SdkInstallProgressEvent {
   type: 'sdk-install-progress'
@@ -97,6 +105,7 @@ export type AppEvent =
   | CompactionEvent
   | SlashEvent
   | QueueEvent
+  | AgentErrorEvent
   | SdkInstallProgressEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'

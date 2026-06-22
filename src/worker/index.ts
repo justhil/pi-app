@@ -188,6 +188,30 @@ async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   })
 }
 
+function lastAssistantFromMessages(messages: any[]): any | undefined {
+  if (!Array.isArray(messages)) return undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'assistant') return messages[i]
+  }
+  return undefined
+}
+
+function emitAgentErrorFromAssistant(base: ReturnType<typeof baseEvent>, msg: any): void {
+  const stop = msg?.stopReason as string | undefined
+  if (stop !== 'error' && stop !== 'aborted') return
+  const raw =
+    (typeof msg?.errorMessage === 'string' && msg.errorMessage.trim()) ||
+    extractText(msg) ||
+    (stop === 'aborted' ? 'Request was aborted.' : 'Unknown error')
+  emit({
+    ...base,
+    type: 'agent_error',
+    text: String(raw),
+    kind: stop === 'aborted' ? 'aborted' : 'error',
+    stopReason: stop,
+  })
+}
+
 function handleSessionEvent(event: AgentSessionEvent): void {
   const base = baseEvent()
 
@@ -207,6 +231,13 @@ function handleSessionEvent(event: AgentSessionEvent): void {
         break
       }
       agentTurnActive = false
+      const willRetry = !!(event as { willRetry?: boolean }).willRetry
+      if (!willRetry) {
+        const last = lastAssistantFromMessages((event as { messages?: any[] }).messages || [])
+        if (last && (last.stopReason === 'error' || last.stopReason === 'aborted')) {
+          emit({ ...base, type: 'run', phase: 'failed' })
+        }
+      }
       if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_AUDIO_TRACE === 'true') {
         console.log('[audio-trace] worker.emit_run_idle')
       }
@@ -267,6 +298,7 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       if (msg?.role === 'assistant') {
         const text = extractText(msg)
         emit({ ...base, type: 'message', role: 'assistant', phase: 'end', text, sessionEntryId: entryId })
+        emitAgentErrorFromAssistant(base, msg)
       } else if (msg?.role === 'user') {
         emit({ ...base, type: 'message', role: 'user', phase: 'end', sessionEntryId: entryId })
       }
@@ -316,10 +348,6 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       emit({ ...base, type: 'compaction', phase: 'start' })
       break
     }
-    case 'compaction_end': {
-      emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: event.result?.tokensBefore, summary: event.result?.summary })
-      break
-    }
     case 'session_info_changed':
     case 'thinking_level_changed': {
       // Push current model + thinking level to renderer for live status bar update
@@ -336,6 +364,37 @@ function handleSessionEvent(event: AgentSessionEvent): void {
         steering: [...(event.steering || [])],
         followUp: [...(event.followUp || [])],
       })
+      break
+    }
+    case 'auto_retry_end': {
+      const e = event as { success?: boolean; finalError?: string; attempt?: number }
+      if (!e.success && e.finalError) {
+        const raw = e.finalError
+        emit({
+          ...base,
+          type: 'agent_error',
+          text: e.attempt
+            ? `Aborted after ${e.attempt} retry attempt\n${raw}`
+            : String(raw),
+          kind: 'retry',
+          stopReason: 'error',
+        })
+        emit({ ...base, type: 'run', phase: 'failed' })
+      }
+      break
+    }
+    case 'compaction_end': {
+      const e = event as { errorMessage?: string; aborted?: boolean }
+      if (e.errorMessage && !e.aborted) {
+        emit({
+          ...base,
+          type: 'agent_error',
+          text: String(e.errorMessage),
+          kind: 'error',
+          stopReason: 'error',
+        })
+      }
+      emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: (event as any).result?.tokensBefore, summary: (event as any).result?.summary })
       break
     }
   }
@@ -648,13 +707,23 @@ process.parentPort?.on('message', async (event: any) => {
             }
           } catch (e: any) {
             console.error('[Worker] prompt failed:', e)
+            const errText = e?.message || String(e)
+            emit({
+              ...baseEvent(),
+              type: 'agent_error',
+              text: errText,
+              kind: 'error',
+              stopReason: 'error',
+            })
+            emit({ ...baseEvent(), type: 'run', phase: 'failed' })
+            emit({ ...baseEvent(), type: 'run', phase: 'idle' })
             if (slashMatch) {
               emit({
                 ...baseEvent(),
                 type: 'slash',
                 command: slashMatch[1],
                 status: 'error',
-                text: `执行失败: ${e?.message || String(e)}`,
+                text: `执行失败: ${errText}`,
               })
             }
           }
@@ -676,6 +745,16 @@ process.parentPort?.on('message', async (event: any) => {
         reply({ type: 'followUp-done' })
         void session.followUp(msg.text).catch((e: any) => {
           console.error('[Worker] followUp failed:', e)
+          const errText = e?.message || String(e)
+          emit({
+            ...baseEvent(),
+            type: 'agent_error',
+            text: errText,
+            kind: 'error',
+            stopReason: 'error',
+          })
+          emit({ ...baseEvent(), type: 'run', phase: 'failed' })
+          emit({ ...baseEvent(), type: 'run', phase: 'idle' })
         })
         break
       }
