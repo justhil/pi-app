@@ -262,3 +262,9 @@ Electron 35 · electron-vite · React 18 · TypeScript · Tailwind · shadcn/Rad
 ## 许可证
 
 MIT
+
+---
+
+## 友链
+
+- [LinuxDo](https://linux.do/) — 社区讨论与反馈
