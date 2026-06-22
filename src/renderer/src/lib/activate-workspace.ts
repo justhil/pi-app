@@ -34,7 +34,9 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     ? ipcClient.invoke('workspace.open', { path }).catch((e) => {
         console.error('[activateWorkspace] workspace.open failed:', e)
       })
-    : Promise.resolve()
+    : ipcClient.invoke('workspace.ensureWorker', { path }).catch((e) => {
+        console.error('[activateWorkspace] workspace.ensureWorker failed:', e)
+      })
 
   let sessions: Array<{ sessionId: string; sessionFile?: string; title?: string; updatedAt?: number }> = []
   try {

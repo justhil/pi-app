@@ -42,7 +42,9 @@ export async function openSessionIntoWorker(
 
   const ws = useUIStore.getState().currentWorkspace
   if (ws) {
-    await ipcClient.invoke('workspace.switch', { workspaceId: ws }).catch(() => {})
+    await ipcClient.invoke('workspace.ensureWorker', { path: ws }).catch(() =>
+      ipcClient.invoke('workspace.switch', { workspaceId: ws }),
+    )
     if (navToken != null && !assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)
       return
@@ -51,7 +53,9 @@ export async function openSessionIntoWorker(
   clearSessionHistoryCache(sessionFile)
   try {
     const [, hist] = await Promise.all([
-      ipcClient.invoke('session.setPendingBind', { sessionFile }),
+      ipcClient.invoke('session.prepare', { sessionFile }).catch(() =>
+        ipcClient.invoke('session.setPendingBind', { sessionFile }),
+      ),
       fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }),
     ])
     if (navToken != null && !assertSessionNavigation(navToken)) {
