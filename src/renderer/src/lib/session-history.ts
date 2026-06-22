@@ -6,7 +6,10 @@ export interface GetMessagesResult {
   sessionMeta?: { model?: string; thinkingLevel?: string }
 }
 
-const sliceCache = new Map<string, { totalCount: number; items: unknown[]; at: number }>()
+const sliceCache = new Map<
+  string,
+  { totalCount: number; items: unknown[]; at: number; sessionMeta?: GetMessagesResult['sessionMeta'] }
+>()
 const SLICE_TTL_MS = 120_000
 const INITIAL_TAIL = 80
 const PAGE = 80
@@ -18,17 +21,23 @@ function cacheKey(sessionFile: string, offset: number, limit: number) {
 export async function fetchSessionHistoryTail(
   sessionFile: string,
   limit = INITIAL_TAIL,
+  opts?: { bypassCache?: boolean },
 ): Promise<GetMessagesResult> {
   const key = cacheKey(sessionFile, 0, limit)
-  const hit = sliceCache.get(key)
-  if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
-    return { items: hit.items, totalCount: hit.totalCount }
+  if (!opts?.bypassCache) {
+    const hit = sliceCache.get(key)
+    if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
+      return { items: hit.items, totalCount: hit.totalCount, sessionMeta: hit.sessionMeta }
+    }
   }
   const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset: 0, limit })
   const items = res?.items || []
   const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : items.length
   const sessionMeta = res?.sessionMeta
-  sliceCache.set(key, { items, totalCount, at: Date.now() })
+  // 勿缓存空切片：占位会话/首条发送前拉过空列表，否则会「吞」后续对话
+  if (items.length > 0 || totalCount > 0) {
+    sliceCache.set(key, { items, totalCount, at: Date.now(), sessionMeta })
+  }
   return { items, totalCount, sessionMeta }
 }
 

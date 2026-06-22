@@ -17,21 +17,33 @@ function loadBetterSqlite(): (new (path: string) => any) | null {
     return DatabaseCtor
   } catch (e) {
     loadFailed = true
-    console.warn('[sqlite-index] better-sqlite3 not loaded (dev/prod native); index disabled:', (e as Error).message)
+    DatabaseCtor = null
+    db = null
+    console.warn(
+      '[sqlite-index] better-sqlite3 unavailable; index disabled. Run: npx @electron/rebuild -f -w better-sqlite3',
+      (e as Error).message,
+    )
     return null
   }
 }
 
 function getDb(): any | null {
-  const Ctor = loadBetterSqlite()
-  if (!Ctor) return null
-  if (!db) {
-    const dbPath = join(app.getPath('userData'), 'pi-desktop-index.db')
-    db = new Ctor(dbPath)
-    db.pragma('journal_mode = WAL')
-    initSchema(db)
+  try {
+    const Ctor = loadBetterSqlite()
+    if (!Ctor) return null
+    if (!db) {
+      const dbPath = join(app.getPath('userData'), 'pi-desktop-index.db')
+      db = new Ctor(dbPath)
+      db.pragma('journal_mode = WAL')
+      initSchema(db)
+    }
+    return db
+  } catch (e) {
+    loadFailed = true
+    db = null
+    console.warn('[sqlite-index] open db failed; index disabled:', (e as Error).message)
+    return null
   }
-  return db
 }
 
 function initSchema(d: any): void {

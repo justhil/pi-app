@@ -119,6 +119,8 @@ export interface AdapterJson {
   interact?: InteractDef
   slash?: AdapterSlash
   sidePanel?: AdapterSidePanel
+  /** 不依赖 npm 安装即可生效（如 trellis 靠项目 .trellis/ 目录） */
+  alwaysVisible?: boolean
 }
 
 export interface AdapterLoadError {

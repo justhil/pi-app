@@ -1,5 +1,7 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { materializePendingNewSession } from '@renderer/lib/new-session'
+import { beginSessionNavigation } from '@renderer/lib/session-navigation'
 
 export function titleFromFirstMessage(text: string, maxLen = 48): string {
   const one = text.replace(/\s+/g, ' ').trim()
@@ -7,7 +9,7 @@ export function titleFromFirstMessage(text: string, maxLen = 48): string {
   return one.length > maxLen ? `${one.slice(0, maxLen)}…` : one
 }
 
-/** 首条消息前创建 sandbox 目录、打开 Worker，并用首条消息作标题 */
+/** 临时对话首条消息：建 sandbox → 打开工作区 → 真 session（标题=首条消息） */
 export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string): Promise<string> {
   const store = useUIStore.getState()
   if (!store.ephemeralSandboxDraft) {
@@ -19,11 +21,16 @@ export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string):
   if (!box?.path) throw new Error('sandbox.create failed')
 
   store.clearEphemeralSandboxDraft()
-  await ipcClient.invoke('workspace.open', { path: box.path, awaitWorker: true })
+  beginSessionNavigation()
+  // 不阻塞等 Worker init；乐观 UI 已展示，prompt.send 前 materialize 会 session.new
+  const already = useUIStore.getState().currentWorkspace === box.path
+  if (!already) {
+    void ipcClient.invoke('workspace.open', { path: box.path }).catch((e) => console.error(e))
+  }
   store.setWorkspace(box.path)
+  store.enterPendingNewSessionPlaceholder({ keepTimeline: true })
 
-  const { startNewSession } = await import('@renderer/lib/new-session')
-  await startNewSession(box.path)
+  await materializePendingNewSession(box.path, firstMessage)
 
   window.dispatchEvent(new Event('pi-desktop:sandboxes-changed'))
   return box.path

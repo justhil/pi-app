@@ -28,7 +28,7 @@ import {
 } from './pi-prompt-catalog'
 import { listRevisions, pushRevision, restoreRevision, readRevision } from './resource-revisions'
 import { probeExtensions } from '../extension-compat/extension-probe'
-import { buildPluginAdapters, orphanV2Adapters } from '../extension-compat/plugin-adapters'
+import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
 import { loadAdapterCatalog, invalidateAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
 import { listAdapterSidePanelMetas } from '../extension-compat/side-panel-catalog'
 import {
@@ -147,7 +147,9 @@ export function registerAllHandlers(): void {
 
   registerHandler('ipc:rightPanels.catalog', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const adapterPanels = listAdapterSidePanelMetas(cwd)
+    const probed = probeExtensions(cwd)
+    const installedNames = new Set(probed.flatMap((p) => [p.name, p.packageName].filter(Boolean) as string[]))
+    const adapterPanels = listAdapterSidePanelMetas(cwd, installedNames)
     const catalog = mergeRightPanelCatalog(adapterPanels)
     const stored = configStore.get('rightPanelPrefs')
     const prefs = normalizeRightPanelPrefs(stored, catalog)
@@ -163,7 +165,9 @@ export function registerAllHandlers(): void {
 
   registerHandler('ipc:rightPanels.saveLayout', async (req) => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const adapterPanels = listAdapterSidePanelMetas(cwd)
+    const probed = probeExtensions(cwd)
+    const installedNames = new Set(probed.flatMap((p) => [p.name, p.packageName].filter(Boolean) as string[]))
+    const adapterPanels = listAdapterSidePanelMetas(cwd, installedNames)
     const catalog = mergeRightPanelCatalog(adapterPanels)
     const prefs = normalizeRightPanelPrefs(req?.prefs, catalog)
     const order = normalizeRightPanelOrder(req?.order, catalog)
@@ -242,7 +246,11 @@ export function registerAllHandlers(): void {
     // Update config immediately so UI and other IPCs (extensions, resources) work right away
     configStore.addRecentProject(path)
     configStore.set('currentProject', path)
-    sqliteIndex.upsertWorkspace(path, name, path)
+    try {
+      sqliteIndex.upsertWorkspace(path, name, path)
+    } catch (e) {
+      console.warn('[IPC] workspace index skipped (sqlite):', (e as Error).message)
+    }
     // Start worker in the background (don't block the response)
     if (req.awaitWorker) {
       try {
@@ -444,7 +452,9 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:session.new', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     if (!workspaceId) throw new Error('workspaceId is required')
-    await workerManager.start(workspaceId)
+    if (!workerManager.isRunning || workerManager.cwd !== workspaceId) {
+      await workerManager.start(workspaceId)
+    }
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession()
     const state = await workerManager.getState().catch(() => ({}))
@@ -998,24 +1008,8 @@ export function registerAllHandlers(): void {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const extensions = probeExtensions(cwd)
     const probed = buildPluginAdapters(extensions, cwd)
-    // Append v2-only adapters not matched by any probed plugin so the list is complete.
-    const orphans = orphanV2Adapters(extensions, cwd).map((a) => ({
-      id: a.id,
-      displayName: a.displayName || a.id,
-      pluginId: a.id,
-      packageName: a.id,
-      source: 'package',
-      description: a.description,
-      registeredTools: a.match?.tools || [],
-      registeredCommands: Object.keys(a.slash || {}),
-      enabled: true,
-      tier: a.tier,
-      compatibility: a.tier === 'native' ? 'native' : a.tier === 'partial' ? 'basic' : 'headless',
-      desktopSupport: a.description || '',
-      adapterJson: a,
-      matchMeta: { probeId: `adapter.json:${a.id}` },
-    }))
-    return { adapters: [...probed, ...orphans] }
+    // 只返回已安装插件匹配的适配器；未安装的不在设置页显示空壳
+    return { adapters: probed }
   })
 
   // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute) — v2-only
@@ -1053,6 +1047,12 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:alerts.signal', async (req) => {
+    const { traceAudio } = await import('./audio-trace')
+    traceAudio('ipc.alerts.signal', {
+      kind: req.kind,
+      title: req.title,
+      body: String(req.body || '').slice(0, 80),
+    })
     const { deliverDesktopAlert } = await import('./desktop-alerts')
     const win = getMainWindow()
     const kind = req.kind === 'run_idle' ? 'run_idle' : 'extension_ui'

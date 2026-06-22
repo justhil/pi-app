@@ -170,24 +170,48 @@ export function Composer() {
     if (!currentWorkspace && !draft) return
     const refs = attachments.length > 0 ? '\n' + attachments.map((a) => `@${a.path}`).join(' ') : ''
     const payload = (raw.trim() + refs).trim()
+    const displayText = raw.trim()
     setText('')
     setAttachments([])
     textareaRef.current?.focus()
-    const running = useUIStore.getState().runState.status === 'running'
+    const store = useUIStore.getState()
+    const running = store.runState.status === 'running'
+    const pendingNew = store.pendingNewSessionPlaceholder
+    const { appendOptimisticOutgoingMessage, clearOptimisticOutgoing } = await import(
+      '@renderer/lib/optimistic-send'
+    )
     try {
       if (!running && draft) {
+        appendOptimisticOutgoingMessage(displayText, { bootstrap: true })
         const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
-        await finalizeEphemeralSandboxOnFirstSend(raw.trim())
+        await finalizeEphemeralSandboxOnFirstSend(displayText)
+        const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
+        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+        await afterPromptSent()
+        return
+      }
+      if (!running && pendingNew && store.currentWorkspace) {
+        appendOptimisticOutgoingMessage(displayText, { bootstrap: true })
+        const { materializePendingNewSession } = await import('@renderer/lib/new-session')
+        await materializePendingNewSession(store.currentWorkspace, displayText)
+        const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
+        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+        await afterPromptSent()
+        return
       }
       if (running) {
+        appendOptimisticOutgoingMessage(displayText)
         await ipcClient.invoke('prompt.followUp', { sessionId: '', text: payload })
-      } else {
-        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
-        const { onWorkerSessionBound } = await import('@renderer/lib/open-session')
-        await onWorkerSessionBound()
+        return
       }
+      appendOptimisticOutgoingMessage(displayText)
+      const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
+      await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+      await afterPromptSent()
     } catch (e) {
       console.error('Send failed:', e)
+      clearOptimisticOutgoing()
+      useUIStore.getState().setRunState({ status: 'idle' })
       toast.error('发送失败')
     }
   }
@@ -250,7 +274,6 @@ export function Composer() {
     } catch (e) {
       console.error('Abort failed:', e)
     }
-    setIsStreaming(false)
   }
 
   const acceptCommand = (cmd: SlashCommand) => {

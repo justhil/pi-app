@@ -12,6 +12,12 @@ import { sanitizeRunStatePatch } from '@renderer/lib/format-run-display'
 import { extractStatusFromOutput } from '@extension-compat/json-path'
 import { resolveToolCardDef } from '@renderer/features/timeline/tool-card-registry'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
+import { alertTrace } from '@renderer/lib/alert-trace'
+import {
+  dedupeAdjacentUserMessages,
+  normalizeTimelineMessageText,
+  sanitizeHistoryTimeline,
+} from '@renderer/lib/timeline-dedupe'
 
 interface SessionItem {
   sessionId: string
@@ -46,7 +52,7 @@ interface RunState {
   activeToolStatus?: string
 }
 
-interface TimelineItem {
+export interface TimelineItem {
   id: string
   type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'
   text?: string
@@ -84,8 +90,12 @@ interface UIState {
   setWorkspace: (path: string | null) => void
   /** 已点「+」但尚未发首条消息，未创建 sandbox 目录 */
   ephemeralSandboxDraft: boolean
+  /** 项目内「新会话」占位，首条消息前不调用 session.new */
+  pendingNewSessionPlaceholder: boolean
   enterEphemeralSandboxDraft: () => void
   clearEphemeralSandboxDraft: () => void
+  enterPendingNewSessionPlaceholder: (opts?: { keepTimeline?: boolean }) => void
+  clearPendingNewSessionPlaceholder: () => void
 
   // Sessions
   sessions: SessionItem[]
@@ -180,6 +190,10 @@ interface UIState {
   thinkingPickerOpen: boolean
   setThinkingPickerOpen: (open: boolean) => void
 
+  /** 已发送、尚未被 Worker 事件确认的乐观用户文案 */
+  optimisticPendingUserText: string | null
+  /** Agent 启动/首 token 前的等待态 */
+  agentTurnBootstrapping: boolean
   /** 运行中已入队、尚未送达的消息（来自 queue_update，对齐 TUI） */
   pendingSteering: string[]
   pendingFollowUp: string[]
@@ -215,11 +229,13 @@ export const useUIStore = create<UIState>()(
   currentWorkspace: null,
   recentProjects: [],
   ephemeralSandboxDraft: false,
+  pendingNewSessionPlaceholder: false,
   enterEphemeralSandboxDraft: () => {
     set({
       ephemeralSandboxDraft: true,
+      pendingNewSessionPlaceholder: false,
       currentWorkspace: null,
-      currentSessionId: null,
+      currentSessionId: '__ephemeral_draft__',
       timelineItems: [],
       streamingAssistantId: null,
       fileChanges: [],
@@ -231,6 +247,37 @@ export const useUIStore = create<UIState>()(
     void import('@renderer/lib/ipc-client').then(({ ipcClient }) =>
       ipcClient.invoke('session.setEphemeralDraft', { active: true }).catch(() => {}),
     )
+    void import('@renderer/stores/extension-ui-store').then(({ useExtensionUIStore }) =>
+      useExtensionUIStore.getState().resetForSessionContext(),
+    )
+  },
+  enterPendingNewSessionPlaceholder: (opts) => {
+    const keep = opts?.keepTimeline === true
+    set({
+      pendingNewSessionPlaceholder: true,
+      ephemeralSandboxDraft: false,
+      currentSessionId: '__pending_new__',
+      ...(keep
+        ? {}
+        : {
+            timelineItems: [],
+            streamingAssistantId: null,
+            fileChanges: [],
+            historyTotalCount: 0,
+            historyLoadedCount: 0,
+            historySessionFile: null,
+            historyLoading: false,
+          }),
+    })
+    void import('@renderer/lib/ipc-client').then(({ ipcClient }) =>
+      ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {}),
+    )
+    void import('@renderer/stores/extension-ui-store').then(({ useExtensionUIStore }) =>
+      useExtensionUIStore.getState().resetForSessionContext(),
+    )
+  },
+  clearPendingNewSessionPlaceholder: () => {
+    set({ pendingNewSessionPlaceholder: false })
   },
   clearEphemeralSandboxDraft: () => {
     set({ ephemeralSandboxDraft: false })
@@ -244,6 +291,7 @@ export const useUIStore = create<UIState>()(
       return {
         currentWorkspace: path,
         ephemeralSandboxDraft: false,
+        pendingNewSessionPlaceholder: false,
         recentProjects: path
           ? [path, ...s.recentProjects.filter((p) => p !== path)].slice(0, 16)
           : s.recentProjects,
@@ -268,14 +316,16 @@ export const useUIStore = create<UIState>()(
     })
   },
   loadHistoryItems: (items: TimelineItem[]) => {
-    const { lastModel, lastThinking, runState } = get()
+    const { lastModel, lastThinking, runState, streamingAssistantId } = get()
+    const keepRunning = runState.status === 'running' || streamingAssistantId != null
+    const cleaned = sanitizeHistoryTimeline(items)
     set({
-      timelineItems: items,
-      streamingAssistantId: null,
+      timelineItems: cleaned,
+      streamingAssistantId: keepRunning ? streamingAssistantId : null,
       fileChanges: [],
       runState: {
         ...runState,
-        status: 'idle',
+        status: keepRunning ? 'running' : 'idle',
         activeTool: undefined,
         activeToolStatus: undefined,
         toolCount: 0,
@@ -286,10 +336,13 @@ export const useUIStore = create<UIState>()(
     })
   },
   prependHistoryItems: (items) =>
-    set((s) => ({
-      timelineItems: [...items, ...s.timelineItems],
-      historyLoadedCount: s.historyLoadedCount + items.length,
-    })),
+    set((s) => {
+      const merged = dedupeAdjacentUserMessages([...sanitizeHistoryTimeline(items), ...s.timelineItems])
+      return {
+        timelineItems: merged,
+        historyLoadedCount: s.historyLoadedCount + items.length,
+      }
+    }),
   historyTotalCount: 0,
   historyLoadedCount: 0,
   historySessionFile: null,
@@ -352,7 +405,8 @@ export const useUIStore = create<UIState>()(
         timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, text: text ?? i.text } : i)),
       }
     }),
-  clearTimeline: () => set({ timelineItems: [], streamingAssistantId: null }),
+  clearTimeline: () =>
+    set({ timelineItems: [], streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false }),
 
   runState: { status: 'idle', toolCount: 0, errorCount: 0 },
   setRunState: (patch) => set((s) => {
@@ -430,6 +484,8 @@ export const useUIStore = create<UIState>()(
   thinkingPickerOpen: false,
   setThinkingPickerOpen: (open) => set({ thinkingPickerOpen: open }),
 
+  optimisticPendingUserText: null,
+  agentTurnBootstrapping: false,
   pendingSteering: [],
   pendingFollowUp: [],
   setPendingQueue: (steering, followUp) => set({ pendingSteering: steering, pendingFollowUp: followUp }),
@@ -441,6 +497,34 @@ export const useUIStore = create<UIState>()(
     switch (event.type) {
       case 'message': {
         if (event.phase === 'start' && event.role === 'user') {
+          if (get().runState.status !== 'running') {
+            state.setRunState({ status: 'running', startTime: event.timestamp })
+          }
+          const opt = get().optimisticPendingUserText
+          const incoming = normalizeTimelineMessageText(event.text)
+          if (opt || incoming) {
+            const items = get().timelineItems
+            const lastUser = [...items].reverse().find((i) => i.type === 'user-message')
+            const lastNorm = lastUser ? normalizeTimelineMessageText(lastUser.text) : ''
+            const optNorm = opt ? normalizeTimelineMessageText(opt) : ''
+            const matchesOpt =
+              !!lastUser &&
+              (lastUser.id.startsWith('opt-user-') || (optNorm && lastNorm === optNorm))
+            const matchesIncoming = !!lastUser && incoming && lastNorm === incoming
+            if (matchesOpt || matchesIncoming) {
+              if (event.text?.trim()) {
+                state.updateTimelineItem(lastUser!.id, {
+                  text: event.text,
+                  ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
+                })
+              } else if (event.sessionEntryId) {
+                state.updateTimelineItem(lastUser!.id, { sessionEntryId: event.sessionEntryId })
+              }
+              set({ optimisticPendingUserText: null })
+              break
+            }
+            if (opt) set({ optimisticPendingUserText: null })
+          }
           state.appendTimeline({
             id: nextItemId(),
             type: 'user-message',
@@ -453,15 +537,24 @@ export const useUIStore = create<UIState>()(
           for (let i = items.length - 1; i >= 0; i--) {
             if (items[i].type === 'user-message' && !items[i].sessionEntryId) {
               state.updateTimelineItem(items[i].id, { sessionEntryId: event.sessionEntryId })
+              set({ optimisticPendingUserText: null })
               break
             }
           }
         } else if (event.role === 'assistant') {
           if (event.phase === 'start') {
+            set({ agentTurnBootstrapping: false })
             const items = get().timelineItems
             const sid = get().streamingAssistantId
             const last = items[items.length - 1]
             if (last?.type === 'assistant-message' && sid === last.id) {
+              break
+            }
+            const emptyOpt = [...items].reverse().find(
+              (i) => i.type === 'assistant-message' && i.id.startsWith('opt-asst-') && !i.text?.trim(),
+            )
+            if (emptyOpt) {
+              set({ streamingAssistantId: emptyOpt.id })
               break
             }
             const id = nextItemId()
@@ -475,6 +568,7 @@ export const useUIStore = create<UIState>()(
             })
             set({ streamingAssistantId: id })
           } else if (event.phase === 'delta' && event.text) {
+            set({ agentTurnBootstrapping: false })
             const kind = (event as { contentKind?: string }).contentKind
             if (kind === 'thinking') {
               state.appendThinkingDelta(event.text)
@@ -483,15 +577,18 @@ export const useUIStore = create<UIState>()(
             }
           } else if (event.phase === 'end') {
             const sid = get().streamingAssistantId
-            if (event.text !== undefined) {
+            const hasFinalText = event.text !== undefined && String(event.text).trim().length > 0
+            if (hasFinalText) {
               state.setStreamingAssistantFinalText(event.text)
-            } else {
+            } else if (!get().agentTurnBootstrapping && !get().optimisticPendingUserText) {
               set({ streamingAssistantId: null })
             }
             if (sid && event.sessionEntryId) {
               state.updateTimelineItem(sid, { sessionEntryId: event.sessionEntryId })
             }
-            state.pruneEmptyAssistantBubbles()
+            if (!get().agentTurnBootstrapping) {
+              state.pruneEmptyAssistantBubbles()
+            }
           }
         }
         break
@@ -581,6 +678,25 @@ export const useUIStore = create<UIState>()(
           }
           state.setRunState(runPatch)
         } else if (event.phase === 'idle') {
+          alertTrace('run event idle', {
+            runId: event.runId,
+            statusBefore: get().runState.status,
+            startTime: get().runState.startTime,
+          })
+          const pendingOutboundTurn =
+            get().optimisticPendingUserText != null ||
+            get().agentTurnBootstrapping ||
+            get().timelineItems.some(
+              (i) =>
+                i.type === 'assistant-message' &&
+                i.id.startsWith('opt-asst-') &&
+                !i.text?.trim() &&
+                !i.thinkingText?.trim(),
+            )
+          if (pendingOutboundTurn) {
+            break
+          }
+          set({ optimisticPendingUserText: null, agentTurnBootstrapping: false })
           const rs = get().runState
           const wasActive = rs.status === 'running' || rs.status === 'failed'
           const prevRun = rs.activeRunId
@@ -596,8 +712,9 @@ export const useUIStore = create<UIState>()(
           state.clearPendingQueue()
           set({ streamingAssistantId: null })
           state.pruneEmptyAssistantBubbles()
-          if (wasActive) {
-            const sec = durationMs != null ? Math.round(durationMs / 1000) : undefined
+          if (wasActive && rs.startTime && durationMs != null && durationMs >= 800) {
+            const sec = Math.round(durationMs / 1000)
+            alertTrace('run_idle alert fired', { durationMs, sec })
             void signalDesktopAlert('run_idle', {
               title: 'pi Desktop · 运行结束',
               body: sec != null && sec > 0 ? `Agent 已空闲（约 ${sec} 秒）` : 'Agent 已空闲，可继续输入',

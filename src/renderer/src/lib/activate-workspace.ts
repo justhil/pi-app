@@ -3,6 +3,8 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
+import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/session-navigation'
+import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 
 export type ActivateWorkspaceOptions = {
   preferEmpty?: boolean
@@ -11,13 +13,17 @@ export type ActivateWorkspaceOptions = {
 }
 
 /**
- * 切换工作区：先更新 UI，workspace.open / Worker 在后台跑，避免卡在 sqlite 或 Worker 重启。
+ * 切换工作区：先更新 UI，workspace.open 在后台；快切用 navToken 丢弃过期结果。
  */
 export async function activateWorkspace(path: string, options?: ActivateWorkspaceOptions): Promise<void> {
+  const navToken = beginSessionNavigation()
   const store = useUIStore.getState()
   if (store.ephemeralSandboxDraft) store.clearEphemeralSandboxDraft()
 
   const sameProject = store.currentWorkspace === path
+  if (!sameProject) {
+    console.log('[activateWorkspace] workspace change', store.currentWorkspace, '->', path)
+  }
 
   store.setWorkspace(path)
   store.clearTimeline()
@@ -33,18 +39,24 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   let sessions: Array<{ sessionId: string; sessionFile?: string; title?: string; updatedAt?: number }> = []
   try {
     await openPromise
+    if (!assertSessionNavigation(navToken)) return
     const listRes = await ipcClient.invoke('session.list', { workspaceId: path })
+    if (!assertSessionNavigation(navToken)) return
     sessions = listRes?.sessions || []
     store.setSessions(sessions)
   } catch (e) {
     console.error('[activateWorkspace] session.list failed:', e)
+    if (!assertSessionNavigation(navToken)) return
   }
 
-  if (options?.preferEmpty || sessions.length === 0) {
-    store.setCurrentSession(null)
-    store.setHistoryMeta(0, 0, null)
-    store.loadHistoryItems([])
-    void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
+  if (options?.preferEmpty) {
+    store.enterPendingNewSessionPlaceholder()
+    void refreshComposerRunDisplay()
+    return
+  }
+
+  if (sessions.length === 0) {
+    store.enterPendingNewSessionPlaceholder()
     void refreshComposerRunDisplay()
     return
   }
@@ -57,16 +69,32 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
         sessions[0]
 
   if (!pick?.sessionFile) {
-    store.setCurrentSession(null)
-    store.loadHistoryItems([])
-    store.setHistoryMeta(0, 0, null)
+    store.enterPendingNewSessionPlaceholder()
     return
   }
 
-  await openSessionIntoWorker(pick.sessionId, pick.sessionFile)
+  await openSessionIntoWorker(pick.sessionId, pick.sessionFile, navToken)
 }
 
-/** 同项目内切会话：不重启 Worker cwd，只换历史 + pending bind */
+/** 同项目内切会话 */
 export async function switchSessionInPlace(sessionId: string, sessionFile?: string): Promise<void> {
-  await openSessionIntoWorker(sessionId, sessionFile)
+  const navToken = beginSessionNavigation()
+  const store = useUIStore.getState()
+  store.clearPendingNewSessionPlaceholder()
+
+  if (sessionId === PENDING_NEW_SESSION_ID) {
+    store.enterPendingNewSessionPlaceholder()
+    return
+  }
+
+  let file = sessionFile
+  if (!file) {
+    file = store.sessions.find((s) => s.sessionId === sessionId)?.sessionFile
+  }
+  if (!file) {
+    console.warn('[switchSessionInPlace] missing sessionFile for', sessionId)
+    return
+  }
+
+  await openSessionIntoWorker(sessionId, file, navToken)
 }

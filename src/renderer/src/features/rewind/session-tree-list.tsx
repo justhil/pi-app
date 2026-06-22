@@ -1,5 +1,6 @@
 import { GitBranch } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { SessionTreeGuideRails } from './session-tree-guide-rails'
 
 export type SessionTreeNode = {
   id: string
@@ -26,8 +27,6 @@ export function sessionTreeLineTitle(n: SessionTreeNode): string {
   if (n.entryType === 'model_change') return 'model'
   return n.entryType
 }
-
-const DEPTH_INDENT_PX = 12
 
 export type TreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
@@ -64,11 +63,11 @@ export function SessionTreeList({
   rowClassName?: string
 }) {
   return (
-    <ul className={cn('w-full min-w-0', className)}>
-      {nodes.map((n) => {
+    <ul className={cn('w-full min-w-0', className)} role="tree">
+      {nodes.map((n, index) => {
         const selected = selectedId === n.id
         return (
-          <li key={n.id} className="min-w-0">
+          <li key={n.id} className="min-w-0" role="treeitem" aria-level={n.depth + 1}>
             <button
               type="button"
               title={n.isLeaf ? '当前位置' : onActivate ? 'Enter 或双击跳转' : '跳转到此节点'}
@@ -78,22 +77,22 @@ export function SessionTreeList({
               }}
               onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
               className={cn(
-                'flex w-full min-w-0 items-start gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors',
+                'flex w-full min-w-0 items-stretch gap-0 rounded-md py-1 pr-2 text-left transition-colors',
                 selected && 'bg-primary/12 ring-1 ring-inset ring-primary/30',
                 !selected && 'hover:bg-muted/70',
                 n.isLeaf && !selected && 'bg-primary/6 font-medium',
                 rowClassName,
               )}
             >
-              <span
-                className="shrink-0"
-                style={{ width: Math.min(n.depth, 20) * DEPTH_INDENT_PX }}
-                aria-hidden
-              />
-              <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-40" />
-              <span className="min-w-0 flex-1 break-words text-[12px] leading-snug text-foreground-secondary">
-                {sessionTreeLineTitle(n)}
-                {n.isLeaf && <span className="ml-1.5 whitespace-nowrap text-[10px] text-primary">← 当前</span>}
+              <SessionTreeGuideRails nodes={nodes} index={index} />
+              <span className="flex min-w-0 flex-1 items-start gap-1.5 pl-1.5">
+                <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-45" />
+                <span className="min-w-0 flex-1 break-words text-[12px] leading-snug text-foreground-secondary">
+                  {sessionTreeLineTitle(n)}
+                  {n.isLeaf && (
+                    <span className="ml-1.5 whitespace-nowrap text-[10px] text-primary">← 当前</span>
+                  )}
+                </span>
               </span>
             </button>
           </li>

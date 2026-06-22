@@ -1,6 +1,11 @@
 // Pi Worker - runs pi SDK in a utilityProcess via MessagePort
 // Entry point spawned by Electron utilityProcess as ESM (.mjs)
 
+// 关键：pi-intercom 在 Windows 默认用 process.execPath 当 node 跑 tsx broker.ts。
+// Electron Worker 里 execPath = electron.exe，不加此 env 会 spawn 出 GUI Electron 进程而非 node，
+// 导致 broker.ts 不执行、socket 无人监听、Worker init 反复重拉 → 进程风暴 + Windows 通知/抢焦点。
+process.env.ELECTRON_RUN_AS_NODE = '1'
+
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -22,6 +27,8 @@ let currentSessionId = ''
 let currentRunId = ''
 let currentTurnId = ''
 let unsubscribe: (() => void) | null = null
+/** 仅 agent_start…agent_end 之间允许向桌面转发交互式 extension-ui（非 notify） */
+let agentTurnActive = false
 
 // Safety net: some extensions (e.g. pi-powerline-footer) keep timers running on a
 // captured ctx that becomes stale after session replacement; the SDK throws but
@@ -69,6 +76,7 @@ async function initSession(cwd: string): Promise<void> {
     unsubscribe()
     unsubscribe = null
   }
+  agentTurnActive = false
   if (session) {
     session.dispose()
     session = null
@@ -101,7 +109,7 @@ async function initSession(cwd: string): Promise<void> {
     handleSessionEvent(event)
   })
 
-  emit({ ...baseEvent(), type: 'run', phase: 'idle' })
+  // 勿 emit idle：新建/重载会话后 idle 会让 Renderer 误判「已结束」，抹掉首条乐观等待态
   if (session) {
     const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
     emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
@@ -134,11 +142,40 @@ function buildCommandContextActions(sess: AgentSession) {
   }
 }
 
+function workerTraceOn(): boolean {
+  return (
+    process.env.PI_AUDIO_TRACE === '1' ||
+    process.env.PI_AUDIO_TRACE === 'true' ||
+    process.env.PI_ALERT_TRACE === '1'
+  )
+}
+
+function traceWorkerUi(req: import('./desktop-ui-bridge.js').ExtensionUIRequest, forwarded: boolean): void {
+  if (!workerTraceOn()) return
+  const detail =
+    req.method === 'notify'
+      ? { method: 'notify', notifyType: req.notifyType, msg: String(req.message || '').slice(0, 100) }
+      : { method: req.method, kind: (req as { kind?: string }).kind }
+  console.log('[audio-trace] worker.postExtensionUi', { forwarded, agentTurnActive, ...detail })
+}
+
+function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').ExtensionUIRequest): void {
+  if (!agentTurnActive) {
+    if (req.method === 'notify' && req.notifyType === 'error') {
+      traceWorkerUi(req, true)
+      process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+    } else {
+      traceWorkerUi(req, false)
+    }
+    return
+  }
+  traceWorkerUi(req, true)
+  process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+}
+
 async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   if (!uiBridge) {
-    uiBridge = createDesktopUIBridge(sharedEventBus!, (req) => {
-      process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
-    })
+    uiBridge = createDesktopUIBridge(sharedEventBus!, postExtensionUiToDesktop)
   }
   await sess.bindExtensions({
     uiContext: uiBridge.uiContext as never,
@@ -152,12 +189,23 @@ function handleSessionEvent(event: AgentSessionEvent): void {
 
   switch (event.type) {
     case 'agent_start': {
+      agentTurnActive = true
       currentRunId = `run-${nextSeq()}`
       currentTurnId = `turn-${nextSeq()}`
       emit({ ...base, type: 'run', phase: 'running' })
       break
     }
     case 'agent_end': {
+      if (!agentTurnActive) {
+        if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_AUDIO_TRACE === 'true') {
+          console.log('[audio-trace] worker.agent_end_ignored', { agentTurnActive })
+        }
+        break
+      }
+      agentTurnActive = false
+      if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_AUDIO_TRACE === 'true') {
+        console.log('[audio-trace] worker.emit_run_idle')
+      }
       emit({ ...base, type: 'run', phase: 'idle' })
       break
     }
@@ -578,8 +626,9 @@ process.parentPort?.on('message', async (event: any) => {
             text: '已发送给 pi 执行',
           })
         }
-        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'start', text: msg.text })
-        emit({ ...baseEvent(), type: 'message', role: 'user', phase: 'end' })
+        currentRunId = `run-${nextSeq()}`
+        currentTurnId = `turn-${nextSeq()}`
+        emit({ ...baseEvent(), type: 'run', phase: 'running' })
         reply({ type: 'prompt-done' })
         void (async () => {
           try {
@@ -947,6 +996,20 @@ process.parentPort?.on('message', async (event: any) => {
       }
       case 'loadSession': {
         try {
+          const targetFile = msg.sessionFile as string
+          if (session?.sessionFile === targetFile) {
+            const modelStr = session.model
+              ? `${(session.model as any).provider}/${(session.model as any).modelId}`
+              : undefined
+            reply({
+              type: 'loadSession-done',
+              sessionId: currentSessionId,
+              model: modelStr,
+              thinkingLevel: session.thinkingLevel,
+            })
+            break
+          }
+          agentTurnActive = false
           if (unsubscribe) { unsubscribe(); unsubscribe = null }
           session?.dispose()
           const agentDir = sdk!.getAgentDir()
@@ -1130,8 +1193,12 @@ process.parentPort?.on('message', async (event: any) => {
       }
       case 'getPiSettings': {
         try {
+          if (!sdk) {
+            reply({ type: 'getPiSettings-done', settings: {} })
+            break
+          }
           const sm = session?.settingsManager
-            ?? sdk!.SettingsManager.create(currentCwd || process.cwd(), sdk!.getAgentDir())
+            ?? sdk.SettingsManager.create(currentCwd || process.cwd(), sdk.getAgentDir())
           const compaction = sm.getCompactionSettings()
           const retry = sm.getRetrySettings()
           const branchSummary = sm.getBranchSummarySettings()

@@ -81,11 +81,16 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
 
   pruneStaleSuspension: () => pruneStaleSuspension(),
 
-  resetForSessionContext: () => set({ activePending: null, suspended: null }),
+  resetForSessionContext: () => {
+    set({ activePending: null, suspended: null })
+    void import('@renderer/lib/extension-ui-channel').then((m) => m.clearExtensionDialogDedupe())
+  },
 }))
 
 export function extensionUiBlocksComposer(): boolean {
   pruneStaleSuspension()
-  return hasOpenExtensionDialog()
+  if (!hasOpenExtensionDialog()) return false
+  // 空闲/占位首条消息：忽略误触发的扩展 UI 状态，仅运行中阻塞发送
+  return useUIStore.getState().runState.status === 'running'
 }
 

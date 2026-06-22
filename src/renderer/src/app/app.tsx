@@ -84,6 +84,16 @@ export default function App() {
   useEffect(() => {
     markExtensionNotifyAppReady()
     useExtensionUIStore.getState().resetForSessionContext()
+    const done = useUIStore.persist.onFinishHydration(() => {
+      const ws = useUIStore.getState().currentWorkspace
+      if (!ws || ws.replace(/\\/g, '/').includes('sandbox-workspaces/')) return
+      void ipcClient.invoke('settings.get', { key: 'currentProject' }).then((r) => {
+        const mainPath = r?.settings?.currentProject as string | undefined
+        if (mainPath === ws) return
+        void activateWorkspace(ws)
+      })
+    })
+    return () => done()
   }, [])
 
   useEffect(() => {
@@ -98,6 +108,13 @@ export default function App() {
       console.warn('Worker exited:', info)
     })
     const unsubAuto = onAutoOpened((info) => {
+      const persisted = useUIStore.getState().currentWorkspace
+      const norm = (p: string) => p.replace(/\\/g, '/')
+      const isSandbox = (p: string) => norm(p).includes('sandbox-workspaces/')
+      if (persisted && !isSandbox(persisted) && isSandbox(info.workspaceId)) {
+        void activateWorkspace(persisted)
+        return
+      }
       setWorkspace(info.workspaceId)
       void syncRunStateFromWorker()
     })

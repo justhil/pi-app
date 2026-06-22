@@ -1,12 +1,21 @@
 import { toast } from 'sonner'
 import { onExtensionUIRequest } from '@renderer/lib/ipc-client'
 import { useExtensionUIStore, type ExtensionUIPending } from '@renderer/stores/extension-ui-store'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { shouldShowExtensionNotify } from '@renderer/lib/extension-notify-policy'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import type { AskQuestionPayload } from '@renderer/features/extension-ui/questionnaire-dialog'
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
+import { traceAudioRenderer } from '@renderer/lib/audio-trace'
+import { alertTrace } from '@renderer/lib/alert-trace'
 
 let started = false
+const seenDialogIds = new Set<string>()
+const INTERACTIVE_TOOL_NAMES = new Set(['ask_user_question', 'image_review'])
+
+function pruneSeenIds(): void {
+  if (seenDialogIds.size > 120) seenDialogIds.clear()
+}
 
 function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
   const id = raw.id as string
@@ -45,6 +54,10 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
   return null
 }
 
+export function clearExtensionDialogDedupe(): void {
+  seenDialogIds.clear()
+}
+
 /** 只注册一次 IPC 监听，避免 StrictMode 双挂载导致重复 toast / 双提示音 */
 export function ensureExtensionUIChannel(): void {
   if (started) return
@@ -57,7 +70,17 @@ export function ensureExtensionUIChannel(): void {
     if (method === 'notify') {
       const t = (req.notifyType as string) || 'info'
       const msg = req.message as string
-      if (!shouldShowExtensionNotify(msg, t)) return
+      traceAudioRenderer('extension-ui.notify', { notifyType: t, msg: msg?.slice(0, 120) })
+      const show = shouldShowExtensionNotify(msg, t)
+      alertTrace('extension notify', { notifyType: t, show, msg: msg?.slice(0, 120) })
+      if (!show) return
+      const running = useUIStore.getState().runState.status === 'running'
+      if (!running && t !== 'error') {
+        alertTrace('skip notify toast (not running)', { notifyType: t })
+        return
+      }
+      alertTrace('sonner toast（Windows 常伴系统提示音，≠ 设置里的「提示音」）', { notifyType: t })
+      traceAudioRenderer('extension-ui.toast', { notifyType: t, msg: msg?.slice(0, 120) })
       if (t === 'error') toast.error(msg)
       else if (t === 'warning') toast.warning(msg)
       else toast.info(msg)
@@ -66,8 +89,27 @@ export function ensureExtensionUIChannel(): void {
 
     const p = rawToPending(req)
     if (!p) return
+
+    const running = useUIStore.getState().runState.status === 'running'
+    if (!running) return
+
+    if (seenDialogIds.has(p.id)) return
+    seenDialogIds.add(p.id)
+    pruneSeenIds()
+
+    const hasLiveInteractiveTool = useUIStore.getState().timelineItems.some(
+      (i) =>
+        i.type === 'tool-call' &&
+        (i.toolPhase === 'start' || i.toolPhase === 'update') &&
+        !!i.toolName &&
+        INTERACTIVE_TOOL_NAMES.has(i.toolName),
+    )
+    if (!hasLiveInteractiveTool) return
+
+    traceAudioRenderer('extension-ui.dialog', { method: p.method, id: p.id })
     useExtensionUIStore.getState().setActivePending(p)
-    const title =
+
+    const body =
       p.method === 'image_review'
         ? p.payload.title || '图片审查'
         : p.method === 'ask_user_question'
@@ -75,9 +117,11 @@ export function ensureExtensionUIChannel(): void {
           : p.method === 'confirm' || p.method === 'select' || p.method === 'input'
             ? p.title || '需要你的操作'
             : '需要你的操作'
-    void signalDesktopAlert('extension_ui', {
-      title: 'pi Desktop · 等待操作',
-      body: title,
-    })
+    if (useUIStore.getState().runState.status === 'running') {
+      void signalDesktopAlert('extension_ui', {
+        title: 'pi Desktop · 等待操作',
+        body,
+      })
+    }
   })
 }

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { StreamingCaret } from './tool-card-primitives'
+import { StreamingCaret, ThinkingIndicator } from './tool-card-primitives'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
@@ -25,6 +25,7 @@ const MarkdownView = lazy(() => import('./markdown-view'))
 const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
   const streamingId = useUIStore((s) => s.streamingAssistantId)
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
   const streaming = streamingId === item.id
 
   if (item.type === 'user-message') {
@@ -60,10 +61,12 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
     const hasText = !!(item.text && item.text.trim())
     const hasThinking = !!(item.thinkingText && item.thinkingText.trim())
     if (!hasText && !hasThinking) {
-      if (!streaming || !agentRunning) return null
+      const boot = agentBoot
+      if (!streaming && !boot) return null
+      if (!agentRunning && !boot) return null
       return (
         <div className="timeline-message-row py-1.5">
-          <span className="text-[12px] text-foreground-secondary/50">等待回复…</span>
+          <ThinkingIndicator label={boot ? 'Agent 启动中' : '等待回复'} />
         </div>
       )
     }

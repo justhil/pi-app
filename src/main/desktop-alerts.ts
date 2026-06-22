@@ -1,6 +1,7 @@
 import { app, Notification, BrowserWindow } from 'electron'
 import { execFile } from 'child_process'
 import { configStore } from './config-store'
+import { traceAudio } from './audio-trace'
 
 export type DesktopAlertKind = 'extension_ui' | 'run_idle'
 
@@ -55,12 +56,25 @@ function ensureNotificationIdentity(): void {
 }
 
 export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopAlertPayload): void {
-  if (!scenarioEnabled(payload.kind)) return
-
+  const scenario = scenarioEnabled(payload.kind)
   const doSound = soundEnabled()
   const doNotify = notificationEnabled()
+  traceAudio('main.deliverDesktopAlert', {
+    kind: payload.kind,
+    title: payload.title,
+    body: payload.body?.slice(0, 80),
+    scenario,
+    alertSoundEnabled: configStore.get('alertSoundEnabled'),
+    alertNotificationEnabled: configStore.get('alertNotificationEnabled'),
+    willBeep: scenario && doSound,
+    willNotify: scenario && doNotify,
+  })
+  if (!scenario) return
 
-  if (doSound) playAlertSound()
+  if (doSound) {
+    traceAudio('main.playAlertSound', { platform: process.platform })
+    playAlertSound()
+  }
 
   if (doNotify && Notification.isSupported()) {
     ensureNotificationIdentity()

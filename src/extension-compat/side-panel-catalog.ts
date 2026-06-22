@@ -19,11 +19,26 @@ export function adapterSidePanelMetaFromJson(a: AdapterJson): AdapterSidePanelMe
   }
 }
 
-export function listAdapterSidePanelMetas(projectDir?: string): AdapterSidePanelMeta[] {
+/**
+ * 列出右栏 adapter sidePanel 元数据。
+ * onlyInstalled 传已安装插件名集合时，只返回 alwaysVisible 或已安装的适配器 sidePanel。
+ */
+export function listAdapterSidePanelMetas(
+  projectDir?: string,
+  installedNames?: Set<string>,
+): AdapterSidePanelMeta[] {
   const catalog = loadAdapterCatalog(projectDir)
   const out: AdapterSidePanelMeta[] = []
   for (const a of catalog.adapters) {
     if (a.tier === 'none') continue
+    if (!a.alwaysVisible && installedNames) {
+      const names = (a.match?.names || []).map((n) => n.toLowerCase())
+      const installed = [...installedNames].some((n) => {
+        const nl = n.toLowerCase()
+        return names.some((m) => nl === m || nl.endsWith(m) || nl.includes(m))
+      })
+      if (!installed) continue
+    }
     const m = adapterSidePanelMetaFromJson(a)
     if (m) out.push(m)
   }

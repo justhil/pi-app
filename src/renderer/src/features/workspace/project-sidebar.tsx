@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, FolderOpen, MessageSquare, Plus, Folder, Inb
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
-import { startNewSession } from '@renderer/lib/new-session'
+import { enterNewSessionPlaceholder } from '@renderer/lib/new-session'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
 import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-context-menu'
 import { useSessionContextMenu, SessionContextMenuPortal } from './session-context-menu'
@@ -160,19 +160,16 @@ export function ProjectSidebar({
 
   const handleNewSessionInProject = async (workspacePath: string) => {
     if (!workspacePath || isSandboxPath(workspacePath)) return
-    if (workspacePath !== currentWorkspace) {
-      try {
-        await activateWorkspace(workspacePath, { preferEmpty: true })
-      } catch {
-        return
-      }
-    }
     try {
-      await startNewSession(workspacePath)
-      await refreshSessionsForWorkspace(workspacePath)
+      if (workspacePath !== currentWorkspace) {
+        await activateWorkspace(workspacePath, { preferEmpty: true })
+      } else {
+        enterNewSessionPlaceholder()
+        void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
+      }
       setExpandedPaths((prev) => new Set(prev).add(workspacePath))
     } catch (e) {
-      console.error('New session failed:', e)
+      console.error('New session placeholder failed:', e)
     }
   }
 
@@ -187,14 +184,27 @@ export function ProjectSidebar({
   const renderSessionTree = (workspacePath: string) => {
     const projectSessions = mergedSessionsByWorkspace[workspacePath] || []
     const loading = loadingSessionPaths.has(workspacePath) && projectSessions.length === 0
+    const showPendingRow =
+      workspacePath === currentWorkspace && useUIStore.getState().pendingNewSessionPlaceholder
     return (
     <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
       {loading ? (
         <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">加载中</p>
-      ) : projectSessions.length === 0 ? (
+      ) : projectSessions.length === 0 && !showPendingRow ? (
         <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">无会话</p>
       ) : (
-        projectSessions.map((s) => (
+        <>
+        {showPendingRow && (
+          <div
+            className={cn(
+              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center gap-2 rounded-lg px-2.5 py-1.5 nav-row-active text-foreground',
+            )}
+          >
+            <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            <div className="min-w-0 flex-1 truncate text-[13px]">新会话</div>
+          </div>
+        )}
+        {projectSessions.map((s) => (
           <div
             key={s.sessionId}
             role="button"
@@ -254,7 +264,8 @@ export function ProjectSidebar({
               </div>
             </div>
           </div>
-        ))
+        ))}
+        </>
       )}
     </div>
     )

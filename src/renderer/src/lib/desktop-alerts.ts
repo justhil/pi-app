@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { alertTrace } from '@renderer/lib/alert-trace'
 
 export type DesktopAlertKind = 'extension_ui' | 'run_idle'
 
@@ -15,6 +16,7 @@ export async function signalDesktopAlert(
     if (now - lastExtensionUiAt < EXTENSION_UI_COOLDOWN_MS) return
     lastExtensionUiAt = now
   }
+  alertTrace('ipc alerts.signal', { kind, title: payload.title, body: payload.body?.slice(0, 80) })
   try {
     await ipcClient.invoke('alerts.signal', { kind, ...payload })
   } catch {

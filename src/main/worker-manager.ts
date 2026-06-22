@@ -5,19 +5,6 @@ import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 import { resolveActiveSdk } from './sdk-loader'
 
-const MAIN_BOOT = Date.now()
-/** 启动期不向渲染进程转发扩展 info/warning notify（Windows 常伴系统提示音） */
-const EXT_NOTIFY_SILENCE_MS = 25_000
-
-function shouldForwardExtensionUiRequest(request: unknown): boolean {
-  if (!request || typeof request !== 'object') return true
-  const req = request as { method?: string; notifyType?: string }
-  if (req.method !== 'notify') return true
-  if (Date.now() - MAIN_BOOT >= EXT_NOTIFY_SILENCE_MS) return true
-  const t = req.notifyType || 'info'
-  return t === 'error'
-}
-
 interface InitResult {
   sessionId: string
   model?: string
@@ -40,6 +27,8 @@ export class WorkerManager {
   private sdkFallback = false
   /** 串行化 start/stop，避免 SDK 切换时并行 fork 多个 worker。 */
   private lifecycleChain: Promise<unknown> = Promise.resolve()
+  /** 与 Worker agent_start/agent_end 同步，Main 侧再拦一层 extension-ui（防旧进程/竞态） */
+  private agentTurnActive = false
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
@@ -55,6 +44,17 @@ export class WorkerManager {
     if (this.worker && this.currentCwd === cwd && this.initPromise) {
       return this.initPromise
     }
+
+    const prev = this.currentCwd
+    if (prev !== cwd) {
+      try {
+        const { traceAudio } = await import('./audio-trace')
+        traceAudio('main.workerRestart', { from: prev, to: cwd })
+      } catch {
+        /* ignore */
+      }
+    }
+    this.agentTurnActive = false
 
     await this.stopUnlocked()
     this.stopping = false
@@ -92,13 +92,37 @@ export class WorkerManager {
       if (!data) return
 
       if (data.type === 'app-event' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:events', data.event as AppEvent)
+        const ev = data.event as AppEvent
+        if (ev?.type === 'run') {
+          if (ev.phase === 'running' || ev.phase === 'started') this.agentTurnActive = true
+          else if (ev.phase === 'idle' || ev.phase === 'failed' || ev.phase === 'cancelled') {
+            this.agentTurnActive = false
+          }
+        }
+        this.mainWindow.webContents.send('ipc:events', ev)
       }
 
       if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        if (shouldForwardExtensionUiRequest(data.request)) {
-          this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
+        const req = data.request as { method?: string; notifyType?: string; message?: string }
+        const method = req?.method || ''
+        const allow =
+          this.agentTurnActive ||
+          (method === 'notify' && req.notifyType === 'error')
+        if (!allow) {
+          void import('./audio-trace').then(({ traceAudio }) => {
+            traceAudio('main.dropExtensionUi', {
+              method,
+              notifyType: req.notifyType,
+              agentTurnActive: this.agentTurnActive,
+              msg: String(req.message || '').slice(0, 80),
+            })
+          })
+          return
         }
+        void import('./audio-trace').then(({ traceAudio }) => {
+          traceAudio('main.forwardExtensionUi', { method, notifyType: req.notifyType })
+        })
+        this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
       }
 
       if (data.type === 'init-done' && this.initResolver) {

@@ -117,10 +117,10 @@ export async function executeSlashCommand(
           toast.error('请先打开项目或临时对话分区')
           return true
         }
-        const { startNewSession } = await import('@renderer/lib/new-session')
-        await startNewSession(wid)
+        const { enterNewSessionPlaceholder } = await import('@renderer/lib/new-session')
+        enterNewSessionPlaceholder()
         await ctx.refreshCommands?.()
-        toast.success('已新建会话')
+        toast.success('已创建新会话占位，发送首条消息即可')
       } catch (e) {
         console.error('/new failed:', e)
         toast.error('新建会话失败')

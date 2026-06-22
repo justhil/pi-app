@@ -8,6 +8,7 @@
     "commands": ["/trellis"]
   },
   "tier": "native",
+  "alwaysVisible": true,
   "toolCard": { "template": "tree", "icon": "Network" },
   "config": {
     "note": "Trellis 任务数据由扩展/工作区 .trellis 自管；桌面只读面板读取 task.py current 与最近日志。",

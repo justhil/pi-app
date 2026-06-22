@@ -4,6 +4,7 @@ import { registerWindowControlHandlers } from './window-controls'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
+import { resolveStartupWorkspace } from './startup-workspace'
 import { is } from '@electron-toolkit/utils'
 
 // Prevent EPIPE / write errors from crashing the main process
@@ -49,6 +50,11 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   if (!gotLock) return
+  if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_ALERT_TRACE === '1') {
+    void import('./audio-trace').then(({ getAudioTraceLogHint }) => {
+      console.log('[audio-trace] enabled — log file:', getAudioTraceLogHint())
+    })
+  }
   createMenu()
   registerAllHandlers()
   registerWindowControlHandlers()
@@ -63,7 +69,7 @@ app.whenReady().then(() => {
   })
 
   // Auto-open last project if exists
-  const lastProject = configStore.get('currentProject')
+  const lastProject = resolveStartupWorkspace()
   if (lastProject) {
     workerManager.start(lastProject).then(() => {
       win.webContents.send('ipc:auto-opened', { workspaceId: lastProject })

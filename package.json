@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:alert-trace": "set PI_ALERT_TRACE=1&& set PI_AUDIO_TRACE=1&& electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
@@ -16,7 +17,8 @@
     "package": "electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
-    "postinstall": "electron-vite build"
+    "postinstall": "electron-builder install-app-deps && electron-vite build",
+    "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.79.0",
@@ -48,7 +50,8 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.24.1",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "better-sqlite3": "^11.7.0"
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^3.0.0",
@@ -57,7 +60,6 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "better-sqlite3": "^11.7.0",
     "electron": "^35.7.5",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
