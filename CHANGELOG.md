@@ -1,0 +1,21 @@
+# Changelog
+
+## [0.3.1] — 2026-06-23
+
+### 公式渲染
+
+- 对话与 Markdown 预览支持 **KaTeX**：`\( \)`、`\[ \]`、`$$ $$`、围栏 ` ```math ` / ` ```latex `
+- 加载 **mhchem** 化学式（`\ce{}` 等）；常用数学宏 `\RR`、`\dd` 等
+- 流式输出时自动闭合未写完的数学定界符；块级公式卡片样式与横向滚动
+- 非流式可选单美元行内 `$...$`（流式开启以降低误解析）
+
+### 模型配置
+
+- 设置新增 **「模型」** 页：管理 `~/.pi/agent/models.json`
+- 供应商列表可展开；**预设**（OpenAI、Anthropic、Gemini、Ollama 等）一键添加
+- **拉取远端模型目录**，点击 **+** 加入本地；单模型可配置 name / reasoning / contextWindow 等
+- IPC：`pi.models.get` / `set` / `fetch`；保存后 Worker `reloadModels`
+
+### 其他
+
+- 内置 SDK 手动升级/切换（与 0.3.0 进行中改动一并纳入本版）

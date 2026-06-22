@@ -804,6 +804,15 @@ process.parentPort?.on('message', async (event: any) => {
         reply({ type: 'listSessions-done', sessions })
         break
       }
+      case 'reloadModels': {
+        try {
+          session?.modelRegistry?.refresh?.()
+          reply({ type: 'reloadModels-done', ok: true })
+        } catch (e: any) {
+          reply({ type: 'error', error: `reloadModels failed: ${e.message}` })
+        }
+        break
+      }
       case 'getModels': {
         try {
           const models = session

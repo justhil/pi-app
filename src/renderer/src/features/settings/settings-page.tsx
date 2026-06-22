@@ -7,9 +7,10 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
+import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft, Boxes
 } from 'lucide-react'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
@@ -24,13 +25,14 @@ import { SettingsDraftProvider } from '@renderer/features/settings/settings-draf
 import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
 import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'skills' | 'prompts' | 'extensions' | 'adapters'
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
 const PAGES: { key: SettingsPage; icon: any; label: string }[] = [
   { key: 'general', icon: SettingsIcon, label: '通用' },
   { key: 'appearance', icon: Palette, label: '外观' },
   { key: 'rightPanels', icon: LayoutPanelLeft, label: '右侧栏' },
   { key: 'pi', icon: Cpu, label: 'Pi' },
+  { key: 'models', icon: Boxes, label: '模型' },
   { key: 'skills', icon: Zap, label: 'Skills' },
   { key: 'prompts', icon: MessageSquareText, label: '提示词' },
   { key: 'extensions', icon: Puzzle, label: '扩展' },
@@ -83,7 +85,7 @@ export function SettingsPage() {
     )
   }
 
-  const widePages: SettingsPage[] = ['rightPanels', 'pi', 'skills', 'prompts', 'extensions', 'adapters']
+  const widePages: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'adapters']
   const wide = widePages.includes(page)
 
   return (
@@ -105,6 +107,7 @@ export function SettingsPage() {
           {page === 'appearance' && <AppearanceSettings />}
           {page === 'rightPanels' && <RightPanelsSettings />}
           {page === 'pi' && <PiSettings />}
+          {page === 'models' && <ModelsSettingsPanel />}
           {page === 'skills' && <SkillsSettingsPanel />}
           {page === 'prompts' && <PromptsSettingsPanel />}
           {page === 'extensions' && <ExtensionsSettings />}

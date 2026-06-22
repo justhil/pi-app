@@ -5,6 +5,7 @@ import { configStore } from './config-store'
 import { sqliteIndex } from './sqlite-index'
 import { resolveSidePanelState } from './side-panel-registry'
 import { readPiInfo, readResourceList } from './pi-info'
+import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from './pi-models-json'
 import {
   listSkillsOnDisk,
   listPromptsOnDisk,
@@ -1065,6 +1066,40 @@ export function registerAllHandlers(): void {
   // ── Pi Info ──
   registerHandler('ipc:pi.getInfo', async () => {
     return readPiInfo()
+  })
+
+  registerHandler('ipc:pi.models.get', async () => {
+    const r = await readModelsConfig()
+    return {
+      path: r.path,
+      config: r.config,
+      parseError: r.parseError,
+      schemaError: r.schemaError,
+    }
+  })
+
+  registerHandler('ipc:pi.models.set', async (req) => {
+    const config = req?.config
+    if (!config?.providers || typeof config.providers !== 'object') {
+      return { ok: false, path: '', error: '无效 config' }
+    }
+    const r = await writeModelsConfig(config)
+    if (r.ok && workerManager.isRunning) {
+      try {
+        await workerManager.reloadModels()
+      } catch (e) {
+        console.error('[IPC] pi.models.set reloadModels failed:', e)
+      }
+    }
+    return r
+  })
+
+  registerHandler('ipc:pi.models.fetch', async (req) => {
+    return fetchRemoteModelIds({
+      baseUrl: String(req?.baseUrl || ''),
+      apiKey: req?.apiKey,
+      authHeader: req?.authHeader,
+    })
   })
 
   // ── SDK 升级 / 切换 / 回退 ──

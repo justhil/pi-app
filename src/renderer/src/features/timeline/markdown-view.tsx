@@ -1,11 +1,16 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
-// react-markdown + remark-gfm (GFM tables/task lists/strikethrough) + 自定义 code/img/table 组件。
-// 代码块默认折叠到 3 行预览，点击展开；图片走内联；表格可滚动。
+// react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
 import { memo, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
+import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
+import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
+import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
 import { Copy, ChevronDown } from 'lucide-react'
 
 function CodeBlock({
@@ -71,7 +76,25 @@ function CodeBlock({
   )
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+function buildRemarkPlugins(streaming?: boolean) {
+  return [
+    remarkGfm,
+    remarkBreaks,
+    [remarkMath, { singleDollarTextMath: !streaming }] as const,
+  ]
+}
+
+const REHYPE_PLUGINS = [
+  [
+    rehypeKatex,
+    {
+      trust: false,
+      strict: 'warn',
+      macros: KATEX_MACROS,
+      output: 'htmlAndMathml',
+    },
+  ] as const,
+]
 
 const MarkdownView = memo(function MarkdownView({
   children,
@@ -83,10 +106,22 @@ const MarkdownView = memo(function MarkdownView({
   /** 流式中也走 Markdown（对齐 参考桌面客户端 MessageText + MarkdownView） */
   streaming?: boolean
 }) {
+  const markdown = useMemo(
+    () => preprocessMarkdownMath(children, { streaming }),
+    [children, streaming],
+  )
+
+  const remarkPlugins = useMemo(() => buildRemarkPlugins(streaming), [streaming])
+
   const components = useMemo(
     () => ({
       code: ({ className: cn2, children: ch, ...rest }: any) => {
-        const isInline = !cn2 && !String(ch).includes('\n')
+        const lang = /language-(\w+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
+        const raw = String(ch ?? '').replace(/\n$/, '')
+        const isInline = !cn2 && !raw.includes('\n')
+        if (lang === 'math' || lang === 'latex' || lang === 'tex') {
+          return <FencedMathBlock code={raw} />
+        }
         if (isInline) {
           return (
             <code className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[12px] text-foreground/90" {...rest}>
@@ -129,8 +164,8 @@ const MarkdownView = memo(function MarkdownView({
 
   return (
     <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-        {children}
+      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components}>
+        {markdown}
       </ReactMarkdown>
     </div>
   )
