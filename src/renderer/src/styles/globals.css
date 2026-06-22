@@ -859,6 +859,82 @@
   .prose-chat li { margin-block: 6px; }
   .prose-chat th { padding: 8px; border: 1px solid var(--bg-3); background: var(--bg-1); font-weight: bold; }
   .prose-chat td { padding: 8px; border: 1px solid var(--bg-3); min-width: 120px; }
+  /* ── KaTeX（行内 / 块级 / 化学式 / 错误态）── */
+  .prose-chat .katex {
+    font-size: 1.08em;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  .prose-chat .katex .mord,
+  .prose-chat .katex .mop,
+  .prose-chat .katex .mbin,
+  .prose-chat .katex .mrel,
+  .prose-chat .katex .mopen,
+  .prose-chat .katex .mclose,
+  .prose-chat .katex .mpunct,
+  .prose-chat .katex .minner {
+    color: inherit;
+  }
+  .prose-chat .katex .mfrac {
+    margin: 0 0.12em;
+  }
+  .prose-chat .katex-display {
+    margin: 1.125rem 0;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: var(--radius-lg, 8px);
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+    text-align: center;
+    scrollbar-width: thin;
+  }
+  .prose-chat .katex-display > .katex {
+    max-width: 100%;
+    text-align: center;
+  }
+  .prose-chat .math-display-shell {
+    text-align: center;
+  }
+  .prose-chat .math-display-shell .katex {
+    font-size: 1.12em;
+  }
+  .prose-chat .math-inline-shell {
+    display: inline;
+    margin: 0 0.06em;
+    vertical-align: baseline;
+  }
+  .prose-chat p .katex-display {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .prose-chat li .katex-display {
+    margin: 0.75rem 0;
+  }
+  .prose-chat table .katex {
+    font-size: 0.95em;
+  }
+  .prose-chat .katex-error {
+    color: var(--destructive, #b91c1c);
+    font-size: 0.9em;
+  }
+  .prose-chat .math-render-error {
+    border-color: color-mix(in srgb, var(--destructive, #b91c1c) 35%, var(--border));
+    background: color-mix(in srgb, var(--destructive, #b91c1c) 6%, var(--bg-2));
+  }
+  .prose-chat .katex-fallback {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--text-secondary);
+  }
+  .prose-chat-streaming .katex-display,
+  .prose-chat-streaming .math-display-shell {
+    opacity: 0.94;
+    transition: opacity var(--motion-fast) ease;
+  }
+  .prose-chat .katex .sqrt > .vlist-t {
+    border-color: color-mix(in srgb, var(--text-primary) 75%, transparent);
+  }
 }
 
 /* 参考桌面客户端 motion layer (layout.css timings) */
@@ -910,6 +986,123 @@
   .stagger-3 { animation-delay: 120ms; }
   .stagger-4 { animation-delay: 160ms; }
   .stagger-5 { animation-delay: 200ms; }
+
+  /* ── Settings: 模型供应商 / 目录 / 本地模型 ── */
+  .settings-provider-card {
+    transition:
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-normal) var(--motion-ease),
+      background-color var(--motion-fast) ease;
+  }
+  .settings-provider-card:hover {
+    box-shadow: 0 2px 12px -4px color-mix(in srgb, var(--foreground) 8%, transparent);
+  }
+  .settings-provider-header {
+    transition:
+      background-color var(--motion-fast) ease,
+      color var(--motion-fast) ease;
+  }
+  .settings-provider-header:hover {
+    background-color: var(--bg-hover);
+  }
+  .settings-provider-header:active {
+    transform: scale(0.998);
+  }
+  .settings-chevron {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+  .settings-chevron[data-open='true'] {
+    transform: rotate(90deg);
+  }
+  .settings-expand-grid {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--motion-normal) var(--motion-ease);
+  }
+  .settings-expand-grid[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+  .settings-expand-grid > .settings-expand-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .settings-expand-grid[data-open='true'] > .settings-expand-inner > .settings-expand-content {
+    animation: ui-enter var(--motion-normal) var(--motion-ease) both;
+  }
+  .settings-chip {
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      transform var(--motion-fast) var(--motion-ease);
+  }
+  .settings-chip:hover {
+    background-color: var(--bg-hover);
+  }
+  .settings-chip:active {
+    transform: scale(0.97);
+  }
+  .settings-catalog-shell {
+    transition: border-color var(--motion-fast) ease;
+  }
+  .settings-catalog-row {
+    transition:
+      background-color var(--motion-fast) ease,
+      opacity var(--motion-fast) ease;
+  }
+  .settings-catalog-row:hover {
+    background-color: var(--bg-hover);
+  }
+  .settings-add-fab {
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      box-shadow var(--motion-normal) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
+  }
+  .settings-add-fab:hover {
+    box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+  .settings-add-fab:active {
+    transform: scale(0.92);
+  }
+  .settings-added-badge {
+    animation: ui-enter 220ms var(--motion-ease) both;
+  }
+  .settings-model-entry {
+    transition:
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-normal) var(--motion-ease),
+      background-color var(--motion-fast) ease;
+  }
+  .settings-model-entry:hover {
+    box-shadow: 0 1px 8px -3px color-mix(in srgb, var(--foreground) 6%, transparent);
+  }
+  .settings-model-entry-panel {
+    animation: ui-enter var(--motion-normal) var(--motion-ease) both;
+  }
+  .settings-preset-menu-item {
+    transition:
+      background-color var(--motion-fast) ease,
+      transform var(--motion-fast) var(--motion-ease);
+  }
+  .settings-preset-menu-item:hover {
+    background-color: var(--bg-hover);
+  }
+  .settings-preset-menu-item:active {
+    transform: scale(0.99);
+  }
+  .settings-field-focus {
+    transition:
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease;
+  }
+  .settings-field-focus:focus {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+    outline: none;
+  }
 }
 
 /* ── Project Home: hero → dock 过渡动画 ── */

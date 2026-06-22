@@ -316,6 +316,10 @@ export class WorkerManager {
     const r = await this.request('getModels')
     return r.models || []
   }
+  async reloadModels(): Promise<void> {
+    if (!this.isRunning) return
+    await this.request('reloadModels')
+  }
   async getPiSettings(): Promise<any> { return (await this.request('getPiSettings')).settings }
   async setPiSettings(patch: any): Promise<void> { await this.request('setPiSettings', { patch }) }
   async getMessages(

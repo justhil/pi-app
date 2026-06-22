@@ -163,7 +163,7 @@ npm run dev
 
 ### 内置适配器列表
 
-以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）：
+以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）。终端安装示例：`pi install npm:pi-subagents`、`pi install git:github.com/justhil/pi-search`（npm 包用 `npm:`，GitHub 用 `git:`，与上表「扩展包」列包名一致）。
 
 | 适配器 | 扩展包 | 说明 |
 |--------|--------|------|
