@@ -109,7 +109,7 @@ export function MainLayoutShell({
           'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-hidden',
           rightCollapsed && 'shell-track-collapsed',
         )}
-        style={{ background: 'var(--surface-sidebar)' }}
+        style={{ background: 'var(--bg-base)' }}
         aria-hidden={rightCollapsed}
       >
         {!rightCollapsed && (
