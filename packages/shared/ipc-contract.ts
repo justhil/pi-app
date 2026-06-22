@@ -5,7 +5,9 @@ import type { DiffResult } from './diff-model'
 import type { CompatibilityLevel } from './extension-types'
 
 // ── Workspace ──
-export interface WorkspaceOpenRequest { path: string }
+export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
+export interface WorkspaceEnsureWorkerRequest { path: string }
+export interface WorkspaceEnsureWorkerResponse { ok: boolean; workspaceId: string; sessionId?: string; model?: string; error?: string }
 export interface WorkspaceOpenResponse { workspaceId: string; path: string; name: string }
 export interface WorkspaceSwitchRequest { workspaceId: string }
 export interface WorkspaceSwitchResponse { workspaceId: string; path: string; name: string }
@@ -189,6 +191,7 @@ export interface EventsSubscribeResponse { subscriptionId: string }
 // ── IPC Method Map ──
 export interface IpcMethodMap {
   'workspace.open': { request: WorkspaceOpenRequest; response: WorkspaceOpenResponse }
+  'workspace.ensureWorker': { request: WorkspaceEnsureWorkerRequest; response: WorkspaceEnsureWorkerResponse }
   'workspace.switch': { request: WorkspaceSwitchRequest; response: WorkspaceSwitchResponse }
   'session.list': { request: SessionListRequest; response: SessionListResponse }
   'session.open': { request: SessionOpenRequest; response: SessionOpenResponse }

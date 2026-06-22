@@ -240,8 +240,21 @@ export function registerAllHandlers(): void {
   })
 
   // ── Workspace ──
+  registerHandler('ipc:workspace.ensureWorker', async (req) => {
+    const path = String(req?.path || '').trim()
+    if (!path) return { ok: false, workspaceId: '', error: 'missing path' }
+    configStore.set('currentProject', path)
+    try {
+      const r = await workerManager.start(path)
+      return { ok: true, workspaceId: path, sessionId: r.sessionId, model: r.model }
+    } catch (e: any) {
+      return { ok: false, workspaceId: path, error: e?.message || 'Worker start failed' }
+    }
+  })
+
   registerHandler('ipc:workspace.open', async (req) => {
     const path = req.path
+    if (!path) return { workspaceId: '', path: '', name: '' }
     const name = path.split(/[\\/]/).pop() || path
     invalidateAdapterCatalog()
     // Update config immediately so UI and other IPCs (extensions, resources) work right away
@@ -612,6 +625,11 @@ export function registerAllHandlers(): void {
         modelId = raw
       }
     }
+    if (!workerManager.isRunning) {
+      const cwd = workerManager.cwd || configStore.get('currentProject')
+      if (!cwd) throw new Error('Worker not started')
+      await workerManager.start(cwd)
+    }
     await workerManager.setModel(provider, modelId)
     return { modelId: `${provider}/${modelId}` }
   })
@@ -623,6 +641,11 @@ export function registerAllHandlers(): void {
 
   // ── ThinkingLevel ──
   registerHandler('ipc:thinkingLevel.set', async (req) => {
+    if (!workerManager.isRunning) {
+      const cwd = workerManager.cwd || configStore.get('currentProject')
+      if (!cwd) throw new Error('Worker not started')
+      await workerManager.start(cwd)
+    }
     await workerManager.setThinkingLevel(req.level)
     return { level: req.level }
   })
@@ -1152,7 +1175,18 @@ export function registerAllHandlers(): void {
 
   // ── Pi Settings (A-layer write-back, tui-replacement-and-adapters.md §2.5) ──
   registerHandler('ipc:pi.settings.get', async () => {
-    if (!workerManager.isRunning) return { settings: null, error: 'Worker not started' }
+    if (!workerManager.isRunning) {
+      const cwd = configStore.get('currentProject')
+      if (cwd) {
+        try {
+          await workerManager.start(cwd)
+        } catch {
+          return { settings: null, error: 'Worker not started' }
+        }
+      } else {
+        return { settings: null, error: 'Worker not started' }
+      }
+    }
     try {
       const settings = await workerManager.getPiSettings()
       return { settings }
