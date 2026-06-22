@@ -193,6 +193,7 @@ export default function App() {
                     subtitle={ephemeralSandboxDraft ? '首条消息即对话标题' : undefined}
                     recentProjects={recentProjects}
                     currentWorkspace={currentWorkspace}
+                    ephemeralSandboxDraft={ephemeralSandboxDraft}
                     onSelectProject={(p) => void handleSelectProject(p)}
                     onOpenProject={handleOpenProject}
                   />

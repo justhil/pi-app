@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, FolderOpen, Folder, Check } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
@@ -11,6 +12,7 @@ export function ProjectHomeView({
   subtitle,
   recentProjects,
   currentWorkspace,
+  ephemeralSandboxDraft,
   onSelectProject,
   onOpenProject,
 }: {
@@ -18,14 +20,16 @@ export function ProjectHomeView({
   subtitle?: string
   recentProjects: string[]
   currentWorkspace: string | null
+  ephemeralSandboxDraft?: boolean
   onSelectProject: (path: string) => void
   onOpenProject: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const pickerRef = useRef<HTMLDivElement>(null)
   const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null)
   const hasProject = !!currentWorkspace
+  // 临时对话不需要选项目
+  const showProjectPicker = !ephemeralSandboxDraft
 
   useEffect(() => {
     if (!pickerOpen) return
@@ -40,16 +44,20 @@ export function ProjectHomeView({
     }
     updatePos()
     const onDown = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node) &&
-          triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
-        setPickerOpen(false)
+      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
+        const card = document.getElementById('project-picker-card')
+        if (card && !card.contains(e.target as Node)) {
+          setPickerOpen(false)
+        }
       }
     }
     document.addEventListener('mousedown', onDown)
     window.addEventListener('resize', updatePos)
+    window.addEventListener('scroll', updatePos, true)
     return () => {
       document.removeEventListener('mousedown', onDown)
       window.removeEventListener('resize', updatePos)
+      window.removeEventListener('scroll', updatePos, true)
     }
   }, [pickerOpen])
 
@@ -57,7 +65,7 @@ export function ProjectHomeView({
     <div className="project-home-view absolute inset-0 flex flex-col items-center justify-center px-8 transition-all duration-[var(--motion-slow)] ease-[var(--motion-ease)]">
       <div className="-translate-y-[8rem] text-center">
         <h2 className="text-[22px] font-semibold text-foreground">
-          {hasProject ? (
+          {showProjectPicker && hasProject ? (
             <>
               要在{' '}
               <button
@@ -71,19 +79,19 @@ export function ProjectHomeView({
               </button>
               {' '}中做什么？
             </>
+          ) : showProjectPicker ? (
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              className="project-picker-trigger inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-4 py-2 text-[22px] font-semibold text-foreground-secondary transition-all hover:border-primary/40 hover:text-foreground"
+            >
+              <FolderOpen className="h-5 w-5" />
+              选择项目
+              <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', pickerOpen && 'rotate-180')} />
+            </button>
           ) : (
-            <div className="relative" ref={pickerRef}>
-              <button
-                ref={triggerRef}
-                type="button"
-                onClick={() => setPickerOpen((v) => !v)}
-                className="project-picker-trigger inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-4 py-2 text-[22px] font-semibold text-foreground-secondary transition-all hover:border-primary/40 hover:text-foreground"
-              >
-                <FolderOpen className="h-5 w-5" />
-                选择项目
-                <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', pickerOpen && 'rotate-180')} />
-              </button>
-            </div>
+            projectName || '新对话'
           )}
         </h2>
         <p className="mt-2 text-[13px] text-foreground-secondary/70">
@@ -91,9 +99,9 @@ export function ProjectHomeView({
         </p>
       </div>
 
-      {pickerOpen && pickerPos && (
+      {pickerOpen && pickerPos && createPortal(
         <div
-          ref={pickerRef}
+          id="project-picker-card"
           style={{
             position: 'fixed',
             left: pickerPos.left,
@@ -150,7 +158,8 @@ export function ProjectHomeView({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
