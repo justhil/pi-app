@@ -39,7 +39,7 @@ export function ModelCatalogPicker({
             animation: 'skeleton-shimmer 1.2s ease-in-out infinite',
           }}
         />
-        <p className="mt-3 text-[12px] text-muted-foreground animate-thinking-pulse">正在拉取远端模型…</p>
+        <p className="mt-3 text-[12px] text-muted-foreground animate-thinking-pulse">拉取中…</p>
       </div>
     )
   }
@@ -55,7 +55,7 @@ export function ModelCatalogPicker({
   if (!ids.length) {
     return (
       <div className="ui-enter rounded-xl border border-dashed border-border/50 bg-muted/10 px-4 py-7 text-center text-[12px] text-muted-foreground">
-        点击「拉取模型列表」获取远端目录
+        先点「拉取模型」
       </div>
     )
   }
@@ -67,14 +67,14 @@ export function ModelCatalogPicker({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/45 transition-opacity duration-motion-fast" />
           <input
             className="settings-field-focus w-full rounded-lg border border-border/60 bg-background/80 py-1.5 pl-8 pr-2 text-[12px]"
-            placeholder="筛选模型…"
+            placeholder="搜索"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground transition-colors duration-motion-fast">
           {filtered.length}/{ids.length}
-          {newCount > 0 && <span className="ml-1 text-primary">· {newCount} 可添加</span>}
+          {newCount > 0 && <span className="ml-1 text-primary">· 可添加 {newCount}</span>}
         </span>
         {onAddAllNew && newCount > 0 && (
           <button
