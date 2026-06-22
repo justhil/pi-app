@@ -257,11 +257,7 @@
     contain: layout paint;
     min-height: 0;
   }
-  /* 左栏 → 对话区分割线 */
-  .shell-track-left {
-    box-shadow: inset -1px 0 0 0 var(--border-base);
-  }
-  /* 对话区：圆角 + 底色，与左栏 #F3F3F3 形成对比 */
+  /* 对话区：左/上/下 padding 露出 #F3F3F3，右侧紧贴右栏不圆角 */
   .shell-track-center {
     min-height: 0;
     contain: layout;
@@ -269,12 +265,13 @@
     background: var(--surface-sidebar);
   }
   .shell-track-center .main-chat-column {
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
     background: var(--bg-base);
     overflow: hidden;
     height: 100%;
+    box-shadow: 0 0 0 1px var(--border-base);
   }
-  /* 对话区 → 右栏分割线 */
+  /* 右栏和对话区同为白色，用左侧分割线区分 */
   .shell-track-right {
     box-shadow: inset 1px 0 0 0 var(--border-base);
   }
