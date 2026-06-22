@@ -66,6 +66,58 @@ export interface ModelSetResponse { modelId: string }
 export interface ModelCycleRequest { sessionId: string; direction?: 'next' | 'prev' }
 export interface ModelCycleResponse { modelId: string; thinkingLevel: string }
 
+export type PiModelsApiType =
+  | 'openai-completions'
+  | 'openai-responses'
+  | 'anthropic-messages'
+  | 'google-generative-ai'
+
+export interface PiModelsProviderConfig {
+  name?: string
+  baseUrl?: string
+  api?: PiModelsApiType
+  apiKey?: string
+  authHeader?: boolean
+  headers?: Record<string, string>
+  compat?: Record<string, unknown>
+  models?: {
+    id: string
+    name?: string
+    api?: string
+    reasoning?: boolean
+    input?: ('text' | 'image')[]
+    contextWindow?: number
+    maxTokens?: number
+  }[]
+  modelOverrides?: Record<string, unknown>
+}
+
+export interface PiModelsConfigPayload {
+  providers: Record<string, PiModelsProviderConfig>
+}
+
+export interface PiModelsGetRequest {}
+export interface PiModelsGetResponse {
+  path: string
+  config: PiModelsConfigPayload
+  parseError?: string
+  schemaError?: string
+}
+
+export interface PiModelsSetRequest { config: PiModelsConfigPayload }
+export interface PiModelsSetResponse { ok: boolean; path: string; error?: string }
+
+export interface PiModelsFetchRequest {
+  baseUrl: string
+  apiKey?: string
+  authHeader?: boolean
+}
+export interface PiModelsFetchResponse {
+  ok: boolean
+  ids?: string[]
+  error?: string
+}
+
 // ── ThinkingLevel ──
 export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 export interface ThinkingLevelSetRequest { sessionId: string; level: ThinkingLevel }
@@ -154,6 +206,9 @@ export interface IpcMethodMap {
   'model.list': { request: ModelListRequest; response: ModelListResponse }
   'model.set': { request: ModelSetRequest; response: ModelSetResponse }
   'model.cycle': { request: ModelCycleRequest; response: ModelCycleResponse }
+  'pi.models.get': { request: PiModelsGetRequest; response: PiModelsGetResponse }
+  'pi.models.set': { request: PiModelsSetRequest; response: PiModelsSetResponse }
+  'pi.models.fetch': { request: PiModelsFetchRequest; response: PiModelsFetchResponse }
   'thinkingLevel.set': { request: ThinkingLevelSetRequest; response: ThinkingLevelSetResponse }
   'commands.list': { request: CommandsListRequest; response: CommandsListResponse }
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }
