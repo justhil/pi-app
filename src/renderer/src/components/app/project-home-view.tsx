@@ -22,18 +22,35 @@ export function ProjectHomeView({
   onOpenProject: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
+  const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null)
   const hasProject = !!currentWorkspace
 
   useEffect(() => {
     if (!pickerOpen) return
+    const updatePos = () => {
+      const el = triggerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setPickerPos({
+        left: rect.left + rect.width / 2,
+        top: rect.bottom + 8,
+      })
+    }
+    updatePos()
     const onDown = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node) &&
+          triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
         setPickerOpen(false)
       }
     }
     document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    window.addEventListener('resize', updatePos)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('resize', updatePos)
+    }
   }, [pickerOpen])
 
   return (
@@ -44,6 +61,7 @@ export function ProjectHomeView({
             <>
               要在{' '}
               <button
+                ref={triggerRef}
                 type="button"
                 onClick={() => setPickerOpen((v) => !v)}
                 className="project-picker-trigger inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-primary transition-colors hover:bg-primary/10"
@@ -56,6 +74,7 @@ export function ProjectHomeView({
           ) : (
             <div className="relative" ref={pickerRef}>
               <button
+                ref={triggerRef}
                 type="button"
                 onClick={() => setPickerOpen((v) => !v)}
                 className="project-picker-trigger inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-4 py-2 text-[22px] font-semibold text-foreground-secondary transition-all hover:border-primary/40 hover:text-foreground"
@@ -72,10 +91,17 @@ export function ProjectHomeView({
         </p>
       </div>
 
-      {pickerOpen && (
+      {pickerOpen && pickerPos && (
         <div
-          ref={hasProject ? pickerRef : undefined}
-          className="project-picker-card absolute left-1/2 top-1/2 z-50 w-[340px] -translate-x-1/2 -translate-y-[2rem] animate-in fade-in zoom-in-95 duration-200"
+          ref={pickerRef}
+          style={{
+            position: 'fixed',
+            left: pickerPos.left,
+            top: pickerPos.top,
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+          }}
+          className="project-picker-card w-[340px] animate-in fade-in zoom-in-95 duration-200"
         >
           <div className="overflow-hidden rounded-xl border border-border/70 bg-popover shadow-xl">
             <div className="border-b border-border/40 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground">
