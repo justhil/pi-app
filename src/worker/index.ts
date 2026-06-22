@@ -1377,6 +1377,24 @@ process.parentPort?.on('message', async (event: any) => {
           if (patch.httpIdleTimeoutMs !== undefined) sm.setHttpIdleTimeoutMs(Number(patch.httpIdleTimeoutMs))
           if (patch.isProjectTrusted === true) sm.setProjectTrusted(true)
           if (patch.isProjectTrusted === false) sm.setProjectTrusted(false)
+          if (session && patch.defaultProvider !== undefined && patch.defaultModel !== undefined) {
+            const provider = String(patch.defaultProvider)
+            const modelId = String(patch.defaultModel)
+            const model =
+              (session.modelRegistry as any)?.find?.(provider, modelId) ??
+              (session.modelRegistry as any)?.get?.(provider, modelId)
+            if (model) {
+              try {
+                await session.setModel(model)
+                const modelStr = session.model
+                  ? `${(session.model as any).provider}/${(session.model as any).modelId}`
+                  : undefined
+                emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
+              } catch (e) {
+                console.error('[Worker] setPiSettings setModel failed:', e)
+              }
+            }
+          }
           reply({ type: 'setPiSettings-done', ok: true })
         } catch (e: any) {
           reply({ type: 'error', error: `setPiSettings failed: ${e.message}` })

@@ -12,6 +12,7 @@ import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
+import { useComposerInputHistory } from './use-composer-input-history'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 
 interface SlashCommand {
@@ -72,6 +73,7 @@ export function Composer() {
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
+  const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setText)
 
   useEffect(() => {
     if (composerPrefill == null) return
@@ -174,6 +176,7 @@ export function Composer() {
     const refs = attachments.length > 0 ? '\n' + attachments.map((a) => `@${a.path}`).join(' ') : ''
     const payload = (raw.trim() + refs).trim()
     const displayText = raw.trim()
+    if (displayText) inputHistory.recordSent(displayText)
     setText('')
     setAttachments([])
     textareaRef.current?.focus()
@@ -299,6 +302,23 @@ export function Composer() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const alt = e.altKey
+    const el = textareaRef.current
+    if (
+      !showPopover &&
+      !alt &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      el &&
+      (e.key === 'ArrowUp' || e.key === 'ArrowDown')
+    ) {
+      const handled =
+        e.key === 'ArrowUp' ? inputHistory.tryArrowUp(el) : inputHistory.tryArrowDown(el)
+      if (handled) {
+        e.preventDefault()
+        return
+      }
+    }
     if (alt && e.key === 'ArrowUp' && !showPopover) {
       e.preventDefault()
       void restoreQueuedToComposer({ currentText: text, setText })
@@ -563,11 +583,17 @@ export function Composer() {
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              inputHistory.onUserEdit()
+              setText(e.target.value)
+            }}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onFocus={() => setComposerFocused(true)}
-            onBlur={() => setComposerFocused(false)}
+            onBlur={() => {
+              inputHistory.onComposerBlur(text)
+              setComposerFocused(false)
+            }}
             className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
             placeholder={
               ephemeralSandboxDraft && !currentWorkspace
