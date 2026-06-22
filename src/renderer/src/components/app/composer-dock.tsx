@@ -48,7 +48,7 @@ export function ComposerDock({ className, children, heroMode }: { className?: st
       )}
       <div
         ref={dockRef}
-        className="composer-dock-inner relative mx-auto w-full max-w-[var(--chat-content-max)] px-4 pb-3 pt-1 sm:px-6"
+        className="composer-dock-inner relative mx-auto w-full px-4 pb-3 pt-1 sm:px-6"
       >
         <div className="composer-dock-panel pointer-events-auto">{children}</div>
       </div>

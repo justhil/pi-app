@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChatTimelineProgressRail } from '@renderer/features/timeline/chat-timeline-progress-rail'
 import { PanelResizeEdge } from '@renderer/components/app/panel-resize-edge'
 
 /**
@@ -98,7 +97,7 @@ export function MainLayoutShell({
           {left}
         </div>
         {!leftCollapsed && (
-          <PanelResizeEdge dragging={leftDragging} onMouseDown={startLeftDrag} />
+          <PanelResizeEdge side="left" dragging={leftDragging} onMouseDown={startLeftDrag} />
         )}
       </div>
 
@@ -106,21 +105,22 @@ export function MainLayoutShell({
 
       <div
         className={cn(
-          'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-hidden',
+          'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-visible',
           rightCollapsed && 'shell-track-collapsed',
         )}
         style={{ background: 'var(--bg-base)' }}
         aria-hidden={rightCollapsed}
       >
         {!rightCollapsed && (
-          <>
-            <ChatTimelineProgressRail placement="panel-edge" />
-            <PanelResizeEdge dragging={rightDragging} onMouseDown={startRightDrag} />
-          </>
+          <PanelResizeEdge
+            side="right"
+            dragging={rightDragging}
+            onMouseDown={startRightDrag}
+          />
         )}
         <div
           className={cn(
-            'shell-track-inner min-h-0 min-w-0 flex flex-1 flex-col',
+            'shell-track-inner min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden',
             rightCollapsed && 'pointer-events-none',
           )}
         >

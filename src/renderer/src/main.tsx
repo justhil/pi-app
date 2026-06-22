@@ -6,8 +6,10 @@ import './styles/scrollbar-overlay.css'
 import './lib/i18n'
 import './lib/startup-toast-guard'
 import { ensureExtensionUIChannel } from './lib/extension-ui-channel'
+import { syncChatContentMaxWidths } from './lib/chat-content-width'
 
 ensureExtensionUIChannel()
+syncChatContentMaxWidths()
 
 const App = React.lazy(() => import('./app/app'))
 

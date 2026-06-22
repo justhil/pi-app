@@ -57,10 +57,11 @@
     --focus-border: #e1e0ff;
     --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
 
-    /* 对话阅读宽：随中间列比例伸缩（参考 参考桌面客户端 max-w-full / md:max-w-780px，桌面用比例+上下限替代死 780） */
-    --chat-content-min: 560px;
-    --chat-content-ratio: 72%;
-    --chat-content-cap: 1280px;
+    /* 输入框/对话：上限由 JS 按 screen.width 写入 *-max-px；窗口变窄时 min(100%, …) */
+    --composer-content-max-px: 768px;
+    --timeline-content-max-px: 816px;
+    --composer-content-max: min(100%, var(--composer-content-max-px));
+    --timeline-content-max: min(100%, var(--timeline-content-max-px));
 
     /* ── Tailwind HSL-compatible tokens (light) ── */
     --background: 0 0% 100%;
@@ -409,7 +410,6 @@
   }
   .chevron-expand[data-open='true'] {
     transform: rotate(90deg);
-    color: var(--brand);
   }
   .sidebar-project-row .nav-row {
     border-radius: var(--radius-md);
@@ -424,9 +424,7 @@
   .sidebar-project-hit:hover {
     background-color: var(--bg-hover);
   }
-  .sidebar-project-hit:hover .folder-icon {
-    color: var(--brand);
-  }
+
   .sidebar-session-row {
     cursor: pointer;
   }
@@ -466,32 +464,13 @@
     transition:
       background-color 200ms ease,
       color 200ms ease,
-      box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1),
       transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .nav-row::before {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 50%;
-    width: 3px;
-    height: 0;
-    border-radius: 2px;
-    background: var(--brand);
-    transform: translateY(-50%);
-    transition: height 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
-    opacity: 0;
   }
   .nav-row:hover {
     background-color: var(--bg-hover);
   }
   .nav-row-active {
     background-color: var(--bg-active) !important;
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--brand) 10%, transparent);
-  }
-  .nav-row-active::before {
-    height: 60%;
-    opacity: 1;
   }
   .chrome-icon-btn {
     transition:
@@ -509,16 +488,19 @@
   .win-ctrl-btn {
     transition: background-color 150ms ease, color 150ms ease;
   }
-  /* 左/右栏分界拖拽条：悬停与拖动时淡蓝高亮 */
   .panel-resize-edge {
     width: 6px;
-    align-self: stretch;
     background: transparent;
-    transition: background-color 200ms ease;
   }
-  .panel-resize-edge-armed,
-  .panel-resize-edge-active {
-    background: color-mix(in srgb, #8ec8f0 38%, transparent);
+  .panel-resize-edge--left {
+    flex-shrink: 0;
+  }
+  /* 右栏：手柄中心落在 grid 接缝（= 主对话区 box-shadow 右缘） */
+  .panel-resize-edge--right {
+    position: absolute;
+    left: -3px;
+    top: 0;
+    bottom: 0;
   }
   .chat-scroll-rail {
     pointer-events: auto;
@@ -805,22 +787,16 @@
     box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
   }
 
-  /* 主对话区：中间列 flex-1 拉满；内容区居中，宽 = clamp(最小, 中间列比例, 上限) */
+  /* 主对话区：居中，正文宽度上限略大于输入框 */
   .chat-content-column {
     width: 100%;
-    max-width: 100%;
+    max-width: var(--timeline-content-max);
     margin-inline: auto;
     padding-inline: 1rem;
     box-sizing: border-box;
   }
-  /* 对齐 参考桌面客户端：窄屏（<768）满宽 */
   @media (min-width: 768px) {
     .chat-content-column {
-      max-width: clamp(
-        min(var(--chat-content-min), 100%),
-        var(--chat-content-ratio),
-        min(var(--chat-content-cap), 100%)
-      );
       padding-inline: 1.25rem;
     }
   }
@@ -828,6 +804,9 @@
     .chat-content-column {
       padding-inline: 1.5rem;
     }
+  }
+  .composer-dock-inner {
+    max-width: var(--composer-content-max);
   }
 
   /* ── Markdown chat typography (参考桌面客户端 desktop-ui-markdown) ── */
@@ -942,7 +921,6 @@
 
 /* hero 态输入框更宽、更柔和 */
 .composer-dock-hero .composer-dock-inner {
-  max-width: 680px !important;
   transition: max-width var(--motion-slow) var(--motion-ease);
 }
 .composer-dock-hero .composer-shell {
