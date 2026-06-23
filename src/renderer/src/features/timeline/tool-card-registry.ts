@@ -51,6 +51,11 @@ export function resolveToolCardDef(toolName: string | undefined): AdapterJson['t
   return resolveAdapterForTool(toolName)?.toolCard
 }
 
+/** adapter.toolCard.template（兼容层扩展模板 id） */
+export function resolveAdapterToolCardTemplate(toolName: string | undefined): string | undefined {
+  return resolveToolCardDef(toolName)?.template
+}
+
 /** Hook: ensure catalog is loaded (triggers re-render once available). */
 export function useToolCardCatalogReady(): boolean {
   const [ready, setReady] = useState(!!cachedCatalog)

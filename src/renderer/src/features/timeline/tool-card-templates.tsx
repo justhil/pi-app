@@ -258,7 +258,6 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
 
 // ── default template (syntax-highlighted text + artifact paths) ──
 const DefaultTemplate: ToolCardComponent = ({ item }) => {
-  // Native pi tools (read/edit/write/grep/bash) get structured previews.
   const nativePreview = renderNativeToolPreview(item)
   const details = item.toolDetails
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []

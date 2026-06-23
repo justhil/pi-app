@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.6] — 2026-06-23
+
+### 时间线 / 原生工具
+
+- **edit / write**：多源 diff（`details.patch`、输出 unified diff、`edits[]` / `old_string`·`new_string`），默认展开 edit 行级绿红对比
+- **read / grep / bash**：统一从工具输出抽取文本，预览折叠与摘要行改进
+
+### 兼容层（扩展适配）
+
+- 内置适配器 **Hashline Edit**（`@jerryan/pi-hashline-edit`）：`adapter.json` 声明 `toolCard.template: hashline` + `protocol: hashline-v1`
+- 新增 `extension-compat/renderer/`：`hashline` 模板原语（列对齐 `LINE#HASH│`、unified diff、`toolDetails.diff` 优先），时间线经 catalog 查表渲染，**不在 App 源码写插件名分支**
+- `insert` 纳入原生工具行展开路径
+
+### 文档
+
+- README：内置适配器列表补充 Hashline Edit；说明适配器 JSON 与工具卡模板关系
+
 ## [0.3.5] — 2026-06-23
 
 ### 输入区

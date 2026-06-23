@@ -164,6 +164,8 @@ npm run dev
 
 内置适配随应用发布；可在 `~/.pi/desktop/adapters/` 或项目 `.pi/desktop/adapters/` 放 JSON 覆盖（高级）。
 
+**适配器 JSON 与工具卡模板**：每个扩展一份 `*.adapter.json`（匹配包名 / 工具名、配置页、斜杠语义）。时间线展示由 `toolCard.template` 查表：`default` / `list` / `media` / `tree` / `kv` / **`hashline`**（hashline 协议输出，实现位于 `src/extension-compat/renderer/`，无需在 `src/renderer` 写插件名分支）。安装扩展后需在 `settings.json` 的 `packages` 中启用，并重启 Worker。
+
 ### 内置适配器列表
 
 以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）。终端安装示例：`pi install npm:pi-subagents`、`pi install git:github.com/justhil/pi-search`（npm 包用 `npm:`，GitHub 用 `git:`，与上表「扩展包」列包名一致）。
@@ -192,6 +194,7 @@ npm run dev
 | Advisor | [`@juicesharp/rpiv-advisor`](https://github.com/juicesharp/rpiv-mono) | 顾问建议弹窗 |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | 观察记忆配置 |
 | Tool Display | [`pi-tool-display`](https://www.npmjs.com/package/pi-tool-display) | 工具展示卡片 |
+| Hashline Edit | [`@jerryan/pi-hashline-edit`](https://www.npmjs.com/package/@jerryan/pi-hashline-edit) | 哈希锚定 read/edit/insert/grep + 时间线 hashline 预览 |
 | Agents.md | [`pi-agentsmd`](https://github.com/jvm/pi-mono) | AGENTS.md 管理配置 |
 | ACE Tool | [`pi-ace-tool`](https://github.com/justhil/pi-ace-tool) | ACE 工具集成 |
 | Sequential Thinking | [`@feniix/pi-sequential-thinking`](https://github.com/feniix/pi-extensions) | 顺序思考配置 |
