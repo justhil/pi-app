@@ -10,6 +10,8 @@ export interface SandboxMeta {
   label: string
   createdAt: number
   kind: 'sandbox'
+  sessionId?: string
+  sessionFile?: string
 }
 
 export function getSandboxRoot(): string {
@@ -40,7 +42,14 @@ export function ensureSandboxRoot(): string {
   return root
 }
 
-export function createSandboxWorkspace(label?: string): { id: string; path: string; label: string; createdAt: number } {
+export function createSandboxWorkspace(label?: string): {
+  id: string
+  path: string
+  label: string
+  createdAt: number
+  sessionId?: string
+  sessionFile?: string
+} {
   const root = ensureSandboxRoot()
   const id = randomUUID().slice(0, 8)
   const dir = join(root, id)
@@ -55,15 +64,36 @@ export function createSandboxWorkspace(label?: string): { id: string; path: stri
   return { id, path: dir, label: meta.label, createdAt: meta.createdAt }
 }
 
-export function listSandboxWorkspaces(): Array<{ id: string; path: string; label: string; createdAt: number }> {
+export function listSandboxWorkspaces(): Array<{
+  id: string
+  path: string
+  label: string
+  createdAt: number
+  sessionId?: string
+  sessionFile?: string
+}> {
   const root = ensureSandboxRoot()
-  const out: Array<{ id: string; path: string; label: string; createdAt: number }> = []
+  const out: Array<{
+    id: string
+    path: string
+    label: string
+    createdAt: number
+    sessionId?: string
+    sessionFile?: string
+  }> = []
   for (const name of readdirSync(root, { withFileTypes: true })) {
     if (!name.isDirectory()) continue
     const dir = join(root, name.name)
     const meta = readMeta(dir)
     if (meta) {
-      out.push({ id: meta.id, path: dir, label: meta.label, createdAt: meta.createdAt })
+      out.push({
+        id: meta.id,
+        path: dir,
+        label: meta.label,
+        createdAt: meta.createdAt,
+        sessionId: meta.sessionId,
+        sessionFile: meta.sessionFile,
+      })
     }
   }
   out.sort((a, b) => b.createdAt - a.createdAt)
@@ -79,6 +109,15 @@ export function renameSandboxWorkspace(path: string, label: string): boolean {
   return true
 }
 
+export function bindSandboxSession(path: string, sessionId: string, sessionFile?: string): boolean {
+  if (!sessionId || !isSandboxWorkspacePath(path)) return false
+  const meta = readMeta(path)
+  if (!meta) return false
+  meta.sessionId = sessionId
+  if (sessionFile) meta.sessionFile = sessionFile
+  writeFileSync(join(path, META_FILE), JSON.stringify(meta, null, 2), 'utf-8')
+  return true
+}
 export function deleteSandboxWorkspace(path: string): boolean {
   if (!isSandboxWorkspacePath(path)) return false
   try {

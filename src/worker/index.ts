@@ -101,7 +101,7 @@ async function initSession(cwd: string): Promise<void> {
     agentDir,
     settingsManager,
     resourceLoader,
-    sessionManager: sdk!.SessionManager.inMemory(),
+    sessionManager: sdk!.SessionManager.create(cwd),
   })
 
   session = newSession
@@ -1136,6 +1136,7 @@ process.parentPort?.on('message', async (event: any) => {
           session = newSession
           currentSessionId = session.sessionId
           await bindDesktopExtensions(session)
+          promptSent = true
           unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
           const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
           emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })

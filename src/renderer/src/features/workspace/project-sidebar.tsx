@@ -9,7 +9,15 @@ import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animate
 import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-context-menu'
 import { useSessionContextMenu, SessionContextMenuPortal } from './session-context-menu'
 
-type SandboxEntry = { id: string; path: string; label: string; createdAt: number; kind: 'sandbox' }
+type SandboxEntry = {
+  id: string
+  path: string
+  label: string
+  createdAt: number
+  kind: 'sandbox'
+  sessionId?: string
+  sessionFile?: string
+}
 
 type SessionItem = {
   sessionId: string
@@ -148,10 +156,13 @@ export function ProjectSidebar({
     void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
   }
 
-  const openSandboxDialog = async (path: string) => {
+  const openSandboxDialog = async (box: SandboxEntry) => {
     try {
-      if (path === currentWorkspace && !ephemeralSandboxDraft) return
-      await activateWorkspace(path)
+      if (box.path === currentWorkspace && currentSessionId === box.sessionId && !ephemeralSandboxDraft) return
+      await activateWorkspace(box.path, {
+        sessionId: box.sessionId,
+        sessionFile: box.sessionFile,
+      })
     } catch (e) {
       console.error('[ProjectSidebar] open sandbox failed:', e)
     }
@@ -335,8 +346,8 @@ export function ProjectSidebar({
         key={box.path}
         role="button"
         tabIndex={0}
-        onClick={() => void openSandboxDialog(box.path)}
-        onKeyDown={(e) => e.key === 'Enter' && void openSandboxDialog(box.path)}
+        onClick={() => void openSandboxDialog(box)}
+        onKeyDown={(e) => e.key === 'Enter' && void openSandboxDialog(box)}
         onContextMenu={(e) => sandboxMenu.open(e, box.path, box.label)}
         className={cn(
           'nav-row sidebar-session-row mb-0.5 flex min-h-[40px] items-center gap-2.5 rounded-lg px-3 py-2',
