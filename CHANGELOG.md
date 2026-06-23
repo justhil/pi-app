@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.8] — 2026-06-24
+
+### 修复
+
+- **对话区会话分区**：左侧「对话」区域的每个临时对话现在绑定真实 `sessionId/sessionFile`，点击已有对话直接加载对应 JSONL 历史，不再误进入项目 Home / 新对话页
+- **Sandbox 会话恢复**：`workspace.sandbox.list` 会为旧 sandbox 自动回填最近 session 绑定，兼容 0.3.7 已创建的临时对话
+- **显式 session 打开**：`activateWorkspace(path, { sessionId, sessionFile })` 即使 `session.list` 暂时为空，也会优先打开传入的 session，避免历史会话被空列表短路成新对话入口
+- **Worker session 生命周期**：新会话恢复持久化 `SessionManager.create(cwd)`，保证 `session.new` 能拿到可恢复的 JSONL 文件；加载历史 session 后标记为已有 prompt 状态，后续新建会话会正确切分
+
 ## [0.3.7] — 2026-06-24
 
 ### 输入区富文本重构

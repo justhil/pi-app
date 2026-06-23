@@ -5,6 +5,7 @@ import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
+import { chooseWorkspaceSession, type WorkspaceSessionChoice } from '@renderer/lib/workspace-session-choice'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -38,7 +39,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
         console.error('[activateWorkspace] workspace.ensureWorker failed:', e)
       })
 
-  let sessions: Array<{ sessionId: string; sessionFile?: string; title?: string; updatedAt?: number }> = []
+  let sessions: WorkspaceSessionChoice[] = []
   try {
     await openPromise
     if (!assertSessionNavigation(navToken)) return
@@ -59,7 +60,9 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     return
   }
 
-  if (sessions.length === 0) {
+  const pick = chooseWorkspaceSession(sessions, options)
+
+  if (!pick) {
     store.clearPendingNewSessionPlaceholder()
     store.setCurrentSession(null)
     store.setHistoryMeta(0, 0, null)
@@ -67,14 +70,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     return
   }
 
-  const pick =
-    options?.sessionId && options.sessionFile
-      ? { sessionId: options.sessionId, sessionFile: options.sessionFile }
-      : sessions.find((s) => s.sessionId === options?.sessionId) ||
-        sessions.find((s) => s.sessionFile === options?.sessionFile) ||
-        sessions[0]
-
-  if (!pick?.sessionFile) {
+  if (!pick.sessionFile) {
     store.clearPendingNewSessionPlaceholder()
     store.setCurrentSession(null)
     return

@@ -60,6 +60,7 @@ import {
   renameSandboxWorkspace,
   deleteSandboxWorkspace,
   isSandboxWorkspacePath,
+  bindSandboxSession,
 } from './sandbox-workspaces'
 import {
   setPendingWorkerSessionFile,
@@ -300,7 +301,20 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:workspace.sandbox.list', async () => {
-    return { sandboxes: listSandboxWorkspaces().map((s) => ({ ...s, kind: 'sandbox' as const })) }
+    const sandboxes = await Promise.all(
+      listSandboxWorkspaces().map(async (s) => {
+        if (!s.sessionId || !s.sessionFile) {
+          const latest = (await listSessionsOnDisk(s.path).catch(() => []))[0]
+          if (latest?.id) {
+            s.sessionId = latest.id
+            s.sessionFile = latest.path
+            bindSandboxSession(s.path, latest.id, latest.path)
+          }
+        }
+        return { ...s, kind: 'sandbox' as const }
+      }),
+    )
+    return { sandboxes }
   })
 
   registerHandler('ipc:workspace.sandbox.rename', async (req) => {
@@ -481,6 +495,9 @@ export function registerAllHandlers(): void {
     const result = await workerManager.newSession()
     const state = await workerManager.getState().catch(() => ({}))
     const sessionFile = (state as { sessionFile?: string })?.sessionFile
+    if (isSandboxWorkspacePath(workspaceId)) {
+      bindSandboxSession(workspaceId, result.sessionId, sessionFile)
+    }
     return {
       session: {
         sessionId: result.sessionId,
