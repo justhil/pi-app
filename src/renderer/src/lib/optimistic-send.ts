@@ -5,6 +5,10 @@ let optSeq = 0
 export type OptimisticSendOpts = {
   /** 仅冷启动/首条绑定 Worker 时为 true，同会话后续消息应 false（显示「等待回复」） */
   bootstrap?: boolean
+  /** 文件附件元数据（旧字段，兼容） */
+  attachments?: { path: string; name: string; kind: string }[]
+  /** 文中分段（文本+附件位置），时间线按此渲染 */
+  segments?: any[]
 }
 
 /** 发送后立即在 Timeline 展示用户消息 + 助手等待占位 */
@@ -20,6 +24,8 @@ export function appendOptimisticOutgoingMessage(text: string, opts?: OptimisticS
     id: userId,
     type: 'user-message',
     text: trimmed,
+    attachments: opts?.attachments,
+    segments: opts?.segments,
     timestamp: ts,
   })
   store.appendTimeline({

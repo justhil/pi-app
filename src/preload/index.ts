@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppEvent } from '@shared/app-events'
 
 const EVENTS_CHANNEL = 'ipc:events'
@@ -10,6 +10,14 @@ const APP_UPDATE_CHANNEL = 'ipc:app-update-available'
 const api = {
   invoke(channel: string, request?: any): Promise<any> {
     return ipcRenderer.invoke(channel, request)
+  },
+
+  getPathForFile(file: File): string {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return (file as any).path ?? ''
+    }
   },
 
   onEvent(callback: (event: AppEvent) => void): () => void {

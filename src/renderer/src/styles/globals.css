@@ -548,6 +548,220 @@
   .composer-shell-focused .composer-textarea::placeholder {
     opacity: 0.55;
   }
+  /* 富文本输入区（contenteditable） */
+  .rich-input {
+    position: relative;
+    caret-color: var(--aou-6);
+    letter-spacing: 0.01em;
+    outline: none;
+    word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 112px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    transition:
+      color var(--motion-fast) var(--motion-ease),
+      height var(--motion-fast) var(--motion-ease);
+  }
+  .rich-input.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .dark .rich-input {
+    caret-color: var(--aou-7);
+  }
+  .composer-shell-focused .rich-input.is-empty::before {
+    opacity: 0.38;
+  }
+  .rich-input.is-empty::before {
+    content: attr(data-placeholder);
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--text-secondary);
+    opacity: 0.45;
+    pointer-events: none;
+    transition: opacity var(--motion-normal) var(--motion-ease);
+  }
+  .rich-attachment-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--border-base);
+    border-radius: 7px;
+    padding: 3px 7px;
+    margin: 0 2px;
+    line-height: 1.35;
+    background: color-mix(in srgb, var(--bg-2) 92%, var(--bg-base));
+    vertical-align: middle;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+    animation: attachment-chip-in var(--motion-normal) var(--motion-ease) both;
+    transition:
+      background-color var(--motion-normal) var(--motion-ease),
+      border-color var(--motion-normal) var(--motion-ease),
+      box-shadow var(--motion-normal) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
+  }
+  .rich-attachment-chip:hover {
+    background: var(--bg-3);
+    border-color: color-mix(in srgb, var(--brand) 32%, var(--border-base));
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--brand) 10%, transparent);
+    transform: translateY(-0.5px);
+  }
+  .rich-attachment-chip .rich-attachment-icon {
+    display: inline-flex;
+    align-items: center;
+    opacity: 0.65;
+    transition: opacity var(--motion-fast) ease;
+  }
+  .rich-attachment-chip:hover .rich-attachment-icon {
+    opacity: 0.85;
+  }
+  .rich-attachment-chip .rich-attachment-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rich-attachment-chip .rich-attachment-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    opacity: 0.45;
+    padding: 2px;
+    border: 0;
+    background: transparent;
+    border-radius: 4px;
+    transition:
+      opacity var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease;
+  }
+  .rich-attachment-chip .rich-attachment-remove:hover {
+    opacity: 1;
+    color: var(--danger-semantic);
+    background: color-mix(in srgb, var(--danger-semantic) 12%, transparent);
+  }
+  .attachment-chip {
+    transition:
+      background-color var(--motion-normal) var(--motion-ease),
+      border-color var(--motion-normal) var(--motion-ease),
+      box-shadow var(--motion-normal) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
+  }
+  .attachment-chip:hover {
+    background: var(--bg-3) !important;
+    border-color: color-mix(in srgb, var(--brand) 30%, var(--border-base)) !important;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--brand) 8%, transparent);
+    transform: translateY(-0.5px);
+  }
+  .attachment-chip-remove {
+    transition:
+      opacity var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease;
+  }
+  .attachment-chip-remove:hover {
+    opacity: 1 !important;
+    color: var(--danger-semantic);
+    background: color-mix(in srgb, var(--danger-semantic) 12%, transparent);
+  }
+  .composer-drop-overlay {
+    opacity: 0;
+    transform: scale(0.985);
+    transition:
+      opacity var(--motion-normal) var(--motion-ease),
+      transform var(--motion-normal) var(--motion-ease);
+    pointer-events: none;
+  }
+  .composer-drop-overlay.is-active {
+    opacity: 1;
+    transform: scale(1);
+    animation: backdrop-fade var(--motion-normal) var(--motion-ease) both;
+  }
+  .composer-drop-overlay.is-active svg {
+    transform: translateY(-2px);
+  }
+  .composer-attachments-strip {
+    animation: composer-strip-in var(--motion-normal) var(--motion-ease) both;
+  }
+  @keyframes attachment-chip-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+  @keyframes composer-strip-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .delayed-tooltip-host {
+    vertical-align: middle;
+  }
+  .delayed-tooltip-bubble {
+    position: fixed;
+    z-index: 9999;
+    max-width: min(380px, 70vw);
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-base);
+    background: var(--bg-base);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--aou-10) 12%, transparent);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+      opacity var(--motion-normal) var(--motion-ease),
+      transform var(--motion-normal) var(--motion-ease);
+  }
+  .delayed-tooltip-bubble.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  /* 时间线内联附件 chip */
+  .inline-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border-base);
+    border-radius: 6px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    line-height: 1.4;
+    background: var(--bg-2);
+    vertical-align: baseline;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+    transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+  }
+  .inline-attachment-chip:hover {
+    background: var(--bg-3);
+    border-color: color-mix(in srgb, var(--brand) 30%, var(--border-base));
+  }
   /* Model / thinking pills */
   .composer-pill {
     border-color: var(--border-base);
@@ -591,11 +805,18 @@
     transform: scale(0.96);
   }
   .composer-toolbar-btn {
-    transition: background-color 200ms ease, color 200ms ease;
+    transition:
+      background-color var(--motion-fast) var(--motion-ease),
+      color var(--motion-fast) var(--motion-ease),
+      transform var(--motion-fast) var(--motion-ease);
   }
   .composer-toolbar-btn:hover:not(:disabled) {
     background-color: var(--bg-hover);
     color: var(--foreground-secondary);
+    transform: translateY(-0.5px);
+  }
+  .composer-toolbar-btn:active:not(:disabled) {
+    transform: scale(0.96);
   }
   .composer-toolbar-send {
     transition: transform 200ms ease, background-color 200ms ease, opacity 200ms ease;

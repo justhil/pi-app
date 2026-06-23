@@ -47,8 +47,10 @@ import {
 } from '@shared/right-panels'
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
+import { readFileSync, existsSync, readdirSync, statSync, writeFileSync } from 'fs'
+import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { randomUUID } from 'node:crypto'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 import { join, basename, dirname, extname } from 'path'
 import { homedir } from 'os'
@@ -548,11 +550,15 @@ export function registerAllHandlers(): void {
     return { messageId: `msg-${Date.now()}` }
   })
 
-  registerHandler('ipc:prompt.sendWithImages', async (req) => {
-    await bindBeforePrompt()
-    await workerManager.sendPromptWithImages(req.text, req.images)
-    return { messageId: `msg-${Date.now()}` }
+  registerHandler('ipc:clipboard.writeTempImage', async (req) => {
+    const { data, mimeType } = req
+    const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : mimeType === 'image/gif' ? 'gif' : mimeType === 'image/bmp' ? 'bmp' : 'png'
+    const fileName = `pi-clipboard-${randomUUID()}.${ext}`
+    const filePath = join(tmpdir(), fileName)
+    writeFileSync(filePath, Buffer.from(data, 'base64'))
+    return { path: filePath }
   })
+
 
   registerHandler('ipc:prompt.steer', async (req) => {
     await bindBeforePrompt()
@@ -644,7 +650,7 @@ export function registerAllHandlers(): void {
     }
     if (!workerManager.isRunning) {
       const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (!cwd) throw new Error('Worker not started')
+      if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')
       await workerManager.start(cwd)
     }
     await workerManager.setModel(provider, modelId)
@@ -660,7 +666,7 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:thinkingLevel.set', async (req) => {
     if (!workerManager.isRunning) {
       const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (!cwd) throw new Error('Worker not started')
+      if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')
       await workerManager.start(cwd)
     }
     await workerManager.setThinkingLevel(req.level)

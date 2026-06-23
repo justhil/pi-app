@@ -4,6 +4,7 @@ declare global {
   interface Window {
     piDesktop?: {
       invoke: (channel: string, request?: any) => Promise<any>
+      getPathForFile: (file: File) => string
       onEvent: (callback: (event: AppEvent) => void) => () => void
       onWorkerExit: (callback: (info: { code: number; cwd: string }) => void) => () => void
       onAutoOpened: (callback: (info: { workspaceId: string }) => void) => () => void

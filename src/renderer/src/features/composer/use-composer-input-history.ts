@@ -30,31 +30,24 @@ function scopeKey(workspace: string | null, sessionId: string | null): string {
   return `${w}\0${s}`
 }
 
-/** ↑：空框、顶格光标、或全文选中 */
-function canArrowUp(el: HTMLTextAreaElement): boolean {
-  const len = el.value.length
-  if (len === 0) return true
-  const { selectionStart: s, selectionEnd: e } = el
-  if (s === 0 && e === len) return true
-  if (s === 0 && e === 0) return true
-  return false
+/** 编辑器光标位置适配器，兼容富文本 contenteditable。 */
+export interface EditorCursorAdapter {
+  getValue(): string
+  isEmpty(): boolean
+  isCaretAtStart(): boolean
+  isCaretAtEnd(): boolean
+  isAllSelected(): boolean
+  selectAll(): void
 }
 
-/** ↓：仅在浏览历史中，且空框、末格光标、或全文选中 */
-function canArrowDown(el: HTMLTextAreaElement): boolean {
-  const len = el.value.length
-  if (len === 0) return true
-  const { selectionStart: s, selectionEnd: e } = el
-  if (s === 0 && e === len) return true
-  if (s === len && e === len) return true
-  return false
+function canArrowUp(a: EditorCursorAdapter): boolean {
+  if (a.isEmpty()) return true
+  return a.isCaretAtStart() || a.isAllSelected()
 }
 
-function selectAll(el: HTMLTextAreaElement): void {
-  requestAnimationFrame(() => {
-    el.selectionStart = 0
-    el.selectionEnd = el.value.length
-  })
+function canArrowDown(a: EditorCursorAdapter): boolean {
+  if (a.isEmpty()) return true
+  return a.isCaretAtEnd() || a.isAllSelected()
 }
 
 export function useComposerInputHistory(
@@ -116,13 +109,13 @@ export function useComposerInputHistory(
   }, [resetNav])
 
   const tryArrowUp = useCallback(
-    (el: HTMLTextAreaElement): boolean => {
-      if (!canArrowUp(el)) return false
+    (adapter: EditorCursorAdapter): boolean => {
+      if (!canArrowUp(adapter)) return false
       const history = historyRef.current
       if (history.length === 0) return false
 
       if (navIndexRef.current === -1) {
-        persistDraft(el.value)
+        persistDraft(adapter.getValue())
         navIndexRef.current = 0
       } else if (navIndexRef.current < history.length - 1) {
         navIndexRef.current += 1
@@ -131,16 +124,16 @@ export function useComposerInputHistory(
       }
       const entry = history[history.length - 1 - navIndexRef.current]
       setText(entry ?? '')
-      selectAll(el)
+      requestAnimationFrame(() => adapter.selectAll())
       return true
     },
     [setText, persistDraft],
   )
 
   const tryArrowDown = useCallback(
-    (el: HTMLTextAreaElement): boolean => {
+    (adapter: EditorCursorAdapter): boolean => {
       if (navIndexRef.current === -1) return false
-      if (!canArrowDown(el)) return false
+      if (!canArrowDown(adapter)) return false
 
       if (navIndexRef.current > 0) {
         navIndexRef.current -= 1
@@ -151,7 +144,7 @@ export function useComposerInputHistory(
         navIndexRef.current = -1
         setText(draftRef.current)
       }
-      selectAll(el)
+      requestAnimationFrame(() => adapter.selectAll())
       return true
     },
     [setText],

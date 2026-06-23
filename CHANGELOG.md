@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.7] — 2026-06-24
+
+### 输入区富文本重构
+
+- **contenteditable 富文本编辑器**：原生 textarea 替换为 contenteditable div，支持文中内联附件 chip（不可编辑节点），保留附件在文本中的精确位置
+- **跨平台粘贴/拖放文件**：Ctrl+V/Cmd+V 从文件管理器粘贴文件、拖放文件、+ 按钮选择文件，均解析真实磁盘路径并插入内联 chip 占位
+- **文件类型图标**：chip 根据扩展名显示对应 lucide 图标（代码/压缩包/PDF/文档/表格/音视频等）
+- **延迟 tooltip 系统**：悬浮 chip 420ms 后显示完整路径，portal 到 body + fixed 定位避免被 overflow 容器裁剪；编辑器清空/发送时 `hideAllDelayedTooltips()` 立即清除残留 tooltip
+
+### 剪贴板图片
+
+- **改用 TUI 方式**：粘贴截图写入临时文件 `pi-clipboard-{uuid}.{ext}`，以裸路径发送（与 TUI 一致），不再走 base64 `sendWithImages`，避免 Vision Proxy consent 弹窗与 400 错误
+- 占位文本简化为 `[image file]`
+- 时间线中图片 chip 可点击用系统默认程序打开
+
+### 时间线
+
+- **附件 chip 渲染**：用户消息按 segments 渲染内联附件 chip，保留发送时的附件位置
+- **修复 @ 误渲染**：历史消息不再用 `parseInlineAttachments` 扫描 `@path`（会误将邮箱/@提及渲染为文件 chip），改为仅从 optimistic segments 渲染
+
+### 冷启动修复
+
+- **promptSent 标志**：Worker 新增 `promptSent` 布尔值，`newSession` 在 `promptSent===false` 时跳过 dispose+re-init，避免刚创建的 session 被误销毁导致 `session.prompt()` 挂起
+- **SessionManager.inMemory()**：恢复使用 `inMemory()` 而非 `create(cwd)`，session 持久化由 `session.new` IPC 处理
+- **Sandbox 启动守卫**：`model.set`/`thinkingLevel.set` IPC 在 Worker 未运行且 fallback cwd 为 sandbox 路径时抛错，不再自动为旧 sandbox 启动 Worker
+- **启动工作区解析**：`resolveBootWorkspaceState` 将持久化的 sandbox 路径解析为 ephemeral draft，跳过 Worker 启动
+
+### 其他
+
+- **EditorCursorAdapter**：输入历史从 textarea 专用 API 重构为适配器接口，兼容 contenteditable
+- **TimelineItem.segments**：新增 segments 字段用于位置保持的附件渲染
+- **拖放覆盖层动画**：拖入文件时显示半透明覆盖层，松手添加
 ## [0.3.6] — 2026-06-23
 
 ### 时间线 / 原生工具

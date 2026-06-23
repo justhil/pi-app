@@ -268,9 +268,6 @@ export class WorkerManager {
   }
 
   async sendPrompt(text: string): Promise<void> { await this.request('prompt', { text }) }
-  async sendPromptWithImages(text: string, images: any[]): Promise<void> {
-    await this.request('prompt', { text, options: { images } })
-  }
   async abort(): Promise<void> { await this.request('abort') }
   async steer(text: string): Promise<void> { await this.request('steer', { text }) }
   async followUp(text: string): Promise<void> { await this.request('followUp', { text }) }
