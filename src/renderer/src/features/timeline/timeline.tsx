@@ -20,6 +20,8 @@ import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
+import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
+import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
 
 const MarkdownView = lazy(() => import('./markdown-view'))
 
@@ -30,6 +32,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
   const streaming = streamingId === item.id
 
   if (item.type === 'user-message') {
+    const segments: Segment[] = item.segments?.length ? item.segments : [{ type: 'text', text: item.text || '' }]
     return (
       <div className={cn('timeline-message-row', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
         <MessageHoverShell
@@ -51,7 +54,13 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
               borderRadius: '8px 0 8px 8px',
             }}
           >
-            {item.text}
+            {segments.map((s: Segment, i: number) => {
+              if (s.type === 'text') return <span key={i}>{s.text}</span>
+              if (s.type === 'clipboard-image') {
+                return <AttachmentChip key={i} attachment={{ path: s.path, name: s.name, kind: 'image' }} openable className="mx-0.5" />
+              }
+              return <AttachmentChip key={i} attachment={s.attachment as AttachmentMeta} openable className="mx-0.5" />
+            })}
           </div>
         </MessageHoverShell>
       </div>

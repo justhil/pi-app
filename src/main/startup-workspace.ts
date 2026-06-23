@@ -19,5 +19,5 @@ export function resolveStartupWorkspace(): string | null {
     configStore.set('currentProject', disk)
     return disk
   }
-  return cur
+  return null
 }

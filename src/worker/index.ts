@@ -29,6 +29,7 @@ let currentTurnId = ''
 let unsubscribe: (() => void) | null = null
 /** 仅 agent_start…agent_end 之间允许向桌面转发交互式 extension-ui（非 notify） */
 let agentTurnActive = false
+let promptSent = false
 
 // Safety net: some extensions (e.g. pi-powerline-footer) keep timers running on a
 // captured ctx that becomes stale after session replacement; the SDK throws but
@@ -77,6 +78,7 @@ async function initSession(cwd: string): Promise<void> {
     unsubscribe = null
   }
   agentTurnActive = false
+  promptSent = false
   if (session) {
     session.dispose()
     session = null
@@ -99,6 +101,7 @@ async function initSession(cwd: string): Promise<void> {
     agentDir,
     settingsManager,
     resourceLoader,
+    sessionManager: sdk!.SessionManager.inMemory(),
   })
 
   session = newSession
@@ -696,6 +699,7 @@ process.parentPort?.on('message', async (event: any) => {
         }
         currentRunId = `run-${nextSeq()}`
         currentTurnId = `turn-${nextSeq()}`
+        promptSent = true
         emit({ ...baseEvent(), type: 'run', phase: 'running' })
         reply({ type: 'prompt-done' })
         void (async () => {
@@ -793,9 +797,12 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'newSession': {
-        if (unsubscribe) { unsubscribe(); unsubscribe = null }
-        if (session) { session.dispose(); session = null }
-        await initSession(currentCwd)
+        if (promptSent) {
+          if (unsubscribe) { unsubscribe(); unsubscribe = null }
+          if (session) { session.dispose(); session = null }
+          await initSession(currentCwd)
+        }
+        promptSent = false
         reply({ type: 'newSession-done', sessionId: currentSessionId })
         break
       }

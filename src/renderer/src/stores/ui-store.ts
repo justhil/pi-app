@@ -74,6 +74,12 @@ export interface TimelineItem {
   errorKind?: 'error' | 'aborted' | 'retry'
   /** Pi session tree entry id (for navigateTree / rewind) */
   sessionEntryId?: string
+  attachments?: { path: string; name: string; kind: string }[]
+  segments?: Array<
+    | { type: 'text'; text: string }
+    | { type: 'file'; attachment: { path: string; name: string; kind: string } }
+    | { type: 'clipboard-image'; path: string; name: string }
+  >
   timestamp: number
 }
 
@@ -526,6 +532,8 @@ export const useUIStore = create<UIState>()(
               if (event.text?.trim()) {
                 state.updateTimelineItem(lastUser!.id, {
                   text: event.text,
+                  // 确认事件 payload 含 @path，切换为行内解析渲染；废弃乐观 segments
+                  segments: undefined,
                   ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
                 })
               } else if (event.sessionEntryId) {

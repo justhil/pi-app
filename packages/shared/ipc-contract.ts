@@ -42,9 +42,6 @@ export interface SessionExportResponse { content: string; format: string; filena
 // ── Prompt ──
 export interface PromptSendRequest { sessionId: string; text: string }
 export interface PromptSendResponse { messageId: string }
-export interface ImageInput { name: string; mimeType: string; data: string }
-export interface PromptSendWithImagesRequest { sessionId: string; text: string; images: ImageInput[] }
-export interface PromptSendWithImagesResponse { messageId: string }
 export interface PromptSteerRequest { sessionId: string; text: string }
 export interface PromptSteerResponse { steered: boolean }
 export interface PromptFollowUpRequest { sessionId: string; text: string }
@@ -206,7 +203,6 @@ export interface IpcMethodMap {
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }
   'session.export': { request: SessionExportRequest; response: SessionExportResponse }
   'prompt.send': { request: PromptSendRequest; response: PromptSendResponse }
-  'prompt.sendWithImages': { request: PromptSendWithImagesRequest; response: PromptSendWithImagesResponse }
   'prompt.steer': { request: PromptSteerRequest; response: PromptSteerResponse }
   'prompt.followUp': { request: PromptFollowUpRequest; response: PromptFollowUpResponse }
   'prompt.abort': { request: PromptAbortRequest; response: PromptAbortResponse }

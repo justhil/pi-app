@@ -1,19 +1,23 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, X, FileText, Upload, Plus } from 'lucide-react'
+import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Upload, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
+import { AttachmentMeta, getAttachmentKind, resolveFilePath, basenameOf, serializeRichInput, insertAttachmentAtCursor, renderRichTextFromPlain, renderRichFromSegments, replaceTrailingTokenInSegments, stripTrailingSlashToken, placeCaretAtEnd, type Segment } from './attachments'
+import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
-import { useComposerInputHistory } from './use-composer-input-history'
+import { useComposerInputHistory, type EditorCursorAdapter } from './use-composer-input-history'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
+import { RichInput } from './rich-input'
+import { hideAllDelayedTooltips } from './delayed-tooltip'
 
 interface SlashCommand {
   id: string
@@ -45,6 +49,64 @@ const CATEGORY_LABEL: Record<string, string> = {
   extension: '扩展',
 }
 
+function caretAtStart(el: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return false
+  const range = sel.getRangeAt(0)
+  const test = document.createRange(); test.selectNodeContents(el); test.collapse(true)
+  return range.collapsed && range.compareBoundaryPoints(Range.START_TO_START, test) <= 0
+}
+function caretAtEnd(el: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return false
+  const range = sel.getRangeAt(0)
+  const test = document.createRange(); test.selectNodeContents(el); test.collapse(false)
+  return range.collapsed && range.compareBoundaryPoints(Range.END_TO_END, test) >= 0
+}
+function caretAllSelected(el: HTMLElement): boolean {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return false
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return false
+  const full = document.createRange(); full.selectNodeContents(el)
+  return range.compareBoundaryPoints(Range.START_TO_START, full) <= 0
+    && range.compareBoundaryPoints(Range.END_TO_END, full) >= 0
+}
+function insertBrAtCursor(el: HTMLElement) {
+  el.focus()
+  const sel = window.getSelection()
+  let range: Range
+  if (sel && sel.rangeCount && el.contains(sel.anchorNode)) range = sel.getRangeAt(0)
+  else { range = document.createRange(); range.selectNodeContents(el); range.collapse(false) }
+  range.deleteContents()
+  const br = document.createElement('br')
+  const after = document.createTextNode('\u200B')
+  range.insertNode(br)
+  range.setStartAfter(br); range.setEndAfter(br)
+  range.insertNode(after)
+  range.setStartAfter(after); range.setEndAfter(after)
+  sel?.removeAllRanges(); sel?.addRange(range)
+  el.normalize()
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function insertTextAtCursor(el: HTMLElement, text: string) {
+  el.focus()
+  const sel = window.getSelection()
+  let range: Range
+  if (sel && sel.rangeCount && el.contains(sel.anchorNode)) range = sel.getRangeAt(0)
+  else { range = document.createRange(); range.selectNodeContents(el); range.collapse(false) }
+  range.deleteContents()
+  const node = document.createTextNode(text)
+  range.insertNode(node)
+  range.setStartAfter(node)
+  range.setEndAfter(node)
+  sel?.removeAllRanges()
+  sel?.addRange(range)
+  el.normalize()
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
 export function Composer() {
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -52,12 +114,11 @@ export function Composer() {
   const [commands, setCommands] = useState<SlashCommand[]>([])
   const [commandsSource, setCommandsSource] = useState<'worker' | 'fallback' | null>(null)
   const [selectedIdx, setSelectedIdx] = useState(0)
-  // File attachments: dragged/pasted files rendered as a single block of chips.
-  // Only paths are carried (file reading is pi's job); the composer just assembles references.
-  const [attachments, setAttachments] = useState<{ path: string; name: string; kind: 'file' | 'image' }[]>([])
+  // 文中附件：富文本编辑器内 chip 是真源；attachments state 为同步镜像，顶部与发送共用。
+  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -73,25 +134,29 @@ export function Composer() {
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
-  const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setText)
+  const updateFromEditor = useCallback(() => {
+    const el = editorRef.current
+    if (!el) return
+    const { displayText, attachments: atts } = serializeRichInput(el)
+    setText(displayText)
+    setAttachments(atts)
+  }, [])
+
+  const setContent = useCallback((plain: string) => {
+    const el = editorRef.current
+    if (!el) return
+    renderRichTextFromPlain(el, plain)
+    updateFromEditor()
+    placeCaretAtEnd(el)
+  }, [updateFromEditor])
+  const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setContent)
+
 
   useEffect(() => {
     if (composerPrefill == null) return
-    setText((prev) => (prev.trim() ? prev : composerPrefill))
+    setContent(composerPrefill)
     setComposerPrefill(null)
-    requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [composerPrefill, setComposerPrefill])
-
-  const autoResize = useCallback(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 112) + 'px'
-  }, [])
-
-  useEffect(() => {
-    autoResize()
-  }, [text, autoResize])
+  }, [composerPrefill, setComposerPrefill, setContent])
 
   useEffect(() => {
     setIsStreaming(isRunning)
@@ -165,55 +230,82 @@ export function Composer() {
 
   const showPopover = slashQuery !== null && filteredCommands.length > 0
 
-  const sendText = async (raw: string) => {
+  const clearEditor = useCallback(() => {
+    const el = editorRef.current
+    if (!el) return
+    renderRichTextFromPlain(el, '')
+    hideAllDelayedTooltips()
+    updateFromEditor()
+  }, [updateFromEditor])
+
+  const makeAdapter = useCallback((el: HTMLElement): EditorCursorAdapter => ({
+    getValue: () => serializeRichInput(el).displayText,
+    isEmpty: () => !el.textContent?.replace(/\u200B|\s/g, '') && !el.querySelector('[data-attachment-path]'),
+    isCaretAtStart: () => caretAtStart(el),
+    isCaretAtEnd: () => caretAtEnd(el),
+    isAllSelected: () => caretAllSelected(el),
+    selectAll: () => {
+      el.focus()
+      const r = document.createRange()
+      r.selectNodeContents(el)
+      const s = window.getSelection()
+      s?.removeAllRanges()
+      s?.addRange(r)
+    },
+  }), [])
+
+  const sendCurrent = async () => {
     if (extensionUiBlocksComposer()) {
       toast.message('请先完成扩展弹窗，或点右上角稍后作答')
       return
     }
-    if (!raw.trim() && attachments.length === 0) return
+    const el = editorRef.current
+    if (!el) return
+    const { displayText, payload, attachments: atts, segments } = serializeRichInput(el)
+    if (!displayText.trim() && atts.length === 0) return
     const draft = useUIStore.getState().ephemeralSandboxDraft
     if (!currentWorkspace && !draft) return
-    const refs = attachments.length > 0 ? '\n' + attachments.map((a) => `@${a.path}`).join(' ') : ''
-    const payload = (raw.trim() + refs).trim()
-    const displayText = raw.trim()
-    if (displayText) inputHistory.recordSent(displayText)
-    setText('')
-    setAttachments([])
-    textareaRef.current?.focus()
     const store = useUIStore.getState()
     const running = store.runState.status === 'running'
+    if (displayText.trim()) inputHistory.recordSent(displayText.trim())
+    hideAllDelayedTooltips()
+    renderRichTextFromPlain(el, '')
+    updateFromEditor()
+    editorRef.current?.focus()
     const pendingNew = store.pendingNewSessionPlaceholder
     const homeMode = !store.currentSessionId && store.timelineItems.length === 0
     const { appendOptimisticOutgoingMessage, clearOptimisticOutgoing } = await import(
       '@renderer/lib/optimistic-send'
     )
+    const sendPrompt = () => ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+    const pendMsg = displayText.trim()
     try {
       if (!running && draft) {
-        appendOptimisticOutgoingMessage(displayText, { bootstrap: true })
+        appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
         const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
-        await finalizeEphemeralSandboxOnFirstSend(displayText)
+        await finalizeEphemeralSandboxOnFirstSend(pendMsg)
         const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+        await sendPrompt()
         await afterPromptSent()
         return
       }
       if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
-        appendOptimisticOutgoingMessage(displayText, { bootstrap: true })
+        appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
         const { materializePendingNewSession } = await import('@renderer/lib/new-session')
-        await materializePendingNewSession(store.currentWorkspace, displayText)
+        await materializePendingNewSession(store.currentWorkspace, pendMsg)
         const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-        await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+        await sendPrompt()
         await afterPromptSent()
         return
       }
       if (running) {
-        appendOptimisticOutgoingMessage(displayText)
+        appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
         await ipcClient.invoke('prompt.followUp', { sessionId: '', text: payload })
         return
       }
-      appendOptimisticOutgoingMessage(displayText)
+      appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
       const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-      await ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
+      await sendPrompt()
       await afterPromptSent()
     } catch (e) {
       console.error('Send failed:', e)
@@ -229,20 +321,18 @@ export function Composer() {
       return
     }
     const trimmed = text.trim()
-    if (!trimmed) return
-    // A-layer: app-native builtin -> execute directly with feedback
-    if (trimmed.startsWith('/') && isExecutableBuiltin(trimmed)) {
+    if (!trimmed && attachments.length === 0) return
+    if (attachments.length === 0 && trimmed.startsWith('/') && isExecutableBuiltin(trimmed)) {
       const handled = await executeSlashCommand(trimmed, { refreshCommands })
-      if (handled) { setText(''); return }
+      if (handled) { clearEditor(); return }
     }
-    // B-layer: extension slash dispatch (notify vs config-page)
-    const token = firstToken(trimmed)
+    const token = attachments.length === 0 ? firstToken(trimmed) : null
     if (token && !isExecutableBuiltin(trimmed)) {
       try {
         const r = await ipcClient.invoke('slash.resolve', { command: token })
         if (r?.behavior === 'config-page' && r?.meta) {
           useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
-          setText('')
+          clearEditor()
           toast.info(`已打开 ${r.meta.matchNames[0] || token} 配置`)
           return
         }
@@ -253,18 +343,18 @@ export function Composer() {
             return
           }
           useUIStore.getState().setActivePanel(panel)
-          setText('')
+          clearEditor()
           toast.info(r.meta?.desktopSupport || `已打开 ${panel} 面板`)
           return
         }
         if (r?.behavior === 'notify' && r?.meta?.desktopSupport) {
-          setText('')
+          clearEditor()
           toast.info(r.meta.desktopSupport)
           await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
           return
         }
         if (r?.behavior === 'execute') {
-          setText('')
+          clearEditor()
           await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
           return
         }
@@ -272,7 +362,7 @@ export function Composer() {
         console.error('slash.resolve failed:', e)
       }
     }
-    await sendText(trimmed)
+    await sendCurrent()
   }
 
   const handleAbort = async () => {
@@ -285,35 +375,39 @@ export function Composer() {
     }
   }
 
+  const applySegmentsChange = (next: Segment[]) => {
+    const el = editorRef.current
+    if (!el) return
+    renderRichFromSegments(el, next)
+    updateFromEditor()
+    placeCaretAtEnd(el)
+    el.focus()
+  }
+
+  const currentSegments = (): Segment[] => editorRef.current ? serializeRichInput(editorRef.current).segments : []
+
   const acceptCommand = (cmd: SlashCommand) => {
-    // Insert/replace the in-progress slash token with the chosen command name
-    setText((prev) => prev.replace(/(?:^|\n)\/(\S*)$/, (_m, _p1, offset) => {
-      const prefix = offset > 0 ? '\n' : ''
-      return `${prefix}${cmd.name} `
-    }))
-    textareaRef.current?.focus()
+    applySegmentsChange(replaceTrailingTokenInSegments(currentSegments(), `${cmd.name} `))
   }
 
   const acceptArg = (label: string) => {
-    setText((prev) => prev.replace(/(?:^|\n)(\/\S+\s+)\S*$/, (_m, p1) => `${p1}${label} `))
+    applySegmentsChange(replaceTrailingTokenInSegments(currentSegments(), `${label} `))
     setArgCompletions([])
-    textareaRef.current?.focus()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const alt = e.altKey
-    const el = textareaRef.current
     if (
       !showPopover &&
       !alt &&
       !e.shiftKey &&
       !e.ctrlKey &&
       !e.metaKey &&
-      el &&
+      editorRef.current &&
       (e.key === 'ArrowUp' || e.key === 'ArrowDown')
     ) {
-      const handled =
-        e.key === 'ArrowUp' ? inputHistory.tryArrowUp(el) : inputHistory.tryArrowDown(el)
+      const adapter = makeAdapter(editorRef.current)
+      const handled = e.key === 'ArrowUp' ? inputHistory.tryArrowUp(adapter) : inputHistory.tryArrowDown(adapter)
       if (handled) {
         e.preventDefault()
         return
@@ -321,20 +415,19 @@ export function Composer() {
     }
     if (alt && e.key === 'ArrowUp' && !showPopover) {
       e.preventDefault()
-      void restoreQueuedToComposer({ currentText: text, setText })
+      void restoreQueuedToComposer({ currentText: text, setText: setContent })
       return
     }
     if (e.key === 'Escape' && isRunning && !showPopover) {
       e.preventDefault()
-      void restoreQueuedToComposer({ abort: true, currentText: text, setText })
+      void restoreQueuedToComposer({ abort: true, currentText: text, setText: setContent })
       return
     }
     if (alt && e.key === 'Enter') {
       e.preventDefault()
-      if (isRunning && (text.trim() || attachments.length > 0)) {
-        void sendText(text.trim())
-      } else if (!isRunning && (text.trim() || attachments.length > 0)) {
-        void handleSend()
+      if (text.trim() || attachments.length > 0) {
+        if (isRunning) void sendCurrent()
+        else void handleSend()
       }
       return
     }
@@ -352,9 +445,8 @@ export function Composer() {
       if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
         e.preventDefault()
         const cmd = filteredCommands[selectedIdx]
-        // Builtin commands -> execute immediately and clear; others -> insert for editing
         if (cmd.category === 'builtin' && isExecutableBuiltin(cmd.name)) {
-          setText('')
+          clearEditor()
           executeSlashCommand(cmd.name, { refreshCommands })
         } else {
           acceptCommand(cmd)
@@ -363,9 +455,14 @@ export function Composer() {
       }
       if (e.key === 'Escape') {
         e.preventDefault()
-        setText((prev) => prev.replace(/(?:^|\n)\/(\S*)$/, ''))
+        applySegmentsChange(stripTrailingSlashToken(currentSegments()))
         return
       }
+    }
+    if (e.key === 'Enter' && e.shiftKey && editorRef.current) {
+      e.preventDefault()
+      insertBrAtCursor(editorRef.current)
+      return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -373,55 +470,85 @@ export function Composer() {
     }
   }
 
+  const insertMetas = useCallback((metas: AttachmentMeta[]) => {
+    const el = editorRef.current
+    if (!el || metas.length === 0) return
+    el.focus()
+    for (const m of metas) insertAttachmentAtCursor(el, m)
+    updateFromEditor()
+  }, [updateFromEditor])
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return
+    const metas: AttachmentMeta[] = []
+    let pendingScreenshot: File | null = null
     for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (!file) continue
-        const reader = new FileReader()
-        reader.onload = async () => {
-          const base64 = (reader.result as string).split(',')[1]
-          if (currentWorkspace && text.trim()) {
-            try {
-              await ipcClient.invoke('prompt.sendWithImages', {
-                text: text.trim(),
-                images: [{ name: file.name, mimeType: file.type, data: base64 }],
-              })
-            } catch (err) {
-              console.error('Image send failed:', err)
-            }
-            setText('')
-          }
-        }
-        reader.readAsDataURL(file)
+      if (item.kind !== 'file') continue
+      const file = item.getAsFile()
+      if (!file) continue
+      const path = resolveFilePath(file)
+      // 文件管理器复制的文件（跨平台经 Electron webUtils/path 解析出真实路径）→ 光标处插入 chip 占位
+      if (path) {
+        const name = file.name || basenameOf(path)
+        metas.push({ path, name, kind: getAttachmentKind(name) })
+        continue
+      }
+      // 剪贴板截图等无路径的图片：含图片项时统一阻止默认插入（禁止 <img> 进编辑器）
+      if (item.type.startsWith('image/')) pendingScreenshot = file
+    }
+    if (metas.length > 0 || pendingScreenshot) e.preventDefault()
+    if (metas.length > 0) {
+      insertMetas(metas)
+      return
+    }
+    if (pendingScreenshot) {
+      const file = pendingScreenshot
+      if (!currentWorkspace && !ephemeralSandboxDraft) {
+        toast.message('请先打开工作区再粘贴截图')
         return
       }
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1]
+        if (!base64) return
+        try {
+          const { path } = await ipcClient.invoke('clipboard.writeTempImage', { data: base64, mimeType: file.type })
+          const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : file.type === 'image/gif' ? 'gif' : file.type === 'image/bmp' ? 'bmp' : 'png'
+          const name = `clipboard-image-${Date.now()}.${ext}`
+          const el = editorRef.current
+          if (!el) return
+          insertAttachmentAtCursor(el, { path, name, kind: 'image' })
+          updateFromEditor()
+        } catch (err) {
+          console.error('clipboard.writeTempImage failed:', err)
+          toast.error('粘贴截图失败')
+        }
+      }
+      reader.readAsDataURL(file)
     }
   }
 
-  // Drag & drop files into the composer. Electron exposes real file paths via path.
+
+
+  // Drag & drop files into the composer. Real on-disk paths are resolved cross-platform.
   const addDroppedFiles = useCallback((fileList: FileList | File[]) => {
     const files = Array.from(fileList)
     if (files.length === 0) return
-    setAttachments((prev) => {
-      const seen = new Set(prev.map((a) => a.path))
-      const next = [...prev]
-      for (const f of files) {
-        const path = (f as any).path || f.name
-        if (!path || seen.has(path)) continue
-        seen.add(path)
-        next.push({
-          path,
-          name: f.name || path.split(/[\\/]/).pop() || path,
-          kind: f.type.startsWith('image/') ? 'image' : 'file',
-        })
-      }
-      return next
-    })
-  }, [])
+    const metas: AttachmentMeta[] = []
+    const seen = new Set<string>()
+    for (const f of files) {
+      const path = resolveFilePath(f)
+      if (!path) continue
+      if (seen.has(path)) continue
+      seen.add(path)
+      const name = f.name || basenameOf(path)
+      metas.push({ path, name, kind: getAttachmentKind(name) })
+    }
+    insertMetas(metas)
+  }, [insertMetas])
+
+
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer?.types?.includes('Files')) return
@@ -451,8 +578,18 @@ export function Composer() {
     addDroppedFiles(e.dataTransfer.files)
   }, [addDroppedFiles])
 
-  const removeAttachment = (idx: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== idx))
+  const removeAttachment = (path: string) => {
+    const el = editorRef.current
+    if (!el) return
+    const chip = el.querySelector(`[data-attachment-path="${CSS.escape(path)}"]`) as HTMLElement | null
+    if (!chip) return
+    const prev = chip.previousSibling
+    const next = chip.nextSibling
+    if (prev && prev.nodeType === Node.TEXT_NODE && (prev.nodeValue || '') === '\u200B') prev.parentNode?.removeChild(prev)
+    if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '') === '\u200B') next.parentNode?.removeChild(next)
+    chip.parentNode?.removeChild(chip)
+    el.normalize()
+    updateFromEditor()
   }
 
   const pickAttachments = useCallback(async () => {
@@ -461,22 +598,19 @@ export function Composer() {
       const res = await ipcClient.invoke('dialog:openFiles', { multiple: true })
       const paths = (res?.paths || []) as string[]
       if (paths.length === 0) return
-      setAttachments((prev) => {
-        const seen = new Set(prev.map((a) => a.path))
-        const next = [...prev]
-        for (const path of paths) {
-          if (!path || seen.has(path)) continue
-          seen.add(path)
-          const name = path.split(/[\\/]/).pop() || path
-          const kind = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file'
-          next.push({ path, name, kind })
-        }
-        return next
-      })
+      const metas: AttachmentMeta[] = []
+      const seen = new Set<string>()
+      for (const path of paths) {
+        if (!path || seen.has(path)) continue
+        seen.add(path)
+        const name = basenameOf(path)
+        metas.push({ path, name, kind: getAttachmentKind(name) })
+      }
+      insertMetas(metas)
     } catch (e) {
       console.error('pick attachments failed', e)
     }
-  }, [canCompose])
+  }, [canCompose, insertMetas])
 
   return (
     <div
@@ -487,15 +621,18 @@ export function Composer() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Drop overlay (参考跨端客户端-inspired full-zone hint) */}
-      {isDragActive && (
-        <div className="backdrop-motion pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border border-dashed border-brand/30 bg-brand/5 backdrop-blur-[2px]">
-          <div className="flex flex-col items-center gap-1 text-primary/70">
-            <Upload className="h-5 w-5" />
-            <span className="text-[12px] font-medium">松手添加</span>
-          </div>
+      <div
+        className={cn(
+          'composer-drop-overlay pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border border-dashed border-brand/35 bg-brand/[0.06] backdrop-blur-[2px]',
+          isDragActive && 'is-active',
+        )}
+        aria-hidden
+      >
+        <div className="flex flex-col items-center gap-1.5 text-primary/75">
+          <Upload className="h-5 w-5 transition-transform duration-[var(--motion-normal)] ease-[var(--motion-ease)]" />
+          <span className="text-[12px] font-medium">松手添加</span>
         </div>
-      )}
+      </div>
       {showPopover && (
         <div className="popover-motion absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg">
           <div className="max-h-72 overflow-y-auto py-1">
@@ -559,34 +696,15 @@ export function Composer() {
         )}
       >
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2 pt-2.5">
-            {attachments.map((a, idx) => (
-              <span
-                key={`${a.path}-${idx}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border/40 bg-[var(--bg-2)]/80 py-0.5 pl-2 pr-1 text-[10px] text-foreground-secondary"
-              >
-                <FileText className="h-2.5 w-2.5 shrink-0 opacity-60" />
-                <span className="max-w-[180px] truncate font-mono">{a.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(idx)}
-                  className="rounded p-0.5 opacity-50 hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
-                  aria-label="移除文件"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </span>
+          <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
+            {attachments.map((a) => (
+              <AttachmentChip key={a.path} attachment={a} onRemove={() => removeAttachment(a.path)} />
             ))}
           </div>
         )}
         <div className="flex flex-col gap-1 px-2.5 pb-2 pt-2">
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => {
-              inputHistory.onUserEdit()
-              setText(e.target.value)
-            }}
+          <RichInput
+            ref={editorRef}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onFocus={() => setComposerFocused(true)}
@@ -594,7 +712,7 @@ export function Composer() {
               inputHistory.onComposerBlur(text)
               setComposerFocused(false)
             }}
-            className="composer-textarea min-h-[2.5rem] w-full resize-none bg-transparent px-0.5 py-0 text-[14px] leading-[1.55] text-foreground placeholder:text-foreground-secondary/45 focus-visible:outline-none disabled:cursor-default disabled:opacity-50"
+            onInput={() => { inputHistory.onUserEdit(); updateFromEditor() }}
             placeholder={
               ephemeralSandboxDraft && !currentWorkspace
                 ? '首条消息即对话标题'
@@ -602,7 +720,6 @@ export function Composer() {
                   ? t('composer.placeholder')
                   : t('composer.selectProjectFirst')
             }
-            rows={1}
             disabled={!canCompose}
           />
           <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">

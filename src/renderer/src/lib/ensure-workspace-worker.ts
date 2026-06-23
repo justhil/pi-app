@@ -1,6 +1,7 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
+import { resolveBootWorkspaceState } from '@renderer/lib/boot-workspace-state'
 
 let bootstrapping: Promise<void> | null = null
 
@@ -11,8 +12,15 @@ let bootstrapping: Promise<void> | null = null
 export function ensureWorkspaceWorkerOnBoot(): Promise<void> {
   if (bootstrapping) return bootstrapping
   bootstrapping = (async () => {
-    const path = useUIStore.getState().currentWorkspace
-    if (!path) return
+    const persisted = useUIStore.getState().currentWorkspace
+    const boot = resolveBootWorkspaceState(persisted)
+    if (boot.ephemeralDraft) {
+      useUIStore.getState().enterEphemeralSandboxDraft()
+      await ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
+      return
+    }
+    const path = boot.workspace
+    if (!path || !boot.shouldStartWorker) return
     useUIStore.getState().setWorkspace(path)
     try {
       const res = await ipcClient.invoke('workspace.ensureWorker', { path })
