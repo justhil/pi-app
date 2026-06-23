@@ -40,6 +40,7 @@ import powerlineFooterAdapter from './builtin/pi-powerline-footer.adapter.json'
 import ampThemesAdapter from './builtin/amp-themes.adapter.json'
 import curatedThemesAdapter from './builtin/pi-curated-themes.adapter.json'
 import themesBundleAdapter from './builtin/pi-themes-bundle.adapter.json'
+import hashlineEditAdapter from './builtin/pi-hashline-edit.adapter.json'
 
 const BUILTIN: AdapterJson[] = [
   piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
@@ -49,6 +50,7 @@ const BUILTIN: AdapterJson[] = [
   advisorAdapter, observationalMemoryAdapter, toolDisplayAdapter, agentsmdAdapter, aceToolAdapter,
   sequentialThinkingAdapter, aegisAdapter, tpsExtensionsAdapter, nanoContextAdapter,
   powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
+  hashlineEditAdapter,
 ].map((a) => a as unknown as AdapterJson)
 const USER_DIR = join(homedir(), '.pi', 'desktop', 'adapters')
 let cachedCatalog: AdapterCatalog | null = null

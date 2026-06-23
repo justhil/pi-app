@@ -66,10 +66,12 @@ export interface AdapterConfig {
   customRenderer?: string
 }
 
-export type ToolCardTemplate = 'default' | 'list' | 'media' | 'tree' | 'kv'
+export type ToolCardTemplate = 'default' | 'list' | 'media' | 'tree' | 'kv' | 'hashline'
 
 export interface ToolCardDef {
   template?: ToolCardTemplate
+  /** 输出协议（如 hashline-v1），由 extension-compat/renderer 解释，不绑定包名 */
+  protocol?: string
   statusField?: string // JSONPath into tool_execution_update, e.g. "$.output.text"
   icon?: string // lucide icon name
   fields?: Record<string, string> // template field -> JSONPath

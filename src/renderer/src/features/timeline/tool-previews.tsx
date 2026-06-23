@@ -6,57 +6,21 @@ import { cn } from '@renderer/lib/utils'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
 import { CodeBlockView } from './code-block-view'
 import { NativePreviewPanel } from './native-tool-preview-panel'
+import {
+  extractToolText,
+  fileNameFromArgs,
+  fullPathFromArgs,
+  normalizeToolArgs,
+} from '@extension-compat/renderer/tool-output'
+import {
+  resolveEditWriteDiffRows,
+  type DiffRow,
+} from '@extension-compat/renderer/native-diff'
+import { buildHashlineProtocolSummary } from '@extension-compat/renderer/hashline-protocol'
+import { resolveAdapterToolCardTemplate } from './tool-card-registry'
+import type { ToolTimelineItem } from './tool-preview-shell'
 
-interface PreviewItem {
-  toolName?: string
-  toolArgs?: any
-  toolOutput?: string
-  toolDetails?: any
-  runId?: string
-  isError?: boolean
-}
-
-function fileNameFromArgs(args: any): string {
-  const p = args?.path || args?.file_path || ''
-  return p.split(/[\\/]/).pop() || p || 'file'
-}
-
-function fullPathFromArgs(args: any): string {
-  return args?.path || args?.file_path || ''
-}
-
-/** 从 edit 的 patch 或 output 解析 hunks */
-function parsePatchLines(patch: string): { type: 'ctx' | 'add' | 'del'; text: string }[] {
-  if (!patch) return []
-  const out: { type: 'ctx' | 'add' | 'del'; text: string }[] = []
-  for (const line of patch.split('\n')) {
-    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) continue
-    if (line.startsWith('+')) out.push({ type: 'add', text: line.slice(1) })
-    else if (line.startsWith('-')) out.push({ type: 'del', text: line.slice(1) })
-    else if (line.startsWith(' ')) out.push({ type: 'ctx', text: line.slice(1) })
-    else if (line.length) out.push({ type: 'ctx', text: line })
-  }
-  return out
-}
-
-function lineDiffRows(oldStr: string, newStr: string) {
-  const oldLines = oldStr.split('\n')
-  const newLines = newStr.split('\n')
-  const max = Math.max(oldLines.length, newLines.length)
-  const rows: { kind: 'same' | 'del' | 'add' | 'chg'; old?: string; new?: string }[] = []
-  for (let i = 0; i < max; i++) {
-    const o = oldLines[i]
-    const n = newLines[i]
-    if (o === n) rows.push({ kind: 'same', old: o, new: n })
-    else {
-      if (o !== undefined && o !== n) rows.push({ kind: 'del', old: o })
-      if (n !== undefined && n !== o) rows.push({ kind: 'add', new: n })
-    }
-  }
-  return rows
-}
-
-function DiffBody({ rows }: { rows: ReturnType<typeof lineDiffRows> }) {
+function DiffBody({ rows }: { rows: DiffRow[] }) {
   let del = 0
   let add = 0
   for (const r of rows) {
@@ -105,50 +69,28 @@ function DiffBody({ rows }: { rows: ReturnType<typeof lineDiffRows> }) {
   )
 }
 
-function EditWritePreview({ item }: { item: PreviewItem }) {
-  const args = item.toolArgs || {}
-  const output = item.toolOutput || ''
+function EditWritePreview({ item }: { item: ToolTimelineItem }) {
+  const args = normalizeToolArgs(item.toolArgs)
+  const output = extractToolText(item.toolOutput || '')
   const path = fullPathFromArgs(args)
   const name = fileNameFromArgs(args)
   const lang = guessLangFromPath(path)
-  const patch =
-    item.toolDetails?.patch ||
-    args?.patch ||
-    (typeof output === 'string' && output.includes('@@') && output.includes('---') ? output : '')
-  const oldStr = args?.old_string || args?.oldString || ''
-  const newStr = args?.new_string || args?.newString || args?.content || ''
+  const newStr = args.new_string ?? args.newString ?? args.newText ?? args.content ?? ''
+  const diff = resolveEditWriteDiffRows(item)
 
-  if (patch && parsePatchLines(patch).length > 0) {
-    const lines = parsePatchLines(patch)
-    const rows = lines.map((l) =>
-      l.type === 'add' ? { kind: 'add' as const, new: l.text } : l.type === 'del' ? { kind: 'del' as const, old: l.text } : { kind: 'same' as const, old: l.text, new: l.text },
-    )
+  if (diff) {
+    const openDefault = item.toolName === 'edit'
     return (
-      <NativePreviewPanel itemRunId={item.runId}
+      <NativePreviewPanel
+        itemRunId={item.runId}
         icon={<FileText className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
         title={name}
-        meta={<span className="text-[10px] text-foreground-secondary">patch</span>}
-        defaultOpen={false}
+        meta={diff.label ? <span className="text-[10px] text-foreground-secondary">{diff.label}</span> : undefined}
+        defaultOpen={openDefault}
       >
-        <DiffBody rows={rows as any} />
+        <DiffBody rows={diff.rows} />
       </NativePreviewPanel>
     )
-  }
-
-  if (oldStr || newStr) {
-    const rows = lineDiffRows(oldStr, newStr)
-    const hasDiff = rows.some((r) => r.kind !== 'same')
-    if (hasDiff) {
-      return (
-        <NativePreviewPanel itemRunId={item.runId}
-          icon={<FileText className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
-          title={name}
-          defaultOpen={false}
-        >
-          <DiffBody rows={rows} />
-        </NativePreviewPanel>
-      )
-    }
   }
 
   if (item.toolName === 'write' && newStr) {
@@ -179,6 +121,10 @@ function EditWritePreview({ item }: { item: PreviewItem }) {
     >
       {output ? (
         <div className="p-2 text-[11px] text-foreground-secondary whitespace-pre-wrap">{output}</div>
+      ) : item.toolName === 'edit' && Object.keys(args).length > 0 ? (
+        <div className="p-2 text-[11px] font-mono text-foreground-secondary/80 whitespace-pre-wrap break-all">
+          {JSON.stringify(args, null, 2).slice(0, 2000)}
+        </div>
       ) : (
         <div className="p-2 text-[11px] text-foreground-secondary/60">无 diff 详情</div>
       )}
@@ -186,11 +132,12 @@ function EditWritePreview({ item }: { item: PreviewItem }) {
   )
 }
 
-function ReadPreview({ item }: { item: PreviewItem }) {
-  const path = fullPathFromArgs(item.toolArgs)
-  const name = fileNameFromArgs(item.toolArgs)
+function ReadPreview({ item }: { item: ToolTimelineItem }) {
+  const args = normalizeToolArgs(item.toolArgs)
+  const path = fullPathFromArgs(args)
+  const name = fileNameFromArgs(args)
   const lang = guessLangFromPath(path)
-  const text = (item.toolOutput || '').replace(/\n$/, '')
+  const text = extractToolText(item.toolOutput || '').replace(/\n$/, '')
   if (!text) return null
   const lineCount = text.split('\n').length
 
@@ -219,10 +166,10 @@ function highlightPattern(text: string, pattern: string): ReactNode {
   ))
 }
 
-function GrepFindPreview({ item, isFind }: { item: PreviewItem; isFind?: boolean }) {
-  const args = item.toolArgs || {}
+function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: boolean }) {
+  const args = normalizeToolArgs(item.toolArgs)
   const pattern = args?.pattern || args?.query || args?.glob || ''
-  const output = item.toolOutput || ''
+  const output = extractToolText(item.toolOutput || '')
   const lines = output.split('\n').filter((l) => l.trim().length > 0)
   const PREVIEW = 8
   const [expanded, setExpanded] = useState(false)
@@ -282,9 +229,10 @@ function GrepFindPreview({ item, isFind }: { item: PreviewItem; isFind?: boolean
   )
 }
 
-function BashPreview({ item }: { item: PreviewItem }) {
-  const command = item.toolArgs?.command || item.toolArgs?.cmd || ''
-  const output = (item.toolOutput || '').replace(/\n$/, '')
+function BashPreview({ item }: { item: ToolTimelineItem }) {
+  const args = normalizeToolArgs(item.toolArgs)
+  const command = args.command || args.cmd || ''
+  const output = extractToolText(item.toolOutput || '').replace(/\n$/, '')
   const exitHint = item.isError ? 'exit ≠ 0' : output ? '完成' : ''
 
   return (
@@ -311,9 +259,9 @@ function BashPreview({ item }: { item: PreviewItem }) {
   )
 }
 
-function LsPreview({ item }: { item: PreviewItem }) {
-  const path = fullPathFromArgs(item.toolArgs) || '.'
-  const output = item.toolOutput || ''
+function LsPreview({ item }: { item: ToolTimelineItem }) {
+  const path = fullPathFromArgs(normalizeToolArgs(item.toolArgs)) || '.'
+  const output = extractToolText(item.toolOutput || '')
   return (
     <NativePreviewPanel itemRunId={item.runId}
       icon={<FolderSearch className="h-3.5 w-3.5 text-foreground-secondary" />}
@@ -327,7 +275,7 @@ function LsPreview({ item }: { item: PreviewItem }) {
   )
 }
 
-export function renderNativeToolPreview(item: PreviewItem): React.ReactNode | null {
+export function renderNativeToolPreview(item: ToolTimelineItem): React.ReactNode | null {
   const name = item.toolName || ''
   if (name === 'edit' || name === 'write') return <EditWritePreview item={item} />
   if (name === 'read') return <ReadPreview item={item} />
@@ -342,6 +290,14 @@ export function buildToolSummary(toolName: string, args: any): string {
   if (!args) return ''
   const a = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch { return null } })() : args
   if (!a || typeof a !== 'object') return ''
+  if (resolveAdapterToolCardTemplate(toolName) === 'hashline') {
+    const s = buildHashlineProtocolSummary(toolName, a)
+    if (s) return s
+  }
+  if (toolName === 'edit' && Array.isArray(a.edits)) {
+    const p = a.path || a.file_path || ''
+    return p ? `${p} · ${a.edits.length} edits` : `${a.edits.length} edits`
+  }
   if (toolName === 'read' || toolName === 'write' || toolName === 'edit') {
     return a.path || a.file_path || a.file_name || ''
   }

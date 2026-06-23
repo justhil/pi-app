@@ -4,16 +4,20 @@ import { ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
-import { resolveToolCardTemplate } from './tool-card-registry'
+import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-card-registry'
+import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
 import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
-const NATIVE_TOOLS = new Set(['read', 'edit', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
+const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
 
 function ToolOutputExpanded({ item }: { item: any }) {
   const name = item.toolName || ''
+  const adapterTpl = resolveAdapterToolCardTemplate(name)
+  const adapterPreview = tryRenderAdapterToolCard(item, adapterTpl)
+  if (adapterPreview) return <>{adapterPreview}</>
   if (NATIVE_TOOLS.has(name)) {
     const native = renderNativeToolPreview(item)
     if (native) return <>{native}</>

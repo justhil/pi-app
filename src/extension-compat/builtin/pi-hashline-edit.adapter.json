@@ -1,0 +1,22 @@
+{
+  "id": "pi-hashline-edit",
+  "displayName": "Hashline Edit",
+  "description": "哈希锚定 read/edit/insert/grep；时间线专用 hashline 预览",
+  "match": {
+    "names": ["@jerryan/pi-hashline-edit", "pi-hashline-edit"],
+    "tools": ["read", "edit", "insert", "grep"],
+    "commands": ["/tool-usage"]
+  },
+  "tier": "partial",
+  "toolCard": {
+    "template": "hashline",
+    "protocol": "hashline-v1",
+    "icon": "Hash"
+  },
+  "config": {
+    "note": "工具协议由扩展在 Worker 内替换；桌面仅美化时间线输出。安装：pi install npm:@jerryan/pi-hashline-edit。可用 pi config 或 settings.packages 启用 extensions/core.ts、insert.ts、grep.ts 等子模块。"
+  },
+  "slash": {
+    "/tool-usage": "notify"
+  }
+}
