@@ -158,11 +158,20 @@ export function ProjectSidebar({
 
   const openSandboxDialog = async (box: SandboxEntry) => {
     try {
-      if (box.path === currentWorkspace && currentSessionId === box.sessionId && !ephemeralSandboxDraft) return
-      await activateWorkspace(box.path, {
-        sessionId: box.sessionId,
-        sessionFile: box.sessionFile,
-      })
+      let sessionId = box.sessionId
+      let sessionFile = box.sessionFile
+      if (!sessionId || !sessionFile) {
+        const listRes = await ipcClient.invoke('session.list', { workspaceId: box.path })
+        const latest = ((listRes?.sessions || []) as SessionItem[]).find((s) => s.sessionId && s.sessionFile)
+        if (!latest?.sessionFile) {
+          refreshSandboxes()
+          return
+        }
+        sessionId = latest.sessionId
+        sessionFile = latest.sessionFile
+      }
+      if (box.path === currentWorkspace && currentSessionId === sessionId && !ephemeralSandboxDraft) return
+      await activateWorkspace(box.path, { sessionId, sessionFile })
     } catch (e) {
       console.error('[ProjectSidebar] open sandbox failed:', e)
     }

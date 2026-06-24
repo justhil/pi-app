@@ -301,19 +301,21 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:workspace.sandbox.list', async () => {
-    const sandboxes = await Promise.all(
-      listSandboxWorkspaces().map(async (s) => {
-        if (!s.sessionId || !s.sessionFile) {
-          const latest = (await listSessionsOnDisk(s.path).catch(() => []))[0]
-          if (latest?.id) {
-            s.sessionId = latest.id
-            s.sessionFile = latest.path
-            bindSandboxSession(s.path, latest.id, latest.path)
+    const sandboxes = (
+      await Promise.all(
+        listSandboxWorkspaces().map(async (s) => {
+          if (!s.sessionId || !s.sessionFile) {
+            const latest = (await listSessionsOnDisk(s.path).catch(() => []))[0]
+            if (latest?.id && latest.path) {
+              s.sessionId = latest.id
+              s.sessionFile = latest.path
+              bindSandboxSession(s.path, latest.id, latest.path)
+            }
           }
-        }
-        return { ...s, kind: 'sandbox' as const }
-      }),
-    )
+          return s.sessionId && s.sessionFile ? { ...s, kind: 'sandbox' as const } : null
+        }),
+      )
+    ).filter(Boolean)
     return { sandboxes }
   })
 

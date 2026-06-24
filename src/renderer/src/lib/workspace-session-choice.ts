@@ -18,10 +18,12 @@ export function chooseWorkspaceSession(
     return { sessionId: options.sessionId, sessionFile: options.sessionFile }
   }
 
+  const restorableSessions = sessions.filter((s) => s.sessionFile)
+
   return (
-    sessions.find((s) => s.sessionId === options?.sessionId) ||
-    sessions.find((s) => s.sessionFile === options?.sessionFile) ||
-    sessions[0] ||
+    restorableSessions.find((s) => s.sessionId === options?.sessionId) ||
+    restorableSessions.find((s) => s.sessionFile === options?.sessionFile) ||
+    restorableSessions[0] ||
     null
   )
 }
