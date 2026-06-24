@@ -7,7 +7,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 
 /**
- * 切换会话：Timeline + pendingBind；真实 session 绑定在首条 prompt 或 session.prepare。
+ * 切换会话：时间线 tail 预览 + pendingBind；Worker loadSession 在首条 prompt / steer / followUp 或 session.navigateTree。
  */
 export async function openSessionIntoWorker(
   sessionId: string,
@@ -31,7 +31,7 @@ export async function openSessionIntoWorker(
     return
   }
 
-  // 立即进入会话视图并显示加载动画（含 workspace.switch / Worker 冷启动）
+  // 不 session.prepare：避免切换时 resourceLoader + createAgentSession 全量绑定
   store.setCurrentSession(sessionId)
   store.clearTimeline()
   store.clearFileChanges()
@@ -52,10 +52,8 @@ export async function openSessionIntoWorker(
   }
   clearSessionHistoryCache(sessionFile)
   try {
-    const [, hist] = await Promise.all([
-      ipcClient.invoke('session.prepare', { sessionFile }).catch(() =>
-        ipcClient.invoke('session.setPendingBind', { sessionFile }),
-      ),
+    const [_, hist] = await Promise.all([
+      ipcClient.invoke('session.setPendingBind', { sessionFile }),
       fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }),
     ])
     if (navToken != null && !assertSessionNavigation(navToken)) {

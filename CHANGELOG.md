@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.11] — 2026-06-24
+
+### 性能
+
+- **历史会话快速切换**：点开会话仅拉取时间线尾部（pendingBind + tail），不再在切换时 `session.prepare` 全量 `loadSession`；首条发送、steer/followUp 或 Rewind 跳转时再绑定 Worker
+- **Composer 模型展示**：预览未绑定会话时优先 JSONL / pi 默认，避免仍显示上一会话的 runtime 模型
+
 ## [0.3.10] — 2026-06-24
 
 ### 跨平台顶栏

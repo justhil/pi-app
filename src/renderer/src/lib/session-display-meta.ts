@@ -25,18 +25,29 @@ export async function fetchPiDefaultDisplayMeta(): Promise<SessionDisplayMeta> {
   }
 }
 
-/** 合并：Worker 实际会话状态优先（与请求一致），其次 JSONL 元数据，再次 pi 默认，最后 lastModel */
+/**
+ * 合并：Worker 已绑当前 historySessionFile 时优先 runtime；仅 pending 预览时用 JSONL meta。
+ * 其次 pi 默认，最后 lastModel。
+ */
 export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null): Promise<void> {
   const store = useUIStore.getState()
   const patch: SessionDisplayMeta = {}
 
+  const previewFile = store.historySessionFile
+  let trustWorker = !previewFile
+
   try {
     const res = await ipcClient.invoke('runtime.getState' as any)
-    const st = res?.state
-    const wm = normalizeModelKey(st?.model)
-    const wt = normalizeThinkingLevel(st?.thinkingLevel)
-    if (wm) patch.model = wm
-    if (wt) patch.thinkingLevel = wt
+    const st = res?.state as { sessionFile?: string; model?: string; thinkingLevel?: string } | null
+    if (previewFile && st?.sessionFile) {
+      trustWorker = st.sessionFile === previewFile
+    }
+    if (trustWorker && st) {
+      const wm = normalizeModelKey(st.model)
+      const wt = normalizeThinkingLevel(st.thinkingLevel)
+      if (wm) patch.model = wm
+      if (wt) patch.thinkingLevel = wt
+    }
   } catch {
     /* worker not ready */
   }
