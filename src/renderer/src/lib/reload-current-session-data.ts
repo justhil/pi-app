@@ -1,6 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { clearSessionHistoryCache, fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import { loadSessionHistoryWithRetry } from '@renderer/lib/load-session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
@@ -17,15 +17,11 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
   }
 
   store.setHistoryLoading(true)
-  clearSessionHistoryCache(sessionFile)
   try {
-    const [reloadRes, hist] = await Promise.all([
-      ipcClient.invoke('session.reloadFromDisk', { sessionFile }),
-      fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }),
-    ])
+    const reloadRes = await ipcClient.invoke('session.reloadFromDisk', { sessionFile }).catch(() => ({ ok: false }))
     if (!reloadRes?.ok) {
-      return { ok: false, error: reloadRes?.error || 'Worker 同步失败' }
-    }
+      console.warn('[reloadCurrentSessionData] Worker reload:', reloadRes?.error)
+    const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false })
     const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
     const { items, totalCount, sessionMeta } = hist
     store.loadHistoryItems(sanitizeHistoryTimeline(items as any[]))

@@ -32,7 +32,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   useExtensionUIStore.getState().resetForSessionContext()
 
   const openPromise = !sameProject
-    ? ipcClient.invoke('workspace.open', { path }).catch((e) => {
+    ? ipcClient.invoke('workspace.open', { path, awaitWorker: true }).catch((e) => {
         console.error('[activateWorkspace] workspace.open failed:', e)
       })
     : ipcClient.invoke('workspace.ensureWorker', { path }).catch((e) => {

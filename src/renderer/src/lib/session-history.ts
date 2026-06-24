@@ -4,6 +4,7 @@ export interface GetMessagesResult {
   items: unknown[]
   totalCount: number
   sessionMeta?: { model?: string; thinkingLevel?: string }
+  error?: string
 }
 
 const sliceCache = new Map<
@@ -34,7 +35,10 @@ export async function fetchSessionHistoryTail(
   const items = res?.items || []
   const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : items.length
   const sessionMeta = res?.sessionMeta
-  // 勿缓存空切片：占位会话/首条发送前拉过空列表，否则会「吞」后续对话
+  const err = (res as { error?: string })?.error
+  if (err) {
+    return { items: [], totalCount: 0, sessionMeta, error: err }
+  }
   if (items.length > 0 || totalCount > 0) {
     sliceCache.set(key, { items, totalCount, at: Date.now(), sessionMeta })
   }

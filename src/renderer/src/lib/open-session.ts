@@ -1,6 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { fetchSessionHistoryTail, clearSessionHistoryCache } from '@renderer/lib/session-history'
+import { loadSessionHistoryWithRetry, SessionHistoryNavStaleError } from '@renderer/lib/load-session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
@@ -40,22 +40,8 @@ export async function openSessionIntoWorker(
   store.setHistoryLoading(true)
   store.setHistoryMeta(0, 0, sessionFile)
 
-  const ws = useUIStore.getState().currentWorkspace
-  if (ws) {
-    await ipcClient.invoke('workspace.ensureWorker', { path: ws }).catch(() =>
-      ipcClient.invoke('workspace.switch', { workspaceId: ws }),
-    )
-    if (navToken != null && !assertSessionNavigation(navToken)) {
-      store.setHistoryLoading(false)
-      return
-    }
-  }
-  clearSessionHistoryCache(sessionFile)
   try {
-    const [_, hist] = await Promise.all([
-      ipcClient.invoke('session.setPendingBind', { sessionFile }),
-      fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }),
-    ])
+    const hist = await loadSessionHistoryWithRetry(sessionFile, { navToken, bindPending: true })
     if (navToken != null && !assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)
       return
@@ -67,6 +53,10 @@ export async function openSessionIntoWorker(
     await applyComposerDisplayMeta(sessionMeta)
     void refreshSessionTree(sessionFile)
   } catch (e) {
+    if (e instanceof SessionHistoryNavStaleError) {
+      store.setHistoryLoading(false)
+      return
+    }
     console.error('[openSession] failed:', e)
     if (navToken != null && !assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)

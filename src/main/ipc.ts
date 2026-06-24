@@ -485,14 +485,17 @@ export function registerAllHandlers(): void {
 
   registerHandler('ipc:session.getMessages', async (req) => {
     if (!req.sessionFile) return { items: [], totalCount: 0 }
+    if (!workerManager.isRunning) {
+      return { items: [], totalCount: 0, error: 'worker_not_ready' }
+    }
     try {
       const offset = req.offset ?? 0
       const limit = req.limit ?? 0
       const r = await workerManager.getMessages(req.sessionFile, offset, limit || undefined)
       return { items: r.items, totalCount: r.totalCount, sessionMeta: r.sessionMeta }
-    } catch (e) {
+    } catch (e: any) {
       console.error('[IPC] session.getMessages failed:', e)
-      return { items: [], totalCount: 0 }
+      return { items: [], totalCount: 0, error: e?.message || 'get_messages_failed' }
     }
   })
 
