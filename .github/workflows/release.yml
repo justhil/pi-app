@@ -48,7 +48,6 @@ jobs:
             dist/*Setup*.exe
             dist/*Portable*.exe
             dist/*.blockmap
-            dist/latest.yml
           if-no-files-found: error
 
   build-mac:
@@ -89,7 +88,6 @@ jobs:
             dist/*.dmg
             dist/*.zip
             dist/*.blockmap
-            dist/latest-mac.yml
           if-no-files-found: error
 
   build-linux:
@@ -129,7 +127,6 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.blockmap
-            dist/latest-linux.yml
           if-no-files-found: error
 
   release:
@@ -144,8 +141,10 @@ jobs:
           pattern: pi-desktop-*
           merge-multiple: true
 
-      - name: List release assets
-        run: find release-assets -type f | sort
+      - name: Prepare release assets (no auto-update metadata)
+        run: |
+          find release-assets -type f \( -name 'latest.yml' -o -name 'latest-mac.yml' -o -name 'latest-linux.yml' \) -delete
+          find release-assets -type f | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
