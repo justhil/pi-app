@@ -4,6 +4,7 @@ import { homedir } from 'os'
 import { app } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { resolveActiveSdk } from './sdk-loader'
+import { normalizeModelsConfig } from './models-config-normalize'
 
 export type PiModelsApi =
   | 'openai-completions'
@@ -46,18 +47,22 @@ function stripJsonComments(input: string): string {
     .replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (m, tail) => tail ?? (m[0] === '"' ? m : ''))
 }
 
-export function readModelsConfigRaw(): { path: string; config: PiModelsConfig; raw?: string; parseError?: string } {
+export function readModelsConfigRaw(): {
+  path: string
+  config: PiModelsConfig
+  raw?: string
+  parseError?: string
+  warnings?: string[]
+} {
   const path = getModelsJsonPath()
   if (!existsSync(path)) {
     return { path, config: { providers: {} } }
   }
   const raw = readFileSync(path, 'utf-8')
   try {
-    const parsed = JSON.parse(stripJsonComments(raw)) as PiModelsConfig
-    if (!parsed?.providers || typeof parsed.providers !== 'object') {
-      return { path, config: { providers: {} }, raw, parseError: '根对象需包含 providers' }
-    }
-    return { path, config: parsed, raw }
+    const parsed = JSON.parse(stripJsonComments(raw)) as unknown
+    const { config, warnings } = normalizeModelsConfig(parsed)
+    return { path, config, raw, warnings: warnings.length ? warnings : undefined }
   } catch (e: any) {
     return { path, config: { providers: {} }, raw, parseError: e?.message || 'JSON 解析失败' }
   }
@@ -118,6 +123,7 @@ export async function readModelsConfig(): Promise<{
   config: PiModelsConfig
   schemaError?: string
   parseError?: string
+  warnings?: string[]
 }> {
   const base = readModelsConfigRaw()
   if (base.parseError) return base
@@ -127,10 +133,14 @@ export async function readModelsConfig(): Promise<{
 
 export async function writeModelsConfig(config: PiModelsConfig): Promise<{ ok: boolean; error?: string; path: string }> {
   const path = getModelsJsonPath()
-  const schemaError = await validateWithPiSdk(config)
+  const { config: normalized, warnings } = normalizeModelsConfig(config)
+  if (warnings.length) {
+    console.warn('[models.json] normalize on save:', warnings.join('; '))
+  }
+  const schemaError = await validateWithPiSdk(normalized)
   if (schemaError) return { ok: false, error: schemaError, path }
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`, 'utf-8')
+  writeFileSync(path, `${JSON.stringify(normalized, null, 2)}\n`, 'utf-8')
   return { ok: true, path }
 }
 

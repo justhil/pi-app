@@ -148,19 +148,23 @@ export interface ReviewGetDiffResponse { diff: DiffResult }
 export interface ExtensionInfo {
   id: string
   name: string
-  version: string
-  description: string
+  version?: string
+  description?: string
   enabled: boolean
   compatibility: CompatibilityLevel
   source: 'global' | 'project' | 'package'
   registeredTools: string[]
   registeredCommands: string[]
   loadError?: string
+  piSync?: boolean
+  piEnabled?: boolean
+  inSettingsPackages?: boolean
+  workerLoadHint?: string
 }
 export interface ExtensionsListRequest {}
 export interface ExtensionsListResponse { extensions: ExtensionInfo[] }
-export interface ExtensionsSetOverrideRequest { extensionId: string; enabled: boolean }
-export interface ExtensionsSetOverrideResponse { extensionId: string; enabled: boolean }
+export interface ExtensionsSetEnabledRequest { extensionId: string; enabled: boolean }
+export interface ExtensionsSetEnabledResponse { ok: boolean; extensionId: string; enabled: boolean; error?: string; needsWorkerReload?: boolean }
 
 // ── Registry ──
 export interface RegistryRefreshRequest { force?: boolean }
@@ -216,7 +220,7 @@ export interface IpcMethodMap {
   'commands.list': { request: CommandsListRequest; response: CommandsListResponse }
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }
   'extensions.list': { request: ExtensionsListRequest; response: ExtensionsListResponse }
-  'extensions.setOverride': { request: ExtensionsSetOverrideRequest; response: ExtensionsSetOverrideResponse }
+  'extensions.setEnabled': { request: ExtensionsSetEnabledRequest; response: ExtensionsSetEnabledResponse }
   'registry.refresh': { request: RegistryRefreshRequest; response: RegistryRefreshResponse }
   'settings.get': { request: SettingsGetRequest; response: SettingsGetResponse }
   'settings.set': { request: SettingsSetRequest; response: SettingsSetResponse }

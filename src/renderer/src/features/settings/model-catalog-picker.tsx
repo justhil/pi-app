@@ -66,10 +66,17 @@ export function ModelCatalogPicker({
         <div className="relative min-w-[10rem] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/45 transition-opacity duration-motion-fast" />
           <input
-            className="settings-field-focus w-full rounded-lg border border-border/60 bg-background/80 py-1.5 pl-8 pr-2 text-[12px]"
-            placeholder="搜索"
+            className="settings-field-focus w-full rounded-lg border border-border/60 bg-background/80 py-1.5 pl-8 pr-2 text-[12px] transition-shadow duration-motion-fast"
+            placeholder="搜索模型 id"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && filtered.length === 1 && !localIds.has(filtered[0])) {
+                e.preventDefault()
+                onAdd(filtered[0])
+                setQ('')
+              }
+            }}
           />
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground transition-colors duration-motion-fast">

@@ -1,31 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
+import {
+  contextMenuItemClass,
+  contextMenuPanelClass,
+  useDismissContextMenu,
+} from './context-menu-shared'
+import { RenamePromptDialog } from './rename-prompt-dialog'
+import type { SessionMenuTarget } from './session-context-menu-types'
 
-export type SessionMenuTarget = {
-  sessionId: string
-  sessionFile?: string
-  title: string
-  workspacePath: string
-}
+export type { SessionMenuTarget } from './session-context-menu-types'
 
 type MenuState = { x: number; y: number; target: SessionMenuTarget } | null
-
-export function useSessionContextMenu(onSessionsChange: () => void) {
-  const [menu, setMenu] = useState<MenuState>(null)
-
-  const open = (e: React.MouseEvent, target: SessionMenuTarget) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setMenu({ x: e.clientX, y: e.clientY, target })
-  }
-
-  const close = () => setMenu(null)
-
-  return { menu, open, close, onSessionsChange }
-}
 
 export function SessionContextMenuPortal({
   menu,
@@ -37,47 +25,18 @@ export function SessionContextMenuPortal({
   onSessionsChange: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
 
-  useEffect(() => {
-    if (!menu) return
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menu, onClose])
+  useDismissContextMenu(!!menu, ref, onClose)
 
-  if (!menu) return null
+  const refreshList = () => onSessionsChange()
 
-  const { target } = menu
-  const defaultTitle = target.title || target.sessionId.slice(0, 8)
-
-  const refreshList = async () => {
-    onSessionsChange()
-  }
-
-  const runRename = async () => {
-    const next = window.prompt('重命名会话', defaultTitle)
-    if (next == null) {
-      onClose()
-      return
-    }
-    const title = next.trim()
-    if (!title) {
-      toast.error('名称不能为空')
-      onClose()
-      return
-    }
+  const submitRename = async (title: string) => {
+    const target = renameTarget
+    if (!target) return
     if (!target.sessionFile) {
       toast.error('无法重命名：缺少会话文件路径')
-      onClose()
+      setRenameTarget(null)
       return
     }
     try {
@@ -88,15 +47,16 @@ export function SessionContextMenuPortal({
       })
       if (r?.ok) {
         toast.success('已重命名')
-        await refreshList()
+        refreshList()
+        setRenameTarget(null)
       } else toast.error(r?.error || '重命名失败')
     } catch {
       toast.error('重命名失败')
     }
-    onClose()
   }
 
-  const runDelete = async () => {
+  const runDelete = async (target: SessionMenuTarget) => {
+    const defaultTitle = target.title || target.sessionId.slice(0, 8)
     if (!target.sessionFile) {
       toast.error('无法删除：缺少会话文件路径')
       onClose()
@@ -121,7 +81,7 @@ export function SessionContextMenuPortal({
           void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
         }
         toast.success('已删除')
-        await refreshList()
+        refreshList()
       } else toast.error(r?.error || '删除失败')
     } catch {
       toast.error('删除失败')
@@ -129,27 +89,55 @@ export function SessionContextMenuPortal({
     onClose()
   }
 
-  const itemClass =
-    'w-full cursor-pointer px-3 py-2 text-left text-[13px] text-foreground hover:bg-[var(--bg-hover)]'
+  const itemClass = contextMenuItemClass
+  const renameDefault =
+    renameTarget?.title || renameTarget?.sessionId.slice(0, 8) || ''
 
-  return createPortal(
-    <div
-      ref={ref}
-      className="fixed z-[200] min-w-[140px] overflow-hidden rounded-lg border border-border bg-[var(--bg-2)] py-1 shadow-lg"
-      style={{ left: menu.x, top: menu.y }}
-      role="menu"
-    >
-      <button type="button" className={itemClass} onClick={() => void runRename()}>
-        重命名
-      </button>
-      <button
-        type="button"
-        className={`${itemClass} text-red-600 dark:text-red-400`}
-        onClick={() => void runDelete()}
-      >
-        删除
-      </button>
-    </div>,
-    document.body,
+  return (
+    <>
+      {menu
+        ? createPortal(
+            <div
+              ref={ref}
+              className={contextMenuPanelClass}
+              style={{ left: menu.x, top: menu.y }}
+              role="menu"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setRenameTarget(menu.target)
+                  onClose()
+                }}
+              >
+                重命名
+              </button>
+              <button
+                type="button"
+                className={`${itemClass} text-red-600 dark:text-red-400 hover:bg-red-500/15 hover:text-red-700 dark:hover:text-red-300`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runDelete(menu.target)
+                }}
+              >
+                删除
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+      <RenamePromptDialog
+        open={!!renameTarget}
+        title="重命名会话"
+        defaultValue={renameDefault}
+        onConfirm={submitRename}
+        onCancel={() => setRenameTarget(null)}
+      />
+    </>
   )
 }

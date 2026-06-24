@@ -19,7 +19,10 @@ export type PromptCatalogItem = {
   inSystemContext?: boolean
 }
 
-const AGENT_DIR = join(homedir(), '.pi', 'agent')
+export const PI_AGENT_DIR = join(homedir(), '.pi', 'agent')
+export const PI_GLOBAL_SYSTEM_MD = join(PI_AGENT_DIR, 'SYSTEM.md')
+
+const AGENT_DIR = PI_AGENT_DIR
 const CONTEXT_NAMES = ['AGENTS.md', 'AGENTS.MD', 'CLAUDE.md', 'CLAUDE.MD']
 
 function loadContextFileFromDir(dir: string): { path: string; content: string } | null {
@@ -93,7 +96,7 @@ export function listAgentsContextFiles(cwd: string): PromptCatalogItem[] {
 export function listPiBuiltinPromptFiles(cwd: string, projectTrusted = true): PromptCatalogItem[] {
   const out: PromptCatalogItem[] = []
   const projectSystem = join(cwd, '.pi', 'SYSTEM.md')
-  const globalSystem = join(AGENT_DIR, 'SYSTEM.md')
+  const globalSystem = PI_GLOBAL_SYSTEM_MD
   const projectAppend = join(cwd, '.pi', 'APPEND_SYSTEM.md')
   const globalAppend = join(AGENT_DIR, 'APPEND_SYSTEM.md')
 
@@ -102,31 +105,36 @@ export function listPiBuiltinPromptFiles(cwd: string, projectTrusted = true): Pr
       id: `builtin:system:project`,
       category: 'pi_builtin',
       name: 'SYSTEM.md（项目）',
-      description: '替换默认 harness 系统提示词（customPrompt）',
+      description: '替换默认 harness 系统提示词（优先于全局 SYSTEM.md）',
       path: projectSystem,
       command: '',
       source: 'project',
       editable: true,
       inSystemContext: true,
     })
-  } else if (existsSync(globalSystem)) {
-    out.push({
-      id: `builtin:system:global`,
-      category: 'pi_builtin',
-      name: 'SYSTEM.md（全局）',
-      description: '替换默认 harness 系统提示词',
-      path: globalSystem,
-      command: '',
-      source: 'global',
-      editable: true,
-      inSystemContext: true,
-    })
-  } else {
+  }
+
+  const globalExists = existsSync(globalSystem)
+  out.push({
+    id: 'builtin:system:global',
+    category: 'pi_builtin',
+    name: globalExists ? 'SYSTEM.md（全局）' : 'SYSTEM.md（全局 · 可编辑）',
+    description: globalExists
+      ? '替换默认 harness 系统提示词'
+      : '尚未创建；保存后将写入 ~/.pi/agent/SYSTEM.md，并替换内置默认文案',
+    path: globalSystem,
+    command: '',
+    source: 'global',
+    editable: true,
+    inSystemContext: !existsSync(projectSystem) || !projectTrusted,
+  })
+
+  if (!globalExists && !(projectTrusted && existsSync(projectSystem))) {
     out.push({
       id: 'builtin:system:default',
       category: 'pi_builtin',
-      name: 'pi 默认系统提示词',
-      description: '未配置 SYSTEM.md 时使用内置 harness 文案（只读预览）',
+      name: '当前内置 system（只读预览）',
+      description: '未配置 SYSTEM.md 时 Worker 实际使用的组装结果；要修改请编辑上方全局 SYSTEM.md',
       path: null,
       command: '',
       source: 'builtin',

@@ -130,13 +130,16 @@ function SettingRow({ label, description, children }: any) {
   )
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
+      type="button"
+      disabled={disabled}
       onClick={() => onChange(!on)}
       className={cn(
         'relative h-5 w-9 rounded-full transition-colors duration-motion-fast ease-motion-ease',
-        on ? 'bg-primary' : 'bg-muted-foreground/20'
+        on ? 'bg-primary' : 'bg-muted-foreground/20',
+        disabled && 'opacity-40 pointer-events-none',
       )}
     >
       <div className={cn(
@@ -319,11 +322,11 @@ function PiSettings() {
 }
 
 function ExtensionsSettings() {
-  const { draft, setExtensionOverride } = useSettingsDraft()
   const [extensions, setExtensions] = useState<any[]>([])
   const [runtimeTools, setRuntimeTools] = useState<any[]>([])
   const [missingRuntime, setMissingRuntime] = useState<any[]>([])
   const [syncing, setSyncing] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   const refreshExtensions = () => {
     ipcClient.invoke('extensions.list').then((res) => {
@@ -341,9 +344,26 @@ function ExtensionsSettings() {
     refreshExtensions()
   }, [])
 
-  const handleToggle = (ext: any) => {
-    const isOn = draft.extensionOverrides[ext.id] !== false
-    setExtensionOverride(ext.id, !isOn)
+  const handleToggle = async (ext: any) => {
+    if (!ext.piSync) {
+      toast.error(ext.inSettingsPackages === false ? '请先写入 settings.packages' : '无法与 pi 同步启停')
+      return
+    }
+    const next = !(ext.piEnabled ?? ext.enabled)
+    setTogglingId(ext.id)
+    try {
+      const res = await ipcClient.invoke('extensions.setEnabled', { extensionId: ext.id, enabled: next })
+      if (!res?.ok) {
+        toast.error(res?.error || '保存失败')
+        return
+      }
+      toast.success(next ? '已启用（已写入 pi settings）' : '已停用（已写入 pi settings）')
+      refreshExtensions()
+    } catch {
+      toast.error('操作失败')
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   const COMPAT_STYLES: Record<string, string> = {
@@ -368,7 +388,7 @@ function ExtensionsSettings() {
       <SettingsPageHeader
         title="插件"
         description={
-          '列表含磁盘探测结果；实际可调用工具以当前 Worker 为准。与终端 pi 同源：settings.packages、extensions 路径与 ~/.pi/agent/extensions。'
+          '启停与终端 pi 一致：写入 ~/.pi/agent/settings.json 的 packages[].extensions 或 extensions 路径（± 模式）。切换后立即 reload Worker。'
         }
       />
       {missingRuntime.length > 0 && (
@@ -424,7 +444,8 @@ function ExtensionsSettings() {
       ) : (
         <div className="space-y-2">
           {extensions.map((ext) => {
-            const isOn = draft.extensionOverrides[ext.id] !== false
+            const isOn = ext.piEnabled ?? ext.enabled
+            const canToggle = ext.piSync === true
             return (
               <div key={`${ext.source}-${ext.id}`} className="rounded-lg border border-border/60 bg-card/40 p-3">
                 <div className="flex items-center justify-between">
@@ -438,8 +459,20 @@ function ExtensionsSettings() {
                         'rounded px-1.5 py-0.5 text-[9px] font-medium uppercase',
                         ext.source === 'project' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                       )}>
-                        {ext.source === 'project' ? '项目' : '全局'}
+                        {ext.source === 'package' ? 'Package' : ext.source === 'project' ? '项目' : '全局'}
                       </span>
+                      {ext.piSync ? (
+                        <span
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[9px] font-medium',
+                            isOn ? 'bg-green-500/12 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {isOn ? 'pi 已启用' : 'pi 已停用'}
+                        </span>
+                      ) : (
+                        <span className="rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">未同步</span>
+                      )}
                     </div>
                     {ext.description && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground/60 truncate">{ext.description}</div>
@@ -484,7 +517,11 @@ function ExtensionsSettings() {
                       <div className="mt-1 text-[10px] text-destructive">{ext.loadError}</div>
                     )}
                   </div>
-                  <Toggle on={isOn} onChange={() => handleToggle(ext)} />
+                  <Toggle
+                    on={isOn}
+                    onChange={() => void handleToggle(ext)}
+                    disabled={!canToggle || togglingId === ext.id}
+                  />
                 </div>
               </div>
             )
