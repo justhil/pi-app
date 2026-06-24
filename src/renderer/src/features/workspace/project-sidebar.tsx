@@ -6,8 +6,13 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
-import { useSandboxContextMenu, SandboxContextMenuPortal } from './sandbox-context-menu'
-import { useSessionContextMenu, SessionContextMenuPortal } from './session-context-menu'
+import { SandboxContextMenuPortal } from './sandbox-context-menu'
+import { useSandboxContextMenu } from './use-sandbox-context-menu'
+import { SessionContextMenuPortal } from './session-context-menu'
+import { useSessionContextMenu } from './use-session-context-menu'
+import { ProjectContextMenuPortal } from './project-context-menu'
+import { useProjectContextMenu } from './use-project-context-menu'
+import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
 
 type SandboxEntry = {
   id: string
@@ -90,18 +95,10 @@ export function ProjectSidebar({
     }
   }, [])
 
-  const refreshAllSessionLists = useCallback(async () => {
-    const paths = new Set<string>()
-    const wid = useUIStore.getState().currentWorkspace
-    if (wid && !isSandboxPath(wid)) paths.add(wid)
-    for (const p of useUIStore.getState().recentProjects) {
-      if (!isSandboxPath(p)) paths.add(p)
-    }
-    await Promise.all([...paths].map((p) => refreshSessionsForWorkspace(p)))
-  }, [refreshSessionsForWorkspace])
+  const refreshAllSessionLists = useCallback(() => refreshWorkspaceSessionLists(), [])
 
   const sessionMenu = useSessionContextMenu(refreshAllSessionLists)
-
+  const projectMenu = useProjectContextMenu(refreshAllSessionLists)
   useEffect(() => {
     const onChanged = () => refreshSandboxes()
     window.addEventListener('pi-desktop:sandboxes-changed', onChanged)
@@ -126,6 +123,24 @@ export function ProjectSidebar({
   useEffect(() => {
     void refreshAllSessionLists()
   }, [currentWorkspace, recentProjects, refreshAllSessionLists])
+
+  useEffect(() => {
+    const onSessionsChanged = () => void refreshAllSessionLists()
+    window.addEventListener('pi-desktop:sessions-changed', onSessionsChanged)
+    return () => window.removeEventListener('pi-desktop:sessions-changed', onSessionsChanged)
+  }, [refreshAllSessionLists])
+
+  useEffect(() => {
+    const onWs = (e: Event) => {
+      const { workspaceId, sessions } = (e as CustomEvent).detail as {
+        workspaceId: string
+        sessions: SessionItem[]
+      }
+      setSessionsByWorkspace((prev) => ({ ...prev, [workspaceId]: sessions }))
+    }
+    window.addEventListener('pi-desktop:workspace-sessions', onWs)
+    return () => window.removeEventListener('pi-desktop:workspace-sessions', onWs)
+  }, [])
 
   useEffect(() => {
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
@@ -296,7 +311,11 @@ export function ProjectSidebar({
       })
 
     return (
-      <div key={path} className="sidebar-project-row mb-0.5">
+      <div
+        key={path}
+        className="sidebar-project-row mb-0.5"
+        onContextMenu={(e) => projectMenu.open(e, path, name)}
+      >
         <div
           className={cn(
             'nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5',
@@ -461,7 +480,11 @@ export function ProjectSidebar({
         onClose={sessionMenu.close}
         onSessionsChange={refreshAllSessionLists}
       />
-
+      <ProjectContextMenuPortal
+        menu={projectMenu.menu}
+        onClose={projectMenu.close}
+        onListChange={refreshAllSessionLists}
+      />
       <div className="mt-2 px-1.5">
         <div className="px-2 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/75">项目</div>
         {diskPaths.length === 0 ? (

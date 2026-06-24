@@ -24,6 +24,7 @@ import {
 } from '@renderer/features/settings/model-provider-presets'
 import { ModelCatalogPicker } from '@renderer/features/settings/model-catalog-picker'
 import { ModelEntryEditor, type LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
+import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-add-dialog'
 
 const API_OPTS = [
   { v: 'openai-completions', l: 'OpenAI Chat Completions' },
@@ -77,6 +78,8 @@ export function ModelsSettingsPanel() {
   const [baseline, setBaseline] = useState<PiModelsConfigPayload | null>(null)
   const [draft, setDraft] = useState<PiModelsConfigPayload | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([])
+  const [manualAddProviderId, setManualAddProviderId] = useState<string | null>(null)
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -92,6 +95,7 @@ export function ModelsSettingsPanel() {
       setFilePath(res?.path || '')
       setParseError(res?.parseError || null)
       setSchemaError(res?.schemaError || null)
+      setLoadWarnings(res?.warnings?.length ? res.warnings : [])
       const cfg = res?.config ?? { providers: {} }
       setBaseline(cloneConfig(cfg))
       setDraft(cloneConfig(cfg))
@@ -262,10 +266,14 @@ export function ModelsSettingsPanel() {
     })
   }
 
-  const addManualModel = (providerId: string) => {
-    const id = window.prompt('模型 id（API 用）')
-    if (!id?.trim()) return
-    addModelToLocal(providerId, id.trim())
+  const confirmManualModels = async (providerId: string, ids: string[]) => {
+    for (const modelId of ids) {
+      if ((draft?.providers[providerId].models || []).some((m) => m.id === modelId)) continue
+      addModelToLocal(providerId, modelId)
+    }
+    setManualAddProviderId(null)
+    if (ids.length === 1) return
+    toast.success(`已添加 ${ids.length} 个模型`)
   }
 
   if (loading && !draft) {
@@ -290,6 +298,19 @@ export function ModelsSettingsPanel() {
           {parseError && <div>{parseError}</div>}
           {schemaError && <div>{schemaError}</div>}
         </div>
+      )}
+
+      {loadWarnings.length > 0 && !parseError && (
+        <details className="ui-enter rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-[12px] text-muted-foreground">
+          <summary className="cursor-pointer font-medium text-foreground/80">
+            已从 models.json 自动修正 {loadWarnings.length} 处
+          </summary>
+          <ul className="mt-2 max-h-40 list-disc space-y-0.5 overflow-y-auto pl-4">
+            {loadWarnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </details>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -487,7 +508,11 @@ export function ModelsSettingsPanel() {
                         <CloudDownload className="mr-1 inline h-3.5 w-3.5" />
                         {fetching === pid ? '拉取中…' : '拉取模型'}
                       </button>
-                      <button type="button" className={btnOutline} onClick={() => addManualModel(pid)}>
+                      <button
+                        type="button"
+                        className={btnOutline}
+                        onClick={() => setManualAddProviderId(pid)}
+                      >
                         手动添加
                       </button>
                       <button
@@ -559,7 +584,19 @@ export function ModelsSettingsPanel() {
           })}
         </div>
       )}
-
+      {manualAddProviderId && draft?.providers[manualAddProviderId] && (
+        <ManualModelAddDialog
+          open
+          providerLabel={
+            draft.providers[manualAddProviderId].name ||
+            guessPresetForProvider(manualAddProviderId, draft.providers[manualAddProviderId])?.label ||
+            manualAddProviderId
+          }
+          existingIds={new Set((draft.providers[manualAddProviderId].models || []).map((m) => m.id))}
+          onConfirm={(ids) => confirmManualModels(manualAddProviderId, ids)}
+          onCancel={() => setManualAddProviderId(null)}
+        />
+      )}
 
     </div>
   )

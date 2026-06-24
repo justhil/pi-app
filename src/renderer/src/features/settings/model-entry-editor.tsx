@@ -53,7 +53,9 @@ export function ModelEntryEditor({
             data-open={expanded}
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate font-mono text-[12px] font-medium text-foreground">{model.id}</div>
+            <div className="truncate font-mono text-[12px] font-medium text-foreground" title={model.id}>
+              {model.id}
+            </div>
             {model.name && model.name !== model.id && (
               <div className="truncate text-[11px] text-muted-foreground">{model.name}</div>
             )}
@@ -89,6 +91,15 @@ export function ModelEntryEditor({
       <div className="settings-expand-grid" data-open={expanded}>
         <div className="settings-expand-inner">
           <div className="settings-model-entry-panel grid gap-3 border-t border-border/40 bg-muted/10 px-3 py-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className={labelCls}>模型 id（API）</label>
+              <input
+                className={inputCls}
+                value={model.id}
+                readOnly
+                title="在列表中删除后重新添加可改 id"
+              />
+            </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>显示名</label>
               <input

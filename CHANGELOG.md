@@ -1,5 +1,31 @@
 # Changelog
 
+
+## [0.3.12] — 2026-06-24
+
+### 侧栏与会话
+
+- **主栏 Reload**：主对话区右侧增加刷新按钮，同步侧栏列表与当前会话时间线（对齐 CLI 外部改动）
+- **会话重命名**：显示名写入 `sessionDisplayNames`，不再修改 pi JSONL；Portal 对话框替代 `window.prompt`
+- **项目列表**：磁盘项目支持右键「从列表移除」（不删文件夹）
+
+### 设置 · 模型
+
+- **models.json 规整**：加载/保存时 normalize，列表展示非致命 **warnings**
+- **手动添加模型**：`ManualModelAddDialog` 支持批量与校验；目录搜索 Enter 快速添加
+
+### 设置 · 提示词
+
+- **全局 SYSTEM.md**：未创建时也可编辑并保存到 `~/.pi/agent/SYSTEM.md`，替换内置 harness（与终端 pi 一致）
+
+### 设置 · 扩展
+
+- **启停与 pi 同步**：开关写入 `~/.pi/agent/settings.json` 的 `packages[].extensions` / `extensions`（± 模式），列表显示 **pi 已启用/已停用**；切换后 reload Worker
+
+### 修复
+
+- 模型设置页 JSX 闭合、扩展页 `Toggle` 组件语法
+
 ## [0.3.11] — 2026-06-24
 
 ### 性能

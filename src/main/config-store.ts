@@ -29,6 +29,8 @@ interface StoreSchema {
   alertOnExtensionUi: boolean
   /** Agent 一轮结束（空闲）时提醒 */
   alertOnRunIdle: boolean
+  /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
+  sessionDisplayNames: Record<string, string>
 }
 
 const store = new Store<StoreSchema>({
@@ -58,6 +60,7 @@ const store = new Store<StoreSchema>({
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,
     alertOnRunIdle: true,
+    sessionDisplayNames: {},
   },
 })
 
@@ -78,6 +81,11 @@ export const configStore = {
     const recent = store.get('recentProjects').filter((p) => p !== path)
     recent.unshift(path)
     store.set('recentProjects', recent.slice(0, 10))
+  },
+
+  removeRecentProject(path: string): void {
+    const recent = store.get('recentProjects').filter((p) => p !== path)
+    store.set('recentProjects', recent)
   },
 
   setExtensionOverride(extensionId: string, enabled: boolean): void {

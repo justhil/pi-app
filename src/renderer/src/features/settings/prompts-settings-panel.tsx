@@ -65,6 +65,8 @@ export function PromptsSettingsPanel() {
     return selected.path
   }, [selected, virtualSystemPreviewPath])
 
+  const editorReadOnly = selected?.readOnly === true || selected?.id === 'builtin:system:default'
+
   const displayGroups = useMemo(() => {
     if (groups.length > 0) return groups
     const labels: Record<PromptCategory, string> = {
@@ -90,9 +92,9 @@ export function PromptsSettingsPanel() {
           <h3 className="text-[15px] font-semibold">提示词与上下文</h3>
           <p className="mt-1 text-[11px] text-muted-foreground/75 leading-relaxed">
             按进入对话上下文的方式分组：<strong>项目上下文</strong>（AGENTS.md / CLAUDE.md）、
-            <strong>pi 内置 SYSTEM</strong>、<strong>/name 模板</strong>、<strong>扩展包内 Markdown</strong>。
-            带「每轮 system」标记的会随会话注入；模板仅在输入 <code className="rounded bg-muted px-1 text-[10px]">/name</code>{' '}
-            时展开。
+            <strong>pi 内置 SYSTEM</strong>（编辑 <code className="rounded bg-muted px-1 text-[10px]">~/.pi/agent/SYSTEM.md</code> 可替换默认 harness）、
+            <strong>/name 模板</strong>、<strong>扩展包内 Markdown</strong>。
+            未创建全局 SYSTEM.md 时，打开「全局」项会预填当前内置文案，保存后即生效；带「每轮 system」标记的会随会话注入。
           </p>
         </div>
         <button type="button" onClick={() => void load()} className="rounded-md p-2 hover:bg-muted" title="刷新">
@@ -164,7 +166,7 @@ export function PromptsSettingsPanel() {
                 : selected.name
               : ''
           }
-          readOnly={selected?.readOnly || selected?.id === 'builtin:system:default'}
+          readOnly={editorReadOnly}
           onSaved={() => void load()}
         />
       </div>

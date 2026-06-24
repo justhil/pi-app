@@ -29,6 +29,14 @@ export interface ExtensionProbeResult {
   workerLoadHint?: string
   /** 建议写入 settings.packages 的条目 */
   suggestedPackageEntry?: string
+  /** 与 ~/.pi/agent/settings.json（或项目 .pi/settings.json）中 pi 启停一致 */
+  piSync?: boolean
+  piEnabled?: boolean
+  piScope?: 'user' | 'project'
+  packageSource?: string
+  packageRoot?: string
+  packageResourcePaths?: string[]
+  toggleTarget?: import('../main/pi-package-resource-toggle.js').PiExtensionToggleTarget
 }
 
 import { v2ToolMap, resolveV2ByPluginName } from './adapter-loader.js'
@@ -192,6 +200,8 @@ function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
     merged.packageName = repo
     merged.inSettingsPackages = false
     merged.suggestedPackageEntry = suggestPackageEntryFromDir(pkgDir, pkg)
+    if (merged.suggestedPackageEntry) merged.packageSource = merged.suggestedPackageEntry
+    merged.packageRoot = pkgDir
     merged.workerLoadHint =
       '已在 ~/.pi/agent/git 发现，但未写入 settings.json → packages，Pi Worker 不会加载其扩展。'
     results.push(merged)
@@ -288,6 +298,7 @@ function scanExtDir(dir: string, source: 'project' | 'global', results: Extensio
         : existsSync(join(extPath, 'src', 'index.ts')) ? join(extPath, 'src', 'index.ts')
         : existsSync(join(extPath, 'index.js')) ? join(extPath, 'index.js') : null)
       : extPath
+    result.mainFilePath = sourceFile ?? undefined
 
     if (sourceFile && existsSync(sourceFile)) {
       try {
@@ -338,6 +349,8 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
     const merged = buildPackageProbeResult(pkgDir, pkg, parsed.name, overrides)
     if (merged) {
       merged.inSettingsPackages = true
+      merged.packageSource = sourceStr
+      merged.packageRoot = pkgDir
       results.push(merged)
     }
   }

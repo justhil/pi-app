@@ -31,6 +31,7 @@ import {
   listPiBuiltinPromptFiles,
   listPluginInjectedPromptFiles,
   groupPromptCatalog,
+  PI_GLOBAL_SYSTEM_MD,
   type PromptCatalogItem,
 } from './pi-prompt-catalog'
 import { listRevisions, pushRevision, restoreRevision, readRevision } from './resource-revisions'
@@ -52,7 +53,7 @@ import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
-import { join, basename, dirname, extname } from 'path'
+import { join, basename, dirname, extname, resolve } from 'path'
 import { homedir } from 'os'
 import {
   createSandboxWorkspace,
@@ -73,6 +74,11 @@ import { listMissingRuntimePackages, appendMissingGitPackagesToSettings } from '
 import { listRewindCheckpoints } from './pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from './session-branch-anchors'
 import { readSessionIdFromFile } from './session-file-meta'
+import {
+  resolveSessionListTitle,
+  setSessionDisplayName,
+  clearSessionDisplayName,
+} from './session-display-names'
 import { flattenTreeFromSessionFile } from './session-tree-from-file'
 import { resolveActiveSdk } from './sdk-loader'
 import { readSdkStatus, listRegistryVersions, installVersion, switchTo } from './sdk-manager'
@@ -341,7 +347,10 @@ export function registerAllHandlers(): void {
       sessionId: s.id,
       sessionFile: s.path,
       workspaceId: s.cwd || workspaceId,
-      title: s.name || s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
+      title: resolveSessionListTitle(
+        s.path,
+        s.name || s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
+      ),
       createdAt: s.created?.getTime() || 0,
       updatedAt: s.modified?.getTime() || 0,
       messageCount: s.messageCount || 0,
@@ -537,15 +546,46 @@ export function registerAllHandlers(): void {
     }
     const file = req.sessionFile as string | undefined
     if (!file) return { ok: false, title, error: 'missing sessionFile' }
-    const r = await workerManager.renameSessionFile(file, title)
-    return { ok: !!r.ok, title, error: r.error }
+    setSessionDisplayName(file, title)
+    return { ok: true, title }
   })
 
   registerHandler('ipc:session.delete', async (req) => {
     const file = req.sessionFile as string | undefined
     if (!file) return { ok: false, error: 'missing sessionFile' }
     const r = await workerManager.deleteSessionFile(file)
+    if (r.ok) clearSessionDisplayName(file)
     return { ok: !!r.ok, error: r.error }
+  })
+
+  registerHandler('ipc:session.reloadFromDisk', async (req) => {
+    const sessionFile =
+      (req.sessionFile as string | undefined) ||
+      getPendingWorkerSessionFile() ||
+      undefined
+    if (!sessionFile) return { ok: false, error: 'no session file' }
+    try {
+      const st = await workerManager.getState().catch(() => null)
+      if (workerManager.isRunning && (st as { sessionFile?: string } | null)?.sessionFile === sessionFile) {
+        await workerManager.loadSession(sessionFile)
+      }
+      return { ok: true, sessionFile }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'reload failed' }
+    }
+  })
+
+  registerHandler('ipc:project.removeRecent', async (req) => {
+    const path = (req.path as string | undefined)?.trim()
+    if (!path) return { ok: false, error: 'missing path' }
+    configStore.removeRecentProject(path)
+    const cur = configStore.get('currentProject')
+    if (cur === path) {
+      const recent = configStore.get('recentProjects') || []
+      const next = recent.find((p) => p && p !== path) || null
+      configStore.set('currentProject', next)
+    }
+    return { ok: true, currentProject: configStore.get('currentProject') }
   })
 
   registerHandler('ipc:session.compact', async (_req) => {
@@ -880,9 +920,26 @@ export function registerAllHandlers(): void {
         return { error: e.message }
       }
     }
+    const resolved = resolve(path)
+    const isGlobalSystem = resolved.toLowerCase() === resolve(PI_GLOBAL_SYSTEM_MD).toLowerCase()
+    if (isGlobalSystem && !existsSync(resolved)) {
+      let seed =
+        '# pi 系统提示词\n\n' +
+        '保存本文件后将替换 pi 内置 harness 默认文案（与终端 pi 的 SYSTEM.md 一致）。\n\n'
+      if (workerManager.isRunning) {
+        try {
+          const ctx = await workerManager.getContextPrompts()
+          const built = String(ctx.builtSystemPreview || '').trim()
+          if (built) seed = built
+        } catch {
+          /* */
+        }
+      }
+      return { content: seed, path: resolved, revisions: [] }
+    }
     try {
-      const { content, path: resolved } = readTextFileSafe(path)
-      return { content, path: resolved, revisions: listRevisions(resolved) }
+      const { content, path: resolvedPath } = readTextFileSafe(path)
+      return { content, path: resolvedPath, revisions: listRevisions(resolvedPath) }
     } catch (e: any) {
       return { error: e.message }
     }
@@ -1028,11 +1085,48 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:extensions.list', async (_req) => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const probes = probeExtensions(cwd)
+    const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
+    applyPiSyncToExtensionProbes(cwd, probes)
     return { extensions: probes }
   })
 
+  registerHandler('ipc:extensions.setEnabled', async (req) => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const extensionId = String(req.extensionId || '')
+    const enabled = req.enabled !== false
+    const probes = probeExtensions(cwd)
+    const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
+    applyPiSyncToExtensionProbes(cwd, probes)
+    const ext = probes.find((p) => p.id === extensionId)
+    if (!ext?.toggleTarget) {
+      return { ok: false, extensionId, enabled, error: '无法同步：未找到扩展或未列入 settings.packages' }
+    }
+    const { setPiExtensionEnabled } = await import('./pi-package-resource-toggle.js')
+    const r = setPiExtensionEnabled(cwd, ext.toggleTarget, enabled)
+    if (!r.ok) return { ok: false, extensionId, enabled, error: r.error }
+    if (workerManager.isRunning) {
+      await workerManager.reloadResources().catch(() => {})
+    }
+    return { ok: true, extensionId, enabled, needsWorkerReload: true }
+  })
+
+  /** @deprecated 使用 extensions.setEnabled（写入 pi settings） */
   registerHandler('ipc:extensions.setOverride', async (req) => {
-    configStore.setExtensionOverride(req.extensionId, req.enabled)
+    const r = await (async () => {
+      const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+      const extensionId = String(req.extensionId || '')
+      const enabled = req.enabled !== false
+      const probes = probeExtensions(cwd)
+      const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
+      applyPiSyncToExtensionProbes(cwd, probes)
+      const ext = probes.find((p) => p.id === extensionId)
+      if (!ext?.toggleTarget) return { ok: false as const, error: 'no toggle target' }
+      const { setPiExtensionEnabled } = await import('./pi-package-resource-toggle.js')
+      return setPiExtensionEnabled(cwd, ext.toggleTarget, enabled)
+    })()
+    if (!r.ok) {
+      configStore.setExtensionOverride(req.extensionId, req.enabled)
+    }
     return { extensionId: req.extensionId, enabled: req.enabled }
   })
 
@@ -1140,6 +1234,7 @@ export function registerAllHandlers(): void {
       config: r.config,
       parseError: r.parseError,
       schemaError: r.schemaError,
+      warnings: r.warnings,
     }
   })
 
