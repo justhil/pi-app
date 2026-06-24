@@ -1,4 +1,4 @@
-# 打 tag v* 或手动触发：构建 Windows 安装包 + 便携包并发布 GitHub Release
+# 打 tag v* 或手动触发：构建 Windows / macOS / Linux 安装包并发布 GitHub Release
 name: Release
 
 on:
@@ -37,9 +37,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List dist
-        run: dir dist
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -51,14 +48,100 @@ jobs:
             dist/latest.yml
           if-no-files-found: error
 
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export icon
+        run: npm run icon:export
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package (DMG + ZIP)
+        run: npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-desktop-mac-${{ github.ref_name }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export icon
+        run: npm run icon:export
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package (AppImage + deb)
+        run: npx electron-builder --linux --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-desktop-linux-${{ github.ref_name }}
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.blockmap
+            dist/latest-linux.yml
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-win, build-mac, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: pi-desktop-*
+          merge-multiple: true
+
+      - name: List release assets
+        run: find release-assets -type f | sort
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: |
-            dist/*Setup*.exe
-            dist/*Portable*.exe
-            dist/*.blockmap
+          files: release-assets/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
