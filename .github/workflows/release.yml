@@ -32,6 +32,9 @@ jobs:
       - name: Build app
         run: npm run build
 
+      - name: Clean dist
+        run: if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+
       - name: Package (NSIS + Portable)
         run: npx electron-builder --win --publish never
         env:
@@ -68,6 +71,9 @@ jobs:
 
       - name: Build app
         run: npm run build
+
+      - name: Clean dist
+        run: rm -rf dist
 
       - name: Package (DMG + ZIP)
         run: npx electron-builder --mac --publish never
@@ -106,6 +112,9 @@ jobs:
 
       - name: Build app
         run: npm run build
+
+      - name: Clean dist
+        run: rm -rf dist
 
       - name: Package (AppImage + deb)
         run: npx electron-builder --linux --publish never
