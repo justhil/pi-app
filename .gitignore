@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 
+#test
+test/
 # Build / pack output (regenerate: npm run build, npm run icon:export)
 out/
 dist/
