@@ -13,6 +13,7 @@ export async function openSessionIntoWorker(
   sessionId: string,
   sessionFile?: string,
   navToken?: number,
+  opts?: { workerReady?: boolean },
 ): Promise<void> {
   const store = useUIStore.getState()
 
@@ -37,11 +38,17 @@ export async function openSessionIntoWorker(
   store.clearFileChanges()
   useExtensionUIStore.getState().resetForSessionContext()
   store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
-  store.setHistoryLoading(true)
+  if (!store.historyLoading) {
+    store.setHistoryLoading(true)
+  }
   store.setHistoryMeta(0, 0, sessionFile)
 
   try {
-    const hist = await loadSessionHistoryWithRetry(sessionFile, { navToken, bindPending: true })
+    const hist = await loadSessionHistoryWithRetry(sessionFile, {
+      navToken,
+      bindPending: true,
+      workerReady: opts?.workerReady,
+    })
     if (navToken != null && !assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)
       return

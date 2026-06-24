@@ -53,7 +53,10 @@ export function sanitizeRunStatePatch(patch: {
   thinkingLevel?: unknown
   [k: string]: unknown
 }): { model?: string; thinkingLevel?: string; [k: string]: unknown } {
-  const out = { ...patch }
+  const out: { model?: string; thinkingLevel?: string; [k: string]: unknown } = {}
+  for (const [k, v] of Object.entries(patch)) {
+    if (k !== 'model' && k !== 'thinkingLevel') out[k] = v
+  }
   if ('model' in patch) {
     const m = normalizeModelKey(patch.model)
     if (m) out.model = m

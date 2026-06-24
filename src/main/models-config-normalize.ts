@@ -36,6 +36,15 @@ function normalizeInput(v: unknown): ('text' | 'image')[] | undefined {
   return out.length ? out : undefined
 }
 
+function normalizeThinkingLevelMap(v: unknown): Record<string, string> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const out: Record<string, string> = {}
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (typeof val === 'string' && val.trim()) out[k] = val.trim()
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
 function normalizeModel(raw: unknown, warnings: string[], ctx: string): PiModelDefinition | null {
   const o = asRecord(raw)
   if (!o) {
@@ -60,6 +69,7 @@ function normalizeModel(raw: unknown, warnings: string[], ctx: string): PiModelD
     input: input ?? (o.input != null ? ['text'] : undefined),
     contextWindow: posInt(o.contextWindow),
     maxTokens: posInt(o.maxTokens),
+    thinkingLevelMap: normalizeThinkingLevelMap(o.thinkingLevelMap),
   }
 }
 

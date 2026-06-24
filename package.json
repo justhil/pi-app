@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.3.12",
+  "version": "0.4.0",
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",
@@ -12,7 +12,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint . --ext .ts,.tsx",
     "package": "electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
@@ -58,7 +58,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^3.0.0",
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.20.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -70,7 +70,7 @@
     "sharp": "^0.35.2",
     "shiki": "^1.24.4",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2",
+    "typescript": "5.7",
     "vite": "^5.4.0"
   }
 }

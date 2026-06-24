@@ -20,6 +20,7 @@ export type PiModelDefinition = {
   input?: ('text' | 'image')[]
   contextWindow?: number
   maxTokens?: number
+  thinkingLevelMap?: Record<string, string>
 }
 
 export type PiProviderConfig = {

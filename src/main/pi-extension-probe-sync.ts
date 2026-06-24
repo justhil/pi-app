@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, resolve, join } from 'fs'
-import { join as pathJoin, resolve as pathResolve } from 'path'
+import { existsSync, readFileSync, statSync } from 'fs'
+import { join, resolve } from 'path'
 import { homedir } from 'os'
 import type { ExtensionProbeResult } from '../extension-compat/extension-probe.js'
 import type { PiExtensionToggleTarget } from './pi-package-resource-toggle.js'
@@ -23,7 +23,7 @@ function isPathEnabledByPatterns(patterns: string[] | undefined, pattern: string
 }
 
 function readProjectSettings(cwd: string): Record<string, unknown> {
-  const p = pathJoin(pathResolve(cwd), '.pi', 'settings.json')
+  const p = join(resolve(cwd), '.pi', 'settings.json')
   if (!existsSync(p)) return {}
   try {
     return JSON.parse(readFileSync(p, 'utf-8'))
@@ -63,7 +63,7 @@ function collectLoadedExtensionRelPaths(
     extFiles = pkg.pi.extensions
   } else if (pkg.main) {
     extFiles = [pkg.main]
-  } else if (existsSync(pathJoin(pkgDir, 'index.ts'))) {
+  } else if (existsSync(join(pkgDir, 'index.ts'))) {
     extFiles = ['./index.ts']
   }
 
@@ -76,7 +76,7 @@ function collectLoadedExtensionRelPaths(
   for (const rel of extFiles) {
     const clean = rel.replace(/^\.\//, '')
     if (disabled.has(clean)) continue
-    const full = pathResolve(pkgDir, rel)
+    const full = resolve(pkgDir, rel)
     if (!existsSync(full)) continue
     try {
       if (statSync(full).isDirectory()) continue
@@ -108,15 +108,15 @@ function packageEnabledFromSettings(
     return extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
   }
   for (const rel of paths) {
-    const pattern = rel.split(/\\/g, '/')
+    const pattern = rel.split(/\\/g).join('/')
     if (!isPathEnabledByPatterns(overrides, pattern)) return false
   }
   return true
 }
 
 export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbeResult[]): void {
-  const resolvedCwd = pathResolve(cwd)
-  const agentDir = pathJoin(homedir(), '.pi', 'agent')
+  const resolvedCwd = resolve(cwd)
+  const agentDir = join(homedir(), '.pi', 'agent')
   const globalSettings = readGlobalSettingsJson()
   const projectSettings = readProjectSettings(resolvedCwd)
 
@@ -127,7 +127,7 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
         ext.piEnabled = ext.enabled
         continue
       }
-      const scope: 'user' | 'project' = 'user'
+      const scope = ext.source === 'project' ? 'project' : 'user'
       const settings = scope === 'project' ? projectSettings : globalSettings
       const entry = findPackageEntry(settings, ext.packageSource)
       const overrides = entry?.extensions
@@ -157,7 +157,7 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
     if (ext.source === 'project' || ext.source === 'global') {
       const scope = ext.source === 'project' ? 'project' : ('user' as const)
       const baseDir =
-        ext.source === 'project' ? pathJoin(resolvedCwd, '.pi', 'extensions') : pathJoin(agentDir, 'extensions')
+        ext.source === 'project' ? join(resolvedCwd, '.pi', 'extensions') : join(agentDir, 'extensions')
       const absPath = ext.mainFilePath
       if (!absPath) {
         ext.piSync = false
@@ -180,7 +180,7 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
 }
 
 function readPackageJsonSafe(dir: string): { pi?: { extensions?: string[] }; main?: string } | null {
-  const p = pathJoin(dir, 'package.json')
+  const p = join(dir, 'package.json')
   if (!existsSync(p)) return null
   try {
     return JSON.parse(readFileSync(p, 'utf-8'))

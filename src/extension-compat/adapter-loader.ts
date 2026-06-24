@@ -139,7 +139,7 @@ export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
   let adapters: AdapterJson[] = []
   for (const raw of BUILTIN) {
     if (!looksLikeAdapter(raw)) {
-      errors.push({ adapterId: raw?.id || 'unknown', source: 'builtin', message: 'invalid shape' })
+      errors.push({ adapterId: (raw as { id?: string })?.id || 'unknown', source: 'builtin', message: 'invalid shape' })
       continue
     }
     adapters.push(raw)

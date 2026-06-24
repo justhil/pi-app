@@ -3,30 +3,13 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { GripVertical, LayoutPanelLeft } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { Switch } from '@renderer/components/ui/switch'
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import type { RightPanelCatalogItem } from '@shared/right-panels'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 
 function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className={cn(
-        'relative h-5 w-9 shrink-0 rounded-full transition-colors duration-motion-fast ease-motion-ease disabled:opacity-40',
-        on ? 'bg-primary' : 'bg-muted-foreground/20',
-      )}
-      aria-pressed={on}
-    >
-      <div
-        className={cn(
-          'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-motion-fast ease-motion-ease',
-          on ? 'left-4' : 'left-0.5',
-        )}
-      />
-    </button>
-  )
+  return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />
 }
 
 export function RightPanelsSettings() {

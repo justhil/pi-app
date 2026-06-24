@@ -52,7 +52,7 @@ function stripPatternPrefix(p: string): string {
 }
 
 function toPosixRel(baseDir: string, absPath: string): string {
-  return relative(baseDir, absPath).split(/\\/g, '/')
+  return relative(baseDir, absPath).split(/\\/g).join('/')
 }
 
 function applyPatternToggle(
