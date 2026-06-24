@@ -10,6 +10,7 @@
     "src/preload/**/*",
     "src/worker/**/*",
     "src/extension-compat/**/*",
+    "!src/extension-compat/renderer/**/*",
     "packages/shared/**/*",
     "electron.vite.config.ts"
   ]

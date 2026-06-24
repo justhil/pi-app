@@ -91,6 +91,7 @@ export interface PiModelsProviderConfig {
     input?: ('text' | 'image')[]
     contextWindow?: number
     maxTokens?: number
+    thinkingLevelMap?: Record<string, string>
   }[]
   modelOverrides?: Record<string, unknown>
 }
@@ -143,6 +144,18 @@ export interface ReviewGetDiffRequest {
   turnId?: string
 }
 export interface ReviewGetDiffResponse { diff: DiffResult }
+
+export interface ReviewStageHunksRequest {
+  cwd: string
+  files: { path: string; hunkPatches: string[] }[]
+}
+export interface ReviewStageHunksResponse { ok: boolean; error?: string }
+
+export interface ReviewCommitRequest {
+  cwd: string
+  message: string
+}
+export interface ReviewCommitResponse { ok: boolean; error?: string; commitHash?: string }
 
 // ── Extensions ──
 export interface ExtensionInfo {
@@ -219,6 +232,9 @@ export interface IpcMethodMap {
   'thinkingLevel.set': { request: ThinkingLevelSetRequest; response: ThinkingLevelSetResponse }
   'commands.list': { request: CommandsListRequest; response: CommandsListResponse }
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }
+  'review.stageHunks': { request: ReviewStageHunksRequest; response: ReviewStageHunksResponse }
+  'review.unstageHunks': { request: ReviewStageHunksRequest; response: ReviewStageHunksResponse }
+  'review.commit': { request: ReviewCommitRequest; response: ReviewCommitResponse }
   'extensions.list': { request: ExtensionsListRequest; response: ExtensionsListResponse }
   'extensions.setEnabled': { request: ExtensionsSetEnabledRequest; response: ExtensionsSetEnabledResponse }
   'registry.refresh': { request: RegistryRefreshRequest; response: RegistryRefreshResponse }

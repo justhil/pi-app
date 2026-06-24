@@ -35,6 +35,7 @@ export interface ExtensionProbeResult {
   piScope?: 'user' | 'project'
   packageSource?: string
   packageRoot?: string
+  mainFilePath?: string
   packageResourcePaths?: string[]
   toggleTarget?: import('../main/pi-package-resource-toggle.js').PiExtensionToggleTarget
 }

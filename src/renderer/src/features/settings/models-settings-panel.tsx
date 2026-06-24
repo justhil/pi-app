@@ -3,12 +3,15 @@ import { toast } from 'sonner'
 import {
   ChevronRight,
   CloudDownload,
+  Eye,
+  EyeOff,
   Layers,
   Plus,
   RefreshCw,
   Sparkles,
   Trash2,
 } from 'lucide-react'
+import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -87,6 +90,11 @@ export function ModelsSettingsPanel() {
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [remoteCatalog, setRemoteCatalog] = useState<Record<string, { ids: string[]; error?: string }>>({})
   const [expandedLocalModel, setExpandedLocalModel] = useState<Record<string, boolean>>({})
+  const [apiKeyVisible, setApiKeyVisible] = useState<Record<string, boolean>>({})
+  const [confirmState, setConfirmState] = useState<
+    | { title: string; message: string; destructive?: boolean; onConfirm: () => void }
+    | null
+  >(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -223,6 +231,7 @@ export function ModelsSettingsPanel() {
       name: id,
       reasoning: guessReasoning || undefined,
       input: guessVision ? ['text', 'image'] : ['text'],
+      ...(guessReasoning ? { thinkingLevelMap: { xhigh: 'xhigh', max: 'max' } } : {}),
     }
   }
 
@@ -438,15 +447,16 @@ export function ModelsSettingsPanel() {
                           type="button"
                           className="settings-chip rounded-full border border-border/60 px-2 py-0.5 text-[10px]"
                           title={pr.tagline}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `用 ${pr.label} 模板覆盖连接配置？\n保留当前 Key 与已添加模型。`,
-                              )
-                            ) {
-                              applyPresetToExisting(pid, pr)
-                            }
-                          }}
+                          onClick={() =>
+                            setConfirmState({
+                              title: '套用模板',
+                              message: `用 ${pr.label} 模板覆盖连接配置？\n保留当前 Key 与已添加模型。`,
+                              onConfirm: () => {
+                                setConfirmState(null)
+                                applyPresetToExisting(pid, pr)
+                              },
+                            })
+                          }
                         >
                           {pr.label}
                         </button>
@@ -489,12 +499,27 @@ export function ModelsSettingsPanel() {
                       </div>
                       <div className="sm:col-span-2">
                         <label className="mb-1 block text-[11px] text-muted-foreground">API Key</label>
-                        <input
-                          className={inputCls}
-                          value={p.apiKey || ''}
-                          placeholder="$OPENAI_API_KEY"
-                          onChange={(e) => updateProvider(pid, { apiKey: e.target.value || undefined })}
-                        />
+                        <div className="relative">
+                          <input
+                            className={cn(inputCls, 'pr-9')}
+                            type={apiKeyVisible[pid] ? 'text' : 'password'}
+                            value={p.apiKey || ''}
+                            placeholder="$OPENAI_API_KEY"
+                            onChange={(e) => updateProvider(pid, { apiKey: e.target.value || undefined })}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                            onClick={() => setApiKeyVisible((s) => ({ ...s, [pid]: !s[pid] }))}
+                            aria-label={apiKeyVisible[pid] ? '隐藏 Key' : '显示 Key'}
+                          >
+                            {apiKeyVisible[pid] ? (
+                              <EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -518,9 +543,17 @@ export function ModelsSettingsPanel() {
                       <button
                         type="button"
                         className={cn(btnOutline, 'text-destructive hover:bg-destructive/10')}
-                        onClick={() => {
-                          if (window.confirm(`删除供应商「${displayName}」（${pid}）？`)) removeProvider(pid)
-                        }}
+                        onClick={() =>
+                          setConfirmState({
+                            title: '删除供应商',
+                            message: `删除供应商「${displayName}」（${pid}）？`,
+                            destructive: true,
+                            onConfirm: () => {
+                              setConfirmState(null)
+                              removeProvider(pid)
+                            },
+                          })
+                        }
                       >
                         <Trash2 className="mr-1 inline h-3.5 w-3.5" />
                         删除
@@ -598,6 +631,16 @@ export function ModelsSettingsPanel() {
         />
       )}
 
+      {confirmState && (
+        <ConfirmDialog
+          open
+          title={confirmState.title}
+          message={confirmState.message}
+          destructive={confirmState.destructive}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
     </div>
   )
 }

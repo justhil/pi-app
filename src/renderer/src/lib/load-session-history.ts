@@ -7,7 +7,7 @@ import {
   type GetMessagesResult,
 } from '@renderer/lib/session-history'
 
-const RETRY_DELAYS_MS = [0, 150, 350, 700, 1200]
+const RETRY_DELAYS_MS = [0, 80, 200, 450, 900]
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
@@ -37,13 +37,20 @@ async function ensureWorkerForWorkspace(): Promise<void> {
 /** 切换/刷新会话：先保证 Worker，再拉 JSONL 时间线；空读与 total 不一致时退避重试 */
 export async function loadSessionHistoryWithRetry(
   sessionFile: string,
-  opts?: { navToken?: number; bindPending?: boolean; alignWorkerOnRetry?: boolean },
+  opts?: {
+    navToken?: number
+    bindPending?: boolean
+    alignWorkerOnRetry?: boolean
+    workerReady?: boolean
+  },
 ): Promise<GetMessagesResult> {
   const bindPending = opts?.bindPending !== false
   const alignWorkerOnRetry = opts?.alignWorkerOnRetry !== false
 
   checkNav(opts?.navToken)
-  await ensureWorkerForWorkspace()
+  if (!opts?.workerReady) {
+    await ensureWorkerForWorkspace()
+  }
   checkNav(opts?.navToken)
 
   if (bindPending) {

@@ -10,6 +10,7 @@
     "src/renderer/**/*",
     "packages/shared/**/*",
     "src/extension-compat/adapter-schema.ts",
-    "src/extension-compat/json-path.ts"
+    "src/extension-compat/json-path.ts",
+    "src/extension-compat/renderer/**/*"
   ]
 }

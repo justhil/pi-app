@@ -31,6 +31,33 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   store.clearFileChanges()
   useExtensionUIStore.getState().resetForSessionContext()
 
+  const openingSession = !!(options?.sessionId && options?.sessionFile)
+  if (openingSession) {
+    store.setCurrentSession(options!.sessionId!)
+    store.setHistoryLoading(true)
+    store.setHistoryMeta(0, 0, options!.sessionFile!)
+  }
+
+  const refreshSessionList = () => {
+    void ipcClient
+      .invoke('session.list', { workspaceId: path })
+      .then((listRes) => {
+        if (!assertSessionNavigation(navToken)) return
+        const rows = listRes?.sessions || []
+        store.setSessions(
+          rows.map((s: WorkspaceSessionChoice & { messageCount?: number; modelId?: string }) => ({
+            sessionId: s.sessionId,
+            sessionFile: s.sessionFile,
+            title: s.title ?? s.sessionId.slice(0, 8),
+            updatedAt: s.updatedAt ?? 0,
+            messageCount: s.messageCount,
+            modelId: s.modelId ?? '',
+          })),
+        )
+      })
+      .catch((e) => console.error('[activateWorkspace] session.list failed:', e))
+  }
+
   const openPromise = !sameProject
     ? ipcClient.invoke('workspace.open', { path, awaitWorker: true }).catch((e) => {
         console.error('[activateWorkspace] workspace.open failed:', e)
@@ -39,6 +66,41 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
         console.error('[activateWorkspace] workspace.ensureWorker failed:', e)
       })
 
+  if (options?.preferHome) {
+    try {
+      await openPromise
+      if (!assertSessionNavigation(navToken)) return
+      refreshSessionList()
+    } catch {
+      /* logged above */
+    }
+    store.clearPendingNewSessionPlaceholder()
+    store.setCurrentSession(null)
+    store.setHistoryMeta(0, 0, null)
+    store.setHistoryLoading(false)
+    void refreshComposerRunDisplay()
+    return
+  }
+
+  const explicitPick =
+    options?.sessionId && options?.sessionFile
+      ? { sessionId: options.sessionId, sessionFile: options.sessionFile }
+      : null
+
+  if (explicitPick) {
+    try {
+      await openPromise
+      if (!assertSessionNavigation(navToken)) return
+    } catch {
+      if (!assertSessionNavigation(navToken)) return
+    }
+    refreshSessionList()
+    await openSessionIntoWorker(explicitPick.sessionId, explicitPick.sessionFile, navToken, {
+      workerReady: true,
+    })
+    return
+  }
+
   let sessions: WorkspaceSessionChoice[] = []
   try {
     await openPromise
@@ -46,18 +108,19 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     const listRes = await ipcClient.invoke('session.list', { workspaceId: path })
     if (!assertSessionNavigation(navToken)) return
     sessions = listRes?.sessions || []
-    store.setSessions(sessions)
+    store.setSessions(
+      sessions.map((s) => ({
+        sessionId: s.sessionId,
+        sessionFile: s.sessionFile,
+        title: s.title ?? s.sessionId.slice(0, 8),
+        updatedAt: s.updatedAt ?? 0,
+        messageCount: (s as { messageCount?: number }).messageCount,
+        modelId: (s as { modelId?: string }).modelId ?? '',
+      })),
+    )
   } catch (e) {
     console.error('[activateWorkspace] session.list failed:', e)
     if (!assertSessionNavigation(navToken)) return
-  }
-
-  if (options?.preferHome) {
-    store.clearPendingNewSessionPlaceholder()
-    store.setCurrentSession(null)
-    store.setHistoryMeta(0, 0, null)
-    void refreshComposerRunDisplay()
-    return
   }
 
   const pick = chooseWorkspaceSession(sessions, options)
@@ -66,6 +129,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     store.clearPendingNewSessionPlaceholder()
     store.setCurrentSession(null)
     store.setHistoryMeta(0, 0, null)
+    store.setHistoryLoading(false)
     void refreshComposerRunDisplay()
     return
   }
@@ -73,10 +137,13 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   if (!pick.sessionFile) {
     store.clearPendingNewSessionPlaceholder()
     store.setCurrentSession(null)
+    store.setHistoryLoading(false)
     return
   }
 
-  await openSessionIntoWorker(pick.sessionId, pick.sessionFile, navToken)
+  await openSessionIntoWorker(pick.sessionId, pick.sessionFile, navToken, {
+    workerReady: sameProject,
+  })
 }
 
 /** 同项目内切会话 */
@@ -99,5 +166,8 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
     return
   }
 
-  await openSessionIntoWorker(sessionId, file, navToken)
+  store.setCurrentSession(sessionId)
+  store.setHistoryLoading(true)
+
+  await openSessionIntoWorker(sessionId, file, navToken, { workerReady: true })
 }

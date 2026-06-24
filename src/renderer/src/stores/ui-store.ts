@@ -419,7 +419,7 @@ export const useUIStore = create<UIState>()(
       if (!id) return { streamingAssistantId: null }
       return {
         streamingAssistantId: null,
-        timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, text: text ?? i.text } : i)),
+        timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, text: i.text && i.text.trim() ? i.text : (text ?? i.text) } : i)),
       }
     }),
   clearTimeline: () =>
@@ -491,6 +491,11 @@ export const useUIStore = create<UIState>()(
   setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 240), 420) }),
   rightPanelCollapsed: false,
   toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
+
+  lastModel: null,
+  lastThinking: null,
+  rememberModel: (model) => set({ lastModel: model }),
+  rememberThinking: (level) => set({ lastThinking: level }),
 
   pendingExtensionConfig: null,
   requestExtensionConfig: (pluginName) => set({ pendingExtensionConfig: pluginName }),
@@ -589,6 +594,20 @@ export const useUIStore = create<UIState>()(
           } else if (event.phase === 'delta' && event.text) {
             set({ agentTurnBootstrapping: false })
             const kind = (event as { contentKind?: string }).contentKind
+            // R7: tool 介入会定稿当前流式气泡（见 tool start），后续 delta 续接新气泡，
+            // 避免「工具行被后续流式文字盖到下方」的错位
+            if (!get().streamingAssistantId) {
+              const id = nextItemId()
+              state.appendTimeline({
+                id,
+                type: 'assistant-message',
+                text: '',
+                thinkingText: '',
+                runId: event.runId,
+                timestamp: event.timestamp,
+              })
+              set({ streamingAssistantId: id })
+            }
             if (kind === 'thinking') {
               state.appendThinkingDelta(event.text)
             } else {
@@ -598,7 +617,7 @@ export const useUIStore = create<UIState>()(
             const sid = get().streamingAssistantId
             const hasFinalText = event.text !== undefined && String(event.text).trim().length > 0
             if (hasFinalText) {
-              state.setStreamingAssistantFinalText(event.text)
+              state.setStreamingAssistantFinalText(event.text ?? '')
             } else if (!get().agentTurnBootstrapping && !get().optimisticPendingUserText) {
               set({ streamingAssistantId: null })
             }
@@ -614,6 +633,9 @@ export const useUIStore = create<UIState>()(
       }
       case 'tool': {
         if (event.phase === 'start') {
+          // R7: tool 介入时定稿当前流式气泡（清空 sid），后续 delta 续接新气泡，
+          // 使工具行落在「已输出文字」与「后续文字」之间，而非被后续文字盖到下方
+          if (get().streamingAssistantId) set({ streamingAssistantId: null })
           state.appendTimeline({
             id: nextItemId(),
             type: 'tool-call',

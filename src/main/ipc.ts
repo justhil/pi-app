@@ -69,7 +69,7 @@ import {
   ensureWorkerSessionBound,
   setPendingEphemeralSandboxDraft,
 } from './session-bind-state'
-import { readGitWorkspaceSnapshot } from './git-workspace'
+import { readGitWorkspaceSnapshot, stageHunks, unstageHunks, commitChanges } from './git-workspace'
 import { listMissingRuntimePackages, appendMissingGitPackagesToSettings } from './pi-packages-sync'
 import { listRewindCheckpoints } from './pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from './session-branch-anchors'
@@ -1070,6 +1070,24 @@ export function registerAllHandlers(): void {
       }
     }
     return { diff: { raw: '', status: '', scope: req.scope, isRepo: true } }
+  })
+
+  registerHandler('ipc:review.stageHunks', async (req) => {
+    const cwd = req.cwd || workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const r = stageHunks(cwd, req.files || [])
+    return { ok: r.ok, error: r.error }
+  })
+
+  registerHandler('ipc:review.unstageHunks', async (req) => {
+    const cwd = req.cwd || workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const r = unstageHunks(cwd, req.files || [])
+    return { ok: r.ok, error: r.error }
+  })
+
+  registerHandler('ipc:review.commit', async (req) => {
+    const cwd = req.cwd || workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const r = commitChanges(cwd, req.message || '')
+    return { ok: r.ok, error: r.error, commitHash: r.commitHash }
   })
 
   registerHandler('ipc:adapter.sidePanel.getState', async (req) => {

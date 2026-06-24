@@ -116,6 +116,7 @@ export default function App() {
 
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const timelineItems = useUIStore((s) => s.timelineItems)
+  const historyLoading = useUIStore((s) => s.historyLoading)
 
   useEffect(() => {
     if (!currentWorkspace) return
@@ -143,7 +144,7 @@ export default function App() {
   const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
-  const isHomeMode = !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft
+  const isHomeMode = !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft && !historyLoading
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
 
   const handleSelectProject = async (path: string) => {

@@ -4,6 +4,7 @@ import { Check, AlertCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { Switch } from '@renderer/components/ui/switch'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { applyPiDefaultModelToWorkerSession } from '@renderer/lib/sync-session-model'
 import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
@@ -38,20 +39,7 @@ function Row({ label, description, children }: { label: string; description?: st
 }
 
 function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className={cn(
-        'relative h-5 w-9 rounded-full transition-colors duration-motion-fast',
-        on ? 'bg-primary' : 'bg-muted-foreground/20',
-        disabled && 'opacity-40 pointer-events-none',
-      )}
-    >
-      <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform', on ? 'left-[18px]' : 'left-0.5')} />
-    </button>
-  )
+  return <Switch checked={on} onCheckedChange={onChange} disabled={disabled} />
 }
 
 const selectCls = 'max-w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] min-w-[10rem]'

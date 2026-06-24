@@ -21,6 +21,7 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     const reloadRes = await ipcClient.invoke('session.reloadFromDisk', { sessionFile }).catch(() => ({ ok: false }))
     if (!reloadRes?.ok) {
       console.warn('[reloadCurrentSessionData] Worker reload:', reloadRes?.error)
+    }
     const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false })
     const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
     const { items, totalCount, sessionMeta } = hist

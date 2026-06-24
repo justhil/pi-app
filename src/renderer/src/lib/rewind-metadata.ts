@@ -15,7 +15,13 @@ export async function refreshSessionTree(sessionFile: string | null): Promise<vo
   try {
     const treeRes = await ipcClient.invoke('session.tree', { sessionFile })
     if (useUIStore.getState().rewindKey !== key) return
-    const nodes = (treeRes?.nodes || []) as { id: string; isLeaf: boolean }[]
+    const nodes = (treeRes?.nodes || []) as Array<{
+      id: string
+      depth: number
+      label?: string
+      entryType: string
+      isLeaf: boolean
+    }>
     const leafId = treeRes?.leafId as string | null | undefined
     const withLeaf =
       leafId != null && leafId !== ''

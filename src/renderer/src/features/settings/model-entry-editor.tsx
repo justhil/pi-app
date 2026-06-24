@@ -1,4 +1,4 @@
-import { ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import type { PiModelsProviderConfig } from '@shared/ipc-contract'
 
@@ -16,6 +16,16 @@ const API_OPTS = [
   { v: 'google-generative-ai', l: 'google-generative-ai' },
 ]
 
+const THINKING_LEVEL_OPTIONS = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
+
 export function ModelEntryEditor({
   model,
   expanded,
@@ -32,6 +42,42 @@ export function ModelEntryEditor({
   const input = model.input || ['text']
   const hasText = input.includes('text')
   const hasImage = input.includes('image')
+
+  const thinkingEntries = Object.entries(model.thinkingLevelMap || {})
+
+  const updateThinkingMap = (next: Record<string, string>) => {
+    onChange({ thinkingLevelMap: Object.keys(next).length ? next : undefined })
+  }
+
+  const setThinkingKey = (oldKey: string, newKey: string) => {
+    const map = { ...(model.thinkingLevelMap || {}) }
+    if (map[newKey] !== undefined) return
+    const val = map[oldKey]
+    delete map[oldKey]
+    map[newKey] = val ?? newKey
+    updateThinkingMap(map)
+  }
+
+  const setThinkingValue = (key: string, value: string) => {
+    const map = { ...(model.thinkingLevelMap || {}) }
+    map[key] = value
+    updateThinkingMap(map)
+  }
+
+  const removeThinkingEntry = (key: string) => {
+    const map = { ...(model.thinkingLevelMap || {}) }
+    delete map[key]
+    updateThinkingMap(map)
+  }
+
+  const addThinkingEntry = () => {
+    const map = { ...(model.thinkingLevelMap || {}) }
+    const available = THINKING_LEVEL_OPTIONS.find((o) => !map[o])
+    if (available) {
+      map[available] = available
+      updateThinkingMap(map)
+    }
+  }
 
   const setInput = (text: boolean, image: boolean) => {
     const next: ('text' | 'image')[] = []
@@ -171,6 +217,58 @@ export function ModelEntryEditor({
                 }}
               />
             </div>
+            {model.reasoning && (
+              <div className="sm:col-span-2">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className={labelCls}>思考等级映射 thinkingLevelMap</label>
+                  <button
+                    type="button"
+                    className="settings-chip flex items-center gap-1 rounded-md border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={addThinkingEntry}
+                  >
+                    <Plus className="h-3 w-3" />
+                    添加
+                  </button>
+                </div>
+                <p className="mb-2 text-[10px] text-muted-foreground/60">
+                  左=GUI 档位名 · 右=传给模型的参数。默认 high，higher 档在此映射。
+                </p>
+                {thinkingEntries.length > 0 && (
+                  <div className="space-y-1.5">
+                    {thinkingEntries.map(([key, val]) => (
+                      <div key={key} className="flex items-center gap-2">
+                        <select
+                          className={cn(inputCls, 'w-32 shrink-0 font-sans')}
+                          value={key}
+                          onChange={(e) => setThinkingKey(key, e.target.value)}
+                        >
+                          {THINKING_LEVEL_OPTIONS.map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">→</span>
+                        <input
+                          className={cn(inputCls, 'font-mono')}
+                          value={val}
+                          placeholder="传给模型的参数"
+                          onChange={(e) => setThinkingValue(key, e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="chrome-icon-btn shrink-0 rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => removeThinkingEntry(key)}
+                          aria-label="删除映射"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

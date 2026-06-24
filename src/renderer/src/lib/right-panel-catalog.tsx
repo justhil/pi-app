@@ -20,7 +20,7 @@ function resolveIcon(name?: string): LucideIcon {
   if (!name) return PanelRight
   const fromCore = CORE_ICONS[name]
   if (fromCore) return fromCore
-  const icon = (LucideIcons as Record<string, LucideIcon>)[name]
+  const icon = (LucideIcons as unknown as Record<string, LucideIcon>)[name]
   return icon || PanelRight
 }
 

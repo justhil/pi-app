@@ -10,7 +10,7 @@ import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import {
   Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft, Boxes
+  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft, Boxes, Sparkles
 } from 'lucide-react'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
@@ -24,6 +24,7 @@ import { RightPanelsSettings } from '@renderer/features/settings/right-panels-se
 import { SettingsDraftProvider } from '@renderer/features/settings/settings-draft-context'
 import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
 import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
+import { Switch } from '@renderer/components/ui/switch'
 
 type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'adapters'
 
@@ -123,32 +124,13 @@ function SettingRow({ label, description, children }: any) {
     <div className="flex items-center justify-between py-3 border-b border-border/40 last:border-0">
       <div className="flex-1">
         <div className="text-[13px] font-medium text-foreground">{label}</div>
-        {description && <div className="text-[11px] text-muted-foreground/60 mt-0.5">{description}</div>}
+        {description && <div className="text-[11px] text-muted-foreground/75 mt-0.5">{description}</div>}
       </div>
       <div className="ml-4 shrink-0">{children}</div>
     </div>
   )
 }
 
-function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className={cn(
-        'relative h-5 w-9 rounded-full transition-colors duration-motion-fast ease-motion-ease',
-        on ? 'bg-primary' : 'bg-muted-foreground/20',
-        disabled && 'opacity-40 pointer-events-none',
-      )}
-    >
-      <div className={cn(
-        'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-motion-fast ease-motion-ease',
-        on ? 'left-4' : 'left-0.5'
-      )} />
-    </button>
-  )
-}
 
 function GeneralSettings() {
   const {
@@ -199,73 +181,84 @@ function GeneralSettings() {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-4">
       <SettingsPageHeader title="常规" description="修改后请使用页面底部「保存」写入本机配置。" />
-      <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
-        <Toggle on={draft.autoOpenLastProject} onChange={setAutoOpenLastProject} />
-      </SettingRow>
-      <SettingRow
-        label="自动检查更新"
-        description="启动时查询 GitHub Releases（justhil/pi-app）是否有新版本"
-      >
-        <Toggle on={draft.autoCheckRegistryUpdates} onChange={setAutoCheckRegistryUpdates} />
-      </SettingRow>
-      <SettingRow label="应用版本" description="手动检查 GitHub 发布页">
-        <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            disabled={checkingUpdate}
-            onClick={() => void handleCheckUpdate()}
-            className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50 disabled:opacity-50"
-          >
-            {checkingUpdate ? '检查中…' : '检查更新'}
-          </button>
-          {updateCheck && (
-            <span className="max-w-[220px] text-right text-[11px] text-muted-foreground">{updateCheck}</span>
-          )}
-        </div>
-      </SettingRow>
-      <div className="pt-4 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/70">提醒</div>
-      <SettingRow label="提示音" description="用户提醒时播放短提示音（与下方场景配合）">
-        <Toggle on={draft.alertSoundEnabled} onChange={setAlertSoundEnabled} />
-      </SettingRow>
-      <SettingRow label="系统通知" description="使用操作系统通知中心（通知本身静音，可与提示音叠加）">
-        <Toggle on={draft.alertNotificationEnabled} onChange={setAlertNotificationEnabled} />
-      </SettingRow>
-      <SettingRow
-        label="扩展问答弹窗"
-        description="兼容层弹窗需你作答/确认时提醒（Agent 会暂停等待）"
-      >
-        <Toggle on={draft.alertOnExtensionUi} onChange={setAlertOnExtensionUi} />
-      </SettingRow>
-      <SettingRow label="一轮运行结束" description="Agent 状态变为空闲（本轮 loop 结束）时提醒">
-        <Toggle on={draft.alertOnRunIdle} onChange={setAlertOnRunIdle} />
-      </SettingRow>
-      <SettingRow label="语言" description="界面语言">
-        <div className="flex gap-1.5">
-          {[
-            { key: 'zh' as const, label: '中文' },
-            { key: 'en' as const, label: 'English' },
-          ].map((l) => (
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">启动</div>
+        <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
+          <Switch checked={draft.autoOpenLastProject} onCheckedChange={setAutoOpenLastProject} />
+        </SettingRow>
+        <SettingRow
+          label="自动检查更新"
+          description="启动时查询 GitHub Releases（justhil/pi-app）是否有新版本"
+        >
+          <Switch checked={draft.autoCheckRegistryUpdates} onCheckedChange={setAutoCheckRegistryUpdates} />
+        </SettingRow>
+        <SettingRow label="应用版本" description="手动检查 GitHub 发布页">
+          <div className="flex flex-col items-end gap-1">
             <button
-              key={l.key}
               type="button"
-              onClick={() => setLanguage(l.key)}
-              className={cn(
-                'rounded-lg border px-2.5 py-1 text-[12px] transition-all duration-motion-fast ease-motion-ease',
-                draft.language === l.key
-                  ? 'border-primary bg-primary/5 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-accent/50',
-              )}
+              disabled={checkingUpdate}
+              onClick={() => void handleCheckUpdate()}
+              className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50 disabled:opacity-50"
             >
-              {l.label}
+              {checkingUpdate ? '检查中…' : '检查更新'}
             </button>
-          ))}
-        </div>
-      </SettingRow>
-      {recentProjects.length > 0 && (
-        <div className="pt-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60 mb-2">最近项目</div>
+            {updateCheck && (
+              <span className="max-w-[220px] text-right text-[11px] text-muted-foreground/75">{updateCheck}</span>
+            )}
+          </div>
+        </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">提醒</div>
+        <SettingRow label="提示音" description="用户提醒时播放短提示音（与下方场景配合）">
+          <Switch checked={draft.alertSoundEnabled} onCheckedChange={setAlertSoundEnabled} />
+        </SettingRow>
+        <SettingRow label="系统通知" description="使用操作系统通知中心（通知本身静音，可与提示音叠加）">
+          <Switch checked={draft.alertNotificationEnabled} onCheckedChange={setAlertNotificationEnabled} />
+        </SettingRow>
+        <SettingRow
+          label="扩展问答弹窗"
+          description="兼容层弹窗需你作答/确认时提醒（Agent 会暂停等待）"
+        >
+          <Switch checked={draft.alertOnExtensionUi} onCheckedChange={setAlertOnExtensionUi} />
+        </SettingRow>
+        <SettingRow label="一轮运行结束" description="Agent 状态变为空闲（本轮 loop 结束）时提醒">
+          <Switch checked={draft.alertOnRunIdle} onCheckedChange={setAlertOnRunIdle} />
+        </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">语言</div>
+        <SettingRow label="界面语言" description="切换后即时生效">
+          <div className="flex gap-1.5">
+            {[
+              { key: 'zh' as const, label: '中文' },
+              { key: 'en' as const, label: 'English' },
+            ].map((l) => (
+              <button
+                key={l.key}
+                type="button"
+                onClick={() => setLanguage(l.key)}
+                className={cn(
+                  'rounded-lg border px-2.5 py-1 text-[12px] transition-all duration-motion-fast ease-motion-ease',
+                  draft.language === l.key
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/50',
+                )}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">最近项目</div>
+        {recentProjects.length > 0 ? (
           <div className="space-y-1">
             {recentProjects.map((p, i) => (
               <div key={i} className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/30 px-2.5 py-1.5 text-[12px]">
@@ -274,8 +267,14 @@ function GeneralSettings() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col items-center py-6 text-center">
+            <Sparkles className="h-7 w-7 text-muted-foreground/30" />
+            <p className="mt-2 text-[12px] text-muted-foreground/60">暂无最近项目</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/45">打开工作区后将出现在此</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -291,28 +290,31 @@ function AppearanceSettings() {
   ]
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-4">
       <SettingsPageHeader title={t('settings.appearance')} description="主题预览即时生效；持久化需点页面底部「保存」。" />
-      <SettingRow label="主题" description="选择界面主题">
-        <div className="flex gap-1.5">
-          {themes.map(({ key, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTheme(key)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease',
-                draft.theme === key
-                  ? 'border-primary bg-primary/5 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-accent/50'
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t(`settings.theme.${key}`)}
-            </button>
-          ))}
-        </div>
-      </SettingRow>
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">主题</div>
+        <SettingRow label="界面主题" description="选择浅色、深色或跟随系统">
+          <div className="flex gap-1.5">
+            {themes.map(({ key, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTheme(key)}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-all duration-motion-fast ease-motion-ease',
+                  draft.theme === key
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/50'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t(`settings.theme.${key}`)}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+      </div>
     </div>
   )
 }
@@ -475,7 +477,7 @@ function ExtensionsSettings() {
                       )}
                     </div>
                     {ext.description && (
-                      <div className="mt-0.5 text-[11px] text-muted-foreground/60 truncate">{ext.description}</div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground/75 truncate">{ext.description}</div>
                     )}
                     {ext.registeredTools.length > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
@@ -517,9 +519,9 @@ function ExtensionsSettings() {
                       <div className="mt-1 text-[10px] text-destructive">{ext.loadError}</div>
                     )}
                   </div>
-                  <Toggle
-                    on={isOn}
-                    onChange={() => void handleToggle(ext)}
+                  <Switch
+                    checked={isOn}
+                    onCheckedChange={() => void handleToggle(ext)}
                     disabled={!canToggle || togglingId === ext.id}
                   />
                 </div>

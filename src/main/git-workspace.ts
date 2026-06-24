@@ -1,6 +1,7 @@
 import { execSync } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
+import { tmpdir } from 'os'
 
 function isNotGitRepo(stderr: string, message: string): boolean {
   const s = `${message}\n${stderr}`.toLowerCase()
@@ -83,4 +84,72 @@ export function readGitWorkspaceSnapshot(cwd: string): GitWorkspaceSnapshot {
   }
 
   return { isRepo: true, branch, raw, status, log }
+}
+
+/** 选择性暂存 hunk：patch 来自已读真实 git diff，git apply --cached --recount */
+export function stageHunks(
+  cwd: string,
+  files: { path: string; hunkPatches: string[] }[],
+): { ok: boolean; error?: string } {
+  for (const f of files) {
+    for (const patch of f.hunkPatches) {
+      if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
+      try {
+        execSync('git apply --cached --recount', {
+          cwd,
+          input: patch,
+          encoding: 'utf-8',
+          timeout: 10000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
+      } catch (e: any) {
+        const stderr = (e.stderr?.toString?.() || '').trim()
+        return { ok: false, error: stderr || e.message || 'git apply 失败' }
+      }
+    }
+  }
+  return { ok: true }
+}
+
+/** 反向应用 patch 撤销暂存 */
+export function unstageHunks(
+  cwd: string,
+  files: { path: string; hunkPatches: string[] }[],
+): { ok: boolean; error?: string } {
+  for (const f of files) {
+    for (const patch of f.hunkPatches) {
+      if (!patch) continue
+      try {
+        execSync('git apply -R --cached', {
+          cwd,
+          input: patch,
+          encoding: 'utf-8',
+          timeout: 10000,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
+      } catch (e: any) {
+        const stderr = (e.stderr?.toString?.() || '').trim()
+        return { ok: false, error: stderr || e.message || 'git apply -R 失败' }
+      }
+    }
+  }
+  return { ok: true }
+}
+
+/** 提交：临时文件传 message 避免 shell 注入 */
+export function commitChanges(
+  cwd: string,
+  message: string,
+): { ok: boolean; error?: string; commitHash?: string } {
+  if (!message.trim()) return { ok: false, error: 'commit message 为空' }
+  const tmpFile = join(tmpdir(), `pi-commit-${Date.now()}.txt`)
+  writeFileSync(tmpFile, message, 'utf-8')
+  try {
+    const r = runGit(cwd, `commit -F ${JSON.stringify(tmpFile)}`)
+    if (!r.ok) return { ok: false, error: r.message }
+    const hashR = runGit(cwd, 'rev-parse HEAD', { timeout: 3000 })
+    return { ok: true, commitHash: hashR.ok ? hashR.stdout.trim() : undefined }
+  } finally {
+    try { unlinkSync(tmpFile) } catch { /* */ }
+  }
 }
