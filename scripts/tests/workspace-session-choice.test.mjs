@@ -34,3 +34,20 @@ test('should fall back to newest session from list when no explicit session is p
 
   assert.equal(choice, newest)
 })
+
+test('should ignore session rows without a session file', async () => {
+  const mod = await importTs(new URL('../../src/renderer/src/lib/workspace-session-choice.ts', import.meta.url))
+  const choice = mod.chooseWorkspaceSession([
+    { sessionId: 'unrestorable' },
+    { sessionId: 'restorable', sessionFile: 'restorable.jsonl' },
+  ])
+
+  assert.deepEqual(choice, { sessionId: 'restorable', sessionFile: 'restorable.jsonl' })
+})
+
+test('should return null when no restorable session exists', async () => {
+  const mod = await importTs(new URL('../../src/renderer/src/lib/workspace-session-choice.ts', import.meta.url))
+  const choice = mod.chooseWorkspaceSession([{ sessionId: 'unrestorable' }])
+
+  assert.equal(choice, null)
+})
