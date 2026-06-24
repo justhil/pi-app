@@ -301,7 +301,7 @@ export function Timeline() {
 
   if (items.length === 0) {
     if (historyLoading) {
-      return <SessionOpenLoadingView />
+      return <SessionOpenLoadingView key={historySessionFile ?? 'loading'} />
     }
     if (historyLoadMiss) {
       return (
