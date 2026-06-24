@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Minus, Square, X, Copy } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-
-const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform)
+import { isMac } from '@renderer/lib/platform'
 
 /** 无边框窗口：最小化 / 最大化(还原) / 关闭（Windows/Linux 顶栏右侧） */
 export function WindowControls({ className }: { className?: string }) {

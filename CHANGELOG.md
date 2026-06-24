@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.10] — 2026-06-24
+
+### 跨平台顶栏
+
+- **macOS 红绿灯占位**：主对话 `ImmersiveChrome` 与设置页 `TopBar` 在 macOS 下于折叠按钮前增加 72px 占位，避免与 `hiddenInset` 交通灯重叠
+- **平台工具复用**：新增 `src/renderer/src/lib/platform.ts`，统一 `isMac` / `isWindows` / `isLinux` 与占位样式，`WindowControls` 改为从该模块导入
+- **Linux 无边框**：Linux 与 Windows/mac 一致使用无边框窗口 + 应用内顶栏拖拽与 `WindowControls`，消除系统标题栏与应用顶栏叠层
+
 ## [0.3.9] — 2026-06-24
 
 ### 修复
