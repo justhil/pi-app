@@ -37,6 +37,23 @@ nsis:
 portable:
   artifactName: ${productName}-Portable-${version}-${arch}.${ext}
 
+mac:
+  target:
+    - dmg
+    - zip
+  icon: build/icon.png
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  category: public.app-category.developer-tools
+
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: build/icon.png
+  category: Development
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  maintainer: pi-desktop
+
 publish:
   provider: github
   releaseType: release
