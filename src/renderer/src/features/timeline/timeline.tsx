@@ -293,9 +293,25 @@ export function Timeline() {
     )
   }
 
+  const historyLoadMiss =
+    !historyLoading &&
+    !!historySessionFile &&
+    items.length === 0 &&
+    historyTotalCount > 0
+
   if (items.length === 0) {
     if (historyLoading) {
       return <SessionOpenLoadingView />
+    }
+    if (historyLoadMiss) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-[14px] font-medium text-foreground">历史未加载完整</p>
+          <p className="max-w-sm text-[13px] text-foreground-secondary">
+            记录显示约 {historyTotalCount} 条，但时间线为空。请点主栏「刷新」或切换会话重试。
+          </p>
+        </div>
+      )
     }
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
