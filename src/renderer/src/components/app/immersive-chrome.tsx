@@ -3,6 +3,7 @@ import { PiMark } from '@renderer/components/brand/pi-mark'
 import { WindowControls } from '@renderer/components/app/window-controls'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 
 /** 无边框窗口顶栏：可拖拽区域 + 侧栏开关 + 运行状态（主对话页无厚重 TopBar） */
 export function ImmersiveChrome({
@@ -20,6 +21,7 @@ export function ImmersiveChrome({
       style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
     >
       <div className="electron-no-drag flex items-center gap-1">
+        {isMac && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
         <button
           type="button"
           onClick={toggleSidebar}

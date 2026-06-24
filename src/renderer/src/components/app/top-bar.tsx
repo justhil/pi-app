@@ -1,6 +1,7 @@
 import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot, PanelLeft, PanelRight } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 import { WindowControls } from '@renderer/components/app/window-controls'
 
 interface TopBarProps {
@@ -20,6 +21,7 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
   return (
     <div className="electron-drag flex h-11 items-center justify-between border-b border-border/60 px-3" style={{ background: 'var(--surface-sidebar)' }}>
       <div className="electron-no-drag flex min-w-0 items-center gap-2.5">
+        {isMac && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
         {!onBack && (
           <button
             onClick={toggleSidebar}

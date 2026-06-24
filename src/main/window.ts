@@ -3,7 +3,8 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 
 const isMac = process.platform === 'darwin'
-const useFrameless = process.platform === 'win32' || isMac
+const isLinux = process.platform === 'linux'
+const useFrameless = process.platform === 'win32' || isMac || isLinux
 
 function resolveWindowIcon() {
   const candidates = [
