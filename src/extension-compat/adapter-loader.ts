@@ -191,38 +191,71 @@ export function v2ToolMap(projectDir?: string): Record<string, string> {
   return map
 }
 
-/** Resolve slash command behavior from v2 catalog. Returns null if no v2 adapter claims it. */
-export function resolveV2Slash(
-  commandName: string,
-  projectDir?: string,
-): {
+export type V2SlashResolve = {
   adapterId: string
   behavior: 'notify' | 'config-page' | 'execute' | 'open-panel'
   matchNames: string[]
   desktopSupport?: string
   panelId?: string
-} | null {
+}
+
+function v2SlashFromAdapter(a: AdapterJson, cmd: string, behavior: V2SlashResolve['behavior']): V2SlashResolve {
+  return {
+    adapterId: a.id,
+    behavior,
+    matchNames: a.match?.names || [],
+    desktopSupport: a.description,
+    panelId:
+      behavior === 'open-panel'
+        ? a.sidePanel?.panelId || `adapter:${a.id}`
+        : undefined,
+  }
+}
+
+/** Resolve slash command behavior from v2 catalog. Returns null if no v2 adapter claims it. */
+export function resolveV2Slash(commandName: string, projectDir?: string): V2SlashResolve | null {
   const cmd = commandName.startsWith('/') ? commandName : `/${commandName}`
   for (const a of loadAdapterCatalog(projectDir).adapters) {
     const behavior = a.slash?.[cmd]
     if (behavior) {
-      return {
-        adapterId: a.id,
-        behavior,
-        matchNames: a.match?.names || [],
-        desktopSupport: a.description,
-        panelId:
-          behavior === 'open-panel'
-            ? a.sidePanel?.panelId || `adapter:${a.id}`
-            : undefined,
-      }
+      return v2SlashFromAdapter(a, cmd, behavior)
     }
-    // match.commands also implies the adapter claims this command; default to notify if no slash entry
     if (a.match?.commands?.includes(cmd) && !a.slash?.[cmd]) {
-      return { adapterId: a.id, behavior: 'notify', matchNames: a.match?.names || [], desktopSupport: a.description }
+      return v2SlashFromAdapter(a, cmd, 'notify')
     }
   }
   return null
+}
+
+/** TUI-style `/goalfoo` without space: match adapter by command prefix (e.g. `/goal`). */
+export function resolveV2SlashPrefix(commandName: string, projectDir?: string): V2SlashResolve | null {
+  const exact = resolveV2Slash(commandName, projectDir)
+  if (exact) return exact
+  const raw = commandName.startsWith('/') ? commandName : `/${commandName}`
+  const probe = raw.slice(1)
+  if (!probe || probe.includes(' ')) return null
+  let best: { invLen: number; result: V2SlashResolve } | null = null
+  for (const a of loadAdapterCatalog(projectDir).adapters) {
+    const candidates = new Set<string>()
+    for (const c of a.match?.commands || []) {
+      candidates.add(c.startsWith('/') ? c.slice(1) : c)
+    }
+    for (const key of Object.keys(a.slash || {})) {
+      candidates.add(key.startsWith('/') ? key.slice(1) : key)
+    }
+    for (const inv of candidates) {
+      if (!inv) continue
+      if (probe === inv || (probe.startsWith(inv) && probe.length > inv.length)) {
+        const cmd = `/${inv}`
+        const behavior = a.slash?.[cmd] ?? (a.match?.commands?.includes(cmd) ? 'notify' : null)
+        if (!behavior) continue
+        if (!best || inv.length > best.invLen) {
+          best = { invLen: inv.length, result: v2SlashFromAdapter(a, cmd, behavior) }
+        }
+      }
+    }
+  }
+  return best?.result ?? null
 }
 
 /** Display info for a v2 adapter (subpage header): tools/commands come from match + slash keys. */

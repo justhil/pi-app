@@ -11,6 +11,8 @@
   "collapse": "Collapse",
   "expand": "Expand ({{count}} lines)",
   "thinkingChain": "Thinking",
+  "thinkingActive": "Thinking",
+  "thoughtDone": "Thought",
   "thinkingLines": " · {{count}} lines",
   "generating": " · generating",
   "agentStarting": "Agent starting",

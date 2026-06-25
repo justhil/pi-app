@@ -1279,10 +1279,31 @@
     font-size: 0.85em;
     color: var(--text-secondary);
   }
+  .assistant-stream-live {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  .prose-chat-streaming,
+  .assistant-stream-live .prose-chat {
+    transition: color 200ms ease;
+  }
+  .prose-chat-streaming .stream-plain-chunk,
+  .assistant-stream-live .prose-chat {
+    letter-spacing: 0.01em;
+    line-height: 1.72;
+  }
   .prose-chat-streaming .katex-display,
   .prose-chat-streaming .math-display-shell {
     opacity: 0.94;
     transition: opacity var(--motion-fast) ease;
+  }
+  @keyframes stream-caret-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.95; }
+  }
+  .stream-caret {
+    animation: stream-caret-pulse 1.25s ease-in-out infinite;
   }
   .prose-chat .katex .sqrt > .vlist-t {
     border-color: color-mix(in srgb, var(--text-primary) 75%, transparent);
@@ -1321,6 +1342,12 @@
   .popover-motion {
     animation: popover-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
     transform-origin: bottom center;
+  }
+  .composer-slash-popover-pane {
+    overscroll-behavior: contain;
+  }
+  [data-slash-popover] .overlay-scrollbar-rail {
+    z-index: 2;
   }
   @keyframes popover-rise {
     from { opacity: 0; transform: translateY(10px) scale(0.98); }

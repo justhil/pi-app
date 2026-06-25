@@ -37,7 +37,8 @@ import {
 import { listRevisions, pushRevision, restoreRevision, readRevision } from './resource-revisions'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
-import { loadAdapterCatalog, invalidateAdapterCatalog, resolveV2Slash } from '../extension-compat/adapter-loader'
+import { loadAdapterCatalog, invalidateAdapterCatalog, resolveV2SlashPrefix } from '../extension-compat/adapter-loader'
+import { expandConcatenatedSlashLine } from '@shared/slash-invocation'
 import { listAdapterSidePanelMetas } from '../extension-compat/side-panel-catalog'
 import {
   mergeRightPanelCatalog,
@@ -646,8 +647,8 @@ export function registerAllHandlers(): void {
     const currentText = typeof req?.currentText === 'string' ? req.currentText : ''
     const cleared = await workerManager.clearPromptQueue()
     const all = [...(cleared.steering || []), ...(cleared.followUp || [])]
-    const queuedText = all.join('\n\n')
-    const combined = [queuedText, currentText.trim()].filter(Boolean).join('\n\n')
+    const queuedText = all.join('\n')
+    const combined = [queuedText, currentText.trim()].filter(Boolean).join('\n')
     if (abort) await workerManager.abort()
     return { restoredCount: all.length, combinedText: combined }
   })
@@ -1179,9 +1180,25 @@ export function registerAllHandlers(): void {
     return { adapters: probed }
   })
 
+  registerHandler('ipc:slash.normalize', async (req) => {
+    const line = String(req.text ?? '')
+    const names: string[] = []
+    try {
+      const { commands } = await workerManager.getCommands()
+      for (const c of commands || []) {
+        const n = String(c.name || c.id || '')
+        if (n) names.push(n)
+      }
+    } catch {
+      /* no session */
+    }
+    const { normalized } = expandConcatenatedSlashLine(line, names)
+    return { text: normalized }
+  })
+
   // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute) — v2-only
   registerHandler('ipc:slash.resolve', async (req) => {
-    const r = resolveV2Slash(req.command || '')
+    const r = resolveV2SlashPrefix(req.command || '')
     if (!r) return { behavior: 'passthrough', meta: null }
     return {
       behavior: r.behavior,

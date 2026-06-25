@@ -20,6 +20,7 @@ import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
+import { useTimelineLiveFollow } from './timeline-follow-scroll'
 import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
 import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
 
@@ -109,7 +110,12 @@ const TimelineItemBase = memo(function TimelineItem({
             <ThinkingChainBlock text={item.thinkingText} streaming={streaming} />
           )}
           {hasText ? (
-            <div className="min-w-0 text-[15px] leading-[1.7] text-foreground">
+            <div
+              className={cn(
+                'min-w-0 text-[15px] leading-[1.7] text-foreground',
+                streaming && 'assistant-stream-live',
+              )}
+            >
               <Suspense fallback={<p className="whitespace-pre-wrap break-words">{item.text}</p>}>
                 <MarkdownView streaming={streaming}>{item.text}</MarkdownView>
               </Suspense>
@@ -186,6 +192,11 @@ const TimelineItemBase = memo(function TimelineItem({
 export function Timeline() {
   const items = useUIStore((s) => s.timelineItems)
   const streamingAssistantId = useUIStore((s) => s.streamingAssistantId)
+  const streamingTailLen = useUIStore((s) => {
+    if (!s.streamingAssistantId) return 0
+    const item = s.timelineItems.find((i) => i.id === s.streamingAssistantId)
+    return (item?.text?.length ?? 0) + (item?.thinkingText?.length ?? 0)
+  })
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
   const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
@@ -203,6 +214,14 @@ export function Timeline() {
   const PAGE = 40
   const [renderCount, setRenderCount] = useState(PAGE)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const lastTailId = items[items.length - 1]?.id
+  const { followLiveRef, syncFollowFromScroll } = useTimelineLiveFollow(scrollRef, contentRef, {
+    lastTailId,
+    streamingAssistantId,
+    streamingTailLen,
+    contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
+  })
 
   useEffect(() => {
     const el = scrollRef.current
@@ -219,7 +238,6 @@ export function Timeline() {
       ro.disconnect()
     }
   }, [items.length, renderCount, hasWorkspace])
-  const wasNearBottomRef = useRef(true)
   const scrollHeightBeforeLoadRef = useRef<number | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
@@ -271,29 +289,20 @@ export function Timeline() {
   useEffect(() => {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
+    followLiveRef.current = true
     requestAnimationFrame(() => {
       if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     })
-  }, [firstId])
+  }, [firstId, followLiveRef])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
+    syncFollowFromScroll()
     if (el.scrollTop < 160 && renderCountRef.current < itemsLengthRef.current) {
       loadMoreHistory()
     }
-    wasNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }, [loadMoreHistory])
-
-  // Auto-scroll to bottom when new items arrive (only if user was already near bottom)
-  const lastId = items[items.length - 1]?.id
-  useEffect(() => {
-    if (wasNearBottomRef.current && scrollRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      })
-    }
-  }, [lastId])
+  }, [loadMoreHistory, syncFollowFromScroll])
 
   if (!hasWorkspace) {
     return (
@@ -362,6 +371,7 @@ export function Timeline() {
       onScroll={handleScroll}
     >
       <div
+        ref={contentRef}
         key={historySessionFile || 'timeline'}
         className="chat-content-column py-4 ui-enter"
       >

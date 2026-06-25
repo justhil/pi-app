@@ -207,6 +207,9 @@ interface UIState {
   pendingFollowUp: string[]
   setPendingQueue: (steering: string[], followUp: string[]) => void
   clearPendingQueue: () => void
+  /** abort 后短暂忽略 Worker queue_update，避免 goal continuation 把 followUp 写回 UI */
+  ignoreQueueSyncUntil: number
+  markAbortQueueIgnore: (ms?: number) => void
 
   // Event processing
   processEvent: (event: AppEvent) => void
@@ -563,7 +566,15 @@ export const useUIStore = create<UIState>()(
   agentTurnBootstrapping: false,
   pendingSteering: [],
   pendingFollowUp: [],
-  setPendingQueue: (steering, followUp) => set({ pendingSteering: steering, pendingFollowUp: followUp }),
+  ignoreQueueSyncUntil: 0,
+  markAbortQueueIgnore: (ms = 5000) => set({ ignoreQueueSyncUntil: Date.now() + ms }),
+  setPendingQueue: (steering, followUp) => {
+    if (Date.now() < get().ignoreQueueSyncUntil) {
+      const hasQueued = steering.length > 0 || followUp.length > 0
+      if (hasQueued) return
+    }
+    set({ pendingSteering: steering, pendingFollowUp: followUp })
+  },
   clearPendingQueue: () => set({ pendingSteering: [], pendingFollowUp: [] }),
 
   processEvent: (event) => {
@@ -737,6 +748,8 @@ export const useUIStore = create<UIState>()(
               toolOutput: outText,
               toolDetails: (event as any).details,
               toolStatusLine: undefined,
+              extensionUiSuspended: false,
+              extensionUiRequestId: undefined,
               isError: event.isError,
             })
           }
@@ -761,6 +774,9 @@ export const useUIStore = create<UIState>()(
       }
       case 'run': {
         if (event.phase === 'started' || event.phase === 'running') {
+          if (Date.now() < get().ignoreQueueSyncUntil && event.phase === 'running') {
+            break
+          }
           const runPatch: Record<string, unknown> = {
             status: 'running',
             activeRunId: event.runId,
@@ -806,6 +822,7 @@ export const useUIStore = create<UIState>()(
           state.clearPendingQueue()
           set({ streamingAssistantId: null })
           state.pruneEmptyAssistantBubbles()
+          void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
           if (wasActive && rs.startTime && durationMs != null && durationMs >= 800) {
             const sec = Math.round(durationMs / 1000)
             alertTrace('run_idle alert fired', { durationMs, sec })
@@ -850,18 +867,57 @@ export const useUIStore = create<UIState>()(
         break
       }
       case 'slash': {
-        state.appendTimeline({
-          id: nextItemId(),
-          type: 'slash',
-          slashCommand: event.command,
-          slashStatus: event.status,
-          text: event.text,
-          isError: event.status === 'error',
-          timestamp: event.timestamp,
-        })
+        const items = get().timelineItems
+        const pendingIdx = [...items].reverse().findIndex(
+          (i) =>
+            i.type === 'slash'
+            && i.slashCommand === event.command
+            && i.slashStatus === 'dispatched',
+        )
+        if (pendingIdx >= 0 && event.status !== 'dispatched') {
+          const idx = items.length - 1 - pendingIdx
+          state.updateTimelineItem(items[idx].id, {
+            slashStatus: event.status,
+            text: event.text,
+            isError: event.status === 'error',
+            timestamp: event.timestamp,
+          })
+        } else if (event.status === 'dispatched') {
+          const last = items[items.length - 1]
+          if (
+            last?.type === 'slash'
+            && last.slashCommand === event.command
+            && last.slashStatus === 'dispatched'
+          ) {
+            break
+          }
+          state.appendTimeline({
+            id: nextItemId(),
+            type: 'slash',
+            slashCommand: event.command,
+            slashStatus: event.status,
+            text: event.text,
+            isError: false,
+            timestamp: event.timestamp,
+          })
+        } else {
+          state.appendTimeline({
+            id: nextItemId(),
+            type: 'slash',
+            slashCommand: event.command,
+            slashStatus: event.status,
+            text: event.text,
+            isError: event.status === 'error',
+            timestamp: event.timestamp,
+          })
+        }
         break
       }
       case 'queue': {
+        if (Date.now() < get().ignoreQueueSyncUntil) {
+          const hasQueued = (event.steering?.length ?? 0) > 0 || (event.followUp?.length ?? 0) > 0
+          if (hasQueued) break
+        }
         state.setPendingQueue(event.steering, event.followUp)
         break
       }
@@ -872,6 +928,13 @@ export const useUIStore = create<UIState>()(
         const kind = event.kind || agentErrorKind(raw)
         const formatted = formatAgentErrorForTimeline(raw)
         const items = get().timelineItems
+        const recentAbort = items
+          .slice(-6)
+          .filter((i) => i.type === 'error' && i.errorKind === 'aborted' && i.text === formatted)
+        if (kind === 'aborted' && recentAbort.length >= 1) {
+          state.setRunState({ status: 'idle', activeRunId: undefined, activeTool: undefined, activeToolStatus: undefined })
+          break
+        }
         const last = items[items.length - 1]
         if (last?.type === 'error' && last.text === formatted) break
         state.appendTimeline({

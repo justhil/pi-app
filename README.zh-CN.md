@@ -5,7 +5,7 @@
 
 [pi](https://github.com/jvm/pi-mono) 编码助手的桌面应用 — 终端里跑的那个 Agent，现在有了时间线、侧栏和一个正经窗口。
 
-[![Version](https://img.shields.io/badge/version-0.4.3-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.4.4-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
 [![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
 [![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
