@@ -2,8 +2,30 @@
   "id": "@juicesharp/rpiv-advisor",
   "displayName": "Advisor",
   "description": "第二意见（由 advisor 工具触发）",
-  "match": { "names": ["@juicesharp/rpiv-advisor"], "tools": ["advisor"] },
+  "match": {
+    "names": [
+      "@juicesharp/rpiv-advisor"
+    ],
+    "tools": [
+      "advisor"
+    ]
+  },
   "tier": "headless",
-  "toolCard": { "template": "default", "icon": "Lightbulb" },
-  "config": { "note": "第二意见由扩展工具触发；桌面按工具结果渲染。" }
+  "toolCard": {
+    "template": "default",
+    "icon": "Lightbulb"
+  },
+  "config": {
+    "note": "第二意见由扩展工具触发；桌面按工具结果渲染。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Advisor",
+      "description": "第二意见（由 advisor 工具触发）"
+    },
+    "en": {
+      "displayName": "Advisor",
+      "description": "第二意见（由 advisor 工具触发）"
+    }
+  }
 }

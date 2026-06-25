@@ -8,10 +8,11 @@ import { useSettingsDraft } from '@renderer/features/settings/settings-draft-con
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
-import {
-  Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText,
-  Moon, Sun, Monitor, Check, AlertCircle, Folder, Layers, ChevronLeft, LayoutPanelLeft, Boxes, Sparkles
+import { Settings as SettingsIcon, Palette, Cpu, Puzzle, Zap, MessageSquareText, Mic,
+  Moon, Sun, Monitor, Folder, Layers, ChevronLeft, LayoutPanelLeft, Boxes, Sparkles
 } from 'lucide-react'
+import { resolveAdapterText } from '@extension-compat/adapter-schema'
+import i18n from '@renderer/lib/i18n'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
 import {
@@ -21,24 +22,13 @@ import {
   SettingsPageHeader,
 } from '@renderer/features/settings/settings-shell'
 import { RightPanelsSettings } from '@renderer/features/settings/right-panels-settings'
+import { VoiceSettingsPanel } from '@renderer/features/settings/voice-settings-panel'
 import { SettingsDraftProvider } from '@renderer/features/settings/settings-draft-context'
 import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
 import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
 import { Switch } from '@renderer/components/ui/switch'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'adapters'
-
-const PAGES: { key: SettingsPage; icon: any; label: string }[] = [
-  { key: 'general', icon: SettingsIcon, label: '通用' },
-  { key: 'appearance', icon: Palette, label: '外观' },
-  { key: 'rightPanels', icon: LayoutPanelLeft, label: '右侧栏' },
-  { key: 'pi', icon: Cpu, label: 'Pi' },
-  { key: 'models', icon: Boxes, label: '模型' },
-  { key: 'skills', icon: Zap, label: 'Skills' },
-  { key: 'prompts', icon: MessageSquareText, label: '提示词' },
-  { key: 'extensions', icon: Puzzle, label: '扩展' },
-  { key: 'adapters', icon: Layers, label: '适配器' },
-]
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'adapters' | 'voice'
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -46,6 +36,19 @@ export function SettingsPage() {
   const [configExt, setConfigExt] = useState<string | null>(null)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
+
+  const PAGES: { key: SettingsPage; icon: any; label: string }[] = [
+    { key: 'general', icon: SettingsIcon, label: t('settings:nav.general') },
+    { key: 'appearance', icon: Palette, label: t('settings:nav.appearance') },
+    { key: 'rightPanels', icon: LayoutPanelLeft, label: t('settings:nav.rightPanels') },
+    { key: 'pi', icon: Cpu, label: t('settings:nav.pi') },
+    { key: 'models', icon: Boxes, label: t('settings:nav.models') },
+    { key: 'skills', icon: Zap, label: t('settings:nav.skills') },
+    { key: 'prompts', icon: MessageSquareText, label: t('settings:nav.prompts') },
+    { key: 'extensions', icon: Puzzle, label: t('settings:nav.extensions') },
+    { key: 'adapters', icon: Layers, label: t('settings:nav.adapters') },
+    { key: 'voice', icon: Mic, label: t('settings:nav.voice') },
+  ]
 
   // 外置 adapter.json 可能在设置外被修改；进入设置时刷新 Main 缓存与右栏目录
   useEffect(() => {
@@ -73,9 +76,9 @@ export function SettingsPage() {
             className="electron-no-drag chrome-icon-btn flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
-            返回适配器
+            {t('settings:adapters.backToAdapters')}
           </button>
-          <span className="text-[13px] font-medium">{configExt} 配置</span>
+          <span className="text-[13px] font-medium">{t('settings:adapters.configTitle', { id: configExt })}</span>
         </div>
         <SettingsMain wide>
           <div className="animate-in fade-in slide-in-from-right duration-motion-normal">
@@ -86,13 +89,13 @@ export function SettingsPage() {
     )
   }
 
-  const widePages: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'adapters']
+  const widePages: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'adapters', 'voice']
   const wide = widePages.includes(page)
 
   return (
     <SettingsDraftProvider>
       <div className="flex h-full min-h-0 w-full overflow-hidden">
-        <SettingsNav title={t('settings.title')}>
+        <SettingsNav title={t('settings:title')}>
           {PAGES.map((p) => (
             <SettingsNavItem
               key={p.key}
@@ -113,6 +116,7 @@ export function SettingsPage() {
           {page === 'prompts' && <PromptsSettingsPanel />}
           {page === 'extensions' && <ExtensionsSettings />}
           {page === 'adapters' && <AdaptersSettings />}
+          {page === 'voice' && <VoiceSettingsPanel />}
         </SettingsMain>
       </div>
     </SettingsDraftProvider>
@@ -133,6 +137,7 @@ function SettingRow({ label, description, children }: any) {
 
 
 function GeneralSettings() {
+  const { t } = useTranslation()
   const {
     draft,
     setAutoOpenLastProject,
@@ -159,22 +164,22 @@ function GeneralSettings() {
     try {
       const r = await ipcClient.invoke('app.checkUpdate', {})
       if (!r?.ok) {
-        setUpdateCheck(r?.error || '检查失败')
+        setUpdateCheck(r?.error || t('settings:general.updateCheckFailed'))
         return
       }
       if (r.hasUpdate && r.latestVersion) {
-        setUpdateCheck(`有新版本 v${r.latestVersion}（当前 v${r.currentVersion}）`)
-        toast.info(`发现新版本 v${r.latestVersion}`, {
+        setUpdateCheck(t('settings:general.updateHasNew', { version: r.latestVersion, current: r.currentVersion }))
+        toast.info(t('settings:general.foundNewVersion', { version: r.latestVersion }), {
           action: {
-            label: '打开发布页',
+            label: t('settings:general.openReleasePage'),
             onClick: () => void ipcClient.invoke('app.openRelease', { url: r.releaseUrl }),
           },
         })
       } else {
-        setUpdateCheck(`已是最新（v${r.currentVersion}）`)
+        setUpdateCheck(t('settings:general.updateLatest', { version: r.currentVersion }))
       }
     } catch {
-      setUpdateCheck('检查失败')
+      setUpdateCheck(t('settings:general.updateCheckFailed'))
     } finally {
       setCheckingUpdate(false)
     }
@@ -182,19 +187,19 @@ function GeneralSettings() {
 
   return (
     <div className="space-y-4">
-      <SettingsPageHeader title="常规" description="修改后请使用页面底部「保存」写入本机配置。" />
+      <SettingsPageHeader title={t('settings:general.title')} description={t('settings:general.description')} />
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">启动</div>
-        <SettingRow label="启动时打开上次项目" description="自动恢复上次打开的项目目录">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:general.startup')}</div>
+        <SettingRow label={t('settings:general.openLastProject')} description={t('settings:general.openLastProjectDesc')}>
           <Switch checked={draft.autoOpenLastProject} onCheckedChange={setAutoOpenLastProject} />
         </SettingRow>
         <SettingRow
-          label="自动检查更新"
-          description="启动时查询 GitHub Releases（justhil/pi-app）是否有新版本"
+          label={t('settings:general.autoCheckUpdate')}
+          description={t('settings:general.autoCheckUpdateDesc')}
         >
           <Switch checked={draft.autoCheckRegistryUpdates} onCheckedChange={setAutoCheckRegistryUpdates} />
         </SettingRow>
-        <SettingRow label="应用版本" description="手动检查 GitHub 发布页">
+        <SettingRow label={t('settings:general.appVersion')} description={t('settings:general.appVersionDesc')}>
           <div className="flex flex-col items-end gap-1">
             <button
               type="button"
@@ -202,7 +207,7 @@ function GeneralSettings() {
               onClick={() => void handleCheckUpdate()}
               className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50 disabled:opacity-50"
             >
-              {checkingUpdate ? '检查中…' : '检查更新'}
+              {checkingUpdate ? t('settings:general.checking') : t('settings:general.checkUpdate')}
             </button>
             {updateCheck && (
               <span className="max-w-[220px] text-right text-[11px] text-muted-foreground/75">{updateCheck}</span>
@@ -212,31 +217,31 @@ function GeneralSettings() {
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">提醒</div>
-        <SettingRow label="提示音" description="用户提醒时播放短提示音（与下方场景配合）">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:general.alert')}</div>
+        <SettingRow label={t('settings:general.alertSound')} description={t('settings:general.alertSoundDesc')}>
           <Switch checked={draft.alertSoundEnabled} onCheckedChange={setAlertSoundEnabled} />
         </SettingRow>
-        <SettingRow label="系统通知" description="使用操作系统通知中心（通知本身静音，可与提示音叠加）">
+        <SettingRow label={t('settings:general.alertNotification')} description={t('settings:general.alertNotificationDesc')}>
           <Switch checked={draft.alertNotificationEnabled} onCheckedChange={setAlertNotificationEnabled} />
         </SettingRow>
         <SettingRow
-          label="扩展问答弹窗"
-          description="兼容层弹窗需你作答/确认时提醒（Agent 会暂停等待）"
+          label={t('settings:general.alertOnExtensionUi')}
+          description={t('settings:general.alertOnExtensionUiDesc')}
         >
           <Switch checked={draft.alertOnExtensionUi} onCheckedChange={setAlertOnExtensionUi} />
         </SettingRow>
-        <SettingRow label="一轮运行结束" description="Agent 状态变为空闲（本轮 loop 结束）时提醒">
+        <SettingRow label={t('settings:general.alertOnRunIdle')} description={t('settings:general.alertOnRunIdleDesc')}>
           <Switch checked={draft.alertOnRunIdle} onCheckedChange={setAlertOnRunIdle} />
         </SettingRow>
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">语言</div>
-        <SettingRow label="界面语言" description="切换后即时生效">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:general.language')}</div>
+        <SettingRow label={t('settings:general.language')} description={t('settings:general.languageDesc')}>
           <div className="flex gap-1.5">
             {[
-              { key: 'zh' as const, label: '中文' },
-              { key: 'en' as const, label: 'English' },
+              { key: 'zh' as const, label: t('settings:general.langZh') },
+              { key: 'en' as const, label: t('settings:general.langEn') },
             ].map((l) => (
               <button
                 key={l.key}
@@ -257,7 +262,7 @@ function GeneralSettings() {
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">最近项目</div>
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:general.recentProjects')}</div>
         {recentProjects.length > 0 ? (
           <div className="space-y-1">
             {recentProjects.map((p, i) => (
@@ -270,8 +275,8 @@ function GeneralSettings() {
         ) : (
           <div className="flex flex-col items-center py-6 text-center">
             <Sparkles className="h-7 w-7 text-muted-foreground/30" />
-            <p className="mt-2 text-[12px] text-muted-foreground/60">暂无最近项目</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground/45">打开工作区后将出现在此</p>
+            <p className="mt-2 text-[12px] text-muted-foreground/60">{t('settings:general.noRecentProjects')}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground/45">{t('settings:general.noRecentProjectsHint')}</p>
           </div>
         )}
       </div>
@@ -291,10 +296,10 @@ function AppearanceSettings() {
 
   return (
     <div className="space-y-4">
-      <SettingsPageHeader title={t('settings.appearance')} description="主题预览即时生效；持久化需点页面底部「保存」。" />
+      <SettingsPageHeader title={t('settings:appearance.title')} description={t('settings:appearance.description')} />
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">主题</div>
-        <SettingRow label="界面主题" description="选择浅色、深色或跟随系统">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:appearance.themeTitle')}</div>
+        <SettingRow label={t('settings:appearance.themeLabel')} description={t('settings:appearance.themeDesc')}>
           <div className="flex gap-1.5">
             {themes.map(({ key, icon: Icon }) => (
               <button
@@ -309,7 +314,7 @@ function AppearanceSettings() {
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
-                {t(`settings.theme.${key}`)}
+                {t(`settings:appearance.theme${key.charAt(0).toUpperCase() + key.slice(1)}`)}
               </button>
             ))}
           </div>
@@ -324,6 +329,7 @@ function PiSettings() {
 }
 
 function ExtensionsSettings() {
+  const { t } = useTranslation()
   const [extensions, setExtensions] = useState<any[]>([])
   const [runtimeTools, setRuntimeTools] = useState<any[]>([])
   const [missingRuntime, setMissingRuntime] = useState<any[]>([])
@@ -348,7 +354,7 @@ function ExtensionsSettings() {
 
   const handleToggle = async (ext: any) => {
     if (!ext.piSync) {
-      toast.error(ext.inSettingsPackages === false ? '请先写入 settings.packages' : '无法与 pi 同步启停')
+      toast.error(ext.inSettingsPackages === false ? t('settings:extensions.workerLoadHint') : t('settings:extensions.notSynced'))
       return
     }
     const next = !(ext.piEnabled ?? ext.enabled)
@@ -356,13 +362,13 @@ function ExtensionsSettings() {
     try {
       const res = await ipcClient.invoke('extensions.setEnabled', { extensionId: ext.id, enabled: next })
       if (!res?.ok) {
-        toast.error(res?.error || '保存失败')
+        toast.error(res?.error || t('common:saveFailed'))
         return
       }
-      toast.success(next ? '已启用（已写入 pi settings）' : '已停用（已写入 pi settings）')
+      toast.success(next ? t('settings:extensions.piEnabled') : t('settings:extensions.piDisabled'))
       refreshExtensions()
     } catch {
-      toast.error('操作失败')
+      toast.error(t('common:operationFailed'))
     } finally {
       setTogglingId(null)
     }
@@ -370,16 +376,16 @@ function ExtensionsSettings() {
 
   const COMPAT_STYLES: Record<string, string> = {
     native: 'bg-green-500/10 text-green-600 dark:text-green-400',
-    basic: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    basic: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
     headless: 'bg-muted text-muted-foreground',
     blocked: 'bg-destructive/10 text-destructive',
   }
 
   const COMPAT_LABELS: Record<string, string> = {
-    native: 'Native',
-    basic: 'Basic',
-    headless: 'Headless',
-    blocked: 'Blocked',
+    native: t('settings:extensions.compatNative'),
+    basic: t('settings:extensions.compatBasic'),
+    headless: t('settings:extensions.compatHeadless'),
+    blocked: t('settings:extensions.compatBlocked'),
   }
 
   const runtimeNames = new Set(runtimeTools.map((t) => t.name))
@@ -388,16 +394,14 @@ function ExtensionsSettings() {
   return (
     <div className="space-y-1 w-full">
       <SettingsPageHeader
-        title="插件"
-        description={
-          '启停与终端 pi 一致：写入 ~/.pi/agent/settings.json 的 packages[].extensions 或 extensions 路径（± 模式）。切换后立即 reload Worker。'
-        }
+        title={t('settings:extensions.title')}
+        description={t('settings:extensions.description')}
       />
       {missingRuntime.length > 0 && (
         <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3">
-          <div className="text-[12px] font-medium text-amber-800 dark:text-amber-200">未进 Worker 的扩展</div>
+          <div className="text-[12px] font-medium text-amber-800 dark:text-amber-200">{t('settings:extensions.missingRuntime')}</div>
           <p className="mt-1 text-[11px] text-foreground-secondary leading-relaxed">
-            本机已有 git 克隆，但未列入 settings.packages（终端可能用别的方式加载，桌面不会）。
+            {t('settings:extensions.missingRuntimeDesc')}
           </p>
           <ul className="mt-2 space-y-1 text-[11px] font-mono text-foreground-secondary">
             {missingRuntime.map((m: any) => (
@@ -411,19 +415,19 @@ function ExtensionsSettings() {
             onClick={() => {
               setSyncing(true)
               ipcClient.invoke('extensions.syncGitPackages').then((r) => {
-                if (r?.added?.length) toast.success(`已写入 packages 并重启 Worker：${r.added.join(', ')}`)
+                if (r?.added?.length) toast.success(t('settings:extensions.syncSuccess', { list: r.added.join(', ') }))
                 else if (r?.error) toast.error(r.error)
                 refreshExtensions()
-              }).catch(() => toast.error('同步失败')).finally(() => setSyncing(false))
+              }).catch(() => toast.error(t('settings:extensions.syncFailed'))).finally(() => setSyncing(false))
             }}
           >
-            {syncing ? '同步中…' : '写入 settings.packages 并重启 Worker'}
+            {syncing ? t('settings:extensions.syncing') : t('settings:extensions.writePackages')}
           </button>
         </div>
       )}
       <div className="mb-3 rounded-lg border border-border/50 bg-muted/20 p-2.5">
         <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-          当前 Worker 工具 {runtimeTools.length ? `(${runtimeTools.length})` : '(Worker 未启动或无会话)'}
+          {t('settings:extensions.workerTools')} {runtimeTools.length ? `(${runtimeTools.length})` : t('settings:extensions.workerToolsEmpty')}
         </div>
         <div className="mt-1 flex flex-wrap gap-1">
           {watchedTools.map((name) => (
@@ -441,7 +445,7 @@ function ExtensionsSettings() {
       </div>
       {extensions.length === 0 ? (
         <div className="text-[12px] text-muted-foreground/50 py-4">
-          未检测到插件。将 .ts 扩展文件或目录放在 .pi/extensions/ 下即可被检测。
+          {t('settings:extensions.empty')}
         </div>
       ) : (
         <div className="space-y-2">
@@ -461,7 +465,7 @@ function ExtensionsSettings() {
                         'rounded px-1.5 py-0.5 text-[9px] font-medium uppercase',
                         ext.source === 'project' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                       )}>
-                        {ext.source === 'package' ? 'Package' : ext.source === 'project' ? '项目' : '全局'}
+                        {ext.source === 'package' ? t('settings:extensions.sourcePackage') : ext.source === 'project' ? t('settings:extensions.sourceProject') : t('settings:extensions.sourceGlobal')}
                       </span>
                       {ext.piSync ? (
                         <span
@@ -470,10 +474,10 @@ function ExtensionsSettings() {
                             isOn ? 'bg-green-500/12 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground',
                           )}
                         >
-                          {isOn ? 'pi 已启用' : 'pi 已停用'}
+                          {isOn ? t('settings:extensions.piEnabled') : t('settings:extensions.piDisabled')}
                         </span>
                       ) : (
-                        <span className="rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">未同步</span>
+                        <span className="rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">{t('settings:extensions.notSynced')}</span>
                       )}
                     </div>
                     {ext.description && (
@@ -499,15 +503,15 @@ function ExtensionsSettings() {
                     )}
                     {ext.adapterId ? (
                       <div className="mt-1 text-[10px] text-green-700 dark:text-green-400">
-                        桌面适配器：<span className="font-medium">{ext.adapterId}</span>
+                        {t('settings:extensions.adapterLinked')}<span className="font-medium">{ext.adapterId}</span>
                       </div>
                     ) : ext.tuiOnly ? (
                       <div className="mt-1 text-[10px] text-muted-foreground/70 italic">
-                        仅终端生效（TUI 装饰，桌面不复刻）
+                        {t('settings:extensions.tuiOnly')}
                       </div>
                     ) : (
                       <div className="mt-1 text-[10px] text-muted-foreground/55 italic">
-                        未登记桌面适配（无专属桌面实现，工具/命令仍可在会话中加载）
+                        {t('settings:extensions.noAdapter')}
                       </div>
                     )}
                     {ext.inSettingsPackages === false && ext.workerLoadHint && (
@@ -541,17 +545,18 @@ const TIER_STYLES: Record<string, string> = {
   none: 'bg-muted text-muted-foreground',
 }
 
-const TIER_LABELS: Record<string, string> = {
-  native: '完整',
-  partial: '部分',
-  headless: '仅执行',
-  none: '无',
-}
-
 function AdaptersSettings() {
+  const { t } = useTranslation()
   const [adapters, setAdapters] = useState<any[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
+
+  const TIER_LABELS: Record<string, string> = {
+    native: t('settings:adapters.tierNative'),
+    partial: t('settings:adapters.tierPartial'),
+    headless: t('settings:adapters.tierHeadless'),
+    none: t('settings:adapters.tierNone'),
+  }
 
   useEffect(() => {
     setError(null)
@@ -568,39 +573,41 @@ function AdaptersSettings() {
   }, [])
 
   if (adapters === null) {
-    return <div className="text-[12px] text-muted-foreground/50 py-4">加载中…</div>
+    return <div className="text-[12px] text-muted-foreground/50 py-4">{t('settings:adapters.loading')}</div>
   }
 
   return (
     <div className="w-full space-y-3">
       <SettingsPageHeader
-        title="桌面适配器"
-        description="已登记的 adapter.json 兼容层；一插件一适配器，经兼容层接入桌面 UI 与配置。"
+        title={t('settings:adapters.title')}
+        description={t('settings:adapters.description')}
       />
       {error && <div className="text-[11px] text-destructive">{error}</div>}
       {adapters.length === 0 ? (
         <div className="text-[12px] text-muted-foreground/50 py-4">
-          当前没有已登记的桌面适配器。插件仍可在「插件」页看到；要接入新插件请在兼容层声明 adapter.json。
+          {t('settings:adapters.empty')}
         </div>
       ) : (
         <div className="space-y-3">
-          {adapters.map((a) => (
+          {adapters.map((a) => {
+            const resolved = a.adapterJson ? resolveAdapterText(a.adapterJson, i18n.language) : null
+            return (
             <div key={a.pluginId} className="rounded-lg border border-border/60 bg-card/40 p-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[14px] font-medium">{a.displayName}</span>
+                <span className="text-[14px] font-medium">{resolved?.displayName || a.displayName}</span>
                 <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase', TIER_STYLES[a.tier])}>
                   {TIER_LABELS[a.tier] || a.tier}
                 </span>
                 <span className="text-[10px] text-muted-foreground">{a.source}</span>
                 {a.version && <span className="text-[10px] font-mono text-muted-foreground">v{a.version}</span>}
                 {a.adapterVersion && (
-                  <span className="text-[10px] text-muted-foreground">适配器 v{a.adapterVersion}</span>
+                  <span className="text-[10px] text-muted-foreground">{t('settings:adapters.tierPartial')} v{a.adapterVersion}</span>
                 )}
               </div>
-              {a.description && <p className="mt-1 text-[12px] text-muted-foreground/80">{a.description}</p>}
+              {(resolved?.description || a.description) && <p className="mt-1 text-[12px] text-muted-foreground/80">{resolved?.description || a.description}</p>}
               <div className="mt-2 text-[11px] text-muted-foreground">
-                <span className="font-medium text-foreground/80">桌面：</span>
-                {a.desktopSupport}
+                <span className="font-medium text-foreground/80">{t('settings:adapters.desktop')}</span>
+                {resolved?.description || a.desktopSupport}
               </div>
               <div className="mt-2 text-[10px] text-muted-foreground/60 font-mono">
                 probe: {a.matchMeta?.probeId}
@@ -619,15 +626,15 @@ function AdaptersSettings() {
                     onClick={() => requestExtensionConfig(a.id)}
                     className="rounded-md border border-border bg-background px-3 py-1.5 text-[12px] font-medium hover:bg-accent"
                   >
-                    打开配置
+                    {t('settings:adapters.openConfig')}
                   </button>
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
   )
 }
-

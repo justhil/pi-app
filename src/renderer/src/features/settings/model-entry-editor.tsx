@@ -1,4 +1,5 @@
 import { ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import type { PiModelsProviderConfig } from '@shared/ipc-contract'
 
@@ -7,14 +8,6 @@ export type LocalModelEntry = NonNullable<PiModelsProviderConfig['models']>[numb
 const inputCls =
   'settings-field-focus w-full rounded-md border border-border bg-background px-2 py-1 text-[11px] font-mono'
 const labelCls = 'text-[10px] font-medium text-muted-foreground/80'
-
-const API_OPTS = [
-  { v: '', l: '继承供应商' },
-  { v: 'openai-completions', l: 'openai-completions' },
-  { v: 'openai-responses', l: 'openai-responses' },
-  { v: 'anthropic-messages', l: 'anthropic-messages' },
-  { v: 'google-generative-ai', l: 'google-generative-ai' },
-]
 
 const THINKING_LEVEL_OPTIONS = [
   'off',
@@ -39,9 +32,18 @@ export function ModelEntryEditor({
   onChange: (patch: Partial<LocalModelEntry>) => void
   onRemove: () => void
 }) {
+  const { t } = useTranslation()
   const input = model.input || ['text']
   const hasText = input.includes('text')
   const hasImage = input.includes('image')
+
+  const API_OPTS = [
+    { v: '', l: t('models:inheritProvider') },
+    { v: 'openai-completions', l: 'openai-completions' },
+    { v: 'openai-responses', l: 'openai-responses' },
+    { v: 'anthropic-messages', l: 'anthropic-messages' },
+    { v: 'google-generative-ai', l: 'google-generative-ai' },
+  ]
 
   const thinkingEntries = Object.entries(model.thinkingLevelMap || {})
 
@@ -109,12 +111,12 @@ export function ModelEntryEditor({
           <div className="hidden shrink-0 flex-wrap justify-end gap-1 sm:flex">
             {model.reasoning && (
               <span className="rounded-full bg-violet-500/12 px-2 py-0.5 text-[9px] font-medium text-violet-700 transition-opacity duration-motion-fast dark:text-violet-300">
-                推理
+                {t('models:reasoningBadge')}
               </span>
             )}
             {hasImage && (
               <span className="rounded-full bg-sky-500/12 px-2 py-0.5 text-[9px] font-medium text-sky-700 transition-opacity duration-motion-fast dark:text-sky-300">
-                多模态
+                {t('models:multimodalBadge')}
               </span>
             )}
             {model.contextWindow != null && (
@@ -128,7 +130,7 @@ export function ModelEntryEditor({
           type="button"
           className="chrome-icon-btn rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           onClick={onRemove}
-          aria-label="从本地移除"
+          aria-label={t('common:delete')}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -138,16 +140,16 @@ export function ModelEntryEditor({
         <div className="settings-expand-inner">
           <div className="settings-model-entry-panel grid gap-3 border-t border-border/40 bg-muted/10 px-3 py-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className={labelCls}>模型 id（API）</label>
+              <label className={labelCls}>{t('models:modelIdApi')}</label>
               <input
                 className={inputCls}
                 value={model.id}
                 readOnly
-                title="在列表中删除后重新添加可改 id"
+                title=""
               />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls}>显示名</label>
+              <label className={labelCls}>{t('models:displayName')}</label>
               <input
                 className={cn(inputCls, 'font-sans')}
                 value={model.name || ''}
@@ -156,7 +158,7 @@ export function ModelEntryEditor({
               />
             </div>
             <div>
-              <label className={labelCls}>接口（覆盖）</label>
+              <label className={labelCls}>{t('models:apiOverride')}</label>
               <select
                 className={cn(inputCls, 'font-sans')}
                 value={model.api || ''}
@@ -177,18 +179,18 @@ export function ModelEntryEditor({
                   checked={!!model.reasoning}
                   onChange={(e) => onChange({ reasoning: e.target.checked || undefined })}
                 />
-                推理模型
+                {t('models:reasoningModel')}
               </label>
             </div>
             <div className="sm:col-span-2">
-              <label className={labelCls}>输入</label>
+              <label className={labelCls}>{t('models:inputLabel')}</label>
               <div className="mt-1 flex gap-2">
-                <ToggleChip active={hasText} onClick={() => setInput(!hasText, hasImage)} label="文本" />
-                <ToggleChip active={hasImage} onClick={() => setInput(hasText, !hasImage)} label="图片" />
+                <ToggleChip active={hasText} onClick={() => setInput(!hasText, hasImage)} label="Text" />
+                <ToggleChip active={hasImage} onClick={() => setInput(hasText, !hasImage)} label={t('models:imageLabel')} />
               </div>
             </div>
             <div>
-              <label className={labelCls}>contextWindow</label>
+              <label className={labelCls}>{t('models:contextWindowLabel')}</label>
               <input
                 type="number"
                 className={inputCls}
@@ -203,7 +205,7 @@ export function ModelEntryEditor({
               />
             </div>
             <div>
-              <label className={labelCls}>最大输出 token</label>
+              <label className={labelCls}>{t('models:maxOutputToken')}</label>
               <input
                 type="number"
                 className={inputCls}
@@ -220,18 +222,18 @@ export function ModelEntryEditor({
             {model.reasoning && (
               <div className="sm:col-span-2">
                 <div className="mb-1 flex items-center justify-between">
-                  <label className={labelCls}>思考等级映射 thinkingLevelMap</label>
+                  <label className={labelCls}>{t('models:thinkingLevelMap')}</label>
                   <button
                     type="button"
                     className="settings-chip flex items-center gap-1 rounded-md border border-border/60 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground"
                     onClick={addThinkingEntry}
                   >
                     <Plus className="h-3 w-3" />
-                    添加
+                    {t('models:addBtn')}
                   </button>
                 </div>
                 <p className="mb-2 text-[10px] text-muted-foreground/60">
-                  左=GUI 档位名 · 右=传给模型的参数。默认 high，higher 档在此映射。
+                  {/* GUI level name (left) · model param (right). Default high; higher maps here. */}
                 </p>
                 {thinkingEntries.length > 0 && (
                   <div className="space-y-1.5">
@@ -252,14 +254,14 @@ export function ModelEntryEditor({
                         <input
                           className={cn(inputCls, 'font-mono')}
                           value={val}
-                          placeholder="传给模型的参数"
+                          placeholder={t('models:thinkingParamPlaceholder')}
                           onChange={(e) => setThinkingValue(key, e.target.value)}
                         />
                         <button
                           type="button"
                           className="chrome-icon-btn shrink-0 rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => removeThinkingEntry(key)}
-                          aria-label="删除映射"
+                          aria-label={t('common:delete')}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>

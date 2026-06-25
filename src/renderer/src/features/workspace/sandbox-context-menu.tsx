@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -23,6 +24,7 @@ export function SandboxContextMenuPortal({
   onListChange: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
   const [renameState, setRenameState] = useState<RenameState>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
@@ -36,17 +38,17 @@ export function SandboxContextMenuPortal({
         label,
       })
       if (r?.ok) {
-        toast.success('已重命名')
+        toast.success(t('common:sidebar.renamed'))
         onListChange()
         setRenameState(null)
-      } else toast.error('重命名失败')
+      } else toast.error(t('common:sidebar.renameFailed'))
     } catch {
-      toast.error('重命名失败')
+      toast.error(t('common:sidebar.renameFailed'))
     }
   }
 
   const runDelete = async (path: string, label: string) => {
-    if (!window.confirm(`删除「${label}」？目录与 pi 会话将一并移除。`)) {
+    if (!window.confirm(t('common:sidebar.deleteConfirm', { name: label }))) {
       onClose()
       return
     }

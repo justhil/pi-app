@@ -231,6 +231,77 @@ function mergeStreamChunk(current: string, delta: string): string {
   return current + delta
 }
 
+type StreamFlushKind = 'text' | 'thinking'
+let streamFlushScheduled = false
+const streamPending = new Map<string, { text: string; thinking: string }>()
+
+function scheduleStreamFlush(set: (fn: (s: UIState) => Partial<UIState> | UIState) => void, get: () => UIState) {
+  if (streamFlushScheduled) return
+  streamFlushScheduled = true
+  requestAnimationFrame(() => flushStreamPendingSync(get, set))
+}
+
+function flushStreamPendingSync(
+  get: () => UIState,
+  set: (fn: (s: UIState) => Partial<UIState> | UIState) => void,
+) {
+  streamFlushScheduled = false
+  const sid = get().streamingAssistantId
+  if (!sid) {
+    streamPending.clear()
+    return
+  }
+  const pending = streamPending.get(sid)
+  if (!pending || (!pending.text && !pending.thinking)) return
+  const textDelta = pending.text
+  const thinkDelta = pending.thinking
+  pending.text = ''
+  pending.thinking = ''
+  set((s) => {
+    if (s.streamingAssistantId !== sid) return s
+    let items = s.timelineItems
+    let changed = false
+    if (textDelta) {
+      items = items.map((i) => {
+        if (i.id !== sid) return i
+        const next = mergeStreamChunk(i.text || '', textDelta)
+        if (next === i.text) return i
+        changed = true
+        return { ...i, text: next }
+      })
+    }
+    if (thinkDelta) {
+      items = items.map((i) => {
+        if (i.id !== sid) return i
+        const next = mergeStreamChunk(i.thinkingText || '', thinkDelta)
+        if (next === i.thinkingText) return i
+        changed = true
+        return { ...i, thinkingText: next }
+      })
+    }
+    if (!changed) return s
+    return { timelineItems: items }
+  })
+}
+
+function queueStreamDelta(
+  get: () => UIState,
+  set: (fn: (s: UIState) => Partial<UIState> | UIState) => void,
+  kind: StreamFlushKind,
+  delta: string,
+) {
+  const sid = get().streamingAssistantId
+  if (!sid || !delta) return
+  let row = streamPending.get(sid)
+  if (!row) {
+    row = { text: '', thinking: '' }
+    streamPending.set(sid, row)
+  }
+  if (kind === 'text') row.text = mergeStreamChunk(row.text, delta)
+  else row.thinking = mergeStreamChunk(row.thinking, delta)
+  scheduleStreamFlush(set, get)
+}
+
 export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
@@ -374,32 +445,8 @@ export const useUIStore = create<UIState>()(
   updateTimelineItem: (id, patch) => set((s) => ({
     timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, ...patch } : i)),
   })),
-  appendDeltaToStreamingAssistant: (delta) =>
-    set((s) => {
-      const id = s.streamingAssistantId
-      if (!id || !delta) return s
-      return {
-        timelineItems: s.timelineItems.map((i) => {
-          if (i.id !== id) return i
-          const next = mergeStreamChunk(i.text || '', delta)
-          if (next === i.text) return i
-          return { ...i, text: next }
-        }),
-      }
-    }),
-  appendThinkingDelta: (delta) =>
-    set((s) => {
-      const id = s.streamingAssistantId
-      if (!id || !delta) return s
-      return {
-        timelineItems: s.timelineItems.map((i) => {
-          if (i.id !== id) return i
-          const next = mergeStreamChunk(i.thinkingText || '', delta)
-          if (next === i.thinkingText) return i
-          return { ...i, thinkingText: next }
-        }),
-      }
-    }),
+  appendDeltaToStreamingAssistant: (delta) => queueStreamDelta(get, set, 'text', delta),
+  appendThinkingDelta: (delta) => queueStreamDelta(get, set, 'thinking', delta),
   pruneEmptyAssistantBubbles: () =>
     set((s) => {
       const sid = s.streamingAssistantId
@@ -413,17 +460,23 @@ export const useUIStore = create<UIState>()(
       if (items.length === s.timelineItems.length) return s
       return { timelineItems: items }
     }),
-  setStreamingAssistantFinalText: (text) =>
+  setStreamingAssistantFinalText: (text) => {
+    flushStreamPendingSync(get, set)
     set((s) => {
       const id = s.streamingAssistantId
       if (!id) return { streamingAssistantId: null }
+      streamPending.delete(id)
       return {
         streamingAssistantId: null,
         timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, text: i.text && i.text.trim() ? i.text : (text ?? i.text) } : i)),
       }
-    }),
-  clearTimeline: () =>
-    set({ timelineItems: [], streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false }),
+    })
+  },
+  clearTimeline: () => {
+    streamPending.clear()
+    streamFlushScheduled = false
+    set({ timelineItems: [], streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false })
+  },
 
   runState: { status: 'idle', toolCount: 0, errorCount: 0 },
   setRunState: (patch) => set((s) => {

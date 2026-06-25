@@ -1,4 +1,5 @@
 import pkg from 'electron-store'
+import type { AsrConfig } from '../shared/asr-types'
 const Store = pkg as any
 
 interface StoreSchema {
@@ -31,6 +32,8 @@ interface StoreSchema {
   alertOnRunIdle: boolean
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
+  /** 语音输入 ASR 配置 */
+  asrConfig: AsrConfig
 }
 
 const store = new Store<StoreSchema>({
@@ -61,6 +64,12 @@ const store = new Store<StoreSchema>({
     alertOnExtensionUi: true,
     alertOnRunIdle: true,
     sessionDisplayNames: {},
+    asrConfig: {
+      provider: 'codex-asr-builtin',
+      language: 'auto',
+      timeoutMs: 120000,
+      builtinServePort: 18788,
+    } as AsrConfig,
   },
 })
 

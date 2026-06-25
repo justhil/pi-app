@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { History, Eye, FileCode } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -10,6 +11,7 @@ import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings
 type Revision = { id: string; at: number; label: string; hash: string }
 
 function RevisionMenu({ revisions, onRestore }: { revisions: Revision[]; onRestore: (id: string) => void }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <div className="relative">
@@ -19,11 +21,11 @@ function RevisionMenu({ revisions, onRestore }: { revisions: Revision[]; onResto
         className="flex items-center gap-1 rounded-md border border-border/50 px-2 py-1 text-[11px] hover:bg-muted"
       >
         <History className="h-3.5 w-3.5" />
-        版本 ({revisions.length})
+        {t('settings:prompts.revision', { count: revisions.length })}
       </button>
       {open && (
         <>
-          <button type="button" className="fixed inset-0 z-10" aria-label="关闭" onClick={() => setOpen(false)} />
+          <button type="button" className="fixed inset-0 z-10" aria-label={t('common:close')} onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-20 mt-1 max-h-48 w-56 overflow-y-auto rounded-lg border border-border bg-background p-1 shadow-lg">
             {revisions.map((r) => (
               <button
@@ -59,6 +61,7 @@ export function MarkdownResourceEditor({
   onSaved?: () => void
   readOnly?: boolean
 }) {
+  const { t } = useTranslation()
   const [content, setContent] = useState('')
   const [loadedPath, setLoadedPath] = useState<string | null>(null)
   const [revisions, setRevisions] = useState<Revision[]>([])
@@ -73,12 +76,12 @@ export function MarkdownResourceEditor({
 
   useSettingsDirtySlice({
     id: 'prompts-editor',
-    label: '提示词',
+    label: t('settings:prompts.title'),
     isDirty: () => dirty && !readOnly && !!loadedPath,
     commit: async () => {
       if (!loadedPath || readOnly || !dirty) return
       const res = await ipcClient.invoke('resource.write', { path: loadedPath, content })
-      if (!res?.ok) throw new Error(res?.error || '保存失败')
+      if (!res?.ok) throw new Error(res?.error || t('common:saveFailed'))
       setRevisions(res.revisions || [])
       setSavedContent(content)
       markDirty(false)
@@ -124,21 +127,21 @@ export function MarkdownResourceEditor({
     if (!loadedPath || readOnly) return
     const res = await ipcClient.invoke('resource.restore', { path: loadedPath, revisionId })
     if (!res?.ok) {
-      toast.error(res?.error || '回退失败')
+      toast.error(res?.error || t('settings:prompts.restoreFailed'))
       return
     }
     setContent(res.content || '')
     setRevisions(res.revisions || [])
     setSavedContent(res.content || '')
     markDirty(false)
-    toast.success('已回退到该版本')
+    toast.success(t('settings:prompts.restored'))
     onSaved?.()
   }
 
   if (!path) {
     return (
       <div className="flex h-full min-h-[280px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/15 text-[12px] text-muted-foreground">
-        选择左侧一项以编辑
+        {t('settings:prompts.selectLeftToEdit')}
       </div>
     )
   }
@@ -152,17 +155,17 @@ export function MarkdownResourceEditor({
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <div className="flex rounded-md border border-border/50 p-0.5 text-[10px]">
-            {((readOnly ? ['preview'] : ['edit', 'split', 'preview']) as const).map((t) => (
+            {(readOnly ? (['preview'] as const) : (['edit', 'split', 'preview'] as const)).map((tabName) => (
               <button
-                key={t}
+                key={tabName}
                 type="button"
-                onClick={() => setTab(t)}
+                onClick={() => setTab(tabName)}
                 className={cn(
                   'rounded px-2 py-0.5',
-                  tab === t ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted',
+                  tab === tabName ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted',
                 )}
               >
-                {t === 'edit' ? '编辑' : t === 'preview' ? '预览' : '分栏'}
+                {tabName === 'edit' ? t('settings:prompts.tabEdit') : tabName === 'preview' ? t('settings:prompts.tabPreview') : t('settings:prompts.tabSplit')}
               </button>
             ))}
           </div>
@@ -170,7 +173,7 @@ export function MarkdownResourceEditor({
             <RevisionMenu revisions={revisions} onRestore={(id) => void restore(id)} />
           )}
           {!readOnly && dirty && (
-            <span className="text-[10px] text-amber-600 dark:text-amber-400">未保存 · 用页面底部保存</span>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400">{t('settings:prompts.unsavedHint')}</span>
           )}
         </div>
       </div>
@@ -184,7 +187,7 @@ export function MarkdownResourceEditor({
         {!readOnly && (tab === 'edit' || tab === 'split') && (
           <div className="flex min-h-0 flex-col border-r border-border/40">
             <div className="flex items-center gap-1 border-b border-border/30 px-2 py-1 text-[10px] text-muted-foreground">
-              <FileCode className="h-3 w-3" /> Markdown 源码
+              <FileCode className="h-3 w-3" /> {t('settings:prompts.markdownSource')}
             </div>
             <textarea
               readOnly={readOnly}
@@ -202,10 +205,10 @@ export function MarkdownResourceEditor({
         {(tab === 'preview' || tab === 'split') && (
           <div className="flex min-h-0 flex-col overflow-hidden">
             <div className="flex items-center gap-1 border-b border-border/30 px-2 py-1 text-[10px] text-muted-foreground">
-              <Eye className="h-3 w-3" /> 预览
+              <Eye className="h-3 w-3" /> {t('settings:prompts.preview')}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-[14px] leading-relaxed">
-              <MarkdownView>{content || '*（空）*'}</MarkdownView>
+              <MarkdownView>{content || t('settings:prompts.emptyContent')}</MarkdownView>
             </div>
           </div>
         )}

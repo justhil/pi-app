@@ -3,24 +3,59 @@
   "displayName": "Trellis",
   "description": "Trellis 子代理进度与任务状态（只读面板 + 工具卡片）",
   "match": {
-    "names": ["trellis"],
-    "tools": ["trellis_subagent"],
-    "commands": ["/trellis"]
+    "names": [
+      "trellis"
+    ],
+    "tools": [
+      "trellis_subagent"
+    ],
+    "commands": [
+      "/trellis"
+    ]
   },
   "tier": "native",
   "alwaysVisible": true,
-  "toolCard": { "template": "tree", "icon": "Network" },
+  "toolCard": {
+    "template": "tree",
+    "icon": "Network"
+  },
   "config": {
     "note": "Trellis 任务数据由扩展/工作区 .trellis 自管；桌面只读面板读取 task.py current 与最近日志。",
     "sections": [
       {
         "title": "桌面面板",
         "fields": [
-          { "key": "showRecentJournal", "type": "boolean", "label": "显示最近日志", "default": true },
-          { "key": "journalLimit", "type": "number", "label": "日志条数上限", "default": 5 }
-        ]
+          {
+            "key": "showRecentJournal",
+            "type": "boolean",
+            "label": "显示最近日志",
+            "default": true
+          },
+          {
+            "key": "journalLimit",
+            "type": "number",
+            "label": "日志条数上限",
+            "default": 5
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "桌面面板"
+          },
+          "en": {
+            "title": "Trellis Settings"
+          }
+        }
       }
-    ]
+    ],
+    "i18n": {
+      "zh": {
+        "note": "Trellis 任务数据由扩展/工作区 .trellis 自管；桌面只读面板读取 task.py current 与最近日志。"
+      },
+      "en": {
+        "note": "Trellis sub-agent manager. Settings persist in the project .trellis/ directory."
+      }
+    }
   },
   "sidePanel": {
     "stateProvider": "workspace-trellis",
@@ -31,5 +66,17 @@
     "icon": "ListTree",
     "defaultEnabled": true
   },
-  "slash": { "/trellis": "open-panel" }
+  "slash": {
+    "/trellis": "open-panel"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Trellis",
+      "description": "Trellis 子代理进度与任务状态（只读面板 + 工具卡片）"
+    },
+    "en": {
+      "displayName": "Trellis",
+      "description": "Trellis sub-agent manager; status read-only side panel + tool cards"
+    }
+  }
 }

@@ -2,7 +2,23 @@
   "id": "pi-nano-context",
   "displayName": "Nano Context",
   "description": "TUI 上下文进度条（桌面无对应组件）",
-  "match": { "names": ["pi-nano-context"] },
+  "match": {
+    "names": [
+      "pi-nano-context"
+    ]
+  },
   "tier": "none",
-  "config": { "note": "TUI 编辑器下方的上下文进度条；桌面无对应组件。" }
+  "config": {
+    "note": "TUI 编辑器下方的上下文进度条；桌面无对应组件。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Nano Context",
+      "description": "TUI 上下文进度条（桌面无对应组件）"
+    },
+    "en": {
+      "displayName": "Nano Context",
+      "description": "TUI footer context indicator; desktop-side adapter only"
+    }
+  }
 }

@@ -4,6 +4,7 @@
 // - extension commands -> resolved via slash.resolve, notify/send to pi
 
 import { toast } from 'sonner'
+import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 
@@ -57,21 +58,21 @@ export async function executeSlashCommand(
           const [provider, modelId] = arg.split('/')
           await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
           store.setRunState({ model: `${provider}/${modelId}` })
-          toast.success(`模型已设为 ${provider}/${modelId}`)
+          toast.success(i18n.t('composer:toast.modelSet', { model: `${provider}/${modelId}` }))
         } else {
           const res = await ipcClient.invoke('model.list', {})
           const hit = (res?.models || []).find((mm: any) => mm.id === arg || mm.name === arg)
           if (hit) {
             await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
             store.setRunState({ model: `${hit.provider}/${hit.id}` })
-            toast.success(`模型已设为 ${hit.provider}/${hit.id}`)
+            toast.success(i18n.t('composer:toast.modelSet', { model: `${hit.provider}/${hit.id}` }))
           } else {
-            toast.error(`未找到模型: ${arg}`)
+            toast.error(i18n.t('composer:modelNotFound', { arg }))
           }
         }
       } catch (e) {
         console.error('/model failed:', e)
-        toast.error('切换模型失败')
+        toast.error(i18n.t('composer:switchModelFailed'))
       }
       return true
     }
@@ -82,7 +83,7 @@ export async function executeSlashCommand(
         return true
       }
       if (!THINKING_ORDER.includes(arg)) {
-        toast.error(`无效等级: ${arg}（可选 ${THINKING_ORDER.join('/')}）`)
+        toast.error(i18n.t('composer:invalidThinkingLevel', { arg, options: THINKING_ORDER.join('/') }))
         return true
       }
       try {
@@ -91,19 +92,19 @@ export async function executeSlashCommand(
         toast.success(`Thinking: ${arg}`)
       } catch (e) {
         console.error('/thinking failed:', e)
-        toast.error('切换 thinking 失败')
+        toast.error(i18n.t('composer:switchThinkingFailed'))
       }
       return true
     }
     case 'clear': {
       store.clearTimeline()
-      toast.success('已清空时间线')
+      toast.success(i18n.t('composer:timelineCleared'))
       return true
     }
     case 'compact': {
       try {
         await ipcClient.invoke('session.compact', { sessionId: '' })
-        toast.success('已压缩会话历史')
+        toast.success(i18n.t('composer:compactedHistory'))
       } catch (e) {
         console.error('/compact failed:', e)
         toast.error('压缩失败')
@@ -115,7 +116,7 @@ export async function executeSlashCommand(
         const store = useUIStore.getState()
         const wid = store.currentWorkspace
         if (!wid) {
-          toast.error('请先打开项目或临时对话分区')
+          toast.error(i18n.t('composer:toast.needWorkspace'))
           return true
         }
         store.clearTimeline()
@@ -123,10 +124,10 @@ export async function executeSlashCommand(
         store.setHistoryMeta(0, 0, null)
         void ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
         void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
-        toast.info('已新建对话，发送首条消息即可开始')
+        toast.info(i18n.t('composer:toast.newSessionReady'))
       } catch (e) {
         console.error('/new failed:', e)
-        toast.error('新建会话失败')
+        toast.error(i18n.t('composer:toast.newSessionFailed'))
       }
       return true
     }
@@ -137,7 +138,7 @@ export async function executeSlashCommand(
     case 'skills':
     case 'prompts':
     case 'help': {
-      toast.info(`/${cmd} 请直接在输入框继续输入查看可用列表`)
+      toast.info(i18n.t('composer:toast.continueTyping', { cmd }))
       return true
     }
     default:

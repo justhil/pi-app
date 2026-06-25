@@ -3,14 +3,42 @@
   "displayName": "BTW",
   "description": "并行侧聊（斜杠状态输出）",
   "match": {
-    "names": ["pi-btw"],
-    "commands": ["/btw", "/btw:tangent", "/btw:new", "/btw:clear", "/btw:inject", "/btw:summarize", "/btw:model", "/btw:thinking"]
+    "names": [
+      "pi-btw"
+    ],
+    "commands": [
+      "/btw",
+      "/btw:tangent",
+      "/btw:new",
+      "/btw:clear",
+      "/btw:inject",
+      "/btw:summarize",
+      "/btw:model",
+      "/btw:thinking"
+    ]
   },
   "tier": "headless",
-  "config": { "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。" },
+  "config": {
+    "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。"
+  },
   "slash": {
-    "/btw": "notify", "/btw:tangent": "notify", "/btw:new": "notify",
-    "/btw:clear": "notify", "/btw:inject": "notify", "/btw:summarize": "notify",
-    "/btw:model": "notify", "/btw:thinking": "notify"
+    "/btw": "notify",
+    "/btw:tangent": "notify",
+    "/btw:new": "notify",
+    "/btw:clear": "notify",
+    "/btw:inject": "notify",
+    "/btw:summarize": "notify",
+    "/btw:model": "notify",
+    "/btw:thinking": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "BTW",
+      "description": "并行侧聊（斜杠状态输出）"
+    },
+    "en": {
+      "displayName": "BTW",
+      "description": "By-the-way insert model; list and status included"
+    }
   }
 }

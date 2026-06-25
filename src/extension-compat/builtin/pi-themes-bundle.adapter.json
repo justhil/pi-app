@@ -2,7 +2,24 @@
   "id": "@firstpick/pi-themes-bundle",
   "displayName": "Themes Bundle",
   "description": "pi 终端主题 bundle（桌面用独立 Appearance 设置）",
-  "match": { "names": ["@firstpick/pi-themes-bundle", "pi-themes-bundle"] },
+  "match": {
+    "names": [
+      "@firstpick/pi-themes-bundle",
+      "pi-themes-bundle"
+    ]
+  },
   "tier": "none",
-  "config": { "note": "pi 终端主题 bundle；主题资源在 Resources 只读列表，桌面用独立 Appearance 设置。" }
+  "config": {
+    "note": "pi 终端主题 bundle；主题资源在 Resources 只读列表，桌面用独立 Appearance 设置。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Themes Bundle",
+      "description": "pi 终端主题 bundle（桌面用独立 Appearance 设置）"
+    },
+    "en": {
+      "displayName": "Themes Bundle",
+      "description": "pi 终端主题 bundle（桌面用独立 Appearance 设置）"
+    }
+  }
 }

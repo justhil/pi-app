@@ -1,10 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { formatTokens } from '@renderer/lib/format-tokens'
 import type { useComposerMetrics } from './use-composer-metrics'
 
 type Metrics = ReturnType<typeof useComposerMetrics>
 
-/** 输入框下方：上下文、消息数、TPS、缓存、本轮用量 */
+/** Footer: context, message count, TPS, cache, turn usage */
 export function ComposerMetricsFooter({
   usage,
   isRunning,
@@ -14,6 +15,7 @@ export function ComposerMetricsFooter({
   isRunning?: boolean
   metrics: Metrics
 }) {
+  const { t } = useTranslation()
   const tokPerSec =
     metrics.tps != null && metrics.tps > 0 ? Math.round(metrics.tps / 4) : null
 
@@ -31,8 +33,8 @@ export function ComposerMetricsFooter({
       {hasContext && (
         <span className="inline-flex flex-wrap items-baseline gap-x-1">
           {metrics.estContextTokens != null && (
-            <span title="会话上下文估算">
-              上下文{' '}
+            <span title={t('composer:contextHint')}>
+              {t('composer:contextLabel')}{' '}
               <span className="text-foreground-secondary/55">
                 {formatTokens(metrics.estContextTokens)}
                 {metrics.contextWindow != null && (
@@ -45,7 +47,7 @@ export function ComposerMetricsFooter({
           {metrics.contextPreview != null && metrics.contextPreview.messageCount > 0 && (
             <span className="text-foreground-secondary/38">
               {metrics.estContextTokens != null && ' · '}
-              {metrics.contextPreview.messageCount} 条消息
+              {t('composer:messages', { count: metrics.contextPreview.messageCount })}
             </span>
           )}
         </span>
@@ -61,7 +63,7 @@ export function ComposerMetricsFooter({
       {isRunning && !tokPerSec && (
         <>
           {(hasContext) && sep}
-          <span className="text-green-600/70 dark:text-green-400/70">运行中</span>
+          <span className="text-green-600/70 dark:text-green-400/70">{t('composer:running')}</span>
         </>
       )}
 
@@ -69,7 +71,7 @@ export function ComposerMetricsFooter({
         <>
           {(hasContext || tokPerSec || isRunning) && sep}
           <span>
-            本轮 in {formatTokens(usage.input)} · out {formatTokens(usage.output)}
+            {t('composer:turnUsage', { in: formatTokens(usage.input), out: formatTokens(usage.output) })}
           </span>
         </>
       )}
@@ -78,8 +80,8 @@ export function ComposerMetricsFooter({
         <>
           {sep}
           <span>
-            缓存 {metrics.cacheHitPct.toFixed(0)}% · 读 {formatTokens(usage.cacheRead)}
-            {metrics.cacheWrite > 0 && <> · 写 {formatTokens(metrics.cacheWrite)}</>}
+            {t('composer:cacheStats', { pct: metrics.cacheHitPct.toFixed(0), read: formatTokens(usage.cacheRead) })}
+            {metrics.cacheWrite > 0 && t('composer:cacheWrite', { write: formatTokens(metrics.cacheWrite) })}
           </span>
         </>
       )}

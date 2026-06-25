@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { formatModelChip, formatThinkingChip } from '@renderer/lib/format-run-display'
 
-/** 输入框区域右下角：模型 / thinking */
+/** Bottom-right of input: model / thinking */
 export function ComposerModelStrip({
   model,
   thinkingLevel,
@@ -17,6 +18,7 @@ export function ComposerModelStrip({
   onModelClick: () => void
   onThinkingClick: () => void
 }) {
+  const { t } = useTranslation()
   const modelLabel = formatModelChip(model)
   const thinkLabel = formatThinkingChip(thinkingLevel)
 
@@ -31,7 +33,7 @@ export function ComposerModelStrip({
       <button
         type="button"
         onClick={onModelClick}
-        title={modelLabel === '选择模型' ? '选择模型（点击）' : `模型：${model ?? modelLabel}`}
+        title={modelLabel === t('composer:selectModel') ? t('composer:selectModelHint') : t('composer:modelLabel', { name: model ?? modelLabel })}
         className={cn(btn, modelPickerOpen && 'text-foreground-secondary/75')}
       >
         {modelLabel}
@@ -40,7 +42,7 @@ export function ComposerModelStrip({
       <button
         type="button"
         onClick={onThinkingClick}
-        title={`思考等级：${thinkLabel}`}
+        title={t('composer:thinkingLevel', { level: thinkLabel })}
         className={cn(btn, 'max-w-[88px]', thinkingPickerOpen && 'text-foreground-secondary/75')}
       >
         {thinkLabel}

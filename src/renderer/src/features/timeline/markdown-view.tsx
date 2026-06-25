@@ -1,6 +1,7 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
 import { memo, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -22,6 +23,7 @@ function CodeBlock({
   children?: React.ReactNode
   defaultExpanded?: boolean
 }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(!!defaultExpanded)
   const [copied, setCopied] = useState(false)
   const lang = /language-(\w+)/.exec(className || '')?.[1] || ''
@@ -41,7 +43,7 @@ function CodeBlock({
         <div className="flex items-center justify-between border-b px-3 py-1" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-3)' }}>
           <span className="font-mono text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--brand)' }}>{lang}</span>
           <button onClick={copy} className="text-[10px] transition-colors" style={{ color: 'var(--text-secondary)' }} onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}>
-            {copied ? '已复制' : '复制'}
+            {copied ? t('timeline:copied') : t('timeline:copy')}
           </button>
         </div>
       )}
@@ -69,7 +71,7 @@ function CodeBlock({
           onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
-          {expanded ? '收起' : `展开 (${code.split('\n').length} 行)`}
+          {expanded ? t('timeline:collapse') : t('timeline:expand', { count: code.split('\n').length })}
         </button>
       )}
     </div>
@@ -96,6 +98,8 @@ const REHYPE_PLUGINS = [
   ] as const,
 ]
 
+const STREAM_MARKDOWN_MIN_CHARS = 48
+
 const MarkdownView = memo(function MarkdownView({
   children,
   className,
@@ -106,12 +110,14 @@ const MarkdownView = memo(function MarkdownView({
   /** 流式中也走 Markdown（对齐 参考桌面客户端 MessageText + MarkdownView） */
   streaming?: boolean
 }) {
+  const usePlainStream = !!streaming && children.length < STREAM_MARKDOWN_MIN_CHARS
+
   const markdown = useMemo(
-    () => preprocessMarkdownMath(children, { streaming }),
-    [children, streaming],
+    () => preprocessMarkdownMath(children, { streaming: streaming && !usePlainStream }),
+    [children, streaming, usePlainStream],
   )
 
-  const remarkPlugins = useMemo(() => buildRemarkPlugins(streaming), [streaming])
+  const remarkPlugins = useMemo(() => buildRemarkPlugins(streaming && !usePlainStream), [streaming, usePlainStream])
 
   const components = useMemo(
     () => ({
@@ -161,6 +167,14 @@ const MarkdownView = memo(function MarkdownView({
     }),
     [streaming],
   )
+
+  if (usePlainStream) {
+    return (
+      <div className={cn('prose-chat prose-chat-streaming', className)}>
+        <p className="my-1 whitespace-pre-wrap break-words leading-relaxed">{children}</p>
+      </div>
+    )
+  }
 
   return (
     <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>

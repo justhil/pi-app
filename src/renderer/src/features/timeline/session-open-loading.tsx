@@ -115,7 +115,7 @@ export function SessionOpenLoadingView() {
           ))}
         </div>
         <p ref={captionRef} className="text-[13px] text-foreground-secondary" style={{ opacity: 0 }}>
-          {t('timeline.loadingSession')}
+          {t('timeline:loadingSession')}
         </p>
       </div>
     </div>

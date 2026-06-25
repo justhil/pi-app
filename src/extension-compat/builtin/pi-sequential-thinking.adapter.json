@@ -3,10 +3,37 @@
   "displayName": "Sequential Thinking",
   "description": "结构化思考链工具（阶段/思考链卡片）",
   "match": {
-    "names": ["@feniix/pi-sequential-thinking"],
-    "tools": ["process_thought", "sequential_think", "generate_summary", "get_thinking_history", "get_thinking_status", "clear_history", "export_session", "import_session", "recall"]
+    "names": [
+      "@feniix/pi-sequential-thinking"
+    ],
+    "tools": [
+      "process_thought",
+      "sequential_think",
+      "generate_summary",
+      "get_thinking_history",
+      "get_thinking_status",
+      "clear_history",
+      "export_session",
+      "import_session",
+      "recall"
+    ]
   },
   "tier": "headless",
-  "toolCard": { "template": "list", "icon": "BrainCircuit" },
-  "config": { "note": "思考链数据由扩展工具输出；桌面按工具结果渲染。" }
+  "toolCard": {
+    "template": "list",
+    "icon": "BrainCircuit"
+  },
+  "config": {
+    "note": "思考链数据由扩展工具输出；桌面按工具结果渲染。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Sequential Thinking",
+      "description": "结构化思考链工具（阶段/思考链卡片）"
+    },
+    "en": {
+      "displayName": "Sequential Thinking",
+      "description": "结构化思考链工具（阶段/思考链卡片）"
+    }
+  }
 }

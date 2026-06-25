@@ -2,8 +2,27 @@
   "id": "pi-simplify",
   "displayName": "Simplify",
   "description": "代码精简审查（由工具触发，无斜杠入口）",
-  "match": { "names": ["pi-simplify"] },
+  "match": {
+    "names": [
+      "pi-simplify"
+    ]
+  },
   "tier": "headless",
-  "toolCard": { "template": "default", "icon": "Scissors" },
-  "config": { "note": "精简审查由扩展工具触发；桌面按工具结果渲染。" }
+  "toolCard": {
+    "template": "default",
+    "icon": "Scissors"
+  },
+  "config": {
+    "note": "精简审查由扩展工具触发；桌面按工具结果渲染。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Simplify",
+      "description": "代码精简审查（由工具触发，无斜杠入口）"
+    },
+    "en": {
+      "displayName": "Simplify",
+      "description": "Code precision review (success-tool pattern); list and entry included"
+    }
+  }
 }

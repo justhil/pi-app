@@ -3,11 +3,18 @@
   "displayName": "Multimodal Vision",
   "description": "图像/视频分析代理（配置 ~/.pi/agent/multimodal-proxy.json）",
   "match": {
-    "names": ["pi-multimodal-proxy"],
-    "tools": ["analyze_image"]
+    "names": [
+      "pi-multimodal-proxy"
+    ],
+    "tools": [
+      "analyze_image"
+    ]
   },
   "tier": "partial",
-  "toolCard": { "template": "media", "icon": "Eye" },
+  "toolCard": {
+    "template": "media",
+    "icon": "Eye"
+  },
   "config": {
     "configFile": "~/.pi/agent/multimodal-proxy.json",
     "fileKeyMap": {
@@ -35,42 +42,168 @@
       "videoProvider": "PI_VISION_PROXY_VIDEO_PROVIDER",
       "videoModelId": "PI_VISION_PROXY_VIDEO_MODEL"
     },
-    "localKeys": ["showInlinePreview"],
+    "localKeys": [
+      "showInlinePreview"
+    ],
     "sections": [
       {
         "title": "代理模式",
         "fields": [
-          { "key": "mode", "type": "select", "label": "代理模式", "default": "fallback", "description": "fallback=仅当模型不支持图时启用；always=总是启用；off=关闭", "options": ["fallback", "always", "off"] },
-          { "key": "tool", "type": "select", "label": "工具调用", "default": "on", "options": ["on", "off"] }
-        ]
+          {
+            "key": "mode",
+            "type": "select",
+            "label": "代理模式",
+            "default": "fallback",
+            "description": "fallback=仅当模型不支持图时启用；always=总是启用；off=关闭",
+            "options": [
+              "fallback",
+              "always",
+              "off"
+            ]
+          },
+          {
+            "key": "tool",
+            "type": "select",
+            "label": "工具调用",
+            "default": "on",
+            "options": [
+              "on",
+              "off"
+            ]
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "代理模式"
+          },
+          "en": {
+            "title": "Proxy Settings"
+          }
+        }
       },
       {
         "title": "图像模型",
         "fields": [
-          { "key": "provider", "type": "text", "label": "Provider", "default": "anthropic", "description": "模型提供商标识（如 anthropic / CloseAI），需已 pi --login" },
-          { "key": "modelId", "type": "text", "label": "图像分析模型 ID", "default": "claude-sonnet-4-5" },
-          { "key": "systemPrompt", "type": "text", "label": "系统提示词", "description": "留空使用扩展默认" },
-          { "key": "includeContext", "type": "boolean", "label": "包含会话上下文", "default": false },
-          { "key": "maxImagesPerCall", "type": "number", "label": "每次调用最大图片数", "default": 10 },
-          { "key": "maxBatch", "type": "number", "label": "最大批处理数", "default": 4 },
-          { "key": "cacheSize", "type": "number", "label": "缓存大小", "default": 50 }
-        ]
+          {
+            "key": "provider",
+            "type": "text",
+            "label": "Provider",
+            "default": "anthropic",
+            "description": "模型提供商标识（如 anthropic / CloseAI），需已 pi --login"
+          },
+          {
+            "key": "modelId",
+            "type": "text",
+            "label": "图像分析模型 ID",
+            "default": "claude-sonnet-4-5"
+          },
+          {
+            "key": "systemPrompt",
+            "type": "text",
+            "label": "系统提示词",
+            "description": "留空使用扩展默认"
+          },
+          {
+            "key": "includeContext",
+            "type": "boolean",
+            "label": "包含会话上下文",
+            "default": false
+          },
+          {
+            "key": "maxImagesPerCall",
+            "type": "number",
+            "label": "每次调用最大图片数",
+            "default": 10
+          },
+          {
+            "key": "maxBatch",
+            "type": "number",
+            "label": "最大批处理数",
+            "default": 4
+          },
+          {
+            "key": "cacheSize",
+            "type": "number",
+            "label": "缓存大小",
+            "default": 50
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "图像模型"
+          },
+          "en": {
+            "title": "Endpoints"
+          }
+        }
       },
       {
         "title": "视频模型",
         "fields": [
-          { "key": "videoProvider", "type": "text", "label": "视频 Provider", "default": "xai" },
-          { "key": "videoModelId", "type": "text", "label": "视频分析模型 ID", "default": "grok-4.3-high" }
-        ]
+          {
+            "key": "videoProvider",
+            "type": "text",
+            "label": "视频 Provider",
+            "default": "xai"
+          },
+          {
+            "key": "videoModelId",
+            "type": "text",
+            "label": "视频分析模型 ID",
+            "default": "grok-4.3-high"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "视频模型"
+          },
+          "en": {
+            "title": "Models"
+          }
+        }
       },
       {
         "title": "桌面卡片",
         "fields": [
-          { "key": "showInlinePreview", "type": "boolean", "label": "时间线内联图像预览", "default": true }
-        ]
+          {
+            "key": "showInlinePreview",
+            "type": "boolean",
+            "label": "时间线内联图像预览",
+            "default": true
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "桌面卡片"
+          },
+          "en": {
+            "title": "Status"
+          }
+        }
       }
     ],
-    "note": "配置写入 ~/.pi/agent/multimodal-proxy.json（与扩展共享）。provider/modelId 需对应已 pi --login 的模型。showInlinePreview 为桌面本地开关。"
+    "note": "配置写入 ~/.pi/agent/multimodal-proxy.json（与扩展共享）。provider/modelId 需对应已 pi --login 的模型。showInlinePreview 为桌面本地开关。",
+    "i18n": {
+      "zh": {
+        "note": "配置写入 ~/.pi/agent/multimodal-proxy.json（与扩展共享）。provider/modelId 需对应已 pi --login 的模型。showInlinePreview 为桌面本地开关。"
+      },
+      "en": {
+        "note": "Reads ~/.pi/agent/multimodal-proxy.json."
+      }
+    }
   },
-  "slash": { "/multimodal-proxy": "config-page", "/vision-proxy": "config-page" }
+  "slash": {
+    "/multimodal-proxy": "config-page",
+    "/vision-proxy": "config-page"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Multimodal Vision",
+      "description": "图像/视频分析代理（配置 ~/.pi/agent/multimodal-proxy.json）"
+    },
+    "en": {
+      "displayName": "Multimodal Vision",
+      "description": "Image/audio proxy tool; reads ~/.pi/agent/multimodal-proxy.json"
+    }
+  }
 }

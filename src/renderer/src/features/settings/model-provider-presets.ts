@@ -27,7 +27,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'openai',
     label: 'OpenAI',
-    tagline: '官方或 OpenAI 兼容',
+    tagline: 'Official or OpenAI-compatible',
     defaultKey: 'openai',
     accentClass: 'bg-emerald-500',
     config: {
@@ -79,7 +79,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    tagline: 'OpenAI 兼容',
+    tagline: 'OpenAI-compatible',
     defaultKey: 'deepseek',
     accentClass: 'bg-cyan-600',
     config: {
@@ -93,7 +93,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'groq',
     label: 'Groq',
-    tagline: 'OpenAI 兼容',
+    tagline: 'OpenAI-compatible',
     defaultKey: 'groq',
     accentClass: 'bg-fuchsia-600',
     config: {
@@ -107,7 +107,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'ollama',
     label: 'Ollama',
-    tagline: '本地 OpenAI 兼容',
+    tagline: 'Local OpenAI-compatible',
     defaultKey: 'ollama',
     accentClass: 'bg-slate-500',
     config: {
@@ -125,7 +125,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'openrouter',
     label: 'OpenRouter',
-    tagline: 'OpenAI 兼容聚合',
+    tagline: 'OpenAI-compatible aggregator',
     defaultKey: 'openrouter',
     accentClass: 'bg-violet-600',
     config: {
@@ -138,7 +138,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'moonshot',
     label: 'Moonshot / Kimi',
-    tagline: 'OpenAI 兼容',
+    tagline: 'OpenAI-compatible',
     defaultKey: 'moonshot',
     accentClass: 'bg-amber-600',
     config: {
@@ -152,7 +152,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'zhipu',
     label: '智谱 GLM',
-    tagline: 'OpenAI 兼容',
+    tagline: 'OpenAI-compatible',
     defaultKey: 'zhipu',
     accentClass: 'bg-indigo-600',
     config: {
@@ -165,12 +165,12 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'custom-openai',
-    label: '自定义中转',
-    tagline: '自定义 baseUrl',
+    label: 'Custom relay',
+    tagline: 'Custom baseUrl',
     defaultKey: 'my-proxy',
     accentClass: 'bg-muted-foreground/50',
     config: {
-      name: '自定义中转',
+      name: 'Custom relay',
       baseUrl: 'https://your-proxy.example.com/v1',
       api: 'openai-completions',
       apiKey: '$MY_API_KEY',

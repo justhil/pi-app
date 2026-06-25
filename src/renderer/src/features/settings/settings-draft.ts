@@ -1,6 +1,7 @@
 import type { i18n as I18n } from 'i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import type { AsrConfig } from '@shared/asr-types'
 import {
   normalizeRightPanelOrder,
   normalizeRightPanelPrefs,
@@ -24,6 +25,7 @@ export type SettingsDraft = {
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
   rightPanelOrder: string[]
+  asrConfig: AsrConfig
 }
 
 function normalizeLanguage(raw: unknown, fallback: LanguageChoice): LanguageChoice {
@@ -31,6 +33,18 @@ function normalizeLanguage(raw: unknown, fallback: LanguageChoice): LanguageChoi
   if (s.startsWith('zh')) return 'zh'
   if (s.startsWith('en')) return 'en'
   return fallback
+}
+
+function normalizeAsrForSignature(cfg: AsrConfig): AsrConfig {
+  const token = cfg.codexAccessToken?.trim()
+  return {
+    ...cfg,
+    codexAccessToken: token || undefined,
+    codexAuthFile: cfg.codexAuthFile?.trim() || undefined,
+    cliBinaryPath: cfg.cliBinaryPath?.trim() || undefined,
+    serverUrl: cfg.serverUrl?.trim() || undefined,
+    apiKey: cfg.apiKey?.trim() || undefined,
+  }
 }
 
 export function draftSignature(d: SettingsDraft): string {
@@ -46,6 +60,7 @@ export function draftSignature(d: SettingsDraft): string {
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
+    asrConfig: normalizeAsrForSignature(d.asrConfig),
   })
 }
 
@@ -72,6 +87,11 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
     rightPanelOrder: order,
+    asrConfig: (() => {
+      const a = s.asrConfig || { provider: 'codex-asr-builtin', language: 'auto', timeoutMs: 120000, builtinServePort: 18788 }
+      const base = a.provider === 'none' ? { ...a, provider: 'codex-asr-builtin' as const } : a
+      return normalizeAsrForSignature(base)
+    })(),
   }
 }
 
@@ -104,6 +124,8 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     prefs: draft.rightPanelPrefs,
     order: draft.rightPanelOrder,
   })
+
+  await ipcClient.invoke('settings.set', { key: 'asrConfig', value: draft.asrConfig })
 
   useUIStore.getState().setTheme(draft.theme)
   applyThemeToDocument(draft.theme)

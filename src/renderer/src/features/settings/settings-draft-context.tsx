@@ -21,6 +21,8 @@ import {
   type ThemeChoice,
   type LanguageChoice,
 } from '@renderer/features/settings/settings-draft'
+import type { AsrConfig } from '@shared/asr-types'
+import { setAsrConfigPreview } from '@renderer/lib/asr-config-effective'
 import {
   defaultRightPanelPrefsForCatalog,
   normalizeRightPanelOrder,
@@ -32,6 +34,7 @@ import {
   commitAllSettingsSlices,
   discardAllSettingsSlices,
   getDirtySettingsSlices,
+  notifySettingsDirtyChanged,
   registerSettingsDirtySlice,
   subscribeSettingsDirty,
 } from '@renderer/features/settings/settings-dirty-registry'
@@ -55,6 +58,7 @@ type SettingsDraftContextValue = {
   reorderRightPanels: (fromId: string, toIndex: number) => void
   resetRightPanelsToDefault: () => void
   refreshRightPanelCatalog: () => Promise<void>
+  setAsrConfig: (patch: Partial<AsrConfig>) => void
   discard: () => Promise<void>
   save: () => Promise<boolean>
 }
@@ -68,7 +72,7 @@ export function useSettingsDraft(): SettingsDraftContextValue {
 }
 
 export function SettingsDraftProvider({ children }: { children: ReactNode }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [draft, setDraft] = useState<SettingsDraft | null>(null)
   const [baselineSig, setBaselineSig] = useState('')
   const [loading, setLoading] = useState(true)
@@ -85,14 +89,15 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       const d = await loadSettingsDraftFromDisk(i18n.language)
       setDraft(d)
       setBaselineSig(draftSignature(d))
+      setAsrConfigPreview(d.asrConfig)
     } finally {
       setLoading(false)
     }
-  }, [i18n.language])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- 不依赖 i18n.language，避免 previewDraftUi 切语言触发 reload 覆盖用户草稿
 
   useEffect(() => {
     void reload()
-  }, [reload])
+  }, []) // 仅 mount 时加载一次
 
   const draftDirty = draft ? draftSignature(draft) !== baselineSig : false
   draftDirtyRef.current = draftDirty
@@ -106,7 +111,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return registerSettingsDirtySlice({
       id: 'app',
-      label: '应用与右侧栏',
+      label: 'App & Right Panels',
       isDirty: () => draftDirtyRef.current,
       commit: async () => {
         const d = draftRef.current
@@ -132,17 +137,26 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       if (!prev) return prev
       const next = fn(prev)
       previewDraftUi(next, i18n)
+      setAsrConfigPreview(next.asrConfig)
+      window.dispatchEvent(new CustomEvent('pi-desktop:asr-config-preview', { detail: next.asrConfig }))
       return next
     })
+    notifySettingsDirtyChanged()
   }, [i18n])
 
   const discard = useCallback(async () => {
     const d = await loadSettingsDraftFromDisk(i18n.language)
     setDraft(d)
-    setBaselineSig(draftSignature(d))
+    const sig = draftSignature(d)
+    setBaselineSig(sig)
+    baselineSigRef.current = sig
+    draftDirtyRef.current = false
     previewDraftUi(d, i18n)
+    setAsrConfigPreview(d.asrConfig)
+    window.dispatchEvent(new CustomEvent('pi-desktop:asr-config-preview', { detail: d.asrConfig }))
     useUIStore.getState().applyRightPanelRuntime(d.rightPanelCatalog, d.rightPanelPrefs, d.rightPanelOrder)
-  }, [i18n])
+    notifySettingsDirtyChanged()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   discardDraftRef.current = discard
 
@@ -151,11 +165,17 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
     setSaving(true)
     try {
       await commitAllSettingsSlices()
-      setSliceDirtyTick((n) => n + 1)
-      if (draftDirtyRef.current) {
-        const d = draftRef.current
-        if (d) setBaselineSig(draftSignature(d))
+      const d = draftRef.current
+      if (d) {
+        const sig = draftSignature(d)
+        baselineSigRef.current = sig
+        draftDirtyRef.current = false
+        setBaselineSig(sig)
+        setAsrConfigPreview(d.asrConfig)
+        window.dispatchEvent(new CustomEvent('pi-desktop:asr-config-preview', { detail: d.asrConfig }))
       }
+      setSliceDirtyTick((n) => n + 1)
+      notifySettingsDirtyChanged()
       return true
     } catch (e) {
       console.error(e)
@@ -224,6 +244,8 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
           rightPanelPrefs: defaultRightPanelPrefsForCatalog(d.rightPanelCatalog, []),
           rightPanelOrder: normalizeRightPanelOrder([], d.rightPanelCatalog),
         })),
+      setAsrConfig: (p: Partial<AsrConfig>) =>
+        patch((d) => ({ ...d, asrConfig: { ...d.asrConfig, ...p } })),
       refreshRightPanelCatalog,
       discard: discardAll,
       save,
@@ -231,7 +253,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
   }, [draft, dirty, dirtySliceLabels, loading, saving, patch, discardAll, save, refreshRightPanelCatalog])
 
   if (!value) {
-    return <div className="flex flex-1 items-center justify-center text-[12px] text-muted-foreground">加载设置…</div>
+    return <div className="flex flex-1 items-center justify-center text-[12px] text-muted-foreground">{t('common:loadingSettings')}</div>
   }
 
   return <SettingsDraftContext.Provider value={value}>{children}</SettingsDraftContext.Provider>

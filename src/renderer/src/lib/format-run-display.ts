@@ -1,4 +1,6 @@
-/** 输入框 / 状态条用的模型、thinking 展示（禁止出现 undefined 字面量） */
+/** Model / thinking display helpers for input strip / status bar (no raw undefined) */
+
+import i18n from '@renderer/lib/i18n'
 
 const INVALID = new Set(['', 'undefined', 'null', 'none'])
 
@@ -11,7 +13,7 @@ export function normalizeModelKey(raw: unknown): string | undefined {
 
 export function formatModelChip(model: unknown): string {
   const key = normalizeModelKey(model)
-  if (!key) return '选择模型'
+  if (!key) return i18n.t('composer:selectModel')
   const slash = key.indexOf('/')
   if (slash >= 0) {
     const provider = key.slice(0, slash)
@@ -24,16 +26,16 @@ export function formatModelChip(model: unknown): string {
 
 export function formatModelFull(model: unknown): string {
   const key = normalizeModelKey(model)
-  return key ?? '未选择'
+  return key ?? i18n.t('composer:noModelSelected')
 }
 
-const THINKING_LABEL: Record<string, string> = {
-  off: '关',
-  minimal: '极简',
-  low: '低',
-  medium: '中',
-  high: '高',
-  xhigh: '极高',
+const THINKING_LABEL_KEYS: Record<string, string> = {
+  off: 'composer:thinkingOff',
+  minimal: 'composer:thinkingMinimal',
+  low: 'composer:thinkingLow',
+  medium: 'composer:thinkingMedium',
+  high: 'composer:thinkingHigh',
+  xhigh: 'composer:thinkingXhigh',
 }
 
 export function normalizeThinkingLevel(raw: unknown): string | undefined {
@@ -45,7 +47,7 @@ export function normalizeThinkingLevel(raw: unknown): string | undefined {
 
 export function formatThinkingChip(level: unknown): string {
   const key = normalizeThinkingLevel(level) ?? 'off'
-  return THINKING_LABEL[key] ?? key
+  return THINKING_LABEL_KEYS[key] ? i18n.t(THINKING_LABEL_KEYS[key]) : key
 }
 
 export function sanitizeRunStatePatch(patch: {

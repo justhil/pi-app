@@ -1,5 +1,6 @@
 import { useEffect, useId } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
 export function ConfirmDialog({
@@ -7,8 +8,6 @@ export function ConfirmDialog({
   title,
   message,
   destructive,
-  confirmLabel = '确定',
-  cancelLabel = '取消',
   onConfirm,
   onCancel,
 }: {
@@ -16,11 +15,10 @@ export function ConfirmDialog({
   title: string
   message: string
   destructive?: boolean
-  confirmLabel?: string
-  cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const titleId = useId()
 
   useEffect(() => {
@@ -60,7 +58,7 @@ export function ConfirmDialog({
             className="rounded-md px-3 py-1.5 text-[13px] text-foreground-secondary hover:bg-accent hover:text-accent-foreground"
             onClick={onCancel}
           >
-            {cancelLabel}
+            {t('common:cancel')}
           </button>
           <button
             type="button"
@@ -72,7 +70,7 @@ export function ConfirmDialog({
             )}
             onClick={onConfirm}
           >
-            {confirmLabel}
+            {t('common:confirm')}
           </button>
         </div>
       </div>

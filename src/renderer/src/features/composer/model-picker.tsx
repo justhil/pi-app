@@ -1,6 +1,7 @@
 // Model picker panel: shows current model + searchable list, /model opens this instead of silent cycle.
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
@@ -9,6 +10,7 @@ import { toast } from 'sonner'
 import { formatModelFull } from '@renderer/lib/format-run-display'
 
 export function ModelPicker() {
+  const { t } = useTranslation()
   const open = useUIStore((s) => s.modelPickerOpen)
   const setOpen = useUIStore((s) => s.setModelPickerOpen)
   const currentModel = useUIStore((s) => s.runState.model)
@@ -33,10 +35,10 @@ export function ModelPicker() {
     try {
       await ipcClient.invoke('model.set', { sessionId: '', provider: m.provider, modelId: m.id })
       useUIStore.getState().setRunState({ model: key })
-      toast.success(`已切换到 ${key}`)
+      toast.success(t('composer:switchedModel', { key }))
     } catch (e) {
       console.error('model.set failed:', e)
-      toast.error('切换失败')
+      toast.error(t('composer:switchFailed'))
     }
     setOpen(false)
   }
@@ -52,9 +54,9 @@ export function ModelPicker() {
           <div className="flex items-center gap-2">
             <Cpu className="h-4 w-4 text-muted-foreground/70" />
             <div>
-              <div className="text-[14px] font-medium">选择模型</div>
+              <div className="text-[14px] font-medium">{t('composer:selectModelTitle')}</div>
               <div className="text-[11px] text-muted-foreground">
-                当前：<span className="font-mono">{formatModelFull(currentModel)}</span>
+                {t('composer:current')}<span className="font-mono">{formatModelFull(currentModel)}</span>
               </div>
             </div>
           </div>
@@ -70,7 +72,7 @@ export function ModelPicker() {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索 provider / modelId / 名称…"
+              placeholder={t('composer:searchModelPlaceholder')}
               className="flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/40"
             />
           </div>
@@ -79,7 +81,7 @@ export function ModelPicker() {
         <div className="max-h-80 overflow-y-auto py-1">
           {filtered.length === 0 && (
             <div className="px-4 py-6 text-center text-[12px] text-muted-foreground/50">
-              {models.length === 0 ? '无可用模型（检查 ~/.pi/agent/auth.json）' : '无匹配'}
+              {models.length === 0 ? t('composer:noModels') : t('composer:noMatch')}
             </div>
           )}
           {filtered.map((m) => {
@@ -97,7 +99,7 @@ export function ModelPicker() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[12px] font-medium">{m.provider}/{m.id}</span>
-                    {!m.available && <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">不可用</span>}
+                    {!m.available && <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">{t('composer:unavailable')}</span>}
                   </div>
                   {m.name && m.name !== m.id && (
                     <div className="truncate text-[11px] text-muted-foreground/60">{m.name}</div>
@@ -110,8 +112,8 @@ export function ModelPicker() {
         </div>
 
         <div className="flex items-center justify-between border-t px-4 py-2 text-[10px] text-muted-foreground/60">
-          <span>共 {models.length} 个，显示 {filtered.length} 个</span>
-          <span>Esc 关闭</span>
+          <span>{t('composer:modelCount', { total: models.length, shown: filtered.length })}</span>
+          <span>{t('composer:escToClose')}</span>
         </div>
       </div>
     </div>

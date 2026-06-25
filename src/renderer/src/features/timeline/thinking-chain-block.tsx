@@ -1,17 +1,18 @@
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
-/** 思维链：淡色、默认折叠，运行中可自动展开 */
+/** Thinking chain: muted, collapsed by default, auto-expands while streaming */
 export function ThinkingChainBlock({
   text,
   streaming,
 }: {
   text: string
-  /** 仅当前正在流式的那条助手消息自动展开思维链 */
   streaming?: boolean
 }) {
+  const { t } = useTranslation()
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const open = userOpen ?? !!streaming
   const preview = text.trim().split('\n').filter(Boolean).slice(0, 2).join('\n')
@@ -28,8 +29,8 @@ export function ThinkingChainBlock({
       >
         <ChevronRight className={cn('chevron-expand h-3 w-3 text-foreground-secondary/50', open && 'rotate-90')} />
         <span className="text-[11px] text-foreground-secondary/55">
-          思维链{lineCount > 0 ? ` · ${lineCount} 行` : ''}
-          {streaming ? ' · 生成中' : ''}
+          {t('timeline:thinkingChain')}{lineCount > 0 ? t('timeline:thinkingLines', { count: lineCount }) : ''}
+          {streaming ? t('timeline:generating') : ''}
         </span>
       </button>
       <CollapsiblePanel open={open} className="mt-0.5">

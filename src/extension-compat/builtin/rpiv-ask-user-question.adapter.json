@@ -3,17 +3,40 @@
   "displayName": "Ask User Question",
   "description": "结构化问卷（桌面问卷对话框，含选项预览合并）",
   "match": {
-    "names": ["@juicesharp/rpiv-ask-user-question", "rpiv-ask-user-question"],
-    "tools": ["ask_user_question"]
+    "names": [
+      "@juicesharp/rpiv-ask-user-question",
+      "rpiv-ask-user-question"
+    ],
+    "tools": [
+      "ask_user_question"
+    ]
   },
   "tier": "native",
-  "toolCard": { "template": "kv", "icon": "MessageCircleQuestion" },
+  "toolCard": {
+    "template": "kv",
+    "icon": "MessageCircleQuestion"
+  },
   "interact": {
-    "trigger": { "tool": "ask_user_question" },
+    "trigger": {
+      "tool": "ask_user_question"
+    },
     "schema": "questions",
-    "fields": { "questions": "$.questions", "options": "$.options" }
+    "fields": {
+      "questions": "$.questions",
+      "options": "$.options"
+    }
   },
   "config": {
     "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Ask User Question",
+      "description": "结构化问卷（桌面问卷对话框，含选项预览合并）"
+    },
+    "en": {
+      "displayName": "Ask User Question",
+      "description": "结构化问卷（桌面问卷对话框，含选项预览合并）"
+    }
   }
 }

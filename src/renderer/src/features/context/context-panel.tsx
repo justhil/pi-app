@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { RefreshCw, ChevronDown, ChevronRight, Layers, MessageSquare } from 'lucide-react'
@@ -20,12 +21,12 @@ type ContextPreview = {
   segments?: Segment[]
 }
 
-const ROLE_STYLE: Record<string, { bar: string; badge: string; label: string }> = {
-  user: { bar: 'bg-blue-500/70', badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', label: '用户' },
-  assistant: { bar: 'bg-brand/80', badge: 'bg-brand/15 text-foreground', label: '助手' },
-  toolResult: { bar: 'bg-amber-500/70', badge: 'bg-amber-500/15 text-amber-800 dark:text-amber-200', label: '工具结果' },
-  compactionSummary: { bar: 'bg-purple-500/60', badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-200', label: '压缩摘要' },
-  branchSummary: { bar: 'bg-purple-500/50', badge: 'bg-purple-500/10 text-purple-700', label: '分支摘要' },
+const ROLE_STYLE: Record<string, { bar: string; badge: string; labelKey: string }> = {
+  user: { bar: 'bg-blue-500/70', badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', labelKey: 'context:userLabel' },
+  assistant: { bar: 'bg-brand/80', badge: 'bg-brand/15 text-foreground', labelKey: 'context:assistantLabel' },
+  toolResult: { bar: 'bg-amber-500/70', badge: 'bg-amber-500/15 text-amber-800 dark:text-amber-200', labelKey: 'context:toolResultLabel' },
+  compactionSummary: { bar: 'bg-purple-500/60', badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-200', labelKey: 'context:compactionLabel' },
+  branchSummary: { bar: 'bg-purple-500/50', badge: 'bg-purple-500/10 text-purple-700', labelKey: 'context:branchLabel' },
 }
 
 function roleMeta(role: string) {
@@ -33,6 +34,7 @@ function roleMeta(role: string) {
 }
 
 export function ContextPanel() {
+  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const model = useUIStore((s) => s.runState.model)
   const [preview, setPreview] = useState<ContextPreview | null>(null)
@@ -94,7 +96,7 @@ export function ContextPanel() {
   if (!workspace) {
     return (
       <div className="p-4 text-[13px] leading-relaxed text-foreground-secondary">
-        请先打开项目，Worker 会话就绪后可查看送入模型的上下文拼接。
+        {t('context:openProjectHint')}
       </div>
     )
   }
@@ -104,9 +106,9 @@ export function ContextPanel() {
       <div className="flex shrink-0 items-center justify-between border-b border-border/40 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-foreground-secondary/70" />
-          <span className="text-[13px] font-semibold text-foreground">上下文拼接</span>
+          <span className="text-[13px] font-semibold text-foreground">{t('context:title')}</span>
         </div>
-        <button type="button" onClick={load} className="chrome-icon-btn rounded-md p-1.5" title="刷新">
+        <button type="button" onClick={load} className="chrome-icon-btn rounded-md p-1.5" title={t('context:refresh')}>
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
         </button>
       </div>
@@ -156,7 +158,7 @@ export function ContextPanel() {
               </div>
             )}
             <p className="text-[11px] leading-relaxed text-foreground-secondary/65">
-              下列为 Worker 当前会话消息顺序（与送入 LLM 的拼接顺序一致），条块宽度表示相对体积。
+              {t('context:messageOrderHint')}
             </p>
           </div>
 
@@ -187,7 +189,7 @@ export function ContextPanel() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', meta.badge)}>
-                              {meta.label}
+                              {t(meta.labelKey)}
                               {seg.label ? ` · ${seg.label}` : ''}
                             </span>
                             <span className="text-[10px] tabular-nums text-foreground-secondary/70">

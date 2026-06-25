@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 export function ExtensionDialogShell({
   title,
@@ -15,6 +16,7 @@ export function ExtensionDialogShell({
   onSuspend?: () => void
   wide?: boolean
 }) {
+  const { t } = useTranslation()
   const suspend = onSuspend ?? onDismiss
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ExtensionDialogShell({
         <button
           type="button"
           className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="稍后作答"
+          aria-label={t('extension:answerLater')}
           onClick={suspend}
         >
           <X className="h-4 w-4" />

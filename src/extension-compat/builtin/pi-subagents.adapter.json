@@ -3,12 +3,29 @@
   "displayName": "Subagents",
   "description": "子代理委派与链路（subagent 工具卡片解析 mode/runId/results）",
   "match": {
-    "names": ["pi-subagents"],
-    "tools": ["subagent"]
+    "names": [
+      "pi-subagents"
+    ],
+    "tools": [
+      "subagent"
+    ]
   },
   "tier": "headless",
-  "toolCard": { "template": "tree", "icon": "GitBranch" },
+  "toolCard": {
+    "template": "tree",
+    "icon": "GitBranch"
+  },
   "config": {
     "note": "子代理执行由扩展；桌面按 details（mode/runId/results/progress）渲染工具卡片。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Subagents",
+      "description": "子代理委派与链路（subagent 工具卡片解析 mode/runId/results）"
+    },
+    "en": {
+      "displayName": "Subagents",
+      "description": "Subagent delegation and routing (subagent tool cards: mode/runId/results)"
+    }
   }
 }

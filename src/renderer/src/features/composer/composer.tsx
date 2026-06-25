@@ -18,6 +18,8 @@ import { useComposerInputHistory, type EditorCursorAdapter } from './use-compose
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 import { RichInput } from './rich-input'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
+import { useVoiceInput } from './use-voice-input'
+import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
 
 interface SlashCommand {
   id: string
@@ -28,12 +30,20 @@ interface SlashCommand {
 
 // Minimal builtin command surface (handled directly in app, not via pi command API)
 const BUILTIN_COMMANDS: SlashCommand[] = [
-  { id: 'model', name: '/model', description: '切换或查看当前模型', category: 'builtin' },
-  { id: 'thinking', name: '/thinking', description: '切换 thinking 等级', category: 'builtin' },
-  { id: 'clear', name: '/clear', description: '清空当前时间线', category: 'builtin' },
-  { id: 'compact', name: '/compact', description: '压缩会话历史', category: 'builtin' },
-  { id: 'new', name: '/new', description: '新建会话', category: 'builtin' },
+  { id: 'model', name: '/model', category: 'builtin' },
+  { id: 'thinking', name: '/thinking', category: 'builtin' },
+  { id: 'clear', name: '/clear', category: 'builtin' },
+  { id: 'compact', name: '/compact', category: 'builtin' },
+  { id: 'new', name: '/new', category: 'builtin' },
 ]
+
+const BUILTIN_CMD_I18N: Record<string, string> = {
+  model: 'composer.commands.model',
+  thinking: 'composer.commands.thinking',
+  clear: 'composer.commands.clear',
+  compact: 'composer.commands.compact',
+  new: 'composer.commands.new',
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   builtin: 'bg-primary/15 text-primary',
@@ -42,11 +52,11 @@ const CATEGORY_COLORS: Record<string, string> = {
   extension: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  builtin: '内置',
-  prompt: 'Prompt',
-  skill: 'Skill',
-  extension: '扩展',
+const CATEGORY_LABEL_I18N: Record<string, string> = {
+  builtin: 'composer.category.builtin',
+  prompt: 'composer.category.prompt',
+  skill: 'composer.category.skill',
+  extension: 'composer.category.extension',
 }
 
 function caretAtStart(el: HTMLElement): boolean {
@@ -134,6 +144,10 @@ export function Composer() {
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
+  const { voiceState, toggle: toggleVoice, disabled: voiceDisabled } = useVoiceInput(canCompose, (text) => {
+    const el = editorRef.current
+    if (el) insertTextAtCursor(el, text)
+  })
   const updateFromEditor = useCallback(() => {
     const el = editorRef.current
     if (!el) return
@@ -256,7 +270,7 @@ export function Composer() {
 
   const sendCurrent = async () => {
     if (extensionUiBlocksComposer()) {
-      toast.message('请先完成扩展弹窗，或点右上角稍后作答')
+      toast.message(t('composer:toast.completeExtensionFirst'))
       return
     }
     const el = editorRef.current
@@ -311,13 +325,13 @@ export function Composer() {
       console.error('Send failed:', e)
       clearOptimisticOutgoing()
       useUIStore.getState().setRunState({ status: 'idle' })
-      toast.error('发送失败')
+      toast.error(t('composer:toast.sendFailed'))
     }
   }
 
   const handleSend = async () => {
     if (extensionUiBlocksComposer()) {
-      toast.message('请先完成扩展弹窗，或点右上角稍后作答')
+      toast.message(t('composer:toast.completeExtensionFirst'))
       return
     }
     const trimmed = text.trim()
@@ -333,18 +347,18 @@ export function Composer() {
         if (r?.behavior === 'config-page' && r?.meta) {
           useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
           clearEditor()
-          toast.info(`已打开 ${r.meta.matchNames[0] || token} 配置`)
+          toast.info(t('composer:toast.openedConfig', { name: r.meta.matchNames[0] || token }))
           return
         }
         if (r?.behavior === 'open-panel') {
           const panel = r.meta?.panelId || `adapter:${r.meta?.adapterId || ''}`
           if (!panel || panel === 'adapter:') {
-            toast.error('斜杠未配置 panelId')
+            toast.error(t('composer:toast.slashNoPanel'))
             return
           }
           useUIStore.getState().setActivePanel(panel)
           clearEditor()
-          toast.info(r.meta?.desktopSupport || `已打开 ${panel} 面板`)
+          toast.info(r.meta?.desktopSupport || t('composer:toast.openedPanel', { panel }))
           return
         }
         if (r?.behavior === 'notify' && r?.meta?.desktopSupport) {
@@ -505,7 +519,7 @@ export function Composer() {
     if (pendingScreenshot) {
       const file = pendingScreenshot
       if (!currentWorkspace && !ephemeralSandboxDraft) {
-        toast.message('请先打开工作区再粘贴截图')
+        toast.message(t('composer:toast.pasteScreenshotNeedWorkspace'))
         return
       }
       const reader = new FileReader()
@@ -522,7 +536,7 @@ export function Composer() {
           updateFromEditor()
         } catch (err) {
           console.error('clipboard.writeTempImage failed:', err)
-          toast.error('粘贴截图失败')
+          toast.error(t('composer:toast.pasteScreenshotFailed'))
         }
       }
       reader.readAsDataURL(file)
@@ -630,7 +644,7 @@ export function Composer() {
       >
         <div className="flex flex-col items-center gap-1.5 text-primary/75">
           <Upload className="h-5 w-5 transition-transform duration-[var(--motion-normal)] ease-[var(--motion-ease)]" />
-          <span className="text-[12px] font-medium">松手添加</span>
+          <span className="text-[12px] font-medium">{t('composer:dropOverlay')}</span>
         </div>
       </div>
       {showPopover && (
@@ -647,17 +661,19 @@ export function Composer() {
                 )}
               >
                 <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', CATEGORY_COLORS[cmd.category])}>
-                  {CATEGORY_LABEL[cmd.category]}
+                  {t(CATEGORY_LABEL_I18N[cmd.category] || 'composer.category.builtin')}
                 </span>
                 <span className="font-mono text-[12px] font-medium">{cmd.name}</span>
-                {cmd.description && (
-                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{cmd.description}</span>
+                {(cmd.description || (cmd.category === 'builtin' && BUILTIN_CMD_I18N[cmd.id])) && (
+                  <span className="ml-auto truncate text-[11px] text-muted-foreground">
+                    {cmd.category === 'builtin' ? t(BUILTIN_CMD_I18N[cmd.id] || '') : cmd.description}
+                  </span>
                 )}
               </button>
             ))}
             {argCompletions.length > 0 && (
               <div className="border-t border-border/40 mt-1 pt-1">
-                <div className="px-3 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/50">参数补全</div>
+                <div className="px-3 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/50">{t('composer:argCompletion')}</div>
                 {argCompletions.map((a, i) => (
                   <button
                     key={i}
@@ -677,12 +693,12 @@ export function Composer() {
             )}
           </div>
           <div className="flex items-center gap-3 border-t border-border/40 px-3 py-1.5 text-[10px] text-muted-foreground/70">
-            <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> 选择</span>
-            <span className="flex items-center gap-1"><CornerDownLeft className="h-2.5 w-2.5" /> 确认</span>
-            <span className="flex items-center gap-1">Tab 补全</span>
-            <span>Esc 关闭</span>
+            <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> {t('composer:select')}</span>
+            <span className="flex items-center gap-1"><CornerDownLeft className="h-2.5 w-2.5" /> {t('composer:confirm')}</span>
+            <span className="flex items-center gap-1">{t('composer:tabComplete')}</span>
+            <span>{t('composer:escClose')}</span>
             {commandsSource === 'fallback' && (
-              <span className="ml-auto text-amber-600 dark:text-amber-400">离线命令表</span>
+              <span className="ml-auto text-amber-600 dark:text-amber-400">{t('composer:offlineFallback')}</span>
             )}
           </div>
         </div>
@@ -693,6 +709,8 @@ export function Composer() {
           'composer-shell flex flex-col rounded-xl border',
           composerFocused && 'composer-shell-focused',
           isDragActive && 'border-dashed !border-primary/50',
+          voiceState === 'recording' && 'composer-shell--voice-recording',
+          voiceState === 'transcribing' && 'composer-shell--voice-transcribing',
         )}
       >
         {attachments.length > 0 && (
@@ -702,7 +720,11 @@ export function Composer() {
             ))}
           </div>
         )}
-        <div className="flex flex-col gap-1 px-2.5 pb-2 pt-2">
+        <div className="relative flex flex-col gap-1 px-2.5 pb-2 pt-2">
+          <ComposerVoiceInputOverlay
+            voiceState={voiceState}
+            active={!isStreaming && !text.trim() && attachments.length === 0 && (voiceState === 'recording' || voiceState === 'transcribing')}
+          />
           <RichInput
             ref={editorRef}
             onKeyDown={handleKeyDown}
@@ -714,20 +736,22 @@ export function Composer() {
             }}
             onInput={() => { inputHistory.onUserEdit(); updateFromEditor() }}
             placeholder={
-              ephemeralSandboxDraft && !currentWorkspace
-                ? '首条消息即对话标题'
-                : canCompose
-                  ? t('composer.placeholder')
-                  : t('composer.selectProjectFirst')
+              voiceState === 'recording' || voiceState === 'transcribing'
+                ? ''
+                : ephemeralSandboxDraft && !currentWorkspace
+                  ? t('composer:firstMsgIsTitle')
+                  : canCompose
+                    ? t('composer:placeholder')
+                    : t('composer:selectProjectFirst')
             }
-            disabled={!canCompose}
+            disabled={!canCompose || voiceState === 'transcribing' || voiceState === 'recording'}
           />
           <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
             <button
               type="button"
               onClick={pickAttachments}
               disabled={!canCompose}
-              title="添加文件"
+              title={t('composer:addFile')}
               className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
             >
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
@@ -752,21 +776,36 @@ export function Composer() {
                 <button
                   type="button"
                   onClick={handleAbort}
-                  title={t('composer.stop')}
+                  title={t('composer:stop')}
                   className="composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={(!text.trim() && attachments.length === 0) || !canCompose}
-                title={isStreaming ? '加入队列 (follow-up)' : t('composer.send')}
-                className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
+              {(() => {
+                const hasContent = !!text.trim() || attachments.length > 0
+                const voicePrimary = !isStreaming && !hasContent
+                if (voicePrimary) {
+                  return (
+                    <ComposerVoiceMicButton
+                      voiceState={voiceState}
+                      disabled={voiceDisabled}
+                      onClick={toggleVoice}
+                    />
+                  )
+                }
+                return (
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={(!text.trim() && attachments.length === 0) || !canCompose}
+                    title={isStreaming ? t('composer:joinQueue') : t('composer:send')}
+                    className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                )
+              })()}
             </div>
           </div>
         </div>

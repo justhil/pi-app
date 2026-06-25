@@ -1,5 +1,6 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Coins, AlertCircle, Activity, Timer, Gauge, Database } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useComposerMetrics } from '@renderer/features/composer/use-composer-metrics'
@@ -26,6 +27,7 @@ function MetricRow({ label, value, sub }: { label: string; value: string; sub?: 
 }
 
 export function RunPanel() {
+  const { t } = useTranslation()
   const runState = useUIStore((s) => s.runState)
   const model = runState.model
   const thinkingLevel = runState.thinkingLevel
@@ -44,7 +46,7 @@ export function RunPanel() {
       return formatDuration(Date.now() - runState.startTime)
     }
     if (runState.lastRunDurationMs != null && runState.lastRunDurationMs > 0) {
-      return `${formatDuration(runState.lastRunDurationMs)} · 上轮`
+      return `${formatDuration(runState.lastRunDurationMs)} · ${t('run:metrics.turn')}`
     }
     return '—'
   })()
@@ -76,19 +78,19 @@ export function RunPanel() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold leading-snug text-foreground">
-              {isRunning ? '运行中' : runState.status === 'failed' ? '失败' : '空闲'}
+              {isRunning ? t('run:status.running') : runState.status === 'failed' ? t('run:status.failed') : t('run:status.idle')}
             </div>
             <div className="text-[12px] leading-relaxed text-foreground-secondary">
               {model && <span className="font-mono text-[11px]">{model}</span>}
               {thinkingLevel && thinkingLevel !== 'off' && (
-                <span className="ml-2 text-foreground-secondary/80">思考 {thinkingLevel}</span>
+                <span className="ml-2 text-foreground-secondary/80">{t('run:thinking', { level: thinkingLevel })}</span>
               )}
             </div>
           </div>
         </div>
         {isRunning && runState.activeTool && (
           <div className="mt-2.5 rounded-lg bg-[var(--bg-base)]/60 px-2.5 py-2 text-[12px] leading-relaxed">
-            <span className="text-foreground-secondary">工具 </span>
+            <span className="text-foreground-secondary">{t('run:toolLabel')} </span>
             <span className="font-mono font-medium text-foreground">{runState.activeTool}</span>
             {runState.activeToolStatus && (
               <p className="mt-1 truncate text-[11px] text-sky-700/90 dark:text-sky-400/90">{runState.activeToolStatus}</p>
@@ -100,16 +102,16 @@ export function RunPanel() {
       <section className="rounded-xl border border-border/50 bg-[var(--bg-2)]/30 p-3">
         <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
           <Gauge className="h-3.5 w-3.5" />
-          实时指标
+          {t('run:realtimeMetrics')}
         </div>
-        <MetricRow label="耗时" value={elapsedLabel} />
+        <MetricRow label={t('run:elapsed')} value={elapsedLabel} />
         <MetricRow
-          label="生成速度"
-          value={tokPerSec != null ? `${tokPerSec} tok/s` : isRunning ? '等待输出…' : '—'}
-          sub={metrics.tps != null && metrics.tps > 0 ? `约 ${Math.round(metrics.tps)} 字/s` : undefined}
+          label={t('run:genSpeed')}
+          value={tokPerSec != null ? `${tokPerSec} tok/s` : isRunning ? t('run:waitingOutput') : '—'}
+          sub={metrics.tps != null && metrics.tps > 0 ? t('run:approxCharsPerSec', { count: Math.round(metrics.tps) }) : undefined}
         />
         <MetricRow
-          label="上下文占用"
+          label={t('run:metrics.budget')}
           value={
             metrics.estContextTokens != null
               ? `${formatTokens(metrics.estContextTokens)} tok`
@@ -117,9 +119,9 @@ export function RunPanel() {
           }
           sub={
             metrics.contextWindow != null && metrics.ctxPct != null
-              ? `窗口 ${formatTokens(metrics.contextWindow)} · ${metrics.ctxPct.toFixed(1)}%`
+              ? t('run:contextWindow', { window: formatTokens(metrics.contextWindow), pct: metrics.ctxPct.toFixed(1) })
               : metrics.contextPreview
-                ? `${metrics.contextPreview.messageCount} 条消息`
+                ? t('run:messagesShort', { count: metrics.contextPreview.messageCount })
                 : undefined
           }
         />
@@ -136,9 +138,9 @@ export function RunPanel() {
         )}
         {metrics.cacheHitPct != null && runState.usage && runState.usage.cacheRead > 0 && (
           <MetricRow
-            label="缓存命中"
+            label={t('run:metrics.cache')}
             value={`${metrics.cacheHitPct.toFixed(0)}%`}
-            sub={`读 ${formatTokens(runState.usage.cacheRead)}`}
+            sub={t('run:cacheRead', { value: formatTokens(runState.usage.cacheRead) })}
           />
         )}
       </section>
@@ -147,17 +149,17 @@ export function RunPanel() {
         <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/40 p-2.5">
           <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
             <Timer className="h-3 w-3" />
-            工具调用
+            {t('run:toolCalls')}
           </div>
           <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">{runState.toolCount}</div>
           {runState.errorCount > 0 && (
-            <div className="text-[11px] text-destructive">{runState.errorCount} 错误</div>
+            <div className="text-[11px] text-destructive">{t('run:errors', { count: runState.errorCount })}</div>
           )}
         </div>
         <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/40 p-2.5">
           <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
             <Database className="h-3 w-3" />
-            消息条数
+            {t('run:messageCount')}
           </div>
           <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
             {metrics.contextPreview?.messageCount ?? '—'}
@@ -169,16 +171,16 @@ export function RunPanel() {
         <section className="rounded-xl border border-border/50 bg-[var(--bg-2)]/30 p-3">
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
             <Coins className="h-3.5 w-3.5" />
-            最近一轮 Token
+            {t('run:metrics.turn')} Token
           </div>
           <div className="space-y-0.5 font-mono text-[12px]">
-            <MetricRow label="输入" value={runState.usage.input.toLocaleString()} />
-            <MetricRow label="输出" value={runState.usage.output.toLocaleString()} />
-            <MetricRow label="缓存读" value={runState.usage.cacheRead.toLocaleString()} />
-            <MetricRow label="缓存写" value={runState.usage.cacheWrite.toLocaleString()} />
+            <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
+            <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
+            <MetricRow label={t('run:cacheReadLabel')} value={runState.usage.cacheRead.toLocaleString()} />
+            <MetricRow label={t('run:cacheWriteLabel')} value={runState.usage.cacheWrite.toLocaleString()} />
           </div>
           <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
-            <span className="text-[12px] text-foreground-secondary">费用</span>
+            <span className="text-[12px] text-foreground-secondary">{t('run:cost')}</span>
             <span className="font-mono text-[14px] font-semibold tabular-nums">${runState.usage.cost.toFixed(4)}</span>
           </div>
         </section>
@@ -187,13 +189,13 @@ export function RunPanel() {
       {runState.errorCount > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
           <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <span className="text-[13px] leading-snug text-destructive">{runState.errorCount} 个工具错误</span>
+          <span className="text-[13px] leading-snug text-destructive">{t('run:tokenError', { count: runState.errorCount })}</span>
         </div>
       )}
 
       {!isRunning && !runState.usage && (
         <p className="px-1 text-[12px] leading-relaxed text-foreground-secondary/70">
-          发送消息后此处显示本轮 TPS、上下文占用与 Token 用量。
+          {t('run:emptyHint')}
         </p>
       )}
     </div>
