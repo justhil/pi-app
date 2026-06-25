@@ -2,7 +2,23 @@
   "id": "@kinarajv/pi-tps-extensions",
   "displayName": "TPS Extensions",
   "description": "TUI 页脚/token 显示（桌面无对应组件）",
-  "match": { "names": ["@kinarajv/pi-tps-extensions"] },
+  "match": {
+    "names": [
+      "@kinarajv/pi-tps-extensions"
+    ]
+  },
   "tier": "none",
-  "config": { "note": "仅 TUI 页脚/token 显示；桌面用独立 Appearance 设置，无等价组件。" }
+  "config": {
+    "note": "仅 TUI 页脚/token 显示；桌面用独立 Appearance 设置，无等价组件。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "TPS Extensions",
+      "description": "TUI 页脚/token 显示（桌面无对应组件）"
+    },
+    "en": {
+      "displayName": "TPS Extensions",
+      "description": "TUI 页脚/token 显示（桌面无对应组件）"
+    }
+  }
 }

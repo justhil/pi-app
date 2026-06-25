@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 
 export function RenamePromptDialog({
   open,
   title,
   defaultValue,
   placeholder,
-  confirmLabel = '确定',
   onConfirm,
   onCancel,
 }: {
@@ -14,10 +14,10 @@ export function RenamePromptDialog({
   title: string
   defaultValue: string
   placeholder?: string
-  confirmLabel?: string
   onConfirm: (value: string) => void | Promise<void>
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const [value, setValue] = useState(defaultValue)
@@ -95,7 +95,7 @@ export function RenamePromptDialog({
             className="rounded-md px-3 py-1.5 text-[13px] text-foreground-secondary hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             onClick={onCancel}
           >
-            取消
+            {t('common:cancel')}
           </button>
           <button
             type="button"
@@ -103,7 +103,7 @@ export function RenamePromptDialog({
             className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             onClick={() => void submit()}
           >
-            {confirmLabel}
+            {t('common:confirm')}
           </button>
         </div>
       </div>

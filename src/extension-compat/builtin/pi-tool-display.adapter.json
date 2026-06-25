@@ -2,7 +2,23 @@
   "id": "pi-tool-display",
   "displayName": "Tool Display",
   "description": "工具显示紧凑化（TUI 专用，桌面无等价）",
-  "match": { "names": ["pi-tool-display"] },
+  "match": {
+    "names": [
+      "pi-tool-display"
+    ]
+  },
   "tier": "headless",
-  "config": { "note": "工具显示美化仅作用于终端 TUI；桌面无对应组件。" }
+  "config": {
+    "note": "工具显示美化仅作用于终端 TUI；桌面无对应组件。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Tool Display",
+      "description": "工具显示紧凑化（TUI 专用，桌面无等价）"
+    },
+    "en": {
+      "displayName": "Tool Display",
+      "description": "Tool display decorator (TUI only); desktop-side adapter only"
+    }
+  }
 }

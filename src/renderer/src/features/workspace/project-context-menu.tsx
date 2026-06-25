@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
@@ -21,19 +22,20 @@ export function ProjectContextMenuPortal({
   onClose: () => void
   onListChange: () => void
 }) {
+  const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
   const runRemove = async (path: string, name: string) => {
-    if (!window.confirm(`从列表移除项目「${name}」？文件夹不会被删除。`)) {
+    if (!window.confirm(t('common:sidebar.removeProjectConfirm', { name }))) {
       onClose()
       return
     }
     try {
       const r = await ipcClient.invoke('project.removeRecent', { path })
       if (!r?.ok) {
-        toast.error(r?.error || '移除失败')
+        toast.error(r?.error || t('common:sidebar.removeFailed'))
         onClose()
         return
       }
@@ -53,10 +55,10 @@ export function ProjectContextMenuPortal({
           await ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
         }
       }
-      toast.success('已从列表移除')
+      toast.success(t('common:sidebar.removed'))
       onListChange()
     } catch {
-      toast.error('移除失败')
+      toast.error(t('common:sidebar.removeFailed'))
     }
     onClose()
   }
@@ -80,7 +82,7 @@ export function ProjectContextMenuPortal({
           void runRemove(menu.path, menu.name)
         }}
       >
-        从列表移除
+        {t('common:sidebar.removeFromList')}
       </button>
     </div>,
     document.body,

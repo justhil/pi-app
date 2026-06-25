@@ -25,11 +25,20 @@ import { type AttachmentMeta, type Segment } from '@renderer/features/composer/a
 
 const MarkdownView = lazy(() => import('./markdown-view'))
 
-const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: any; prevType?: string }) {
-  const streamingId = useUIStore((s) => s.streamingAssistantId)
-  const agentRunning = useUIStore((s) => s.runState.status === 'running')
-  const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
-  const streaming = streamingId === item.id
+const TimelineItemBase = memo(function TimelineItem({
+  item,
+  prevType,
+  streaming,
+  agentRunning,
+  agentBoot,
+}: {
+  item: any
+  prevType?: string
+  streaming: boolean
+  agentRunning: boolean
+  agentBoot: boolean
+}) {
+  const { t } = useTranslation()
 
   if (item.type === 'user-message') {
     const segments: Segment[] = item.segments?.length ? item.segments : [{ type: 'text', text: item.text || '' }]
@@ -76,7 +85,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       if (!agentRunning && !boot) return null
       return (
         <div className="timeline-message-row py-1.5">
-          <ThinkingIndicator label={boot ? 'Agent 启动中' : '等待回复'} />
+          <ThinkingIndicator label={boot ? t('timeline:agentStarting') : t('timeline:waitingReply')} />
         </div>
       )
     }
@@ -107,7 +116,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
               {streaming && <StreamingCaret />}
             </div>
           ) : streaming && agentRunning ? (
-            <span className="text-[12px] text-foreground-secondary/50">生成正文…</span>
+            <span className="text-[12px] text-foreground-secondary/50">{t('timeline:generatingText')}</span>
           ) : null}
         </MessageHoverShell>
       </div>
@@ -119,7 +128,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
     const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
     const label =
-      status === 'error' ? '失败' : status === 'ok' ? '完成' : item.text?.includes('失败') ? '失败' : '已执行'
+      status === 'error' ? t('timeline:statusFailed') : status === 'ok' ? t('timeline:statusDone') : item.text?.includes('失败') ? t('timeline:statusFailed') : t('timeline:statusExecuted')
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-center gap-2 rounded-lg border border-border/40 px-2.5 py-1 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
@@ -139,7 +148,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
       <div className="py-2">
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/50 px-2.5 py-1.5 text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
           <Archive className="h-3 w-3 opacity-70" />
-          <span className="text-[11px]">已压缩</span>
+          <span className="text-[11px]">{t('timeline:compacted')}</span>
           {item.text && (
             <span className="truncate text-[11px] opacity-80">{item.text.slice(0, 100)}...</span>
           )}
@@ -153,7 +162,7 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
     const isAbort = kind === 'aborted'
     const borderCls = isAbort ? 'border-amber-500/35 bg-amber-500/5' : 'border-destructive/30 bg-destructive/5'
     const textCls = isAbort ? 'text-amber-800 dark:text-amber-200' : 'text-destructive'
-    const title = isAbort ? '已中止' : kind === 'retry' ? '重试后失败' : '运行出错'
+    const title = isAbort ? t('timeline:aborted') : kind === 'retry' ? t('timeline:retryFailed') : t('timeline:runError')
     return (
       <div className="py-1.5">
         <div className={cn('rounded-lg border px-3 py-2', borderCls)}>
@@ -176,6 +185,9 @@ const TimelineItemBase = memo(function TimelineItem({ item, prevType }: { item: 
 
 export function Timeline() {
   const items = useUIStore((s) => s.timelineItems)
+  const streamingAssistantId = useUIStore((s) => s.streamingAssistantId)
+  const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const hasWorkspace = !!currentWorkspace || ephemeralDraft
@@ -287,7 +299,7 @@ export function Timeline() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
         <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
-          {t('timeline.emptyWorkspace')}
+          {t('timeline:emptyWorkspace')}
         </p>
       </div>
     )
@@ -306,9 +318,9 @@ export function Timeline() {
     if (historyLoadMiss) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <p className="text-[14px] font-medium text-foreground">历史未加载完整</p>
+          <p className="text-[14px] font-medium text-foreground">{t('timeline:historyIncomplete')}</p>
           <p className="max-w-sm text-[13px] text-foreground-secondary">
-            记录显示约 {historyTotalCount} 条，但时间线为空。请点主栏「刷新」或切换会话重试。
+            {t('timeline:historyIncompleteHint', { count: historyTotalCount })}
           </p>
         </div>
       )
@@ -316,19 +328,19 @@ export function Timeline() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
         <div className="text-[15px] font-medium text-foreground">
-          {isEphemeralEmpty ? '新对话' : t('timeline.placeholder')}
+          {isEphemeralEmpty ? t('timeline:newChat') : t('timeline:placeholder')}
         </div>
         <p className="max-w-sm text-[13px] leading-relaxed text-foreground-secondary">
           {isEphemeralEmpty
-            ? '在下方输入首条消息；发送后将保存为临时对话，并以该消息作为标题。'
+            ? t('timeline:firstMessageHint')
             : (
               <>
-                在下方输入消息开始对话。输入 <span className="font-mono text-foreground">/</span> 可查看命令与技能。
+                {t('timeline:emptyHint')}
               </>
             )}
         </p>
         {!isEphemeralEmpty && (
-          <p className="text-[12px] text-foreground-secondary/80">侧栏可切换会话 · 右侧可查看 Review / Run / Trellis</p>
+          <p className="text-[12px] text-foreground-secondary/80">{t('timeline:sidebarHint')}</p>
         )}
       </div>
     )
@@ -361,8 +373,8 @@ export function Timeline() {
           className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground disabled:opacity-60"
         >
           {historyLoading
-            ? t('timeline.loadingSession')
-            : `${t('timeline.loadOlder')}（${hiddenCount}）`}
+            ? t('timeline:loadingSession')
+            : `${t('timeline:loadOlder')}（${hiddenCount}）`}
         </button>
       )}
       {displayItems.map((block, i) => {
@@ -398,7 +410,13 @@ export function Timeline() {
         return (
           <Fragment key={item.id}>
             {showGroupGap && <div className="h-2" />}
-            <TimelineItemBase item={item} prevType={prevType} />
+            <TimelineItemBase
+              item={item}
+              prevType={prevType}
+              streaming={streamingAssistantId === item.id}
+              agentRunning={agentRunning}
+              agentBoot={agentBoot}
+            />
           </Fragment>
         )
       })}

@@ -1,0 +1,21 @@
+{
+  "title": "上下文",
+  "empty": "暂无上下文数据",
+  "loading": "加载中…",
+  "tokens": "tokens",
+  "budget": "预算",
+  "used": "已用",
+  "remaining": "剩余",
+  "segments": "分段",
+  "summary": "摘要",
+  "compacted": "已压缩 {{count}} 条",
+  "expandSummary": "展开查看完整摘要",
+  "refresh": "刷新",
+  "openProjectHint": "请先打开项目，Worker 会话就绪后可查看送入模型的上下文拼接。",
+  "messageOrderHint": "下列为 Worker 当前会话消息顺序（与送入 LLM 的拼接顺序一致），条块宽度表示相对体积。",
+  "userLabel": "用户",
+  "assistantLabel": "助手",
+  "toolResultLabel": "工具结果",
+  "compactionLabel": "压缩摘要",
+  "branchLabel": "分支摘要"
+}

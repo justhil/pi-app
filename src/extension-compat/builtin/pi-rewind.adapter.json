@@ -1,7 +1,26 @@
 {
   "id": "pi-rewind",
   "displayName": "pi-rewind",
-  "match": { "names": ["pi-rewind"], "commands": ["/rewind"] },
+  "match": {
+    "names": [
+      "pi-rewind"
+    ],
+    "commands": [
+      "/rewind"
+    ]
+  },
   "tier": "none",
-  "slash": { "/rewind": "notify" }
+  "slash": {
+    "/rewind": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "pi-rewind",
+      "description": ""
+    },
+    "en": {
+      "displayName": "pi-rewind",
+      "description": "Rewind session checkpoints"
+    }
+  }
 }

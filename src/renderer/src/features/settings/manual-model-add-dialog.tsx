@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 import { parseModelIdList, sanitizeModelId, validateModelId } from './model-id-utils'
 
 export function ManualModelAddDialog({
@@ -15,6 +16,7 @@ export function ManualModelAddDialog({
   onConfirm: (ids: string[]) => void | Promise<void>
   onCancel: () => void
 }) {
+  const { t: tr } = useTranslation()
   const titleId = useId()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [value, setValue] = useState('')
@@ -73,7 +75,7 @@ export function ManualModelAddDialog({
           ? [single]
           : []
     if (!ids.length) {
-      setError('请输入至少一个模型 id')
+      setError(tr('models:enterAtLeastOne'))
       return
     }
     const toAdd: string[] = []
@@ -85,13 +87,13 @@ export function ManualModelAddDialog({
         continue
       }
       if (existingIds.has(id)) {
-        problems.push(`「${id}」已在列表中`)
+        problems.push(tr('models:alreadyExists', { id }))
         continue
       }
       toAdd.push(id)
     }
     if (!toAdd.length) {
-      setError(problems[0] || '没有可添加的模型')
+      setError(problems[0] || tr('models:noModelToAdd'))
       return
     }
     setError(null)
@@ -121,17 +123,17 @@ export function ManualModelAddDialog({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <h2 id={titleId} className="text-[15px] font-semibold text-foreground">
-          手动添加模型
+          {tr('models:manualAddTitle')}
         </h2>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          供应商 <span className="font-medium text-foreground/90">{providerLabel}</span>
-          ，id 与 API 请求一致。可多行或逗号分隔批量添加。
+          {tr('models:providerLabelPrefix')} <span className="font-medium text-foreground/90">{providerLabel}</span>
+          {tr('models:manualAddHint')}
         </p>
         <textarea
           ref={inputRef}
           rows={3}
           disabled={busy}
-          placeholder="例如 gpt-4.1-mini 或每行一个 id"
+          placeholder={tr('models:manualAddPlaceholder')}
           className="settings-field-focus mt-3 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 font-mono text-[12px] leading-relaxed"
           value={value}
           onChange={(e) => {
@@ -144,9 +146,9 @@ export function ManualModelAddDialog({
         />
         {value.trim() && (
           <p className="mt-2 text-[11px] text-muted-foreground">
-            将添加 <strong className="text-foreground">{valid.length}</strong> 个
-            {dup.length > 0 && <span> · 跳过已存在 {dup.length}</span>}
-            {invalid.length > 0 && <span className="text-amber-700 dark:text-amber-300"> · 格式无效 {invalid.length}</span>}
+            {tr('models:willAdd', { count: valid.length })}
+            {dup.length > 0 && <span> · {tr('models:skipDuplicates', { count: dup.length })}</span>}
+            {invalid.length > 0 && <span className="text-amber-700 dark:text-amber-300"> · {tr('models:invalidFormat')} {invalid.length}</span>}
           </p>
         )}
         {error && <p className="mt-2 text-[12px] text-destructive">{error}</p>}
@@ -157,7 +159,7 @@ export function ManualModelAddDialog({
             className="settings-chip rounded-md px-3 py-1.5 text-[13px] text-muted-foreground hover:bg-accent disabled:opacity-50"
             onClick={onCancel}
           >
-            取消
+            {tr('models:cancelBtn')}
           </button>
           <button
             type="button"
@@ -165,10 +167,10 @@ export function ManualModelAddDialog({
             className="settings-chip rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground disabled:opacity-50"
             onClick={() => void submit()}
           >
-            {busy ? '添加中…' : valid.length > 1 ? `添加 ${valid.length} 个` : '添加'}
+            {busy ? tr('models:adding') : valid.length > 1 ? tr('models:addCount', { count: valid.length }) : tr('models:add')}
           </button>
         </div>
-        <p className="mt-2 text-[10px] text-muted-foreground/70">Ctrl+Enter 确认</p>
+        <p className="mt-2 text-[10px] text-muted-foreground/70">{tr('models:ctrlEnterHint')}</p>
       </div>
     </div>,
     document.body,

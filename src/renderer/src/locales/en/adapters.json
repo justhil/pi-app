@@ -1,0 +1,13 @@
+{
+  "title": "Adapters",
+  "openConfig": "Open config",
+  "tier": {
+    "native": "Full",
+    "partial": "Partial",
+    "headless": "Exec-only",
+    "none": "None"
+  },
+  "desktop": "Desktop",
+  "probe": "probe",
+  "version": "version"
+}

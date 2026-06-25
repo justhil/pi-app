@@ -5,6 +5,20 @@ export type AdapterTier = 'native' | 'partial' | 'headless' | 'none'
 
 export type FieldType = 'text' | 'secret' | 'select' | 'number' | 'boolean'
 
+export interface AdapterI18nLocale {
+  displayName?: string
+  description?: string
+  note?: string
+  fieldLabels?: Record<string, string>
+  fieldDescriptions?: Record<string, string>
+  actionLabels?: Record<string, string>
+  sidePanel?: { label?: string; description?: string }
+}
+
+export interface SectionI18nLocale {
+  title?: string
+}
+
 export interface ConfigField {
   key: string
   type: FieldType
@@ -34,6 +48,7 @@ export interface ConfigSection {
   title?: string
   fields?: ConfigField[]
   derived?: DerivedRow[] // statusGrid
+  i18n?: Record<string, SectionI18nLocale>
 }
 
 export type ActionType = 'httpCheck' | 'openPath' | 'reload'
@@ -64,6 +79,7 @@ export interface AdapterConfig {
   note?: string
   /** Hint for a specialized renderer (e.g. skills-manager / mcp-diagnostics) instead of generic sections. */
   customRenderer?: string
+  i18n?: Record<string, { note?: string }>
 }
 
 export type ToolCardTemplate = 'default' | 'list' | 'media' | 'tree' | 'kv' | 'hashline'
@@ -123,6 +139,7 @@ export interface AdapterJson {
   sidePanel?: AdapterSidePanel
   /** 不依赖 npm 安装即可生效（如 trellis 靠项目 .trellis/ 目录） */
   alwaysVisible?: boolean
+  i18n?: Record<string, AdapterI18nLocale>
 }
 
 export interface AdapterLoadError {
@@ -135,4 +152,41 @@ export interface AdapterCatalog {
   adapters: AdapterJson[]
   errors: AdapterLoadError[]
   sources: Record<string, 'builtin' | 'override' | 'probe'>
+}
+
+// ── i18n resolver (renderer-safe, no fs deps) ──
+
+export interface ResolvedAdapterText {
+  displayName?: string
+  description?: string
+  note?: string
+  sections: Array<{ title?: string; fields: ConfigField[] }>
+  actions: Array<{ id: string; label?: string }>
+  sidePanel: { label?: string; description?: string }
+}
+
+export function resolveAdapterText(a: AdapterJson, language: string): ResolvedAdapterText {
+  const lang = language.slice(0, 2)
+  const loc = a.i18n?.[language] || a.i18n?.[lang] || {}
+  return {
+    displayName: loc.displayName ?? a.displayName,
+    description: loc.description ?? a.description,
+    note: a.config?.i18n?.[language]?.note ?? a.config?.i18n?.[lang]?.note ?? loc.note ?? a.config?.note,
+    sections: (a.config?.sections ?? []).map((s) => ({
+      title: s.i18n?.[language]?.title ?? s.i18n?.[lang]?.title ?? s.title,
+      fields: (s.fields ?? []).map((f) => ({
+        ...f,
+        label: loc.fieldLabels?.[f.key] ?? f.label,
+        description: loc.fieldDescriptions?.[f.key] ?? f.description,
+      })),
+    })),
+    actions: (a.config?.actions ?? []).map((act) => ({
+      id: act.id,
+      label: loc.actionLabels?.[act.id] ?? act.label,
+    })),
+    sidePanel: {
+      label: loc.sidePanel?.label ?? a.sidePanel?.label,
+      description: loc.sidePanel?.description ?? a.sidePanel?.description,
+    },
+  }
 }

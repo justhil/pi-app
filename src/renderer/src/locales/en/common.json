@@ -10,7 +10,22 @@
   "sidebar": {
     "sessions": "Sessions",
     "settings": "Settings",
-    "openProject": "Open folder"
+    "openProject": "Open folder",
+    "tempChat": "Temp chat",
+    "newTempChat": "New temp chat",
+    "newChat": "New chat",
+    "clickToAdd": "Click + to create",
+    "removeProjectConfirm": "Remove project \"{{name}}\" from list? The folder will not be deleted.",
+    "removeFailed": "Remove failed",
+    "removed": "Removed from list",
+    "removeFromList": "Remove from list",
+    "noSessions": "No sessions",
+    "conversations": "Conversations",
+    "firstMsgIsTitle": "First message is the title",
+    "projects": "Projects",
+    "renamed": "Renamed",
+    "renameFailed": "Rename failed",
+    "deleteConfirm": "Delete \"{{name}}\"? Directory and pi sessions will be removed."
   },
   "composer": {
     "placeholder": "Message or / command",
@@ -23,7 +38,11 @@
     "trellis": "Trellis",
     "run": "Run",
     "context": "Context",
-    "tree": "Tree"
+    "tree": "Tree",
+    "reviewDesc": "Git changes & diff (read-only)",
+    "runDesc": "Current turn status & usage",
+    "contextDesc": "Session context preview",
+    "treeDesc": "Session tree / rewind (like /tree)"
   },
   "settings": {
     "title": "Settings",
@@ -57,5 +76,26 @@
   "topbar": {
     "project": "Current project",
     "session": "Current session"
-  }
+  },
+  "save": "Save",
+  "saving": "Saving…",
+  "saveFailed": "Save failed",
+  "settingsSaved": "Settings saved",
+  "unsavedChanges": "Unsaved changes",
+  "allChangesSaved": "All changes saved",
+  "discard": "Discard",
+  "reverted": "Reverted to last saved",
+  "operationFailed": "Operation failed",
+  "reload": "Reload",
+  "refresh": "Refresh",
+  "loading": "Loading…",
+  "cancel": "Cancel",
+  "confirm": "OK",
+  "close": "Close",
+  "back": "Back",
+  "error": "Error",
+  "retry": "Retry",
+  "newSession": "New session",
+  "loadingSettings": "Loading settings…",
+  "resetToDefault": "Reset to default"
 }

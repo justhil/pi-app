@@ -35,7 +35,7 @@ export function RightPanelsSettings() {
 
   const setOne = (id: string, on: boolean) => {
     if (!on && enabledCount <= 1) {
-      toast.message('至少保留一个栏目')
+      toast.message(t('settings:rightPanels.keepOne'))
       return
     }
     setRightPanelPref(id, on)
@@ -44,8 +44,8 @@ export function RightPanelsSettings() {
   return (
     <div className="space-y-1">
       <SettingsPageHeader
-        title="右侧栏"
-        description="拖拽排序与开关仅修改草稿，请使用页面底部「保存」写入本机并更新主界面 Tab。"
+        title={t('settings:nav.rightPanels')}
+        description={t('settings:rightPanels.description')}
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -53,14 +53,14 @@ export function RightPanelsSettings() {
               onClick={() => resetRightPanelsToDefault()}
               className="rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              恢复默认
+              {t('common:resetToDefault')}
             </button>
             <button
               type="button"
               onClick={() => void refreshRightPanelCatalog()}
               className="rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              刷新目录
+              {t('settings:rightPanels.refreshCatalog')}
             </button>
           </div>
         }
@@ -69,7 +69,7 @@ export function RightPanelsSettings() {
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-border/40 bg-[var(--bg-1)]/50 px-3 py-2 text-[12px] text-muted-foreground">
         <LayoutPanelLeft className="h-4 w-4 shrink-0 opacity-60" />
         <span>
-          已启用 {enabledCount} / {order.length} 个栏目 · 拖拽排序
+          {t('settings:rightPanels.enabledCount', { enabled: enabledCount, total: order.length })}
         </span>
       </div>
 
@@ -81,6 +81,7 @@ export function RightPanelsSettings() {
       >
         {orderedItems.map((item, index) => {
           const label = item.labelKey ? t(item.labelKey, { defaultValue: item.fallbackLabel }) : item.fallbackLabel
+          const desc = item.descriptionKey ? t(item.descriptionKey, { defaultValue: item.description }) : item.description
           const on = !!prefs[item.id]
           const lastOne = on && enabledCount <= 1
           const isDragging = dragId === item.id
@@ -128,10 +129,10 @@ export function RightPanelsSettings() {
                   <div className="flex items-center gap-2">
                     <div className="text-[13px] font-medium text-foreground">{label}</div>
                     {item.source === 'adapter' && (
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">适配器</span>
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] text-primary">{t('adapters:title')}</span>
                     )}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-muted-foreground/70">{item.description}</div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground/70">{desc}</div>
                   <div className="mt-1 font-mono text-[10px] text-muted-foreground/45">
                     {item.id}
                     {item.adapterId ? ` · ${item.adapterId}` : ''}

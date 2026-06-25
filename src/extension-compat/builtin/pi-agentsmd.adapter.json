@@ -2,7 +2,23 @@
   "id": "pi-agentsmd",
   "displayName": "Agents.md",
   "description": "AGENTS.md 生成（无斜杠入口）",
-  "match": { "names": ["pi-agentsmd"] },
+  "match": {
+    "names": [
+      "pi-agentsmd"
+    ]
+  },
   "tier": "headless",
-  "config": { "note": "AGENTS.md 生成由扩展自管；桌面无配置项。" }
+  "config": {
+    "note": "AGENTS.md 生成由扩展自管；桌面无配置项。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Agents.md",
+      "description": "AGENTS.md 生成（无斜杠入口）"
+    },
+    "en": {
+      "displayName": "Agents.md",
+      "description": "AGENTS.md generator; list and entry included"
+    }
+  }
 }

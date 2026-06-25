@@ -115,7 +115,7 @@ export default function App() {
   }, [pendingExtensionConfig])
 
   const currentSessionId = useUIStore((s) => s.currentSessionId)
-  const timelineItems = useUIStore((s) => s.timelineItems)
+  const timelineItemCount = useUIStore((s) => s.timelineItems.length)
   const historyLoading = useUIStore((s) => s.historyLoading)
 
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function App() {
   const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
-  const isHomeMode = !currentSessionId && timelineItems.length === 0 && !ephemeralSandboxDraft && !historyLoading
+  const isHomeMode = !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
 
   const handleSelectProject = async (path: string) => {
@@ -161,7 +161,7 @@ export default function App() {
               setView('main')
               void refreshComposerRunDisplay()
             }}
-            title={t('settings.title')}
+            title={t('settings:title')}
           />
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <ErrorBoundary label="settings">

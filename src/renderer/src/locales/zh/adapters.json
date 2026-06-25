@@ -1,0 +1,13 @@
+{
+  "title": "适配器",
+  "openConfig": "打开配置",
+  "tier": {
+    "native": "完整",
+    "partial": "部分",
+    "headless": "仅执行",
+    "none": "无"
+  },
+  "desktop": "桌面",
+  "probe": "probe",
+  "version": "版本"
+}

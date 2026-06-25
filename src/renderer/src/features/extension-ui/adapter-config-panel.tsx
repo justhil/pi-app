@@ -1,10 +1,12 @@
 // Adapter primitive registry & schema-driven config form (兼容层 v2 renderer side)
 // 见 docs/adapter-layer-plan.md §4.1
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { RefreshCw, Plug } from 'lucide-react'
 import type { AdapterJson, ConfigField, DerivedRow } from '@extension-compat/adapter-schema'
+import { resolveAdapterText } from '@extension-compat/adapter-schema'
 
 // Template resolver: ${field} + simple ternary ${cond?true:false}
 export function evalTpl(tplStr: string | undefined, view: Record<string, unknown>): string {
@@ -20,6 +22,7 @@ export function evalTpl(tplStr: string | undefined, view: Record<string, unknown
 }
 
 function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigField; value: unknown; isSet?: boolean; adapterId: string; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation()
   const label = field.label || field.key
   if (field.type === 'boolean') {
     return (
@@ -46,7 +49,7 @@ function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigF
         <input
           type="password"
           autoComplete="off"
-          placeholder={set ? `已设置 ${(value as string) || ''}` : '未配置'}
+          placeholder={set ? `${t('extension:configured')} ${(value as string) || ''}` : t('extension:notConfigured')}
           className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1.5 font-mono text-[12px]"
           value={(value as string) || ''}
           onChange={(e) => onChange(e.target.value)}
@@ -67,6 +70,7 @@ function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigF
 }
 
 function SelectField({ field, value, adapterId, onChange }: { field: ConfigField; value: unknown; adapterId: string; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation()
   const label = field.label || field.key
   const isDynamic = !!field.optionsFrom
   const [dynamicOpts, setDynamicOpts] = useState<string[] | null>(null)
@@ -105,10 +109,10 @@ function SelectField({ field, value, adapterId, onChange }: { field: ConfigField
             onClick={fetchOpts}
             disabled={fetching}
             className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-40"
-            title="重新拉取模型列表"
+            title={t('extension:fetchList')}
           >
             <RefreshCw className={cn('h-3 w-3', fetching && 'animate-spin')} />
-            {fetching ? '拉取中' : '刷新'}
+            {fetching ? t('extension:fetching') : t('extension:refreshList')}
           </button>
         )}
       </div>
@@ -117,9 +121,9 @@ function SelectField({ field, value, adapterId, onChange }: { field: ConfigField
         value={currentVal}
         onChange={(e) => onChange(e.target.value)}
       >
-        {!currentInList && currentVal && <option value={currentVal}>{currentVal}（当前）</option>}
-        {!currentVal && <option value="">未选择</option>}
-        {isDynamic && options.length === 0 && !fetching && <option value="" disabled>（点刷新拉取）</option>}
+        {!currentInList && currentVal && <option value={currentVal}>{currentVal}（{t('extension:current')}）</option>}
+        {!currentVal && <option value="">{t('extension:selectPlaceholder')}</option>}
+        {isDynamic && options.length === 0 && !fetching && <option value="" disabled>{t('extension:clickToFetch')}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
       {hint && <div className="mt-0.5 text-[10px] text-destructive/70">{hint}</div>}
@@ -151,7 +155,9 @@ function StatusGrid({ rows, view }: { rows: DerivedRow[]; view: Record<string, u
 
 /** Generic schema-driven adapter config panel. Replaces per-plugin config components. */
 export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
+  const { t, i18n } = useTranslation()
   const cfg = adapter.config
+  const resolved = useMemo(() => resolveAdapterText(adapter, i18n.language), [adapter, i18n.language])
   const [view, setView] = useState<Record<string, unknown>>({})
   const [draft, setDraft] = useState<Record<string, unknown>>({})
   const [saving, setSaving] = useState(false)
@@ -187,7 +193,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
   }
 
   const runAction = async (actionId: string) => {
-    setActionResult((p) => ({ ...p, [actionId]: { ok: true, lines: ['执行中…'] } }))
+    setActionResult((p) => ({ ...p, [actionId]: { ok: true, lines: [t('extension:executing')] } }))
     try {
       const r = await ipcClient.invoke('adapter.action.run', { adapterId: adapter.id, actionId })
       setActionResult((p) => ({ ...p, [actionId]: r }))
@@ -196,13 +202,13 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
     }
   }
 
-  if (loading) return <div className="text-[12px] text-muted-foreground/50">加载 {adapter.displayName || adapter.id} 配置…</div>
+  if (loading) return <div className="text-[12px] text-muted-foreground/50">{t('extension:loading', { name: resolved.displayName || adapter.id })}</div>
 
   if (!cfg || (!cfg.sections?.length && !cfg.actions?.length)) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4">
         <div className="text-[12px] font-medium text-foreground/80">{adapter.displayName || adapter.id}</div>
-        <div className="mt-1 text-[11px] text-muted-foreground/60">{cfg?.note || '该扩展自管配置，桌面无可编辑项。'}</div>
+        <div className="mt-1 text-[11px] text-muted-foreground/60">{resolved.note || t('extension:noConfig')}</div>
       </div>
     )
   }
@@ -213,7 +219,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={load} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] hover:bg-accent">
-          <RefreshCw className="h-3 w-3" /> 刷新
+          <RefreshCw className="h-3 w-3" /> {t('extension:refresh')}
         </button>
         {cfg.actions?.map((a) => (
           <button
@@ -222,7 +228,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
             onClick={() => runAction(a.id)}
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] hover:bg-accent"
           >
-            <Plug className="h-3 w-3" /> {a.label || a.id}
+            <Plug className="h-3 w-3" /> {resolved.actions.find((ra) => ra.id === a.id)?.label || a.label || a.id}
           </button>
         ))}
         <button
@@ -231,7 +237,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
           disabled={saving}
           className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
         >
-          {saving ? '保存中…' : '保存'}
+          {saving ? t('extension:saving') : t('extension:save')}
         </button>
       </div>
 
@@ -239,7 +245,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
         <p className="font-mono text-[10px] break-all text-muted-foreground/60">{String(cfg.configFile)}</p>
       )}
 
-      {cfg.sections?.map((sec, i) => (
+      {resolved.sections.map((sec, i) => (
         <div key={i} className="rounded-lg border border-border/50 bg-card/30 p-3 space-y-1">
           {sec.title && <div className="text-[11px] font-medium text-foreground/85">{sec.title}</div>}
           {sec.fields?.map((f) => (
@@ -252,11 +258,11 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
               onChange={(v) => setDraft((p) => ({ ...p, [f.key]: v }))}
             />
           ))}
-          {sec.derived && sec.derived.length > 0 && <StatusGrid rows={sec.derived} view={view} />}
+          {cfg.sections?.[i]?.derived && cfg.sections[i].derived!.length > 0 && <StatusGrid rows={cfg.sections[i].derived!} view={view} />}
         </div>
       ))}
 
-      {cfg.note && <p className="text-[11px] text-muted-foreground/70">{cfg.note}</p>}
+      {resolved.note && <p className="text-[11px] text-muted-foreground/70">{resolved.note}</p>}
 
       {Object.entries(actionResult).map(([id, r]) => (
         r.lines && r.lines.length > 0 && (

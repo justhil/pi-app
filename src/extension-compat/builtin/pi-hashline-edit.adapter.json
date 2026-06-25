@@ -3,9 +3,19 @@
   "displayName": "Hashline Edit",
   "description": "哈希锚定 read/edit/insert/grep；时间线专用 hashline 预览",
   "match": {
-    "names": ["@jerryan/pi-hashline-edit", "pi-hashline-edit"],
-    "tools": ["read", "edit", "insert", "grep"],
-    "commands": ["/tool-usage"]
+    "names": [
+      "@jerryan/pi-hashline-edit",
+      "pi-hashline-edit"
+    ],
+    "tools": [
+      "read",
+      "edit",
+      "insert",
+      "grep"
+    ],
+    "commands": [
+      "/tool-usage"
+    ]
   },
   "tier": "partial",
   "toolCard": {
@@ -18,5 +28,15 @@
   },
   "slash": {
     "/tool-usage": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Hashline Edit",
+      "description": "哈希锚定 read/edit/insert/grep；时间线专用 hashline 预览"
+    },
+    "en": {
+      "displayName": "Hashline Edit",
+      "description": "Hash-anchor read/edit/insert/grep; temporary file dedicated hashline preview"
+    }
   }
 }

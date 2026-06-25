@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
@@ -8,6 +9,7 @@ import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-
 import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
 import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
+import i18n from '@renderer/lib/i18n'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
@@ -43,6 +45,7 @@ export function ToolCallRow({
   item: any
   compact?: boolean
 }) {
+  const { t } = useTranslation()
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
@@ -82,7 +85,7 @@ export function ToolCallRow({
               useExtensionUIStore.getState().resumeSuspended()
             }}
           >
-            继续作答
+            {t('timeline:continueAnswering')}
           </button>
         ) : rawSum ? (
           <span className="ml-1 min-w-0 flex-1 truncate text-[11px] text-foreground-secondary">{rawSum}</span>
@@ -110,7 +113,7 @@ export function summarizeToolGroup(tools: any[]): { label: string; running: bool
   const running = tools.some((t) => t.toolPhase === 'start' || t.toolPhase === 'update')
   const hasError = tools.some((t) => t.isError)
   return {
-    label: `${tools.length} 次工具 · ${head}${more}`,
+    label: i18n.t('timeline:toolsCount', { count: tools.length, head, more }),
     running,
     hasError,
   }

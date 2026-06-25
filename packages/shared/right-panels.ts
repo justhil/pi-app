@@ -13,6 +13,7 @@ export interface RightPanelCatalogItem {
   labelKey?: string
   fallbackLabel: string
   description: string
+  descriptionKey?: string
   /** lucide 图标名；适配器栏目必填 */
   icon?: string
   source: 'core' | 'adapter'
@@ -22,10 +23,10 @@ export interface RightPanelCatalogItem {
 }
 
 export const CORE_RIGHT_PANEL_CATALOG: RightPanelCatalogItem[] = [
-  { id: 'review', labelKey: 'panel.review', fallbackLabel: 'Review', description: 'Git 变更与 diff（只读）', icon: 'GitBranch', source: 'core' },
-  { id: 'run', labelKey: 'panel.run', fallbackLabel: 'Run', description: '当前轮次状态与用量', icon: 'Activity', source: 'core' },
-  { id: 'context', labelKey: 'panel.context', fallbackLabel: 'Context', description: '会话上下文预览', icon: 'FileSearch', source: 'core' },
-  { id: 'tree', labelKey: 'panel.tree', fallbackLabel: 'Tree', description: '会话树 / 回退（同 /tree）', icon: 'GitBranch', source: 'core' },
+  { id: 'review', labelKey: 'panel.review', fallbackLabel: 'Review', description: 'Git changes & diff (read-only)', descriptionKey: 'panel.reviewDesc', icon: 'GitBranch', source: 'core' },
+  { id: 'run', labelKey: 'panel.run', fallbackLabel: 'Run', description: 'Current turn status & usage', descriptionKey: 'panel.runDesc', icon: 'Activity', source: 'core' },
+  { id: 'context', labelKey: 'panel.context', fallbackLabel: 'Context', description: 'Session context preview', descriptionKey: 'panel.contextDesc', icon: 'FileSearch', source: 'core' },
+  { id: 'tree', labelKey: 'panel.tree', fallbackLabel: 'Tree', description: 'Session tree / rewind (like /tree)', descriptionKey: 'panel.treeDesc', icon: 'GitBranch', source: 'core' },
 ]
 
 /** @deprecated */

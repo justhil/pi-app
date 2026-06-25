@@ -1,6 +1,7 @@
 // Desktop image_review dialog (替代 pi-image-gen TUI showReviewOverlay).
 // Renders when Worker emits custom kind=image_review: image preview + options + feedback.
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { Image as ImageIcon, X } from 'lucide-react'
@@ -31,6 +32,7 @@ export function ImageReviewDialog({
   onCancel: () => void
   onSubmit: (r: ImageReviewResult) => void
 }) {
+  const { t } = useTranslation()
   const [src, setSrc] = useState<string | null>(null)
   const [previewErr, setPreviewErr] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -86,7 +88,7 @@ export function ImageReviewDialog({
             <ImageIcon className="h-4 w-4 text-pink-500" />
             <span className="text-[13px] font-semibold">{payload.title}</span>
           </div>
-          <button type="button" onClick={onSuspend} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="稍后作答">
+          <button type="button" onClick={onSuspend} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label={t('extension:answerLater')}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -102,7 +104,7 @@ export function ImageReviewDialog({
           <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-border/50 bg-muted/20 p-2">
             {previewErr && (
               <div className="text-center text-[11px] text-muted-foreground/60">
-                无法预览图片
+                {t('extension:cannotPreview')}
                 <div className="mt-1 font-mono text-[10px]">{payload.image.split(/[\\/]/).pop()}</div>
               </div>
             )}
@@ -131,7 +133,7 @@ export function ImageReviewDialog({
             <textarea
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="反馈（可选）"
+              placeholder={t('extension:feedbackOptional')}
               className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary"
               rows={2}
             />
@@ -141,10 +143,10 @@ export function ImageReviewDialog({
         <div className="flex justify-between gap-2 border-t border-border/60 px-4 py-2.5">
           <div className="flex gap-2">
             <button type="button" onClick={onSuspend} className="rounded-md border border-border px-3 py-1.5 text-[12px] hover:bg-muted">
-              稍后作答
+              {t('extension:answerLater')}
             </button>
             <button type="button" onClick={onCancel} className="rounded-md border border-border px-3 py-1.5 text-[12px] text-muted-foreground hover:bg-muted">
-              取消
+              {t('extension:cancel')}
             </button>
           </div>
           <button

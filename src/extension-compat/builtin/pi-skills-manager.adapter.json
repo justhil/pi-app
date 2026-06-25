@@ -3,13 +3,31 @@
   "displayName": "Skills Manager",
   "description": "技能发现与桌面启停（列出 Worker 已加载技能）",
   "match": {
-    "names": ["@vanillagreen/pi-skills-manager"],
-    "commands": ["/skill", "/skill:enable"]
+    "names": [
+      "@vanillagreen/pi-skills-manager"
+    ],
+    "commands": [
+      "/skill",
+      "/skill:enable"
+    ]
   },
   "tier": "headless",
   "config": {
     "note": "技能列表来自 Worker resourceLoader.getSkills（动态）；桌面仅控制每技能的桌面禁用，不写 pi settings.json。",
     "customRenderer": "skills-manager"
   },
-  "slash": { "/skill": "config-page", "/skill:enable": "notify" }
+  "slash": {
+    "/skill": "config-page",
+    "/skill:enable": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Skills Manager",
+      "description": "技能发现与桌面启停（列出 Worker 已加载技能）"
+    },
+    "en": {
+      "displayName": "Skills Manager",
+      "description": "技能发现与桌面启停（列出 Worker 已加载技能）"
+    }
+  }
 }

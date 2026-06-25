@@ -2,9 +2,16 @@
   "id": "pi-ace-tool",
   "displayName": "ACE Tool",
   "description": "ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试）",
-  "match": { "names": ["pi-ace-tool"] },
+  "match": {
+    "names": [
+      "pi-ace-tool"
+    ]
+  },
   "tier": "headless",
-  "toolCard": { "template": "default", "icon": "Sparkles" },
+  "toolCard": {
+    "template": "default",
+    "icon": "Sparkles"
+  },
   "config": {
     "configFile": "~/.pi/agent/ace-tool.json",
     "fileKeyMap": {
@@ -25,19 +32,81 @@
       {
         "title": "API 连接",
         "fields": [
-          { "key": "apiMode", "type": "select", "label": "API 模式", "default": "auto", "description": "auto=按可用凭证自动选择；compat=兼容代理；official-oauth=官方 OAuth", "options": ["auto", "compat", "official-oauth"] },
-          { "key": "baseUrl", "type": "text", "label": "Compat Base URL", "description": "compat 模式的中转地址（含尾斜杠）" },
-          { "key": "token", "type": "secret", "label": "Compat Token", "description": "输入 - 清除已保存 token" },
-          { "key": "autoIndexOnSessionStart", "type": "boolean", "label": "会话开始自动索引", "default": false }
-        ]
+          {
+            "key": "apiMode",
+            "type": "select",
+            "label": "API 模式",
+            "default": "auto",
+            "description": "auto=按可用凭证自动选择；compat=兼容代理；official-oauth=官方 OAuth",
+            "options": [
+              "auto",
+              "compat",
+              "official-oauth"
+            ]
+          },
+          {
+            "key": "baseUrl",
+            "type": "text",
+            "label": "Compat Base URL",
+            "description": "compat 模式的中转地址（含尾斜杠）"
+          },
+          {
+            "key": "token",
+            "type": "secret",
+            "label": "Compat Token",
+            "description": "输入 - 清除已保存 token"
+          },
+          {
+            "key": "autoIndexOnSessionStart",
+            "type": "boolean",
+            "label": "会话开始自动索引",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "API 连接"
+          },
+          "en": {
+            "title": "ACE Capabilities"
+          }
+        }
       },
       {
         "title": "提示词增强",
         "fields": [
-          { "key": "promptEnhancerMode", "type": "select", "label": "增强模式", "default": "pi-model", "options": ["official", "pi-model"] },
-          { "key": "promptEnhancerModel", "type": "text", "label": "增强模型", "default": "CloseAI/minimax-m2.7", "description": "provider/model 格式" },
-          { "key": "promptEnhancerIncludeSearchContext", "type": "boolean", "label": "增强时包含搜索上下文", "default": true }
-        ]
+          {
+            "key": "promptEnhancerMode",
+            "type": "select",
+            "label": "增强模式",
+            "default": "pi-model",
+            "options": [
+              "official",
+              "pi-model"
+            ]
+          },
+          {
+            "key": "promptEnhancerModel",
+            "type": "text",
+            "label": "增强模型",
+            "default": "CloseAI/minimax-m2.7",
+            "description": "provider/model 格式"
+          },
+          {
+            "key": "promptEnhancerIncludeSearchContext",
+            "type": "boolean",
+            "label": "增强时包含搜索上下文",
+            "default": true
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "提示词增强"
+          },
+          "en": {
+            "title": "Connectivity Test"
+          }
+        }
       }
     ],
     "actions": [
@@ -47,10 +116,36 @@
         "label": "测试连接",
         "method": "GET",
         "url": "${baseUrl}health",
-        "headers": { "Authorization": "Bearer ${token}" },
+        "headers": {
+          "Authorization": "Bearer ${token}"
+        },
         "timeoutMs": 15000
       }
     ],
-    "note": "配置写入 ~/.pi/agent/ace-tool.json（与扩展共享）。apiMode=official-oauth 需先在终端 /ace-login 完成 OAuth。"
+    "note": "配置写入 ~/.pi/agent/ace-tool.json（与扩展共享）。apiMode=official-oauth 需先在终端 /ace-login 完成 OAuth。",
+    "i18n": {
+      "zh": {
+        "note": "配置写入 ~/.pi/agent/ace-tool.json（与扩展共享）。apiMode=official-oauth 需先在终端 /ace-login 完成 OAuth。"
+      },
+      "en": {
+        "note": "Writes ~/.pi/agent/ace-tool.json. Connectivity test verifies the endpoint is reachable."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "ACE Tool",
+      "description": "ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试）",
+      "actionLabels": {
+        "test": "测试连接"
+      }
+    },
+    "en": {
+      "displayName": "ACE Tool",
+      "description": "ACE tool capability manager; writes ~/.pi/agent/ace-tool.json + connectivity test",
+      "actionLabels": {
+        "test": "测试连接"
+      }
+    }
   }
 }

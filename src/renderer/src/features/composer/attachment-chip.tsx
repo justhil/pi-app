@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { getAttachmentIcon, type AttachmentMeta } from './attachments'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -13,9 +14,10 @@ export function AttachmentChip({
   attachment: AttachmentMeta
   onRemove?: () => void
   className?: string
-  /** 已发送消息中的 chip 可点击用系统默认应用打开文件 */
+  /** Clickable chips open files with system default app */
   openable?: boolean
 }) {
+  const { t } = useTranslation()
   const Icon = getAttachmentIcon(attachment.kind)
   const handleOpen = () => {
     void ipcClient.invoke('shell.openPath', { path: attachment.path })
@@ -37,7 +39,7 @@ export function AttachmentChip({
           type="button"
           onClick={(e) => { e.stopPropagation(); onRemove() }}
           className="attachment-chip-remove -mr-0.5 rounded p-0.5 opacity-45"
-          aria-label="移除文件"
+          aria-label={t('composer:removeFile')}
         >
           <X className="h-3 w-3" />
         </button>

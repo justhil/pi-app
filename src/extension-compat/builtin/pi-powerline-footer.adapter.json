@@ -3,13 +3,36 @@
   "displayName": "Powerline Footer",
   "description": "Powerline 页脚状态栏（桌面无对应组件）",
   "match": {
-    "names": ["pi-powerline-footer"],
-    "commands": ["/powerline", "/stash-history", "/bash-mode", "/bash-reset", "/vibe"]
+    "names": [
+      "pi-powerline-footer"
+    ],
+    "commands": [
+      "/powerline",
+      "/stash-history",
+      "/bash-mode",
+      "/bash-reset",
+      "/vibe"
+    ]
   },
   "tier": "none",
-  "config": { "note": "Powerline 样式页脚状态栏；桌面用独立 Appearance 设置。" },
+  "config": {
+    "note": "Powerline 样式页脚状态栏；桌面用独立 Appearance 设置。"
+  },
   "slash": {
-    "/powerline": "notify", "/stash-history": "notify",
-    "/bash-mode": "notify", "/bash-reset": "notify", "/vibe": "notify"
+    "/powerline": "notify",
+    "/stash-history": "notify",
+    "/bash-mode": "notify",
+    "/bash-reset": "notify",
+    "/vibe": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Powerline Footer",
+      "description": "Powerline 页脚状态栏（桌面无对应组件）"
+    },
+    "en": {
+      "displayName": "Powerline Footer",
+      "description": "Powerline footer status indicator; desktop-side adapter only"
+    }
   }
 }

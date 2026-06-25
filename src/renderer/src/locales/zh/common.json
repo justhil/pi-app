@@ -10,7 +10,22 @@
   "sidebar": {
     "sessions": "会话列表",
     "settings": "设置",
-    "openProject": "打开文件夹"
+    "openProject": "打开文件夹",
+    "tempChat": "临时对话",
+    "newTempChat": "新建临时对话",
+    "newChat": "新对话",
+    "clickToAdd": "点 + 新建",
+    "removeProjectConfirm": "从列表移除项目「{{name}}」？文件夹不会被删除。",
+    "removeFailed": "移除失败",
+    "removed": "已从列表移除",
+    "removeFromList": "从列表移除",
+    "noSessions": "无会话",
+    "conversations": "对话",
+    "firstMsgIsTitle": "首条消息即标题",
+    "projects": "项目",
+    "renamed": "已重命名",
+    "renameFailed": "重命名失败",
+    "deleteConfirm": "删除「{{name}}」？目录与 pi 会话将一并移除。"
   },
   "composer": {
     "placeholder": "消息或 / 命令",
@@ -23,7 +38,11 @@
     "trellis": "Trellis",
     "run": "Run",
     "context": "Context",
-    "tree": "Tree"
+    "tree": "Tree",
+    "reviewDesc": "Git 变更与 diff（只读）",
+    "runDesc": "当前轮次状态与用量",
+    "contextDesc": "会话上下文预览",
+    "treeDesc": "会话树 / 回退（同 /tree）"
   },
   "settings": {
     "title": "设置",
@@ -57,5 +76,26 @@
   "topbar": {
     "project": "当前项目",
     "session": "当前会话"
-  }
+  },
+  "save": "保存",
+  "saving": "保存中…",
+  "saveFailed": "保存失败",
+  "settingsSaved": "设置已保存",
+  "unsavedChanges": "有未保存的更改",
+  "allChangesSaved": "所有更改已保存",
+  "discard": "放弃更改",
+  "reverted": "已还原为上次保存",
+  "operationFailed": "操作失败",
+  "reload": "重新加载",
+  "refresh": "刷新",
+  "loading": "加载中…",
+  "cancel": "取消",
+  "confirm": "确定",
+  "close": "关闭",
+  "back": "返回",
+  "error": "错误",
+  "retry": "重试",
+  "newSession": "新会话",
+  "loadingSettings": "加载设置…",
+  "resetToDefault": "恢复默认"
 }

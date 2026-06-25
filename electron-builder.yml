@@ -12,6 +12,13 @@ extraFiles:
   - from: build/icon.png
     to: resources/build/icon.png
 
+# 可选：运行 scripts/fetch-codex-asr 后放入 resources/codex-asr；缺失时回退 PATH 中的 codex-asr
+extraResources:
+  - from: resources/codex-asr
+    to: codex-asr
+    filter:
+      - "**/*"
+
 win:
   target:
     - target: nsis

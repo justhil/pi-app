@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { QuestionnaireDialog, type AskQuestionPayload } from './questionnaire-dialog'
 import { ImageReviewDialog, type ImageReviewPayload } from './image-review-dialog'
@@ -59,6 +60,7 @@ function suspendActiveDialog() {
 }
 
 export function ExtensionUIHost() {
+  const { t } = useTranslation()
   const pending = useExtensionUIStore((s) => s.activePending)
   const clearAfterRespond = useExtensionUIStore((s) => s.clearAfterRespond)
   const [inputValue, setInputValue] = useState('')
@@ -123,7 +125,7 @@ export function ExtensionUIHost() {
             className="mt-3 w-full rounded-md border border-border px-3 py-2 text-[13px] text-muted-foreground hover:bg-muted"
             onClick={() => cancelWorker(pending.id)}
           >
-            取消（通知扩展）
+            {t('extension:cancelNotifyExt')}
           </button>
         </ExtensionDialogShell>
       ) : pending.method === 'confirm' ? (
@@ -133,7 +135,7 @@ export function ExtensionUIHost() {
           </pre>
           <div className="flex justify-end gap-2">
             <button type="button" className="rounded-md border px-3 py-1.5 text-[13px]" onClick={() => cancelWorker(pending.id)}>
-              取消
+              {t('extension:cancel')}
             </button>
             <button
               type="button"
@@ -143,7 +145,7 @@ export function ExtensionUIHost() {
                 clearAfterRespond()
               }}
             >
-              否
+              {t('extension:no')}
             </button>
             <button
               type="button"
@@ -153,7 +155,7 @@ export function ExtensionUIHost() {
                 clearAfterRespond()
               }}
             >
-              是
+              {t('extension:yes')}
             </button>
           </div>
         </ExtensionDialogShell>
@@ -167,7 +169,7 @@ export function ExtensionUIHost() {
           />
           <div className="flex justify-end gap-2">
             <button type="button" className="rounded-md border px-3 py-1.5 text-[13px]" onClick={() => cancelWorker(pending.id)}>
-              取消
+              {t('extension:cancel')}
             </button>
             <button
               type="button"
@@ -177,7 +179,7 @@ export function ExtensionUIHost() {
                 clearAfterRespond()
               }}
             >
-              确定
+              {t('extension:confirm')}
             </button>
           </div>
         </ExtensionDialogShell>

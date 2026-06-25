@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { ChevronDown, ChevronRight, FolderOpen, Plus, Folder, Inbox } from 'lucide-react'
@@ -48,6 +49,7 @@ export function ProjectSidebar({
   onOpenProject: () => void
   openProjectLabel: string
 }) {
+  const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -227,9 +229,9 @@ export function ProjectSidebar({
     return (
     <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
       {loading ? (
-        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">加载中</p>
+        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:loading')}</p>
       ) : projectSessions.length === 0 ? (
-        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">无会话</p>
+        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noSessions')}</p>
       ) : (
         <>
         {projectSessions.map((s) => (
@@ -354,7 +356,7 @@ export function ProjectSidebar({
               e.stopPropagation()
               void handleNewSessionInProject(path)
             }}
-            title="新会话"
+            title={t('common:newSession')}
             className="chrome-icon-btn ml-0.5 cursor-pointer rounded p-1"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -401,7 +403,7 @@ export function ProjectSidebar({
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-1">
-        <button type="button" onClick={() => void handleNewSandboxDialog()} title="临时对话" className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
+        <button type="button" onClick={() => void handleNewSandboxDialog()} title={t('sidebar.tempChat')} className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
           <Plus className="h-4 w-4" />
         </button>
         <button type="button" onClick={onOpenProject} title={openProjectLabel} className="chrome-icon-btn flex h-8 w-8 items-center justify-center rounded-lg">
@@ -436,13 +438,13 @@ export function ProjectSidebar({
               className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80"
               data-open={sectionOpen ? 'true' : 'false'}
             />
-            <span className="text-[11px] font-medium tracking-wide text-foreground-secondary/75">对话</span>
+            <span className="text-[11px] font-medium tracking-wide text-foreground-secondary/75">{t('common:sidebar.conversations')}</span>
             <span className="text-[10px] tabular-nums text-foreground-secondary/60">{sandboxes.length}</span>
           </button>
           <button
             type="button"
             onClick={() => void handleNewSandboxDialog()}
-            title="新建临时对话"
+            title={t('sidebar.newTempChat')}
             className="chrome-icon-btn shrink-0 cursor-pointer rounded-md p-1.5"
           >
             <Plus className="h-4 w-4" />
@@ -455,13 +457,13 @@ export function ProjectSidebar({
                 <div className="nav-row-active mb-0.5 flex min-h-[40px] items-center gap-2.5 rounded-lg px-3 py-2">
                   <Inbox className="h-4 w-4 shrink-0 text-brand" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] text-foreground">新对话</div>
-                    <div className="text-[11px] text-foreground-secondary/80">首条消息即标题</div>
+                    <div className="truncate text-[14px] text-foreground">{t('sidebar.newChat')}</div>
+                    <div className="text-[11px] text-foreground-secondary/80">{t('common:sidebar.firstMsgIsTitle')}</div>
                   </div>
                 </div>
               )}
               {sandboxes.length === 0 && !ephemeralSandboxDraft ? (
-                <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">点 + 新建</p>
+                <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">{t('sidebar.clickToAdd')}</p>
               ) : (
                 sandboxes.map(renderSandboxDialogRow)
               )}
@@ -486,9 +488,9 @@ export function ProjectSidebar({
         onListChange={refreshAllSessionLists}
       />
       <div className="mt-2 px-1.5">
-        <div className="px-2 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/75">项目</div>
+        <div className="px-2 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/75">{t('common:sidebar.projects')}</div>
         {diskPaths.length === 0 ? (
-          <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">打开文件夹</p>
+          <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">{t('sidebar.openProject')}</p>
         ) : (
           diskPaths.map(renderDiskProjectRow)
         )}

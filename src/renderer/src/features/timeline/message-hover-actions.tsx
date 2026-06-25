@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { Copy, Check, Undo2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
-/** 消息 hover 复制行：用 React hover 状态驱动，比纯 CSS group 更稳定可见 */
+/** Hover actions for messages: copy, rewind */
 export function MessageHoverActions({
   text,
   timestamp,
@@ -16,6 +17,7 @@ export function MessageHoverActions({
   sessionEntryId?: string
   onRewind?: (entryId: string) => void
 }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const copy = () => {
     navigator.clipboard.writeText(text).then(() => {
@@ -33,8 +35,8 @@ export function MessageHoverActions({
           className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
           title={
             sessionEntryId
-              ? '跳转到此节点（同 TUI /tree）'
-              : '跳转需会话 entry id（切换会话或发送一条消息后再试）'
+              ? t('timeline:jumpToNode')
+              : t('timeline:jumpNeedEntry')
           }
         >
           <Undo2 className="h-3.5 w-3.5" />
@@ -44,7 +46,7 @@ export function MessageHoverActions({
         type="button"
         onClick={copy}
         className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary"
-        title="复制"
+        title={t('timeline:copy')}
       >
         {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
       </button>

@@ -3,12 +3,24 @@
   "displayName": "Fast Context",
   "description": "语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试）",
   "match": {
-    "names": ["pi-fast-context"],
-    "tools": ["fast_context_search"],
-    "commands": ["/fast-context-status", "/fast-context-config", "/fast-context-import-key"]
+    "names": [
+      "pi-fast-context"
+    ],
+    "tools": [
+      "fast_context_search"
+    ],
+    "commands": [
+      "/fast-context-status",
+      "/fast-context-config",
+      "/fast-context-import-key"
+    ]
   },
   "tier": "headless",
-  "toolCard": { "template": "list", "icon": "Search", "statusField": "$.output.text" },
+  "toolCard": {
+    "template": "list",
+    "icon": "Search",
+    "statusField": "$.output.text"
+  },
   "config": {
     "configFile": "~/.pi/agent/fast-context.json",
     "fileKeyMap": {
@@ -51,45 +63,179 @@
       {
         "title": "API 与索引",
         "fields": [
-          { "key": "apiKey", "type": "secret", "label": "API Key", "description": "嵌入服务密钥；留空则用 WINDSURF_API_KEY 自动发现" },
-          { "key": "dbPath", "type": "text", "label": "索引数据库路径", "description": "留空使用默认 ~/.pi/agent/fast-context.db" }
-        ]
+          {
+            "key": "apiKey",
+            "type": "secret",
+            "label": "API Key",
+            "description": "嵌入服务密钥；留空则用 WINDSURF_API_KEY 自动发现"
+          },
+          {
+            "key": "dbPath",
+            "type": "text",
+            "label": "索引数据库路径",
+            "description": "留空使用默认 ~/.pi/agent/fast-context.db"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "API 与索引"
+          },
+          "en": {
+            "title": "API Settings"
+          }
+        }
       },
       {
         "title": "搜索行为",
         "fields": [
-          { "key": "treeDepth", "type": "number", "label": "仓库树深度", "default": 2 },
-          { "key": "maxTurns", "type": "number", "label": "最大搜索轮数", "default": 2 },
-          { "key": "maxCommands", "type": "number", "label": "每轮最大命令数", "default": 8 },
-          { "key": "maxResults", "type": "number", "label": "最大结果数", "default": 8 },
-          { "key": "timeoutSecs", "type": "number", "label": "超时（秒）", "default": 60 }
-        ]
+          {
+            "key": "treeDepth",
+            "type": "number",
+            "label": "仓库树深度",
+            "default": 2
+          },
+          {
+            "key": "maxTurns",
+            "type": "number",
+            "label": "最大搜索轮数",
+            "default": 2
+          },
+          {
+            "key": "maxCommands",
+            "type": "number",
+            "label": "每轮最大命令数",
+            "default": 8
+          },
+          {
+            "key": "maxResults",
+            "type": "number",
+            "label": "最大结果数",
+            "default": 8
+          },
+          {
+            "key": "timeoutSecs",
+            "type": "number",
+            "label": "超时（秒）",
+            "default": 60
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "搜索行为"
+          },
+          "en": {
+            "title": "Index"
+          }
+        }
       },
       {
         "title": "仓库图模式",
         "fields": [
-          { "key": "repoMapMode", "type": "select", "label": "Repo Map 模式", "default": "classic", "options": ["classic", "bootstrap_hotspot"] },
-          { "key": "excludePaths", "type": "text", "label": "排除路径（逗号分隔）", "description": "如 node_modules,dist,.git" }
-        ]
+          {
+            "key": "repoMapMode",
+            "type": "select",
+            "label": "Repo Map 模式",
+            "default": "classic",
+            "options": [
+              "classic",
+              "bootstrap_hotspot"
+            ]
+          },
+          {
+            "key": "excludePaths",
+            "type": "text",
+            "label": "排除路径（逗号分隔）",
+            "description": "如 node_modules,dist,.git"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "仓库图模式"
+          },
+          "en": {
+            "title": "Connectivity Test"
+          }
+        }
       },
       {
         "title": "Bootstrap / Hotspot",
         "fields": [
-          { "key": "bootstrapEnabled", "type": "boolean", "label": "启用 Bootstrap", "default": false },
-          { "key": "bootstrapTreeDepth", "type": "number", "label": "Bootstrap 树深度", "default": 3 },
-          { "key": "bootstrapMaxTurns", "type": "number", "label": "Bootstrap 最大轮数", "default": 1 },
-          { "key": "bootstrapMaxCommands", "type": "number", "label": "Bootstrap 最大命令数", "default": 6 },
-          { "key": "hotspotTopK", "type": "number", "label": "Hotspot TopK", "default": 8 },
-          { "key": "hotspotTreeDepth", "type": "number", "label": "Hotspot 树深度", "default": 4 },
-          { "key": "hotspotMaxBytes", "type": "number", "label": "Hotspot 最大字节", "default": 20000 }
-        ]
+          {
+            "key": "bootstrapEnabled",
+            "type": "boolean",
+            "label": "启用 Bootstrap",
+            "default": false
+          },
+          {
+            "key": "bootstrapTreeDepth",
+            "type": "number",
+            "label": "Bootstrap 树深度",
+            "default": 3
+          },
+          {
+            "key": "bootstrapMaxTurns",
+            "type": "number",
+            "label": "Bootstrap 最大轮数",
+            "default": 1
+          },
+          {
+            "key": "bootstrapMaxCommands",
+            "type": "number",
+            "label": "Bootstrap 最大命令数",
+            "default": 6
+          },
+          {
+            "key": "hotspotTopK",
+            "type": "number",
+            "label": "Hotspot TopK",
+            "default": 8
+          },
+          {
+            "key": "hotspotTreeDepth",
+            "type": "number",
+            "label": "Hotspot 树深度",
+            "default": 4
+          },
+          {
+            "key": "hotspotMaxBytes",
+            "type": "number",
+            "label": "Hotspot 最大字节",
+            "default": 20000
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "Bootstrap / Hotspot"
+          },
+          "en": {
+            "title": "Status"
+          }
+        }
       }
     ],
-    "note": "配置写入 ~/.pi/agent/fast-context.json（与扩展 CLI/TUI 共享）。apiKey 留空时扩展会自动发现 WINDSURF_API_KEY。"
+    "note": "配置写入 ~/.pi/agent/fast-context.json（与扩展 CLI/TUI 共享）。apiKey 留空时扩展会自动发现 WINDSURF_API_KEY。",
+    "i18n": {
+      "zh": {
+        "note": "配置写入 ~/.pi/agent/fast-context.json（与扩展 CLI/TUI 共享）。apiKey 留空时扩展会自动发现 WINDSURF_API_KEY。"
+      },
+      "en": {
+        "note": "Writes ~/.pi/agent/fast-context.json. Connectivity test verifies the API key works."
+      }
+    }
   },
   "slash": {
     "/fast-context-status": "notify",
     "/fast-context-config": "config-page",
     "/fast-context-import-key": "config-page"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Fast Context",
+      "description": "语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试）"
+    },
+    "en": {
+      "displayName": "Fast Context",
+      "description": "Semantic context search; writes ~/.pi/agent/fast-context.json + connectivity test"
+    }
   }
 }

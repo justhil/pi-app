@@ -80,6 +80,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   workerManager.stop()
+  void import('./asr/codex-asr-manager').then((m) => m.stopBuiltinCodexAsrServe())
   if (process.platform !== 'darwin') {
     app.quit()
   }

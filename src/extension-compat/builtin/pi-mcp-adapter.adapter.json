@@ -2,10 +2,24 @@
   "id": "pi-mcp-adapter",
   "displayName": "MCP Adapter",
   "description": "MCP 服务器适配器（连接诊断只读）",
-  "match": { "names": ["pi-mcp-adapter"] },
+  "match": {
+    "names": [
+      "pi-mcp-adapter"
+    ]
+  },
   "tier": "headless",
   "config": {
     "note": "MCP 连接与服务器配置由扩展在 pi/TUI 自管；桌面配置页仅展示诊断说明。",
     "customRenderer": "mcp-diagnostics"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "MCP Adapter",
+      "description": "MCP 服务器适配器（连接诊断只读）"
+    },
+    "en": {
+      "displayName": "MCP Adapter",
+      "description": "MCP server manager; start/stop and status display"
+    }
   }
 }

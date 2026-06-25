@@ -548,7 +548,7 @@ export function ReviewPanel() {
         ) : files.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12">
             <FileDiff className="h-8 w-8 text-muted-foreground/25" />
-            <span className="text-[11px] text-muted-foreground/40">{t('review.empty')}</span>
+            <span className="text-[11px] text-muted-foreground/40">{t('review:empty')}</span>
           </div>
         ) : scope === 'git' ? (
           <div className="py-1">

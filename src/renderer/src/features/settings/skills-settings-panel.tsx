@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -30,6 +31,7 @@ function overridesEqual(a: Record<string, boolean>, b: Record<string, boolean>):
 }
 
 export function SkillsSettingsPanel() {
+  const { t } = useTranslation()
   const [skills, setSkills] = useState<SkillRow[]>([])
   const [baseline, setBaseline] = useState<Record<string, boolean>>({})
   const [draft, setDraft] = useState<Record<string, boolean>>({})
@@ -116,20 +118,19 @@ export function SkillsSettingsPanel() {
         <div>
           <h3 className="text-[15px] font-semibold">Skills</h3>
           <p className="mt-1 text-[11px] text-muted-foreground/75 leading-relaxed">
-            默认全部启用。启停写入 <code className="rounded bg-muted px-1 text-[10px]">~/.pi/agent/settings.json</code> 的{' '}
-            <code className="text-[10px]">desktopSkillOverrides</code>。修改后请用页面底部「保存」（即时写盘，不重载 Worker）。
+            {t('settings:skills.hint')}
           </p>
         </div>
-        <button type="button" className="rounded-md p-2 hover:bg-muted" title="刷新" onClick={() => void load()}>
+        <button type="button" className="rounded-md p-2 hover:bg-muted" title={t('common:refresh')} onClick={() => void load()}>
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
         </button>
       </div>
 
       <div className="rounded-xl border border-border/50 bg-card/20">
         {loading ? (
-          <p className="p-4 text-[12px] text-muted-foreground">加载…</p>
+          <p className="p-4 text-[12px] text-muted-foreground">{t('common:loading')}</p>
         ) : displayRows.length === 0 ? (
-          <p className="p-4 text-[12px] text-muted-foreground">未发现 skill（先打开工作区）</p>
+          <p className="p-4 text-[12px] text-muted-foreground">{t('settings:skills.empty')}</p>
         ) : (
           <ul className="divide-y divide-border/40">
             {displayRows.map((s) => (

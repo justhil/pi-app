@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Check, Plus, Search } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 
@@ -17,6 +18,7 @@ export function ModelCatalogPicker({
   onAdd: (id: string) => void
   onAddAllNew?: () => void
 }) {
+  const { t } = useTranslation()
   const [q, setQ] = useState('')
 
   const filtered = useMemo(() => {
@@ -39,7 +41,7 @@ export function ModelCatalogPicker({
             animation: 'skeleton-shimmer 1.2s ease-in-out infinite',
           }}
         />
-        <p className="mt-3 text-[12px] text-muted-foreground animate-thinking-pulse">拉取中…</p>
+        <p className="mt-3 text-[12px] text-muted-foreground animate-thinking-pulse">{t('models.fetching')}</p>
       </div>
     )
   }
@@ -55,7 +57,7 @@ export function ModelCatalogPicker({
   if (!ids.length) {
     return (
       <div className="ui-enter rounded-xl border border-dashed border-border/50 bg-muted/10 px-4 py-7 text-center text-[12px] text-muted-foreground">
-        先点「拉取模型」
+        {t('models:fetchFirst')}
       </div>
     )
   }
@@ -67,7 +69,7 @@ export function ModelCatalogPicker({
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/45 transition-opacity duration-motion-fast" />
           <input
             className="settings-field-focus w-full rounded-lg border border-border/60 bg-background/80 py-1.5 pl-8 pr-2 text-[12px] transition-shadow duration-motion-fast"
-            placeholder="搜索模型 id"
+            placeholder={t('models:searchPlaceholder')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
@@ -81,7 +83,7 @@ export function ModelCatalogPicker({
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground transition-colors duration-motion-fast">
           {filtered.length}/{ids.length}
-          {newCount > 0 && <span className="ml-1 text-primary">· 可添加 {newCount}</span>}
+          {newCount > 0 && <span className="ml-1 text-primary">· {t('models:canAdd', { count: newCount })}</span>}
         </span>
         {onAddAllNew && newCount > 0 && (
           <button
@@ -89,14 +91,14 @@ export function ModelCatalogPicker({
             className="settings-chip rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
             onClick={onAddAllNew}
           >
-            全部添加
+            {t('models:addAll')}
           </button>
         )}
       </div>
 
       <ul className="max-h-[min(280px,42vh)] overflow-y-auto p-2">
         {filtered.length === 0 ? (
-          <li className="py-6 text-center text-[12px] text-muted-foreground">无匹配模型</li>
+          <li className="py-6 text-center text-[12px] text-muted-foreground">{t('models:noMatchModel')}</li>
         ) : (
           filtered.map((id, i) => {
             const added = localIds.has(id)
@@ -124,13 +126,13 @@ export function ModelCatalogPicker({
                   {added ? (
                     <span className="settings-added-badge flex shrink-0 items-center gap-1 rounded-full bg-muted/80 px-2 py-0.5 text-[10px] text-muted-foreground">
                       <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
-                      已添加
+                      {t('models:allAdded')}
                     </span>
                   ) : (
                     <button
                       type="button"
                       className="settings-add-fab flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-muted-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                      aria-label={`添加 ${id}`}
+                      aria-label={t('models:addBtn') + ' ' + id}
                       onClick={() => onAdd(id)}
                     >
                       <Plus className="h-4 w-4 transition-transform duration-motion-fast group-hover:rotate-90" strokeWidth={2.25} />

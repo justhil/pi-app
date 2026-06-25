@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 function truncateLine(text: string, max = 120): string {
@@ -6,8 +7,9 @@ function truncateLine(text: string, max = 120): string {
   return `${t.slice(0, max)}…`
 }
 
-/** 对齐 pi TUI：运行中已入队 steer / follow-up，淡色显示在输入框上方 */
+/** Pending steer / follow-up queue shown above input */
 export function ComposerPendingQueue() {
+  const { t } = useTranslation()
   const steering = useUIStore((s) => s.pendingSteering)
   const followUp = useUIStore((s) => s.pendingFollowUp)
   if (steering.length === 0 && followUp.length === 0) return null
@@ -19,18 +21,18 @@ export function ComposerPendingQueue() {
     >
       {steering.map((msg, i) => (
         <div key={`steer-${i}`} className="truncate font-mono">
-          <span className="text-foreground-secondary/45">转向 · </span>
+          <span className="text-foreground-secondary/45">{t('composer:steering')}</span>
           {truncateLine(msg)}
         </div>
       ))}
       {followUp.map((msg, i) => (
         <div key={`fu-${i}`} className="truncate font-mono">
-          <span className="text-foreground-secondary/45">排队 · </span>
+          <span className="text-foreground-secondary/45">{t('composer:queued')}</span>
           {truncateLine(msg)}
         </div>
       ))}
       <div className="text-[11px] text-foreground-secondary/40">
-        Alt+↑ 拉回输入框 · 运行中 Esc 拉回并停止
+        {t('composer:queueHint')}
       </div>
     </div>
   )

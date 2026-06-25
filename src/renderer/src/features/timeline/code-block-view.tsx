@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, Copy } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
 
@@ -21,6 +22,7 @@ export function CodeBlockView({
   className,
   defaultExpanded = false,
 }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [html, setHtml] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -51,7 +53,7 @@ export function CodeBlockView({
         {lang ? (
           <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--brand)]">{lang}</span>
         ) : (
-          <span className="text-[10px] text-foreground-secondary">代码</span>
+          <span className="text-[10px] text-foreground-secondary">{t('timeline:code')}</span>
         )}
         <button
           type="button"
@@ -59,7 +61,7 @@ export function CodeBlockView({
           className="flex items-center gap-1 text-[10px] text-foreground-secondary hover:text-foreground"
         >
           <Copy className="h-3 w-3" />
-          {copied ? '已复制' : '复制'}
+          {copied ? t('timeline:copied') : t('timeline:copy')}
         </button>
       </div>
       <div
@@ -78,7 +80,7 @@ export function CodeBlockView({
           className="flex w-full items-center justify-center gap-1 border-t border-border/40 py-1.5 text-[10px] text-foreground-secondary hover:text-foreground"
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
-          {expanded ? '收起' : `展开 (${lines.length} 行)`}
+          {expanded ? t('timeline:collapse') : t('timeline:expand', { count: lines.length })}
         </button>
       )}
     </div>

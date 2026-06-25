@@ -2,7 +2,24 @@
   "id": "@victor-software-house/pi-curated-themes",
   "displayName": "Curated Themes",
   "description": "pi 终端主题包（桌面用独立 Appearance 设置）",
-  "match": { "names": ["@victor-software-house/pi-curated-themes", "pi-curated-themes"] },
+  "match": {
+    "names": [
+      "@victor-software-house/pi-curated-themes",
+      "pi-curated-themes"
+    ]
+  },
   "tier": "none",
-  "config": { "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。" }
+  "config": {
+    "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Curated Themes",
+      "description": "pi 终端主题包（桌面用独立 Appearance 设置）"
+    },
+    "en": {
+      "displayName": "Curated Themes",
+      "description": "pi 终端主题包（桌面用独立 Appearance 设置）"
+    }
+  }
 }

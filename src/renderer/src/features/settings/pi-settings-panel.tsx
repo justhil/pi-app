@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Check, AlertCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
@@ -47,16 +48,18 @@ const inputCls = 'w-full max-w-xs rounded-md border border-border bg-background 
 const btnPrimary = 'rounded-md bg-primary px-2.5 py-1.5 text-[12px] text-primary-foreground transition-colors disabled:opacity-40 disabled:pointer-events-none'
 const btnOutline = 'rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px] transition-colors disabled:opacity-40 disabled:pointer-events-none hover:bg-accent'
 
-const THINKING_OPTS = [
-  { v: 'off', l: '关' },
-  { v: 'minimal', l: '极简' },
-  { v: 'low', l: '低' },
-  { v: 'medium', l: '中' },
-  { v: 'high', l: '高' },
-  { v: 'xhigh', l: '极高' },
-]
+// THINKING_OPTS labels are i18n-driven; built in component
 
 export function PiSettingsPanel() {
+  const { t } = useTranslation()
+  const THINKING_OPTS = [
+    { v: 'off', l: t('settings:pi.thinkingOff') },
+    { v: 'minimal', l: t('settings:pi.thinkingMinimal') },
+    { v: 'low', l: t('settings:pi.thinkingLow') },
+    { v: 'medium', l: t('settings:pi.thinkingMedium') },
+    { v: 'high', l: t('settings:pi.thinkingHigh') },
+    { v: 'xhigh', l: t('settings:pi.thinkingXhigh') },
+  ]
   const [info, setInfo] = useState<any>(null)
   const [settings, setSettings] = useState<PiSettingsSnapshot | null>(null)
   const [models, setModels] = useState<any[]>([])
@@ -101,7 +104,7 @@ export function PiSettingsPanel() {
       setFormEpoch((n) => n + 1)
       await loadModelsForDropdown()
     } catch (e: any) {
-      setLoadError(e?.message || '加载失败')
+      setLoadError(e?.message || t('settings:pi.loadError'))
     }
   }, [loadModelsForDropdown])
 
@@ -145,8 +148,8 @@ export function PiSettingsPanel() {
       if (event.line) setInstallOutput((prev) => [...prev, event.line!])
       if (event.done) {
         setInstalling(false)
-        if (event.error) toast.error(`升级失败: ${event.error}`)
-        else toast.success('SDK 升级完成，已切换到独立环境')
+        if (event.error) toast.error(`${t('settings:pi.upgradeFailed')}: ${event.error}`)
+        else toast.success(t('settings:pi.upgradeSuccess'))
         void reloadSdk()
       }
     })
@@ -160,11 +163,11 @@ export function PiSettingsPanel() {
       const res = await ipcClient.invoke('sdk.install', { version: selectedVersion })
       if (res?.ok === false) {
         setInstalling(false)
-        toast.error(res.error || '升级失败')
+        toast.error(res.error || t('settings:pi.upgradeFailed'))
       }
     } catch (e: any) {
       setInstalling(false)
-      toast.error(e?.message || '升级失败')
+      toast.error(e?.message || t('settings:pi.upgradeFailed'))
     }
   }, [selectedVersion])
 
@@ -173,14 +176,14 @@ export function PiSettingsPanel() {
     try {
       const res = await ipcClient.invoke('sdk.switch', { target })
       if (res?.ok === false) {
-        toast.error(res.error || '切换失败')
+        toast.error(res.error || t('settings:pi.switchFailed'))
         return
       }
-      const label = target === 'builtin' ? '内置版本' : target === 'global' ? '全局版本' : '独立环境'
-      toast.success(`已切换到${label}`)
+      const label = target === 'builtin' ? t('settings:pi.switchSuccessBuiltin') : target === 'global' ? t('settings:pi.switchSuccessGlobal') : t('settings:pi.switchSuccessUser')
+      toast.success(label)
       void reloadSdk()
     } catch (e: any) {
-      toast.error(e?.message || '切换失败')
+      toast.error(e?.message || t('settings:pi.switchFailed'))
     } finally {
       setSwitching(false)
     }
@@ -202,7 +205,7 @@ export function PiSettingsPanel() {
 
   useSettingsDirtySlice({
     id: 'pi',
-    label: 'Pi 配置',
+    label: t('settings:pi.title'),
     isDirty: () => !settingsEqual(draft, baseline),
     commit: async () => {
       if (!draft || settingsEqual(draft, baseline)) return
@@ -210,7 +213,7 @@ export function PiSettingsPanel() {
         String(baseline?.defaultProvider ?? '') !== String(draft.defaultProvider ?? '') ||
         String(baseline?.defaultModel ?? '') !== String(draft.defaultModel ?? '')
       const res = await ipcClient.invoke('pi.settings.set', { patch: draft })
-      if (res?.ok === false) throw new Error(res.error || '保存失败')
+      if (res?.ok === false) throw new Error(res.error || t('common:saveFailed'))
       await reloadPiForm()
       if (defaultModelChanged) {
         await applyPiDefaultModelToWorkerSession()
@@ -246,83 +249,82 @@ export function PiSettingsPanel() {
   }
 
   if (!ui && !loadError) {
-    return <p className="text-[13px] text-muted-foreground">加载 Pi 配置…</p>
+    return <p className="text-[13px] text-muted-foreground">{t('settings:pi.loading')}</p>
   }
 
   return (
     <div className="space-y-1">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-[15px] font-semibold">Pi 配置</h3>
+          <h3 className="text-[15px] font-semibold">{t('settings:pi.title')}</h3>
           <p className="mt-1 text-[11px] text-muted-foreground/70">
-            写入 <code className="rounded bg-muted px-1 text-[10px]">~/.pi/agent/settings.json</code> 与项目{' '}
-            <code className="rounded bg-muted px-1 text-[10px]">.pi/settings.json</code>（经 Worker SettingsManager，与终端 pi 一致）。修改后请用页面底部「保存」。
+            {t('settings:pi.description')}
           </p>
         </div>
       </div>
 
       {loadError && (
         <div className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-800 dark:text-amber-200">
-          {loadError}（请先打开工作区以启动 Worker）
+          {loadError}{' '}{t('settings:pi.loadErrorHint')}
         </div>
       )}
 
-      <Section title="环境与认证">
+      <Section title={t('settings:pi.sectionEnvAuth')}>
         {/* SDK 版本管理 */}
         <div className="py-3 border-b border-border/40">
-          <div className="mb-2 text-[13px] font-medium text-foreground">SDK 版本管理</div>
+          <div className="mb-2 text-[13px] font-medium text-foreground">{t('settings:pi.sdkManagement')}</div>
           <div className="grid grid-cols-1 gap-1.5 text-[12px]">
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">内置版本</span>
+              <span className="text-muted-foreground">{t('settings:pi.builtinVersion')}</span>
               <span className="font-mono text-muted-foreground">{sdkStatus?.builtinVersion || info?.sdkVersion || '—'}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">全局版本</span>
-              <span className="font-mono text-muted-foreground">{sdkStatus?.globalVersion || '未检测到'}</span>
+              <span className="text-muted-foreground">{t('settings:pi.globalVersion')}</span>
+              <span className="font-mono text-muted-foreground">{sdkStatus?.globalVersion || t('settings:pi.notDetected')}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">独立环境</span>
-              <span className="font-mono text-muted-foreground">{sdkStatus?.userVersion || '未安装'}</span>
+              <span className="text-muted-foreground">{t('settings:pi.userVersion')}</span>
+              <span className="font-mono text-muted-foreground">{sdkStatus?.userVersion || t('settings:pi.notInstalled')}</span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">当前生效</span>
+              <span className="text-muted-foreground">{t('settings:pi.activeVersion')}</span>
               <span className="font-mono text-foreground">
-                {sdkStatus?.active?.version || '—'} ({sdkStatus?.active?.kind === 'global' ? '全局' : sdkStatus?.active?.kind === 'user' ? '独立环境' : '内置'})
+                {sdkStatus?.active?.version || '—'} ({sdkStatus?.active?.kind === 'global' ? t('settings:pi.kindGlobal') : sdkStatus?.active?.kind === 'user' ? t('settings:pi.kindUser') : t('settings:pi.kindBuiltin')})
               </span>
             </div>
             <div className="flex justify-between gap-2">
-              <span className="text-muted-foreground">registry 最新</span>
-              <span className="font-mono text-muted-foreground">{registry?.latest || (registry ? '—' : '加载中…')}</span>
+              <span className="text-muted-foreground">{t('settings:pi.registryLatest')}</span>
+              <span className="font-mono text-muted-foreground">{registry?.latest || (registry ? '—' : t('settings:pi.loadingShort'))}</span>
             </div>
             <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">npm</span>
               <span className="font-mono text-muted-foreground">
-                {sdkStatus?.npmAvailable ? '可用 ✓' : '未检测到 ✗（升级需本机 npm）'}
+                {sdkStatus?.npmAvailable ? t('settings:pi.npmAvailable') : t('settings:pi.npmNotDetected')}
               </span>
             </div>
           </div>
           {sdkStatus?.active?.fallbackReason && (
             <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
-              {sdkStatus.active.kind === 'user' ? '独立环境' : '全局版本'}不可用，已回退内置
+              {sdkStatus.active.kind === 'user' ? t('settings:pi.fallbackUser') : t('settings:pi.fallbackGlobal')}
             </div>
           )}
           {sdkStatus?.workerFallback && (
             <div className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
-              目标 SDK 加载失败，已回退内置
+              {t('settings:pi.fallbackWorker')}
             </div>
           )}
           {/* 切换生效环境 */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted-foreground/70">切换生效环境</span>
+            <span className="text-[11px] text-muted-foreground/70">{t('settings:pi.switchEnv')}</span>
             <select
               className={cn(selectCls, 'min-w-[8rem]')}
               value={envTarget}
               disabled={switching || installing}
               onChange={(e) => setEnvTarget(e.target.value as 'builtin' | 'global' | 'user')}
             >
-              <option value="builtin">内置</option>
-              <option value="global" disabled={!sdkStatus?.globalVersion}>全局{!sdkStatus?.globalVersion ? '（未检测到）' : ''}</option>
-              <option value="user" disabled={!sdkStatus?.userVersion}>独立环境{!sdkStatus?.userVersion ? '（未安装）' : ''}</option>
+              <option value="builtin">{t('settings:pi.switchEnvBuiltin')}</option>
+              <option value="global" disabled={!sdkStatus?.globalVersion}>{t('settings:pi.switchEnvGlobal')}{!sdkStatus?.globalVersion ? t('settings:pi.switchEnvGlobalNotDetected') : ''}</option>
+              <option value="user" disabled={!sdkStatus?.userVersion}>{t('settings:pi.switchEnvUser')}{!sdkStatus?.userVersion ? t('settings:pi.switchEnvUserNotInstalled') : ''}</option>
             </select>
             <button
               type="button"
@@ -330,22 +332,22 @@ export function PiSettingsPanel() {
               disabled={switching || installing || envTarget === sdkStatus?.active?.kind || (envTarget === 'global' && !sdkStatus?.globalVersion) || (envTarget === 'user' && !sdkStatus?.userVersion)}
               onClick={() => onSwitchEnv(envTarget)}
             >
-              {switching ? '切换中…' : '切换'}
+              {switching ? t('settings:pi.switching') : t('settings:pi.switch')}
             </button>
           </div>
           {/* 升级独立环境（覆盖式安装） */}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted-foreground/70">升级独立环境</span>
+            <span className="text-[11px] text-muted-foreground/70">{t('settings:pi.upgradeEnv')}</span>
             <select
               className={cn(selectCls, 'min-w-[8rem]')}
               value={selectedVersion}
               disabled={installing || !sdkStatus?.npmAvailable}
               onChange={(e) => setSelectedVersion(e.target.value)}
             >
-              <option value="">选择版本…</option>
+              <option value="">{t('settings:pi.selectVersion')}</option>
               {(registry?.versions || []).slice().reverse().map((v) => (
                 <option key={v} value={v}>
-                  {v}{v === registry?.latest ? ' (latest)' : ''}
+                  {v}{v === registry?.latest ? ` ${t('settings:pi.latest')}` : ''}
                 </option>
               ))}
             </select>
@@ -355,7 +357,7 @@ export function PiSettingsPanel() {
               disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
               onClick={onInstall}
             >
-              {installing ? '安装中…' : '升级并切换'}
+              {installing ? t('settings:pi.installing') : t('settings:pi.upgradeSwitch')}
             </button>
           </div>
           {(installing || installOutput.length > 0) && (
@@ -364,28 +366,28 @@ export function PiSettingsPanel() {
             </pre>
           )}
         </div>
-        <Row label="agentDir" description="全局 pi 配置目录">
+        <Row label={t('settings:pi.agentDir')} description={t('settings:pi.agentDirDesc')}>
           <span className="max-w-[220px] truncate font-mono text-[11px] text-muted-foreground" title={info?.agentDir}>
             {info?.agentDir || '~/.pi/agent'}
           </span>
         </Row>
-        <Row label="认证" description="API key / OAuth">
+        <Row label={t('settings:pi.auth')} description={t('settings:pi.authDesc')}>
           <div className="flex items-center gap-1.5">
             {info?.authStatus === 'configured' ? (
               <>
                 <Check className="h-3.5 w-3.5 text-green-500" />
-                <span className="text-[12px] text-green-600 dark:text-green-400">已配置</span>
+                <span className="text-[12px] text-green-600 dark:text-green-400">{t('settings:pi.authConfigured')}</span>
               </>
             ) : (
               <>
                 <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/40" />
-                <span className="text-[12px] text-muted-foreground">未配置</span>
+                <span className="text-[12px] text-muted-foreground">{t('settings:pi.authNotConfigured')}</span>
               </>
             )}
           </div>
         </Row>
         {info?.authProviders?.length > 0 && (
-          <Row label="Provider" description="已配置的鉴权来源">
+          <Row label={t('settings:pi.provider')} description={t('settings:pi.providerDesc')}>
             <div className="flex max-w-xs flex-wrap justify-end gap-1">
               {info.authProviders.map((p: any) => (
                 <span key={p.provider} className="rounded border border-border/50 px-1.5 py-0.5 font-mono text-[10px]">
@@ -395,22 +397,22 @@ export function PiSettingsPanel() {
             </div>
           </Row>
         )}
-        <Row label="会话目录" description="sessionDir（只读）">
+        <Row label={t('settings:pi.sessionDir')} description={t('settings:pi.sessionDirDesc')}>
           <span className="max-w-[220px] truncate font-mono text-[11px] text-muted-foreground">
-            {String(ui?.sessionDir || '(默认)')}
+            {String(ui?.sessionDir || t('settings:pi.sessionDirDefault'))}
           </span>
         </Row>
       </Section>
 
-      <Section title="模型与推理">
-        <Row label="默认模型" description="新会话默认 provider / model（来自 ~/.pi/agent/models.json，与当前项目无关）">
+      <Section title={t('settings:pi.sectionModelInference')}>
+        <Row label={t('settings:pi.defaultModel')} description={t('settings:pi.defaultModelDesc')}>
           <select
             className={cn(selectCls, 'min-w-[min(280px,70vw)]')}
             value={currentModelKey}
             disabled={!ui || modelOptions.length === 0}
             onChange={(e) => onModelSelect(e.target.value)}
           >
-            <option value="">未设置</option>
+            <option value="">{t('settings:pi.notSet')}</option>
             {modelOptions.map((m) => {
               const key = `${m.provider}/${m.id}`
               const label = m.name && m.name !== m.id ? `${key} — ${m.name}` : key
@@ -422,7 +424,7 @@ export function PiSettingsPanel() {
             })}
           </select>
         </Row>
-        <Row label="默认 Thinking" description="defaultThinkingLevel">
+        <Row label={t('settings:pi.defaultThinking')} description={t('settings:pi.defaultThinkingDesc')}>
           <select
             className={selectCls}
             value={String(ui?.defaultThinkingLevel || 'medium')}
@@ -436,13 +438,13 @@ export function PiSettingsPanel() {
             ))}
           </select>
         </Row>
-        <Row label="模型白名单" description="enabledModels，逗号分隔 glob（留空=全部）">
+        <Row label={t('settings:pi.modelWhitelist')} description={t('settings:pi.modelWhitelistDesc')}>
           <input
             className={inputCls}
             disabled={!ui}
             key={`enabledModels-${formEpoch}`}
             defaultValue={Array.isArray(ui?.enabledModels) ? (ui.enabledModels as string[]).join(', ') : ''}
-            placeholder="例如 anthropic/*, openai/gpt-*"
+            placeholder={t('settings:pi.modelWhitelistPlaceholder')}
             onBlur={(e) => {
               const raw = e.target.value.trim()
               const patterns = raw ? raw.split(/,\s*/).filter(Boolean) : undefined
@@ -450,7 +452,7 @@ export function PiSettingsPanel() {
             }}
           />
         </Row>
-        <Row label="隐藏思考块" description="hideThinkingBlock（TUI/展示）">
+        <Row label={t('settings:pi.hideThinking')} description={t('settings:pi.hideThinkingDesc')}>
           <Toggle
             on={!!ui?.hideThinkingBlock}
             disabled={!ui}
@@ -459,19 +461,19 @@ export function PiSettingsPanel() {
         </Row>
       </Section>
 
-      <Section title="队列与传输">
-        <Row label="Steering 模式" description="插入消息排队">
+      <Section title={t('settings:pi.sectionQueueTransport')}>
+        <Row label={t('settings:pi.steeringMode')} description={t('settings:pi.steeringModeDesc')}>
           <select
             className={selectCls}
             value={String(ui?.steeringMode || 'all')}
             disabled={!ui}
             onChange={(e) => queuePatch({ steeringMode: e.target.value })}
           >
-            <option value="all">all — 全部插入</option>
-            <option value="one-at-a-time">one-at-a-time</option>
+            <option value="all">{t('settings:pi.steeringAll')}</option>
+            <option value="one-at-a-time">{t('settings:pi.steeringOneAtATime')}</option>
           </select>
         </Row>
-        <Row label="Follow-up 模式" description="后续追问排队">
+        <Row label={t('settings:pi.followUpMode')} description={t('settings:pi.followUpModeDesc')}>
           <select
             className={selectCls}
             value={String(ui?.followUpMode || 'all')}
@@ -482,7 +484,7 @@ export function PiSettingsPanel() {
             <option value="one-at-a-time">one-at-a-time</option>
           </select>
         </Row>
-        <Row label="Transport" description="LLM 请求传输">
+        <Row label={t('settings:pi.transport')} description={t('settings:pi.transportDesc')}>
           <select
             className={selectCls}
             value={String(ui?.transport || 'auto')}
@@ -494,7 +496,7 @@ export function PiSettingsPanel() {
             <option value="http">http</option>
           </select>
         </Row>
-        <Row label="HTTP 空闲超时" description={`httpIdleTimeoutMs（当前 ${ui?.httpIdleTimeoutMs ?? '—'} ms）`}>
+        <Row label={t('settings:pi.httpIdleTimeout')} description={t('settings:pi.httpIdleTimeoutDesc', { ms: ui?.httpIdleTimeoutMs ?? '—' })}>
           <input
             type="number"
             className={cn(inputCls, 'max-w-[8rem]')}
@@ -511,15 +513,15 @@ export function PiSettingsPanel() {
         </Row>
       </Section>
 
-      <Section title="压缩与重试">
-        <Row label="自动压缩" description="compaction.enabled">
+      <Section title={t('settings:pi.sectionCompactionRetry')}>
+        <Row label={t('settings:pi.autoCompaction')} description={t('settings:pi.autoCompactionDesc')}>
           <Toggle
             on={ui?.compactionEnabled !== false}
             disabled={!ui}
             onChange={(v) => queuePatch({ compactionEnabled: v })}
           />
         </Row>
-        <Row label="压缩 reserve" description="compaction.reserveTokens，为回复预留的 token（默认 16384）">
+        <Row label={t('settings:pi.compactionReserve')} description={t('settings:pi.compactionReserveDesc')}>
           <input
             type="number"
             className={cn(inputCls, 'max-w-[9rem]')}
@@ -535,7 +537,7 @@ export function PiSettingsPanel() {
             }}
           />
         </Row>
-        <Row label="压缩 keep" description="compaction.keepRecentTokens，保留不摘要的最近 token（默认 20000）">
+        <Row label={t('settings:pi.compactionKeep')} description={t('settings:pi.compactionKeepDesc')}>
           <input
             type="number"
             className={cn(inputCls, 'max-w-[9rem]')}
@@ -551,38 +553,37 @@ export function PiSettingsPanel() {
             }}
           />
         </Row>
-        <Row label="请求重试" description="retry.enabled">
+        <Row label={t('settings:pi.retryEnabled')} description={t('settings:pi.retryEnabledDesc')}>
           <Toggle
             on={ui?.retryEnabled !== false}
             disabled={!ui}
             onChange={(v) => queuePatch({ retryEnabled: v })}
           />
         </Row>
-        <Row label="重试参数" description="只读">
+        <Row label={t('settings:pi.retryParams')} description={t('settings:pi.retryParamsDesc')}>
           <span className="font-mono text-[11px] text-muted-foreground">
-            max {String(ui?.retryMaxRetries)} · delay {String(ui?.retryBaseDelayMs)}ms
+            {t('settings:pi.retryParamsValue', { max: String(ui?.retryMaxRetries), delay: String(ui?.retryBaseDelayMs) })}
           </span>
         </Row>
-        <Row label="分支摘要" description="branchSummary（树跳转摘要）">
+        <Row label={t('settings:pi.branchSummary')} description={t('settings:pi.branchSummaryDesc')}>
           <span className="font-mono text-[11px] text-muted-foreground">
-            reserve {String(ui?.branchSummaryReserveTokens)} · skipPrompt{' '}
-            {ui?.branchSummarySkipPrompt ? '是' : '否'}
+            {t('settings:pi.branchSummaryValue', { reserve: String(ui?.branchSummaryReserveTokens), skip: ui?.branchSummarySkipPrompt ? t('settings:pi.yes') : t('settings:pi.no') })}
           </span>
         </Row>
       </Section>
 
-      <Section title="工具与 Shell">
-        <Row label="Shell 路径" description="bash 工具 shellPath">
+      <Section title={t('settings:pi.sectionToolShell')}>
+        <Row label={t('settings:pi.shellPath')} description={t('settings:pi.shellPathDesc')}>
           <input
             className={inputCls}
             disabled={!ui}
             key={`shellPath-${formEpoch}`}
-            placeholder="系统默认"
+            placeholder={t('settings:pi.shellPathPlaceholder')}
             defaultValue={String(ui?.shellPath || '')}
             onBlur={(e) => queuePatch({ shellPath: e.target.value || undefined })}
           />
         </Row>
-        <Row label="Shell 命令前缀" description="shellCommandPrefix">
+        <Row label={t('settings:pi.shellPrefix')} description={t('settings:pi.shellPrefixDesc')}>
           <input
             className={inputCls}
             disabled={!ui}
@@ -591,7 +592,7 @@ export function PiSettingsPanel() {
             onBlur={(e) => queuePatch({ shellCommandPrefix: e.target.value || undefined })}
           />
         </Row>
-        <Row label="npm 命令" description="npmCommand">
+        <Row label={t('settings:pi.npmCommand')} description={t('settings:pi.npmCommandDesc')}>
           <input
             className={inputCls}
             disabled={!ui}
@@ -601,21 +602,21 @@ export function PiSettingsPanel() {
             onBlur={(e) => queuePatch({ npmCommand: e.target.value || undefined })}
           />
         </Row>
-        <Row label="图片自动缩放" description="imageAutoResize">
+        <Row label={t('settings:pi.imageAutoResize')} description={t('settings:pi.imageAutoResizeDesc')}>
           <Toggle
             on={!!ui?.imageAutoResize}
             disabled={!ui}
             onChange={(v) => queuePatch({ imageAutoResize: v })}
           />
         </Row>
-        <Row label="展示图片" description="showImages">
+        <Row label={t('settings:pi.showImages')} description={t('settings:pi.showImagesDesc')}>
           <Toggle
             on={ui?.showImages !== false}
             disabled={!ui}
             onChange={(v) => queuePatch({ showImages: v })}
           />
         </Row>
-        <Row label="阻止图片" description="blockImages">
+        <Row label={t('settings:pi.blockImages')} description={t('settings:pi.blockImagesDesc')}>
           <Toggle
             on={!!ui?.blockImages}
             disabled={!ui}
@@ -624,8 +625,8 @@ export function PiSettingsPanel() {
         </Row>
       </Section>
 
-      <Section title="技能与启动">
-        <Row label="默认项目信任" description="defaultProjectTrust（打开新项目时）">
+      <Section title={t('settings:pi.sectionSkillStartup')}>
+        <Row label={t('settings:pi.defaultProjectTrust')} description={t('settings:pi.defaultProjectTrustDesc')}>
           <select
             className={selectCls}
             value={String(ui?.defaultProjectTrust || 'ask')}
@@ -637,19 +638,19 @@ export function PiSettingsPanel() {
             <option value="never">never</option>
           </select>
         </Row>
-        <Row label="Skill 斜杠命令" description="enableSkillCommands">
+        <Row label={t('settings:pi.skillCommands')} description={t('settings:pi.skillCommandsDesc')}>
           <Toggle
             on={ui?.enableSkillCommands !== false}
             disabled={!ui}
             onChange={(v) => queuePatch({ enableSkillCommands: v })}
           />
         </Row>
-        <Row label="安静启动" description="quietStartup">
+        <Row label={t('settings:pi.quietStartup')} description={t('settings:pi.quietStartupDesc')}>
           <Toggle on={!!ui?.quietStartup} disabled={!ui} onChange={(v) => queuePatch({ quietStartup: v })} />
         </Row>
       </Section>
       <p className="pt-2 text-[10px] text-muted-foreground/55">
-        会话树：主界面输入框为空时 <strong>双击 Esc</strong> 打开大图（同 TUI /tree）。项目信任请在打开项目后使用 /trust。
+        {t('settings:pi.treeHint')}
       </p>
     </div>
   )
