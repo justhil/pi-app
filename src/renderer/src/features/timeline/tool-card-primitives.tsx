@@ -17,8 +17,7 @@ export function ThinkingIndicator({ label = '思考中' }: { label?: string }) {
 export function StreamingCaret() {
   return (
     <span
-      className="ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[2px] rounded-full"
-      style={{ background: 'var(--brand)', animation: 'caret-blink 1.1s ease-in-out infinite' }}
+      className="stream-caret ml-0.5 inline-block h-[1em] w-[1.5px] translate-y-[1px] rounded-full bg-foreground/55"
       aria-hidden
     />
   )

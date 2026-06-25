@@ -10,6 +10,10 @@ import {
   type ExtensionUIPending,
 } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
+import {
+  clearExtensionToolRowFlags,
+  reconcileStaleInteractiveToolRows,
+} from '@renderer/lib/extension-ui-tool-sync'
 
 
 function respond(payload: {
@@ -66,8 +70,11 @@ export function ExtensionUIHost() {
   const [inputValue, setInputValue] = useState('')
 
   const cancelWorker = (id: string) => {
+    const tid = findToolContextForUi().timelineItemId
     respond({ id, cancelled: true })
+    clearExtensionToolRowFlags(tid)
     clearAfterRespond()
+    reconcileStaleInteractiveToolRows(id)
   }
 
   if (!pending) return null
@@ -79,16 +86,12 @@ export function ExtensionUIHost() {
           requestId={pending.id}
           questions={pending.questions}
           onSubmit={(result) => {
-            respond({ id: pending.id, result })
             const s = useExtensionUIStore.getState().suspended
             const tid = findToolContextForUi().timelineItemId || s?.timelineItemId
-            if (tid) {
-              useUIStore.getState().updateTimelineItem(tid, {
-                extensionUiSuspended: false,
-                extensionUiRequestId: undefined,
-              })
-            }
+            respond({ id: pending.id, result })
+            clearExtensionToolRowFlags(tid)
             clearAfterRespond()
+            if (result.cancelled) reconcileStaleInteractiveToolRows(pending.id)
           }}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}

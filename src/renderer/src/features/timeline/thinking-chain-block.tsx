@@ -29,8 +29,8 @@ export function ThinkingChainBlock({
       >
         <ChevronRight className={cn('chevron-expand h-3 w-3 text-foreground-secondary/50', open && 'rotate-90')} />
         <span className="text-[11px] text-foreground-secondary/55">
-          {t('timeline:thinkingChain')}{lineCount > 0 ? t('timeline:thinkingLines', { count: lineCount }) : ''}
-          {streaming ? t('timeline:generating') : ''}
+          {streaming ? t('timeline:thinkingActive') : t('timeline:thoughtDone')}
+          {lineCount > 0 ? t('timeline:thinkingLines', { count: lineCount }) : ''}
         </span>
       </button>
       <CollapsiblePanel open={open} className="mt-0.5">
