@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChevronDown, FolderOpen, Folder, Check } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
@@ -24,6 +25,7 @@ export function ProjectHomeView({
   onSelectProject: (path: string) => void
   onOpenProject: () => void
 }) {
+  const { t } = useTranslation()
   const [pickerOpen, setPickerOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null)
@@ -67,7 +69,7 @@ export function ProjectHomeView({
         <h2 className="text-[22px] font-semibold text-foreground">
           {showProjectPicker && hasProject ? (
             <>
-              要在{' '}
+              {t('common:home.whatToDoInBefore')}{' '}
               <button
                 ref={triggerRef}
                 type="button"
@@ -77,7 +79,7 @@ export function ProjectHomeView({
                 {projectName}
                 <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', pickerOpen && 'rotate-180')} />
               </button>
-              {' '}中做什么？
+              {' '}{t('common:home.whatToDoInAfter')}
             </>
           ) : showProjectPicker ? (
             <button
@@ -87,15 +89,15 @@ export function ProjectHomeView({
               className="project-picker-trigger inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-4 py-2 text-[22px] font-semibold text-foreground-secondary transition-all hover:border-primary/40 hover:text-foreground"
             >
               <FolderOpen className="h-5 w-5" />
-              选择项目
+              {t('common:home.selectProject')}
               <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', pickerOpen && 'rotate-180')} />
             </button>
           ) : (
-            projectName || '新对话'
+            projectName || t('common:home.newChat')
           )}
         </h2>
         <p className="mt-2 text-[13px] text-foreground-secondary/70">
-          {subtitle || (hasProject ? '输入消息开始新对话，或从左侧选择历史会话' : '选择一个项目文件夹开始对话')}
+          {subtitle || (hasProject ? t('common:home.hintWithProject') : t('common:home.hintNoProject'))}
         </p>
       </div>
 
@@ -113,11 +115,11 @@ export function ProjectHomeView({
         >
           <div className="overflow-hidden rounded-xl border border-border/70 bg-popover shadow-xl">
             <div className="border-b border-border/40 px-3 py-2 text-[11px] font-medium tracking-wide text-muted-foreground">
-              选择项目
+              {t('common:home.pickerTitle')}
             </div>
             <div className="max-h-[280px] overflow-y-auto py-1">
               {recentProjects.length === 0 ? (
-                <p className="px-3 py-3 text-[12px] text-muted-foreground">暂无最近项目</p>
+                <p className="px-3 py-3 text-[12px] text-muted-foreground">{t('common:home.noRecentProjects')}</p>
               ) : (
                 recentProjects.map((path) => {
                   const active = path === currentWorkspace
@@ -154,7 +156,7 @@ export function ProjectHomeView({
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-foreground-secondary transition-colors hover:bg-muted/60 hover:text-foreground"
               >
                 <FolderOpen className="h-4 w-4 shrink-0" />
-                打开其他文件夹…
+                {t('common:home.openOtherFolder')}
               </button>
             </div>
           </div>

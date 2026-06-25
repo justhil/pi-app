@@ -141,7 +141,7 @@ export function registerAllHandlers(): void {
     return { ok: true }
   })
 
-  // ── Adapter Layer v2 (docs/adapter-layer-plan.md §6) — generic per-adapter config/action IPC ──
+  // ── Adapter Layer v2 (doc/adapter-layer-plan.md §6) — generic per-adapter config/action IPC ──
   registerHandler('ipc:adapter.config.get', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     return { view: readAdapterConfig(req.adapterId, workspaceId) }

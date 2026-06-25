@@ -8,7 +8,7 @@ out/
 dist/
 build/icon.png
 
-# Removed remote docs directory
+# Local-only copy of old docs tree (tracked docs live under doc/)
 docs/
 
 # Logs & debug

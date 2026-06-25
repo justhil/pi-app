@@ -1,48 +1,48 @@
+<div align="center">
+
+<img src="resources/icon.svg" alt="pi Desktop logo" width="80" height="80" />
+
 # pi Desktop
 
-面向个人开发者的 **pi 桌面 GUI**：在 Electron 里跑 pi SDK，复用 `~/.pi/agent` 的认证、配置与会话 JSONL，用时间线、工具卡片、改动审查和**扩展兼容层**替代终端里那套 TUI 交互。
+The desktop app for the [pi](https://github.com/jvm/pi-mono) coding agent — same agent you run in the terminal, now with a timeline, side panels, and a real window.
 
-> **一句话**：pi 的新壳——内核仍是 pi，界面换成桌面；扩展在终端里的弹窗和卡片，由兼容层翻译成窗口 UI，**不改你已安装的扩展包**。
+[![Version](https://img.shields.io/badge/version-0.4.3-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
+[![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
 
----
+[简体中文](./README.zh-CN.md) · [Getting started](./doc/guide/getting-started.md) · [Adapters](./doc/guide/adapters.en.md)
 
-## 核心思想
+</div>
 
-### 1. 会话以 pi 为准
+> [!NOTE]
+> pi Desktop is **not** a separate AI — it's a desktop shell around the pi SDK you already use. Your conversations, model logins, and extension settings live in the same `~/.pi/agent` files. Open a project and keep chatting from where you left off in the terminal.
 
-- 对话内容、工具调用记录、分支与压缩信息，都以 pi 写在 `~/.pi/agent/sessions/` 里的 **JSONL 会话文件**为准。
-- 桌面端不另建一套「聊天记录数据库」来替代 pi；本地只存窗口布局、最近项目、扩展开关、适配器覆盖等**应用偏好**。
-- 好处：终端 pi 与桌面 pi 可以**接着同一条会话**用；卸载桌面也不丢对话历史。
+![pi Desktop main window](https://img.justhil.uk/2026/06/25/image-20260625233744183)
 
-### 2. 配置与认证与终端共用
+## Why
 
-- 模型账号、`settings.json`、扩展包列表（`packages`）、项目下 `.pi/` 资源，与你在终端用的 pi **同一套路径与规则**。
-- 桌面在 **设置 → Pi** 里改的项会写回全局 `settings.json`（与终端一致）；Skills 开关等也落在全局配置里，而不是只在桌面私有文件里「假启用」。
+If you use pi in the terminal, you've probably wished for: a real diff view instead of scrolling raw output, the ability to queue a follow-up while the agent is still running, and a session tree you can click through instead of typing `/tree`. pi Desktop gives you all of that, plus native windows for extension pop-ups — **without forking pi or touching your installed extensions**.
 
-### 3. 扩展：兼容层 + 适配器，而不是改插件源码
+## Features
 
-- 扩展在终端里常用 TUI（选择、确认、问卷、工具结果卡片、`/命令` 进配置）。桌面没有终端画布。
-- **兼容层**：在应用内部统一接收扩展的 UI 请求，转成 Electron 对话框、时间线卡片、设置表单。
-- **适配器**：每个扩展一份「在桌面上怎么显示、怎么配、哪些命令特殊处理」的说明（内置在应用里，高级用户可用 JSON 覆盖）。
-- 原则：**不动扩展 npm 包、不 fork pi**；差异写在适配器说明和文档里。  
-- **给 AI 写适配器**：见仓库 **[`doc/`](./doc/README.md)**（`adapter-authoring-guide.md` 可整份发给模型定制 `adapter.json`）。
+- **Streaming timeline** — markdown, code blocks, KaTeX math, and foldable tool steps (read, edit, bash) with line-level diffs
+- **Session tree** — branch and rewind like `pi /tree`, but clickable; with git, optionally restore files on jump
+- **Composer** — inline file attachments, image paste, model & thinking-level pills, slash command menu
+- **Queue messages** — keep typing while the agent runs; messages execute when the current turn ends
+- **Full pi package ecosystem** — every extension you installed for terminal pi works here: dialogs, tool cards, side panels, and `/commands` are translated to native UI by per-extension **adapters**, with **no changes to the npm packages** (see [Extensions](#extensions))
+- **Bilingual UI** — 中文 / English toggle in Settings
+- **Voice input** — optional mic → local transcription via [codex-asr](https://github.com/Wangnov/codex-asr) (bundled binary, ChatGPT/Codex token auth)
+- **Shared everything** — sessions, auth, `settings.json`, extensions: all in `~/.pi/agent`, shared with CLI pi
 
----
+## Get the app
 
-## 环境要求
+**Windows** — download the installer or portable build from [Releases](https://github.com/justhil/pi-app/releases/latest).
 
-| 项 | 说明 |
-|---|---|
-| Node.js | **18+**（推荐 20+） |
-| npm | 与仓库 `package-lock.json` 一致 |
-| Electron | **35+** |
-| 系统 | **Windows 10+** 为主验证环境；macOS / Linux 可构建 |
+> [!TIP]
+> You need pi set up once on the machine (model login, the way you already use for terminal pi). After that, just open a project folder in pi Desktop and you're in.
 
-pi 侧需已配置认证（`~/.pi/agent/auth.json` 或各厂商环境变量）。扩展与终端 pi 共用 `~/.pi/agent/settings.json`；若终端能用的扩展在桌面工具列表里没有，见 **设置 → 扩展** 同步 `packages` 并重启后台会话。
-
----
-
-## 快速开始
+**Build from source** (developers):
 
 ```bash
 git clone https://github.com/justhil/pi-app.git
@@ -51,298 +51,92 @@ npm install
 npm run dev
 ```
 
-**首次使用**
+## First steps
 
-1. **磁盘项目**：侧栏「打开项目」选工作目录。  
-2. **临时对话**：「对话分区」新建沙箱（与真实仓库隔离，工具 cwd 在应用用户数据目录下）。  
-3. **会话**：列表中选历史会话或 `+` 新建；右键可重命名/删除（磁盘项目会改 pi 会话文件）。  
-4. **输入区**：回车发送；`/` 斜杠命令；`↑↓` 调回本会话发送历史（见上表）；运行中可继续发（排队跟进）；拖入文件或 `+` 选附件；可粘贴图片。对话区支持 **KaTeX** 公式（`$$…$$`、`\( … \)` 等）。  
-5. **右栏**：改动审查、运行状态、上下文、**会话树**（等同 pi `/tree` 式跳转）。空白输入时 **双击 Esc** 可打开会话树浮层。
+1. **Open a folder** — your repo becomes the agent's working directory (or use a sandbox under "chat partitions" to experiment safely).
+2. **Pick a session** — old chats from terminal pi show up here; or start fresh with `+`.
+3. **Send a message** — `Enter` to send, `Shift+Enter` for a new line.
+4. **Check the right panel** — review file diffs, run status, context, or the session tree.
+5. **Jump back** — hover a message and undo, or double-tap `Esc` with an empty input to open the session tree.
 
-**常见问题**
+<img src="https://img.justhil.uk/2026/06/25/image-20260625234039591" alt="Conversation timeline" style="zoom:67%;" />
 
-| 现象 | 建议 |
-|------|------|
-| 白屏 / 界面不更新 | 删 `node_modules/.vite` 后 `npm run dev` |
-| 扩展在设置里能看到，对话里没有工具 | 设置 → 扩展：确认已写入 `packages` 并重启会话；看「当前已加载工具」列表 |
-| 切换会话慢 | 先加载最近一段历史；发第一条消息后再完整绑定会话（设计如此） |
+## Shortcuts
 
-打包 Windows：`npm run icon:export && npm run package:win`。
+| Action | Keys |
+|--------|------|
+| Send | `Enter` |
+| New line | `Shift+Enter` |
+| Browse sent messages | `↑` / `↓` (empty input) |
+| Pull back queued message | `Alt+↑` |
+| Stop generation | `Esc` |
+| Session tree | `Esc` `Esc` (empty input) |
+| Commands | `/` |
+| Attach file | Drag, `+`, or `Ctrl+V` |
 
----
+## Extensions
 
-## 键盘快捷键与基本操作
+pi has a growing ecosystem of npm packages — subagents, image generation, search, hash-anchored edits, MCP servers, and more. pi Desktop makes all of them work on the desktop **without forking pi or patching the packages**.
 
-| 操作 | 快捷键 / 方式 | 说明 |
-|------|-------------|------|
-| **发送消息** | `Enter` | 发送当前输入框内容；`Shift+Enter` 换行 |
-| **发送历史** | `↑` / `↓` | 在输入框**空**、**光标在顶格**或**全文选中**时：`↑` 翻看本工作区+会话下最近发送过的内容；`↓` 往更新翻。第一次 `↑` 前会把当前草稿暂存（失焦或进入历史时写入，不按每个字存），`↓` 回到最新可恢复这份草稿。斜杠补全打开时 `↑↓` 仍用于选命令 |
-| **拉回排队** | `Alt+↑` | Agent 运行中已排队消息拉回输入框合并编辑 |
-| **停止生成** | `Esc`（单次） | Agent 运行中按一下 Esc 中止当前轮次 |
-| **会话树 / 回退** | `Esc Esc`（双击） | 输入框为空时双击 Esc 打开会话树浮层，可跳转到任意历史节点 |
-| **斜杠命令** | `/` | 输入 `/` 触发命令补全（扩展命令、`/new`、`/tree` 等） |
-| **附加文件** | 拖拽到输入框 | 从文件管理器拖入文件自动附加为引用；也可点 `+` 按钮选择 |
-| **粘贴图片** | `Ctrl+V` | 剪贴板有图片时粘贴到输入框，自动转为 multimodal 输入 |
-| **排队跟进** | 运行中继续输入 | Agent 运行时发送的消息排队，当前轮次结束后自动跟进 |
-| **消息回退** | 悬停消息 → Undo 图标 | 时间线消息悬停出现回退按钮，点击跳转到该消息节点 |
-| **复制消息** | 悬停消息 → Copy 图标 | 复制消息纯文本到剪贴板 |
-| **模型切换** | 输入区底部 pill | 点击模型名切换当前会话模型 |
-| **思考等级** | 输入区底部 pill | 点击切换 thinking level |
-| **侧栏开关** | 顶栏左侧图标 | 折叠 / 展开左侧项目栏 |
-| **右栏开关** | 顶栏右侧图标 | 折叠 / 展开右侧面板栏 |
-| **侧栏拖拽调宽** | 拖动列分界线 | 左栏右缘、右栏左缘可拖动调整宽度 |
-| **会话右键菜单** | 右键会话条目 | 重命名 / 删除会话 |
-| **扩展弹窗** | 自动弹出 | 扩展请求选择/确认/问卷时自动弹窗；可点「稍后作答」挂起，时间线可「继续作答」 |
+### How it works
 
-**对话中的错误展示**：模型/API 失败、上游 `empty_stream`、自动重试耗尽（如 `Aborted after 1 retry attempt`）、用户中止（`Request was aborted`）等，会在时间线插入红色/琥珀色 **运行出错** 卡片，并显示整理后的完整报错（含 JSON 内的 `server_error` 文案）。右栏 **Run** 状态会标为失败；发送失败仍会 toast「发送失败」。
+Each extension ships a terminal TUI (select, confirm, surveys, tool cards, `/commands`). pi Desktop ships a **compatibility layer** plus per-extension **adapters** — small JSON descriptions that map that TUI onto native windows, timeline cards, and settings forms. You install and enable extensions exactly as you do for terminal pi; pi Desktop renders them.
 
----
+### Install & enable
 
-## 界面结构（你在用什么）
+1. Install in terminal pi: `pi install npm:<name>` or `pi install git:github.com/...`
+2. Enable in `~/.pi/agent/settings.json` → `packages`
+3. Open **Settings → Extensions** in pi Desktop to confirm tools are loaded for the current session
+4. If something's missing, **start a fresh session** after enabling the package
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│ 顶栏（沉浸模式）：侧栏开关 · 项目/会话标题 · 运行状态 · 窗口按钮     │
-├────────────┬─────────────────────────────────────┬───────────────┤
-│ 左栏       │ 中间：时间线（上）+ 浮动输入区（下）    │ 右栏（可收起） │
-│            │                                     │               │
-│ 磁盘项目树 │ 用户 / 助手 / 工具行 / 思考链        │ 审查·运行·    │
-│ 会话列表   │                                     │ 上下文·树…    │
-│ 对话分区   │                                     │               │
-└────────────┴─────────────────────────────────────┴───────────────┘
-```
+Extension pop-ups (questions, image approval, confirm dialogs) appear as native windows. Per-extension desktop options live under **Settings → Desktop adapters**. Advanced users can override builtin adapters with JSON in `~/.pi/desktop/adapters/`.
 
-- **设置**（独立全屏页）：常规、外观、Pi、扩展、**桌面适配器**、Skills、提示词。
 
----
+![Composer with model pills](https://img.justhil.uk/2026/06/25/image-20260625233933437)
 
-## 主要能力
+Full list of 34 built-in desktop adapters: [doc/guide/adapters.en.md](./doc/guide/adapters.en.md) · Author your own: [adapter-authoring-guide.md](./doc/adapter-authoring-guide.md)
 
-### 工作区与会话
+## Voice input
 
-- 单活动 cwd（磁盘路径或沙箱）；最近项目；启动可恢复上次目录。
-- 历史消息**从尾部按需加载**；切换会话先显示最近一段，完整会话在发送或树跳转时再绑定。
-- **会话树**：右栏或双击 Esc 浮层；节点跳转回到该分支；用户消息节点可把原文填回输入框。有 git 仓库时 pi-rewind 扩展会询问是否同时回退文件。
+The composer mic records audio and transcribes it locally using [codex-asr](https://github.com/Wangnov/codex-asr). It's optional — typing always works without it.
 
-### 对话与执行
+### Setup
 
-- 时间线：流式 Markdown、工具折叠行、原生工具的 diff/高亮预览。
-- 扩展工具：展示与弹窗由**兼容层 + 适配器**决定（下一节）。
-- 模型 / 思考等级在输入区切换；全局 pi 参数在 **设置 → Pi**。
+Open **Settings → Voice**:
 
-### 设置一览
+- **Provider** — defaults to the **bundled `codex-asr serve`** binary (shipped in `resources/codex-asr/`); falls back to `codex-asr` on your `PATH`, or an external serve URL.
+- **Auth** — paste a ChatGPT/Codex `access_token`, or click **import from `~/.codex/auth.json`** (written by the [Codex CLI](https://github.com/openai/codex) or ChatGPT desktop after sign-in). Tokens are JWTs and expire — refresh by signing in again.
+- **Connectivity test** — a one-click check reports whether the serve process started and the token is valid.
 
-| 页面 | 作用 |
-|------|------|
-| 常规 / 外观 | 启动、主题 |
-| Pi | 默认模型、压缩、重试等（写回 `settings.json`）；保存默认模型会同步到当前会话实际请求模型 |
-| **模型** | 编辑 `~/.pi/agent/models.json`：供应商预设、拉取远端模型目录、本地模型参数（与项目无关） |
-| 扩展 | 已探测扩展、当前会话实际加载的工具 |
-| **桌面适配器** | 每扩展的兼容说明、配置表单 |
-| Skills | 启用/禁用（`desktopSkillOverrides`） |
-| 提示词 | 项目上下文 / pi 内置 / 模板 / 插件注入；编辑与版本回退 |
+> [!TIP]
+> Easiest path: install the Codex CLI, run `codex login`, then in pi Desktop use **import from auth.json**. No manual token pasting needed.
+
+Bundled binaries come from [codex-asr releases](https://github.com/Wangnov/codex-asr/releases). If absent, the app falls back to any `codex-asr` found on your system `PATH`.
+
+## FAQ
+
+| Problem | Try this |
+|---------|----------|
+| Blank or frozen window after dev changes | Delete `node_modules/.vite`, run `npm run dev` again |
+| Extension listed in settings but not in chat | Enable it in pi `packages`, then **restart the session** |
+| Switching sessions feels slow at first | Only recent messages load immediately; the rest loads when you send or use the tree |
+| Voice doesn't work | Open Settings → Voice; check the token or run `codex login` to refresh — typing still works |
+| Closed an extension popup | Use **Continue** on the timeline |
+
+## Community
+
+Questions and feedback: **[LinuxDo](https://linux.do/)**
+
+If pi Desktop saves you from staring at a terminal all day, a **[star on GitHub](https://github.com/justhil/pi-app/stargazers)** helps others find it.
 
 ---
 
-## 扩展兼容层与适配器
+<details>
+<summary>For developers & extension authors</summary>
 
-很多 pi **扩展**依赖终端 TUI。若每个扩展各写一套桌面 UI，应用会难以维护。
+- User docs: [`doc/`](./doc/README.md) — getting started, adapter list, screenshots
+- Adapter authoring (for AI): [adapter-authoring-guide.md](./doc/adapter-authoring-guide.md)
+- Tech: Electron 35 · React 18 · TypeScript · Tailwind · shadcn · Zustand · i18next · `@earendil-works/pi-coding-agent`
+- Release: tag `v*` triggers `.github/workflows/release.yml` → Windows, macOS, Linux builds
 
-**兼容层**负责：
-
-- 在后台 pi 会话与前台窗口之间转发：**工具进度与结果**、**扩展弹窗**（选择/确认/问卷/审图等）、**配置读写**（仍尽量写扩展自己的配置文件）。
-- **不修改**扩展安装目录里的代码，**不修改** pi SDK 源码。
-
-**适配器**（每个扩展一份）说明：
-
-| 内容 | 用户可见位置 |
-|------|----------------|
-| 配置项与读写位置 | 设置 → 桌面适配器 → 该扩展 |
-| 工具结果如何展示 | 时间线工具行（列表、预览、导出链接等） |
-| 需要中途互动的工具 | 对话中弹窗，点选后对话继续 |
-| 部分 `/命令` | 打开配置页、提示，或按 pi 原逻辑执行 |
-
-内置适配随应用发布；可在 `~/.pi/desktop/adapters/` 或项目 `.pi/desktop/adapters/` 放 JSON 覆盖（高级）。
-
-**适配器 JSON 与工具卡模板**：每个扩展一份 `*.adapter.json`（匹配包名 / 工具名、配置页、斜杠语义）。时间线展示由 `toolCard.template` 查表：`default` / `list` / `media` / `tree` / `kv` / **`hashline`**（hashline 协议输出，实现位于 `src/extension-compat/renderer/`，无需在 `src/renderer` 写插件名分支）。安装扩展后需在 `settings.json` 的 `packages` 中启用，并重启 Worker。
-
-### 内置适配器列表
-
-以下适配器已内置在应用中（对应扩展需在 `~/.pi/agent/settings.json` 的 `packages` 中安装才生效）。终端安装示例：`pi install npm:pi-subagents`、`pi install git:github.com/justhil/pi-search`（npm 包用 `npm:`，GitHub 用 `git:`，与上表「扩展包」列包名一致）。
-
-| 适配器 | 扩展包 | 说明 |
-|--------|--------|------|
-| Trellis | [`trellis`](https://github.com/mindfold-ai/Trellis) | 项目任务面板（只读 sidePanel，读取 `.trellis/`） |
-| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | Git 检查点回退；会话树跳转时询问是否恢复文件 |
-| Ask User Question | [`@juicesharp/rpiv-ask-user-question`](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) | 结构化问答弹窗 |
-| Image Gen | [`pi-image-gen`](https://github.com/justhil/pi-image-gen) | 图片生成 / 审查弹窗 |
-| Multimodal Vision | [`pi-multimodal-proxy`](https://github.com/pungggi/pi-vision-proxy) | 多模态视觉代理 |
-| Markdown Preview | [`pi-markdown-preview`](https://www.npmjs.com/package/pi-markdown-preview) | Markdown 实时预览卡片 |
-| Studio | [`pi-studio`](https://github.com/omaclaren/pi-studio) | Studio REPL 集成 |
-| Fast Context | [`pi-fast-context`](https://www.npmjs.com/package/pi-fast-context) | 快速上下文检索 |
-| Subagents | [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) | 子 Agent 派发与管理 |
-| Cache Optimizer | [`pi-cache-optimizer`](https://github.com/jiangge/pi-cache-optimizer) | 缓存优化配置 |
-| Skills Manager | [`@vanillagreen/pi-skills-manager`](https://github.com/vanillagreencom/vstack) | Skills 管理配置 UI |
-| MCP Adapter | [`pi-mcp-adapter`](https://www.npmjs.com/package/pi-mcp-adapter) | MCP 服务器适配 |
-| Context Viewer | [`@agnishc/edb-context-viewer`](https://github.com/agnishcc/pi-extention-monorepo) | 上下文查看器 |
-| FFF | [`@ff-labs/pi-fff`](https://www.npmjs.com/package/@ff-labs/pi-fff) | fuzzy 文件查找 |
-| Sync | [`@narumitw/pi-sync`](https://github.com/narumiruna/pi-extensions) | 会话同步配置 |
-| Continue | [`pi-continue`](https://github.com/Tiziano-AI/pi-continue) | 继续对话配置 |
-| Goal | [`pi-goal`](https://github.com/jvm/pi-mono) | 目标管理 |
-| BTW | [`pi-btw`](https://www.npmjs.com/package/pi-btw) | 旁注记录 |
-| Simplify | [`pi-simplify`](https://www.npmjs.com/package/pi-simplify) | 代码简化建议 |
-| Advisor | [`@juicesharp/rpiv-advisor`](https://github.com/juicesharp/rpiv-mono) | 顾问建议弹窗 |
-| Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | 观察记忆配置 |
-| Tool Display | [`pi-tool-display`](https://www.npmjs.com/package/pi-tool-display) | 工具展示卡片 |
-| Hashline Edit | [`@jerryan/pi-hashline-edit`](https://www.npmjs.com/package/@jerryan/pi-hashline-edit) | 哈希锚定 read/edit/insert/grep + 时间线 hashline 预览 |
-| Agents.md | [`pi-agentsmd`](https://github.com/jvm/pi-mono) | AGENTS.md 管理配置 |
-| ACE Tool | [`pi-ace-tool`](https://github.com/justhil/pi-ace-tool) | ACE 工具集成 |
-| Sequential Thinking | [`@feniix/pi-sequential-thinking`](https://github.com/feniix/pi-extensions) | 顺序思考配置 |
-| Aegis | [`aegis`](https://github.com/killdream/aegis) | Aegis 工作流引擎 |
-| TPS Extensions | [`@kinarajv/pi-tps-extensions`](https://github.com/kinarajv/pi-tps-extensions) | TPS 扩展配置 |
-| Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | 纳米上下文 |
-| Powerline Footer | [`pi-powerline-footer`](https://github.com/nicobailon/pi-powerline-footer) | 底栏状态行 |
-| Amp Themes | [`amp-themes`](https://www.npmjs.com/package/amp-themes) | Amp 主题 |
-| Curated Themes | [`@victor-software-house/pi-curated-themes`](https://www.npmjs.com/package/@victor-software-house/pi-curated-themes) | 精选主题 |
-| Themes Bundle | [`@firstpick/pi-themes-bundle`](https://github.com/Firstp1ck/npm-packages) | 主题合集 |
-| Pi Search | [`pi-search`](https://github.com/justhil/pi-search) | 搜索工具 |
-
-**与终端 pi**
-
-| 能力 | 终端 pi | pi Desktop |
-|------|---------|------------|
-| 对话与 session | TUI | 图形时间线 + 输入区 |
-| 扩展弹窗 | 终端组件 | 兼容层 → 窗口 |
-| 扩展配置 | TUI / 文件 | 设置 → 适配器（仍写扩展常用配置文件） |
-| Skills / 提示词 | 目录 + settings | 设置集中管理 + 本地修订历史 |
-
-## 架构概览
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  界面 (React) — 时间线、输入区、设置、扩展弹窗宿主              │
-└────────────────────────────┬────────────────────────────────┘
-                             │ preload 白名单 IPC
-┌────────────────────────────┴────────────────────────────────┐
-│  主进程 — 窗口、应用配置、沙箱/文件、适配器配置后端、会话树文件解析  │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-┌────────────────────────────┴────────────────────────────────┐
-│  Pi 后台进程 — pi SDK、加载扩展、事件与 UI 请求                  │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**数据落点**
-
-| 数据 | 位置 |
-|------|------|
-| 会话与运行历史 | `~/.pi/agent/sessions/`（pi JSONL） |
-| 认证与全局 pi 设置 | `~/.pi/agent/` |
-| 应用偏好（主题、侧栏宽度等） | 本机 electron-store |
-| 提示词/技能编辑快照 | `~/.pi/agent/desktop-revisions/` |
-| 临时对话沙箱 | 应用 `userData/sandbox-workspaces/` |
-
-## 目录结构
-
-```text
-pi-app/
-├── README.md
-├── package.json
-├── electron.vite.config.ts      # main / preload / renderer / worker 构建
-├── electron-builder.yml           # 安装包
-├── resources/
-│   └── icon.svg                   # 应用图标源（npm run icon:export → build/icon.png）
-│
-├── packages/
-│   └── shared/                    # IPC 方法名、AppEvent、Zod 校验（前后端共用）
-│
-├── src/
-│   ├── main/                      # Electron 主进程
-│   │   ├── index.ts               # 入口、窗口、自动打开上次项目
-│   │   ├── ipc.ts                 # ipc:* 处理函数
-│   │   ├── worker-manager.ts      # Pi 后台进程生命周期与请求
-│   │   ├── config-store.ts        # 应用本地配置
-│   │   ├── sandbox-workspaces.ts  # 对话分区沙箱
-│   │   ├── session-tree-from-file.ts  # 未绑定会话时从 JSONL 读树
-│   │   ├── pi-resources-editor.ts # Skills/提示词磁盘读写
-│   │   ├── resource-revisions.ts  # 编辑版本回退
-│   │   ├── workspace-task-panel-reader.ts  # 右栏原语 workspace-trellis
-│   │   ├── side-panel-registry.ts   # adapter sidePanel.stateProvider
-│   │   └── …
-│   │
-│   ├── preload/                   # contextBridge 暴露给界面的安全 API
-│   │
-│   ├── worker/                    # Pi 后台进程（utilityProcess）
-│   │   ├── index.ts               # createAgentSession、消息处理
-│   │   └── desktop-ui-bridge.ts   # 扩展 ctx.ui → 发给界面
-│   │
-│   ├── extension-compat/          # ★ 扩展兼容层
-│   │   ├── builtin/*.adapter.json # 各扩展内置适配描述
-│   │   ├── adapter-loader.ts      # 合并内置与用户覆盖
-│   │   ├── adapter-backend.ts     # 配置读写、探测、通用动作
-│   │   ├── extension-probe.ts     # 扫描已安装扩展
-│   │   └── …
-│   │
-│   └── renderer/                  # React 界面
-│       ├── index.html
-│       └── src/
-│           ├── app/               # 壳层、三栏布局
-│           ├── features/          # 按功能划分
-│           │   ├── timeline/      # 时间线、Markdown、工具预览
-│           │   ├── composer/      # 输入区、斜杠、模型选择
-│           │   ├── review/        # 改动审查
-│           │   ├── run/ context/ trellis/ rewind/
-│           │   ├── settings/      # 设置各页
-│           │   ├── extension-ui/  # 扩展弹窗、适配器配置表单
-│           │   └── workspace/     # 侧栏项目与会话
-│           ├── components/ui/     # shadcn 基础组件
-│           ├── stores/            # Zustand（含持久化 UI 状态）
-│           ├── lib/               # IPC 客户端、会话切换、历史分页
-│           ├── locales/           # i18n
-│           └── styles/            # globals.css、动效 token
-│
-└── scripts/                       # 图标导出等构建脚本
-```
-
-**改界面** → 优先 `src/renderer/src/features/`。  
-**改 IPC 或沙箱/资源文件** → `src/main/` + `packages/shared/`。  
-**改 pi 会话行为** → `src/worker/`。  
-**新扩展桌面支持** → `src/extension-compat/builtin/` 增加适配 JSON。
-
----
-
-## 脚本
-
-| 命令 | 说明 |
-|------|------|
-| `npm run dev` | 开发模式 |
-| `npm run build` | 构建 main / preload / renderer / worker |
-| `npm run typecheck` | TypeScript 检查 |
-| `npm run icon:export` | `resources/icon.svg` → `build/icon.png` |
-| `npm run package:win` | Windows NSIS 安装包 + 便携版（`dist/`） |
-
-**GitHub Release（CI）**
-
-- 工作流：`.github/workflows/release.yml`
-- 推送标签 `v*`（如 `v0.1.0`）或 Actions 里手动 **Run workflow**，在 Windows 上构建并上传：
-  - `pi Desktop-Setup-<version>-x64.exe`（安装包）
-  - `pi Desktop-Portable-<version>-x64.exe`（便携包）
-- 打标签示例：`git tag v0.1.0 && git push origin v0.1.0`
-
----
-
-## 技术栈
-
-Electron 35 · electron-vite · React 18 · TypeScript · Tailwind · shadcn/Radix · Zustand · TanStack Query · i18next · react-markdown · Shiki · **@earendil-works/pi-coding-agent** ^0.79 · electron-store · better-sqlite3 · electron-updater
-
----
-
-## 许可证
-
-MIT
-
----
-
-## 友链
-
-- [LinuxDo](https://linux.do/) — 社区讨论与反馈
+</details>

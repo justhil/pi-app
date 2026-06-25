@@ -199,8 +199,8 @@ export default function App() {
               {showHome ? (
                 <Suspense fallback={null}>
                   <ProjectHomeView
-                    projectName={ephemeralSandboxDraft ? '新对话' : projectName}
-                    subtitle={ephemeralSandboxDraft ? '首条消息即对话标题' : undefined}
+                    projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
+                    subtitle={ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined}
                     recentProjects={recentProjects}
                     currentWorkspace={currentWorkspace}
                     ephemeralSandboxDraft={ephemeralSandboxDraft}

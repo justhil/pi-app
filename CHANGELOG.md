@@ -1,6 +1,19 @@
 # Changelog
 
 
+## [0.4.3] — 2026-06-25
+
+### 文档
+
+- **双语 README 精修**：面向用户重写，中英结构对齐；新增 Extensions（适配器/包生态兼容）与 Voice input（codex-asr 友链与设置说明）章节；图床截图
+- **doc/ 目录整理**：用户指南 `doc/guide/`（中英）、适配器列表自动生成 `npm run docs:adapters`、适配器编写文档双语 `doc/README.md` / `doc/README.zh-CN.md`
+- 源码注释中 `docs/` 路径引用修正为 `doc/`
+
+### i18n
+
+- 修复 `common` / `context` 命名空间中英双语遗漏与错误文案
+
+
 ## [0.3.12] — 2026-06-24
 
 ### 侧栏与会话

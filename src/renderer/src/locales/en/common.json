@@ -3,6 +3,7 @@
     "name": "pi Desktop",
     "status": {
       "idle": "Idle",
+      "ready": "Ready",
       "running": "Running",
       "failed": "Failed"
     }
@@ -75,7 +76,24 @@
   },
   "topbar": {
     "project": "Current project",
-    "session": "Current session"
+    "session": "Current session",
+    "back": "Back",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "expandRightPanel": "Expand right panel",
+    "collapseRightPanel": "Collapse right panel"
+  },
+  "home": {
+    "whatToDoInBefore": "What would you like to do in",
+    "whatToDoInAfter": "?",
+    "selectProject": "Choose a project",
+    "newChat": "New chat",
+    "hintWithProject": "Type a message to start, or pick a past chat from the sidebar",
+    "hintNoProject": "Choose a project folder to get started",
+    "pickerTitle": "Choose project",
+    "noRecentProjects": "No recent projects",
+    "openOtherFolder": "Open another folder…",
+    "firstMsgIsTitle": "First message becomes the chat title"
   },
   "save": "Save",
   "saving": "Saving…",

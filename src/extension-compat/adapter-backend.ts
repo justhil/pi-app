@@ -1,4 +1,4 @@
-// 通用适配器配置后端 (兼容层 v2 — docs/adapter-layer-plan.md §6)
+// 通用适配器配置后端 (兼容层 v2 — doc/adapter-layer-plan.md §6)
 // 按 adapter.config.persistence 分派：声明 configFile => shared-file（原子写+备份+env覆盖+fileKeyMap+secret不覆盖）；
 // 否则 app-local (configStore)。取代原先的 per-plugin config 后端。
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs'

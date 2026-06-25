@@ -117,7 +117,7 @@ export function ContextPanel() {
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
           <MessageSquare className="h-8 w-8 text-foreground-secondary/25" />
           <p className="text-[13px] leading-relaxed text-foreground-secondary/80">
-            Worker 未就绪或尚无活动会话
+            {t('context:workerNotReady')}
           </p>
         </div>
       ) : (
@@ -125,25 +125,29 @@ export function ContextPanel() {
           <div className="shrink-0 space-y-2 border-b border-border/40 px-3 py-3">
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/50 px-2.5 py-2">
-                <div className="text-[11px] text-foreground-secondary/80">消息条数</div>
+                <div className="text-[11px] text-foreground-secondary/80">{t('context:messageCount')}</div>
                 <div className="text-[16px] font-semibold tabular-nums text-foreground">{preview.messageCount}</div>
               </div>
               <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/50 px-2.5 py-2">
-                <div className="text-[11px] text-foreground-secondary/80">约 Token</div>
+                <div className="text-[11px] text-foreground-secondary/80">{t('context:approxTokens')}</div>
                 <div className="text-[16px] font-semibold tabular-nums text-foreground">
                   {formatTokens(estTokens ?? 0)}
                 </div>
                 <div className="text-[10px] tabular-nums text-foreground-secondary/70">
-                  {preview.estimatedChars.toLocaleString()} 字符
+                  {t('context:charsCount', { count: preview.estimatedChars.toLocaleString() })}
                 </div>
               </div>
             </div>
             {ctxPct != null && contextWindow != null && (
               <div>
                 <div className="mb-1 flex justify-between text-[11px] text-foreground-secondary">
-                  <span>占模型窗口</span>
+                  <span>{t('context:modelWindow')}</span>
                   <span className="tabular-nums">
-                    {formatTokens(estTokens!)} / {formatTokens(contextWindow)} ({ctxPct.toFixed(1)}%)
+                    {t('context:modelWindowFraction', {
+                      used: formatTokens(estTokens!),
+                      total: formatTokens(contextWindow),
+                      pct: ctxPct.toFixed(1),
+                    })}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-3)]">
