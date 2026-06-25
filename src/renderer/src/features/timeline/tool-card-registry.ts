@@ -1,4 +1,4 @@
-// Tool card registry (兼容层 v2 工具卡查表层 — docs/adapter-layer-plan.md §4.2/§7)
+// Tool card registry (兼容层 v2 工具卡查表层 — doc/adapter-layer-plan.md §4.2/§7)
 // 完全 v2：工具→模板解析走 adapter catalog（findAdapterByTool），无插件名硬编码。
 // 模板渲染器在 tool-card-templates.tsx（list/media/tree/kv/default）。
 // 渲染器都是通用的，由 adapter.toolCard.template 声明调用，不含插件专属逻辑。

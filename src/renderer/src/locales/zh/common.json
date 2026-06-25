@@ -3,6 +3,7 @@
     "name": "pi Desktop",
     "status": {
       "idle": "空闲",
+      "ready": "就绪",
       "running": "运行中",
       "failed": "失败"
     }
@@ -75,7 +76,24 @@
   },
   "topbar": {
     "project": "当前项目",
-    "session": "当前会话"
+    "session": "当前会话",
+    "back": "返回",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "收起侧边栏",
+    "expandRightPanel": "展开右侧面板",
+    "collapseRightPanel": "收起右侧面板"
+  },
+  "home": {
+    "whatToDoInBefore": "要在",
+    "whatToDoInAfter": "中做什么？",
+    "selectProject": "选择项目",
+    "newChat": "新对话",
+    "hintWithProject": "输入消息开始新对话，或从左侧选择历史会话",
+    "hintNoProject": "选择一个项目文件夹开始对话",
+    "pickerTitle": "选择项目",
+    "noRecentProjects": "暂无最近项目",
+    "openOtherFolder": "打开其他文件夹…",
+    "firstMsgIsTitle": "首条消息即对话标题"
   },
   "save": "保存",
   "saving": "保存中…",

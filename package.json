@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",
@@ -16,6 +16,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "package": "electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
+    "docs:adapters": "node scripts/generate-adapter-readme-table.mjs",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
     "postinstall": "electron-builder install-app-deps && electron-vite build",
     "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"

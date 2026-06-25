@@ -1,4 +1,4 @@
-// adapter.json 加载与合并 (兼容层 v2 — docs/adapter-layer-plan.md §5)
+// adapter.json 加载与合并 (兼容层 v2 — doc/adapter-layer-plan.md §5)
 // 优先级：项目 .pi/desktop/adapters > ~/.pi/desktop/adapters > builtin
 // 外部文件按 match.names（扩展包名）覆盖内置整份适配器，而非仅同 id 深合并
 import { existsSync, readFileSync, readdirSync } from 'fs'

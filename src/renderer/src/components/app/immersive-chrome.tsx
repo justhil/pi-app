@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { PanelLeft } from 'lucide-react'
 import { PiMark } from '@renderer/components/brand/pi-mark'
 import { WindowControls } from '@renderer/components/app/window-controls'
@@ -13,6 +14,7 @@ export function ImmersiveChrome({
   projectName?: string
   isRunning?: boolean
 }) {
+  const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   return (
@@ -25,7 +27,7 @@ export function ImmersiveChrome({
         <button
           type="button"
           onClick={toggleSidebar}
-          title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+          title={collapsed ? t('common:topbar.expandSidebar') : t('common:topbar.collapseSidebar')}
           className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary"
         >
           <PanelLeft
@@ -50,10 +52,10 @@ export function ImmersiveChrome({
         {isRunning ? (
           <div className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            <span className="text-[10px] font-medium text-green-600 dark:text-green-400">运行中</span>
+            <span className="text-[10px] font-medium text-green-600 dark:text-green-400">{t('common:app.status.running')}</span>
           </div>
         ) : (
-          <span className="text-[10px] text-foreground-secondary/70 tabular-nums">就绪</span>
+          <span className="text-[10px] text-foreground-secondary/70 tabular-nums">{t('common:app.status.ready')}</span>
         )}
         <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />
       </div>

@@ -1,4 +1,4 @@
-// adapter.json schema types & loader (兼容层 v2 — 见 docs/adapter-layer-plan.md)
+// adapter.json schema types & loader (兼容层 v2 — 见 doc/adapter-layer-plan.md)
 // 声明式适配器：一个 JSON 描述插件的匹配、配置页、工具卡、交互 UI 长相。
 
 export type AdapterTier = 'native' | 'partial' | 'headless' | 'none'

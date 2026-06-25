@@ -1,7 +1,7 @@
 # 兼容层 v2：adapter.json 与桌面原语
 
 > **给扩展作者 / 任意 AI 的完整编写说明**：见 **[adapter-authoring-guide.md](./adapter-authoring-guide.md)**（组件清单、IPC、多示例、模板）。  
-> 与 `docs/architecture.md`、`.trellis/spec/backend/quality-guidelines.md` 并列。  
+> 与 `dev/architecture.md`、`.trellis/spec/backend/quality-guidelines.md` 并列。  
 > **目标**：App 本体（`src/` 除 `src/extension-compat/`）**零插件名分支**；新扩展优先 **只加 JSON**（及可选用户覆盖），不改 Renderer/Main 业务代码。
 
 ---
@@ -26,7 +26,7 @@
 
 **外置覆盖内置**：按扩展 **包名**（`match.names` + `id` 规范化）判定是否为同一插件；命中则 **整份删除** 内置/低优先级条目并 **追加外置 JSON**（**不是** 同 `id` 深合并）。用户层、项目层依次 `applyPackageOverrides`；项目目录优先于用户目录。
 
-详细说明与示例见 **`docs/adapter-authoring-guide.md` §1**。
+详细说明与示例见 **[adapter-authoring-guide.md](./adapter-authoring-guide.md) §1**。
 
 加载 API：`loadAdapterCatalog(cwd)`、`invalidateAdapterCatalog()`、`findAdapterById`、`findAdapterByTool`、`resolveV2ByPluginName`、`resolveV2Slash`、`resolveInteractByTool`。`adapters.json.catalog` 的 `sources[id]` 可区分 `builtin` / `override`。
 

@@ -1,5 +1,5 @@
 // Adapter primitive registry & schema-driven config form (兼容层 v2 renderer side)
-// 见 docs/adapter-layer-plan.md §4.1
+// 见 doc/adapter-layer-plan.md §4.1
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
