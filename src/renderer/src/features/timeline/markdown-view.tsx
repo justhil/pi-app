@@ -98,7 +98,7 @@ const REHYPE_PLUGINS = [
   ] as const,
 ]
 
-const STREAM_MARKDOWN_MIN_CHARS = 48
+const STREAM_MARKDOWN_MIN_CHARS = 160
 
 const MarkdownView = memo(function MarkdownView({
   children,
@@ -171,7 +171,7 @@ const MarkdownView = memo(function MarkdownView({
   if (usePlainStream) {
     return (
       <div className={cn('prose-chat prose-chat-streaming', className)}>
-        <p className="my-1 whitespace-pre-wrap break-words leading-relaxed">{children}</p>
+        <p className="stream-plain-chunk my-1 whitespace-pre-wrap break-words">{children}</p>
       </div>
     )
   }

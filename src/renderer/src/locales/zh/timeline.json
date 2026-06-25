@@ -11,6 +11,8 @@
   "collapse": "收起",
   "expand": "展开 ({{count}} 行)",
   "thinkingChain": "思维链",
+  "thinkingActive": "思考中",
+  "thoughtDone": "思考",
   "thinkingLines": " · {{count}} 行",
   "generating": " · 生成中",
   "agentStarting": "Agent 启动中",

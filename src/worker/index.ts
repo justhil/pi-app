@@ -12,6 +12,7 @@ import type {
   EventBus,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
+import { expandConcatenatedSlashLine } from '@shared/slash-invocation'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath } from '../extension-compat/json-path.js'
@@ -684,10 +685,29 @@ process.parentPort?.on('message', async (event: any) => {
         }
         break
       }
+      case 'normalizeSlash': {
+        const names: string[] = []
+        if (session) {
+          try {
+            for (const cmd of session.extensionRunner.getRegisteredCommands()) {
+              names.push(cmd.invocationName)
+            }
+          } catch { /* */ }
+        }
+        const { normalized, changed } = expandConcatenatedSlashLine(String(msg.text ?? ''), names)
+        reply({ type: 'normalizeSlash-done', text: normalized, changed })
+        break
+      }
       case 'prompt': {
         if (!session) { reply({ type: 'error', error: 'No session' }); break }
-        // B-layer slash observability (R0-1): if the prompt is a slash command, emit a slash event
-        const slashMatch = typeof msg.text === 'string' ? msg.text.match(/^(\/\S+)/) : null
+        const invNames: string[] = []
+        try {
+          for (const cmd of session.extensionRunner.getRegisteredCommands()) {
+            invNames.push(cmd.invocationName)
+          }
+        } catch { /* */ }
+        const promptText = expandConcatenatedSlashLine(String(msg.text ?? ''), invNames).normalized
+        const slashMatch = promptText.match(/^(\/\S+)/)
         if (slashMatch) {
           emit({
             ...baseEvent(),
@@ -697,14 +717,11 @@ process.parentPort?.on('message', async (event: any) => {
             text: '已发送给 pi 执行',
           })
         }
-        currentRunId = `run-${nextSeq()}`
-        currentTurnId = `turn-${nextSeq()}`
         promptSent = true
-        emit({ ...baseEvent(), type: 'run', phase: 'running' })
         reply({ type: 'prompt-done' })
         void (async () => {
           try {
-            await session.prompt(msg.text, msg.options)
+            await session.prompt(promptText, msg.options)
             if (slashMatch) {
               emit({
                 ...baseEvent(),
@@ -713,6 +730,9 @@ process.parentPort?.on('message', async (event: any) => {
                 status: 'ok',
                 text: '命令已执行（详见下方助手/工具输出）',
               })
+            }
+            if (!agentTurnActive) {
+              emit({ ...baseEvent(), type: 'run', phase: 'idle' })
             }
           } catch (e: any) {
             console.error('[Worker] prompt failed:', e)
@@ -740,7 +760,31 @@ process.parentPort?.on('message', async (event: any) => {
         break
       }
       case 'abort': {
-        await session?.abort()
+        const wasActive = agentTurnActive
+        if (session) {
+          try {
+            session.clearQueue()
+          } catch (e) {
+            console.error('[Worker] clearQueue on abort failed:', e)
+          }
+        }
+        try {
+          session?.abortRetry?.()
+          session?.agent?.abort?.()
+        } catch (e: any) {
+          console.error('[Worker] abort failed:', e)
+        }
+        agentTurnActive = false
+        if (wasActive) {
+          emit({
+            ...baseEvent(),
+            type: 'agent_error',
+            text: 'Request was aborted.',
+            kind: 'aborted',
+            stopReason: 'aborted',
+          })
+        }
+        emit({ ...baseEvent(), type: 'run', phase: 'idle' })
         reply({ type: 'abort-done' })
         break
       }

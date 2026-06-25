@@ -1,6 +1,18 @@
 # Changelog
 
 
+## [0.4.4] — 2026-06-26
+
+### Composer & Timeline
+
+- **Slash 发送对齐 TUI**：扩展斜杠整行走 `prompt.send`，去掉桌面侧 `slash.resolve` 分流；内建命令仍在本地执行
+- **斜杠联想**：session 就绪后刷新命令表；菜单 Portal + 固定高度列表，滚轮与主对话区自绘滚动条一致，不再被主列裁切
+- **排队 / 中止**：运行中 steer/followUp 与 TUI 一致；中止 `clearQueue` + `agent.abort()`，不发送 `/goal pause`
+- **流式跟滚**：时间线流式输出时贴近底部自动跟随
+- **思维链文案**：生成中 Thinking / 折叠后 Thought（i18n）
+- **工具与扩展 UI**：交互工具 loading 同步；扩展 UI 阻塞时避免整页假死
+- **无空格斜杠**：Worker 侧 `expandConcatenatedSlashLine`（如 `/goal1233` → `/goal 1233`）
+
 ## [0.4.3] — 2026-06-25
 
 ### 文档

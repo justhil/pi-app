@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, CornerDownLeft, ArrowUp, ArrowDown, Upload, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { executeSlashCommand, isExecutableBuiltin, firstToken } from './slash-exec'
+import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
 import { AttachmentMeta, getAttachmentKind, resolveFilePath, basenameOf, serializeRichInput, insertAttachmentAtCursor, renderRichTextFromPlain, renderRichFromSegments, replaceTrailingTokenInSegments, stripTrailingSlashToken, placeCaretAtEnd, type Segment } from './attachments'
 import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
@@ -13,10 +14,11 @@ import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
-import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
+import { applyComposerAbortUi, restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
 import { useComposerInputHistory, type EditorCursorAdapter } from './use-composer-input-history'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 import { RichInput } from './rich-input'
+import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
@@ -128,11 +130,13 @@ export function Composer() {
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
+  const abortInFlight = useRef(false)
   const editorRef = useRef<HTMLDivElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const canCompose = !!currentWorkspace || ephemeralSandboxDraft
+  /** 对齐 TUI：Esc/停止仅在 isStreaming（agent 轮次）时生效，不把 followUp 队列算作 running */
   const isRunning = useUIStore((s) => s.runState.status === 'running')
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
@@ -203,6 +207,11 @@ export function Composer() {
     if (canCompose) refreshCommands()
   }, [canCompose, refreshCommands])
 
+  // Session 加载完成后重新拉取命令列表（首次 canCompose 时 session 可能还没初始化）
+  useEffect(() => {
+    if (currentSessionId) refreshCommands()
+  }, [currentSessionId, refreshCommands])
+
   // Slash popover: triggered when text starts with '/' (anchored at line start or message start)
   const slashQuery = useMemo(() => {
     const m = text.match(/(?:^|\n)\/(\S*)$/)
@@ -219,7 +228,7 @@ export function Composer() {
       if (seen.has(key)) return false
       seen.add(key)
       return !q || key.includes(q) || (c.description || '').toLowerCase().includes(q)
-    }).slice(0, 8)
+    })
   }, [commands, slashQuery])
 
   // Argument completions: when text is "/cmd args...", fetch completions for the arg prefix
@@ -233,7 +242,7 @@ export function Composer() {
     const prefix = argMatch[2]
     let cancelled = false
     ipcClient.invoke('commands.completions', { commandName: cmdName, argumentPrefix: prefix })
-      .then((res) => { if (!cancelled) setArgCompletions((res?.items || []).slice(0, 6)) })
+      .then((res) => { if (!cancelled) setArgCompletions(res?.items || []) })
       .catch(() => { if (!cancelled) setArgCompletions([]) })
     return () => { cancelled = true }
   }, [argMatch])
@@ -243,6 +252,56 @@ export function Composer() {
   }, [slashQuery])
 
   const showPopover = slashQuery !== null && filteredCommands.length > 0
+  const slashPopoverAnchorRef = useRef<HTMLDivElement>(null)
+  const slashListScrollRef = useRef<HTMLDivElement>(null)
+  const [slashPopoverLayout, setSlashPopoverLayout] = useState<{
+    left: number
+    width: number
+    bottom: number
+    listMaxPx: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!showPopover) {
+      setSlashPopoverLayout(null)
+      return
+    }
+    const sync = () => {
+      const el = slashPopoverAnchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const insetX = 16
+      const gap = 8
+      const footerPx = 36
+      const bottom = Math.max(8, window.innerHeight - r.top + gap)
+      const listMaxPx = Math.max(120, Math.min(320, r.top - gap - footerPx - 16))
+      setSlashPopoverLayout({
+        left: r.left + insetX,
+        width: Math.max(200, r.width - insetX * 2),
+        bottom,
+        listMaxPx,
+      })
+    }
+    sync()
+    const ro = new ResizeObserver(sync)
+    const anchor = slashPopoverAnchorRef.current
+    if (anchor) ro.observe(anchor)
+    window.addEventListener('resize', sync)
+    window.addEventListener('scroll', sync, true)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', sync)
+      window.removeEventListener('scroll', sync, true)
+    }
+  }, [showPopover, text])
+
+  useEffect(() => {
+    if (!showPopover) return
+    const pane = slashListScrollRef.current
+    if (!pane) return
+    const row = pane.querySelector(`[data-slash-idx="${selectedIdx}"]`) as HTMLElement | null
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [showPopover, selectedIdx, filteredCommands.length])
 
   const clearEditor = useCallback(() => {
     const el = editorRef.current
@@ -268,7 +327,7 @@ export function Composer() {
     },
   }), [])
 
-  const sendCurrent = async () => {
+  const sendCurrent = async (opts?: { queue?: 'steer' | 'followUp' }) => {
     if (extensionUiBlocksComposer()) {
       toast.message(t('composer:toast.completeExtensionFirst'))
       return
@@ -313,8 +372,12 @@ export function Composer() {
         return
       }
       if (running) {
-        appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
-        await ipcClient.invoke('prompt.followUp', { sessionId: '', text: payload })
+        const queue = opts?.queue ?? 'steer'
+        if (queue === 'steer') {
+          await ipcClient.invoke('prompt.steer', { sessionId: '', text: payload })
+        } else {
+          await ipcClient.invoke('prompt.followUp', { sessionId: '', text: payload })
+        }
         return
       }
       appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
@@ -340,53 +403,34 @@ export function Composer() {
       const handled = await executeSlashCommand(trimmed, { refreshCommands })
       if (handled) { clearEditor(); return }
     }
-    const token = attachments.length === 0 ? firstToken(trimmed) : null
-    if (token && !isExecutableBuiltin(trimmed)) {
-      try {
-        const r = await ipcClient.invoke('slash.resolve', { command: token })
-        if (r?.behavior === 'config-page' && r?.meta) {
-          useUIStore.getState().requestExtensionConfig?.(r.meta.matchNames[0] || token)
-          clearEditor()
-          toast.info(t('composer:toast.openedConfig', { name: r.meta.matchNames[0] || token }))
-          return
-        }
-        if (r?.behavior === 'open-panel') {
-          const panel = r.meta?.panelId || `adapter:${r.meta?.adapterId || ''}`
-          if (!panel || panel === 'adapter:') {
-            toast.error(t('composer:toast.slashNoPanel'))
-            return
-          }
-          useUIStore.getState().setActivePanel(panel)
-          clearEditor()
-          toast.info(r.meta?.desktopSupport || t('composer:toast.openedPanel', { panel }))
-          return
-        }
-        if (r?.behavior === 'notify' && r?.meta?.desktopSupport) {
-          clearEditor()
-          toast.info(r.meta.desktopSupport)
-          await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
-          return
-        }
-        if (r?.behavior === 'execute') {
-          clearEditor()
-          await ipcClient.invoke('prompt.send', { sessionId: '', text: trimmed })
-          return
-        }
-      } catch (e) {
-        console.error('slash.resolve failed:', e)
-      }
-    }
-    await sendCurrent()
+    await sendCurrent(isRunning ? { queue: 'steer' } : undefined)
   }
 
-  const handleAbort = async () => {
+  const runComposerAbort = async (currentText: string) => {
+    if (abortInFlight.current) return
+    abortInFlight.current = true
     const { dismissExtensionDialogState } = await import('@renderer/lib/extension-ui-channel')
     dismissExtensionDialogState()
+    applyComposerAbortUi()
     try {
-      await ipcClient.invoke('prompt.abort', { sessionId: '' })
+      await restoreQueuedToComposer({ abort: true, currentText, setText: setContent, quiet: true })
     } catch (e) {
       console.error('Abort failed:', e)
+      try {
+        await ipcClient.invoke('prompt.abort', { sessionId: '' })
+        applyComposerAbortUi()
+      } catch (e2) {
+        console.error('prompt.abort fallback failed:', e2)
+      }
+    } finally {
+      abortInFlight.current = false
     }
+  }
+
+  const handleAbort = () => {
+    const el = editorRef.current
+    const currentText = el ? serializeRichInput(el).displayText : text
+    void runComposerAbort(currentText)
   }
 
   const applySegmentsChange = (next: Segment[]) => {
@@ -434,13 +478,13 @@ export function Composer() {
     }
     if (e.key === 'Escape' && isRunning && !showPopover) {
       e.preventDefault()
-      void restoreQueuedToComposer({ abort: true, currentText: text, setText: setContent })
+      void runComposerAbort(text)
       return
     }
     if (alt && e.key === 'Enter') {
       e.preventDefault()
       if (text.trim() || attachments.length > 0) {
-        if (isRunning) void sendCurrent()
+        if (isRunning) void sendCurrent({ queue: 'followUp' })
         else void handleSend()
       }
       return
@@ -540,6 +584,14 @@ export function Composer() {
         }
       }
       reader.readAsDataURL(file)
+      return
+    }
+    const plain = e.clipboardData.getData('text/plain')
+    if (plain) {
+      e.preventDefault()
+      const el = editorRef.current
+      if (el) insertTextAtCursor(el, plain)
+      updateFromEditor()
     }
   }
 
@@ -647,12 +699,31 @@ export function Composer() {
           <span className="text-[12px] font-medium">{t('composer:dropOverlay')}</span>
         </div>
       </div>
-      {showPopover && (
-        <div className="popover-motion absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg">
-          <div className="max-h-72 overflow-y-auto py-1">
+      {showPopover && slashPopoverLayout && createPortal(
+        <div
+          data-slash-popover
+          className="popover-motion flex flex-col overflow-hidden rounded-xl border border-border/70 bg-popover shadow-lg"
+          style={{
+            position: 'fixed',
+            left: slashPopoverLayout.left,
+            width: slashPopoverLayout.width,
+            bottom: slashPopoverLayout.bottom,
+            zIndex: 10000,
+            maxHeight: slashPopoverLayout.listMaxPx + 40,
+          }}
+        >
+          <div className="relative min-h-0 shrink-0" style={{ height: slashPopoverLayout.listMaxPx }}>
+            <OverlayScrollHost
+              className="h-full"
+              showRailOnHostHover
+              scrollRef={slashListScrollRef}
+              scrollClassName="composer-slash-popover-pane py-1 overscroll-contain"
+            >
             {filteredCommands.map((cmd, idx) => (
               <button
                 key={`${cmd.category}-${cmd.id}`}
+                type="button"
+                data-slash-idx={idx}
                 onMouseEnter={() => setSelectedIdx(idx)}
                 onClick={() => acceptCommand(cmd)}
                 className={cn(
@@ -677,6 +748,7 @@ export function Composer() {
                 {argCompletions.map((a, i) => (
                   <button
                     key={i}
+                    type="button"
                     onMouseEnter={() => setArgIdx(i)}
                     onClick={() => acceptArg(a.label)}
                     className={cn(
@@ -691,8 +763,9 @@ export function Composer() {
                 ))}
               </div>
             )}
+            </OverlayScrollHost>
           </div>
-          <div className="flex items-center gap-3 border-t border-border/40 px-3 py-1.5 text-[10px] text-muted-foreground/70">
+          <div className="flex shrink-0 items-center gap-3 border-t border-border/40 px-3 py-1.5 text-[10px] text-muted-foreground/70">
             <span className="flex items-center gap-1"><ArrowUp className="h-2.5 w-2.5" /><ArrowDown className="h-2.5 w-2.5" /> {t('composer:select')}</span>
             <span className="flex items-center gap-1"><CornerDownLeft className="h-2.5 w-2.5" /> {t('composer:confirm')}</span>
             <span className="flex items-center gap-1">{t('composer:tabComplete')}</span>
@@ -701,10 +774,12 @@ export function Composer() {
               <span className="ml-auto text-amber-600 dark:text-amber-400">{t('composer:offlineFallback')}</span>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       <ComposerPendingQueue />
       <div
+        ref={slashPopoverAnchorRef}
         className={cn(
           'composer-shell flex flex-col rounded-xl border',
           composerFocused && 'composer-shell-focused',

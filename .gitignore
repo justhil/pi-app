@@ -68,4 +68,4 @@ temp/
 scripts/filter_repo_message*.py
 scripts/replace-text-history.txt
 scripts/rewrite-commit-messages.txt
-scripts/fix-arrow-syntax.py
+scripts/fix-arrow-syntax.py*.tgz

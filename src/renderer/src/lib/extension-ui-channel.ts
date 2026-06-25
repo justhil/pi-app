@@ -8,6 +8,11 @@ import type { AskQuestionPayload } from '@renderer/features/extension-ui/questio
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
 import { traceAudioRenderer } from '@renderer/lib/audio-trace'
 import { alertTrace } from '@renderer/lib/alert-trace'
+import {
+  linkExtensionDialogToToolRow,
+  reconcileAllStaleInteractiveToolRows,
+  reconcileStaleInteractiveToolRows,
+} from '@renderer/lib/extension-ui-tool-sync'
 
 let started = false
 const seenDialogIds = new Set<string>()
@@ -77,10 +82,12 @@ export function ensureExtensionUIChannel(): void {
     if (payload.type === 'extension-ui-dismiss-all') {
       seenDialogIds.clear()
       useExtensionUIStore.getState().clearAfterRespond()
+      reconcileAllStaleInteractiveToolRows()
       return
     }
     if (payload.type === 'extension-ui-dismiss' && payload.id) {
       dismissExtensionDialogState(payload.id)
+      reconcileStaleInteractiveToolRows(payload.id)
     }
   })
 
@@ -120,6 +127,9 @@ export function ensureExtensionUIChannel(): void {
 
     traceAudioRenderer('extension-ui.dialog', { method: p.method, id: p.id })
     useExtensionUIStore.getState().setActivePending(p)
+    if (INTERACTIVE_TOOL_NAMES.has(p.method)) {
+      linkExtensionDialogToToolRow(p.id, p.method)
+    }
 
     const body =
       p.method === 'image_review'

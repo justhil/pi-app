@@ -18,7 +18,7 @@ export function MainColumnWithTimelineScroll({
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       const t = e.target as HTMLElement
-      if (t.closest('textarea, input, [data-composer-root]')) return
+      if (t.closest('textarea, input, [data-composer-root], [data-slash-popover]')) return
       if (scrollTimelineByDelta(e.deltaY)) {
         e.preventDefault()
       }
