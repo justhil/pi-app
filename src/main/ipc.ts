@@ -38,7 +38,11 @@ import { listRevisions, pushRevision, restoreRevision, readRevision } from './re
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { buildPluginAdapters } from '../extension-compat/plugin-adapters'
 import { loadAdapterCatalog, invalidateAdapterCatalog, resolveV2SlashPrefix } from '../extension-compat/adapter-loader'
-import { expandConcatenatedSlashLine } from '@shared/slash-invocation'
+import {
+  mergeSlashCommandLists,
+  scanStaticSlashCommands,
+  type SlashCatalogCommand,
+} from './commands-catalog'
 import { listAdapterSidePanelMetas } from '../extension-compat/side-panel-catalog'
 import {
   mergeRightPanelCatalog,
@@ -649,7 +653,9 @@ export function registerAllHandlers(): void {
     const all = [...(cleared.steering || []), ...(cleared.followUp || [])]
     const queuedText = all.join('\n')
     const combined = [queuedText, currentText.trim()].filter(Boolean).join('\n')
-    if (abort) await workerManager.abort()
+    if (abort) {
+      await workerManager.abort()
+    }
     return { restoredCount: all.length, combinedText: combined }
   })
 
@@ -1007,51 +1013,38 @@ export function registerAllHandlers(): void {
   })
 
   // ── Commands ──
-  // Authoritative source = Worker session getCommands (A-layer, tui-replacement-and-adapters.md §2.2).
-  // Directory scan is a fallback ONLY when Worker not started yet.
+  // Live session list when bound; otherwise disk + extension probe (preview / pendingBind).
   registerHandler('ipc:commands.list', async (_req) => {
+    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const overrides = getDesktopSkillOverrides()
+    const filterSkills = (list: SlashCatalogCommand[]) =>
+      list.filter((c) => {
+        if (c.category !== 'skill') return true
+        const id = String(c.id || c.name || '').replace(/^\/?skill:/, '')
+        const path = c.source?.path || c.source?.filePath
+        return isSkillEnabled(id, path, overrides)
+      })
+
+    const staticCmds = filterSkills(scanStaticSlashCommands(cwd))
+
+    await workerManager.awaitReady()
     if (workerManager.isRunning) {
       try {
         const r = await workerManager.getCommands()
-        const overrides = getDesktopSkillOverrides()
-        const commands = (r.commands || []).filter((c: any) => {
-          if (c.category !== 'skill') return true
-          const id = String(c.id || c.name || '').replace(/^\/?skill:/, '')
-          const path = c.source?.path || c.source?.filePath
-          return isSkillEnabled(id, path, overrides)
-        })
-        return { commands, source: 'worker' }
+        const workerCmds = filterSkills((r.commands || []) as SlashCatalogCommand[])
+        if (r.hasSession && workerCmds.length > 0) {
+          return { commands: mergeSlashCommandLists(workerCmds, staticCmds), source: 'worker' }
+        }
+        if (workerCmds.length > 0) {
+          return { commands: mergeSlashCommandLists(workerCmds, staticCmds), source: 'preview' }
+        }
       } catch (e) {
         console.error('[IPC] commands.list worker failed:', e)
       }
     }
 
-    // Fallback: static scan (Worker not started). NOT authoritative for execution.
-    const commands: any[] = []
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const projectPromptsDir = join(cwd, '.pi', 'prompts')
-    if (existsSync(projectPromptsDir)) {
-      try {
-        for (const file of readdirSync(projectPromptsDir)) {
-          if (file.endsWith('.md')) {
-            const name = file.replace('.md', '')
-            commands.push({ id: name, name: `/prompt:${name}`, description: 'Project prompt', category: 'prompt' })
-          }
-        }
-      } catch {}
-    }
-    const projectSkillsDir = join(cwd, '.pi', 'skills')
-    if (existsSync(projectSkillsDir)) {
-      try {
-        for (const dir of readdirSync(projectSkillsDir)) {
-          const skillFile = join(projectSkillsDir, dir, 'SKILL.md')
-          if (existsSync(skillFile)) {
-            commands.push({ id: dir, name: `/skill:${dir}`, description: 'Project skill', category: 'skill' })
-          }
-        }
-      } catch {}
-    }
-    return { commands, source: 'fallback' }
+    if (staticCmds.length > 0) return { commands: staticCmds, source: 'preview' }
+    return { commands: [], source: 'fallback' }
   })
 
   // ── Review ──
@@ -1181,19 +1174,7 @@ export function registerAllHandlers(): void {
   })
 
   registerHandler('ipc:slash.normalize', async (req) => {
-    const line = String(req.text ?? '')
-    const names: string[] = []
-    try {
-      const { commands } = await workerManager.getCommands()
-      for (const c of commands || []) {
-        const n = String(c.name || c.id || '')
-        if (n) names.push(n)
-      }
-    } catch {
-      /* no session */
-    }
-    const { normalized } = expandConcatenatedSlashLine(line, names)
-    return { text: normalized }
+    return { text: String(req.text ?? '').trim() }
   })
 
   // B-layer: resolve slash command desktop behavior (notify vs config-page vs execute) — v2-only

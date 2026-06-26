@@ -97,6 +97,9 @@ export default function App() {
 
   useEffect(() => {
     const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
+    void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {
+      fetchWorkerLiveSnapshot().then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap)).catch(() => {})
+    })
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
     })

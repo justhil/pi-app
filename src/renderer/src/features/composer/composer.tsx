@@ -14,7 +14,9 @@ import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
-import { applyComposerAbortUi, restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
+import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
+import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
+import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { useComposerInputHistory, type EditorCursorAdapter } from './use-composer-input-history'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 import { RichInput } from './rich-input'
@@ -22,6 +24,12 @@ import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
+import {
+  fetchWorkerLiveSnapshot,
+  isSessionPreviewComposeLocked,
+  isViewingWorkerBoundSession,
+  syncViewRunStateFromWorkerSnapshot,
+} from '@renderer/lib/session-worker-sync'
 
 interface SlashCommand {
   id: string
@@ -130,14 +138,38 @@ export function Composer() {
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
-  const abortInFlight = useRef(false)
   const editorRef = useRef<HTMLDivElement>(null)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const workerLiveSnapshot = useUIStore((s) => s.workerLiveSnapshot)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
+  const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
   const canCompose = !!currentWorkspace || ephemeralSandboxDraft
-  /** 对齐 TUI：Esc/停止仅在 isStreaming（agent 轮次）时生效，不把 followUp 队列算作 running */
+  const sessionPreview = useMemo(
+    () =>
+      !ephemeralSandboxDraft &&
+      !pendingNew &&
+      !!historySessionFile &&
+      isSessionPreviewComposeLocked(
+        historySessionFile,
+        workerLiveSnapshot.sessionFile,
+        workerLiveSnapshot.status,
+      ),
+    [
+      ephemeralSandboxDraft,
+      pendingNew,
+      historySessionFile,
+      workerLiveSnapshot.sessionFile,
+      workerLiveSnapshot.status,
+    ],
+  )
+  const canSendMessages = canCompose && !sessionPreview
   const isRunning = useUIStore((s) => s.runState.status === 'running')
+  const viewingWorkerBound = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
+  const workerTurnActive = workerLiveSnapshot.status === 'running'
+  /** 停止键：绑定会话且 Worker 仍在跑（切回后不等下一条事件） */
+  const showComposerStop = viewingWorkerBound && (workerTurnActive || isRunning)
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -148,7 +180,7 @@ export function Composer() {
   const composerPrefill = useUIStore((s) => s.composerPrefill)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
-  const { voiceState, toggle: toggleVoice, disabled: voiceDisabled } = useVoiceInput(canCompose, (text) => {
+  const { voiceState, toggle: toggleVoice, disabled: voiceDisabled } = useVoiceInput(canSendMessages, (text) => {
     const el = editorRef.current
     if (el) insertTextAtCursor(el, text)
   })
@@ -177,10 +209,20 @@ export function Composer() {
   }, [composerPrefill, setComposerPrefill, setContent])
 
   useEffect(() => {
-    setIsStreaming(isRunning)
-  }, [isRunning])
+    setIsStreaming(showComposerStop)
+  }, [showComposerStop])
 
-  const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
+  useEffect(() => {
+    if (!historySessionFile) return
+    void fetchWorkerLiveSnapshot()
+      .then((snap) => {
+        const store = useUIStore.getState()
+        store.setWorkerLiveSnapshot(snap)
+        syncViewRunStateFromWorkerSnapshot(historySessionFile, snap, (p) => store.setRunState(p))
+      })
+      .catch(() => {})
+  }, [currentSessionId, historySessionFile])
+
   useEffect(() => {
     if (!canCompose) return
     // home mode / placeholder / sandbox draft 不触发 Worker IPC（Worker 可能未启动，会卡住）
@@ -207,7 +249,11 @@ export function Composer() {
     if (canCompose) refreshCommands()
   }, [canCompose, refreshCommands])
 
-  // Session 加载完成后重新拉取命令列表（首次 canCompose 时 session 可能还没初始化）
+  // 打开项目 / 时间线预览（pendingBind）时即可用静态目录拉全量斜杠表
+  useEffect(() => {
+    if (canCompose && currentWorkspace) refreshCommands()
+  }, [canCompose, currentWorkspace, refreshCommands])
+
   useEffect(() => {
     if (currentSessionId) refreshCommands()
   }, [currentSessionId, refreshCommands])
@@ -352,6 +398,10 @@ export function Composer() {
     )
     const sendPrompt = () => ipcClient.invoke('prompt.send', { sessionId: '', text: payload })
     const pendMsg = displayText.trim()
+    if (pendMsg.startsWith('/')) {
+      const routed = await routeDesktopSlashBeforeSend(pendMsg)
+      if (routed.handled) return
+    }
     try {
       if (!running && draft) {
         appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
@@ -403,31 +453,24 @@ export function Composer() {
       const handled = await executeSlashCommand(trimmed, { refreshCommands })
       if (handled) { clearEditor(); return }
     }
-    await sendCurrent(isRunning ? { queue: 'steer' } : undefined)
+    if (trimmed.startsWith('/')) {
+      const routed = await routeDesktopSlashBeforeSend(trimmed)
+      if (routed.handled) {
+        clearEditor()
+        return
+      }
+    }
+    await sendCurrent(showComposerStop || isRunning ? { queue: 'steer' } : undefined)
   }
 
   const runComposerAbort = async (currentText: string) => {
-    if (abortInFlight.current) return
-    abortInFlight.current = true
     const { dismissExtensionDialogState } = await import('@renderer/lib/extension-ui-channel')
     dismissExtensionDialogState()
-    applyComposerAbortUi()
-    try {
-      await restoreQueuedToComposer({ abort: true, currentText, setText: setContent, quiet: true })
-    } catch (e) {
-      console.error('Abort failed:', e)
-      try {
-        await ipcClient.invoke('prompt.abort', { sessionId: '' })
-        applyComposerAbortUi()
-      } catch (e2) {
-        console.error('prompt.abort fallback failed:', e2)
-      }
-    } finally {
-      abortInFlight.current = false
-    }
+    await abortAgentTurn({ restoreEditorText: currentText, setEditorText: setContent })
   }
 
   const handleAbort = () => {
+    if (isComposerAbortCooldown()) return
     const el = editorRef.current
     const currentText = el ? serializeRichInput(el).displayText : text
     void runComposerAbort(currentText)
@@ -476,7 +519,7 @@ export function Composer() {
       void restoreQueuedToComposer({ currentText: text, setText: setContent })
       return
     }
-    if (e.key === 'Escape' && isRunning && !showPopover) {
+    if (e.key === 'Escape' && showComposerStop && !showPopover) {
       e.preventDefault()
       void runComposerAbort(text)
       return
@@ -484,7 +527,7 @@ export function Composer() {
     if (alt && e.key === 'Enter') {
       e.preventDefault()
       if (text.trim() || attachments.length > 0) {
-        if (isRunning) void sendCurrent({ queue: 'followUp' })
+        if (showComposerStop || isRunning) void sendCurrent({ queue: 'followUp' })
         else void handleSend()
       }
       return
@@ -778,10 +821,19 @@ export function Composer() {
         document.body,
       )}
       <ComposerPendingQueue />
+      {sessionPreview && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200/90">
+          <span className="min-w-0 flex-1">{t('composer:previewBanner')}</span>
+          {workerLiveSnapshot.status === 'running' && (
+            <span className="shrink-0 rounded-md bg-amber-500/15 px-2 py-0.5 font-medium">{t('composer:previewBackgroundRunning')}</span>
+          )}
+        </div>
+      )}
       <div
         ref={slashPopoverAnchorRef}
         className={cn(
           'composer-shell flex flex-col rounded-xl border',
+          sessionPreview && 'opacity-90',
           composerFocused && 'composer-shell-focused',
           isDragActive && 'border-dashed !border-primary/50',
           voiceState === 'recording' && 'composer-shell--voice-recording',
@@ -813,26 +865,28 @@ export function Composer() {
             placeholder={
               voiceState === 'recording' || voiceState === 'transcribing'
                 ? ''
-                : ephemeralSandboxDraft && !currentWorkspace
-                  ? t('composer:firstMsgIsTitle')
-                  : canCompose
-                    ? t('composer:placeholder')
-                    : t('composer:selectProjectFirst')
+                : sessionPreview
+                  ? t('composer:previewReadOnly')
+                  : ephemeralSandboxDraft && !currentWorkspace
+                    ? t('composer:firstMsgIsTitle')
+                    : canCompose
+                      ? t('composer:placeholder')
+                      : t('composer:selectProjectFirst')
             }
-            disabled={!canCompose || voiceState === 'transcribing' || voiceState === 'recording'}
+            disabled={!canSendMessages || voiceState === 'transcribing' || voiceState === 'recording'}
           />
           <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
             <button
               type="button"
               onClick={pickAttachments}
-              disabled={!canCompose}
+              disabled={!canSendMessages}
               title={t('composer:addFile')}
               className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
             >
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
             {canCompose && (
-              <ComposerMetricsInline metrics={metrics} isRunning={isRunning} />
+              <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
             )}
             <div className="min-w-0 flex-1">
               {canCompose && (
@@ -847,7 +901,7 @@ export function Composer() {
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              {isStreaming && (
+              {showComposerStop && (
                 <button
                   type="button"
                   onClick={handleAbort}
@@ -873,7 +927,7 @@ export function Composer() {
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={(!text.trim() && attachments.length === 0) || !canCompose}
+                    disabled={(!text.trim() && attachments.length === 0) || !canSendMessages}
                     title={isStreaming ? t('composer:joinQueue') : t('composer:send')}
                     className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
                   >

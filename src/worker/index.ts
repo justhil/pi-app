@@ -12,7 +12,6 @@ import type {
   EventBus,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
-import { expandConcatenatedSlashLine } from '@shared/slash-invocation'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath } from '../extension-compat/json-path.js'
@@ -685,28 +684,9 @@ process.parentPort?.on('message', async (event: any) => {
         }
         break
       }
-      case 'normalizeSlash': {
-        const names: string[] = []
-        if (session) {
-          try {
-            for (const cmd of session.extensionRunner.getRegisteredCommands()) {
-              names.push(cmd.invocationName)
-            }
-          } catch { /* */ }
-        }
-        const { normalized, changed } = expandConcatenatedSlashLine(String(msg.text ?? ''), names)
-        reply({ type: 'normalizeSlash-done', text: normalized, changed })
-        break
-      }
       case 'prompt': {
         if (!session) { reply({ type: 'error', error: 'No session' }); break }
-        const invNames: string[] = []
-        try {
-          for (const cmd of session.extensionRunner.getRegisteredCommands()) {
-            invNames.push(cmd.invocationName)
-          }
-        } catch { /* */ }
-        const promptText = expandConcatenatedSlashLine(String(msg.text ?? ''), invNames).normalized
+        const promptText = String(msg.text ?? '').trim()
         const slashMatch = promptText.match(/^(\/\S+)/)
         if (slashMatch) {
           emit({

@@ -6,6 +6,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 import { chooseWorkspaceSession, type WorkspaceSessionChoice } from '@renderer/lib/workspace-session-choice'
+import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -170,4 +171,5 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
   store.setHistoryLoading(true)
 
   await openSessionIntoWorker(sessionId, file, navToken, { workerReady: true })
+  void fetchWorkerLiveSnapshot().then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap)).catch(() => {})
 }

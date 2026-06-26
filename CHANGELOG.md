@@ -1,6 +1,20 @@
 # Changelog
 
 
+## [0.4.5] — 2026-06-26
+
+### Composer & Sessions
+
+- **斜杠联想（预览态）**：`commands-catalog` 磁盘扫描 + adapter `slash`/`match.commands` + 扩展 probe（含 `pi.registerCommand`），无需等 session bind 全量列表
+- **运行中可切会话**：后台 Worker 继续；预览其它会话且后台仍在跑时禁发；已停止可在预览会话发首条
+- **切回 / 停止**：`workerLiveSnapshot` 与 `runtime.getState` 同步；单次 `prompt.abort` + 冷却，避免连点 clearQueue+abort
+- **adapter `config-page` / `open-panel`**：发送前 `slash.resolve` 路由（如 `/fast-context-config`），不进 prompt，避免「Agent 启动中」卡死
+- **斜杠 ok/error** 时清除乐观启动态
+
+### 其它
+
+- 删除 `expandConcatenatedSlashLine`（斜杠参数与 TUI 一致，须空格分参）
+
 ## [0.4.4] — 2026-06-26
 
 ### Composer & Timeline
@@ -11,7 +25,7 @@
 - **流式跟滚**：时间线流式输出时贴近底部自动跟随
 - **思维链文案**：生成中 Thinking / 折叠后 Thought（i18n）
 - **工具与扩展 UI**：交互工具 loading 同步；扩展 UI 阻塞时避免整页假死
-- **无空格斜杠**：Worker 侧 `expandConcatenatedSlashLine`（如 `/goal1233` → `/goal 1233`）
+- **斜杠发送**：与 TUI 一致，仅 `/cmd args`（空格分参）；`/goalxxx` 无空格时按普通用户消息交给模型
 
 ## [0.4.3] — 2026-06-25
 

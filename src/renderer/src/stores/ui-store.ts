@@ -19,6 +19,7 @@ import {
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import { agentErrorKind, formatAgentErrorForTimeline } from '@renderer/lib/agent-error-text'
+import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 
 interface SessionItem {
   sessionId: string
@@ -133,6 +134,9 @@ interface UIState {
   // Run
   runState: RunState
   setRunState: (patch: Partial<RunState>) => void
+  /** Worker 当前绑定的会话（与 UI 选中会话可不同） */
+  workerLiveSnapshot: WorkerLiveSnapshot
+  setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
 
   // File changes
   fileChanges: FileChange[]
@@ -481,6 +485,9 @@ export const useUIStore = create<UIState>()(
     set({ timelineItems: [], streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false })
   },
 
+  workerLiveSnapshot: { sessionId: null, sessionFile: null, status: 'idle' },
+  setWorkerLiveSnapshot: (snap) => set({ workerLiveSnapshot: snap }),
+
   runState: { status: 'idle', toolCount: 0, errorCount: 0 },
   setRunState: (patch) => set((s) => {
     const clean = sanitizeRunStatePatch(patch as Record<string, unknown>)
@@ -579,6 +586,20 @@ export const useUIStore = create<UIState>()(
 
   processEvent: (event) => {
     const state = get()
+    const viewSid = state.currentSessionId
+    const workerSid = state.workerLiveSnapshot.sessionId
+    const evSid = event.sessionId
+    if (evSid && viewSid && workerSid && evSid === workerSid && evSid !== viewSid) {
+      if (event.type === 'run') {
+        if (event.phase === 'running' || event.phase === 'started') {
+          state.setWorkerLiveSnapshot({ ...state.workerLiveSnapshot, status: 'running' })
+        } else if (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled') {
+          state.setWorkerLiveSnapshot({ ...state.workerLiveSnapshot, status: event.phase === 'failed' ? 'failed' : 'idle' })
+        }
+      }
+      return
+    }
+    if (evSid && viewSid && evSid !== viewSid) return
 
     switch (event.type) {
       case 'message': {
@@ -882,6 +903,18 @@ export const useUIStore = create<UIState>()(
             isError: event.status === 'error',
             timestamp: event.timestamp,
           })
+          if (event.status === 'ok' || event.status === 'error') {
+            set({ agentTurnBootstrapping: false, optimisticPendingUserText: null })
+            state.pruneEmptyAssistantBubbles()
+            if (get().runState.status === 'running' && !get().streamingAssistantId) {
+              const hasOpenTool = get().timelineItems.some(
+                (i) => i.type === 'tool-call' && (i.toolPhase === 'start' || i.toolPhase === 'update'),
+              )
+              if (!hasOpenTool) {
+                state.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
+              }
+            }
+          }
         } else if (event.status === 'dispatched') {
           const last = items[items.length - 1]
           if (

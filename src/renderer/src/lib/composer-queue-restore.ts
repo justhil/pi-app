@@ -15,6 +15,7 @@ export function applyComposerAbortUi(): void {
   store.clearPendingQueue()
   store.markAbortQueueIgnore()
   store.pruneEmptyAssistantBubbles()
+  store.setWorkerLiveSnapshot({ ...store.workerLiveSnapshot, status: 'idle' })
   void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
 }
 
