@@ -371,6 +371,11 @@ export class WorkerManager {
   }
 
   get isRunning(): boolean { return this.worker !== null }
+
+  /** Wait until init-done (or init failed); no-op if not starting. */
+  async awaitReady(): Promise<void> {
+    if (this.initPromise) await this.initPromise.catch(() => {})
+  }
   get cwd(): string | null { return this.currentCwd }
   get lastSdkFallback(): boolean { return this.sdkFallback }
 }

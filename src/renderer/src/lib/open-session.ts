@@ -5,6 +5,7 @@ import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
+import { fetchWorkerLiveSnapshot, syncViewRunStateFromWorkerSnapshot } from '@renderer/lib/session-worker-sync'
 
 /**
  * 切换会话：时间线 tail 预览 + pendingBind；Worker loadSession 在首条 prompt / steer / followUp 或 session.navigateTree。
@@ -22,7 +23,6 @@ export async function openSessionIntoWorker(
     store.clearTimeline()
     store.clearFileChanges()
     useExtensionUIStore.getState().resetForSessionContext()
-    store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
     store.setHistoryMeta(0, 0, null)
     store.loadHistoryItems([])
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
@@ -37,7 +37,15 @@ export async function openSessionIntoWorker(
   store.clearTimeline()
   store.clearFileChanges()
   useExtensionUIStore.getState().resetForSessionContext()
-  store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
+  const snapEarly = await fetchWorkerLiveSnapshot().catch(() => null)
+  if (snapEarly) store.setWorkerLiveSnapshot(snapEarly)
+  const boundAndRunning =
+    !!sessionFile && snapEarly?.sessionFile === sessionFile && snapEarly.status === 'running'
+  if (!boundAndRunning) {
+    store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
+  } else {
+    syncViewRunStateFromWorkerSnapshot(sessionFile, snapEarly, (p) => store.setRunState(p))
+  }
   if (!store.historyLoading) {
     store.setHistoryLoading(true)
   }
@@ -76,6 +84,11 @@ export async function openSessionIntoWorker(
   } finally {
     if (navToken == null || assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)
+      const snap = await fetchWorkerLiveSnapshot().catch(() => null)
+      if (snap) {
+        store.setWorkerLiveSnapshot(snap)
+        syncViewRunStateFromWorkerSnapshot(store.historySessionFile, snap, (p) => store.setRunState(p))
+      }
     }
   }
 }

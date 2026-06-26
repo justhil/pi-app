@@ -93,7 +93,18 @@ function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   for (const m of src.matchAll(/\bname:\s*['"]([a-z_][a-z0-9_]*)['"]/gi)) {
     if (KNOWN_TOOLS[m[1]]) tools.add(m[1])
   }
-  for (const m of src.matchAll(/registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g)) commands.add(m[1])
+  const cmdPatterns = [
+    /registerCommand\??\s*\(\s*['"]([^'"]+)['"]/g,
+    /\bregisterCommand\??\s*\(\s*\{[^}]*?name:\s*['"]([^'"]+)['"]/gs,
+    /\bpi\.registerCommand\s*\(\s*['"]([^'"]+)['"]/g,
+    /\bctx\.registerCommand\s*\(\s*['"]([^'"]+)['"]/g,
+  ]
+  for (const re of cmdPatterns) {
+    for (const m of src.matchAll(re)) {
+      const name = m[1]?.trim()
+      if (name && !name.includes(' ')) commands.add(name)
+    }
+  }
 
   result.registeredTools = Array.from(tools)
   result.registeredCommands = Array.from(commands)
