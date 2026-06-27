@@ -22,6 +22,8 @@ interface StoreSchema {
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */
   autoCheckRegistryUpdates: boolean
+  /** 将启动链写入 userData/logs/startup.log（每次进程启动重置；默认关闭） */
+  startupDiagnosticsEnabled: boolean
   /** 全局：用户提醒是否播放提示音 */
   alertSoundEnabled: boolean
   /** 全局：用户提醒是否使用系统通知 */
@@ -59,6 +61,7 @@ const store = new Store<StoreSchema>({
     language: 'zh',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
+    startupDiagnosticsEnabled: true,
     alertSoundEnabled: true,
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,

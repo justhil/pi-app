@@ -23,6 +23,15 @@ test('should enter fresh temporary draft when persisted workspace is sandbox', a
   assert.equal(state.shouldStartWorker, false)
 })
 
+test('should enter ephemeral new-chat when no persisted workspace', async () => {
+  const mod = await importTs(new URL('../../src/renderer/src/lib/boot-workspace-state.ts', import.meta.url))
+  const state = mod.resolveBootWorkspaceState(null)
+
+  assert.equal(state.workspace, null)
+  assert.equal(state.ephemeralDraft, true)
+  assert.equal(state.shouldStartWorker, false)
+})
+
 test('should keep disk project as project-home new-session entry on boot', async () => {
   const mod = await importTs(new URL('../../src/renderer/src/lib/boot-workspace-state.ts', import.meta.url))
   const state = mod.resolveBootWorkspaceState('D:/workspace/pi-app')

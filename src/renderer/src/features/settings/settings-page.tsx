@@ -142,6 +142,7 @@ function GeneralSettings() {
     draft,
     setAutoOpenLastProject,
     setAutoCheckRegistryUpdates,
+    setStartupDiagnosticsEnabled,
     setLanguage,
     setAlertSoundEnabled,
     setAlertNotificationEnabled,
@@ -151,12 +152,27 @@ function GeneralSettings() {
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [startupLogPath, setStartupLogPath] = useState<string | null>(null)
+  const [startupLogLines, setStartupLogLines] = useState<string[]>([])
+  const [startupLogEnabled, setStartupLogEnabled] = useState(false)
 
   useEffect(() => {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
       if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
     })
   }, [])
+
+  const refreshStartupLog = () => {
+    void ipcClient.invoke('diagnostics.startupLog.tail', { maxLines: 80 }).then((r) => {
+      setStartupLogPath(r?.path ?? null)
+      setStartupLogLines(r?.lines ?? [])
+      setStartupLogEnabled(!!r?.enabled)
+    })
+  }
+
+  useEffect(() => {
+    refreshStartupLog()
+  }, [draft.startupDiagnosticsEnabled])
 
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true)
@@ -199,6 +215,12 @@ function GeneralSettings() {
         >
           <Switch checked={draft.autoCheckRegistryUpdates} onCheckedChange={setAutoCheckRegistryUpdates} />
         </SettingRow>
+        <SettingRow
+          label={t('settings:general.startupDiagnostics')}
+          description={t('settings:general.startupDiagnosticsDesc')}
+        >
+          <Switch checked={draft.startupDiagnosticsEnabled} onCheckedChange={setStartupDiagnosticsEnabled} />
+        </SettingRow>
         <SettingRow label={t('settings:general.appVersion')} description={t('settings:general.appVersionDesc')}>
           <div className="flex flex-col items-end gap-1">
             <button
@@ -214,6 +236,41 @@ function GeneralSettings() {
             )}
           </div>
         </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">{t('settings:general.diagnostics')}</div>
+        <p className="mb-2 text-[11px] text-muted-foreground/75">{t('settings:general.startupLogHint')}</p>
+        {startupLogPath && (
+          <p className="mb-2 break-all font-mono text-[10px] text-muted-foreground/80">{startupLogPath}</p>
+        )}
+        <div className="mb-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => refreshStartupLog()}
+            className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50"
+          >
+            {t('settings:general.startupLogRefresh')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void ipcClient.invoke('diagnostics.startupLog.openFolder')}
+            className="rounded-lg border border-border px-2.5 py-1 text-[12px] text-foreground hover:bg-accent/50"
+          >
+            {t('settings:general.startupLogOpenFolder')}
+          </button>
+        </div>
+        {!startupLogEnabled && (
+          <p className="text-[11px] text-muted-foreground/70">{t('settings:general.startupLogDisabled')}</p>
+        )}
+        {startupLogEnabled && startupLogLines.length === 0 && (
+          <p className="text-[11px] text-muted-foreground/70">{t('settings:general.startupLogEmpty')}</p>
+        )}
+        {startupLogLines.length > 0 && (
+          <pre className="max-h-[200px] overflow-auto rounded-lg border border-border/50 bg-muted/30 p-2 font-mono text-[10px] leading-relaxed text-foreground/90">
+            {startupLogLines.join('\n')}
+          </pre>
+        )}
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
