@@ -89,7 +89,7 @@
     "selectProject": "Choose a project",
     "newChat": "New chat",
     "hintWithProject": "Type a message to start, or pick a past chat from the sidebar",
-    "hintNoProject": "Choose a project folder to get started",
+    "hintNoProject": "Type to start chatting, or choose a project folder above",
     "pickerTitle": "Choose project",
     "noRecentProjects": "No recent projects",
     "openOtherFolder": "Open another folder…",

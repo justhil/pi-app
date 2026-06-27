@@ -89,7 +89,7 @@
     "selectProject": "选择项目",
     "newChat": "新对话",
     "hintWithProject": "输入消息开始新对话，或从左侧选择历史会话",
-    "hintNoProject": "选择一个项目文件夹开始对话",
+    "hintNoProject": "直接输入开始对话，或点上方选择项目文件夹",
     "pickerTitle": "选择项目",
     "noRecentProjects": "暂无最近项目",
     "openOtherFolder": "打开其他文件夹…",

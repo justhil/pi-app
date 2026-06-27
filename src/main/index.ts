@@ -5,6 +5,7 @@ import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
+import { beginStartupRun, pushStartupLog, flushStartupLog } from './startup-log'
 
 // Prevent EPIPE / write errors from crashing the main process
 process.stdout?.on?.('error', () => {})
@@ -49,6 +50,8 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   if (!gotLock) return
+  beginStartupRun()
+  pushStartupLog('info', 'main', 'app.whenReady')
   if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_ALERT_TRACE === '1') {
     void import('./audio-trace').then(({ getAudioTraceLogHint }) => {
       console.log('[audio-trace] enabled — log file:', getAudioTraceLogHint())
@@ -58,7 +61,9 @@ app.whenReady().then(() => {
   registerAllHandlers()
   registerWindowControlHandlers()
   const win = createWindow()
+  pushStartupLog('info', 'main', 'window.created')
   workerManager.setMainWindow(win)
+  flushStartupLog()
   win.once('show', () => {
     setTimeout(() => {
       import('./updater').then(({ initUpdater }) => initUpdater(win)).catch((e) => {

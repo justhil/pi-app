@@ -4,6 +4,7 @@ import { utilityProcess, app, type BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 import { resolveActiveSdk } from './sdk-loader'
+import { pushStartupLog } from './startup-log'
 
 interface InitResult {
   sessionId: string
@@ -60,6 +61,7 @@ export class WorkerManager {
     this.stopping = false
     this.autoRestartEnabled = true
     this.currentCwd = cwd
+    pushStartupLog('info', 'worker', 'worker.start', { cwd })
 
     const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
       stdio: 'pipe',
@@ -143,11 +145,16 @@ export class WorkerManager {
       if (data.type === 'init-done' && this.initResolver) {
         this.sdkFallback = !!data.sdkFallback
         if (this.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')
+        pushStartupLog('info', 'worker', 'worker.init.done', {
+          sessionId: data.sessionId,
+          sdkFallback: this.sdkFallback,
+        })
         this.initResolver({ sessionId: data.sessionId, model: data.model, thinkingLevel: data.thinkingLevel })
         this.initResolver = null
         this.initRejecter = null
       }
       if (data.type === 'error' && this.initRejecter) {
+        pushStartupLog('error', 'worker', 'worker.init.error', { error: data.error })
         this.initRejecter(new Error(data.error))
         this.initResolver = null
         this.initRejecter = null
@@ -174,6 +181,7 @@ export class WorkerManager {
       this.currentCwd = null
       this.initPromise = null
       if (this.initRejecter) {
+        pushStartupLog('error', 'worker', 'worker.exit.during_init', { code, cwd: cwdOnExit })
         this.initRejecter(new Error(`Worker exited during init with code ${code}`))
         this.initResolver = null
         this.initRejecter = null
@@ -190,6 +198,7 @@ export class WorkerManager {
 
       safeWrite('[WorkerManager] Worker crashed; auto-restart is disabled — not spawning another worker')
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        pushStartupLog('error', 'worker', 'worker.fatal', { code, cwd: cwdOnExit })
         this.mainWindow.webContents.send('ipc:worker-fatal', {
           code,
           cwd: cwdOnExit,
@@ -204,6 +213,7 @@ export class WorkerManager {
         this.initResolver = null
         this.initRejecter = null
         this.initPromise = null
+        pushStartupLog('error', 'worker', 'worker.init.timeout', { cwd: this.currentCwd, ms: 60000 })
         reject(new Error('Worker init timeout (60s)'))
       }, 60000)
       this.initResolver = (r) => { clearTimeout(timer); resolve(r) }
