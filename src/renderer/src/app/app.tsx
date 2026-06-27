@@ -90,9 +90,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    loadNormalizedRightPanelPrefs()
-      .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
-      .catch(() => {})
+    const frame = requestAnimationFrame(() => {
+      void loadNormalizedRightPanelPrefs()
+        .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
+        .catch(() => {})
+    })
+    return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])
 
   useEffect(() => {

@@ -22,6 +22,7 @@ function resolveWindowIcon() {
 }
 import { is } from '@electron-toolkit/utils'
 import { workerManager } from './worker-manager'
+import { pushStartupLog, flushStartupLog } from './startup-log'
 
 let mainWindow: BrowserWindow | null = null
 let rendererReloadAfterCrash = false
@@ -79,6 +80,13 @@ export function createWindow(): BrowserWindow {
 
   mainWindow.webContents.on('unresponsive', () => {
     console.error('[Renderer] Unresponsive')
+    pushStartupLog('warn', 'main', 'renderer.unresponsive')
+    flushStartupLog()
+  })
+
+  mainWindow.webContents.on('responsive', () => {
+    pushStartupLog('info', 'main', 'renderer.responsive')
+    flushStartupLog()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

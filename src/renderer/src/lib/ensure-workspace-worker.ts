@@ -23,10 +23,10 @@ export function ensureWorkspaceWorkerOnBoot(): Promise<void> {
       shouldStartWorker: boot.shouldStartWorker,
     })
     if (boot.ephemeralDraft) {
+      void ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
       useUIStore.getState().enterEphemeralSandboxDraft()
-      await ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
       startupLogRenderer('info', 'renderer', 'boot.enterEphemeralNewChat')
-      void refreshComposerRunDisplay()
+      queueMicrotask(() => void refreshComposerRunDisplay())
       return
     }
     const path = boot.workspace
