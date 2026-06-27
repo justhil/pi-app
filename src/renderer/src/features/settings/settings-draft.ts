@@ -21,7 +21,6 @@ export type SettingsDraft = {
   alertNotificationEnabled: boolean
   alertOnExtensionUi: boolean
   alertOnRunIdle: boolean
-  startupDiagnosticsEnabled: boolean
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
@@ -58,7 +57,6 @@ export function draftSignature(d: SettingsDraft): string {
     alertNotificationEnabled: d.alertNotificationEnabled,
     alertOnExtensionUi: d.alertOnExtensionUi,
     alertOnRunIdle: d.alertOnRunIdle,
-    startupDiagnosticsEnabled: d.startupDiagnosticsEnabled,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
@@ -85,7 +83,6 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     alertNotificationEnabled: s.alertNotificationEnabled !== false,
     alertOnExtensionUi: s.alertOnExtensionUi !== false,
     alertOnRunIdle: s.alertOnRunIdle !== false,
-    startupDiagnosticsEnabled: s.startupDiagnosticsEnabled !== false,
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
@@ -122,7 +119,6 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   await ipcClient.invoke('settings.set', { key: 'alertNotificationEnabled', value: draft.alertNotificationEnabled })
   await ipcClient.invoke('settings.set', { key: 'alertOnExtensionUi', value: draft.alertOnExtensionUi })
   await ipcClient.invoke('settings.set', { key: 'alertOnRunIdle', value: draft.alertOnRunIdle })
-  await ipcClient.invoke('settings.set', { key: 'startupDiagnosticsEnabled', value: draft.startupDiagnosticsEnabled })
   await ipcClient.invoke('settings.set', { key: 'extensionOverrides', value: draft.extensionOverrides })
   await ipcClient.invoke('rightPanels.saveLayout', {
     prefs: draft.rightPanelPrefs,
