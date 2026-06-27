@@ -1,6 +1,16 @@
 # Changelog
 
 
+## [0.4.7] — 2026-06-27
+
+### 修复
+
+- **首启无响应**：`pi.settings.get` 不再隐式 `workerManager.start`；无 Worker 时读 `~/.pi/agent/settings.json`；启动链减负（延后 catalog / session.list）
+
+### 移除
+
+- 设置中的启动诊断日志开关与「诊断」栏目（`startup.log` 相关 IPC 与模块）
+
 ## [0.4.6] — 2026-06-27
 
 ### 首启与诊断

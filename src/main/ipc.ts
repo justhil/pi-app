@@ -1211,32 +1211,6 @@ export function registerAllHandlers(): void {
     return { key: req.key, value: req.value }
   })
 
-  registerHandler('ipc:diagnostics.startupLog', async (req) => {
-    const { pushStartupLog, flushStartupLog } = await import('./startup-log')
-    const level = req?.level === 'warn' || req?.level === 'error' ? req.level : 'info'
-    const phase = String(req?.phase || 'renderer')
-    const message = String(req?.message || '')
-    const detail = req?.detail && typeof req.detail === 'object' ? (req.detail as Record<string, unknown>) : undefined
-    if (message) pushStartupLog(level, phase, message, detail)
-    flushStartupLog()
-    return { ok: true }
-  })
-
-  registerHandler('ipc:diagnostics.startupLog.tail', async (req) => {
-    const { readStartupLogTail, isStartupDiagnosticsEnabled, getStartupLogPath } = await import('./startup-log')
-    const max = typeof req?.maxLines === 'number' ? Math.min(200, Math.max(20, req.maxLines)) : 120
-    const tail = readStartupLogTail(max)
-    return { ...tail, path: getStartupLogPath() }
-  })
-
-  registerHandler('ipc:diagnostics.startupLog.openFolder', async () => {
-    const { join } = await import('node:path')
-    const { getStartupLogPath } = await import('./startup-log')
-    const dir = join(getStartupLogPath(), '..')
-    const err = await shell.openPath(dir)
-    return { ok: !err, path: dir, error: err || undefined }
-  })
-
   registerHandler('ipc:app.checkUpdate', async () => {
     const { checkGitHubReleaseUpdate } = await import('./github-release-check')
     return checkGitHubReleaseUpdate()
