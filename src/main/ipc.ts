@@ -1413,24 +1413,18 @@ export function registerAllHandlers(): void {
 
   // ── Pi Settings (A-layer write-back, tui-replacement-and-adapters.md §2.5) ──
   registerHandler('ipc:pi.settings.get', async () => {
-    if (!workerManager.isRunning) {
-      const cwd = configStore.get('currentProject')
-      if (cwd) {
-        try {
-          await workerManager.start(cwd)
-        } catch {
-          return { settings: null, error: 'Worker not started' }
-        }
-      } else {
-        return { settings: null, error: 'Worker not started' }
+    if (workerManager.isRunning) {
+      try {
+        const settings = await workerManager.getPiSettings()
+        return { settings }
+      } catch (e: any) {
+        return { settings: null, error: e.message }
       }
     }
-    try {
-      const settings = await workerManager.getPiSettings()
-      return { settings }
-    } catch (e: any) {
-      return { settings: null, error: e.message }
-    }
+    const { readPiAgentGlobalSettingsFromDisk } = await import('./pi-agent-settings-read')
+    const disk = readPiAgentGlobalSettingsFromDisk()
+    if (disk) return { settings: disk, source: 'agent-settings-json' as const }
+    return { settings: null, error: 'Worker not started' }
   })
 
   registerHandler('ipc:pi.settings.set', async (req) => {

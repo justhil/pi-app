@@ -123,7 +123,14 @@ export function ProjectSidebar({
   }, [refreshSandboxes, currentWorkspace])
 
   useEffect(() => {
-    void refreshAllSessionLists()
+    const hasDisk =
+      (!!currentWorkspace && !isSandboxPath(currentWorkspace)) ||
+      recentProjects.some((p) => !isSandboxPath(p))
+    if (!hasDisk) return
+    const frame = requestAnimationFrame(() => {
+      void refreshAllSessionLists()
+    })
+    return () => cancelAnimationFrame(frame)
   }, [currentWorkspace, recentProjects, refreshAllSessionLists])
 
   useEffect(() => {
