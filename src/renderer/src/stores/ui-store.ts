@@ -183,6 +183,8 @@ interface UIState {
   setRightPanelWidth: (w: number) => void
   rightPanelCollapsed: boolean
   toggleRightPanel: () => void
+  /** 文件 Tab：预览占满中间聊天列 + 右栏 */
+  filesPreviewChatExpand: boolean
 
   // Last picker selections (persisted, cross-session memory)
   lastModel: string | null
@@ -554,6 +556,7 @@ export const useUIStore = create<UIState>()(
   setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 280), 720) }),
   rightPanelCollapsed: false,
   toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
+  filesPreviewChatExpand: false,
 
   lastModel: null,
   lastThinking: null,

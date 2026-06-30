@@ -19,6 +19,9 @@ export function MainLayoutShell({
   const leftWidth = useUIStore((s) => s.sidebarWidth)
   const rightCollapsed = useUIStore((s) => s.rightPanelCollapsed)
   const rightWidth = useUIStore((s) => s.rightPanelWidth)
+  const activePanel = useUIStore((s) => s.activePanel)
+  const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
+  const filesChatPreview = activePanel === 'files' && filesPreviewChatExpand && !rightCollapsed
 
   const [leftDragging, setLeftDragging] = useState(false)
   const [rightDragging, setRightDragging] = useState(false)
@@ -53,7 +56,9 @@ export function MainLayoutShell({
   /* 0px↔px 可插值；0fr 在多数引擎里不做过渡会瞬变 */
   const leftCol = leftCollapsed ? '0px' : `${leftWidth}px`
   const rightCol = rightCollapsed ? '0px' : `${rightWidth}px`
-  const gridCols = `${leftCol} minmax(0, 1fr) ${rightCol}`
+  const gridCols = filesChatPreview
+    ? `${leftCol} 0px minmax(0, 1fr)`
+    : `${leftCol} minmax(0, 1fr) ${rightCol}`
 
   const startLeftDrag = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -75,6 +80,7 @@ export function MainLayoutShell({
     <div
       className={cn(
         'shell-three-col min-h-0 flex-1',
+        filesChatPreview && 'shell-files-chat-preview',
         leftDragging && 'shell-left-dragging',
         rightDragging && 'shell-right-dragging',
       )}
@@ -101,7 +107,16 @@ export function MainLayoutShell({
         )}
       </div>
 
-      <div className="shell-track-center relative min-w-0 overflow-hidden">{center}</div>
+      <div
+        className={cn(
+          'shell-track-center min-w-0 overflow-hidden',
+          filesChatPreview && 'pointer-events-none',
+        )}
+        style={filesChatPreview ? { visibility: 'hidden' as const } : undefined}
+        aria-hidden={filesChatPreview}
+      >
+        {center}
+      </div>
 
       <div
         className={cn(
@@ -111,13 +126,13 @@ export function MainLayoutShell({
         style={{ background: 'var(--bg-base)' }}
         aria-hidden={rightCollapsed}
       >
-        {!rightCollapsed && (
+        {!rightCollapsed && !filesChatPreview ? (
           <PanelResizeEdge
             side="right"
             dragging={rightDragging}
             onMouseDown={startRightDrag}
           />
-        )}
+        ) : null}
         <div
           className={cn(
             'shell-track-inner min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden',

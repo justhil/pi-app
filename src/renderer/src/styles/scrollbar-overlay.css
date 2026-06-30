@@ -80,6 +80,63 @@
   width: 0;
   height: 0;
 }
+
+.overlay-scroll-pane-x {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.overlay-scroll-pane-x::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .overlay-scrollbar-rail {
   pointer-events: auto;
+}
+
+.overlay-scrollbar-rail-h__thumb {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+.overlay-scroll-host--2d .overlay-scrollbar-rail {
+  right: var(--scrollbar-rail-hit, 12px);
+}
+
+.files-preview-scroll-host .overlay-scrollbar-rail {
+  bottom: 0;
+  right: 0;
+}
+
+.files-preview-scroll-host.overlay-scroll-host--2d .overlay-scrollbar-rail {
+  right: var(--scrollbar-rail-hit, 12px);
+  bottom: var(--scrollbar-rail-hit, 12px);
+}
+
+.files-preview-scroll-host .overlay-scrollbar-rail-h {
+  bottom: 0;
+  left: 0;
+}
+
+.files-tab-strip-host.overlay-scroll-host--2d .overlay-scrollbar-rail-h {
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.files-tab-strip-host .overlay-scrollbar-rail {
+  display: none;
+}
+
+.files-tab-strip-host.overlay-scroll-host--x {
+  height: 2.5rem;
+}
+
+.files-tab-strip-host .overlay-scrollbar-rail-h {
+  z-index: 60;
+  height: 4px;
+}
+
+.files-tab-strip-host .overlay-scrollbar-rail-h__thumb--hint {
+  height: 3px;
+  background-color: var(--scrollbar-thumb);
 }

@@ -24,7 +24,7 @@ export function FileTreeRow({
   open?: boolean
   selected?: boolean
   onToggle?: () => void
-  onSelect: () => void
+  onSelect: (e: React.MouseEvent) => void
   onContextMenu?: (e: React.MouseEvent) => void
 }) {
   const { Icon, className: iconClass } = fileTreeIcon(name, false)
@@ -41,14 +41,14 @@ export function FileTreeRow({
         }
         setPiFilePathDrag(e.dataTransfer, joinWorkspacePath(workspaceRoot, relativePath), name)
       }}
-      onClick={() => {
+      onClick={(e) => {
         if (isDirectory) onToggle?.()
-        onSelect()
+        onSelect(e)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           if (isDirectory) onToggle?.()
-          onSelect()
+          onSelect(e as unknown as React.MouseEvent)
         }
       }}
       onContextMenu={(e) => {

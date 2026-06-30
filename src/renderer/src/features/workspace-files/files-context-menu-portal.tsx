@@ -24,6 +24,7 @@ type Props = {
   onCopyPath: () => void
   onRename: () => void
   onReveal: () => void
+  onOpenInNewTab?: () => void
 }
 
 function clampMenuPosition(x: number, y: number, el: HTMLElement | null) {
@@ -46,6 +47,7 @@ export function FilesContextMenuPortal({
   onCopyPath,
   onRename,
   onReveal,
+  onOpenInNewTab,
 }: Props) {
   const { t } = useTranslation('files')
   const ref = useRef<HTMLDivElement>(null)
@@ -83,6 +85,19 @@ export function FilesContextMenuPortal({
           }}
         >
           {t('menu.preview')}
+        </button>
+      ) : null}
+      {!menu.isDirectory && onOpenInNewTab ? (
+        <button
+          type="button"
+          className={item}
+          onPointerDown={stop}
+          onClick={() => {
+            onOpenInNewTab()
+            onClose()
+          }}
+        >
+          {t('menu.openInNewTab')}
         </button>
       ) : null}
       {!menu.isDirectory ? (

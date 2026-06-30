@@ -1,36 +1,41 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import MarkdownView from '@renderer/features/timeline/markdown-view'
-import { CodeBlockView } from '@renderer/features/timeline/code-block-view'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
+import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
 import { joinWorkspacePath } from './path-utils'
 import { resolveFilePreviewMode } from './file-preview-mode'
-import {
-  PREVIEW_HTML_MAX_CHARS,
-  PREVIEW_MD_MAX_CHARS,
-  PREVIEW_MD_MAX_LINES,
-  PREVIEW_PLAIN_MAX_LINES,
-  PREVIEW_SHIKI_MAX_CHARS,
-} from './file-preview-limits'
+import { PREVIEW_READ_MAX_BYTES } from './file-preview-limits'
+import { FileSourcePreview } from './file-source-preview'
 
-function sliceLines(text: string, maxLines: number) {
-  const lines = text.split('\n')
-  if (lines.length <= maxLines) return { text, truncated: false }
-  return { text: lines.slice(0, maxLines).join('\n') + '\n…', truncated: true }
+const IPC_READ_MAX_BYTES = 1024 * 1024
+
+type ReadTextFn = (
+  p: string,
+  opts?: { maxBytes?: number },
+) => Promise<{ ok: boolean; content?: string; error?: string; size?: number }>
+
+function FilePreviewScroll({ children, scrollClassName }: { children: ReactNode; scrollClassName?: string }) {
+  return (
+    <OverlayScrollHost2D
+      className="files-preview-scroll-host min-h-0 min-w-0 flex-1"
+      scrollClassName={cn('min-h-full', scrollClassName)}
+      showRailOnHostHover
+    >
+      {children}
+    </OverlayScrollHost2D>
+  )
 }
 
-function PlainTextPreview({ content, note }: { content: string; note?: string }) {
-  const { text, truncated } = sliceLines(content, PREVIEW_PLAIN_MAX_LINES)
+function PlainTextFill({ content }: { content: string }) {
   return (
-    <div>
-      {note ? <p className="mb-2 text-[11px] text-foreground-secondary/80">{note}</p> : null}
-      {truncated ? <p className="mb-2 text-[11px] text-foreground-secondary/80">…</p> : null}
-      <pre className="native-code-shiki max-h-[min(70vh,480px)] overflow-auto rounded-lg border border-border/60 bg-[var(--code-bg)] p-3 font-mono text-[11px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
-        {text}
+    <FilePreviewScroll scrollClassName="px-4 py-3">
+      <pre className="m-0 whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground">
+        {content}
       </pre>
-    </div>
+    </FilePreviewScroll>
   )
 }
 
@@ -38,14 +43,19 @@ export function FilePreviewRouter({
   workspaceRoot,
   relativePath,
   readText,
+  fill = false,
+  refreshKey = 0,
 }: {
   workspaceRoot: string
   relativePath: string | null
-  readText: (p: string) => Promise<{ ok: boolean; content?: string; error?: string }>
+  readText: ReadTextFn
+  fill?: boolean
+  refreshKey?: number
 }) {
   const { t } = useTranslation('files')
   const [content, setContent] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [readComplete, setReadComplete] = useState(true)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -56,13 +66,34 @@ export function FilePreviewRouter({
 
   const absPath = relativePath ? joinWorkspacePath(workspaceRoot, relativePath) : ''
 
+  const loadContent = useCallback(
+    async (maxBytes: number, cancelled: () => boolean) => {
+      const res = await readText(relativePath!, { maxBytes })
+      if (cancelled()) return
+      if (!res.ok) {
+        setLoadError(res.error || 'read_failed')
+        setContent(null)
+        setReadComplete(true)
+        return
+      }
+      const text = res.content ?? ''
+      setContent(text)
+      setLoadError(null)
+      setReadComplete(maxBytes >= IPC_READ_MAX_BYTES || res.size == null || res.size <= maxBytes)
+    },
+    [readText, relativePath],
+  )
+
   useEffect(() => {
     setContent(null)
     setLoadError(null)
+    setReadComplete(true)
     setImageUrl(null)
     if (!relativePath || !mode) return
 
     let cancelled = false
+    const isCancelled = () => cancelled
+
     const run = async () => {
       setLoading(true)
       if (mode === 'image') {
@@ -78,99 +109,146 @@ export function FilePreviewRouter({
         setLoading(false)
         return
       }
-      const res = await readText(relativePath)
-      if (cancelled) return
-      if (!res.ok) {
-        setLoadError(res.error || 'read_failed')
-        setLoading(false)
-        return
-      }
-      setContent(res.content ?? '')
+      await loadContent(PREVIEW_READ_MAX_BYTES, isCancelled)
       setLoading(false)
     }
     void run()
     return () => {
       cancelled = true
     }
-  }, [relativePath, mode, readText, absPath])
+  }, [relativePath, mode, readText, absPath, loadContent])
+
+  useEffect(() => {
+    if (refreshKey === 0 || !relativePath || !mode) return
+    if (mode === 'image' || mode === 'binary' || mode === 'pdf') return
+    let cancelled = false
+    const run = async () => {
+      const res = await readText(relativePath, { maxBytes: PREVIEW_READ_MAX_BYTES })
+      if (cancelled) return
+      if (!res.ok) {
+        setLoadError(res.error || 'read_failed')
+        setContent(null)
+        return
+      }
+      setContent(res.content ?? '')
+      setLoadError(null)
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey, relativePath, mode, readText])
+
+  const requestFullContent = useCallback(async () => {
+    if (!relativePath) return null
+    const res = await readText(relativePath, { maxBytes: IPC_READ_MAX_BYTES })
+    if (!res.ok) {
+      if (res.error === 'too_large') setLoadError('too_large')
+      return null
+    }
+    const text = res.content ?? ''
+    setContent(text)
+    setReadComplete(true)
+    setLoadError(null)
+    return text
+  }, [readText, relativePath])
+
+  const wrap = (node: ReactNode, className?: string) => (
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', fill && 'h-full w-full', className)}>{node}</div>
+  )
 
   if (!relativePath) {
-    return (
-      <p className="px-1 py-8 text-center text-[12px] text-foreground-secondary/80">{t('preview.pickFile')}</p>
+    return wrap(
+      <p className="flex flex-1 items-center justify-center px-3 py-8 text-center text-[12px] text-foreground-secondary/80">
+        {t('preview.pickFile')}
+      </p>,
     )
   }
 
   if (loading) {
-    return <p className="px-1 py-6 text-[12px] text-foreground-secondary/80">{t('preview.loading')}</p>
+    return wrap(<p className="px-3 py-6 text-[12px] text-foreground-secondary/80">{t('preview.loading')}</p>)
   }
 
   if (loadError === 'binary' || loadError === 'too_large') {
-    return (
-      <div className="space-y-3 px-1 py-4 text-[12px] text-foreground-secondary">
+    return wrap(
+      <div className="space-y-3 px-3 py-4 text-[12px] text-foreground-secondary">
         <p>{loadError === 'too_large' ? t('preview.tooLarge') : mode === 'pdf' ? t('preview.pdf') : t('preview.binary')}</p>
+        {loadError === 'too_large' ? (
+          <button
+            type="button"
+            className="text-[12px] text-primary-semantic underline-offset-2 hover:underline"
+            onClick={() => void requestFullContent().then((c) => c && setLoadError(null))}
+          >
+            {t('preview.tryExpandRead')}
+          </button>
+        ) : null}
         <button
           type="button"
-          className="text-[12px] text-primary-semantic underline-offset-2 hover:underline"
+          className="block text-[12px] text-primary-semantic underline-offset-2 hover:underline"
           onClick={() => void ipcClient.invoke('shell.openPath', { path: absPath })}
         >
           {t('preview.openInSystem')}
         </button>
-      </div>
+      </div>,
+    )
+  }
+
+  if (loadError === 'not_found') {
+    return wrap(
+      <p className="flex flex-1 items-center justify-center px-3 py-8 text-center text-[12px] text-foreground-secondary">
+        {t('preview.deleted')}
+      </p>,
     )
   }
 
   if (loadError) {
-    return <p className="px-1 py-4 text-[12px] text-destructive">{t('preview.error')}</p>
+    return wrap(<p className="px-3 py-4 text-[12px] text-destructive">{t('preview.error')}</p>)
   }
 
   if (mode === 'image' && imageUrl) {
-    return (
-      <div className="flex min-h-[min(100%,320px)] flex-1 flex-col items-center justify-center py-4">
-        <img
-          src={imageUrl}
-          alt=""
-          className="max-h-[min(70vh,100%)] max-w-full rounded-lg border border-border/60 object-contain"
-        />
-      </div>
+    return wrap(
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--bg-1)] p-0">
+        <img src={imageUrl} alt="" className="max-h-full max-w-full object-contain" />
+      </div>,
     )
   }
 
   if (mode === 'html' && content != null) {
-    const html = content.length > PREVIEW_HTML_MAX_CHARS ? content.slice(0, PREVIEW_HTML_MAX_CHARS) : content
-    return (
+    return wrap(
       <iframe
         title="html-preview"
         sandbox=""
-        srcDoc={html}
-        className={cn('h-full min-h-[280px] max-h-[min(70vh,560px)] w-full rounded-lg border border-border/60 bg-white dark:bg-[var(--bg-1)]')}
-      />
+        srcDoc={content}
+        className="min-h-0 flex-1 border-0 bg-white dark:bg-[var(--bg-1)]"
+      />,
     )
   }
 
   if (mode === 'markdown' && content != null) {
-    if (content.length > PREVIEW_MD_MAX_CHARS) {
-      const { text } = sliceLines(content, PREVIEW_MD_MAX_LINES)
-      return <PlainTextPreview content={text} note={t('preview.truncated')} />
-    }
-    return (
-      <div className="min-w-0 max-h-[min(70vh,560px)] overflow-auto text-[13px]">
+    return wrap(
+      <FilePreviewScroll scrollClassName="px-4 py-3 text-[13px]">
         <MarkdownView>{content}</MarkdownView>
-      </div>
+      </FilePreviewScroll>,
+      fill ? 'h-full' : undefined,
     )
   }
 
   if (mode === 'code' && content != null) {
-    if (content.length > PREVIEW_SHIKI_MAX_CHARS) {
-      return <PlainTextPreview content={content} note={t('preview.truncatedNoHighlight')} />
-    }
     const lang = guessLangFromPath(relativePath)
-    return (
-      <CodeBlockView code={content} lang={lang} previewLines={24} defaultExpanded={false} maxHeightExpanded="max-h-[min(70vh,480px)]" />
+    return wrap(
+      <FileSourcePreview
+        code={content}
+        lang={lang}
+        fill={fill}
+        readComplete={readComplete}
+        onRequestFullContent={requestFullContent}
+      />,
+      'h-full',
     )
   }
 
   if ((mode === 'text' || mode === 'sheet') && content != null) {
-    return <PlainTextPreview content={content} />
+    return wrap(<PlainTextFill content={content} />, 'h-full')
   }
 
   return null

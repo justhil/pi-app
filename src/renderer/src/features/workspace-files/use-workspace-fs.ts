@@ -19,12 +19,12 @@ export function useWorkspaceFs(workspaceRoot: string | null) {
   )
 
   const readText = useCallback(
-    async (relativePath: string) => {
+    async (relativePath: string, opts?: { maxBytes?: number }) => {
       if (!workspaceRoot) return { ok: false as const, error: 'missing_root' as const }
       const res = await ipcClient.invoke('workspace.fs.readText', {
         workspaceRoot,
         path: relativePath,
-        maxBytes: PREVIEW_READ_MAX_BYTES,
+        maxBytes: opts?.maxBytes ?? PREVIEW_READ_MAX_BYTES,
       })
       return res as { ok: boolean; content?: string; error?: string; size?: number }
     },

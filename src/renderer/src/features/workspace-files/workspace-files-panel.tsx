@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2, Search } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
@@ -12,29 +12,106 @@ import { useWorkspaceFs } from './use-workspace-fs'
 import { FilePreviewRouter } from './file-preview-router'
 import { FileTree } from './file-tree'
 import { FilesContextMenuPortal, type FilesCtxTarget } from './files-context-menu-portal'
+import { FilePreviewTabBar } from './file-preview-tab-bar'
+import { useFilePreviewTabs } from './use-file-preview-tabs'
 
 type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
 export function WorkspaceFilesPanel() {
   const { t } = useTranslation('files')
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
+  const activePanel = useUIStore((s) => s.activePanel)
+  const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
+  const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
   const { listDir, readText } = useWorkspaceFs(workspaceRoot)
+  const {
+    tabs,
+    activeTab,
+    openFile,
+    closeTab,
+    activateTab,
+    reorderTabs,
+    renameTabRel,
+    resetTabs,
+  } = useFilePreviewTabs()
   const [explorerCollapsed, setExplorerCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [treeEpoch, setTreeEpoch] = useState(0)
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   const [menu, setMenu] = useState<FilesCtxTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
 
-  const displayPath = previewPath || selectedPath
+  const selectedPath = activeTab?.rel ?? null
+  const previewPath = activeTab?.rel ?? null
 
-  const onSelectPath = useCallback((rel: string, isDirectory: boolean) => {
-    setSelectedPath(rel)
-    if (!isDirectory) setPreviewPath(rel)
+  useEffect(() => {
+    if (activePanel !== 'files') {
+      useUIStore.setState({ filesPreviewChatExpand: false })
+    }
+  }, [activePanel])
+
+  useEffect(() => {
+    return () => {
+      useUIStore.setState({ filesPreviewChatExpand: false })
+    }
   }, [])
+
+  useEffect(() => {
+    resetTabs()
+  }, [workspaceRoot, resetTabs])
+
+  useEffect(() => {
+    if (!activeTab || activePanel !== 'files') return
+    const id = window.setInterval(() => setPreviewRefreshKey((k) => k + 1), 2000)
+    return () => window.clearInterval(id)
+  }, [activeTab?.rel, activePanel])
+
+  const toggleChatPreviewExpand = useCallback(() => {
+    if (!previewPath) return
+    if (!filesPreviewChatExpand) {
+      if (rightPanelCollapsed) toggleRightPanel()
+      useUIStore.setState({ filesPreviewChatExpand: true })
+      return
+    }
+    useUIStore.setState({ filesPreviewChatExpand: false })
+  }, [previewPath, filesPreviewChatExpand, rightPanelCollapsed, toggleRightPanel])
+
+  const onSelectPath = useCallback(
+    (rel: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => {
+      if (isDirectory) return
+      const name = rel.split('/').pop() || rel
+      openFile(rel, name, opts?.openInNewTab ? 'new-tab' : 'replace')
+    },
+    [openFile],
+  )
+
+  const chromeTrailing = (
+    <>
+      <button
+        type="button"
+        className={cn(
+          'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+          filesPreviewChatExpand && 'bg-[var(--bg-active)] text-foreground',
+        )}
+        title={filesPreviewChatExpand ? t('chrome.collapsePreview') : t('chrome.expandPreview')}
+        disabled={!previewPath}
+        onClick={toggleChatPreviewExpand}
+      >
+        <Maximize2 className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        className="chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+        title={explorerCollapsed ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
+        onClick={() => setExplorerCollapsed((v) => !v)}
+      >
+        {explorerCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </button>
+    </>
+  )
 
   const attachToComposer = useCallback(
     (abs: string, name: string) => {
@@ -78,8 +155,7 @@ export function WorkspaceFilesPanel() {
       return
     }
     const newRel = res.newRelativePath as string
-    if (selectedPath === renameTarget.rel) setSelectedPath(newRel)
-    if (previewPath === renameTarget.rel) setPreviewPath(newRel)
+    renameTabRel(renameTarget.rel, newRel, name)
     bumpTree()
     toast.message(t('toast.renamed'))
   }
@@ -92,22 +168,15 @@ export function WorkspaceFilesPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/50 px-2.5">
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground-secondary/90"
-          title={displayPath || ''}
-        >
-          {displayPath || t('chrome.noFile')}
-        </span>
-        <button
-          type="button"
-          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md"
-          title={explorerCollapsed ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
-          onClick={() => setExplorerCollapsed((v) => !v)}
-        >
-          {explorerCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </button>
-      </div>
+      <FilePreviewTabBar
+        workspaceRoot={workspaceRoot}
+        tabs={tabs}
+        activeId={activeTab?.id ?? null}
+        onActivate={activateTab}
+        onClose={closeTab}
+        onReorder={reorderTabs}
+        trailing={chromeTrailing}
+      />
 
       <div
         className={cn('files-split-grid min-h-0 flex-1', explorerCollapsed && 'files-split-grid--collapsed')}
@@ -115,12 +184,22 @@ export function WorkspaceFilesPanel() {
           gridTemplateColumns: explorerCollapsed ? 'minmax(0, 1fr) 0px' : 'minmax(0, 1fr) 220px',
         }}
       >
-        <OverlayScrollHost
-          className="files-preview-scroll min-h-0 min-w-0 border-r border-border/40"
-          scrollClassName="flex min-h-full flex-col p-3"
-        >
-          <FilePreviewRouter workspaceRoot={workspaceRoot} relativePath={previewPath} readText={readText} />
-        </OverlayScrollHost>
+        <div className="files-preview-scroll flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--bg-base)]">
+          {activeTab ? (
+            <FilePreviewRouter
+              key={activeTab.id}
+              workspaceRoot={workspaceRoot}
+              relativePath={activeTab.rel}
+              readText={readText}
+              fill
+              refreshKey={previewRefreshKey}
+            />
+          ) : (
+            <p className="flex flex-1 items-center justify-center px-3 py-8 text-center text-[12px] text-foreground-secondary/80">
+              {t('preview.pickFile')}
+            </p>
+          )}
+        </div>
 
         <div className="files-explorer-rail flex min-h-0 min-w-0 flex-col overflow-hidden">
           <div className="shrink-0 px-2 py-2">
@@ -154,8 +233,11 @@ export function WorkspaceFilesPanel() {
         onClose={closeMenu}
         onPreview={() => {
           if (!menu || menu.isDirectory) return
-          setPreviewPath(menu.rel)
-          setSelectedPath(menu.rel)
+          onSelectPath(menu.rel, false)
+        }}
+        onOpenInNewTab={() => {
+          if (!menu || menu.isDirectory) return
+          onSelectPath(menu.rel, false, { openInNewTab: true })
         }}
         onAttach={() => {
           if (!menu) return

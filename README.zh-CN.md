@@ -5,7 +5,7 @@
 
 [pi](https://github.com/jvm/pi-mono) 编码助手的桌面应用 — 终端里跑的那个 Agent，现在有了时间线、侧栏和一个正经窗口。
 
-[![Version](https://img.shields.io/badge/version-0.4.8-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.4.9-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
 [![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
 [![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
@@ -28,6 +28,7 @@
 - **流式时间线** — Markdown、代码块、KaTeX 公式、可折叠工具步骤（读文件、改代码、执行命令），改动有行级 diff
 - **会话树** — 像 `pi /tree` 一样分支与回退，但能点；有 git 时跳转可顺便恢复文件
 - **输入区** — 内联文件附件、粘贴图片、模型与思考等级切换、斜杠命令菜单；右栏 **文件** 树可 **拖文件进输入区** 或右键附加
+- **工作区文件预览** — 多标签（`Ctrl`/`⌘`+点击或右键新标签）、行号源码预览、一键 **展开到聊天区** 宽屏阅读
 - **排队消息** — Agent 运行时继续输入，当前轮次结束自动跟进
 - **完整 pi 包生态** — 你给终端 pi 装的每个扩展都能在桌面用：对话框、工具卡片、侧栏、`/命令` 由每个扩展的**适配器**翻译成原生 UI，**不改 npm 包**（见[扩展](#扩展)）
 - **中英双语界面** — 设置里一键切换
@@ -55,7 +56,7 @@ npm run dev
 1. **打开文件夹** — 你的仓库就是 Agent 的工作目录（或在「对话分区」里用沙箱随便试）。
 2. **选会话** — 终端 pi 的历史会话会出现在这；或点 `+` 新开。
 3. **发一条消息** — `Enter` 发送，`Shift+Enter` 换行。
-4. **看右栏** — 审查、运行、上下文、会话树，或 **文件**（预览 + 目录树）。
+4. **看右栏** — 审查、运行、上下文、会话树，或 **文件**（标签预览 + 目录树；可展开预览占满聊天列）。
 5. **回跳** — 悬停消息点回退，或输入为空时连按两次 `Esc` 打开会话树。
 
 <img src="https://img.justhil.uk/2026/06/25/image-20260625234039591" alt="对话时间线" style="zoom:67%;" />
@@ -72,6 +73,8 @@ npm run dev
 | 会话树 | `Esc` `Esc`（输入为空时） |
 | 命令 | `/` |
 | 添加文件 | 拖入、`+` 或 `Ctrl+V`；右栏 **文件** 树拖文件到输入区（仅文件） |
+| 多标签预览 | 右栏 **文件** → `Ctrl`/`⌘`+点击文件，或右键「在新窗口打开」 |
+| 宽屏预览 | 右栏 **文件** 顶栏 **展开预览**（占满聊天列，再点收起） |
 
 ## 扩展
 

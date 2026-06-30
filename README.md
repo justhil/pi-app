@@ -6,7 +6,7 @@
 
 The desktop app for the [pi](https://github.com/jvm/pi-mono) coding agent — same agent you run in the terminal, now with a timeline, side panels, and a real window.
 
-[![Version](https://img.shields.io/badge/version-0.4.8-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.4.9-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
 [![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
 [![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
@@ -29,6 +29,7 @@ If you use pi in the terminal, you've probably wished for: a real diff view inst
 - **Streaming timeline** — markdown, code blocks, KaTeX math, and foldable tool steps (read, edit, bash) with line-level diffs
 - **Session tree** — branch and rewind like `pi /tree`, but clickable; with git, optionally restore files on jump
 - **Composer** — inline file attachments, image paste, model & thinking-level pills, slash command menu; **Files** panel tree supports **drag files into composer** or right-click attach
+- **Workspace file preview** — multi-tab (`Ctrl`/`⌘`+click or right-click **Open in new tab**), line-gutter source view, **expand preview** into the chat column for wide reading
 - **Queue messages** — keep typing while the agent runs; messages execute when the current turn ends
 - **Full pi package ecosystem** — every extension you installed for terminal pi works here: dialogs, tool cards, side panels, and `/commands` are translated to native UI by per-extension **adapters**, with **no changes to the npm packages** (see [Extensions](#extensions))
 - **Bilingual UI** — 中文 / English toggle in Settings
@@ -56,7 +57,7 @@ npm run dev
 1. **Open a folder** — your repo becomes the agent's working directory (or use a sandbox under "chat partitions" to experiment safely).
 2. **Pick a session** — old chats from terminal pi show up here; or start fresh with `+`.
 3. **Send a message** — `Enter` to send, `Shift+Enter` for a new line.
-4. **Check the right panel** — review, run, context, session tree, or **Files** (preview + explorer).
+4. **Check the right panel** — review, run, context, session tree, or **Files** (tabbed preview + explorer; expand preview across the chat column).
 5. **Jump back** — hover a message and undo, or double-tap `Esc` with an empty input to open the session tree.
 
 <img src="https://img.justhil.uk/2026/06/25/image-20260625234039591" alt="Conversation timeline" style="zoom:67%;" />
@@ -73,6 +74,8 @@ npm run dev
 | Session tree | `Esc` `Esc` (empty input) |
 | Commands | `/` |
 | Attach file | Drag, `+`, or `Ctrl+V`; **Files** panel — drag files onto composer (files only) |
+| Multi-tab preview | **Files** → `Ctrl`/`⌘`+click a file, or right-click **Open in new tab** |
+| Wide preview | **Files** toolbar **Expand preview** (fills chat column; click again to collapse) |
 
 ## Extensions
 

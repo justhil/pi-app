@@ -263,10 +263,26 @@
     box-shadow: none;
   }
   .shell-track-center {
+    position: relative;
     min-height: 0;
     contain: layout;
     padding: 0;
     background: var(--surface-sidebar);
+  }
+  /* 聊天列与右栏分界：画在 center 列右缘（grid 接缝），避免被卡片 overflow 吃掉 */
+  .shell-track-center::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-base);
+    z-index: 90;
+    pointer-events: none;
+  }
+  .shell-files-chat-preview .shell-track-center::after {
+    display: none;
   }
   .shell-track-center .main-chat-column {
     border-radius: var(--radius-xl) 0 0 var(--radius-xl);
@@ -275,14 +291,27 @@
     height: 100%;
     box-shadow: 0 0 0 1px var(--border-base);
   }
-  /* 右栏与对话区同高、同色；左侧竖线 + 顶部分割线与对话区顶边对齐 */
   .shell-track-right {
-    box-shadow: inset 1px 0 0 0 var(--border-base);
+    position: relative;
     border-top: 1px solid var(--border-base);
   }
+  /* 文件预览铺满聊天列时 center 宽为 0，改在右栏左缘画同一条线 */
+  .shell-files-chat-preview .shell-track-right:not(.shell-track-collapsed)::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-base);
+    z-index: 90;
+    pointer-events: none;
+  }
   .shell-track-collapsed {
-    box-shadow: none !important;
     border-top: none !important;
+  }
+  .shell-track-collapsed::before {
+    display: none !important;
   }
   .shell-track-inner {
     transition:
@@ -306,6 +335,7 @@
   .files-explorer-rail {
     min-width: 0;
     overflow: hidden;
+    border-left: 1px solid var(--border-base);
     opacity: 1;
     transform: translateX(0);
     transition:

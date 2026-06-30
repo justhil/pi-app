@@ -13,7 +13,7 @@ type Props = {
     totalCount?: number
   }>
   selectedPath: string | null
-  onSelectPath: (relativePath: string, isDirectory: boolean) => void
+  onSelectPath: (relativePath: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => void
   searchQuery: string
   onContextMenuEntry?: (
     e: React.MouseEvent,
