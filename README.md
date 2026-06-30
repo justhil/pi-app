@@ -28,7 +28,7 @@ If you use pi in the terminal, you've probably wished for: a real diff view inst
 
 - **Streaming timeline** — markdown, code blocks, KaTeX math, and foldable tool steps (read, edit, bash) with line-level diffs
 - **Session tree** — branch and rewind like `pi /tree`, but clickable; with git, optionally restore files on jump
-- **Composer** — inline file attachments, image paste, model & thinking-level pills, slash command menu
+- **Composer** — inline file attachments, image paste, model & thinking-level pills, slash command menu; **Files** panel tree supports **drag files into composer** or right-click attach
 - **Queue messages** — keep typing while the agent runs; messages execute when the current turn ends
 - **Full pi package ecosystem** — every extension you installed for terminal pi works here: dialogs, tool cards, side panels, and `/commands` are translated to native UI by per-extension **adapters**, with **no changes to the npm packages** (see [Extensions](#extensions))
 - **Bilingual UI** — 中文 / English toggle in Settings
@@ -56,7 +56,7 @@ npm run dev
 1. **Open a folder** — your repo becomes the agent's working directory (or use a sandbox under "chat partitions" to experiment safely).
 2. **Pick a session** — old chats from terminal pi show up here; or start fresh with `+`.
 3. **Send a message** — `Enter` to send, `Shift+Enter` for a new line.
-4. **Check the right panel** — review file diffs, run status, context, or the session tree.
+4. **Check the right panel** — review, run, context, session tree, or **Files** (preview + explorer).
 5. **Jump back** — hover a message and undo, or double-tap `Esc` with an empty input to open the session tree.
 
 <img src="https://img.justhil.uk/2026/06/25/image-20260625234039591" alt="Conversation timeline" style="zoom:67%;" />
@@ -72,7 +72,7 @@ npm run dev
 | Stop generation | `Esc` |
 | Session tree | `Esc` `Esc` (empty input) |
 | Commands | `/` |
-| Attach file | Drag, `+`, or `Ctrl+V` |
+| Attach file | Drag, `+`, or `Ctrl+V`; **Files** panel — drag files onto composer (files only) |
 
 ## Extensions
 
