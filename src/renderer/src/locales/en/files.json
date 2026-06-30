@@ -1,0 +1,49 @@
+{
+  "empty": {
+    "noWorkspace": "Open a project to browse files"
+  },
+  "chrome": {
+    "noFile": "No file selected",
+    "collapseExplorer": "Collapse file tree",
+    "expandExplorer": "Expand file tree"
+  },
+  "search": {
+    "placeholder": "Filter in tree…"
+  },
+  "tree": {
+    "folder": "Folder",
+    "loading": "Loading…",
+    "loadMore": "Show {{count}} more…",
+    "dirTruncated": "Large folder — showing {{shown}} of {{total}}",
+    "searchCapped": "Too many matches — showing {{shown}} of {{total}}"
+  },
+  "preview": {
+    "pickFile": "Select a file in the tree to preview",
+    "loading": "Loading preview…",
+    "tooLarge": "File is too large to preview here",
+    "binary": "Open this file type in the system app",
+    "pdf": "Open PDF in your system viewer",
+    "openInSystem": "Open in system",
+    "error": "Could not read file",
+    "truncated": "Showing an excerpt only",
+    "truncatedNoHighlight": "Large file — plain text, no highlighting"
+  },
+  "menu": {
+    "preview": "Preview",
+    "attach": "Add to chat",
+    "copyPath": "Copy path",
+    "reveal": "Reveal in folder",
+    "rename": "Rename"
+  },
+  "rename": {
+    "title": "Rename",
+    "confirm": "OK",
+    "cancel": "Cancel"
+  },
+  "toast": {
+    "attached": "Attached to composer",
+    "copied": "Path copied",
+    "renamed": "Renamed",
+    "renameFailed": "Rename failed"
+  }
+}

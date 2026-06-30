@@ -1,6 +1,6 @@
 /** 右侧栏 Tab：核心栏目 + 适配器声明的 sidePanel（合并后用于 Tab / 设置开关） */
 
-export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree'] as const
+export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files'] as const
 
 export type CoreRightPanelId = (typeof CORE_RIGHT_PANEL_IDS)[number]
 
@@ -27,6 +27,7 @@ export const CORE_RIGHT_PANEL_CATALOG: RightPanelCatalogItem[] = [
   { id: 'run', labelKey: 'panel.run', fallbackLabel: 'Run', description: 'Current turn status & usage', descriptionKey: 'panel.runDesc', icon: 'Activity', source: 'core' },
   { id: 'context', labelKey: 'panel.context', fallbackLabel: 'Context', description: 'Session context preview', descriptionKey: 'panel.contextDesc', icon: 'FileSearch', source: 'core' },
   { id: 'tree', labelKey: 'panel.tree', fallbackLabel: 'Tree', description: 'Session tree / rewind (like /tree)', descriptionKey: 'panel.treeDesc', icon: 'GitBranch', source: 'core' },
+  { id: 'files', labelKey: 'panel.files', fallbackLabel: 'Files', description: 'Workspace file preview & explorer', descriptionKey: 'panel.filesDesc', icon: 'FolderTree', source: 'core' },
 ]
 
 /** @deprecated */

@@ -1,0 +1,49 @@
+{
+  "empty": {
+    "noWorkspace": "请先打开项目以浏览文件"
+  },
+  "chrome": {
+    "noFile": "未选择文件",
+    "collapseExplorer": "收起文件树",
+    "expandExplorer": "展开文件树"
+  },
+  "search": {
+    "placeholder": "搜索当前目录…"
+  },
+  "tree": {
+    "folder": "文件夹",
+    "loading": "加载中…",
+    "loadMore": "再显示 {{count}} 项…",
+    "dirTruncated": "目录项过多，仅列出前 {{shown}} / {{total}} 项",
+    "searchCapped": "匹配过多，仅显示前 {{shown}} / {{total}} 项"
+  },
+  "preview": {
+    "pickFile": "在右侧选择文件以预览",
+    "loading": "加载预览…",
+    "tooLarge": "文件过大，无法在面板内预览",
+    "binary": "此类型请在系统中打开",
+    "pdf": "PDF 请在系统中打开",
+    "openInSystem": "在系统中打开",
+    "error": "无法读取文件",
+    "truncated": "内容过长，仅显示前段",
+    "truncatedNoHighlight": "文件较大，已省略语法高亮"
+  },
+  "menu": {
+    "preview": "预览",
+    "attach": "添加到聊天",
+    "copyPath": "复制路径",
+    "reveal": "在文件夹中显示",
+    "rename": "重命名"
+  },
+  "rename": {
+    "title": "重命名",
+    "confirm": "确定",
+    "cancel": "取消"
+  },
+  "toast": {
+    "attached": "已附加到输入框",
+    "copied": "已复制路径",
+    "renamed": "已重命名",
+    "renameFailed": "重命名失败"
+  }
+}
