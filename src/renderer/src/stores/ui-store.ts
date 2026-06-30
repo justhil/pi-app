@@ -551,7 +551,7 @@ export const useUIStore = create<UIState>()(
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   rightPanelWidth: 288,
-  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 240), 420) }),
+  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 280), 720) }),
   rightPanelCollapsed: false,
   toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
 

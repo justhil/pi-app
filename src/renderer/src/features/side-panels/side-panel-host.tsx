@@ -7,6 +7,9 @@ const ReviewPanel = lazy(() => import('@renderer/features/review/review-panel').
 const RunPanel = lazy(() => import('@renderer/features/run/run-panel').then((m) => ({ default: m.RunPanel })))
 const ContextPanel = lazy(() => import('@renderer/features/context/context-panel').then((m) => ({ default: m.ContextPanel })))
 const TreePanel = lazy(() => import('@renderer/features/rewind/tree-panel').then((m) => ({ default: m.TreePanel })))
+const WorkspaceFilesPanel = lazy(() =>
+  import('@renderer/features/workspace-files/workspace-files-panel').then((m) => ({ default: m.WorkspaceFilesPanel })),
+)
 
 const ADAPTER_PANEL_COMPONENTS: Record<string, React.ComponentType<import('./side-panel-registry').SidePanelComponentProps>> = {
   'workspace-tasks': WorkspaceTasksSidePanel,
@@ -34,6 +37,7 @@ export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefine
   if (item.id === 'run') return wrap(<RunPanel />)
   if (item.id === 'context') return wrap(<ContextPanel />)
   if (item.id === 'tree') return wrap(<TreePanel />)
+  if (item.id === 'files') return wrap(<WorkspaceFilesPanel />)
 
   return <div className="p-4 text-[12px] text-muted-foreground">未注册面板: {item.id}</div>
 }

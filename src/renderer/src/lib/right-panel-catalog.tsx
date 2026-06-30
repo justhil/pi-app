@@ -4,6 +4,7 @@ import {
   ListTree,
   Activity,
   FileSearch,
+  FolderTree,
   PanelRight,
 } from 'lucide-react'
 import * as LucideIcons from 'lucide-react'
@@ -14,6 +15,7 @@ const CORE_ICONS: Record<string, LucideIcon> = {
   run: Activity,
   context: FileSearch,
   tree: GitBranch,
+  files: FolderTree,
 }
 
 function resolveIcon(name?: string): LucideIcon {

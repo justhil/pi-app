@@ -54,6 +54,7 @@ import {
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync, writeFileSync } from 'fs'
+import { workspaceFsListDir, workspaceFsReadText, workspaceFsRename } from './workspace-fs'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
@@ -238,6 +239,29 @@ export function registerAllHandlers(): void {
     shell.showItemInFolder(p)
     return { ok: true }
   })
+  registerHandler('ipc:workspace.fs.listDir', async (req) => {
+    return workspaceFsListDir({
+      workspaceRoot: String(req?.workspaceRoot || ''),
+      path: req?.path != null ? String(req.path) : '.',
+    })
+  })
+
+  registerHandler('ipc:workspace.fs.readText', async (req) => {
+    return workspaceFsReadText({
+      workspaceRoot: String(req?.workspaceRoot || ''),
+      path: String(req?.path || ''),
+      maxBytes: typeof req?.maxBytes === 'number' ? req.maxBytes : undefined,
+    })
+  })
+
+  registerHandler('ipc:workspace.fs.rename', async (req) => {
+    return workspaceFsRename({
+      workspaceRoot: String(req?.workspaceRoot || ''),
+      relativePath: String(req?.relativePath || ''),
+      newName: String(req?.newName || ''),
+    })
+  })
+
   registerHandler('ipc:shell.readImagePreview', async (req) => {
     const p = String(req.path || '')
     if (!p || !existsSync(p)) return { ok: false, error: 'not_found' }

@@ -296,6 +296,63 @@
     pointer-events: none;
   }
 
+  /* 文件面板：预览 | 文件树（动效对齐 test/workspace-files-panel-mock.html） */
+  .files-split-grid {
+    display: grid;
+    min-height: 0;
+    /* 与 .shell-track-inner 同 320ms；列宽仍由内联 style 切换 */
+    transition: grid-template-columns 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .files-explorer-rail {
+    min-width: 0;
+    overflow: hidden;
+    opacity: 1;
+    transform: translateX(0);
+    transition:
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .files-split-grid--collapsed .files-explorer-rail {
+    opacity: 0;
+    transform: translateX(12px);
+    pointer-events: none;
+  }
+  .files-tree-row:active {
+    transform: scale(0.985);
+  }
+  /* 文件树文件夹子级：grid 0fr/1fr 展开（不依赖 JS 量 height） */
+  .files-tree-folder-expand {
+    display: grid;
+    grid-template-rows: 0fr;
+    /* 比原 520ms 短；勿用 var() 写 transition 以免部分环境不插值 */
+    transition: grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .files-tree-folder-expand[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+  .files-tree-folder-expand-inner {
+    min-height: 0;
+    overflow: hidden;
+    transform: translateY(-4px) scaleY(0.99);
+    transform-origin: top;
+    opacity: 0.85;
+    transition:
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .files-tree-folder-expand[data-open='true'] .files-tree-folder-expand-inner {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+  .files-tree-folder-expand--instant {
+    transition: none !important;
+  }
+  .files-tree-folder-expand--instant .files-tree-folder-expand-inner {
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
   /* Sidebar / panel width（旧 flex 方案，Grid 壳层已替代） */
   .panel-width-animate {
     transition:

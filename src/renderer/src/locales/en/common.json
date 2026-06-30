@@ -40,10 +40,12 @@
     "run": "Run",
     "context": "Context",
     "tree": "Tree",
+    "files": "Files",
     "reviewDesc": "Git changes & diff (read-only)",
     "runDesc": "Current turn status & usage",
     "contextDesc": "Session context preview",
-    "treeDesc": "Session tree / rewind (like /tree)"
+    "treeDesc": "Session tree / rewind (like /tree)",
+    "filesDesc": "Workspace file preview & explorer"
   },
   "settings": {
     "title": "Settings",

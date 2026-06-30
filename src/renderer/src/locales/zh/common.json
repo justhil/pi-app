@@ -40,10 +40,12 @@
     "run": "Run",
     "context": "Context",
     "tree": "Tree",
+    "files": "文件",
     "reviewDesc": "Git 变更与 diff（只读）",
     "runDesc": "当前轮次状态与用量",
     "contextDesc": "会话上下文预览",
-    "treeDesc": "会话树 / 回退（同 /tree）"
+    "treeDesc": "会话树 / 回退（同 /tree）",
+    "filesDesc": "工作区文件预览与浏览"
   },
   "settings": {
     "title": "设置",

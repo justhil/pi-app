@@ -8,6 +8,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
 import { AttachmentMeta, getAttachmentKind, resolveFilePath, basenameOf, serializeRichInput, insertAttachmentAtCursor, renderRichTextFromPlain, renderRichFromSegments, replaceTrailingTokenInSegments, stripTrailingSlashToken, placeCaretAtEnd, type Segment } from './attachments'
+import { readPiFilePathDrop } from '@renderer/features/workspace-files/workspace-files-types'
 import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerMetricsInline } from './composer-metrics-inline'
@@ -579,6 +580,22 @@ export function Composer() {
     updateFromEditor()
   }, [updateFromEditor])
 
+  useEffect(() => {
+    const onAttach = (e: Event) => {
+      const detail = (e as CustomEvent<{ files?: { path: string; name: string; kind: string }[] }>).detail
+      const files = detail?.files
+      if (!files?.length) return
+      const metas: AttachmentMeta[] = files.map((f) => ({
+        path: f.path,
+        name: f.name,
+        kind: (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name),
+      }))
+      insertMetas(metas)
+    }
+    window.addEventListener('pi-desktop:composer-attach-files', onAttach)
+    return () => window.removeEventListener('pi-desktop:composer-attach-files', onAttach)
+  }, [insertMetas])
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
     if (!items) return
@@ -660,7 +677,8 @@ export function Composer() {
 
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
-    if (!e.dataTransfer?.types?.includes('Files')) return
+    const dt = e.dataTransfer
+    if (!dt?.types?.includes('Files') && !dt?.types?.includes('application/x-pi-file-path')) return
     e.preventDefault()
     dragDepth.current += 1
     setIsDragActive(true)
@@ -676,16 +694,26 @@ export function Composer() {
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer?.types?.includes('Files')) e.preventDefault()
+    const dt = e.dataTransfer
+    if (dt?.types?.includes('Files') || dt?.types?.includes('application/x-pi-file-path')) e.preventDefault()
   }, [])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
-    if (!e.dataTransfer?.files?.length) return
+    const dt = e.dataTransfer
+    const pi = dt ? readPiFilePathDrop(dt) : null
+    if (pi) {
+      e.preventDefault()
+      dragDepth.current = 0
+      setIsDragActive(false)
+      insertMetas([{ path: pi.path, name: pi.name, kind: getAttachmentKind(pi.name) }])
+      return
+    }
+    if (!dt?.files?.length) return
     e.preventDefault()
     dragDepth.current = 0
     setIsDragActive(false)
-    addDroppedFiles(e.dataTransfer.files)
-  }, [addDroppedFiles])
+    addDroppedFiles(dt.files)
+  }, [addDroppedFiles, insertMetas])
 
   const removeAttachment = (path: string) => {
     const el = editorRef.current

@@ -1,7 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@renderer/lib/utils'
 
-/** 侧栏折叠：用精确 height 动画，避免 max-height 过大导致视觉上瞬间展开。 */
+/**
+ * 侧栏树折叠：内联 height + globals `.sidebar-collapse` 过渡。
+ * 首次展开也必须走 0→measured，不能用 initializedRef 直接设为 auto（否则无动画）。
+ */
 export function SidebarAnimatedCollapse({
   open,
   children,
@@ -11,58 +14,54 @@ export function SidebarAnimatedCollapse({
   children: React.ReactNode
   className?: string
 }) {
-  const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
-  const initializedRef = useRef(false)
-  const [height, setHeight] = useState(open ? 'auto' : '0px')
-  const [opacity, setOpacity] = useState(open ? 1 : 0)
+  const [height, setHeight] = useState('0px')
+  const [opacity, setOpacity] = useState(0)
 
   useLayoutEffect(() => {
     const inner = innerRef.current
     if (!inner) return
 
-    let raf = 0
-    const measured = `${inner.scrollHeight}px`
-
-    if (!initializedRef.current) {
-      initializedRef.current = true
-      setHeight(open ? 'auto' : '0px')
-      setOpacity(open ? 1 : 0)
-      return
-    }
+    let raf1 = 0
+    let raf2 = 0
+    const measure = () => `${inner.scrollHeight}px`
 
     if (open) {
       setHeight('0px')
       setOpacity(0)
-      raf = requestAnimationFrame(() => {
-        setHeight(measured)
-        setOpacity(1)
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          setHeight(measure())
+          setOpacity(1)
+        })
       })
     } else {
-      setHeight(measured)
+      setHeight(measure())
       setOpacity(1)
-      raf = requestAnimationFrame(() => {
+      raf1 = requestAnimationFrame(() => {
         setHeight('0px')
         setOpacity(0)
       })
     }
 
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+    }
   }, [open])
 
   useLayoutEffect(() => {
     const inner = innerRef.current
-    if (!inner || !open || height === 'auto') return
+    if (!inner || !open) return
     const ro = new ResizeObserver(() => {
-      setHeight(`${inner.scrollHeight}px`)
+      if (innerRef.current) setHeight(`${innerRef.current.scrollHeight}px`)
     })
     ro.observe(inner)
     return () => ro.disconnect()
-  }, [open, height, children])
+  }, [open, children])
 
   return (
     <div
-      ref={outerRef}
       className={cn('sidebar-collapse', open && 'sidebar-collapse-open', className)}
       data-open={open ? 'true' : 'false'}
       style={{ height, opacity }}
