@@ -24,7 +24,7 @@ type LevelProps = {
   childrenMeta: Record<string, DirLoadMeta>
   selectedPath: string | null
   onToggleFolder: (dirPath: string) => void
-  onSelectPath: (relativePath: string, isDirectory: boolean) => void
+  onSelectPath: (relativePath: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => void
   onContextMenuEntry?: (
     e: React.MouseEvent,
     absPath: string,
@@ -108,7 +108,9 @@ function FileTreeLevelInner(props: LevelProps) {
               open={open}
               selected={selectedPath === e.path}
               onToggle={() => onToggleFolder(e.path)}
-              onSelect={() => onSelectPath(e.path, e.isDirectory)}
+              onSelect={(ev) =>
+                onSelectPath(e.path, e.isDirectory, { openInNewTab: ev.ctrlKey || ev.metaKey })
+              }
               onContextMenu={(ev) => {
                 onContextMenuEntry?.(ev, joinAbs(e.path), e.name, e.path, e.isDirectory)
               }}

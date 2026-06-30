@@ -29,7 +29,7 @@ npm run dev
 2. **Or sandbox** — “chat partitions”, isolated cwd under app user data.
 3. **Session** — pick history or `+` new; right-click rename/delete on disk projects.
 4. **Composer** — `Enter` send; `/` slash commands; drag files or `+`; `Ctrl+V` images; **KaTeX** in messages.
-5. **Right panel** — review, run, context, **session tree**, **Files** (workspace preview & tree); empty composer + **double `Esc`** opens tree overlay.
+5. **Right panel** — review, run, context, **session tree**, **Files** (tabbed preview, tree, expand preview into chat column); empty composer + **double `Esc`** opens tree overlay.
 
 ---
 
@@ -47,6 +47,8 @@ npm run dev
 | Language | **Settings → General** → 中文 / English |
 | Voice | Composer mic; **Settings → Voice** for codex-asr |
 | Attach (file tree) | Right panel **Files** → **drag a file** onto the composer (folders cannot be dragged); or right-click → **Add to chat** |
+| Multi-tab preview | **Files** tree: `Ctrl`/`⌘`+click, or right-click → **Open in new tab**; middle-click closes; drag tabs to reorder |
+| Wide preview | **Files** toolbar **Expand preview** (fills chat column; inner file tree collapse unchanged) |
 | Attach (other) | Drag from Explorer into composer, `+` picker, `Ctrl+V` for images |
 
 Full shortcut table: [README.md](../../README.md#keyboard-shortcuts).

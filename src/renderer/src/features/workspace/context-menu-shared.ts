@@ -28,7 +28,13 @@ export function useDismissContextMenu(
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCloseRef.current()
     }
-    const onScroll = () => onCloseRef.current()
+    const onScroll = (e: Event) => {
+      const el = ref.current
+      if (!el) return
+      const t = e.target
+      if (t instanceof Node && el.contains(t)) return
+      onCloseRef.current()
+    }
     const onContextMenu = (e: MouseEvent) => dismissIfOutside(e.target)
     const onResize = () => onCloseRef.current()
 

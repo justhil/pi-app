@@ -5,7 +5,12 @@
   "chrome": {
     "noFile": "No file selected",
     "collapseExplorer": "Collapse file tree",
-    "expandExplorer": "Expand file tree"
+    "expandExplorer": "Expand file tree",
+    "expandPreview": "Expand preview into chat column",
+    "collapsePreview": "Collapse preview"
+  },
+  "tabs": {
+    "close": "Close tab"
   },
   "search": {
     "placeholder": "Filter in tree…"
@@ -26,14 +31,19 @@
     "openInSystem": "Open in system",
     "error": "Could not read file",
     "truncated": "Showing an excerpt only",
-    "truncatedNoHighlight": "Large file — plain text, no highlighting"
+    "truncatedNoHighlight": "Large file — plain text, no highlighting",
+    "expandAll": "Show all ({{count}} lines)",
+    "collapse": "Collapse",
+    "tryExpandRead": "Try loading full file",
+    "deleted": "File was deleted or moved"
   },
   "menu": {
     "preview": "Preview",
     "attach": "Add to chat",
     "copyPath": "Copy path",
     "reveal": "Reveal in folder",
-    "rename": "Rename"
+    "rename": "Rename",
+    "openInNewTab": "Open in new tab"
   },
   "rename": {
     "title": "Rename",

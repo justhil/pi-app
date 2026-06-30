@@ -5,7 +5,12 @@
   "chrome": {
     "noFile": "未选择文件",
     "collapseExplorer": "收起文件树",
-    "expandExplorer": "展开文件树"
+    "expandExplorer": "展开文件树",
+    "expandPreview": "展开预览到聊天区",
+    "collapsePreview": "收起预览"
+  },
+  "tabs": {
+    "close": "关闭标签"
   },
   "search": {
     "placeholder": "搜索当前目录…"
@@ -26,14 +31,19 @@
     "openInSystem": "在系统中打开",
     "error": "无法读取文件",
     "truncated": "内容过长，仅显示前段",
-    "truncatedNoHighlight": "文件较大，已省略语法高亮"
+    "truncatedNoHighlight": "文件较大，已省略语法高亮",
+    "expandAll": "展开全部（{{count}} 行）",
+    "collapse": "收起",
+    "tryExpandRead": "尝试读取完整文件",
+    "deleted": "文件已删除或已移走"
   },
   "menu": {
     "preview": "预览",
     "attach": "添加到聊天",
     "copyPath": "复制路径",
     "reveal": "在文件夹中显示",
-    "rename": "重命名"
+    "rename": "重命名",
+    "openInNewTab": "在新窗口打开"
   },
   "rename": {
     "title": "重命名",
