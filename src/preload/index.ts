@@ -18,10 +18,14 @@ const api = {
 
   getPathForFile(file: File): string {
     try {
-      return webUtils.getPathForFile(file)
+      const p = webUtils.getPathForFile(file)
+      if (p) return p
     } catch {
-      return (file as any).path ?? ''
+      /* fall through */
     }
+    const legacy = (file as { path?: string }).path
+    if (legacy) return legacy
+    throw new Error('Could not resolve file path for attachment')
   },
 
   onEvent(callback: (event: AppEvent) => void): () => void {

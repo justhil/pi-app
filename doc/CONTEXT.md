@@ -26,7 +26,8 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 
 ## 安全默认值
 
-- `src/main/window.ts`：`contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`（需威胁模型文档，见 FMSM F4）
+- `src/main/window.ts`：`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` 默认（`PI_RENDERER_SANDBOX=0` 可关；见 `doc/THREAT-MODEL.md`）
+- Codex JWT：`src/main/secret-store.ts` + `asr-config-store.ts`（safeStorage，明文迁移）
 
 ## 质量门禁
 
@@ -34,14 +35,14 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 - `node --test scripts/tests/*.test.mjs` — CI `quality.yml`
 - `node scripts/ci-audit.mjs` — CI `dependency-audit`（critical 门禁）
 - `doc/IPC-CONTRACTS.md` — IPC Backend-API 文档
-- FMSM 严苛 HTML（**不入 git**）：`docs/audit/audit-report-pi-app-2026-07-01-iter12.html`（亮色，Overall 8.0 A）；见 `docs/README.md`
+- FMSM iter14 整改：**sandbox 默认 true**；`test:e2e`；CI `e2e-smoke` + `script-tests-win`；报告 `docs/audit/*iter14*`
 
 ## 严苛评分（FMSM 2026-07-01）
 
 | 项 | 严苛分 | PRD 目标 |
 |----|--------|----------|
-| Overall | **8.0 A**（iter12 PRD 循环终止） | ≥8.0 ✓ |
-| Testing | **7.4**（脚本 48 cases / 47 pass，`fmsm-prd-gates.test.mjs`） | ≥7.0 ✓ |
-| ipc **36**；ui-store **329**；apply-app-event **71**；worker `as any` **≤22** | 见 `worker-message.ts` |
+| Overall | **8.0 A**（iter13：FMSM 整改 + PRD gates） | ≥8.0 ✓ |
+| Testing | **7.4**（`scripts/tests` 29 文件，`fmsm-prd-gates` ≥27） | ≥7.0 ✓ |
+| ipc **36**；ui-store **329**；apply-app-event **71**；worker/index **≤1100** 行；`as any` **≤22** | `worker-session-events` / `worker-timeline` / `worker-compaction-patch` 已拆 |
 
-Trellis：`07-01-arch-strict-maintain`（门禁维持，归档于 `archive/2026-07/`）。威胁模型：`doc/THREAT-MODEL.md`。
+Trellis：`07-01-fmsm-remediate-a` 已归档 `archive/2026-07/`。威胁模型：`doc/THREAT-MODEL.md`（含 safeStorage）。

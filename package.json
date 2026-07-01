@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",
@@ -13,10 +13,12 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "package": "electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
     "docs:adapters": "node scripts/generate-adapter-readme-table.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
     "postinstall": "electron-builder install-app-deps && electron-vite build",
     "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
@@ -71,7 +73,11 @@
     "sharp": "^0.35.2",
     "shiki": "^1.24.4",
     "tailwindcss": "^3.4.17",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "@playwright/test": "^1.49.0",
     "typescript": "5.7",
+    "typescript-eslint": "^8.18.0",
     "vite": "^5.4.0"
   }
 }

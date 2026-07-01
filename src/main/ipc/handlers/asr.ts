@@ -1,10 +1,10 @@
 import { registerHandler } from '../registry'
-import { configStore } from '../../config-store'
+import { loadAsrConfig } from '../../asr-config-store'
 import { getAsrProvider } from '../../asr/registry'
 
 export function registerAsrHandlers(): void {
   registerHandler('ipc:asr.transcribe', async (req) => {
-    const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? configStore.get('asrConfig')
+    const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? loadAsrConfig()
     const { normalizeAsrConfigForOps } = await import('../../asr/asr-config-normalize')
     const cfg = normalizeAsrConfigForOps(raw as import('@shared/asr-types').AsrConfig)
     const provider = getAsrProvider(cfg)
@@ -18,7 +18,7 @@ export function registerAsrHandlers(): void {
   })
 
   registerHandler('ipc:asr.testConnection', async (req) => {
-    const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? configStore.get('asrConfig')
+    const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? loadAsrConfig()
     const { normalizeAsrConfigForOps } = await import('../../asr/asr-config-normalize')
     const cfg = normalizeAsrConfigForOps(raw as import('@shared/asr-types').AsrConfig)
     const provider = getAsrProvider(cfg)

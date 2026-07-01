@@ -15,7 +15,7 @@ function countAsAny(rel) {
   return (text.match(/\sas any\b/g) || []).length
 }
 
-describe('FMSM PRD gates (Overall≥8.0 loop)', () => {
+describe('FMSM PRD gates (Overall≥8.0 A)', () => {
   it('ipc.ts bootstrap <= 500 lines', () => {
     const n = lineCount('src/main/ipc.ts')
     assert.ok(n <= 500, `ipc.ts ${n} lines`)
@@ -36,7 +36,17 @@ describe('FMSM PRD gates (Overall≥8.0 loop)', () => {
     assert.ok(n <= 22, `worker as any ${n}`)
   })
 
-  it('scripts/tests has >=18 contract test files (Testing≥7 proxy)', () => {
+  it('worker/index.ts <= 1100 lines (FMSM modularization)', () => {
+    const n = lineCount('src/worker/index.ts')
+    assert.ok(n <= 1100, `worker/index.ts ${n} lines`)
+  })
+
+  it('scripts/tests has >=27 contract test files (Testing≥7.4 proxy)', () => {
+    const files = readdirSync(join(root, 'scripts/tests')).filter((f) => f.endsWith('.test.mjs'))
+    assert.ok(files.length >= 27, `test files ${files.length}`)
+  })
+
+  it('scripts/tests has >=18 contract test files (legacy floor)', () => {
     const files = readdirSync(join(root, 'scripts/tests')).filter((f) => f.endsWith('.test.mjs'))
     assert.ok(files.length >= 18, `test files ${files.length}`)
     assert.ok(files.includes('ipc-channel-sync.test.mjs'))

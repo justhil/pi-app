@@ -62,6 +62,9 @@ screenshot*.jpeg
 .cache/
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
 tmp/
 temp/
 
@@ -77,3 +80,5 @@ scripts/filter_repo_message*.py
 scripts/replace-text-history.txt
 scripts/rewrite-commit-messages.txt
 scripts/fix-arrow-syntax.py*.tgz
+scripts/git-rewrite-public-main.ps1
+scripts/git-rewrite-public-main.sh

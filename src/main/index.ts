@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, dialog } from 'electron'
 import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
@@ -8,10 +8,24 @@ import { is } from '@electron-toolkit/utils'
 process.stdout?.on?.('error', () => {})
 process.stderr?.on?.('error', () => {})
 process.on('uncaughtException', (err) => {
-  // EPIPE is common when worker stdout pipe closes; ignore it
-  const code = (err as any)?.code
+  const code = (err as NodeJS.ErrnoException)?.code
   if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') return
   console.error('[Main] Uncaught exception:', err)
+  try {
+    const win = BrowserWindow.getAllWindows()[0]
+    const msg = err instanceof Error ? err.message : String(err)
+    const opts = {
+      type: 'error' as const,
+      title: 'pi Desktop',
+      message: 'A critical error occurred. Please restart the app.',
+      detail: msg.slice(0, 500),
+    }
+    if (win && !win.isDestroyed()) void dialog.showMessageBox(win, opts)
+    else void dialog.showMessageBox(opts)
+  } catch {
+    /* dialog unavailable during early boot */
+  }
+  setTimeout(() => app.quit(), 2000)
 })
 
 function createMenu(): void {

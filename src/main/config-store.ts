@@ -1,6 +1,6 @@
-import pkg from 'electron-store'
+import Store from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
-const Store = pkg as any
+import { bindSecretStoreBacking } from './secret-store'
 
 export interface StoreSchema {
   recentProjects: string[]
@@ -36,12 +36,8 @@ export interface StoreSchema {
   asrConfig: AsrConfig
 }
 
-const store: {
-  get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K]
-  set: <K extends keyof StoreSchema>(key: K, value: StoreSchema[K]) => void
-  store: Partial<StoreSchema>
-} = new Store({
-  projectName: 'pi-desktop',
+const store = new Store<StoreSchema>({
+  name: 'pi-desktop',
   defaults: {
     recentProjects: [],
     currentProject: null,
@@ -74,6 +70,15 @@ const store: {
       timeoutMs: 120000,
       builtinServePort: 18788,
     } as AsrConfig,
+  },
+})
+
+bindSecretStoreBacking({
+  get: (k) => store.get(k as keyof StoreSchema),
+  set: (k, v) => store.set(k as keyof StoreSchema, v as StoreSchema[keyof StoreSchema]),
+  delete: (k) => {
+    const s = store as { delete?: (key: string) => void }
+    if (typeof s.delete === 'function') s.delete(k)
   },
 })
 

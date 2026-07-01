@@ -15,7 +15,9 @@
           var isDark = theme === 'dark'
             || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) document.documentElement.classList.add('dark');
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[pi-desktop] theme bootstrap failed', e);
+        }
       })();
     </script>
   </head>

@@ -26,6 +26,13 @@ import { workerManager } from './worker-manager'
 let mainWindow: BrowserWindow | null = null
 let rendererReloadAfterCrash = false
 
+/** Renderer sandbox on by default (FMSM iter14). Set `PI_RENDERER_SANDBOX=0` to disable for local debug. */
+export function readRendererSandboxEnabled(): boolean {
+  const v = process.env.PI_RENDERER_SANDBOX
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return true
+}
+
 export function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -42,7 +49,7 @@ export function createWindow(): BrowserWindow {
     icon: resolveWindowIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
-      sandbox: false,
+      sandbox: readRendererSandboxEnabled(),
       contextIsolation: true,
       nodeIntegration: false,
     },

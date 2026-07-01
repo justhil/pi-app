@@ -1,5 +1,6 @@
 import { shell } from 'electron'
 import { configStore, type StoreSchema } from '../../config-store'
+import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
 import { registerHandler } from '../registry'
 
@@ -7,13 +8,22 @@ export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
     if (req.key) {
       const key = req.key as keyof StoreSchema
+      if (key === 'asrConfig') {
+        return { settings: { asrConfig: asrConfigForSettingsResponse(loadAsrConfig()) } }
+      }
       return { settings: { [req.key]: configStore.get(key) } }
     }
-    return { settings: configStore.getAll() }
+    const all = { ...configStore.getAll() }
+    all.asrConfig = asrConfigForSettingsResponse(loadAsrConfig())
+    return { settings: all }
   })
 
   registerHandler('ipc:settings.set', async (req) => {
     const key = req.key as keyof StoreSchema
+    if (key === 'asrConfig') {
+      saveAsrConfig(req.value as StoreSchema['asrConfig'])
+      return { key: req.key, value: asrConfigForSettingsResponse(loadAsrConfig()) }
+    }
     configStore.set(key, req.value as StoreSchema[typeof key])
     return { key: req.key, value: req.value }
   })
