@@ -1,6 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { createWindow } from './window'
-import { registerWindowControlHandlers } from './window-controls'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
@@ -55,7 +54,6 @@ app.whenReady().then(() => {
   }
   createMenu()
   registerAllHandlers()
-  registerWindowControlHandlers()
   const win = createWindow()
   workerManager.setMainWindow(win)
   win.once('show', () => {
