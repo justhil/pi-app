@@ -1,4 +1,4 @@
-import { useRef, useState, useLayoutEffect, type ReactNode } from 'react'
+import { useRef, useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@renderer/lib/utils'
 
@@ -17,7 +17,6 @@ function computeTooltipRect(host: HTMLElement): { left: number; top: number } {
   const rect = host.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
-  // 预估尺寸（实际用 CSS max-width 限制后精确测量，但预估够用）
   const estW = Math.min(380, vw - VIEWPORT_PAD * 2)
   const estH = 40
 
@@ -52,6 +51,28 @@ export function DelayedTooltip({
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const hideNow = useRef(() => {
+    if (showTimer.current) clearTimeout(showTimer.current)
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    showTimer.current = null
+    hideTimer.current = null
+    setVisible(false)
+  })
+
+  useEffect(() => {
+    const hide = () => hideNow.current()
+    if (visible) {
+      activeHideFns.add(hide)
+      return () => {
+        activeHideFns.delete(hide)
+        hide()
+      }
+    }
+    return undefined
+  }, [visible])
+
+  useEffect(() => () => hideNow.current(), [])
+
   const clearTimers = () => {
     if (showTimer.current) clearTimeout(showTimer.current)
     if (hideTimer.current) clearTimeout(hideTimer.current)
@@ -62,7 +83,9 @@ export function DelayedTooltip({
   const onEnter = () => {
     clearTimers()
     showTimer.current = setTimeout(() => {
-      if (hostRef.current) setPos(computeTooltipRect(hostRef.current))
+      const host = hostRef.current
+      if (!host?.isConnected) return
+      setPos(computeTooltipRect(host))
       setVisible(true)
     }, delayMs)
   }
@@ -103,6 +126,7 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
   let showTimer: ReturnType<typeof setTimeout> | null = null
   let hideTimer: ReturnType<typeof setTimeout> | null = null
   let bubble: HTMLSpanElement | null = null
+  let observer: MutationObserver | null = null
 
   const clearTimers = () => {
     if (showTimer) clearTimeout(showTimer)
@@ -116,7 +140,27 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
     bubble = null
   }
 
+  const hideImmediate = () => {
+    clearTimers()
+    removeBubble()
+  }
+
+  const hide = () => {
+    clearTimers()
+    if (bubble?.isConnected) {
+      bubble.classList.remove('is-visible')
+      const b = bubble
+      setTimeout(() => {
+        if (b.isConnected) b.remove()
+        if (bubble === b) bubble = null
+      }, 300)
+    } else {
+      removeBubble()
+    }
+  }
+
   const show = () => {
+    if (!el.isConnected) return
     removeBubble()
     bubble = document.createElement('span')
     bubble.className = 'delayed-tooltip-bubble is-visible'
@@ -127,20 +171,22 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
     bubble.style.top = `${top}px`
     document.body.appendChild(bubble)
   }
-  const hide = () => {
-    if (bubble?.isConnected) {
-      bubble.classList.remove('is-visible')
-      setTimeout(removeBubble, 300)
-    } else {
-      removeBubble()
-    }
-    clearTimers()
+
+  const registerHide = () => {
+    activeHideFns.add(hideImmediate)
   }
-  activeHideFns.add(hide)
+  const unregisterHide = () => {
+    activeHideFns.delete(hideImmediate)
+  }
+
+  registerHide()
 
   el.addEventListener('mouseenter', () => {
     clearTimers()
-    showTimer = setTimeout(show, delayMs)
+    showTimer = setTimeout(() => {
+      if (!el.isConnected) return
+      show()
+    }, delayMs)
   })
   el.addEventListener('mouseleave', () => {
     if (showTimer) {
@@ -149,14 +195,23 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
     }
     hideTimer = setTimeout(hide, TOOLTIP_HIDE_MS)
   })
-  if (el.parentElement) {
-    const observer = new MutationObserver(() => {
+
+  const removeBtn = el.querySelector('.rich-attachment-remove')
+  removeBtn?.addEventListener('pointerdown', (e) => {
+    e.stopPropagation()
+    hideImmediate()
+  })
+
+  const parent = el.parentElement
+  if (parent) {
+    observer = new MutationObserver(() => {
       if (!el.isConnected) {
-        hide()
-        observer.disconnect()
-        activeHideFns.delete(hide)
+        hideImmediate()
+        observer?.disconnect()
+        observer = null
+        unregisterHide()
       }
     })
-    observer.observe(el.parentElement, { childList: true, subtree: true })
+    observer.observe(parent, { childList: true, subtree: true })
   }
 }

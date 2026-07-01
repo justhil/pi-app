@@ -134,7 +134,7 @@ export function ContextPanel() {
                   {formatTokens(estTokens ?? 0)}
                 </div>
                 <div className="text-[10px] tabular-nums text-foreground-secondary/70">
-                  {t('context:charsCount', { count: preview.estimatedChars.toLocaleString() })}
+                  {t('context:charsCount', { count: preview.estimatedChars })}
                 </div>
               </div>
             </div>

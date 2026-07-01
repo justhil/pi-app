@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { getAttachmentIcon, type AttachmentMeta } from './attachments'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { DelayedTooltip } from './delayed-tooltip'
+import { DelayedTooltip, hideAllDelayedTooltips } from './delayed-tooltip'
 
 export function AttachmentChip({
   attachment,
@@ -37,6 +37,7 @@ export function AttachmentChip({
       {onRemove && (
         <button
           type="button"
+          onPointerDown={(e) => { e.stopPropagation(); hideAllDelayedTooltips() }}
           onClick={(e) => { e.stopPropagation(); onRemove() }}
           className="attachment-chip-remove -mr-0.5 rounded p-0.5 opacity-45"
           aria-label={t('composer:removeFile')}

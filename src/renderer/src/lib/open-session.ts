@@ -55,6 +55,7 @@ export async function openSessionIntoWorker(
     const hist = await loadSessionHistoryWithRetry(sessionFile, {
       navToken,
       bindPending: true,
+      alignWorkerOnRetry: false,
       workerReady: opts?.workerReady,
     })
     if (navToken != null && !assertSessionNavigation(navToken)) {

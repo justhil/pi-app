@@ -1433,6 +1433,20 @@
   .composer-slash-popover-pane {
     overscroll-behavior: contain;
   }
+  /* / 命令联想：分类标签统一宽高，横向一行 */
+  .composer-slash-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 4.25rem;
+    min-width: 4.25rem;
+    height: 1.25rem;
+    padding: 0 0.25rem;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   [data-slash-popover] .overlay-scrollbar-rail {
     z-index: 2;
   }

@@ -45,7 +45,8 @@ export async function loadSessionHistoryWithRetry(
   },
 ): Promise<GetMessagesResult> {
   const bindPending = opts?.bindPending !== false
-  const alignWorkerOnRetry = opts?.alignWorkerOnRetry !== false
+  /** 默认 false：重试时勿 session.prepare/loadSession，避免切预览会话时卸掉后台仍在跑的 Worker 绑定 */
+  const alignWorkerOnRetry = opts?.alignWorkerOnRetry === true
 
   checkNav(opts?.navToken)
   if (!opts?.workerReady) {

@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import type { Pluggable } from 'unified'
 import 'katex/dist/katex.min.css'
 import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
@@ -78,15 +79,15 @@ function CodeBlock({
   )
 }
 
-function buildRemarkPlugins(streaming?: boolean) {
+function buildRemarkPlugins(streaming?: boolean): Pluggable[] {
   return [
     remarkGfm,
     remarkBreaks,
-    [remarkMath, { singleDollarTextMath: !streaming }] as const,
+    [remarkMath, { singleDollarTextMath: !streaming }],
   ]
 }
 
-const REHYPE_PLUGINS = [
+const REHYPE_PLUGINS: Pluggable[] = [
   [
     rehypeKatex,
     {
@@ -95,7 +96,7 @@ const REHYPE_PLUGINS = [
       macros: KATEX_MACROS,
       output: 'htmlAndMathml',
     },
-  ] as const,
+  ],
 ]
 
 const STREAM_MARKDOWN_MIN_CHARS = 160

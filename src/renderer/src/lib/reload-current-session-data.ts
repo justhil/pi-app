@@ -22,7 +22,7 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     if (!reloadRes?.ok) {
       console.warn('[reloadCurrentSessionData] Worker reload:', reloadRes?.error)
     }
-    const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false })
+    const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false, alignWorkerOnRetry: false })
     const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
     const { items, totalCount, sessionMeta } = hist
     store.loadHistoryItems(sanitizeHistoryTimeline(items as any[]))

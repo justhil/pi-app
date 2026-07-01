@@ -33,7 +33,8 @@ export interface AttachmentMeta {
 
 export interface TextSegment { type: 'text'; text: string }
 export interface FileSegment { type: 'file'; attachment: AttachmentMeta }
-export type Segment = TextSegment | FileSegment
+export interface ClipboardImageSegment { type: 'clipboard-image'; path: string; name: string }
+export type Segment = TextSegment | FileSegment | ClipboardImageSegment
 
 const CODE_EXTS = new Set([
   'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'rs', 'go', 'java', 'c', 'cpp', 'cc', 'h',
@@ -221,9 +222,14 @@ export function renderRichFromSegments(el: HTMLElement, segments: Segment[]) {
         if (i > 0) frag.appendChild(document.createElement('br'))
         frag.appendChild(document.createTextNode(line))
       })
-    } else {
+    } else if (seg.type === 'file') {
       frag.appendChild(document.createTextNode('\u200B'))
       frag.appendChild(createAttachmentChip(seg.attachment))
+      frag.appendChild(document.createTextNode('\u200B'))
+    } else {
+      const meta: AttachmentMeta = { path: seg.path, name: seg.name, kind: 'image' }
+      frag.appendChild(document.createTextNode('\u200B'))
+      frag.appendChild(createAttachmentChip(meta))
       frag.appendChild(document.createTextNode('\u200B'))
     }
   }

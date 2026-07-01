@@ -19,7 +19,7 @@ import {
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import { agentErrorKind, formatAgentErrorForTimeline } from '@renderer/lib/agent-error-text'
-import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import { isViewingWorkerBoundSession, type WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 
 interface SessionItem {
   sessionId: string
@@ -413,8 +413,10 @@ export const useUIStore = create<UIState>()(
     })
   },
   loadHistoryItems: (items: TimelineItem[]) => {
-    const { lastModel, lastThinking, runState, streamingAssistantId } = get()
-    const keepRunning = runState.status === 'running' || streamingAssistantId != null
+    const { lastModel, lastThinking, runState, streamingAssistantId, historySessionFile, workerLiveSnapshot } = get()
+    const viewingWorkerSession = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
+    const keepRunning =
+      viewingWorkerSession && (runState.status === 'running' || streamingAssistantId != null || workerLiveSnapshot.status === 'running')
     const cleaned = sanitizeHistoryTimeline(items)
     set({
       timelineItems: cleaned,
@@ -588,6 +590,7 @@ export const useUIStore = create<UIState>()(
   clearPendingQueue: () => set({ pendingSteering: [], pendingFollowUp: [] }),
 
   processEvent: (event) => {
+    if (event.type === 'sdk-install-progress') return
     const state = get()
     const viewSid = state.currentSessionId
     const workerSid = state.workerLiveSnapshot.sessionId

@@ -560,7 +560,7 @@ export function ReviewPanel() {
                   file={file}
                   fallbackPath={fc.path}
                   fallbackChangeType={fc.changeType}
-                  staged={fc.staged}
+                  staged={fc.staged ?? false}
                   mode={diffMode}
                   cwd={cwd}
                   defaultOpen={expandedGitPath === fc.path}

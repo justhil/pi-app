@@ -49,11 +49,11 @@ const BUILTIN_COMMANDS: SlashCommand[] = [
 ]
 
 const BUILTIN_CMD_I18N: Record<string, string> = {
-  model: 'composer.commands.model',
-  thinking: 'composer.commands.thinking',
-  clear: 'composer.commands.clear',
-  compact: 'composer.commands.compact',
-  new: 'composer.commands.new',
+  model: 'composer:commands.model',
+  thinking: 'composer:commands.thinking',
+  clear: 'composer:commands.clear',
+  compact: 'composer:commands.compact',
+  new: 'composer:commands.new',
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -64,10 +64,10 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 const CATEGORY_LABEL_I18N: Record<string, string> = {
-  builtin: 'composer.category.builtin',
-  prompt: 'composer.category.prompt',
-  skill: 'composer.category.skill',
-  extension: 'composer.category.extension',
+  builtin: 'composer:category.builtin',
+  prompt: 'composer:category.prompt',
+  skill: 'composer:category.skill',
+  extension: 'composer:category.extension',
 }
 
 function caretAtStart(el: HTMLElement): boolean {
@@ -716,6 +716,7 @@ export function Composer() {
   }, [addDroppedFiles, insertMetas])
 
   const removeAttachment = (path: string) => {
+    hideAllDelayedTooltips()
     const el = editorRef.current
     if (!el) return
     const chip = el.querySelector(`[data-attachment-path="${CSS.escape(path)}"]`) as HTMLElement | null
@@ -798,14 +799,19 @@ export function Composer() {
                 onMouseEnter={() => setSelectedIdx(idx)}
                 onClick={() => acceptCommand(cmd)}
                 className={cn(
-                  'picker-row flex w-full items-center gap-2.5 px-3 py-2 text-left',
+                  'picker-row flex w-full min-h-[32px] items-center gap-2 px-3 py-1.5 text-left',
                   idx === selectedIdx && 'bg-[var(--bg-active)]',
                 )}
               >
-                <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide', CATEGORY_COLORS[cmd.category])}>
-                  {t(CATEGORY_LABEL_I18N[cmd.category] || 'composer.category.builtin')}
+                <span
+                  className={cn(
+                    'composer-slash-cat-badge shrink-0 rounded-md text-[10px] font-semibold leading-none',
+                    CATEGORY_COLORS[cmd.category],
+                  )}
+                >
+                  {t(CATEGORY_LABEL_I18N[cmd.category] || 'composer:category.builtin')}
                 </span>
-                <span className="font-mono text-[12px] font-medium">{cmd.name}</span>
+                <span className="shrink-0 font-mono text-[12px] font-medium text-foreground">{cmd.name}</span>
                 {(cmd.description || (cmd.category === 'builtin' && BUILTIN_CMD_I18N[cmd.id])) && (
                   <span className="ml-auto truncate text-[11px] text-muted-foreground">
                     {cmd.category === 'builtin' ? t(BUILTIN_CMD_I18N[cmd.id] || '') : cmd.description}
