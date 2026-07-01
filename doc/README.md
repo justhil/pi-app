@@ -12,7 +12,7 @@ Standalone docs for **pi Desktop compatibility layer v2**. Copy to any AI to aut
 | [guide/adapters.en.md](./guide/adapters.en.md) · [zh-CN](./guide/adapters.zh-CN.md) | Builtin adapters (run `npm run docs:adapters`) |
 | [images/](./images/) | README screenshots |
 
-Internal design / architecture notes live under local-only `docs/dev/` (see `docs/README.md`); not shipped in git.
+Internal design, audits, and architecture-skill playbook: local `docs/` (see `docs/README.md`). Skill invocation rules: `docs/dev/architecture-tooling.md` (local) · pointer for clones: [dev/architecture-tooling.md](./dev/architecture-tooling.md).
 
 ## Adapter authoring (AI / extension authors)
 
