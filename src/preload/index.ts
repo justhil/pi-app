@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppEvent } from '@shared/app-events'
+import { isAllowedIpcChannel } from '@shared/ipc-channels'
 
 const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
@@ -9,6 +10,9 @@ const APP_UPDATE_CHANNEL = 'ipc:app-update-available'
 
 const api = {
   invoke(channel: string, request?: any): Promise<any> {
+    if (!isAllowedIpcChannel(channel)) {
+      return Promise.reject(new Error(`IPC channel not allowed: ${channel}`))
+    }
     return ipcRenderer.invoke(channel, request)
   },
 

@@ -3,7 +3,7 @@ import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
-import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '../../shared/asr-types'
+import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
 
 const MIME_TO_EXT: Record<string, string> = {
   'audio/webm': 'webm',

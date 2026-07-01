@@ -84,7 +84,7 @@ async function validateWithPiSdk(config: PiModelsConfig): Promise<string | undef
     writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf-8')
     const { ModelRegistry, AuthStorage } = sdk
     const registry = ModelRegistry.create(AuthStorage.create(), tmpPath)
-    const err = registry.getModelsJsonError?.()
+    const err = (registry as { getModelsJsonError?: () => unknown }).getModelsJsonError?.()
     return err ? String(err) : undefined
   } catch (e: any) {
     return e?.message || '校验失败'

@@ -344,7 +344,7 @@ function handleSessionEvent(event: AgentSessionEvent): void {
         isError: event.isError,
       })
       if (event.toolName === 'edit' || event.toolName === 'write') {
-        const args = event.args as any
+        const args = (event as { args?: { path?: string } }).args
         if (args?.path) {
           emit({ ...base, type: 'file', source: event.toolName, path: args.path, changeType: event.toolName === 'write' ? 'added' : 'modified' })
         }
@@ -674,6 +674,7 @@ process.parentPort?.on('message', async (event: any) => {
             sdk = await import('@earendil-works/pi-coding-agent')
             sdkFallback = true
           }
+          if (!sdk) throw new Error('SDK load failed')
           if (!sharedEventBus) sharedEventBus = sdk.createEventBus()
           await initSession(msg.cwd)
           console.log('[Worker] Init done, sessionId:', currentSessionId)
@@ -1090,7 +1091,7 @@ process.parentPort?.on('message', async (event: any) => {
           const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
           const sm: any = await import(pathToFileURL(smPath).href)
           const smOpen = sm.SessionManager.open(msg.sessionFile)
-          if (session?.sessionFile === msg.sessionFile) {
+          if (session && session.sessionFile === msg.sessionFile) {
             const leafId = session.sessionManager.getLeafId?.() ?? null
             if (leafId === null) smOpen.resetLeaf()
             else smOpen.branch(leafId)

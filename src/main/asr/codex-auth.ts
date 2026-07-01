@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { app } from 'electron'
-import type { AsrConfig } from '../../shared/asr-types'
+import type { AsrConfig } from '@shared/asr-types'
 import { chatGptAccountIdFromAccessToken, isJwtExpired } from '../codex-transcribe/jwt-account-id'
 
 export type CodexAuthProbe = {

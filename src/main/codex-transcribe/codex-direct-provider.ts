@@ -1,4 +1,4 @@
-import type { AsrConfig, AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '../../shared/asr-types'
+import type { AsrConfig, AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
 import { resolveAccessTokenForTranscribe } from '../asr/codex-auth'
 import { pingChatGptSession, transcribeViaChatGptBackend } from './chatgpt-transcribe-client'
 

@@ -1,4 +1,4 @@
-import type { AsrConfig, AsrProvider } from '../../shared/asr-types'
+import type { AsrConfig, AsrProvider } from '@shared/asr-types'
 import { CodexAsrCliProvider } from './codex-asr-cli'
 import { CodexAsrServeProvider } from './codex-asr-serve'
 import { CodexDirectAsrProvider } from '../codex-transcribe/codex-direct-provider'

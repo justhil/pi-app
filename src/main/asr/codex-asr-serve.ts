@@ -1,4 +1,4 @@
-import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '../../shared/asr-types'
+import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
 
 export class CodexAsrServeProvider implements AsrProvider {
   id = 'codex-asr-serve'
@@ -47,7 +47,7 @@ export class CodexAsrServeProvider implements AsrProvider {
         return { ok: false, error: `HTTP ${res.status}: ${body.slice(0, 200)}`, kind: 'upstream' }
       }
 
-      const data = await res.json()
+      const data = (await res.json()) as { text?: string }
       const text = data?.text
       if (typeof text === 'string') return { ok: true, text }
       return { ok: false, error: 'unexpected response format', kind: 'unknown' }

@@ -1,5 +1,5 @@
-import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '../../shared/asr-types'
-import type { AsrConfig } from '../../shared/asr-types'
+import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
+import type { AsrConfig } from '@shared/asr-types'
 import { ensureBuiltinCodexAsrServe, getBuiltinServeBaseUrl } from './codex-asr-manager'
 import { CodexAsrServeProvider } from './codex-asr-serve'
 

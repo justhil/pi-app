@@ -127,8 +127,8 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
         ext.piEnabled = ext.enabled
         continue
       }
-      const scope = ext.source === 'project' ? 'project' : 'user'
-      const settings = scope === 'project' ? projectSettings : globalSettings
+      const scope: 'project' | 'user' = 'user'
+      const settings = globalSettings
       const entry = findPackageEntry(settings, ext.packageSource)
       const overrides = entry?.extensions
       const pkg = readPackageJsonSafe(ext.packageRoot)

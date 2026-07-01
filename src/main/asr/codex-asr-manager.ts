@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import type { AsrConfig } from '../../shared/asr-types'
+import type { AsrConfig } from '@shared/asr-types'
 import { resolveAuthFileForServe } from './codex-auth'
 
 const DEFAULT_PORT = 18788
@@ -93,11 +93,11 @@ export async function ensureBuiltinCodexAsrServe(cfg: AsrConfig): Promise<{ ok: 
       '--port',
       String(port),
       '--auth-file',
-      auth.authFile,
+      auth.authFile!,
       '--no-api-key',
     ]
     try {
-      const proc = spawn(bin, args, {
+      const proc = spawn(bin, args.filter((a): a is string => a != null), {
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env },
         windowsHide: true,

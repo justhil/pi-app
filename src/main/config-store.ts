@@ -1,5 +1,5 @@
 import pkg from 'electron-store'
-import type { AsrConfig } from '../shared/asr-types'
+import type { AsrConfig } from '@shared/asr-types'
 const Store = pkg as any
 
 interface StoreSchema {
@@ -36,7 +36,11 @@ interface StoreSchema {
   asrConfig: AsrConfig
 }
 
-const store = new Store<StoreSchema>({
+const store: {
+  get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K]
+  set: <K extends keyof StoreSchema>(key: K, value: StoreSchema[K]) => void
+  store: Partial<StoreSchema>
+} = new Store({
   projectName: 'pi-desktop',
   defaults: {
     recentProjects: [],
@@ -87,13 +91,13 @@ export const configStore = {
   },
 
   addRecentProject(path: string): void {
-    const recent = store.get('recentProjects').filter((p) => p !== path)
+    const recent = store.get('recentProjects').filter((p: string) => p !== path)
     recent.unshift(path)
     store.set('recentProjects', recent.slice(0, 10))
   },
 
   removeRecentProject(path: string): void {
-    const recent = store.get('recentProjects').filter((p) => p !== path)
+    const recent = store.get('recentProjects').filter((p: string) => p !== path)
     store.set('recentProjects', recent)
   },
 

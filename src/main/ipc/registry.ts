@@ -1,6 +1,7 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 
-export type IpcHandlerFn = (request: unknown) => Promise<unknown>
+/** Gradual typing: handlers use structured req; default any until per-channel contracts land. */
+export type IpcHandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, IpcHandlerFn>()
 

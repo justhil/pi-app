@@ -1,4 +1,4 @@
-import type { AsrTranscribeRequest, AsrTranscribeResult } from '../../shared/asr-types'
+import type { AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
 import { buildChatGptTranscribeHeaders } from './chatgpt-desktop-headers'
 import { chatGptAccountIdFromAccessToken } from './jwt-account-id'
 

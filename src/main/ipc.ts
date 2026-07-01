@@ -1,4 +1,4 @@
-import { dialog, BrowserWindow, shell, app } from 'electron'
+import { BrowserWindow, shell, app } from 'electron'
 import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
@@ -54,12 +54,9 @@ import {
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../extension-compat/adapter-backend'
 import { execSync } from 'child_process'
 import { readFileSync, existsSync, readdirSync, statSync, writeFileSync } from 'fs'
-import { workspaceFsListDir, workspaceFsReadText, workspaceFsRename } from './workspace-fs'
 import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
-const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
-import { join, basename, dirname, extname, resolve } from 'path'
+import { join, basename, dirname, resolve } from 'path'
 import { homedir } from 'os'
 import {
   createSandboxWorkspace,
@@ -86,24 +83,12 @@ import {
   clearSessionDisplayName,
 } from './session-display-names'
 import { flattenTreeFromSessionFile } from './session-tree-from-file'
-import { resolveActiveSdk } from './sdk-loader'
 import { readSdkStatus, listRegistryVersions, installVersion, switchTo } from './sdk-manager'
 import { getAsrProvider } from './asr/registry'
 import { registerHandler, sendEvent } from './ipc/registry'
-
-/** 按当前生效 SDK（内置/全局/独立环境）动态 import SDK 模块。 */
-function getActiveSdkModule(): Promise<typeof import('@earendil-works/pi-coding-agent')> {
-  const active = resolveActiveSdk(app.getPath('userData'))
-  if (active.kind === 'builtin') {
-    return import(active.entryPath)
-  }
-  return import(pathToFileURL(active.entryPath).href)
-}
-
-async function listSessionsOnDisk(workspaceId: string): Promise<any[]> {
-  const { SessionManager } = await getActiveSdkModule()
-  return await SessionManager.list(workspaceId)
-}
+import { getActiveSdkModule, listSessionsOnDisk } from './ipc/sdk-session'
+import { registerDialogHandlers } from './ipc/handlers/dialog'
+import { registerWorkspaceFsHandlers } from './ipc/handlers/workspace-fs'
 
 registerHandler('ipc:extension.respondUI', async (req) => {
   workerManager.respondExtensionUI(req)
@@ -113,7 +98,9 @@ registerHandler('ipc:extension.respondUI', async (req) => {
 export { registerHandler, sendEvent } from './ipc/registry'
 
 export function registerAllHandlers(): void {
-  // ── Dialog ──
+  registerDialogHandlers()
+  registerWorkspaceFsHandlers()
+
   registerHandler('ipc:extension.config.get', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     return { config: configStore.getExtensionConfig(workspaceId, req.extensionId) || {} }
@@ -174,92 +161,6 @@ export function registerAllHandlers(): void {
     const order = normalizeRightPanelOrder(req?.order, catalog)
     configStore.setRightPanelLayout(prefs, order)
     return { ok: true, prefs, order }
-  })
-
-  registerHandler('ipc:dialog:openDirectory', async () => {
-    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-    const result = win
-      ? await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '选择项目目录' })
-      : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择项目目录' })
-    if (result.canceled || result.filePaths.length === 0) {
-      return { path: null }
-    }
-    return { path: result.filePaths[0] }
-  })
-
-  registerHandler('ipc:dialog:openFiles', async (req) => {
-    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-    const props: ('openFile' | 'multiSelections')[] = ['openFile']
-    if (req?.multiple !== false) props.push('multiSelections')
-    const opts = {
-      properties: props,
-      title: req?.title || '添加附件',
-    }
-    const result = win
-      ? await dialog.showOpenDialog(win, opts)
-      : await dialog.showOpenDialog(opts)
-    if (result.canceled || !result.filePaths.length) {
-      return { paths: [] as string[] }
-    }
-    return { paths: result.filePaths }
-  })
-
-  // R1: open a local file/path in the OS default app or reveal in folder.
-  // Used by preview_export / image_gen / studio_export tool cards.
-  registerHandler('ipc:shell.openPath', async (req) => {
-    const p = String(req.path || '')
-    if (!p) return { ok: false }
-    try { await shell.openPath(p); return { ok: true } } catch (e) { return { ok: false, error: String(e) } }
-  })
-  registerHandler('ipc:shell.showItemInFolder', async (req) => {
-    const p = String(req.path || '')
-    if (!p) return { ok: false }
-    shell.showItemInFolder(p)
-    return { ok: true }
-  })
-  registerHandler('ipc:workspace.fs.listDir', async (req) => {
-    return workspaceFsListDir({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      path: req?.path != null ? String(req.path) : '.',
-    })
-  })
-
-  registerHandler('ipc:workspace.fs.readText', async (req) => {
-    return workspaceFsReadText({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      path: String(req?.path || ''),
-      maxBytes: typeof req?.maxBytes === 'number' ? req.maxBytes : undefined,
-    })
-  })
-
-  registerHandler('ipc:workspace.fs.rename', async (req) => {
-    return workspaceFsRename({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      relativePath: String(req?.relativePath || ''),
-      newName: String(req?.newName || ''),
-    })
-  })
-
-  registerHandler('ipc:shell.readImagePreview', async (req) => {
-    const p = String(req.path || '')
-    if (!p || !existsSync(p)) return { ok: false, error: 'not_found' }
-    try {
-      const st = statSync(p)
-      if (!st.isFile() || st.size > IMAGE_PREVIEW_MAX_BYTES) return { ok: false, error: 'too_large' }
-      const ext = extname(p).toLowerCase()
-      const mime =
-        ext === '.png' ? 'image/png' :
-        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
-        ext === '.gif' ? 'image/gif' :
-        ext === '.webp' ? 'image/webp' :
-        ext === '.svg' ? 'image/svg+xml' :
-        'application/octet-stream'
-      const buf = readFileSync(p)
-      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
-      return { ok: true, dataUrl, mimeType: mime }
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
   })
 
   // ── Workspace ──
@@ -832,7 +733,7 @@ export function registerAllHandlers(): void {
         path: c?.path ? String(c.path) : undefined,
         enabled: c?.enabled !== false,
       }))
-      .filter((c) => c.name || c.path)
+      .filter((c: { name: string; path?: string }) => c.name || c.path)
     applySkillOverridesBatch(normalized)
     // 不 reload Worker：启停只写 global settings，skills.list 由 Main 读 desktopSkillOverrides 合并；
     // session.reload() 会重扫扩展/技能，保存设置时动辄数秒且无必要。
@@ -1248,7 +1149,7 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:asr.transcribe', async (req) => {
     const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? configStore.get('asrConfig')
     const { normalizeAsrConfigForOps } = await import('./asr/asr-config-normalize')
-    const cfg = normalizeAsrConfigForOps(raw as import('../shared/asr-types').AsrConfig)
+    const cfg = normalizeAsrConfigForOps(raw as import('@shared/asr-types').AsrConfig)
     const provider = getAsrProvider(cfg)
     if (!provider) return { ok: false, error: 'not_configured', kind: 'not_configured' }
     const buf = Buffer.from(req.audio, 'base64')
@@ -1263,7 +1164,7 @@ export function registerAllHandlers(): void {
   registerHandler('ipc:asr.testConnection', async (req) => {
     const raw = (req?.config && typeof req.config === 'object' ? req.config : null) ?? configStore.get('asrConfig')
     const { normalizeAsrConfigForOps } = await import('./asr/asr-config-normalize')
-    const cfg = normalizeAsrConfigForOps(raw as import('../shared/asr-types').AsrConfig)
+    const cfg = normalizeAsrConfigForOps(raw as import('@shared/asr-types').AsrConfig)
     const provider = getAsrProvider(cfg)
     if (!provider) return { ok: false, detail: 'ASR provider not configured (enable built-in voice in Settings)' }
     return provider.testConnection()

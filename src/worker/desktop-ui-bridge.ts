@@ -91,8 +91,8 @@ export function createDesktopUIBridge(
     onRequest(req)
   }
 
-  const unsubAsk = eventBus.on(ASK_USER_PROMPT_EVENT, (payload: { questions: unknown }) => {
-    lastAskPayload = payload
+  const unsubAsk = eventBus.on(ASK_USER_PROMPT_EVENT, (payload: unknown) => {
+    lastAskPayload = payload as { questions: unknown }
   })
 
   const buildAskQuestions = (): unknown[] => {
@@ -200,7 +200,7 @@ export function createDesktopUIBridge(
         emitReq,
         pending,
         { id, method: 'custom', kind: 'ask_user_question', questions },
-        (r) => (r.cancelled ? { cancelled: true, answers: [] } : (r.result as T)),
+        (r) => (r.cancelled ? ({ cancelled: true, answers: [] } as T) : (r.result as T)),
         { cancelled: true, answers: [] } as T,
         dismissOpts,
       )

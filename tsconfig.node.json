@@ -9,8 +9,7 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/worker/**/*",
-    "src/extension-compat/**/*",
-    "!src/extension-compat/renderer/**/*",
+    "src/extension-compat/*.ts",
     "packages/shared/**/*",
     "electron.vite.config.ts"
   ]
