@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
+import { dialog, BrowserWindow, shell, app } from 'electron'
 import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
@@ -89,10 +89,7 @@ import { flattenTreeFromSessionFile } from './session-tree-from-file'
 import { resolveActiveSdk } from './sdk-loader'
 import { readSdkStatus, listRegistryVersions, installVersion, switchTo } from './sdk-manager'
 import { getAsrProvider } from './asr/registry'
-
-type HandlerFn = (request: any) => Promise<any>
-
-const handlers = new Map<string, HandlerFn>()
+import { registerHandler, sendEvent } from './ipc/registry'
 
 /** 按当前生效 SDK（内置/全局/独立环境）动态 import SDK 模块。 */
 function getActiveSdkModule(): Promise<typeof import('@earendil-works/pi-coding-agent')> {
@@ -108,31 +105,12 @@ async function listSessionsOnDisk(workspaceId: string): Promise<any[]> {
   return await SessionManager.list(workspaceId)
 }
 
-export function registerHandler(channel: string, handler: HandlerFn): void {
-  if (handlers.has(channel)) {
-    ipcMain.removeHandler(channel)
-  }
-  handlers.set(channel, handler)
-  ipcMain.handle(channel, async (_event, request) => {
-    try {
-      return await handler(request)
-    } catch (error) {
-      console.error(`[IPC:${channel}] Error:`, error)
-      throw error
-    }
-  })
-}
-
 registerHandler('ipc:extension.respondUI', async (req) => {
   workerManager.respondExtensionUI(req)
   return { ok: true }
 })
 
-export function sendEvent(win: BrowserWindow, event: unknown): void {
-  if (!win.isDestroyed()) {
-    win.webContents.send('ipc:events', event)
-  }
-}
+export { registerHandler, sendEvent } from './ipc/registry'
 
 export function registerAllHandlers(): void {
   // ── Dialog ──

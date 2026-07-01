@@ -1,6 +1,6 @@
 # pi Desktop 架构
 
-> 与 [README](../README.md) 互补：本文偏**结构与数据流**；产品能力见 README。
+> 与 [README](../README.md) 互补：本文偏**结构与数据流**；产品能力见 README。领域词汇见 [CONTEXT.md](../CONTEXT.md)。
 
 ## 一句话
 

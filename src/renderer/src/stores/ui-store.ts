@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AppEvent } from '@shared/app-events'
+import { isSessionScopedAppEvent } from '@shared/app-event-session'
 import {
   coerceActivePanel,
   CORE_RIGHT_PANEL_CATALOG,
@@ -590,7 +591,7 @@ export const useUIStore = create<UIState>()(
   clearPendingQueue: () => set({ pendingSteering: [], pendingFollowUp: [] }),
 
   processEvent: (event) => {
-    if (event.type === 'sdk-install-progress') return
+    if (!isSessionScopedAppEvent(event)) return
     const state = get()
     const viewSid = state.currentSessionId
     const workerSid = state.workerLiveSnapshot.sessionId
