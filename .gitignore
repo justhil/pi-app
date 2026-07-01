@@ -8,8 +8,15 @@ out/
 dist/
 build/icon.png
 
-# Local-only copy of old docs tree (tracked docs live under doc/)
+# Local-only docs (dev notes, audits, archives) — publishable docs stay in doc/
 docs/
+
+# Root-level audit dumps (canonical copy under docs/audit/)
+audit-report-*.md
+audit-report-*.html
+
+# Local package archives
+pi-goal-*.tgz
 
 # Logs & debug
 *.log

@@ -12,7 +12,7 @@
 | [guide/adapters.zh-CN.md](./guide/adapters.zh-CN.md) · [EN](./guide/adapters.en.md) | 内置适配器（`npm run docs:adapters`） |
 | [images/](./images/) | README 截图 |
 
-内部设计笔记：[dev/architecture.md](./dev/architecture.md)（可选）。
+内部架构与设计笔记在本地目录 `docs/dev/`（见 `docs/README.md`），不随仓库发布。
 
 ## 适配器编写（给 AI / 扩展作者）
 
