@@ -9,7 +9,8 @@
     "skills": "Skills",
     "prompts": "提示词",
     "extensions": "扩展",
-    "adapters": "适配器"
+    "adapters": "适配器",
+    "voice": "语音"
   },
   "general": {
     "title": "常规",

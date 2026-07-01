@@ -82,12 +82,12 @@ function FileTreeLevelInner(props: LevelProps) {
     >
       {dirMeta?.truncated ? (
         <li className="px-2 py-1 text-[10px] text-foreground-secondary/75">
-          {t('tree.dirTruncated', { shown: entries.length, total: dirMeta.totalCount ?? entries.length })}
+          {t('files:tree.dirTruncated', { shown: entries.length, total: dirMeta.totalCount ?? entries.length })}
         </li>
       ) : null}
       {searchCapped ? (
         <li className="px-2 py-1 text-[10px] text-foreground-secondary/75">
-          {t('tree.searchCapped', { shown: SEARCH_MAX_VISIBLE_PER_LEVEL, total: filtered.length })}
+          {t('files:tree.searchCapped', { shown: SEARCH_MAX_VISIBLE_PER_LEVEL, total: filtered.length })}
         </li>
       ) : null}
       {windowed.map((e) => {
@@ -138,7 +138,7 @@ function FileTreeLevelInner(props: LevelProps) {
             className="w-full rounded-md px-2 py-1 text-left text-[11px] text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
             onClick={() => setVisibleCount((n) => Math.min(displaySource.length, n + FOLDER_VISIBLE_STEP))}
           >
-            {t('tree.loadMore', { count: Math.min(FOLDER_VISIBLE_STEP, displaySource.length - visibleCount) })}
+            {t('files:tree.loadMore', { count: Math.min(FOLDER_VISIBLE_STEP, displaySource.length - visibleCount) })}
           </button>
         </li>
       ) : null}

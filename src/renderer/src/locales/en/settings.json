@@ -9,7 +9,8 @@
     "skills": "Skills",
     "prompts": "Prompts",
     "extensions": "Extensions",
-    "adapters": "Adapters"
+    "adapters": "Adapters",
+    "voice": "Voice"
   },
   "general": {
     "title": "General",

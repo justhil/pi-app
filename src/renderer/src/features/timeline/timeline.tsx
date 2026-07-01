@@ -384,7 +384,7 @@ export function Timeline() {
         >
           {historyLoading
             ? t('timeline:loadingSession')
-            : `${t('timeline:loadOlder')}（${hiddenCount}）`}
+            : t('timeline:loadOlder', { count: hiddenCount })}
         </button>
       )}
       {displayItems.map((block, i) => {
