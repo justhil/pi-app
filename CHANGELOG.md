@@ -1,5 +1,6 @@
 # Changelog
 
+各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
 ## [0.4.10] — 2026-07-01
 
@@ -18,6 +19,13 @@
 
 - 扩充自动化检测与发布前检查，覆盖更多桌面环境
 - 更新贡献与质量说明，便于后续版本维护
+
+### 修复
+
+- 设置侧栏「语音」导航文案显示异常
+- 时间线与文件树「加载更多」条数显示异常
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.10/CHANGELOG.md)
 
 ## [0.4.9] — 2026-07-01
 

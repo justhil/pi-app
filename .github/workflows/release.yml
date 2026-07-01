@@ -171,7 +171,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          name: ${{ github.ref_name }}
+          body: |
+            完整更新日志：**[CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)**
+
+            Release 说明：**[doc/RELEASE.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/doc/RELEASE.md)**
           files: release-assets/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
