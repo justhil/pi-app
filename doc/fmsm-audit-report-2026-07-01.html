@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pi-app 审计报告</title>
+<style>
+  :root {
+    --sidebar-bg: #1a1f2e;
+    --sidebar-hover: #242a3d;
+    --sidebar-active: #2d3555;
+    --bg: #f0f3f7;
+    --card-bg: #ffffff;
+    --border: #e6eaef;
+    --text: #1e2233;
+    --text-secondary: #6b7394;
+    --accent: #3370ff;
+    --accent-light: #e8f0ff;
+    --success: #34c759;
+    --warning: #ff9500;
+    --danger: #ff3b30;
+    --info: #5ac8fa;
+    --badge-critical: #ff3b30;
+    --badge-high: #ff9500;
+    --badge-medium: #3370ff;
+    --badge-low: #8e8e93;
+    --badge-info: #5ac8fa;
+    --bar-bg: #e8eaed;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    display: flex;
+    min-height: 100vh;
+    font-size: 15px;
+  }
+  .sidebar { width: 240px; background: var(--sidebar-bg); color: #fff; flex-shrink: 0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar-header { padding: 20px 20px 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .sidebar-header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+  .sidebar-header .sub { font-size: 12px; color: rgba(255,255,255,.4); margin-top: 4px; }
+  .sidebar-nav { padding: 8px 0; flex: 1; }
+  .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 14px 20px; color: rgba(255,255,255,.6); text-decoration: none; font-size: 14px; transition: all .15s; border-left: 3px solid transparent; }
+  .sidebar-nav a:hover { background: var(--sidebar-hover); color: #fff; }
+  .sidebar-nav a.active { background: var(--sidebar-active); color: #fff; border-left-color: var(--accent); }
+  .sidebar-nav a .icon { width: 18px; text-align: center; font-size: 14px; }
+  .sidebar-footer { padding: 12px 20px; border-top: 1px solid rgba(255,255,255,.06); font-size: 11px; color: rgba(255,255,255,.3); }
+  .main { flex: 1; min-width: 0; padding: 32px 40px 80px; }
+  .page-header { margin-bottom: 32px; }
+  .page-header h2 { font-size: 26px; font-weight: 700; }
+  .page-header .meta { font-size: 14px; color: var(--text-secondary); margin-top: 6px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .page-header .meta span { display: flex; align-items: center; gap: 4px; }
+  .card { background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border); margin-bottom: 20px; overflow: hidden; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 15px; }
+  .card-body { padding: 24px; }
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .score-item { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
+  .score-item .label { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .4px; }
+  .score-item .bar-row { display: flex; align-items: center; gap: 12px; }
+  .score-item .bar-track { flex: 1; height: 10px; background: var(--bar-bg); border-radius: 5px; overflow: hidden; }
+  .score-item .bar-fill { height: 100%; border-radius: 5px; transition: width .6s ease; }
+  .score-item .value { font-size: 22px; font-weight: 700; min-width: 52px; text-align: right; }
+  .score-item .grade { font-size: 15px; font-weight: 700; min-width: 22px; text-align: center; }
+  .bar-fill.s { background: linear-gradient(90deg, #34c759, #30d158); }
+  .bar-fill.a { background: linear-gradient(90deg, #3370ff, #5e8cff); }
+  .bar-fill.b { background: linear-gradient(90deg, #ff9500, #ffb340); }
+  .bar-fill.c { background: linear-gradient(90deg, #ff3b30, #ff6b61); }
+  .bar-fill.d { background: linear-gradient(90deg, #ff6b61, #ff9f91); }
+  .bar-fill.f { background: linear-gradient(90deg, #9b1d1a, #d63031); }
+  .grade-s { color: #34c759; } .grade-a { color: #3370ff; }
+  .grade-b { color: #ff9500; } .grade-c { color: #ff3b30; }
+  .grade-d { color: #ff6b61; } .grade-f { color: #9b1d1a; }
+  .overall-row { grid-column: 1 / -1; background: linear-gradient(135deg, #1a1f2e, #2d3555); border-color: transparent; }
+  .overall-row .label { color: rgba(255,255,255,.6); }
+  .overall-row .value { color: #fff; }
+  .overall-row .grade { color: #34c759; }
+  .overall-row .bar-fill { background: linear-gradient(90deg, #34c759, #30d158); }
+  .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .stat-card { flex: 1; min-width: 140px; padding: 20px 24px; background: var(--card-bg); border-radius: 10px; border: 1px solid var(--border); text-align: center; }
+  .stat-card .num { font-size: 32px; font-weight: 700; line-height: 1.3; }
+  .stat-card .desc { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .finding { border-left: 4px solid var(--border); margin-bottom: 20px; padding: 20px 24px; border-radius: 0 10px 10px 0; background: #fafbfc; border: 1px solid var(--border); border-left-width: 4px; }
+  .finding.severity-critical { border-left-color: var(--badge-critical); }
+  .finding.severity-high { border-left-color: var(--badge-high); }
+  .finding.severity-medium { border-left-color: var(--badge-medium); }
+  .finding.severity-low { border-left-color: var(--badge-low); }
+  .finding.severity-info { border-left-color: var(--badge-info); }
+  .finding-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .finding-header h4 { font-size: 16px; font-weight: 600; flex: 1; }
+  .badge { display: inline-block; padding: 3px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; line-height: 1.6; }
+  .badge-critical { background: #ffeae9; color: var(--badge-critical); }
+  .badge-high { background: #fff3e0; color: var(--badge-high); }
+  .badge-medium { background: var(--accent-light); color: var(--badge-medium); }
+  .badge-low { background: #f2f2f5; color: var(--badge-low); }
+  .badge-info { background: #e4f5ff; color: #007aff; }
+  .badge-confirmed { background: #e8ffe8; color: #248a3d; }
+  .badge-suspected { background: #fff8e1; color: #b8860b; }
+  .badge-s { background: #e8ffe8; color: #248a3d; }
+  .badge-a { background: var(--accent-light); color: var(--accent); }
+  .badge-b { background: #fff3e0; color: var(--warning); }
+  .badge-c { background: #ffeae9; color: var(--danger); }
+  .finding-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+  .finding-meta span { display: flex; align-items: center; gap: 4px; }
+  .finding .evidence { margin: 12px 0; padding: 14px 18px; background: #f0f2f5; border-radius: 8px; font-family: "SF Mono","Fira Code","Consolas",monospace; font-size: 13px; line-height: 1.8; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  .finding .problem { font-size: 14px; margin: 12px 0; color: var(--text); line-height: 1.8; }
+  .finding .fix-box { margin-top: 12px; padding: 14px 18px; background: #f0f7ff; border-radius: 8px; border: 1px solid #d6e4ff; font-size: 13px; }
+  .finding .fix-box code { display: block; margin-top: 6px; padding: 12px 16px; background: #1e2233; color: #cdd6f4; border-radius: 6px; font-family: "SF Mono","Fira Code","Consolas",monospace; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+  .fix-label { font-weight: 600; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .3px; }
+  .section-title { font-size: 20px; font-weight: 700; margin: 36px 0 20px; padding-bottom: 10px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 12px 16px; font-weight: 600; color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid var(--border); background: #f8fafc; }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; }
+  .check-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 14px; line-height: 1.6; }
+  .check-item .check { color: var(--success); font-weight: 700; }
+  .check-item .cross { color: var(--danger); font-weight: 700; }
+  .win-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .win-card { padding: 16px; background: linear-gradient(135deg, #f0f7ff, #e8f0ff); border-radius: 8px; border: 1px solid #d6e4ff; }
+  .win-card .win-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .win-card .win-meta { font-size: 11px; color: var(--text-secondary); }
+  .small { font-size: 13px; color: var(--text-secondary); }
+  .code-block { margin: 8px 0; padding: 14px 18px; background: #1e2233; color: #cdd6f4; border-radius: 6px; font-family: "SF Mono","Fira Code","Consolas",monospace; font-size: 13px; overflow-x: auto; white-space: pre; line-height: 1.7; }
+  .hl { color: #f7768e; font-weight: 600; } .cm { color: #565f89; }
+  .kw { color: #bb9af7; } .fn { color: #7aa2f7; }
+  .ty { color: #ff9e64; } .op { color: #89ddff; }
+  .str { color: #9ece6a; } .nu { color: #ff9e64; }
+  @media (max-width: 768px) { .sidebar { display: none; } .main { padding: 16px; } .score-grid { grid-template-columns: 1fr; } .stats-row { flex-direction: column; } .check-list { grid-template-columns: 1fr; } .win-grid { grid-template-columns: 1fr; } }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c1c7d0; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a8adb8; }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <h1>pi-app</h1>
+    <div class="sub">严苛版 full · 2026-07-01</div>
+  </div>
+  <div class="sidebar-nav">
+    <a href="#summary"><span class="icon">📊</span> 概览</a>
+    <a href="#executive-summary"><span class="icon">📝</span> 总体评估</a>
+    <a href="#coverage"><span class="icon">🧭</span> 覆盖矩阵</a>
+    <a href="#findings"><span class="icon">🔍</span> 详细发现</a>
+    <a href="#architecture"><span class="icon">🏗</span> 架构</a>
+    <a href="#security"><span class="icon">🔒</span> 安全</a>
+    <a href="#testing"><span class="icon">🧪</span> 测试</a>
+    <a href="#maintainability"><span class="icon">📐</span> 可维护性</a>
+    <a href="#type-safety"><span class="icon">🧬</span> 类型安全</a>
+    <a href="#frontend-state"><span class="icon">🖥</span> 前端状态</a>
+    <a href="#backend-api"><span class="icon">🔌</span> 后端 API</a>
+    <a href="#principles"><span class="icon">📋</span> 设计原则</a>
+    <a href="#fix-order"><span class="icon">🎯</span> 修复顺序</a>
+  </div>
+  <div class="sidebar-footer">FMSM 严苛 · PRD 8.0 及格线</div>
+</nav>
+
+<div class="main">
+  <div class="page-header" id="summary">
+    <h2>pi-app 代码库健康审计（严苛版）</h2>
+    <div class="meta">
+      <span>📅 2026-07-01</span>
+      <span>🔍 full · 严苛</span>
+      <span>🛠 Pi Agent</span>
+      <span>📦 be14d9d+</span>
+      <span>⚠️ PRD≥8.0 未达标</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">📊 评分面板</div>
+    <div class="card-body">
+      <div class="score-grid">
+        <div class="score-item"><div class="label">Security</div><div class="bar-row"><div class="bar-track"><div class="bar-fill b" style="width:60%"></div></div><span class="value grade-b">6.0</span><span class="grade grade-b">B</span></div><div class="small">sandbox:false；无威胁模型；settings any</div></div>
+        <div class="score-item"><div class="label">Stability</div><div class="bar-row"><div class="bar-track"><div class="bar-fill b" style="width:60%"></div></div><span class="value grade-b">6.0</span><span class="grade grade-b">B</span></div><div class="small">Worker 宽类型；IPC 无错误码</div></div>
+        <div class="score-item"><div class="label">Performance</div><div class="bar-row"><div class="bar-track"><div class="bar-fill b" style="width:65%"></div></div><span class="value grade-b">6.5</span><span class="grade grade-b">B</span></div><div class="small">Shiki ~9.4MB；app chunk ~1.38MB</div></div>
+        <div class="score-item"><div class="label">Testing</div><div class="bar-row"><div class="bar-track"><div class="bar-fill c" style="width:50%"></div></div><span class="value grade-c">5.0</span><span class="grade grade-c">C</span></div><div class="small">未达 PRD 7.0；无 vitest；1 skip</div></div>
+        <div class="score-item"><div class="label">Maintainability</div><div class="bar-row"><div class="bar-track"><div class="bar-fill c" style="width:55%"></div></div><span class="value grade-c">5.5</span><span class="grade grade-c">C</span></div><div class="small">ipc 864 + ui-store 609 + apply 428</div></div>
+        <div class="score-item"><div class="label">Design</div><div class="bar-row"><div class="bar-track"><div class="bar-fill b" style="width:60%"></div></div><span class="value grade-b">6.0</span><span class="grade grade-b">B</span></div><div class="small">IpcHandlerFn=any；SRP 未达标</div></div>
+        <div class="score-item"><div class="label">Release</div><div class="bar-row"><div class="bar-track"><div class="bar-fill b" style="width:65%"></div></div><span class="value grade-b">6.5</span><span class="grade grade-b">B</span></div><div class="small">ubuntu-only；无 lint/audit</div></div>
+        <div class="score-item overall-row"><div class="label">Overall</div><div class="bar-row"><div class="bar-track" style="background:rgba(255,255,255,.12)"><div class="bar-fill b" style="width:60%;background:linear-gradient(90deg,#ff9500,#ffb340)"></div></div><span class="value" style="color:#fff">6.0</span><span class="grade" style="color:#ff9500">B</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="section-title" id="executive-summary">📝 总体评估</h3>
+  <div class="card"><div class="card-header">📋 总体评估</div><div class="card-body">
+    <p><strong>评分政策：</strong>以 PRD（Overall/架构维度≥8.0、Testing≥7.0、无 High 架构债）为发布线；<strong>未满足不得给 A</strong>。上轮宽松 7.1 A 在本版下调。</p>
+    <p style="margin-top:12px"><strong>现状：</strong>iter4 有 channel 双向同步测、CONTEXT、settings/window handlers；但 <strong>ipc.ts 864 行 / ~58 内联 handler</strong>，<strong>ui-store 609 行</strong>，<strong>worker ~41× as any</strong>。</p>
+    <p style="margin-top:12px"><strong>High×3：</strong>上帝 ipc、Worker 类型债、ui-store 体量。</p>
+    <p style="margin-top:12px"><strong>严苛总评：</strong>Overall <strong>6.0 B</strong> — 距循环终止差≥2 分；Testing <strong>5.0 C</strong> 阻塞 PRD。</p>
+    <p style="margin-top:12px"><strong>P0：</strong>拆 extensions+model handlers · Worker AppEvent 窄类型 · ui-store 切片。</p>
+  </div></div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="num">19</div><div class="desc">总发现</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--badge-high)">3</div><div class="desc">High</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--badge-medium)">8</div><div class="desc">Medium</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--badge-low)">5</div><div class="desc">Low</div></div>
+    <div class="stat-card"><div class="num" style="color:var(--badge-info)">3</div><div class="desc">Info</div></div>
+  </div>
+
+  <h3 class="section-title" id="coverage">🧭 覆盖矩阵</h3>
+  <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
+    <thead><tr><th>维度</th><th>覆盖</th><th>证据</th><th>限制</th></tr></thead>
+    <tbody>
+      <tr><td>Security</td><td><span class="badge badge-confirmed">High</span></td><td>preload, ipc-channels, window.ts</td><td>未做 CVE 扫描</td></tr>
+      <tr><td>Testing</td><td><span class="badge badge-confirmed">High</span></td><td>scripts/tests, quality.yml</td><td>无 E2E</td></tr>
+      <tr><td>Maintainability</td><td><span class="badge badge-confirmed">High</span></td><td>ipc 行数、handlers 目录</td><td>.trellis 备份未全审</td></tr>
+      <tr><td>Accessibility</td><td><span class="badge badge-suspected">Low</span></td><td>组件抽样</td><td>未跑 axe</td></tr>
+    </tbody>
+  </table></div></div></div>
+
+  <h3 class="section-title" id="findings">🔍 详细发现</h3>
+
+  <div class="finding severity-high">
+    <div class="finding-header"><h4>上帝 ipc.ts（严苛：&gt;500 行即 High）</h4><span class="badge badge-high">High</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="finding-meta"><span>📁 Maintainability</span><span>📍 ipc.ts · 864 行 · ~58 registerHandler</span></div>
+    <div class="problem"><strong>问题：</strong>model/skills/extensions/resources 仍堆在单文件；iter4 仅迁 settings/window。</div>
+    <div class="evidence">wc -l → 864；严苛下 Maintainability 封顶 ~5.5</div>
+    <div class="fix-box"><div class="fix-label">P0</div><code>每轮迁 ≥2 域；ipc.ts 行数 CI 预算 &lt;500</code></div>
+  </div>
+
+  <div class="finding severity-high">
+    <div class="finding-header"><h4>Worker 类型债 ~41× as any</h4><span class="badge badge-high">High</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="finding-meta"><span>📁 Type-Safety</span><span>📍 worker/index.ts</span></div>
+    <div class="evidence">rg 统计 worker 路径 ~41 处 as any</div>
+    <div class="fix-box"><div class="fix-label">P0</div><code>出站 AppEvent 窄类型 + payload 快照测试</code></div>
+  </div>
+
+  <div class="finding severity-high">
+    <div class="finding-header"><h4>ui-store 609 行仍 High</h4><span class="badge badge-high">High</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="finding-meta"><span>📁 Frontend-State</span><span>📍 ui-store.ts</span></div>
+    <div class="problem"><strong>问题：</strong>apply-app-event 抽出 ≠ store 切片；PRD Frontend-State≥8 未达。</div>
+    <div class="fix-box"><div class="fix-label">P0</div><code>拆 session/timeline 切片 store</code></div>
+  </div>
+
+  <div class="finding severity-medium">
+    <div class="finding-header"><h4>Testing 5.0 C — 未达 PRD 7.0</h4><span class="badge badge-medium">Medium</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="evidence">20 tests / 1 skip；无 vitest</div>
+  </div>
+
+  <div class="finding severity-medium">
+    <div class="finding-header"><h4>F4. BrowserWindow sandbox: false</h4><span class="badge badge-medium">Medium</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="evidence">src/main/window.ts — sandbox: false, contextIsolation: true</div>
+  </div>
+
+  <div class="finding severity-medium">
+    <div class="finding-header"><h4>F5–F6. IPC any 契约 / 脚本级测试</h4><span class="badge badge-medium">Medium</span><span class="badge badge-confirmed">已确认</span></div>
+    <div class="evidence">registry IpcHandlerFn = any; scripts/tests 共 5 文件</div>
+  </div>
+
+  <h3 class="section-title" id="architecture">🏗 架构与模块边界</h3>
+  <div class="card"><div class="card-header">✅ 已验证</div><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="check">✓</span> ipc/registry.ts 统一注册</div>
+    <div class="check-item"><span class="check">✓</span> handlers/session|workspace|prompt|workspace-fs</div>
+    <div class="check-item"><span class="check">✓</span> packages/shared 跨进程契约</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="security">🔒 安全</h3>
+  <div class="card"><div class="card-header">✅ 已验证</div><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="check">✓</span> isAllowedIpcChannel + IPC_INVOKE_CHANNELS</div>
+    <div class="check-item"><span class="check">✓</span> contextIsolation + nodeIntegration false</div>
+    <div class="check-item"><span class="cross">✗</span> Chromium sandbox 关闭（F4）</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="testing">🧪 测试</h3>
+  <div class="card"><div class="card-header">✅ 已验证</div><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="check">✓</span> workspace-fs-boundary.test.mjs</div>
+    <div class="check-item"><span class="check">✓</span> shared-contracts.test.mjs</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="maintainability">📐 可维护性</h3>
+  <div class="card"><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="cross">✗</span> ipc 864 行仍远超严苛预算 500</div>
+    <div class="check-item"><span class="cross">✗</span> ui-store 609 + apply-app-event 428</div>
+    <div class="check-item"><span class="check">✓</span> ipc-channel-sync 双向测试</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="type-safety">🧬 类型安全</h3>
+  <div class="card"><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="check">✓</span> npm run typecheck 通过</div>
+    <div class="check-item"><span class="cross">✗</span> worker/renderer as any 簇</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="frontend-state">🖥 前端状态</h3>
+  <div class="card"><div class="card-body"><p class="small">见 F3：Zustand ui-store 建议事件归约模块化。</p></div></div>
+
+  <h3 class="section-title" id="backend-api">🔌 后端 API（IPC）</h3>
+  <div class="card"><div class="card-body"><div class="check-list">
+    <div class="check-item"><span class="check">✓</span> ipc:domain.action 命名</div>
+    <div class="check-item"><span class="check">✓</span> [IPC:channel] 错误日志</div>
+  </div></div></div>
+
+  <h3 class="section-title" id="principles">📋 设计原则</h3>
+  <div class="card"><div class="card-body" style="padding:0"><div class="table-wrap"><table>
+    <thead><tr><th>原则</th><th>严重度</th><th>区域</th></tr></thead>
+    <tbody>
+      <tr><td>SRP</td><td><span class="badge badge-medium">Medium</span></td><td>ipc.ts, ui-store</td></tr>
+      <tr><td>类型边界</td><td><span class="badge badge-medium">Medium</span></td><td>worker, ipc</td></tr>
+    </tbody>
+  </table></div></div></div>
+
+  <h3 class="section-title" id="stability">⚡ Stability</h3><div class="card"><div class="card-body"><p class="small">IPC 统一 catch；见 F2 Worker 宽类型。</p></div></div>
+  <h3 class="section-title" id="performance">🚀 Performance</h3><div class="card"><div class="card-body"><p class="small">Shiki ~9.4MB；见 F8。</p></div></div>
+  <h3 class="section-title" id="design">📋 Design</h3><div class="card"><div class="card-body"><p class="small">registry、app-event-session；SRP 待加强。</p></div></div>
+  <h3 class="section-title" id="release">🚢 Release</h3><div class="card"><div class="card-body"><p class="small">quality.yml typecheck + script-tests。</p></div></div>
+  <h3 class="section-title" id="documentation">📚 Documentation</h3><div class="card"><div class="card-body"><p class="small">CONTEXT.md 缺失（F10）。</p></div></div>
+  <h3 class="section-title" id="configuration">⚙️ Configuration</h3><div class="card"><div class="card-body"><p class="small">config-store 部分 any。</p></div></div>
+  <h3 class="section-title" id="observability">🩺 Observability</h3><div class="card"><div class="card-body"><p class="small">[IPC:channel] 日志；无 metrics。</p></div></div>
+  <h3 class="section-title" id="data-integrity">🧱 Data Integrity</h3><div class="card"><div class="card-body"><p class="small">本地会话文件；无 DB。</p></div></div>
+  <h3 class="section-title" id="privacy">🛡 Privacy</h3><div class="card"><div class="card-body"><p class="small">本地存储为主。</p></div></div>
+  <h3 class="section-title" id="accessibility">⌨️ Accessibility</h3><div class="card"><div class="card-body"><p class="small">未跑 axe；Low coverage。</p></div></div>
+  <h3 class="section-title" id="supply-chain">🔗 Supply Chain</h3><div class="card"><div class="card-body"><p class="small">npm ci + lockfile。</p></div></div>
+  <h3 class="section-title" id="cost">💸 Cost</h3><div class="card"><div class="card-body"><p class="small">LLM 用户自备 key。</p></div></div>
+  <h3 class="section-title" id="ai-safety">🤖 AI / LLM Safety</h3><div class="card"><div class="card-body"><p class="small">工具经 adapter；注入面未全审。</p></div></div>
+  <h3 class="section-title" id="fallback">🔄 Fallback</h3><div class="card"><div class="card-body"><p class="small">preload path 回退。</p></div></div>
+  <h3 class="section-title" id="testing-authenticity">✅ Testing Authenticity</h3><div class="card"><div class="card-body"><p class="small">脚本测试有真实断言。</p></div></div>
+  <h3 class="section-title" id="dependency-weight">📦 Dependency Weight</h3><div class="card"><div class="card-body"><p class="small">Shiki/Electron 重量。</p></div></div>
+  <h3 class="section-title" id="code-consistency">🎨 Code Consistency</h3><div class="card"><div class="card-body"><p class="small">TS 风格较统一。</p></div></div>
+  <h3 class="section-title" id="comment-coverage">💬 Comment Coverage</h3><div class="card"><div class="card-body"><p class="small">接缝处有注释。</p></div></div>
+
+  <h3 class="section-title" id="fix-order">🎯 修复顺序</h3>
+  <div class="card"><div class="card-header">⚡ 立即</div><div class="card-body" style="padding:0"><div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>修复</th><th>工作量</th></tr></thead>
+    <tbody>
+      <tr><td>P0-1</td><td>拆 ipc：extensions + model handlers</td><td>2d</td></tr>
+      <tr><td>P0-2</td><td>Worker AppEvent 窄类型 + 测试</td><td>2d</td></tr>
+      <tr><td>P0-3</td><td>ui-store session/timeline 切片</td><td>2d</td></tr>
+    </tbody>
+  </table></div></div></div>
+
+  <h3 class="section-title">⚡ 快速收益</h3>
+  <div class="win-grid">
+    <div class="win-card"><div class="win-title">补 doc/CONTEXT.md</div><div class="win-meta">约 2h</div></div>
+    <div class="win-card"><div class="win-title">CI 检查 channel 同步</div><div class="win-meta">约 2h</div></div>
+    <div class="win-card"><div class="win-title">preload 非隔离 dev 警告</div><div class="win-meta">约 1h</div></div>
+  </div>
+
+  <div style="text-align:center;padding:40px 0 20px;color:var(--text-secondary);font-size:12px">
+严苛版 MD：audit-report-pi-app-2026-07-01.md · Overall 6.0 B（上轮宽松 7.1 A 已作废）
+  </div>
+</div>
+
+<script>
+  const sections = document.querySelectorAll('[id]');
+  const navLinks = document.querySelectorAll('.sidebar-nav a');
+  const observer = new IntersectionObserver((entries) => {
+    let activeId = null;
+    entries.forEach(entry => { if (entry.isIntersecting) activeId = entry.target.id; });
+    if (activeId) navLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + activeId));
+  }, { rootMargin: '-10% 0px -60% 0px' });
+  sections.forEach(s => observer.observe(s));
+  navLinks.forEach(a => a.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+</script>
+</body>
+</html>
