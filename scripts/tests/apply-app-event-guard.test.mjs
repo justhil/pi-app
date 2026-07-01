@@ -14,8 +14,8 @@ describe('applyAppEvent session guard', () => {
     assert.equal(isSessionScopedAppEvent(skip), false)
   })
 
-  it('apply-app-event imports UIState from ui-store-types', () => {
-    const src = readFileSync(join(root, 'src/renderer/src/stores/apply-app-event.ts'), 'utf8')
+  it('handlers module uses ui-store-types', () => {
+    const src = readFileSync(join(root, 'src/renderer/src/stores/apply-app-event-handlers.ts'), 'utf8')
     assert.match(src, /ui-store-types/)
   })
 })
