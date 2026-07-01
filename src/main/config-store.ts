@@ -2,7 +2,7 @@ import pkg from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
 const Store = pkg as any
 
-interface StoreSchema {
+export interface StoreSchema {
   recentProjects: string[]
   currentProject: string | null
   windowBounds: { width: number; height: number; x?: number; y?: number } | null

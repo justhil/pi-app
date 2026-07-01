@@ -14,8 +14,9 @@ describe('applyAppEvent session guard', () => {
     assert.equal(isSessionScopedAppEvent(skip), false)
   })
 
-  it('handlers module uses ui-store-types', () => {
-    const src = readFileSync(join(root, 'src/renderer/src/stores/apply-app-event-handlers.ts'), 'utf8')
-    assert.match(src, /ui-store-types/)
+  it('event handlers split by type module', () => {
+    const barrel = readFileSync(join(root, 'src/renderer/src/stores/apply-app-event-handlers.ts'), 'utf8')
+    assert.match(barrel, /apply-app-event-message/)
+    assert.match(barrel, /apply-app-event-run/)
   })
 })

@@ -37,7 +37,7 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 
 | 项 | 严苛分 | PRD 目标 |
 |----|--------|----------|
-| Overall | **7.6 B**（iter9 估） | ≥8.0 A |
+| Overall | **7.9 B**（iter11）；Maintainability 8.0 | ≥8.0 A 差 ~0.1 |
 | Testing | **7.0**（脚本 39 cases） | ≥7.0 ✓ |
 | ipc **36**；ui-store **329**；apply-app-event **71**；worker `as any` **≤22** | 见 `worker-message.ts` |
 

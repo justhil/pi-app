@@ -1,18 +1,20 @@
 import { shell } from 'electron'
-import { configStore } from '../../config-store'
+import { configStore, type StoreSchema } from '../../config-store'
 import { getMainWindow } from '../../window'
 import { registerHandler } from '../registry'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
     if (req.key) {
-      return { settings: { [req.key]: configStore.get(req.key as any) } }
+      const key = req.key as keyof StoreSchema
+      return { settings: { [req.key]: configStore.get(key) } }
     }
     return { settings: configStore.getAll() }
   })
 
   registerHandler('ipc:settings.set', async (req) => {
-    configStore.set(req.key as any, req.value)
+    const key = req.key as keyof StoreSchema
+    configStore.set(key, req.value as StoreSchema[typeof key])
     return { key: req.key, value: req.value }
   })
 
