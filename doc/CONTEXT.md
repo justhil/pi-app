@@ -41,7 +41,7 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 | 项 | 严苛分 | PRD 目标 |
 |----|--------|----------|
 | Overall | **8.0 A**（iter12 PRD 循环终止） | ≥8.0 ✓ |
-| Testing | **7.4**（脚本 43 cases，`fmsm-prd-gates.test.mjs`） | ≥7.0 ✓ |
+| Testing | **7.4**（脚本 48 cases / 47 pass，`fmsm-prd-gates.test.mjs`） | ≥7.0 ✓ |
 | ipc **36**；ui-store **329**；apply-app-event **71**；worker `as any` **≤22** | 见 `worker-message.ts` |
 
 Trellis：`07-01-arch-strict-maintain`（门禁维持，归档于 `archive/2026-07/`）。威胁模型：`doc/THREAT-MODEL.md`。
