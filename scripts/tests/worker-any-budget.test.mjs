@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** Strict arch: worker outbound model keys typed; remaining any is SDK message shapes (iter8+). */
-const MAX_ANY = 30
+const MAX_ANY = 22
 const root = process.cwd()
 
 describe('worker/index.ts as-any budget', () => {

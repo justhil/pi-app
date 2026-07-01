@@ -14,6 +14,14 @@ import type {
 import type { AppEvent } from '@shared/app-events'
 import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
 import { resolveModelFromRegistry, type PiModelRegistryLike } from '@shared/pi-model-registry'
+import {
+  extractTextFromPiMessage,
+  extractToolResultFromPiMessage,
+  piMessageTimestamp,
+  piUsageTotals,
+  type PiCompactionEndResult,
+  type PiSessionMessage,
+} from '@shared/worker-message'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath } from '../extension-compat/json-path.js'
@@ -209,12 +217,15 @@ function lastAssistantFromMessages(messages: any[]): any | undefined {
   return undefined
 }
 
-function emitAgentErrorFromAssistant(base: ReturnType<typeof baseEvent>, msg: any): void {
+function emitAgentErrorFromAssistant(
+  base: ReturnType<typeof baseEvent>,
+  msg: PiSessionMessage & { errorMessage?: string },
+): void {
   const stop = msg?.stopReason as string | undefined
   if (stop !== 'error' && stop !== 'aborted') return
   const raw =
     (typeof msg?.errorMessage === 'string' && msg.errorMessage.trim()) ||
-    extractText(msg) ||
+    extractTextFromPiMessage(msg) ||
     (stop === 'aborted' ? 'Request was aborted.' : 'Unknown error')
   emit({
     ...base,
@@ -262,26 +273,15 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'turn_end': {
-      const msg = event.message as any
-      if (msg?.usage) {
-        const u = msg.usage
-        emit({
-          ...base,
-          type: 'run',
-          phase: 'running',
-          usage: {
-            input: u.input || 0,
-            output: u.output || 0,
-            cacheRead: u.cacheRead || 0,
-            cacheWrite: u.cacheWrite || 0,
-            cost: u.cost?.total || 0,
-          },
-        })
+      const msg = event.message as PiSessionMessage
+      const totals = piUsageTotals(msg?.usage)
+      if (totals) {
+        emit({ ...base, type: 'run', phase: 'running', usage: totals })
       }
       break
     }
     case 'message_start': {
-      const msg = event.message as any
+      const msg = event.message as PiSessionMessage
       if (msg?.role === 'assistant') {
         emit({ ...base, type: 'message', role: 'assistant', phase: 'start' })
       }
@@ -306,10 +306,10 @@ function handleSessionEvent(event: AgentSessionEvent): void {
       break
     }
     case 'message_end': {
-      const msg = event.message as any
+      const msg = event.message as PiSessionMessage
       const entryId = session?.sessionManager?.getLeafId?.() ?? undefined
       if (msg?.role === 'assistant') {
-        const text = extractText(msg)
+        const text = extractTextFromPiMessage(msg)
         emit({ ...base, type: 'message', role: 'assistant', phase: 'end', text, sessionEntryId: entryId })
         emitAgentErrorFromAssistant(base, msg)
       } else if (msg?.role === 'user') {
@@ -408,7 +408,10 @@ function handleSessionEvent(event: AgentSessionEvent): void {
           stopReason: 'error',
         })
       }
-      emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: (event as any).result?.tokensBefore, summary: (event as any).result?.summary })
+      {
+        const cr = (event as { result?: PiCompactionEndResult }).result
+        emit({ ...base, type: 'compaction', phase: 'end', tokensSaved: cr?.tokensBefore, summary: cr?.summary })
+      }
       break
     }
   }
@@ -429,26 +432,27 @@ let msgSeq = 0
 function normalizeMessages(messages: any[]): any[] {
   const items: any[] = []
   const now = Date.now()
-  // Map toolCallId → item index for precise toolResult attachment
   const toolCallIndex = new Map<string, number>()
 
   for (const m of messages) {
-    const ts = (m as any).timestamp ? new Date((m as any).timestamp).getTime() : now
-    const content = m.content || []
+    const pm = m as PiSessionMessage & { toolCallId?: string; toolName?: string }
+    const ts = piMessageTimestamp(pm, now)
+    const content = Array.isArray(pm.content) ? pm.content : []
 
-    if (m.role === 'user') {
-      const text = extractText(m)
+    if (pm.role === 'user') {
+      const text = extractText(pm)
       if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
-    } else if (m.role === 'assistant') {
-      const text = extractText(m)
-      const toolCalls = content.filter((c: any) => c.type === 'toolCall')
+    } else if (pm.role === 'assistant') {
+      const text = extractText(pm)
+      const toolCalls = content.filter((c) => (c as { type?: string }).type === 'toolCall')
       if (text) {
         items.push({ id: `hist-${++msgSeq}`, type: 'assistant-message', text, timestamp: ts })
       }
       for (const c of toolCalls) {
-        const name = c.toolCall?.name || 'tool'
-        const input = c.toolCall?.input || c.toolCall?.arguments
-        const callId = c.toolCall?.id || ''
+        const tc = c as { toolCall?: { name?: string; input?: unknown; arguments?: unknown; id?: string } }
+        const name = tc.toolCall?.name || 'tool'
+        const input = tc.toolCall?.input || tc.toolCall?.arguments
+        const callId = tc.toolCall?.id || ''
         const item: any = {
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
@@ -462,11 +466,10 @@ function normalizeMessages(messages: any[]): any[] {
         items.push(item)
         if (callId) toolCallIndex.set(callId, idx)
       }
-    } else if (m.role === 'toolResult') {
-      // toolResult has toolCallId + toolName; attach output to the matching tool-call card.
-      const text = extractText(m)
-      const callId = m.toolCallId || ''
-      const toolName = m.toolName || ''
+    } else if (pm.role === 'toolResult') {
+      const text = extractToolResult(pm)
+      const callId = pm.toolCallId || ''
+      const toolName = pm.toolName || ''
       // Try precise match by toolCallId first
       let targetIdx = callId ? toolCallIndex.get(callId) : undefined
       // Fallback: most recent tool-call with matching name and empty output
@@ -490,8 +493,8 @@ function normalizeMessages(messages: any[]): any[] {
           timestamp: ts,
         })
       }
-    } else if (m.role === 'compactionSummary' || m.role === 'branchSummary') {
-      const text = extractText(m)
+    } else if (pm.role === 'compactionSummary' || pm.role === 'branchSummary') {
+      const text = extractText(pm)
       items.push({ id: `hist-${++msgSeq}`, type: 'compaction', text, timestamp: ts })
     }
   }
@@ -600,26 +603,8 @@ function timelineItemsFromBranchPath(path: any[]): any[] {
   return items
 }
 
-function extractText(message: any): string {
-  if (!message?.content) return typeof message === 'string' ? message : ''
-  if (typeof message.content === 'string') return message.content
-  return (message.content as any[])
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text || '')
-    .join('')
-}
-
-function extractToolResult(message: any): string {
-  if (!message?.content) return ''
-  const parts = (message.content as any[])
-    .filter((c) => c.type === 'toolResult')
-    .map((c) => {
-      if (typeof c.content === 'string') return c.content
-      if (Array.isArray(c.content)) return c.content.map((x: any) => x.text || '').join('')
-      return ''
-    })
-  return parts.join('\n')
-}
+const extractText = extractTextFromPiMessage
+const extractToolResult = extractToolResultFromPiMessage
 
 /** Pi SettingsManager has getters but no setters for compaction token fields — write via globalSettings + markModified. */
 function patchPiCompactionTokens(
@@ -924,17 +909,18 @@ process.parentPort?.on('message', async (event: any) => {
           if (session) {
             for (const m of session.messages || []) {
               msgCount++
-              const t = extractText(m)
+              const hm = m as PiSessionMessage
+              const t = extractText(hm)
               estChars += t.length
-              const role = (m as any).role || '?'
+              const role = hm.role || '?'
               let label: string | undefined
-              if (role === 'toolResult' && (m as any).toolName) label = (m as any).toolName
-              if (role === 'assistant') {
-                const blocks = (m as any).content
-                if (Array.isArray(blocks)) {
-                  const tools = blocks.filter((c: any) => c.type === 'toolCall').map((c: any) => c.toolCall?.name).filter(Boolean)
-                  if (tools.length) label = tools.join(', ')
-                }
+              if (role === 'toolResult' && hm.toolName) label = hm.toolName
+              if (role === 'assistant' && Array.isArray(hm.content)) {
+                const tools = hm.content
+                  .filter((c) => (c as { type?: string }).type === 'toolCall')
+                  .map((c) => (c as { toolCall?: { name?: string } }).toolCall?.name)
+                  .filter(Boolean)
+                if (tools.length) label = tools.join(', ')
               }
               segments.push({
                 index: segments.length,

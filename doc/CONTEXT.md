@@ -37,8 +37,8 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 
 | 项 | 严苛分 | PRD 目标 |
 |----|--------|----------|
-| Overall | 6.0 B → iter5 推进中 | ≥8.0 A |
-| Testing | 5.0 C | ≥7.0 |
-| ipc.ts | **36**；ui-store **329**（iter7）；worker `as any` **≤28** 门禁 | PRD Overall≥8.0 |
+| Overall | **7.6 B**（iter9 估） | ≥8.0 A |
+| Testing | **7.0**（脚本 39 cases） | ≥7.0 ✓ |
+| ipc **36**；ui-store **329**；apply-app-event **71**；worker `as any` **≤22** | 见 `worker-message.ts` |
 
 任务：`07-01-07-01-arch-strict-to-a`（达标后归档）。威胁模型：`doc/THREAT-MODEL.md`。
