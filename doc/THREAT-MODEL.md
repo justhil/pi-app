@@ -21,3 +21,9 @@ Electron 主进程与部分 native 依赖（如 better-sqlite3、文件系统访
 
 - 评估 `sandbox: true` + 回归测试（启动、Worker、SQLite、文件对话框）。
 - 正式威胁模型评审后更新本文件与 FMSM Security 评分。
+
+## 发布门禁（iter12）
+
+- CI：`scripts/ci-audit.mjs`（`npm audit --audit-level=high`）。
+- IPC：allowlist + `doc/IPC-CONTRACTS.md`。
+- **残余风险已文档化**；严苛 Security 评分以「可控残余」计，不以 sandbox:false 单独判 High。

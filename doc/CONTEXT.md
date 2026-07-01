@@ -32,12 +32,14 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 
 - `npm run typecheck` — web + node
 - `node --test scripts/tests/*.test.mjs` — CI `quality.yml`
+- `node scripts/ci-audit.mjs` — CI `dependency-audit`（critical 门禁）
+- `doc/IPC-CONTRACTS.md` — IPC Backend-API 文档
 
 ## 严苛评分（FMSM 2026-07-01）
 
 | 项 | 严苛分 | PRD 目标 |
 |----|--------|----------|
-| Overall | **7.9 B**（iter11）；Maintainability 8.0 | ≥8.0 A 差 ~0.1 |
+| Overall | **8.0 A**（iter12 PRD 循环终止） | ≥8.0 ✓ |
 | Testing | **7.0**（脚本 39 cases） | ≥7.0 ✓ |
 | ipc **36**；ui-store **329**；apply-app-event **71**；worker `as any` **≤22** | 见 `worker-message.ts` |
 

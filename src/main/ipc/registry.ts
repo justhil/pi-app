@@ -1,7 +1,9 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
 
-/** Per-channel request/response types are a follow-up; handlers stay loosely typed at the boundary. */
+/** Documented JSON invoke shape from preload (see doc/IPC-CONTRACTS.md). */
+export type IpcInvokeBody = Record<string, unknown>
+
 export type IpcHandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, IpcHandlerFn>()
