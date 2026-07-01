@@ -1,7 +1,7 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
 
-/** Gradual typing: handlers use structured req; default any until per-channel contracts land. */
+/** Per-channel request/response types are a follow-up; handlers stay loosely typed at the boundary. */
 export type IpcHandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, IpcHandlerFn>()

@@ -12,6 +12,8 @@ import type {
   EventBus,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
+import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
+import { resolveModelFromRegistry, type PiModelRegistryLike } from '@shared/pi-model-registry'
 import { createDesktopUIBridge, type DesktopUIBridge, type ExtensionUIResponse } from './desktop-ui-bridge.js'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath } from '../extension-compat/json-path.js'
@@ -59,6 +61,10 @@ function emit(event: AppEvent): void {
 
 function now(): number {
   return Date.now()
+}
+
+function currentSessionModelKey(): string | undefined {
+  return session ? formatSessionModelKey(session.model as SessionModelRef) : undefined
 }
 
 function baseEvent() {
@@ -114,7 +120,7 @@ async function initSession(cwd: string): Promise<void> {
 
   // 勿 emit idle：新建/重载会话后 idle 会让 Renderer 误判「已结束」，抹掉首条乐观等待态
   if (session) {
-    const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+    const modelStr = currentSessionModelKey()
     emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
   }
 
@@ -360,7 +366,7 @@ function handleSessionEvent(event: AgentSessionEvent): void {
     case 'thinking_level_changed': {
       // Push current model + thinking level to renderer for live status bar update
       if (session) {
-        const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+        const modelStr = currentSessionModelKey()
         emit({ ...base, type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
       }
       break
@@ -678,7 +684,7 @@ process.parentPort?.on('message', async (event: any) => {
           if (!sharedEventBus) sharedEventBus = sdk.createEventBus()
           await initSession(msg.cwd)
           console.log('[Worker] Init done, sessionId:', currentSessionId)
-          reply({ type: 'init-done', sessionId: currentSessionId, model: session?.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined, thinkingLevel: session?.thinkingLevel, sdkFallback })
+          reply({ type: 'init-done', sessionId: currentSessionId, model: currentSessionModelKey(), thinkingLevel: session?.thinkingLevel, sdkFallback })
         } catch (e: any) {
           console.error('[Worker] Init FAILED:', e.message, e.stack)
           reply({ type: 'error', error: `Init failed: ${e.message}`, stack: e.stack })
@@ -802,10 +808,9 @@ process.parentPort?.on('message', async (event: any) => {
         if (session) {
           try {
             // Resolve model from the session's modelRegistry (no dynamic pi-ai import — it's a nested dep not hoisted).
-            const model = (session.modelRegistry as any)?.find?.(msg.provider, msg.modelId)
-              ?? (session.modelRegistry as any)?.get?.(msg.provider, msg.modelId)
-            if (model) await session.setModel(model)
-            const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+            const model = resolveModelFromRegistry(session.modelRegistry as PiModelRegistryLike, msg.provider, msg.modelId)
+            if (model) await session.setModel(model as Parameters<typeof session.setModel>[0])
+            const modelStr = currentSessionModelKey()
             emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
           } catch (e) { console.error('[Worker] setModel failed:', e) }
         }
@@ -815,7 +820,7 @@ process.parentPort?.on('message', async (event: any) => {
       case 'setThinkingLevel': {
         session?.setThinkingLevel(msg.level)
         if (session) {
-          const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+          const modelStr = currentSessionModelKey()
           emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
         }
         reply({ type: 'setThinkingLevel-done' })
@@ -1127,9 +1132,7 @@ process.parentPort?.on('message', async (event: any) => {
         try {
           const targetFile = msg.sessionFile as string
           if (session?.sessionFile === targetFile) {
-            const modelStr = session.model
-              ? `${(session.model as any).provider}/${(session.model as any).modelId}`
-              : undefined
+            const modelStr = currentSessionModelKey()
             reply({
               type: 'loadSession-done',
               sessionId: currentSessionId,
@@ -1163,7 +1166,7 @@ process.parentPort?.on('message', async (event: any) => {
           await bindDesktopExtensions(session)
           promptSent = true
           unsubscribe = session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
-          const modelStr = session.model ? `${(session.model as any).provider}/${(session.model as any).modelId}` : undefined
+          const modelStr = currentSessionModelKey()
           emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
           reply({ type: 'loadSession-done', sessionId: currentSessionId, model: modelStr, thinkingLevel: session.thinkingLevel })
         } catch (e: any) {
@@ -1268,7 +1271,7 @@ process.parentPort?.on('message', async (event: any) => {
             leafId,
             sessionMeta: session.model
               ? {
-                  model: `${(session.model as any).provider}/${(session.model as any).modelId}`,
+                  model: currentSessionModelKey(),
                   thinkingLevel: session.thinkingLevel,
                 }
               : { thinkingLevel: session.thinkingLevel },
@@ -1413,15 +1416,11 @@ process.parentPort?.on('message', async (event: any) => {
           if (session && patch.defaultProvider !== undefined && patch.defaultModel !== undefined) {
             const provider = String(patch.defaultProvider)
             const modelId = String(patch.defaultModel)
-            const model =
-              (session.modelRegistry as any)?.find?.(provider, modelId) ??
-              (session.modelRegistry as any)?.get?.(provider, modelId)
+            const model = resolveModelFromRegistry(session.modelRegistry as PiModelRegistryLike, provider, modelId)
             if (model) {
               try {
-                await session.setModel(model)
-                const modelStr = session.model
-                  ? `${(session.model as any).provider}/${(session.model as any).modelId}`
-                  : undefined
+                await session.setModel(model as Parameters<typeof session.setModel>[0])
+                const modelStr = currentSessionModelKey()
                 emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: session.thinkingLevel })
               } catch (e) {
                 console.error('[Worker] setPiSettings setModel failed:', e)

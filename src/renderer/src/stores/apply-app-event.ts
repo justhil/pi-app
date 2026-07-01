@@ -6,7 +6,7 @@ import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import { normalizeTimelineMessageText } from '@renderer/lib/timeline-dedupe'
 import { agentErrorKind, formatAgentErrorForTimeline } from '@renderer/lib/agent-error-text'
-import type { UIState } from '@renderer/stores/ui-store'
+import type { UIState } from '@renderer/stores/ui-store-types'
 
 type StoreApi = {
   get: () => UIState

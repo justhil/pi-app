@@ -1,5 +1,15 @@
+import type { AppEvent } from '@shared/app-events'
 import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panels'
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+
+export interface SessionItem {
+  sessionId: string
+  sessionFile?: string
+  title: string
+  updatedAt: number
+  messageCount?: number
+  modelId: string
+}
 
 export interface TimelineItem {
   id: string
@@ -74,4 +84,98 @@ export interface AppEventStoreSlice {
   pendingFollowUp: string[]
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
+}
+
+export interface UIState {
+  currentWorkspace: string | null
+  recentProjects: string[]
+  setWorkspace: (path: string | null) => void
+  ephemeralSandboxDraft: boolean
+  pendingNewSessionPlaceholder: boolean
+  enterEphemeralSandboxDraft: () => void
+  clearEphemeralSandboxDraft: () => void
+  enterPendingNewSessionPlaceholder: (opts?: { keepTimeline?: boolean }) => void
+  clearPendingNewSessionPlaceholder: () => void
+  sessions: SessionItem[]
+  currentSessionId: string | null
+  setSessions: (s: SessionItem[]) => void
+  setCurrentSession: (id: string | null) => void
+  loadHistoryItems: (items: TimelineItem[]) => void
+  prependHistoryItems: (items: TimelineItem[]) => void
+  historyTotalCount: number
+  historyLoadedCount: number
+  historySessionFile: string | null
+  historyLoading: boolean
+  setHistoryMeta: (total: number, loaded: number, sessionFile: string | null) => void
+  setHistoryLoading: (v: boolean) => void
+  timelineItems: TimelineItem[]
+  streamingAssistantId: string | null
+  appendTimeline: (item: TimelineItem) => void
+  updateTimelineItem: (id: string, patch: Partial<TimelineItem>) => void
+  appendDeltaToStreamingAssistant: (delta: string) => void
+  appendThinkingDelta: (delta: string) => void
+  setStreamingAssistantFinalText: (text: string) => void
+  pruneEmptyAssistantBubbles: () => void
+  clearTimeline: () => void
+  runState: RunState
+  setRunState: (patch: Partial<RunState>) => void
+  workerLiveSnapshot: WorkerLiveSnapshot
+  setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
+  fileChanges: FileChange[]
+  addFileChange: (fc: FileChange) => void
+  clearFileChanges: () => void
+  composerPrefill: string | null
+  setComposerPrefill: (text: string | null) => void
+  activePanel: string
+  setActivePanel: (p: string) => void
+  rightPanelCatalog: RightPanelCatalogItem[]
+  rightPanelPrefs: RightPanelPrefs
+  rightPanelOrder: string[]
+  applyRightPanelRuntime: (catalog: RightPanelCatalogItem[], prefs: RightPanelPrefs, order?: string[]) => void
+  rewindKey: string
+  rewindCheckpoints: Array<{ id: string; trigger: string; description?: string; branch: string; timestamp: number }>
+  rewindTreeNodes: Array<{ id: string; depth: number; label?: string; entryType: string; isLeaf: boolean }>
+  rewindWorkerBound: boolean
+  rewindLoadingCheckpoints: boolean
+  rewindLoadingTree: boolean
+  rewindTreeError?: string
+  setRewindMeta: (patch: Partial<{
+    rewindKey: string
+    checkpoints: UIState['rewindCheckpoints']
+    treeNodes: UIState['rewindTreeNodes']
+    workerBound: boolean
+    loadingCheckpoints: boolean
+    loadingTree: boolean
+    treeError: string
+  }>) => void
+  theme: 'light' | 'dark' | 'system'
+  setTheme: (t: 'light' | 'dark' | 'system') => void
+  sidebarWidth: number
+  setSidebarWidth: (w: number) => void
+  sidebarCollapsed: boolean
+  toggleSidebar: () => void
+  rightPanelWidth: number
+  setRightPanelWidth: (w: number) => void
+  rightPanelCollapsed: boolean
+  toggleRightPanel: () => void
+  filesPreviewChatExpand: boolean
+  lastModel: string | null
+  lastThinking: string | null
+  rememberModel: (model: string) => void
+  rememberThinking: (level: string) => void
+  pendingExtensionConfig: string | null
+  requestExtensionConfig: (pluginName: string | null) => void
+  modelPickerOpen: boolean
+  setModelPickerOpen: (open: boolean) => void
+  thinkingPickerOpen: boolean
+  setThinkingPickerOpen: (open: boolean) => void
+  optimisticPendingUserText: string | null
+  agentTurnBootstrapping: boolean
+  pendingSteering: string[]
+  pendingFollowUp: string[]
+  setPendingQueue: (steering: string[], followUp: string[]) => void
+  clearPendingQueue: () => void
+  ignoreQueueSyncUntil: number
+  markAbortQueueIgnore: (ms?: number) => void
+  processEvent: (event: AppEvent) => void
 }
