@@ -6,12 +6,16 @@
   "author": "pi-desktop",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "dev:alert-trace": "set PI_ALERT_TRACE=1&& set PI_AUDIO_TRACE=1&& electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
+    "test:scripts": "node scripts/run-contract-tests.mjs",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint .",
     "package": "electron-vite build && electron-builder",

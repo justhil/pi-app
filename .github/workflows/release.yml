@@ -13,6 +13,7 @@ permissions:
 jobs:
   build-win:
     runs-on: windows-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,11 +21,18 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "npm ci failed (attempt $i), retry in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Export icon
         run: npm run icon:export
@@ -52,6 +60,7 @@ jobs:
 
   build-mac:
     runs-on: macos-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,11 +68,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "npm ci failed (attempt $i), retry in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Export icon
         run: npm run icon:export
@@ -92,6 +107,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,11 +115,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "npm ci failed (attempt $i), retry in 20s..."
+            sleep 20
+          done
+          exit 1
 
       - name: Export icon
         run: npm run icon:export

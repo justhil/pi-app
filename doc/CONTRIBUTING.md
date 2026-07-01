@@ -6,7 +6,7 @@
 npm run typecheck
 npm run lint
 npm run build
-node --test scripts/tests/*.test.mjs
+npm run test:scripts
 npm run build && npm run test:e2e
 node scripts/ci-audit.mjs
 ```

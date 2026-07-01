@@ -32,7 +32,7 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 ## 质量门禁
 
 - `npm run typecheck` — web + node
-- `node --test scripts/tests/*.test.mjs` — CI `quality.yml`
+- `npm run test:scripts` — CI `quality.yml`
 - `node scripts/ci-audit.mjs` — CI `dependency-audit`（critical 门禁）
 - `doc/IPC-CONTRACTS.md` — IPC Backend-API 文档
 - FMSM iter14 整改：**sandbox 默认 true**；`test:e2e`；CI `e2e-smoke` + `script-tests-win`；报告 `docs/audit/*iter14*`
