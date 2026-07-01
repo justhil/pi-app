@@ -15,7 +15,7 @@
 | Phase | Deliverable |
 |-------|-------------|
 | 1 | registry.ts (done) |
-| 2 | session + workspace handlers extracted |
+| 2 | dialog, workspace-fs, workspace, session, prompt handlers (done) |
 | 3 | typed contracts for top 10 channels |
 | 4 | preload allowlist mirrors channel set |
 
