@@ -47,6 +47,7 @@ AGENTS.md
 *~
 
 # Project-local pi + Trellis (machine / workflow, not app source)
+# Never git add -f .trellis — tracked files ignore this rule
 .pi/
 .trellis/
 
