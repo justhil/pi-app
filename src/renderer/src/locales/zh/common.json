@@ -1,0 +1,61 @@
+{
+  "app": {
+    "name": "pi Desktop",
+    "status": {
+      "idle": "空闲",
+      "running": "运行中",
+      "failed": "失败"
+    }
+  },
+  "sidebar": {
+    "sessions": "会话列表",
+    "settings": "设置",
+    "openProject": "打开文件夹"
+  },
+  "composer": {
+    "placeholder": "消息或 / 命令",
+    "send": "发送",
+    "stop": "停止",
+    "selectProjectFirst": "请先打开项目"
+  },
+  "panel": {
+    "review": "Review",
+    "trellis": "Trellis",
+    "run": "Run",
+    "context": "Context",
+    "tree": "Tree"
+  },
+  "settings": {
+    "title": "设置",
+    "general": "常规",
+    "appearance": "外观",
+    "pi": "Pi",
+    "extensions": "插件",
+    "resources": "资源",
+    "diagnostics": "诊断",
+    "theme": {
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    }
+  },
+  "timeline": {
+    "placeholder": "发一条消息开始",
+    "emptyWorkspace": "打开文件夹，或「对话」里新建临时对话",
+    "loadOlder": "上滑或点此加载更早消息",
+    "loadingSession": "加载会话…"
+  },
+  "review": {
+    "scope": {
+      "turn": "本轮",
+      "session": "本对话",
+      "git": "Git 工作区"
+    },
+    "empty": "暂无文件变更",
+    "copyPath": "复制路径"
+  },
+  "topbar": {
+    "project": "当前项目",
+    "session": "当前会话"
+  }
+}

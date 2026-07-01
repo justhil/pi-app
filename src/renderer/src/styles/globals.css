@@ -1,0 +1,973 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Motion tokens (参考桌面客户端: 150/240/320ms, cubic-bezier(0.22,1,0.36,1)) */
+    --motion-fast: 200ms;
+    --motion-normal: 280ms;
+    --motion-slow: 320ms;
+    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* Font tokens (system stack, 参考桌面客户端 rejects Inter for thin-text issue) */
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+
+    /* ── 参考桌面客户端 AOU Purple brand palette (light) ── */
+    --aou-1: #eff0f6;
+    --aou-2: #e5e7f0;
+    --aou-3: #d1d5e5;
+    --aou-4: #b5bcd6;
+    --aou-5: #97a0c5;
+    --aou-6: #7583b2;
+    --aou-7: #596590;
+    --aou-8: #3f4868;
+    --aou-9: #262c41;
+    --aou-10: #0d101c;
+    --brand: #7583b2;
+    --brand-light: #eff0f6;
+    --brand-hover: #b5bcd6;
+
+    /* ── 参考桌面客户端 multi-level background (light) ── */
+    --bg-base: #ffffff;
+    --bg-1: #f9fafb;
+    --bg-2: #f2f3f5;
+    --bg-3: #e5e6eb;
+    --bg-hover: #f3f4f6;
+    --bg-active: #e5e6eb;
+    --message-user-bg: #F3F3F4;
+
+    /* ── 参考桌面客户端 text colors (light: 7.5:1 contrast) ── */
+    --text-primary: #000000;
+    --text-secondary: #454d5f;
+    --text-disabled: #c9cdd4;
+
+    /* Semantic */
+    --primary-semantic: #165dff;
+    --success-semantic: #00b42a;
+    --warning-semantic: #ff7d00;
+    --danger-semantic: #f53f3f;
+
+    /* Border */
+    --border-base: #e5e6eb;
+    --border-light: #f2f3f5;
+
+    /* Focus ring (参考桌面客户端 useInputFocusRing) */
+    --focus-border: #e1e0ff;
+    --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
+
+    /* 输入框/对话：上限由 JS 按 screen.width 写入 *-max-px；窗口变窄时 min(100%, …) */
+    --composer-content-max-px: 768px;
+    --timeline-content-max-px: 816px;
+    --composer-content-max: min(100%, var(--composer-content-max-px));
+    --timeline-content-max: min(100%, var(--timeline-content-max-px));
+
+    /* ── Tailwind HSL-compatible tokens (light) ── */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 96.1%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 94%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.625rem;
+    --radius-xl: 0.75rem;
+
+    /* Surface elevation tiers (参考跨端客户端-inspired) */
+    --surface-0: 0 0% 100%;
+    --surface-1: 240 20% 98%;
+    --surface-2: 240 4.8% 96%;
+    --surface-3: 240 5.9% 92%;
+    --surface-sidebar: #F3F3F3;
+
+    /* Secondary text (参考桌面客户端) */
+    --text-secondary-hsl: 240 5% 35%;
+
+    /* Accent colors for tool types */
+    --tool-read: 220 90% 56%;
+    --tool-edit: 38 92% 50%;
+    --tool-write: 142 71% 45%;
+    --tool-bash: 280 65% 60%;
+  }
+
+  .dark {
+    /* ── 参考桌面客户端 AOU Purple brand palette (dark) ── */
+    --aou-1: #2a2a2a;
+    --aou-2: #3d4150;
+    --aou-3: #525a77;
+    --aou-4: #6a749b;
+    --aou-5: #838fba;
+    --aou-6: #a1aacb;
+    --aou-7: #b5bcd6;
+    --aou-8: #d1d5e5;
+    --aou-9: #e5e7f0;
+    --aou-10: #eff0f6;
+    --brand: #a1aacb;
+    --brand-light: #3d4150;
+    --brand-hover: #6a749b;
+
+    /* ── 参考桌面客户端 multi-level background (dark) ── */
+    --bg-base: #0e0e0e;
+    --bg-1: #1a1a1a;
+    --bg-2: #262626;
+    --bg-3: #333333;
+    --bg-hover: #1f1f1f;
+    --bg-active: #2d2d2d;
+    --message-user-bg: #1e2a3a;
+
+    /* ── 参考桌面客户端 text colors (dark: 11:1 contrast) ── */
+    --text-primary: #ffffff;
+    --text-secondary: #ced3da;
+    --text-disabled: #737373;
+
+    /* Semantic */
+    --primary-semantic: #4d9fff;
+    --success-semantic: #23c343;
+    --warning-semantic: #ff9a2e;
+    --danger-semantic: #f76560;
+
+    /* Border */
+    --border-base: #333333;
+    --border-light: #262626;
+
+    /* Focus ring (参考桌面客户端 dark) */
+    --focus-border: #4d4b87;
+    --focus-shadow: 0 2px 20px rgba(77, 75, 135, 0.45);
+
+    /* ── Tailwind HSL-compatible tokens (dark) ── */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 6% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 13%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 10%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 14%;
+    --input: 240 3.7% 16%;
+    --ring: 240 4.9% 83.9%;
+
+    --surface-0: 240 10% 3.9%;
+    --surface-1: 240 6% 10%;
+    --surface-2: 240 5% 13%;
+    --surface-3: 240 5% 16%;
+    --surface-sidebar: #161616;
+
+    --text-secondary-hsl: 240 5% 65%;
+
+    --tool-read: 220 90% 60%;
+    --tool-edit: 38 92% 55%;
+    --tool-write: 142 71% 50%;
+    --tool-bash: 280 65% 65%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-normal: 0ms;
+    --motion-slow: 0ms;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  /* 参考桌面客户端-style global micro-interactions: buttons, list items, cards
+     get a soft background transition so hover always feels responsive. */
+  button,
+  [role="button"],
+  .interactive-row {
+    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-normal) ease, opacity var(--motion-fast) ease;
+  }
+  /* Message hover：固定 32px 操作行占位，只淡入不改变布局（参考桌面客户端 messages.css） */
+  .message-hover-shell {
+    display: flex;
+    flex-direction: column;
+  }
+  .message-actions-slot {
+    height: 32px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .message-hover-shell.items-end .message-actions-slot {
+    justify-content: flex-end;
+  }
+  .message-actions-slot-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .hover-reveal {
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition:
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .group:hover .hover-reveal,
+  .group:focus-within .hover-reveal {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  /* 三栏 Grid 收起：只过渡 grid-template-columns，中间 1fr 由引擎插值，减轻 Timeline 掉帧 */
+  .shell-three-col {
+    display: grid;
+    width: 100%;
+    min-height: 0;
+    overflow: hidden;
+    transition: grid-template-columns 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    contain: layout style;
+  }
+  .shell-left-dragging.shell-three-col,
+  .shell-right-dragging.shell-three-col {
+    transition: none;
+  }
+  .shell-track-left,
+  .shell-track-right {
+    contain: layout paint;
+    min-height: 0;
+  }
+  /* 左栏与对话区 grid 贴齐；圆角处由 center 的 #F3F3F3 衬底，不额外留灰条 */
+  .shell-track-left {
+    box-shadow: none;
+  }
+  .shell-track-center {
+    min-height: 0;
+    contain: layout;
+    padding: 0;
+    background: var(--surface-sidebar);
+  }
+  .shell-track-center .main-chat-column {
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    background: var(--bg-base);
+    overflow: hidden;
+    height: 100%;
+    box-shadow: 0 0 0 1px var(--border-base);
+  }
+  /* 右栏与对话区同高、同色；左侧竖线 + 顶部分割线与对话区顶边对齐 */
+  .shell-track-right {
+    box-shadow: inset 1px 0 0 0 var(--border-base);
+    border-top: 1px solid var(--border-base);
+  }
+  .shell-track-collapsed {
+    box-shadow: none !important;
+    border-top: none !important;
+  }
+  .shell-track-inner {
+    transition:
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateX(0);
+  }
+  .shell-track-collapsed .shell-track-inner {
+    opacity: 0;
+    transform: translateX(-12px);
+    pointer-events: none;
+  }
+
+  /* Sidebar / panel width（旧 flex 方案，Grid 壳层已替代） */
+  .panel-width-animate {
+    transition:
+      width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      min-width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 320ms ease,
+      opacity 200ms ease;
+  }
+  .panel-width-animate.sidebar-collapsed .sidebar-content-fade {
+    opacity: 0;
+    transition: opacity 180ms ease;
+  }
+  .sidebar-content-fade {
+    transition: opacity 280ms ease;
+  }
+  .sidebar-collapsed .sidebar-content-fade {
+    opacity: 1;
+  }
+  .sidebar-label-fade {
+    overflow: hidden;
+    white-space: nowrap;
+    transition:
+      opacity var(--motion-normal) var(--motion-ease),
+      transform var(--motion-normal) var(--motion-ease);
+    transform-origin: left center;
+    max-width: 240px;
+    opacity: 1;
+  }
+  .sidebar-collapsed .sidebar-label-fade {
+    max-width: 0;
+    opacity: 0;
+    margin-inline: 0;
+    transform: translateX(-6px);
+    pointer-events: none;
+  }
+  .sidebar-icon-fade {
+    transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+  }
+  .sidebar-collapsed .sidebar-icon-only {
+    opacity: 1;
+    transform: scale(1);
+  }
+  /* Tool / group expand：默认瞬时，避免时间线大量工具卡同时做高度动画 */
+  .expand-panel {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: none;
+  }
+  .expand-panel-open,
+  .expand-panel[data-open='true'] {
+    grid-template-rows: 1fr;
+  }
+  .expand-panel-inner {
+    overflow: hidden;
+    min-height: 0;
+  }
+  /* 侧栏折叠：height 由组件精确测量，避免 max-height 过大导致视觉上瞬间展开 */
+  .sidebar-collapse {
+    overflow: hidden;
+    height: 0;
+    opacity: 0;
+    transition:
+      height 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sidebar-collapse-inner {
+    transform: translateY(-10px) scaleY(0.98);
+    transform-origin: top;
+    transition:
+      transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 0.6;
+  }
+  .sidebar-collapse-open .sidebar-collapse-inner,
+  .sidebar-collapse[data-open='true'] .sidebar-collapse-inner {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+  @keyframes sidebar-tree-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-collapse {
+      transition: none !important;
+      opacity: 1 !important;
+      height: auto !important;
+    }
+    .sidebar-collapse:not(.sidebar-collapse-open):not([data-open='true']) {
+      display: none;
+    }
+    .sidebar-collapse-inner {
+      transform: none !important;
+    }
+    .chevron-expand,
+    .nav-row,
+    .chrome-icon-btn,
+    .sider-item-motion,
+    .sidebar-project-hit,
+    .sidebar-section-hit {
+      transition: none !important;
+    }
+  }
+  .chevron-expand {
+    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 200ms ease;
+  }
+  .chevron-expand[data-open='true'] {
+    transform: rotate(90deg);
+  }
+  .sidebar-project-row .nav-row {
+    border-radius: var(--radius-md);
+  }
+  .sidebar-project-hit {
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition:
+      background-color 200ms ease,
+      color 200ms ease;
+  }
+  .sidebar-project-hit:hover {
+    background-color: var(--bg-hover);
+  }
+
+  .sidebar-session-row {
+    cursor: pointer;
+  }
+  .sidebar-section-hit {
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .sidebar-section-hit:hover {
+    background-color: var(--bg-hover);
+  }
+  /* Electron frameless: drag title region */
+  .electron-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+  .electron-no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+  /* List rows: visible hover + press (参考桌面客户端 fill-2) */
+  .row-hover {
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 200ms ease;
+  }
+  .row-hover:hover {
+    background-color: var(--bg-hover);
+  }
+  .row-hover:active {
+    transform: scale(0.98);
+  }
+  .nav-row {
+    position: relative;
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-row:hover {
+    background-color: var(--bg-hover);
+  }
+  .nav-row-active {
+    background-color: var(--bg-active) !important;
+  }
+  .chrome-icon-btn {
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .chrome-icon-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--foreground);
+  }
+  .chrome-icon-btn:active {
+    transform: scale(0.92);
+  }
+  .win-ctrl-btn {
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .panel-resize-edge {
+    width: 6px;
+    background: transparent;
+  }
+  .panel-resize-edge--left {
+    flex-shrink: 0;
+  }
+  /* 右栏：手柄中心落在 grid 接缝（= 主对话区 box-shadow 右缘） */
+  .panel-resize-edge--right {
+    position: absolute;
+    left: -3px;
+    top: 0;
+    bottom: 0;
+  }
+  .chat-scroll-rail {
+    pointer-events: auto;
+  }
+  /* Composer input shell */
+  .native-code-shiki .shiki {
+    background: transparent !important;
+    padding: 0;
+  }
+  .native-code-shiki pre {
+    margin: 0;
+  }
+  .composer-shell {
+    background: var(--bg-base);
+    border-color: var(--border-base);
+    transition:
+      border-color var(--motion-normal) var(--motion-ease),
+      box-shadow var(--motion-normal) var(--motion-ease),
+      background-color var(--motion-fast) ease,
+      transform var(--motion-fast) ease;
+  }
+  .composer-shell:hover:not(.composer-shell-focused) {
+    border-color: color-mix(in srgb, var(--brand) 28%, var(--border-base));
+    background: color-mix(in srgb, var(--bg-1) 70%, var(--bg-base));
+  }
+  .composer-shell-focused {
+    border-color: var(--focus-border) !important;
+    box-shadow: var(--focus-shadow);
+    background: var(--bg-base);
+  }
+  .composer-shell-upper:empty {
+    display: none;
+  }
+  .composer-textarea {
+    transition: color var(--motion-fast) ease;
+    caret-color: var(--aou-6);
+    letter-spacing: 0.01em;
+  }
+  .dark .composer-textarea {
+    caret-color: var(--aou-7);
+  }
+  .composer-textarea::placeholder {
+    transition: opacity var(--motion-fast) ease;
+  }
+  .composer-shell-focused .composer-textarea::placeholder {
+    opacity: 0.55;
+  }
+  /* Model / thinking pills */
+  .composer-pill {
+    border-color: var(--border-base);
+    background: var(--bg-2);
+    color: var(--text-secondary);
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      transform var(--motion-fast) ease,
+      color var(--motion-fast) ease;
+  }
+  .composer-pill:hover {
+    background: var(--bg-hover);
+    border-color: color-mix(in srgb, var(--brand) 35%, var(--border-base));
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--brand) 8%, transparent);
+  }
+  .composer-pill:active {
+    transform: scale(0.97);
+    background: var(--bg-active);
+  }
+  .composer-pill-open {
+    border-color: var(--focus-border);
+    background: color-mix(in srgb, var(--brand-light) 40%, var(--bg-2));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 12%, transparent);
+  }
+  .composer-pill-active {
+    color: var(--brand);
+  }
+  .composer-send {
+    transition:
+      background-color var(--motion-fast) ease,
+      transform var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      opacity var(--motion-fast) ease;
+  }
+  .composer-send:not(:disabled):hover {
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+  .composer-send:not(:disabled):active {
+    transform: scale(0.96);
+  }
+  .composer-toolbar-btn {
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  .composer-toolbar-btn:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    color: var(--foreground-secondary);
+  }
+  .composer-toolbar-send {
+    transition: transform 200ms ease, background-color 200ms ease, opacity 200ms ease;
+  }
+  .composer-toolbar-send:not(:disabled):active {
+    transform: scale(0.94);
+  }
+  /* Picker overlay */
+  .picker-backdrop {
+    animation: picker-fade-in var(--motion-normal) var(--motion-ease) both;
+  }
+  .picker-panel {
+    animation: picker-scale-in var(--motion-normal) var(--motion-ease) both;
+  }
+  @keyframes picker-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes picker-scale-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .picker-row {
+    transition: background-color var(--motion-fast) ease, transform var(--motion-fast) ease;
+  }
+  .picker-row:hover {
+    background: var(--bg-hover);
+  }
+  .picker-row:active {
+    transform: scale(0.995);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  code, pre, kbd, samp {
+    font-family: var(--font-mono);
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Custom scrollbar (参考桌面客户端: thin, blends with surface) */
+@layer utilities {
+  /* 右侧 Tab：隐藏系统横向滚动条，用自绘 1px 轨道 */
+  .right-panel-tabs-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .right-panel-tabs-scroll::-webkit-scrollbar {
+    display: none;
+    height: 0;
+    width: 0;
+  }
+  /* 滚动条样式见 scrollbar-overlay.css（独立文件、非 @layer） */
+
+  /* ── Animations ── */
+  .animate-in {
+    animation: animate-in var(--motion-normal) var(--motion-ease) both;
+  }
+  .fade-in { animation-name: fade-in; }
+  .slide-in-from-bottom-1 { animation-name: slide-in-from-bottom-1; }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-in-from-bottom-1 {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-in.fade-in.slide-in-from-bottom-1 {
+    animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
+  }
+  /* 列表行默认无入场动画，避免滚动/流式时大量 keyframes 掉帧 */
+  .timeline-message-row {
+    contain: layout style;
+  }
+  .timeline-scroll-viewport {
+    overscroll-behavior: contain;
+    contain: layout style;
+  }
+  /* 向下滚到底：最后一条停在输入框上方（留白 + scroll-padding）；向上滚：内容可穿过悬浮层由渐变+模糊处理 */
+  .timeline-scroll-with-dock .overlay-scroll-pane {
+    padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
+    scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
+  }
+  /* 右侧留出轨道区，进度条/自绘滚动条不被渐变盖住 */
+  .composer-dock-fade {
+    left: 0;
+    right: 18px;
+    background: linear-gradient(
+      to top,
+      var(--bg-base) 0%,
+      var(--bg-base) 42%,
+      color-mix(in srgb, var(--bg-base) 88%, transparent) 72%,
+      transparent 100%
+    );
+  }
+  .composer-dock-panel {
+    border-radius: var(--radius-lg);
+  }
+  .main-chat-column .chat-scroll-rail--main-column {
+    bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
+    z-index: 50;
+  }
+  .main-chat-column .overlay-scrollbar-rail {
+    bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
+    z-index: 50;
+  }
+  .ui-enter {
+    animation: ui-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes ui-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes slide-in-from-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .animate-in.fade-in.slide-in-from-right {
+    animation: slide-in-from-right var(--motion-normal) var(--motion-ease) both;
+  }
+
+  /* 参考桌面客户端 breathe: color + glow ring, NO scale (for stop button / running badge) */
+  @keyframes breathe-glow {
+    0%, 100% {
+      opacity: 1;
+      background-color: transparent;
+      box-shadow: none;
+    }
+    50% {
+      opacity: 0.85;
+      background-color: color-mix(in srgb, var(--brand) 18%, transparent);
+      box-shadow: 0 0 8px 2px color-mix(in srgb, var(--brand) 30%, transparent);
+    }
+  }
+  .animate-breathe {
+    animation: breathe-glow 1.5s ease-in-out infinite;
+  }
+
+  /* 参考桌面客户端 stop-button breathe: background color shift + expanding glow ring */
+  @keyframes stop-breathe {
+    0% {
+      background-color: var(--aou-2);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent);
+    }
+    100% {
+      background-color: var(--aou-5);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--brand) 22%, transparent);
+    }
+  }
+  .animate-stop-breathe {
+    animation: stop-breathe 1.4s ease-in-out infinite alternate;
+  }
+  @keyframes thinking-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+  .animate-thinking-pulse {
+    animation: thinking-pulse 1.2s ease-in-out infinite;
+  }
+
+  /* 参考桌面客户端 skeleton shimmer */
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Subtle glow for running indicator */
+  .glow-running {
+    box-shadow: 0 0 8px 0 hsl(var(--tool-read) / 0.4);
+  }
+
+  /* 主对话区：居中，正文宽度上限略大于输入框 */
+  .chat-content-column {
+    width: 100%;
+    max-width: var(--timeline-content-max);
+    margin-inline: auto;
+    padding-inline: 1rem;
+    box-sizing: border-box;
+  }
+  @media (min-width: 768px) {
+    .chat-content-column {
+      padding-inline: 1.25rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .chat-content-column {
+      padding-inline: 1.5rem;
+    }
+  }
+  .composer-dock-inner {
+    max-width: var(--composer-content-max);
+  }
+
+  /* ── Markdown chat typography (参考桌面客户端 desktop-ui-markdown) ── */
+  .prose-chat {
+    font-size: 15px;
+    line-height: 1.7;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    color: var(--text-primary);
+  }
+  .prose-chat > :first-child { margin-top: 0; }
+  .prose-chat > :last-child { margin-bottom: 0; }
+  .prose-chat p { margin-block: 16px; }
+  .prose-chat > p:first-child { margin-top: 0; }
+  .prose-chat > p:last-child { margin-bottom: 0; }
+  .prose-chat strong { font-weight: 600; color: var(--text-primary); }
+  .prose-chat h1 { font-size: 24px; line-height: 32px; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
+  .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
+    font-size: 16px; line-height: 24px; margin-top: 20px; margin-bottom: 12px; font-weight: bold;
+  }
+  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
+  .prose-chat a:hover { text-decoration: underline; }
+  .prose-chat code:not(pre code) {
+    background: var(--bg-3);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
+  }
+  .prose-chat pre {
+    margin-block: 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    background: transparent;
+  }
+  .prose-chat blockquote {
+    border-left: 3px solid var(--bg-3);
+    padding-left: 12px;
+    color: var(--text-primary);
+    margin: 16px 0;
+  }
+  .prose-chat hr {
+    border: none;
+    border-top: 1px solid var(--bg-3);
+    margin: 28px 0;
+  }
+  .prose-chat ol, .prose-chat ul { padding-inline-start: 24px; }
+  .prose-chat li { margin-block: 6px; }
+  .prose-chat th { padding: 8px; border: 1px solid var(--bg-3); background: var(--bg-1); font-weight: bold; }
+  .prose-chat td { padding: 8px; border: 1px solid var(--bg-3); min-width: 120px; }
+}
+
+/* 参考桌面客户端 motion layer (layout.css timings) */
+@layer components {
+  .sider-item-motion {
+    transition:
+      padding 200ms ease,
+      margin 200ms ease,
+      background-color 200ms ease,
+      color 200ms ease,
+      box-shadow 200ms ease,
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sider-label-motion {
+    transition:
+      opacity 250ms ease,
+      transform 250ms ease,
+      max-width 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: left center;
+  }
+  .panel-dragging,
+  .panel-dragging * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .tab-indicator-motion {
+    transition:
+      transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 200ms ease,
+      width 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .popover-motion {
+    animation: popover-rise 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    transform-origin: bottom center;
+  }
+  @keyframes popover-rise {
+    from { opacity: 0; transform: translateY(10px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .backdrop-motion {
+    animation: backdrop-fade 300ms ease both;
+  }
+  @keyframes backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .stagger-1 { animation-delay: 40ms; }
+  .stagger-2 { animation-delay: 80ms; }
+  .stagger-3 { animation-delay: 120ms; }
+  .stagger-4 { animation-delay: 160ms; }
+  .stagger-5 { animation-delay: 200ms; }
+}
+
+/* ── Project Home: hero → dock 过渡动画 ── */
+
+/* Composer hero 居中位置：上移到视口中心偏上 */
+.composer-dock-hero {
+  transform: translateY(calc(-50vh + 50% - 2rem));
+}
+
+/* hero 态输入框更宽、更柔和 */
+.composer-dock-hero .composer-dock-inner {
+  transition: max-width var(--motion-slow) var(--motion-ease);
+}
+.composer-dock-hero .composer-shell {
+  border-color: var(--border-base);
+  box-shadow: 0 8px 40px -12px rgba(0,0,0,0.18), 0 2px 8px -4px rgba(0,0,0,0.08);
+  transition:
+    border-color var(--motion-slow) var(--motion-ease),
+    box-shadow var(--motion-slow) var(--motion-ease),
+    background-color var(--motion-normal) ease,
+    transform var(--motion-slow) var(--motion-ease);
+}
+.composer-dock-hero .composer-shell-focused {
+  border-color: color-mix(in srgb, var(--brand) 40%, var(--border-base));
+  box-shadow: 0 8px 48px -10px rgba(0,0,0,0.22), 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+/* Project Home view 淡入/淡出 */
+.project-home-view {
+  animation: project-home-fade-in 0.32s var(--motion-ease) both;
+}
+.project-home-view-exit {
+  animation: project-home-fade-out 0.24s var(--motion-ease) both;
+}
+@keyframes project-home-fade-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes project-home-fade-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+
+/* ComposerDock hero → dock 下落过渡：spring-like 缓动 */
+.composer-dock-host {
+  transition-property: transform;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+/* hero 态隐藏底部渐变层（已在 ComposerDock 里条件渲染，这里保底） */
+.composer-dock-hero .composer-dock-fade { opacity: 0; }
+
+/* 项目选择器卡片入场 */
+.project-picker-card {
+  animation: picker-card-rise 0.22s var(--motion-ease) both;
+}
+@keyframes picker-card-rise {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}

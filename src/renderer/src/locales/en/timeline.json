@@ -1,0 +1,8 @@
+{
+  "placeholder": "Start a conversation or select a past session",
+  "compaction": {
+    "summary": "Compressed {{count}} history entries",
+    "expand": "Expand to see full summary"
+  },
+  "emptyState": "No messages yet"
+}

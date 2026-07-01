@@ -1,0 +1,95 @@
+{
+  "id": "pi-fast-context",
+  "displayName": "Fast Context",
+  "description": "语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试）",
+  "match": {
+    "names": ["pi-fast-context"],
+    "tools": ["fast_context_search"],
+    "commands": ["/fast-context-status", "/fast-context-config", "/fast-context-import-key"]
+  },
+  "tier": "headless",
+  "toolCard": { "template": "list", "icon": "Search", "statusField": "$.output.text" },
+  "config": {
+    "configFile": "~/.pi/agent/fast-context.json",
+    "fileKeyMap": {
+      "apiKey": "apiKey",
+      "dbPath": "dbPath",
+      "treeDepth": "treeDepth",
+      "maxTurns": "maxTurns",
+      "maxCommands": "maxCommands",
+      "maxResults": "maxResults",
+      "timeoutSecs": "timeoutSecs",
+      "excludePaths": "excludePaths",
+      "repoMapMode": "repoMapMode",
+      "bootstrapEnabled": "bootstrapEnabled",
+      "bootstrapTreeDepth": "bootstrapTreeDepth",
+      "hotspotTopK": "hotspotTopK",
+      "hotspotTreeDepth": "hotspotTreeDepth",
+      "hotspotMaxBytes": "hotspotMaxBytes",
+      "bootstrapMaxTurns": "bootstrapMaxTurns",
+      "bootstrapMaxCommands": "bootstrapMaxCommands"
+    },
+    "envOverride": {
+      "apiKey": "FAST_CONTEXT_API_KEY",
+      "dbPath": "FAST_CONTEXT_DB_PATH",
+      "treeDepth": "FAST_CONTEXT_TREE_DEPTH",
+      "maxTurns": "FAST_CONTEXT_MAX_TURNS",
+      "maxCommands": "FAST_CONTEXT_MAX_COMMANDS",
+      "maxResults": "FAST_CONTEXT_MAX_RESULTS",
+      "timeoutSecs": "FAST_CONTEXT_TIMEOUT_SECS",
+      "excludePaths": "FAST_CONTEXT_EXCLUDE_PATHS",
+      "repoMapMode": "FAST_CONTEXT_REPO_MAP_MODE",
+      "bootstrapEnabled": "FAST_CONTEXT_BOOTSTRAP_ENABLED",
+      "bootstrapTreeDepth": "FAST_CONTEXT_BOOTSTRAP_TREE_DEPTH",
+      "hotspotTopK": "FAST_CONTEXT_HOTSPOT_TOP_K",
+      "hotspotTreeDepth": "FAST_CONTEXT_HOTSPOT_TREE_DEPTH",
+      "hotspotMaxBytes": "FAST_CONTEXT_HOTSPOT_MAX_BYTES",
+      "bootstrapMaxTurns": "FAST_CONTEXT_BOOTSTRAP_MAX_TURNS",
+      "bootstrapMaxCommands": "FAST_CONTEXT_BOOTSTRAP_MAX_COMMANDS"
+    },
+    "sections": [
+      {
+        "title": "API 与索引",
+        "fields": [
+          { "key": "apiKey", "type": "secret", "label": "API Key", "description": "嵌入服务密钥；留空则用 WINDSURF_API_KEY 自动发现" },
+          { "key": "dbPath", "type": "text", "label": "索引数据库路径", "description": "留空使用默认 ~/.pi/agent/fast-context.db" }
+        ]
+      },
+      {
+        "title": "搜索行为",
+        "fields": [
+          { "key": "treeDepth", "type": "number", "label": "仓库树深度", "default": 2 },
+          { "key": "maxTurns", "type": "number", "label": "最大搜索轮数", "default": 2 },
+          { "key": "maxCommands", "type": "number", "label": "每轮最大命令数", "default": 8 },
+          { "key": "maxResults", "type": "number", "label": "最大结果数", "default": 8 },
+          { "key": "timeoutSecs", "type": "number", "label": "超时（秒）", "default": 60 }
+        ]
+      },
+      {
+        "title": "仓库图模式",
+        "fields": [
+          { "key": "repoMapMode", "type": "select", "label": "Repo Map 模式", "default": "classic", "options": ["classic", "bootstrap_hotspot"] },
+          { "key": "excludePaths", "type": "text", "label": "排除路径（逗号分隔）", "description": "如 node_modules,dist,.git" }
+        ]
+      },
+      {
+        "title": "Bootstrap / Hotspot",
+        "fields": [
+          { "key": "bootstrapEnabled", "type": "boolean", "label": "启用 Bootstrap", "default": false },
+          { "key": "bootstrapTreeDepth", "type": "number", "label": "Bootstrap 树深度", "default": 3 },
+          { "key": "bootstrapMaxTurns", "type": "number", "label": "Bootstrap 最大轮数", "default": 1 },
+          { "key": "bootstrapMaxCommands", "type": "number", "label": "Bootstrap 最大命令数", "default": 6 },
+          { "key": "hotspotTopK", "type": "number", "label": "Hotspot TopK", "default": 8 },
+          { "key": "hotspotTreeDepth", "type": "number", "label": "Hotspot 树深度", "default": 4 },
+          { "key": "hotspotMaxBytes", "type": "number", "label": "Hotspot 最大字节", "default": 20000 }
+        ]
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/fast-context.json（与扩展 CLI/TUI 共享）。apiKey 留空时扩展会自动发现 WINDSURF_API_KEY。"
+  },
+  "slash": {
+    "/fast-context-status": "notify",
+    "/fast-context-config": "config-page",
+    "/fast-context-import-key": "config-page"
+  }
+}

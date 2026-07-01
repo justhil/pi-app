@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+
+# Build / pack output (regenerate: npm run build, npm run icon:export)
+out/
+dist/
+build/icon.png
+
+# Removed remote docs directory
+docs/
+
+# Logs & debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Agent / local assistant instructions (not shipped)
+AGENTS.md
+
+# IDE / editor local (not shipped)
+.cursor/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project-local pi + Trellis (machine / workflow, not app source)
+.pi/
+.trellis/
+
+# Generated / scratch / test artifacts
+.image-gen/
+screenshot*.png
+screenshot*.jpg
+screenshot*.jpeg
+*-result.txt
+*.tmp
+*.temp
+.cache/
+coverage/
+.nyc_output/
+tmp/
+temp/
+
+# Electron / Vite
+*.tsbuildinfo
+.vite/
+
+# Native addons rebuild noise (keep package-lock)
+*.node.map
+
+# Local-only git history rewrite helpers (do not publish)
+scripts/filter_repo_message*.py
+scripts/replace-text-history.txt
+scripts/rewrite-commit-messages.txt
+scripts/fix-arrow-syntax.py

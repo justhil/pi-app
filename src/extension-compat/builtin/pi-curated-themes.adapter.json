@@ -1,0 +1,8 @@
+{
+  "id": "@victor-software-house/pi-curated-themes",
+  "displayName": "Curated Themes",
+  "description": "pi 终端主题包（桌面用独立 Appearance 设置）",
+  "match": { "names": ["@victor-software-house/pi-curated-themes", "pi-curated-themes"] },
+  "tier": "none",
+  "config": { "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。" }
+}

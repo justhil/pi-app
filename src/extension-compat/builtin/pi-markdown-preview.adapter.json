@@ -1,0 +1,21 @@
+{
+  "id": "pi-markdown-preview",
+  "displayName": "Markdown Preview",
+  "description": "Markdown/LaTeX 预览与 PDF/HTML 导出（工具结果 + 打开产物）",
+  "match": {
+    "names": ["pi-markdown-preview"],
+    "tools": ["preview_export"],
+    "commands": ["/preview", "/preview-browser", "/preview-pdf", "/preview-clear-cache"]
+  },
+  "tier": "partial",
+  "toolCard": { "template": "default", "icon": "FileText", "statusField": "$.output.text" },
+  "config": {
+    "note": "预览/导出由扩展工具执行；桌面展示结果卡片并提供打开产物（路径来自 details.paths）。"
+  },
+  "slash": {
+    "/preview": "notify",
+    "/preview-browser": "notify",
+    "/preview-pdf": "notify",
+    "/preview-clear-cache": "notify"
+  }
+}

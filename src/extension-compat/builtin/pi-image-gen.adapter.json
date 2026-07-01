@@ -1,0 +1,89 @@
+{
+  "id": "pi-image-gen",
+  "displayName": "Image Gen",
+  "description": "生图与审图工具（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
+  "match": {
+    "names": ["pi-image-gen"],
+    "tools": ["image_gen", "image_review"]
+  },
+  "tier": "partial",
+  "toolCard": { "template": "media", "icon": "Image", "statusField": "$.output.text" },
+  "interact": {
+    "trigger": { "tool": "image_review" },
+    "schema": "review",
+    "fields": {
+      "image": "$.image",
+      "title": "$.title",
+      "question": "$.question",
+      "context": "$.context",
+      "options": "$.options",
+      "allow_feedback": "$.allow_feedback"
+    }
+  },
+  "config": {
+    "configFile": "~/.pi/agent/image-gen.json",
+    "fileKeyMap": {
+      "baseUrl": "baseUrl",
+      "apiKey": "apiKey",
+      "model": "model",
+      "size": "size",
+      "responseFormat": "responseFormat",
+      "outputDir": "outputDir",
+      "maxConcurrency": "maxConcurrency",
+      "reviewToolEnabled": "reviewToolEnabled"
+    },
+    "localKeys": ["showInlinePreview"],
+    "sections": [
+      {
+        "title": "API",
+        "fields": [
+          { "key": "baseUrl", "type": "text", "label": "API Base URL", "default": "http://127.0.0.1:8080", "description": "OpenAI 兼容的生图服务地址（不含 /v1）" },
+          { "key": "apiKey", "type": "secret", "label": "API Key", "description": "输入 - 清除已保存 key" },
+          {
+            "key": "model",
+            "type": "select",
+            "label": "模型",
+            "default": "gpt-image-2",
+            "optionsFrom": {
+              "url": "${baseUrl}/v1/models",
+              "headers": { "Authorization": "Bearer ${apiKey}" },
+              "itemsPath": "data",
+              "valueFrom": "id",
+              "timeoutMs": 15000
+            }
+          }
+        ]
+      },
+      {
+        "title": "生成",
+        "fields": [
+          { "key": "size", "type": "select", "label": "默认尺寸", "default": "1024x1024", "options": ["1024x1024", "1024x1536", "1536x1024", "auto"] },
+          { "key": "responseFormat", "type": "select", "label": "返回格式", "default": "b64_json", "options": ["b64_json", "url"] },
+          { "key": "outputDir", "type": "text", "label": "输出目录", "default": ".image-gen" },
+          { "key": "maxConcurrency", "type": "number", "label": "最大并行数（1-8）", "default": 4 }
+        ]
+      },
+      {
+        "title": "桌面卡片",
+        "fields": [
+          { "key": "reviewToolEnabled", "type": "boolean", "label": "启用 image_review 审图工具", "default": true },
+          { "key": "showInlinePreview", "type": "boolean", "label": "时间线内联图像预览", "default": true }
+        ]
+      }
+    ],
+    "actions": [
+      {
+        "id": "test",
+        "type": "httpCheck",
+        "label": "测试连接",
+        "method": "GET",
+        "url": "${baseUrl}/v1/models",
+        "headers": { "Authorization": "Bearer ${apiKey}" },
+        "timeoutMs": 15000,
+        "report": { "countPath": "data.length", "label": "可用模型" }
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/image-gen.json（与扩展 CLI/TUI 共享）。showInlinePreview 为桌面卡片本地开关，不写入扩展配置。"
+  },
+  "slash": { "/image-gen": "config-page", "/image-gen:config": "config-page" }
+}

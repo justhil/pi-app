@@ -1,0 +1,23 @@
+{
+  "id": "pi-studio",
+  "displayName": "Studio",
+  "description": "REPL 与 PDF/HTML 导出工具（结果卡片 + 打开产物）",
+  "match": {
+    "names": ["pi-studio"],
+    "tools": ["studio_repl_status", "studio_repl_send", "studio_export_pdf", "studio_export_html"],
+    "commands": ["/studio", "/studio-replace", "/studio-editor-only", "/studio-pdf", "/studio-html", "/studio-current"]
+  },
+  "tier": "partial",
+  "toolCard": { "template": "default", "icon": "Terminal" },
+  "config": {
+    "note": "Studio REPL/导出由扩展工具执行；桌面无 tmux 终端，仅结果卡片与打开产物。"
+  },
+  "slash": {
+    "/studio": "config-page",
+    "/studio-replace": "config-page",
+    "/studio-editor-only": "config-page",
+    "/studio-pdf": "notify",
+    "/studio-html": "notify",
+    "/studio-current": "notify"
+  }
+}

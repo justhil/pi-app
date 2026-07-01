@@ -1,0 +1,9 @@
+{
+  "id": "@agnishc/edb-context-viewer",
+  "displayName": "Context Viewer",
+  "description": "上下文查看器（斜杠输出只读说明）",
+  "match": { "names": ["@agnishc/edb-context-viewer"], "commands": ["/context"] },
+  "tier": "headless",
+  "config": { "note": "上下文查看由扩展自管；桌面仅展示斜杠状态输出。" },
+  "slash": { "/context": "notify" }
+}

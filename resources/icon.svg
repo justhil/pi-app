@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
+  <rect width="1024" height="1024" rx="256" ry="256" fill="#000000"/>
+  
+  <text 
+    x="512" 
+    y="740" 
+    font-family="'Times New Roman', Georgia, serif" 
+    font-size="760" 
+    fill="#ffffff" 
+    text-anchor="middle">
+    π
+  </text>
+</svg>

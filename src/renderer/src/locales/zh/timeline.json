@@ -1,0 +1,8 @@
+{
+  "placeholder": "开始对话或选择一个历史会话",
+  "compaction": {
+    "summary": "已压缩 {{count}} 条历史",
+    "expand": "展开查看完整摘要"
+  },
+  "emptyState": "暂无消息"
+}

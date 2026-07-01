@@ -1,0 +1,44 @@
+{
+  "id": "@narumitw/pi-sync",
+  "displayName": "Pi Sync",
+  "description": "配置同步到 R2（配置 ~/.pi/agent/pi-sync.local.json）",
+  "match": { "names": ["@narumitw/pi-sync"], "commands": ["/pisync"] },
+  "tier": "headless",
+  "config": {
+    "configFile": "~/.pi/agent/pi-sync.local.json",
+    "fileKeyMap": {
+      "endpoint": "endpoint",
+      "bucket": "bucket",
+      "region": "region",
+      "accessKeyId": "accessKeyId",
+      "secretAccessKey": "secretAccessKey",
+      "sessionToken": "sessionToken",
+      "profile": "profile",
+      "prefix": "prefix",
+      "autoSync": "autoSync"
+    },
+    "sections": [
+      {
+        "title": "R2 / S3 兼容存储",
+        "fields": [
+          { "key": "endpoint", "type": "text", "label": "Endpoint URL", "description": "如 https://xxx.r2.cloudflarestorage.com" },
+          { "key": "bucket", "type": "text", "label": "Bucket" },
+          { "key": "region", "type": "text", "label": "Region", "default": "auto" },
+          { "key": "accessKeyId", "type": "text", "label": "Access Key ID" },
+          { "key": "secretAccessKey", "type": "secret", "label": "Secret Access Key" },
+          { "key": "sessionToken", "type": "secret", "label": "Session Token", "description": "可选，临时凭证" }
+        ]
+      },
+      {
+        "title": "同步策略",
+        "fields": [
+          { "key": "profile", "type": "text", "label": "Profile 名称", "default": "default" },
+          { "key": "prefix", "type": "text", "label": "对象前缀", "default": "pi-sync" },
+          { "key": "autoSync", "type": "boolean", "label": "会话结束自动同步", "default": false }
+        ]
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/pi-sync.local.json（与扩展 /pisync init 共享）。保存后可在终端 /pisync doctor 验证连通性。"
+  },
+  "slash": { "/pisync": "notify", "/pisync config": "config-page" }
+}

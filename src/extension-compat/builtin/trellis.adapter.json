@@ -1,0 +1,35 @@
+{
+  "id": "trellis",
+  "displayName": "Trellis",
+  "description": "Trellis 子代理进度与任务状态（只读面板 + 工具卡片）",
+  "match": {
+    "names": ["trellis"],
+    "tools": ["trellis_subagent"],
+    "commands": ["/trellis"]
+  },
+  "tier": "native",
+  "alwaysVisible": true,
+  "toolCard": { "template": "tree", "icon": "Network" },
+  "config": {
+    "note": "Trellis 任务数据由扩展/工作区 .trellis 自管；桌面只读面板读取 task.py current 与最近日志。",
+    "sections": [
+      {
+        "title": "桌面面板",
+        "fields": [
+          { "key": "showRecentJournal", "type": "boolean", "label": "显示最近日志", "default": true },
+          { "key": "journalLimit", "type": "number", "label": "日志条数上限", "default": 5 }
+        ]
+      }
+    ]
+  },
+  "sidePanel": {
+    "stateProvider": "workspace-trellis",
+    "panelComponent": "workspace-tasks",
+    "panelId": "adapter:trellis",
+    "label": "Trellis",
+    "description": "任务与阶段（只读）",
+    "icon": "ListTree",
+    "defaultEnabled": true
+  },
+  "slash": { "/trellis": "open-panel" }
+}

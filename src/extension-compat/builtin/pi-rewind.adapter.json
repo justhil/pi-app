@@ -1,0 +1,7 @@
+{
+  "id": "pi-rewind",
+  "displayName": "pi-rewind",
+  "match": { "names": ["pi-rewind"], "commands": ["/rewind"] },
+  "tier": "none",
+  "slash": { "/rewind": "notify" }
+}

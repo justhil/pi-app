@@ -1,0 +1,42 @@
+appId: com.pi.desktop
+productName: pi Desktop
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.{ts,map}'
+
+extraFiles:
+  - from: node_modules/electron/dist/chrome_100_percent.pak
+    to: chrome_100_percent.pak
+  - from: node_modules/electron/dist/chrome_200_percent.pak
+    to: chrome_200_percent.pak
+  - from: build/icon.png
+    to: resources/build/icon.png
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+
+portable:
+  artifactName: ${productName}-Portable-${version}-${arch}.${ext}
+
+publish:
+  provider: github
+  releaseType: release
