@@ -39,6 +39,6 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 |----|--------|----------|
 | Overall | 6.0 B → iter5 推进中 | ≥8.0 A |
 | Testing | 5.0 C | ≥7.0 |
-| ipc.ts | 864→677；预算门禁 700 | &lt;500 |
+| ipc.ts | **36**（iter6）；预算 500 ✓ | &lt;500 ✓ |
 
 任务：`07-01-07-01-arch-strict-to-a`（达标后归档）。威胁模型：`doc/THREAT-MODEL.md`。

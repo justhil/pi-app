@@ -5,10 +5,9 @@ import { join } from 'node:path'
 
 const root = process.cwd()
 const IPC_MAIN = join(root, 'src/main/ipc.ts')
-// Phase strict-to-a: target 500; interim gate after iter5 handler splits (was 864)
-const MAX_LINES = 700
+const MAX_LINES = 500
 
-describe('ipc.ts size budget (strict arch, interim 700)', () => {
+describe('ipc.ts size budget (strict arch)', () => {
   it(`ipc.ts line count <= ${MAX_LINES}`, () => {
     const lines = readFileSync(IPC_MAIN, 'utf8').split('\n').length
     assert.ok(
