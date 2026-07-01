@@ -33,6 +33,12 @@ export function readRendererSandboxEnabled(): boolean {
   return true
 }
 
+/** Playwright / CI smoke: show window immediately, skip slow startup side effects in main. */
+export function isE2eTestMode(): boolean {
+  const v = process.env.PI_E2E
+  return v === '1' || v === 'true' || v === 'yes'
+}
+
 export function createWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -56,8 +62,9 @@ export function createWindow(): BrowserWindow {
   })
 
   mainWindow.on('ready-to-show', () => {
-    // 避免与 Vite HMR / 二次实例抢焦点时连响系统提示音
-    if (is.dev) {
+    if (isE2eTestMode()) {
+      mainWindow?.show()
+    } else if (is.dev) {
       mainWindow?.showInactive()
     } else {
       mainWindow?.show()

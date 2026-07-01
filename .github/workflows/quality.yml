@@ -78,6 +78,7 @@ jobs:
 
   e2e-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -87,4 +88,5 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: E2E smoke (xvfb)
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:e2e

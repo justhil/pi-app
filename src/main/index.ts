@@ -70,13 +70,15 @@ app.whenReady().then(() => {
   registerAllHandlers()
   const win = createWindow()
   workerManager.setMainWindow(win)
-  win.once('show', () => {
-    setTimeout(() => {
-      import('./updater').then(({ initUpdater }) => initUpdater(win)).catch((e) => {
-        console.warn('[Updater] Failed to initialize:', e)
-      })
-    }, 3000)
-  })
+  if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
+    win.once('show', () => {
+      setTimeout(() => {
+        import('./updater').then(({ initUpdater }) => initUpdater(win)).catch((e) => {
+          console.warn('[Updater] Failed to initialize:', e)
+        })
+      }, 3000)
+    })
+  }
 
   // 不自动打开上次项目：进 app 显示空 Project Home，用户自行选择项目
 
