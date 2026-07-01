@@ -34,7 +34,7 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 - `node --test scripts/tests/*.test.mjs` — CI `quality.yml`
 - `node scripts/ci-audit.mjs` — CI `dependency-audit`（critical 门禁）
 - `doc/IPC-CONTRACTS.md` — IPC Backend-API 文档
-- **`doc/fmsm-audit-report-2026-07-01.html`** — FMSM 严苛审计报告（亮色 HTML，Overall 8.0 A）
+- FMSM 严苛 HTML（**不入 git**）：`docs/audit/audit-report-pi-app-2026-07-01-iter12.html`（亮色，Overall 8.0 A）；见 `docs/README.md`
 
 ## 严苛评分（FMSM 2026-07-01）
 
