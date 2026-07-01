@@ -13,7 +13,7 @@ export async function applyPiDefaultModelToWorkerSession(): Promise<void> {
   const key = `${provider}/${modelId}`
   try {
     await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
-    const st = await ipcClient.invoke('runtime.getState' as any)
+    const st = await ipcClient.invoke('ipc:runtime.getState', {})
     const wm = normalizeModelKey(st?.state?.model) ?? key
     useUIStore.getState().setRunState({ model: wm })
   } catch (e) {

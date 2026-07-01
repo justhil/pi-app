@@ -37,7 +37,7 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
   let trustWorker = !previewFile
 
   try {
-    const res = await ipcClient.invoke('runtime.getState' as any)
+    const res = await ipcClient.invoke('ipc:runtime.getState', {})
     const st = res?.state as { sessionFile?: string; model?: string; thinkingLevel?: string } | null
     if (previewFile && st?.sessionFile) {
       trustWorker = st.sessionFile === previewFile

@@ -1,4 +1,5 @@
 import { ipcMain, type BrowserWindow } from 'electron'
+import type { AppEvent } from '@shared/app-events'
 
 /** Gradual typing: handlers use structured req; default any until per-channel contracts land. */
 export type IpcHandlerFn = (request: any) => Promise<any>
@@ -20,7 +21,7 @@ export function registerHandler(channel: string, handler: IpcHandlerFn): void {
   })
 }
 
-export function sendEvent(win: BrowserWindow, event: unknown): void {
+export function sendEvent(win: BrowserWindow, event: AppEvent): void {
   if (!win.isDestroyed()) {
     win.webContents.send('ipc:events', event)
   }

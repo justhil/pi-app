@@ -70,11 +70,9 @@ import { registerSessionHandlers } from './ipc/handlers/session'
 import { registerPromptHandlers } from './ipc/handlers/prompt'
 import { registerSettingsHandlers } from './ipc/handlers/settings'
 import { registerWindowControlHandlers } from './ipc/handlers/window-controls'
-
-registerHandler('ipc:extension.respondUI', async (req) => {
-  workerManager.respondExtensionUI(req)
-  return { ok: true }
-})
+import { registerModelRuntimeHandlers } from './ipc/handlers/model-runtime'
+import { registerExtensionHandlers } from './ipc/handlers/extensions'
+import { registerExtensionUiHandlers } from './ipc/handlers/extension-ui'
 
 export { registerHandler, sendEvent } from './ipc/registry'
 
@@ -86,17 +84,9 @@ export function registerAllHandlers(): void {
   registerPromptHandlers()
   registerSettingsHandlers()
   registerWindowControlHandlers()
-
-  registerHandler('ipc:extension.config.get', async (req) => {
-    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
-    return { config: configStore.getExtensionConfig(workspaceId, req.extensionId) || {} }
-  })
-
-  registerHandler('ipc:extension.config.set', async (req) => {
-    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
-    configStore.setExtensionConfig(workspaceId, req.extensionId, req.config || {})
-    return { ok: true }
-  })
+  registerExtensionUiHandlers()
+  registerModelRuntimeHandlers()
+  registerExtensionHandlers()
 
   // ── Adapter Layer v2 (doc/adapter-layer-plan.md §6) — generic per-adapter config/action IPC ──
   registerHandler('ipc:adapter.config.get', async (req) => {
@@ -147,107 +137,6 @@ export function registerAllHandlers(): void {
     const order = normalizeRightPanelOrder(req?.order, catalog)
     configStore.setRightPanelLayout(prefs, order)
     return { ok: true, prefs, order }
-  })
-
-  // ── Model ──
-  registerHandler('ipc:model.list', async (req) => {
-    const scope = req?.scope === 'available' ? 'available' : 'catalog'
-    const mapRegistry = (models: any[]) =>
-      models.map((m: any) => ({
-        id: m.id,
-        name: m.name || m.id,
-        provider: m.provider,
-        contextWindow: m.contextWindow || 0,
-        maxOutput: m.maxOutput || m.maxTokens || 0,
-        available: true,
-      }))
-
-    const catalogFromDisk = () => {
-      const { config, parseError } = readModelsConfigRaw()
-      if (parseError) return { models: [] as any[] }
-      return { models: modelsCatalogFromConfig(config) }
-    }
-
-    if (scope === 'catalog') {
-      return catalogFromDisk()
-    }
-
-    // scope=available：会话 / Composer 用（需鉴权）
-    if (workerManager.isRunning) {
-      try {
-        const models = await workerManager.getModels()
-        if (models.length > 0) return { models }
-      } catch (e) {
-        console.error('[IPC] model.list worker failed:', e)
-      }
-    }
-    try {
-      const { ModelRegistry, AuthStorage } = await getActiveSdkModule()
-      const auth = AuthStorage.create()
-      const registry = ModelRegistry.create(auth)
-      const models = await registry.getAvailable()
-      if (models.length > 0) return { models: mapRegistry(models) }
-    } catch (e) {
-      console.error('[IPC] model.list failed:', e)
-    }
-    return catalogFromDisk()
-  })
-
-  registerHandler('ipc:model.set', async (req) => {
-    let provider: string
-    let modelId: string
-    if (req.provider && req.modelId) {
-      provider = req.provider
-      modelId = req.modelId
-    } else {
-      const raw = req.modelId || ''
-      if (raw.includes('/')) {
-        ;[provider, modelId] = raw.split('/') as [string, string]
-      } else {
-        provider = 'anthropic'
-        modelId = raw
-      }
-    }
-    if (!workerManager.isRunning) {
-      const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')
-      await workerManager.start(cwd)
-    }
-    await workerManager.setModel(provider, modelId)
-    return { modelId: `${provider}/${modelId}` }
-  })
-
-  registerHandler('ipc:model.cycle', async (_req) => {
-    // TODO: implement via session.cycleModel
-    return { modelId: '', thinkingLevel: 'medium' }
-  })
-
-  // ── ThinkingLevel ──
-  registerHandler('ipc:thinkingLevel.set', async (req) => {
-    if (!workerManager.isRunning) {
-      const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')
-      await workerManager.start(cwd)
-    }
-    await workerManager.setThinkingLevel(req.level)
-    return { level: req.level }
-  })
-
-  registerHandler('ipc:runtime.getState', async () => {
-    if (!workerManager.isRunning) return { state: null }
-    const state = await workerManager.getState()
-    return { state }
-  })
-
-  registerHandler('ipc:context.preview', async () => {
-    if (!workerManager.isRunning) return { preview: null }
-    try {
-      const preview = await workerManager.getSessionContextPreview()
-      return { preview }
-    } catch (e) {
-      console.error('[IPC] context.preview failed:', e)
-      return { preview: null }
-    }
   })
 
   registerHandler('ipc:skills.list', async () => {
@@ -585,82 +474,6 @@ export function registerAllHandlers(): void {
     const r = resolveSidePanelState(adapterId, cwd, workspaceId)
     if (!r.ok) return { ok: false, error: r.error, state: null }
     return { ok: true, state: r.state }
-  })
-
-  // ── Extensions ──
-  registerHandler('ipc:extensions.list', async (_req) => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const probes = probeExtensions(cwd)
-    const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
-    applyPiSyncToExtensionProbes(cwd, probes)
-    return { extensions: probes }
-  })
-
-  registerHandler('ipc:extensions.setEnabled', async (req) => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const extensionId = String(req.extensionId || '')
-    const enabled = req.enabled !== false
-    const probes = probeExtensions(cwd)
-    const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
-    applyPiSyncToExtensionProbes(cwd, probes)
-    const ext = probes.find((p) => p.id === extensionId)
-    if (!ext?.toggleTarget) {
-      return { ok: false, extensionId, enabled, error: '无法同步：未找到扩展或未列入 settings.packages' }
-    }
-    const { setPiExtensionEnabled } = await import('./pi-package-resource-toggle.js')
-    const r = setPiExtensionEnabled(cwd, ext.toggleTarget, enabled)
-    if (!r.ok) return { ok: false, extensionId, enabled, error: r.error }
-    if (workerManager.isRunning) {
-      await workerManager.reloadResources().catch(() => {})
-    }
-    return { ok: true, extensionId, enabled, needsWorkerReload: true }
-  })
-
-  /** @deprecated 使用 extensions.setEnabled（写入 pi settings） */
-  registerHandler('ipc:extensions.setOverride', async (req) => {
-    const r = await (async () => {
-      const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-      const extensionId = String(req.extensionId || '')
-      const enabled = req.enabled !== false
-      const probes = probeExtensions(cwd)
-      const { applyPiSyncToExtensionProbes } = await import('./pi-extension-probe-sync.js')
-      applyPiSyncToExtensionProbes(cwd, probes)
-      const ext = probes.find((p) => p.id === extensionId)
-      if (!ext?.toggleTarget) return { ok: false as const, error: 'no toggle target' }
-      const { setPiExtensionEnabled } = await import('./pi-package-resource-toggle.js')
-      return setPiExtensionEnabled(cwd, ext.toggleTarget, enabled)
-    })()
-    if (!r.ok) {
-      configStore.setExtensionOverride(req.extensionId, req.enabled)
-    }
-    return { extensionId: req.extensionId, enabled: req.enabled }
-  })
-
-  registerHandler('ipc:extensions.missingRuntimePackages', async () => {
-    return { missing: listMissingRuntimePackages() }
-  })
-
-  registerHandler('ipc:extensions.syncGitPackages', async () => {
-    const result = appendMissingGitPackagesToSettings()
-    const cwd = workerManager.cwd || configStore.get('currentProject')
-    if (result.added.length > 0 && cwd) {
-      try {
-        await workerManager.stop()
-        await workerManager.start(cwd)
-      } catch (e) {
-        console.error('[IPC] Worker restart after package sync failed:', e)
-      }
-    }
-    return result
-  })
-
-  registerHandler('ipc:adapters.catalog', async (req) => {
-    if (req?.refresh) invalidateAdapterCatalog()
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const extensions = probeExtensions(cwd)
-    const probed = buildPluginAdapters(extensions, cwd)
-    // 只返回已安装插件匹配的适配器；未安装的不在设置页显示空壳
-    return { adapters: probed }
   })
 
   registerHandler('ipc:slash.normalize', async (req) => {

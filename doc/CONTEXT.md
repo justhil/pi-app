@@ -33,6 +33,12 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 - `npm run typecheck` — web + node
 - `node --test scripts/tests/*.test.mjs` — CI `quality.yml`
 
-## 架构优化循环
+## 严苛评分（FMSM 2026-07-01）
 
-任务：`.trellis/tasks/07-01-arch-optimize-loop` — 目标 Maintainability / Type-Safety / Frontend-State / Backend-API ≥ 8.0，消除 High 级 IPC/ui-store finding。
+| 项 | 严苛分 | PRD 目标 |
+|----|--------|----------|
+| Overall | 6.0 B → iter5 推进中 | ≥8.0 A |
+| Testing | 5.0 C | ≥7.0 |
+| ipc.ts | 864→677；预算门禁 700 | &lt;500 |
+
+任务：`07-01-07-01-arch-strict-to-a`（达标后归档）。威胁模型：`doc/THREAT-MODEL.md`。
