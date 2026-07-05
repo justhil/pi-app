@@ -5,9 +5,18 @@ import { execSync } from 'node:child_process'
 import { join } from 'node:path'
 
 const root = process.cwd()
+const V410_FIXTURE = join(root, 'scripts/tests/fixtures/worker-index-v0.4.10.ts')
+
+function readV410WorkerIndex() {
+  try {
+    return readFileSync(V410_FIXTURE, 'utf8')
+  } catch {
+    return execSync('git show v0.4.10:src/worker/index.ts', { encoding: 'utf8', cwd: root })
+  }
+}
 
 function v410WorkerCases() {
-  const src = execSync('git show v0.4.10:src/worker/index.ts', { encoding: 'utf8', cwd: root })
+  const src = readV410WorkerIndex()
   return [...src.matchAll(/case '([^']+)':/g)].map((m) => m[1]).sort()
 }
 
@@ -31,7 +40,7 @@ function replyTypesInHandlers() {
 }
 
 function v410ReplyTypes() {
-  const src = execSync('git show v0.4.10:src/worker/index.ts', { encoding: 'utf8', cwd: root })
+  const src = readV410WorkerIndex()
   return [...new Set([...src.matchAll(/reply\(\{\s*type:\s*'([^']+)'/g)].map((m) => m[1]))].sort()
 }
 
