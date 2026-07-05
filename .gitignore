@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
 
-#test
+#test (root scratch only; renderer vitest setup lives under src/renderer/src/test/)
 test/
+!src/renderer/src/test/
+!src/renderer/src/test/**
 # Build / pack output (regenerate: npm run build, npm run icon:export)
 out/
 dist/
