@@ -4,12 +4,14 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = process.cwd()
-const src = (p) => readFileSync(join(root, p), 'utf8')
+/** Normalize CRLF so regex contracts match on Windows CI checkouts. */
+const src = (p) => readFileSync(join(root, p), 'utf8').replace(/\r\n/g, '\n')
 
 describe('live session switch binding', () => {
   it('clears stale pendingBind when restoring a worker-bound live session from cache', () => {
     const text = src('src/renderer/src/lib/open-session.ts')
-    const liveRestore = text.match(/if \(live && liveTurnActive\) \{[\s\S]*?return\n\s*\}/)?.[0] ?? ''
+    const liveRestore = text.match(/if \(live && liveTurnActive\) \{[\s\S]*?return\r?\n\s*\}/)?.[0] ?? ''
+    assert.ok(liveRestore.length > 0, 'live restore block not found in open-session.ts')
     assert.match(liveRestore, /session\.setPendingBind[\s\S]*sessionFile:\s*null/)
     assert.match(liveRestore, /refreshSessionTree\(sessionFile\)/)
   })
