@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { ChevronDown, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
 
 type Props = {
@@ -14,7 +15,7 @@ type Props = {
   defaultExpanded?: boolean
 }
 
-export function CodeBlockView({
+function CodeBlockViewImpl({
   code,
   lang,
   previewLines = 8,
@@ -68,7 +69,7 @@ export function CodeBlockView({
         className={cn('native-code-shiki overflow-auto text-[11px] leading-[1.45]', expanded ? maxHeightExpanded : 'max-h-48')}
       >
         {html != null ? (
-          <div className="p-2 [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[11px]" dangerouslySetInnerHTML={{ __html: html }} />
+          <div className="p-2 [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[11px]" dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} />
         ) : (
           <pre className="p-2 font-mono text-foreground-secondary whitespace-pre-wrap break-all">{code.slice(0, 2000)}</pre>
         )}
@@ -86,3 +87,5 @@ export function CodeBlockView({
     </div>
   )
 }
+
+export const CodeBlockView = memo(CodeBlockViewImpl)

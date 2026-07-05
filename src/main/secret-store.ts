@@ -1,4 +1,4 @@
-import { safeStorage } from 'electron'
+import { safeStorage, BrowserWindow } from 'electron'
 
 const STORE_KEY = 'codexAccessTokenEnc'
 
@@ -16,7 +16,7 @@ export function bindSecretStoreBacking(store: {
 export function isCodexTokenEncryptionAvailable(): boolean {
   try {
     return safeStorage.isEncryptionAvailable()
-  } catch {
+  } catch (e) {
     return false
   }
 }
@@ -31,6 +31,13 @@ export function setCodexAccessToken(token: string | null | undefined): void {
   }
   if (!isCodexTokenEncryptionAvailable()) {
     console.warn('[secret-store] safeStorage unavailable; codex token not persisted')
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('ipc:events', {
+        type: 'warning',
+        message: '系统加密不可用，Codex Token 未持久化。重启后需重新输入。',
+      })
+    }
     return
   }
   const enc = safeStorage.encryptString(t)
@@ -46,7 +53,7 @@ export function getCodexAccessToken(): string | null {
     const buf = Buffer.from(String(raw), 'base64')
     const plain = safeStorage.decryptString(buf)
     return plain && plain.length >= 20 ? plain : null
-  } catch {
+  } catch (e) {
     return null
   }
 }

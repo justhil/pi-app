@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { Image as ImageIcon, X } from 'lucide-react'
 
@@ -33,6 +34,7 @@ export function ImageReviewDialog({
   onSubmit: (r: ImageReviewResult) => void
 }) {
   const { t } = useTranslation()
+  const workspaceRoot = useUIStore((s) => s.currentWorkspace)
   const [src, setSrc] = useState<string | null>(null)
   const [previewErr, setPreviewErr] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -47,8 +49,12 @@ export function ImageReviewDialog({
       return
     }
     let cancelled = false
+    if (!workspaceRoot) {
+      setPreviewErr(true)
+      return
+    }
     ipcClient
-      .invoke('shell.readImagePreview', { path: payload.image })
+      .invoke('shell.readImagePreview', { workspaceRoot, path: payload.image })
       .then((res) => {
         if (cancelled) return
         if (res?.ok && res.dataUrl) setSrc(res.dataUrl)
@@ -56,7 +62,7 @@ export function ImageReviewDialog({
       })
       .catch(() => { if (!cancelled) setPreviewErr(true) })
     return () => { cancelled = true }
-  }, [payload.image, isUrl])
+  }, [payload.image, isUrl, workspaceRoot])
 
   const CHOICE_ENUM = ['approve', 'revise', 'reject', 'cancel'] as const
 

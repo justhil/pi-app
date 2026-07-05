@@ -1,6 +1,7 @@
 /** Narrow shapes for Pi SDK session messages at the Worker → AppEvent boundary. */
 
 export type PiTextBlock = { type: 'text'; text?: string }
+export type PiThinkingBlock = { type: 'thinking'; thinking?: string }
 export type PiToolResultBlock = {
   type: 'toolResult'
   content?: string | Array<{ text?: string }>
@@ -41,6 +42,16 @@ export function extractTextFromPiMessage(message: PiSessionMessage | string | nu
   return message.content
     .filter((c): c is PiTextBlock => c.type === 'text')
     .map((c) => c.text || '')
+    .join('')
+}
+
+/** 对齐 pi-tui AssistantMessageComponent：按 content 顺序拼接 thinking 块 */
+export function extractThinkingFromPiMessage(message: PiSessionMessage | string | null | undefined): string {
+  if (!message || typeof message === 'string') return ''
+  if (!message.content || typeof message.content === 'string') return ''
+  return message.content
+    .filter((c): c is PiThinkingBlock => c.type === 'thinking')
+    .map((c) => c.thinking || '')
     .join('')
 }
 

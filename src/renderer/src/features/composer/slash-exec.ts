@@ -60,8 +60,8 @@ export async function executeSlashCommand(
           store.setRunState({ model: `${provider}/${modelId}` })
           toast.success(i18n.t('composer:toast.modelSet', { model: `${provider}/${modelId}` }))
         } else {
-          const res = await ipcClient.invoke('model.list', {})
-          const hit = (res?.models || []).find((mm: any) => mm.id === arg || mm.name === arg)
+          const res = (await ipcClient.invoke('model.list', {})) as { models?: Array<{ id: string; name?: string; provider: string }> }
+          const hit = (res?.models || []).find((mm) => mm.id === arg || mm.name === arg)
           if (hit) {
             await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
             store.setRunState({ model: `${hit.provider}/${hit.id}` })

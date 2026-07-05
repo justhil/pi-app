@@ -82,7 +82,12 @@ export function registerModelRuntimeHandlers(): void {
     return { level: req.level }
   })
 
-  registerHandler('ipc:runtime.getState', async () => {
+  registerHandler('ipc:runtime.getState', async (req) => {
+    const workspaceId = String(req?.workspaceId || '').trim()
+    if (workspaceId && workspaceId !== workerManager.cwd) {
+      const bg = await workerManager.getBackgroundRuntimeState(workspaceId)
+      return { state: bg }
+    }
     if (!workerManager.isRunning) return { state: null }
     return { state: await workerManager.getState() }
   })

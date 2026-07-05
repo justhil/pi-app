@@ -3,6 +3,7 @@ import type { AppEvent } from '@shared/app-events'
 declare global {
   interface Window {
     piDesktop?: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoke: (channel: string, request?: any) => Promise<any>
       getPathForFile: (file: File) => string
       onEvent: (callback: (event: AppEvent) => void) => () => void
@@ -19,6 +20,7 @@ declare global {
 }
 
 class IpcClientImpl {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async invoke<M extends string>(method: M, request?: any): Promise<any> {
     if (!window.piDesktop) {
       console.warn(`[IPC] piDesktop not available, stubbing ${method}`)

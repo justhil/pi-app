@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
+import { errorMessage } from '@shared/error-message'
 
 const AGENT_DIR = () => join(homedir(), '.pi', 'agent')
 
@@ -18,7 +19,7 @@ function findGitRepoDir(agentDir: string, repoFolder: string): string | null {
     let entries: string[] = []
     try {
       entries = readdirSync(dir)
-    } catch {
+    } catch (e) {
       return null
     }
     for (const name of entries) {
@@ -26,7 +27,7 @@ function findGitRepoDir(agentDir: string, repoFolder: string): string | null {
       const full = join(dir, name)
       try {
         if (!statSync(full).isDirectory()) continue
-      } catch {
+      } catch (e) {
         continue
       }
       if (name === repoFolder && existsSync(join(full, 'package.json'))) return full
@@ -63,7 +64,7 @@ export function listMissingRuntimePackages(): MissingRuntimePackage[] {
   let settings: { packages?: unknown[] }
   try {
     settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-  } catch {
+  } catch (e) {
     return []
   }
   const existing = new Set(packagesEntries(settings).map(entryKey))
@@ -93,8 +94,8 @@ export function appendMissingGitPackagesToSettings(): { added: string[]; error?:
   let settings: { packages?: unknown[] }
   try {
     settings = JSON.parse(readFileSync(settingsPath, 'utf-8'))
-  } catch (e: any) {
-    return { added: [], error: e.message }
+  } catch (e: unknown) {
+    return { added: [], error: errorMessage(e) }
   }
 
   const packages = packagesEntries(settings)
@@ -110,8 +111,8 @@ export function appendMissingGitPackagesToSettings(): { added: string[]; error?:
   settings.packages = packages
   try {
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8')
-  } catch (e: any) {
-    return { added: [], error: e.message }
+  } catch (e: unknown) {
+    return { added: [], error: errorMessage(e) }
   }
   return { added }
 }

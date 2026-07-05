@@ -66,7 +66,7 @@ export function useVoiceInput(
         },
       })
       setReady(!!auth?.ok)
-    } catch {
+    } catch (e) {
       setReady(false)
     }
   }, [])
@@ -125,7 +125,7 @@ export function useVoiceInput(
     let stream: MediaStream
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch {
+    } catch (e) {
       toast.error(tr('composer:voice.micPermissionDenied'))
       setVoiceState('error')
       return
@@ -176,7 +176,7 @@ export function useVoiceInput(
           toast.error(res?.error || tr('composer:voice.errorUnknown'))
           setVoiceState('error')
         }
-      } catch {
+      } catch (e) {
         toast.error(tr('composer:voice.errorUnknown'))
         setVoiceState('error')
       }

@@ -2,21 +2,12 @@ import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
+import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 export async function navigateSessionToEntry(targetId: string): Promise<boolean> {
   console.log('[rewind] navigateSessionToEntry start, targetId=', targetId)
   try {
-    const r = await ipcClient.invoke('session.navigateTree', { targetId, summarize: false })
-    console.log('[rewind] navigateTree response:', r)
-    if (r?.cancelled) {
-      toast.error(r?.error || '跳转已取消')
-      return false
-    }
     const st = useUIStore.getState()
-    const editorText = typeof r?.editorText === 'string' ? r.editorText : ''
-    if (editorText) st.setComposerPrefill(editorText)
-    else st.setComposerPrefill(null)
-
     const fromHistory = st.historySessionFile
     const fromSessions = st.sessions.find((s) => s.sessionId === st.currentSessionId)?.sessionFile
     const file = fromHistory ?? fromSessions
@@ -24,8 +15,23 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
 
     if (!file) {
       toast.warning('未找到会话文件，无法刷新时间线')
-      return true
+      return false
     }
+
+    const r = (await ipcClient.invoke('session.navigateTree', { targetId, sessionFile: file, summarize: false })) as {
+      cancelled?: boolean
+      error?: string
+      editorText?: string
+      sessionMeta?: { model?: string; thinkingLevel?: string }
+    }
+    console.log('[rewind] navigateTree response:', r)
+    if (r?.cancelled) {
+      toast.error(r?.error || '跳转已取消')
+      return false
+    }
+    const editorText = typeof r?.editorText === 'string' ? r.editorText : ''
+    if (editorText) st.setComposerPrefill(editorText)
+    else st.setComposerPrefill(null)
 
     const { clearSessionHistoryCache, fetchSessionHistoryTail } = await import('@renderer/lib/session-history')
     clearSessionHistoryCache(file)
@@ -36,7 +42,7 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       const hist = await fetchSessionHistoryTail(file, undefined, { bypassCache: true })
       console.log('[rewind] history fetched:', { count: hist.items?.length, totalCount: hist.totalCount })
       const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
-      const items = sanitizeHistoryTimeline(hist.items as any[])
+      const items = sanitizeHistoryTimeline(hist.items as TimelineItem[])
       st.loadHistoryItems(items)
       st.setHistoryMeta(hist.totalCount, items.length, file)
       if (r?.sessionMeta?.model) st.setRunState({ model: r.sessionMeta.model })
@@ -49,9 +55,9 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     }
     toast.success('已跳转到该节点，可从此继续')
     return true
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[rewind] navigateSessionToEntry error:', e)
-    toast.error(e?.message || '回退失败')
+    toast.error((e instanceof Error ? e.message : String(e)) || '回退失败')
     return false
   }
 }

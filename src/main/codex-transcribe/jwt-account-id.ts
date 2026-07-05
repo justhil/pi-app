@@ -7,7 +7,7 @@ function decodeJwtPayloadSegment(segment: string): Record<string, unknown> | nul
     const json = Buffer.from(normalized + pad, 'base64').toString('utf-8')
     const data = JSON.parse(json) as Record<string, unknown>
     return data && typeof data === 'object' ? data : null
-  } catch {
+  } catch (e) {
     return null
   }
 }

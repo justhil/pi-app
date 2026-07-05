@@ -31,7 +31,7 @@ function loadContextFileFromDir(dir: string): { path: string; content: string } 
     if (existsSync(filePath)) {
       try {
         return { path: filePath, content: readFileSync(filePath, 'utf-8') }
-      } catch {
+      } catch (e) {
         /* */
       }
     }
@@ -186,7 +186,7 @@ function walkMdFiles(dir: string, maxDepth: number, depth: number, out: string[]
       if (st.isDirectory()) walkMdFiles(full, maxDepth, depth + 1, out)
       else if (name.endsWith('.md')) out.push(full)
     }
-  } catch {
+  } catch (e) {
     /* */
   }
 }
@@ -262,7 +262,7 @@ export function listPluginInjectedPromptFiles(cwd: string): PromptCatalogItem[] 
         if (!statSync(full).isFile() || !name.endsWith('.md')) continue
         addFile(full, `extension:${name}`)
       }
-    } catch {
+    } catch (e) {
       /* */
     }
   }

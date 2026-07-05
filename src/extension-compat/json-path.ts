@@ -29,7 +29,7 @@ export function extractStatusFromOutput(output: unknown, statusField?: string): 
     if (typeof output === 'string' && statusField.startsWith('$.')) {
       try {
         root = JSON.parse(output)
-      } catch {
+      } catch (e) {
         root = { text: output }
       }
     }
@@ -59,7 +59,7 @@ export function applyToolCardFields(
       if (typeof o === 'string') {
         try {
           o = JSON.parse(o)
-        } catch {
+        } catch (e) {
           o = { text: o }
         }
       }

@@ -20,7 +20,7 @@ export async function fetchPiDefaultDisplayMeta(): Promise<SessionDisplayMeta> {
     if (provider && modelId) out.model = `${provider}/${modelId}`
     else if (modelId && String(modelId).includes('/')) out.model = String(modelId)
     return out
-  } catch {
+  } catch (e) {
     return {}
   }
 }
@@ -48,7 +48,7 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
       if (wm) patch.model = wm
       if (wt) patch.thinkingLevel = wt
     }
-  } catch {
+  } catch (e) {
     /* worker not ready */
   }
 

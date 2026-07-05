@@ -97,7 +97,7 @@ export function FilePreviewRouter({
     const run = async () => {
       setLoading(true)
       if (mode === 'image') {
-        const res = await ipcClient.invoke('shell.readImagePreview', { path: absPath })
+        const res = await ipcClient.invoke('shell.readImagePreview', { workspaceRoot, path: relativePath! })
         if (cancelled) return
         if (res?.ok && res.dataUrl) setImageUrl(res.dataUrl)
         else setLoadError(res?.error || 'preview_failed')

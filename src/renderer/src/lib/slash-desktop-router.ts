@@ -17,7 +17,7 @@ export async function routeDesktopSlashBeforeSend(line: string): Promise<Desktop
   } | null = null
   try {
     resolved = await ipcClient.invoke('slash.resolve', { command: token })
-  } catch {
+  } catch (e) {
     return { handled: false }
   }
 

@@ -93,7 +93,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- 不依赖 i18n.language，避免 previewDraftUi 切语言触发 reload 覆盖用户草稿
+  }, [])  
 
   useEffect(() => {
     void reload()
@@ -156,7 +156,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
     window.dispatchEvent(new CustomEvent('pi-desktop:asr-config-preview', { detail: d.asrConfig }))
     useUIStore.getState().applyRightPanelRuntime(d.rightPanelCatalog, d.rightPanelPrefs, d.rightPanelOrder)
     notifySettingsDirtyChanged()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])  
 
   discardDraftRef.current = discard
 

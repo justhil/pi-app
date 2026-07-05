@@ -54,7 +54,7 @@ export function registerAsrHandlers(): void {
       const cmd = process.platform === 'win32' ? 'where codex-asr' : 'which codex-asr'
       const path = execSync(cmd, { encoding: 'utf8', timeout: 5000 }).trim().split('\n')[0].trim()
       return { found: !!path, path: path || null }
-    } catch {
+    } catch (e) {
       return { found: false, path: null }
     }
   })

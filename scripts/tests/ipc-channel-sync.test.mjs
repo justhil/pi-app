@@ -33,11 +33,11 @@ function extractRegistered() {
     }
   }
   const uniq = new Set()
-  const re = /registerHandler\(\s*'(ipc:[^']+)'/g
+  const reHandler = /registerHandler(?:WithSchema)?\(\s*'(ipc:[^']+)'/g
   for (const file of files) {
     const text = readFileSync(file, 'utf8')
     let match
-    while ((match = re.exec(text)) !== null) uniq.add(match[1])
+    while ((match = reHandler.exec(text)) !== null) uniq.add(match[1])
   }
   return [...uniq].sort()
 }

@@ -1,5 +1,7 @@
 import { app } from 'electron'
 import log from 'electron-log'
+import { errorMessage } from '@shared/error-message'
+import { emitOperationEvent } from './operation-events'
 
 const DEFAULT_REPO = 'justhil/pi-app'
 const API = 'https://api.github.com'
@@ -44,9 +46,10 @@ async function fetchLatestReleaseTag(slug: string): Promise<{ tag: string; htmlU
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
   if (token) headers.Authorization = `Bearer ${token}`
 
-  const res = await fetch(`${API}/repos/${slug}/releases/latest`, { headers })
+  const signal = AbortSignal.timeout(25_000)
+  const res = await fetch(`${API}/repos/${slug}/releases/latest`, { headers, signal })
   if (res.status === 404) {
-    const list = await fetch(`${API}/repos/${slug}/releases?per_page=1`, { headers })
+    const list = await fetch(`${API}/repos/${slug}/releases?per_page=1`, { headers, signal })
     if (!list.ok) return null
     const arr = (await list.json()) as { tag_name?: string; html_url?: string }[]
     const first = arr?.[0]
@@ -66,9 +69,12 @@ export async function checkGitHubReleaseUpdate(): Promise<GitHubReleaseCheckResu
   const slug = repoSlug()
   const currentVersion = app.getVersion()
   const fallbackUrl = `https://github.com/${slug}/releases`
+  const started = Date.now()
+  emitOperationEvent({ operation: 'release.checkGitHub', status: 'start' })
   try {
     const latest = await fetchLatestReleaseTag(slug)
     if (!latest) {
+      emitOperationEvent({ operation: 'release.checkGitHub', status: 'error', durationMs: Date.now() - started, detail: 'no_release' })
       return {
         ok: false,
         currentVersion,
@@ -79,6 +85,7 @@ export async function checkGitHubReleaseUpdate(): Promise<GitHubReleaseCheckResu
       }
     }
     const hasUpdate = isVersionNewer(latest.tag, currentVersion)
+    emitOperationEvent({ operation: 'release.checkGitHub', status: 'ok', durationMs: Date.now() - started })
     return {
       ok: true,
       currentVersion,
@@ -86,8 +93,14 @@ export async function checkGitHubReleaseUpdate(): Promise<GitHubReleaseCheckResu
       hasUpdate,
       releaseUrl: latest.htmlUrl,
     }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? errorMessage(e) : errorMessage(e)
+    emitOperationEvent({
+      operation: 'release.checkGitHub',
+      status: msg.toLowerCase().includes('timeout') ? 'timeout' : 'error',
+      durationMs: Date.now() - started,
+      detail: msg,
+    })
     log.warn('[GitHubRelease] check failed:', msg)
     return {
       ok: false,

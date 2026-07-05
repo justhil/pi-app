@@ -3,7 +3,9 @@
   "compilerOptions": {
     "composite": true,
     "types": ["node"],
-    "lib": ["ES2022"]
+    "lib": ["ES2022"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": [
     "src/main/**/*",

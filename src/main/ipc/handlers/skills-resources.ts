@@ -27,6 +27,7 @@ import {
 } from '../../pi-prompt-catalog'
 import { listRevisions, pushRevision, restoreRevision, readRevision } from '../../resource-revisions'
 import type { ResourceSource } from '../../pi-resources-editor'
+import { errorMessage } from '@shared/error-message'
 
 export function registerSkillsResourceHandlers(): void {
   registerHandler('ipc:skills.list', async () => {
@@ -111,7 +112,7 @@ export function registerSkillsResourceHandlers(): void {
         const ctx = await workerManager.getContextPrompts()
         projectTrusted = ctx.projectTrusted !== false
         defaultSystemPreview = String(ctx.builtSystemPreview || '')
-      } catch {
+      } catch (e) {
         /* */
       }
     }
@@ -188,8 +189,8 @@ export function registerSkillsResourceHandlers(): void {
         }
         const ctx = await workerManager.getContextPrompts()
         return { content: String(ctx.builtSystemPreview || '（空）'), path, revisions: [] }
-      } catch (e: any) {
-        return { error: e.message }
+      } catch (e: unknown) {
+        return { error: errorMessage(e) }
       }
     }
     const resolved = resolve(path)
@@ -203,7 +204,7 @@ export function registerSkillsResourceHandlers(): void {
           const ctx = await workerManager.getContextPrompts()
           const built = String(ctx.builtSystemPreview || '').trim()
           if (built) seed = built
-        } catch {
+        } catch (e) {
           /* */
         }
       }
@@ -212,8 +213,8 @@ export function registerSkillsResourceHandlers(): void {
     try {
       const { content, path: resolvedPath } = readTextFileSafe(path)
       return { content, path: resolvedPath, revisions: listRevisions(resolvedPath) }
-    } catch (e: any) {
-      return { error: e.message }
+    } catch (e: unknown) {
+      return { error: errorMessage(e) }
     }
   })
 
@@ -227,8 +228,8 @@ export function registerSkillsResourceHandlers(): void {
       writeTextFileSafe(path, content)
       if (workerManager.isRunning) await workerManager.reloadResources().catch(() => {})
       return { ok: true, revisions: listRevisions(path) }
-    } catch (e: any) {
-      return { ok: false, error: e.message }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) }
     }
   })
 
@@ -246,16 +247,16 @@ export function registerSkillsResourceHandlers(): void {
       if (workerManager.isRunning) await workerManager.reloadResources().catch(() => {})
       const { content } = readTextFileSafe(path)
       return { ok: true, content, revisions: listRevisions(path) }
-    } catch (e: any) {
-      return { ok: false, error: e.message }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) }
     }
   })
 
   registerHandler('ipc:resource.revision.read', async (req) => {
     try {
       return { content: readRevision(String(req.path), String(req.revisionId)) }
-    } catch (e: any) {
-      return { error: e.message }
+    } catch (e: unknown) {
+      return { error: errorMessage(e) }
     }
   })
 }

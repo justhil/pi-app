@@ -4,6 +4,8 @@ export interface AppEventBase {
   seq: number
   workspaceId: string
   sessionId?: string
+  /** pi session JSONL path — stable routing key across UI / Worker */
+  sessionFile?: string
   runId?: string
   turnId?: string
   timestamp: number

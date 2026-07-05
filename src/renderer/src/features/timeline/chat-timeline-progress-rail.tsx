@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { getTimelineScrollMetrics, scrollTimelineToRatio } from './timeline-scroll-bridge'
 
@@ -7,7 +7,7 @@ const THUMB_PX = 32
 type Placement = 'panel-edge' | 'main-column-edge'
 
 /** 滚动进度条；panel-edge=右栏左缘，main-column-edge=右栏收起时贴主列右缘 */
-export function ChatTimelineProgressRail({ placement = 'panel-edge' }: { placement?: Placement }) {
+function ChatTimelineProgressRailImpl({ placement = 'panel-edge' }: { placement?: Placement }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const thumbRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
@@ -73,3 +73,5 @@ export function ChatTimelineProgressRail({ placement = 'panel-edge' }: { placeme
     </div>
   )
 }
+
+export const ChatTimelineProgressRail = memo(ChatTimelineProgressRailImpl)

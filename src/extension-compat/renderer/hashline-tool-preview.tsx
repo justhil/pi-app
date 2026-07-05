@@ -228,7 +228,7 @@ function InsertPreview({ item }: { item: ToolTimelineItem }) {
   const summary = Array.isArray(edits)
     ? edits
         .slice(0, 4)
-        .map((e: any) => `${e.direction === 'before' ? '↑' : '↓'} ${e.anchor || '?'}`)
+        .map((e: { direction?: string; anchor?: string; lines?: unknown[] }) => `${e.direction === 'before' ? '↑' : '↓'} ${e.anchor || '?'}`)
         .join(' · ')
     : ''
 
@@ -256,7 +256,7 @@ function InsertPreview({ item }: { item: ToolTimelineItem }) {
     >
       {Array.isArray(edits) && edits.length > 0 ? (
         <div className="divide-y divide-border/30 text-[11px]">
-          {edits.map((e: any, i: number) => (
+          {edits.map((e: { direction?: string; anchor?: string; lines?: unknown[] }, i: number) => (
             <div key={i} className="px-2.5 py-1.5 font-mono">
               <span className="text-teal-600 dark:text-teal-400">{e.direction}</span>
               <span className="mx-1 text-amber-600">{e.anchor}</span>

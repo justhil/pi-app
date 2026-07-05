@@ -7,7 +7,7 @@ export function readSessionIdFromFile(sessionFile: string): string | null {
     if (!first) return null
     const h = JSON.parse(first)
     if (h?.type === 'session' && h.id) return String(h.id)
-  } catch {
+  } catch (e) {
     return null
   }
   return null

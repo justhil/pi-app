@@ -2,18 +2,25 @@ import { createRequire } from 'module'
 import { app } from 'electron'
 import { join } from 'path'
 
-const require = createRequire(import.meta.url)
+let nativeRequire: ReturnType<typeof createRequire> | null = null
+function requireNative<T = unknown>(id: string): T {
+  if (!nativeRequire) nativeRequire = createRequire(import.meta.url)
+  return nativeRequire(id) as T
+}
 
-let DatabaseCtor: (new (path: string) => any) | null = null
-let db: any = null
+type SqliteStatement = { run: (...args: unknown[]) => void; all: (...args: unknown[]) => unknown[] }
+type SqliteDb = { pragma: (s: string) => void; exec: (s: string) => void; prepare: (sql: string) => SqliteStatement }
+
+let DatabaseCtor: (new (path: string) => SqliteDb) | null = null
+let db: SqliteDb | null = null
 let loadFailed = false
 
-function loadBetterSqlite(): (new (path: string) => any) | null {
+function loadBetterSqlite(): (new (path: string) => SqliteDb) | null {
   if (loadFailed) return null
   if (DatabaseCtor) return DatabaseCtor
   try {
-    const pkg = require('better-sqlite3')
-    DatabaseCtor = (pkg.default || pkg) as new (path: string) => any
+    const pkg = requireNative<{ default?: unknown } & (new (path: string) => SqliteDb)>('better-sqlite3')
+    DatabaseCtor = (pkg.default || pkg) as new (path: string) => SqliteDb
     return DatabaseCtor
   } catch (e) {
     loadFailed = true
@@ -27,7 +34,7 @@ function loadBetterSqlite(): (new (path: string) => any) | null {
   }
 }
 
-function getDb(): any | null {
+function getDb(): SqliteDb | null {
   try {
     const Ctor = loadBetterSqlite()
     if (!Ctor) return null
@@ -46,7 +53,7 @@ function getDb(): any | null {
   }
 }
 
-function initSchema(d: any): void {
+function initSchema(d: SqliteDb): void {
   d.exec(`
     CREATE TABLE IF NOT EXISTS workspace_index (
       workspace_id TEXT PRIMARY KEY,
@@ -125,7 +132,7 @@ export const sqliteIndex = {
     ).run(sessionId, turnId, path, source, changeType, Date.now())
   },
 
-  getFileChangesBySession(sessionId: string): any[] {
+  getFileChangesBySession(sessionId: string): unknown[] {
     const d = getDb()
     if (!d) return []
     return d.prepare(
@@ -133,7 +140,7 @@ export const sqliteIndex = {
     ).all(sessionId)
   },
 
-  getFileChangesByTurn(turnId: string): any[] {
+  getFileChangesByTurn(turnId: string): unknown[] {
     const d = getDb()
     if (!d) return []
     return d.prepare(

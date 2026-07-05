@@ -57,7 +57,7 @@ export function ProjectContextMenuPortal({
       }
       toast.success(t('common:sidebar.removed'))
       onListChange()
-    } catch {
+    } catch (e) {
       toast.error(t('common:sidebar.removeFailed'))
     }
     onClose()

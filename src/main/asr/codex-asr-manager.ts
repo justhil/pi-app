@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import type { AsrConfig } from '@shared/asr-types'
-import { resolveAuthFileForServe } from './codex-auth'
+import { clearManualAuthOverlay, resolveAuthFileForServe } from './codex-auth'
+import { errorMessage } from '@shared/error-message'
 
 const DEFAULT_PORT = 18788
 const HEALTH_PATH = '/healthz'
@@ -56,7 +57,7 @@ async function waitHealth(port: number, ms = 8000): Promise<boolean> {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(1500) })
       if (res.ok) return true
-    } catch {
+    } catch (e) {
       /* retry */
     }
     await new Promise((r) => setTimeout(r, 200))
@@ -109,6 +110,7 @@ export async function ensureBuiltinCodexAsrServe(cfg: AsrConfig): Promise<{ ok: 
       })
       proc.on('exit', () => {
         if (child === proc) child = null
+        clearManualAuthOverlay()
       })
       proc.stderr?.on('data', (d) => {
         const line = d.toString().trim()
@@ -122,9 +124,12 @@ export async function ensureBuiltinCodexAsrServe(cfg: AsrConfig): Promise<{ ok: 
 
   try {
     await starting
-  } catch (e: any) {
+  } catch (e: unknown) {
     starting = null
-    return { ok: false, error: e.code === 'ENOENT' ? `codex-asr not found (${bin})` : e.message }
+    return {
+      ok: false,
+      error: (e as { code?: string }).code === 'ENOENT' ? `codex-asr not found (${bin})` : errorMessage(e),
+    }
   } finally {
     starting = null
   }
@@ -140,10 +145,11 @@ export async function ensureBuiltinCodexAsrServe(cfg: AsrConfig): Promise<{ ok: 
 export async function stopBuiltinCodexAsrServe(): Promise<void> {
   const proc = child
   child = null
+  clearManualAuthOverlay()
   if (!proc || proc.killed) return
   try {
     proc.kill()
-  } catch {
+  } catch (e) {
     /* */
   }
   await new Promise((r) => setTimeout(r, 100))

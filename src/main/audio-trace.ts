@@ -21,7 +21,7 @@ export function traceAudio(source: string, detail: Record<string, unknown> = {})
   const line = JSON.stringify({ t: new Date().toISOString(), source, ...detail }) + '\n'
   try {
     appendFileSync(ensureLogPath(), line, 'utf8')
-  } catch {
+  } catch (e) {
     /* ignore */
   }
   console.log(`[audio-trace] ${source}`, detail)

@@ -1,4 +1,5 @@
 import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
+import { errorMessage } from '@shared/error-message'
 
 export class CodexAsrServeProvider implements AsrProvider {
   id = 'codex-asr-serve'
@@ -51,14 +52,17 @@ export class CodexAsrServeProvider implements AsrProvider {
       const text = data?.text
       if (typeof text === 'string') return { ok: true, text }
       return { ok: false, error: 'unexpected response format', kind: 'unknown' }
-    } catch (e: any) {
-      if (e.name === 'AbortError') {
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') {
         return { ok: false, error: 'transcription timed out', kind: 'timeout' }
       }
-      if (e.cause?.code === 'ECONNREFUSED' || e.message?.includes('fetch failed')) {
+      const cause = e instanceof Error && typeof e.cause === 'object' && e.cause !== null && 'code' in e.cause
+        ? String((e.cause as { code?: string }).code)
+        : ''
+      if (cause === 'ECONNREFUSED' || errorMessage(e)?.includes('fetch failed')) {
         return { ok: false, error: `cannot connect to ${this.serverUrl}`, kind: 'network' }
       }
-      return { ok: false, error: e.message || 'unknown error', kind: 'unknown' }
+      return { ok: false, error: errorMessage(e) || 'unknown error', kind: 'unknown' }
     }
   }
 
@@ -73,8 +77,8 @@ export class CodexAsrServeProvider implements AsrProvider {
         return { ok: true, detail: 'connected' }
       }
       return { ok: false, detail: `HTTP ${res.status}` }
-    } catch (e: any) {
-      return { ok: false, detail: e.message }
+    } catch (e: unknown) {
+      return { ok: false, detail: errorMessage(e) }
     }
   }
 }

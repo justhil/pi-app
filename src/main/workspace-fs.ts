@@ -10,7 +10,7 @@ function normalizeRoot(root: string): string {
   if (!existsSync(r)) return r
   try {
     return realpathSync(r)
-  } catch {
+  } catch (e) {
     return r
   }
 }
@@ -31,7 +31,7 @@ export function resolvePathUnderWorkspace(root: string, inputPath: string): { ok
         absReal = join(parentReal, abs.slice(parent.length))
       }
     }
-  } catch {
+  } catch (e) {
     absReal = abs
   }
   const rel = relative(rootAbs, absReal)
@@ -64,7 +64,7 @@ export function workspaceFsListDir(req: { workspaceRoot: string; path?: string; 
         const cst = statSync(childAbs)
         if (!d.isDirectory()) size = cst.size
         mtimeMs = cst.mtimeMs
-      } catch {
+      } catch (e) {
         /* skip meta */
       }
       const relPath = relative(rootAbs, childAbs).split(sep).join('/')
@@ -104,7 +104,7 @@ export function workspaceFsReadText(req: { workspaceRoot: string; path: string; 
     const buf = readFileSync(abs)
     if (buf.length > maxBytes) return { ok: false as const, error: 'too_large' as const }
     return { ok: true as const, content: buf.toString('utf-8'), size: st.size }
-  } catch {
+  } catch (e) {
     return { ok: false as const, error: 'read_failed' as const }
   }
 }
@@ -129,7 +129,7 @@ export function workspaceFsRename(req: { workspaceRoot: string; relativePath: st
     renameSync(abs, newAbs)
     const newRel = relative(rootAbs, realpathSync(newAbs)).split(sep).join('/')
     return { ok: true as const, newRelativePath: newRel }
-  } catch {
+  } catch (e) {
     return { ok: false as const, error: 'rename_failed' as const }
   }
 }

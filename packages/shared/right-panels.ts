@@ -171,7 +171,7 @@ export function coerceActivePanel(
   order?: string[],
 ): string {
   const ids = new Set(catalogPanelIds(catalog))
-  let a = active === 'trellis' && ids.has('adapter:trellis') ? 'adapter:trellis' : active
+  const a = active === 'trellis' && ids.has('adapter:trellis') ? 'adapter:trellis' : active
   if (ids.has(a) && prefs[a]) return a
   return firstEnabledPanel(prefs, catalog, order)
 }

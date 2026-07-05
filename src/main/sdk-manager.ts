@@ -4,6 +4,8 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { spawn, spawnSync } from 'child_process'
 import { app } from 'electron'
+import { errorMessage } from '@shared/error-message'
+import { emitOperationEvent } from './operation-events'
 import {
   resolveActiveSdk,
   resolveGlobalSdkPath,
@@ -36,7 +38,7 @@ export function checkNpmAvailable(): boolean {
   try {
     const r = spawnSync('npm', ['--version'], { encoding: 'utf-8', shell: true, timeout: 3000 })
     npmAvailableCache = !r.error && r.status === 0 && !!(r.stdout || '').trim()
-  } catch {
+  } catch (e) {
     npmAvailableCache = false
   }
   return npmAvailableCache
@@ -55,15 +57,35 @@ export function readSdkStatus(userDataDir: string): SdkStatus {
 }
 
 /** 查询 npm registry 全部已发布版本与 latest dist-tag。网络失败返回空，不抛错。 */
+export function isAllowedSdkVersion(version: string, registry: { versions: string[]; latest: string | null }): boolean {
+  const v = version.trim()
+  if (!v) return false
+  if (registry.latest && v === registry.latest) return true
+  return registry.versions.includes(v)
+}
+
 export async function listRegistryVersions(): Promise<{ versions: string[]; latest: string | null }> {
+  const started = Date.now()
+  emitOperationEvent({ operation: 'sdk.listRegistryVersions', status: 'start' })
   try {
-    const resp = await fetch(REGISTRY_URL, { headers: { accept: 'application/json' } })
-    if (!resp.ok) return { versions: [], latest: null }
-    const data: any = await resp.json()
+    const resp = await fetch(REGISTRY_URL, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(25_000) })
+    if (!resp.ok) {
+      emitOperationEvent({ operation: 'sdk.listRegistryVersions', status: 'error', durationMs: Date.now() - started, detail: `http_${resp.status}` })
+      return { versions: [], latest: null }
+    }
+    const data = (await resp.json()) as { versions?: Record<string, unknown>; 'dist-tags'?: { latest?: string } }
     const versions = Object.keys(data.versions || {})
     const latest = data['dist-tags']?.latest || null
+    emitOperationEvent({ operation: 'sdk.listRegistryVersions', status: 'ok', durationMs: Date.now() - started })
     return { versions, latest }
-  } catch {
+  } catch (e) {
+    const detail = errorMessage(e)
+    emitOperationEvent({
+      operation: 'sdk.listRegistryVersions',
+      status: detail.toLowerCase().includes('timeout') ? 'timeout' : 'error',
+      durationMs: Date.now() - started,
+      detail,
+    })
     return { versions: [], latest: null }
   }
 }
@@ -107,16 +129,16 @@ export function installVersion(version: string, onProgress: (line: string) => vo
         JSON.stringify({ name: 'pi-desktop-sdk-stage', private: true, version: '1.0.0' }, null, 2),
         'utf-8',
       )
-    } catch (e: any) {
+    } catch (e: unknown) {
       installing = false
-      reject(new Error(`准备安装目录失败: ${e.message}`))
+      reject(new Error(`准备安装目录失败: ${errorMessage(e)}`))
       return
     }
 
     const child = spawn(
       'npm',
       ['install', `${PKG}@${version}`, '--no-audit', '--no-fund', '--omit=dev'],
-      { cwd: stage, shell: true, env: { ...process.env } },
+      { cwd: stage, shell: false, env: { ...process.env } },
     )
     const onLine = (buf: Buffer) => {
       for (const line of buf.toString().split('\n')) {
@@ -141,8 +163,8 @@ export function installVersion(version: string, onProgress: (line: string) => vo
         try {
           writeActive('user')
           resolve()
-        } catch (e: any) {
-          reject(new Error(`安装成功但写入配置失败: ${e.message}`))
+        } catch (e: unknown) {
+          reject(new Error(`安装成功但写入配置失败: ${errorMessage(e)}`))
         }
       } else {
         reject(new Error(`npm 退出码 ${code}`))

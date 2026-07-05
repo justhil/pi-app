@@ -9,7 +9,7 @@ const EXT_UI_DISMISS_CHANNEL = 'ipc:extension-ui-dismiss'
 const APP_UPDATE_CHANNEL = 'ipc:app-update-available'
 
 const api = {
-  invoke(channel: string, request?: any): Promise<any> {
+  invoke(channel: string, request?: unknown): Promise<unknown> {
     if (!isAllowedIpcChannel(channel)) {
       return Promise.reject(new Error(`IPC channel not allowed: ${channel}`))
     }
@@ -20,7 +20,7 @@ const api = {
     try {
       const p = webUtils.getPathForFile(file)
       if (p) return p
-    } catch {
+    } catch (e) {
       /* fall through */
     }
     const legacy = (file as { path?: string }).path
@@ -82,6 +82,6 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore
+  // @ts-expect-error non-isolated preload fallback when contextBridge unavailable
   window.piDesktop = api
 }

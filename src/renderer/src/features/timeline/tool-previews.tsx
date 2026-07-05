@@ -75,7 +75,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
   const path = fullPathFromArgs(args)
   const name = fileNameFromArgs(args)
   const lang = guessLangFromPath(path)
-  const newStr = args.new_string ?? args.newString ?? args.newText ?? args.content ?? ''
+  const newStr = String(args.new_string ?? args.newString ?? args.newText ?? args.content ?? '')
   const diff = resolveEditWriteDiffRows(item)
 
   if (diff) {
@@ -168,7 +168,7 @@ function highlightPattern(text: string, pattern: string): ReactNode {
 
 function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: boolean }) {
   const args = normalizeToolArgs(item.toolArgs)
-  const pattern = args?.pattern || args?.query || args?.glob || ''
+  const pattern = String(args?.pattern || args?.query || args?.glob || '')
   const output = extractToolText(item.toolOutput || '')
   const lines = output.split('\n').filter((l) => l.trim().length > 0)
   const PREVIEW = 8
@@ -231,7 +231,7 @@ function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: bo
 
 function BashPreview({ item }: { item: ToolTimelineItem }) {
   const args = normalizeToolArgs(item.toolArgs)
-  const command = args.command || args.cmd || ''
+  const command = String(args.command || args.cmd || '')
   const output = extractToolText(item.toolOutput || '').replace(/\n$/, '')
   const exitHint = item.isError ? 'exit ≠ 0' : output ? '完成' : ''
 
@@ -286,9 +286,9 @@ export function renderNativeToolPreview(item: ToolTimelineItem): React.ReactNode
   return null
 }
 
-export function buildToolSummary(toolName: string, args: any): string {
+export function buildToolSummary(toolName: string, args: unknown): string {
   if (!args) return ''
-  const a = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch { return null } })() : args
+  const a = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch (e) { return null } })() : args
   if (!a || typeof a !== 'object') return ''
   if (resolveAdapterToolCardTemplate(toolName) === 'hashline') {
     const s = buildHashlineProtocolSummary(toolName, a)

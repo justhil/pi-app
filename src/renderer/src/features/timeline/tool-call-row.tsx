@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
@@ -12,10 +12,11 @@ import { buildToolSummary } from './tool-previews'
 import i18n from '@renderer/lib/i18n'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
+import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 
 const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
 
-function ToolOutputExpanded({ item }: { item: any }) {
+function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
   const name = item.toolName || ''
   const adapterTpl = resolveAdapterToolCardTemplate(name)
   const adapterPreview = tryRenderAdapterToolCard(item, adapterTpl)
@@ -28,7 +29,7 @@ function ToolOutputExpanded({ item }: { item: any }) {
   return <>{renderToolCard(item, template)}</>
 }
 
-function toolSummaryLine(item: any): string {
+function toolSummaryLine(item: ToolTimelineItem): string {
   const argSummary = buildToolSummary(item.toolName || '', item.toolArgs)
   if (argSummary) return argSummary
   if (item.toolStatusLine) return String(item.toolStatusLine)
@@ -38,11 +39,11 @@ function toolSummaryLine(item: any): string {
   return l.length > 72 ? l.slice(0, 72) + '…' : l
 }
 
-export function ToolCallRow({
+function ToolCallRowImpl({
   item,
   compact,
 }: {
-  item: any
+  item: ToolTimelineItem
   compact?: boolean
 }) {
   const { t } = useTranslation()
@@ -74,7 +75,7 @@ export function ToolCallRow({
             data-open={expanded ? 'true' : 'false'}
           />
         )}
-        <ToolIcon name={item.toolName} />
+        <ToolIcon name={item.toolName || ''} />
         <span className="text-[12px] font-mono text-aou-7">{item.toolName}</span>
         {item.extensionUiSuspended ? (
           <button
@@ -105,7 +106,9 @@ export function ToolCallRow({
   )
 }
 
-export function summarizeToolGroup(tools: any[]): { label: string; running: boolean; hasError: boolean } {
+export const ToolCallRow = memo(ToolCallRowImpl)
+
+export function summarizeToolGroup(tools: ToolTimelineItem[]): { label: string; running: boolean; hasError: boolean } {
   const names = tools.map((t) => t.toolName || 'tool')
   const uniq = [...new Set(names)]
   const head = uniq.slice(0, 4).join(', ')

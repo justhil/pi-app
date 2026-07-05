@@ -32,7 +32,7 @@ export function shouldRenderHashlineProtocol(
   if (toolName === 'edit' || toolName === 'grep') {
     if (looksLikeHashlineOutput(text)) return true
     if (toolName === 'edit' && Array.isArray(args.edits)) {
-      return args.edits.some((e: any) => e?.range || e?.anchor)
+      return args.edits.some((e: { range?: unknown; anchor?: unknown }) => e?.range || e?.anchor)
     }
     return false
   }

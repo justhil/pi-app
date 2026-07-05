@@ -27,7 +27,7 @@ export function readBuiltinSdkVersion(): string {
       const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
       return pkg.version || ''
     }
-  } catch {}
+  } catch (e) { void e }
   return ''
 }
 
@@ -40,7 +40,7 @@ function resolveEntryPath(pkgRoot: string): string | null {
     const entry = pkg.main || pkg.exports?.['.']?.import || pkg.exports?.['.']
     if (!entry || !existsSync(join(pkgRoot, entry))) return null
     return join(pkgRoot, entry)
-  } catch {
+  } catch (e) {
     return null
   }
 }
@@ -61,7 +61,7 @@ export function resolveGlobalSdkPath(): string | null {
     const pkgRoot = join(root, '@earendil-works', 'pi-coding-agent')
     if (!validateEntry(pkgRoot)) { globalSdkPathCache = null; return null }
     result = pkgRoot
-  } catch {
+  } catch (e) {
     result = null
   }
   globalSdkPathCache = result
@@ -89,7 +89,7 @@ function readVersionAt(pkgRoot: string | null): string | null {
   try {
     const pkg = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf-8'))
     return pkg.version || null
-  } catch {
+  } catch (e) {
     return null
   }
 }
@@ -105,7 +105,7 @@ function readCurrentJson(userDataDir: string): CurrentJson {
     const data = JSON.parse(readFileSync(p, 'utf-8'))
     if (data?.active === 'global' || data?.active === 'user') return { active: data.active }
     return { active: 'builtin' }
-  } catch {
+  } catch (e) {
     return { active: 'builtin' }
   }
 }

@@ -84,8 +84,8 @@ function SelectField({ field, value, adapterId, onChange }: { field: ConfigField
       const r = await ipcClient.invoke('adapter.field.options', { adapterId, fieldKey: field.key })
       if (r?.error) setHint(r.error)
       setDynamicOpts(Array.isArray(r?.options) ? r.options : [])
-    } catch (e: any) {
-      setHint(e?.message || String(e))
+    } catch (e: unknown) {
+      setHint((e instanceof Error ? e.message : String(e)) || String(e))
     } finally {
       setFetching(false)
     }
@@ -197,8 +197,8 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
     try {
       const r = await ipcClient.invoke('adapter.action.run', { adapterId: adapter.id, actionId })
       setActionResult((p) => ({ ...p, [actionId]: r }))
-    } catch (e: any) {
-      setActionResult((p) => ({ ...p, [actionId]: { ok: false, error: e.message } }))
+    } catch (e: unknown) {
+      setActionResult((p) => ({ ...p, [actionId]: { ok: false, error: e instanceof Error ? e.message : String(e) } }))
     }
   }
 

@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import type { TimelineItem, ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
@@ -13,7 +14,7 @@ import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
-import { buildTimelineDisplayItems } from './timeline-display-items'
+import { buildTimelineDisplayItems, type TimelineRawItem } from './timeline-display-items'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
@@ -33,7 +34,7 @@ const TimelineItemBase = memo(function TimelineItem({
   agentRunning,
   agentBoot,
 }: {
-  item: any
+  item: TimelineRawItem
   prevType?: string
   streaming: boolean
   agentRunning: boolean
@@ -42,17 +43,19 @@ const TimelineItemBase = memo(function TimelineItem({
   const { t } = useTranslation()
 
   if (item.type === 'user-message') {
-    const segments: Segment[] = item.segments?.length ? item.segments : [{ type: 'text', text: item.text || '' }]
+    const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
+      ? (item.segments as Segment[])
+      : [{ type: 'text', text: String(item.text || '') }]
     return (
       <div className={cn('timeline-message-row', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
         <MessageHoverShell
           align="right"
           actions={
             <MessageHoverActions
-              text={item.text}
-              timestamp={item.timestamp}
+              text={String(item.text ?? '')}
+              timestamp={Number(item.timestamp ?? 0)}
               align="right"
-              sessionEntryId={item.sessionEntryId}
+              sessionEntryId={item.sessionEntryId as string | undefined}
               onRewind={(id) => void navigateSessionToEntry(id)}
             />
           }
@@ -78,8 +81,8 @@ const TimelineItemBase = memo(function TimelineItem({
   }
 
   if (item.type === 'assistant-message') {
-    const hasText = !!(item.text && item.text.trim())
-    const hasThinking = !!(item.thinkingText && item.thinkingText.trim())
+    const hasText = !!String(item.text ?? '').trim()
+    const hasThinking = !!String(item.thinkingText ?? '').trim()
     if (!hasText && !hasThinking) {
       const boot = agentBoot
       if (!streaming && !boot) return null
@@ -97,17 +100,17 @@ const TimelineItemBase = memo(function TimelineItem({
           actions={
             !streaming ? (
               <MessageHoverActions
-                text={item.text || ''}
-                timestamp={item.timestamp}
+                text={String(item.text ?? '')}
+                timestamp={Number(item.timestamp ?? 0)}
                 align="left"
-                sessionEntryId={item.sessionEntryId}
+                sessionEntryId={item.sessionEntryId as string | undefined}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
             ) : null
           }
         >
           {hasThinking && (
-            <ThinkingChainBlock text={item.thinkingText} streaming={streaming} />
+            <ThinkingChainBlock text={String(item.thinkingText ?? '')} streaming={streaming} />
           )}
           {hasText ? (
             <div
@@ -116,8 +119,8 @@ const TimelineItemBase = memo(function TimelineItem({
                 streaming && 'assistant-stream-live',
               )}
             >
-              <Suspense fallback={<p className="whitespace-pre-wrap break-words">{item.text}</p>}>
-                <MarkdownView streaming={streaming}>{item.text}</MarkdownView>
+              <Suspense fallback={<p className="whitespace-pre-wrap break-words">{String(item.text ?? '')}</p>}>
+                <MarkdownView streaming={streaming}>{String(item.text ?? '')}</MarkdownView>
               </Suspense>
               {streaming && <StreamingCaret />}
             </div>
@@ -134,15 +137,15 @@ const TimelineItemBase = memo(function TimelineItem({
     const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
     const label =
-      status === 'error' ? t('timeline:statusFailed') : status === 'ok' ? t('timeline:statusDone') : item.text?.includes('失败') ? t('timeline:statusFailed') : t('timeline:statusExecuted')
+      status === 'error' ? t('timeline:statusFailed') : status === 'ok' ? t('timeline:statusDone') : String(item.text ?? '').includes('失败') ? t('timeline:statusFailed') : t('timeline:statusExecuted')
     return (
       <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
         <div className="flex items-center gap-2 rounded-lg border border-border/40 px-2.5 py-1 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
           <Icon className={cn('h-3 w-3 shrink-0 opacity-80', iconCls)} />
-          <span className="font-mono font-medium text-foreground">{item.slashCommand}</span>
+          <span className="font-mono font-medium text-foreground">{String(item.slashCommand ?? '')}</span>
           <span className={cn('text-[10px] uppercase tracking-wide', iconCls)}>{label}</span>
-          {item.text && (
-            <span className="truncate text-foreground-secondary">{item.text}</span>
+          {String(item.text ?? '').length > 0 && (
+            <span className="truncate text-foreground-secondary">{String(item.text ?? '')}</span>
           )}
         </div>
       </div>
@@ -155,8 +158,8 @@ const TimelineItemBase = memo(function TimelineItem({
         <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/50 px-2.5 py-1.5 text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
           <Archive className="h-3 w-3 opacity-70" />
           <span className="text-[11px]">{t('timeline:compacted')}</span>
-          {item.text && (
-            <span className="truncate text-[11px] opacity-80">{item.text.slice(0, 100)}...</span>
+          {String(item.text ?? '').length > 0 && (
+            <span className="truncate text-[11px] opacity-80">{String(item.text ?? '').slice(0, 100)}...</span>
           )}
         </div>
       </div>
@@ -176,9 +179,9 @@ const TimelineItemBase = memo(function TimelineItem({
             <AlertCircle className={cn('h-3.5 w-3.5 shrink-0', textCls)} />
             <span className={cn('text-[11px] font-medium', textCls)}>{title}</span>
           </div>
-          {item.text && (
+          {item.text != null && String(item.text) && (
             <pre className={cn('mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed', textCls)}>
-              {item.text}
+              {String(item.text)}
             </pre>
           )}
         </div>
@@ -263,7 +266,7 @@ export function Timeline() {
       const offset = st.historyLoadedCount
       void fetchSessionHistoryOlder(st.historySessionFile, offset)
         .then(({ items: older }) => {
-          if (older.length) prependHistoryItems(older as any[])
+          if (older.length) prependHistoryItems(older as TimelineItem[])
           setRenderCount((c) => Math.min(c + PAGE, useUIStore.getState().timelineItems.length))
         })
         .catch((e) => console.error('[Timeline] load older failed', e))
@@ -359,7 +362,7 @@ export function Timeline() {
   const hiddenInMemory = items.length - visible.length
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
-  const displayItems = buildTimelineDisplayItems(visible as any[])
+  const displayItems = buildTimelineDisplayItems(visible as unknown as TimelineRawItem[])
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -400,7 +403,7 @@ export function Timeline() {
             <Fragment key={block.groupId}>
               {showGroupGap && <div className="h-2" />}
               <div className="timeline-message-row">
-                <ToolGroupSummary tools={block.tools} />
+                <ToolGroupSummary tools={block.tools as unknown as ToolTimelineItem[]} />
               </div>
             </Fragment>
           )
@@ -411,7 +414,7 @@ export function Timeline() {
           return (
             <Fragment key={item.id}>
               <div className="timeline-message-row">
-                <ToolCallRow item={item} />
+                <ToolCallRow item={item as unknown as ToolTimelineItem} />
               </div>
             </Fragment>
           )

@@ -1,4 +1,8 @@
-/** Session JSONL bound to Worker only after user sends a prompt (fast Timeline switch). */
+/**
+ * Session JSONL bound to Worker only after user sends a prompt (fast Timeline switch).
+ * Timeline preview: session.getMessages reads JSONL via buildTimelinePageFromSessionFile (main disk fallback or Worker RPC).
+ * Agent turn / navigateTree: ensureWorkerSessionBound → loadSession binds the live AgentSession.
+ */
 let pendingWorkerSessionFile: string | null = null
 
 /** 首条消息前尚未创建磁盘目录的临时对话草稿 */
@@ -21,13 +25,17 @@ export function getPendingWorkerSessionFile(): string | null {
 }
 
 export async function ensureWorkerSessionBound(
-  loadSession: (sessionFile: string) => Promise<{ sessionId: string; model?: string }>,
+  loadSession: (
+    sessionFile: string,
+    opts?: { force?: boolean },
+  ) => Promise<{ sessionId: string; model?: string }>,
+  opts?: { force?: boolean; sessionFile?: string | null },
 ): Promise<void> {
   if (pendingEphemeralSandboxDraft) {
     throw new Error('EPHEMERAL_SANDBOX_DRAFT')
   }
-  const file = pendingWorkerSessionFile
+  const file = opts?.sessionFile || pendingWorkerSessionFile
   if (!file) return
-  await loadSession(file)
+  await loadSession(file, { force: opts?.force === true })
   pendingWorkerSessionFile = null
 }

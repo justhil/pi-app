@@ -13,6 +13,7 @@ export default defineConfig({
     build: {
       rollupOptions: {
         external: [
+          'electron',
           '@earendil-works/pi-ai',
           '@earendil-works/pi-coding-agent',
           'better-sqlite3',
@@ -39,6 +40,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: ['electron'],
         input: {
           index: resolve(__dirname, 'src/preload/index.ts'),
         },

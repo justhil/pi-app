@@ -11,7 +11,7 @@ export function readGlobalSettingsJson(): Record<string, unknown> {
   if (!existsSync(GLOBAL_SETTINGS)) return {}
   try {
     return JSON.parse(readFileSync(GLOBAL_SETTINGS, 'utf-8'))
-  } catch {
+  } catch (e) {
     return {}
   }
 }

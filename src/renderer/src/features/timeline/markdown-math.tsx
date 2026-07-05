@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import katex from 'katex'
 import { cn } from '@renderer/lib/utils'
+import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
 
 const KATEX_OPTS = {
@@ -15,7 +16,7 @@ export function renderKatexHtml(latex: string, displayMode: boolean): { html: st
   try {
     const html = katex.renderToString(latex.trim(), { ...KATEX_OPTS, displayMode })
     return { html }
-  } catch {
+  } catch (e) {
     try {
       const html = katex.renderToString(latex.trim(), {
         ...KATEX_OPTS,
@@ -23,7 +24,7 @@ export function renderKatexHtml(latex: string, displayMode: boolean): { html: st
         strict: 'ignore',
       })
       return { html, error: true }
-    } catch {
+    } catch (e) {
       return {
         html: `<span class="katex-fallback">${escapeHtml(latex.slice(0, 200))}</span>`,
         error: true,
@@ -46,7 +47,7 @@ export function FencedMathBlock({ code, className }: { code: string; className?:
         error && 'math-render-error',
         className,
       )}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   )
 }
@@ -56,7 +57,7 @@ export function InlineMathSpan({ code, className }: { code: string; className?: 
   return (
     <span
       className={cn('math-inline-shell', error && 'math-render-error', className)}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   )
 }

@@ -6,6 +6,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 import { chooseWorkspaceSession, type WorkspaceSessionChoice } from '@renderer/lib/workspace-session-choice'
+import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 
 export type ActivateWorkspaceOptions = {
@@ -19,6 +20,11 @@ export type ActivateWorkspaceOptions = {
  */
 export async function activateWorkspace(path: string, options?: ActivateWorkspaceOptions): Promise<void> {
   const navToken = beginSessionNavigation()
+  const leavingWorkspace = useUIStore.getState().currentWorkspace
+  captureVisibleLiveSessionTimeline()
+  if (leavingWorkspace && leavingWorkspace !== path) {
+    void fetchWorkerLiveSnapshot(leavingWorkspace).catch(() => {})
+  }
   const store = useUIStore.getState()
   if (store.ephemeralSandboxDraft) store.clearEphemeralSandboxDraft()
 
@@ -72,7 +78,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       await openPromise
       if (!assertSessionNavigation(navToken)) return
       refreshSessionList()
-    } catch {
+    } catch (e) {
       /* logged above */
     }
     store.clearPendingNewSessionPlaceholder()
@@ -92,7 +98,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     try {
       await openPromise
       if (!assertSessionNavigation(navToken)) return
-    } catch {
+    } catch (e) {
       if (!assertSessionNavigation(navToken)) return
     }
     refreshSessionList()

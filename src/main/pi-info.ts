@@ -33,22 +33,33 @@ export function readPiInfo(): PiInfo {
   // SDK version（内置或全局，取决于 current.json active）
   try {
     info.sdkVersion = resolveActiveSdk(app.getPath('userData')).version
-  } catch {}
+  } catch (e) { void e }
 
   // Auth status
   try {
     const authPath = join(agentDir, 'auth.json')
     if (existsSync(authPath)) {
       const auth = JSON.parse(readFileSync(authPath, 'utf-8'))
-      info.authProviders = Object.entries(auth).map(([provider, cred]: [string, any]) => ({
-        provider,
-        type: cred.type || (cred.apiKey ? 'api_key' : cred.oauth ? 'oauth' : 'subscription'),
-        configured: !!(cred.apiKey || cred.oauth || cred.subscription),
-      }))
+      info.authProviders = Object.entries(auth as Record<string, Record<string, unknown>>).map(([provider, cred]) => {
+        const t = cred.type
+        const typeStr =
+          t === 'api_key' || t === 'oauth' || t === 'subscription'
+            ? t
+            : cred.apiKey
+              ? 'api_key'
+              : cred.oauth
+                ? 'oauth'
+                : 'subscription'
+        return {
+          provider,
+          type: typeStr,
+          configured: !!(cred.apiKey || cred.oauth || cred.subscription),
+        }
+      })
       const configuredCount = info.authProviders.filter(p => p.configured).length
       info.authStatus = configuredCount > 0 ? 'configured' : 'none'
     }
-  } catch {}
+  } catch (e) { void e }
 
   // Check env vars
   const envProviders = [
@@ -92,7 +103,7 @@ export function readResourceList(cwd: string): ResourceList {
           const isDir = statSync(full).isDirectory()
           return { name: isDir ? name : name.replace(/\.\w+$/, ''), source }
         })
-    } catch { return [] }
+    } catch (e) { return [] }
   }
 
   result.skills = [...scan(join(cwd, '.pi', 'skills'), 'project'), ...scan(join(agentDir, 'skills'), 'global')]

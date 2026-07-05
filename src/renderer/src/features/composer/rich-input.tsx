@@ -1,4 +1,5 @@
 import { forwardRef, useRef, useEffect, useImperativeHandle } from 'react'
+import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { cn } from '@renderer/lib/utils'
 
 export interface RichInputProps {
@@ -54,7 +55,7 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
   useEffect(() => {
     const el = innerRef.current
     if (el) { syncEmpty(el); handleInput() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   // 事件委托：点击 chip 的删除按钮 → 移除该 chip 及相邻 ZWSP，刷新输入态
@@ -74,6 +75,7 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
     if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '') === '\u200B') next.parentNode?.removeChild(next)
     chip.parentNode?.removeChild(chip)
     el.normalize()
+    hideAllDelayedTooltips()
     handleInput()
   }
 

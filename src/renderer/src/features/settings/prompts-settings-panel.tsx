@@ -43,7 +43,7 @@ export function PromptsSettingsPanel() {
       const prompts: PromptRow[] = res?.prompts || []
       setFlat(prompts)
       setVirtualSystemPreviewPath(res?.virtualSystemPreviewPath || null)
-    } catch {
+    } catch (e) {
       toast.error(t('settings:prompts.loadFailed'))
     } finally {
       setLoading(false)

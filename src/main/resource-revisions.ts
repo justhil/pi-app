@@ -31,7 +31,7 @@ export function listRevisions(filePath: string): RevisionEntry[] {
   try {
     const list = JSON.parse(readFileSync(mp, 'utf-8')) as RevisionEntry[]
     return Array.isArray(list) ? list.sort((a, b) => b.at - a.at) : []
-  } catch {
+  } catch (e) {
     return []
   }
 }

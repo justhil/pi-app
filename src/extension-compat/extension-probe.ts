@@ -113,10 +113,10 @@ function parseExtensionSource(src: string, result: ExtensionProbeResult): void {
   applyPluginAdapterFields(result)
 }
 
-function readPackageJson(pkgDir: string): any | null {
+function readPackageJson(pkgDir: string): Record<string, unknown> | null {
   const p = join(pkgDir, 'package.json')
   if (!existsSync(p)) return null
-  try { return JSON.parse(readFileSync(p, 'utf-8')) } catch { return null }
+  try { return JSON.parse(readFileSync(p, 'utf-8')) } catch (e) { return null }
 }
 
 function findGitPackageDirs(agentDir: string): string[] {
@@ -126,12 +126,12 @@ function findGitPackageDirs(agentDir: string): string[] {
   const walk = (dir: string, depth: number) => {
     if (depth > 4) return
     let entries: string[] = []
-    try { entries = readdirSync(dir) } catch { return }
+    try { entries = readdirSync(dir) } catch (e) { return }
     for (const name of entries) {
       if (name === '.git' || name === 'node_modules' || name.startsWith('.')) continue
       const full = join(dir, name)
       let isDir = false
-      try { isDir = statSync(full).isDirectory() } catch { continue }
+      try { isDir = statSync(full).isDirectory() } catch (e) { continue }
       if (!isDir) continue
       if (existsSync(join(full, 'package.json'))) {
         dirs.push(full)
@@ -163,7 +163,7 @@ function resolvePackageDir(name: string, agentDir?: string): string | null {
 }
 
 // Parse source string from settings.json package entries
-function parsePackageSource(source: any): { type: 'npm' | 'git' | 'local'; name: string } | null {
+function parsePackageSource(source: unknown): { type: 'npm' | 'git' | 'local'; name: string } | null {
   if (typeof source === 'string') {
     if (source.startsWith('npm:')) return { type: 'npm', name: source.slice(4) }
     if (source.startsWith('git:') || source.startsWith('http')) {
@@ -182,7 +182,7 @@ export function probeExtensions(cwd: string): ExtensionProbeResult[] {
   CURRENT_CWD = cwd
 
   // Refresh known-tools from v2 adapter.json for this project.
-  try { KNOWN_TOOLS = { ...v2ToolMap(cwd) } } catch { KNOWN_TOOLS = {} }
+  try { KNOWN_TOOLS = { ...v2ToolMap(cwd) } } catch (e) { KNOWN_TOOLS = {} }
 
   // 1. Scan project .pi/extensions
   scanExtDir(join(cwd, '.pi', 'extensions'), 'project', results)
@@ -203,8 +203,8 @@ function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
   for (const pkgDir of findGitPackageDirs(agentDir)) {
     const pkg = readPackageJson(pkgDir)
     if (!pkg) continue
-    const repo = pkgDir.split(/[\\/]/).pop() || pkg.name
-    const pkgName = pkg.name || repo
+    const repo = pkgDir.split(/[\\/]/).pop() || String(pkg.name ?? '')
+    const pkgName = String(pkg.name || repo)
     if (seen.has(pkgName) || seen.has(repo)) continue
     const merged = buildPackageProbeResult(pkgDir, pkg, repo, undefined)
     if (!merged) continue
@@ -224,24 +224,25 @@ function scanGitClones(agentDir: string, results: ExtensionProbeResult[]) {
 
 function buildPackageProbeResult(
   pkgDir: string,
-  pkg: any,
+  pkg: Record<string, unknown>,
   parsedName: string,
   overrides: string[] | undefined,
 ): ExtensionProbeResult | null {
   let extFiles: string[] = []
-  if (pkg.pi?.extensions && Array.isArray(pkg.pi.extensions)) {
-    extFiles = pkg.pi.extensions
+  const pi = pkg.pi as { extensions?: string[] } | undefined
+  if (pi?.extensions && Array.isArray(pi.extensions)) {
+    extFiles = pi.extensions
   } else if (pkg.main) {
-    extFiles = [pkg.main]
+    extFiles = [String(pkg.main)]
   } else if (existsSync(join(pkgDir, 'index.ts'))) {
     extFiles = ['./index.ts']
   }
 
   const merged: ExtensionProbeResult = {
     id: `package:${parsedName}`,
-    name: pkg.name || parsedName,
-    description: pkg.description,
-    version: pkg.version,
+    name: String(pkg.name || parsedName),
+    description: pkg.description != null ? String(pkg.description) : undefined,
+    version: pkg.version != null ? String(pkg.version) : undefined,
     source: 'package',
     packageName: parsedName,
     enabled: true,
@@ -271,7 +272,7 @@ function buildPackageProbeResult(
     if (!existsSync(fullPath)) continue
     try {
       if (statSync(fullPath).isDirectory()) continue
-    } catch { continue }
+    } catch (e) { continue }
     try {
       const src = readFileSync(fullPath, 'utf-8')
       const tmp: ExtensionProbeResult = {
@@ -280,7 +281,7 @@ function buildPackageProbeResult(
       }
       parseExtensionSource(src, tmp)
       mergeResult(merged, tmp)
-    } catch { /* ignore */ }
+    } catch (e) { /* ignore */ }
   }
   scanPackageForKnownTools(pkgDir, merged)
   finalizeCompat(merged)
@@ -290,12 +291,12 @@ function buildPackageProbeResult(
 function scanExtDir(dir: string, source: 'project' | 'global', results: ExtensionProbeResult[]) {
   if (!existsSync(dir)) return
   let entries: string[]
-  try { entries = readdirSync(dir) } catch { return }
+  try { entries = readdirSync(dir) } catch (e) { return }
 
   for (const name of entries) {
     const extPath = join(dir, name)
     let isDir = false
-    try { isDir = statSync(extPath).isDirectory() } catch { continue }
+    try { isDir = statSync(extPath).isDirectory() } catch (e) { continue }
     if (!isDir && !/\.(ts|js|mjs)$/.test(name)) continue
     if (!isDir && /\.(json|md|bak|d\.ts)$/.test(name)) continue
 
@@ -317,9 +318,9 @@ function scanExtDir(dir: string, source: 'project' | 'global', results: Extensio
         parseExtensionSource(readFileSync(sourceFile, 'utf-8'), result)
         if (isDir) {
           const pkg = readPackageJson(extPath)
-          if (pkg?.name) result.name = pkg.name
-          if (pkg?.description) result.description = pkg.description
-          if (pkg?.version) result.version = pkg.version
+          if (pkg?.name) result.name = String(pkg.name)
+          if (pkg?.description) result.description = String(pkg.description)
+          if (pkg?.version) result.version = String(pkg.version)
         }
       } catch (e) { result.loadError = String(e) }
     }
@@ -330,8 +331,8 @@ function scanExtDir(dir: string, source: 'project' | 'global', results: Extensio
 function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
   const settingsPath = join(agentDir, 'settings.json')
   if (!existsSync(settingsPath)) return
-  let settings: any
-  try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) } catch { return }
+  let settings: Record<string, unknown>
+  try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')) } catch (e) { return }
 
   const packages = settings.packages || []
   if (!Array.isArray(packages)) return
@@ -368,7 +369,7 @@ function scanPackages(agentDir: string, results: ExtensionProbeResult[]) {
   }
 }
 
-function suggestPackageEntryFromDir(pkgDir: string, pkg: any): string | undefined {
+function suggestPackageEntryFromDir(pkgDir: string, pkg: Record<string, unknown>): string | undefined {
   const norm = pkgDir.replace(/\\/g, '/')
   const marker = '/.pi/agent/git/'
   const idx = norm.indexOf(marker)
@@ -395,20 +396,20 @@ function finalizeCompat(merged: ExtensionProbeResult): void {
 
 // Recursively scan a package dir for known tool/command names and UI patterns
 function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult): void {
-  let files: string[] = []
+  const files: string[] = []
   try {
     const walk = (d: string) => {
       for (const name of readdirSync(d)) {
         if (name === 'node_modules' || name.startsWith('.')) continue
         const full = join(d, name)
         let st
-        try { st = statSync(full) } catch { continue }
+        try { st = statSync(full) } catch (e) { continue }
         if (st.isDirectory()) walk(full)
         else if (/\.(ts|js|mjs)$/.test(name) && !/\.d\.ts$/.test(name) && !/\.test\./.test(name) && !/\.spec\./.test(name)) files.push(full)
       }
     }
     walk(pkgDir)
-  } catch { return }
+  } catch (e) { return }
 
   for (const f of files.slice(0, 60)) { // cap scan
     try {
@@ -421,7 +422,7 @@ function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult):
         }
       }
       if (UI_PATTERNS.some((p) => src.includes(p))) merged.hasUI = true
-    } catch {}
+    } catch (e) { void e }
   }
 }
 

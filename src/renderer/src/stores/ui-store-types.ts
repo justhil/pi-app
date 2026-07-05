@@ -11,6 +11,23 @@ export interface SessionItem {
   modelId: string
 }
 
+/** Tool row in timeline (looser than TimelineItem for display pipeline). */
+export type ToolTimelineItem = {
+  id: string
+  type?: string
+  toolName?: string
+  toolCallId?: string
+  toolPhase?: string
+  toolOutput?: string
+  toolDetails?: unknown
+  toolArgs?: unknown
+  toolStatusLine?: string
+  extensionUiSuspended?: boolean
+  runId?: string
+  isError?: boolean
+  timestamp?: number
+}
+
 export interface TimelineItem {
   id: string
   type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'

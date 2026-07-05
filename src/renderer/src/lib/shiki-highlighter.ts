@@ -5,9 +5,9 @@ let loadPromise: Promise<Highlighter> | null = null
 
 const LANG_ALIASES: Record<string, string> = {
   ts: 'typescript',
-  tsx: 'tsx',
+  tsx: 'typescript',
   js: 'javascript',
-  jsx: 'jsx',
+  jsx: 'javascript',
   py: 'python',
   rs: 'rust',
   go: 'go',
@@ -34,24 +34,7 @@ async function getHighlighter(): Promise<Highlighter> {
       const { createHighlighter } = await import('shiki')
       const h = await createHighlighter({
         themes: ['github-light', 'github-dark'],
-        langs: [
-          'typescript',
-          'tsx',
-          'javascript',
-          'jsx',
-          'json',
-          'python',
-          'rust',
-          'go',
-          'bash',
-          'shell',
-          'yaml',
-          'markdown',
-          'css',
-          'html',
-          'sql',
-          'xml',
-        ],
+        langs: ['typescript', 'javascript', 'json', 'bash', 'yaml', 'markdown'],
       })
       highlighter = h
       return h
@@ -68,13 +51,13 @@ export async function highlightCodeToHtml(code: string, lang?: string): Promise<
   try {
     const h = await getHighlighter()
     const loaded = h.getLoadedLanguages()
-    const useLang = loaded.includes(resolved as any) ? resolved : 'text'
+    const useLang = (loaded as string[]).includes(resolved) ? resolved : 'text'
     const theme = isDark() ? 'github-dark' : 'github-light'
     if (useLang === 'text') {
       return escapeHtml(trimmed)
     }
-    return h.codeToHtml(trimmed, { lang: useLang as any, theme })
-  } catch {
+    return h.codeToHtml(trimmed, { lang: useLang, theme: theme as 'github-dark' | 'github-light' })
+  } catch (e) {
     return escapeHtml(trimmed)
   }
 }

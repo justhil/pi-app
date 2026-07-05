@@ -64,8 +64,8 @@ export function readModelsConfigRaw(): {
     const parsed = JSON.parse(stripJsonComments(raw)) as unknown
     const { config, warnings } = normalizeModelsConfig(parsed)
     return { path, config, raw, warnings: warnings.length ? warnings : undefined }
-  } catch (e: any) {
-    return { path, config: { providers: {} }, raw, parseError: e?.message || 'JSON 解析失败' }
+  } catch (e: unknown) {
+    return { path, config: { providers: {} }, raw, parseError: (e as { message?: string })?.message || 'JSON 解析失败' }
   }
 }
 
@@ -86,8 +86,8 @@ async function validateWithPiSdk(config: PiModelsConfig): Promise<string | undef
     const registry = ModelRegistry.create(AuthStorage.create(), tmpPath)
     const err = (registry as { getModelsJsonError?: () => unknown }).getModelsJsonError?.()
     return err ? String(err) : undefined
-  } catch (e: any) {
-    return e?.message || '校验失败'
+  } catch (e: unknown) {
+    return (e as { message?: string })?.message || '校验失败'
   }
 }
 
@@ -188,7 +188,7 @@ export async function fetchRemoteModelIds(input: {
     const ids = [...new Set([...fromData, ...fromModels])].sort((a, b) => a.localeCompare(b))
     if (ids.length === 0) return { ok: false, error: '响应中未找到模型列表（需 OpenAI 兼容 /v1/models）' }
     return { ok: true, ids }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || '请求失败' }
+  } catch (e: unknown) {
+    return { ok: false, error: (e as { message?: string })?.message || '请求失败' }
   }
 }

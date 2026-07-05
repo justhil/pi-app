@@ -31,7 +31,7 @@ function readMeta(dir: string): SandboxMeta | null {
   if (!existsSync(p)) return null
   try {
     return JSON.parse(readFileSync(p, 'utf-8')) as SandboxMeta
-  } catch {
+  } catch (e) {
     return null
   }
 }
@@ -123,7 +123,7 @@ export function deleteSandboxWorkspace(path: string): boolean {
   try {
     rmSync(path, { recursive: true, force: true })
     return true
-  } catch {
+  } catch (e) {
     return false
   }
 }

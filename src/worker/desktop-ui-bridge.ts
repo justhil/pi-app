@@ -97,16 +97,17 @@ export function createDesktopUIBridge(
 
   const buildAskQuestions = (): unknown[] => {
     // Prefer interact-cached questions (from tool args, has preview text) merged with event questions.
-    const eventQs = (lastAskPayload?.questions as any[]) || []
-    const interactQs = (interactArgs?.schema === 'questions' ? interactArgs.args.questions : null) as any[] | undefined
+    type QRow = { options?: Array<{ preview?: string } & Record<string, unknown>> } & Record<string, unknown>
+    const eventQs = (lastAskPayload?.questions as QRow[]) || []
+    const interactQs = (interactArgs?.schema === 'questions' ? interactArgs.args.questions : null) as QRow[] | undefined
     const toolQs = interactQs || []
     if (toolQs.length === 0) return eventQs
     if (eventQs.length === 0) return toolQs
-    return eventQs.map((eq: any, qi: number) => {
+    return eventQs.map((eq, qi) => {
       const tq = toolQs[qi]
       if (!tq?.options) return eq
-      const opts = (eq.options || []).map((eo: any, oi: number) => {
-        const to = tq.options[oi]
+      const opts = (eq.options || []).map((eo, oi) => {
+        const to = tq.options?.[oi]
         const preview = typeof to?.preview === 'string' ? to.preview : undefined
         return preview ? { ...eo, preview } : eo
       })
@@ -185,7 +186,7 @@ export function createDesktopUIBridge(
           req,
           (r) => {
             if (r.cancelled) return { choice: 'cancel', label: '取消' } as T
-            const res = (r.result || {}) as any
+            const res = (r.result || {}) as { choice?: string; label?: string; feedback?: string }
             return { choice: res.choice, label: res.label, feedback: res.feedback } as T
           },
           { choice: 'cancel', label: '取消' } as T,

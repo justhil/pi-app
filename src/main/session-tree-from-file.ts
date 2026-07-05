@@ -1,4 +1,5 @@
 import { existsSync } from 'fs'
+import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
 
 export type FlatTreeNode = {
   id: string
@@ -15,16 +16,8 @@ export type FlatTreeNode = {
 const MAX_TREE_NODES = 4000
 const PREVIEW_MAX = 96
 
-function previewFromMsg(msg: any): string {
-  const c = msg?.content
-  if (typeof c === 'string') return c.trim().slice(0, PREVIEW_MAX)
-  if (!Array.isArray(c)) return ''
-  return c
-    .filter((p: any) => p?.type === 'text')
-    .map((p: any) => p.text || '')
-    .join('')
-    .trim()
-    .slice(0, PREVIEW_MAX)
+function previewFromMsg(msg: PiSessionMessage): string {
+  return extractTextFromPiMessage(msg).trim().slice(0, PREVIEW_MAX)
 }
 
 type SessionEntry = {
@@ -32,7 +25,7 @@ type SessionEntry = {
   id?: string
   parentId?: string | null
   timestamp?: string
-  message?: any
+  message?: PiSessionMessage
   targetId?: string
   label?: string
 }
@@ -53,7 +46,9 @@ export async function flattenTreeFromSessionFile(
   const resolved = fileURLToPath(mainUrl)
   const pkgRoot = dirname(dirname(resolved))
   const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
-  const sm: any = await import(pathToFileURL(smPath).href)
+  const sm = (await import(pathToFileURL(smPath).href)) as {
+    loadEntriesFromFile: (f: string) => SessionEntry[]
+  }
 
   const fileEntries = sm.loadEntriesFromFile(sessionFile) as SessionEntry[]
   const entries = fileEntries.filter((e) => e.type !== 'session' && e.id)

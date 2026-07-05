@@ -11,7 +11,7 @@ function loadStore(): HistoryStore {
     if (!raw) return {}
     const parsed = JSON.parse(raw) as HistoryStore
     return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
+  } catch (e) {
     return {}
   }
 }
@@ -19,7 +19,7 @@ function loadStore(): HistoryStore {
 function saveStore(store: HistoryStore): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-  } catch {
+  } catch (e) {
     /* quota */
   }
 }

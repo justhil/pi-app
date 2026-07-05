@@ -19,7 +19,7 @@ export async function signalDesktopAlert(
   alertTrace('ipc alerts.signal', { kind, title: payload.title, body: payload.body?.slice(0, 80) })
   try {
     await ipcClient.invoke('alerts.signal', { kind, ...payload })
-  } catch {
+  } catch (e) {
     /* ignore */
   }
 }

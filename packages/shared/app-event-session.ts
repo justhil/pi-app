@@ -10,3 +10,8 @@ export function appEventSessionId(event: AppEvent): string | undefined {
   if (!isSessionScopedAppEvent(event)) return undefined
   return event.sessionId
 }
+
+export function appEventSessionFile(event: AppEvent): string | undefined {
+  if (!isSessionScopedAppEvent(event)) return undefined
+  return event.sessionFile
+}

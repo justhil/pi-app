@@ -1,13 +1,32 @@
 import { existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
 import { shell } from 'electron'
-import { workspaceFsListDir, workspaceFsReadText, workspaceFsRename } from '../../workspace-fs'
-import { registerHandler } from '../registry'
+import { workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
+import {
+  shellOpenPathSchema,
+  shellReadImagePreviewSchema,
+  shellShowItemSchema,
+  workspaceFsListDirSchema,
+  workspaceFsReadTextSchema,
+  workspaceFsRenameSchema,
+} from '../schemas'
 
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 
+function resolveImagePreviewPath(req: { workspaceRoot: string; path: string }):
+  | { ok: true; abs: string }
+  | { ok: false; error: string } {
+  const pathInput = String(req.path || '')
+  const root = String(req.workspaceRoot || '').trim()
+  if (!root) return { ok: false, error: 'missing_root' }
+  const resolved = resolvePathUnderWorkspace(root, pathInput)
+  if (!resolved.ok) return { ok: false, error: resolved.error }
+  return { ok: true, abs: resolved.abs }
+}
+
 export function registerWorkspaceFsHandlers(): void {
-  registerHandler('ipc:shell.openPath', async (req) => {
+  registerHandlerWithSchema('ipc:shell.openPath', shellOpenPathSchema, async (req) => {
     const p = String(req.path || '')
     if (!p) return { ok: false }
     try {
@@ -18,39 +37,41 @@ export function registerWorkspaceFsHandlers(): void {
     }
   })
 
-  registerHandler('ipc:shell.showItemInFolder', async (req) => {
+  registerHandlerWithSchema('ipc:shell.showItemInFolder', shellShowItemSchema, async (req) => {
     const p = String(req.path || '')
     if (!p) return { ok: false }
     shell.showItemInFolder(p)
     return { ok: true }
   })
 
-  registerHandler('ipc:workspace.fs.listDir', async (req) => {
+  registerHandlerWithSchema('ipc:workspace.fs.listDir', workspaceFsListDirSchema, async (req) => {
     return workspaceFsListDir({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      path: req?.path != null ? String(req.path) : '.',
+      workspaceRoot: req.workspaceRoot,
+      path: req.path != null ? req.path : '.',
     })
   })
 
-  registerHandler('ipc:workspace.fs.readText', async (req) => {
+  registerHandlerWithSchema('ipc:workspace.fs.readText', workspaceFsReadTextSchema, async (req) => {
     return workspaceFsReadText({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      path: String(req?.path || ''),
-      maxBytes: typeof req?.maxBytes === 'number' ? req.maxBytes : undefined,
+      workspaceRoot: req.workspaceRoot,
+      path: req.path,
+      maxBytes: req.maxBytes,
     })
   })
 
-  registerHandler('ipc:workspace.fs.rename', async (req) => {
+  registerHandlerWithSchema('ipc:workspace.fs.rename', workspaceFsRenameSchema, async (req) => {
     return workspaceFsRename({
-      workspaceRoot: String(req?.workspaceRoot || ''),
-      relativePath: String(req?.relativePath || ''),
-      newName: String(req?.newName || ''),
+      workspaceRoot: req.workspaceRoot,
+      relativePath: req.relativePath,
+      newName: req.newName,
     })
   })
 
-  registerHandler('ipc:shell.readImagePreview', async (req) => {
-    const p = String(req.path || '')
-    if (!p || !existsSync(p)) return { ok: false, error: 'not_found' }
+  registerHandlerWithSchema('ipc:shell.readImagePreview', shellReadImagePreviewSchema, async (req) => {
+    const resolved = resolveImagePreviewPath(req)
+    if (!resolved.ok) return { ok: false, error: resolved.error }
+    const p = resolved.abs
+    if (!existsSync(p)) return { ok: false, error: 'not_found' }
     try {
       const st = statSync(p)
       if (!st.isFile() || st.size > IMAGE_PREVIEW_MAX_BYTES) return { ok: false, error: 'too_large' }

@@ -1,0 +1,1 @@
+export type WorkerReply = (payload: Record<string, unknown>) => void

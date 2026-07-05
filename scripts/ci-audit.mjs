@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CI: fail on critical npm audit findings; log high/moderate for tracking.
+ * CI: fail on critical npm audit findings; log high/moderate for tracking (see doc/CONTRIBUTING.md).
  */
 import { execSync } from 'node:child_process'
 
@@ -27,7 +27,7 @@ if (!critical.ok) {
 const high = runAudit('high')
 if (!high.ok && high.meta) {
   console.warn(
-    `[ci-audit] high=${high.meta.high} moderate=${high.meta.moderate} (tracked; not failing CI until upstream fixes)`,
+    `[ci-audit] high vulnerabilities present (non-blocking): high=${high.meta.high} moderate=${high.meta.moderate}`,
   )
 } else {
   console.log('[ci-audit] no critical; high tier clear or unreported')

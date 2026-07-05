@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { titleFromFirstMessage } from '@renderer/lib/ephemeral-sandbox'
 
 /** 侧栏「新会话」：仅占位，不碰 Worker */
@@ -50,11 +51,11 @@ export async function materializePendingNewSession(workspaceId: string, firstMes
   }
   const inList = sessions.some((s) => s.sessionId === sessionId)
   if (!inList) {
-    sessions = [row as any, ...sessions]
+    sessions = [row as SessionItem, ...sessions]
   } else {
     sessions = sessions.map((s) =>
       s.sessionId === sessionId ? { ...s, sessionFile: sessionFile ?? s.sessionFile, title } : s,
     )
   }
-  store.setSessions(sessions as any)
+  store.setSessions(sessions as SessionItem[])
 }

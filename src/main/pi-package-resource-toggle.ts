@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join, relative, resolve, dirname } from 'path'
 import { homedir } from 'os'
+import { errorMessage } from '@shared/error-message'
 
 const AGENT_DIR = join(homedir(), '.pi', 'agent')
 const GLOBAL_SETTINGS = join(AGENT_DIR, 'settings.json')
@@ -27,7 +28,7 @@ function readJson(path: string): Record<string, unknown> {
   if (!existsSync(path)) return {}
   try {
     return JSON.parse(readFileSync(path, 'utf-8'))
-  } catch {
+  } catch (e) {
     return {}
   }
 }
@@ -142,8 +143,8 @@ export function setPiExtensionEnabled(
       enabled,
     )
     return { ok: true }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) }
+  } catch (e: unknown) {
+    return { ok: false, error: errorMessage(e) || String(e) }
   }
 }
 

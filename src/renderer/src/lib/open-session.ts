@@ -5,7 +5,16 @@ import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
-import { fetchWorkerLiveSnapshot, syncViewRunStateFromWorkerSnapshot } from '@renderer/lib/session-worker-sync'
+import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
+import { getLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { mergeLiveTimelineWithHistoryTail } from '@renderer/lib/merge-live-history-timeline'
+import {
+  applyLiveStreamingTextToMergedTimeline,
+  lastAssistantItem,
+} from '@renderer/lib/streaming-timeline-preserve'
+import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import { isLiveSessionTurnActive, mergeLiveViewRunState } from '@renderer/lib/live-session-restore'
+import { applyLiveSnapshotToView, fetchWorkerLiveSnapshot, syncViewRunStateFromWorkerSnapshot } from '@renderer/lib/session-worker-sync'
 
 /**
  * 切换会话：时间线 tail 预览 + pendingBind；Worker loadSession 在首条 prompt / steer / followUp 或 session.navigateTree。
@@ -16,6 +25,7 @@ export async function openSessionIntoWorker(
   navToken?: number,
   opts?: { workerReady?: boolean },
 ): Promise<void> {
+  captureVisibleLiveSessionTimeline()
   const store = useUIStore.getState()
 
   if (!sessionFile) {
@@ -39,12 +49,42 @@ export async function openSessionIntoWorker(
   useExtensionUIStore.getState().resetForSessionContext()
   const snapEarly = await fetchWorkerLiveSnapshot().catch(() => null)
   if (snapEarly) store.setWorkerLiveSnapshot(snapEarly)
-  const boundAndRunning =
-    !!sessionFile && snapEarly?.sessionFile === sessionFile && snapEarly.status === 'running'
-  if (!boundAndRunning) {
+  const workerSnap = snapEarly ?? store.workerLiveSnapshot
+  const boundToWorker = !!sessionFile && workerSnap.sessionFile === sessionFile
+  const live = sessionFile ? getLiveSessionTimeline(sessionFile) : null
+  const liveTurnActive = sessionFile ? isLiveSessionTurnActive(sessionFile, live, snapEarly) : false
+  if (live && liveTurnActive) {
+    const histTail = await fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }).catch(() => null)
+    const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
+    const diskItems = sanitizeHistoryTimeline(
+      (histTail?.items ?? []) as import('@renderer/stores/ui-store-types').TimelineItem[],
+    )
+    const merged = applyLiveStreamingTextToMergedTimeline(
+      mergeLiveTimelineWithHistoryTail(diskItems, live.timelineItems),
+      live.timelineItems,
+      live.streamingAssistantId,
+    )
+    const mergedStreamId = live.streamingAssistantId ?? lastAssistantItem(merged)?.id ?? null
+    useUIStore.setState({
+      timelineItems: merged,
+      streamingAssistantId: mergedStreamId,
+      optimisticPendingUserText: live.optimisticPendingUserText,
+      agentTurnBootstrapping: live.agentTurnBootstrapping,
+      pendingSteering: live.pendingSteering,
+      pendingFollowUp: live.pendingFollowUp,
+    })
+    store.setRunState(mergeLiveViewRunState(sessionFile, live, snapEarly))
+    const total = Math.max(histTail?.totalCount ?? 0, merged.length)
+    store.setHistoryMeta(total, merged.length, sessionFile)
+    store.setHistoryLoading(false)
+    await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
+    void refreshSessionTree(sessionFile)
+    return
+  }
+  if (boundToWorker && workerSnap.status === 'running') {
+    syncViewRunStateFromWorkerSnapshot(sessionFile, workerSnap, (p) => store.setRunState(p))
+  } else if (!liveTurnActive) {
     store.setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
-  } else {
-    syncViewRunStateFromWorkerSnapshot(sessionFile, snapEarly, (p) => store.setRunState(p))
   }
   if (!store.historyLoading) {
     store.setHistoryLoading(true)
@@ -64,8 +104,37 @@ export async function openSessionIntoWorker(
     }
     const { items, totalCount, sessionMeta } = hist
     const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
-    store.loadHistoryItems(sanitizeHistoryTimeline(items as any[]))
-    store.setHistoryMeta(totalCount, items.length, sessionFile)
+    const diskItems = sanitizeHistoryTimeline(items as import('@renderer/stores/ui-store-types').TimelineItem[])
+    const liveAfter = getLiveSessionTimeline(sessionFile)
+    let merged = liveAfter
+      ? mergeLiveTimelineWithHistoryTail(diskItems, liveAfter.timelineItems)
+      : diskItems
+    if (liveAfter) {
+      merged = applyLiveStreamingTextToMergedTimeline(
+        merged,
+        liveAfter.timelineItems,
+        liveAfter.streamingAssistantId,
+      )
+    }
+    store.loadHistoryItems(merged)
+    if (liveAfter) {
+      useUIStore.setState({
+        streamingAssistantId: liveAfter.streamingAssistantId,
+        optimisticPendingUserText: liveAfter.optimisticPendingUserText,
+        agentTurnBootstrapping: liveAfter.agentTurnBootstrapping,
+        pendingSteering: liveAfter.pendingSteering,
+        pendingFollowUp: liveAfter.pendingFollowUp,
+      })
+      const mergedRun = mergeLiveViewRunState(sessionFile, liveAfter, store.workerLiveSnapshot)
+      if (mergedRun.status === 'running' || liveAfter.streamingAssistantId != null) {
+        store.setRunState({
+          ...store.runState,
+          ...mergedRun,
+          status: mergedRun.status === 'running' ? 'running' : store.runState.status,
+        })
+      }
+    }
+    store.setHistoryMeta(totalCount, merged.length, sessionFile)
     await applyComposerDisplayMeta(sessionMeta)
     void refreshSessionTree(sessionFile)
   } catch (e) {
@@ -86,10 +155,7 @@ export async function openSessionIntoWorker(
     if (navToken == null || assertSessionNavigation(navToken)) {
       store.setHistoryLoading(false)
       const snap = await fetchWorkerLiveSnapshot().catch(() => null)
-      if (snap) {
-        store.setWorkerLiveSnapshot(snap)
-        syncViewRunStateFromWorkerSnapshot(store.historySessionFile, snap, (p) => store.setRunState(p))
-      }
+      if (snap) applyLiveSnapshotToView(store.historySessionFile, snap, store)
     }
   }
 }

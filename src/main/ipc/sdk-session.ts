@@ -10,7 +10,18 @@ export function getActiveSdkModule(): Promise<typeof import('@earendil-works/pi-
   return import(pathToFileURL(active.entryPath).href)
 }
 
-export async function listSessionsOnDisk(workspaceId: string): Promise<any[]> {
+export type SessionOnDiskRow = {
+  id: string
+  path: string
+  cwd?: string
+  name?: string
+  firstMessage?: string
+  created?: Date
+  modified?: Date
+  messageCount?: number
+}
+
+export async function listSessionsOnDisk(workspaceId: string): Promise<SessionOnDiskRow[]> {
   const { SessionManager } = await getActiveSdkModule()
-  return await SessionManager.list(workspaceId)
+  return (await SessionManager.list(workspaceId)) as SessionOnDiskRow[]
 }

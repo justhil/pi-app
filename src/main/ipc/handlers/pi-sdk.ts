@@ -1,10 +1,12 @@
 import { BrowserWindow, app } from 'electron'
-import { registerHandler, sendEvent } from '../registry'
+import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
+import { piSettingsSetSchema, sdkInstallSchema } from '../schemas'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
-import { readSdkStatus, listRegistryVersions, installVersion, switchTo } from '../../sdk-manager'
+import { readSdkStatus, listRegistryVersions, installVersion, switchTo, isAllowedSdkVersion } from '../../sdk-manager'
+import { errorMessage } from '@shared/error-message'
 
 export function registerPiSdkHandlers(): void {
   registerHandler('ipc:pi.getInfo', async () => readPiInfo())
@@ -52,9 +54,12 @@ export function registerPiSdkHandlers(): void {
 
   registerHandler('ipc:sdk.listAvailable', async () => listRegistryVersions())
 
-  registerHandler('ipc:sdk.install', async (req) => {
-    const version = String(req?.version || '').trim()
-    if (!version) return { ok: false, error: 'missing version' }
+  registerHandlerWithSchema('ipc:sdk.install', sdkInstallSchema, async (req) => {
+    const version = String(req.version || '').trim()
+    const registry = await listRegistryVersions()
+    if (!isAllowedSdkVersion(version, registry)) {
+      return { ok: false, error: 'version not in registry list' }
+    }
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
     try {
       await installVersion(version, (line) => {
@@ -67,9 +72,9 @@ export function registerPiSdkHandlers(): void {
         await workerManager.start(cwd)
       }
       return { ok: true }
-    } catch (e: any) {
-      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error: e.message })
-      return { ok: false, error: e.message }
+    } catch (e: unknown) {
+      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error: errorMessage(e) })
+      return { ok: false, error: errorMessage(e) }
     }
   })
 
@@ -84,8 +89,8 @@ export function registerPiSdkHandlers(): void {
         await workerManager.start(cwd)
       }
       return { ok: true, active: target }
-    } catch (e: any) {
-      return { ok: false, error: e.message }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) }
     }
   })
 
@@ -93,8 +98,8 @@ export function registerPiSdkHandlers(): void {
     if (workerManager.isRunning) {
       try {
         return { settings: await workerManager.getPiSettings() }
-      } catch (e: any) {
-        return { settings: null, error: e.message }
+      } catch (e: unknown) {
+        return { settings: null, error: errorMessage(e) }
       }
     }
     const { readPiAgentGlobalSettingsFromDisk } = await import('../../pi-agent-settings-read')
@@ -103,12 +108,12 @@ export function registerPiSdkHandlers(): void {
     return { settings: null, error: 'Worker not started' }
   })
 
-  registerHandler('ipc:pi.settings.set', async (req) => {
+  registerHandlerWithSchema('ipc:pi.settings.set', piSettingsSetSchema, async (req) => {
     try {
-      await workerManager.setPiSettings(req.patch || {})
+      await workerManager.setPiSettings(req.patch)
       return { ok: true }
-    } catch (e: any) {
-      return { ok: false, error: e.message }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) }
     }
   })
 

@@ -20,7 +20,7 @@ export function readPiFilePathDrop(dt: DataTransfer): { path: string; name: stri
     try {
       const o = JSON.parse(raw) as { path?: string; name?: string }
       if (o.path) return { path: o.path, name: o.name || o.path.split(/[\\/]/).pop() || o.path }
-    } catch {
+    } catch (e) {
       /* fall through */
     }
   }

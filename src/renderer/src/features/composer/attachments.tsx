@@ -72,9 +72,13 @@ export function getAttachmentIcon(kind: AttachmentKind): LucideIcon {
 
 /** Resolve a real on-disk path for a File from paste/drop, cross-platform. */
 export function resolveFilePath(file: File): string | undefined {
-  const p = window.piDesktop?.getPathForFile(file)
-  if (p) return p
-  return (file as any).path as string | undefined
+  try {
+    const p = window.piDesktop?.getPathForFile(file)
+    if (p) return p
+  } catch {
+    /* clipboard screenshots have no on-disk path */
+  }
+  return (file as File & { path?: string }).path
 }
 
 export function basenameOf(path: string): string {
@@ -85,7 +89,7 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
 
-const ICON_SVGS: Record<AttachmentKind, string> = {} as any
+const ICON_SVGS = {} as Record<AttachmentKind, string>
 function buildIconSvgs() {
   const icons: Record<AttachmentKind, LucideIcon> = {
     image: ImageIcon, pdf: FileText, doc: FileText, sheet: FileSpreadsheet,
@@ -126,6 +130,7 @@ export function renderRichTextFromPlain(el: HTMLElement, text: string) {
 
 /** 在光标处插入一个附件 chip（前后附加 ZWSP 让光标可停留）。 */
 export function insertAttachmentAtCursor(el: HTMLElement, meta: AttachmentMeta) {
+  el.focus()
   const sel = window.getSelection()
   let range: Range
   if (sel && sel.rangeCount && el.contains(sel.anchorNode)) {

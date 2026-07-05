@@ -20,7 +20,7 @@ export function lineDiffRows(oldStr: string, newStr: string): DiffRow[] {
   return rows
 }
 
-export function collectEditPairsFromArgs(args: Record<string, any>): { old: string; new: string }[] {
+export function collectEditPairsFromArgs(args: Record<string, unknown>): { old: string; new: string }[] {
   const pairs: { old: string; new: string }[] = []
   const edits = args.edits
   if (!Array.isArray(edits)) return pairs
@@ -40,7 +40,7 @@ export function collectEditPairsFromArgs(args: Record<string, any>): { old: stri
   return pairs
 }
 
-export function singleReplaceFromArgs(args: Record<string, any>): { old: string; new: string } | null {
+export function singleReplaceFromArgs(args: Record<string, unknown>): { old: string; new: string } | null {
   const old = args.old_string ?? args.oldString ?? args.oldText ?? args.old_text ?? ''
   const neu = args.new_string ?? args.newString ?? args.newText ?? args.new_text ?? args.content ?? ''
   if (!old && !neu) return null
@@ -113,12 +113,12 @@ export function hasVisibleDiff(rows: DiffRow[]): boolean {
   return rows.some((r) => r.kind === 'add' || r.kind === 'del')
 }
 
-export function fileNameFromArgs(args: Record<string, any>): string {
+export function fileNameFromArgs(args: Record<string, unknown>): string {
   const p = pathFromArgs(args)
   return p.split(/[\\/]/).pop() || p || 'file'
 }
 
-export function fullPathFromArgs(args: Record<string, any>): string {
+export function fullPathFromArgs(args: Record<string, unknown>): string {
   return pathFromArgs(args)
 }
 
@@ -126,17 +126,19 @@ export interface NativeDiffSource {
   toolName?: string
   toolArgs?: unknown
   toolOutput?: string
-  toolDetails?: any
+  toolDetails?: unknown
 }
 
 export function resolveEditWriteDiffRows(item: NativeDiffSource): { rows: DiffRow[]; label?: string } | null {
   const args = normalizeToolArgs(item.toolArgs)
   const output = extractToolText(item.toolOutput || '')
-  const details = item.toolDetails || {}
+  const details = (item.toolDetails && typeof item.toolDetails === 'object'
+    ? item.toolDetails
+    : {}) as Record<string, unknown>
 
   const patch =
-    details.patch ||
-    args.patch ||
+    String(details.patch || '') ||
+    String(args.patch || '') ||
     (output.includes('@@') && output.includes('---') ? output : '')
   if (patch) {
     const rows = parsePatchLines(patch)

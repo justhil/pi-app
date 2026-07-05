@@ -7,8 +7,10 @@ const root = process.cwd()
 
 describe('worker session model formatting', () => {
   it('worker uses formatSessionModelKey instead of session.model as any', () => {
-    const src = readFileSync(join(root, 'src/worker/index.ts'), 'utf8')
-    assert.match(src, /formatSessionModelKey/)
-    assert.doesNotMatch(src, /\(session\.model as any\)/)
+    const runtime = readFileSync(join(root, 'src/worker/worker-runtime.ts'), 'utf8')
+    assert.match(runtime, /formatSessionModelKey/)
+    assert.doesNotMatch(runtime, /\(session\.model as any\)/)
+    const handlers = readFileSync(join(root, 'src/worker/worker-port-handlers.ts'), 'utf8')
+    assert.doesNotMatch(handlers, /\(session\.model as any\)/)
   })
 })

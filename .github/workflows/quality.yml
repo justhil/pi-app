@@ -64,6 +64,28 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
   script-tests-win:
     runs-on: windows-latest
     steps:
@@ -75,6 +97,17 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test:scripts
+
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
 
   e2e-smoke:
     runs-on: ubuntu-latest

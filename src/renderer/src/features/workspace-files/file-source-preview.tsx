@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
 import { PREVIEW_SHIKI_MAX_CHARS } from './file-preview-limits'
@@ -92,7 +93,7 @@ export function FileSourcePreview({ code, lang, fill, readComplete, onRequestFul
               {useShiki && html != null ? (
                 <div
                   className="native-code-shiki [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[11px] [&_pre]:whitespace-pre"
-                  dangerouslySetInnerHTML={{ __html: html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
                 />
               ) : (
                 <pre className="m-0 whitespace-pre text-foreground">{visibleText}</pre>

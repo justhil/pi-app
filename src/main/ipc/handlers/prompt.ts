@@ -4,56 +4,72 @@ import { join } from 'path'
 import { randomUUID } from 'node:crypto'
 import { workerManager } from '../../worker-manager'
 import { ensureWorkerSessionBound } from '../../session-bind-state'
-import { registerHandler } from '../registry'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { releaseAllClipboardTempImages, trackClipboardTempImage } from '../../clipboard-temp-images'
+import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 
 export function registerPromptHandlers(): void {
-  const bindBeforePrompt = async () => {
-    await ensureWorkerSessionBound((f) => workerManager.loadSession(f))
+  const bindBeforePrompt = async (sessionFile?: string) => {
+    await ensureWorkerSessionBound((f, o) => workerManager.loadSession(f, o), { sessionFile })
   }
 
-  registerHandler('ipc:prompt.send', async (req) => {
-    await bindBeforePrompt()
+  const workerMatchesSession = async (sessionFile?: string) => {
+    if (!sessionFile) return true
+    const st = await workerManager.getState().catch(() => null)
+    return (st as { sessionFile?: string } | null)?.sessionFile === sessionFile
+  }
+
+  registerHandlerWithSchema('ipc:prompt.send', promptTextSchema, async (req) => {
+    await bindBeforePrompt(req.sessionFile)
     await workerManager.sendPrompt(req.text)
+    releaseAllClipboardTempImages()
     return { messageId: `msg-${Date.now()}` }
   })
 
-  registerHandler('ipc:clipboard.writeTempImage', async (req) => {
-    const { data, mimeType } = req
+  registerHandlerWithSchema('ipc:clipboard.writeTempImage', clipboardWriteTempImageSchema, async (req) => {
     const ext =
-      mimeType === 'image/jpeg'
+      req.mimeType === 'image/jpeg'
         ? 'jpg'
-        : mimeType === 'image/webp'
+        : req.mimeType === 'image/webp'
           ? 'webp'
-          : mimeType === 'image/gif'
+          : req.mimeType === 'image/gif'
             ? 'gif'
-            : mimeType === 'image/bmp'
+            : req.mimeType === 'image/bmp'
               ? 'bmp'
               : 'png'
     const filePath = join(tmpdir(), `pi-clipboard-${randomUUID()}.${ext}`)
-    writeFileSync(filePath, Buffer.from(data, 'base64'))
+    writeFileSync(filePath, Buffer.from(req.data, 'base64'))
+    trackClipboardTempImage(filePath)
     return { path: filePath }
   })
 
-  registerHandler('ipc:prompt.steer', async (req) => {
-    await bindBeforePrompt()
+  registerHandlerWithSchema('ipc:prompt.steer', promptTextSchema, async (req) => {
+    await bindBeforePrompt(req.sessionFile)
     await workerManager.steer(req.text)
     return { steered: true }
   })
 
-  registerHandler('ipc:prompt.followUp', async (req) => {
-    await bindBeforePrompt()
+  registerHandlerWithSchema('ipc:prompt.followUp', promptTextSchema, async (req) => {
+    await bindBeforePrompt(req.sessionFile)
     await workerManager.followUp(req.text)
     return { messageId: `msg-${Date.now()}` }
   })
 
-  registerHandler('ipc:prompt.abort', async () => {
+  registerHandler('ipc:prompt.abort', async (req) => {
+    if (!(await workerMatchesSession(req?.sessionFile as string | undefined))) {
+      return { aborted: false, ignored: true }
+    }
     await workerManager.abort()
+    releaseAllClipboardTempImages()
     return { aborted: true }
   })
 
   registerHandler('ipc:prompt.dequeueClearQueue', async (req) => {
     const abort = !!req?.abort
     const currentText = typeof req?.currentText === 'string' ? req.currentText : ''
+    if (!(await workerMatchesSession(req?.sessionFile as string | undefined))) {
+      return { restoredCount: 0, combinedText: currentText, ignored: true }
+    }
     const cleared = await workerManager.clearPromptQueue()
     const all = [...(cleared.steering || []), ...(cleared.followUp || [])]
     const queuedText = all.join('\n')

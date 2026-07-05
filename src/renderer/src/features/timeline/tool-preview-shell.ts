@@ -3,8 +3,8 @@ export interface ToolTimelineItem {
   id?: string
   toolName?: string
   toolOutput?: string
-  toolDetails?: any
-  toolArgs?: any
+  toolDetails?: unknown
+  toolArgs?: unknown
   toolPhase?: string
   toolStatusLine?: string
   runId?: string

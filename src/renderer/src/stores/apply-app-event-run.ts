@@ -1,3 +1,4 @@
+import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import type { UIState } from '@renderer/stores/ui-store-types'
@@ -6,6 +7,7 @@ import type { RunEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 export function handleRun(event: RunEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'started' || event.phase === 'running') {
+    if (isAbortUiHoldActive()) return
     if (Date.now() < state.ignoreQueueSyncUntil && event.phase === 'running') return
     const runPatch: Record<string, unknown> = {
       status: 'running',

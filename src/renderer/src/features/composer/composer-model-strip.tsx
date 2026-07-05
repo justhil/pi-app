@@ -1,9 +1,10 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { formatModelChip, formatThinkingChip } from '@renderer/lib/format-run-display'
 
 /** Bottom-right of input: model / thinking */
-export function ComposerModelStrip({
+function ComposerModelStripImpl({
   model,
   thinkingLevel,
   modelPickerOpen,
@@ -50,3 +51,5 @@ export function ComposerModelStrip({
     </div>
   )
 }
+
+export const ComposerModelStrip = memo(ComposerModelStripImpl)

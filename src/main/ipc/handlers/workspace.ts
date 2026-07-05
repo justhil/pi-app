@@ -11,7 +11,9 @@ import {
   renameSandboxWorkspace,
 } from '../../sandbox-workspaces'
 import { listSessionsOnDisk } from '../sdk-session'
-import { registerHandler } from '../registry'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
+import { errorMessage } from '@shared/error-message'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -21,14 +23,13 @@ export function registerWorkspaceHandlers(): void {
     try {
       const r = await workerManager.start(path)
       return { ok: true, workspaceId: path, sessionId: r.sessionId, model: r.model }
-    } catch (e: any) {
-      return { ok: false, workspaceId: path, error: e?.message || 'Worker start failed' }
+    } catch (e: unknown) {
+      return { ok: false, workspaceId: path, error: errorMessage(e) || 'Worker start failed' }
     }
   })
 
-  registerHandler('ipc:workspace.open', async (req) => {
+  registerHandlerWithSchema('ipc:workspace.open', workspaceOpenSchema, async (req) => {
     const path = req.path
-    if (!path) return { workspaceId: '', path: '', name: '' }
     const name = path.split(/[\\/]/).pop() || path
     invalidateAdapterCatalog()
     configStore.addRecentProject(path)
@@ -92,7 +93,7 @@ export function registerWorkspaceHandlers(): void {
     return { ok: renameSandboxWorkspace(req.path, req.label || '') }
   })
 
-  registerHandler('ipc:workspace.sandbox.delete', async (req) => {
+  registerHandlerWithSchema('ipc:workspace.sandbox.delete', workspaceSandboxDeleteSchema, async (req) => {
     return { ok: deleteSandboxWorkspace(req.path) }
   })
 

@@ -11,4 +11,10 @@ describe('settings IPC handler typing', () => {
     assert.match(src, /keyof StoreSchema/)
     assert.doesNotMatch(src, /as any/)
   })
+
+  it('settings.set uses Zod schema validation', () => {
+    const src = readFileSync(join(root, 'src/main/ipc/handlers/settings.ts'), 'utf8')
+    assert.match(src, /settingsSetSchema/)
+    assert.match(src, /registerHandlerWithSchema\('ipc:settings\.set'/) 
+  })
 })

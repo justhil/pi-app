@@ -1,5 +1,7 @@
 import type { AppEvent } from '@shared/app-events'
 import { isSessionScopedAppEvent } from '@shared/app-event-session'
+import { applyBackgroundAppEventToLiveTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { resolveAppEventRoute } from '@renderer/stores/apply-app-event-route'
 import {
   handleAgentError,
   handleCompaction,
@@ -12,26 +14,22 @@ import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
 export type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
+function backgroundCacheFile(state: ReturnType<StoreApi['get']>, event: AppEvent): string | null {
+  if (!isSessionScopedAppEvent(event)) return null
+  if (event.sessionFile) return event.sessionFile
+  return state.workerLiveSnapshot.sessionFile
+}
+
 export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (!isSessionScopedAppEvent(event)) return
   const state = api.get()
-  const viewSid = state.currentSessionId
-  const workerSid = state.workerLiveSnapshot.sessionId
-  const evSid = event.sessionId
-  if (evSid && viewSid && workerSid && evSid === workerSid && evSid !== viewSid) {
-    if (event.type === 'run') {
-      if (event.phase === 'running' || event.phase === 'started') {
-        state.setWorkerLiveSnapshot({ ...state.workerLiveSnapshot, status: 'running' })
-      } else if (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled') {
-        state.setWorkerLiveSnapshot({
-          ...state.workerLiveSnapshot,
-          status: event.phase === 'failed' ? 'failed' : 'idle',
-        })
-      }
-    }
+  const route = resolveAppEventRoute(state, event)
+  if (route === 'drop') return
+  if (route === 'background') {
+    const cacheFile = backgroundCacheFile(state, event)
+    if (cacheFile) applyBackgroundAppEventToLiveTimeline(cacheFile, event)
     return
   }
-  if (evSid && viewSid && evSid !== viewSid) return
 
   switch (event.type) {
     case 'message':

@@ -25,12 +25,12 @@ export interface WorkspaceTaskPanelState {
   recentJournals?: { title: string; date: string; lines: number; preview: string }[]
 }
 
-function readTaskJson(rootDir: string, taskName: string): any | null {
+function readTaskJson(rootDir: string, taskName: string): Record<string, unknown> | null {
   try {
     const p = join(rootDir, 'tasks', taskName, 'task.json')
     if (!existsSync(p)) return null
     return JSON.parse(readFileSync(p, 'utf-8'))
-  } catch {
+  } catch (e) {
     return null
   }
 }
@@ -66,7 +66,7 @@ function readTaskPrd(
     const descMatch = prd.match(/^#\s+.+\n+(.*?)(?=\n##\s|\n---|$)/s)
     const description = descMatch ? descMatch[1].trim().slice(0, 200) : undefined
     return { title: titleMatch?.[1], acceptanceCriteria, description }
-  } catch {
+  } catch (e) {
     return {}
   }
 }
@@ -88,7 +88,7 @@ export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelStat
     }).trim()
     const pathMatch = output.match(/tasks\/([^\s]+)/)
     if (pathMatch) currentTaskName = pathMatch[1]
-  } catch {
+  } catch (e) {
     /* no current task */
   }
   state.currentTaskName = currentTaskName
@@ -99,7 +99,7 @@ export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelStat
       const p = join(tasksDir, d)
       try {
         return statSync(p).isDirectory() && d !== 'archive'
-      } catch {
+      } catch (e) {
         return false
       }
     })
@@ -110,12 +110,12 @@ export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelStat
       const isCurrent = taskName === currentTaskName
       state.tasks.push({
         name: taskName,
-        title: prd.title || tj?.title || taskName,
-        status: tj?.status || (isCurrent ? 'in_progress' : 'planning'),
-        priority: tj?.priority,
+        title: prd.title || String(tj?.title ?? '') || taskName,
+        status: String(tj?.status ?? '') || (isCurrent ? 'in_progress' : 'planning'),
+        priority: tj?.priority as string | undefined,
         description: prd.description,
-        assignee: tj?.assignee,
-        subtasks: tj?.children || tj?.subtasks,
+        assignee: tj?.assignee as string | undefined,
+        subtasks: (tj?.children ?? tj?.subtasks) as string[] | undefined,
         acceptanceCriteria: prd.acceptanceCriteria,
         isCurrent,
       })
@@ -136,7 +136,7 @@ export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelStat
       const devs = readdirSync(workspaceDir).filter((d) => {
         try {
           return readdirSync(join(workspaceDir, d)).some((f) => f.endsWith('.md'))
-        } catch {
+        } catch (e) {
           return false
         }
       })
@@ -168,7 +168,7 @@ export function readWorkspaceTaskPanelState(cwd: string): WorkspaceTaskPanelStat
       }
       state.recentJournals = journals.sort((a, b) => b.mtime - a.mtime).slice(0, 5)
     }
-  } catch {
+  } catch (e) {
     /* journals optional */
   }
 

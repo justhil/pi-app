@@ -1,6 +1,8 @@
-import { GitBranch } from 'lucide-react'
+import { Bot, GitBranch, MessageSquare, Sparkles, Wrench } from 'lucide-react'
+import { useMemo } from 'react'
 import { cn } from '@renderer/lib/utils'
-import { SessionTreeGuideRails } from './session-tree-guide-rails'
+import { buildGitLaneLayout } from './session-tree-git-lanes'
+import { SessionTreeGraphColumn } from './session-tree-graph-column'
 
 export type SessionTreeNode = {
   id: string
@@ -47,6 +49,14 @@ export function filterSessionTreeNodes(nodes: SessionTreeNode[], mode: TreeFilte
   })
 }
 
+function nodeIcon(n: SessionTreeNode) {
+  if (n.entryType === 'message' && n.role === 'user') return MessageSquare
+  if (n.entryType === 'message' && n.role === 'assistant') return Bot
+  if (n.entryType === 'compaction' || n.entryType === 'branch_summary') return Sparkles
+  if (n.entryType.includes('tool') || n.entryType === 'tool') return Wrench
+  return GitBranch
+}
+
 export function SessionTreeList({
   nodes,
   selectedId,
@@ -62,9 +72,11 @@ export function SessionTreeList({
   onActivate?: (id: string) => void
   className?: string
   rowClassName?: string
-  /** 大树关闭引导线，避免 O(n²) 卡 UI */
+  /** false：仅文本列表（大树性能兜底） */
   showGuides?: boolean
 }) {
+  const layout = useMemo(() => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null), [nodes, showGuides])
+
   return (
     <ul className={cn('w-full min-w-0', className)} role="tree">
       {nodes.map((n, index) => {
@@ -80,17 +92,25 @@ export function SessionTreeList({
               }}
               onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
               className={cn(
-                'flex w-full min-w-0 items-stretch gap-0 rounded-md py-1 pr-2 text-left transition-colors',
+                'flex w-full min-w-0 max-w-full items-stretch gap-0 rounded-md py-0.5 pr-2 text-left transition-colors',
                 selected && 'bg-primary/12 ring-1 ring-inset ring-primary/30',
                 !selected && 'hover:bg-muted/70',
                 n.isLeaf && !selected && 'bg-primary/6 font-medium',
                 rowClassName,
               )}
             >
-              {showGuides && <SessionTreeGuideRails nodes={nodes} index={index} />}
-              <span className="flex min-w-0 flex-1 items-start gap-1.5 pl-1.5">
-                <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-45" />
-                <span className="min-w-0 flex-1 break-words text-[12px] leading-snug text-foreground-secondary">
+              {layout && <SessionTreeGraphColumn index={index} nodes={nodes} layout={layout} />}
+              <span
+                className={cn(
+                  'flex min-w-0 flex-1 items-start gap-1.5 pl-1.5',
+                  layout && !layout.pathIds.has(n.id) && !n.isLeaf && 'opacity-[0.72]',
+                )}
+              >
+                {(() => {
+                  const Icon = nodeIcon(n)
+                  return <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-50" />
+                })()}
+                <span className="min-w-0 flex-1 truncate text-[12px] leading-snug text-foreground-secondary" title={sessionTreeLineTitle(n)}>
                   {sessionTreeLineTitle(n)}
                   {n.isLeaf && (
                     <span className="ml-1.5 whitespace-nowrap text-[10px] text-primary">← 当前</span>

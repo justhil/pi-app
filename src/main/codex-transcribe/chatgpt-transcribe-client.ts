@@ -1,6 +1,7 @@
 import type { AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
 import { buildChatGptTranscribeHeaders } from './chatgpt-desktop-headers'
 import { chatGptAccountIdFromAccessToken } from './jwt-account-id'
+import { errorMessage } from '@shared/error-message'
 
 const TRANSCRIBE_URL = 'https://chatgpt.com/backend-api/transcribe'
 
@@ -88,9 +89,9 @@ async function postTranscribeMultipart(
     clearTimeout(timer)
     const bodyText = await res.text().catch(() => '')
     return { status: res.status, bodyText }
-  } catch (e: any) {
+  } catch (e: unknown) {
     clearTimeout(timer)
-    if (e?.name === 'AbortError') {
+    if (e instanceof Error && e.name === 'AbortError') {
       return { status: 0, bodyText: 'timeout' }
     }
     throw e
@@ -143,8 +144,8 @@ export async function transcribeViaChatGptBackend(
       return { ok: false, error: 'unexpected transcribe response', kind: 'unknown' }
     }
     return { ok: true, text }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || 'network error', kind: 'network' }
+  } catch (e: unknown) {
+    return { ok: false, error: errorMessage(e) || 'network error', kind: 'network' }
   }
 }
 
@@ -156,7 +157,7 @@ function parseTranscribeResponse(raw: string): string | null {
     if (typeof j.text === 'string') return j.text
     if (typeof j.transcript === 'string') return j.transcript
     if (typeof j.result === 'string') return j.result
-  } catch {
+  } catch (e) {
     /* plain text */
   }
   if (t.length > 0 && !t.startsWith('{')) return t
@@ -193,7 +194,7 @@ export async function pingChatGptSession(auth: ChatGptTranscribeAuth): Promise<{
       ok: true,
       detail: `upstream HTTP ${status} (auth likely OK): ${clipBody(bodyText, 80)}`,
     }
-  } catch (e: any) {
-    return { ok: false, detail: e?.message || 'upstream probe failed' }
+  } catch (e: unknown) {
+    return { ok: false, detail: errorMessage(e) || 'upstream probe failed' }
   }
 }

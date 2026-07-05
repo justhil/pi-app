@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from 'fs'
+import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
 
 export type BranchAnchor = {
   entryId: string
@@ -7,14 +8,8 @@ export type BranchAnchor = {
   timestamp: string
 }
 
-function textFromMessage(msg: any): string {
-  const c = msg?.content
-  if (typeof c === 'string') return c
-  if (!Array.isArray(c)) return ''
-  return c
-    .filter((p: any) => p?.type === 'text')
-    .map((p: any) => p.text || '')
-    .join('')
+function textFromMessage(msg: PiSessionMessage): string {
+  return extractTextFromPiMessage(msg)
 }
 
 /** Walk JSONL session file in file order; collect message entry ids on current branch path is hard without leaf — use all message entries in order for anchor matching by index. */
@@ -23,17 +18,17 @@ export function listMessageAnchorsFromSessionFile(sessionFile: string): BranchAn
   let raw: string
   try {
     raw = readFileSync(sessionFile, 'utf-8')
-  } catch {
+  } catch (e) {
     return []
   }
   const anchors: BranchAnchor[] = []
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue
-    let e: any
+    let e: { type?: string; id?: string; message?: PiSessionMessage; timestamp?: string }
     try {
       e = JSON.parse(line)
     } catch {
-      continue
+      continue /* ignore: malformed JSONL line */
     }
     if (e.type !== 'message' || !e.id || !e.message) continue
     const role = e.message.role

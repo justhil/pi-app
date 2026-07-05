@@ -9,7 +9,7 @@ export function readPiAgentGlobalSettingsFromDisk(): Record<string, unknown> | n
     if (!existsSync(p)) return null
     const raw = JSON.parse(readFileSync(p, 'utf-8'))
     return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
-  } catch {
+  } catch (e) {
     return null
   }
 }

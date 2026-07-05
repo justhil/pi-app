@@ -7,6 +7,20 @@ const TOOLTIP_HIDE_MS = 80
 const VIEWPORT_PAD = 10
 const activeHideFns = new Set<() => void>()
 
+function bindTooltipDismissOnViewportChange(hide: () => void): () => void {
+  const onScroll = () => hide()
+  const onResize = () => hide()
+  const onBlur = () => hide()
+  window.addEventListener('scroll', onScroll, true)
+  window.addEventListener('resize', onResize)
+  window.addEventListener('blur', onBlur)
+  return () => {
+    window.removeEventListener('scroll', onScroll, true)
+    window.removeEventListener('resize', onResize)
+    window.removeEventListener('blur', onBlur)
+  }
+}
+
 export function hideAllDelayedTooltips() {
   for (const fn of activeHideFns) fn()
   activeHideFns.clear()
@@ -61,14 +75,21 @@ export function DelayedTooltip({
 
   useEffect(() => {
     const hide = () => hideNow.current()
-    if (visible) {
-      activeHideFns.add(hide)
-      return () => {
-        activeHideFns.delete(hide)
-        hide()
-      }
+    if (!visible) return undefined
+    activeHideFns.add(hide)
+    const unbindViewport = bindTooltipDismissOnViewportChange(hide)
+    const onDocPointerDown = (e: PointerEvent) => {
+      const host = hostRef.current
+      if (host?.contains(e.target as Node)) return
+      hide()
     }
-    return undefined
+    document.addEventListener('pointerdown', onDocPointerDown, true)
+    return () => {
+      activeHideFns.delete(hide)
+      unbindViewport()
+      document.removeEventListener('pointerdown', onDocPointerDown, true)
+      hide()
+    }
   }, [visible])
 
   useEffect(() => () => hideNow.current(), [])
@@ -181,6 +202,13 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
 
   registerHide()
 
+  const unbindViewport = bindTooltipDismissOnViewportChange(hideImmediate)
+  const onDocPointerDown = (e: PointerEvent) => {
+    if (el.contains(e.target as Node)) return
+    hideImmediate()
+  }
+  document.addEventListener('pointerdown', onDocPointerDown, true)
+
   el.addEventListener('mouseenter', () => {
     clearTimers()
     showTimer = setTimeout(() => {
@@ -207,6 +235,8 @@ export function wireDelayedTooltip(el: HTMLElement, content: string, delayMs = D
     observer = new MutationObserver(() => {
       if (!el.isConnected) {
         hideImmediate()
+        unbindViewport()
+        document.removeEventListener('pointerdown', onDocPointerDown, true)
         observer?.disconnect()
         observer = null
         unregisterHide()

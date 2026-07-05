@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 let optSeq = 0
 
@@ -8,7 +9,7 @@ export type OptimisticSendOpts = {
   /** 文件附件元数据（旧字段，兼容） */
   attachments?: { path: string; name: string; kind: string }[]
   /** 文中分段（文本+附件位置），时间线按此渲染 */
-  segments?: any[]
+  segments?: TimelineItem['segments']
 }
 
 /** 发送后立即在 Timeline 展示用户消息 + 助手等待占位 */

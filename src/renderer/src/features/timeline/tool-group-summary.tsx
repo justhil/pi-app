@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, ListTree, Loader2, XCircle } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolCallRow, summarizeToolGroup } from './tool-call-row'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
+import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 
-export function ToolGroupSummary({ tools }: { tools: any[] }) {
+function ToolGroupSummaryImpl({ tools }: { tools: ToolTimelineItem[] }) {
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
@@ -46,3 +47,5 @@ export function ToolGroupSummary({ tools }: { tools: any[] }) {
     </div>
   )
 }
+
+export const ToolGroupSummary = memo(ToolGroupSummaryImpl)

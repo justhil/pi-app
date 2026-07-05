@@ -37,8 +37,8 @@ export function VoiceSettingsPanel() {
         },
       })
       setProbe(res as CodexProbe)
-    } catch (e: any) {
-      setProbe({ ok: false, authFile: null, detail: e.message })
+    } catch (e: unknown) {
+      setProbe({ ok: false, authFile: null, detail: e instanceof Error ? e.message : String(e) })
     } finally {
       setProbing(false)
     }
@@ -48,7 +48,7 @@ export function VoiceSettingsPanel() {
     if (cfg.provider === 'none') {
       setAsrConfig({ provider: 'codex-asr-builtin' })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- 旧配置 none → 内置，仅进页一次
+  }, [])  
 
   useEffect(() => {
     void runProbe()
@@ -68,8 +68,8 @@ export function VoiceSettingsPanel() {
       } else {
         setTestResult(`${t('settings:voice.testFailed')}${res?.detail ? `: ${res.detail}` : ''}`)
       }
-    } catch (e: any) {
-      setTestResult(`${t('settings:voice.testFailed')}: ${e.message}`)
+    } catch (e: unknown) {
+      setTestResult(`${t('settings:voice.testFailed')}: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setTesting(false)
     }

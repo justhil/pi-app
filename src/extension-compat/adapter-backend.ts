@@ -20,13 +20,21 @@ function expandPath(p: string): string {
   return p
 }
 
-function readSharedFile(path: string): Record<string, unknown> {
+type SharedFileRead =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; error: 'invalid_json' }
+
+function readSharedFile(path: string): SharedFileRead {
   const full = expandPath(path)
-  if (!existsSync(full)) return {}
+  if (!existsSync(full)) return { ok: true, data: {} }
   try {
-    return JSON.parse(readFileSync(full, 'utf8'))
-  } catch {
-    return {}
+    const parsed = JSON.parse(readFileSync(full, 'utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { ok: false, error: 'invalid_json' }
+    }
+    return { ok: true, data: parsed as Record<string, unknown> }
+  } catch (e) {
+    return { ok: false, error: 'invalid_json' }
   }
 }
 
@@ -42,7 +50,7 @@ function readPiSettingsKey(key: string): unknown {
   try {
     const obj = JSON.parse(readFileSync(p, 'utf8'))
     return obj?.[key]
-  } catch {
+  } catch (e) {
     return undefined
   }
 }
@@ -52,7 +60,7 @@ function writePiSettingsKey(key: string, value: unknown): void {
   const p = piSettingsPath()
   let obj: Record<string, unknown> = {}
   if (existsSync(p)) {
-    try { obj = JSON.parse(readFileSync(p, 'utf8')) } catch { obj = {} }
+    try { obj = JSON.parse(readFileSync(p, 'utf8')) } catch (e) { obj = {} }
   }
   obj[key] = value
   atomicWrite(p, JSON.stringify(obj, null, 2))
@@ -67,7 +75,7 @@ function atomicWrite(path: string, data: string): void {
   if (existsSync(full)) {
     try {
       renameSync(full, `${full}.bak`)
-    } catch {
+    } catch (e) {
       // best-effort backup
     }
   }
@@ -91,7 +99,11 @@ export function readAdapterConfig(adapterId: string, workspaceId: string): Recor
   }
 
   if (cfg?.configFile) {
-    const file = readSharedFile(cfg.configFile)
+    const fileRead = readSharedFile(cfg.configFile)
+    if (!fileRead.ok) {
+      return { __configFile: cfg.configFile, __configFileError: fileRead.error }
+    }
+    const file = fileRead.data
     const fileKeyMap = cfg.fileKeyMap || {}
     const envOverride = cfg.envOverride || {}
     const view: Record<string, unknown> = {}
@@ -136,7 +148,9 @@ export function readRawView(adapterId: string): Record<string, unknown> {
     // app-local: no secrets masking in place, return as-is
     return configStore.getExtensionConfig('', adapterId) || {}
   }
-  const file = readSharedFile(cfg.configFile)
+  const fileRead = readSharedFile(cfg.configFile)
+  if (!fileRead.ok) return {}
+  const file = fileRead.data
   const fileKeyMap = cfg.fileKeyMap || {}
   const envOverride = cfg.envOverride || {}
   const view: Record<string, unknown> = {}
@@ -172,7 +186,11 @@ export function writeAdapterConfig(adapterId: string, workspaceId: string, patch
     }
   }
   if (cfg?.configFile) {
-    const file = readSharedFile(cfg.configFile)
+    const fileRead = readSharedFile(cfg.configFile)
+    if (!fileRead.ok) {
+      throw new Error('adapter config file is invalid JSON; repair the file before saving')
+    }
+    const file = { ...fileRead.data }
     const fileKeyMap = cfg.fileKeyMap || {}
     const fields = new Map<string, ConfigField>(
       (cfg.sections || []).flatMap((s) => s.fields || []).map((f) => [f.key, f]),
@@ -229,12 +247,12 @@ export async function runAdapterAction(adapterId: string, actionId: string): Pro
         method,
         headers,
         signal: AbortSignal.timeout(action.timeoutMs || 15000),
-      } as any)
+      })
       const elapsed = 0
       if (res.ok) {
         let extra = ''
         if (action.report?.countPath) {
-          const data: any = await res.json().catch(() => null)
+          const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
           const n = pickPath(data, action.report.countPath)
           extra = `，${action.report.label || 'count'}: ${n}`
         }
@@ -243,8 +261,8 @@ export async function runAdapterAction(adapterId: string, actionId: string): Pro
         lines.push(`❌ ${method} ${url} HTTP ${res.status}`)
         ok = false
       }
-    } catch (e: any) {
-      lines.push(`❌ ${method} ${url}: ${e?.message || e}`)
+    } catch (e: unknown) {
+      lines.push(`❌ ${method} ${url}: ${e instanceof Error ? e.message : String(e)}`)
       ok = false
     }
     return { ok, lines }
@@ -270,13 +288,13 @@ function mapTpl(obj: Record<string, string>, view: Record<string, unknown>): Rec
   return out
 }
 
-function pickPath(data: any, path: string): unknown {
-  if (!data) return undefined
+function pickPath(data: unknown, path: string): unknown {
+  if (!data || typeof data !== 'object') return undefined
   const parts = path.replace(/^\$\.?/, '').split('.')
-  let cur: any = data
+  let cur: unknown = data
   for (const p of parts) {
-    if (cur == null) return undefined
-    cur = cur[p]
+    if (cur == null || typeof cur !== 'object') return undefined
+    cur = (cur as Record<string, unknown>)[p]
   }
   return cur
 }
@@ -294,21 +312,22 @@ export async function fetchFieldOptions(adapterId: string, fieldKey: string): Pr
   const url = tpl(src.url, view)
   const headers = mapTpl(src.headers || {}, view)
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(src.timeoutMs || 15000) } as any)
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(src.timeoutMs || 15000) })
     if (!res.ok) return { options: [], error: `HTTP ${res.status}` }
-    const data: any = await res.json().catch(() => null)
+    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
     const items = pickPath(data, src.itemsPath)
     if (!Array.isArray(items)) return { options: [], error: 'itemsPath not an array' }
     const valueKey = src.valueFrom || 'id'
     const labelKey = src.labelFrom || valueKey
-    const options = items.map((it: any) => {
+    const options = items.map((it: unknown) => {
       if (typeof it === 'string') return it
-      const val = it?.[valueKey]
-      const lab = it?.[labelKey]
+      const row = typeof it === 'object' && it !== null ? (it as Record<string, unknown>) : {}
+      const val = row[valueKey]
+      const lab = row[labelKey]
       return lab && lab !== val ? `${lab} (${val})` : String(val ?? '')
     }).filter(Boolean)
     return { options }
-  } catch (e: any) {
-    return { options: [], error: e?.message || String(e) }
+  } catch (e: unknown) {
+    return { options: [], error: e instanceof Error ? e.message : String(e) }
   }
 }

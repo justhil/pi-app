@@ -42,7 +42,7 @@ export function SandboxContextMenuPortal({
         onListChange()
         setRenameState(null)
       } else toast.error(t('common:sidebar.renameFailed'))
-    } catch {
+    } catch (e) {
       toast.error(t('common:sidebar.renameFailed'))
     }
   }
@@ -66,7 +66,7 @@ export function SandboxContextMenuPortal({
         toast.success('已删除')
         onListChange()
       } else toast.error('删除失败')
-    } catch {
+    } catch (e) {
       toast.error('删除失败')
     }
     onClose()

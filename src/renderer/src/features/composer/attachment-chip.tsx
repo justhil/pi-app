@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
@@ -5,7 +6,7 @@ import { getAttachmentIcon, type AttachmentMeta } from './attachments'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { DelayedTooltip, hideAllDelayedTooltips } from './delayed-tooltip'
 
-export function AttachmentChip({
+function AttachmentChipImpl({
   attachment,
   onRemove,
   className,
@@ -54,3 +55,5 @@ export function AttachmentChip({
     </DelayedTooltip>
   )
 }
+
+export const AttachmentChip = memo(AttachmentChipImpl)

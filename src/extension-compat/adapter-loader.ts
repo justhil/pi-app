@@ -72,7 +72,7 @@ function readDir(dir: string): { name: string; text: string }[] {
     if (!f.endsWith('.adapter.json') && !f.endsWith('.json')) continue
     try {
       out.push({ name: f, text: readFileSync(join(dir, f), 'utf8') })
-    } catch {
+    } catch (e) {
       // unreadable file — skip
     }
   }
@@ -109,8 +109,12 @@ function parseAdapterFiles(files: { name: string; text: string }[], errors: Adap
         continue
       }
       out.push(raw)
-    } catch (e: any) {
-      errors.push({ adapterId: f.name, source: 'override', message: e.message })
+    } catch (e: unknown) {
+      errors.push({
+        adapterId: f.name,
+        source: 'override',
+        message: e instanceof Error ? e.message : String(e),
+      })
     }
   }
   return out

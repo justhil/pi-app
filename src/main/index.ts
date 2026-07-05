@@ -1,4 +1,5 @@
-import { app, shell, BrowserWindow, dialog } from 'electron'
+import './bootstrap-path'
+import { app, shell, BrowserWindow, dialog, session, Menu } from 'electron'
 import { createWindow } from './window'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
@@ -22,7 +23,7 @@ process.on('uncaughtException', (err) => {
     }
     if (win && !win.isDestroyed()) void dialog.showMessageBox(win, opts)
     else void dialog.showMessageBox(opts)
-  } catch {
+  } catch (e) {
     /* dialog unavailable during early boot */
   }
   setTimeout(() => app.quit(), 2000)
@@ -31,7 +32,6 @@ process.on('uncaughtException', (err) => {
 function createMenu(): void {
   // macOS keeps a minimal app menu (system convention); Windows/Linux remove the menu bar entirely.
   if (process.platform === 'darwin') {
-    const { Menu } = require('electron')
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
         { role: 'appMenu' },
@@ -42,7 +42,6 @@ function createMenu(): void {
     )
     return
   }
-  const { Menu } = require('electron')
   Menu.setApplicationMenu(null)
 }
 
@@ -67,6 +66,21 @@ app.whenReady().then(() => {
     })
   }
   createMenu()
+
+  // CSP: inject Content-Security-Policy header in production (skip dev for Vite HMR)
+  if (!is.dev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://chatgpt.com; font-src 'self' data:"
+          ]
+        }
+      })
+    })
+  }
+
   registerAllHandlers()
   const win = createWindow()
   workerManager.setMainWindow(win)

@@ -50,7 +50,7 @@ export function SessionContextMenuPortal({
         refreshList()
         setRenameTarget(null)
       } else toast.error(r?.error || '重命名失败')
-    } catch {
+    } catch (e) {
       toast.error('重命名失败')
     }
   }
@@ -83,7 +83,7 @@ export function SessionContextMenuPortal({
         toast.success('已删除')
         refreshList()
       } else toast.error(r?.error || '删除失败')
-    } catch {
+    } catch (e) {
       toast.error('删除失败')
     }
     onClose()

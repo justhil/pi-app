@@ -3,6 +3,7 @@
 // 不含任何插件名分支；所有结构化字段抽取走 adapter.toolCard.fields 或通用 details 扫描。
 import { useEffect, useState, type ComponentType } from 'react'
 import { cn } from '@renderer/lib/utils'
+import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
@@ -15,8 +16,8 @@ export interface ToolItem {
   id?: string
   toolName?: string
   toolOutput?: string
-  toolDetails?: any
-  toolArgs?: any
+  toolDetails?: unknown
+  toolArgs?: unknown
   toolPhase?: string
   toolStatusLine?: string
   isError?: boolean
@@ -31,17 +32,17 @@ function extractText(out: string): string {
   try {
     const parsed = JSON.parse(out)
     if (Array.isArray(parsed?.content)) {
-      return parsed.content.filter((c: any) => c?.type === 'text').map((c: any) => c.text || '').join('\n')
+      return parsed.content.filter((c: { type?: string }) => c?.type === 'text').map((c: { text?: string }) => c.text || '').join('\n')
     }
     if (typeof parsed?.text === 'string') return parsed.text
-  } catch { /* raw */ }
+  } catch (e) { /* raw */ }
   return out
 }
 
 interface Asset { path?: string; url?: string; name?: string; label?: string }
 
 // Collect image/file assets from toolDetails + output (generic: file/url/paths/images).
-function collectAssets(details: any, out: string): Asset[] {
+function collectAssets(details: Record<string, unknown> | null | undefined, out: string): Asset[] {
   const assets: Asset[] = []
   const seen = new Set<string>()
   const push = (a: Asset) => {
@@ -50,13 +51,14 @@ function collectAssets(details: any, out: string): Asset[] {
     seen.add(key)
     assets.push(a)
   }
-  if (details?.file) push({ path: details.file, name: String(details.file).split(/[\\/]/).pop() })
-  if (details?.url) push({ url: details.url, name: 'url' })
-  if (Array.isArray(details?.paths)) {
-    for (const p of details.paths) push({ path: String(p), name: String(p).split(/[\\/]/).pop() })
+  const d = details as { file?: string; url?: string; paths?: unknown[]; images?: Array<{ path?: string; url?: string; name?: string }> } | null | undefined
+  if (d?.file) push({ path: d.file, name: String(d.file).split(/[\\/]/).pop() })
+  if (d?.url) push({ url: d.url, name: 'url' })
+  if (Array.isArray(d?.paths)) {
+    for (const p of d.paths) push({ path: String(p), name: String(p).split(/[\\/]/).pop() })
   }
-  if (Array.isArray(details?.images)) {
-    for (const img of details.images) push({ path: img.path, url: img.url, name: img.name })
+  if (Array.isArray(d?.images)) {
+    for (const img of d.images) push({ path: img.path, url: img.url, name: img.name })
   }
   // analyze_image: extract filename from output text
   const text = extractText(out)
@@ -66,26 +68,26 @@ function collectAssets(details: any, out: string): Asset[] {
     if (ws) push({ path: `${ws.replace(/\\/g, '/')}/${m[1]}`, name: m[1], label: '分析图' })
     else push({ name: m[1], label: m[1] })
   }
-  let parsed: any = null
-  try { parsed = typeof out === 'string' ? JSON.parse(out) : out } catch { parsed = null }
+  let parsed: { images?: unknown; result?: { images?: unknown } } | null = null
+  try { parsed = typeof out === 'string' ? JSON.parse(out) : (out as typeof parsed) } catch { parsed = null }
   const imgs = parsed?.images || parsed?.result?.images
   if (Array.isArray(imgs)) for (const img of imgs) push({ path: img.path, url: img.url, name: img.name })
   return assets
 }
 
-function InlineImage({ path, enabled }: { path: string; enabled: boolean }) {
+function InlineImage({ path, workspaceRoot, enabled }: { path: string; workspaceRoot: string | null; enabled: boolean }) {
   const [src, setSrc] = useState<string | null>(null)
   const [err, setErr] = useState(false)
   useEffect(() => {
-    if (!enabled || !path) { setSrc(null); setErr(false); return }
+    if (!enabled || !path || !workspaceRoot) { setSrc(null); setErr(false); return }
     let cancelled = false
-    ipcClient.invoke('shell.readImagePreview', { path }).then((res) => {
+    ipcClient.invoke('shell.readImagePreview', { workspaceRoot, path }).then((res) => {
       if (cancelled) return
       if (res?.ok && res.dataUrl) setSrc(res.dataUrl)
       else setErr(true)
     }).catch(() => { if (!cancelled) setErr(true) })
     return () => { cancelled = true }
-  }, [path, enabled])
+  }, [path, workspaceRoot, enabled])
   if (!enabled) return null
   if (err) return <div className="text-[10px] text-muted-foreground/50">无法内联预览（文件过大或格式不支持）</div>
   if (!src) return <div className="h-24 animate-pulse rounded-md bg-muted/40" />
@@ -96,7 +98,7 @@ function InlineImage({ path, enabled }: { path: string; enabled: boolean }) {
 const MediaTemplate: ToolCardComponent = ({ item }) => {
   const workspace = useUIStore((s) => s.currentWorkspace)
   const [showInline, setShowInline] = useState(true)
-  const details = item.toolDetails
+  const details = item.toolDetails as Record<string, unknown> | null | undefined
   const assets = collectAssets(details, item.toolOutput || '')
 
   // local showInlinePreview is adapter-local; default true if unreadable
@@ -113,7 +115,7 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
 
   return (
     <div className="mt-1 space-y-2 rounded-lg border border-pink-500/30 bg-pink-500/5 p-2.5">
-      {previewPath && <InlineImage path={previewPath} enabled={showInline} />}
+      {previewPath && <InlineImage path={previewPath} workspaceRoot={workspace} enabled={showInline} />}
       {assets.length === 0 && !textSummary && (
         <div className="text-[11px] text-muted-foreground/60">无图像路径（结果可能仅为文本分析）</div>
       )}
@@ -143,18 +145,21 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
 // ── tree template (subagent / trellis_subagent / contact_supervisor) ──
 // Generic: parse details.results[] or single-agent shape; mode from details.mode or toolName.
 const TreeTemplate: ToolCardComponent = ({ item }) => {
-  const details = item.toolDetails
+  const details = item.toolDetails as Record<string, unknown> | null | undefined
   const toolName = item.toolName || ''
-  let mode = details?.mode || toolName
-  let runId = details?.runId || details?.asyncId
+  let mode = String(details?.mode || toolName)
+  const runId = (details?.runId ?? details?.asyncId) as string | undefined
   let results: { agent?: string; status?: string; error?: string }[] = []
-  let progressSummary: any = details?.progressSummary
-  // trellis_subagent single-agent shape
+  const progressSummary = details?.progressSummary as { running?: number; completed?: number; failed?: number } | undefined
   if (details?.agent != null && !Array.isArray(details?.results)) {
     mode = 'trellis'
-    results = [{ agent: details.agent, status: details.status, error: details.error }]
+    results = [{ agent: String(details.agent), status: String(details.status ?? ''), error: details.error as string | undefined }]
   } else if (Array.isArray(details?.results)) {
-    results = details.results.map((r: any) => ({ agent: r.agent || r.name, status: r.status || r.state, error: r.error }))
+    results = (details.results as Array<{ agent?: string; name?: string; status?: string; state?: string; error?: string }>).map((r) => ({
+      agent: r.agent || r.name,
+      status: r.status || r.state,
+      error: r.error,
+    }))
   }
   if (!details || results.length === 0 && !runId) {
     const out = (item.toolOutput || '').slice(0, 1200)
@@ -192,11 +197,10 @@ const TreeTemplate: ToolCardComponent = ({ item }) => {
 // ── list template (search / docs_search / web_fetch etc.) ──
 // Generic: render a list of items (sources/results) + metadata; in-progress status from toolStatusLine.
 const ListTemplate: ToolCardComponent = ({ item }) => {
-  const details = item.toolDetails
+  const details = item.toolDetails as Record<string, unknown> | null | undefined
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
   const statusLine = item.toolStatusLine
-  // metadata strip: common fields across search tools
-  const meta: { label: string; value: any }[] = []
+  const meta: { label: string; value: unknown }[] = []
   if (details?.session_id) meta.push({ label: 'session', value: details.session_id })
   if (details?.sources_count != null) meta.push({ label: '信源', value: details.sources_count })
   if (details?.returned_sources_count != null) meta.push({ label: '返回', value: details.returned_sources_count })
@@ -234,19 +238,24 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
     { args: item.toolArgs, details: item.toolDetails, output: item.toolOutput },
     cardDef?.fields,
   )
-  let parsed: any = null
-  try { parsed = typeof item.toolOutput === 'string' ? JSON.parse(item.toolOutput) : item.toolOutput } catch { parsed = null }
-  const questions = mapped.questions ?? parsed?.questions ?? parsed?.input?.questions ?? item.toolArgs?.questions
+  let parsed: { questions?: unknown; input?: { questions?: unknown } } | null = null
+  try {
+    parsed = typeof item.toolOutput === 'string' ? JSON.parse(item.toolOutput) : (item.toolOutput as unknown as typeof parsed)
+  } catch {
+    parsed = null
+  }
+  const args = item.toolArgs as { questions?: unknown } | undefined
+  const questions = mapped.questions ?? parsed?.questions ?? parsed?.input?.questions ?? args?.questions
   if (!Array.isArray(questions) || questions.length === 0) {
     return <ToolTextOutput item={item} />
   }
   return (
     <div className="mt-1 space-y-2 rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5">
-      {questions.map((q: any, i: number) => (
+      {(questions as Array<{ question?: string; options?: Array<{ label?: string }> }>).map((q, i) => (
         <div key={i}>
           <div className="text-[12px] font-medium">{q.question}</div>
           <div className="mt-1 flex flex-wrap gap-1">
-            {(q.options || []).map((o: any) => (
+            {(q.options || []).map((o) => (
               <span key={o.label} className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-700 dark:text-purple-300">{o.label}</span>
             ))}
           </div>
@@ -259,7 +268,7 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
 // ── default template (syntax-highlighted text + artifact paths) ──
 const DefaultTemplate: ToolCardComponent = ({ item }) => {
   const nativePreview = renderNativeToolPreview(item)
-  const details = item.toolDetails
+  const details = item.toolDetails as { paths?: string[]; format?: string } | null | undefined
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
   const isExportTool = detailPaths.length > 0 && (item.toolName === 'preview_export' || item.toolName === 'studio_export_pdf' || item.toolName === 'studio_export_html')
   const open = (p: string) => ipcClient.invoke('shell.openPath', { path: p }).catch(() => {})
@@ -289,7 +298,7 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
       {textSummary && !nativePreview && (
         <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/40">
           <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
-            <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(textSummary, item.toolName || '') }} />
+            <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(textSummary, item.toolName || '')) }} />
           </div>
         </div>
       )}
@@ -304,7 +313,7 @@ const ToolTextOutput: ToolCardComponent = ({ item }) => {
   return (
     <div className="overflow-hidden rounded-md border border-border/40 bg-muted/30">
       <div className="overflow-auto p-2 text-[11px] font-mono leading-relaxed max-h-56">
-        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: syntaxHighlight(text, item.toolName || '') }} />
+        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(text, item.toolName || '')) }} />
       </div>
     </div>
   )

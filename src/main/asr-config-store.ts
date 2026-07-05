@@ -29,8 +29,21 @@ export function saveAsrConfig(cfg: AsrConfig): void {
   configStore.set('asrConfig', stripTokenFromConfig(cfg))
 }
 
-export function asrConfigForSettingsResponse(cfg: AsrConfig): AsrConfig {
+function maskTokenPreview(token: string): string {
+  if (token.length <= 12) return '••••'
+  return `${token.slice(0, 6)}…${token.slice(-4)}`
+}
+
+export function asrConfigForSettingsResponse(cfg: AsrConfig): AsrConfig & {
+  codexAccessTokenSet?: boolean
+  codexAccessTokenPreview?: string
+} {
   const token = getCodexAccessToken()
-  if (token) return { ...cfg, codexAccessToken: token }
-  return stripTokenFromConfig(cfg)
+  const base = stripTokenFromConfig(cfg)
+  if (!token) return { ...base, codexAccessTokenSet: false }
+  return {
+    ...base,
+    codexAccessTokenSet: true,
+    codexAccessTokenPreview: maskTokenPreview(token),
+  }
 }

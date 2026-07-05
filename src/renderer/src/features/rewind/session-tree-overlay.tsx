@@ -47,7 +47,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
     () => capSessionTreeForDisplay(filtered),
     [filtered],
   )
-  const showGuides = visible.length <= 120
+  const showGuides = visible.length <= 400
 
   useEffect(() => {
     if (!open) return

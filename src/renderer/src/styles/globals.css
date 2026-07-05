@@ -660,6 +660,9 @@
   .composer-shell-focused .rich-input.is-empty::before {
     opacity: 0.38;
   }
+  .rich-input img {
+    display: none !important;
+  }
   .rich-input.is-empty::before {
     content: attr(data-placeholder);
     position: absolute;
@@ -1487,6 +1490,9 @@
   }
   .settings-provider-header:active {
     transform: scale(0.998);
+  }
+  .model-picker-provider-header:hover {
+    background-color: var(--bg-hover);
   }
   .settings-chevron {
     transition: transform var(--motion-fast) var(--motion-ease);

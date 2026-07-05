@@ -1,6 +1,6 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useState, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -43,15 +43,25 @@ function CodeBlock({
       {lang && (
         <div className="flex items-center justify-between border-b px-3 py-1" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-3)' }}>
           <span className="font-mono text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--brand)' }}>{lang}</span>
-          <button onClick={copy} className="text-[10px] transition-colors" style={{ color: 'var(--text-secondary)' }} onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}>
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
+            className="text-[10px] transition-colors focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'}
+            onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}
+          >
             {copied ? t('timeline:copied') : t('timeline:copy')}
           </button>
         </div>
       )}
       {!lang && (
         <button
+          type="button"
           onClick={copy}
-          className="absolute right-2 top-2 z-10 rounded px-1.5 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
+          aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
+          className="absolute right-2 top-2 z-10 rounded px-1.5 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={{ color: 'var(--text-secondary)' }}
         >
           <Copy className="h-3 w-3" />
@@ -122,7 +132,7 @@ const MarkdownView = memo(function MarkdownView({
 
   const components = useMemo(
     () => ({
-      code: ({ className: cn2, children: ch, ...rest }: any) => {
+      code: ({ className: cn2, children: ch, ...rest }: ComponentPropsWithoutRef<'code'>) => {
         const lang = /language-(\w+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
         const raw = String(ch ?? '').replace(/\n$/, '')
         const isInline = !cn2 && !raw.includes('\n')
@@ -138,32 +148,32 @@ const MarkdownView = memo(function MarkdownView({
         }
         return <CodeBlock className={cn2} defaultExpanded={!!streaming}>{ch}</CodeBlock>
       },
-      a: ({ children: ch, ...rest }: any) => (
+      a: ({ children: ch, ...rest }: ComponentPropsWithoutRef<'a'>) => (
         <a {...rest} target="_blank" rel="noreferrer" className="text-primary hover:underline">
           {ch}
         </a>
       ),
-      table: ({ children: ch }: any) => (
+      table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (
         <div className="my-2 overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">{ch}</table>
         </div>
       ),
-      th: ({ children: ch }: any) => (
+      th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => (
         <th className="border border-border/50 bg-muted/40 px-2 py-1 text-left font-medium">{ch}</th>
       ),
-      td: ({ children: ch }: any) => <td className="border border-border/50 px-2 py-1">{ch}</td>,
-      img: ({ src, alt }: any) => (
+      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => <td className="border border-border/50 px-2 py-1">{ch}</td>,
+      img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
         <img src={src} alt={alt} className="my-2 max-w-full rounded-lg border border-border/50" />
       ),
-      blockquote: ({ children: ch }: any) => (
+      blockquote: ({ children: ch }: ComponentPropsWithoutRef<'blockquote'>) => (
         <blockquote className="my-2 border-l-2 border-border/60 pl-3 text-muted-foreground">{ch}</blockquote>
       ),
-      ul: ({ children: ch }: any) => <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>,
-      ol: ({ children: ch }: any) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>,
-      h1: ({ children: ch }: any) => <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>,
-      h2: ({ children: ch }: any) => <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>,
-      h3: ({ children: ch }: any) => <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>,
-      p: ({ children: ch }: any) => <p className="my-1 leading-relaxed">{ch}</p>,
+      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>,
+      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>,
+      h1: ({ children: ch }: ComponentPropsWithoutRef<'h1'>) => <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>,
+      h2: ({ children: ch }: ComponentPropsWithoutRef<'h2'>) => <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>,
+      h3: ({ children: ch }: ComponentPropsWithoutRef<'h3'>) => <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>,
+      p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => <p className="my-1 leading-relaxed">{ch}</p>,
       hr: () => <hr className="my-3 border-border/40" />,
     }),
     [streaming],

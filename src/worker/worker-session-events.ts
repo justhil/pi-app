@@ -1,5 +1,6 @@
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
+import { assistantStreamDeltaFromMessageUpdate } from '@shared/pi-message-update'
 import {
   extractTextFromPiMessage,
   piUsageTotals,
@@ -78,35 +79,29 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'message_update': {
+      const msg = event.message as PiSessionMessage
       const ame = event.assistantMessageEvent as
         | { type?: string; delta?: string; content?: string; text?: string }
         | undefined
-      const chunk =
-        typeof ame?.delta === 'string'
-          ? ame.delta
-          : typeof ame?.content === 'string'
-            ? ame.content
-            : typeof ame?.text === 'string'
-              ? ame.text
-              : ''
-      if (!chunk) break
-      if (ame?.type === 'thinking_delta') {
+      const stream = assistantStreamDeltaFromMessageUpdate(msg, ame)
+      if (stream.text) {
         deps.emit({
           ...base,
           type: 'message',
           role: 'assistant',
           phase: 'delta',
-          text: chunk,
-          contentKind: 'thinking',
-        } as AppEvent)
-      } else if (ame?.type === 'text_delta') {
-        deps.emit({
-          ...base,
-          type: 'message',
-          role: 'assistant',
-          phase: 'delta',
-          text: chunk,
+          text: stream.text,
           contentKind: 'text',
+        } as AppEvent)
+      }
+      if (stream.thinking) {
+        deps.emit({
+          ...base,
+          type: 'message',
+          role: 'assistant',
+          phase: 'delta',
+          text: stream.thinking,
+          contentKind: 'thinking',
         } as AppEvent)
       }
       break

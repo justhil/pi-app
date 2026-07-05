@@ -27,7 +27,7 @@ export function formatAgentErrorForTimeline(raw: string): string {
         const head = prefix || (type ? String(type) : 'Error')
         return `${head}\n${String(inner).trim()}`
       }
-    } catch {
+    } catch (e) {
       /* keep raw */
     }
   }

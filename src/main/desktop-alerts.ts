@@ -40,7 +40,7 @@ function playAlertSound(): void {
   }
   try {
     process.stdout.write('\x07')
-  } catch {
+  } catch (e) {
     /* ignore */
   }
 }

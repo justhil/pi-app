@@ -68,7 +68,7 @@ export function TreePanel() {
                   rowClassName="text-[11px]"
                   nodes={display}
                   onActivate={(id) => void navigateSessionToEntry(id)}
-                  showGuides={display.length <= 120}
+                  showGuides={display.length <= 400}
                 />
               </>
             )

@@ -4,13 +4,13 @@ import { useUIStore } from '@renderer/stores/ui-store'
 
 export function McpDiagnostics() {
   const workspace = useUIStore((s) => s.currentWorkspace)
-  const [exts, setExts] = useState<any[]>([])
+  const [exts, setExts] = useState<Array<{ id?: string; packageName?: string; name?: string; compatibility?: string }>>([])
 
   useEffect(() => {
     if (!workspace) return
     ipcClient.invoke('extensions.list', { workspaceId: workspace }).then((r) => {
       const list = r?.extensions || []
-      setExts(list.filter((e: any) => (e.packageName || e.name || '').includes('mcp')))
+      setExts((list as Array<{ id?: string; packageName?: string; name?: string; compatibility?: string }>).filter((e) => (e.packageName || e.name || '').includes('mcp')))
     })
   }, [workspace])
 

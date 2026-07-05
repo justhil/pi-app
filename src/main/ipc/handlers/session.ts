@@ -20,14 +20,24 @@ import {
   setPendingWorkerSessionFile,
 } from '../../session-bind-state'
 import { flattenTreeFromSessionFile } from '../../session-tree-from-file'
-import { listSessionsOnDisk } from '../sdk-session'
-import { registerHandler } from '../registry'
+import { listSessionsOnDisk, type SessionOnDiskRow } from '../sdk-session'
+import type { PiSessionMessage } from '@shared/worker-message'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
+import {
+  sessionDeleteSchema,
+  sessionExportSchema,
+  sessionGetMessagesSchema,
+  sessionNavigateTreeSchema,
+  sessionNewSchema,
+  sessionPrepareSchema,
+} from '../schemas'
+import { errorMessage } from '@shared/error-message'
 
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     const sessions = workspaceId ? await listSessionsOnDisk(workspaceId) : []
-    const formatted = sessions.map((s: any) => ({
+    const formatted = sessions.map((s: SessionOnDiskRow) => ({
       sessionId: s.id,
       sessionFile: s.path,
       workspaceId: s.cwd || workspaceId,
@@ -65,19 +75,24 @@ export function registerSessionHandlers(): void {
     return { ok: true }
   })
 
-  registerHandler('ipc:session.prepare', async (req) => {
-    const sessionFile = req.sessionFile as string | undefined
+  registerHandlerWithSchema('ipc:session.prepare', sessionPrepareSchema, async (req) => {
+    const sessionFile = req.sessionFile
     if (!sessionFile) {
       setPendingWorkerSessionFile(null)
       return { bound: false, sessionId: null as string | null }
     }
     try {
-      const r = await workerManager.loadSession(sessionFile)
+      const r = await workerManager.loadSession(sessionFile, { force: true })
       setPendingWorkerSessionFile(null)
-      return { bound: true, sessionId: r.sessionId, model: r.model, thinkingLevel: (r as any).thinkingLevel }
-    } catch (e: any) {
+      return {
+        bound: true,
+        sessionId: r.sessionId,
+        model: r.model,
+        thinkingLevel: (r as { thinkingLevel?: string }).thinkingLevel,
+      }
+    } catch (e: unknown) {
       setPendingWorkerSessionFile(sessionFile)
-      return { bound: false, sessionId: readSessionIdFromFile(sessionFile), error: e.message }
+      return { bound: false, sessionId: readSessionIdFromFile(sessionFile), error: errorMessage(e) }
     }
   })
 
@@ -90,28 +105,22 @@ export function registerSessionHandlers(): void {
   registerHandler('ipc:session.tree', async (req) => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     let sessionFile = req?.sessionFile as string | undefined
-    if (!sessionFile) sessionFile = getPendingWorkerSessionFile() || undefined
-    if (!sessionFile) {
-      const st = await workerManager.getState().catch(() => null)
-      sessionFile = (st as { sessionFile?: string } | null)?.sessionFile
-    }
+    let workerSessionFile: string | undefined
     let leafOverride: string | null | undefined
-    if (sessionFile && workerManager.isRunning) {
-      try {
-        const st = await workerManager.getState()
-        if (st?.sessionFile === sessionFile && 'leafId' in st) {
-          leafOverride = st.leafId ?? null
-        }
-      } catch {
-        /* */
+    if (workerManager.isRunning) {
+      const st = await workerManager.getState().catch(() => null)
+      workerSessionFile = (st as { sessionFile?: string } | null)?.sessionFile
+      if (!sessionFile) sessionFile = workerSessionFile
+      if (sessionFile && workerSessionFile === sessionFile && 'leafId' in (st || {})) {
+        leafOverride = ((st as { leafId?: string | null }).leafId) ?? null
       }
     }
     if (sessionFile) {
       try {
         const r = await flattenTreeFromSessionFile(sessionFile, cwd, leafOverride ?? undefined)
-        return { nodes: r.nodes, leafId: r.leafId, workerBound: !!workerManager.isRunning }
-      } catch (e: any) {
-        return { nodes: [], leafId: null, error: e.message }
+        return { nodes: r.nodes, leafId: r.leafId, workerBound: workerSessionFile === sessionFile }
+      } catch (e: unknown) {
+        return { nodes: [], leafId: null, error: errorMessage(e) }
       }
     }
     try {
@@ -120,22 +129,20 @@ export function registerSessionHandlers(): void {
         setTimeout(() => resolve({ nodes: [], leafId: null, error: 'timeout' }), 15000),
       )
       return await Promise.race([p, timeout])
-    } catch (e: any) {
-      return { nodes: [], leafId: null, error: e.message }
+    } catch (e: unknown) {
+      return { nodes: [], leafId: null, error: errorMessage(e) }
     }
   })
 
-  registerHandler('ipc:session.navigateTree', async (req) => {
-    const targetId = String(req.targetId || '')
-    if (!targetId) return { cancelled: true, error: 'missing targetId' }
+  registerHandlerWithSchema('ipc:session.navigateTree', sessionNavigateTreeSchema, async (req) => {
     try {
-      await ensureWorkerSessionBound((f) => workerManager.loadSession(f))
-      return await workerManager.navigateTree(targetId, {
+      await ensureWorkerSessionBound((f, o) => workerManager.loadSession(f, o), { sessionFile: req.sessionFile })
+      return await workerManager.navigateTree(req.targetId, {
         summarize: req.summarize === true,
         label: req.label,
       })
-    } catch (e: any) {
-      return { cancelled: true, error: e.message }
+    } catch (e: unknown) {
+      return { cancelled: true, error: errorMessage(e) }
     }
   })
 
@@ -164,25 +171,40 @@ export function registerSessionHandlers(): void {
     return { ok: true }
   })
 
-  registerHandler('ipc:session.getMessages', async (req) => {
+  registerHandlerWithSchema('ipc:session.getMessages', sessionGetMessagesSchema, async (req) => {
     if (!req.sessionFile) return { items: [], totalCount: 0 }
-    if (!workerManager.isRunning) {
-      return { items: [], totalCount: 0, error: 'worker_not_ready' }
-    }
+    const offset = req.offset ?? 0
+    const limit = req.limit ?? 0
     try {
-      const offset = req.offset ?? 0
-      const limit = req.limit ?? 0
-      const r = await workerManager.getMessages(req.sessionFile, offset, limit || undefined)
-      return { items: r.items, totalCount: r.totalCount, sessionMeta: r.sessionMeta }
-    } catch (e: any) {
+      if (workerManager.isRunning) {
+        let leafId: string | null | undefined
+        try {
+          const st = await workerManager.getState()
+          if (st?.sessionFile === req.sessionFile && 'leafId' in st) {
+            leafId = (st.leafId as string | null | undefined) ?? null
+          }
+        } catch {
+          /* use default leaf from file */
+        }
+        const r = await workerManager.getMessages(req.sessionFile, offset, limit || undefined)
+        if (r.items.length > 0 || (r.totalCount ?? 0) > 0) {
+          return { items: r.items, totalCount: r.totalCount, sessionMeta: r.sessionMeta }
+        }
+        const { getSessionMessagesFromDisk } = await import('../../session-messages-from-disk.js')
+        const disk = await getSessionMessagesFromDisk(req.sessionFile, offset, limit || undefined, leafId)
+        return { items: disk.items, totalCount: disk.totalCount, sessionMeta: disk.sessionMeta }
+      }
+      const { getSessionMessagesFromDisk } = await import('../../session-messages-from-disk.js')
+      const disk = await getSessionMessagesFromDisk(req.sessionFile, offset, limit || undefined)
+      return { items: disk.items, totalCount: disk.totalCount, sessionMeta: disk.sessionMeta }
+    } catch (e: unknown) {
       console.error('[IPC] session.getMessages failed:', e)
-      return { items: [], totalCount: 0, error: e?.message || 'get_messages_failed' }
+      return { items: [], totalCount: 0, error: errorMessage(e) || 'get_messages_failed' }
     }
   })
 
-  registerHandler('ipc:session.new', async (req) => {
-    const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
-    if (!workspaceId) throw new Error('workspaceId is required')
+  registerHandlerWithSchema('ipc:session.new', sessionNewSchema, async (req) => {
+    const workspaceId = req.workspaceId
     if (!workerManager.isRunning || workerManager.cwd !== workspaceId) {
       await workerManager.start(workspaceId)
     }
@@ -207,29 +229,95 @@ export function registerSessionHandlers(): void {
     }
   })
 
-  registerHandler('ipc:session.fork', async () => ({
-    session: {
-      sessionId: 'fork-stub',
-      workspaceId: '',
-      title: 'Fork',
-      createdAt: 0,
-      updatedAt: 0,
-      modelId: '',
-      status: 'idle' as const,
-    },
-  }))
+  registerHandler('ipc:session.fork', async (req) => {
+    const title = String(req?.title || '')
+    try {
+      if (!workerManager.isRunning) {
+        return {
+          session: {
+            sessionId: '',
+            workspaceId: '',
+            title: 'Fork',
+            createdAt: 0,
+            updatedAt: 0,
+            modelId: '',
+            status: 'idle' as const,
+            error: 'worker_not_ready',
+          },
+        }
+      }
+      const newSess = await workerManager.newSession()
+      return {
+        session: {
+          sessionId: newSess.sessionId,
+          workspaceId: workerManager.cwd || '',
+          title: title || 'Fork',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          modelId: '',
+          status: 'idle' as const,
+        },
+      }
+    } catch (e: unknown) {
+      return {
+        session: {
+          sessionId: '',
+          workspaceId: '',
+          title: 'Fork',
+          createdAt: 0,
+          updatedAt: 0,
+          modelId: '',
+          status: 'idle' as const,
+          error: errorMessage(e),
+        },
+      }
+    }
+  })
 
-  registerHandler('ipc:session.clone', async () => ({
-    session: {
-      sessionId: 'clone-stub',
-      workspaceId: '',
-      title: 'Clone',
-      createdAt: 0,
-      updatedAt: 0,
-      modelId: '',
-      status: 'idle' as const,
-    },
-  }))
+  registerHandler('ipc:session.clone', async (req) => {
+    const title = String(req?.title || '')
+    try {
+      if (!workerManager.isRunning) {
+        return {
+          session: {
+            sessionId: '',
+            workspaceId: '',
+            title: 'Clone',
+            createdAt: 0,
+            updatedAt: 0,
+            modelId: '',
+            status: 'idle' as const,
+            error: 'worker_not_ready',
+          },
+        }
+      }
+      const newSess = await workerManager.newSession()
+      return {
+        session: {
+          sessionId: newSess.sessionId,
+          workspaceId: workerManager.cwd || '',
+          title: title || 'Clone',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          modelId: '',
+          status: 'idle' as const,
+        },
+      }
+    } catch (e: unknown) {
+      return {
+        session: {
+          sessionId: '',
+          workspaceId: '',
+          title: 'Clone',
+          createdAt: 0,
+          updatedAt: 0,
+          modelId: '',
+          status: 'idle' as const,
+          error: errorMessage(e),
+        },
+      }
+    }
+  })
 
   registerHandler('ipc:session.rename', async (req) => {
     const title = (req.title || '').trim()
@@ -249,9 +337,8 @@ export function registerSessionHandlers(): void {
     return { ok: true, title }
   })
 
-  registerHandler('ipc:session.delete', async (req) => {
-    const file = req.sessionFile as string | undefined
-    if (!file) return { ok: false, error: 'missing sessionFile' }
+  registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
+    const file = req.sessionFile
     const r = await workerManager.deleteSessionFile(file)
     if (r.ok) clearSessionDisplayName(file)
     return { ok: !!r.ok, error: r.error }
@@ -267,8 +354,8 @@ export function registerSessionHandlers(): void {
         await workerManager.loadSession(sessionFile)
       }
       return { ok: true, sessionFile }
-    } catch (e: any) {
-      return { ok: false, error: e?.message || 'reload failed' }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'reload failed' }
     }
   })
 
@@ -285,15 +372,53 @@ export function registerSessionHandlers(): void {
     return { ok: true, currentProject: configStore.get('currentProject') }
   })
 
-  registerHandler('ipc:session.compact', async () => ({
-    sessionId: '',
-    compacted: false,
-    tokensSaved: 0,
-  }))
+  registerHandler('ipc:session.compact', async () => {
+    try {
+      if (!workerManager.isRunning) {
+        return { sessionId: '', compacted: false, tokensSaved: 0, error: 'worker_not_ready' }
+      }
+      await workerManager.runExtensionCommand('/compact')
+      return { sessionId: '', compacted: true, tokensSaved: 0 }
+    } catch (e: unknown) {
+      return { sessionId: '', compacted: false, tokensSaved: 0, error: errorMessage(e) }
+    }
+  })
 
-  registerHandler('ipc:session.export', async (req) => ({
-    content: '',
-    format: req.format,
-    filename: 'export',
-  }))
+  registerHandlerWithSchema('ipc:session.export', sessionExportSchema, async (req) => {
+    const format = String(req.format || 'json')
+    const sessionFile = String(req.sessionFile || '')
+    try {
+      if (!sessionFile) return { content: '', format, filename: 'export', error: 'missing sessionFile' }
+      if (!workerManager.isRunning) {
+        return { content: '', format, filename: 'export', error: 'worker_not_ready' }
+      }
+      const messages = await workerManager.getMessages(sessionFile, 0, 10000)
+      const items = messages.items || []
+      const filename = `session-${Date.now()}.${format === 'json' ? 'json' : format === 'html' ? 'html' : 'md'}`
+      if (format === 'json') {
+        return { content: JSON.stringify(items, null, 2), format, filename }
+      }
+      if (format === 'markdown') {
+        const lines = items.map((m: PiSessionMessage) => {
+          const role = m.role || 'unknown'
+          const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '')
+          return `### ${role}\n\n${content}\n`
+        })
+        return { content: lines.join('\n---\n\n'), format, filename }
+      }
+      if (format === 'html') {
+        const body = items
+          .map((m: PiSessionMessage) => {
+            const role = m.role || 'unknown'
+            const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '')
+            return `<div><strong>${role}</strong><p>${String(content).replace(/</g, '&lt;')}</p></div>`
+          })
+          .join('\n')
+        return { content: `<!DOCTYPE html><html><body>${body}</body></html>`, format, filename }
+      }
+      return { content: '', format, filename, error: 'unsupported format' }
+    } catch (e: unknown) {
+      return { content: '', format, filename: 'export', error: errorMessage(e) }
+    }
+  })
 }

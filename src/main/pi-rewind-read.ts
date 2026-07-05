@@ -42,7 +42,7 @@ function parseCommitMessage(msg: string, refName: string): RewindCheckpointRow |
 export function listRewindCheckpoints(cwd: string, sessionId?: string): RewindCheckpointRow[] {
   const listR = runGit(
     cwd,
-    `for-each-ref --format=%(refname) refs/pi-checkpoints --sort=-committerdate`,
+    ['for-each-ref', '--format=%(refname)', 'refs/pi-checkpoints', '--sort=-committerdate'],
     { timeout: 8000 },
   )
   if (!listR.ok) return []
@@ -58,7 +58,7 @@ export function listRewindCheckpoints(cwd: string, sessionId?: string): RewindCh
 
   // Batch: rev-parse all SHAs in one call
   const verifyArgs = refs.map((r) => `${REF_PREFIX}${r}`).join(' ')
-  const revR = runGit(cwd, `rev-parse ${verifyArgs}`, { timeout: 8000 })
+  const revR = runGit(cwd, ['rev-parse', ...verifyArgs.split(' ').filter(Boolean)], { timeout: 8000 })
   if (!revR.ok) return []
   const shas = revR.stdout.split('\n').map((s) => s.trim()).filter(Boolean)
   if (shas.length !== refs.length) return []
@@ -66,7 +66,7 @@ export function listRewindCheckpoints(cwd: string, sessionId?: string): RewindCh
   const out: RewindCheckpointRow[] = []
   // Single cat-file per checkpoint still heavy — cap already at 24; 3s total budget via short timeout each
   for (let i = 0; i < refs.length; i++) {
-    const cat = runGit(cwd, `cat-file commit ${shas[i]}`, { timeout: 2000, maxBuffer: 128 * 1024 })
+    const cat = runGit(cwd, ['cat-file', 'commit', shas[i]], { timeout: 2000, maxBuffer: 128 * 1024 })
     if (!cat.ok) continue
     const row = parseCommitMessage(cat.stdout, refs[i])
     if (!row) continue

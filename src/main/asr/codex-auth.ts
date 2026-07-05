@@ -1,9 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { homedir } from 'os'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
+import { randomUUID } from 'crypto'
 import { app } from 'electron'
 import type { AsrConfig } from '@shared/asr-types'
 import { chatGptAccountIdFromAccessToken, isJwtExpired } from '../codex-transcribe/jwt-account-id'
+import { errorMessage } from '@shared/error-message'
 
 export type CodexAuthProbe = {
   ok: boolean
@@ -78,8 +80,8 @@ function readTokenFromFile(path: string): { token: string | null; authMode?: str
       }
     }
     return { token, authMode }
-  } catch (e: any) {
-    return { token: null, detail: e.message || 'failed to read auth.json' }
+  } catch (e: unknown) {
+    return { token: null, detail: errorMessage(e) || 'failed to read auth.json' }
   }
 }
 
@@ -138,19 +140,27 @@ export function importCodexAccessTokenFromFile(authFile?: string): { ok: boolean
   return { ok: false, detail: 'No ~/.codex/auth.json or missing access_token' }
 }
 
-function manualAuthOverlayPath(): string {
-  const dir = join(app.getPath('userData'), 'codex-asr')
-  mkdirSync(dir, { recursive: true })
-  return join(dir, 'manual-auth.json')
+let activeManualAuthOverlay: string | null = null
+
+export function clearManualAuthOverlay(): void {
+  if (!activeManualAuthOverlay) return
+  try {
+    if (existsSync(activeManualAuthOverlay)) unlinkSync(activeManualAuthOverlay)
+  } catch (e) {
+    /* best effort */
+  }
+  activeManualAuthOverlay = null
 }
 
 function writeManualAuthFile(token: string): string {
-  const path = manualAuthOverlayPath()
+  clearManualAuthOverlay()
+  const path = join(tmpdir(), `pi-asr-auth-${randomUUID()}.json`)
   writeFileSync(
     path,
     JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: token } }, null, 2),
-    'utf-8',
+    { encoding: 'utf-8', mode: 0o600 },
   )
+  activeManualAuthOverlay = path
   return path
 }
 
@@ -161,8 +171,8 @@ export function resolveAuthFileForServe(cfg: AsrConfig): { ok: boolean; authFile
     try {
       const path = writeManualAuthFile(manual)
       return { ok: true, authFile: path }
-    } catch (e: any) {
-      return { ok: false, error: e.message || 'failed to write manual auth file' }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'failed to write manual auth file' }
     }
   }
 

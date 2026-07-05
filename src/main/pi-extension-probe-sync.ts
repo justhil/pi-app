@@ -27,7 +27,7 @@ function readProjectSettings(cwd: string): Record<string, unknown> {
   if (!existsSync(p)) return {}
   try {
     return JSON.parse(readFileSync(p, 'utf-8'))
-  } catch {
+  } catch (e) {
     return {}
   }
 }
@@ -80,7 +80,7 @@ function collectLoadedExtensionRelPaths(
     if (!existsSync(full)) continue
     try {
       if (statSync(full).isDirectory()) continue
-    } catch {
+    } catch (e) {
       continue
     }
     out.push(clean)
@@ -184,7 +184,7 @@ function readPackageJsonSafe(dir: string): { pi?: { extensions?: string[] }; mai
   if (!existsSync(p)) return null
   try {
     return JSON.parse(readFileSync(p, 'utf-8'))
-  } catch {
+  } catch (e) {
     return null
   }
 }

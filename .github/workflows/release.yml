@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: write
+  attestations: write
+  id-token: write
 
 jobs:
   build-win:
@@ -156,6 +158,9 @@ jobs:
     needs: [build-win, build-mac, build-linux]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all platform artifacts
         uses: actions/download-artifact@v4
         with:
@@ -167,6 +172,17 @@ jobs:
         run: |
           find release-assets -type f \( -name 'latest.yml' -o -name 'latest-mac.yml' -o -name 'latest-linux.yml' \) -delete
           find release-assets -type f | sort
+
+      - name: Generate SBOM
+        run: node scripts/generate-release-sbom.mjs release-assets/sbom.cdx.json
+
+      - name: Generate SHA256SUMS.txt
+        run: node scripts/generate-release-checksums.mjs release-assets
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-assets/**
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

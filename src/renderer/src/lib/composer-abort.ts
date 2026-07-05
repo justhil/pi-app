@@ -1,6 +1,7 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { applyComposerAbortUi } from '@renderer/lib/composer-queue-restore'
-import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import { markAbortUiHold } from '@renderer/lib/abort-ui-hold'
+import { applyLiveSnapshotToView, canAbortWorkerTurn, fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 let abortCooldownUntil = 0
@@ -18,23 +19,29 @@ export async function abortAgentTurn(opts?: {
   abortCooldownUntil = Date.now() + 700
 
   const store = useUIStore.getState()
+  const sessionFile = store.historySessionFile
+  if (!canAbortWorkerTurn(sessionFile, store.workerLiveSnapshot, store.runState.status === 'running')) return
   const queued = [...store.pendingSteering, ...store.pendingFollowUp].filter(Boolean)
   const merged = [queued.join('\n'), (opts?.restoreEditorText || '').trim()].filter(Boolean).join('\n')
 
+  markAbortUiHold()
   applyComposerAbortUi()
   store.setWorkerLiveSnapshot({ ...store.workerLiveSnapshot, status: 'idle' })
 
   if (merged && opts?.setEditorText) opts.setEditorText(merged)
 
   try {
-    await ipcClient.invoke('prompt.abort', { sessionId: '' })
+    await ipcClient.invoke('prompt.abort', { sessionId: '', sessionFile: sessionFile ?? undefined })
   } catch (e) {
     console.error('[composer-abort] prompt.abort failed:', e)
   }
 
   window.setTimeout(() => {
     void fetchWorkerLiveSnapshot()
-      .then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap))
+      .then((snap) => {
+        const s = useUIStore.getState()
+        applyLiveSnapshotToView(s.historySessionFile, snap, s)
+      })
       .catch(() => {})
   }, 250)
 }

@@ -1,7 +1,8 @@
+import { memo } from 'react'
 import { cn } from '@renderer/lib/utils'
 
 /** 与 resources/icon.svg 一致：黑底 + 衬线 π */
-export function PiMark({ className, size = 16 }: { className?: string; size?: number; inverted?: boolean }) {
+function PiMarkImpl({ className, size = 16 }: { className?: string; size?: number; inverted?: boolean }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -27,3 +28,5 @@ export function PiMark({ className, size = 16 }: { className?: string; size?: nu
     </svg>
   )
 }
+
+export const PiMark = memo(PiMarkImpl)

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { formatTokens } from '@renderer/lib/format-tokens'
@@ -6,7 +7,7 @@ import type { useComposerMetrics } from './use-composer-metrics'
 type Metrics = ReturnType<typeof useComposerMetrics>
 
 /** Footer: context, message count, TPS, cache, turn usage */
-export function ComposerMetricsFooter({
+function ComposerMetricsFooterImpl({
   usage,
   isRunning,
   metrics,
@@ -95,3 +96,5 @@ export function ComposerMetricsFooter({
     </div>
   )
 }
+
+export const ComposerMetricsFooter = memo(ComposerMetricsFooterImpl)

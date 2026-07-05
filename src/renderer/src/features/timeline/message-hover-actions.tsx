@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { memo, useState, type ReactNode } from 'react'
 import { Copy, Check, Undo2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
 /** Hover actions for messages: copy, rewind */
-export function MessageHoverActions({
+function MessageHoverActionsImpl({
   text,
   timestamp,
   align,
@@ -56,6 +56,8 @@ export function MessageHoverActions({
     </div>
   )
 }
+
+export const MessageHoverActions = memo(MessageHoverActionsImpl)
 
 export function MessageHoverShell({
   align,

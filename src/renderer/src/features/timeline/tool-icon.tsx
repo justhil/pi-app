@@ -1,7 +1,7 @@
 // Universal tool icon resolver (兼容层 v2).
 // Built-in tools keep semantic colors; plugin tools resolve icon from adapter.json toolCard.icon (lucide name).
 // No per-plugin if(name===) branches — all plugin icons come from the adapter catalog.
-import type { ComponentType } from 'react'
+import { memo, type ComponentType } from 'react'
 import {
   FileText, FileEdit, Terminal, Wrench, Image as ImageIcon, Globe, GitBranch,
   MessageCircleQuestion, Search, Eye, ShieldCheck, BrainCircuit, Network,
@@ -27,7 +27,7 @@ const BUILTIN_COLORS: Record<string, string> = {
   bash: 'text-[hsl(var(--tool-bash))]',
 }
 
-export function ToolIcon({ name, className }: { name: string; className?: string }) {
+function ToolIconImpl({ name, className }: { name: string; className?: string }) {
   const cls = className || 'h-3.5 w-3.5'
   // Built-in semantic-color tools
   if (BUILTIN_COLORS[name]) {
@@ -40,3 +40,5 @@ export function ToolIcon({ name, className }: { name: string; className?: string
   const Comp = (iconName && ICON_MAP[iconName]) || Wrench
   return <Comp className={cn(cls, 'text-muted-foreground')} />
 }
+
+export const ToolIcon = memo(ToolIconImpl)

@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import type { AsrProvider, AsrTranscribeRequest, AsrTranscribeResult } from '@shared/asr-types'
+import { errorMessage } from '@shared/error-message'
 
 const MIME_TO_EXT: Record<string, string> = {
   'audio/webm': 'webm',
@@ -54,16 +55,17 @@ export class CodexAsrCliProvider implements AsrProvider {
         return { ok: false, error: 'failed to parse codex-asr output', kind: 'unknown' }
       }
       return { ok: true, text }
-    } catch (e: any) {
-      if (e.code === 'ENOENT') {
+    } catch (e: unknown) {
+      const err = e as { code?: string; killed?: boolean }
+      if (err.code === 'ENOENT') {
         return { ok: false, error: `codex-asr binary not found: ${this.binaryPath}`, kind: 'not_configured' }
       }
-      if (e.killed) {
+      if (err.killed) {
         return { ok: false, error: 'transcription timed out', kind: 'timeout' }
       }
-      return { ok: false, error: e.message || 'unknown error', kind: 'unknown' }
+      return { ok: false, error: errorMessage(e) || 'unknown error', kind: 'unknown' }
     } finally {
-      try { await unlink(tmpFile) } catch { /* temp file cleanup best-effort */ }
+      try { await unlink(tmpFile) } catch (e) { /* temp file cleanup best-effort */ }
     }
   }
 
@@ -74,11 +76,11 @@ export class CodexAsrCliProvider implements AsrProvider {
         return { ok: true, detail: result.stdout.trim() }
       }
       return { ok: false, detail: result.stderr || 'unknown error' }
-    } catch (e: any) {
-      if (e.code === 'ENOENT') {
+    } catch (e: unknown) {
+      if ((e as { code?: string }).code === 'ENOENT') {
         return { ok: false, detail: `binary not found: ${this.binaryPath}` }
       }
-      return { ok: false, detail: e.message }
+      return { ok: false, detail: errorMessage(e) }
     }
   }
 
@@ -100,7 +102,7 @@ export class CodexAsrCliProvider implements AsrProvider {
     try {
       const parsed = JSON.parse(stdout.trim())
       if (parsed && typeof parsed.text === 'string') return parsed.text
-    } catch {
+    } catch (e) {
       // not JSON; maybe plain text
       const text = stdout.trim()
       return text || null

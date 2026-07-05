@@ -1,34 +1,38 @@
-// Worker Manager - manages Pi Worker lifecycle via utilityProcess built-in message channel
+// Worker Manager - per-workspace utility processes; foreground RPC + background turns keep running
 
-import { utilityProcess, app, type BrowserWindow } from 'electron'
-import { join } from 'path'
+import { type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
-import { resolveActiveSdk } from './sdk-loader'
+import type {
+  WorkerCommandInfo,
+  WorkerCompletionItem,
+  WorkerContextPreview,
+  WorkerMessagesPage,
+  WorkerModelRow,
+  WorkerPromptTemplate,
+  WorkerRequestPayload,
+  WorkerResponsePayload,
+  WorkerSessionOnDisk,
+  WorkerSessionTreeNode,
+  WorkerSkillInfo,
+  WorkerState,
+} from '@shared/worker-rpc-types'
+import {
+  attachWorkerHandlers,
+  disposeWorkerSlot,
+  evictBackgroundWorkers,
+  forkWorkerForCwd,
+  getBackgroundWorkerState,
+  slotRequest,
+} from './worker-manager-pool'
+import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 
-interface InitResult {
-  sessionId: string
-  model?: string
-  thinkingLevel?: string
-}
+interface InitResult extends WorkerInitResult {}
 
 export class WorkerManager {
-  private worker: Electron.UtilityProcess | null = null
   private mainWindow: BrowserWindow | null = null
-  private currentCwd: string | null = null
-  private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void; timer: NodeJS.Timeout }>()
-  private requestCounter = 0
-  private initResolver: ((r: InitResult) => void) | null = null
-  private initRejecter: ((e: any) => void) | null = null
-  private initPromise: Promise<InitResult> | null = null
-  private stopping = false
-  /** When true, worker exit will not spawn another process (avoids task-manager process storms). */
-  private autoRestartEnabled = false
-  /** Worker init 时全局 pi 加载失败已回退内置（UI 提示用）。 */
-  private sdkFallback = false
-  /** 串行化 start/stop，避免 SDK 切换时并行 fork 多个 worker。 */
+  private pool = new Map<string, WorkerSlot>()
+  private foregroundCwd: string | null = null
   private lifecycleChain: Promise<unknown> = Promise.resolve()
-  /** 与 Worker agent_start/agent_end 同步，Main 侧再拦一层 extension-ui（防旧进程/竞态） */
-  private agentTurnActive = false
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
@@ -40,12 +44,26 @@ export class WorkerManager {
     return run
   }
 
+  private foregroundSlot(): WorkerSlot | null {
+    if (!this.foregroundCwd) return null
+    return this.pool.get(this.foregroundCwd) ?? null
+  }
+
   private async startUnlocked(cwd: string): Promise<InitResult> {
-    if (this.worker && this.currentCwd === cwd && this.initPromise) {
-      return this.initPromise
+    const existing = this.pool.get(cwd)
+    if (existing && !existing.stopping) {
+      this.foregroundCwd = cwd
+      evictBackgroundWorkers(this.pool, cwd)
+      if (existing.initPromise) return existing.initPromise
+      const live = await this.requestOnSlot(existing, 'getState').catch(() => null)
+      return {
+        sessionId: String((live?.state as WorkerState)?.sessionId ?? ''),
+        model: (live?.state as WorkerState)?.model as string | undefined,
+        thinkingLevel: (live?.state as WorkerState)?.thinkingLevel as string | undefined,
+      }
     }
 
-    const prev = this.currentCwd
+    const prev = this.foregroundCwd
     if (prev !== cwd) {
       try {
         const { traceAudio } = await import('./audio-trace')
@@ -54,168 +72,63 @@ export class WorkerManager {
         /* ignore */
       }
     }
-    this.agentTurnActive = false
 
-    await this.stopUnlocked()
-    this.stopping = false
-    this.autoRestartEnabled = true
-    this.currentCwd = cwd
+    evictBackgroundWorkers(this.pool, cwd, prev && prev !== cwd ? prev : null)
 
-    const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], {
-      stdio: 'pipe',
+    const { slot, init } = await forkWorkerForCwd(cwd)
+    this.pool.set(cwd, slot)
+    this.foregroundCwd = cwd
+
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: this.mainWindow,
+      onAppEvent: ({ event, fromCwd, agentTurnActive }) => this.forwardAppEvent(event, fromCwd, agentTurnActive),
+      onSlotExit: (s, code) => this.handleSlotExit(s, code),
     })
-    this.worker = forked
 
-    const safeWrite = (msg: string) => {
-      try { process.stderr.write(msg + '\n') } catch {}
+    return init
+  }
+
+  private forwardAppEvent(event: AppEvent, fromCwd: string, agentTurnActive: boolean): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+    const enriched =
+      event && typeof event === 'object' && 'workspaceId' in event
+        ? { ...event, workspaceId: (event as { workspaceId?: string }).workspaceId || fromCwd }
+        : event
+    this.mainWindow.webContents.send('ipc:events', enriched)
+    void agentTurnActive
+  }
+
+  private handleSlotExit(slot: WorkerSlot, code: number): void {
+    const cwdOnExit = slot.cwd
+    this.pool.delete(cwdOnExit)
+    if (this.foregroundCwd === cwdOnExit) this.foregroundCwd = null
+    slot.initPromise = null
+    if (slot.initRejecter) {
+      slot.initRejecter(new Error(`Worker exited during init with code ${code}`))
+      slot.initResolver = null
+      slot.initRejecter = null
     }
-    if (forked.stderr) {
-      forked.stderr.on('error', () => {})
-      forked.stderr.on('data', (chunk: Buffer) => {
-        for (const line of chunk.toString().split('\n')) {
-          if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
-        }
+
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: cwdOnExit })
+    }
+
+    if (slot.stopping || code === 0 || !cwdOnExit || !slot.autoRestartEnabled) return
+
+    try {
+      process.stderr.write(
+        '[WorkerManager] Worker crashed; auto-restart is disabled — not spawning another worker\n',
+      )
+    } catch {
+      /* ignore */
+    }
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('ipc:worker-fatal', {
+        code,
+        cwd: cwdOnExit,
+        message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
       })
     }
-    if (forked.stdout) {
-      forked.stdout.on('error', () => {})
-      forked.stdout.on('data', (chunk: Buffer) => {
-        for (const line of chunk.toString().split('\n')) {
-          if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
-        }
-      })
-    }
-
-    forked.on('message', (event: any) => {
-      if (this.worker !== forked) return
-      const data = event?.data ?? event
-      if (!data) return
-
-      if (data.type === 'app-event' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        const ev = data.event as AppEvent
-        if (ev?.type === 'run') {
-          if (ev.phase === 'running' || ev.phase === 'started') this.agentTurnActive = true
-          else if (ev.phase === 'idle' || ev.phase === 'failed' || ev.phase === 'cancelled') {
-            this.agentTurnActive = false
-          }
-        }
-        this.mainWindow.webContents.send('ipc:events', ev)
-      }
-
-      if (
-        (data.type === 'extension-ui-dismiss' || data.type === 'extension-ui-dismiss-all') &&
-        this.mainWindow &&
-        !this.mainWindow.isDestroyed()
-      ) {
-        this.mainWindow.webContents.send('ipc:extension-ui-dismiss', {
-          type: data.type,
-          id: data.id,
-          reason: data.reason,
-        })
-      }
-
-      if (data.type === 'extension-ui-request' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        const req = data.request as { method?: string; notifyType?: string; message?: string }
-        const method = req?.method || ''
-        // Only gate notify by agentTurnActive; dialog requests (confirm/select/input/editor/custom)
-        // must always pass so navigateTree and other non-turn UI calls can complete.
-        const allow =
-          method !== 'notify' ||
-          this.agentTurnActive ||
-          req.notifyType === 'error'
-        if (!allow) {
-          void import('./audio-trace').then(({ traceAudio }) => {
-            traceAudio('main.dropExtensionUi', {
-              method,
-              notifyType: req.notifyType,
-              agentTurnActive: this.agentTurnActive,
-              msg: String(req.message || '').slice(0, 80),
-            })
-          })
-          return
-        }
-        void import('./audio-trace').then(({ traceAudio }) => {
-          traceAudio('main.forwardExtensionUi', { method, notifyType: req.notifyType })
-        })
-        this.mainWindow.webContents.send('ipc:extension-ui-request', data.request)
-      }
-
-      if (data.type === 'init-done' && this.initResolver) {
-        this.sdkFallback = !!data.sdkFallback
-        if (this.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')
-        this.initResolver({ sessionId: data.sessionId, model: data.model, thinkingLevel: data.thinkingLevel })
-        this.initResolver = null
-        this.initRejecter = null
-      }
-      if (data.type === 'error' && this.initRejecter) {
-        this.initRejecter(new Error(data.error))
-        this.initResolver = null
-        this.initRejecter = null
-        this.initPromise = null
-      }
-
-      if (data.requestId && this.pendingRequests.has(data.requestId)) {
-        const pending = this.pendingRequests.get(data.requestId)!
-        clearTimeout(pending.timer)
-        this.pendingRequests.delete(data.requestId)
-        if (data.type === 'error') pending.reject(new Error(data.error))
-        else pending.resolve(data)
-      }
-    })
-
-    forked.on('exit', (code) => {
-      if (this.worker !== forked) {
-        safeWrite(`[WorkerManager] Ignoring stale worker exit (code ${code})`)
-        return
-      }
-      safeWrite(`[WorkerManager] Worker exited with code ${code}`)
-      this.worker = null
-      const cwdOnExit = this.currentCwd
-      this.currentCwd = null
-      this.initPromise = null
-      if (this.initRejecter) {
-        this.initRejecter(new Error(`Worker exited during init with code ${code}`))
-        this.initResolver = null
-        this.initRejecter = null
-        this.initPromise = null
-      }
-
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: cwdOnExit })
-      }
-
-      if (this.stopping || code === 0 || !cwdOnExit || !this.autoRestartEnabled) {
-        return
-      }
-
-      safeWrite('[WorkerManager] Worker crashed; auto-restart is disabled — not spawning another worker')
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('ipc:worker-fatal', {
-          code,
-          cwd: cwdOnExit,
-          message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
-        })
-      }
-    })
-
-    this.initPromise = new Promise<InitResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (this.worker !== forked) return
-        this.initResolver = null
-        this.initRejecter = null
-        this.initPromise = null
-        reject(new Error('Worker init timeout (60s)'))
-      }, 60000)
-      this.initResolver = (r) => { clearTimeout(timer); resolve(r) }
-      this.initRejecter = (e) => { clearTimeout(timer); reject(e) }
-    })
-
-    const activeSdk = resolveActiveSdk(app.getPath('userData'))
-    const sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
-
-    forked.postMessage({ type: 'init', cwd, sdkPath })
-
-    return this.initPromise
   }
 
   async stop(): Promise<void> {
@@ -225,124 +138,144 @@ export class WorkerManager {
   }
 
   private async stopUnlocked(): Promise<void> {
-    this.stopping = true
-    const toStop = this.worker
-    if (this.initRejecter) {
-      this.initRejecter(new Error('Worker stopped'))
-      this.initResolver = null
-      this.initRejecter = null
-    }
-    this.initPromise = null
-    if (toStop) {
-      try { toStop.postMessage({ type: 'dispose' }) } catch {}
-      await new Promise((r) => setTimeout(r, 150))
-      try { toStop.kill() } catch {}
-      if (this.worker === toStop) {
-        this.worker = null
-      }
-    }
-    this.pendingRequests.clear()
-    this.sdkFallback = false
+    const slots = [...this.pool.values()]
+    this.pool.clear()
+    this.foregroundCwd = null
+    await Promise.all(slots.map((s) => disposeWorkerSlot(s)))
   }
 
-  private request(type: string, data?: any): Promise<any> {
-    if (!this.worker) return Promise.reject(new Error('Worker not started'))
-    const requestId = `req-${++this.requestCounter}`
-    const proc = this.worker
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (this.pendingRequests.has(requestId)) {
-          this.pendingRequests.delete(requestId)
-          reject(new Error(`Worker request ${type} timed out`))
-        }
-      }, 120000)
-      this.pendingRequests.set(requestId, { resolve, reject, timer })
-      try {
-        proc.postMessage({ type, requestId, ...data })
-      } catch (e) {
-        clearTimeout(timer)
-        this.pendingRequests.delete(requestId)
-        reject(e)
-      }
-    })
+  private requestOnSlot(
+    slot: WorkerSlot,
+    type: string,
+    data?: WorkerRequestPayload,
+  ): Promise<WorkerResponsePayload> {
+    return slotRequest(slot, type, data as Record<string, unknown> | undefined)
   }
 
-  async sendPrompt(text: string): Promise<void> { await this.request('prompt', { text }) }
-  async abort(): Promise<void> { await this.request('abort') }
-  async steer(text: string): Promise<void> { await this.request('steer', { text }) }
-  async followUp(text: string): Promise<void> { await this.request('followUp', { text }) }
+  private request(type: string, data?: WorkerRequestPayload): Promise<WorkerResponsePayload> {
+    const slot = this.foregroundSlot()
+    if (!slot) return Promise.reject(new Error('Worker not started'))
+    return this.requestOnSlot(slot, type, data)
+  }
+
+  async getBackgroundRuntimeState(cwd: string): Promise<WorkerState | null> {
+    const row = await getBackgroundWorkerState(this.pool, cwd)
+    if (!row) return null
+    return (row.state as WorkerState) || null
+  }
+
+  async sendPrompt(text: string): Promise<void> {
+    await this.request('prompt', { text })
+  }
+  async abort(): Promise<void> {
+    await this.request('abort')
+  }
+  async steer(text: string): Promise<void> {
+    await this.request('steer', { text })
+  }
+  async followUp(text: string): Promise<void> {
+    await this.request('followUp', { text })
+  }
   async clearPromptQueue(): Promise<{ steering: string[]; followUp: string[] }> {
     const r = await this.request('clearQueue')
-    return { steering: r.steering || [], followUp: r.followUp || [] }
+    return { steering: (r.steering as string[]) || [], followUp: (r.followUp as string[]) || [] }
   }
-  async setModel(provider: string, modelId: string): Promise<void> { await this.request('setModel', { provider, modelId }) }
-  async setThinkingLevel(level: string): Promise<void> { await this.request('setThinkingLevel', { level }) }
-  async newSession(): Promise<{ sessionId: string }> { return await this.request('newSession') }
-  async listSessions(cwd?: string): Promise<any[]> {
+  async setModel(provider: string, modelId: string): Promise<void> {
+    await this.request('setModel', { provider, modelId })
+  }
+  async setThinkingLevel(level: string): Promise<void> {
+    await this.request('setThinkingLevel', { level })
+  }
+  async newSession(): Promise<{ sessionId: string }> {
+    const r = await this.request('newSession')
+    return { sessionId: String(r.sessionId ?? '') }
+  }
+  async listSessions(cwd?: string): Promise<WorkerSessionOnDisk[]> {
     const r = await this.request('listSessions', { cwd })
-    return r.sessions || []
+    return (r.sessions as WorkerSessionOnDisk[]) || []
   }
-  async getState(): Promise<any> { return (await this.request('getState')).state }
-  async getCommands(): Promise<{ commands: any[]; hasSession: boolean }> {
+  async getState(): Promise<WorkerState> {
+    return ((await this.request('getState')).state as WorkerState) || {}
+  }
+  async getCommands(): Promise<{ commands: WorkerCommandInfo[]; hasSession: boolean }> {
     const r = await this.request('getCommands')
-    return { commands: r.commands || [], hasSession: !!r.hasSession }
+    return { commands: (r.commands as WorkerCommandInfo[]) || [], hasSession: !!r.hasSession }
   }
-  async getSessionContextPreview(): Promise<any> {
+  async getSessionContextPreview(): Promise<WorkerContextPreview> {
     const r = await this.request('getSessionContextPreview')
-    return r.preview || null
+    return (r.preview as WorkerContextPreview) || null
   }
-  async getSkillsList(): Promise<any[]> {
+  async getSkillsList(): Promise<WorkerSkillInfo[]> {
     const r = await this.request('getSkillsList')
-    return r.skills || []
+    return (r.skills as WorkerSkillInfo[]) || []
   }
-  async getPromptTemplatesList(): Promise<any[]> {
+  async getPromptTemplatesList(): Promise<WorkerPromptTemplate[]> {
     const r = await this.request('getPromptTemplatesList')
-    return r.prompts || []
+    return (r.prompts as WorkerPromptTemplate[]) || []
   }
-  async getContextPrompts(): Promise<any> {
+  async getContextPrompts(): Promise<WorkerResponsePayload> {
     return this.request('getContextPrompts')
   }
   async reloadResources(): Promise<void> {
     await this.request('reloadResources')
   }
-  async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<any[]> {
+  async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<WorkerCompletionItem[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
-    return r.items || []
+    return (r.items as WorkerCompletionItem[]) || []
   }
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<WorkerModelRow[]> {
     const r = await this.request('getModels')
-    return r.models || []
+    return (r.models as WorkerModelRow[]) || []
   }
   async reloadModels(): Promise<void> {
     if (!this.isRunning) return
     await this.request('reloadModels')
   }
-  async getPiSettings(): Promise<any> { return (await this.request('getPiSettings')).settings }
-  async setPiSettings(patch: any): Promise<void> { await this.request('setPiSettings', { patch }) }
+  async getPiSettings(): Promise<Record<string, unknown>> {
+    return ((await this.request('getPiSettings')).settings as Record<string, unknown>) || {}
+  }
+  async setPiSettings(patch: Record<string, unknown>): Promise<void> {
+    await this.request('setPiSettings', { patch })
+  }
   async getMessages(
     sessionFile: string,
     offset?: number,
     limit?: number,
-  ): Promise<{ items: any[]; totalCount: number; sessionMeta?: { model?: string; thinkingLevel?: string } }> {
+  ): Promise<WorkerMessagesPage> {
     const r = await this.request('getMessages', { sessionFile, offset, limit })
     return {
-      items: r.items || [],
-      totalCount: typeof r.totalCount === 'number' ? r.totalCount : (r.items || []).length,
-      sessionMeta: r.sessionMeta,
+      items: (r.items as WorkerMessagesPage['items']) || [],
+      totalCount:
+        typeof r.totalCount === 'number'
+          ? r.totalCount
+          : Array.isArray(r.items)
+            ? r.items.length
+            : 0,
+      sessionMeta: r.sessionMeta as WorkerMessagesPage['sessionMeta'],
     }
   }
-  async loadSession(sessionFile: string): Promise<{ sessionId: string; model?: string }> {
-    return await this.request('loadSession', { sessionFile })
+  async loadSession(
+    sessionFile: string,
+    opts?: { force?: boolean },
+  ): Promise<{ sessionId: string; model?: string }> {
+    const r = await this.request('loadSession', { sessionFile, force: opts?.force === true })
+    return { sessionId: String(r.sessionId ?? ''), model: r.model as string | undefined }
   }
   async renameSessionFile(sessionFile: string, title: string): Promise<{ ok: boolean; title?: string; error?: string }> {
-    return await this.request('sessionRenameFile', { sessionFile, title })
+    const r = await this.request('sessionRenameFile', { sessionFile, title })
+    return { ok: !!r.ok, title: r.title as string | undefined, error: r.error as string | undefined }
   }
   async deleteSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
-    return await this.request('sessionDeleteFile', { sessionFile })
+    const r = await this.request('sessionDeleteFile', { sessionFile })
+    return { ok: !!r.ok, error: r.error as string | undefined }
   }
-  async getSessionTree(sessionFile?: string): Promise<{ nodes: any[]; leafId: string | null; error?: string }> {
+  async getSessionTree(sessionFile?: string): Promise<{ nodes: WorkerSessionTreeNode[]; leafId: string | null; error?: string }> {
     const r = await this.request('getSessionTree', sessionFile ? { sessionFile } : {})
-    return { nodes: r.nodes || [], leafId: r.leafId ?? null, error: r.error }
+    return {
+      nodes: (r.nodes as WorkerSessionTreeNode[]) || [],
+      leafId: (r.leafId as string | null) ?? null,
+      error: r.error as string | undefined,
+    }
   }
   async navigateTree(
     targetId: string,
@@ -356,28 +289,43 @@ export class WorkerManager {
     const r = await this.request('navigateTree', { targetId, ...options })
     return {
       cancelled: !!r.cancelled,
-      editorText: r.editorText,
-      leafId: r.leafId ?? null,
-      sessionMeta: r.sessionMeta,
+      editorText: r.editorText as string | undefined,
+      leafId: (r.leafId as string | null) ?? null,
+      sessionMeta: r.sessionMeta as { model?: string; thinkingLevel?: string } | undefined,
     }
   }
   async runExtensionCommand(text: string): Promise<void> {
     await this.request('runExtensionCommand', { text })
   }
 
-  respondExtensionUI(response: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean; result?: unknown }): void {
-    if (!this.worker) return
-    this.worker.postMessage({ type: 'extension-ui-response', response })
+  respondExtensionUI(response: {
+    id: string
+    value?: string
+    confirmed?: boolean
+    cancelled?: boolean
+    result?: unknown
+  }): void {
+    const slot = this.foregroundSlot()
+    if (!slot) return
+    slot.worker.postMessage({ type: 'extension-ui-response', response })
   }
 
-  get isRunning(): boolean { return this.worker !== null }
+  get isRunning(): boolean {
+    return this.foregroundSlot() != null
+  }
 
-  /** Wait until init-done (or init failed); no-op if not starting. */
   async awaitReady(): Promise<void> {
-    if (this.initPromise) await this.initPromise.catch(() => {})
+    const slot = this.foregroundSlot()
+    if (slot?.initPromise) await slot.initPromise.catch(() => {})
   }
-  get cwd(): string | null { return this.currentCwd }
-  get lastSdkFallback(): boolean { return this.sdkFallback }
+
+  get cwd(): string | null {
+    return this.foregroundCwd
+  }
+
+  get lastSdkFallback(): boolean {
+    return this.foregroundSlot()?.sdkFallback ?? false
+  }
 }
 
 export const workerManager = new WorkerManager()

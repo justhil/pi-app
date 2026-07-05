@@ -1,7 +1,16 @@
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { existsSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { errorMessage } from '@shared/error-message'
+
+function execStderr(e: unknown): string {
+  if (typeof e === 'object' && e !== null && 'stderr' in e) {
+    const s = (e as { stderr?: { toString?: () => string } }).stderr
+    return s?.toString?.()?.trim() || ''
+  }
+  return ''
+}
 
 function isNotGitRepo(stderr: string, message: string): boolean {
   const s = `${message}\n${stderr}`.toLowerCase()
@@ -20,14 +29,14 @@ export function isGitRepository(cwd: string): boolean {
 
 export function runGit(
   cwd: string,
-  args: string,
+  args: string[],
   options?: { timeout?: number; maxBuffer?: number },
 ): { ok: true; stdout: string } | { ok: false; notRepo: boolean; message: string } {
   if (!isGitRepository(cwd)) {
     return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
   }
   try {
-    const stdout = execSync(`git ${args}`, {
+    const stdout = execFileSync('git', args, {
       cwd,
       encoding: 'utf-8',
       timeout: options?.timeout ?? 8000,
@@ -35,9 +44,9 @@ export function runGit(
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     return { ok: true, stdout: stdout ?? '' }
-  } catch (e: any) {
-    const stderr = (e.stderr?.toString?.() || '').trim()
-    const message = (e.message || String(e)).trim()
+  } catch (e: unknown) {
+    const stderr = execStderr(e)
+    const message = (errorMessage(e) || String(e)).trim()
     if (isNotGitRepo(stderr, message)) {
       return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
     }
@@ -67,16 +76,16 @@ export function readGitWorkspaceSnapshot(cwd: string): GitWorkspaceSnapshot {
     }
   }
 
-  const branchR = runGit(cwd, 'rev-parse --abbrev-ref HEAD', { timeout: 3000 })
+  const branchR = runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 })
   const branch = branchR.ok ? branchR.stdout.trim() : ''
 
-  const diffR = runGit(cwd, 'diff', { timeout: 10000 })
+  const diffR = runGit(cwd, ['diff'], { timeout: 10000 })
   const raw = diffR.ok ? diffR.stdout : ''
 
-  const statusR = runGit(cwd, 'status --porcelain -b', { timeout: 5000 })
+  const statusR = runGit(cwd, ['status', '--porcelain', '-b'], { timeout: 5000 })
   const status = statusR.ok ? statusR.stdout : ''
 
-  const logR = runGit(cwd, 'log --oneline -12', { timeout: 5000 })
+  const logR = runGit(cwd, ['log', '--oneline', '-12'], { timeout: 5000 })
   const log = logR.ok ? logR.stdout.trim() : ''
 
   if (!diffR.ok && diffR.notRepo) {
@@ -95,16 +104,16 @@ export function stageHunks(
     for (const patch of f.hunkPatches) {
       if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
       try {
-        execSync('git apply --cached --recount', {
+        execFileSync('git', ['apply', '--cached', '--recount'], {
           cwd,
           input: patch,
           encoding: 'utf-8',
           timeout: 10000,
           stdio: ['pipe', 'pipe', 'pipe'],
         })
-      } catch (e: any) {
-        const stderr = (e.stderr?.toString?.() || '').trim()
-        return { ok: false, error: stderr || e.message || 'git apply 失败' }
+      } catch (e: unknown) {
+        const stderr = execStderr(e)
+        return { ok: false, error: stderr || errorMessage(e) || 'git apply 失败' }
       }
     }
   }
@@ -120,16 +129,16 @@ export function unstageHunks(
     for (const patch of f.hunkPatches) {
       if (!patch) continue
       try {
-        execSync('git apply -R --cached', {
+        execFileSync('git', ['apply', '-R', '--cached'], {
           cwd,
           input: patch,
           encoding: 'utf-8',
           timeout: 10000,
           stdio: ['pipe', 'pipe', 'pipe'],
         })
-      } catch (e: any) {
-        const stderr = (e.stderr?.toString?.() || '').trim()
-        return { ok: false, error: stderr || e.message || 'git apply -R 失败' }
+      } catch (e: unknown) {
+        const stderr = execStderr(e)
+        return { ok: false, error: stderr || errorMessage(e) || 'git apply -R 失败' }
       }
     }
   }
@@ -145,11 +154,11 @@ export function commitChanges(
   const tmpFile = join(tmpdir(), `pi-commit-${Date.now()}.txt`)
   writeFileSync(tmpFile, message, 'utf-8')
   try {
-    const r = runGit(cwd, `commit -F ${JSON.stringify(tmpFile)}`)
+    const r = runGit(cwd, ['commit', '-F', tmpFile])
     if (!r.ok) return { ok: false, error: r.message }
-    const hashR = runGit(cwd, 'rev-parse HEAD', { timeout: 3000 })
+    const hashR = runGit(cwd, ['rev-parse', 'HEAD'], { timeout: 3000 })
     return { ok: true, commitHash: hashR.ok ? hashR.stdout.trim() : undefined }
   } finally {
-    try { unlinkSync(tmpFile) } catch { /* */ }
+    try { unlinkSync(tmpFile) } catch (e) { /* */ }
   }
 }

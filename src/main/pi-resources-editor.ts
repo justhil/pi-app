@@ -45,7 +45,7 @@ function scanSkillMdFiles(dir: string, source: ResourceSource, out: SkillListIte
     let entries: string[]
     try {
       entries = readdirSync(d)
-    } catch {
+    } catch (e) {
       return
     }
     for (const name of entries) {
@@ -54,7 +54,7 @@ function scanSkillMdFiles(dir: string, source: ResourceSource, out: SkillListIte
       let st
       try {
         st = statSync(full)
-      } catch {
+      } catch (e) {
         continue
       }
       if (st.isDirectory()) {
@@ -116,7 +116,7 @@ function scanPromptsDir(dir: string, source: ResourceSource, out: PromptListItem
         command: `/${cmdName}`,
       })
     }
-  } catch {
+  } catch (e) {
     /* */
   }
 }
