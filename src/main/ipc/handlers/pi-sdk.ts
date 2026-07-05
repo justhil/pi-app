@@ -5,6 +5,7 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
+import { clearGlobalSdkPathCache } from '../../sdk-loader'
 import { readSdkStatus, listRegistryVersions, installVersion, switchTo, isAllowedSdkVersion } from '../../sdk-manager'
 import { errorMessage } from '@shared/error-message'
 
@@ -47,6 +48,7 @@ export function registerPiSdkHandlers(): void {
   )
 
   registerHandler('ipc:sdk.status', async () => {
+    clearGlobalSdkPathCache()
     const status = readSdkStatus(app.getPath('userData'))
     status.workerFallback = workerManager.lastSdkFallback
     return status
