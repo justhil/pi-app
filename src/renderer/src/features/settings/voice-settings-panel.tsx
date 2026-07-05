@@ -34,6 +34,8 @@ export function VoiceSettingsPanel() {
         config: {
           codexAuthFile: cfg.codexAuthFile,
           codexAccessToken: cfg.codexAccessToken,
+          codexAccessTokenPreserved: cfg.codexAccessTokenPreserved,
+          codexAccessTokenSet: cfg.codexAccessTokenSet,
         },
       })
       setProbe(res as CodexProbe)
@@ -42,7 +44,7 @@ export function VoiceSettingsPanel() {
     } finally {
       setProbing(false)
     }
-  }, [cfg.codexAuthFile, cfg.codexAccessToken])
+  }, [cfg.codexAuthFile, cfg.codexAccessToken, cfg.codexAccessTokenPreserved, cfg.codexAccessTokenSet])
 
   useEffect(() => {
     if (cfg.provider === 'none') {
@@ -115,11 +117,41 @@ export function VoiceSettingsPanel() {
             <textarea
               className={cn(inputCls, 'min-h-[4.5rem] max-w-xl resize-y')}
               value={cfg.codexAccessToken || ''}
-              placeholder={t('settings:voice.accessTokenPlaceholder')}
+              placeholder={
+                cfg.codexAccessTokenSet && !cfg.codexAccessToken?.trim()
+                  ? t('settings:voice.accessTokenStoredPlaceholder', {
+                      preview: cfg.codexAccessTokenPreview || '••••',
+                      defaultValue: `已保存（${cfg.codexAccessTokenPreview || '••••'}），留空并保存其它项不会清除；要更换请粘贴新 Token`,
+                    })
+                  : t('settings:voice.accessTokenPlaceholder')
+              }
               spellCheck={false}
-              onChange={(e) => setAsrConfig({ codexAccessToken: e.target.value || undefined })}
+              onChange={(e) =>
+                setAsrConfig({
+                  codexAccessToken: e.target.value || undefined,
+                  codexAccessTokenPreserved: false,
+                  codexAccessTokenSet: e.target.value.trim().length >= 20 ? true : false,
+                  codexAccessTokenPreview: undefined,
+                })
+              }
               onBlur={() => void runProbe()}
             />
+            {cfg.codexAccessTokenSet && !cfg.codexAccessToken?.trim() && (
+              <button
+                type="button"
+                className={btnOutline}
+                onClick={() =>
+                  setAsrConfig({
+                    codexAccessToken: undefined,
+                    codexAccessTokenSet: false,
+                    codexAccessTokenPreserved: false,
+                    codexAccessTokenPreview: undefined,
+                  })
+                }
+              >
+                {t('settings:voice.clearSavedToken', { defaultValue: '清除已保存的 Token' })}
+              </button>
+            )}
             <div className="flex flex-wrap gap-2">
               <button type="button" className={btnOutline} disabled={probing} onClick={() => void runProbe()}>
                 <KeyRound className="mr-1 inline h-3.5 w-3.5" />
@@ -133,7 +165,11 @@ export function VoiceSettingsPanel() {
                     codexAuthFile: cfg.codexAuthFile,
                   })
                   if (res?.ok && res.accessToken) {
-                    setAsrConfig({ codexAccessToken: res.accessToken })
+                    setAsrConfig({
+                      codexAccessToken: res.accessToken,
+                      codexAccessTokenPreserved: false,
+                      codexAccessTokenSet: true,
+                    })
                     void runProbe()
                   }
                 }}

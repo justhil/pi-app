@@ -98,7 +98,9 @@ function togglePackageExtensions(
     const s = typeof pkg === 'string' ? pkg : (pkg as { source?: string })?.source
     return s === source
   })
-  if (pkgIndex === -1) return
+  if (pkgIndex === -1) {
+    throw new Error(`package not in settings.packages: ${source}`)
+  }
 
   let pkg: { source: string; extensions?: string[]; skills?: string[]; prompts?: string[]; themes?: string[] }
   const raw = packages[pkgIndex]

@@ -117,7 +117,9 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
         const d = draftRef.current
         if (!d) return
         if (draftSignature(d) === baselineSigRef.current) return
-        await commitSettingsDraft(d, i18n)
+        const savedAsr = await commitSettingsDraft(d, i18n)
+        setDraft((prev) => (prev ? { ...prev, asrConfig: savedAsr } : prev))
+        setAsrConfigPreview(savedAsr)
         baselineSigRef.current = draftSignature(d)
         setBaselineSig(baselineSigRef.current)
       },
@@ -171,6 +173,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
         baselineSigRef.current = sig
         draftDirtyRef.current = false
         setBaselineSig(sig)
+        setDraft({ ...d })
         setAsrConfigPreview(d.asrConfig)
         window.dispatchEvent(new CustomEvent('pi-desktop:asr-config-preview', { detail: d.asrConfig }))
       }

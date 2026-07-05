@@ -53,6 +53,34 @@ function findPackageEntry(
   return null
 }
 
+/** 包内全部扩展入口（不受 - 禁用过滤），供 settings 开关写入 +/- pattern。 */
+function collectPackageExtensionRelPaths(
+  pkgDir: string,
+  pkg: { pi?: { extensions?: string[] }; main?: string },
+): string[] {
+  let extFiles: string[] = []
+  if (pkg.pi?.extensions && Array.isArray(pkg.pi.extensions)) {
+    extFiles = pkg.pi.extensions
+  } else if (pkg.main) {
+    extFiles = [pkg.main]
+  } else if (existsSync(join(pkgDir, 'index.ts'))) {
+    extFiles = ['./index.ts']
+  }
+  const out: string[] = []
+  for (const rel of extFiles) {
+    const clean = rel.replace(/^\.\//, '')
+    const full = resolve(pkgDir, rel)
+    if (!existsSync(full)) continue
+    try {
+      if (statSync(full).isDirectory()) continue
+    } catch {
+      continue
+    }
+    out.push(clean)
+  }
+  return out
+}
+
 function collectLoadedExtensionRelPaths(
   pkgDir: string,
   pkg: { pi?: { extensions?: string[] }; main?: string },
@@ -137,19 +165,20 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
         ext.piEnabled = ext.enabled
         continue
       }
-      const resourcePaths = collectLoadedExtensionRelPaths(ext.packageRoot, pkg, overrides)
+      const loadedPaths = collectLoadedExtensionRelPaths(ext.packageRoot, pkg, overrides)
+      const togglePaths = collectPackageExtensionRelPaths(ext.packageRoot, pkg)
       const piEnabled = packageEnabledFromSettings(ext.packageRoot, pkg, overrides)
       ext.piSync = true
       ext.piScope = scope
       ext.piEnabled = piEnabled
       ext.enabled = piEnabled
-      ext.packageResourcePaths = resourcePaths
+      ext.packageResourcePaths = loadedPaths
       ext.toggleTarget = {
         kind: 'package',
         scope,
         source: ext.packageSource,
         packageRoot: ext.packageRoot,
-        resourcePaths,
+        resourcePaths: togglePaths.length > 0 ? togglePaths : loadedPaths,
       }
       continue
     }

@@ -109,10 +109,14 @@ export function useVoiceInput(
       config: {
         codexAuthFile: cfg.codexAuthFile,
         codexAccessToken: cfg.codexAccessToken,
+        codexAccessTokenPreserved: cfg.codexAccessTokenPreserved,
+        codexAccessTokenSet: cfg.codexAccessTokenSet,
       },
     })
     if (!auth?.ok) {
-      const hasDraftToken = !!(cfg.codexAccessToken?.trim() && cfg.codexAccessToken.trim().length >= 20)
+      const hasDraftToken =
+        !!(cfg.codexAccessToken?.trim() && cfg.codexAccessToken.trim().length >= 20) ||
+        !!cfg.codexAccessTokenPreserved
       toast.error(hasDraftToken ? tr('composer:voice.errorAuth') : tr('composer:voice.errorAuthNeedToken'))
       setVoiceState('error')
       return

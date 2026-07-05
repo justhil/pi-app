@@ -22,6 +22,7 @@ export function setAsrConfigPreview(cfg: AsrConfig | null): void {
   previewAsrConfig = cfg
 }
 
+/** 草稿无 JWT 明文时仍标记已保存，供 Composer 走 IPC 合并 safeStorage。 */
 export function getAsrConfigForComposer(disk: AsrConfig | null | undefined): AsrConfig | null {
   const raw = previewAsrConfig ?? disk
   if (!raw) return null

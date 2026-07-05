@@ -44,7 +44,19 @@ function normalizeAsrForSignature(cfg: AsrConfig): AsrConfig {
     cliBinaryPath: cfg.cliBinaryPath?.trim() || undefined,
     serverUrl: cfg.serverUrl?.trim() || undefined,
     apiKey: cfg.apiKey?.trim() || undefined,
+    codexAccessTokenSet: cfg.codexAccessTokenSet,
+    codexAccessTokenPreview: cfg.codexAccessTokenPreview,
+    codexAccessTokenPreserved: cfg.codexAccessTokenPreserved,
   }
+}
+
+export function asrConfigFromSettingsResponse(raw: AsrConfig): AsrConfig {
+  const a = raw || { provider: 'codex-asr-builtin' as const, language: 'auto' as const, timeoutMs: 120000, builtinServePort: 18788 }
+  const base = a.provider === 'none' ? { ...a, provider: 'codex-asr-builtin' as const } : a
+  return normalizeAsrForSignature({
+    ...base,
+    codexAccessToken: base.codexAccessToken?.trim() || undefined,
+  })
 }
 
 export function draftSignature(d: SettingsDraft): string {
@@ -87,11 +99,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
     rightPanelOrder: order,
-    asrConfig: (() => {
-      const a = s.asrConfig || { provider: 'codex-asr-builtin', language: 'auto', timeoutMs: 120000, builtinServePort: 18788 }
-      const base = a.provider === 'none' ? { ...a, provider: 'codex-asr-builtin' as const } : a
-      return normalizeAsrForSignature(base)
-    })(),
+    asrConfig: asrConfigFromSettingsResponse((s.asrConfig || {}) as AsrConfig),
   }
 }
 
@@ -110,7 +118,7 @@ export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
   if (i18n.language !== draft.language) void i18n.changeLanguage(draft.language)
 }
 
-export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Promise<void> {
+export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Promise<AsrConfig> {
   await ipcClient.invoke('settings.set', { key: 'theme', value: draft.theme })
   await ipcClient.invoke('settings.set', { key: 'language', value: draft.language })
   await ipcClient.invoke('settings.set', { key: 'autoOpenLastProject', value: draft.autoOpenLastProject })
@@ -125,7 +133,9 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     order: draft.rightPanelOrder,
   })
 
-  await ipcClient.invoke('settings.set', { key: 'asrConfig', value: draft.asrConfig })
+  const asrRes = await ipcClient.invoke('settings.set', { key: 'asrConfig', value: draft.asrConfig })
+  const savedAsr = asrConfigFromSettingsResponse((asrRes?.value || draft.asrConfig) as AsrConfig)
+  draft.asrConfig = savedAsr
 
   useUIStore.getState().setTheme(draft.theme)
   applyThemeToDocument(draft.theme)
@@ -135,4 +145,5 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     draft.rightPanelPrefs,
     draft.rightPanelOrder,
   )
+  return savedAsr
 }

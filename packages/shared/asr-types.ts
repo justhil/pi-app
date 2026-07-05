@@ -28,6 +28,11 @@ export interface AsrConfig {
   codexAuthFile?: string
   /** ChatGPT/Codex JWT（tokens.access_token）；填写后优先于 auth.json */
   codexAccessToken?: string
+  /** settings.get：密钥在 safeStorage，不回传明文 */
+  codexAccessTokenSet?: boolean
+  codexAccessTokenPreview?: string
+  /** settings.set：未改 token 时保留 safeStorage 中的密钥 */
+  codexAccessTokenPreserved?: boolean
   builtinServePort?: number
   language?: 'auto' | 'zh' | 'en'
   timeoutMs?: number

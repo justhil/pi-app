@@ -31,6 +31,9 @@
 - 预览其它会话时后台运行状态与时间线不同步、切回后流式内容丢失或错位
 - 扩展工具卡片在部分插件下仅显示原始 JSON、无法识别图片路径或子任务进度
 - Linux CI / 本地 E2E 在无显示环境下启动 Electron 失败（`PI_E2E`、显式路径与 xvfb）
+- **语音 Codex Token**：保存后重进设置被清空；仅改其它项保存时误删 safeStorage 中的 Token；界面增加「已保存」提示与清除入口
+- **设置 · 扩展**：包内插件禁用后无法再次启用（开关未写入 `+` pattern）
+- CI：`test:unit` 缺少 vitest setup、Worker parity 浅克隆、jest-dom 类型、Windows CRLF 契约测试、eslint 历史 fixture
 
 ### 质量保障
 
