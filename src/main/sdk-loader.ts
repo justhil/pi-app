@@ -1,6 +1,7 @@
 // SDK Loader - 解析当前生效 pi SDK 入口（内置 / 全局 / 独立环境）
 
 import { existsSync, readFileSync } from 'fs'
+import { homedir } from 'os'
 import { join } from 'path'
 import { spawnSync } from 'child_process'
 
@@ -18,6 +19,50 @@ export interface ActiveSdk {
 }
 
 let globalSdkPathCache: string | null | undefined
+
+/** 仅成功解析到包根目录时缓存；失败不缓存，避免 Windows 首启 PATH 未就绪后永久「未检测」。 */
+export function clearGlobalSdkPathCache(): void {
+  globalSdkPathCache = undefined
+}
+
+function windowsNpmGlobalModuleRoots(): string[] {
+  const roots: string[] = []
+  const appData = process.env.APPDATA?.trim()
+  if (appData) roots.push(join(appData, 'npm', 'node_modules'))
+  const localAppData = process.env.LOCALAPPDATA?.trim()
+  if (localAppData) roots.push(join(localAppData, 'npm', 'node_modules'))
+  const home = homedir()
+  if (home) roots.push(join(home, 'AppData', 'Roaming', 'npm', 'node_modules'))
+  return [...new Set(roots)]
+}
+
+function globalPiPackageRootFromModuleRoot(moduleRoot: string): string | null {
+  const pkgRoot = join(moduleRoot, '@earendil-works', 'pi-coding-agent')
+  return validateEntry(pkgRoot) ? pkgRoot : null
+}
+
+function resolveGlobalSdkPathViaNpmCli(): string | null {
+  const cmds =
+    process.platform === 'win32'
+      ? [
+          { cmd: 'npm.cmd', args: ['root', '-g'] as string[] },
+          { cmd: 'npm', args: ['root', '-g'] as string[] },
+        ]
+      : [{ cmd: 'npm', args: ['root', '-g'] as string[] }]
+  for (const { cmd, args } of cmds) {
+    try {
+      const r = spawnSync(cmd, args, { encoding: 'utf-8', shell: true, timeout: 12_000 })
+      if (r.error || r.status !== 0) continue
+      const root = (r.stdout || '').trim().split(/\r?\n/).pop()?.trim()
+      if (!root) continue
+      const found = globalPiPackageRootFromModuleRoot(root)
+      if (found) return found
+    } catch {
+      continue
+    }
+  }
+  return null
+}
 
 /** 读内置 pi 的 version（从 app node_modules）。缺失返回空串。 */
 export function readBuiltinSdkVersion(): string {
@@ -49,22 +94,20 @@ function validateEntry(pkgRoot: string): boolean {
   return resolveEntryPath(pkgRoot) !== null
 }
 
-/** 解析全局 node_modules 下 pi 包根目录绝对路径；不存在返回 null。结果模块级缓存。 */
+/** 解析全局 node_modules 下 pi 包根目录绝对路径；不存在返回 null。仅成功时缓存。 */
 export function resolveGlobalSdkPath(): string | null {
   if (globalSdkPathCache !== undefined) return globalSdkPathCache
-  let result: string | null = null
-  try {
-    const r = spawnSync('npm', ['root', '-g'], { encoding: 'utf-8', shell: true, timeout: 8000 })
-    if (r.error || r.status !== 0) { globalSdkPathCache = null; return null }
-    const root = (r.stdout || '').trim().split('\n').pop()?.trim()
-    if (!root) { globalSdkPathCache = null; return null }
-    const pkgRoot = join(root, '@earendil-works', 'pi-coding-agent')
-    if (!validateEntry(pkgRoot)) { globalSdkPathCache = null; return null }
-    result = pkgRoot
-  } catch (e) {
-    result = null
+  let result = resolveGlobalSdkPathViaNpmCli()
+  if (!result && process.platform === 'win32') {
+    for (const moduleRoot of windowsNpmGlobalModuleRoots()) {
+      const found = globalPiPackageRootFromModuleRoot(moduleRoot)
+      if (found) {
+        result = found
+        break
+      }
+    }
   }
-  globalSdkPathCache = result
+  if (result) globalSdkPathCache = result
   return result
 }
 

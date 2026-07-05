@@ -33,6 +33,7 @@
 - Linux CI / 本地 E2E 在无显示环境下启动 Electron 失败（`PI_E2E`、显式路径与 xvfb）
 - **语音 Codex Token**：保存后重进设置被清空；仅改其它项保存时误删 safeStorage 中的 Token；界面增加「已保存」提示与清除入口
 - **设置 · 扩展**：包内插件禁用后无法再次启用（开关未写入 `+` pattern）
+- **设置 · Pi 全局 SDK（Windows）**：`npm root -g` 失败结果被永久缓存导致已安装全局 pi 仍显示「未检测」；改为 `npm.cmd`、按 `%APPDATA%\npm\node_modules` 兜底，且仅成功时缓存
 - CI：`test:unit` 缺少 vitest setup、Worker parity 浅克隆、jest-dom 类型、Windows CRLF 契约测试、eslint 历史 fixture
 
 ### 质量保障
