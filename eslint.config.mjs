@@ -2,7 +2,7 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**', '.trellis/**', 'test/codex-asr/**', '.pi/extensions/**'] },
+  { ignores: ['out/**', 'dist/**', 'node_modules/**', '.trellis/**', 'test/codex-asr/**', '.pi/extensions/**', 'scripts/tests/fixtures/**'] },
   ...tseslint.configs.recommended,
   {
     files: ['src/main/ipc/registry.ts', 'src/renderer/src/lib/ipc-client.ts'],
