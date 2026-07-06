@@ -131,6 +131,7 @@ export interface UIState {
   timelineItems: TimelineItem[]
   streamingAssistantId: string | null
   appendTimeline: (item: TimelineItem) => void
+  insertTimelineBefore: (beforeId: string, item: TimelineItem) => void
   updateTimelineItem: (id: string, patch: Partial<TimelineItem>) => void
   appendDeltaToStreamingAssistant: (delta: string) => void
   appendThinkingDelta: (delta: string) => void

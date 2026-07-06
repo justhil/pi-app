@@ -68,6 +68,15 @@ describe('session-worker-sync', () => {
         optimisticPendingUserText: null,
       }),
     ).toBe(false)
+    expect(
+      composerTurnActive({
+        historySessionFile: '/b.jsonl',
+        workerLiveSnapshot: { sessionId: 's1', sessionFile: '/a.jsonl', status: 'idle' },
+        runState: { status: 'running' },
+        streamingAssistantId: 'opt-asst-2',
+        optimisticPendingUserText: null,
+      }),
+    ).toBe(true)
   })
 
   it('keeps worker snapshot idle during abort hold', () => {

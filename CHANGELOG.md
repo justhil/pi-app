@@ -14,7 +14,8 @@
 ### 修复
 
 - **设置 · Pi**：进入 Pi 页不再因每次全量全局 SDK 探测 + npm registry 阻塞主进程 IPC 卡顿 5–10s；`sdk.status`/registry TTL 缓存，registry 后台补齐
-- **Composer 停止键**：运行中输入框与 Timeline 统一用 `composerTurnActive` 判断；`runState` 已 running 但 Worker 快照未刷新时也能显示停止并支持 abort
+- **Composer 停止键**：`composerTurnActive` 在本地 turn 活跃时不再因 worker 快照仍指旧会话而隐藏；运行中轮询 runtime；`loadHistoryItems` 保留当前会话 running
+- **时间线工具顺序**：流式回合中工具先执行时，工具行插入空助手气泡之前，避免正文显示在工具卡片后面
 - **流式正文夹杂 JSON**：`toolcall_delta` 的工具参数片段不再误并入助手气泡（`pi-message-update` 映射）
 - 时间线 live 合并、历史 prepend、轮次耗时与底部锚点拆分；后台会话事件与时间线投影等边界用例补充测试
 

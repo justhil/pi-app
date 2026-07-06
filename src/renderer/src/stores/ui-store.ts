@@ -132,8 +132,12 @@ export const useUIStore = create<UIState>()(
   loadHistoryItems: (items: TimelineItem[]) => {
     const { lastModel, lastThinking, runState, streamingAssistantId, historySessionFile, workerLiveSnapshot } = get()
     const viewingWorkerSession = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
+    const localTurn =
+      runState.status === 'running' || streamingAssistantId != null || get().optimisticPendingUserText != null
     const keepRunning =
-      viewingWorkerSession && (runState.status === 'running' || streamingAssistantId != null || workerLiveSnapshot.status === 'running')
+      (viewingWorkerSession &&
+        (runState.status === 'running' || streamingAssistantId != null || workerLiveSnapshot.status === 'running')) ||
+      (!!historySessionFile && localTurn)
     const cleaned = projectTimelineItems(sanitizeHistoryTimeline(items))
     set({
       timelineItems: cleaned,
@@ -170,6 +174,14 @@ export const useUIStore = create<UIState>()(
   timelineItems: [],
   streamingAssistantId: null,
   appendTimeline: (item) => set((s) => ({ timelineItems: [...s.timelineItems, item] })),
+  insertTimelineBefore: (beforeId, item) =>
+    set((s) => {
+      const idx = s.timelineItems.findIndex((i) => i.id === beforeId)
+      if (idx < 0) return { timelineItems: [...s.timelineItems, item] }
+      const next = [...s.timelineItems]
+      next.splice(idx, 0, item)
+      return { timelineItems: next }
+    }),
   updateTimelineItem: (id, patch) => set((s) => ({
     timelineItems: s.timelineItems.map((i) => (i.id === id ? { ...i, ...patch } : i)),
   })),

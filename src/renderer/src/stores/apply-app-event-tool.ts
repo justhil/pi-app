@@ -6,17 +6,29 @@ import type { StoreApi, ToolEvent } from '@renderer/stores/apply-app-event-types
 export function handleTool(event: ToolEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'start') {
-    if (state.streamingAssistantId) api.set({ streamingAssistantId: null })
-    state.appendTimeline({
+    const toolItem = {
       id: api.nextItemId(),
-      type: 'tool-call',
+      type: 'tool-call' as const,
       toolCallId: event.toolCallId,
       toolName: event.toolName,
-      toolPhase: 'start',
+      toolPhase: 'start' as const,
       toolArgs: event.input,
       runId: event.runId,
       timestamp: event.timestamp,
-    })
+    }
+    const streamId = state.streamingAssistantId
+    if (streamId) {
+      const streamRow = state.timelineItems.find((i) => i.id === streamId)
+      const proseEmpty = !streamRow?.text?.trim() && !streamRow?.thinkingText?.trim()
+      if (proseEmpty) {
+        state.insertTimelineBefore(streamId, toolItem)
+      } else {
+        api.set({ streamingAssistantId: null })
+        state.appendTimeline(toolItem)
+      }
+    } else {
+      state.appendTimeline(toolItem)
+    }
     state.setRunState({ activeTool: event.toolName })
     return
   }

@@ -183,9 +183,23 @@ export function Composer() {
 
   useEffect(() => {
     if (!historySessionFile) return
-    void fetchWorkerLiveSnapshot()
-      .then((snap) => applyLiveSnapshotToView(historySessionFile, snap, useUIStore.getState()))
-      .catch(() => {})
+    const pull = () => {
+      void fetchWorkerLiveSnapshot()
+        .then((snap) => applyLiveSnapshotToView(historySessionFile, snap, useUIStore.getState()))
+        .catch(() => {})
+    }
+    pull()
+    const tick = window.setInterval(() => {
+      const s = useUIStore.getState()
+      if (s.historySessionFile !== historySessionFile) return
+      const active =
+        s.runState.status === 'running' ||
+        s.streamingAssistantId != null ||
+        s.optimisticPendingUserText != null
+      if (!active) return
+      pull()
+    }, 2000)
+    return () => window.clearInterval(tick)
   }, [currentSessionId, historySessionFile])
 
   useEffect(() => {

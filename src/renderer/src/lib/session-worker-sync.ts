@@ -74,12 +74,14 @@ export function composerTurnActive(input: {
     input.streamingAssistantId != null ||
     input.optimisticPendingUserText != null
   if (!uiPending) return false
-  const bound = isViewingWorkerBoundSession(
-    input.historySessionFile,
-    input.workerLiveSnapshot.sessionFile,
-  )
-  if (!input.historySessionFile) return true
-  return bound || !input.workerLiveSnapshot.sessionFile
+  const workerFile = input.workerLiveSnapshot.sessionFile
+  const viewFile = input.historySessionFile
+  if (!viewFile) return true
+  if (!workerFile) return true
+  if (workerFile === viewFile) return true
+  // 本地已在跑但 workerLiveSnapshot 仍指向上一条会话（未轮询/事件未对齐）
+  if (viewRunning || input.streamingAssistantId != null) return true
+  return false
 }
 
 /** 切回 Worker 绑定会话时，用 runtime 状态对齐 Composer 停止键 / runState */
