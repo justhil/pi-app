@@ -61,6 +61,7 @@ export function PiSettingsPanel() {
       const [infoRes, settingsRes] = await Promise.all([
         ipcClient.invoke('pi.getInfo'),
         ipcClient.invoke('pi.settings.get'),
+        loadModelsForDropdown(),
       ])
       setInfo(infoRes as PiInfo)
       if (settingsRes?.error) setLoadError(settingsRes.error)
@@ -69,7 +70,6 @@ export function PiSettingsPanel() {
       setBaseline(snap)
       setDraft(snap ? { ...snap } : null)
       setFormEpoch((n) => n + 1)
-      await loadModelsForDropdown()
     } catch (e: unknown) {
       setLoadError(e instanceof Error ? e.message : t('settings:pi.loadError'))
     }
@@ -91,16 +91,16 @@ export function PiSettingsPanel() {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [loadModelsForDropdown])
 
-  const reloadSdk = useCallback(async () => {
+  const reloadSdk = useCallback(async (opts?: { refresh?: boolean }) => {
+    const refreshArg = opts?.refresh ? { refresh: true } : {}
     try {
-      const [status, avail] = await Promise.all([
-        ipcClient.invoke('sdk.status'),
-        ipcClient.invoke('sdk.listAvailable'),
-      ])
+      const status = await ipcClient.invoke('sdk.status', refreshArg)
       setSdkStatus(status)
-      setRegistry(avail)
       setEnvTarget(status?.active?.kind || 'builtin')
-      setSelectedVersion((cur) => cur || (avail?.latest ?? ''))
+      void ipcClient.invoke('sdk.listAvailable', refreshArg).then((avail) => {
+        setRegistry(avail)
+        setSelectedVersion((cur) => cur || (avail?.latest ?? ''))
+      })
     } catch (e) {
       console.error('sdk status load failed', e)
     }
@@ -118,7 +118,7 @@ export function PiSettingsPanel() {
         setInstalling(false)
         if (event.error) toast.error(`${t('settings:pi.upgradeFailed')}: ${event.error}`)
         else toast.success(t('settings:pi.upgradeSuccess'))
-        void reloadSdk()
+        void reloadSdk({ refresh: true })
       }
     })
   }, [reloadSdk, t])
@@ -155,7 +155,7 @@ export function PiSettingsPanel() {
               ? t('settings:pi.switchSuccessGlobal')
               : t('settings:pi.switchSuccessUser')
         toast.success(label)
-        void reloadSdk()
+        void reloadSdk({ refresh: true })
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : t('settings:pi.switchFailed'))
       } finally {

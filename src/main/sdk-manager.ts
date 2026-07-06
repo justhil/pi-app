@@ -32,6 +32,17 @@ export interface SdkStatus {
 
 let npmAvailableCache: boolean | null = null
 
+const SDK_STATUS_TTL_MS = 60_000
+let sdkStatusCache: { at: number; value: SdkStatus } | null = null
+
+const REGISTRY_TTL_MS = 10 * 60_000
+let registryCache: { at: number; value: { versions: string[]; latest: string | null } } | null = null
+
+export function invalidateSdkManagerCaches(): void {
+  sdkStatusCache = null
+  registryCache = null
+}
+
 /** 检测系统 npm 是否可用（超时 3s 或非 0 视为不可用）。结果缓存。 */
 export function checkNpmAvailable(): boolean {
   if (npmAvailableCache !== null) return npmAvailableCache
@@ -56,12 +67,36 @@ export function readSdkStatus(userDataDir: string): SdkStatus {
   }
 }
 
+/** 设置页等高频读取：默认 TTL 缓存，避免每次清全局 SDK 缓存并重复 spawn npm/where。 */
+export function readSdkStatusCached(userDataDir: string, opts?: { refresh?: boolean }): SdkStatus {
+  const now = Date.now()
+  if (!opts?.refresh && sdkStatusCache && now - sdkStatusCache.at < SDK_STATUS_TTL_MS) {
+    return sdkStatusCache.value
+  }
+  const value = readSdkStatus(userDataDir)
+  sdkStatusCache = { at: now, value }
+  return value
+}
+
 /** 查询 npm registry 全部已发布版本与 latest dist-tag。网络失败返回空，不抛错。 */
 export function isAllowedSdkVersion(version: string, registry: { versions: string[]; latest: string | null }): boolean {
   const v = version.trim()
   if (!v) return false
   if (registry.latest && v === registry.latest) return true
   return registry.versions.includes(v)
+}
+
+export async function listRegistryVersionsCached(opts?: { refresh?: boolean }): Promise<{
+  versions: string[]
+  latest: string | null
+}> {
+  const now = Date.now()
+  if (!opts?.refresh && registryCache && now - registryCache.at < REGISTRY_TTL_MS) {
+    return registryCache.value
+  }
+  const value = await listRegistryVersions()
+  registryCache = { at: now, value }
+  return value
 }
 
 export async function listRegistryVersions(): Promise<{ versions: string[]; latest: string | null }> {
@@ -162,6 +197,7 @@ export function installVersion(version: string, onProgress: (line: string) => vo
         }
         try {
           writeActive('user')
+          invalidateSdkManagerCaches()
           resolve()
         } catch (e: unknown) {
           reject(new Error(`安装成功但写入配置失败: ${errorMessage(e)}`))
@@ -175,13 +211,18 @@ export function installVersion(version: string, onProgress: (line: string) => vo
 
 /** 切换生效环境。global/user 需先校验对应 pi 可解析；builtin 直接写。 */
 export function switchTo(target: SdkKind): Promise<void> {
+  const done = () => {
+    invalidateSdkManagerCaches()
+  }
   if (target === 'builtin') {
     writeActive('builtin')
+    done()
     return Promise.resolve()
   }
   if (target === 'global') {
     if (!resolveGlobalSdkPath()) return Promise.reject(new Error('全局 pi 不可用，无法切换到全局版本'))
     writeActive('global')
+    done()
     return Promise.resolve()
   }
   // user
@@ -189,6 +230,7 @@ export function switchTo(target: SdkKind): Promise<void> {
     return Promise.reject(new Error('独立环境未安装，无法切换；请先升级安装'))
   }
   writeActive('user')
+  done()
   return Promise.resolve()
 }
 

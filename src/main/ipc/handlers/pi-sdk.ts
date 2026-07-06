@@ -6,7 +6,15 @@ import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
 import { clearGlobalSdkPathCache } from '../../sdk-loader'
-import { readSdkStatus, listRegistryVersions, installVersion, switchTo, isAllowedSdkVersion } from '../../sdk-manager'
+import {
+  readSdkStatusCached,
+  listRegistryVersionsCached,
+  listRegistryVersions,
+  installVersion,
+  switchTo,
+  isAllowedSdkVersion,
+  invalidateSdkManagerCaches,
+} from '../../sdk-manager'
 import { errorMessage } from '@shared/error-message'
 
 export function registerPiSdkHandlers(): void {
@@ -47,14 +55,18 @@ export function registerPiSdkHandlers(): void {
     }),
   )
 
-  registerHandler('ipc:sdk.status', async () => {
-    clearGlobalSdkPathCache()
-    const status = readSdkStatus(app.getPath('userData'))
+  registerHandler('ipc:sdk.status', async (req) => {
+    const refresh = req?.refresh === true
+    if (refresh) clearGlobalSdkPathCache()
+    const status = readSdkStatusCached(app.getPath('userData'), { refresh })
     status.workerFallback = workerManager.lastSdkFallback
     return status
   })
 
-  registerHandler('ipc:sdk.listAvailable', async () => listRegistryVersions())
+  registerHandler('ipc:sdk.listAvailable', async (req) => {
+    const refresh = req?.refresh === true
+    return listRegistryVersionsCached({ refresh })
+  })
 
   registerHandlerWithSchema('ipc:sdk.install', sdkInstallSchema, async (req) => {
     const version = String(req.version || '').trim()
@@ -68,6 +80,8 @@ export function registerPiSdkHandlers(): void {
         if (win) sendEvent(win, { type: 'sdk-install-progress', version, line })
       })
       if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
+      invalidateSdkManagerCaches()
+      clearGlobalSdkPathCache()
       const cwd = workerManager.cwd || configStore.get('currentProject')
       if (cwd) {
         await workerManager.stop()
