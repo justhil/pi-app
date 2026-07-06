@@ -3,11 +3,8 @@ import { workerManager } from '../../worker-manager'
 import { listRewindCheckpoints } from '../../pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
-import {
-  clearSessionDisplayName,
-  resolveSessionListTitle,
-  setSessionDisplayName,
-} from '../../session-display-names'
+import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
+import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
   bindSandboxSession,
   isSandboxWorkspacePath,
@@ -43,7 +40,8 @@ export function registerSessionHandlers(): void {
       workspaceId: s.cwd || workspaceId,
       title: resolveSessionListTitle(
         s.path,
-        s.name || s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
+        s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
+        s.name,
       ),
       createdAt: s.created?.getTime() || 0,
       updatedAt: s.modified?.getTime() || 0,
@@ -333,7 +331,14 @@ export function registerSessionHandlers(): void {
     }
     const file = req.sessionFile as string | undefined
     if (!file) return { ok: false, title, error: 'missing sessionFile' }
-    setSessionDisplayName(file, title)
+    const workspaceCwd =
+      (req.workspaceId as string | undefined) ||
+      workerManager.cwd ||
+      configStore.get('currentProject') ||
+      undefined
+    const r = await renamePiSessionOnDisk(file, title, workspaceCwd)
+    if (!r.ok) return { ok: false, title, error: r.error || 'rename failed' }
+    clearSessionDisplayName(file)
     return { ok: true, title }
   })
 

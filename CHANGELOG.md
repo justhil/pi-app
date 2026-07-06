@@ -2,6 +2,14 @@
 
 各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
+## [0.4.13] — 2026-07-06
+
+### 修复
+
+- **会话重命名与 pi TUI 对齐**：GUI 重命名写入会话 JSONL `session_info`（与 `/name`、TUI 会话列表 rename 相同）；侧栏标题优先读 pi `name`，TUI 改名后 GUI 刷新即同步；成功后清除旧版 `sessionDisplayNames` 覆盖，避免双标题
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.13/CHANGELOG.md)
+
 ## [0.4.12] — 2026-07-06
 
 ### 优化

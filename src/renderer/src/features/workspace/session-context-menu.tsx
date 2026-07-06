@@ -44,6 +44,7 @@ export function SessionContextMenuPortal({
         sessionId: target.sessionId,
         sessionFile: target.sessionFile,
         title,
+        workspaceId: target.workspacePath,
       })
       if (r?.ok) {
         toast.success('已重命名')
