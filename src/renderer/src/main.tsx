@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import './styles/geist-mono.css'
 import './styles/globals.css'
 import './styles/scrollbar-overlay.css'
 import './lib/i18n'

@@ -10,9 +10,10 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "sync:fonts": "node scripts/sync-geist-mono-font.mjs",
+    "dev": "npm run sync:fonts && electron-vite dev",
     "dev:alert-trace": "set PI_ALERT_TRACE=1&& set PI_AUDIO_TRACE=1&& electron-vite dev",
-    "build": "electron-vite build",
+    "build": "npm run sync:fonts && electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "test:scripts": "node scripts/run-contract-tests.mjs",
@@ -26,7 +27,7 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
-    "postinstall": "electron-builder install-app-deps && electron-vite build",
+    "postinstall": "node scripts/sync-geist-mono-font.mjs && electron-builder install-app-deps && electron-vite build",
     "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
   },
   "dependencies": {
@@ -51,6 +52,7 @@
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
     "fix-path": "^4.0.0",
+    "geist": "^1.7.2",
     "i18next": "^24.2.0",
     "katex": "^0.17.0",
     "lucide-react": "^0.469.0",
