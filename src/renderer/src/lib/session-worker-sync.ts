@@ -52,10 +52,34 @@ export function canAbortWorkerTurn(
   snap: WorkerLiveSnapshot,
   viewRunning = false,
 ): boolean {
-  if (!viewSessionFile) return false
   const workerBoundHere = isViewingWorkerBoundSession(viewSessionFile, snap.sessionFile)
   if (workerBoundHere && snap.status === 'running') return true
-  return viewRunning && (!snap.sessionFile || workerBoundHere)
+  if (!viewRunning) return false
+  if (!viewSessionFile) return true
+  return !snap.sessionFile || workerBoundHere
+}
+
+/** Composer 停止键 / 排队发送：对齐 Timeline 的 running + 乐观占位，避免 worker 快照滞后 */
+export function composerTurnActive(input: {
+  historySessionFile: string | null
+  workerLiveSnapshot: WorkerLiveSnapshot
+  runState: { status: string }
+  streamingAssistantId: string | null
+  optimisticPendingUserText: string | null
+}): boolean {
+  const viewRunning = input.runState.status === 'running'
+  if (canAbortWorkerTurn(input.historySessionFile, input.workerLiveSnapshot, viewRunning)) return true
+  const uiPending =
+    viewRunning ||
+    input.streamingAssistantId != null ||
+    input.optimisticPendingUserText != null
+  if (!uiPending) return false
+  const bound = isViewingWorkerBoundSession(
+    input.historySessionFile,
+    input.workerLiveSnapshot.sessionFile,
+  )
+  if (!input.historySessionFile) return true
+  return bound || !input.workerLiveSnapshot.sessionFile
 }
 
 /** 切回 Worker 绑定会话时，用 runtime 状态对齐 Composer 停止键 / runState */

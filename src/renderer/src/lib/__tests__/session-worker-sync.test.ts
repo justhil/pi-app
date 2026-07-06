@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect } from 'vitest'
 import { clearAbortUiHold, markAbortUiHold } from '../abort-ui-hold'
 import {
   canAbortWorkerTurn,
+  composerTurnActive,
   isSessionPreviewComposeLocked,
   isViewingDifferentSessionThanWorker,
   normalizeWorkerLiveSnapshotForView,
@@ -34,9 +35,39 @@ describe('session-worker-sync', () => {
   it('allows abort only for the visible worker-bound running session', () => {
     expect(canAbortWorkerTurn('/a.jsonl', { sessionId: 's1', sessionFile: '/a.jsonl', status: 'running' })).toBe(true)
     expect(canAbortWorkerTurn('/b.jsonl', { sessionId: 's1', sessionFile: '/a.jsonl', status: 'running' })).toBe(false)
-    expect(canAbortWorkerTurn('/a.jsonl', { sessionId: 's1', sessionFile: '/a.jsonl', status: 'idle' })).toBe(false)
+    expect(canAbortWorkerTurn('/a.jsonl', { sessionId: 's1', sessionFile: '/a.jsonl', status: 'idle' }, true)).toBe(true)
     expect(canAbortWorkerTurn('/a.jsonl', { sessionId: null, sessionFile: null, status: 'idle' }, true)).toBe(true)
     expect(canAbortWorkerTurn('/b.jsonl', { sessionId: 's1', sessionFile: '/a.jsonl', status: 'idle' }, true)).toBe(false)
+    expect(canAbortWorkerTurn(null, { sessionId: null, sessionFile: null, status: 'idle' }, true)).toBe(true)
+  })
+
+  it('composerTurnActive when UI is running but worker snapshot is still idle', () => {
+    const base = {
+      historySessionFile: '/a.jsonl',
+      workerLiveSnapshot: { sessionId: 's1', sessionFile: '/a.jsonl', status: 'idle' as const },
+      runState: { status: 'running' },
+      streamingAssistantId: 'opt-asst-1',
+      optimisticPendingUserText: 'hi',
+    }
+    expect(composerTurnActive(base)).toBe(true)
+    expect(
+      composerTurnActive({
+        ...base,
+        runState: { status: 'idle' },
+        streamingAssistantId: null,
+        optimisticPendingUserText: null,
+      }),
+    ).toBe(false)
+    expect(
+      composerTurnActive({
+        ...base,
+        historySessionFile: '/b.jsonl',
+        workerLiveSnapshot: { sessionId: 's1', sessionFile: '/a.jsonl', status: 'running' },
+        runState: { status: 'idle' },
+        streamingAssistantId: null,
+        optimisticPendingUserText: null,
+      }),
+    ).toBe(false)
   })
 
   it('keeps worker snapshot idle during abort hold', () => {

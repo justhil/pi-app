@@ -128,6 +128,7 @@ export async function openSessionIntoWorker(
     store.loadHistoryItems(displayed)
     patchSessionTimelineView(sessionFile, {
       sessionId,
+      head: [],
       tail: displayed,
       cursor: { totalCount, loadedOffsetFromEnd: Math.min(totalCount, displayed.length), loadedThroughEntryId: null },
     })

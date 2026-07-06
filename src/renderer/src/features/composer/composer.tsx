@@ -23,7 +23,7 @@ import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
 import {
-  canAbortWorkerTurn,
+  composerTurnActive,
   applyLiveSnapshotToView,
   fetchWorkerLiveSnapshot,
   isSessionPreviewComposeLocked,
@@ -40,7 +40,6 @@ import { useComposerKeyDown } from './use-composer-keydown'
 export function Composer() {
   const { t } = useTranslation()
   const [text, setText] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
@@ -73,8 +72,15 @@ export function Composer() {
   )
   const canSendMessages = canCompose && !sessionPreview
   const isRunning = useUIStore((s) => s.runState.status === 'running')
-  const viewingWorkerBound = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
-  const showComposerStop = canAbortWorkerTurn(historySessionFile, workerLiveSnapshot, isRunning)
+  const showComposerStop = useUIStore((s) =>
+    composerTurnActive({
+      historySessionFile: s.historySessionFile,
+      workerLiveSnapshot: s.workerLiveSnapshot,
+      runState: s.runState,
+      streamingAssistantId: s.streamingAssistantId,
+      optimisticPendingUserText: s.optimisticPendingUserText,
+    }),
+  )
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -174,10 +180,6 @@ export function Composer() {
     setContent(composerPrefill)
     setComposerPrefill(null)
   }, [composerPrefill, setComposerPrefill, setContent])
-
-  useEffect(() => {
-    setIsStreaming(showComposerStop)
-  }, [showComposerStop])
 
   useEffect(() => {
     if (!historySessionFile) return
@@ -286,7 +288,7 @@ export function Composer() {
           <ComposerVoiceInputOverlay
             voiceState={voiceState}
             active={
-              !isStreaming &&
+              !showComposerStop &&
               !text.trim() &&
               attachments.length === 0 &&
               (voiceState === 'recording' || voiceState === 'transcribing')
@@ -356,7 +358,7 @@ export function Composer() {
               )}
               {(() => {
                 const hasContent = !!text.trim() || attachments.length > 0
-                const voicePrimary = !isStreaming && !hasContent
+                const voicePrimary = !showComposerStop && !hasContent
                 if (voicePrimary) {
                   return (
                     <ComposerVoiceMicButton
@@ -371,7 +373,7 @@ export function Composer() {
                     type="button"
                     onClick={handleSend}
                     disabled={(!text.trim() && attachments.length === 0) || !canSendMessages}
-                    title={isStreaming ? t('composer:joinQueue') : t('composer:send')}
+                    title={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
                     className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
                   >
                     <Send className="h-3.5 w-3.5" />

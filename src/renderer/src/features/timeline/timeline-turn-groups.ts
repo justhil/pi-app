@@ -9,9 +9,14 @@ export type TimelineTurnGroup = {
   endedAt: number
 }
 
-export function groupDisplayBlocksByTurn(blocks: TimelineDisplayItem[]): TimelineTurnGroup[] {
+export function groupDisplayBlocksByTurn(blocks: TimelineDisplayItem[]): {
+  leading: TimelineDisplayItem[]
+  turns: TimelineTurnGroup[]
+} {
   const groups: TimelineTurnGroup[] = []
+  const leading: TimelineDisplayItem[] = []
   let current: TimelineTurnGroup | null = null
+  let seenUser = false
 
   for (const block of blocks) {
     if (block.kind === 'single' && block.item.type === 'user-message') {
@@ -23,9 +28,13 @@ export function groupDisplayBlocksByTurn(blocks: TimelineDisplayItem[]): Timelin
         endedAt: Number(block.item.timestamp) || 0,
       }
       groups.push(current)
+      seenUser = true
       continue
     }
-    if (!current) continue
+    if (!current) {
+      if (!seenUser) leading.push(block)
+      continue
+    }
     current.blocks.push(block)
     if (block.kind === 'tool-group') {
       current.toolCount += block.tools.length
@@ -37,5 +46,5 @@ export function groupDisplayBlocksByTurn(blocks: TimelineDisplayItem[]): Timelin
     if (Number.isFinite(ts)) current.endedAt = Math.max(current.endedAt, ts)
   }
 
-  return groups
+  return { leading, turns: groups }
 }

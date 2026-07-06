@@ -1,7 +1,7 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { applyComposerAbortUi } from '@renderer/lib/composer-queue-restore'
 import { markAbortUiHold } from '@renderer/lib/abort-ui-hold'
-import { applyLiveSnapshotToView, canAbortWorkerTurn, fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import { applyLiveSnapshotToView, composerTurnActive, fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 let abortCooldownUntil = 0
@@ -20,7 +20,16 @@ export async function abortAgentTurn(opts?: {
 
   const store = useUIStore.getState()
   const sessionFile = store.historySessionFile
-  if (!canAbortWorkerTurn(sessionFile, store.workerLiveSnapshot, store.runState.status === 'running')) return
+  if (
+    !composerTurnActive({
+      historySessionFile: sessionFile,
+      workerLiveSnapshot: store.workerLiveSnapshot,
+      runState: store.runState,
+      streamingAssistantId: store.streamingAssistantId,
+      optimisticPendingUserText: store.optimisticPendingUserText,
+    })
+  )
+    return
   const queued = [...store.pendingSteering, ...store.pendingFollowUp].filter(Boolean)
   const merged = [queued.join('\n'), (opts?.restoreEditorText || '').trim()].filter(Boolean).join('\n')
 

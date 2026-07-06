@@ -18,11 +18,14 @@ import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawIt
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
-import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
+import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { useTimelineLiveFollow } from './timeline-follow-scroll'
-import { TimelineBottomAnchorButton } from './timeline-bottom-anchor'
+import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
+import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
+import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
+import { deriveTurnTimingsFromItems } from './timeline-turn-timing'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnFooter } from './turn-footer'
 import { enrichPlainTextWithPaths } from './markdown-inline-paths'
@@ -214,7 +217,6 @@ export function Timeline() {
   const historyLoadedCount = useUIStore((s) => s.historyLoadedCount)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
   const historyLoading = useUIStore((s) => s.historyLoading)
-  const prependHistoryItems = useUIStore((s) => s.prependHistoryItems)
   const { t } = useTranslation()
 
   // Virtualization: render only a window of items, grow on scroll up
@@ -229,6 +231,7 @@ export function Timeline() {
     streamingTailLen,
     contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
   })
+  useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -268,20 +271,31 @@ export function Timeline() {
       setFetchingOlder(true)
       scrollHeightBeforeLoadRef.current = el.scrollHeight
       const offset = st.historyLoadedCount
-      void fetchSessionHistoryOlder(st.historySessionFile, offset)
+      void prependOlderTimelinePage(st.historySessionFile, offset)
         .then(({ items: older }) => {
-          if (older.length) prependHistoryItems(older as TimelineItem[])
-          setRenderCount((c) => Math.min(c + PAGE, useUIStore.getState().timelineItems.length))
+          if (older.length) {
+            const all = useUIStore.getState().timelineItems
+            const segs = splitTimelineRenderSegments(all, {
+              streamingAssistantId: useUIStore.getState().streamingAssistantId,
+              agentRunning: useUIStore.getState().runState.status === 'running',
+            })
+            setRenderCount((c) => Math.min(c + PAGE, segs.history.length))
+          }
         })
         .catch((e) => console.error('[Timeline] load older failed', e))
         .finally(() => setFetchingOlder(false))
       return
     }
 
-    if (current >= total) return
+    const all = useUIStore.getState().timelineItems
+    const segs = splitTimelineRenderSegments(all, {
+      streamingAssistantId: useUIStore.getState().streamingAssistantId,
+      agentRunning: useUIStore.getState().runState.status === 'running',
+    })
+    if (current >= segs.history.length) return
     scrollHeightBeforeLoadRef.current = el.scrollHeight
-    setRenderCount((c) => Math.min(c + PAGE, total))
-  }, [prependHistoryItems, fetchingOlder])
+    setRenderCount((c) => Math.min(c + PAGE, segs.history.length))
+  }, [fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
@@ -306,7 +320,15 @@ export function Timeline() {
     const el = scrollRef.current
     if (!el) return
     syncFollowFromScroll()
-    if (el.scrollTop < 160 && renderCountRef.current < itemsLengthRef.current) {
+    const all = useUIStore.getState().timelineItems
+    const segs = splitTimelineRenderSegments(all, {
+      streamingAssistantId: useUIStore.getState().streamingAssistantId,
+      agentRunning: useUIStore.getState().runState.status === 'running',
+    })
+    const canReveal = renderCountRef.current < segs.history.length
+    const canFetch =
+      useUIStore.getState().historyLoadedCount < useUIStore.getState().historyTotalCount
+    if (el.scrollTop < 160 && (canReveal || canFetch)) {
       loadMoreHistory()
     }
   }, [loadMoreHistory, syncFollowFromScroll])
@@ -362,12 +384,15 @@ export function Timeline() {
     )
   }
 
-  const visible = items.slice(Math.max(0, items.length - renderCount))
-  const hiddenInMemory = items.length - visible.length
+  const segments = splitTimelineRenderSegments(items, { streamingAssistantId, agentRunning })
+  const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
+  const visible = [...historyWindow, ...segments.liveHead]
+  const hiddenInMemory = Math.max(0, segments.history.length - historyWindow.length)
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
   const displayItems = buildTimelineDisplayItems(visible as unknown as TimelineRawItem[])
-  const turnGroups = groupDisplayBlocksByTurn(displayItems)
+  const { leading, turns: turnGroups } = groupDisplayBlocksByTurn(displayItems)
+  const turnTimings = deriveTurnTimingsFromItems(items)
 
   const renderDisplayBlock = (block: TimelineDisplayItem, blockKey: string, prev?: TimelineDisplayItem) => {
     const prevWasTool =
@@ -435,6 +460,7 @@ export function Timeline() {
             : t('timeline:loadOlder', { count: hiddenCount })}
         </button>
       )}
+      {leading.map((block, i) => renderDisplayBlock(block, `lead-${i}`, leading[i - 1]))}
       {turnGroups.map((turn, ti) => (
         <Fragment key={turn.turnId}>
           <TimelineItemBase
@@ -449,12 +475,14 @@ export function Timeline() {
           <TurnFooter
             toolCount={turn.toolCount}
             endedAt={turn.endedAt}
+            durationMs={turnTimings.get(turn.turnId)?.durationMs}
             isLast={ti === turnGroups.length - 1}
             streaming={!!streamingAssistantId && ti === turnGroups.length - 1}
           />
         </Fragment>
       ))}
-      {turnGroups.length === 0 &&
+      {leading.length === 0 &&
+        turnGroups.length === 0 &&
         displayItems.map((block, i) => renderDisplayBlock(block, `orphan-${i}`, displayItems[i - 1]))}
       <div className="h-4" />
       </div>

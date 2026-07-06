@@ -13,8 +13,9 @@
 
 ### 修复
 
+- **Composer 停止键**：运行中输入框与 Timeline 统一用 `composerTurnActive` 判断；`runState` 已 running 但 Worker 快照未刷新时也能显示停止并支持 abort
 - **流式正文夹杂 JSON**：`toolcall_delta` 的工具参数片段不再误并入助手气泡（`pi-message-update` 映射）
-- 后台会话事件与时间线投影、工具调用详情等边界用例补充测试
+- 时间线 live 合并、历史 prepend、轮次耗时与底部锚点拆分；后台会话事件与时间线投影等边界用例补充测试
 
 > GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.12/CHANGELOG.md)
 

@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type MutableRefObject, type RefObject } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import { isTimelineNearBottom, scrollTimelineToBottom } from './timeline-follow-scroll'
+import { isTimelineNearBottom } from './timeline-follow-scroll'
+import { requestTimelineBottomAnchor } from './timeline-bottom-anchor'
 
 export function TimelineBottomAnchorButton({
   scrollRef,
   followLiveRef,
   deps,
 }: {
-  scrollRef: React.RefObject<HTMLDivElement | null>
-  followLiveRef: React.MutableRefObject<boolean>
+  scrollRef: RefObject<HTMLDivElement | null>
+  followLiveRef: MutableRefObject<boolean>
   deps: unknown[]
 }) {
   const [show, setShow] = useState(false)
@@ -36,10 +37,8 @@ export function TimelineBottomAnchorButton({
         'hover:bg-[var(--bg-hover)] hover:text-foreground',
       )}
       onClick={() => {
-        const el = scrollRef.current
-        if (!el) return
         followLiveRef.current = true
-        scrollTimelineToBottom(el)
+        requestTimelineBottomAnchor('jump-to-bottom')
         setShow(false)
       }}
     >

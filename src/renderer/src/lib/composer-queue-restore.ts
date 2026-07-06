@@ -1,13 +1,22 @@
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { markAbortUiHold } from '@renderer/lib/abort-ui-hold'
-import { canAbortWorkerTurn } from '@renderer/lib/session-worker-sync'
+import { composerTurnActive } from '@renderer/lib/session-worker-sync'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
 export function applyComposerAbortUi(): void {
   const store = useUIStore.getState()
-  if (!canAbortWorkerTurn(store.historySessionFile, store.workerLiveSnapshot, store.runState.status === 'running')) return
+  if (
+    !composerTurnActive({
+      historySessionFile: store.historySessionFile,
+      workerLiveSnapshot: store.workerLiveSnapshot,
+      runState: store.runState,
+      streamingAssistantId: store.streamingAssistantId,
+      optimisticPendingUserText: store.optimisticPendingUserText,
+    })
+  )
+    return
   markAbortUiHold()
   store.setRunState({
     status: 'idle',

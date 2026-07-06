@@ -1,4 +1,5 @@
 import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import type { UIState } from '@renderer/stores/ui-store-types'
@@ -19,6 +20,18 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       runPatch.thinkingLevel = event.thinkingLevel
     }
     state.setRunState(runPatch)
+    const viewFile = state.historySessionFile
+    const snap = state.workerLiveSnapshot
+    if (viewFile) {
+      const bound = isViewingWorkerBoundSession(viewFile, snap.sessionFile)
+      if (bound || !snap.sessionFile) {
+        state.setWorkerLiveSnapshot({
+          sessionId: state.currentSessionId ?? snap.sessionId,
+          sessionFile: viewFile,
+          status: 'running',
+        })
+      }
+    }
     return
   }
   if (event.phase === 'idle') {

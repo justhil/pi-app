@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 let optSeq = 0
@@ -41,6 +42,7 @@ export function appendOptimisticOutgoingMessage(text: string, opts?: OptimisticS
     agentTurnBootstrapping: opts?.bootstrap === true,
     streamingAssistantId: assistantId,
   })
+  requestTimelineBottomAnchor('message-sent')
   if (store.runState.status !== 'running') {
     store.setRunState({ status: 'running', startTime: ts })
   }

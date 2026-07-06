@@ -15,6 +15,14 @@ export type HistoryPage = {
   error?: string
 }
 
+export async function fetchTimelineHistoryPage(
+  sessionFile: string,
+  offset: number,
+  limit: number = TIMELINE_FETCH_PAGE_SIZE,
+): Promise<HistoryPage> {
+  return fetchPage(sessionFile, offset, limit)
+}
+
 async function fetchPage(sessionFile: string, offset: number, limit: number): Promise<HistoryPage> {
   const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset, limit })
   const err = (res as { error?: string })?.error
