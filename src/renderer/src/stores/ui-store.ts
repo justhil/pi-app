@@ -12,6 +12,10 @@ import {
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import { projectTimelineItems } from '@shared/timeline-projection'
+import {
+  DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+  normalizeTimelineMaxAutoExpandedTools,
+} from '@shared/timeline-settings'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import type { FileChange, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 import {
@@ -278,6 +282,9 @@ export const useUIStore = create<UIState>()(
 
   theme: 'system',
   setTheme: (t) => set({ theme: t }),
+  timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+  setTimelineMaxAutoExpandedTools: (n) =>
+    set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n) }),
   sidebarWidth: 260,
   setSidebarWidth: (w) => set({ sidebarWidth: Math.min(Math.max(w, 200), 360) }),
   sidebarCollapsed: false,

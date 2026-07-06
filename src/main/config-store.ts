@@ -1,5 +1,6 @@
 import Store from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
+import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
 import { bindSecretStoreBacking } from './secret-store'
 
 export interface StoreSchema {
@@ -30,6 +31,8 @@ export interface StoreSchema {
   alertOnExtensionUi: boolean
   /** Agent 一轮结束（空闲）时提醒 */
   alertOnRunIdle: boolean
+  /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
+  timelineMaxAutoExpandedTools: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 语音输入 ASR 配置 */
@@ -63,6 +66,7 @@ const store = new Store<StoreSchema>({
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,
     alertOnRunIdle: true,
+    timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     sessionDisplayNames: {},
     asrConfig: {
       provider: 'codex-asr-builtin',

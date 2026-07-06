@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle,
   CornerDownLeft, AlertCircle
 } from 'lucide-react'
-import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react'
+import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { StreamingCaret, ThinkingIndicator } from './tool-card-primitives'
 import { SessionOpenLoadingView } from './session-open-loading'
@@ -21,10 +21,11 @@ import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
-import { useTimelineLiveFollow } from './timeline-follow-scroll'
+import { scheduleTimelineScrollToBottom, useTimelineLiveFollow } from './timeline-follow-scroll'
 import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
+import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
 import { deriveTurnTimingsFromItems } from './timeline-turn-timing'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnFooter } from './turn-footer'
@@ -217,6 +218,8 @@ export function Timeline() {
   const historyLoadedCount = useUIStore((s) => s.historyLoadedCount)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
   const historyLoading = useUIStore((s) => s.historyLoading)
+  const activeRunId = useUIStore((s) => s.runState.activeRunId)
+  const timelineMaxAutoExpandedTools = useUIStore((s) => s.timelineMaxAutoExpandedTools)
   const { t } = useTranslation()
 
   // Virtualization: render only a window of items, grow on scroll up
@@ -230,6 +233,7 @@ export function Timeline() {
     streamingAssistantId,
     streamingTailLen,
     contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
+    agentRunning,
   })
   useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
@@ -312,7 +316,8 @@ export function Timeline() {
     scrollHeightBeforeLoadRef.current = null
     followLiveRef.current = true
     requestAnimationFrame(() => {
-      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      const el = scrollRef.current
+      if (el) scheduleTimelineScrollToBottom(el)
     })
   }, [firstId, followLiveRef])
 
@@ -332,6 +337,34 @@ export function Timeline() {
       loadMoreHistory()
     }
   }, [loadMoreHistory, syncFollowFromScroll])
+
+  const segments = useMemo(
+    () => splitTimelineRenderSegments(items, { streamingAssistantId, agentRunning }),
+    [items, streamingAssistantId, agentRunning],
+  )
+  const visibleItems = useMemo(() => {
+    const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
+    return [...historyWindow, ...segments.liveHead]
+  }, [segments, renderCount])
+  const toolExpandSlots = useMemo(
+    () =>
+      visibleItems
+        .filter((i) => i.type === 'tool-call')
+        .map((i) => {
+          const t = i as ToolTimelineItem
+          return { id: t.id, runId: t.runId, toolPhase: t.toolPhase }
+        }),
+    [visibleItems],
+  )
+  const autoExpandedToolIds = useMemo(
+    () =>
+      pickAutoExpandedToolIds(toolExpandSlots, {
+        agentRunning,
+        activeRunId,
+        maxExpanded: timelineMaxAutoExpandedTools,
+      }),
+    [toolExpandSlots, agentRunning, activeRunId, timelineMaxAutoExpandedTools],
+  )
 
   if (!hasWorkspace) {
     return (
@@ -384,13 +417,11 @@ export function Timeline() {
     )
   }
 
-  const segments = splitTimelineRenderSegments(items, { streamingAssistantId, agentRunning })
   const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
-  const visible = [...historyWindow, ...segments.liveHead]
   const hiddenInMemory = Math.max(0, segments.history.length - historyWindow.length)
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
-  const displayItems = buildTimelineDisplayItems(visible as unknown as TimelineRawItem[])
+  const displayItems = buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[])
   const { leading, turns: turnGroups } = groupDisplayBlocksByTurn(displayItems)
   const turnTimings = deriveTurnTimingsFromItems(items)
 
@@ -405,7 +436,10 @@ export function Timeline() {
         <Fragment key={blockKey}>
           {showGroupGap && <div className="h-2" />}
           <div className="timeline-message-row">
-            <ToolGroupSummary tools={block.tools as unknown as ToolTimelineItem[]} />
+            <ToolGroupSummary
+              tools={block.tools as unknown as ToolTimelineItem[]}
+              autoExpandedToolIds={autoExpandedToolIds}
+            />
           </div>
         </Fragment>
       )
@@ -415,7 +449,10 @@ export function Timeline() {
       return (
         <Fragment key={blockKey}>
           <div className="timeline-message-row">
-            <ToolCallRow item={item as unknown as ToolTimelineItem} />
+            <ToolCallRow
+              item={item as unknown as ToolTimelineItem}
+              autoExpandedInBudget={autoExpandedToolIds.has(item.id)}
+            />
           </div>
         </Fragment>
       )

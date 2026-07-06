@@ -17,6 +17,10 @@ function flushWheelAccum() {
   window.dispatchEvent(new Event('timeline-scroll'))
 }
 
+export function notifyTimelineScroll(): void {
+  window.dispatchEvent(new Event('timeline-scroll'))
+}
+
 export function registerTimelineScrollEl(el: HTMLDivElement | null): void {
   scrollEl = el
 }

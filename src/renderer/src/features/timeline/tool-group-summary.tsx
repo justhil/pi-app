@@ -6,14 +6,21 @@ import { ToolCallRow, summarizeToolGroup } from './tool-call-row'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 
-function ToolGroupSummaryImpl({ tools }: { tools: ToolTimelineItem[] }) {
+function ToolGroupSummaryImpl({
+  tools,
+  autoExpandedToolIds,
+}: {
+  tools: ToolTimelineItem[]
+  autoExpandedToolIds: Set<string>
+}) {
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
   const { label, running, hasError } = summarizeToolGroup(tools)
   const groupRunId = tools[0]?.runId as string | undefined
   const isCurrentRun = !!groupRunId && groupRunId === activeRunId
-  const autoExpanded = agentRunning && isCurrentRun
+  const anyInBudget = tools.some((t) => autoExpandedToolIds.has(t.id))
+  const autoExpanded = agentRunning && isCurrentRun && anyInBudget
   const expanded = userExpanded ?? autoExpanded
 
   return (
@@ -37,9 +44,13 @@ function ToolGroupSummaryImpl({ tools }: { tools: ToolTimelineItem[] }) {
       </button>
       <CollapsiblePanel open={expanded} className="mt-1">
         <div className="space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
-          {tools.map((t, i) => (
+          {tools.map((t) => (
             <div key={t.id}>
-              <ToolCallRow item={t} compact />
+              <ToolCallRow
+                item={t}
+                compact
+                autoExpandedInBudget={autoExpandedToolIds.has(t.id)}
+              />
             </div>
           ))}
         </div>

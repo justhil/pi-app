@@ -11,6 +11,14 @@ export function scrollTimelineToBottom(el: HTMLElement): void {
   el.scrollTop = el.scrollHeight
 }
 
+/** 布局/流式增高后双 rAF 贴底，减少 scrollHeight 未稳定时滚不到位 */
+export function scheduleTimelineScrollToBottom(el: HTMLElement): void {
+  requestAnimationFrame(() => {
+    scrollTimelineToBottom(el)
+    requestAnimationFrame(() => scrollTimelineToBottom(el))
+  })
+}
+
 /**
  * 贴底时：新消息、流式增量、内容区高度变大（工具展开等）都滚到底。
  * 用户上滑离开底部阈值后不再抢滚动，直到再次滑回底部附近。
@@ -23,6 +31,7 @@ export function useTimelineLiveFollow(
     streamingAssistantId: string | null
     streamingTailLen: number
     contentEpoch: string | number
+    agentRunning?: boolean
   },
 ) {
   const followLiveRef = useRef(true)
@@ -35,18 +44,18 @@ export function useTimelineLiveFollow(
 
   const pinIfFollowing = useCallback(() => {
     if (!followLiveRef.current) return
-    requestAnimationFrame(() => {
-      const el = scrollRef.current
-      if (!el || !followLiveRef.current) return
-      scrollTimelineToBottom(el)
-    })
+    const el = scrollRef.current
+    if (!el) return
+    scheduleTimelineScrollToBottom(el)
   }, [scrollRef])
 
   useEffect(() => {
+    if (opts.agentRunning) followLiveRef.current = true
     pinIfFollowing()
-  }, [opts.lastTailId, pinIfFollowing])
+  }, [opts.lastTailId, opts.agentRunning, pinIfFollowing])
 
   useEffect(() => {
+    if (opts.streamingAssistantId) followLiveRef.current = true
     pinIfFollowing()
   }, [opts.streamingAssistantId, opts.streamingTailLen, pinIfFollowing])
 
@@ -57,11 +66,11 @@ export function useTimelineLiveFollow(
       if (!followLiveRef.current) return
       const el = scrollRef.current
       if (!el) return
-      scrollTimelineToBottom(el)
+      scheduleTimelineScrollToBottom(el)
     })
     ro.observe(content)
     return () => ro.disconnect()
-  }, [scrollRef, contentRef, opts.contentEpoch, pinIfFollowing])
+  }, [scrollRef, contentRef, opts.contentEpoch])
 
   return { followLiveRef, syncFollowFromScroll }
 }

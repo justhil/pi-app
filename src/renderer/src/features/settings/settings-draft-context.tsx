@@ -22,6 +22,7 @@ import {
   type LanguageChoice,
 } from '@renderer/features/settings/settings-draft'
 import type { AsrConfig } from '@shared/asr-types'
+import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
 import { setAsrConfigPreview } from '@renderer/lib/asr-config-effective'
 import {
   defaultRightPanelPrefsForCatalog,
@@ -53,6 +54,7 @@ type SettingsDraftContextValue = {
   setAlertNotificationEnabled: (v: boolean) => void
   setAlertOnExtensionUi: (v: boolean) => void
   setAlertOnRunIdle: (v: boolean) => void
+  setTimelineMaxAutoExpandedTools: (n: number) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
   reorderRightPanels: (fromId: string, toIndex: number) => void
@@ -226,6 +228,11 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setAlertNotificationEnabled: (v) => patch((d) => ({ ...d, alertNotificationEnabled: v })),
       setAlertOnExtensionUi: (v) => patch((d) => ({ ...d, alertOnExtensionUi: v })),
       setAlertOnRunIdle: (v) => patch((d) => ({ ...d, alertOnRunIdle: v })),
+      setTimelineMaxAutoExpandedTools: (n) =>
+        patch((d) => ({
+          ...d,
+          timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n),
+        })),
       setExtensionOverride: (id, enabled) =>
         patch((d) => ({
           ...d,

@@ -21,7 +21,7 @@ export function groupDisplayBlocksByTurn(blocks: TimelineDisplayItem[]): {
   for (const block of blocks) {
     if (block.kind === 'single' && block.item.type === 'user-message') {
       current = {
-        turnId: String(block.item.sessionEntryId || block.item.id),
+        turnId: String(block.item.id),
         userItem: block.item as unknown as TimelineItem,
         blocks: [],
         toolCount: 0,

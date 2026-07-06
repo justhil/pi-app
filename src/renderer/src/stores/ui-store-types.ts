@@ -171,6 +171,8 @@ export interface UIState {
   }>) => void
   theme: 'light' | 'dark' | 'system'
   setTheme: (t: 'light' | 'dark' | 'system') => void
+  timelineMaxAutoExpandedTools: number
+  setTimelineMaxAutoExpandedTools: (n: number) => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean

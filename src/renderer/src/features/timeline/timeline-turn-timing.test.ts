@@ -3,13 +3,24 @@ import { deriveTurnTimingsFromItems, formatTurnDuration } from './timeline-turn-
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 describe('deriveTurnTimingsFromItems', () => {
+  it('keys timing by user message id', () => {
+    const items: TimelineItem[] = [
+      { id: 'u1', type: 'user-message', text: 'a', timestamp: 1, sessionEntryId: 'same' },
+      { id: 'u2', type: 'user-message', text: 'b', timestamp: 10, sessionEntryId: 'same' },
+      { id: 'a2', type: 'assistant-message', text: 'b', timestamp: 20 },
+    ]
+    const m = deriveTurnTimingsFromItems(items)
+    expect(m.get('u1')?.durationMs).toBe(0)
+    expect(m.get('u2')?.durationMs).toBe(10)
+  })
+
   it('computes duration from user to last item in turn', () => {
     const items: TimelineItem[] = [
       { id: 'u1', type: 'user-message', text: 'hi', timestamp: 1000, sessionEntryId: 'e1' },
       { id: 'a1', type: 'assistant-message', text: 'ok', timestamp: 5000 },
     ]
     const m = deriveTurnTimingsFromItems(items)
-    expect(m.get('e1')?.durationMs).toBe(4000)
+    expect(m.get('u1')?.durationMs).toBe(4000)
   })
 })
 

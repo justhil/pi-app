@@ -24,6 +24,7 @@ import { Settings as SettingsIcon } from 'lucide-react'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
+import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
 import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { AppToaster } from '@renderer/components/app/app-toaster'
@@ -93,6 +94,13 @@ export default function App() {
     const frame = requestAnimationFrame(() => {
       void loadNormalizedRightPanelPrefs()
         .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
+        .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'timelineMaxAutoExpandedTools' })
+        .then((res) => {
+          const raw = res?.settings?.timelineMaxAutoExpandedTools
+          useUIStore.getState().setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
+        })
         .catch(() => {})
     })
     return () => cancelAnimationFrame(frame)

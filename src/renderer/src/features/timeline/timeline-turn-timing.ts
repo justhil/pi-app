@@ -27,7 +27,7 @@ export function deriveTurnTimingsFromItems(items: TimelineItem[]): Map<string, T
       flush()
       userAt = item.timestamp || 0
       lastAt = userAt
-      turnId = String(item.sessionEntryId || item.id)
+      turnId = String(item.id)
       continue
     }
     if (userAt == null || !turnId) continue

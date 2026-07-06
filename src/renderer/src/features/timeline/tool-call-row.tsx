@@ -42,9 +42,12 @@ function toolSummaryLine(item: ToolTimelineItem): string {
 function ToolCallRowImpl({
   item,
   compact,
+  autoExpandedInBudget = true,
 }: {
   item: ToolTimelineItem
   compact?: boolean
+  /** 当前 run 内是否落在自动展开预算（默认 true 供组内 compact 子行） */
+  autoExpandedInBudget?: boolean
 }) {
   const { t } = useTranslation()
   const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
@@ -53,7 +56,7 @@ function ToolCallRowImpl({
   const isCurrentRun = !!item.runId && item.runId === activeRunId
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
   const hasToolBody = !!item.toolOutput || !!item.toolDetails || !!item.toolArgs
-  const autoExpanded = agentRunning && isCurrentRun && hasToolBody
+  const autoExpanded = agentRunning && isCurrentRun && hasToolBody && autoExpandedInBudget
   const expanded = userExpanded ?? autoExpanded
   const rawSum = toolSummaryLine(item)
 

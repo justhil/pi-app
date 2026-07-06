@@ -120,6 +120,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   alertNotificationEnabled: z.boolean(),
   alertOnExtensionUi: z.boolean(),
   alertOnRunIdle: z.boolean(),
+  timelineMaxAutoExpandedTools: z.number().int().min(1).max(50),
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),
   sessionDisplayNames: z.record(z.string()),

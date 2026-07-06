@@ -21,6 +21,7 @@ export function GeneralSettings() {
     setAlertNotificationEnabled,
     setAlertOnExtensionUi,
     setAlertOnRunIdle,
+    setTimelineMaxAutoExpandedTools,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
@@ -105,6 +106,30 @@ export function GeneralSettings() {
         </SettingRow>
         <SettingRow label={t('settings:general.alertOnRunIdle')} description={t('settings:general.alertOnRunIdleDesc')}>
           <Switch checked={draft.alertOnRunIdle} onCheckedChange={setAlertOnRunIdle} />
+        </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">
+          {t('settings:general.timeline')}
+        </div>
+        <SettingRow
+          label={t('settings:general.timelineToolAutoExpandMax')}
+          description={t('settings:general.timelineToolAutoExpandMaxDesc')}
+        >
+          <input
+            type="number"
+            min={1}
+            max={50}
+            step={1}
+            value={draft.timelineMaxAutoExpandedTools}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (!Number.isFinite(n)) return
+              setTimelineMaxAutoExpandedTools(n)
+            }}
+            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+          />
         </SettingRow>
       </div>
 

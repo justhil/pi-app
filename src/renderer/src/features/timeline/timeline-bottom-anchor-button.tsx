@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type MutableRefObject, type RefObject
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { isTimelineNearBottom } from './timeline-follow-scroll'
+
 import { requestTimelineBottomAnchor } from './timeline-bottom-anchor'
 
 export function TimelineBottomAnchorButton({
@@ -24,6 +25,12 @@ export function TimelineBottomAnchorButton({
   useEffect(() => {
     sync()
   }, [sync, ...deps])
+
+  useEffect(() => {
+    const onScroll = () => sync()
+    window.addEventListener('timeline-scroll', onScroll)
+    return () => window.removeEventListener('timeline-scroll', onScroll)
+  }, [sync])
 
   if (!show) return null
 

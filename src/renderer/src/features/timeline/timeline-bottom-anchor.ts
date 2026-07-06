@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type MutableRefObject, type RefObject } from 'react'
-import { isTimelineNearBottom, scrollTimelineToBottom } from './timeline-follow-scroll'
+import { isTimelineNearBottom, scheduleTimelineScrollToBottom } from './timeline-follow-scroll'
 
 export type TimelineAnchorReason = 'session-enter' | 'message-sent' | 'jump-to-bottom' | 'resume-stream'
 
@@ -27,7 +27,7 @@ export function useTimelineBottomAnchorController(
       const attempt = (pass: number) => {
         const el = scrollRef.current
         if (!el) return
-        scrollTimelineToBottom(el)
+        scheduleTimelineScrollToBottom(el)
         if (pass < 2 && followLiveRef.current) {
           pendingVerify.current = window.requestAnimationFrame(() => attempt(pass + 1))
         }

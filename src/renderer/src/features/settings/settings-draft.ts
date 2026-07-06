@@ -2,6 +2,7 @@ import type { i18n as I18n } from 'i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { AsrConfig } from '@shared/asr-types'
+import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
 import {
   normalizeRightPanelOrder,
   normalizeRightPanelPrefs,
@@ -21,6 +22,7 @@ export type SettingsDraft = {
   alertNotificationEnabled: boolean
   alertOnExtensionUi: boolean
   alertOnRunIdle: boolean
+  timelineMaxAutoExpandedTools: number
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
@@ -69,6 +71,7 @@ export function draftSignature(d: SettingsDraft): string {
     alertNotificationEnabled: d.alertNotificationEnabled,
     alertOnExtensionUi: d.alertOnExtensionUi,
     alertOnRunIdle: d.alertOnRunIdle,
+    timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
@@ -95,6 +98,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     alertNotificationEnabled: s.alertNotificationEnabled !== false,
     alertOnExtensionUi: s.alertOnExtensionUi !== false,
     alertOnRunIdle: s.alertOnRunIdle !== false,
+    timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
@@ -127,6 +131,10 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   await ipcClient.invoke('settings.set', { key: 'alertNotificationEnabled', value: draft.alertNotificationEnabled })
   await ipcClient.invoke('settings.set', { key: 'alertOnExtensionUi', value: draft.alertOnExtensionUi })
   await ipcClient.invoke('settings.set', { key: 'alertOnRunIdle', value: draft.alertOnRunIdle })
+  await ipcClient.invoke('settings.set', {
+    key: 'timelineMaxAutoExpandedTools',
+    value: draft.timelineMaxAutoExpandedTools,
+  })
   await ipcClient.invoke('settings.set', { key: 'extensionOverrides', value: draft.extensionOverrides })
   await ipcClient.invoke('rightPanels.saveLayout', {
     prefs: draft.rightPanelPrefs,
@@ -138,6 +146,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   draft.asrConfig = savedAsr
 
   useUIStore.getState().setTheme(draft.theme)
+  useUIStore.getState().setTimelineMaxAutoExpandedTools(draft.timelineMaxAutoExpandedTools)
   applyThemeToDocument(draft.theme)
   if (i18n.language !== draft.language) await i18n.changeLanguage(draft.language)
   useUIStore.getState().applyRightPanelRuntime(
