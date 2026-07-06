@@ -8,7 +8,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['src/renderer/src/test/setup.ts'],
-    include: ['src/renderer/src/**/*.test.{ts,tsx}'],
+    include: ['src/renderer/src/**/*.test.{ts,tsx}', 'packages/shared/**/*.test.ts'],
     exclude: ['node_modules/**', 'out/**', 'dist/**', 'e2e/**'],
   },
   resolve: {

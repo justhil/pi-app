@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-
+# 参考
+参考/
 #test (root scratch only; renderer vitest setup lives under src/renderer/src/test/)
 test/
 !src/renderer/src/test/

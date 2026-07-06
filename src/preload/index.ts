@@ -70,6 +70,12 @@ const api = {
     return () => ipcRenderer.off(APP_UPDATE_CHANNEL, handler)
   },
 
+  onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {
+    const handler = (_event: unknown, data: { cwd: string }): void => callback(data)
+    ipcRenderer.on('ipc:git-workspace-changed', handler)
+    return () => ipcRenderer.off('ipc:git-workspace-changed', handler)
+  },
+
   ping: (): string => 'pong',
 }
 

@@ -30,7 +30,7 @@ function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
 }
 
 function toolSummaryLine(item: ToolTimelineItem): string {
-  const argSummary = buildToolSummary(item.toolName || '', item.toolArgs)
+  const argSummary = buildToolSummary(item.toolName || '', item.toolArgs, item.toolDetail)
   if (argSummary) return argSummary
   if (item.toolStatusLine) return String(item.toolStatusLine)
   const o = (item.toolOutput || '').trim()

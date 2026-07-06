@@ -2,6 +2,22 @@
 
 各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
+## [0.4.12] — 2026-07-06
+
+### 优化
+
+- **流式正文渲染**：助手回复采用稳定 Markdown 前缀 + 尾部纯文本，减少整段重解析抖动；光标与行高更接近常见聊天产品观感
+- **时间线**：按轮次分组与底部锚点；会话打开/切回时 live 时间线合并与同步策略补强
+- **Review**：差异视图与行内评论交互整理
+- **工具卡片**：原生工具预览与摘要展示小幅调整
+
+### 修复
+
+- **流式正文夹杂 JSON**：`toolcall_delta` 的工具参数片段不再误并入助手气泡（`pi-message-update` 映射）
+- 后台会话事件与时间线投影、工具调用详情等边界用例补充测试
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.12/CHANGELOG.md)
+
 ## [0.4.11] — 2026-07-06
 
 ### 新增

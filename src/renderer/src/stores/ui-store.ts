@@ -11,6 +11,7 @@ import {
   dedupeAdjacentUserMessages,
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
+import { projectTimelineItems } from '@shared/timeline-projection'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import type { FileChange, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 import {
@@ -133,7 +134,7 @@ export const useUIStore = create<UIState>()(
     const viewingWorkerSession = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
     const keepRunning =
       viewingWorkerSession && (runState.status === 'running' || streamingAssistantId != null || workerLiveSnapshot.status === 'running')
-    const cleaned = sanitizeHistoryTimeline(items)
+    const cleaned = projectTimelineItems(sanitizeHistoryTimeline(items))
     set({
       timelineItems: cleaned,
       streamingAssistantId: keepRunning ? streamingAssistantId : null,

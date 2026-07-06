@@ -14,6 +14,7 @@ declare global {
       onAppUpdateAvailable: (
         callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
       ) => () => void
+      onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       ping: () => string
     }
   }
@@ -67,4 +68,9 @@ export function onAppUpdateAvailable(
 ): () => void {
   if (!window.piDesktop) return () => {}
   return window.piDesktop.onAppUpdateAvailable(callback)
+}
+
+export function onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {
+  if (!window.piDesktop) return () => {}
+  return window.piDesktop.onGitWorkspaceChanged(callback)
 }

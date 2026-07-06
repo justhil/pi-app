@@ -35,6 +35,17 @@ describe('assistantStreamDeltaFromMessageUpdate', () => {
     )
     assert.equal(stream.text, 'block complete')
   })
+
+  it('does not treat toolcall_delta as assistant text', () => {
+    const stream = assistantStreamDeltaFromMessageUpdate(
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Looking at files.' }],
+      },
+      { type: 'toolcall_delta', delta: '{"path":"src/foo.ts"' },
+    )
+    assert.equal(stream.text, 'Looking at files.')
+  })
 })
 
 describe('mergeStreamChunk with cumulative snapshots', () => {

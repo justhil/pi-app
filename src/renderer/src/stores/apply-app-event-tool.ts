@@ -1,4 +1,5 @@
 import { extractStatusFromOutput } from '@extension-compat/json-path'
+import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { resolveToolCardDef } from '@renderer/features/timeline/tool-card-registry'
 import type { StoreApi, ToolEvent } from '@renderer/stores/apply-app-event-types'
 
@@ -55,10 +56,12 @@ export function handleTool(event: ToolEvent, api: StoreApi): void {
       outText = (raw as { content: { text?: string }[] }).content.map((c) => c?.text || '').join('')
     } else if (raw != null) outText = JSON.stringify(raw, null, 2)
     if (lastTool) {
+      const toolDetail = toolCallDetailFromPi(event.toolName, lastTool.toolArgs, outText)
       state.updateTimelineItem(lastTool.id, {
         toolPhase: 'end',
         toolOutput: outText,
         toolDetails: event.details,
+        toolDetail,
         toolStatusLine: undefined,
         extensionUiSuspended: false,
         extensionUiRequestId: undefined,

@@ -1,6 +1,6 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
-import { memo, useMemo, useState, type ComponentPropsWithoutRef } from 'react'
+import { memo, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -12,6 +12,8 @@ import 'katex/dist/katex.min.css'
 import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
 import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
+import { splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
+import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
 import { Copy, ChevronDown } from 'lucide-react'
 
@@ -109,7 +111,7 @@ const REHYPE_PLUGINS: Pluggable[] = [
   ],
 ]
 
-const STREAM_MARKDOWN_MIN_CHARS = 160
+const STREAM_PLAIN_ONLY_MAX = 96
 
 const MarkdownView = memo(function MarkdownView({
   children,
@@ -118,17 +120,41 @@ const MarkdownView = memo(function MarkdownView({
 }: {
   children: string
   className?: string
-  /** 流式中也走 Markdown（对齐 参考桌面客户端 MessageText + MarkdownView） */
+  /** 流式：稳定前缀 Markdown + 尾部纯文本（减少整段重排，接近 ChatGPT） */
   streaming?: boolean
 }) {
-  const usePlainStream = !!streaming && children.length < STREAM_MARKDOWN_MIN_CHARS
+  const committedStableRef = useRef('')
 
-  const markdown = useMemo(
-    () => preprocessMarkdownMath(children, { streaming: streaming && !usePlainStream }),
-    [children, streaming, usePlainStream],
+  useEffect(() => {
+    if (!streaming) committedStableRef.current = ''
+  }, [streaming])
+
+  const streamSplit = useMemo(
+    () => (streaming ? splitStreamingMarkdown(children) : { committed: '', tail: children }),
+    [children, streaming],
   )
 
-  const remarkPlugins = useMemo(() => buildRemarkPlugins(streaming && !usePlainStream), [streaming, usePlainStream])
+  if (streaming && streamSplit.committed.length >= committedStableRef.current.length) {
+    committedStableRef.current = streamSplit.committed
+  }
+
+  const committedPrefix = streaming ? committedStableRef.current : ''
+  const liveTail = streaming ? children.slice(committedPrefix.length) : ''
+  const usePlainStream =
+    !!streaming && !committedPrefix && liveTail.length > 0 && liveTail.length <= STREAM_PLAIN_ONLY_MAX
+
+  const markdown = useMemo(
+    () =>
+      preprocessMarkdownMath(streaming && committedPrefix ? committedPrefix : children, {
+        streaming: !!streaming && (!usePlainStream || !!committedPrefix),
+      }),
+    [children, streaming, usePlainStream, committedPrefix],
+  )
+
+  const remarkPlugins = useMemo(
+    () => buildRemarkPlugins(!!streaming && (!usePlainStream || !!committedPrefix)),
+    [streaming, usePlainStream, committedPrefix],
+  )
 
   const components = useMemo(
     () => ({
@@ -173,7 +199,16 @@ const MarkdownView = memo(function MarkdownView({
       h1: ({ children: ch }: ComponentPropsWithoutRef<'h1'>) => <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>,
       h2: ({ children: ch }: ComponentPropsWithoutRef<'h2'>) => <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>,
       h3: ({ children: ch }: ComponentPropsWithoutRef<'h3'>) => <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>,
-      p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => <p className="my-1 leading-relaxed">{ch}</p>,
+      p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => {
+        if (typeof ch === 'string') {
+          return (
+            <p className="my-1 leading-relaxed">
+              <MarkdownPathText text={ch} />
+            </p>
+          )
+        }
+        return <p className="my-1 leading-relaxed">{ch}</p>
+      },
       hr: () => <hr className="my-3 border-border/40" />,
     }),
     [streaming],
@@ -182,7 +217,25 @@ const MarkdownView = memo(function MarkdownView({
   if (usePlainStream) {
     return (
       <div className={cn('prose-chat prose-chat-streaming', className)}>
-        <p className="stream-plain-chunk my-1 whitespace-pre-wrap break-words">{children}</p>
+        <p className="stream-live-tail my-1 whitespace-pre-wrap break-words">{liveTail}</p>
+      </div>
+    )
+  }
+
+  if (streaming && (committedPrefix || liveTail)) {
+    const committedMd = committedPrefix
+      ? preprocessMarkdownMath(committedPrefix, { streaming: false })
+      : ''
+    return (
+      <div className={cn('prose-chat prose-chat-streaming prose-chat-streaming-split', className)}>
+        {committedMd ? (
+          <ReactMarkdown remarkPlugins={buildRemarkPlugins(false)} rehypePlugins={REHYPE_PLUGINS} components={components}>
+            {committedMd}
+          </ReactMarkdown>
+        ) : null}
+        {liveTail ? (
+          <p className="stream-live-tail my-1 whitespace-pre-wrap break-words leading-relaxed">{liveTail}</p>
+        ) : null}
       </div>
     )
   }

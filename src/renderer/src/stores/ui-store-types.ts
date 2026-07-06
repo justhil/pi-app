@@ -1,4 +1,5 @@
 import type { AppEvent } from '@shared/app-events'
+import type { ToolCallDetail } from '@shared/tool-call-detail'
 import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panels'
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 
@@ -20,6 +21,7 @@ export type ToolTimelineItem = {
   toolPhase?: string
   toolOutput?: string
   toolDetails?: unknown
+  toolDetail?: ToolCallDetail
   toolArgs?: unknown
   toolStatusLine?: string
   extensionUiSuspended?: boolean
@@ -38,6 +40,7 @@ export interface TimelineItem {
   toolPhase?: string
   toolOutput?: string
   toolDetails?: unknown
+  toolDetail?: ToolCallDetail
   toolArgs?: unknown
   toolStatusLine?: string
   extensionUiSuspended?: boolean

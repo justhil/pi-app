@@ -88,6 +88,16 @@ export function WorkspaceFilesPanel() {
     [openFile],
   )
 
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const d = (e as CustomEvent<{ rel?: string; name?: string }>).detail
+      if (!d?.rel) return
+      onSelectPath(d.rel, false)
+    }
+    window.addEventListener('pi-desktop:open-workspace-file', onOpen)
+    return () => window.removeEventListener('pi-desktop:open-workspace-file', onOpen)
+  }, [onSelectPath])
+
   const chromeTrailing = (
     <>
       <button

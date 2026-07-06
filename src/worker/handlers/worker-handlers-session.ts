@@ -2,6 +2,8 @@ import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { resolveModelFromRegistry, type PiModelRegistryLike } from '@shared/pi-model-registry'
 import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
+import { projectTimelineItems } from '@shared/timeline-projection'
+import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { errorMessage } from '@shared/error-message'
 import { timelineItemsFromBranchPath } from '../worker-timeline.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
@@ -286,7 +288,17 @@ export async function handleGetmessages(msg: WorkerIncomingMessage, reply: Worke
             },
             timelineItemsFromBranchPath,
           )
-          reply({ type: 'getMessages-done', ...page })
+          const projected = projectTimelineItems(page.items as Parameters<typeof projectTimelineItems>[0])
+          const items = projected.map((row) => {
+            if (row.type !== 'tool-call') return row
+            const detail = toolCallDetailFromPi(
+              String(row.toolName ?? ''),
+              row.toolArgs,
+              row.toolOutput,
+            )
+            return { ...row, toolDetail: detail }
+          })
+          reply({ type: 'getMessages-done', ...page, items })
         } catch (e: unknown) {
           reply({ type: 'error', error: sessionTimelineError(e) })
         }

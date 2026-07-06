@@ -19,6 +19,7 @@ import {
 import { buildHashlineProtocolSummary } from '@extension-compat/renderer/hashline-protocol'
 import { resolveAdapterToolCardTemplate } from './tool-card-registry'
 import type { ToolTimelineItem } from './tool-preview-shell'
+import type { ToolCallDetail } from '@shared/tool-call-detail'
 
 function DiffBody({ rows }: { rows: DiffRow[] }) {
   let del = 0
@@ -286,7 +287,17 @@ export function renderNativeToolPreview(item: ToolTimelineItem): React.ReactNode
   return null
 }
 
-export function buildToolSummary(toolName: string, args: unknown): string {
+function summaryFromDetail(detail: ToolCallDetail | undefined): string | null {
+  if (!detail) return null
+  if (detail.type === 'bash') return detail.command.slice(0, 120)
+  if (detail.type === 'read' || detail.type === 'write' || detail.type === 'edit') return detail.path
+  if (detail.type === 'grep' || detail.type === 'find') return detail.pattern
+  return null
+}
+
+export function buildToolSummary(toolName: string, args: unknown, detail?: ToolCallDetail): string {
+  const fromDetail = summaryFromDetail(detail)
+  if (fromDetail) return fromDetail
   if (!args) return ''
   const a = typeof args === 'string' ? (() => { try { return JSON.parse(args) } catch (e) { return null } })() : args
   if (!a || typeof a !== 'object') return ''

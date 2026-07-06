@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onGitWorkspaceChanged } from '@renderer/lib/ipc-client'
 import { parseGitDiff } from '@shared/diff-model'
 import {
   Copy,
@@ -49,6 +49,7 @@ export function ReviewPanel() {
   } | null>(null)
   const [loading, setLoading] = useState(false)
   const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null)
+  const [focusGitPath, setFocusGitPath] = useState<string | null>(null)
   const [expandedMetaPath, setExpandedMetaPath] = useState<string | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('inline')
   const [gitReloadKey, setGitReloadKey] = useState(0)
@@ -73,6 +74,18 @@ export function ReviewPanel() {
     }
     window.addEventListener('pi-desktop:review-scope', onScope)
     return () => window.removeEventListener('pi-desktop:review-scope', onScope)
+  }, [])
+
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const path = (e as CustomEvent<{ path?: string }>).detail?.path
+      if (path) {
+        setFocusGitPath(path.replace(/\\/g, '/'))
+        setExpandedGitPath(path.replace(/\\/g, '/'))
+      }
+    }
+    window.addEventListener('pi-desktop:review-focus-file', onFocus)
+    return () => window.removeEventListener('pi-desktop:review-focus-file', onFocus)
   }, [])
 
   const loadGit = () => {
@@ -101,6 +114,13 @@ export function ReviewPanel() {
 
   useEffect(() => {
     if (scope === 'git' && workspace) loadGit()
+  }, [scope, workspace])
+
+  useEffect(() => {
+    return onGitWorkspaceChanged((payload) => {
+      if (!workspace || payload.cwd.replace(/\\/g, '/') !== workspace.replace(/\\/g, '/')) return
+      if (scope === 'git') loadGit()
+    })
   }, [scope, workspace])
 
   const turnFiles = useMemo(
@@ -218,7 +238,12 @@ export function ReviewPanel() {
                   staged={fc.staged ?? false}
                   mode={diffMode}
                   cwd={cwd}
-                  defaultOpen={expandedGitPath === fc.path}
+                  defaultOpen={(() => {
+                    const n = (p: string) => p.replace(/\\/g, '/')
+                    const fp = focusGitPath ? n(focusGitPath) : null
+                    const cp = n(fc.path)
+                    return expandedGitPath === fc.path || (fp != null && (cp === fp || cp.endsWith(`/${fp}`)))
+                  })()}
                 />
               )
             })}

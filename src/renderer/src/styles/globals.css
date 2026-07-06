@@ -1373,27 +1373,37 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    font-synthesis: none;
   }
   .prose-chat-streaming,
   .assistant-stream-live .prose-chat {
-    transition: color 200ms ease;
+    transition: color 160ms ease;
   }
-  .prose-chat-streaming .stream-plain-chunk,
+  .prose-chat-streaming-split > :last-child.stream-live-tail {
+    margin-top: 0;
+  }
+  .prose-chat-streaming .stream-live-tail,
   .assistant-stream-live .prose-chat {
-    letter-spacing: 0.01em;
-    line-height: 1.72;
+    letter-spacing: 0.004em;
+    line-height: 1.75;
+    font-weight: 400;
+  }
+  .stream-live-tail {
+    contain: layout style;
   }
   .prose-chat-streaming .katex-display,
   .prose-chat-streaming .math-display-shell {
     opacity: 0.94;
     transition: opacity var(--motion-fast) ease;
   }
-  @keyframes stream-caret-pulse {
-    0%, 100% { opacity: 0.35; }
-    50% { opacity: 0.95; }
+  @keyframes stream-caret-blink {
+    0%, 45% { opacity: 1; }
+    50%, 95% { opacity: 0.12; }
+    100% { opacity: 1; }
   }
   .stream-caret {
-    animation: stream-caret-pulse 1.25s ease-in-out infinite;
+    animation: stream-caret-blink 1.05s steps(1, end) infinite;
+    will-change: opacity;
   }
   .prose-chat .katex .sqrt > .vlist-t {
     border-color: color-mix(in srgb, var(--text-primary) 75%, transparent);

@@ -1,6 +1,7 @@
 import type { AppEvent } from '@shared/app-events'
 import { isSessionScopedAppEvent } from '@shared/app-event-session'
-import { applyBackgroundAppEventToLiveTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { applyBackgroundAppEventToLiveTimeline, getLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { resolveAppEventRoute } from '@renderer/stores/apply-app-event-route'
 import {
   handleAgentError,
@@ -27,7 +28,22 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (route === 'drop') return
   if (route === 'background') {
     const cacheFile = backgroundCacheFile(state, event)
-    if (cacheFile) applyBackgroundAppEventToLiveTimeline(cacheFile, event)
+    if (cacheFile) {
+      applyBackgroundAppEventToLiveTimeline(cacheFile, event)
+      const snap = getLiveSessionTimeline(cacheFile)
+      if (snap) {
+        patchSessionTimelineView(cacheFile, {
+          sessionId: snap.sessionId,
+          tail: snap.timelineItems,
+          streamingAssistantId: snap.streamingAssistantId,
+          runState: snap.runState,
+          pendingSteering: snap.pendingSteering,
+          pendingFollowUp: snap.pendingFollowUp,
+          optimisticPendingUserText: snap.optimisticPendingUserText,
+          agentTurnBootstrapping: snap.agentTurnBootstrapping,
+        })
+      }
+    }
     return
   }
 

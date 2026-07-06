@@ -1,6 +1,7 @@
 import './bootstrap-path'
 import { app, shell, BrowserWindow, dialog, session, Menu } from 'electron'
 import { createWindow } from './window'
+import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
@@ -84,6 +85,7 @@ app.whenReady().then(() => {
   registerAllHandlers()
   const win = createWindow()
   workerManager.setMainWindow(win)
+  refreshGitWorkspaceWatch(win)
   if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
     win.once('show', () => {
       setTimeout(() => {

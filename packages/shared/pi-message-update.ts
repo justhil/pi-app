@@ -36,9 +36,8 @@ export function assistantStreamDeltaFromMessageUpdate(
       out.text = ame.delta
     } else if (ame.type === 'text_end' && typeof ame.content === 'string' && ame.content) {
       out.text = ame.content
-    } else if (typeof ame.delta === 'string' && ame.delta) {
-      out.text = ame.delta
     }
+    // Do not map toolcall_delta / toolcall_* .delta into assistant prose (raw JSON in bubble).
   }
 
   if (!out.thinking && ame) {

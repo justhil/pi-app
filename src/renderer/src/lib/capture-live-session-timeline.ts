@@ -2,6 +2,7 @@ import {
   getLiveSessionTimeline,
   saveLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
+import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 
@@ -20,7 +21,7 @@ export function captureVisibleLiveSessionTimeline(): void {
 
     flushStreamPendingSync(useUIStore.getState, useUIStore.setState)
     const latest = useUIStore.getState()
-    saveLiveSessionTimeline({
+    const snap = {
       sessionId: latest.currentSessionId,
       sessionFile: viewFile,
       timelineItems: latest.timelineItems,
@@ -30,6 +31,17 @@ export function captureVisibleLiveSessionTimeline(): void {
       pendingFollowUp: latest.pendingFollowUp,
       optimisticPendingUserText: latest.optimisticPendingUserText,
       agentTurnBootstrapping: latest.agentTurnBootstrapping,
+    }
+    saveLiveSessionTimeline(snap)
+    patchSessionTimelineView(viewFile, {
+      sessionId: snap.sessionId,
+      tail: snap.timelineItems,
+      streamingAssistantId: snap.streamingAssistantId,
+      runState: snap.runState,
+      pendingSteering: snap.pendingSteering,
+      pendingFollowUp: snap.pendingFollowUp,
+      optimisticPendingUserText: snap.optimisticPendingUserText,
+      agentTurnBootstrapping: snap.agentTurnBootstrapping,
     })
     return
   }

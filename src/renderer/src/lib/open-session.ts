@@ -8,13 +8,13 @@ import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { getLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
 import { mergeLiveTimelineWithHistoryTail } from '@renderer/lib/merge-live-history-timeline'
-import {
-  applyLiveStreamingTextToMergedTimeline,
-  lastAssistantItem,
-} from '@renderer/lib/streaming-timeline-preserve'
-import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import { applyLiveStreamingTextToMergedTimeline } from '@renderer/lib/streaming-timeline-preserve'
+import { loadAuthoritativeForOpen } from '@renderer/lib/session-timeline-sync'
+import { mergeLiveActiveSessionDisplay } from '@renderer/lib/open-session-live-restore'
 import { isLiveSessionTurnActive, mergeLiveViewRunState } from '@renderer/lib/live-session-restore'
 import { applyLiveSnapshotToView, fetchWorkerLiveSnapshot, syncViewRunStateFromWorkerSnapshot } from '@renderer/lib/session-worker-sync'
+import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
+import { projectTimelineItems } from '@shared/timeline-projection'
 
 /**
  * 切换会话：时间线 tail 预览 + pendingBind；Worker loadSession 在首条 prompt / steer / followUp 或 session.navigateTree。
@@ -54,28 +54,36 @@ export async function openSessionIntoWorker(
   const live = sessionFile ? getLiveSessionTimeline(sessionFile) : null
   const liveTurnActive = sessionFile ? isLiveSessionTurnActive(sessionFile, live, snapEarly) : false
   if (live && liveTurnActive) {
-    const histTail = await fetchSessionHistoryTail(sessionFile, undefined, { bypassCache: true }).catch(() => null)
+    if (navToken != null && !assertSessionNavigation(navToken)) return
+    const auth = await loadAuthoritativeForOpen(sessionFile).catch(() => null)
+    if (navToken != null && !assertSessionNavigation(navToken)) return
     const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
     const diskItems = sanitizeHistoryTimeline(
-      (histTail?.items ?? []) as import('@renderer/stores/ui-store-types').TimelineItem[],
+      (auth?.items ?? []) as import('@renderer/stores/ui-store-types').TimelineItem[],
     )
-    const merged = applyLiveStreamingTextToMergedTimeline(
-      mergeLiveTimelineWithHistoryTail(diskItems, live.timelineItems),
-      live.timelineItems,
-      live.streamingAssistantId,
-    )
-    const mergedStreamId = live.streamingAssistantId ?? lastAssistantItem(merged)?.id ?? null
+    const totalCount = auth?.totalCount ?? diskItems.length
+    const cursor = auth?.cursor ?? { totalCount, loadedOffsetFromEnd: diskItems.length, loadedThroughEntryId: null }
+    const { displayed, mergedStreamId, historyLoadedCount, totalCount: totalAfter } = mergeLiveActiveSessionDisplay({
+      diskItems,
+      live,
+      totalCount,
+      cursor,
+    })
     useUIStore.setState({
-      timelineItems: merged,
+      timelineItems: displayed,
       streamingAssistantId: mergedStreamId,
       optimisticPendingUserText: live.optimisticPendingUserText,
       agentTurnBootstrapping: live.agentTurnBootstrapping,
       pendingSteering: live.pendingSteering,
       pendingFollowUp: live.pendingFollowUp,
     })
+    patchSessionTimelineView(sessionFile, {
+      sessionId,
+      tail: displayed,
+      cursor: { ...cursor, totalCount, loadedOffsetFromEnd: Math.max(cursor.loadedOffsetFromEnd, historyLoadedCount) },
+    })
     store.setRunState(mergeLiveViewRunState(sessionFile, live, snapEarly))
-    const total = Math.max(histTail?.totalCount ?? 0, merged.length)
-    store.setHistoryMeta(total, merged.length, sessionFile)
+    store.setHistoryMeta(totalAfter, historyLoadedCount, sessionFile)
     store.setHistoryLoading(false)
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
     void refreshSessionTree(sessionFile)
@@ -116,7 +124,13 @@ export async function openSessionIntoWorker(
         liveAfter.streamingAssistantId,
       )
     }
-    store.loadHistoryItems(merged)
+    const displayed = projectTimelineItems(merged)
+    store.loadHistoryItems(displayed)
+    patchSessionTimelineView(sessionFile, {
+      sessionId,
+      tail: displayed,
+      cursor: { totalCount, loadedOffsetFromEnd: Math.min(totalCount, displayed.length), loadedThroughEntryId: null },
+    })
     if (liveAfter) {
       useUIStore.setState({
         streamingAssistantId: liveAfter.streamingAssistantId,

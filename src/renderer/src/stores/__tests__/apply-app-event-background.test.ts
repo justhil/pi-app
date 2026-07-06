@@ -8,6 +8,7 @@ import {
   getLiveSessionTimeline,
   saveLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
+import { clearSessionTimelineView, getSessionTimelineView } from '@renderer/lib/session-timeline-views'
 
 const liveFile = '/tmp/live.jsonl'
 const previewFile = '/tmp/preview.jsonl'
@@ -62,6 +63,7 @@ describe('applyAppEvent background live session routing', () => {
   beforeEach(() => {
     clearLiveSessionTimeline(liveFile)
     clearLiveSessionTimeline(previewFile)
+    clearSessionTimelineView()
     saveLiveSessionTimeline({
       sessionId: 'live-session',
       sessionFile: liveFile,
@@ -94,5 +96,6 @@ describe('applyAppEvent background live session routing', () => {
 
     expect(api.get().timelineItems).toEqual([])
     expect(getLiveSessionTimeline(liveFile)?.timelineItems.at(-1)?.text).toBe('streamed text')
+    expect(getSessionTimelineView(liveFile)?.tail.at(-1)?.text).toBe('streamed text')
   })
 })

@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import type { DiffFile, DiffHunk, DiffLine } from '@shared/diff-model'
+import { buildSplitDiffRows } from '@shared/diff-split'
+import { ReviewHunkComments } from './review-hunk-comments'
 import {
   FilePlus,
   FileEdit,
@@ -38,6 +40,7 @@ function linePrefix(type: DiffLine['type']): string {
 
 function DiffHunkView({
   hunk,
+  hunkIndex,
   mode,
   staged,
   onToggleStage,
@@ -45,6 +48,7 @@ function DiffHunkView({
   cwd,
 }: {
   hunk: DiffHunk
+  hunkIndex: number
   mode: DiffMode
   staged: boolean
   onToggleStage: () => void
@@ -68,6 +72,7 @@ function DiffHunkView({
         <span className="font-mono text-[10px] text-foreground-secondary/60">
           @@ -{hunk.oldStart},{hunk.oldEnd - hunk.oldStart + 1} +{hunk.newStart},{hunk.newEnd - hunk.newStart + 1} @@
         </span>
+        <ReviewHunkComments cwd={cwd} filePath={filePath} hunkIndex={hunkIndex} />
         <button
           type="button"
           onClick={() => void ipcClient.invoke('shell.openPath', { path: `${cwd}/${filePath}` })}
@@ -87,50 +92,60 @@ function DiffHunkView({
           ))}
         </div>
       ) : (
-        <SplitHunk hunk={hunk} />
+        <SplitHunk hunk={hunk} filePath={filePath} />
       )}
     </div>
   )
 }
 
-function SplitHunk({ hunk }: { hunk: DiffHunk }) {
-  const left: DiffLine[] = []
-  const right: DiffLine[] = []
-  for (const l of hunk.lines) {
-    if (l.type === 'hunk-header') continue
-    if (l.type === 'added') right.push(l)
-    else if (l.type === 'removed') left.push(l)
-    else {
-      left.push(l)
-      right.push(l)
-    }
+function SplitHunk({ hunk, filePath }: { hunk: DiffHunk; filePath: string }) {
+  const pseudoFile: DiffFile = {
+    path: filePath,
+    status: 'modified',
+    changeType: 'modified',
+    additions: 0,
+    deletions: 0,
+    hunks: [hunk],
+    binary: false,
+    large: false,
+    generated: false,
   }
-  const maxRows = Math.max(left.length, right.length)
+  const rows = buildSplitDiffRows(pseudoFile).slice(1)
   return (
     <div className="grid grid-cols-2 overflow-x-auto font-mono text-[10px] leading-[1.5]">
       <div className="border-r border-border/30">
-        {Array.from({ length: maxRows }).map((_, i) => {
-          const l = left[i]
-          if (!l) return <div key={i} className="px-2" />
-          return (
-            <div key={i} className={cn('flex px-2 whitespace-pre', lineColor(l.type))}>
-              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">{l.type === 'removed' ? '-' : ' '}</span>
-              <span className="min-w-0">{l.content}</span>
-            </div>
-          )
-        })}
+        {rows.map((row, i) => (
+          <div
+            key={i}
+            className={cn(
+              'flex px-2 whitespace-pre',
+              row.left.kind === 'remove' && 'bg-red-500/8 text-red-700 dark:text-red-300',
+              row.left.kind === 'context' && 'text-foreground-secondary',
+            )}
+          >
+            <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
+              {row.left.kind === 'remove' ? '-' : ' '}
+            </span>
+            <span className="min-w-0">{row.left.text}</span>
+          </div>
+        ))}
       </div>
       <div>
-        {Array.from({ length: maxRows }).map((_, i) => {
-          const l = right[i]
-          if (!l) return <div key={i} className="px-2" />
-          return (
-            <div key={i} className={cn('flex px-2 whitespace-pre', lineColor(l.type))}>
-              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">{l.type === 'added' ? '+' : ' '}</span>
-              <span className="min-w-0">{l.content}</span>
-            </div>
-          )
-        })}
+        {rows.map((row, i) => (
+          <div
+            key={i}
+            className={cn(
+              'flex px-2 whitespace-pre',
+              row.right.kind === 'add' && 'bg-green-500/8 text-green-700 dark:text-green-300',
+              row.right.kind === 'context' && 'text-foreground-secondary',
+            )}
+          >
+            <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
+              {row.right.kind === 'add' ? '+' : ' '}
+            </span>
+            <span className="min-w-0">{row.right.text}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -239,6 +254,7 @@ export function FileDiffView({
             <DiffHunkView
               key={hi}
               hunk={hunk}
+              hunkIndex={hi}
               mode={mode}
               staged={stagedHunks.has(hi)}
               onToggleStage={() => toggleStage(hi, hunk)}

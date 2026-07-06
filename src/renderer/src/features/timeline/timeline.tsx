@@ -14,7 +14,7 @@ import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
-import { buildTimelineDisplayItems, type TimelineRawItem } from './timeline-display-items'
+import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawItem } from './timeline-display-items'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
@@ -22,6 +22,10 @@ import { fetchSessionHistoryOlder } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { useTimelineLiveFollow } from './timeline-follow-scroll'
+import { TimelineBottomAnchorButton } from './timeline-bottom-anchor'
+import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
+import { TurnFooter } from './turn-footer'
+import { enrichPlainTextWithPaths } from './markdown-inline-paths'
 import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
 import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
 
@@ -68,7 +72,7 @@ const TimelineItemBase = memo(function TimelineItem({
             }}
           >
             {segments.map((s: Segment, i: number) => {
-              if (s.type === 'text') return <span key={i}>{s.text}</span>
+              if (s.type === 'text') return <span key={i}>{enrichPlainTextWithPaths(s.text)}</span>
               if (s.type === 'clipboard-image') {
                 return <AttachmentChip key={i} attachment={{ path: s.path, name: s.name, kind: 'image' }} openable className="mx-0.5" />
               }
@@ -363,9 +367,50 @@ export function Timeline() {
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
   const displayItems = buildTimelineDisplayItems(visible as unknown as TimelineRawItem[])
+  const turnGroups = groupDisplayBlocksByTurn(displayItems)
+
+  const renderDisplayBlock = (block: TimelineDisplayItem, blockKey: string, prev?: TimelineDisplayItem) => {
+    const prevWasTool =
+      prev?.kind === 'tool-group' || (prev?.kind === 'single' && prev.item.type === 'tool-call')
+    const curIsAssistant = block.kind === 'single' && block.item.type === 'assistant-message'
+    const showGroupGap = prevWasTool && curIsAssistant
+
+    if (block.kind === 'tool-group') {
+      return (
+        <Fragment key={blockKey}>
+          {showGroupGap && <div className="h-2" />}
+          <div className="timeline-message-row">
+            <ToolGroupSummary tools={block.tools as unknown as ToolTimelineItem[]} />
+          </div>
+        </Fragment>
+      )
+    }
+    const { item, prevType } = block
+    if (item.type === 'tool-call') {
+      return (
+        <Fragment key={blockKey}>
+          <div className="timeline-message-row">
+            <ToolCallRow item={item as unknown as ToolTimelineItem} />
+          </div>
+        </Fragment>
+      )
+    }
+    return (
+      <Fragment key={blockKey}>
+        {showGroupGap && <div className="h-2" />}
+        <TimelineItemBase
+          item={item}
+          prevType={prevType}
+          streaming={streamingAssistantId === item.id}
+          agentRunning={agentRunning}
+          agentBoot={agentBoot}
+        />
+      </Fragment>
+    )
+  }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <OverlayScrollHost
       className="timeline-scroll-viewport timeline-scroll-with-dock min-h-0 flex-1 w-full"
       scrollClassName="timeline-scroll-with-dock-pane w-full"
@@ -390,52 +435,35 @@ export function Timeline() {
             : t('timeline:loadOlder', { count: hiddenCount })}
         </button>
       )}
-      {displayItems.map((block, i) => {
-        const prev = displayItems[i - 1]
-        const prevWasTool =
-          prev?.kind === 'tool-group' ||
-          (prev?.kind === 'single' && prev.item.type === 'tool-call')
-        const curIsAssistant = block.kind === 'single' && block.item.type === 'assistant-message'
-        const showGroupGap = prevWasTool && curIsAssistant
-
-        if (block.kind === 'tool-group') {
-          return (
-            <Fragment key={block.groupId}>
-              {showGroupGap && <div className="h-2" />}
-              <div className="timeline-message-row">
-                <ToolGroupSummary tools={block.tools as unknown as ToolTimelineItem[]} />
-              </div>
-            </Fragment>
-          )
-        }
-
-        const { item, prevType } = block
-        if (item.type === 'tool-call') {
-          return (
-            <Fragment key={item.id}>
-              <div className="timeline-message-row">
-                <ToolCallRow item={item as unknown as ToolTimelineItem} />
-              </div>
-            </Fragment>
-          )
-        }
-
-        return (
-          <Fragment key={item.id}>
-            {showGroupGap && <div className="h-2" />}
-            <TimelineItemBase
-              item={item}
-              prevType={prevType}
-              streaming={streamingAssistantId === item.id}
-              agentRunning={agentRunning}
-              agentBoot={agentBoot}
-            />
-          </Fragment>
-        )
-      })}
+      {turnGroups.map((turn, ti) => (
+        <Fragment key={turn.turnId}>
+          <TimelineItemBase
+            item={turn.userItem as unknown as TimelineRawItem}
+            streaming={false}
+            agentRunning={agentRunning}
+            agentBoot={agentBoot}
+          />
+          {turn.blocks.map((block, bi) =>
+            renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
+          )}
+          <TurnFooter
+            toolCount={turn.toolCount}
+            endedAt={turn.endedAt}
+            isLast={ti === turnGroups.length - 1}
+            streaming={!!streamingAssistantId && ti === turnGroups.length - 1}
+          />
+        </Fragment>
+      ))}
+      {turnGroups.length === 0 &&
+        displayItems.map((block, i) => renderDisplayBlock(block, `orphan-${i}`, displayItems[i - 1]))}
       <div className="h-4" />
       </div>
     </OverlayScrollHost>
+    <TimelineBottomAnchorButton
+      scrollRef={scrollRef}
+      followLiveRef={followLiveRef}
+      deps={[lastTailId, streamingTailLen, renderCount, items.length]}
+    />
     </div>
   )
 }

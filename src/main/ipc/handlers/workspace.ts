@@ -14,6 +14,8 @@ import { listSessionsOnDisk } from '../sdk-session'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
+import { getMainWindow } from '../../window'
+import { refreshGitWorkspaceWatch } from '../../git-workspace-watch'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -22,6 +24,7 @@ export function registerWorkspaceHandlers(): void {
     configStore.set('currentProject', path)
     try {
       const r = await workerManager.start(path)
+      refreshGitWorkspaceWatch(getMainWindow())
       return { ok: true, workspaceId: path, sessionId: r.sessionId, model: r.model }
     } catch (e: unknown) {
       return { ok: false, workspaceId: path, error: errorMessage(e) || 'Worker start failed' }
@@ -42,6 +45,7 @@ export function registerWorkspaceHandlers(): void {
     if (req.awaitWorker) {
       try {
         await workerManager.start(path)
+        refreshGitWorkspaceWatch(getMainWindow())
       } catch (e) {
         console.error('[IPC] Worker start failed:', e)
         throw e
@@ -49,7 +53,10 @@ export function registerWorkspaceHandlers(): void {
     } else {
       workerManager
         .start(path)
-        .then((result) => console.log('[IPC] Worker started for', path, result.sessionId))
+        .then((result) => {
+          refreshGitWorkspaceWatch(getMainWindow())
+          console.log('[IPC] Worker started for', path, result.sessionId)
+        })
         .catch((e) => console.error('[IPC] Worker start failed:', e))
     }
     return { workspaceId: path, path, name }
@@ -57,6 +64,7 @@ export function registerWorkspaceHandlers(): void {
 
   registerHandler('ipc:workspace.switch', async (req) => {
     const result = await workerManager.start(req.workspaceId)
+    refreshGitWorkspaceWatch(getMainWindow())
     return {
       workspaceId: req.workspaceId,
       path: req.workspaceId,
