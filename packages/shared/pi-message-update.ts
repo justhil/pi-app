@@ -1,5 +1,6 @@
 import type { PiSessionMessage } from './worker-message.ts'
 import { extractTextFromPiMessage, extractThinkingFromPiMessage } from './worker-message.ts'
+import type { StreamUpdateSource } from './stream-merge.ts'
 
 export type PiAssistantMessageEventLike = {
   type?: string
@@ -11,6 +12,8 @@ export type PiAssistantMessageEventLike = {
 export type AssistantStreamDelta = {
   text?: string
   thinking?: string
+  textSource?: StreamUpdateSource
+  thinkingSource?: StreamUpdateSource
 }
 
 /**

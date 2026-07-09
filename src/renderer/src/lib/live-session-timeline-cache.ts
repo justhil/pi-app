@@ -56,6 +56,7 @@ export function saveLiveSessionTimeline(snapshot: LiveSessionTimelineSnapshot): 
 export function getLiveSessionTimeline(sessionFile: string): LiveSessionTimelineSnapshot | null {
   const key = cacheKey(sessionFile)
   if (!key) return null
+  flushBackgroundLiveDeltasSync(key)
   const snap = liveTimelines.get(key)
   if (!snap) return null
   return {
@@ -69,9 +70,13 @@ export function getLiveSessionTimeline(sessionFile: string): LiveSessionTimeline
 export function clearLiveSessionTimeline(sessionFile?: string | null): void {
   if (sessionFile) {
     const key = cacheKey(sessionFile)
-    if (key) liveTimelines.delete(key)
+    if (key) {
+      backgroundDeltaPending.delete(key)
+      liveTimelines.delete(key)
+    }
     return
   }
+  backgroundDeltaPending.clear()
   liveTimelines.clear()
 }
 
@@ -94,7 +99,114 @@ function ensureStreamingAssistant(snap: LiveSessionTimelineSnapshot, event: Extr
   return id
 }
 
-function applyMessage(snap: LiveSessionTimelineSnapshot, event: Extract<AppEvent, { type: 'message' }>): void {
+type PendingBgDelta = { text: string; thinking: string }
+const backgroundDeltaPending = new Map<string, PendingBgDelta>()
+let backgroundDeltaFlushScheduled = false
+
+function applyAssistantDeltaToSnap(
+  snap: LiveSessionTimelineSnapshot,
+  assistantId: string,
+  textDelta: string,
+  thinkingDelta: string,
+): void {
+  const index = snap.timelineItems.findIndex((row) => row.id === assistantId)
+  if (index < 0) return
+  const current = snap.timelineItems[index]
+  let nextText = current.text || ''
+  let nextThinking = current.thinkingText || ''
+  let changed = false
+  if (textDelta) {
+    const merged = mergeStreamChunk(nextText, textDelta)
+    if (merged !== nextText) {
+      nextText = merged
+      changed = true
+    }
+  }
+  if (thinkingDelta) {
+    const merged = mergeStreamChunk(nextThinking, thinkingDelta)
+    if (merged !== nextThinking) {
+      nextThinking = merged
+      changed = true
+    }
+  }
+  if (!changed) return
+  // In-place update for the single streaming row — avoid full-array map each token.
+  snap.timelineItems[index] = {
+    ...current,
+    text: nextText,
+    thinkingText: nextThinking,
+  }
+}
+
+function flushBackgroundDeltas(): void {
+  backgroundDeltaFlushScheduled = false
+  if (backgroundDeltaPending.size === 0) return
+  const keys = [...backgroundDeltaPending.keys()]
+  for (const key of keys) {
+    const pending = backgroundDeltaPending.get(key)
+    backgroundDeltaPending.delete(key)
+    if (!pending || (!pending.text && !pending.thinking)) continue
+    const snap = liveTimelines.get(key)
+    if (!snap?.streamingAssistantId) continue
+    applyAssistantDeltaToSnap(snap, snap.streamingAssistantId, pending.text, pending.thinking)
+    trimBackgroundLiveItems(snap)
+  }
+}
+
+function scheduleBackgroundDeltaFlush(): void {
+  if (backgroundDeltaFlushScheduled) return
+  backgroundDeltaFlushScheduled = true
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => flushBackgroundDeltas())
+  } else {
+    setTimeout(() => flushBackgroundDeltas(), 0)
+  }
+}
+
+/** Flush pending background stream text immediately (session switch / capture). */
+export function flushBackgroundLiveDeltasSync(sessionFile?: string | null): void {
+  if (sessionFile) {
+    const key = cacheKey(sessionFile)
+    const pending = backgroundDeltaPending.get(key)
+    if (pending) {
+      backgroundDeltaPending.delete(key)
+      const snap = liveTimelines.get(key)
+      if (snap?.streamingAssistantId) {
+        applyAssistantDeltaToSnap(snap, snap.streamingAssistantId, pending.text, pending.thinking)
+        trimBackgroundLiveItems(snap)
+      }
+    }
+    return
+  }
+  flushBackgroundDeltas()
+}
+
+function queueBackgroundAssistantDelta(
+  sessionFileKey: string,
+  snap: LiveSessionTimelineSnapshot,
+  event: Extract<AppEvent, { type: 'message' }>,
+): void {
+  const assistantId = ensureStreamingAssistant(snap, event)
+  snap.agentTurnBootstrapping = false
+  void assistantId
+  let row = backgroundDeltaPending.get(sessionFileKey)
+  if (!row) {
+    row = { text: '', thinking: '' }
+    backgroundDeltaPending.set(sessionFileKey, row)
+  }
+  if (event.contentKind === 'thinking') {
+    row.thinking = mergeStreamChunk(row.thinking, event.text || '')
+  } else {
+    row.text = mergeStreamChunk(row.text, event.text || '')
+  }
+  scheduleBackgroundDeltaFlush()
+}
+
+function applyMessage(
+  snap: LiveSessionTimelineSnapshot,
+  event: Extract<AppEvent, { type: 'message' }>,
+  sessionFileKey: string,
+): void {
   if (event.role === 'assistant') {
     if (event.phase === 'start') {
       ensureStreamingAssistant(snap, event)
@@ -102,29 +214,24 @@ function applyMessage(snap: LiveSessionTimelineSnapshot, event: Extract<AppEvent
       return
     }
     if (event.phase === 'delta' && event.text) {
-      const id = ensureStreamingAssistant(snap, event)
-      snap.agentTurnBootstrapping = false
-      snap.timelineItems = snap.timelineItems.map((i) => {
-        if (i.id !== id) return i
-        if (event.contentKind === 'thinking') {
-          return { ...i, thinkingText: mergeStreamChunk(i.thinkingText || '', event.text || '') }
-        }
-        return { ...i, text: mergeStreamChunk(i.text || '', event.text || '') }
-      })
+      queueBackgroundAssistantDelta(sessionFileKey, snap, event)
       return
     }
     if (event.phase === 'end') {
+      // Apply any coalesced deltas before finalizing the assistant row.
+      flushBackgroundLiveDeltasSync(sessionFileKey)
       const id = snap.streamingAssistantId
       snap.streamingAssistantId = null
       if (id) {
-        snap.timelineItems = snap.timelineItems.map((i) => {
-          if (i.id !== id) return i
-          return {
-            ...i,
-            text: event.text && event.text.trim() ? event.text : i.text,
+        const index = snap.timelineItems.findIndex((row) => row.id === id)
+        if (index >= 0) {
+          const current = snap.timelineItems[index]
+          snap.timelineItems[index] = {
+            ...current,
+            text: event.text && event.text.trim() ? event.text : current.text,
             ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
           }
-        })
+        }
       }
       return
     }
@@ -213,13 +320,20 @@ function trimBackgroundLiveItems(snap: LiveSessionTimelineSnapshot): void {
 }
 
 export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event: AppEvent): void {
+  const key = cacheKey(sessionFile)
   const snap = ensureLiveTimeline(sessionFile)
-  if (event.type === 'message') applyMessage(snap, event)
-  else if (event.type === 'tool') applyTool(snap, event)
+  if (event.type === 'message') {
+    applyMessage(snap, event, key)
+    // Deltas are rAF-batched; skip immediate view-heavy trim until flush (trim on flush/end).
+    if (event.phase !== 'delta') trimBackgroundLiveItems(snap)
+    return
+  }
+  if (event.type === 'tool') applyTool(snap, event)
   else if (event.type === 'queue') {
     snap.pendingSteering = [...event.steering]
     snap.pendingFollowUp = [...event.followUp]
   } else if (event.type === 'agent_error') {
+    flushBackgroundLiveDeltasSync(key)
     snap.streamingAssistantId = null
     snap.agentTurnBootstrapping = false
     snap.runState = { ...snap.runState, status: event.kind === 'aborted' ? 'idle' : 'failed' }
@@ -227,6 +341,7 @@ export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event
     if (event.phase === 'running' || event.phase === 'started') {
       snap.runState = { ...snap.runState, status: 'running', activeRunId: event.runId, startTime: event.timestamp }
     } else if (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled') {
+      flushBackgroundLiveDeltasSync(key)
       // Turn finished: clear streaming markers so switch-back uses disk+merge, not a forever-active live path.
       snap.streamingAssistantId = null
       snap.agentTurnBootstrapping = false

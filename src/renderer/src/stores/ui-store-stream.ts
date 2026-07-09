@@ -31,27 +31,30 @@ export function flushStreamPendingSync<S extends StreamStore>(
   pending.thinking = ''
   set((s) => {
     if (s.streamingAssistantId !== sid) return s
-    let items = s.timelineItems
+    const index = s.timelineItems.findIndex((row) => row.id === sid)
+    if (index < 0) return s
+    const current = s.timelineItems[index]
+    let nextText = current.text || ''
+    let nextThinking = current.thinkingText || ''
     let changed = false
     if (textDelta) {
-      items = items.map((i) => {
-        if (i.id !== sid) return i
-        const next = mergeStreamChunk(i.text || '', textDelta)
-        if (next === i.text) return i
+      const merged = mergeStreamChunk(nextText, textDelta)
+      if (merged !== nextText) {
+        nextText = merged
         changed = true
-        return { ...i, text: next }
-      })
+      }
     }
     if (thinkDelta) {
-      items = items.map((i) => {
-        if (i.id !== sid) return i
-        const next = mergeStreamChunk(i.thinkingText || '', thinkDelta)
-        if (next === i.thinkingText) return i
+      const merged = mergeStreamChunk(nextThinking, thinkDelta)
+      if (merged !== nextThinking) {
+        nextThinking = merged
         changed = true
-        return { ...i, thinkingText: next }
-      })
+      }
     }
     if (!changed) return s
+    // Copy once and patch the streaming row — avoid dual full-array maps per flush.
+    const items = s.timelineItems.slice()
+    items[index] = { ...current, text: nextText, thinkingText: nextThinking }
     return { timelineItems: items } as Partial<S>
   })
 }

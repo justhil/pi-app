@@ -38,7 +38,7 @@ describe('stream tail pad constant', () => {
 describe('scheduleTimelineScrollToBottom', () => {
   it('sets scrollTop to scrollHeight after animation frames', async () => {
     let top = 0
-    const el = { scrollHeight: 2000 } as HTMLElement
+    const el = { scrollHeight: 2000, clientHeight: 400 } as HTMLElement
     Object.defineProperty(el, 'scrollTop', {
       get: () => top,
       set: (v: number) => {
@@ -49,5 +49,27 @@ describe('scheduleTimelineScrollToBottom', () => {
     scheduleTimelineScrollToBottom(el)
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
     expect(top).toBe(2000)
+  })
+
+  it('coalesces multiple schedule calls into one pin', async () => {
+    let top = 0
+    let writes = 0
+    const el = { scrollHeight: 1500, clientHeight: 400 } as HTMLElement
+    Object.defineProperty(el, 'scrollTop', {
+      get: () => top,
+      set: (v: number) => {
+        top = v
+        writes += 1
+      },
+      configurable: true,
+    })
+    scheduleTimelineScrollToBottom(el)
+    scheduleTimelineScrollToBottom(el)
+    scheduleTimelineScrollToBottom(el)
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    expect(top).toBe(1500)
+    // One primary pin (+ optional settle only if height changed). Coalesced callers must not
+    // produce one write per schedule.
+    expect(writes).toBeLessThanOrEqual(2)
   })
 })

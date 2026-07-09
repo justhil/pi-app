@@ -190,7 +190,9 @@ export function Composer() {
   useEffect(() => {
     if (!historySessionFile) return
     let cancelled = false
+    let tick: number | null = null
     const pull = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
       const s = useUIStore.getState()
       // Drop stale polls after user switched sessions
       if (s.historySessionFile !== historySessionFile) return
@@ -203,25 +205,11 @@ export function Composer() {
         })
         .catch(() => {})
     }
-    // Initial pull only when this view might already be running (avoid racing open-session idle reset)
-    const s0 = useUIStore.getState()
-    if (
-      composerTurnActive({
-        historySessionFile: s0.historySessionFile,
-        workerLiveSnapshot: s0.workerLiveSnapshot,
-        runState: s0.runState,
-        streamingAssistantId: s0.streamingAssistantId,
-        optimisticPendingUserText: s0.optimisticPendingUserText,
-        sessionRuntimeRunning: s0.sessionRuntimeRunning,
-        agentTurnBootstrapping: s0.agentTurnBootstrapping,
-      })
-    ) {
-      pull()
-    }
-    const tick = window.setInterval(() => {
+    const shouldPoll = () => {
+      if (typeof document !== 'undefined' && document.hidden) return false
       const s = useUIStore.getState()
-      if (s.historySessionFile !== historySessionFile) return
-      const active = composerTurnActive({
+      if (s.historySessionFile !== historySessionFile) return false
+      return composerTurnActive({
         historySessionFile: s.historySessionFile,
         workerLiveSnapshot: s.workerLiveSnapshot,
         runState: s.runState,
@@ -230,12 +218,21 @@ export function Composer() {
         sessionRuntimeRunning: s.sessionRuntimeRunning,
         agentTurnBootstrapping: s.agentTurnBootstrapping,
       })
-      if (!active) return
+    }
+    // Initial pull only when this view might already be running (avoid racing open-session idle reset)
+    if (shouldPoll()) pull()
+    tick = window.setInterval(() => {
+      if (!shouldPoll()) return
       pull()
     }, 2000)
+    const onVisibility = () => {
+      if (!document.hidden && shouldPoll()) pull()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       cancelled = true
-      window.clearInterval(tick)
+      if (tick != null) window.clearInterval(tick)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [currentSessionId, historySessionFile])
 

@@ -65,8 +65,19 @@ export function WorkspaceFilesPanel() {
 
   useEffect(() => {
     if (!activeTab || activePanel !== 'files') return
-    const id = window.setInterval(() => setPreviewRefreshKey((k) => k + 1), 2000)
-    return () => window.clearInterval(id)
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      setPreviewRefreshKey((k) => k + 1)
+    }
+    const id = window.setInterval(tick, 2000)
+    const onVisibility = () => {
+      if (!document.hidden) tick()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [activeTab?.rel, activePanel])
 
   const toggleChatPreviewExpand = useCallback(() => {

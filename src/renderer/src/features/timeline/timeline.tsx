@@ -48,19 +48,19 @@ const TimelineItemBase = memo(function TimelineItem({
   streaming,
   agentRunning,
   agentBoot,
-  timelineItems,
+  rewindEntryId,
 }: {
   item: TimelineRawItem
   prevType?: string
   streaming: boolean
   agentRunning: boolean
   agentBoot: boolean
-  /** Full timeline for incomplete-assistant rewind target resolution */
-  timelineItems: TimelineRawItem[]
+  /** Pre-resolved incomplete-assistant / user rewind target for this row */
+  rewindEntryId?: string
 }) {
   const { t } = useTranslation()
   const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
-    resolveRewindTargetEntryId(timelineItems, row)
+    rewindEntryId ?? (row.sessionEntryId as string | undefined)
 
   if (item.type === 'user-message') {
     const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
@@ -109,7 +109,7 @@ const TimelineItemBase = memo(function TimelineItem({
     const isInterrupted =
       incomplete || stopReason === 'aborted' || stopReason === 'interrupted' || stopReason === 'error'
     // Empty incomplete leaf: rewind to previous user so session becomes continuable
-    const rewindEntryId = rewindTargetFor(item)
+    const resolvedRewindEntryId = rewindTargetFor(item)
     if (!hasText && !hasThinking) {
       const boot = agentBoot
       // Live placeholder while waiting for first tokens
@@ -123,7 +123,7 @@ const TimelineItemBase = memo(function TimelineItem({
       }
       // History: empty incomplete assistant after crash/force-quit — still show so user can rewind
       // Prefer incomplete flag / previous-user target even when this leaf has no entry id.
-      if (sessionEntryId || isInterrupted || rewindEntryId) {
+      if (sessionEntryId || isInterrupted || resolvedRewindEntryId) {
         return (
           <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
             <MessageHoverShell
@@ -133,7 +133,7 @@ const TimelineItemBase = memo(function TimelineItem({
                   text=""
                   timestamp={Number(item.timestamp ?? 0)}
                   align="left"
-                  sessionEntryId={rewindEntryId}
+                  sessionEntryId={resolvedRewindEntryId}
                   onRewind={(id) => void navigateSessionToEntry(id)}
                 />
               }
@@ -159,7 +159,7 @@ const TimelineItemBase = memo(function TimelineItem({
                 text={String(item.text ?? '')}
                 timestamp={Number(item.timestamp ?? 0)}
                 align="left"
-                sessionEntryId={isInterrupted && !hasText ? rewindEntryId : sessionEntryId}
+                sessionEntryId={isInterrupted && !hasText ? resolvedRewindEntryId : sessionEntryId}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
             ) : null
@@ -255,10 +255,12 @@ const TimelineItemBase = memo(function TimelineItem({
 export function Timeline() {
   const items = useUIStore((s) => s.timelineItems)
   const streamingAssistantId = useUIStore((s) => s.streamingAssistantId)
-  const streamingTailLen = useUIStore((s) => {
+  // Bucket stream length so jump-to-bottom button / follow deps don't thrash every token.
+  const streamingTailBucket = useUIStore((s) => {
     if (!s.streamingAssistantId) return 0
     const item = s.timelineItems.find((i) => i.id === s.streamingAssistantId)
-    return (item?.text?.length ?? 0) + (item?.thinkingText?.length ?? 0)
+    const len = (item?.text?.length ?? 0) + (item?.thinkingText?.length ?? 0)
+    return Math.floor(len / 64)
   })
   const agentRunning = useUIStore((s) =>
     composerTurnActive({
@@ -290,14 +292,16 @@ export function Timeline() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const lastTailId = items[items.length - 1]?.id
+  // contentEpoch intentionally ignores raw stream text length — height growth is observed.
+  const contentEpoch = `${lastTailId ?? ''}:${renderCount}:${historySessionFile ?? ''}`
   const { followLiveRef, syncFollowFromScroll, onUserScrollIntent } = useTimelineLiveFollow(
     scrollRef,
     contentRef,
     {
       lastTailId,
       streamingAssistantId,
-      streamingTailLen,
-      contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
+      streamingTailLen: streamingTailBucket,
+      contentEpoch,
       agentRunning,
     },
   )
@@ -323,7 +327,7 @@ export function Timeline() {
       el.removeEventListener('wheel', onWheel)
       ro.disconnect()
     }
-  }, [items.length, renderCount, hasWorkspace, onUserScrollIntent])
+  }, [hasWorkspace, onUserScrollIntent, historySessionFile])
   const scrollHeightBeforeLoadRef = useRef<number | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
@@ -423,8 +427,8 @@ export function Timeline() {
       visibleItems
         .filter((i) => i.type === 'tool-call')
         .map((i) => {
-          const t = i as ToolTimelineItem
-          return { id: t.id, runId: t.runId, toolPhase: t.toolPhase }
+          const toolRow = i as ToolTimelineItem
+          return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase }
         }),
     [visibleItems],
   )
@@ -437,6 +441,51 @@ export function Timeline() {
       }),
     [toolExpandSlots, agentRunning, activeRunId, timelineMaxAutoExpandedTools],
   )
+  // Structure-only fingerprint: stream text must not rebuild timings / rewind targets.
+  const structureEpoch = useMemo(
+    () =>
+      items
+        .map((row) => {
+          if (row.type === 'assistant-message') {
+            const incomplete = (row as { incomplete?: boolean }).incomplete ? '1' : '0'
+            const stop = String((row as { stopReason?: string }).stopReason || '')
+            return `${row.id}:a:${row.sessionEntryId ?? ''}:${incomplete}:${stop}`
+          }
+          if (row.type === 'tool-call') {
+            const tool = row as ToolTimelineItem
+            return `${row.id}:t:${tool.toolPhase ?? ''}:${tool.toolName ?? ''}`
+          }
+          return `${row.id}:${row.type}:${row.sessionEntryId ?? ''}:${row.timestamp ?? 0}`
+        })
+        .join('|'),
+    [items],
+  )
+  // Grouping is cheap and must see live item references (streaming text).
+  const displayItems = useMemo(
+    () => buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[]),
+    [visibleItems],
+  )
+  const { leading, turns: turnGroups } = useMemo(
+    () => groupDisplayBlocksByTurn(displayItems),
+    [displayItems],
+  )
+  // structureEpoch is a stable string when only stream text changes; recompute only on structure shifts.
+  const turnTimings = useMemo(
+    () => deriveTurnTimingsFromItems(items),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: structureEpoch only
+    [structureEpoch],
+  )
+  const rewindEntryByItemId = useMemo(() => {
+    const map = new Map<string, string | undefined>()
+    const raw = items as unknown as TimelineRawItem[]
+    for (const row of raw) {
+      if (row.type === 'user-message' || row.type === 'assistant-message') {
+        map.set(row.id, resolveRewindTargetEntryId(raw, row))
+      }
+    }
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: structureEpoch only
+  }, [structureEpoch])
 
   if (!hasWorkspace) {
     return (
@@ -495,9 +544,6 @@ export function Timeline() {
   const hiddenInMemory = Math.max(0, segments.history.length - historyWindow.length)
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
-  const displayItems = buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[])
-  const { leading, turns: turnGroups } = groupDisplayBlocksByTurn(displayItems)
-  const turnTimings = deriveTurnTimingsFromItems(items)
 
   const renderDisplayBlock = (block: TimelineDisplayItem, blockKey: string, prev?: TimelineDisplayItem) => {
     const prevWasTool =
@@ -540,7 +586,7 @@ export function Timeline() {
           streaming={streamingAssistantId === item.id}
           agentRunning={agentRunning}
           agentBoot={agentBoot}
-          timelineItems={items as unknown as TimelineRawItem[]}
+          rewindEntryId={rewindEntryByItemId.get(item.id)}
         />
       </Fragment>
     )
@@ -580,7 +626,7 @@ export function Timeline() {
             streaming={false}
             agentRunning={agentRunning}
             agentBoot={agentBoot}
-            timelineItems={items as unknown as TimelineRawItem[]}
+            rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
           />
           {turn.blocks.map((block, bi) =>
             renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
@@ -617,7 +663,7 @@ export function Timeline() {
     <TimelineBottomAnchorButton
       scrollRef={scrollRef}
       followLiveRef={followLiveRef}
-      deps={[lastTailId, streamingTailLen, renderCount, items.length]}
+      deps={[lastTailId, streamingTailBucket, renderCount, items.length]}
     />
     </div>
   )

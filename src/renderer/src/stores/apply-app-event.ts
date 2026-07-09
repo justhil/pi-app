@@ -38,30 +38,37 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
     const cacheFile = eventSessionFile(event)
     if (cacheFile) {
       applyBackgroundAppEventToLiveTimeline(cacheFile, event)
-      const snap = getLiveSessionTimeline(cacheFile)
-      if (snap) {
-        patchSessionTimelineView(cacheFile, {
-          sessionId: snap.sessionId,
-          tail: snap.timelineItems,
-          streamingAssistantId: snap.streamingAssistantId,
-          runState: snap.runState,
-          pendingSteering: snap.pendingSteering,
-          pendingFollowUp: snap.pendingFollowUp,
-          optimisticPendingUserText: snap.optimisticPendingUserText,
-          agentTurnBootstrapping: snap.agentTurnBootstrapping,
-        })
-        if (event.type === 'run') {
-          const running = event.phase === 'running' || event.phase === 'started'
-          useUIStore.getState().setSessionRuntimeRunning(cacheFile, running)
-          if (!running && (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled')) {
-            void import('@renderer/lib/desktop-alerts').then(({ signalDesktopAlert }) => {
-              void signalDesktopAlert('run_idle', {
-                title: 'pi Desktop · 后台会话结束',
-                body: '有会话在后台运行结束',
-                background: true,
-              })
+      // Message deltas are rAF-batched in the live cache. Skip per-token view patches —
+      // switch-back / getLiveSessionTimeline flushes pending text. Still patch on
+      // structural events (tool/run/queue/end) so side chrome stays coherent.
+      const isStreamDelta =
+        event.type === 'message' && event.phase === 'delta' && event.role === 'assistant'
+      if (!isStreamDelta) {
+        const snap = getLiveSessionTimeline(cacheFile)
+        if (snap) {
+          patchSessionTimelineView(cacheFile, {
+            sessionId: snap.sessionId,
+            tail: snap.timelineItems,
+            streamingAssistantId: snap.streamingAssistantId,
+            runState: snap.runState,
+            pendingSteering: snap.pendingSteering,
+            pendingFollowUp: snap.pendingFollowUp,
+            optimisticPendingUserText: snap.optimisticPendingUserText,
+            agentTurnBootstrapping: snap.agentTurnBootstrapping,
+          })
+        }
+      }
+      if (event.type === 'run') {
+        const running = event.phase === 'running' || event.phase === 'started'
+        useUIStore.getState().setSessionRuntimeRunning(cacheFile, running)
+        if (!running && (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled')) {
+          void import('@renderer/lib/desktop-alerts').then(({ signalDesktopAlert }) => {
+            void signalDesktopAlert('run_idle', {
+              title: 'pi Desktop · 后台会话结束',
+              body: '有会话在后台运行结束',
+              background: true,
             })
-          }
+          })
         }
       }
     }
