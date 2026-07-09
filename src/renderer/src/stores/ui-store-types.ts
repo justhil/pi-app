@@ -51,6 +51,9 @@ export interface TimelineItem {
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
   errorKind?: 'error' | 'aborted' | 'retry'
   sessionEntryId?: string
+  /** Force-quit / abort mid-stream — empty or partial assistant leaf */
+  incomplete?: boolean
+  stopReason?: string
   attachments?: { path: string; name: string; kind: string }[]
   segments?: Array<
     | { type: 'text'; text: string }
@@ -171,6 +174,9 @@ export interface UIState {
   }>) => void
   theme: 'light' | 'dark' | 'system'
   setTheme: (t: 'light' | 'dark' | 'system') => void
+  /** sessionFile → running (sidebar spinner) */
+  sessionRuntimeRunning: Record<string, boolean>
+  setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
   timelineMaxAutoExpandedTools: number
   setTimelineMaxAutoExpandedTools: (n: number) => void
   sidebarWidth: number

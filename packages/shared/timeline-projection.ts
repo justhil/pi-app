@@ -17,6 +17,9 @@ function mergeAssistant(
     thinkingText: thinkingText || existing.thinkingText,
     sessionEntryId: incoming.sessionEntryId ?? existing.sessionEntryId,
     timestamp: incoming.timestamp ?? existing.timestamp,
+    // Preserve interrupt markers across projection merges
+    incomplete: !!(existing.incomplete || incoming.incomplete),
+    stopReason: incoming.stopReason || existing.stopReason,
   }
 }
 

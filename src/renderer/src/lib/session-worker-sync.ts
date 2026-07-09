@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import type { RunState } from '@renderer/stores/ui-store-types'
 
 export type WorkerLiveSnapshot = {
@@ -8,97 +9,181 @@ export type WorkerLiveSnapshot = {
   status: 'idle' | 'running' | 'failed'
 }
 
-export async function fetchWorkerLiveSnapshot(workspaceId?: string | null): Promise<WorkerLiveSnapshot> {
+function runtimeRunningForSession(
+  viewFile: string | null | undefined,
+  sessionRuntimeRunning?: Record<string, boolean> | null,
+): boolean {
+  if (!viewFile || !sessionRuntimeRunning) return false
+  const viewKey = normalizeSessionFileKey(viewFile)
+  if (sessionRuntimeRunning[viewFile] === true || sessionRuntimeRunning[viewKey] === true) return true
+  return Object.entries(sessionRuntimeRunning).some(
+    ([runtimeKey, running]) => running && sessionFilesEqual(runtimeKey, viewFile),
+  )
+}
+
+/**
+ * Poll runtime for a session (or foreground if sessionFile omitted).
+ *
+ * Never invent "running" for a requested session when the worker reply is for another
+ * sessionFile (or missing). That was the flaky switch-away running bug.
+ */
+export async function fetchWorkerLiveSnapshot(
+  workspaceId?: string | null,
+  sessionFile?: string | null,
+): Promise<WorkerLiveSnapshot> {
+  const requested = sessionFile ? normalizeSessionFileKey(sessionFile) || sessionFile : null
+  const payload: { workspaceId?: string; sessionFile?: string } = {}
+  if (workspaceId) payload.workspaceId = workspaceId
+  if (sessionFile) payload.sessionFile = sessionFile
+
   const r = await ipcClient
-    .invoke('runtime.getState', workspaceId ? { workspaceId } : undefined)
+    .invoke('runtime.getState', Object.keys(payload).length ? payload : undefined)
     .catch(() => null)
-  const st = r?.state as { sessionId?: string; sessionFile?: string; isStreaming?: boolean } | null | undefined
+  const st = r?.state as
+    | { sessionId?: string; sessionFile?: string; isStreaming?: boolean }
+    | null
+    | undefined
+
+  if (!st) {
+    return { sessionId: null, sessionFile: requested, status: 'idle' }
+  }
+
+  const repliedFile = st.sessionFile ? normalizeSessionFileKey(st.sessionFile) || st.sessionFile : null
+  const streaming = st.isStreaming === true
+
+  if (requested) {
+    if (repliedFile && !sessionFilesEqual(repliedFile, requested)) {
+      return { sessionId: null, sessionFile: requested, status: 'idle' }
+    }
+    return {
+      sessionId: st.sessionId ?? null,
+      sessionFile: requested,
+      status: streaming ? 'running' : 'idle',
+    }
+  }
+
   return {
-    sessionId: st?.sessionId ?? null,
-    sessionFile: st?.sessionFile ?? null,
-    status: st?.isStreaming ? 'running' : 'idle',
+    sessionId: st.sessionId ?? null,
+    sessionFile: repliedFile,
+    status: streaming ? 'running' : 'idle',
   }
 }
 
-/** Worker 是否绑定在另一条会话（与 UI 当前时间线文件不一致） */
 export function isViewingDifferentSessionThanWorker(
   viewSessionFile: string | null | undefined,
   workerSessionFile: string | null | undefined,
 ): boolean {
   if (!viewSessionFile) return false
   if (!workerSessionFile) return false
-  return viewSessionFile !== workerSessionFile
+  return !sessionFilesEqual(viewSessionFile, workerSessionFile)
 }
 
-/** 预览且禁止发送：仅当后台会话仍在跑（对齐「可切会话、后台继续；停了就能在别的会话发」） */
 export function isSessionPreviewComposeLocked(
-  viewSessionFile: string | null | undefined,
-  workerSessionFile: string | null | undefined,
-  workerStatus: WorkerLiveSnapshot['status'],
+  _viewSessionFile?: string | null,
+  _workerSessionFile?: string | null,
+  _workerStatus?: WorkerLiveSnapshot['status'],
 ): boolean {
-  return isViewingDifferentSessionThanWorker(viewSessionFile, workerSessionFile) && workerStatus === 'running'
+  return false
 }
 
 export function isViewingWorkerBoundSession(
   viewSessionFile: string | null | undefined,
   workerSessionFile: string | null | undefined,
 ): boolean {
-  if (!viewSessionFile || !workerSessionFile) return false
-  return viewSessionFile === workerSessionFile
+  return sessionFilesEqual(viewSessionFile, workerSessionFile)
 }
 
 export function canAbortWorkerTurn(
   viewSessionFile: string | null | undefined,
   snap: WorkerLiveSnapshot,
   viewRunning = false,
+  sessionRuntimeRunning?: Record<string, boolean> | null,
 ): boolean {
+  if (runtimeRunningForSession(viewSessionFile, sessionRuntimeRunning)) return true
   const workerBoundHere = isViewingWorkerBoundSession(viewSessionFile, snap.sessionFile)
   if (workerBoundHere && snap.status === 'running') return true
-  if (!viewRunning) return false
-  if (!viewSessionFile) return true
-  return !snap.sessionFile || workerBoundHere
+  // viewRunning is residual global UI — only honor when worker is bound here
+  if (viewRunning && workerBoundHere && snap.status === 'running') return true
+  return false
 }
 
-/** Composer 停止键 / 排队发送：对齐 Timeline 的 running + 乐观占位，避免 worker 快照滞后 */
+/**
+ * Composer stop / top-bar "running" for the *visible* session only.
+ *
+ * Multi-session authority (in order):
+ * 1. sessionRuntimeRunning[view]  — set from AppEvents scoped by sessionFile
+ * 2. workerLiveSnapshot bound to view && running
+ * 3. local streaming markers (optimistic / streamingAssistantId) when worker is not foreign
+ *
+ * NEVER trust global runState.status alone — residual after switch caused flaky chrome/composer.
+ */
 export function composerTurnActive(input: {
   historySessionFile: string | null
   workerLiveSnapshot: WorkerLiveSnapshot
   runState: { status: string }
   streamingAssistantId: string | null
   optimisticPendingUserText: string | null
+  sessionRuntimeRunning?: Record<string, boolean> | null
+  agentTurnBootstrapping?: boolean
 }): boolean {
-  const viewRunning = input.runState.status === 'running'
-  if (canAbortWorkerTurn(input.historySessionFile, input.workerLiveSnapshot, viewRunning)) return true
-  const uiPending =
-    viewRunning ||
-    input.streamingAssistantId != null ||
-    input.optimisticPendingUserText != null
-  if (!uiPending) return false
-  const workerFile = input.workerLiveSnapshot.sessionFile
   const viewFile = input.historySessionFile
-  if (!viewFile) return true
-  if (!workerFile) return true
-  if (workerFile === viewFile) return true
-  // 本地已在跑但 workerLiveSnapshot 仍指向上一条会话（未轮询/事件未对齐）
-  if (viewRunning || input.streamingAssistantId != null) return true
+  if (runtimeRunningForSession(viewFile, input.sessionRuntimeRunning)) return true
+
+  const workerFile = input.workerLiveSnapshot.sessionFile
+  const workerRunning = input.workerLiveSnapshot.status === 'running'
+  const workerBoundHere = sessionFilesEqual(viewFile, workerFile)
+
+  if (workerBoundHere && workerRunning) return true
+
+  const localStreaming =
+    input.streamingAssistantId != null ||
+    input.optimisticPendingUserText != null ||
+    input.agentTurnBootstrapping === true
+
+  if (localStreaming) {
+    // Foreign worker snap must not keep Stop lit for an idle view with cleared markers —
+    // but if markers exist they belong to the current view (openSession clears on switch).
+    if (viewFile && workerFile && !sessionFilesEqual(viewFile, workerFile) && workerRunning) {
+      // Local markers + foreign running worker: still show active if markers present
+      // (user just switched mid-send onto a session that has optimistic UI). Keep true.
+    }
+    return true
+  }
+
+  // Explicitly ignore residual runState.status === 'running'
   return false
 }
 
-/** 切回 Worker 绑定会话时，用 runtime 状态对齐 Composer 停止键 / runState */
+/** Only sync runState from worker when snap is for the viewed session. */
 export function syncViewRunStateFromWorkerSnapshot(
   viewSessionFile: string | null | undefined,
   snap: WorkerLiveSnapshot,
-  setRunState: (patch: { status: 'idle' | 'running' | 'failed'; activeTool?: undefined; activeToolStatus?: undefined }) => void,
+  setRunState: (patch: {
+    status: 'idle' | 'running' | 'failed'
+    activeTool?: undefined
+    activeToolStatus?: undefined
+    activeRunId?: undefined
+  }) => void,
 ): void {
   if (!isViewingWorkerBoundSession(viewSessionFile, snap.sessionFile)) return
   if (isAbortUiHoldActive()) {
-    setRunState({ status: 'idle', activeTool: undefined, activeToolStatus: undefined })
+    setRunState({
+      status: 'idle',
+      activeTool: undefined,
+      activeToolStatus: undefined,
+      activeRunId: undefined,
+    })
     return
   }
   if (snap.status === 'running') {
     setRunState({ status: 'running', activeTool: undefined, activeToolStatus: undefined })
   } else {
-    setRunState({ status: snap.status === 'failed' ? 'failed' : 'idle', activeTool: undefined, activeToolStatus: undefined })
+    setRunState({
+      status: snap.status === 'failed' ? 'failed' : 'idle',
+      activeTool: undefined,
+      activeToolStatus: undefined,
+      activeRunId: undefined,
+    })
   }
 }
 
@@ -114,12 +199,48 @@ type ViewStore = {
   setRunState: (patch: Partial<RunState>) => void
 }
 
+/**
+ * Apply worker snap only when it is for the viewed session.
+ * Foreign running snaps never overwrite current view identity or re-light runState.
+ */
 export function applyLiveSnapshotToView(
   viewSessionFile: string | null | undefined,
   snap: WorkerLiveSnapshot,
   store: ViewStore,
 ): void {
   const normalized = normalizeWorkerLiveSnapshotForView(snap)
-  store.setWorkerLiveSnapshot(normalized)
-  syncViewRunStateFromWorkerSnapshot(viewSessionFile, normalized, (p) => store.setRunState(p))
+
+  if (viewSessionFile) {
+    if (normalized.sessionFile && !sessionFilesEqual(normalized.sessionFile, viewSessionFile)) {
+      store.setWorkerLiveSnapshot({
+        sessionId: null,
+        sessionFile: viewSessionFile,
+        status: 'idle',
+      })
+      return
+    }
+    // Unscoped running snap is untrusted under multi-session
+    if (!normalized.sessionFile && normalized.status === 'running') {
+      return
+    }
+  }
+
+  const boundSnap: WorkerLiveSnapshot = {
+    ...normalized,
+    sessionFile: normalized.sessionFile ?? viewSessionFile ?? null,
+  }
+
+  store.setWorkerLiveSnapshot(boundSnap)
+  syncViewRunStateFromWorkerSnapshot(viewSessionFile, boundSnap, (p) => store.setRunState(p))
+}
+
+export function resetVisibleComposerTurnState(set: {
+  setRunState: (patch: Partial<RunState>) => void
+}): void {
+  set.setRunState({
+    status: 'idle',
+    activeTool: undefined,
+    activeToolStatus: undefined,
+    activeRunId: undefined,
+  })
 }

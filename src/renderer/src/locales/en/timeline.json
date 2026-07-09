@@ -36,5 +36,9 @@
   "jumpToNode": "Jump to this node (like TUI /tree)",
   "jumpNeedEntry": "Jump requires session entry id (switch session or send a message first)",
   "loadingSession": "Loading session…",
-  "loadOlder": "Load more ({{count}})"
+  "loadOlder": "Load more ({{count}})",
+  "jumpToBottom": "Jump to bottom",
+  "jumpToLive": "Jump to bottom · follow live",
+  "interruptedEmpty": "Reply incomplete (app closed or interrupted). Rewind to the previous message to continue.",
+  "interruptedPartial": "Reply incomplete (interrupted)"
 }

@@ -50,7 +50,16 @@ export function useComposerSend(opts: {
       const currentWorkspace = useUIStore.getState().currentWorkspace
       if (!currentWorkspace && !draft) return
       const store = useUIStore.getState()
-      const running = store.runState.status === 'running'
+      const { composerTurnActive } = await import('@renderer/lib/session-worker-sync')
+      const running = composerTurnActive({
+        historySessionFile: store.historySessionFile,
+        workerLiveSnapshot: store.workerLiveSnapshot,
+        runState: store.runState,
+        streamingAssistantId: store.streamingAssistantId,
+        optimisticPendingUserText: store.optimisticPendingUserText,
+        sessionRuntimeRunning: store.sessionRuntimeRunning,
+        agentTurnBootstrapping: store.agentTurnBootstrapping,
+      })
       if (displayText.trim()) inputHistory.recordSent(displayText.trim())
       const { hideAllDelayedTooltips } = await import('./delayed-tooltip')
       hideAllDelayedTooltips()

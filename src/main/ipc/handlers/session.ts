@@ -106,12 +106,26 @@ export function registerSessionHandlers(): void {
     let sessionFile = req?.sessionFile as string | undefined
     let workerSessionFile: string | undefined
     let leafOverride: string | null | undefined
+    if (sessionFile) {
+      try {
+        const { getSessionLeafOverride } = await import('../../session-leaf-override.js')
+        leafOverride = getSessionLeafOverride(sessionFile)
+      } catch {
+        /* ignore */
+      }
+    }
     if (workerManager.isRunning) {
-      const st = await workerManager.getState().catch(() => null)
-      workerSessionFile = (st as { sessionFile?: string } | null)?.sessionFile
-      if (!sessionFile) sessionFile = workerSessionFile
-      if (sessionFile && workerSessionFile === sessionFile && 'leafId' in (st || {})) {
-        leafOverride = ((st as { leafId?: string | null }).leafId) ?? null
+      try {
+        const st = sessionFile
+          ? await workerManager.getState(sessionFile).catch(() => null)
+          : await workerManager.getState().catch(() => null)
+        workerSessionFile = (st as { sessionFile?: string } | null)?.sessionFile
+        if (!sessionFile) sessionFile = workerSessionFile
+        if (leafOverride === undefined && st && 'leafId' in (st || {})) {
+          leafOverride = ((st as { leafId?: string | null }).leafId) ?? null
+        }
+      } catch {
+        /* disk tree still works */
       }
     }
     if (sessionFile) {
@@ -135,11 +149,26 @@ export function registerSessionHandlers(): void {
 
   registerHandlerWithSchema('ipc:session.navigateTree', sessionNavigateTreeSchema, async (req) => {
     try {
-      await ensureWorkerSessionBound((f, o) => workerManager.loadSession(f, o), { sessionFile: req.sessionFile })
-      return await workerManager.navigateTree(req.targetId, {
+      // Bind the *requested* session worker, then navigate on that same slot.
+      // Passing sessionFile through avoids foreground-fallback / wrong-worker races.
+      await ensureWorkerSessionBound((f, o) => workerManager.loadSession(f, o), {
+        sessionFile: req.sessionFile,
+      })
+      const result = await workerManager.navigateTree(req.targetId, {
         summarize: req.summarize === true,
         label: req.label,
+        sessionFile: req.sessionFile,
       })
+      // Persist leaf tip for disk getMessages / next loadSession (pi does not write leaf to JSONL).
+      if (!result.cancelled && req.sessionFile) {
+        const { setSessionLeafOverride } = await import('../../session-leaf-override.js')
+        const leaf =
+          result.leafId !== undefined && result.leafId !== null
+            ? result.leafId
+            : req.targetId
+        setSessionLeafOverride(req.sessionFile, leaf)
+      }
+      return result
     } catch (e: unknown) {
       return { cancelled: true, error: errorMessage(e) }
     }
@@ -174,27 +203,36 @@ export function registerSessionHandlers(): void {
     if (!req.sessionFile) return { items: [], totalCount: 0 }
     const offset = req.offset ?? 0
     const limit = req.limit ?? 0
+    // Disk-first timeline preview. NEVER spawn/ensure a worker just to read history —
+    // that was the main cause of slow session switches (loadSession + dispose thrash).
     try {
-      if (workerManager.isRunning) {
-        let leafId: string | null | undefined
+      const { getSessionLeafOverride } = await import('../../session-leaf-override.js')
+      let leafId: string | null | undefined =
+        typeof req.leafId === 'string'
+          ? req.leafId
+          : req.leafId === null
+            ? null
+            : getSessionLeafOverride(req.sessionFile)
+
+      // If a live worker already has this session, prefer its leaf when no override.
+      if (leafId === undefined) {
         try {
-          const st = await workerManager.getState()
-          if (st?.sessionFile === req.sessionFile && 'leafId' in st) {
-            leafId = (st.leafId as string | null | undefined) ?? null
+          const st = await workerManager.getState(req.sessionFile)
+          if (st && 'leafId' in st && (st as { leafId?: string | null }).leafId != null) {
+            leafId = (st as { leafId?: string | null }).leafId ?? null
           }
         } catch {
-          /* use default leaf from file */
+          /* ignore — disk path below */
         }
-        const r = await workerManager.getMessages(req.sessionFile, offset, limit || undefined)
-        if (r.items.length > 0 || (r.totalCount ?? 0) > 0) {
-          return { items: r.items, totalCount: r.totalCount, sessionMeta: r.sessionMeta }
-        }
-        const { getSessionMessagesFromDisk } = await import('../../session-messages-from-disk.js')
-        const disk = await getSessionMessagesFromDisk(req.sessionFile, offset, limit || undefined, leafId)
-        return { items: disk.items, totalCount: disk.totalCount, sessionMeta: disk.sessionMeta }
       }
+
       const { getSessionMessagesFromDisk } = await import('../../session-messages-from-disk.js')
-      const disk = await getSessionMessagesFromDisk(req.sessionFile, offset, limit || undefined)
+      const disk = await getSessionMessagesFromDisk(
+        req.sessionFile,
+        offset,
+        limit || undefined,
+        leafId,
+      )
       return { items: disk.items, totalCount: disk.totalCount, sessionMeta: disk.sessionMeta }
     } catch (e: unknown) {
       console.error('[IPC] session.getMessages failed:', e)

@@ -18,7 +18,7 @@ import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useComposerInputHistory } from './use-composer-input-history'
-import { RichInput } from './rich-input'
+import { RichInput, syncRichInputEmpty } from './rich-input'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
@@ -71,16 +71,18 @@ export function Composer() {
     ],
   )
   const canSendMessages = canCompose && !sessionPreview
-  const isRunning = useUIStore((s) => s.runState.status === 'running')
-  const showComposerStop = useUIStore((s) =>
+  const isRunning = useUIStore((s) =>
     composerTurnActive({
       historySessionFile: s.historySessionFile,
       workerLiveSnapshot: s.workerLiveSnapshot,
       runState: s.runState,
       streamingAssistantId: s.streamingAssistantId,
       optimisticPendingUserText: s.optimisticPendingUserText,
+      sessionRuntimeRunning: s.sessionRuntimeRunning,
+      agentTurnBootstrapping: s.agentTurnBootstrapping,
     }),
   )
+  const showComposerStop = isRunning
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -109,27 +111,31 @@ export function Composer() {
       const el = editorRef.current
       if (!el) return
       renderRichTextFromPlain(el, plain)
+      // Programmatic fill does not fire `input`; force placeholder hide/show.
+      syncRichInputEmpty(el)
       updateFromEditor()
       placeCaretAtEnd(el)
     },
     [updateFromEditor],
   )
 
-  const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setContent)
-
   const clearEditor = useCallback(() => {
     const el = editorRef.current
     if (!el) return
     renderRichTextFromPlain(el, '')
+    syncRichInputEmpty(el)
     hideAllDelayedTooltips()
     updateFromEditor()
   }, [updateFromEditor])
+
+  const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setContent)
 
   const applySegmentsChange = useCallback(
     (next: Segment[]) => {
       const el = editorRef.current
       if (!el) return
       renderRichFromSegments(el, next)
+      syncRichInputEmpty(el)
       updateFromEditor()
       placeCaretAtEnd(el)
       el.focus()
@@ -183,23 +189,54 @@ export function Composer() {
 
   useEffect(() => {
     if (!historySessionFile) return
+    let cancelled = false
     const pull = () => {
-      void fetchWorkerLiveSnapshot()
-        .then((snap) => applyLiveSnapshotToView(historySessionFile, snap, useUIStore.getState()))
+      const s = useUIStore.getState()
+      // Drop stale polls after user switched sessions
+      if (s.historySessionFile !== historySessionFile) return
+      void fetchWorkerLiveSnapshot(s.currentWorkspace, historySessionFile)
+        .then((snap) => {
+          if (cancelled) return
+          const now = useUIStore.getState()
+          if (now.historySessionFile !== historySessionFile) return
+          applyLiveSnapshotToView(historySessionFile, snap, now)
+        })
         .catch(() => {})
     }
-    pull()
+    // Initial pull only when this view might already be running (avoid racing open-session idle reset)
+    const s0 = useUIStore.getState()
+    if (
+      composerTurnActive({
+        historySessionFile: s0.historySessionFile,
+        workerLiveSnapshot: s0.workerLiveSnapshot,
+        runState: s0.runState,
+        streamingAssistantId: s0.streamingAssistantId,
+        optimisticPendingUserText: s0.optimisticPendingUserText,
+        sessionRuntimeRunning: s0.sessionRuntimeRunning,
+        agentTurnBootstrapping: s0.agentTurnBootstrapping,
+      })
+    ) {
+      pull()
+    }
     const tick = window.setInterval(() => {
       const s = useUIStore.getState()
       if (s.historySessionFile !== historySessionFile) return
-      const active =
-        s.runState.status === 'running' ||
-        s.streamingAssistantId != null ||
-        s.optimisticPendingUserText != null
+      const active = composerTurnActive({
+        historySessionFile: s.historySessionFile,
+        workerLiveSnapshot: s.workerLiveSnapshot,
+        runState: s.runState,
+        streamingAssistantId: s.streamingAssistantId,
+        optimisticPendingUserText: s.optimisticPendingUserText,
+        sessionRuntimeRunning: s.sessionRuntimeRunning,
+        agentTurnBootstrapping: s.agentTurnBootstrapping,
+      })
       if (!active) return
       pull()
     }, 2000)
-    return () => window.clearInterval(tick)
+    return () => {
+      cancelled = true
+      window.clearInterval(tick)
+    }
   }, [currentSessionId, historySessionFile])
 
   useEffect(() => {

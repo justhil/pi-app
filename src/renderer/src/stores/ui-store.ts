@@ -17,6 +17,7 @@ import {
   normalizeTimelineMaxAutoExpandedTools,
 } from '@shared/timeline-settings'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
+import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import type { FileChange, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 import {
   clearStreamPending,
@@ -134,14 +135,39 @@ export const useUIStore = create<UIState>()(
     })
   },
   loadHistoryItems: (items: TimelineItem[]) => {
-    const { lastModel, lastThinking, runState, streamingAssistantId, historySessionFile, workerLiveSnapshot } = get()
+    const {
+      lastModel,
+      lastThinking,
+      runState,
+      streamingAssistantId,
+      historySessionFile,
+      workerLiveSnapshot,
+      sessionRuntimeRunning,
+      optimisticPendingUserText,
+      agentTurnBootstrapping,
+    } = get()
     const viewingWorkerSession = isViewingWorkerBoundSession(historySessionFile, workerLiveSnapshot.sessionFile)
+    let runtimeHere = false
+    if (historySessionFile && sessionRuntimeRunning) {
+      const viewKey = normalizeSessionFileKey(historySessionFile)
+      runtimeHere =
+        sessionRuntimeRunning[historySessionFile] === true ||
+        sessionRuntimeRunning[viewKey] === true ||
+        Object.entries(sessionRuntimeRunning).some(
+          ([runtimeKey, running]) => running && sessionFilesEqual(runtimeKey, historySessionFile),
+        )
+    }
     const localTurn =
-      runState.status === 'running' || streamingAssistantId != null || get().optimisticPendingUserText != null
+      streamingAssistantId != null ||
+      optimisticPendingUserText != null ||
+      agentTurnBootstrapping === true
+    // Only keep running when *this* session is actually live.
+    // Do NOT use residual runState.status alone — that re-lit "running" after switch
+    // whenever history finished loading (race: A still running globally, B's loadHistory).
     const keepRunning =
-      (viewingWorkerSession &&
-        (runState.status === 'running' || streamingAssistantId != null || workerLiveSnapshot.status === 'running')) ||
-      (!!historySessionFile && localTurn)
+      runtimeHere ||
+      localTurn ||
+      (viewingWorkerSession && workerLiveSnapshot.status === 'running')
     const cleaned = projectTimelineItems(sanitizeHistoryTimeline(items))
     set({
       timelineItems: cleaned,
@@ -152,6 +178,8 @@ export const useUIStore = create<UIState>()(
         status: keepRunning ? 'running' : 'idle',
         activeTool: undefined,
         activeToolStatus: undefined,
+        // Drop activeRunId when forcing idle so chrome/composer cannot re-attach.
+        ...(keepRunning ? {} : { activeRunId: undefined }),
         toolCount: 0,
         errorCount: 0,
         model: runState.model ?? lastModel ?? undefined,
@@ -282,6 +310,19 @@ export const useUIStore = create<UIState>()(
 
   theme: 'system',
   setTheme: (t) => set({ theme: t }),
+  sessionRuntimeRunning: {},
+  setSessionRuntimeRunning: (sessionFile, running) =>
+    set((s) => {
+      const key = normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
+      if (!key) return s
+      const next = { ...s.sessionRuntimeRunning }
+      // Drop any alias keys that normalize to the same path
+      for (const existing of Object.keys(next)) {
+        if (normalizeSessionFileKey(existing) === key) delete next[existing]
+      }
+      if (running) next[key] = true
+      return { sessionRuntimeRunning: next }
+    }),
   timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
   setTimelineMaxAutoExpandedTools: (n) =>
     set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n) }),

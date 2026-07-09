@@ -20,8 +20,15 @@ import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { resolveRewindTargetEntryId } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
-import { scheduleTimelineScrollToBottom, useTimelineLiveFollow } from './timeline-follow-scroll'
+import {
+  TIMELINE_LOAD_OLDER_SCROLL_TOP_PX,
+  TIMELINE_STREAM_TAIL_PAD_PX,
+  scheduleTimelineScrollToBottom,
+  useTimelineLiveFollow,
+} from './timeline-follow-scroll'
+import { composerTurnActive } from '@renderer/lib/session-worker-sync'
 import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
@@ -41,14 +48,19 @@ const TimelineItemBase = memo(function TimelineItem({
   streaming,
   agentRunning,
   agentBoot,
+  timelineItems,
 }: {
   item: TimelineRawItem
   prevType?: string
   streaming: boolean
   agentRunning: boolean
   agentBoot: boolean
+  /** Full timeline for incomplete-assistant rewind target resolution */
+  timelineItems: TimelineRawItem[]
 }) {
   const { t } = useTranslation()
+  const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
+    resolveRewindTargetEntryId(timelineItems, row)
 
   if (item.type === 'user-message') {
     const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
@@ -63,7 +75,7 @@ const TimelineItemBase = memo(function TimelineItem({
               text={String(item.text ?? '')}
               timestamp={Number(item.timestamp ?? 0)}
               align="right"
-              sessionEntryId={item.sessionEntryId as string | undefined}
+              sessionEntryId={rewindTargetFor(item)}
               onRewind={(id) => void navigateSessionToEntry(id)}
             />
           }
@@ -91,15 +103,51 @@ const TimelineItemBase = memo(function TimelineItem({
   if (item.type === 'assistant-message') {
     const hasText = !!String(item.text ?? '').trim()
     const hasThinking = !!String(item.thinkingText ?? '').trim()
+    const sessionEntryId = item.sessionEntryId as string | undefined
+    const incomplete = !!(item as { incomplete?: boolean }).incomplete
+    const stopReason = String((item as { stopReason?: string }).stopReason || '')
+    const isInterrupted =
+      incomplete || stopReason === 'aborted' || stopReason === 'interrupted' || stopReason === 'error'
+    // Empty incomplete leaf: rewind to previous user so session becomes continuable
+    const rewindEntryId = rewindTargetFor(item)
     if (!hasText && !hasThinking) {
       const boot = agentBoot
-      if (!streaming && !boot) return null
-      if (!agentRunning && !boot) return null
-      return (
-        <div className="timeline-message-row py-1.5">
-          <ThinkingIndicator label={boot ? t('timeline:agentStarting') : t('timeline:waitingReply')} />
-        </div>
-      )
+      // Live placeholder while waiting for first tokens
+      if (streaming || boot) {
+        if (!agentRunning && !boot && !streaming) return null
+        return (
+          <div className="timeline-message-row py-1.5">
+            <ThinkingIndicator label={boot ? t('timeline:agentStarting') : t('timeline:waitingReply')} />
+          </div>
+        )
+      }
+      // History: empty incomplete assistant after crash/force-quit — still show so user can rewind
+      // Prefer incomplete flag / previous-user target even when this leaf has no entry id.
+      if (sessionEntryId || isInterrupted || rewindEntryId) {
+        return (
+          <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+            <MessageHoverShell
+              align="left"
+              actions={
+                <MessageHoverActions
+                  text=""
+                  timestamp={Number(item.timestamp ?? 0)}
+                  align="left"
+                  sessionEntryId={rewindEntryId}
+                  onRewind={(id) => void navigateSessionToEntry(id)}
+                />
+              }
+            >
+              <div className="rounded-lg border border-dashed border-border/50 px-3 py-2 text-[12px] text-foreground-secondary">
+                {t('timeline:interruptedEmpty', {
+                  defaultValue: '回复未完成（程序关闭或中断）。可点回退到上一条后继续。',
+                })}
+              </div>
+            </MessageHoverShell>
+          </div>
+        )
+      }
+      return null
     }
     return (
       <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
@@ -111,7 +159,7 @@ const TimelineItemBase = memo(function TimelineItem({
                 text={String(item.text ?? '')}
                 timestamp={Number(item.timestamp ?? 0)}
                 align="left"
-                sessionEntryId={item.sessionEntryId as string | undefined}
+                sessionEntryId={isInterrupted && !hasText ? rewindEntryId : sessionEntryId}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
             ) : null
@@ -134,6 +182,10 @@ const TimelineItemBase = memo(function TimelineItem({
             </div>
           ) : streaming && agentRunning ? (
             <span className="text-[12px] text-foreground-secondary/50">{t('timeline:generatingText')}</span>
+          ) : isInterrupted && !hasText ? (
+            <div className="text-[12px] text-foreground-secondary">
+              {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
+            </div>
           ) : null}
         </MessageHoverShell>
       </div>
@@ -208,7 +260,17 @@ export function Timeline() {
     const item = s.timelineItems.find((i) => i.id === s.streamingAssistantId)
     return (item?.text?.length ?? 0) + (item?.thinkingText?.length ?? 0)
   })
-  const agentRunning = useUIStore((s) => s.runState.status === 'running')
+  const agentRunning = useUIStore((s) =>
+    composerTurnActive({
+      historySessionFile: s.historySessionFile,
+      workerLiveSnapshot: s.workerLiveSnapshot,
+      runState: s.runState,
+      streamingAssistantId: s.streamingAssistantId,
+      optimisticPendingUserText: s.optimisticPendingUserText,
+      sessionRuntimeRunning: s.sessionRuntimeRunning,
+      agentTurnBootstrapping: s.agentTurnBootstrapping,
+    }),
+  )
   const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -228,13 +290,17 @@ export function Timeline() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const lastTailId = items[items.length - 1]?.id
-  const { followLiveRef, syncFollowFromScroll } = useTimelineLiveFollow(scrollRef, contentRef, {
-    lastTailId,
-    streamingAssistantId,
-    streamingTailLen,
-    contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
-    agentRunning,
-  })
+  const { followLiveRef, syncFollowFromScroll, onUserScrollIntent } = useTimelineLiveFollow(
+    scrollRef,
+    contentRef,
+    {
+      lastTailId,
+      streamingAssistantId,
+      streamingTailLen,
+      contentEpoch: `${lastTailId}:${streamingTailLen}:${renderCount}`,
+      agentRunning,
+    },
+  )
   useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
   useEffect(() => {
@@ -243,15 +309,21 @@ export function Timeline() {
     if (!el) return () => registerTimelineScrollEl(null)
     const notify = rafThrottle(() => window.dispatchEvent(new Event('timeline-scroll')))
     el.addEventListener('scroll', notify, { passive: true })
+    // Upward wheel detaches live-follow immediately so stream growth never fights the user.
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) onUserScrollIntent(e.deltaY)
+    }
+    el.addEventListener('wheel', onWheel, { passive: true })
     const ro = new ResizeObserver(notify)
     ro.observe(el)
     notify()
     return () => {
       registerTimelineScrollEl(null)
       el.removeEventListener('scroll', notify)
+      el.removeEventListener('wheel', onWheel)
       ro.disconnect()
     }
-  }, [items.length, renderCount, hasWorkspace])
+  }, [items.length, renderCount, hasWorkspace, onUserScrollIntent])
   const scrollHeightBeforeLoadRef = useRef<number | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
@@ -333,7 +405,7 @@ export function Timeline() {
     const canReveal = renderCountRef.current < segs.history.length
     const canFetch =
       useUIStore.getState().historyLoadedCount < useUIStore.getState().historyTotalCount
-    if (el.scrollTop < 160 && (canReveal || canFetch)) {
+    if (el.scrollTop < TIMELINE_LOAD_OLDER_SCROLL_TOP_PX && (canReveal || canFetch)) {
       loadMoreHistory()
     }
   }, [loadMoreHistory, syncFollowFromScroll])
@@ -383,6 +455,8 @@ export function Timeline() {
     historyTotalCount > 0
 
   if (items.length === 0) {
+    // Skeleton ONLY while explicitly loading. Do not treat "empty after rewind to first
+    // message" (historyTotalCount=0, session still selected) as loading — that was a stuck spinner.
     if (historyLoading) {
       return <SessionOpenLoadingView key={historySessionFile ?? 'loading'} />
     }
@@ -466,6 +540,7 @@ export function Timeline() {
           streaming={streamingAssistantId === item.id}
           agentRunning={agentRunning}
           agentBoot={agentBoot}
+          timelineItems={items as unknown as TimelineRawItem[]}
         />
       </Fragment>
     )
@@ -505,6 +580,7 @@ export function Timeline() {
             streaming={false}
             agentRunning={agentRunning}
             agentBoot={agentBoot}
+            timelineItems={items as unknown as TimelineRawItem[]}
           />
           {turn.blocks.map((block, bi) =>
             renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
@@ -521,7 +597,21 @@ export function Timeline() {
       {leading.length === 0 &&
         turnGroups.length === 0 &&
         displayItems.map((block, i) => renderDisplayBlock(block, `orphan-${i}`, displayItems[i - 1]))}
-      <div className="h-4" />
+      {/*
+        Stream tail pad: while agent is live, leave blank room under the last bubble so
+        new tokens grow into empty space instead of constantly shoving the viewport.
+        Static sessions keep a small spacer only.
+      */}
+      <div
+        className="timeline-stream-tail-pad shrink-0"
+        style={{
+          height:
+            agentRunning || streamingAssistantId != null
+              ? TIMELINE_STREAM_TAIL_PAD_PX
+              : 16,
+        }}
+        aria-hidden
+      />
       </div>
     </OverlayScrollHost>
     <TimelineBottomAnchorButton

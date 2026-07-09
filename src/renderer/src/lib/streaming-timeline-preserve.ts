@@ -5,6 +5,23 @@ function streamChars(item: TimelineItem): number {
   return (item.text?.length ?? 0) + (item.thinkingText?.length ?? 0)
 }
 
+function countUserMessages(items: TimelineItem[]): number {
+  return items.reduce((n, item) => (item.type === 'user-message' ? n + 1 : n), 0)
+}
+
+/**
+ * Prefer the more complete timeline snapshot, not merely the longer last-assistant string.
+ * Background stream-only caches often have a longer partial assistant than a full-page
+ * capture that was taken mid-token — choosing by chars alone used to drop all history.
+ */
+function timelineCompletenessScore(items: TimelineItem[]): number {
+  const users = countUserMessages(items)
+  const lastAsst = lastAssistantItem(items)
+  const asstChars = lastAsst ? streamChars(lastAsst) : 0
+  // users dominate, then item count, then stream richness
+  return users * 1_000_000_000 + items.length * 1_000_000 + asstChars
+}
+
 export function lastAssistantItem(items: TimelineItem[]): TimelineItem | null {
   const idx = lastAssistantIndex(items)
   return idx >= 0 ? items[idx] : null
@@ -36,7 +53,7 @@ export function lastAssistantIndex(items: TimelineItem[]): number {
   return -1
 }
 
-/** 合并两份 live cache：不依赖 assistant id（opt-asst vs cached-live） */
+/** 合并两份 live cache：优先更完整的时间线，再合并最后一条 assistant 流式正文 */
 export function mergeLiveCacheTimelineSnapshots(
   incoming: TimelineItem[],
   existing: TimelineItem[],
@@ -45,17 +62,15 @@ export function mergeLiveCacheTimelineSnapshots(
   if (!incoming.length) return existing.map((i) => ({ ...i }))
   const inc = incoming.map((i) => ({ ...i }))
   const ex = existing.map((i) => ({ ...i }))
-  const incLast = lastAssistantIndex(inc)
-  const exLast = lastAssistantIndex(ex)
-  if (incLast < 0) return ex
-  if (exLast < 0) return inc
-
-  const incChars = streamChars(inc[incLast])
-  const exChars = streamChars(ex[exLast])
-  const base = exChars > incChars ? ex : incChars > exChars ? inc : inc.length >= ex.length ? inc : ex
+  const incScore = timelineCompletenessScore(inc)
+  const exScore = timelineCompletenessScore(ex)
+  // Same structure → prefer the side with longer last assistant (fresher stream)
+  const base = incScore >= exScore ? inc : ex
   const other = base === inc ? ex : inc
-  const baseLast = base === inc ? incLast : exLast
-  const otherLast = other === inc ? incLast : exLast
+  const baseLast = lastAssistantIndex(base)
+  const otherLast = lastAssistantIndex(other)
+  if (baseLast < 0) return other
+  if (otherLast < 0) return base
   const richer = pickRicherAssistantMessage(base[baseLast], other[otherLast])
   return base.map((item, i) => (i === baseLast ? richer : { ...item }))
 }

@@ -22,16 +22,22 @@ function cacheKey(sessionFile: string, offset: number, limit: number) {
 export async function fetchSessionHistoryTail(
   sessionFile: string,
   limit = INITIAL_TAIL,
-  opts?: { bypassCache?: boolean },
+  opts?: { bypassCache?: boolean; leafId?: string | null },
 ): Promise<GetMessagesResult> {
-  const key = cacheKey(sessionFile, 0, limit)
+  const leafSuffix = opts?.leafId === undefined ? '' : `|leaf:${opts.leafId ?? 'null'}`
+  const key = cacheKey(sessionFile, 0, limit) + leafSuffix
   if (!opts?.bypassCache) {
     const hit = sliceCache.get(key)
     if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
       return { items: hit.items, totalCount: hit.totalCount, sessionMeta: hit.sessionMeta }
     }
   }
-  const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset: 0, limit })
+  const res = await ipcClient.invoke('session.getMessages', {
+    sessionFile,
+    offset: 0,
+    limit,
+    ...(opts?.leafId !== undefined ? { leafId: opts.leafId } : {}),
+  })
   const items = res?.items || []
   const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : items.length
   const sessionMeta = res?.sessionMeta
@@ -71,6 +77,25 @@ export function clearSessionHistoryCache(sessionFile?: string): void {
   for (const k of sliceCache.keys()) {
     if (k.startsWith(sessionFile + '|')) sliceCache.delete(k)
   }
+}
+
+/** Direct getMessages with leaf tip (used after rewind when cache is cleared). */
+export async function getSessionMessagesFromDiskViaIpc(
+  sessionFile: string,
+  leafId?: string | null,
+): Promise<GetMessagesResult> {
+  const res = await ipcClient.invoke('session.getMessages', {
+    sessionFile,
+    offset: 0,
+    limit: 80,
+    ...(leafId !== undefined ? { leafId } : {}),
+  })
+  const items = res?.items || []
+  const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : items.length
+  const sessionMeta = res?.sessionMeta
+  const err = (res as { error?: string })?.error
+  if (err) return { items: [], totalCount: 0, sessionMeta, error: err }
+  return { items, totalCount, sessionMeta }
 }
 
 export const SESSION_HISTORY_PAGE = PAGE

@@ -9,7 +9,11 @@ export type WorkerInitResult = {
 }
 
 export type WorkerSlot = {
+  /** Pool map key: sessionFile abs path or `ws:${cwd}` */
+  poolKey: string
   cwd: string
+  /** Bound session file when known; null for workspace-only slots */
+  sessionFile: string | null
   worker: UtilityProcess
   pendingRequests: Map<
     string,
@@ -20,6 +24,10 @@ export type WorkerSlot = {
   initRejecter: ((e: Error) => void) | null
   initPromise: Promise<WorkerInitResult> | null
   agentTurnActive: boolean
+  /** Last time turn became idle (ms); used for idle TTL eviction */
+  lastIdleAt: number
+  /** Last time this slot was foreground (ms) */
+  lastForegroundAt: number
   sdkFallback: boolean
   autoRestartEnabled: boolean
   stopping: boolean
@@ -28,5 +36,7 @@ export type WorkerSlot = {
 export type WorkerAppEventForward = {
   event: AppEvent
   fromCwd: string
+  fromPoolKey: string
+  sessionFile: string | null
   agentTurnActive: boolean
 }

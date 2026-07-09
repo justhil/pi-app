@@ -32,6 +32,7 @@ describe('captureVisibleLiveSessionTimeline', () => {
       pendingFollowUp: [],
       optimisticPendingUserText: null,
       agentTurnBootstrapping: false,
+      sessionRuntimeRunning: {},
     }
   })
 

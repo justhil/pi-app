@@ -1,9 +1,11 @@
 import {
   extractTextFromPiMessage,
+  extractThinkingFromPiMessage,
   extractToolResultFromPiMessage,
   piMessageTimestamp,
   type PiSessionMessage,
 } from '@shared/worker-message'
+import { markTrailingIncompleteAssistants } from '@shared/timeline-incomplete'
 
 let msgSeq = 0
 
@@ -12,7 +14,37 @@ export function resetTimelineSeq(): void {
 }
 
 const extractText = extractTextFromPiMessage
+const extractThinking = extractThinkingFromPiMessage
 const extractToolResult = extractToolResultFromPiMessage
+
+/** Always keep assistant rows (even empty) so incomplete turns remain rewound-able. */
+function pushAssistantItem(
+  items: Array<Record<string, unknown>>,
+  opts: {
+    text: string
+    thinkingText: string
+    timestamp: number
+    sessionEntryId?: string
+    stopReason?: string
+  },
+): void {
+  const incomplete =
+    !opts.text.trim() &&
+    !opts.thinkingText.trim()
+  items.push({
+    id: `hist-${++msgSeq}`,
+    type: 'assistant-message',
+    text: opts.text,
+    thinkingText: opts.thinkingText || undefined,
+    timestamp: opts.timestamp,
+    ...(opts.sessionEntryId ? { sessionEntryId: opts.sessionEntryId } : {}),
+    ...(incomplete || opts.stopReason === 'aborted' || opts.stopReason === 'error'
+      ? { incomplete: true, stopReason: opts.stopReason || 'interrupted' }
+      : opts.stopReason
+        ? { stopReason: opts.stopReason }
+        : {}),
+  })
+}
 
 export function normalizeMessages(messages: unknown[]): Array<Record<string, unknown>> {
   const items: Array<Record<string, unknown>> = []
@@ -29,10 +61,15 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
       if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
     } else if (pm.role === 'assistant') {
       const text = extractText(pm)
+      const thinkingText = extractThinking(pm)
       const toolCalls = content.filter((c) => (c as { type?: string }).type === 'toolCall')
-      if (text) {
-        items.push({ id: `hist-${++msgSeq}`, type: 'assistant-message', text, timestamp: ts })
-      }
+      // Always emit assistant bubble (even if empty after crash mid-stream) for leaf/rewind.
+      pushAssistantItem(items, {
+        text,
+        thinkingText,
+        timestamp: ts,
+        stopReason: pm.stopReason,
+      })
       for (const c of toolCalls) {
         const tc = c as { toolCall?: { name?: string; input?: unknown; arguments?: unknown; id?: string } }
         const name = tc.toolCall?.name || 'tool'
@@ -87,7 +124,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
       items.push({ id: `hist-${++msgSeq}`, type: 'compaction', text, timestamp: ts })
     }
   }
-  return items
+  return markTrailingIncompleteAssistants(items)
 }
 
 /** 按当前 leaf 的 getBranch() 顺序建时间线，与 TUI 树上路径一致。 */
@@ -134,21 +171,28 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
 
     if (m.role === 'user') {
       const text = extractText(m)
-      if (text) {
-        items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts, sessionEntryId: sid })
-      }
-    } else if (m.role === 'assistant') {
-      const text = extractText(m)
-      const toolCalls = content.filter((c) => (c as { type?: string }).type === 'toolCall')
-      if (text) {
+      // Keep empty user only if we have an entry id (rare); normally require text.
+      if (text || sid) {
         items.push({
           id: `hist-${++msgSeq}`,
-          type: 'assistant-message',
-          text,
+          type: 'user-message',
+          text: text || '',
           timestamp: ts,
           sessionEntryId: sid,
         })
       }
+    } else if (m.role === 'assistant') {
+      const text = extractText(m)
+      const thinkingText = extractThinking(m)
+      const toolCalls = content.filter((c) => (c as { type?: string }).type === 'toolCall')
+      // Always keep assistant entries — crash mid-turn leaves empty leaf that must stay visible for rewind.
+      pushAssistantItem(items, {
+        text,
+        thinkingText,
+        timestamp: ts,
+        sessionEntryId: sid,
+        stopReason: m.stopReason,
+      })
       for (const c of toolCalls) {
         const cc = c as {
           name?: string
@@ -207,5 +251,6 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       }
     }
   }
-  return items
+  // Force-quit mid-stream leaves empty assistant leaf — mark so UI keeps it + rewind works.
+  return markTrailingIncompleteAssistants(items)
 }

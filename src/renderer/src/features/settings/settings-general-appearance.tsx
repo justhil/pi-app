@@ -21,6 +21,9 @@ export function GeneralSettings() {
     setAlertNotificationEnabled,
     setAlertOnExtensionUi,
     setAlertOnRunIdle,
+    setAlertOnBackgroundRunIdle,
+    setMaxSessionWorkers,
+    setSessionWorkerIdleTimeoutMinutes,
     setTimelineMaxAutoExpandedTools,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -106,6 +109,52 @@ export function GeneralSettings() {
         </SettingRow>
         <SettingRow label={t('settings:general.alertOnRunIdle')} description={t('settings:general.alertOnRunIdleDesc')}>
           <Switch checked={draft.alertOnRunIdle} onCheckedChange={setAlertOnRunIdle} />
+        </SettingRow>
+        <SettingRow
+          label={t('settings:general.alertOnBackgroundRunIdle')}
+          description={t('settings:general.alertOnBackgroundRunIdleDesc')}
+        >
+          <Switch checked={draft.alertOnBackgroundRunIdle} onCheckedChange={setAlertOnBackgroundRunIdle} />
+        </SettingRow>
+      </div>
+
+      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">
+          {t('settings:general.workers')}
+        </div>
+        <SettingRow
+          label={t('settings:general.maxSessionWorkers')}
+          description={t('settings:general.maxSessionWorkersDesc')}
+        >
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={draft.maxSessionWorkers}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (!Number.isFinite(n)) return
+              setMaxSessionWorkers(n)
+            }}
+            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('settings:general.sessionWorkerIdleTimeout')}
+          description={t('settings:general.sessionWorkerIdleTimeoutDesc')}
+        >
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={draft.sessionWorkerIdleTimeoutMinutes}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (!Number.isFinite(n)) return
+              setSessionWorkerIdleTimeoutMinutes(n)
+            }}
+            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+          />
         </SettingRow>
       </div>
 

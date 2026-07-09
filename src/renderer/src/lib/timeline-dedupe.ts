@@ -1,4 +1,5 @@
 import type { TimelineItem } from '@renderer/stores/ui-store'
+import { markTrailingIncompleteAssistants } from '@shared/timeline-incomplete'
 
 export function normalizeTimelineMessageText(t?: string): string {
   return (t || '').replace(/\s+/g, ' ').trim()
@@ -27,5 +28,8 @@ export function dedupeAdjacentUserMessages(items: TimelineItem[]): TimelineItem[
 }
 
 export function sanitizeHistoryTimeline(items: TimelineItem[]): TimelineItem[] {
-  return dedupeAdjacentUserMessages(stripOptimisticTimelineItems(items))
+  // Heal crash mid-stream empty leaf so incomplete UI + rewind stay available after reopen.
+  return markTrailingIncompleteAssistants(
+    dedupeAdjacentUserMessages(stripOptimisticTimelineItems(items)),
+  ) as TimelineItem[]
 }

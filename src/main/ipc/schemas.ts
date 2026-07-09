@@ -41,6 +41,8 @@ export const sessionGetMessagesSchema = z.object({
   sessionFile: z.string(),
   offset: z.number().optional(),
   limit: z.number().optional(),
+  /** After navigateTree: force branch tip so history matches rewound leaf */
+  leafId: z.string().nullable().optional(),
 })
 
 export const sessionNewSchema = z.object({
@@ -120,6 +122,9 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   alertNotificationEnabled: z.boolean(),
   alertOnExtensionUi: z.boolean(),
   alertOnRunIdle: z.boolean(),
+  alertOnBackgroundRunIdle: z.boolean(),
+  maxSessionWorkers: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  sessionWorkerIdleTimeoutMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   timelineMaxAutoExpandedTools: z.number().int().min(1).max(50),
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),

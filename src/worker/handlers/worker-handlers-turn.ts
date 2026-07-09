@@ -79,7 +79,9 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
                 text: '命令已执行（详见下方助手/工具输出）',
               })
             }
-            // prompt 返回后若仍 busy 且未在 stream（无 agent_end 的短路径），释放临时 busy
+            // prompt() resolves when the *call* finishes; agent may still be streaming
+            // (or willRetry). Only release if AgentSession itself is idle — same as pi-tui
+            // waiting on isStreaming / waitForIdle rather than promise alone.
             if (st.agentTurnActive && !promptSession.isStreaming) {
               st.agentTurnActive = false
               emit({ ...baseEvent(), type: 'run', phase: 'idle' })
@@ -188,8 +190,31 @@ export async function handleExtensionUiResponse(msg: WorkerIncomingMessage, repl
 export async function handleDispose(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         st.uiBridge?.dispose()
         st.uiBridge = null
+        // Abort in-flight turn before dispose so pi can flush a terminal assistant entry
+        // (empty/incomplete leaf) rather than leaving the session unrewindable after force-quit.
+        try {
+          const streaming = !!(st.agentTurnActive || st.session?.isStreaming)
+          if (streaming) {
+            try {
+              st.session?.clearQueue?.()
+            } catch {
+              /* ignore */
+            }
+            st.session?.abortRetry?.()
+            st.session?.agent?.abort?.()
+            // Yield long enough for SessionManager to write aborted assistant leaf to JSONL.
+            await new Promise((r) => setTimeout(r, 280))
+          }
+        } catch (e) {
+          console.error('[Worker] abort-on-dispose failed:', e)
+        }
+        st.agentTurnActive = false
         if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
-        st.session?.dispose()
+        try {
+          st.session?.dispose()
+        } catch (e) {
+          console.error('[Worker] session.dispose failed:', e)
+        }
         st.session = null
         reply({ type: 'dispose-done' })
         return

@@ -4,12 +4,20 @@ import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { resolveActiveSdk } from './sdk-loader'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
+import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
+import { workspacePoolKey } from './worker-session-key'
 
-const MAX_BACKGROUND_WORKERS = 4
-
-function createSlot(cwd: string, worker: Electron.UtilityProcess): WorkerSlot {
+function createSlot(
+  poolKey: string,
+  cwd: string,
+  worker: Electron.UtilityProcess,
+  sessionFile: string | null = null,
+): WorkerSlot {
+  const now = Date.now()
   return {
+    poolKey,
     cwd,
+    sessionFile,
     worker,
     pendingRequests: new Map(),
     requestCounter: 0,
@@ -17,6 +25,8 @@ function createSlot(cwd: string, worker: Electron.UtilityProcess): WorkerSlot {
     initRejecter: null,
     initPromise: null,
     agentTurnActive: false,
+    lastIdleAt: now,
+    lastForegroundAt: now,
     sdkFallback: false,
     autoRestartEnabled: true,
     stopping: false,
@@ -36,8 +46,16 @@ export function attachWorkerHandlers(
   forked: Electron.UtilityProcess,
   opts: {
     mainWindow: BrowserWindow | null
-    onAppEvent: (payload: { event: AppEvent; fromCwd: string; agentTurnActive: boolean }) => void
+    onAppEvent: (payload: {
+      event: AppEvent
+      fromCwd: string
+      fromPoolKey: string
+      sessionFile: string | null
+      agentTurnActive: boolean
+    }) => void
     onSlotExit: (slot: WorkerSlot, code: number) => void
+    /** When set, only forward extension UI from this pool key (X1). */
+    getForegroundPoolKey?: () => string | null
   },
 ): void {
   if (forked.stderr) {
@@ -67,12 +85,20 @@ export function attachWorkerHandlers(
     if (data.type === 'app-event') {
       const ev = data.event as AppEvent
       if (ev?.type === 'run') {
-        if (ev.phase === 'running' || ev.phase === 'started') slot.agentTurnActive = true
-        else if (ev.phase === 'idle' || ev.phase === 'failed' || ev.phase === 'cancelled') {
+        if (ev.phase === 'running' || ev.phase === 'started') {
+          slot.agentTurnActive = true
+        } else if (ev.phase === 'idle' || ev.phase === 'failed' || ev.phase === 'cancelled') {
           slot.agentTurnActive = false
+          slot.lastIdleAt = Date.now()
         }
       }
-      opts.onAppEvent({ event: ev, fromCwd: slot.cwd, agentTurnActive: slot.agentTurnActive })
+      opts.onAppEvent({
+        event: ev,
+        fromCwd: slot.cwd,
+        fromPoolKey: slot.poolKey,
+        sessionFile: slot.sessionFile,
+        agentTurnActive: slot.agentTurnActive,
+      })
     }
 
     const win = opts.mainWindow
@@ -81,19 +107,28 @@ export function attachWorkerHandlers(
       win &&
       !win.isDestroyed()
     ) {
-      win.webContents.send('ipc:extension-ui-dismiss', {
-        type: data.type,
-        id: data.id,
-        reason: data.reason,
-      })
+      const fg = opts.getForegroundPoolKey?.() ?? null
+      if (fg && fg !== slot.poolKey) {
+        // X1: only foreground session dismiss noise
+      } else {
+        win.webContents.send('ipc:extension-ui-dismiss', {
+          type: data.type,
+          id: data.id,
+          reason: data.reason,
+        })
+      }
     }
 
     if (data.type === 'extension-ui-request' && win && !win.isDestroyed()) {
       const req = data.request as { method?: string; notifyType?: string; message?: string }
       const method = req?.method || ''
+      const fg = opts.getForegroundPoolKey?.() ?? null
+      const isForeground = !fg || fg === slot.poolKey
+      if (!isForeground && method !== 'notify') return
       const allow =
         method !== 'notify' || slot.agentTurnActive || req.notifyType === 'error'
       if (!allow) return
+      if (!isForeground && req.notifyType !== 'error') return
       win.webContents.send('ipc:extension-ui-request', data.request)
     }
 
@@ -143,12 +178,27 @@ export async function disposeWorkerSlot(slot: WorkerSlot): Promise<void> {
   }
   slot.initPromise = null
   const proc = slot.worker
+  const wasActive = !!slot.agentTurnActive
+  // Always try abort on dispose when we have a session file — agentTurnActive can lag
+  // behind true streaming if events were missed, and force-quit needs a terminal leaf.
+  if (wasActive || slot.sessionFile) {
+    try {
+      await slotRequest(slot, 'abort', slot.sessionFile ? { sessionFile: slot.sessionFile } : {}).catch(
+        () => null,
+      )
+    } catch {
+      /* ignore */
+    }
+    // Give pi SessionManager time to persist aborted assistant entry
+    await new Promise((r) => setTimeout(r, wasActive ? 200 : 80))
+  }
   try {
     proc.postMessage({ type: 'dispose' })
   } catch {
     /* ignore */
   }
-  await new Promise((r) => setTimeout(r, 150))
+  // Allow worker to flush session JSONL after abort+dispose
+  await new Promise((r) => setTimeout(r, wasActive ? 500 : 250))
   try {
     proc.kill()
   } catch {
@@ -186,9 +236,13 @@ export function slotRequest(
   })
 }
 
-export async function forkWorkerForCwd(cwd: string): Promise<{ slot: WorkerSlot; init: Promise<WorkerInitResult> }> {
+export async function forkWorkerForCwd(
+  cwd: string,
+  opts?: { poolKey?: string; sessionFile?: string | null },
+): Promise<{ slot: WorkerSlot; init: Promise<WorkerInitResult> }> {
+  const poolKey = opts?.poolKey || workspacePoolKey(cwd)
   const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], { stdio: 'pipe' })
-  const slot = createSlot(cwd, forked)
+  const slot = createSlot(poolKey, cwd, forked, opts?.sessionFile ?? null)
   const initPromise = new Promise<WorkerInitResult>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (slot.worker !== forked) return
@@ -213,42 +267,113 @@ export async function forkWorkerForCwd(cwd: string): Promise<{ slot: WorkerSlot;
   return { slot, init: initPromise }
 }
 
+/**
+ * Evict idle workers to free capacity. Never disposes agentTurnActive slots.
+ * @deprecated Prefer evictIdleWorkers with maxWorkers from settings.
+ */
 export function evictBackgroundWorkers(
   pool: Map<string, WorkerSlot>,
-  foregroundCwd: string,
-  keepCwd?: string | null,
+  foregroundKey: string,
+  keepKey?: string | null,
 ): void {
-  const keep = new Set<string>([foregroundCwd])
-  if (keepCwd) keep.add(keepCwd)
-  for (const [cwd, slot] of pool) {
-    if (keep.has(cwd)) continue
+  evictIdleWorkers(pool, {
+    foregroundKey,
+    keepKeys: keepKey ? [keepKey] : [],
+    maxWorkers: readMaxSessionWorkers(),
+  })
+}
+
+export function evictIdleWorkers(
+  pool: Map<string, WorkerSlot>,
+  opts: {
+    foregroundKey: string | null
+    keepKeys?: string[]
+    maxWorkers?: number
+  },
+): void {
+  const maxWorkers = opts.maxWorkers ?? readMaxSessionWorkers()
+  const keep = new Set<string>()
+  if (opts.foregroundKey) keep.add(opts.foregroundKey)
+  for (const k of opts.keepKeys || []) {
+    if (k) keep.add(k)
+  }
+
+  // Drop idle slots not in keep set (soft cleanup on switch)
+  for (const [key, slot] of pool) {
+    if (keep.has(key)) continue
     if (slot.agentTurnActive) continue
-    void disposeWorkerSlot(slot).then(() => pool.delete(cwd))
+    void disposeWorkerSlot(slot).then(() => {
+      if (pool.get(key) === slot) pool.delete(key)
+    })
   }
-  while (pool.size > MAX_BACKGROUND_WORKERS) {
-    let victim: string | null = null
-    for (const [cwd, slot] of pool) {
-      if (cwd === foregroundCwd || slot.agentTurnActive) continue
-      victim = cwd
-      break
+
+  // Hard capacity: dispose oldest-foreground idle first
+  while (pool.size > maxWorkers) {
+    let victimKey: string | null = null
+    let oldestFg = Number.POSITIVE_INFINITY
+    for (const [key, slot] of pool) {
+      if (key === opts.foregroundKey || slot.agentTurnActive) continue
+      if (slot.lastForegroundAt < oldestFg) {
+        oldestFg = slot.lastForegroundAt
+        victimKey = key
+      }
     }
-    if (!victim) break
-    const s = pool.get(victim)!
-    void disposeWorkerSlot(s).then(() => pool.delete(victim!))
+    if (!victimKey) break
+    const s = pool.get(victimKey)!
+    void disposeWorkerSlot(s).then(() => {
+      if (pool.get(victimKey!) === s) pool.delete(victimKey!)
+    })
+    // Sync delete so while loop progresses even if dispose is async
+    pool.delete(victimKey)
   }
+}
+
+/** Dispose idle slots past TTL. Returns number of slots disposed. */
+export function pruneIdleWorkersByTimeout(
+  pool: Map<string, WorkerSlot>,
+  foregroundKey: string | null,
+  nowMs = Date.now(),
+): number {
+  const delay = minutesToIdleDelayMs(readSessionWorkerIdleTimeoutMinutes())
+  if (delay == null) return 0
+  let removed = 0
+  for (const [key, slot] of [...pool.entries()]) {
+    if (key === foregroundKey) continue
+    if (slot.agentTurnActive) continue
+    if (nowMs - slot.lastIdleAt < delay) continue
+    void disposeWorkerSlot(slot)
+    pool.delete(key)
+    removed++
+  }
+  return removed
 }
 
 export async function getBackgroundWorkerState(
   pool: Map<string, WorkerSlot>,
-  cwd: string,
-): Promise<{ cwd: string; state: Record<string, unknown> } | null> {
-  const slot = pool.get(cwd)
+  poolKey: string,
+): Promise<{ cwd: string; poolKey: string; state: Record<string, unknown> } | null> {
+  const slot = pool.get(poolKey)
   if (!slot || slot.stopping) return null
   try {
     const r = await slotRequest(slot, 'getState')
     const state = (r.state as Record<string, unknown>) || {}
-    return { cwd, state }
+    return { cwd: slot.cwd, poolKey, state }
   } catch {
     return null
+  }
+}
+
+export function canAcquireNewWorker(
+  pool: Map<string, WorkerSlot>,
+  maxWorkers?: number,
+): { ok: true } | { ok: false; reason: string } {
+  const max = maxWorkers ?? readMaxSessionWorkers()
+  if (pool.size < max) return { ok: true }
+  for (const slot of pool.values()) {
+    if (!slot.agentTurnActive) return { ok: true }
+  }
+  return {
+    ok: false,
+    reason: `Worker pool full (${max} running sessions). Stop a turn or raise maxSessionWorkers.`,
   }
 }

@@ -2,14 +2,57 @@ import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
-import type { UIState } from '@renderer/stores/ui-store-types'
 import type { RunEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
+
+/**
+ * Whether a run.idle should be ignored as "too early" (race before agent_start).
+ *
+ * pi-tui treats AgentSession completion as authoritative (`agent_end` without willRetry /
+ * `!isStreaming`). Renderer must not block idle forever on empty optimistic assistant
+ * placeholders (tool-only turns leave empty `opt-asst-*` rows).
+ *
+ * Only suppress idle while we still have *local* outbound bootstrap and the worker has
+ * never attached a real run id for this turn.
+ */
+export function shouldSuppressPrematureRunIdle(state: {
+  optimisticPendingUserText: string | null
+  agentTurnBootstrapping: boolean
+  runState: { activeRunId?: string; status: string }
+}): boolean {
+  const waitingOnLocalSend =
+    state.optimisticPendingUserText != null || state.agentTurnBootstrapping === true
+  if (!waitingOnLocalSend) return false
+  // Worker already started a real agent turn → idle is completion, not a race.
+  if (state.runState.activeRunId) return false
+  return true
+}
+
+function markViewIdle(state: ReturnType<StoreApi['get']>): void {
+  const viewFile = state.historySessionFile
+  const liveSnap = state.workerLiveSnapshot
+  if (!liveSnap.sessionFile || !viewFile || liveSnap.sessionFile === viewFile) {
+    state.setWorkerLiveSnapshot({
+      sessionId: state.currentSessionId ?? liveSnap.sessionId,
+      sessionFile: viewFile ?? liveSnap.sessionFile,
+      status: 'idle',
+    })
+  }
+}
 
 export function handleRun(event: RunEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'started' || event.phase === 'running') {
     if (isAbortUiHoldActive()) return
     if (Date.now() < state.ignoreQueueSyncUntil && event.phase === 'running') return
+
+    // Visible-route handler: still refuse to apply if event names a different session
+    // (route bugs / unscoped events must not re-light the viewed session).
+    const viewFile = state.historySessionFile
+    const evFile = (event as { sessionFile?: string }).sessionFile
+    if (viewFile && evFile && !isViewingWorkerBoundSession(viewFile, evFile)) {
+      return
+    }
+
     const runPatch: Record<string, unknown> = {
       status: 'running',
       activeRunId: event.runId,
@@ -20,17 +63,14 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       runPatch.thinkingLevel = event.thinkingLevel
     }
     state.setRunState(runPatch)
-    const viewFile = state.historySessionFile
     const snap = state.workerLiveSnapshot
     if (viewFile) {
-      const bound = isViewingWorkerBoundSession(viewFile, snap.sessionFile)
-      if (bound || !snap.sessionFile) {
-        state.setWorkerLiveSnapshot({
-          sessionId: state.currentSessionId ?? snap.sessionId,
-          sessionFile: viewFile,
-          status: 'running',
-        })
-      }
+      // Always pin worker snap to the *viewed* session when we accept a visible run.
+      state.setWorkerLiveSnapshot({
+        sessionId: state.currentSessionId ?? snap.sessionId,
+        sessionFile: viewFile,
+        status: 'running',
+      })
     }
     return
   }
@@ -41,18 +81,19 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       startTime: state.runState.startTime,
     })
     const s = api.get()
-    const pendingOutboundTurn =
-      s.optimisticPendingUserText != null ||
-      s.agentTurnBootstrapping ||
-      s.timelineItems.some(
-        (i: UIState['timelineItems'][number]) =>
-          i.type === 'assistant-message' &&
-          i.id.startsWith('opt-asst-') &&
-          !i.text?.trim() &&
-          !i.thinkingText?.trim(),
-      )
-    if (pendingOutboundTurn) return
-    api.set({ optimisticPendingUserText: null, agentTurnBootstrapping: false })
+    if (shouldSuppressPrematureRunIdle(s)) {
+      alertTrace('run idle suppressed (local outbound not yet bound to worker run)', {
+        optimistic: !!s.optimisticPendingUserText,
+        bootstrapping: s.agentTurnBootstrapping,
+      })
+      return
+    }
+    // Authoritative completion (pi agent_end / !isStreaming): clear all local turn markers.
+    api.set({
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+      streamingAssistantId: null,
+    })
     const rs = api.get().runState
     const wasActive = rs.status === 'running' || rs.status === 'failed'
     const prevRun = rs.activeRunId
@@ -65,8 +106,8 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       activeTool: undefined,
       activeToolStatus: undefined,
     })
+    markViewIdle(state)
     state.clearPendingQueue()
-    api.set({ streamingAssistantId: null })
     state.pruneEmptyAssistantBubbles()
     void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
     if (wasActive && rs.startTime && durationMs != null && durationMs >= 800) {
@@ -81,6 +122,15 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
   }
   if (event.phase === 'failed') {
     state.setRunState({ status: 'failed' })
+    const viewFile = state.historySessionFile
+    const liveSnap = state.workerLiveSnapshot
+    if (!liveSnap.sessionFile || !viewFile || liveSnap.sessionFile === viewFile) {
+      state.setWorkerLiveSnapshot({
+        sessionId: state.currentSessionId ?? liveSnap.sessionId,
+        sessionFile: viewFile ?? liveSnap.sessionFile,
+        status: 'failed',
+      })
+    }
   } else if (event.phase === 'state') {
     const patch: Record<string, string | undefined> = {}
     if (event.model !== undefined) patch.model = event.model

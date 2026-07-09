@@ -36,5 +36,9 @@
   "jumpToNode": "跳转到此节点（同 TUI /tree）",
   "jumpNeedEntry": "跳转需会话 entry id（切换会话或发送一条消息后再试）",
   "loadingSession": "加载会话…",
-  "loadOlder": "加载更多（{{count}}）"
+  "loadOlder": "加载更多（{{count}}）",
+  "jumpToBottom": "回到底部",
+  "jumpToLive": "回到底部 · 继续跟踪",
+  "interruptedEmpty": "回复未完成（程序关闭或中断）。可点回退到上一条后继续。",
+  "interruptedPartial": "回复未完成（已中断）"
 }

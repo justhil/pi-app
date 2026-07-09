@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { isTimelineNearBottom, scheduleTimelineScrollToBottom } from './timeline-follow-scroll'
+import {
+  TIMELINE_NEAR_BOTTOM_PX,
+  TIMELINE_STREAM_TAIL_PAD_PX,
+  distanceFromBottom,
+  isTimelineNearBottom,
+  scheduleTimelineScrollToBottom,
+} from './timeline-follow-scroll'
 
 describe('isTimelineNearBottom', () => {
   it('true when within threshold of bottom', () => {
     const el = {
       scrollHeight: 1000,
       clientHeight: 400,
-      scrollTop: 520,
+      scrollTop: 1000 - 400 - (TIMELINE_NEAR_BOTTOM_PX - 10),
     } as HTMLElement
     expect(isTimelineNearBottom(el)).toBe(true)
   })
@@ -15,9 +21,17 @@ describe('isTimelineNearBottom', () => {
     const el = {
       scrollHeight: 1000,
       clientHeight: 400,
-      scrollTop: 400,
+      scrollTop: 100,
     } as HTMLElement
     expect(isTimelineNearBottom(el)).toBe(false)
+    expect(distanceFromBottom(el)).toBeGreaterThan(TIMELINE_NEAR_BOTTOM_PX)
+  })
+})
+
+describe('stream tail pad constant', () => {
+  it('keeps a modest blank under live stream (not a full screen gap)', () => {
+    expect(TIMELINE_STREAM_TAIL_PAD_PX).toBeGreaterThanOrEqual(48)
+    expect(TIMELINE_STREAM_TAIL_PAD_PX).toBeLessThanOrEqual(120)
   })
 })
 

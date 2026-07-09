@@ -8,6 +8,7 @@ import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 import { chooseWorkspaceSession, type WorkspaceSessionChoice } from '@renderer/lib/workspace-session-choice'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import { focusSessionSync } from '@renderer/lib/session-shell'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -34,15 +35,29 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   }
 
   store.setWorkspace(path)
-  store.clearTimeline()
   store.clearFileChanges()
   useExtensionUIStore.getState().resetForSessionContext()
 
   const openingSession = !!(options?.sessionId && options?.sessionFile)
+
+  /**
+   * CRITICAL UX: never leave items=[] + historyLoading=false while awaiting worker.
+   * That produced a blank "empty chat" placeholder for hundreds of ms before the skeleton.
+   * - Target session known → focusSessionSync immediately (cache paint or loading).
+   * - Target unknown → clear + historyLoading until list/pick resolves.
+   */
   if (openingSession) {
     store.setCurrentSession(options!.sessionId!)
+    focusSessionSync(options!.sessionId!, options!.sessionFile!)
+  } else if (options?.preferHome) {
+    store.clearTimeline()
+    store.setCurrentSession(null)
+    store.setHistoryMeta(0, 0, null)
+    store.setHistoryLoading(false)
+  } else {
+    store.clearTimeline()
+    store.setHistoryMeta(0, 0, null)
     store.setHistoryLoading(true)
-    store.setHistoryMeta(0, 0, options!.sessionFile!)
   }
 
   const refreshSessionList = () => {
@@ -65,6 +80,8 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       .catch((e) => console.error('[activateWorkspace] session.list failed:', e))
   }
 
+  // Worker open can dispose the previous workspace process — do not block first paint on it
+  // when we already have a session target (cache/loading already shown above).
   const openPromise = !sameProject
     ? ipcClient.invoke('workspace.open', { path, awaitWorker: true }).catch((e) => {
         console.error('[activateWorkspace] workspace.open failed:', e)
@@ -78,7 +95,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       await openPromise
       if (!assertSessionNavigation(navToken)) return
       refreshSessionList()
-    } catch (e) {
+    } catch {
       /* logged above */
     }
     store.clearPendingNewSessionPlaceholder()
@@ -95,13 +112,17 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       : null
 
   if (explicitPick) {
+    // Timeline already focused; open worker then hydrate (openSession re-binds + disk tail).
+    void openPromise.finally(() => {
+      if (!assertSessionNavigation(navToken)) return
+      refreshSessionList()
+    })
     try {
       await openPromise
-      if (!assertSessionNavigation(navToken)) return
-    } catch (e) {
-      if (!assertSessionNavigation(navToken)) return
+    } catch {
+      /* worker may still come up; hydrate is disk-first */
     }
-    refreshSessionList()
+    if (!assertSessionNavigation(navToken)) return
     await openSessionIntoWorker(explicitPick.sessionId, explicitPick.sessionFile, navToken, {
       workerReady: true,
     })
@@ -148,6 +169,8 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     return
   }
 
+  // Bind target immediately before any further await (avoids blank while openSession starts)
+  focusSessionSync(pick.sessionId, pick.sessionFile)
   await openSessionIntoWorker(pick.sessionId, pick.sessionFile, navToken, {
     workerReady: sameProject,
   })
@@ -174,8 +197,8 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
   }
 
   store.setCurrentSession(sessionId)
-  store.setHistoryLoading(true)
+  // Immediate paint: cache hit → timeline; cold → skeleton (never blank empty-chat).
+  focusSessionSync(sessionId, file)
 
   await openSessionIntoWorker(sessionId, file, navToken, { workerReady: true })
-  void fetchWorkerLiveSnapshot().then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap)).catch(() => {})
 }

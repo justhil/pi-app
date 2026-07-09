@@ -9,16 +9,26 @@ const EXTENSION_UI_COOLDOWN_MS = 3000
 /** 经主进程播放提示音 / 系统通知（受设置 → 常规 开关控制） */
 export async function signalDesktopAlert(
   kind: DesktopAlertKind,
-  payload: { title: string; body: string },
+  payload: { title: string; body: string; background?: boolean },
 ): Promise<void> {
   if (kind === 'extension_ui') {
     const now = Date.now()
     if (now - lastExtensionUiAt < EXTENSION_UI_COOLDOWN_MS) return
     lastExtensionUiAt = now
   }
-  alertTrace('ipc alerts.signal', { kind, title: payload.title, body: payload.body?.slice(0, 80) })
+  alertTrace('ipc alerts.signal', {
+    kind,
+    title: payload.title,
+    body: payload.body?.slice(0, 80),
+    background: payload.background,
+  })
   try {
-    await ipcClient.invoke('alerts.signal', { kind, ...payload })
+    await ipcClient.invoke('alerts.signal', {
+      kind,
+      title: payload.title,
+      body: payload.body,
+      background: payload.background === true,
+    })
   } catch (e) {
     /* ignore */
   }

@@ -22,6 +22,9 @@ export type SettingsDraft = {
   alertNotificationEnabled: boolean
   alertOnExtensionUi: boolean
   alertOnRunIdle: boolean
+  alertOnBackgroundRunIdle: boolean
+  maxSessionWorkers: number
+  sessionWorkerIdleTimeoutMinutes: number
   timelineMaxAutoExpandedTools: number
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
@@ -71,6 +74,9 @@ export function draftSignature(d: SettingsDraft): string {
     alertNotificationEnabled: d.alertNotificationEnabled,
     alertOnExtensionUi: d.alertOnExtensionUi,
     alertOnRunIdle: d.alertOnRunIdle,
+    alertOnBackgroundRunIdle: d.alertOnBackgroundRunIdle,
+    maxSessionWorkers: d.maxSessionWorkers,
+    sessionWorkerIdleTimeoutMinutes: d.sessionWorkerIdleTimeoutMinutes,
     timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
@@ -98,6 +104,9 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     alertNotificationEnabled: s.alertNotificationEnabled !== false,
     alertOnExtensionUi: s.alertOnExtensionUi !== false,
     alertOnRunIdle: s.alertOnRunIdle !== false,
+    alertOnBackgroundRunIdle: s.alertOnBackgroundRunIdle === true,
+    maxSessionWorkers: normalizeMaxSessionWorkersUi(s.maxSessionWorkers),
+    sessionWorkerIdleTimeoutMinutes: normalizeIdleTimeoutMinutesUi(s.sessionWorkerIdleTimeoutMinutes),
     timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
@@ -119,6 +128,20 @@ export function applyThemeToDocument(theme: ThemeChoice): void {
 function normalizeThemeChoice(raw: unknown): ThemeChoice {
   if (raw === 'light' || raw === 'dark' || raw === 'system') return raw
   return 'system'
+}
+
+export function normalizeMaxSessionWorkersUi(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 4
+  if (n > Number.MAX_SAFE_INTEGER) return Number.MAX_SAFE_INTEGER
+  return n
+}
+
+export function normalizeIdleTimeoutMinutesUi(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return 15
+  if (n > Number.MAX_SAFE_INTEGER) return Number.MAX_SAFE_INTEGER
+  return n
 }
 
 /**
@@ -147,6 +170,18 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   await ipcClient.invoke('settings.set', { key: 'alertNotificationEnabled', value: draft.alertNotificationEnabled })
   await ipcClient.invoke('settings.set', { key: 'alertOnExtensionUi', value: draft.alertOnExtensionUi })
   await ipcClient.invoke('settings.set', { key: 'alertOnRunIdle', value: draft.alertOnRunIdle })
+  await ipcClient.invoke('settings.set', {
+    key: 'alertOnBackgroundRunIdle',
+    value: draft.alertOnBackgroundRunIdle,
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'maxSessionWorkers',
+    value: normalizeMaxSessionWorkersUi(draft.maxSessionWorkers),
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'sessionWorkerIdleTimeoutMinutes',
+    value: normalizeIdleTimeoutMinutesUi(draft.sessionWorkerIdleTimeoutMinutes),
+  })
   await ipcClient.invoke('settings.set', {
     key: 'timelineMaxAutoExpandedTools',
     value: draft.timelineMaxAutoExpandedTools,

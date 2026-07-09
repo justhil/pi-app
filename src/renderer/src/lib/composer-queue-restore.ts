@@ -7,16 +7,9 @@ import { useUIStore } from '@renderer/stores/ui-store'
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
 export function applyComposerAbortUi(): void {
   const store = useUIStore.getState()
-  if (
-    !composerTurnActive({
-      historySessionFile: store.historySessionFile,
-      workerLiveSnapshot: store.workerLiveSnapshot,
-      runState: store.runState,
-      streamingAssistantId: store.streamingAssistantId,
-      optimisticPendingUserText: store.optimisticPendingUserText,
-    })
-  )
-    return
+  // Always clear focus-session turn UI on explicit abort click.
+  // Do not gate on composerTurnActive — that can disagree with the Stop button
+  // (e.g. sessionRuntimeRunning set but this helper omitted that field).
   markAbortUiHold()
   store.setRunState({
     status: 'idle',
@@ -24,11 +17,21 @@ export function applyComposerAbortUi(): void {
     activeTool: undefined,
     activeToolStatus: undefined,
   })
-  useUIStore.setState({ streamingAssistantId: null, agentTurnBootstrapping: false })
+  useUIStore.setState({
+    streamingAssistantId: null,
+    agentTurnBootstrapping: false,
+    optimisticPendingUserText: null,
+  })
   store.clearPendingQueue()
   store.markAbortQueueIgnore()
   store.pruneEmptyAssistantBubbles()
-  store.setWorkerLiveSnapshot({ ...store.workerLiveSnapshot, status: 'idle' })
+  const viewFile = store.historySessionFile
+  store.setWorkerLiveSnapshot({
+    sessionId: store.currentSessionId,
+    sessionFile: viewFile,
+    status: 'idle',
+  })
+  if (viewFile) store.setSessionRuntimeRunning(viewFile, false)
   void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
 }
 

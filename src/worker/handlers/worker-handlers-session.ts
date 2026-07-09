@@ -5,6 +5,7 @@ import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/
 import { projectTimelineItems } from '@shared/timeline-projection'
 import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { errorMessage } from '@shared/error-message'
+import { sessionFilePathsEqual } from '@shared/session-file-path'
 import { timelineItemsFromBranchPath } from '../worker-timeline.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -55,17 +56,46 @@ export async function handleListsessions(msg: WorkerIncomingMessage, reply: Work
 }
 
 
+function applyLeafOverrideToLiveSession(leafId: string | null | undefined): void {
+  if (leafId === undefined || !st.session) return
+  try {
+    const sm = st.session.sessionManager
+    if (leafId === null) {
+      sm.resetLeaf?.()
+    } else if (typeof leafId === 'string' && leafId.length > 0) {
+      // branch() only moves the in-memory tip; agent messages must follow.
+      sm.branch(leafId)
+    }
+    const ctx = sm.buildSessionContext?.()
+    if (ctx?.messages && st.session.agent?.state) {
+      st.session.agent.state.messages = ctx.messages
+    }
+  } catch (e) {
+    console.error('[Worker] applyLeafOverride failed:', e)
+  }
+}
+
 export async function handleLoadsession(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           const targetFile = msg.sessionFile as string
           const force = msg.force === true
-          if (st.session?.sessionFile === targetFile) {
+          const leafOverride =
+            typeof msg.leafId === 'string'
+              ? msg.leafId
+              : msg.leafId === null
+                ? null
+                : undefined
+          // Path-normalize: UI / pool keys often differ by slash or drive case from pi's sessionFile.
+          // Strict === caused dispose+reopen thrash and worker-exit during rewind.
+          if (st.session && sessionFilePathsEqual(st.session.sessionFile, targetFile)) {
+            applyLeafOverrideToLiveSession(leafOverride)
             const modelStr = currentSessionModelKey()
             reply({
               type: 'loadSession-done',
               sessionId: st.currentSessionId,
               model: modelStr,
               thinkingLevel: st.session.thinkingLevel,
+              leafId: st.session.sessionManager.getLeafId?.() ?? null,
             })
             return
           }
@@ -74,7 +104,7 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
             st.session &&
             (st.agentTurnActive || st.session.isStreaming) &&
             st.session.sessionFile &&
-            st.session.sessionFile !== targetFile
+            !sessionFilePathsEqual(st.session.sessionFile, targetFile)
           if (busy) {
             reply({
               type: 'error',
@@ -96,6 +126,15 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
           })
           await resourceLoader.reload()
           const sm = st.sdk!.SessionManager.open(String(msg.sessionFile ?? ''))
+          // Restore rewound tip before createAgentSession so agent context matches branch.
+          if (leafOverride === null) sm.resetLeaf?.()
+          else if (typeof leafOverride === 'string' && leafOverride.length > 0) {
+            try {
+              sm.branch(leafOverride)
+            } catch (e) {
+              console.warn('[Worker] loadSession branch override failed:', e)
+            }
+          }
           const { session: newSession } = await st.sdk!.createAgentSession({
             cwd: st.currentCwd,
             agentDir,
@@ -110,7 +149,13 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
           st.unsubscribe = st.session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
           const modelStr = currentSessionModelKey()
           emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel })
-          reply({ type: 'loadSession-done', sessionId: st.currentSessionId, model: modelStr, thinkingLevel: st.session.thinkingLevel })
+          reply({
+            type: 'loadSession-done',
+            sessionId: st.currentSessionId,
+            model: modelStr,
+            thinkingLevel: st.session.thinkingLevel,
+            leafId: st.session.sessionManager.getLeafId?.() ?? null,
+          })
         } catch (e: unknown) {
           reply({ type: 'error', error: `loadSession failed: ${errorMessage(e)}` })
         }
@@ -126,7 +171,7 @@ export async function handleSessionrenamefile(msg: WorkerIncomingMessage, reply:
             reply({ type: 'sessionRenameFile-done', ok: false, error: 'missing file or title' })
             return
           }
-          if (st.session?.sessionFile === file) {
+          if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
             st.session.setSessionName(title)
           } else {
             const sm = st.sdk!.SessionManager.open(file, undefined, st.currentCwd)
@@ -148,7 +193,7 @@ export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply:
             return
           }
           const fs = await import('node:fs')
-          if (st.session?.sessionFile === file) {
+          if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
             if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
             st.session.dispose()
             st.session = null
@@ -274,8 +319,18 @@ export async function handleRunextensioncommand(msg: WorkerIncomingMessage, repl
 export async function handleGetmessages(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           const sessionFile = String(msg.sessionFile ?? '')
-          let leafId: string | null | undefined
-          if (st.session && st.session.sessionFile === sessionFile) {
+          // Prefer explicit leaf after navigateTree; else live session leaf when same file.
+          let leafId: string | null | undefined =
+            typeof msg.leafId === 'string'
+              ? msg.leafId
+              : msg.leafId === null
+                ? null
+                : undefined
+          if (
+            leafId === undefined &&
+            st.session &&
+            sessionFilePathsEqual(st.session.sessionFile, sessionFile)
+          ) {
             leafId = st.session.sessionManager.getLeafId?.() ?? null
           }
           const page = await buildTimelinePageFromSessionFile(

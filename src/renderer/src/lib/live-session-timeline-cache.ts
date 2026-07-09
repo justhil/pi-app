@@ -1,4 +1,5 @@
 import { mergeLiveCacheTimelineSnapshots } from '@renderer/lib/streaming-timeline-preserve'
+import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { mergeStreamChunk } from '@renderer/stores/ui-store-stream'
 import type { AppEvent } from '@shared/app-events'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
@@ -16,29 +17,46 @@ export type LiveSessionTimelineSnapshot = {
 }
 
 const liveTimelines = new Map<string, LiveSessionTimelineSnapshot>()
+/** Cap live items for non-foreground sessions (M1). */
+export const BACKGROUND_LIVE_TIMELINE_MAX_ITEMS = 200
 let seq = 0
+
+function cacheKey(sessionFile: string): string {
+  return normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
+}
 
 function cloneItems(items: TimelineItem[]): TimelineItem[] {
   return items.map((i) => ({ ...i }))
 }
 
 export function saveLiveSessionTimeline(snapshot: LiveSessionTimelineSnapshot): void {
-  const prev = liveTimelines.get(snapshot.sessionFile)
+  const key = cacheKey(snapshot.sessionFile)
+  if (!key) return
+  const prev = liveTimelines.get(key)
   const timelineItems = mergeLiveCacheTimelineSnapshots(
     snapshot.timelineItems,
     prev?.timelineItems ?? [],
   )
-  liveTimelines.set(snapshot.sessionFile, {
+  // Prefer explicit snapshot id; only fall back to prev when snapshot omitted streaming (undefined).
+  // Do NOT use `??` alone on null — idle captures intentionally clear streamingAssistantId to null.
+  const nextStreamingId =
+    snapshot.streamingAssistantId !== undefined
+      ? snapshot.streamingAssistantId
+      : (prev?.streamingAssistantId ?? null)
+  liveTimelines.set(key, {
     ...snapshot,
+    sessionFile: key,
     timelineItems,
-    streamingAssistantId: snapshot.streamingAssistantId ?? prev?.streamingAssistantId ?? null,
+    streamingAssistantId: nextStreamingId,
     pendingSteering: [...snapshot.pendingSteering],
     pendingFollowUp: [...snapshot.pendingFollowUp],
   })
 }
 
 export function getLiveSessionTimeline(sessionFile: string): LiveSessionTimelineSnapshot | null {
-  const snap = liveTimelines.get(sessionFile)
+  const key = cacheKey(sessionFile)
+  if (!key) return null
+  const snap = liveTimelines.get(key)
   if (!snap) return null
   return {
     ...snap,
@@ -49,7 +67,12 @@ export function getLiveSessionTimeline(sessionFile: string): LiveSessionTimeline
 }
 
 export function clearLiveSessionTimeline(sessionFile?: string | null): void {
-  if (sessionFile) liveTimelines.delete(sessionFile)
+  if (sessionFile) {
+    const key = cacheKey(sessionFile)
+    if (key) liveTimelines.delete(key)
+    return
+  }
+  liveTimelines.clear()
 }
 
 function nextCachedItemId(): string {
@@ -159,11 +182,12 @@ function applyTool(snap: LiveSessionTimelineSnapshot, event: Extract<AppEvent, {
 }
 
 function ensureLiveTimeline(sessionFile: string): LiveSessionTimelineSnapshot {
-  let snap = liveTimelines.get(sessionFile)
+  const key = cacheKey(sessionFile)
+  let snap = liveTimelines.get(key)
   if (!snap) {
     snap = {
       sessionId: null,
-      sessionFile,
+      sessionFile: key,
       timelineItems: [],
       streamingAssistantId: null,
       runState: { status: 'running', toolCount: 0, errorCount: 0 },
@@ -172,9 +196,20 @@ function ensureLiveTimeline(sessionFile: string): LiveSessionTimelineSnapshot {
       optimisticPendingUserText: null,
       agentTurnBootstrapping: false,
     }
-    liveTimelines.set(sessionFile, snap)
+    liveTimelines.set(key, snap)
   }
   return snap
+}
+
+function trimBackgroundLiveItems(snap: LiveSessionTimelineSnapshot): void {
+  const max = BACKGROUND_LIVE_TIMELINE_MAX_ITEMS
+  if (snap.timelineItems.length <= max) return
+  const drop = snap.timelineItems.length - max
+  const droppedIds = new Set(snap.timelineItems.slice(0, drop).map((item) => item.id))
+  snap.timelineItems = snap.timelineItems.slice(drop)
+  if (snap.streamingAssistantId && droppedIds.has(snap.streamingAssistantId)) {
+    snap.streamingAssistantId = null
+  }
 }
 
 export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event: AppEvent): void {
@@ -192,6 +227,10 @@ export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event
     if (event.phase === 'running' || event.phase === 'started') {
       snap.runState = { ...snap.runState, status: 'running', activeRunId: event.runId, startTime: event.timestamp }
     } else if (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled') {
+      // Turn finished: clear streaming markers so switch-back uses disk+merge, not a forever-active live path.
+      snap.streamingAssistantId = null
+      snap.agentTurnBootstrapping = false
+      snap.optimisticPendingUserText = null
       snap.runState = {
         ...snap.runState,
         status: event.phase === 'failed' ? 'failed' : 'idle',
@@ -201,4 +240,11 @@ export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event
       }
     }
   }
+  trimBackgroundLiveItems(snap)
+}
+
+export function isLiveSessionRunning(sessionFile: string | undefined | null): boolean {
+  if (!sessionFile) return false
+  const snap = liveTimelines.get(cacheKey(sessionFile))
+  return snap?.runState.status === 'running'
 }

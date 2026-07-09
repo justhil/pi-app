@@ -39,19 +39,21 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'agent_end': {
-      if (!deps.isAgentTurnActive()) {
+      // Align with pi-tui / AgentSession: willRetry means the turn is NOT finished —
+      // auto-retry continues without going idle (do not clear busy or emit run idle).
+      const willRetry = !!(event as { willRetry?: boolean }).willRetry
+      if (willRetry) {
         if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_AUDIO_TRACE === 'true') {
-          console.log('[audio-trace] worker.agent_end_ignored', { agentTurnActive: false })
+          console.log('[audio-trace] worker.agent_end_willRetry_keep_active')
         }
         break
       }
+      // Always clear busy + emit idle on real completion, even if a prompt short-path
+      // already flipped agentTurnActive (UI must stay in sync with session.isStreaming).
       deps.setAgentTurnActive(false)
-      const willRetry = !!(event as { willRetry?: boolean }).willRetry
-      if (!willRetry) {
-        const last = lastAssistantFromMessages((event as { messages?: unknown[] }).messages || [])
-        if (last && (last.stopReason === 'error' || last.stopReason === 'aborted')) {
-          deps.emit({ ...base, type: 'run', phase: 'failed' } as AppEvent)
-        }
+      const last = lastAssistantFromMessages((event as { messages?: unknown[] }).messages || [])
+      if (last && (last.stopReason === 'error' || last.stopReason === 'aborted')) {
+        deps.emit({ ...base, type: 'run', phase: 'failed' } as AppEvent)
       }
       if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_AUDIO_TRACE === 'true') {
         console.log('[audio-trace] worker.emit_run_idle')

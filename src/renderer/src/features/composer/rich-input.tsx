@@ -1,4 +1,4 @@
-import { forwardRef, useRef, useEffect, useImperativeHandle } from 'react'
+import { forwardRef, useRef, useImperativeHandle, useLayoutEffect } from 'react'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { cn } from '@renderer/lib/utils'
 
@@ -13,23 +13,36 @@ export interface RichInputProps {
   className?: string
 }
 
-function syncEmpty(el: HTMLElement) {
-  const hasText = Array.from(el.childNodes).some((n) =>
-    n.nodeType === Node.TEXT_NODE ? !!(n.nodeValue || '').replace(/\u200B|\s/g, '')
-    : n.nodeType === Node.ELEMENT_NODE ? !(n as HTMLElement).dataset.attachmentPath && (n as HTMLElement).tagName !== 'BR' || collectText(n).length > 0
-    : false,
-  ) || Array.from(el.querySelectorAll('[data-attachment-path]')).length > 0
-  const empty = !hasText
+/**
+ * Placeholder visibility for contenteditable.
+ * - Spaces / typed newlines hide placeholder (user is typing).
+ * - ZWSP caret anchors and a lone structural <br> count as empty.
+ * - Attachment chips always hide placeholder.
+ * Exported so programmatic setContent / prefill can force-refresh.
+ */
+export function syncRichInputEmpty(el: HTMLElement): void {
+  const hasAttachment = el.querySelectorAll('[data-attachment-path]').length > 0
+  // Text nodes only (including space). Ignore ZWSP. Do not treat lone <br> as content —
+  // empty contenteditable often has a single BR while still "empty".
+  const textFromNodes = collectTextNodeContent(el).replace(/\u200B/g, '')
+  const empty = !hasAttachment && textFromNodes.length === 0
   el.classList.toggle('is-empty', empty)
 }
 
-function collectText(node: Node): string {
-  let s = ''
-  node.childNodes.forEach((c) => {
-    if (c.nodeType === Node.TEXT_NODE) s += c.nodeValue || ''
-    else if (c.nodeType === Node.ELEMENT_NODE) s += collectText(c)
+function collectTextNodeContent(node: Node): string {
+  let text = ''
+  node.childNodes.forEach((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      text += child.nodeValue || ''
+      return
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) return
+    const element = child as HTMLElement
+    if (element.dataset.attachmentPath) return
+    if (element.tagName === 'BR') return
+    text += collectTextNodeContent(child)
   })
-  return s
+  return text
 }
 
 export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function RichInput(
@@ -39,23 +52,42 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
   const innerRef = useRef<HTMLDivElement>(null)
   useImperativeHandle(ref, () => innerRef.current as HTMLDivElement, [])
 
+  const refreshLayoutAndEmpty = () => {
+    const node = innerRef.current
+    if (!node) return
+    node.style.height = 'auto'
+    node.style.height = Math.min(node.scrollHeight, 112) + 'px'
+    syncRichInputEmpty(node)
+  }
+
   const handleInput = () => {
-    const el = innerRef.current
-    if (!el) return
+    if (!innerRef.current) return
     requestAnimationFrame(() => {
       if (!innerRef.current) return
-      const node = innerRef.current
-      node.style.height = 'auto'
-      node.style.height = Math.min(node.scrollHeight, 112) + 'px'
-      syncEmpty(node)
+      refreshLayoutAndEmpty()
     })
     onInput?.()
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = innerRef.current
-    if (el) { syncEmpty(el); handleInput() }
-     
+    if (!el) return
+    // Start empty so CSS placeholder shows on mount.
+    el.classList.add('is-empty')
+    syncRichInputEmpty(el)
+    refreshLayoutAndEmpty()
+
+    // Programmatic fills (rewind prefill, setContent, history) often skip `input` events.
+    // MutationObserver keeps is-empty in sync for DOM writes.
+    const observer = new MutationObserver(() => {
+      syncRichInputEmpty(el)
+    })
+    observer.observe(el, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    })
+    return () => observer.disconnect()
   }, [])
 
   // 事件委托：点击 chip 的删除按钮 → 移除该 chip 及相邻 ZWSP，刷新输入态
@@ -91,7 +123,11 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
       onBlur={onBlur}
       onInput={handleInput}
       onClickCapture={handleClickCapture}
-      className={cn('rich-input min-h-[2.5rem] w-full px-0.5 py-0 text-[14px] leading-[1.55] text-foreground disabled:cursor-default disabled:opacity-50', disabled && 'is-disabled', className)}
+      className={cn(
+        'rich-input is-empty min-h-[2.5rem] w-full px-0.5 py-0 text-[14px] leading-[1.55] text-foreground disabled:cursor-default disabled:opacity-50',
+        disabled && 'is-disabled',
+        className,
+      )}
     />
   )
 })

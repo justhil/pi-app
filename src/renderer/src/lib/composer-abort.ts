@@ -27,6 +27,8 @@ export async function abortAgentTurn(opts?: {
       runState: store.runState,
       streamingAssistantId: store.streamingAssistantId,
       optimisticPendingUserText: store.optimisticPendingUserText,
+      sessionRuntimeRunning: store.sessionRuntimeRunning,
+      agentTurnBootstrapping: store.agentTurnBootstrapping,
     })
   )
     return
@@ -35,21 +37,33 @@ export async function abortAgentTurn(opts?: {
 
   markAbortUiHold()
   applyComposerAbortUi()
-  store.setWorkerLiveSnapshot({ ...store.workerLiveSnapshot, status: 'idle' })
 
   if (merged && opts?.setEditorText) opts.setEditorText(merged)
 
   try {
-    await ipcClient.invoke('prompt.abort', { sessionId: '', sessionFile: sessionFile ?? undefined })
+    const result = await ipcClient.invoke('prompt.abort', {
+      sessionId: '',
+      sessionFile: sessionFile ?? undefined,
+    })
+    if (result && (result as { ignored?: boolean }).ignored) {
+      console.warn('[composer-abort] prompt.abort ignored by main', result)
+      // Force local idle again — user clicked Stop; never leave chrome stuck running.
+      applyComposerAbortUi()
+    }
   } catch (e) {
     console.error('[composer-abort] prompt.abort failed:', e)
+    applyComposerAbortUi()
   }
 
+  // Do not re-apply a late getState that might re-light running for this session
+  // until the worker has settled; only refresh if still focused here.
   window.setTimeout(() => {
-    void fetchWorkerLiveSnapshot()
+    void fetchWorkerLiveSnapshot(useUIStore.getState().currentWorkspace, sessionFile)
       .then((snap) => {
         const s = useUIStore.getState()
-        applyLiveSnapshotToView(s.historySessionFile, snap, s)
+        if (sessionFile && s.historySessionFile !== sessionFile) return
+        // Abort holds UI idle; ignore streaming=true for a short hold window
+        applyLiveSnapshotToView(s.historySessionFile, { ...snap, status: 'idle' }, s)
       })
       .catch(() => {})
   }, 250)

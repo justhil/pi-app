@@ -54,6 +54,9 @@ type SettingsDraftContextValue = {
   setAlertNotificationEnabled: (v: boolean) => void
   setAlertOnExtensionUi: (v: boolean) => void
   setAlertOnRunIdle: (v: boolean) => void
+  setAlertOnBackgroundRunIdle: (v: boolean) => void
+  setMaxSessionWorkers: (n: number) => void
+  setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
@@ -231,6 +234,18 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setAlertNotificationEnabled: (v) => patch((d) => ({ ...d, alertNotificationEnabled: v })),
       setAlertOnExtensionUi: (v) => patch((d) => ({ ...d, alertOnExtensionUi: v })),
       setAlertOnRunIdle: (v) => patch((d) => ({ ...d, alertOnRunIdle: v })),
+      setAlertOnBackgroundRunIdle: (v) => patch((d) => ({ ...d, alertOnBackgroundRunIdle: v })),
+      setMaxSessionWorkers: (n) =>
+        patch((d) => ({
+          ...d,
+          maxSessionWorkers: Number.isFinite(n) && n >= 1 ? Math.floor(n) : d.maxSessionWorkers,
+        })),
+      setSessionWorkerIdleTimeoutMinutes: (n) =>
+        patch((d) => ({
+          ...d,
+          sessionWorkerIdleTimeoutMinutes:
+            Number.isFinite(n) && n >= 0 ? Math.floor(n) : d.sessionWorkerIdleTimeoutMinutes,
+        })),
       setTimelineMaxAutoExpandedTools: (n) =>
         patch((d) => ({
           ...d,

@@ -30,6 +30,7 @@ import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-ho
 import { AppToaster } from '@renderer/components/app/app-toaster'
 import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
 import { hydrateThemeFromSettings } from '@renderer/features/settings/settings-draft'
+import { composerTurnActive } from '@renderer/lib/session-worker-sync'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
@@ -55,7 +56,18 @@ export default function App() {
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
-  const isRunning = useUIStore((s) => s.runState.status === 'running')
+  // Multi-session: chrome "running" is for the *visible* session only, not residual global runState.
+  const isRunning = useUIStore((s) =>
+    composerTurnActive({
+      historySessionFile: s.historySessionFile,
+      workerLiveSnapshot: s.workerLiveSnapshot,
+      runState: s.runState,
+      streamingAssistantId: s.streamingAssistantId,
+      optimisticPendingUserText: s.optimisticPendingUserText,
+      sessionRuntimeRunning: s.sessionRuntimeRunning,
+      agentTurnBootstrapping: s.agentTurnBootstrapping,
+    }),
+  )
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)

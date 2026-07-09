@@ -1,4 +1,5 @@
 import type { SessionScopedAppEvent } from '@shared/app-event-session'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 export type AppEventRoute = 'visible' | 'background' | 'drop'
 
@@ -25,17 +26,28 @@ export function resolveAppEventRoute(state: RouteState, event: SessionScopedAppE
   const evSid = event.sessionId
 
   if (evFile) {
-    if (viewFile && evFile === viewFile) return 'visible'
-    if (viewFile && evFile !== viewFile) {
-      if (workerFile && evFile === workerFile) return 'background'
-      return 'drop'
+    if (viewFile && sessionFilesEqual(evFile, viewFile)) return 'visible'
+    if (viewFile && !sessionFilesEqual(evFile, viewFile)) {
+      // Multi-session: any other session's events go to background cache (E1), not drop.
+      return 'background'
     }
     // viewFile 为空：Worker 绑定的事件视为可见，避免发送瞬间丢首 token
-    if (workerFile && evFile === workerFile) return 'visible'
+    if (workerFile && sessionFilesEqual(evFile, workerFile)) return 'visible'
+    if (evFile) return 'background'
   }
 
   const backgroundBySid = !!evSid && !!viewSid && !!workerSid && evSid === workerSid && evSid !== viewSid
   if (backgroundBySid) return 'background'
-  if (evSid && viewSid && evSid !== viewSid) return 'drop'
+  // Different sessionId while viewing another session: still cache for multi-session runtime
+  if (evSid && viewSid && evSid !== viewSid) return 'background'
+
+  // No sessionFile on event: only treat as visible when it matches the view worker snap.
+  // Defaulting to 'visible' caused A's unscoped run events to re-light B after switch.
+  if (viewFile && workerFile && !sessionFilesEqual(viewFile, workerFile)) {
+    return 'background'
+  }
+  if (viewFile && !workerFile && evSid && viewSid && evSid !== viewSid) {
+    return 'background'
+  }
   return 'visible'
 }

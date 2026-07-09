@@ -114,10 +114,44 @@ app.whenReady().then(() => {
   })
 })
 
+let isQuittingGracefully = false
+
+/**
+ * Force-quit mid-stream used to kill workers before abort could write a terminal
+ * assistant leaf — reopen then showed empty unrewindable sessions.
+ * Await abort+dispose flush on every quit path.
+ */
+async function gracefulShutdownWorkers(): Promise<void> {
+  if (isQuittingGracefully) return
+  isQuittingGracefully = true
+  try {
+    await workerManager.stop()
+  } catch (error) {
+    console.error('[Main] graceful worker stop failed:', error)
+  }
+  try {
+    const asr = await import('./asr/codex-asr-manager')
+    asr.stopBuiltinCodexAsrServe()
+  } catch {
+    /* optional */
+  }
+}
+
+app.on('before-quit', (event) => {
+  if (isQuittingGracefully) return
+  event.preventDefault()
+  void gracefulShutdownWorkers().finally(() => {
+    app.exit(0)
+  })
+})
+
 app.on('window-all-closed', () => {
-  workerManager.stop()
-  void import('./asr/codex-asr-manager').then((m) => m.stopBuiltinCodexAsrServe())
   if (process.platform !== 'darwin') {
-    app.quit()
+    // before-quit will flush workers; do not fire-and-forget stop() here
+    if (!isQuittingGracefully) {
+      void gracefulShutdownWorkers().finally(() => app.quit())
+    }
+  } else {
+    void gracefulShutdownWorkers()
   }
 })

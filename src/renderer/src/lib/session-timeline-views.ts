@@ -1,6 +1,11 @@
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 import type { TimelineSyncCursor } from '@shared/session-timeline-sync-plan'
 import { projectTimelineItems } from '@shared/timeline-projection'
+import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+
+function viewKey(sessionFile: string): string {
+  return normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
+}
 
 export type SessionTimelineView = {
   sessionFile: string
@@ -24,7 +29,8 @@ function emptyRunState(): RunState {
 }
 
 export function getSessionTimelineView(sessionFile: string): SessionTimelineView | null {
-  const v = views.get(sessionFile)
+  const key = viewKey(sessionFile)
+  const v = views.get(key)
   if (!v) return null
   return {
     ...v,
@@ -37,10 +43,11 @@ export function getSessionTimelineView(sessionFile: string): SessionTimelineView
 }
 
 export function ensureSessionTimelineView(sessionFile: string, sessionId: string | null = null): SessionTimelineView {
-  let v = views.get(sessionFile)
+  const key = viewKey(sessionFile)
+  let v = views.get(key)
   if (!v) {
     v = {
-      sessionFile,
+      sessionFile: key,
       sessionId,
       head: [],
       tail: [],
@@ -53,7 +60,7 @@ export function ensureSessionTimelineView(sessionFile: string, sessionId: string
       agentTurnBootstrapping: false,
       updatedAt: Date.now(),
     }
-    views.set(sessionFile, v)
+    views.set(key, v)
   }
   if (sessionId != null) v.sessionId = sessionId
   return v
@@ -84,6 +91,6 @@ export function patchSessionTimelineView(
 }
 
 export function clearSessionTimelineView(sessionFile?: string | null): void {
-  if (sessionFile) views.delete(sessionFile)
+  if (sessionFile) views.delete(viewKey(sessionFile))
   else views.clear()
 }

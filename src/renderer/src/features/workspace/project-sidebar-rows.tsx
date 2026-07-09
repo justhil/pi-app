@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Folder, Inbox, Plus } from 'lucide-react'
+import { ChevronRight, Folder, Inbox, Loader2, Plus } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
+import { useUIStore } from '@renderer/stores/ui-store'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 
 export function ProjectSessionTree({
@@ -25,6 +27,7 @@ export function ProjectSessionTree({
   ) => void
 }) {
   const { t } = useTranslation()
+  const sessionRuntimeRunning = useUIStore((st) => st.sessionRuntimeRunning)
   return (
     <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
       {loading ? (
@@ -32,7 +35,14 @@ export function ProjectSessionTree({
       ) : projectSessions.length === 0 ? (
         <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noSessions')}</p>
       ) : (
-        projectSessions.map((s) => (
+        projectSessions.map((s) => {
+          const running = !!(
+            s.sessionFile &&
+            Object.entries(sessionRuntimeRunning).some(
+              ([runtimeKey, isRunning]) => isRunning && sessionFilesEqual(runtimeKey, s.sessionFile),
+            )
+          )
+          return (
           <div
             key={s.sessionId}
             role="button"
@@ -71,7 +81,7 @@ export function ProjectSessionTree({
               })
             }
             className={cn(
-              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center rounded-lg px-2.5 py-1.5',
+              'nav-row sidebar-session-row mb-0.5 flex min-h-[38px] items-center gap-1.5 rounded-lg px-2.5 py-1.5',
               currentSessionId === s.sessionId && workspacePath === currentWorkspace
                 ? 'nav-row-active'
                 : 'text-foreground-secondary hover:text-foreground',
@@ -90,8 +100,15 @@ export function ProjectSessionTree({
                 })}
               </div>
             </div>
+            {running ? (
+              <Loader2
+                className="h-3 w-3 shrink-0 animate-spin text-muted-foreground/45"
+                aria-hidden
+              />
+            ) : null}
           </div>
-        ))
+          )
+        })
       )}
     </div>
   )

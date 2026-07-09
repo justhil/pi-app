@@ -9,10 +9,18 @@ export type DesktopAlertPayload = {
   kind: DesktopAlertKind
   title: string
   body: string
+  /** Background session finished; requires alertOnBackgroundRunIdle */
+  background?: boolean
 }
 
-function scenarioEnabled(kind: DesktopAlertKind): boolean {
+function scenarioEnabled(kind: DesktopAlertKind, background?: boolean): boolean {
   if (kind === 'extension_ui') return configStore.get('alertOnExtensionUi') !== false
+  if (background) {
+    return (
+      configStore.get('alertOnRunIdle') !== false &&
+      configStore.get('alertOnBackgroundRunIdle') === true
+    )
+  }
   return configStore.get('alertOnRunIdle') !== false
 }
 
@@ -56,13 +64,14 @@ function ensureNotificationIdentity(): void {
 }
 
 export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopAlertPayload): void {
-  const scenario = scenarioEnabled(payload.kind)
+  const scenario = scenarioEnabled(payload.kind, payload.background === true)
   const doSound = soundEnabled()
   const doNotify = notificationEnabled()
   traceAudio('main.deliverDesktopAlert', {
     kind: payload.kind,
     title: payload.title,
     body: payload.body?.slice(0, 80),
+    background: payload.background,
     scenario,
     alertSoundEnabled: configStore.get('alertSoundEnabled'),
     alertNotificationEnabled: configStore.get('alertNotificationEnabled'),

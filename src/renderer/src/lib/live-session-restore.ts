@@ -1,6 +1,7 @@
 import type { RunState } from '@renderer/stores/ui-store-types'
 import type { LiveSessionTimelineSnapshot } from '@renderer/lib/live-session-timeline-cache'
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 export function isLiveSessionTurnActive(
   sessionFile: string,
@@ -8,13 +9,16 @@ export function isLiveSessionTurnActive(
   workerSnap: WorkerLiveSnapshot | null,
 ): boolean {
   if (!live) return false
-  const boundToWorker = !!workerSnap?.sessionFile && workerSnap.sessionFile === sessionFile
+  const boundToWorker = sessionFilesEqual(workerSnap?.sessionFile, sessionFile)
   const workerStillRunningHere = boundToWorker && workerSnap!.status === 'running'
+  // Multi-session: workerLiveSnapshot is often the *foreground* slot, not this session.
+  // Trust live cache / streaming ids even when worker snap points elsewhere.
   return (
     workerStillRunningHere ||
     live.runState.status === 'running' ||
     live.streamingAssistantId != null ||
-    live.optimisticPendingUserText != null
+    live.optimisticPendingUserText != null ||
+    live.agentTurnBootstrapping
   )
 }
 
@@ -24,17 +28,21 @@ export function mergeLiveViewRunState(
   live: LiveSessionTimelineSnapshot,
   workerSnap: WorkerLiveSnapshot | null,
 ): RunState {
-  const bound = workerSnap?.sessionFile === sessionFile
+  const bound = sessionFilesEqual(workerSnap?.sessionFile, sessionFile)
   if (bound && workerSnap?.status === 'running') {
     return {
       ...live.runState,
       status: 'running',
     }
   }
-  if (live.streamingAssistantId != null || live.optimisticPendingUserText != null) {
-    if (live.runState.status !== 'running') {
-      return { ...live.runState, status: 'running' }
-    }
+  // Multi-session: this session's live cache is authoritative even if worker snap is another session.
+  if (
+    live.runState.status === 'running' ||
+    live.streamingAssistantId != null ||
+    live.optimisticPendingUserText != null ||
+    live.agentTurnBootstrapping
+  ) {
+    return { ...live.runState, status: 'running' }
   }
   return live.runState
 }

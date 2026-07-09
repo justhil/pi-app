@@ -21,6 +21,21 @@ describe('streaming-timeline-preserve', () => {
     expect(merged.at(-1)?.text).toBe('full streamed body')
   })
 
+  it('prefers full-page capture over stream-only tail even if assistant text is longer', () => {
+    const fullPage: TimelineItem[] = [
+      { id: 'h1', type: 'user-message', text: 'older', timestamp: 1 },
+      { id: 'h2', type: 'assistant-message', text: 'old answer', timestamp: 2 },
+      { id: 'h3', type: 'user-message', text: 'current', timestamp: 3 },
+      { id: 'h4', type: 'assistant-message', text: 'partial', timestamp: 4 },
+    ]
+    const streamOnly: TimelineItem[] = [
+      { id: 'l1', type: 'assistant-message', text: 'partial and much longer streamed body', timestamp: 5 },
+    ]
+    const merged = mergeLiveCacheTimelineSnapshots(streamOnly, fullPage)
+    expect(merged.filter((i) => i.type === 'user-message')).toHaveLength(2)
+    expect(merged.at(-1)?.text).toBe('partial and much longer streamed body')
+  })
+
   it('saveLiveSessionTimeline keeps longer assistant text from existing cache', () => {
     saveLiveSessionTimeline({
       sessionId: 's1',

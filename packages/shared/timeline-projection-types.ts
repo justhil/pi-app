@@ -14,4 +14,7 @@ export type ProjectableTimelineItem = {
   isError?: boolean
   sessionEntryId?: string
   timestamp?: number
+  /** Mid-stream crash / abort — keep visible for rewind */
+  incomplete?: boolean
+  stopReason?: string
 }

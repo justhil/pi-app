@@ -1,4 +1,4 @@
-// Worker Manager - per-workspace utility processes; foreground RPC + background turns keep running
+// Worker Manager - multi-session utility process pool (sessionKey + workspace keys)
 
 import { type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
@@ -18,43 +18,87 @@ import type {
 } from '@shared/worker-rpc-types'
 import {
   attachWorkerHandlers,
+  canAcquireNewWorker,
   disposeWorkerSlot,
-  evictBackgroundWorkers,
+  evictIdleWorkers,
   forkWorkerForCwd,
   getBackgroundWorkerState,
+  pruneIdleWorkersByTimeout,
   slotRequest,
 } from './worker-manager-pool'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
+import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
+import { readMaxSessionWorkers } from './worker-pool-config'
 
 interface InitResult extends WorkerInitResult {}
 
 export class WorkerManager {
   private mainWindow: BrowserWindow | null = null
+  /** Key: session abs path or `ws:${cwd}` */
   private pool = new Map<string, WorkerSlot>()
-  private foregroundCwd: string | null = null
+  private foregroundPoolKey: string | null = null
   private lifecycleChain: Promise<unknown> = Promise.resolve()
+  private idleTimer: ReturnType<typeof setInterval> | null = null
 
   setMainWindow(win: BrowserWindow): void {
     this.mainWindow = win
+    this.ensureIdleTimer()
+  }
+
+  private ensureIdleTimer(): void {
+    if (this.idleTimer) return
+    this.idleTimer = setInterval(() => {
+      try {
+        pruneIdleWorkersByTimeout(this.pool, this.foregroundPoolKey)
+      } catch {
+        /* ignore */
+      }
+    }, 60_000)
+    if (typeof this.idleTimer === 'object' && this.idleTimer && 'unref' in this.idleTimer) {
+      ;(this.idleTimer as NodeJS.Timeout).unref?.()
+    }
   }
 
   async start(cwd: string): Promise<InitResult> {
-    const run = this.lifecycleChain.then(() => this.startUnlocked(cwd))
-    this.lifecycleChain = run.then(() => undefined, () => undefined)
+    const run = this.lifecycleChain.then(() => this.startWorkspaceUnlocked(cwd))
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
+
+  /** Acquire or create a worker bound to sessionFile (F1). Requires workspace cwd. */
+  async ensureSessionWorker(sessionFile: string, cwd: string): Promise<InitResult> {
+    const run = this.lifecycleChain.then(() => this.ensureSessionWorkerUnlocked(sessionFile, cwd))
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
     return run
   }
 
   private foregroundSlot(): WorkerSlot | null {
-    if (!this.foregroundCwd) return null
-    return this.pool.get(this.foregroundCwd) ?? null
+    if (!this.foregroundPoolKey) return null
+    return this.pool.get(this.foregroundPoolKey) ?? null
   }
 
-  private async startUnlocked(cwd: string): Promise<InitResult> {
-    const existing = this.pool.get(cwd)
+  private setForeground(slot: WorkerSlot): void {
+    this.foregroundPoolKey = slot.poolKey
+    slot.lastForegroundAt = Date.now()
+  }
+
+  private async startWorkspaceUnlocked(cwd: string): Promise<InitResult> {
+    const key = workspacePoolKey(cwd)
+    const existing = this.pool.get(key)
     if (existing && !existing.stopping) {
-      const prev = this.foregroundCwd
-      this.foregroundCwd = cwd
-      evictBackgroundWorkers(this.pool, cwd, prev && prev !== cwd ? prev : null)
+      const prev = this.foregroundPoolKey
+      this.setForeground(existing)
+      evictIdleWorkers(this.pool, {
+        foregroundKey: key,
+        keepKeys: prev && prev !== key ? [prev] : [],
+        maxWorkers: readMaxSessionWorkers(),
+      })
       if (existing.initPromise) return existing.initPromise
       const live = await this.requestOnSlot(existing, 'getState').catch(() => null)
       return {
@@ -64,45 +108,155 @@ export class WorkerManager {
       }
     }
 
-    const prev = this.foregroundCwd
-    if (prev !== cwd) {
-      try {
-        const { traceAudio } = await import('./audio-trace')
-        traceAudio('main.workerRestart', { from: prev, to: cwd })
-      } catch {
-        /* ignore */
+    // Prefer reusing any session slot already on this cwd as workspace foreground
+    for (const slot of this.pool.values()) {
+      if (slot.cwd === cwd && !slot.stopping) {
+        this.setForeground(slot)
+        return this.initResultFromSlot(slot)
       }
     }
 
-    evictBackgroundWorkers(this.pool, cwd, prev && prev !== cwd ? prev : null)
+    const cap = canAcquireNewWorker(this.pool)
+    if (!cap.ok) {
+      evictIdleWorkers(this.pool, {
+        foregroundKey: this.foregroundPoolKey,
+        maxWorkers: readMaxSessionWorkers(),
+      })
+    }
+    const cap2 = canAcquireNewWorker(this.pool)
+    if (!cap2.ok) throw new Error(cap2.reason)
 
-    const { slot, init } = await forkWorkerForCwd(cwd)
-    this.pool.set(cwd, slot)
-    this.foregroundCwd = cwd
+    const prev = this.foregroundPoolKey
+    const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: key, sessionFile: null })
+    this.pool.set(key, slot)
+    this.setForeground(slot)
 
     attachWorkerHandlers(slot, slot.worker, {
       mainWindow: this.mainWindow,
-      onAppEvent: ({ event, fromCwd, agentTurnActive }) => this.forwardAppEvent(event, fromCwd, agentTurnActive),
+      getForegroundPoolKey: () => this.foregroundPoolKey,
+      onAppEvent: (p) => this.forwardAppEvent(p),
       onSlotExit: (s, code) => this.handleSlotExit(s, code),
+    })
+
+    evictIdleWorkers(this.pool, {
+      foregroundKey: key,
+      keepKeys: prev && prev !== key ? [prev] : [],
+      maxWorkers: readMaxSessionWorkers(),
     })
 
     return init
   }
 
-  private forwardAppEvent(event: AppEvent, fromCwd: string, agentTurnActive: boolean): void {
+  private async ensureSessionWorkerUnlocked(sessionFile: string, cwd: string): Promise<InitResult> {
+    const sk = normalizeSessionKey(sessionFile)
+    if (!sk) throw new Error('sessionFile required')
+
+    const existing = this.pool.get(sk)
+    if (existing && !existing.stopping) {
+      const prev = this.foregroundPoolKey
+      this.setForeground(existing)
+      existing.sessionFile = sk
+      evictIdleWorkers(this.pool, {
+        foregroundKey: sk,
+        keepKeys: prev && prev !== sk ? [prev] : [],
+        maxWorkers: readMaxSessionWorkers(),
+      })
+      if (existing.initPromise) await existing.initPromise
+      // Bind live session on worker
+      await this.requestOnSlot(existing, 'loadSession', { sessionFile: sk }).catch(() => null)
+      return this.initResultFromSlot(existing)
+    }
+
+    // Reuse workspace slot on same cwd if unbound / same session
+    const wsKey = workspacePoolKey(cwd)
+    const wsSlot = this.pool.get(wsKey)
+    if (wsSlot && !wsSlot.stopping && (!wsSlot.sessionFile || wsSlot.sessionFile === sk)) {
+      this.pool.delete(wsKey)
+      wsSlot.poolKey = sk
+      wsSlot.sessionFile = sk
+      this.pool.set(sk, wsSlot)
+      this.setForeground(wsSlot)
+      if (wsSlot.initPromise) await wsSlot.initPromise
+      await this.requestOnSlot(wsSlot, 'loadSession', { sessionFile: sk })
+      return this.initResultFromSlot(wsSlot)
+    }
+
+    const cap = canAcquireNewWorker(this.pool)
+    if (!cap.ok) {
+      evictIdleWorkers(this.pool, {
+        foregroundKey: this.foregroundPoolKey,
+        maxWorkers: readMaxSessionWorkers(),
+      })
+    }
+    const cap2 = canAcquireNewWorker(this.pool)
+    if (!cap2.ok) throw new Error(cap2.reason)
+
+    const prev = this.foregroundPoolKey
+    const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: sk, sessionFile: sk })
+    this.pool.set(sk, slot)
+    this.setForeground(slot)
+
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: this.mainWindow,
+      getForegroundPoolKey: () => this.foregroundPoolKey,
+      onAppEvent: (p) => this.forwardAppEvent(p),
+      onSlotExit: (s, code) => this.handleSlotExit(s, code),
+    })
+
+    await init
+    await this.requestOnSlot(slot, 'loadSession', { sessionFile: sk })
+
+    evictIdleWorkers(this.pool, {
+      foregroundKey: sk,
+      keepKeys: prev && prev !== sk ? [prev] : [],
+      maxWorkers: readMaxSessionWorkers(),
+    })
+
+    return this.initResultFromSlot(slot)
+  }
+
+  private async initResultFromSlot(slot: WorkerSlot): Promise<InitResult> {
+    if (slot.initPromise) {
+      try {
+        return await slot.initPromise
+      } catch {
+        /* fall through */
+      }
+    }
+    const live = await this.requestOnSlot(slot, 'getState').catch(() => null)
+    return {
+      sessionId: String((live?.state as WorkerState)?.sessionId ?? ''),
+      model: (live?.state as WorkerState)?.model as string | undefined,
+      thinkingLevel: (live?.state as WorkerState)?.thinkingLevel as string | undefined,
+    }
+  }
+
+  private forwardAppEvent(payload: {
+    event: AppEvent
+    fromCwd: string
+    fromPoolKey: string
+    sessionFile: string | null
+    agentTurnActive: boolean
+  }): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
-    const enriched =
-      event && typeof event === 'object' && 'workspaceId' in event
-        ? { ...event, workspaceId: (event as { workspaceId?: string }).workspaceId || fromCwd }
-        : event
+    const { event, fromCwd, sessionFile, agentTurnActive } = payload
+    let enriched = event
+    if (event && typeof event === 'object') {
+      const base = { ...(event as object) } as Record<string, unknown>
+      if ('workspaceId' in event) {
+        base.workspaceId = (event as { workspaceId?: string }).workspaceId || fromCwd
+      }
+      if (sessionFile && !base.sessionFile) base.sessionFile = sessionFile
+      enriched = base as unknown as AppEvent
+    }
     this.mainWindow.webContents.send('ipc:events', enriched)
     void agentTurnActive
   }
 
   private handleSlotExit(slot: WorkerSlot, code: number): void {
-    const cwdOnExit = slot.cwd
-    this.pool.delete(cwdOnExit)
-    if (this.foregroundCwd === cwdOnExit) this.foregroundCwd = null
+    const key = slot.poolKey
+    if (this.pool.get(key) === slot) this.pool.delete(key)
+    if (this.foregroundPoolKey === key) this.foregroundPoolKey = null
     slot.initPromise = null
     if (slot.initRejecter) {
       slot.initRejecter(new Error(`Worker exited during init with code ${code}`))
@@ -111,10 +265,15 @@ export class WorkerManager {
     }
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('ipc:worker-exit', { code, cwd: cwdOnExit })
+      this.mainWindow.webContents.send('ipc:worker-exit', {
+        code,
+        cwd: slot.cwd,
+        sessionFile: slot.sessionFile,
+        poolKey: key,
+      })
     }
 
-    if (slot.stopping || code === 0 || !cwdOnExit || !slot.autoRestartEnabled) return
+    if (slot.stopping || code === 0 || !slot.autoRestartEnabled) return
 
     try {
       process.stderr.write(
@@ -126,7 +285,8 @@ export class WorkerManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('ipc:worker-fatal', {
         code,
-        cwd: cwdOnExit,
+        cwd: slot.cwd,
+        sessionFile: slot.sessionFile,
         message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
       })
     }
@@ -134,14 +294,17 @@ export class WorkerManager {
 
   async stop(): Promise<void> {
     const run = this.lifecycleChain.then(() => this.stopUnlocked())
-    this.lifecycleChain = run.then(() => undefined, () => undefined)
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
     return run
   }
 
   private async stopUnlocked(): Promise<void> {
     const slots = [...this.pool.values()]
     this.pool.clear()
-    this.foregroundCwd = null
+    this.foregroundPoolKey = null
     await Promise.all(slots.map((s) => disposeWorkerSlot(s)))
   }
 
@@ -153,32 +316,99 @@ export class WorkerManager {
     return slotRequest(slot, type, data as Record<string, unknown> | undefined)
   }
 
-  private request(type: string, data?: WorkerRequestPayload): Promise<WorkerResponsePayload> {
+  private async resolveSlotForRpc(sessionFile?: string | null): Promise<WorkerSlot> {
+    if (sessionFile) {
+      const sk = normalizeSessionKey(sessionFile)
+      const bySession = this.pool.get(sk)
+      if (bySession && !bySession.stopping) {
+        this.setForeground(bySession)
+        return bySession
+      }
+      const cwd = this.cwd || bySession?.cwd
+      if (!cwd) {
+        // try any slot matching session after load on foreground
+        const fg = this.foregroundSlot()
+        if (fg) return fg
+        throw new Error('Worker not started for session')
+      }
+      await this.ensureSessionWorkerUnlocked(sessionFile, cwd)
+      const slot = this.pool.get(sk)
+      if (!slot) throw new Error('Worker not started for session')
+      return slot
+    }
     const slot = this.foregroundSlot()
-    if (!slot) return Promise.reject(new Error('Worker not started'))
-    return this.requestOnSlot(slot, type, data)
+    if (!slot) throw new Error('Worker not started')
+    return slot
   }
 
-  async getBackgroundRuntimeState(cwd: string): Promise<WorkerState | null> {
-    const row = await getBackgroundWorkerState(this.pool, cwd)
+  private request(type: string, data?: WorkerRequestPayload): Promise<WorkerResponsePayload> {
+    const sessionFile =
+      data && typeof data === 'object' && 'sessionFile' in data
+        ? (data as { sessionFile?: string }).sessionFile
+        : undefined
+    return this.resolveSlotForRpc(sessionFile).then((slot) => this.requestOnSlot(slot, type, data))
+  }
+
+  async getBackgroundRuntimeState(poolKeyOrCwd: string): Promise<WorkerState | null> {
+    // Accept session key or legacy cwd
+    let key = poolKeyOrCwd
+    if (!this.pool.has(key) && !key.startsWith('ws:')) {
+      key = workspacePoolKey(poolKeyOrCwd)
+    }
+    const row = await getBackgroundWorkerState(this.pool, key)
     if (!row) return null
     return (row.state as WorkerState) || null
   }
 
-  async sendPrompt(text: string): Promise<void> {
-    await this.request('prompt', { text })
+  /** Snapshot of running flags for renderer sessionRuntime */
+  listSessionRuntime(): Array<{ sessionFile: string; running: boolean; cwd: string }> {
+    const out: Array<{ sessionFile: string; running: boolean; cwd: string }> = []
+    for (const slot of this.pool.values()) {
+      if (!slot.sessionFile) continue
+      out.push({
+        sessionFile: slot.sessionFile,
+        running: slot.agentTurnActive,
+        cwd: slot.cwd,
+      })
+    }
+    return out
   }
-  async abort(): Promise<void> {
-    await this.request('abort')
+
+  async sendPrompt(text: string, sessionFile?: string): Promise<void> {
+    await this.request('prompt', { text, sessionFile })
   }
-  async steer(text: string): Promise<void> {
-    await this.request('steer', { text })
+  /**
+   * Abort agent turn on the session's existing worker only.
+   * Never ensure/create a worker just to abort (would race F1 / wrong cwd).
+   */
+  async abort(sessionFile?: string): Promise<void> {
+    if (sessionFile) {
+      const sk = normalizeSessionKey(sessionFile)
+      const slot = this.pool.get(sk)
+      if (!slot || slot.stopping) {
+        // No live worker for this session — already idle from UI's perspective.
+        return
+      }
+      await this.requestOnSlot(slot, 'abort', { sessionFile: sk })
+      slot.agentTurnActive = false
+      slot.lastIdleAt = Date.now()
+      return
+    }
+    await this.request('abort', {})
+    const fg = this.foregroundSlot()
+    if (fg) {
+      fg.agentTurnActive = false
+      fg.lastIdleAt = Date.now()
+    }
   }
-  async followUp(text: string): Promise<void> {
-    await this.request('followUp', { text })
+  async steer(text: string, sessionFile?: string): Promise<void> {
+    await this.request('steer', { text, sessionFile })
   }
-  async clearPromptQueue(): Promise<{ steering: string[]; followUp: string[] }> {
-    const r = await this.request('clearQueue')
+  async followUp(text: string, sessionFile?: string): Promise<void> {
+    await this.request('followUp', { text, sessionFile })
+  }
+  async clearPromptQueue(sessionFile?: string): Promise<{ steering: string[]; followUp: string[] }> {
+    const r = await this.request('clearQueue', sessionFile ? { sessionFile } : {})
     return { steering: (r.steering as string[]) || [], followUp: (r.followUp as string[]) || [] }
   }
   async setModel(provider: string, modelId: string): Promise<void> {
@@ -195,8 +425,39 @@ export class WorkerManager {
     const r = await this.request('listSessions', { cwd })
     return (r.sessions as WorkerSessionOnDisk[]) || []
   }
-  async getState(): Promise<WorkerState> {
-    return ((await this.request('getState')).state as WorkerState) || {}
+  /**
+   * Read-only runtime snapshot.
+   * When sessionFile is set: ONLY query an existing pool slot for that session.
+   * Never fall back to another session's foreground worker (would mis-report isStreaming),
+   * and never ensure/create a worker just for a status poll.
+   */
+  async getState(sessionFile?: string): Promise<WorkerState> {
+    if (sessionFile) {
+      const sk = normalizeSessionKey(sessionFile)
+      const slot = this.pool.get(sk)
+      if (!slot || slot.stopping) {
+        return {
+          sessionFile: sk || sessionFile,
+          isStreaming: false,
+        } as WorkerState
+      }
+      try {
+        const r = await this.requestOnSlot(slot, 'getState')
+        const state = ((r.state as WorkerState) || {}) as WorkerState
+        // Always stamp the pool identity so renderer cannot mis-attribute streaming.
+        return {
+          ...state,
+          sessionFile: slot.sessionFile || sk,
+          isStreaming: !!(state as { isStreaming?: boolean }).isStreaming || slot.agentTurnActive,
+        }
+      } catch {
+        return {
+          sessionFile: slot.sessionFile || sk,
+          isStreaming: slot.agentTurnActive,
+        } as WorkerState
+      }
+    }
+    return ((await this.request('getState', {})).state as WorkerState) || {}
   }
   async getCommands(): Promise<{ commands: WorkerCommandInfo[]; hasSession: boolean }> {
     const r = await this.request('getCommands')
@@ -242,8 +503,11 @@ export class WorkerManager {
     sessionFile: string,
     offset?: number,
     limit?: number,
+    leafId?: string | null,
   ): Promise<WorkerMessagesPage> {
-    const r = await this.request('getMessages', { sessionFile, offset, limit })
+    const payload: Record<string, unknown> = { sessionFile, offset, limit }
+    if (leafId !== undefined) payload.leafId = leafId
+    const r = await this.request('getMessages', payload)
     return {
       items: (r.items as WorkerMessagesPage['items']) || [],
       totalCount:
@@ -257,10 +521,43 @@ export class WorkerManager {
   }
   async loadSession(
     sessionFile: string,
-    opts?: { force?: boolean },
-  ): Promise<{ sessionId: string; model?: string }> {
-    const r = await this.request('loadSession', { sessionFile, force: opts?.force === true })
-    return { sessionId: String(r.sessionId ?? ''), model: r.model as string | undefined }
+    opts?: { force?: boolean; cwd?: string; leafId?: string | null },
+  ): Promise<{ sessionId: string; model?: string; leafId?: string | null }> {
+    const cwd = opts?.cwd || this.cwd
+    if (cwd) {
+      await this.ensureSessionWorker(sessionFile, cwd)
+    }
+    // Re-apply rewound leaf tip (main override map) so agent context matches UI.
+    let leafId = opts?.leafId
+    if (leafId === undefined) {
+      try {
+        const { getSessionLeafOverride } = await import('./session-leaf-override.js')
+        leafId = getSessionLeafOverride(sessionFile)
+      } catch {
+        leafId = undefined
+      }
+    }
+    const r = await this.request('loadSession', {
+      sessionFile,
+      force: opts?.force === true,
+      ...(leafId !== undefined ? { leafId } : {}),
+    })
+    const sk = normalizeSessionKey(sessionFile)
+    const slot = this.pool.get(sk) || this.foregroundSlot()
+    if (slot) {
+      slot.sessionFile = sk
+      if (slot.poolKey !== sk && sk) {
+        this.pool.delete(slot.poolKey)
+        slot.poolKey = sk
+        this.pool.set(sk, slot)
+        this.foregroundPoolKey = sk
+      }
+    }
+    return {
+      sessionId: String(r.sessionId ?? ''),
+      model: r.model as string | undefined,
+      leafId: (r.leafId as string | null | undefined) ?? null,
+    }
   }
   async renameSessionFile(sessionFile: string, title: string): Promise<{ ok: boolean; title?: string; error?: string }> {
     const r = await this.request('sessionRenameFile', { sessionFile, title })
@@ -280,14 +577,27 @@ export class WorkerManager {
   }
   async navigateTree(
     targetId: string,
-    options?: { summarize?: boolean; label?: string },
+    options?: { summarize?: boolean; label?: string; sessionFile?: string },
   ): Promise<{
     cancelled: boolean
     editorText?: string
     leafId?: string | null
     sessionMeta?: { model?: string; thinkingLevel?: string }
+    error?: string
   }> {
-    const r = await this.request('navigateTree', { targetId, ...options })
+    const sessionFile = options?.sessionFile
+    const r = await this.request('navigateTree', {
+      targetId,
+      summarize: options?.summarize,
+      label: options?.label,
+      ...(sessionFile ? { sessionFile } : {}),
+    })
+    if (r.type === 'error') {
+      return {
+        cancelled: true,
+        error: String((r as { error?: string }).error || 'navigateTree failed'),
+      }
+    }
     return {
       cancelled: !!r.cancelled,
       editorText: r.editorText as string | undefined,
@@ -321,11 +631,15 @@ export class WorkerManager {
   }
 
   get cwd(): string | null {
-    return this.foregroundCwd
+    return this.foregroundSlot()?.cwd ?? null
   }
 
   get lastSdkFallback(): boolean {
     return this.foregroundSlot()?.sdkFallback ?? false
+  }
+
+  get foregroundSessionFile(): string | null {
+    return this.foregroundSlot()?.sessionFile ?? null
   }
 }
 

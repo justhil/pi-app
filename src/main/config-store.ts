@@ -31,6 +31,12 @@ export interface StoreSchema {
   alertOnExtensionUi: boolean
   /** Agent 一轮结束（空闲）时提醒 */
   alertOnRunIdle: boolean
+  /** 后台会话（非前台）run 结束时也提醒 */
+  alertOnBackgroundRunIdle: boolean
+  /** 同时保留的会话/工作区 worker 进程上限 */
+  maxSessionWorkers: number
+  /** 空闲 worker 回收时间（分钟）；0 = 不因超时回收 */
+  sessionWorkerIdleTimeoutMinutes: number
   /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
   timelineMaxAutoExpandedTools: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
@@ -66,6 +72,9 @@ const store = new Store<StoreSchema>({
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,
     alertOnRunIdle: true,
+    alertOnBackgroundRunIdle: false,
+    maxSessionWorkers: 4,
+    sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     sessionDisplayNames: {},
     asrConfig: {

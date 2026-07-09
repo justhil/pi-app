@@ -55,6 +55,7 @@ export function registerSettingsHandlers(): void {
       kind,
       title: String(req.title || 'pi Desktop'),
       body: String(req.body || ''),
+      background: req.background === true,
     })
     return { ok: true }
   })
