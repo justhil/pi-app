@@ -20,6 +20,8 @@
     "removeFailed": "Remove failed",
     "removed": "Removed from list",
     "removeFromList": "Remove from list",
+    "revealInExplorer": "Reveal in File Explorer",
+    "revealFailed": "Could not open path",
     "noSessions": "No sessions",
     "conversations": "Conversations",
     "firstMsgIsTitle": "First message is the title",

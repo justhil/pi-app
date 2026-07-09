@@ -27,6 +27,18 @@ export function ProjectContextMenuPortal({
 
   useDismissContextMenu(!!menu, ref, onClose)
 
+  const runRevealInExplorer = async (path: string) => {
+    try {
+      const result = await ipcClient.invoke('shell.showItemInFolder', { path })
+      if (!result?.ok) {
+        toast.error(t('common:sidebar.revealFailed'))
+      }
+    } catch {
+      toast.error(t('common:sidebar.revealFailed'))
+    }
+    onClose()
+  }
+
   const runRemove = async (path: string, name: string) => {
     if (!window.confirm(t('common:sidebar.removeProjectConfirm', { name }))) {
       onClose()
@@ -73,6 +85,17 @@ export function ProjectContextMenuPortal({
       role="menu"
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <button
+        type="button"
+        className={contextMenuItemClass}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          void runRevealInExplorer(menu.path)
+        }}
+      >
+        {t('common:sidebar.revealInExplorer')}
+      </button>
       <button
         type="button"
         className={`${contextMenuItemClass} text-red-600 dark:text-red-400 hover:bg-red-500/15 hover:text-red-700 dark:hover:text-red-300`}

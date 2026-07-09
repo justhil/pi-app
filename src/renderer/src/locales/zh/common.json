@@ -20,6 +20,8 @@
     "removeFailed": "移除失败",
     "removed": "已从列表移除",
     "removeFromList": "从列表移除",
+    "revealInExplorer": "在资源管理器中显示",
+    "revealFailed": "无法打开路径",
     "noSessions": "无会话",
     "conversations": "对话",
     "firstMsgIsTitle": "首条消息即标题",
