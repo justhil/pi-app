@@ -80,7 +80,8 @@ export function registerSessionHandlers(): void {
       return { bound: false, sessionId: null as string | null }
     }
     try {
-      const r = await workerManager.loadSession(sessionFile, { force: true })
+      // 禁止 force：后台 agent 仍在跑时不得 dispose 旧 session
+      const r = await workerManager.loadSession(sessionFile)
       setPendingWorkerSessionFile(null)
       return {
         bound: true,

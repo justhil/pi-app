@@ -92,10 +92,13 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setDraft(d)
       setBaselineSig(draftSignature(d))
       setAsrConfigPreview(d.asrConfig)
+      // Re-apply disk theme so the selected option matches the document (preview only on patch/discard/save otherwise).
+      previewDraftUi(d, i18n)
+      useUIStore.getState().setTheme(d.theme)
     } finally {
       setLoading(false)
     }
-  }, [])  
+  }, [i18n])
 
   useEffect(() => {
     void reload()

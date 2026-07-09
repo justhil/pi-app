@@ -1,11 +1,7 @@
-import { writeFileSync } from 'fs'
-import { tmpdir } from 'node:os'
-import { join } from 'path'
-import { randomUUID } from 'node:crypto'
 import { workerManager } from '../../worker-manager'
 import { ensureWorkerSessionBound } from '../../session-bind-state'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
-import { releaseAllClipboardTempImages, trackClipboardTempImage } from '../../clipboard-temp-images'
+import { writeClipboardTempImage } from '../../clipboard-temp-images'
 import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 
 export function registerPromptHandlers(): void {
@@ -22,7 +18,8 @@ export function registerPromptHandlers(): void {
   registerHandlerWithSchema('ipc:prompt.send', promptTextSchema, async (req) => {
     await bindBeforePrompt(req.sessionFile)
     await workerManager.sendPrompt(req.text)
-    releaseAllClipboardTempImages()
+    // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
+    // Cleanup is TTL/startup prune + optional quit, not immediate delete-on-send.
     return { messageId: `msg-${Date.now()}` }
   })
 
@@ -37,9 +34,7 @@ export function registerPromptHandlers(): void {
             : req.mimeType === 'image/bmp'
               ? 'bmp'
               : 'png'
-    const filePath = join(tmpdir(), `pi-clipboard-${randomUUID()}.${ext}`)
-    writeFileSync(filePath, Buffer.from(req.data, 'base64'))
-    trackClipboardTempImage(filePath)
+    const filePath = writeClipboardTempImage(Buffer.from(req.data, 'base64'), ext)
     return { path: filePath }
   })
 
@@ -60,7 +55,7 @@ export function registerPromptHandlers(): void {
       return { aborted: false, ignored: true }
     }
     await workerManager.abort()
-    releaseAllClipboardTempImages()
+    // Do not delete clipboard images on abort either — user may re-send the same chip.
     return { aborted: true }
   })
 

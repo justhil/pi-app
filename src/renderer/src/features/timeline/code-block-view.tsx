@@ -49,8 +49,11 @@ function CodeBlockViewImpl({
   }
 
   return (
-    <div className={cn('overflow-hidden rounded-md border border-border/50', className)} style={{ background: 'var(--bg-2)' }}>
-      <div className="flex items-center justify-between border-b border-border/40 px-2 py-1">
+    <div
+      className={cn('overflow-hidden rounded-md border border-border/45 dark:border-border/55', className)}
+      style={{ background: 'var(--bg-2)' }}
+    >
+      <div className="flex items-center justify-between border-b border-border/40 px-2 py-1" style={{ background: 'color-mix(in srgb, var(--bg-3) 55%, transparent)' }}>
         {lang ? (
           <span className="font-mono text-[10px] uppercase tracking-wide text-[var(--brand)]">{lang}</span>
         ) : (

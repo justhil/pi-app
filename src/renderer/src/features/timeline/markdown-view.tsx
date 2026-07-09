@@ -41,9 +41,9 @@ function CodeBlock({
   }
 
   return (
-    <div className="group relative my-2 overflow-hidden rounded-lg border" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-2)' }}>
+    <div className="group relative my-2 overflow-hidden rounded-lg border border-border/50" style={{ background: 'var(--bg-2)' }}>
       {lang && (
-        <div className="flex items-center justify-between border-b px-3 py-1" style={{ borderColor: 'var(--bg-3)', background: 'var(--bg-3)' }}>
+        <div className="flex items-center justify-between border-b border-border/40 px-3 py-1" style={{ background: 'var(--bg-3)' }}>
           <span className="font-mono text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--brand)' }}>{lang}</span>
           <button
             type="button"

@@ -31,9 +31,19 @@ function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigF
         <button
           type="button"
           onClick={() => onChange(!value)}
-          className={cn('relative h-5 w-9 rounded-full transition-colors', value ? 'bg-primary' : 'bg-muted-foreground/20')}
+          className={cn(
+            'relative h-5 w-9 rounded-full transition-colors',
+            value ? 'bg-primary' : 'bg-muted-foreground/20 dark:bg-[var(--bg-3)]',
+          )}
         >
-          <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all', value ? 'left-4' : 'left-0.5')} />
+          <span
+            className={cn(
+              'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all',
+              'dark:bg-[var(--text-primary)]',
+              value && 'dark:bg-[hsl(var(--primary-foreground))]',
+              value ? 'left-4' : 'left-0.5',
+            )}
+          />
         </button>
       </label>
     )

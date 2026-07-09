@@ -38,8 +38,8 @@
     --bg-active: #e5e6eb;
     --message-user-bg: #F3F3F4;
 
-    /* ── 参考桌面客户端 text colors (light: 7.5:1 contrast) ── */
-    --text-primary: #000000;
+    /* ── 参考桌面客户端 text colors (light: avoid pure black) ── */
+    --text-primary: #12141a;
     --text-secondary: #454d5f;
     --text-disabled: #c9cdd4;
 
@@ -107,82 +107,96 @@
   }
 
   .dark {
-    /* ── 参考桌面客户端 AOU Purple brand palette (dark) ── */
-    --aou-1: #2a2a2a;
-    --aou-2: #3d4150;
-    --aou-3: #525a77;
-    --aou-4: #6a749b;
-    --aou-5: #838fba;
-    --aou-6: #a1aacb;
-    --aou-7: #b5bcd6;
-    --aou-8: #d1d5e5;
-    --aou-9: #e5e7f0;
-    --aou-10: #eff0f6;
-    --brand: #a1aacb;
-    --brand-light: #3d4150;
-    --brand-hover: #6a749b;
+    /*
+     * Dark: VS Code Dark Modern 对照
+     * 源：microsoft/vscode theme-defaults/themes/dark_modern.json
+     * 主面 #1F1F1F / 侧栏 #181818 / 边框 #2B2B2B / 主字 #CCCCCC
+     * 对比策略：中灰字 + 中深灰底（非近白×近黑），层级靠细微 elevation。
+     */
+    color-scheme: dark;
 
-    /* ── 参考桌面客户端 multi-level background (dark) ── */
-    --bg-base: #0e0e0e;
-    --bg-1: #1a1a1a;
-    --bg-2: #262626;
-    --bg-3: #333333;
-    --bg-hover: #1f1f1f;
-    --bg-active: #2d2d2d;
-    --message-user-bg: #1e2a3a;
+    /* Brand stays soft AOU; accent ≤10% (VS Code uses #0078D4 sparingly) */
+    --aou-1: #252528;
+    --aou-2: #2b2b2b;
+    --aou-3: #3c3c3c;
+    --aou-4: #616161;
+    --aou-5: #868686;
+    --aou-6: #9d9d9d;
+    --aou-7: #cccccc;
+    --aou-8: #d7d7d7;
+    --aou-9: #e8e8e8;
+    --aou-10: #f2f2f2;
+    --brand: #8b93b0;
+    --brand-light: #2b2b2b;
+    --brand-hover: #a0a8c4;
 
-    /* ── 参考桌面客户端 text colors (dark: 11:1 contrast) ── */
-    --text-primary: #ffffff;
-    --text-secondary: #ced3da;
-    --text-disabled: #737373;
+    /* Surfaces — Dark Modern workbench */
+    --bg-base: #1f1f1f;       /* editor.background */
+    --bg-1: #252526;         /* slight lift (list / cards) */
+    --bg-2: #2b2b2b;         /* textCodeBlock / borders neighbor */
+    --bg-3: #313131;         /* input.background / dropdown */
+    --bg-hover: #2a2d2e;     /* list hover-ish */
+    --bg-active: #37373d;    /* selected row, softer than pure white wash */
+    --message-user-bg: #2b2b2b;
 
-    /* Semantic */
-    --primary-semantic: #4d9fff;
-    --success-semantic: #23c343;
-    --warning-semantic: #ff9a2e;
-    --danger-semantic: #f76560;
+    /* Text — Dark Modern: foreground #CCCCCC, description #9D9D9D */
+    --text-primary: #cccccc;
+    --text-secondary: #9d9d9d;
+    --text-disabled: #6e7681; /* editorLineNumber.foreground */
 
-    /* Border */
-    --border-base: #333333;
-    --border-light: #262626;
+    /* Semantic (VS Code-adjacent, slightly softened) */
+    --primary-semantic: #4daafc; /* textLink.foreground */
+    --success-semantic: #3fb950;
+    --warning-semantic: #d29922;
+    --danger-semantic: #f85149;  /* errorForeground */
 
-    /* Focus ring (参考桌面客户端 dark) */
-    --focus-border: #4d4b87;
-    --focus-shadow: 0 2px 20px rgba(77, 75, 135, 0.45);
+    /* Border — sideBar.border / panel.border */
+    --border-base: #2b2b2b;
+    --border-light: #252526;
 
-    /* ── Tailwind HSL-compatible tokens (dark) ── */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 6% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 13%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 10%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 45%;
+    /* Focus — focusBorder #0078D4, dialed quieter for app chrome */
+    --focus-border: #3794ff;
+    --focus-shadow: 0 0 0 1px #3794ff55, 0 2px 12px rgba(0, 0, 0, 0.35);
+
+    /* Tailwind HSL — neutral gray, low chroma (match VS Code) */
+    --background: 0 0% 12%;           /* #1f1f1f */
+    --foreground: 0 0% 80%;           /* #cccccc */
+    --card: 0 0% 14%;                 /* #242424-ish */
+    --card-foreground: 0 0% 80%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 80%;
+    --primary: 0 0% 80%;
+    --primary-foreground: 0 0% 12%;
+    --secondary: 0 0% 17%;            /* #2b2b2b */
+    --secondary-foreground: 0 0% 80%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 62%;     /* #9d9d9d */
+    --accent: 0 0% 18%;
+    --accent-foreground: 0 0% 80%;
+    --destructive: 3 78% 63%;         /* ~#f85149 */
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 14%;
-    --input: 240 3.7% 16%;
-    --ring: 240 4.9% 83.9%;
+    --border: 0 0% 17%;               /* #2b2b2b */
+    --input: 0 0% 19%;                /* #313131 */
+    --ring: 212 100% 61%;             /* soft focus blue */
 
-    --surface-0: 240 10% 3.9%;
-    --surface-1: 240 6% 10%;
-    --surface-2: 240 5% 13%;
-    --surface-3: 240 5% 16%;
-    --surface-sidebar: #161616;
+    --surface-0: 0 0% 12%;
+    --surface-1: 0 0% 14%;
+    --surface-2: 0 0% 17%;
+    --surface-3: 0 0% 19%;
+    /* sideBar.background / activityBar.background */
+    --surface-sidebar: #181818;
 
-    --text-secondary-hsl: 240 5% 65%;
+    --text-secondary-hsl: 0 0% 62%;
 
-    --tool-read: 220 90% 60%;
-    --tool-edit: 38 92% 55%;
-    --tool-write: 142 71% 50%;
-    --tool-bash: 280 65% 65%;
+    --tool-read: 212 90% 68%;
+    --tool-edit: 38 70% 55%;
+    --tool-write: 137 45% 50%;
+    --tool-bash: 275 35% 68%;
+
+    /* Scrollbars: neutral, VS Code-quiet */
+    --scrollbar-thumb: rgba(121, 121, 121, 0.4);
+    --scrollbar-thumb-hover: rgba(150, 150, 150, 0.5);
+    --scrollbar-thumb-active: rgba(150, 150, 150, 0.45);
   }
 }
 
@@ -1089,6 +1103,54 @@
   .font-mono {
     font-family: var(--font-mono);
   }
+
+  /* Selection: soft, VS Code-like (not high-contrast flash) */
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+    color: var(--text-primary);
+  }
+  .dark ::selection {
+    background: rgba(38, 79, 120, 0.55); /* ~editor selection blue, muted */
+    color: #cccccc;
+  }
+
+  /*
+   * Dark shell (VS Code Dark Modern):
+   * pane edges = flat #2B2B2B, no bright hairlines; hover = neutral lift only.
+   */
+  .dark .shell-track-center .main-chat-column {
+    box-shadow: 0 0 0 1px var(--border-base);
+  }
+  .dark .shell-track-center::after,
+  .dark .shell-files-chat-preview .shell-track-right:not(.shell-track-collapsed)::before {
+    background: var(--border-base);
+    opacity: 1;
+  }
+  .dark .composer-shell {
+    background: var(--bg-base);
+    border-color: var(--border-base);
+  }
+  .dark .composer-shell:hover:not(.composer-shell-focused) {
+    border-color: #3c3c3c;
+    background: var(--bg-1);
+  }
+  .dark .composer-shell-focused {
+    background: var(--bg-base);
+  }
+  .dark .nav-row-active {
+    background-color: var(--bg-active) !important;
+  }
+  .dark .row-hover:hover,
+  .dark .nav-row:hover,
+  .dark .sidebar-project-hit:hover,
+  .dark .sidebar-section-hit:hover,
+  .dark .chrome-icon-btn:hover {
+    background-color: var(--bg-hover);
+  }
+  .dark .rich-attachment-chip {
+    background: var(--bg-2);
+    border-color: var(--border-base);
+  }
 }
 
 /* Custom scrollbar (参考桌面客户端: thin, blends with surface) */
@@ -1144,6 +1206,15 @@
       var(--bg-base) 0%,
       var(--bg-base) 42%,
       color-mix(in srgb, var(--bg-base) 88%, transparent) 72%,
+      transparent 100%
+    );
+  }
+  .dark .composer-dock-fade {
+    background: linear-gradient(
+      to top,
+      var(--bg-base) 0%,
+      color-mix(in srgb, var(--bg-base) 96%, transparent) 38%,
+      color-mix(in srgb, var(--bg-base) 72%, transparent) 68%,
       transparent 100%
     );
   }
@@ -1278,6 +1349,21 @@
     border-radius: 4px;
     font-size: 0.875em;
     font-family: var(--font-mono);
+  }
+  /* Dark Modern: textPreformat.background #3C3C3C, textLink #4daafc */
+  .dark .prose-chat code:not(pre code) {
+    background: #3c3c3c;
+    color: #d0d0d0;
+  }
+  .dark .prose-chat a {
+    color: #4daafc;
+  }
+  .dark .prose-chat blockquote {
+    border-left-color: #616161;
+    color: var(--text-secondary);
+  }
+  .dark .prose-chat th {
+    background: var(--bg-2);
   }
   .prose-chat pre {
     margin-block: 8px;
@@ -1662,21 +1748,26 @@
 }
 
 /* Session open: pixel PI loading (globals 保证 Electron 一定加载) */
-.session-pixel-loading {
+:root {
   --session-pixel-size: 11px;
   --session-pixel-gap: 4px;
   --session-pixel-radius: 4px;
   --session-pixel-ink: #1a1a1a;
   --session-pixel-surface: #f3f3f3;
+  --session-pixel-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.06);
   --session-pixel-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   --session-pixel-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --session-pixel-shadow-dim: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.dark .session-pixel-loading {
-  --session-pixel-ink: #f5f5f5;
-  --session-pixel-surface: #1a1a1a;
-  --session-pixel-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --session-pixel-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
+/* Dark Modern: soft mid-gray ink on elevated surface (not pure white on pure black) */
+.dark {
+  --session-pixel-ink: #cccccc;
+  --session-pixel-surface: #252526;
+  --session-pixel-card-shadow: 0 0 0 1px #2b2b2b, 0 12px 36px rgba(0, 0, 0, 0.35);
+  --session-pixel-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --session-pixel-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.38);
+  --session-pixel-shadow-dim: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .session-pixel-logo {
@@ -1688,11 +1779,7 @@
   padding: 20px 24px;
   border-radius: 16px;
   background: var(--session-pixel-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(0, 0, 0, 0.06);
-}
-
-.dark .session-pixel-logo {
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 16px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--session-pixel-card-shadow);
 }
 
 .session-pixel {
@@ -1738,7 +1825,7 @@
   100% {
     opacity: 0.28;
     transform: scale(0.96);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--session-pixel-shadow-dim);
   }
   50% {
     opacity: 1;

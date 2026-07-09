@@ -219,7 +219,7 @@ export function FilePreviewRouter({
         title="html-preview"
         sandbox=""
         srcDoc={content}
-        className="min-h-0 flex-1 border-0 bg-white dark:bg-[var(--bg-1)]"
+        className="min-h-0 flex-1 border-0 bg-[var(--bg-base)]"
       />,
     )
   }

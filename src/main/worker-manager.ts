@@ -52,8 +52,9 @@ export class WorkerManager {
   private async startUnlocked(cwd: string): Promise<InitResult> {
     const existing = this.pool.get(cwd)
     if (existing && !existing.stopping) {
+      const prev = this.foregroundCwd
       this.foregroundCwd = cwd
-      evictBackgroundWorkers(this.pool, cwd)
+      evictBackgroundWorkers(this.pool, cwd, prev && prev !== cwd ? prev : null)
       if (existing.initPromise) return existing.initPromise
       const live = await this.requestOnSlot(existing, 'getState').catch(() => null)
       return {

@@ -90,7 +90,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
   const order = normalizeRightPanelOrder(s.rightPanelOrder ?? rpRes?.order, cat)
 
   return {
-    theme: (s.theme as ThemeChoice) || 'system',
+    theme: normalizeThemeChoice(s.theme),
     language: normalizeLanguage(s.language, normalizeLanguage(i18nLanguage, 'zh')),
     autoOpenLastProject: s.autoOpenLastProject !== false,
     autoCheckRegistryUpdates: s.autoCheckRegistryUpdates !== false,
@@ -114,6 +114,22 @@ export function applyThemeToDocument(theme: ThemeChoice): void {
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     document.documentElement.classList.toggle('dark', isDark)
   }
+}
+
+function normalizeThemeChoice(raw: unknown): ThemeChoice {
+  if (raw === 'light' || raw === 'dark' || raw === 'system') return raw
+  return 'system'
+}
+
+/**
+ * Load theme from electron-store (settings) and apply to document + ui-store.
+ * Source of truth is settings; localStorage (pi-desktop-ui) is only an anti-FOUC cache.
+ */
+export async function hydrateThemeFromSettings(): Promise<void> {
+  const res = await ipcClient.invoke('settings.get', { key: 'theme' }).catch(() => ({ settings: {} }))
+  const theme = normalizeThemeChoice(res?.settings?.theme)
+  useUIStore.getState().setTheme(theme)
+  applyThemeToDocument(theme)
 }
 
 /** 仅界面预览，不写盘 */

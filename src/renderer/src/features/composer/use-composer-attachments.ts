@@ -141,31 +141,46 @@ export function useComposerAttachments(opts: {
         e.preventDefault()
       }
 
+      const insertPlainAfter = () => {
+        if (!meaningfulPlain) return
+        const el = editorRef.current
+        if (el) insertTextAtCursor(el, plain)
+        updateFromEditor()
+      }
+
       if (metas.length > 0) {
         insertMetas(metas)
-        return
       }
+
       if (pendingScreenshot) {
         const file = pendingScreenshot
         const reader = new FileReader()
         reader.onload = async () => {
           const base64 = (reader.result as string).split(',')[1]
-          if (!base64) return
-          await insertPastedScreenshot(base64, file.type || 'image/png')
+          if (base64) {
+            await insertPastedScreenshot(base64, file.type || 'image/png')
+          }
+          insertPlainAfter()
+        }
+        reader.onerror = () => {
+          insertPlainAfter()
         }
         reader.readAsDataURL(file)
         return
       }
+
       if (htmlImage) {
-        void insertPastedScreenshot(htmlImage.base64, htmlImage.mimeType)
+        void insertPastedScreenshot(htmlImage.base64, htmlImage.mimeType).finally(() => {
+          insertPlainAfter()
+        })
         return
       }
-      if (meaningfulPlain && !hasImagePaste) {
-        const el = editorRef.current
-        if (el) insertTextAtCursor(el, plain)
-        updateFromEditor()
+
+      if (meaningfulPlain) {
+        insertPlainAfter()
         return
       }
+
       if (stripHtmlOnly) {
         const text = plainTextFromClipboardHtml(html)
         if (!text.trim()) return

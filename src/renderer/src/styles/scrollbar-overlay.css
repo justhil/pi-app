@@ -10,6 +10,8 @@
   --scrollbar-rail-hit: 12px;
 }
 
+/* Dark overrides live on .dark in globals.css (brand-tinted thumbs). */
+
 /* 全局去掉滚动条箭头（含未加 scrollbar-overlay 的区域） */
 ::-webkit-scrollbar-button,
 ::-webkit-scrollbar-button:single-button {

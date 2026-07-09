@@ -83,6 +83,13 @@ app.whenReady().then(() => {
   }
 
   registerAllHandlers()
+  void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
+    try {
+      pruneStaleClipboardImages()
+    } catch (e) {
+      console.warn('[clipboard-images] prune failed:', e)
+    }
+  })
   const win = createWindow()
   workerManager.setMainWindow(win)
   refreshGitWorkspaceWatch(win)

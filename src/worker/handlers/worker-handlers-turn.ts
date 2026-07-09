@@ -55,13 +55,18 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
           })
         }
         st.promptSent = true
+        // 在首个 stream 事件前就标 busy，避免切会话/evict 误杀；streamingBehavior 须用标记前的状态
+        const alreadyStreaming = promptSession.isStreaming || st.agentTurnActive
+        if (!alreadyStreaming) {
+          st.agentTurnActive = true
+          emit({ ...baseEvent(), type: 'run', phase: 'running' })
+        }
         reply({ type: 'prompt-done' })
         void (async () => {
           try {
             const extra = msg.options as Parameters<typeof promptSession.prompt>[1]
-            const streaming = promptSession.isStreaming || st.agentTurnActive
             const merged =
-              streaming && !extra?.streamingBehavior
+              alreadyStreaming && !extra?.streamingBehavior
                 ? { ...extra, streamingBehavior: 'followUp' as const }
                 : extra
             await promptSession.prompt(promptText, merged)
@@ -74,11 +79,14 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
                 text: '命令已执行（详见下方助手/工具输出）',
               })
             }
-            if (!st.agentTurnActive) {
+            // prompt 返回后若仍 busy 且未在 stream（无 agent_end 的短路径），释放临时 busy
+            if (st.agentTurnActive && !promptSession.isStreaming) {
+              st.agentTurnActive = false
               emit({ ...baseEvent(), type: 'run', phase: 'idle' })
             }
           } catch (e: unknown) {
             console.error('[Worker] prompt failed:', e)
+            st.agentTurnActive = false
             const errText = errorMessage(e)
             emit({
               ...baseEvent(),

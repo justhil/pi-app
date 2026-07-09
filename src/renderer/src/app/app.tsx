@@ -29,6 +29,7 @@ import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { AppToaster } from '@renderer/components/app/app-toaster'
 import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
+import { hydrateThemeFromSettings } from '@renderer/features/settings/settings-draft'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
@@ -88,6 +89,7 @@ export default function App() {
     markExtensionNotifyAppReady()
     useExtensionUIStore.getState().resetForSessionContext()
     void ensureWorkspaceWorkerOnBoot()
+    void hydrateThemeFromSettings().catch(() => {})
   }, [])
 
   useEffect(() => {

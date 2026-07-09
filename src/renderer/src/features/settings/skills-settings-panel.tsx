@@ -142,12 +142,14 @@ export function SkillsSettingsPanel() {
                   onClick={() => toggle(s)}
                   className={cn(
                     'h-5 w-9 shrink-0 rounded-full transition-colors',
-                    s.enabled ? 'bg-primary' : 'bg-muted-foreground/25',
+                    s.enabled ? 'bg-primary' : 'bg-muted-foreground/25 dark:bg-[var(--bg-3)]',
                   )}
                 >
                   <span
                     className={cn(
                       'block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                      'dark:bg-[var(--text-primary)]',
+                      s.enabled && 'dark:bg-[hsl(var(--primary-foreground))]',
                       s.enabled ? 'translate-x-[18px]' : 'translate-x-0.5',
                     )}
                   />
