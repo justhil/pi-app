@@ -254,7 +254,8 @@ export function registerSessionHandlers(): void {
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession()
     const state = await workerManager.getState().catch(() => ({}))
-    const sessionFile = (state as { sessionFile?: string })?.sessionFile
+    const sessionFile =
+      result.sessionFile || (state as { sessionFile?: string })?.sessionFile
     if (isSandboxWorkspacePath(workspaceId)) {
       bindSandboxSession(workspaceId, result.sessionId, sessionFile)
     }
@@ -274,39 +275,104 @@ export function registerSessionHandlers(): void {
 
   registerHandler('ipc:session.fork', async (req) => {
     const title = String(req?.title || '')
+    const entryId = String(req?.entryId || req?.fromMessageId || '').trim()
+    const sessionFile = String(req?.sessionFile || '').trim()
+    const workspaceId = String(req?.workspaceId || workerManager.cwd || configStore.get('currentProject') || '')
     try {
-      if (!workerManager.isRunning) {
+      if (!entryId) {
         return {
+          cancelled: false,
+          error: 'missing entryId',
           session: {
             sessionId: '',
-            workspaceId: '',
-            title: 'Fork',
+            workspaceId,
+            title: title || 'Fork',
             createdAt: 0,
             updatedAt: 0,
             modelId: '',
             status: 'idle' as const,
-            error: 'worker_not_ready',
+            error: 'missing entryId',
           },
         }
       }
-      const newSess = await workerManager.newSession()
+      if (!sessionFile) {
+        return {
+          cancelled: false,
+          error: 'missing sessionFile',
+          session: {
+            sessionId: '',
+            workspaceId,
+            title: title || 'Fork',
+            createdAt: 0,
+            updatedAt: 0,
+            modelId: '',
+            status: 'idle' as const,
+            error: 'missing sessionFile',
+          },
+        }
+      }
+      const result = await workerManager.forkSession({
+        sessionFile,
+        entryId,
+        position: req?.position === 'at' ? 'at' : 'before',
+      })
+      if (result.error) {
+        return {
+          cancelled: false,
+          error: result.error,
+          session: {
+            sessionId: '',
+            workspaceId,
+            title: title || 'Fork',
+            createdAt: 0,
+            updatedAt: 0,
+            modelId: '',
+            status: 'idle' as const,
+            error: result.error,
+          },
+        }
+      }
+      if (result.cancelled) {
+        return {
+          cancelled: true,
+          session: {
+            sessionId: result.sessionId || '',
+            sessionFile: result.sessionFile,
+            workspaceId,
+            title: title || 'Fork',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            modelId: '',
+            status: 'idle' as const,
+          },
+        }
+      }
+      setPendingWorkerSessionFile(null)
       return {
+        cancelled: false,
+        editorText: result.editorText,
+        sessionId: result.sessionId,
+        sessionFile: result.sessionFile,
+        workspaceId,
         session: {
-          sessionId: newSess.sessionId,
-          workspaceId: workerManager.cwd || '',
+          sessionId: result.sessionId || '',
+          sessionFile: result.sessionFile,
+          workspaceId,
           title: title || 'Fork',
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          modelId: '',
+          modelId: result.model || '',
           status: 'idle' as const,
         },
       }
     } catch (e: unknown) {
       return {
+        cancelled: false,
+        error: errorMessage(e),
         session: {
           sessionId: '',
-          workspaceId: '',
-          title: 'Fork',
+          workspaceId,
+          title: title || 'Fork',
           createdAt: 0,
           updatedAt: 0,
           modelId: '',
@@ -319,39 +385,82 @@ export function registerSessionHandlers(): void {
 
   registerHandler('ipc:session.clone', async (req) => {
     const title = String(req?.title || '')
+    const sessionFile = String(req?.sessionFile || '').trim()
+    const workspaceId = String(req?.workspaceId || workerManager.cwd || configStore.get('currentProject') || '')
     try {
-      if (!workerManager.isRunning) {
+      if (!sessionFile) {
         return {
+          cancelled: false,
+          error: 'missing sessionFile',
           session: {
             sessionId: '',
-            workspaceId: '',
-            title: 'Clone',
+            workspaceId,
+            title: title || 'Clone',
             createdAt: 0,
             updatedAt: 0,
             modelId: '',
             status: 'idle' as const,
-            error: 'worker_not_ready',
+            error: 'missing sessionFile',
           },
         }
       }
-      const newSess = await workerManager.newSession()
+      const result = await workerManager.cloneSession({ sessionFile })
+      if (result.error) {
+        return {
+          cancelled: false,
+          error: result.error,
+          session: {
+            sessionId: '',
+            workspaceId,
+            title: title || 'Clone',
+            createdAt: 0,
+            updatedAt: 0,
+            modelId: '',
+            status: 'idle' as const,
+            error: result.error,
+          },
+        }
+      }
+      if (result.cancelled) {
+        return {
+          cancelled: true,
+          session: {
+            sessionId: result.sessionId || '',
+            sessionFile: result.sessionFile,
+            workspaceId,
+            title: title || 'Clone',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            modelId: '',
+            status: 'idle' as const,
+          },
+        }
+      }
+      setPendingWorkerSessionFile(null)
       return {
+        cancelled: false,
+        sessionId: result.sessionId,
+        sessionFile: result.sessionFile,
+        workspaceId,
         session: {
-          sessionId: newSess.sessionId,
-          workspaceId: workerManager.cwd || '',
+          sessionId: result.sessionId || '',
+          sessionFile: result.sessionFile,
+          workspaceId,
           title: title || 'Clone',
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          modelId: '',
+          modelId: result.model || '',
           status: 'idle' as const,
         },
       }
     } catch (e: unknown) {
       return {
+        cancelled: false,
+        error: errorMessage(e),
         session: {
           sessionId: '',
-          workspaceId: '',
-          title: 'Clone',
+          workspaceId,
+          title: title || 'Clone',
           createdAt: 0,
           updatedAt: 0,
           modelId: '',
@@ -359,6 +468,17 @@ export function registerSessionHandlers(): void {
           error: errorMessage(e),
         },
       }
+    }
+  })
+
+  registerHandler('ipc:session.forkCandidates', async (req) => {
+    const sessionFile = String(req?.sessionFile || '').trim()
+    try {
+      if (!sessionFile) return { messages: [] }
+      const messages = await workerManager.getForkMessages(sessionFile)
+      return { messages }
+    } catch (e: unknown) {
+      return { messages: [], error: errorMessage(e) }
     }
   })
 

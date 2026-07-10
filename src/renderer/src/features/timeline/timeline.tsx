@@ -20,6 +20,7 @@ import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { resolveRewindTargetEntryId } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import {
@@ -77,6 +78,7 @@ const TimelineItemBase = memo(function TimelineItem({
               align="right"
               sessionEntryId={rewindTargetFor(item)}
               onRewind={(id) => void navigateSessionToEntry(id)}
+              onFork={(id) => void forkSessionFromEntry(id)}
             />
           }
         >

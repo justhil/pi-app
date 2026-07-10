@@ -11,6 +11,9 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
   { id: 'clear', name: '/clear', category: 'builtin' },
   { id: 'compact', name: '/compact', category: 'builtin' },
   { id: 'new', name: '/new', category: 'builtin' },
+  { id: 'fork', name: '/fork', category: 'builtin' },
+  { id: 'clone', name: '/clone', category: 'builtin' },
+  { id: 'tree', name: '/tree', category: 'builtin' },
 ]
 
 export const BUILTIN_CMD_I18N: Record<string, string> = {
@@ -19,6 +22,9 @@ export const BUILTIN_CMD_I18N: Record<string, string> = {
   clear: 'composer:commands.clear',
   compact: 'composer:commands.compact',
   new: 'composer:commands.new',
+  fork: 'composer:commands.fork',
+  clone: 'composer:commands.clone',
+  tree: 'composer:commands.tree',
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {

@@ -1,4 +1,3 @@
-import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { resolveModelFromRegistry, type PiModelRegistryLike } from '@shared/pi-model-registry'
 import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
@@ -9,7 +8,18 @@ import { sessionFilePathsEqual } from '@shared/session-file-path'
 import { timelineItemsFromBranchPath } from '../worker-timeline.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
-import { st, initSession, bindDesktopExtensions, baseEvent, emit, currentSessionModelKey, listSessions, handleSessionEvent } from '../worker-runtime.js'
+import {
+  st,
+  initSession,
+  switchOrLoadSession,
+  runtimeNewSession,
+  runtimeFork,
+  isSessionBusy,
+  baseEvent,
+  emit,
+  currentSessionModelKey,
+  listSessions,
+} from '../worker-runtime.js'
 
 export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         if (st.session) {
@@ -38,13 +48,29 @@ export async function handleSetthinkinglevel(msg: WorkerIncomingMessage, reply: 
 
 
 export async function handleNewsession(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
-        if (st.promptSent) {
-          if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
-          if (st.session) { st.session.dispose(); st.session = null }
-          await initSession(st.currentCwd)
+        try {
+          if (isSessionBusy()) {
+            reply({ type: 'error', error: 'SESSION_BUSY' })
+            return
+          }
+          if (st.promptSent || st.runtime) {
+            const result = await runtimeNewSession()
+            if (result.cancelled) {
+              reply({ type: 'error', error: 'SESSION_NEW_CANCELLED' })
+              return
+            }
+          } else {
+            await initSession(st.currentCwd || process.cwd())
+          }
+          st.promptSent = false
+          reply({
+            type: 'newSession-done',
+            sessionId: st.currentSessionId,
+            sessionFile: st.session?.sessionFile,
+          })
+        } catch (e: unknown) {
+          reply({ type: 'error', error: `newSession failed: ${errorMessage(e)}` })
         }
-        st.promptSent = false
-        reply({ type: 'newSession-done', sessionId: st.currentSessionId })
         return
 }
 
@@ -102,7 +128,7 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
           const busy =
             !force &&
             st.session &&
-            (st.agentTurnActive || st.session.isStreaming) &&
+            isSessionBusy() &&
             st.session.sessionFile &&
             !sessionFilePathsEqual(st.session.sessionFile, targetFile)
           if (busy) {
@@ -114,47 +140,15 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
             return
           }
           st.agentTurnActive = false
-          if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
-          st.session?.dispose()
-          const agentDir = st.sdk!.getAgentDir()
-          const settingsManager = st.sdk!.SettingsManager.create(st.currentCwd, agentDir)
-          const resourceLoader = new st.sdk!.DefaultResourceLoader({
-            cwd: st.currentCwd,
-            agentDir,
-            settingsManager,
-            eventBus: st.sharedEventBus!,
-          })
-          await resourceLoader.reload()
-          const sm = st.sdk!.SessionManager.open(String(msg.sessionFile ?? ''))
-          // Restore rewound tip before createAgentSession so agent context matches branch.
-          if (leafOverride === null) sm.resetLeaf?.()
-          else if (typeof leafOverride === 'string' && leafOverride.length > 0) {
-            try {
-              sm.branch(leafOverride)
-            } catch (e) {
-              console.warn('[Worker] loadSession branch override failed:', e)
-            }
-          }
-          const { session: newSession } = await st.sdk!.createAgentSession({
-            cwd: st.currentCwd,
-            agentDir,
-            settingsManager,
-            resourceLoader,
-            sessionManager: sm,
-          })
-          st.session = newSession
-          st.currentSessionId = st.session.sessionId
-          await bindDesktopExtensions(st.session)
+          await switchOrLoadSession(String(msg.sessionFile ?? ''), leafOverride)
           st.promptSent = true
-          st.unsubscribe = st.session.subscribe((event: AgentSessionEvent) => handleSessionEvent(event))
           const modelStr = currentSessionModelKey()
-          emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel })
           reply({
             type: 'loadSession-done',
             sessionId: st.currentSessionId,
             model: modelStr,
-            thinkingLevel: st.session.thinkingLevel,
-            leafId: st.session.sessionManager.getLeafId?.() ?? null,
+            thinkingLevel: st.session?.thinkingLevel,
+            leafId: st.session?.sessionManager.getLeafId?.() ?? null,
           })
         } catch (e: unknown) {
           reply({ type: 'error', error: `loadSession failed: ${errorMessage(e)}` })
@@ -194,9 +188,6 @@ export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply:
           }
           const fs = await import('node:fs')
           if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
-            if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
-            st.session.dispose()
-            st.session = null
             await initSession(st.currentCwd)
           }
           if (fs.existsSync(file)) fs.unlinkSync(file)
@@ -264,6 +255,10 @@ export async function handleGetsessiontree(msg: WorkerIncomingMessage, reply: Wo
 export async function handleNavigatetree(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         const navSession = st.session
         if (!navSession) { reply({ type: 'error', error: 'No session' }); return }
+        if (isSessionBusy()) {
+          reply({ type: 'error', error: 'SESSION_BUSY' })
+          return
+        }
         try {
           const navOpts = {
             summarize: msg.summarize === true,
@@ -289,6 +284,104 @@ export async function handleNavigatetree(msg: WorkerIncomingMessage, reply: Work
           reply({ type: 'error', error: `navigateTree failed: ${errorMessage(e)}` })
         }
         return
+}
+
+
+
+/** TUI /fork — new session file from user entry (position: before). */
+export async function handleFork(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    if (!st.session || !st.runtime) {
+      reply({ type: 'error', error: 'No session' })
+      return
+    }
+    if (isSessionBusy()) {
+      reply({ type: 'error', error: 'SESSION_BUSY' })
+      return
+    }
+    const entryId = String(msg.entryId || msg.fromMessageId || '').trim()
+    if (!entryId) {
+      reply({ type: 'error', error: 'missing entryId' })
+      return
+    }
+    const position =
+      msg.position === 'at' || msg.position === 'before' ? (msg.position as 'at' | 'before') : 'before'
+    const result = await runtimeFork(entryId, { position })
+    if (result.cancelled) {
+      reply({
+        type: 'fork-done',
+        cancelled: true,
+        sessionId: st.currentSessionId,
+        sessionFile: st.session?.sessionFile,
+      })
+      return
+    }
+    st.promptSent = true
+    reply({
+      type: 'fork-done',
+      cancelled: false,
+      sessionId: st.currentSessionId,
+      sessionFile: st.session?.sessionFile,
+      editorText: result.selectedText,
+      model: currentSessionModelKey(),
+      thinkingLevel: st.session?.thinkingLevel,
+    })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `fork failed: ${errorMessage(e)}` })
+  }
+}
+
+/** TUI /clone — fork(leafId, { position: 'at' }). */
+export async function handleClone(_msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    if (!st.session || !st.runtime) {
+      reply({ type: 'error', error: 'No session' })
+      return
+    }
+    if (isSessionBusy()) {
+      reply({ type: 'error', error: 'SESSION_BUSY' })
+      return
+    }
+    const leafId = st.session.sessionManager.getLeafId?.()
+    if (!leafId) {
+      reply({ type: 'error', error: 'nothing_to_clone' })
+      return
+    }
+    const result = await runtimeFork(leafId, { position: 'at' })
+    if (result.cancelled) {
+      reply({
+        type: 'clone-done',
+        cancelled: true,
+        sessionId: st.currentSessionId,
+        sessionFile: st.session?.sessionFile,
+      })
+      return
+    }
+    st.promptSent = true
+    reply({
+      type: 'clone-done',
+      cancelled: false,
+      sessionId: st.currentSessionId,
+      sessionFile: st.session?.sessionFile,
+      model: currentSessionModelKey(),
+      thinkingLevel: st.session?.thinkingLevel,
+    })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `clone failed: ${errorMessage(e)}` })
+  }
+}
+
+export async function handleGetforkmessages(_msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    if (!st.session) {
+      reply({ type: 'getForkMessages-done', messages: [] })
+      return
+    }
+    const messages = st.session.getUserMessagesForForking?.() ?? []
+    reply({ type: 'getForkMessages-done', messages })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `getForkMessages failed: ${errorMessage(e)}` })
+  }
 }
 
 

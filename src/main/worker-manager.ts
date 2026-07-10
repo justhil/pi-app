@@ -432,10 +432,104 @@ export class WorkerManager {
   async setThinkingLevel(level: string): Promise<void> {
     await this.request('setThinkingLevel', { level })
   }
-  async newSession(): Promise<{ sessionId: string }> {
+  async newSession(): Promise<{ sessionId: string; sessionFile?: string }> {
     const r = await this.request('newSession')
-    return { sessionId: String(r.sessionId ?? '') }
+    const sessionId = String(r.sessionId ?? '')
+    const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
+    if (sessionFile) {
+      this.remapForegroundSlotToSessionFile(sessionFile)
+    }
+    return { sessionId, sessionFile }
   }
+
+  /**
+   * After Runtime creates a new session file (new/fork/clone), re-key the
+   * foreground pool slot so subsequent RPCs hit the correct worker identity.
+   */
+  private remapForegroundSlotToSessionFile(sessionFile: string): void {
+    const sk = normalizeSessionKey(sessionFile)
+    if (!sk) return
+    const slot = this.foregroundSlot()
+    if (!slot || slot.stopping) return
+    if (slot.sessionFile === sk && slot.poolKey === sk) return
+    const previousKey = slot.poolKey
+    if (previousKey !== sk) {
+      this.pool.delete(previousKey)
+      slot.poolKey = sk
+      this.pool.set(sk, slot)
+      this.foregroundPoolKey = sk
+    }
+    slot.sessionFile = sk
+  }
+
+  async forkSession(opts: {
+    sessionFile: string
+    entryId: string
+    position?: 'before' | 'at'
+  }): Promise<{
+    cancelled?: boolean
+    error?: string
+    sessionId?: string
+    sessionFile?: string
+    editorText?: string
+    model?: string
+    thinkingLevel?: string
+  }> {
+    const cwd = this.resolveWorkspaceCwd()
+    if (!cwd) return { error: 'worker_not_ready' }
+    await this.ensureSessionWorker(opts.sessionFile, cwd)
+    const r = await this.request('fork', {
+      sessionFile: opts.sessionFile,
+      entryId: opts.entryId,
+      position: opts.position,
+    })
+    if (r.type === 'error') {
+      return { error: String((r as { error?: string }).error || 'fork failed') }
+    }
+    const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
+    if (sessionFile) this.remapForegroundSlotToSessionFile(sessionFile)
+    return {
+      cancelled: !!r.cancelled,
+      sessionId: r.sessionId ? String(r.sessionId) : undefined,
+      sessionFile,
+      editorText: r.editorText as string | undefined,
+      model: r.model as string | undefined,
+      thinkingLevel: r.thinkingLevel as string | undefined,
+    }
+  }
+
+  async cloneSession(opts: { sessionFile: string }): Promise<{
+    cancelled?: boolean
+    error?: string
+    sessionId?: string
+    sessionFile?: string
+    model?: string
+    thinkingLevel?: string
+  }> {
+    const cwd = this.resolveWorkspaceCwd()
+    if (!cwd) return { error: 'worker_not_ready' }
+    await this.ensureSessionWorker(opts.sessionFile, cwd)
+    const r = await this.request('clone', { sessionFile: opts.sessionFile })
+    if (r.type === 'error') {
+      return { error: String((r as { error?: string }).error || 'clone failed') }
+    }
+    const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
+    if (sessionFile) this.remapForegroundSlotToSessionFile(sessionFile)
+    return {
+      cancelled: !!r.cancelled,
+      sessionId: r.sessionId ? String(r.sessionId) : undefined,
+      sessionFile,
+      model: r.model as string | undefined,
+      thinkingLevel: r.thinkingLevel as string | undefined,
+    }
+  }
+
+  async getForkMessages(sessionFile?: string): Promise<Array<{ entryId: string; text: string }>> {
+    const r = await this.request('getForkMessages', sessionFile ? { sessionFile } : {})
+    if (r.type === 'error') return []
+    return (r.messages as Array<{ entryId: string; text: string }>) || []
+  }
+
   async listSessions(cwd?: string): Promise<WorkerSessionOnDisk[]> {
     const r = await this.request('listSessions', { cwd })
     return (r.sessions as WorkerSessionOnDisk[]) || []

@@ -27,7 +27,10 @@
     "thinking": "切换 thinking 等级",
     "clear": "清空当前时间线",
     "compact": "压缩会话历史",
-    "new": "新建会话"
+    "new": "新建会话",
+    "fork": "从某条用户消息 Fork 新会话",
+    "clone": "Clone 当前分支到新会话",
+    "tree": "打开会话树面板"
   },
   "toast": {
     "sendFailed": "发送失败",
@@ -42,7 +45,18 @@
     "needWorkspace": "请先打开项目或临时对话分区",
     "newSessionReady": "已新建对话，发送首条消息即可开始",
     "newSessionFailed": "新建会话失败",
-    "continueTyping": "/{{cmd}} 请直接在输入框继续输入查看可用列表"
+    "continueTyping": "/{{cmd}} 请直接在输入框继续输入查看可用列表",
+    "sessionBusyBranch": "Agent 运行中，请先停止后再 Fork / Clone / 跳转",
+    "needSessionFile": "未找到会话文件",
+    "needEntryId": "缺少消息节点 id",
+    "forkCancelled": "已取消 Fork",
+    "forkFailed": "Fork 失败",
+    "forked": "已 Fork 到新会话",
+    "forkedWithPrefill": "已 Fork 到新会话，原文已填入输入框",
+    "cloneCancelled": "已取消 Clone",
+    "cloneFailed": "Clone 失败",
+    "cloned": "已 Clone 到新会话",
+    "nothingToClone": "当前没有可 Clone 的内容"
   },
   "voice": {
     "start": "开始录音",

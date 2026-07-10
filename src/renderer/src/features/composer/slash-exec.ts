@@ -10,7 +10,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 
 /** App-native builtins handled directly in the renderer (not forwarded as plain prompt text). */
 const APP_BUILTIN = new Set([
-  'model', 'thinking', 'clear', 'compact', 'new',
+  'model', 'thinking', 'clear', 'compact', 'new', 'fork', 'clone',
   'help', 'settings', 'review', 'run', 'tree', 'skills', 'prompts',
 ])
 
@@ -128,6 +128,28 @@ export async function executeSlashCommand(
       } catch (e) {
         console.error('/new failed:', e)
         toast.error(i18n.t('composer:toast.newSessionFailed'))
+      }
+      return true
+    }
+    case 'fork': {
+      try {
+        const { useUIStore: storeMod } = await import('@renderer/stores/ui-store')
+        // Prefer explicit open of fork overlay via custom event (App listens).
+        window.dispatchEvent(new CustomEvent('pi-desktop:open-fork-selector'))
+        void storeMod
+      } catch (e) {
+        console.error('/fork failed:', e)
+        toast.error('无法打开 Fork 选择器')
+      }
+      return true
+    }
+    case 'clone': {
+      try {
+        const { cloneCurrentSession } = await import('@renderer/lib/session-fork')
+        await cloneCurrentSession()
+      } catch (e) {
+        console.error('/clone failed:', e)
+        toast.error('Clone 失败')
       }
       return true
     }

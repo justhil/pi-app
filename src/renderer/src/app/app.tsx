@@ -40,6 +40,7 @@ const SettingsPage = lazy(() => import('@renderer/features/settings/settings-pag
 const ModelPicker = lazy(() => import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })))
 const ThinkingPicker = lazy(() => import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })))
 const SessionTreeOverlay = lazy(() => import('@renderer/features/rewind/session-tree-overlay').then((m) => ({ default: m.SessionTreeOverlay })))
+const SessionForkOverlay = lazy(() => import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })))
 const ProjectHomeView = lazy(() => import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })))
 
 export default function App() {
@@ -73,7 +74,7 @@ export default function App() {
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
   const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
-  const { treeOpen, setTreeOpen } = useDoubleEscapeTree(canUseTree)
+  const { treeOpen, setTreeOpen, forkOpen, setForkOpen } = useDoubleEscapeTree(canUseTree)
 
   useEffect(() => {
     if (ephemeralSandboxDraft) {
@@ -96,6 +97,12 @@ export default function App() {
   }, [currentWorkspace, ephemeralSandboxDraft])
 
   const projectName = workspaceTitle
+
+  useEffect(() => {
+    const onOpenFork = () => setForkOpen(true)
+    window.addEventListener('pi-desktop:open-fork-selector', onOpenFork)
+    return () => window.removeEventListener('pi-desktop:open-fork-selector', onOpenFork)
+  }, [setForkOpen])
 
   useEffect(() => {
     markExtensionNotifyAppReady()
@@ -275,6 +282,7 @@ export default function App() {
         {modelPickerOpen && <ModelPicker />}
         {thinkingPickerOpen && <ThinkingPicker />}
         {treeOpen && <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />}
+        {forkOpen && <SessionForkOverlay open={forkOpen} onClose={() => setForkOpen(false)} />}
       </Suspense>
     </ErrorBoundary>
   )

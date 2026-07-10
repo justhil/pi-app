@@ -28,10 +28,44 @@ export interface SessionOpenRequest { sessionId: string; sessionFile?: string }
 export interface SessionOpenResponse { session: SessionInfo }
 export interface SessionNewRequest { workspaceId: string; title?: string; modelId?: string }
 export interface SessionNewResponse { session: SessionInfo }
-export interface SessionForkRequest { sessionId: string; fromMessageId?: string; title?: string }
-export interface SessionForkResponse { session: SessionInfo }
-export interface SessionCloneRequest { sessionId: string; title?: string }
-export interface SessionCloneResponse { session: SessionInfo }
+export interface SessionForkRequest {
+  sessionId?: string
+  sessionFile: string
+  entryId?: string
+  /** @deprecated use entryId */
+  fromMessageId?: string
+  title?: string
+  position?: 'before' | 'at'
+  workspaceId?: string
+}
+export interface SessionForkResponse {
+  cancelled?: boolean
+  error?: string
+  editorText?: string
+  sessionId?: string
+  sessionFile?: string
+  workspaceId?: string
+  session: SessionInfo & { sessionFile?: string; error?: string }
+}
+export interface SessionCloneRequest {
+  sessionId?: string
+  sessionFile: string
+  title?: string
+  workspaceId?: string
+}
+export interface SessionCloneResponse {
+  cancelled?: boolean
+  error?: string
+  sessionId?: string
+  sessionFile?: string
+  workspaceId?: string
+  session: SessionInfo & { sessionFile?: string; error?: string }
+}
+export interface SessionForkCandidatesRequest { sessionFile: string }
+export interface SessionForkCandidatesResponse {
+  messages: Array<{ entryId: string; text: string }>
+  error?: string
+}
 export interface SessionRenameRequest { sessionId: string; title: string }
 export interface SessionRenameResponse { session: SessionInfo }
 export interface SessionCompactRequest { sessionId: string }
@@ -215,6 +249,7 @@ export interface IpcMethodMap {
   'session.open': { request: SessionOpenRequest; response: SessionOpenResponse }
   'session.new': { request: SessionNewRequest; response: SessionNewResponse }
   'session.fork': { request: SessionForkRequest; response: SessionForkResponse }
+  'session.forkCandidates': { request: SessionForkCandidatesRequest; response: SessionForkCandidatesResponse }
   'session.clone': { request: SessionCloneRequest; response: SessionCloneResponse }
   'session.rename': { request: SessionRenameRequest; response: SessionRenameResponse }
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }

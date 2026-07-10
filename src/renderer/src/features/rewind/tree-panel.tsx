@@ -1,7 +1,8 @@
 import { useCallback, useEffect } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { GitFork, Loader2, RefreshCw } from 'lucide-react'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import { SessionTreeList, type SessionTreeNode } from '@renderer/features/rewind/session-tree-list'
@@ -38,7 +39,8 @@ export function TreePanel() {
       </div>
 
       <p className="border-b border-border/30 px-3 py-2 text-[10px] text-muted-foreground leading-relaxed">
-等同 TUI <span className="font-mono">/tree</span>：点用户消息会回到发送前（正文进输入框）；点助手消息则保留到该条回复。
+        等同 TUI <span className="font-mono">/tree</span>：点用户消息会回到发送前（正文进输入框）；点助手消息则保留到该条回复。
+        用户节点旁可 <span className="font-mono">Fork</span> 到新会话文件。
       </p>
 
       <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">
@@ -63,13 +65,31 @@ export function TreePanel() {
                     显示最近 {display.length} 节点，省略 {hiddenCount} 个
                   </p>
                 )}
-                <SessionTreeList
-                  className="px-1"
-                  rowClassName="text-[11px]"
-                  nodes={display}
-                  onActivate={(id) => void navigateSessionToEntry(id)}
-                  showGuides={display.length <= 400}
-                />
+                <ul className="space-y-0.5 px-1">
+                  {display.map((n) => (
+                    <li key={n.id} className="group flex items-stretch gap-0.5">
+                      <div className="min-w-0 flex-1">
+                        <SessionTreeList
+                          className="!p-0"
+                          rowClassName="text-[11px]"
+                          nodes={[n]}
+                          onActivate={(id) => void navigateSessionToEntry(id)}
+                          showGuides={false}
+                        />
+                      </div>
+                      {n.entryType === 'message' && n.role === 'user' && (
+                        <button
+                          type="button"
+                          className="mt-0.5 shrink-0 rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-primary group-hover:opacity-100"
+                          title="Fork 到新会话"
+                          onClick={() => void forkSessionFromEntry(n.id)}
+                        >
+                          <GitFork className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </>
             )
           })()

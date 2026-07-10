@@ -27,7 +27,10 @@
     "thinking": "Toggle thinking level",
     "clear": "Clear current timeline",
     "compact": "Compact session history",
-    "new": "New session"
+    "new": "New session",
+    "fork": "Fork a new session from a user message",
+    "clone": "Clone current branch into a new session",
+    "tree": "Open session tree panel"
   },
   "toast": {
     "sendFailed": "Send failed",
@@ -42,7 +45,18 @@
     "needWorkspace": "Open a project or temp chat section first",
     "newSessionReady": "New session created — send a message to start",
     "newSessionFailed": "Failed to create session",
-    "continueTyping": "/{{cmd}} — keep typing to see available options"
+    "continueTyping": "/{{cmd}} — keep typing to see available options",
+    "sessionBusyBranch": "Agent is running — stop first before Fork / Clone / jump",
+    "needSessionFile": "No session file found",
+    "needEntryId": "Missing message entry id",
+    "forkCancelled": "Fork cancelled",
+    "forkFailed": "Fork failed",
+    "forked": "Forked into a new session",
+    "forkedWithPrefill": "Forked into a new session; prompt filled into composer",
+    "cloneCancelled": "Clone cancelled",
+    "cloneFailed": "Clone failed",
+    "cloned": "Cloned into a new session",
+    "nothingToClone": "Nothing to clone yet"
   },
   "voice": {
     "start": "Start recording",

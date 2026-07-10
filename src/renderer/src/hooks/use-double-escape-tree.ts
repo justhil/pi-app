@@ -7,21 +7,32 @@ function composerTextEmpty(): boolean {
   return !el.value.trim()
 }
 
-/** 空输入框双击 Esc → 打开会话树卡片（对齐 pi doubleEscapeAction=tree） */
+/**
+ * Empty composer double-Esc:
+ * - doubleEscapeAction=tree → open session tree (TUI /tree)
+ * - doubleEscapeAction=fork → open fork selector (TUI /fork)
+ * - none → no-op
+ */
 export function useDoubleEscapeTree(enabled: boolean) {
   const [treeOpen, setTreeOpen] = useState(false)
+  const [forkOpen, setForkOpen] = useState(false)
   const lastEscRef = useRef(0)
   const actionRef = useRef<'tree' | 'fork' | 'none'>('tree')
 
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
-    ipcClient.invoke('pi.settings.get').then((res) => {
-      if (cancelled) return
-      const a = String(res?.settings?.doubleEscapeAction || 'tree')
-      if (a === 'tree' || a === 'fork' || a === 'none') actionRef.current = a
-    }).catch(() => {})
-    return () => { cancelled = true }
+    ipcClient
+      .invoke('pi.settings.get')
+      .then((res) => {
+        if (cancelled) return
+        const a = String(res?.settings?.doubleEscapeAction || 'tree')
+        if (a === 'tree' || a === 'fork' || a === 'none') actionRef.current = a
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
   }, [enabled])
 
   useEffect(() => {
@@ -30,7 +41,7 @@ export function useDoubleEscapeTree(enabled: boolean) {
       if (e.key !== 'Escape') return
       if (actionRef.current === 'none') return
       const t = e.target as HTMLElement | null
-      if (t?.closest('[data-tree-overlay]')) return
+      if (t?.closest('[data-tree-overlay]') || t?.closest('[data-fork-overlay]')) return
 
       const now = Date.now()
       const gap = now - lastEscRef.current
@@ -41,11 +52,13 @@ export function useDoubleEscapeTree(enabled: boolean) {
 
       if (actionRef.current === 'fork') {
         e.preventDefault()
-        setTreeOpen(true)
+        setTreeOpen(false)
+        setForkOpen(true)
         return
       }
       if (actionRef.current === 'tree') {
         e.preventDefault()
+        setForkOpen(false)
         setTreeOpen(true)
       }
     }
@@ -53,5 +66,12 @@ export function useDoubleEscapeTree(enabled: boolean) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [enabled])
 
-  return { treeOpen, setTreeOpen, openTree: () => setTreeOpen(true) }
+  return {
+    treeOpen,
+    setTreeOpen,
+    forkOpen,
+    setForkOpen,
+    openTree: () => setTreeOpen(true),
+    openFork: () => setForkOpen(true),
+  }
 }
