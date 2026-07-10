@@ -11,11 +11,12 @@ describe('incomplete assistant after force-quit', () => {
     assert.match(src, /pushAssistantItem/)
     assert.match(src, /Always keep assistant/)
     assert.match(src, /extractThinking/)
-    // Old bug: only push when text is truthy
+    // Old bug: only push assistant when text is truthy (must not reappear for assistant role).
     assert.doesNotMatch(
       src,
-      /if \(text\) \{\s*items\.push\(\{\s*id: `hist-\$\{/,
+      /role === 'assistant'[\s\S]{0,200}if \(text\) \{\s*items\.push\(\{\s*id: `hist-\$\{/,
     )
+    assert.match(src, /pushAssistantItem\(items,\s*\{/)
   })
 
   it('UI keeps empty incomplete assistants for rewind', () => {

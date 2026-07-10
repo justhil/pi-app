@@ -1,10 +1,5 @@
 import type { AppEvent } from '@shared/app-events'
 import { isSessionScopedAppEvent } from '@shared/app-event-session'
-import {
-  applyBackgroundAppEventToLiveTimeline,
-  getLiveSessionTimeline,
-} from '@renderer/lib/live-session-timeline-cache'
-import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { resolveAppEventRoute } from '@renderer/stores/apply-app-event-route'
 import { useUIStore } from '@renderer/stores/ui-store'
 import {
@@ -15,19 +10,10 @@ import {
   handleSlash,
   handleTool,
 } from '@renderer/stores/apply-app-event-handlers'
+import { applyBackgroundAppEvent, eventSessionFile } from '@renderer/stores/apply-app-event-background'
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
 export type { StoreApi } from '@renderer/stores/apply-app-event-types'
-
-/**
- * Session key for runtime map / background cache.
- * Prefer event.sessionFile only — never fall back to workerLiveSnapshot (stale after switch).
- */
-function eventSessionFile(event: AppEvent): string | null {
-  if (!isSessionScopedAppEvent(event)) return null
-  if (event.sessionFile) return event.sessionFile
-  return null
-}
 
 export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (!isSessionScopedAppEvent(event)) return
@@ -35,43 +21,7 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   const route = resolveAppEventRoute(state, event)
   if (route === 'drop') return
   if (route === 'background') {
-    const cacheFile = eventSessionFile(event)
-    if (cacheFile) {
-      applyBackgroundAppEventToLiveTimeline(cacheFile, event)
-      // Message deltas are rAF-batched in the live cache. Skip per-token view patches —
-      // switch-back / getLiveSessionTimeline flushes pending text. Still patch on
-      // structural events (tool/run/queue/end) so side chrome stays coherent.
-      const isStreamDelta =
-        event.type === 'message' && event.phase === 'delta' && event.role === 'assistant'
-      if (!isStreamDelta) {
-        const snap = getLiveSessionTimeline(cacheFile)
-        if (snap) {
-          patchSessionTimelineView(cacheFile, {
-            sessionId: snap.sessionId,
-            tail: snap.timelineItems,
-            streamingAssistantId: snap.streamingAssistantId,
-            runState: snap.runState,
-            pendingSteering: snap.pendingSteering,
-            pendingFollowUp: snap.pendingFollowUp,
-            optimisticPendingUserText: snap.optimisticPendingUserText,
-            agentTurnBootstrapping: snap.agentTurnBootstrapping,
-          })
-        }
-      }
-      if (event.type === 'run') {
-        const running = event.phase === 'running' || event.phase === 'started'
-        useUIStore.getState().setSessionRuntimeRunning(cacheFile, running)
-        if (!running && (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled')) {
-          void import('@renderer/lib/desktop-alerts').then(({ signalDesktopAlert }) => {
-            void signalDesktopAlert('run_idle', {
-              title: 'pi Desktop · 后台会话结束',
-              body: '有会话在后台运行结束',
-              background: true,
-            })
-          })
-        }
-      }
-    }
+    applyBackgroundAppEvent(event)
     return
   }
 
@@ -93,13 +43,11 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
       break
     case 'run': {
       handleRun(event, api)
-      // Runtime map is authoritative for multi-session chrome/composer — always key by event session.
       const sessionKey = eventSessionFile(event) || api.get().historySessionFile
       if (sessionKey && (event.phase === 'running' || event.phase === 'started')) {
         useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)
       } else if (sessionKey && event.phase === 'idle') {
-        const after = api.get()
-        if (after.runState.status === 'idle') {
+        if (api.get().runState.status === 'idle') {
           useUIStore.getState().setSessionRuntimeRunning(sessionKey, false)
         }
       } else if (sessionKey && (event.phase === 'failed' || event.phase === 'cancelled')) {

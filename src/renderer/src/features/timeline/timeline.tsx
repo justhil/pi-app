@@ -331,71 +331,92 @@ export function Timeline() {
   const scrollHeightBeforeLoadRef = useRef<number | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
-  const itemsLengthRef = useRef(items.length)
-  itemsLengthRef.current = items.length
 
   const [fetchingOlder, setFetchingOlder] = useState(false)
 
   const loadMoreHistory = useCallback(() => {
     const el = scrollRef.current
-    const total = itemsLengthRef.current
-    const current = renderCountRef.current
-    if (!el || scrollHeightBeforeLoadRef.current != null) return
+    // Concurrent click / scroll-triggered load guard (do not use scroll-anchor as a permanent lock).
+    if (!el || fetchingOlder) return
 
     const st = useUIStore.getState()
-    if (
-      st.historySessionFile &&
-      st.historyLoadedCount < st.historyTotalCount &&
-      !fetchingOlder
-    ) {
+    const current = renderCountRef.current
+    const all = st.timelineItems
+    const segs = splitTimelineRenderSegments(all, {
+      streamingAssistantId: st.streamingAssistantId,
+      agentRunning: st.runState.status === 'running',
+    })
+
+    const canFetchDisk =
+      !!st.historySessionFile && st.historyLoadedCount < st.historyTotalCount
+    const canRevealInMemory = current < segs.history.length
+
+    if (!canFetchDisk && !canRevealInMemory) return
+
+    if (canFetchDisk) {
       setFetchingOlder(true)
       scrollHeightBeforeLoadRef.current = el.scrollHeight
       const offset = st.historyLoadedCount
-      void prependOlderTimelinePage(st.historySessionFile, offset)
-        .then(({ items: older }) => {
-          if (older.length) {
-            const all = useUIStore.getState().timelineItems
-            const segs = splitTimelineRenderSegments(all, {
-              streamingAssistantId: useUIStore.getState().streamingAssistantId,
-              agentRunning: useUIStore.getState().runState.status === 'running',
-            })
-            setRenderCount((c) => Math.min(c + PAGE, segs.history.length))
+      const sessionFile = st.historySessionFile!
+      void prependOlderTimelinePage(sessionFile, offset)
+        .then(({ items: older, error }) => {
+          if (error) {
+            console.error('[Timeline] load older failed', error)
+            scrollHeightBeforeLoadRef.current = null
+            return
           }
+          if (!older.length) {
+            // Empty page: unlock and stop pretending more disk history exists.
+            scrollHeightBeforeLoadRef.current = null
+            const latest = useUIStore.getState()
+            if (latest.historyLoadedCount < latest.historyTotalCount) {
+              useUIStore.setState({ historyLoadedCount: latest.historyTotalCount })
+            }
+            return
+          }
+          // Expand viewport window to include prepended rows (and keep prior visible tail).
+          const nextAll = useUIStore.getState().timelineItems
+          const nextSegs = splitTimelineRenderSegments(nextAll, {
+            streamingAssistantId: useUIStore.getState().streamingAssistantId,
+            agentRunning: useUIStore.getState().runState.status === 'running',
+          })
+          setRenderCount((count) =>
+            Math.min(Math.max(count + PAGE, count + older.length), nextSegs.history.length),
+          )
         })
-        .catch((e) => console.error('[Timeline] load older failed', e))
+        .catch((error) => {
+          console.error('[Timeline] load older failed', error)
+          scrollHeightBeforeLoadRef.current = null
+        })
         .finally(() => setFetchingOlder(false))
       return
     }
 
-    const all = useUIStore.getState().timelineItems
-    const segs = splitTimelineRenderSegments(all, {
-      streamingAssistantId: useUIStore.getState().streamingAssistantId,
-      agentRunning: useUIStore.getState().runState.status === 'running',
-    })
-    if (current >= segs.history.length) return
+    // In-memory reveal only (already loaded items outside the render window).
     scrollHeightBeforeLoadRef.current = el.scrollHeight
-    setRenderCount((c) => Math.min(c + PAGE, segs.history.length))
+    setRenderCount((count) => Math.min(count + PAGE, segs.history.length))
   }, [fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
-    const prevH = scrollHeightBeforeLoadRef.current
-    if (!el || prevH == null) return
+    const previousScrollHeight = scrollHeightBeforeLoadRef.current
+    if (!el || previousScrollHeight == null) return
     scrollHeightBeforeLoadRef.current = null
-    el.scrollTop = el.scrollHeight - prevH
-  }, [renderCount])
+    el.scrollTop = el.scrollHeight - previousScrollHeight
+  }, [renderCount, items.length])
 
-  // Reset window when session changes (item list replaced)
-  const firstId = items[0]?.id
+  // Reset the virtualization window only when the session file changes — not when
+  // older messages are prepended (that changes items[0].id and must not reset).
   useEffect(() => {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
+    setFetchingOlder(false)
     followLiveRef.current = true
     requestAnimationFrame(() => {
       const el = scrollRef.current
       if (el) scheduleTimelineScrollToBottom(el)
     })
-  }, [firstId, followLiveRef])
+  }, [historySessionFile, followLiveRef])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current

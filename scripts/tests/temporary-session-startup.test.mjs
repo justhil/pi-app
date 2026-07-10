@@ -38,5 +38,6 @@ test('should keep disk project as project-home new-session entry on boot', async
 
   assert.equal(state.workspace, 'D:/workspace/pi-app')
   assert.equal(state.ephemeralDraft, false)
-  assert.equal(state.shouldStartWorker, true)
+  // Worker is lazy: cold boot restores UI metadata only (prompt/rewind starts Worker).
+  assert.equal(state.shouldStartWorker, false)
 })

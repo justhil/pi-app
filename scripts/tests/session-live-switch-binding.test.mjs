@@ -9,11 +9,16 @@ const src = (p) => readFileSync(join(root, p), 'utf8').replace(/\r\n/g, '\n')
 
 describe('live session switch binding', () => {
   it('clears stale pendingBind when restoring a worker-bound live session from cache', () => {
-    const text = src('src/renderer/src/lib/open-session.ts')
-    const liveRestore = text.match(/if \(live && liveTurnActive\) \{[\s\S]*?return\r?\n\s*\}/)?.[0] ?? ''
-    assert.ok(liveRestore.length > 0, 'live restore block not found in open-session.ts')
-    assert.match(liveRestore, /session\.setPendingBind[\s\S]*sessionFile:\s*null/)
-    assert.match(liveRestore, /refreshSessionTree\(sessionFile\)/)
+    // Session shell paints live cache via focusSessionSync; open-session always sets pendingBind
+    // for the focused file (lazy Worker). Live restore no longer short-circuits open-session.
+    const shell = src('src/renderer/src/lib/session-shell.ts')
+    assert.match(shell, /getLiveSessionTimeline/)
+    assert.match(shell, /liveTurnActive|composerTurnActive|instant/)
+
+    const openSession = src('src/renderer/src/lib/open-session.ts')
+    assert.match(openSession, /focusSessionSync/)
+    assert.match(openSession, /session\.setPendingBind[\s\S]*sessionFile:\s*sessionKey/)
+    assert.match(openSession, /refreshSessionTree\(sessionFile\)/)
   })
 
   it('sends the visible sessionFile with prompt and queue requests', () => {
@@ -35,8 +40,9 @@ describe('live session switch binding', () => {
 
     const main = src('src/main/ipc/handlers/prompt.ts')
     assert.match(main, /workerMatchesSession/)
-    assert.match(main, /prompt\.abort[\s\S]*workerMatchesSession\(req\?\.sessionFile/)
-    assert.match(main, /prompt\.dequeueClearQueue[\s\S]*workerMatchesSession\(req\?\.sessionFile/)
+    // Abort scopes by sessionFile + path-normalize; refuse foreign streaming sessions.
+    assert.match(main, /prompt\.abort[\s\S]*sessionFile[\s\S]*normalizeSessionKey/)
+    assert.match(main, /prompt\.dequeueClearQueue[\s\S]*workerMatchesSession\(sessionFile\)/)
   })
 
   it('navigates the tree for the visible sessionFile, not a stale pendingBind', () => {

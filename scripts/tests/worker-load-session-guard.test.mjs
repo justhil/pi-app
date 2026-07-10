@@ -31,10 +31,9 @@ describe('worker loadSession guard', () => {
 
   it('workerManager keeps previous cwd when reusing existing foreground worker', () => {
     const src = readFileSync(join(root, 'src/main/worker-manager.ts'), 'utf8')
-    assert.match(
-      src,
-      /evictBackgroundWorkers\(\s*this\.pool,\s*cwd,\s*prev && prev !== cwd \? prev : null\s*\)/,
-    )
+    // Multi-session pool: keep previous foreground key while promoting the reused slot.
+    assert.match(src, /evictIdleWorkers\(/)
+    assert.match(src, /keepKeys:\s*prev && prev !== (key|sk) \? \[prev\] : \[\]/)
   })
 
   it('getState reflects agent turn activity for runtime snapshot', () => {
