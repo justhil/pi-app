@@ -48,9 +48,35 @@ export function ProjectSidebar({
   }, [])
 
   const sandboxMenu = useSandboxContextMenu(refreshSandboxes)
-  const refreshAllSessionLists = useCallback(() => refreshWorkspaceSessionLists(), [])
-  const sessionMenu = useSessionContextMenu(refreshAllSessionLists)
-  const projectMenu = useProjectContextMenu(refreshAllSessionLists)
+
+  const loadWorkspaceSessions = useCallback(async (workspaceId: string) => {
+    if (!workspaceId || isSandboxPath(workspaceId)) return
+    setLoadingSessionPaths((previous) => new Set(previous).add(workspaceId))
+    try {
+      await refreshWorkspaceSessionLists({ workspaceIds: [workspaceId] })
+    } finally {
+      setLoadingSessionPaths((previous) => {
+        const next = new Set(previous)
+        next.delete(workspaceId)
+        return next
+      })
+    }
+  }, [])
+
+  const refreshSessionsAfterMutation = useCallback(
+    (workspacePath?: string) => {
+      const targetPath = workspacePath || currentWorkspace
+      if (targetPath && !isSandboxPath(targetPath)) {
+        void loadWorkspaceSessions(targetPath)
+        return
+      }
+      void refreshWorkspaceSessionLists()
+    },
+    [currentWorkspace, loadWorkspaceSessions],
+  )
+
+  const sessionMenu = useSessionContextMenu(refreshSessionsAfterMutation)
+  const projectMenu = useProjectContextMenu(refreshSessionsAfterMutation)
 
   useEffect(() => {
     const onChanged = () => refreshSandboxes()
@@ -76,40 +102,27 @@ export function ProjectSidebar({
       .catch(() => {})
   }, [refreshSandboxes, currentWorkspace])
 
+  // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
-    const hasDisk =
-      (!!currentWorkspace && !isSandboxPath(currentWorkspace)) ||
-      recentProjects.some((p) => !isSandboxPath(p))
-    if (!hasDisk) return
+    if (!currentWorkspace || isSandboxPath(currentWorkspace)) return
     const frame = requestAnimationFrame(() => {
-      void refreshAllSessionLists()
+      setExpandedPaths((previous) => new Set(previous).add(currentWorkspace))
+      void loadWorkspaceSessions(currentWorkspace)
     })
     return () => cancelAnimationFrame(frame)
-  }, [currentWorkspace, recentProjects, refreshAllSessionLists])
+  }, [currentWorkspace, loadWorkspaceSessions])
 
   useEffect(() => {
-    const onSessionsChanged = () => void refreshAllSessionLists()
-    window.addEventListener('pi-desktop:sessions-changed', onSessionsChanged)
-    return () => window.removeEventListener('pi-desktop:sessions-changed', onSessionsChanged)
-  }, [refreshAllSessionLists])
-
-  useEffect(() => {
-    const onWs = (e: Event) => {
-      const { workspaceId, sessions: list } = (e as CustomEvent).detail as {
+    const onWorkspaceSessions = (event: Event) => {
+      const { workspaceId, sessions: list } = (event as CustomEvent).detail as {
         workspaceId: string
         sessions: SessionItem[]
       }
-      setSessionsByWorkspace((prev) => ({ ...prev, [workspaceId]: list }))
+      setSessionsByWorkspace((previous) => ({ ...previous, [workspaceId]: list }))
     }
-    window.addEventListener('pi-desktop:workspace-sessions', onWs)
-    return () => window.removeEventListener('pi-desktop:workspace-sessions', onWs)
+    window.addEventListener('pi-desktop:workspace-sessions', onWorkspaceSessions)
+    return () => window.removeEventListener('pi-desktop:workspace-sessions', onWorkspaceSessions)
   }, [])
-
-  useEffect(() => {
-    if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      setExpandedPaths((prev) => new Set(prev).add(currentWorkspace))
-    }
-  }, [currentWorkspace])
 
   const diskPaths = (() => {
     const set = new Set<string>()
@@ -277,9 +290,13 @@ export function ProjectSidebar({
       <SessionContextMenuPortal
         menu={sessionMenu.menu}
         onClose={sessionMenu.close}
-        onSessionsChange={refreshAllSessionLists}
+        onSessionsChange={refreshSessionsAfterMutation}
       />
-      <ProjectContextMenuPortal menu={projectMenu.menu} onClose={projectMenu.close} onListChange={refreshAllSessionLists} />
+      <ProjectContextMenuPortal
+        menu={projectMenu.menu}
+        onClose={projectMenu.close}
+        onListChange={refreshSessionsAfterMutation}
+      />
 
       <div className="mt-2 px-1.5">
         <div className="px-2 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/75">
@@ -299,14 +316,19 @@ export function ProjectSidebar({
                 name={diskProjectName(path)}
                 active={path === currentWorkspace}
                 open={open}
-                onToggleOpen={() =>
-                  setExpandedPaths((prev) => {
-                    const next = new Set(prev)
+                onToggleOpen={() => {
+                  const willExpand = !expandedPaths.has(path)
+                  setExpandedPaths((previous) => {
+                    const next = new Set(previous)
                     if (next.has(path)) next.delete(path)
                     else next.add(path)
                     return next
                   })
-                }
+                  // Load sessions on expand (lazy); collapse is display-only.
+                  if (willExpand && !(path in mergedSessionsByWorkspace)) {
+                    void loadWorkspaceSessions(path)
+                  }
+                }}
                 onNewSession={() => void handleNewSessionInProject(path)}
                 onProjectContextMenu={(e) => projectMenu.open(e, path, diskProjectName(path))}
                 sessionTree={

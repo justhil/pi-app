@@ -255,13 +255,16 @@ export default function App() {
                 activePanel={activePanel}
                 setActivePanel={setActivePanel}
               />
-              <div className="flex-1 overflow-hidden">
-                <ErrorBoundary label="panel">
-                  <Suspense fallback={null}>
-                    <SidePanelHost item={activeCatalogItem} />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
+              {/* Unmount panel bodies while collapsed so timers/IPC/effects stop (CSS hide is not enough). */}
+              {!rightPanelCollapsed ? (
+                <div className="flex-1 overflow-hidden">
+                  <ErrorBoundary label="panel">
+                    <Suspense fallback={null}>
+                      <SidePanelHost item={activeCatalogItem} />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
+              ) : null}
             </RightPanel>
           }
         />

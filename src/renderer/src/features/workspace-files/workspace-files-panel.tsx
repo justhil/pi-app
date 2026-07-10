@@ -64,21 +64,22 @@ export function WorkspaceFilesPanel() {
   }, [workspaceRoot, resetTabs])
 
   useEffect(() => {
+    // Refresh preview only when the files panel is the active right-panel tab and visible.
+    // Collapsed right panel unmounts this host entirely (see app.tsx); no idle 2s reread.
     if (!activeTab || activePanel !== 'files') return
+    if (rightPanelCollapsed) return
     const tick = () => {
       if (typeof document !== 'undefined' && document.hidden) return
-      setPreviewRefreshKey((k) => k + 1)
+      setPreviewRefreshKey((previous) => previous + 1)
     }
-    const id = window.setInterval(tick, 2000)
     const onVisibility = () => {
       if (!document.hidden) tick()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      window.clearInterval(id)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [activeTab?.rel, activePanel])
+  }, [activeTab?.rel, activePanel, rightPanelCollapsed])
 
   const toggleChatPreviewExpand = useCallback(() => {
     if (!previewPath) return

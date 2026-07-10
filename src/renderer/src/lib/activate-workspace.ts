@@ -80,14 +80,14 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       .catch((e) => console.error('[activateWorkspace] session.list failed:', e))
   }
 
-  // Worker open can dispose the previous workspace process — do not block first paint on it
-  // when we already have a session target (cache/loading already shown above).
+  // Register project + recent list without forking a Worker (awaitWorker false).
+  // Prompt / session.new / model ops start the Worker lazily via ensureWorkerSessionBound.
   const openPromise = !sameProject
-    ? ipcClient.invoke('workspace.open', { path, awaitWorker: true }).catch((e) => {
-        console.error('[activateWorkspace] workspace.open failed:', e)
+    ? ipcClient.invoke('workspace.open', { path, awaitWorker: false }).catch((error) => {
+        console.error('[activateWorkspace] workspace.open failed:', error)
       })
-    : ipcClient.invoke('workspace.ensureWorker', { path }).catch((e) => {
-        console.error('[activateWorkspace] workspace.ensureWorker failed:', e)
+    : ipcClient.invoke('settings.set', { key: 'currentProject', value: path }).catch((error) => {
+        console.error('[activateWorkspace] settings.set currentProject failed:', error)
       })
 
   if (options?.preferHome) {
@@ -112,7 +112,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
       : null
 
   if (explicitPick) {
-    // Timeline already focused; open worker then hydrate (openSession re-binds + disk tail).
+    // Timeline already focused; register workspace then hydrate from disk (no Worker required).
     void openPromise.finally(() => {
       if (!assertSessionNavigation(navToken)) return
       refreshSessionList()
@@ -120,7 +120,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     try {
       await openPromise
     } catch {
-      /* worker may still come up; hydrate is disk-first */
+      /* hydrate is disk-first */
     }
     if (!assertSessionNavigation(navToken)) return
     await openSessionIntoWorker(explicitPick.sessionId, explicitPick.sessionFile, navToken, {
@@ -146,8 +146,8 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
         modelId: (s as { modelId?: string }).modelId ?? '',
       })),
     )
-  } catch (e) {
-    console.error('[activateWorkspace] session.list failed:', e)
+  } catch (error) {
+    console.error('[activateWorkspace] session.list failed:', error)
     if (!assertSessionNavigation(navToken)) return
   }
 

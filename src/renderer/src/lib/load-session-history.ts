@@ -1,5 +1,4 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { useUIStore } from '@renderer/stores/ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 import {
   clearSessionHistoryCache,
@@ -26,21 +25,14 @@ function checkNav(navToken?: number): void {
   }
 }
 
-async function ensureWorkerForWorkspace(): Promise<void> {
-  const ws = useUIStore.getState().currentWorkspace
-  if (!ws) return
-  const r = await ipcClient.invoke('workspace.ensureWorker', { path: ws }).catch(() => null)
-  if (r?.ok) return
-  await ipcClient.invoke('workspace.switch', { workspaceId: ws }).catch(() => {})
-}
-
-/** 切换/刷新会话：先保证 Worker，再拉 JSONL 时间线；空读与 total 不一致时退避重试 */
+/** 切换/刷新会话：磁盘优先拉 JSONL 时间线；空读与 total 不一致时退避重试。不启动 Worker。 */
 export async function loadSessionHistoryWithRetry(
   sessionFile: string,
   opts?: {
     navToken?: number
     bindPending?: boolean
     alignWorkerOnRetry?: boolean
+    /** Kept for call-site compatibility; history is always disk-first. */
     workerReady?: boolean
   },
 ): Promise<GetMessagesResult> {
@@ -48,10 +40,6 @@ export async function loadSessionHistoryWithRetry(
   /** 默认 false：重试时勿 session.prepare/loadSession，避免切预览会话时卸掉后台仍在跑的 Worker 绑定 */
   const alignWorkerOnRetry = opts?.alignWorkerOnRetry === true
 
-  checkNav(opts?.navToken)
-  if (!opts?.workerReady) {
-    await ensureWorkerForWorkspace()
-  }
   checkNav(opts?.navToken)
 
   if (bindPending) {

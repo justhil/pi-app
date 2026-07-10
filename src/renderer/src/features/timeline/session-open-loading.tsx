@@ -12,18 +12,17 @@ const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
 
 function readSessionPixelShadowTokens(): {
   rest: string
-  hover: string
-  dim: string
 } {
   const styles = getComputedStyle(document.documentElement)
   return {
     rest: styles.getPropertyValue('--session-pixel-shadow').trim() || '0 2px 6px rgba(0,0,0,0.08)',
-    hover: styles.getPropertyValue('--session-pixel-shadow-hover').trim() || '0 4px 12px rgba(0,0,0,0.1)',
-    dim: styles.getPropertyValue('--session-pixel-shadow-dim').trim() || '0 1px 3px rgba(0,0,0,0.05)',
   }
 }
 
-/** 冷启动 / 首点会话：Web Animations API 驱动像素 PI（阴影跟 CSS 主题 token） */
+/**
+ * Cold open / first session: finite pixel assembly + one parent opacity pulse.
+ * Avoids per-pixel infinite WAAPI/CSS animations (idle GPU cost when loading sticks).
+ */
 export function SessionOpenLoadingView() {
   const { t } = useTranslation()
   const logoRef = useRef<HTMLDivElement>(null)
@@ -36,7 +35,7 @@ export function SessionOpenLoadingView() {
     const animations: Animation[] = []
     const shadows = readSessionPixelShadowTokens()
 
-    const inKeyframes: Keyframe[] = [
+    const assembleKeyframes: Keyframe[] = [
       { opacity: 0, transform: 'scale(0.7)', boxShadow: 'none' },
       { opacity: 1, transform: 'scale(1.04)', offset: 0.75 },
       {
@@ -46,33 +45,34 @@ export function SessionOpenLoadingView() {
       },
     ]
 
-    const breatheKeyframes: Keyframe[] = [
-      { opacity: 0.28, transform: 'scale(0.96)', boxShadow: shadows.dim },
-      { opacity: 1, transform: 'scale(1)', boxShadow: shadows.hover },
-      { opacity: 0.28, transform: 'scale(0.96)', boxShadow: shadows.dim },
-    ]
-
-    pixels.forEach((el, i) => {
-      const delay = i * 26
-
+    pixels.forEach((element, pixelIndex) => {
+      const delayMs = pixelIndex * 26
       animations.push(
-        el.animate(inKeyframes, {
+        element.animate(assembleKeyframes, {
           duration: 380,
           easing: EASE,
           fill: 'forwards',
-          delay,
-        }),
-      )
-
-      animations.push(
-        el.animate(breatheKeyframes, {
-          duration: 3000,
-          easing: EASE,
-          iterations: Infinity,
-          delay: delay + 820,
+          delay: delayMs,
         }),
       )
     })
+
+    // Single parent-level compositor pulse instead of N infinite pixel animations.
+    animations.push(
+      root.animate(
+        [
+          { opacity: 0.88, transform: 'scale(1)' },
+          { opacity: 1, transform: 'scale(1.01)' },
+          { opacity: 0.88, transform: 'scale(1)' },
+        ],
+        {
+          duration: 2400,
+          easing: EASE,
+          iterations: Infinity,
+          delay: 900,
+        },
+      ),
+    )
 
     if (captionRef.current) {
       animations.push(

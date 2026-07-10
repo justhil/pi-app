@@ -8,7 +8,10 @@ export type ContextPreview = {
   estimatedChars: number
 }
 
-export function useComposerMetrics() {
+const RUNNING_CONTEXT_REFRESH_MS = 8000
+
+export function useComposerMetrics(options?: { enabled?: boolean }) {
+  const metricsEnabled = options?.enabled !== false
   const workspace = useUIStore((s) => s.currentWorkspace)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const model = useUIStore((s) => s.runState.model)
@@ -29,13 +32,14 @@ export function useComposerMetrics() {
   const streamRef = useRef({ id: null as string | null, start: 0, lastLen: 0, lastAt: 0 })
 
   useEffect(() => {
-    if (!workspace) {
+    if (!metricsEnabled || !workspace) {
       setContextPreview(null)
       return
     }
     let cancelled = false
     const load = () => {
       if (historyLoading) return
+      if (typeof document !== 'undefined' && document.hidden) return
       ipcClient
         .invoke('context.preview')
         .then((r) => {
@@ -48,16 +52,27 @@ export function useComposerMetrics() {
         })
         .catch(() => {})
     }
+    // One-shot on session / history settle; poll only while the turn is running and visible.
     load()
-    const id = window.setInterval(load, 5000)
+    if (!isRunning) {
+      return () => {
+        cancelled = true
+      }
+    }
+    const intervalId = window.setInterval(load, RUNNING_CONTEXT_REFRESH_MS)
+    const onVisibility = () => {
+      if (!document.hidden) load()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       cancelled = true
-      clearInterval(id)
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [workspace, currentSessionId, historyLoading])
+  }, [metricsEnabled, workspace, currentSessionId, historyLoading, isRunning])
 
   useEffect(() => {
-    if (!workspace || !model) {
+    if (!metricsEnabled || !workspace || !model) {
       setContextWindow(null)
       return
     }
@@ -65,59 +80,67 @@ export function useComposerMetrics() {
       .invoke('model.list', {})
       .then((r) => {
         const models = (r?.models || []) as { id: string; name: string; contextWindow?: number }[]
-        const m =
-          models.find((x) => x.id === model || x.name === model) ||
-          models.find((x) => model.includes(x.id) || x.name?.includes(model))
-        setContextWindow(m?.contextWindow && m.contextWindow > 0 ? m.contextWindow : null)
+        const matchedModel =
+          models.find((entry) => entry.id === model || entry.name === model) ||
+          models.find((entry) => model.includes(entry.id) || entry.name?.includes(model))
+        setContextWindow(
+          matchedModel?.contextWindow && matchedModel.contextWindow > 0
+            ? matchedModel.contextWindow
+            : null,
+        )
       })
       .catch(() => setContextWindow(null))
-  }, [workspace, model])
+  }, [metricsEnabled, workspace, model])
 
   useEffect(() => {
+    if (!metricsEnabled) {
+      setTps(null)
+      return
+    }
     const now = performance.now()
     if (!streamingId) {
       streamRef.current = { id: null, start: 0, lastLen: 0, lastAt: 0 }
       if (!isRunning) setTps(null)
       return
     }
-    const s = streamRef.current
-    if (s.id !== streamingId) {
-      s.id = streamingId
-      s.start = now
-      s.lastLen = streamLen
-      s.lastAt = now
+    const streamState = streamRef.current
+    if (streamState.id !== streamingId) {
+      streamState.id = streamingId
+      streamState.start = now
+      streamState.lastLen = streamLen
+      streamState.lastAt = now
       setTps(null)
       return
     }
-    const dt = (now - s.lastAt) / 1000
-    const dChars = streamLen - s.lastLen
-    if (dt >= 0.25 && dChars > 0) {
-      const instant = dChars / dt
-      setTps((prev) => (prev == null ? instant : prev * 0.65 + instant * 0.35))
-      s.lastLen = streamLen
-      s.lastAt = now
+    const elapsedSeconds = (now - streamState.lastAt) / 1000
+    const deltaChars = streamLen - streamState.lastLen
+    if (elapsedSeconds >= 0.25 && deltaChars > 0) {
+      const instantRate = deltaChars / elapsedSeconds
+      setTps((previous) => (previous == null ? instantRate : previous * 0.65 + instantRate * 0.35))
+      streamState.lastLen = streamLen
+      streamState.lastAt = now
     }
-  }, [streamingId, streamLen, isRunning])
+  }, [metricsEnabled, streamingId, streamLen, isRunning])
 
-  const estContextTokens = contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
-  const ctxPct =
-    estContextTokens != null && contextWindow != null && contextWindow > 0
-      ? Math.min(100, (estContextTokens / contextWindow) * 100)
+  const estimatedContextTokens = contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
+  const contextPercent =
+    estimatedContextTokens != null && contextWindow != null && contextWindow > 0
+      ? Math.min(100, (estimatedContextTokens / contextWindow) * 100)
       : null
 
-  const cacheHitPct = (() => {
+  const cacheHitPercent = (() => {
     if (!usage) return null
-    const denom = usage.input + usage.cacheRead
-    if (denom <= 0) return null
-    return (usage.cacheRead / denom) * 100
+    const denominator = usage.input + usage.cacheRead
+    if (denominator <= 0) return null
+    return (usage.cacheRead / denominator) * 100
   })()
 
   return {
     contextPreview,
-    estContextTokens,
+    estContextTokens: estimatedContextTokens,
     contextWindow,
-    ctxPct,
-    cacheHitPct,
+    ctxPct: contextPercent,
+    cacheHitPct: cacheHitPercent,
     cacheWrite: usage?.cacheWrite ?? 0,
     tps,
     formatTokens,

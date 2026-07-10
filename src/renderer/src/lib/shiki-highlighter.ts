@@ -1,7 +1,7 @@
-import type { Highlighter } from 'shiki'
+import type { HighlighterCore } from 'shiki/core'
 
-let highlighter: Highlighter | null = null
-let loadPromise: Promise<Highlighter> | null = null
+let highlighter: HighlighterCore | null = null
+let loadPromise: Promise<HighlighterCore> | null = null
 
 const LANG_ALIASES: Record<string, string> = {
   ts: 'typescript',
@@ -17,27 +17,54 @@ const LANG_ALIASES: Record<string, string> = {
 }
 
 function guessLangFromPath(path: string): string | undefined {
-  const m = path.match(/\.([a-zA-Z0-9]+)$/)
-  if (!m) return undefined
-  const ext = m[1].toLowerCase()
-  return LANG_ALIASES[ext] || ext
+  const match = path.match(/\.([a-zA-Z0-9]+)$/)
+  if (!match) return undefined
+  const extension = match[1].toLowerCase()
+  return LANG_ALIASES[extension] || extension
 }
 
 function isDark(): boolean {
   return typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
 }
 
-async function getHighlighter(): Promise<Highlighter> {
+/**
+ * Explicit language/theme load via shiki/core — avoids the full grammar/theme bundle.
+ * Unsupported languages fall back to escaped plain text.
+ */
+async function getHighlighter(): Promise<HighlighterCore> {
   if (highlighter) return highlighter
   if (!loadPromise) {
     loadPromise = (async () => {
-      const { createHighlighter } = await import('shiki')
-      const h = await createHighlighter({
-        themes: ['github-light', 'github-dark'],
-        langs: ['typescript', 'javascript', 'json', 'bash', 'yaml', 'markdown'],
+      const [{ createHighlighterCore }, { createOnigurumaEngine }] = await Promise.all([
+        import('shiki/core'),
+        import('shiki/engine/oniguruma'),
+      ])
+      const [githubLight, githubDark, typescript, javascript, json, bash, yaml, markdown, wasm] =
+        await Promise.all([
+          import('shiki/themes/github-light.mjs'),
+          import('shiki/themes/github-dark.mjs'),
+          import('shiki/langs/typescript.mjs'),
+          import('shiki/langs/javascript.mjs'),
+          import('shiki/langs/json.mjs'),
+          import('shiki/langs/bash.mjs'),
+          import('shiki/langs/yaml.mjs'),
+          import('shiki/langs/markdown.mjs'),
+          import('shiki/wasm'),
+        ])
+      const instance = await createHighlighterCore({
+        themes: [githubLight.default, githubDark.default],
+        langs: [
+          typescript.default,
+          javascript.default,
+          json.default,
+          bash.default,
+          yaml.default,
+          markdown.default,
+        ],
+        engine: createOnigurumaEngine(wasm),
       })
-      highlighter = h
-      return h
+      highlighter = instance
+      return instance
     })()
   }
   return loadPromise
@@ -47,23 +74,26 @@ async function getHighlighter(): Promise<Highlighter> {
 export async function highlightCodeToHtml(code: string, lang?: string): Promise<string> {
   const trimmed = code.replace(/\n$/, '')
   if (!trimmed) return ''
-  const resolved = lang ? (LANG_ALIASES[lang] || lang) : 'text'
+  const resolved = lang ? LANG_ALIASES[lang] || lang : 'text'
   try {
-    const h = await getHighlighter()
-    const loaded = h.getLoadedLanguages()
-    const useLang = (loaded as string[]).includes(resolved) ? resolved : 'text'
+    const instance = await getHighlighter()
+    const loadedLanguages = instance.getLoadedLanguages() as string[]
+    const useLanguage = loadedLanguages.includes(resolved) ? resolved : 'text'
     const theme = isDark() ? 'github-dark' : 'github-light'
-    if (useLang === 'text') {
+    if (useLanguage === 'text') {
       return escapeHtml(trimmed)
     }
-    return h.codeToHtml(trimmed, { lang: useLang, theme: theme as 'github-dark' | 'github-light' })
-  } catch (e) {
+    return instance.codeToHtml(trimmed, {
+      lang: useLanguage,
+      theme: theme as 'github-dark' | 'github-light',
+    })
+  } catch {
     return escapeHtml(trimmed)
   }
 }
 
-export function escapeHtml(s: string): string {
-  return s
+export function escapeHtml(text: string): string {
+  return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

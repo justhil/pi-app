@@ -3,16 +3,17 @@ export function isSandboxWorkspacePath(path: string | null | undefined): boolean
 }
 
 /**
- * 启动时根据 localStorage 恢复的 currentWorkspace 决定首屏会话形态。
- * - 无项目 / 上次为沙箱路径 → 临时「新对话」（可立即输入，首条发送再落盘）
- * - 磁盘项目路径 → 恢复项目并后台 ensureWorker
+ * Cold-start UI shape from persisted currentWorkspace.
+ * - No project / last path was a sandbox → ephemeral "new chat" draft
+ * - Disk project → restore project metadata only (Worker starts on first Worker-required action)
  */
 export function resolveBootWorkspaceState(path: string | null | undefined): {
   workspace: string | null
   ephemeralDraft: boolean
+  /** @deprecated Always false; Worker is created lazily on prompt/bind. */
   shouldStartWorker: boolean
 } {
   if (!path) return { workspace: null, ephemeralDraft: true, shouldStartWorker: false }
   if (isSandboxWorkspacePath(path)) return { workspace: null, ephemeralDraft: true, shouldStartWorker: false }
-  return { workspace: path, ephemeralDraft: false, shouldStartWorker: true }
+  return { workspace: path, ephemeralDraft: false, shouldStartWorker: false }
 }

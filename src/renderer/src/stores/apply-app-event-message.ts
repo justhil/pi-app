@@ -53,8 +53,14 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
     return
   }
   if (event.role !== 'assistant') return
+  // Clear bootstrap flag once; repeated no-op sets cause extra selector work on every delta.
+  const clearAgentTurnBootstrappingIfNeeded = () => {
+    if (api.get().agentTurnBootstrapping) {
+      api.set({ agentTurnBootstrapping: false })
+    }
+  }
   if (event.phase === 'start') {
-    api.set({ agentTurnBootstrapping: false })
+    clearAgentTurnBootstrappingIfNeeded()
     const items = api.get().timelineItems
     const sid = api.get().streamingAssistantId
     const last = items[items.length - 1]
@@ -77,7 +83,7 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
     })
     api.set({ streamingAssistantId: id })
   } else if (event.phase === 'delta' && event.text) {
-    api.set({ agentTurnBootstrapping: false })
+    clearAgentTurnBootstrappingIfNeeded()
     if (!api.get().streamingAssistantId) {
       const id = api.nextItemId()
       state.appendTimeline({

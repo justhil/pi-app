@@ -120,9 +120,13 @@ export function createWindow(): BrowserWindow {
     }
   })
 
-  mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
-    console.log(`[Renderer:${level}] ${message} (${sourceId}:${line})`)
-  })
+  // Production: skip per-line renderer console forwarding (idle/poll noise).
+  // Dev and e2e keep full forwarding for diagnostics.
+  if (is.dev || isE2eTestMode()) {
+    mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
+      console.log(`[Renderer:${level}] ${message} (${sourceId}:${line})`)
+    })
+  }
 
   mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
     console.error(`[Renderer] Failed to load: ${errorCode} ${errorDescription} URL: ${validatedURL}`)

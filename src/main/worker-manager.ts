@@ -29,6 +29,7 @@ import {
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
 import { readMaxSessionWorkers } from './worker-pool-config'
+import { configStore } from './config-store'
 
 interface InitResult extends WorkerInitResult {}
 
@@ -316,6 +317,20 @@ export class WorkerManager {
     return slotRequest(slot, type, data as Record<string, unknown> | undefined)
   }
 
+  /**
+   * Workspace cwd for lazy Worker creation.
+   * After cold start without ensureWorker, foreground may be empty — fall back to
+   * persisted currentProject so rewind/prompt can still spawn a session Worker.
+   */
+  resolveWorkspaceCwd(preferred?: string | null): string | null {
+    const fromPreferred = preferred?.trim()
+    if (fromPreferred) return fromPreferred
+    if (this.cwd) return this.cwd
+    const fromConfig = configStore.get('currentProject')
+    if (typeof fromConfig === 'string' && fromConfig.trim()) return fromConfig.trim()
+    return null
+  }
+
   private async resolveSlotForRpc(sessionFile?: string | null): Promise<WorkerSlot> {
     if (sessionFile) {
       const sk = normalizeSessionKey(sessionFile)
@@ -324,7 +339,7 @@ export class WorkerManager {
         this.setForeground(bySession)
         return bySession
       }
-      const cwd = this.cwd || bySession?.cwd
+      const cwd = this.resolveWorkspaceCwd(bySession?.cwd)
       if (!cwd) {
         // try any slot matching session after load on foreground
         const fg = this.foregroundSlot()
@@ -523,10 +538,12 @@ export class WorkerManager {
     sessionFile: string,
     opts?: { force?: boolean; cwd?: string; leafId?: string | null },
   ): Promise<{ sessionId: string; model?: string; leafId?: string | null }> {
-    const cwd = opts?.cwd || this.cwd
-    if (cwd) {
-      await this.ensureSessionWorker(sessionFile, cwd)
+    // Lazy-start path: must resolve cwd even when no Worker is running yet.
+    const cwd = this.resolveWorkspaceCwd(opts?.cwd)
+    if (!cwd) {
+      throw new Error('Worker not started for session')
     }
+    await this.ensureSessionWorker(sessionFile, cwd)
     // Re-apply rewound leaf tip (main override map) so agent context matches UI.
     let leafId = opts?.leafId
     if (leafId === undefined) {

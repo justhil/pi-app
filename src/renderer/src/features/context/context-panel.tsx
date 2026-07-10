@@ -53,9 +53,9 @@ export function ContextPanel() {
   }
 
   useEffect(() => {
+    // Context panel is only mounted while active; one-shot load on open / workspace change.
+    // Manual refresh remains available via the panel button; no idle polling.
     load()
-    const id = window.setInterval(load, 8000)
-    return () => clearInterval(id)
   }, [workspace])
 
   useEffect(() => {

@@ -401,15 +401,16 @@ export function Timeline() {
     const el = scrollRef.current
     if (!el) return
     syncFollowFromScroll()
-    const all = useUIStore.getState().timelineItems
-    const segs = splitTimelineRenderSegments(all, {
-      streamingAssistantId: useUIStore.getState().streamingAssistantId,
-      agentRunning: useUIStore.getState().runState.status === 'running',
+    // Skip full segmentation unless the viewport is near the older-history threshold.
+    if (el.scrollTop >= TIMELINE_LOAD_OLDER_SCROLL_TOP_PX) return
+    const storeState = useUIStore.getState()
+    const segs = splitTimelineRenderSegments(storeState.timelineItems, {
+      streamingAssistantId: storeState.streamingAssistantId,
+      agentRunning: storeState.runState.status === 'running',
     })
     const canReveal = renderCountRef.current < segs.history.length
-    const canFetch =
-      useUIStore.getState().historyLoadedCount < useUIStore.getState().historyTotalCount
-    if (el.scrollTop < TIMELINE_LOAD_OLDER_SCROLL_TOP_PX && (canReveal || canFetch)) {
+    const canFetch = storeState.historyLoadedCount < storeState.historyTotalCount
+    if (canReveal || canFetch) {
       loadMoreHistory()
     }
   }, [loadMoreHistory, syncFollowFromScroll])

@@ -8,7 +8,12 @@ import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 export function registerPromptHandlers(): void {
   const bindBeforePrompt = async (sessionFile?: string) => {
     await ensureWorkerSessionBound(
-      (f, o) => workerManager.loadSession(f, { force: o?.force, cwd: workerManager.cwd || undefined }),
+      (f, o) =>
+        workerManager.loadSession(f, {
+          force: o?.force,
+          // resolveWorkspaceCwd falls back to configStore currentProject when pool is empty
+          cwd: workerManager.resolveWorkspaceCwd() || undefined,
+        }),
       { sessionFile },
     )
   }

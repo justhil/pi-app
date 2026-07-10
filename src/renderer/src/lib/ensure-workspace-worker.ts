@@ -5,10 +5,10 @@ import { resolveBootWorkspaceState } from '@renderer/lib/boot-workspace-state'
 let bootstrapping: Promise<void> | null = null
 
 /**
- * 应用首屏启动链（Renderer mount 时调用一次）：
- * 1. 读 persist 的 currentWorkspace
- * 2. resolveBootWorkspaceState → 无项目/沙箱 → enterEphemeralSandboxDraft（新对话首页，Composer 可输入）
- * 3. 磁盘项目 → setWorkspace + workspace.ensureWorker（Main fork Worker，不阻塞窗口）
+ * Application first-paint boot (called once on Renderer mount):
+ * 1. Read persisted currentWorkspace
+ * 2. resolveBootWorkspaceState → no project/sandbox → ephemeral draft home
+ * 3. Disk project → setWorkspace + restore UI metadata only (no Worker until a Worker-required action)
  */
 export function ensureWorkspaceWorkerOnBoot(): Promise<void> {
   if (bootstrapping) return bootstrapping
@@ -22,20 +22,14 @@ export function ensureWorkspaceWorkerOnBoot(): Promise<void> {
       return
     }
     const path = boot.workspace
-    if (!path || !boot.shouldStartWorker) return
+    if (!path) return
     useUIStore.getState().setWorkspace(path)
+    // Persist selection without forking a pi Worker; prompt/session.new/model ops start it lazily.
+    void ipcClient.invoke('settings.set', { key: 'currentProject', value: path }).catch(() => {})
     try {
-      const res = await ipcClient.invoke('workspace.ensureWorker', { path })
-      if (!res?.ok) {
-        console.warn('[ensureWorkspaceWorker] failed:', res?.error)
-        return
-      }
-      if (res.model) {
-        useUIStore.getState().setRunState({ model: res.model })
-      }
       await refreshComposerRunDisplay()
-    } catch (e) {
-      console.error('[ensureWorkspaceWorker]', e)
+    } catch (error) {
+      console.error('[ensureWorkspaceWorkerOnBoot]', error)
     }
   })()
   return bootstrapping

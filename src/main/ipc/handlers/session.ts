@@ -151,9 +151,15 @@ export function registerSessionHandlers(): void {
     try {
       // Bind the *requested* session worker, then navigate on that same slot.
       // Passing sessionFile through avoids foreground-fallback / wrong-worker races.
-      await ensureWorkerSessionBound((f, o) => workerManager.loadSession(f, o), {
-        sessionFile: req.sessionFile,
-      })
+      // Pass explicit cwd so rewind works after cold open without a pre-started Worker.
+      await ensureWorkerSessionBound(
+        (f, o) =>
+          workerManager.loadSession(f, {
+            force: o?.force,
+            cwd: workerManager.resolveWorkspaceCwd() || undefined,
+          }),
+        { sessionFile: req.sessionFile },
+      )
       const result = await workerManager.navigateTree(req.targetId, {
         summarize: req.summarize === true,
         label: req.label,

@@ -42,7 +42,10 @@ export function registerWorkspaceHandlers(): void {
     } catch (e) {
       console.warn('[IPC] workspace index skipped (sqlite):', (e as Error).message)
     }
-    if (req.awaitWorker) {
+    // awaitWorker true: block until Worker is ready (legacy / explicit).
+    // awaitWorker false / omitted: register project only; Worker starts on first
+    // Worker-required action (prompt / session.new / ensureWorker).
+    if (req.awaitWorker === true) {
       try {
         await workerManager.start(path)
         refreshGitWorkspaceWatch(getMainWindow())
@@ -51,13 +54,7 @@ export function registerWorkspaceHandlers(): void {
         throw e
       }
     } else {
-      workerManager
-        .start(path)
-        .then((result) => {
-          refreshGitWorkspaceWatch(getMainWindow())
-          console.log('[IPC] Worker started for', path, result.sessionId)
-        })
-        .catch((e) => console.error('[IPC] Worker start failed:', e))
+      refreshGitWorkspaceWatch(getMainWindow())
     }
     return { workspaceId: path, path, name }
   })
