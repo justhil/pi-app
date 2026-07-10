@@ -32,7 +32,7 @@ Generated from `src/extension-compat/builtin/*.adapter.json` (34 adapters).
 | Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | none | TUI footer context indicator; desktop-side adapter only |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | headless | Observation memory (automatic, always-on); list and entry included |
 | Powerline Footer | [`pi-powerline-footer`](https://www.npmjs.com/package/pi-powerline-footer) | none | Powerline footer status indicator; desktop-side adapter only |
-| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | none | Rewind session checkpoints |
+| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git checkpoints + `/rewind` restore dialogs (files/conversation); Tree/Fork restore prompts via Extension UI |
 | Pi Search | [`pi-search`](https://www.npmjs.com/package/pi-search) | partial | pi-search web/docs/Context7 search toolkit |
 | Sequential Thinking | `@feniix/pi-sequential-thinking` | headless | 结构化思考链工具（阶段/思考链卡片） |
 | Simplify | [`pi-simplify`](https://www.npmjs.com/package/pi-simplify) | headless | Code precision review (success-tool pattern); list and entry included |

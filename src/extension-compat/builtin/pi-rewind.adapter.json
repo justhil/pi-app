@@ -1,6 +1,7 @@
 {
   "id": "pi-rewind",
   "displayName": "pi-rewind",
+  "description": "Git checkpoints + /rewind：桌面弹窗选择恢复模式（文件 / 对话 / 两者）；会话树·Fork 时也可提示是否恢复文件。页脚 checkpoint 计数等 TUI 装饰桌面不复刻。",
   "match": {
     "names": [
       "pi-rewind"
@@ -9,18 +10,21 @@
       "/rewind"
     ]
   },
-  "tier": "none",
+  "tier": "partial",
   "slash": {
     "/rewind": "notify"
+  },
+  "config": {
+    "note": "扩展需写入 settings.packages 并由 Worker 加载。桌面 /rewind 作为扩展命令透传给 pi（非 App builtin）。恢复选项依赖通用 Extension UI（select/confirm）。"
   },
   "i18n": {
     "zh": {
       "displayName": "pi-rewind",
-      "description": ""
+      "description": "Git 检查点 + /rewind：桌面弹窗可选恢复文件、对话或两者；Tree/Fork 时也可询问是否恢复文件。页脚装饰不复刻。"
     },
     "en": {
       "displayName": "pi-rewind",
-      "description": "Rewind session checkpoints"
+      "description": "Git checkpoints + /rewind: desktop dialogs for restore mode (files / conversation / both). Tree/Fork may prompt to restore files. TUI footer decoration is not replicated."
     }
   }
 }

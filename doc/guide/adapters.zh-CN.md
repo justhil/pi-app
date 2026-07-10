@@ -32,7 +32,7 @@
 | Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | none | TUI 上下文进度条（桌面无对应组件） |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | headless | 观察记忆（自动生效，无斜杠入口） |
 | Powerline Footer | [`pi-powerline-footer`](https://www.npmjs.com/package/pi-powerline-footer) | none | Powerline 页脚状态栏（桌面无对应组件） |
-| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | none | Rewind session checkpoints |
+| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git 检查点 + `/rewind` 恢复弹窗（文件/对话）；Tree/Fork 时可通过扩展 UI 询问是否恢复文件 |
 | Pi Search | [`pi-search`](https://www.npmjs.com/package/pi-search) | partial | pi-search 网络/文档/Context7 搜索工具集 |
 | Sequential Thinking | `@feniix/pi-sequential-thinking` | headless | 结构化思考链工具（阶段/思考链卡片） |
 | Simplify | [`pi-simplify`](https://www.npmjs.com/package/pi-simplify) | headless | 代码精简审查（由工具触发，无斜杠入口） |
