@@ -2,6 +2,23 @@
 
 各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
+## [0.4.15] — 2026-07-10
+
+### 新增
+
+- **会话 Fork / Clone 语义对齐 TUI**：Worker 迁到 `AgentSessionRuntime`；真实 `/fork`（新会话文件 + 原文 prefill）与 `/clone`（复制当前分支）
+- **桌面入口**：`/fork`、`/clone`、双 Esc（`doubleEscapeAction=fork`）打开 Fork 选择器、用户消息 hover Fork、会话树用户节点 Fork；成功后自动切换到新会话
+
+### 优化
+
+- **pi-rewind 适配器**：`tier` 由 `none` 调整为 `partial`，设置页不再误标「仅终端」；说明桌面支持恢复文件/对话弹窗（`/rewind` 仍透传扩展）
+
+### 修复
+
+- **会话树 / 历史**：加载更多历史、lazy Worker 下 rewind 路径与 CI 契约测试加固（含 Windows TAP 计数）
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.15/CHANGELOG.md)
+
 ## [0.4.14] — 2026-07-10
 
 ### 新增
