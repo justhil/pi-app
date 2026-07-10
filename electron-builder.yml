@@ -3,10 +3,20 @@ productName: pi Desktop
 directories:
   buildResources: build
   output: dist
+
+# Chromium UI 语言包：只保留中英（约从 42MB 降到 ~1–2MB）
+# 匹配逻辑为 locale 文件 basename 精确匹配（不区分大小写），见 app-builder-lib ElectronFramework
+electronLanguages:
+  - en-US
+  - zh-CN
+
 files:
   - out/**/*
   - package.json
   - '!**/*.{ts,map}'
+  # 依赖文档不进安装包（如 @earendil-works/pi-coding-agent/docs ~2.6MB）
+  - '!**/docs/**'
+  - '!**/doc/**'
 
 extraFiles:
   - from: build/icon.png
