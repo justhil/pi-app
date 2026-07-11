@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, ListTree, Loader2, XCircle } from 'lucide-react'
+import { ChevronRight, ListTree } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { ToolCallRow, summarizeToolGroup } from './tool-call-row'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
@@ -28,28 +28,39 @@ function ToolGroupSummaryImpl({
       <button
         type="button"
         onClick={() => setUserExpanded(!(userExpanded ?? autoExpanded))}
-        className="group row-hover flex w-full items-center gap-2 rounded-lg border border-border/35 px-2.5 py-1.5 text-left"
-        style={{ background: 'color-mix(in srgb, var(--bg-2) 80%, transparent)' }}
+        className={cn(
+          'group tool-group-hit flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-200',
+          running && 'tool-group-hit--live',
+          hasError && !running && 'tool-group-hit--error',
+        )}
       >
         <ChevronRight
-          className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary"
+          className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/50"
           data-open={expanded ? 'true' : 'false'}
         />
-        <ListTree className="h-3.5 w-3.5 shrink-0 text-aou-6" />
+        <ListTree className="h-3.5 w-3.5 shrink-0 text-foreground-secondary/70" />
         <span className="min-w-0 flex-1 truncate text-[12px] text-foreground-secondary group-hover:text-foreground">
           {label}
         </span>
-        {running && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-aou-5" />}
-        {!running && hasError && <XCircle className="h-3 w-3 shrink-0 text-destructive/70" />}
+        {running ? (
+          <span className="tool-status-live flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden>
+            <span className="tool-status-live-dot" />
+          </span>
+        ) : hasError ? (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/70" aria-label="error" />
+        ) : null}
       </button>
       <CollapsiblePanel open={expanded} className="mt-1">
-        <div className="space-y-0.5 rounded-lg border border-border/30 px-1 py-1" style={{ background: 'var(--bg-1)' }}>
-          {tools.map((t) => (
-            <div key={t.id}>
+        <div
+          className="space-y-0.5 rounded-lg border border-border/25 px-1 py-1"
+          style={{ background: 'color-mix(in srgb, var(--bg-1) 90%, transparent)' }}
+        >
+          {tools.map((toolItem) => (
+            <div key={toolItem.id}>
               <ToolCallRow
-                item={t}
+                item={toolItem}
                 compact
-                autoExpandedInBudget={autoExpandedToolIds.has(t.id)}
+                autoExpandedInBudget={autoExpandedToolIds.has(toolItem.id)}
               />
             </div>
           ))}

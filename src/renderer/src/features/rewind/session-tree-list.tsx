@@ -1,5 +1,5 @@
 import { Bot, GitBranch, MessageSquare, Sparkles, Wrench } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { buildGitLaneLayout } from './session-tree-git-lanes'
 import { SessionTreeGraphColumn } from './session-tree-graph-column'
@@ -57,6 +57,18 @@ function nodeIcon(n: SessionTreeNode) {
   return GitBranch
 }
 
+function nodeIconClass(n: SessionTreeNode): string {
+  if (n.entryType === 'message' && n.role === 'user') return 'text-sky-600/75 dark:text-sky-400/75'
+  if (n.entryType === 'message' && n.role === 'assistant') return 'text-[var(--brand)]/80'
+  if (n.entryType === 'compaction' || n.entryType === 'branch_summary') {
+    return 'text-violet-600/70 dark:text-violet-400/70'
+  }
+  if (n.entryType.includes('tool') || n.entryType === 'tool') {
+    return 'text-amber-700/70 dark:text-amber-400/70'
+  }
+  return 'text-muted-foreground/70'
+}
+
 export function SessionTreeList({
   nodes,
   selectedId,
@@ -65,6 +77,7 @@ export function SessionTreeList({
   className,
   rowClassName,
   showGuides = true,
+  renderTrailing,
 }: {
   nodes: SessionTreeNode[]
   selectedId?: string | null
@@ -74,50 +87,75 @@ export function SessionTreeList({
   rowClassName?: string
   /** false：仅文本列表（大树性能兜底） */
   showGuides?: boolean
+  /** Optional trailing control per row (e.g. Fork on user messages) */
+  renderTrailing?: (node: SessionTreeNode) => ReactNode
 }) {
-  const layout = useMemo(() => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null), [nodes, showGuides])
+  const layout = useMemo(
+    () => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null),
+    [nodes, showGuides],
+  )
 
   return (
     <ul className={cn('w-full min-w-0', className)} role="tree">
       {nodes.map((n, index) => {
         const selected = selectedId === n.id
+        const trailing = renderTrailing?.(n)
         return (
-          <li key={n.id} className="min-w-0" role="treeitem" aria-level={n.depth + 1}>
-            <button
-              type="button"
-              title={n.isLeaf ? '当前位置' : onActivate ? 'Enter 或双击跳转' : '跳转到此节点'}
-              onClick={() => {
-                onSelect?.(n.id)
-                if (!n.isLeaf && onActivate) onActivate(n.id)
-              }}
-              onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
+          <li key={n.id} className="group/tree-row min-w-0" role="treeitem" aria-level={n.depth + 1}>
+            <div
               className={cn(
-                'flex w-full min-w-0 max-w-full items-stretch gap-0 rounded-md py-0.5 pr-2 text-left transition-colors',
+                'flex w-full min-w-0 max-w-full items-stretch gap-0 rounded-md transition-colors',
                 selected && 'bg-primary/12 ring-1 ring-inset ring-primary/30',
                 !selected && 'hover:bg-muted/70',
-                n.isLeaf && !selected && 'bg-primary/6 font-medium',
-                rowClassName,
+                n.isLeaf && !selected && 'bg-primary/6',
               )}
             >
-              {layout && <SessionTreeGraphColumn index={index} nodes={nodes} layout={layout} />}
-              <span
+              <button
+                type="button"
+                title={n.isLeaf ? '当前位置' : onActivate ? 'Enter 或双击跳转' : '跳转到此节点'}
+                onClick={() => {
+                  onSelect?.(n.id)
+                  if (!n.isLeaf && onActivate) onActivate(n.id)
+                }}
+                onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
                 className={cn(
-                  'flex min-w-0 flex-1 items-start gap-1.5 pl-1.5',
-                  layout && !layout.pathIds.has(n.id) && !n.isLeaf && 'opacity-[0.72]',
+                  'flex min-w-0 flex-1 items-stretch gap-0 py-0.5 pl-0 pr-1 text-left',
+                  n.isLeaf && 'font-medium',
+                  rowClassName,
                 )}
               >
-                {(() => {
-                  const Icon = nodeIcon(n)
-                  return <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-50" />
-                })()}
-                <span className="min-w-0 flex-1 truncate text-[12px] leading-snug text-foreground-secondary" title={sessionTreeLineTitle(n)}>
-                  {sessionTreeLineTitle(n)}
-                  {n.isLeaf && (
-                    <span className="ml-1.5 whitespace-nowrap text-[10px] text-primary">← 当前</span>
+                {layout && <SessionTreeGraphColumn index={index} nodes={nodes} layout={layout} />}
+                <span
+                  className={cn(
+                    'flex min-w-0 flex-1 items-center gap-1.5 pl-1.5',
+                    layout && !layout.pathIds.has(n.id) && !n.isLeaf && 'opacity-[0.72]',
                   )}
+                >
+                  {(() => {
+                    const Icon = nodeIcon(n)
+                    return (
+                      <Icon
+                        className={cn('h-3.5 w-3.5 shrink-0 opacity-80', nodeIconClass(n))}
+                      />
+                    )
+                  })()}
+                  <span
+                    className="min-w-0 flex-1 truncate text-[12px] leading-[26px] text-foreground-secondary"
+                    title={sessionTreeLineTitle(n)}
+                  >
+                    {sessionTreeLineTitle(n)}
+                    {n.isLeaf && (
+                      <span className="ml-1.5 whitespace-nowrap text-[10px] text-primary">← 当前</span>
+                    )}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+              {trailing != null && (
+                <div className="flex shrink-0 items-center pr-0.5 opacity-0 transition-opacity group-hover/tree-row:opacity-100 focus-within:opacity-100">
+                  {trailing}
+                </div>
+              )}
+            </div>
           </li>
         )
       })}

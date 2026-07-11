@@ -23,5 +23,6 @@
   "assistantLabel": "助手",
   "toolResultLabel": "工具结果",
   "compactionLabel": "压缩摘要",
-  "branchLabel": "分支摘要"
+  "branchLabel": "分支摘要",
+  "systemLabel": "System"
 }

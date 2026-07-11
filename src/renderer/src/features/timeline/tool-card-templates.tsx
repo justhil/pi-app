@@ -211,9 +211,9 @@ const ListTemplate: ToolCardComponent = ({ item }) => {
   return (
     <div className="mt-1 space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/5 p-2.5">
       {isRunning && statusLine && (
-        <div className="flex items-center gap-1.5 text-[11px] text-sky-600 dark:text-sky-400">
-          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
-          {statusLine}
+        <div className="flex items-center gap-1.5 text-[11px] text-sky-700/80 dark:text-sky-300/80">
+          <span className="tool-status-live-dot relative" />
+          <span className="animate-thinking-pulse">{statusLine}</span>
         </div>
       )}
       {meta.length > 0 && (

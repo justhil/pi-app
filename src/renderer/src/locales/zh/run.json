@@ -40,5 +40,17 @@
   "cacheWriteLabel": "缓存写",
   "cost": "费用",
   "userLabel": "用户",
-  "assistantLabel": "助手"
+  "assistantLabel": "助手",
+  "noModel": "未选择模型",
+  "contextBreakdown": "上下文构成",
+  "contextEmpty": "暂无上下文数据，发送消息后将显示 system / 消息 / 工具占比。",
+  "role": {
+    "system": "System",
+    "user": "用户",
+    "assistant": "助手",
+    "tool": "工具",
+    "summary": "摘要",
+    "other": "其他",
+    "free": "空闲"
+  }
 }

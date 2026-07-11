@@ -231,18 +231,30 @@ const TimelineItemBase = memo(function TimelineItem({
   if (item.type === 'error') {
     const kind = item.errorKind as string | undefined
     const isAbort = kind === 'aborted'
-    const borderCls = isAbort ? 'border-amber-500/35 bg-amber-500/5' : 'border-destructive/30 bg-destructive/5'
-    const textCls = isAbort ? 'text-amber-800 dark:text-amber-200' : 'text-destructive'
-    const title = isAbort ? t('timeline:aborted') : kind === 'retry' ? t('timeline:retryFailed') : t('timeline:runError')
+    // Cursor-like: soft amber for abort/errors in timeline — avoid loud destructive banners
+    const borderCls = isAbort
+      ? 'border-amber-500/30 bg-amber-500/[0.05]'
+      : 'border-amber-500/25 bg-amber-500/[0.04]'
+    const textCls = 'text-amber-900/85 dark:text-amber-100/85'
+    const title = isAbort
+      ? t('timeline:aborted')
+      : kind === 'retry'
+        ? t('timeline:retryFailed')
+        : t('timeline:runError')
     return (
       <div className="py-1.5">
         <div className={cn('rounded-lg border px-3 py-2', borderCls)}>
           <div className="flex items-center gap-2">
-            <AlertCircle className={cn('h-3.5 w-3.5 shrink-0', textCls)} />
+            <AlertCircle className={cn('h-3.5 w-3.5 shrink-0 opacity-75', textCls)} />
             <span className={cn('text-[11px] font-medium', textCls)}>{title}</span>
           </div>
           {item.text != null && String(item.text) && (
-            <pre className={cn('mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed', textCls)}>
+            <pre
+              className={cn(
+                'mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed opacity-90',
+                textCls,
+              )}
+            >
               {String(item.text)}
             </pre>
           )}

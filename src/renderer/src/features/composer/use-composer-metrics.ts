@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
+import type { ContextRoleSlice } from '@renderer/features/run/context-donut'
 
 export type ContextPreview = {
   messageCount: number
   estimatedChars: number
+  roleBreakdown?: ContextRoleSlice[]
 }
 
 const RUNNING_CONTEXT_REFRESH_MS = 8000
@@ -44,9 +46,13 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
         .invoke('context.preview')
         .then((r) => {
           if (!cancelled && r?.preview) {
+            const rawBreakdown = Array.isArray(r.preview.roleBreakdown)
+              ? (r.preview.roleBreakdown as ContextRoleSlice[])
+              : undefined
             setContextPreview({
               messageCount: r.preview.messageCount ?? 0,
               estimatedChars: r.preview.estimatedChars ?? 0,
+              roleBreakdown: rawBreakdown,
             })
           }
         })

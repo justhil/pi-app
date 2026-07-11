@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -1813,5 +1813,104 @@
   }
   .session-pixel-caption {
     opacity: 0.75 !important;
+  }
+}
+
+/* ── Cursor UI experiment: tool live status + group chrome ── */
+@keyframes tool-status-pulse {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes tool-status-ring {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.65);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+.tool-status-live {
+  position: relative;
+}
+.tool-status-live-dot {
+  position: relative;
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #10b981;
+  animation: tool-status-pulse 1.15s ease-in-out infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, #10b981 35%, transparent);
+}
+.tool-status-live-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, #10b981 55%, transparent);
+  animation: tool-status-ring 1.35s ease-out infinite;
+}
+.tool-status-live-dot--solid {
+  animation: tool-status-pulse 1.15s ease-in-out infinite;
+}
+.tool-call-row-hit {
+  background: transparent;
+}
+.tool-call-row-hit:hover {
+  background: color-mix(in srgb, var(--bg-hover) 85%, transparent);
+}
+.tool-call-row-hit--live {
+  background: color-mix(in srgb, #10b981 5%, transparent);
+}
+.tool-call-row-hit--error {
+  background: color-mix(in srgb, #f59e0b 4%, transparent);
+}
+.tool-group-hit {
+  border: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-2) 55%, transparent);
+}
+.tool-group-hit:hover {
+  background: color-mix(in srgb, var(--bg-hover) 90%, transparent);
+}
+.tool-group-hit--live {
+  border-color: color-mix(in srgb, #10b981 22%, var(--border-base));
+  background: color-mix(in srgb, #10b981 5%, var(--bg-2));
+}
+.tool-group-hit--error {
+  border-color: color-mix(in srgb, #f59e0b 22%, var(--border-base));
+}
+.shell-track-right-rail {
+  border-top: none;
+  overflow: hidden;
+}
+.shell-right-rail-only .shell-track-center::after {
+  opacity: 0.7;
+}
+.right-collapsed-rail {
+  animation: ui-enter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-status-live-dot,
+  .tool-status-live-dot::after,
+  .tool-status-live-dot--solid {
+    animation: none !important;
+  }
+  .tool-status-live-dot {
+    opacity: 1;
+  }
+  .right-collapsed-rail {
+    animation: none !important;
   }
 }

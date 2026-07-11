@@ -2,9 +2,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { PanelResizeEdge } from '@renderer/components/app/panel-resize-edge'
+import { RightPanelCollapsedRail } from '@renderer/components/app/right-panel-collapsed-rail'
+
+/** Collapsed right rail width — keep in sync with RightPanelCollapsedRail (w-10 = 40px) */
+const RIGHT_COLLAPSED_RAIL_PX = 40
 
 /**
  * 三栏 Grid：侧栏用 0fr ↔ 固定宽 过渡，中间列 1fr 由浏览器插值，避免 width 动画每帧重排 Timeline。
+ * Cursor UI 实验：右栏收起时保留窄 icon rail（状态点 + 面板入口），不完全消失。
  */
 export function MainLayoutShell({
   left,
@@ -53,9 +58,8 @@ export function MainLayoutShell({
     }
   }, [setLeftWidth, setRightWidth])
 
-  /* 0px↔px 可插值；0fr 在多数引擎里不做过渡会瞬变 */
   const leftCol = leftCollapsed ? '0px' : `${leftWidth}px`
-  const rightCol = rightCollapsed ? '0px' : `${rightWidth}px`
+  const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${rightWidth}px`
   const gridCols = filesChatPreview
     ? `${leftCol} 0px minmax(0, 1fr)`
     : `${leftCol} minmax(0, 1fr) ${rightCol}`
@@ -83,6 +87,7 @@ export function MainLayoutShell({
         filesChatPreview && 'shell-files-chat-preview',
         leftDragging && 'shell-left-dragging',
         rightDragging && 'shell-right-dragging',
+        rightCollapsed && !filesChatPreview && 'shell-right-rail-only',
       )}
       style={{ gridTemplateColumns: gridCols }}
     >
@@ -121,10 +126,9 @@ export function MainLayoutShell({
       <div
         className={cn(
           'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-visible',
-          rightCollapsed && 'shell-track-collapsed',
+          rightCollapsed && 'shell-track-right-rail',
         )}
         style={{ background: 'var(--bg-base)' }}
-        aria-hidden={rightCollapsed}
       >
         {!rightCollapsed && !filesChatPreview ? (
           <PanelResizeEdge
@@ -133,14 +137,13 @@ export function MainLayoutShell({
             onMouseDown={startRightDrag}
           />
         ) : null}
-        <div
-          className={cn(
-            'shell-track-inner min-h-0 min-w-0 flex flex-1 flex-col overflow-hidden',
-            rightCollapsed && 'pointer-events-none',
-          )}
-        >
-          {right}
-        </div>
+        {rightCollapsed && !filesChatPreview ? (
+          <RightPanelCollapsedRail />
+        ) : (
+          <div className="shell-track-inner flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {right}
+          </div>
+        )}
       </div>
     </div>
   )

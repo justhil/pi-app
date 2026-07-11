@@ -1,10 +1,25 @@
 import { useUIStore } from '@renderer/stores/ui-store'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Coins, AlertCircle, Activity, Timer, Gauge, Database } from 'lucide-react'
+import {
+  Coins,
+  Activity,
+  Timer,
+  Gauge,
+  Database,
+  CircleDot,
+  Wrench,
+  Sparkles,
+  AlertTriangle,
+} from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useComposerMetrics } from '@renderer/features/composer/use-composer-metrics'
 import { formatTokens } from '@renderer/lib/format-tokens'
+import {
+  ContextDonutChart,
+  ContextRoleLegend,
+  buildContextRoleSlices,
+} from '@renderer/features/run/context-donut'
 
 function formatDuration(ms: number): string {
   const s = Math.floor(ms / 1000)
@@ -26,6 +41,22 @@ function MetricRow({ label, value, sub }: { label: string; value: string; sub?: 
   )
 }
 
+type RunVisualStatus = 'idle' | 'running' | 'failed' | 'tool' | 'thinking'
+
+function resolveVisualStatus(params: {
+  status: string
+  activeTool?: string | null
+  thinkingLevel?: string | null
+}): RunVisualStatus {
+  if (params.status === 'failed') return 'failed'
+  if (params.status === 'running' && params.activeTool) return 'tool'
+  if (params.status === 'running') {
+    if (params.thinkingLevel && params.thinkingLevel !== 'off') return 'thinking'
+    return 'running'
+  }
+  return 'idle'
+}
+
 export function RunPanel() {
   const { t } = useTranslation()
   const runState = useUIStore((s) => s.runState)
@@ -36,7 +67,7 @@ export function RunPanel() {
 
   useEffect(() => {
     if (runState.status !== 'running' || !runState.startTime) return
-    const timer = setInterval(() => setTick((t) => t + 1), 1000)
+    const timer = setInterval(() => setTick((n) => n + 1), 1000)
     return () => clearInterval(timer)
   }, [runState.status, runState.startTime])
 
@@ -52,152 +83,306 @@ export function RunPanel() {
   })()
 
   const isRunning = runState.status === 'running'
+  const visualStatus = resolveVisualStatus({
+    status: runState.status,
+    activeTool: runState.activeTool,
+    thinkingLevel,
+  })
   const tokPerSec =
     metrics.tps != null && metrics.tps > 0 ? Math.round(metrics.tps / 4) : null
 
+  const roleSlices = useMemo(
+    () =>
+      buildContextRoleSlices(
+        metrics.contextPreview?.roleBreakdown,
+        metrics.contextPreview?.estimatedChars ?? 0,
+      ),
+    [metrics.contextPreview],
+  )
+
+  const freeTokens =
+    metrics.contextWindow != null && metrics.estContextTokens != null
+      ? Math.max(0, metrics.contextWindow - metrics.estContextTokens)
+      : null
+
+  const roleLabels: Record<string, string> = {
+    system: t('run:role.system'),
+    user: t('run:role.user'),
+    assistant: t('run:role.assistant'),
+    tool: t('run:role.tool'),
+    summary: t('run:role.summary'),
+    other: t('run:role.other'),
+  }
+
+  const statusCopy: Record<
+    RunVisualStatus,
+    { title: string; icon: typeof Activity; accent: string; badge: string; pulse?: boolean }
+  > = {
+    idle: {
+      title: t('run:status.idle'),
+      icon: CircleDot,
+      accent: 'text-foreground-secondary',
+      badge: 'bg-[var(--bg-3)] text-foreground-secondary',
+    },
+    running: {
+      title: t('run:status.running'),
+      icon: Activity,
+      accent: 'text-emerald-600 dark:text-emerald-400',
+      badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+      pulse: true,
+    },
+    tool: {
+      title: t('run:status.toolRunning'),
+      icon: Wrench,
+      accent: 'text-sky-600 dark:text-sky-400',
+      badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+      pulse: true,
+    },
+    thinking: {
+      title: t('run:status.thinking'),
+      icon: Sparkles,
+      accent: 'text-[var(--brand)]',
+      badge: 'bg-[var(--brand)]/10 text-[var(--aou-7)] dark:text-[var(--aou-5)]',
+      pulse: true,
+    },
+    failed: {
+      title: t('run:status.failed'),
+      icon: AlertTriangle,
+      accent: 'text-amber-600 dark:text-amber-400',
+      badge: 'bg-amber-500/10 text-amber-800 dark:text-amber-200',
+    },
+  }
+
+  const statusVisual = statusCopy[visualStatus]
+  const StatusIcon = statusVisual.icon
+
   return (
-    <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto p-3 space-y-3">
-      <div
-        className={cn(
-          'rounded-xl border p-3 transition-colors',
-          isRunning
-            ? 'border-green-500/25 bg-green-500/[0.06]'
-            : runState.status === 'failed'
-              ? 'border-destructive/25 bg-destructive/[0.06]'
-              : 'border-border/50 bg-[var(--bg-2)]/40',
-        )}
-      >
-        <div className="flex items-center gap-3">
+    <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
+      {/* Status strip — design-forward, not a loud card */}
+      <div className="relative border-b border-border/40 px-3 pb-3 pt-3">
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-x-0 top-0 h-[2px]',
+            visualStatus === 'running' && 'bg-emerald-500/50',
+            visualStatus === 'tool' && 'bg-sky-500/50',
+            visualStatus === 'thinking' && 'bg-[var(--brand)]/45',
+            visualStatus === 'failed' && 'bg-amber-500/40',
+            visualStatus === 'idle' && 'bg-transparent',
+          )}
+        />
+        <div className="flex items-start gap-3">
           <div
             className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-lg',
-              isRunning ? 'bg-green-500/15' : 'bg-[var(--bg-3)]',
+              'relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-2)]',
+              statusVisual.accent,
             )}
           >
-            <Activity className={cn('h-4 w-4', isRunning ? 'text-green-600 animate-pulse' : 'text-foreground-secondary')} />
+            <StatusIcon className={cn('h-4 w-4', statusVisual.pulse && 'animate-pulse')} />
+            {isRunning && (
+              <span
+                className={cn(
+                  'absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full',
+                  visualStatus === 'tool' ? 'bg-sky-500' : 'bg-emerald-500',
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute inset-0 animate-ping rounded-full opacity-60',
+                    visualStatus === 'tool' ? 'bg-sky-400' : 'bg-emerald-400',
+                  )}
+                />
+              </span>
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[14px] font-semibold leading-snug text-foreground">
-              {isRunning ? t('run:status.running') : runState.status === 'failed' ? t('run:status.failed') : t('run:status.idle')}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14px] font-semibold tracking-tight text-foreground">
+                {statusVisual.title}
+              </span>
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                  statusVisual.badge,
+                )}
+              >
+                {elapsedLabel}
+              </span>
             </div>
-            <div className="text-[12px] leading-relaxed text-foreground-secondary">
-              {model && <span className="font-mono text-[11px]">{model}</span>}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-secondary">
+              {model ? (
+                <span className="truncate font-mono text-[11px] text-foreground/80" title={model}>
+                  {model}
+                </span>
+              ) : (
+                <span className="text-foreground-secondary/60">{t('run:noModel')}</span>
+              )}
               {thinkingLevel && thinkingLevel !== 'off' && (
-                <span className="ml-2 text-foreground-secondary/80">{t('run:thinking', { level: thinkingLevel })}</span>
+                <span className="text-foreground-secondary/70">
+                  · {t('run:thinking', { level: thinkingLevel })}
+                </span>
               )}
             </div>
+            {isRunning && runState.activeTool && (
+              <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-[var(--bg-2)]/80 px-2 py-1.5">
+                <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-sky-600/80 dark:text-sky-400/80" />
+                <div className="min-w-0">
+                  <div className="truncate font-mono text-[11px] font-medium text-foreground">
+                    {runState.activeTool}
+                  </div>
+                  {runState.activeToolStatus && (
+                    <p className="mt-0.5 truncate text-[10px] text-foreground-secondary/80">
+                      {runState.activeToolStatus}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        {isRunning && runState.activeTool && (
-          <div className="mt-2.5 rounded-lg bg-[var(--bg-base)]/60 px-2.5 py-2 text-[12px] leading-relaxed">
-            <span className="text-foreground-secondary">{t('run:toolLabel')} </span>
-            <span className="font-mono font-medium text-foreground">{runState.activeTool}</span>
-            {runState.activeToolStatus && (
-              <p className="mt-1 truncate text-[11px] text-sky-700/90 dark:text-sky-400/90">{runState.activeToolStatus}</p>
-            )}
+
+        {/* Soft tool-error chip — muted amber, not destructive red banner */}
+        {runState.errorCount > 0 && (
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-md bg-amber-500/[0.08] px-2 py-1 text-[11px] text-amber-800/90 dark:text-amber-200/85">
+            <AlertTriangle className="h-3 w-3 shrink-0 opacity-70" />
+            <span className="leading-snug">
+              {t('run:tokenError', { count: runState.errorCount })}
+            </span>
           </div>
         )}
       </div>
 
-      <section className="rounded-xl border border-border/50 bg-[var(--bg-2)]/30 p-3">
-        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
-          <Gauge className="h-3.5 w-3.5" />
-          {t('run:realtimeMetrics')}
-        </div>
-        <MetricRow label={t('run:elapsed')} value={elapsedLabel} />
-        <MetricRow
-          label={t('run:genSpeed')}
-          value={tokPerSec != null ? `${tokPerSec} tok/s` : isRunning ? t('run:waitingOutput') : '—'}
-          sub={metrics.tps != null && metrics.tps > 0 ? t('run:approxCharsPerSec', { count: Math.round(metrics.tps) }) : undefined}
-        />
-        <MetricRow
-          label={t('run:metrics.budget')}
-          value={
-            metrics.estContextTokens != null
-              ? `${formatTokens(metrics.estContextTokens)} tok`
-              : '—'
-          }
-          sub={
-            metrics.contextWindow != null && metrics.ctxPct != null
-              ? t('run:contextWindow', { window: formatTokens(metrics.contextWindow), pct: metrics.ctxPct.toFixed(1) })
-              : metrics.contextPreview
-                ? t('run:messagesShort', { count: metrics.contextPreview.messageCount })
-                : undefined
-          }
-        />
-        {metrics.ctxPct != null && (
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--bg-3)]">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all duration-300',
-                metrics.ctxPct > 85 ? 'bg-amber-500' : metrics.ctxPct > 60 ? 'bg-brand' : 'bg-green-500/80',
-              )}
-              style={{ width: `${Math.min(100, metrics.ctxPct)}%` }}
-            />
-          </div>
-        )}
-        {metrics.cacheHitPct != null && runState.usage && runState.usage.cacheRead > 0 && (
-          <MetricRow
-            label={t('run:metrics.cache')}
-            value={`${metrics.cacheHitPct.toFixed(0)}%`}
-            sub={t('run:cacheRead', { value: formatTokens(runState.usage.cacheRead) })}
-          />
-        )}
-      </section>
-
-      <section className="grid grid-cols-2 gap-2">
-        <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/40 p-2.5">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
-            <Timer className="h-3 w-3" />
-            {t('run:toolCalls')}
-          </div>
-          <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">{runState.toolCount}</div>
-          {runState.errorCount > 0 && (
-            <div className="text-[11px] text-destructive">{t('run:errors', { count: runState.errorCount })}</div>
-          )}
-        </div>
-        <div className="rounded-lg border border-border/50 bg-[var(--bg-2)]/40 p-2.5">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
-            <Database className="h-3 w-3" />
-            {t('run:messageCount')}
-          </div>
-          <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
-            {metrics.contextPreview?.messageCount ?? '—'}
-          </div>
-        </div>
-      </section>
-
-      {runState.usage && (
-        <section className="rounded-xl border border-border/50 bg-[var(--bg-2)]/30 p-3">
+      <div className="space-y-3 p-3">
+        {/* Context donut */}
+        <section>
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
-            <Coins className="h-3.5 w-3.5" />
-            {t('run:metrics.turn')} Token
+            <Gauge className="h-3.5 w-3.5" />
+            {t('run:contextBreakdown')}
           </div>
-          <div className="space-y-0.5 font-mono text-[12px]">
-            <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
-            <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
-            <MetricRow label={t('run:cacheReadLabel')} value={runState.usage.cacheRead.toLocaleString()} />
-            <MetricRow label={t('run:cacheWriteLabel')} value={runState.usage.cacheWrite.toLocaleString()} />
+          {metrics.contextPreview && metrics.contextPreview.estimatedChars > 0 ? (
+            <div className="flex items-center gap-3">
+              <ContextDonutChart
+                slices={roleSlices}
+                contextWindow={metrics.contextWindow}
+                estimatedChars={metrics.contextPreview.estimatedChars}
+                centerSub={
+                  metrics.ctxPct != null
+                    ? `${metrics.ctxPct.toFixed(0)}%`
+                    : t('run:metrics.budget')
+                }
+              />
+              <ContextRoleLegend
+                slices={roleSlices}
+                labels={roleLabels}
+                freeLabel={t('run:role.free')}
+                freeTokens={freeTokens}
+              />
+            </div>
+          ) : (
+            <p className="text-[12px] leading-relaxed text-foreground-secondary/65">
+              {t('run:contextEmpty')}
+            </p>
+          )}
+          {metrics.contextWindow != null && metrics.estContextTokens != null && (
+            <p className="mt-2 text-[10px] tabular-nums text-foreground-secondary/60">
+              {t('run:contextWindow', {
+                window: formatTokens(metrics.contextWindow),
+                pct: metrics.ctxPct?.toFixed(1) ?? '0',
+              })}
+              {' · '}
+              {formatTokens(metrics.estContextTokens)} tok
+            </p>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-border/40 bg-[var(--bg-2)]/25 p-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
+            <Activity className="h-3.5 w-3.5" />
+            {t('run:realtimeMetrics')}
           </div>
-          <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
-            <span className="text-[12px] text-foreground-secondary">{t('run:cost')}</span>
-            <span className="font-mono text-[14px] font-semibold tabular-nums">${runState.usage.cost.toFixed(4)}</span>
+          <MetricRow label={t('run:elapsed')} value={elapsedLabel} />
+          <MetricRow
+            label={t('run:genSpeed')}
+            value={
+              tokPerSec != null
+                ? `${tokPerSec} tok/s`
+                : isRunning
+                  ? t('run:waitingOutput')
+                  : '—'
+            }
+            sub={
+              metrics.tps != null && metrics.tps > 0
+                ? t('run:approxCharsPerSec', { count: Math.round(metrics.tps) })
+                : undefined
+            }
+          />
+          {metrics.cacheHitPct != null && runState.usage && runState.usage.cacheRead > 0 && (
+            <MetricRow
+              label={t('run:metrics.cache')}
+              value={`${metrics.cacheHitPct.toFixed(0)}%`}
+              sub={t('run:cacheRead', { value: formatTokens(runState.usage.cacheRead) })}
+            />
+          )}
+        </section>
+
+        <section className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-border/40 bg-[var(--bg-2)]/30 px-2.5 py-2">
+            <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
+              <Timer className="h-3 w-3" />
+              {t('run:toolCalls')}
+            </div>
+            <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
+              {runState.toolCount}
+            </div>
+            {runState.errorCount > 0 && (
+              <div className="text-[10px] text-amber-700/80 dark:text-amber-300/75">
+                {t('run:errors', { count: runState.errorCount })}
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border border-border/40 bg-[var(--bg-2)]/30 px-2.5 py-2">
+            <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
+              <Database className="h-3 w-3" />
+              {t('run:messageCount')}
+            </div>
+            <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
+              {metrics.contextPreview?.messageCount ?? '—'}
+            </div>
           </div>
         </section>
-      )}
 
-      {runState.errorCount > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
-          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
-          <span className="text-[13px] leading-snug text-destructive">{t('run:tokenError', { count: runState.errorCount })}</span>
-        </div>
-      )}
+        {runState.usage && (
+          <section className="rounded-xl border border-border/40 bg-[var(--bg-2)]/25 p-3">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
+              <Coins className="h-3.5 w-3.5" />
+              {t('run:metrics.turn')} Token
+            </div>
+            <div className="space-y-0.5 font-mono text-[12px]">
+              <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
+              <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
+              <MetricRow
+                label={t('run:cacheReadLabel')}
+                value={runState.usage.cacheRead.toLocaleString()}
+              />
+              <MetricRow
+                label={t('run:cacheWriteLabel')}
+                value={runState.usage.cacheWrite.toLocaleString()}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
+              <span className="text-[12px] text-foreground-secondary">{t('run:cost')}</span>
+              <span className="font-mono text-[14px] font-semibold tabular-nums">
+                ${runState.usage.cost.toFixed(4)}
+              </span>
+            </div>
+          </section>
+        )}
 
-      {!isRunning && !runState.usage && (
-        <p className="px-1 text-[12px] leading-relaxed text-foreground-secondary/70">
-          {t('run:emptyHint')}
-        </p>
-      )}
+        {!isRunning && !runState.usage && !metrics.contextPreview && (
+          <p className="px-0.5 text-[12px] leading-relaxed text-foreground-secondary/70">
+            {t('run:emptyHint')}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

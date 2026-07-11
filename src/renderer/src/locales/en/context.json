@@ -23,5 +23,6 @@
   "assistantLabel": "Assistant",
   "toolResultLabel": "Tool result",
   "compactionLabel": "Compaction",
-  "branchLabel": "Branch summary"
+  "branchLabel": "Branch summary",
+  "systemLabel": "System"
 }

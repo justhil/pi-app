@@ -27,10 +27,17 @@ const ROLE_STYLE: Record<string, { bar: string; badge: string; labelKey: string 
   toolResult: { bar: 'bg-amber-500/70', badge: 'bg-amber-500/15 text-amber-800 dark:text-amber-200', labelKey: 'context:toolResultLabel' },
   compactionSummary: { bar: 'bg-purple-500/60', badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-200', labelKey: 'context:compactionLabel' },
   branchSummary: { bar: 'bg-purple-500/50', badge: 'bg-purple-500/10 text-purple-700', labelKey: 'context:branchLabel' },
+  system: { bar: 'bg-[var(--aou-6)]/80', badge: 'bg-[var(--aou-6)]/15 text-[var(--aou-8)] dark:text-[var(--aou-4)]', labelKey: 'context:systemLabel' },
 }
 
 function roleMeta(role: string) {
-  return ROLE_STYLE[role] || { bar: 'bg-foreground-secondary/40', badge: 'bg-muted text-foreground-secondary', label: role }
+  return (
+    ROLE_STYLE[role] || {
+      bar: 'bg-foreground-secondary/40',
+      badge: 'bg-muted text-foreground-secondary',
+      labelKey: '',
+    }
+  )
 }
 
 export function ContextPanel() {
@@ -193,7 +200,7 @@ export function ContextPanel() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', meta.badge)}>
-                              {t(meta.labelKey)}
+                              {meta.labelKey ? t(meta.labelKey) : seg.role}
                               {seg.label ? ` · ${seg.label}` : ''}
                             </span>
                             <span className="text-[10px] tabular-nums text-foreground-secondary/70">

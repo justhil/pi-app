@@ -40,5 +40,17 @@
   "cacheWriteLabel": "Cache write",
   "cost": "Cost",
   "userLabel": "User",
-  "assistantLabel": "Assistant"
+  "assistantLabel": "Assistant",
+  "noModel": "No model selected",
+  "contextBreakdown": "Context mix",
+  "contextEmpty": "No context yet. After you send a message, system / messages / tools share will appear here.",
+  "role": {
+    "system": "System",
+    "user": "User",
+    "assistant": "Assistant",
+    "tool": "Tools",
+    "summary": "Summary",
+    "other": "Other",
+    "free": "Free"
+  }
 }

@@ -91,13 +91,45 @@ export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage,
           const segments: { index: number; role: string; chars: number; preview: string; label?: string }[] = []
           let msgCount = 0
           let estChars = 0
+          const roleCharTotals: Record<string, number> = {}
+
+          const addRoleChars = (roleKey: string, chars: number) => {
+            if (chars <= 0) return
+            roleCharTotals[roleKey] = (roleCharTotals[roleKey] || 0) + chars
+          }
+
+          const normalizeRoleBucket = (role: string): string => {
+            if (role === 'user') return 'user'
+            if (role === 'assistant') return 'assistant'
+            if (role === 'toolResult' || role === 'tool') return 'tool'
+            if (role === 'system') return 'system'
+            if (role === 'compactionSummary' || role === 'branchSummary') return 'summary'
+            return 'other'
+          }
+
           if (st.session) {
+            const systemPromptText =
+              typeof st.session.systemPrompt === 'string' ? st.session.systemPrompt : ''
+            const systemChars = systemPromptText.length
+            if (systemChars > 0) {
+              addRoleChars('system', systemChars)
+              estChars += systemChars
+              segments.push({
+                index: 0,
+                role: 'system',
+                chars: systemChars,
+                preview: systemPromptText.slice(0, 280),
+                label: 'system',
+              })
+            }
+
             for (const m of st.session.messages || []) {
               msgCount++
               const hm = m as PiSessionMessage
               const t = extractTextFromPiMessage(hm)
               estChars += t.length
               const role = hm.role || '?'
+              addRoleChars(normalizeRoleBucket(role), t.length)
               let label: string | undefined
               if (role === 'toolResult' && hm.toolName) label = hm.toolName
               if (role === 'assistant' && Array.isArray(hm.content)) {
@@ -119,6 +151,15 @@ export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage,
               }
             }
           }
+
+          const roleOrder = ['system', 'user', 'assistant', 'tool', 'summary', 'other'] as const
+          const roleBreakdown = roleOrder
+            .filter((key) => (roleCharTotals[key] || 0) > 0)
+            .map((key) => ({
+              role: key,
+              chars: roleCharTotals[key] || 0,
+            }))
+
           reply({
             type: 'getSessionContextPreview-done',
             preview: {
@@ -127,6 +168,7 @@ export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage,
               estimatedChars: estChars,
               snippets: lines,
               segments,
+              roleBreakdown,
             },
           })
         } catch (e: unknown) {
