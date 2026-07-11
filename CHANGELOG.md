@@ -2,6 +2,30 @@
 
 各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
+## [0.4.17] — 2026-07-12
+
+### 新增
+
+- **Paper Agent 时间线节奏**：开段工具/思考平铺展示，后续正文出现后再折叠为汇总行（flat-then-seal）
+- **Files Changed 卡片**：仅挂在最后一轮已完成输出；文件过多可折叠展开；右侧 Review 入口
+- **工具行 +N/−M**：edit/write/insert 摘要行显示高对比 diff 统计；汇总行同步徽章
+- **流式字尖淡显**：正文流式保留源文本实时性，仅对尾部 ≤2 字做软淡入
+
+### 优化
+
+- **时间线密度**：去掉正文消息固定 32px 操作占位；悬停时行内展开操作区
+- **消息操作范围**：同一回合只在「最后一段正文」显示复制/回退，中间桥接正文不再挂操作条
+- **工具自动展开预算**：`timelineMaxAutoExpandedTools` 对本 run 最近 N 个工具生效（含已完成）
+- **显示壳视觉**：活动行/正文/Markdown 表格与段落间距收紧，折叠段与上下文更贴合
+
+### 修复
+
+- **误报「回复未完成」**：工具桥接空 assistant 不再标 incomplete / interrupted
+- **工具折叠无法展开**：折叠组与单工具改为条件渲染 + 本地展开状态，点击可靠
+- **折叠闪烁**：开段不提前建层级；密封后稳定 groupId；展开策略不再因 phase 抖动收起
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.17/CHANGELOG.md)
+
 ## [0.4.16] — 2026-07-11
 
 ### 新增
