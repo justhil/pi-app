@@ -2,7 +2,29 @@
 
 各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
 
-## [0.4.15] — 2026-07-10
+## [0.4.16] — 2026-07-11
+
+### 新增
+
+- **Cursor 风格 Agent 时间线**：工具组活动摘要（Edited / explored / commands +diff）、回合结束「文件变更」卡片，可联动右侧 Files / Review
+- **行引用附件**：Review / Files 行号 gutter「+」将 `path:line` 以附件 chip 形式插入输入框
+- **右侧栏收起轨**：收起时保留窄图标轨与运行态指示，一键展开对应面板
+- **Run 上下文构成**：上下文预览按 system / user / assistant / tool 等角色占比展示（环形图）
+
+### 优化
+
+- **时间线 / Markdown**：代码块与工具卡片背景、圆角与文案更克制；工具图标统一为中性字形
+- **工具合并**：仅含 thinking 的助手气泡不再打断多工具合并组
+- **Tree / Run 面板**：层级引导与状态条视觉整理；错误态弱化为柔和提示
+
+### 修复
+
+- **斜杠 `/skill:name`**：不再被 sticky 前缀误匹配到 Skills Manager 配置页；裸 `/skill` 仍打开配置，`/skill:enable` 与 `/goalfoo` 行为保持
+- **Composer 附件 key**：同路径多 chip 使用稳定 `chipId`，避免 React 重复 key 警告
+
+> GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.16/CHANGELOG.md)
+
+$2 — 2026-07-10
 
 ### 新增
 
