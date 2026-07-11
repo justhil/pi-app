@@ -70,7 +70,7 @@ function ToolGroupSummaryImpl({
         type="button"
         onClick={() => setUserExpanded(!(userExpanded ?? autoExpanded))}
         className={cn(
-          'group tool-group-hit flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors duration-200',
+          'group tool-group-hit flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors duration-200',
           running && 'tool-group-hit--live',
           hasError && !running && 'tool-group-hit--error',
         )}
@@ -79,7 +79,7 @@ function ToolGroupSummaryImpl({
           className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/45"
           data-open={expanded ? 'true' : 'false'}
         />
-        <span className="min-w-0 flex-1 truncate text-[12px] leading-snug text-foreground-secondary/85 group-hover:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-[12px] leading-snug text-foreground-secondary/80 group-hover:text-foreground">
           {activityLabel}
           {!running && <DiffStatInline additions={summary.additions} deletions={summary.deletions} />}
         </span>
@@ -91,11 +91,8 @@ function ToolGroupSummaryImpl({
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/70" aria-label="error" />
         ) : null}
       </button>
-      <CollapsiblePanel open={expanded} className="mt-1">
-        <div
-          className="space-y-0.5 rounded-lg border border-border/25 px-1 py-1"
-          style={{ background: 'color-mix(in srgb, var(--bg-1) 90%, transparent)' }}
-        >
+      <CollapsiblePanel open={expanded} className="mt-0.5">
+        <div className="space-y-0.5 rounded-md border border-border/25 px-1 py-0.5">
           {tools.map((toolItem) => (
             <div key={toolItem.id}>
               <ToolCallRow

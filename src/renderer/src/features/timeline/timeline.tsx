@@ -196,7 +196,7 @@ const TimelineItemBase = memo(function TimelineItem({
               {streaming && <StreamingCaret />}
             </div>
           ) : streaming && agentRunning ? (
-            <span className="text-[12px] text-foreground-secondary/50">{t('timeline:generatingText')}</span>
+            <ThinkingIndicator />
           ) : isInterrupted && !hasText ? (
             <div className="text-[12px] text-foreground-secondary">
               {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
@@ -563,22 +563,13 @@ export function Timeline() {
       )
     }
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
-        <div className="text-[15px] font-medium text-foreground">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
+        <div className="text-[14px] font-medium text-foreground/90">
           {isEphemeralEmpty ? t('timeline:newChat') : t('timeline:placeholder')}
         </div>
-        <p className="max-w-sm text-[13px] leading-relaxed text-foreground-secondary">
-          {isEphemeralEmpty
-            ? t('timeline:firstMessageHint')
-            : (
-              <>
-                {t('timeline:emptyHint')}
-              </>
-            )}
+        <p className="max-w-xs text-[12px] leading-relaxed text-foreground-secondary/70">
+          {isEphemeralEmpty ? t('timeline:firstMessageHint') : t('timeline:emptyHint')}
         </p>
-        {!isEphemeralEmpty && (
-          <p className="text-[12px] text-foreground-secondary/80">{t('timeline:sidebarHint')}</p>
-        )}
       </div>
     )
   }

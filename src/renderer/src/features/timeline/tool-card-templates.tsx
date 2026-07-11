@@ -114,15 +114,15 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
   const previewPath = assets.find((a) => a.path)?.path
 
   return (
-    <div className="mt-1 space-y-2 rounded-lg border border-pink-500/30 bg-pink-500/5 p-2.5">
+    <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
       {previewPath && <InlineImage path={previewPath} workspaceRoot={workspace} enabled={showInline} />}
       {assets.length === 0 && !textSummary && (
-        <div className="text-[11px] text-muted-foreground/60">无图像路径（结果可能仅为文本分析）</div>
+        <div className="text-[11px] text-muted-foreground/50">—</div>
       )}
       {assets.map((a, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2 text-[11px]">
           {a.label && <span className="text-muted-foreground">{a.label}</span>}
-          {a.url && <a href={a.url} target="_blank" rel="noreferrer" className="font-mono text-pink-600 hover:underline">{a.url}</a>}
+          {a.url && <a href={a.url} target="_blank" rel="noreferrer" className="font-mono text-primary hover:underline">{a.url}</a>}
           {a.path && (
             <>
               <span className="font-mono text-muted-foreground truncate max-w-[240px]" title={a.path}>{a.name || a.path}</span>
@@ -134,7 +134,7 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
         </div>
       ))}
       {textSummary && (
-        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/40 bg-muted/30 p-2 text-[10px] text-muted-foreground">
+        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/30 p-2 text-[10px] text-muted-foreground" style={{ background: 'color-mix(in srgb, var(--bg-2) 45%, transparent)' }}>
           {textSummary.slice(0, 4000)}
         </pre>
       )}
@@ -163,27 +163,27 @@ const TreeTemplate: ToolCardComponent = ({ item }) => {
   }
   if (!details || results.length === 0 && !runId) {
     const out = (item.toolOutput || '').slice(0, 1200)
-    return <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border/50 bg-muted/40 p-2 text-[11px] text-muted-foreground">{out || '(无结构化结果)'}</pre>
+    return <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border/35 p-2 text-[11px] text-muted-foreground" style={{ background: 'color-mix(in srgb, var(--bg-2) 45%, transparent)' }}>{out || '—'}</pre>
   }
   return (
-    <div className="mt-1 space-y-2 rounded-lg border border-blue-500/25 bg-blue-500/5 p-2.5">
+    <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
         <span className="font-mono uppercase">{mode || toolName}</span>
         {runId && <span className="truncate font-mono">{runId}</span>}
       </div>
       {progressSummary && (
         <div className="flex gap-3 text-[10px] tabular-nums text-muted-foreground">
-          {progressSummary.running != null && <span>运行 {progressSummary.running}</span>}
-          {progressSummary.completed != null && <span>完成 {progressSummary.completed}</span>}
-          {progressSummary.failed != null && <span>失败 {progressSummary.failed}</span>}
+          {progressSummary.running != null && <span>{progressSummary.running}</span>}
+          {progressSummary.completed != null && <span>✓{progressSummary.completed}</span>}
+          {progressSummary.failed != null && progressSummary.failed > 0 && <span>!{progressSummary.failed}</span>}
         </div>
       )}
       <div className="space-y-1">
-        {results.length === 0 && <div className="text-[11px] text-muted-foreground/60">无子任务条目（可能为管理类 action）</div>}
+        {results.length === 0 && <div className="text-[11px] text-muted-foreground/50">—</div>}
         {results.map((r, i) => (
           <div key={i} className={cn(
-            'flex items-center justify-between gap-2 rounded-md border border-border/40 px-2 py-1',
-            r.status === 'failed' || r.status === 'timedOut' ? 'border-destructive/30 bg-destructive/5' : 'bg-background/50',
+            'flex items-center justify-between gap-2 rounded-md border border-border/30 px-2 py-1',
+            r.status === 'failed' || r.status === 'timedOut' ? 'border-amber-500/25 bg-amber-500/[0.04]' : '',
           )}>
             <span className="font-mono text-[11px]">{r.agent || 'agent'}</span>
             <span className="text-[10px] uppercase text-muted-foreground">{r.status || '—'}</span>
@@ -209,9 +209,9 @@ const ListTemplate: ToolCardComponent = ({ item }) => {
   if (details?.model) meta.push({ label: 'model', value: details.model })
 
   return (
-    <div className="mt-1 space-y-2 rounded-lg border border-sky-500/25 bg-sky-500/5 p-2.5">
+    <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
       {isRunning && statusLine && (
-        <div className="flex items-center gap-1.5 text-[11px] text-sky-700/80 dark:text-sky-300/80">
+        <div className="flex items-center gap-1.5 text-[11px] text-foreground-secondary/75">
           <span className="tool-status-live-dot relative" />
           <span className="animate-thinking-pulse">{statusLine}</span>
         </div>
@@ -219,8 +219,8 @@ const ListTemplate: ToolCardComponent = ({ item }) => {
       {meta.length > 0 && (
         <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
           {meta.map((m, i) => (
-            <span key={i} className="rounded bg-muted/60 px-1.5 py-0.5 font-mono">
-              <span className="text-muted-foreground/60">{m.label}</span>{' '}
+            <span key={i} className="rounded-sm px-1.5 py-0.5 font-mono" style={{ background: 'color-mix(in srgb, var(--bg-2) 50%, transparent)' }}>
+              <span className="text-muted-foreground/55">{m.label}</span>{' '}
               <span className="text-foreground/70">{String(m.value)}</span>
             </span>
           ))}
@@ -250,13 +250,13 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
     return <ToolTextOutput item={item} />
   }
   return (
-    <div className="mt-1 space-y-2 rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5">
+    <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
       {(questions as Array<{ question?: string; options?: Array<{ label?: string }> }>).map((q, i) => (
         <div key={i}>
           <div className="text-[12px] font-medium">{q.question}</div>
           <div className="mt-1 flex flex-wrap gap-1">
             {(q.options || []).map((o) => (
-              <span key={o.label} className="rounded bg-purple-500/10 px-1.5 py-0.5 text-[10px] text-purple-700 dark:text-purple-300">{o.label}</span>
+              <span key={o.label} className="rounded-sm border border-border/35 px-1.5 py-0.5 text-[10px] text-foreground-secondary">{o.label}</span>
             ))}
           </div>
         </div>
@@ -296,8 +296,8 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
         </div>
       )}
       {textSummary && !nativePreview && (
-        <div className="overflow-hidden rounded-lg border border-border/50 bg-muted/40">
-          <div className="overflow-auto p-2.5 text-[11px] font-mono leading-relaxed max-h-56">
+        <div className="overflow-hidden rounded-md border border-border/35" style={{ background: 'color-mix(in srgb, var(--bg-2) 45%, transparent)' }}>
+          <div className="overflow-auto p-2 text-[11px] font-mono leading-relaxed max-h-56">
             <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(textSummary, item.toolName || '')) }} />
           </div>
         </div>
@@ -311,7 +311,7 @@ const ToolTextOutput: ToolCardComponent = ({ item }) => {
   const text = extractText(item.toolOutput || '')
   if (!text) return null
   return (
-    <div className="overflow-hidden rounded-md border border-border/40 bg-muted/30">
+    <div className="overflow-hidden rounded-md border border-border/30" style={{ background: 'color-mix(in srgb, var(--bg-2) 40%, transparent)' }}>
       <div className="overflow-auto p-2 text-[11px] font-mono leading-relaxed max-h-56">
         <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(text, item.toolName || '')) }} />
       </div>

@@ -12,8 +12,8 @@ describe('CodeBlockView', () => {
     expect(await screen.findByText('typescript')).toBeInTheDocument()
   })
 
-  it('shows copy button', async () => {
+  it('shows copy control', async () => {
     render(<CodeBlockView code="hello" lang="text" />)
-    expect(await screen.findByText(/copy/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /copy|复制|copied|已复制/i })).toBeInTheDocument()
   })
 })

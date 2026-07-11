@@ -1354,16 +1354,16 @@
   .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
   .prose-chat a:hover { text-decoration: underline; }
   .prose-chat code:not(pre code) {
-    background: var(--bg-3);
+    background: color-mix(in srgb, var(--bg-3) 42%, transparent);
     color: var(--text-primary);
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: 1px 5px;
+    border-radius: 3px;
     font-size: 0.875em;
     font-family: var(--font-mono);
   }
-  /* Dark Modern: textPreformat.background #3C3C3C, textLink #4daafc */
+  /* Dark Modern: quieter inline code wash */
   .dark .prose-chat code:not(pre code) {
-    background: #3c3c3c;
+    background: color-mix(in srgb, #3c3c3c 55%, transparent);
     color: #d0d0d0;
   }
   .dark .prose-chat a {
@@ -1374,30 +1374,39 @@
     color: var(--text-secondary);
   }
   .dark .prose-chat th {
-    background: var(--bg-2);
+    background: color-mix(in srgb, var(--bg-2) 45%, transparent);
   }
   .prose-chat pre {
-    margin-block: 8px;
-    border-radius: 8px;
-    font-size: 13px;
+    margin-block: 6px;
+    border-radius: 6px;
+    font-size: 12.5px;
     line-height: 1.5;
     background: transparent;
   }
   .prose-chat blockquote {
-    border-left: 3px solid var(--bg-3);
+    border-left: 2px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
     padding-left: 12px;
     color: var(--text-primary);
     margin: 16px 0;
   }
   .prose-chat hr {
     border: none;
-    border-top: 1px solid var(--bg-3);
+    border-top: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
     margin: 28px 0;
   }
   .prose-chat ol, .prose-chat ul { padding-inline-start: 24px; }
   .prose-chat li { margin-block: 6px; }
-  .prose-chat th { padding: 8px; border: 1px solid var(--bg-3); background: var(--bg-1); font-weight: bold; }
-  .prose-chat td { padding: 8px; border: 1px solid var(--bg-3); min-width: 120px; }
+  .prose-chat th {
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
+    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
+    font-weight: bold;
+  }
+  .prose-chat td {
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
+    min-width: 120px;
+  }
   /* ── KaTeX（行内 / 块级 / 化学式 / 错误态）── */
   .prose-chat .katex {
     font-size: 1.08em;
@@ -1418,13 +1427,13 @@
     margin: 0 0.12em;
   }
   .prose-chat .katex-display {
-    margin: 1.125rem 0;
-    padding: 0.75rem 1rem;
+    margin: 0.85rem 0;
+    padding: 0.5rem 0.75rem;
     overflow-x: auto;
     overflow-y: hidden;
-    border-radius: var(--radius-lg, 8px);
-    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-    background: color-mix(in srgb, var(--bg-2) 88%, transparent);
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+    background: color-mix(in srgb, var(--bg-2) 42%, transparent);
     text-align: center;
     scrollbar-width: thin;
   }
@@ -1458,8 +1467,8 @@
     font-size: 0.9em;
   }
   .prose-chat .math-render-error {
-    border-color: color-mix(in srgb, var(--destructive, #b91c1c) 35%, var(--border));
-    background: color-mix(in srgb, var(--destructive, #b91c1c) 6%, var(--bg-2));
+    border-color: color-mix(in srgb, var(--destructive, #b91c1c) 28%, var(--border));
+    background: color-mix(in srgb, var(--destructive, #b91c1c) 4%, var(--bg-2));
   }
   .prose-chat .katex-fallback {
     font-family: var(--font-mono);

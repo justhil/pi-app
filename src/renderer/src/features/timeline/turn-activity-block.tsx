@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FileCode2, GitBranch } from 'lucide-react'
+import { FileCode2 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { openReviewSessionForPath, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
@@ -25,26 +25,31 @@ function DiffStat({ additions, deletions }: { additions: number; deletions: numb
   if (additions <= 0 && deletions <= 0) return null
   return (
     <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
-      {additions > 0 && <span className="text-emerald-600 dark:text-emerald-400">+{additions}</span>}
-      {deletions > 0 && <span className="text-rose-500/90 dark:text-rose-400/90">-{deletions}</span>}
+      {additions > 0 && (
+        <span className="text-emerald-600/90 dark:text-emerald-400/85">+{additions}</span>
+      )}
+      {deletions > 0 && (
+        <span className="text-rose-500/80 dark:text-rose-400/80">-{deletions}</span>
+      )}
     </span>
   )
 }
 
 function FileChangeRow({ file }: { file: TurnFileStat }) {
+  const { t } = useTranslation()
   return (
     <button
       type="button"
-      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--bg-hover)]"
       onClick={() => openWorkspaceRelativePath(file.path)}
       onContextMenu={(event) => {
         event.preventDefault()
         openReviewPanel(file.path)
       }}
-      title={`${file.path}\n点击：Files 面板 · 右键：Review`}
+      title={t('timeline:activity.openFileHint', { path: file.path })}
     >
-      <FileCode2 className="h-3.5 w-3.5 shrink-0 text-foreground-secondary/55" />
-      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground/90 group-hover:text-foreground">
+      <FileCode2 className="h-3.5 w-3.5 shrink-0 text-foreground-secondary/45" />
+      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground/85 group-hover:text-foreground">
         {file.displayName}
       </span>
       <DiffStat additions={file.additions} deletions={file.deletions} />
@@ -79,17 +84,16 @@ export const TurnActivityBlock = memo(function TurnActivityBlock({
   if (summary.files.length === 0) return null
 
   return (
-    <div className="mb-3 mt-1.5">
-      <div className="overflow-hidden rounded-xl border border-border/50 bg-[var(--bg-1)]/80">
-        <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-foreground">
-            <GitBranch className="h-3.5 w-3.5 text-foreground-secondary/70" />
+    <div className="mb-2.5 mt-1">
+      <div className="overflow-hidden rounded-md border border-border/40">
+        <div className="flex items-center justify-between gap-2 border-b border-border/30 px-2.5 py-1.5">
+          <span className="text-[11px] font-medium tabular-nums text-foreground-secondary">
             {t('timeline:activity.filesChanged', { count: summary.files.length })}
-          </div>
+          </span>
           <button
             type="button"
             className={cn(
-              'rounded-md px-2 py-0.5 text-[11px] font-medium text-foreground-secondary',
+              'rounded px-1.5 py-0.5 text-[11px] text-foreground-secondary/80',
               'hover:bg-[var(--bg-hover)] hover:text-foreground',
             )}
             onClick={() => openReviewPanel(summary.files[0]?.path)}
@@ -97,7 +101,7 @@ export const TurnActivityBlock = memo(function TurnActivityBlock({
             {t('timeline:activity.review')}
           </button>
         </div>
-        <div className="max-h-48 overflow-y-auto py-1">
+        <div className="max-h-40 overflow-y-auto py-0.5">
           {summary.files.map((file) => (
             <FileChangeRow key={file.path} file={file} />
           ))}

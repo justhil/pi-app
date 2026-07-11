@@ -16,7 +16,7 @@ export function renderKatexHtml(latex: string, displayMode: boolean): { html: st
   try {
     const html = katex.renderToString(latex.trim(), { ...KATEX_OPTS, displayMode })
     return { html }
-  } catch (e) {
+  } catch {
     try {
       const html = katex.renderToString(latex.trim(), {
         ...KATEX_OPTS,
@@ -24,7 +24,7 @@ export function renderKatexHtml(latex: string, displayMode: boolean): { html: st
         strict: 'ignore',
       })
       return { html, error: true }
-    } catch (e) {
+    } catch {
       return {
         html: `<span class="katex-fallback">${escapeHtml(latex.slice(0, 200))}</span>`,
         error: true,
@@ -43,10 +43,11 @@ export function FencedMathBlock({ code, className }: { code: string; className?:
   return (
     <div
       className={cn(
-        'math-display-shell my-3 overflow-x-auto rounded-lg border border-border/45 bg-muted/15 px-4 py-3',
+        'math-display-shell my-2 overflow-x-auto rounded-md border border-border/30 px-3 py-2',
         error && 'math-render-error',
         className,
       )}
+      style={{ background: 'color-mix(in srgb, var(--bg-2) 40%, transparent)' }}
       dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   )

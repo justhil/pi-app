@@ -231,13 +231,31 @@ export function resolveV2Slash(commandName: string, projectDir?: string): V2Slas
   return null
 }
 
+/**
+ * Whether `probe` (without leading `/`) is a TUI-style glued form of catalog invocation `inv`.
+ * Examples allowed: goalfoo from inv "goal".
+ * Examples rejected: skill:my-skill from inv "skill" — colon starts a different command family
+ * (pi skills use `/skill:name`, skills-manager only owns bare `/skill` and `/skill:enable`).
+ */
+export function isStickySlashContinuation(probe: string, inv: string): boolean {
+  if (!inv || !probe) return false
+  if (probe === inv) return true
+  if (!probe.startsWith(inv) || probe.length <= inv.length) return false
+  const nextChar = probe.charAt(inv.length)
+  // Only alphanumeric / _ / - may glue onto a short slash command (e.g. /goalfoo).
+  // Colon, slash, and other punctuation must not trigger sticky prefix matching.
+  return /[A-Za-z0-9_-]/.test(nextChar)
+}
+
 /** TUI-style `/goalfoo` without space: match adapter by command prefix (e.g. `/goal`). */
 export function resolveV2SlashPrefix(commandName: string, projectDir?: string): V2SlashResolve | null {
   const exact = resolveV2Slash(commandName, projectDir)
   if (exact) return exact
   const raw = commandName.startsWith('/') ? commandName : `/${commandName}`
-  const probe = raw.slice(1)
-  if (!probe || probe.includes(' ')) return null
+  // Drop trailing args if any slipped into the token (router usually passes first token only).
+  const token = raw.split(/\s+/, 1)[0] || raw
+  const probe = token.slice(1)
+  if (!probe) return null
   let best: { invLen: number; result: V2SlashResolve } | null = null
   for (const a of loadAdapterCatalog(projectDir).adapters) {
     const candidates = new Set<string>()
@@ -249,13 +267,12 @@ export function resolveV2SlashPrefix(commandName: string, projectDir?: string): 
     }
     for (const inv of candidates) {
       if (!inv) continue
-      if (probe === inv || (probe.startsWith(inv) && probe.length > inv.length)) {
-        const cmd = `/${inv}`
-        const behavior = a.slash?.[cmd] ?? (a.match?.commands?.includes(cmd) ? 'notify' : null)
-        if (!behavior) continue
-        if (!best || inv.length > best.invLen) {
-          best = { invLen: inv.length, result: v2SlashFromAdapter(a, cmd, behavior) }
-        }
+      if (!isStickySlashContinuation(probe, inv)) continue
+      const cmd = `/${inv}`
+      const behavior = a.slash?.[cmd] ?? (a.match?.commands?.includes(cmd) ? 'notify' : null)
+      if (!behavior) continue
+      if (!best || inv.length > best.invLen) {
+        best = { invLen: inv.length, result: v2SlashFromAdapter(a, cmd, behavior) }
       }
     }
   }

@@ -15,7 +15,7 @@ import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timelin
 import { splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
-import { Copy, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Copy } from 'lucide-react'
 
 function CodeBlock({
   className,
@@ -32,6 +32,8 @@ function CodeBlock({
   const lang = /language-(\w+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
   const PREVIEW_LINES = 3
+  const lineCount = code.split('\n').length
+  const needsFold = lineCount > PREVIEW_LINES
 
   const copy = () => {
     navigator.clipboard.writeText(code).then(() => {
@@ -41,50 +43,45 @@ function CodeBlock({
   }
 
   return (
-    <div className="group relative my-2 overflow-hidden rounded-lg border border-border/50" style={{ background: 'var(--bg-2)' }}>
-      {lang && (
-        <div className="flex items-center justify-between border-b border-border/40 px-3 py-1" style={{ background: 'var(--bg-3)' }}>
-          <span className="font-mono text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--brand)' }}>{lang}</span>
-          <button
-            type="button"
-            onClick={copy}
-            aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
-            className="text-[10px] transition-colors focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'}
-            onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}
-          >
-            {copied ? t('timeline:copied') : t('timeline:copy')}
-          </button>
-        </div>
-      )}
-      {!lang && (
+    <div
+      className="group relative my-1.5 overflow-hidden rounded-md border border-border/35"
+      style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
+    >
+      <div
+        className="flex items-center justify-between gap-2 border-b border-border/30 px-2 py-0.5"
+        style={{ background: 'color-mix(in srgb, var(--bg-3) 28%, transparent)' }}
+      >
+        <span className="font-mono text-[10px] uppercase tracking-wide text-foreground-secondary/55">
+          {lang || 'code'}
+        </span>
         <button
           type="button"
           onClick={copy}
           aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
-          className="absolute right-2 top-2 z-10 rounded px-1.5 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-          style={{ color: 'var(--text-secondary)' }}
+          title={copied ? t('timeline:copied') : t('timeline:copy')}
+          className="flex h-5 w-5 items-center justify-center rounded text-foreground-secondary/50 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
         >
-          <Copy className="h-3 w-3" />
+          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
         </button>
-      )}
+      </div>
       <pre
-        className={cn('overflow-auto p-3 text-[13px] leading-[1.5] font-mono', !expanded && 'max-h-[90px]')}
+        className={cn(
+          'overflow-auto px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
+          !expanded && needsFold && 'max-h-[4.5rem]',
+        )}
         style={{ margin: 0, color: 'var(--text-primary)' }}
       >
         <code>{code}</code>
       </pre>
-      {code.split('\n').length > PREVIEW_LINES && (
+      {needsFold && (
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex w-full items-center justify-center gap-1 border-t py-1 text-[10px] transition-colors"
-          style={{ borderColor: 'var(--bg-3)', color: 'var(--text-secondary)' }}
-          onMouseEnter={e=>e.currentTarget.style.color='var(--text-primary)'}
-          onMouseLeave={e=>e.currentTarget.style.color='var(--text-secondary)'}
+          aria-label={expanded ? t('timeline:collapse') : t('timeline:expand', { count: lineCount })}
+          title={expanded ? t('timeline:collapse') : t('timeline:expand', { count: lineCount })}
+          className="flex w-full items-center justify-center border-t border-border/30 py-0.5 text-foreground-secondary/45 transition-colors hover:text-foreground-secondary"
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
-          {expanded ? t('timeline:collapse') : t('timeline:expand', { count: code.split('\n').length })}
         </button>
       )}
     </div>
@@ -167,12 +164,20 @@ const MarkdownView = memo(function MarkdownView({
         }
         if (isInline) {
           return (
-            <code className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[12px] text-foreground/90" {...rest}>
+            <code
+              className="rounded-sm px-1 py-px font-mono text-[0.88em] text-foreground/90"
+              style={{ background: 'color-mix(in srgb, var(--bg-3) 45%, transparent)' }}
+              {...rest}
+            >
               {ch}
             </code>
           )
         }
-        return <CodeBlock className={cn2} defaultExpanded={!!streaming}>{ch}</CodeBlock>
+        return (
+          <CodeBlock className={cn2} defaultExpanded={!!streaming}>
+            {ch}
+          </CodeBlock>
+        )
       },
       a: ({ children: ch, ...rest }: ComponentPropsWithoutRef<'a'>) => (
         <a {...rest} target="_blank" rel="noreferrer" className="text-primary hover:underline">
@@ -185,20 +190,37 @@ const MarkdownView = memo(function MarkdownView({
         </div>
       ),
       th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => (
-        <th className="border border-border/50 bg-muted/40 px-2 py-1 text-left font-medium">{ch}</th>
+        <th
+          className="border border-border/40 px-2 py-1 text-left font-medium"
+          style={{ background: 'color-mix(in srgb, var(--bg-2) 40%, transparent)' }}
+        >
+          {ch}
+        </th>
       ),
-      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => <td className="border border-border/50 px-2 py-1">{ch}</td>,
+      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => (
+        <td className="border border-border/40 px-2 py-1">{ch}</td>
+      ),
       img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
-        <img src={src} alt={alt} className="my-2 max-w-full rounded-lg border border-border/50" />
+        <img src={src} alt={alt} className="my-2 max-w-full rounded-md border border-border/40" />
       ),
       blockquote: ({ children: ch }: ComponentPropsWithoutRef<'blockquote'>) => (
-        <blockquote className="my-2 border-l-2 border-border/60 pl-3 text-muted-foreground">{ch}</blockquote>
+        <blockquote className="my-2 border-l-2 border-border/50 pl-3 text-muted-foreground">{ch}</blockquote>
       ),
-      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>,
-      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>,
-      h1: ({ children: ch }: ComponentPropsWithoutRef<'h1'>) => <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>,
-      h2: ({ children: ch }: ComponentPropsWithoutRef<'h2'>) => <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>,
-      h3: ({ children: ch }: ComponentPropsWithoutRef<'h3'>) => <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>,
+      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => (
+        <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>
+      ),
+      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => (
+        <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>
+      ),
+      h1: ({ children: ch }: ComponentPropsWithoutRef<'h1'>) => (
+        <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>
+      ),
+      h2: ({ children: ch }: ComponentPropsWithoutRef<'h2'>) => (
+        <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>
+      ),
+      h3: ({ children: ch }: ComponentPropsWithoutRef<'h3'>) => (
+        <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>
+      ),
       p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => {
         if (typeof ch === 'string') {
           return (
@@ -209,7 +231,7 @@ const MarkdownView = memo(function MarkdownView({
         }
         return <p className="my-1 leading-relaxed">{ch}</p>
       },
-      hr: () => <hr className="my-3 border-border/40" />,
+      hr: () => <hr className="my-3 border-border/35" />,
     }),
     [streaming],
   )

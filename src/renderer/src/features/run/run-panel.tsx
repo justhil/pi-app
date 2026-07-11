@@ -2,11 +2,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Coins,
   Activity,
-  Timer,
-  Gauge,
-  Database,
   CircleDot,
   Wrench,
   Sparkles,
@@ -173,15 +169,15 @@ export function RunPanel() {
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              'relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--bg-2)]',
+              'relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-2)]/80',
               statusVisual.accent,
             )}
           >
-            <StatusIcon className={cn('h-4 w-4', statusVisual.pulse && 'animate-pulse')} />
+            <StatusIcon className={cn('h-3.5 w-3.5', statusVisual.pulse && 'animate-pulse')} />
             {isRunning && (
               <span
                 className={cn(
-                  'absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full',
+                  'absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full',
                   visualStatus === 'tool' ? 'bg-sky-500' : 'bg-emerald-500',
                 )}
               >
@@ -196,41 +192,41 @@ export function RunPanel() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[14px] font-semibold tracking-tight text-foreground">
+              <span className="text-[13px] font-medium tracking-tight text-foreground">
                 {statusVisual.title}
               </span>
               <span
                 className={cn(
-                  'rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
+                  'rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                   statusVisual.badge,
                 )}
               >
                 {elapsedLabel}
               </span>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-secondary">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-secondary">
               {model ? (
-                <span className="truncate font-mono text-[11px] text-foreground/80" title={model}>
+                <span className="truncate font-mono text-[11px] text-foreground/75" title={model}>
                   {model}
                 </span>
               ) : (
-                <span className="text-foreground-secondary/60">{t('run:noModel')}</span>
+                <span className="text-foreground-secondary/55">{t('run:noModel')}</span>
               )}
               {thinkingLevel && thinkingLevel !== 'off' && (
-                <span className="text-foreground-secondary/70">
+                <span className="text-foreground-secondary/60">
                   · {t('run:thinking', { level: thinkingLevel })}
                 </span>
               )}
             </div>
             {isRunning && runState.activeTool && (
-              <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-[var(--bg-2)]/80 px-2 py-1.5">
-                <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-sky-600/80 dark:text-sky-400/80" />
+              <div className="mt-1.5 flex items-start gap-1.5 rounded-md px-1.5 py-1" style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}>
+                <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-foreground-secondary/55" />
                 <div className="min-w-0">
-                  <div className="truncate font-mono text-[11px] font-medium text-foreground">
+                  <div className="truncate font-mono text-[11px] text-foreground/90">
                     {runState.activeTool}
                   </div>
                   {runState.activeToolStatus && (
-                    <p className="mt-0.5 truncate text-[10px] text-foreground-secondary/80">
+                    <p className="mt-0.5 truncate text-[10px] text-foreground-secondary/70">
                       {runState.activeToolStatus}
                     </p>
                   )}
@@ -254,8 +250,7 @@ export function RunPanel() {
       <div className="space-y-3 p-3">
         {/* Context donut */}
         <section>
-          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
-            <Gauge className="h-3.5 w-3.5" />
+          <div className="mb-1.5 text-[11px] font-medium text-foreground-secondary/70">
             {t('run:contextBreakdown')}
           </div>
           {metrics.contextPreview && metrics.contextPreview.estimatedChars > 0 ? (
@@ -278,12 +273,12 @@ export function RunPanel() {
               />
             </div>
           ) : (
-            <p className="text-[12px] leading-relaxed text-foreground-secondary/65">
+            <p className="text-[11px] leading-relaxed text-foreground-secondary/55">
               {t('run:contextEmpty')}
             </p>
           )}
           {metrics.contextWindow != null && metrics.estContextTokens != null && (
-            <p className="mt-2 text-[10px] tabular-nums text-foreground-secondary/60">
+            <p className="mt-1.5 text-[10px] tabular-nums text-foreground-secondary/50">
               {t('run:contextWindow', {
                 window: formatTokens(metrics.contextWindow),
                 pct: metrics.ctxPct?.toFixed(1) ?? '0',
@@ -294,9 +289,8 @@ export function RunPanel() {
           )}
         </section>
 
-        <section className="rounded-xl border border-border/40 bg-[var(--bg-2)]/25 p-3">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
-            <Activity className="h-3.5 w-3.5" />
+        <section className="rounded-md border border-border/35 p-2.5">
+          <div className="mb-1 text-[11px] font-medium text-foreground-secondary/70">
             {t('run:realtimeMetrics')}
           </div>
           <MetricRow label={t('run:elapsed')} value={elapsedLabel} />
@@ -325,36 +319,33 @@ export function RunPanel() {
         </section>
 
         <section className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-border/40 bg-[var(--bg-2)]/30 px-2.5 py-2">
-            <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
-              <Timer className="h-3 w-3" />
+          <div className="rounded-md border border-border/35 px-2.5 py-2">
+            <div className="text-[10px] font-medium text-foreground-secondary/70">
               {t('run:toolCalls')}
             </div>
-            <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
+            <div className="mt-1 text-[16px] font-semibold tabular-nums text-foreground">
               {runState.toolCount}
             </div>
             {runState.errorCount > 0 && (
-              <div className="text-[10px] text-amber-700/80 dark:text-amber-300/75">
+              <div className="text-[10px] text-amber-700/75 dark:text-amber-300/70">
                 {t('run:errors', { count: runState.errorCount })}
               </div>
             )}
           </div>
-          <div className="rounded-lg border border-border/40 bg-[var(--bg-2)]/30 px-2.5 py-2">
-            <div className="flex items-center gap-1 text-[10px] font-medium text-foreground-secondary/80">
-              <Database className="h-3 w-3" />
+          <div className="rounded-md border border-border/35 px-2.5 py-2">
+            <div className="text-[10px] font-medium text-foreground-secondary/70">
               {t('run:messageCount')}
             </div>
-            <div className="mt-1 text-[18px] font-semibold tabular-nums text-foreground">
+            <div className="mt-1 text-[16px] font-semibold tabular-nums text-foreground">
               {metrics.contextPreview?.messageCount ?? '—'}
             </div>
           </div>
         </section>
 
         {runState.usage && (
-          <section className="rounded-xl border border-border/40 bg-[var(--bg-2)]/25 p-3">
-            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary/80">
-              <Coins className="h-3.5 w-3.5" />
-              {t('run:metrics.turn')} Token
+          <section className="rounded-md border border-border/35 p-2.5">
+            <div className="mb-1 text-[11px] font-medium text-foreground-secondary/70">
+              Token
             </div>
             <div className="space-y-0.5 font-mono text-[12px]">
               <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
@@ -368,9 +359,9 @@ export function RunPanel() {
                 value={runState.usage.cacheWrite.toLocaleString()}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between border-t border-border/40 pt-2">
+            <div className="mt-2 flex items-center justify-between border-t border-border/30 pt-2">
               <span className="text-[12px] text-foreground-secondary">{t('run:cost')}</span>
-              <span className="font-mono text-[14px] font-semibold tabular-nums">
+              <span className="font-mono text-[13px] font-semibold tabular-nums">
                 ${runState.usage.cost.toFixed(4)}
               </span>
             </div>
@@ -378,7 +369,7 @@ export function RunPanel() {
         )}
 
         {!isRunning && !runState.usage && !metrics.contextPreview && (
-          <p className="px-0.5 text-[12px] leading-relaxed text-foreground-secondary/70">
+          <p className="px-0.5 text-[11px] leading-relaxed text-foreground-secondary/55">
             {t('run:emptyHint')}
           </p>
         )}
