@@ -5,6 +5,7 @@
     "expand": "展开摘要"
   },
   "emptyState": "暂无消息",
+  "emptyWorkspace": "打开文件夹，或「对话」里新建临时对话",
   "code": "code",
   "copied": "已复制",
   "copy": "复制",
@@ -14,6 +15,13 @@
   "thinkingActive": "思考中",
   "thoughtDone": "思考",
   "thinkingLines": " · {{count}}",
+  "thinkingLive": {
+    "thinking": "思考中",
+    "briefly": "短暂思考",
+    "working": "处理中",
+    "reasoning": "推理中"
+  },
+  "thoughtForSeconds": "思考了 {{seconds}} 秒",
   "generating": "生成中",
   "agentStarting": "启动中",
   "waitingReply": "…",
@@ -36,11 +44,21 @@
   "jumpToNode": "跳转到此节点",
   "jumpNeedEntry": "需要会话 entry id",
   "loadingSession": "加载中…",
+  "loadingOlder": "正在加载更早消息…",
   "loadOlder": "更早 {{count}}",
+  "honestyBanner": "历史可能不完整 — 重新加载",
+  "honestyReload": "重新加载",
+  "toolOutputExpand": "展开（{{count}} 字符）",
+  "toolOutputCollapse": "收起",
   "jumpToBottom": "回到底部",
   "jumpToLive": "回到底部",
   "interruptedEmpty": "回复未完成，可回退继续",
   "interruptedPartial": "回复未完成",
+  "chrome": {
+    "aria": "回合状态",
+    "completed": "完成",
+    "incomplete": "未完成"
+  },
   "activity": {
     "editedFiles": "已编辑 {{names}}",
     "explored": "浏览 {{count}} 文件",
@@ -48,6 +66,7 @@
     "commands": "运行 {{count}} 命令",
     "usedTools": "{{count}} 工具 · {{names}}",
     "filesChanged": "{{count}} 个文件",
+    "filesReviewLink": "{{count}} 个文件 → Review",
     "review": "Review",
     "openFileHint": "{{path}}\n点击 Files · 右键 Review"
   }

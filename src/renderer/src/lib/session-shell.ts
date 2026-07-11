@@ -206,8 +206,41 @@ export function captureFocusFromUiStore(): void {
  */
 export function bindViewToUiStore(view: SessionView): void {
   const state = useUIStore.getState()
+  const runtime = state.sessionRuntimeRunning ?? {}
+  const runtimeRunning =
+    runtime[view.sessionKey] === true ||
+    Object.entries(runtime).some(
+      ([runtimeKey, running]) => running === true && sessionFilesEqual(runtimeKey, view.sessionKey),
+    )
+  const live = getLiveSessionTimeline(view.sessionKey)
+  const liveRunning =
+    live?.runState.status === 'running' ||
+    live?.streamingAssistantId != null ||
+    live?.optimisticPendingUserText != null ||
+    live?.agentTurnBootstrapping === true
+
+  // Prefer the strongest running signal: shell view, runtime map, or live cache.
+  const effectiveRunUI: SessionRunUI =
+    view.runUI === 'failed'
+      ? 'failed'
+      : view.runUI === 'running' || runtimeRunning || liveRunning
+        ? 'running'
+        : 'idle'
+
   const status: RunState['status'] =
-    view.runUI === 'running' ? 'running' : view.runUI === 'failed' ? 'failed' : 'idle'
+    effectiveRunUI === 'running' ? 'running' : effectiveRunUI === 'failed' ? 'failed' : 'idle'
+
+  // Re-assert runtime map when we know the session is still active (switch-back safety).
+  if (effectiveRunUI === 'running') {
+    state.setSessionRuntimeRunning(view.sessionKey, true)
+  }
+
+  const streamingAssistantId =
+    view.streamingAssistantId ?? live?.streamingAssistantId ?? null
+  const optimisticPendingUserText =
+    view.optimisticPendingUserText ?? live?.optimisticPendingUserText ?? null
+  const agentTurnBootstrapping =
+    view.agentTurnBootstrapping || live?.agentTurnBootstrapping === true
 
   useUIStore.setState({
     currentSessionId: view.sessionId,
@@ -215,22 +248,32 @@ export function bindViewToUiStore(view: SessionView): void {
     historyTotalCount: view.historyTotal,
     historyLoadedCount: view.historyLoaded,
     timelineItems: cloneItems(view.items),
-    streamingAssistantId: view.streamingAssistantId,
-    optimisticPendingUserText: view.optimisticPendingUserText,
-    agentTurnBootstrapping: view.agentTurnBootstrapping,
+    streamingAssistantId,
+    optimisticPendingUserText,
+    agentTurnBootstrapping,
     pendingSteering: [...view.pendingSteering],
     pendingFollowUp: [...view.pendingFollowUp],
     runState: {
       ...state.runState,
+      ...(live?.runState ?? {}),
       status,
-      activeTool: undefined,
-      activeToolStatus: undefined,
-      activeRunId: view.runUI === 'running' ? state.runState.activeRunId : undefined,
+      activeTool:
+        effectiveRunUI === 'running'
+          ? (live?.runState.activeTool ?? state.runState.activeTool)
+          : undefined,
+      activeToolStatus:
+        effectiveRunUI === 'running'
+          ? (live?.runState.activeToolStatus ?? state.runState.activeToolStatus)
+          : undefined,
+      activeRunId:
+        effectiveRunUI === 'running'
+          ? (live?.runState.activeRunId ?? state.runState.activeRunId)
+          : undefined,
     },
     workerLiveSnapshot: {
       sessionId: view.sessionId,
       sessionFile: view.sessionKey,
-      status: view.runUI === 'running' ? 'running' : view.runUI === 'failed' ? 'failed' : 'idle',
+      status: effectiveRunUI === 'running' ? 'running' : effectiveRunUI === 'failed' ? 'failed' : 'idle',
     },
   })
 }
@@ -270,24 +313,37 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
       sessionId: sessionId ?? view.sessionId,
       lastFocusedAt: Date.now(),
     }
-    // Refresh runUI from current runtime map (session may still be streaming in background)
+    // Refresh runUI from current runtime map + live cache (session may still be streaming).
     const runtime = useUIStore.getState().sessionRuntimeRunning ?? {}
-    const runUI = resolveRunUI(sessionKey, {
-      runtime,
-      streamingAssistantId: view.streamingAssistantId,
-      optimisticPendingUserText: view.optimisticPendingUserText,
-      agentTurnBootstrapping: view.agentTurnBootstrapping,
-      workerSessionFile: sessionKey,
-      workerStatus: view.runUI === 'running' ? 'running' : 'idle',
-    })
-    // If runtime says running, force runUI even if view was idle when last captured
-    if (runtime[sessionKey] || Object.entries(runtime).some(([k, v]) => v && sessionFilesEqual(k, sessionKey))) {
-      view = { ...view, runUI: 'running' }
-    } else if (view.runUI === 'running' && runUI === 'idle') {
-      // Keep streaming markers if any
-      if (!view.streamingAssistantId && !view.optimisticPendingUserText) {
-        view = { ...view, runUI: 'idle' }
+    const live = getLiveSessionTimeline(sessionKey)
+    const runtimeRunning =
+      runtime[sessionKey] === true ||
+      Object.entries(runtime).some(([k, v]) => v && sessionFilesEqual(k, sessionKey))
+    const liveRunning =
+      live?.runState.status === 'running' ||
+      live?.streamingAssistantId != null ||
+      live?.optimisticPendingUserText != null ||
+      live?.agentTurnBootstrapping === true
+    if (runtimeRunning || liveRunning || view.runUI === 'running') {
+      view = {
+        ...view,
+        runUI: 'running',
+        streamingAssistantId: view.streamingAssistantId ?? live?.streamingAssistantId ?? null,
+        optimisticPendingUserText:
+          view.optimisticPendingUserText ?? live?.optimisticPendingUserText ?? null,
+        agentTurnBootstrapping:
+          view.agentTurnBootstrapping || live?.agentTurnBootstrapping === true,
       }
+    } else {
+      const resolved = resolveRunUI(sessionKey, {
+        runtime,
+        streamingAssistantId: view.streamingAssistantId,
+        optimisticPendingUserText: view.optimisticPendingUserText,
+        agentTurnBootstrapping: view.agentTurnBootstrapping,
+        workerSessionFile: sessionKey,
+        workerStatus: 'idle',
+      })
+      view = { ...view, runUI: resolved }
     }
     views.set(sessionKey, view)
   }
@@ -442,18 +498,38 @@ export async function hydrateSessionView(
     // Do NOT await worker getState on every hydrate — freezes switches when pool is busy.
     // Runtime map + live cache cover running badges.
 
+    const priorRunUI = existing?.runUI
+    const runtimeSaysRunning =
+      runtime[sessionKey] === true ||
+      Object.entries(runtime).some(([k, v]) => v && sessionFilesEqual(k, sessionKey))
+    const liveSaysRunning =
+      live?.runState.status === 'running' ||
+      live?.streamingAssistantId != null ||
+      live?.optimisticPendingUserText != null ||
+      live?.agentTurnBootstrapping === true
+
     const runUI = resolveRunUI(sessionKey, {
       runtime,
-      streamingAssistantId: live?.streamingAssistantId ?? null,
-      optimisticPendingUserText: live?.optimisticPendingUserText ?? null,
-      agentTurnBootstrapping: live?.agentTurnBootstrapping ?? false,
+      streamingAssistantId: live?.streamingAssistantId ?? existing?.streamingAssistantId ?? null,
+      optimisticPendingUserText:
+        live?.optimisticPendingUserText ?? existing?.optimisticPendingUserText ?? null,
+      agentTurnBootstrapping:
+        live?.agentTurnBootstrapping ?? existing?.agentTurnBootstrapping ?? false,
       workerSessionFile: sessionKey,
       workerStatus:
-        runtime[sessionKey] ||
-        Object.entries(runtime).some(([k, v]) => v && sessionFilesEqual(k, sessionKey))
-          ? 'running'
-          : 'idle',
+        runtimeSaysRunning || liveSaysRunning || priorRunUI === 'running' ? 'running' : 'idle',
     })
+    // Never demote a still-running session to idle just because disk hydrate lacks markers.
+    const finalRunUI: SessionRunUI =
+      runUI === 'failed'
+        ? 'failed'
+        : runUI === 'running' || priorRunUI === 'running' || runtimeSaysRunning || liveSaysRunning
+          ? 'running'
+          : 'idle'
+
+    if (finalRunUI === 'running') {
+      useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)
+    }
 
     const next: SessionView = {
       sessionKey,
@@ -461,12 +537,22 @@ export async function hydrateSessionView(
       items: cloneItems(merged),
       historyTotal: Math.max(hist.totalCount, merged.length),
       historyLoaded: Math.min(Math.max(hist.totalCount, merged.length), Math.max(merged.length, projected.length)),
-      runUI,
-      streamingAssistantId: live?.streamingAssistantId ?? null,
-      optimisticPendingUserText: live?.optimisticPendingUserText ?? null,
-      agentTurnBootstrapping: live?.agentTurnBootstrapping ?? false,
-      pendingSteering: live?.pendingSteering ? [...live.pendingSteering] : [],
-      pendingFollowUp: live?.pendingFollowUp ? [...live.pendingFollowUp] : [],
+      runUI: finalRunUI,
+      streamingAssistantId: live?.streamingAssistantId ?? existing?.streamingAssistantId ?? null,
+      optimisticPendingUserText:
+        live?.optimisticPendingUserText ?? existing?.optimisticPendingUserText ?? null,
+      agentTurnBootstrapping:
+        live?.agentTurnBootstrapping ?? existing?.agentTurnBootstrapping ?? false,
+      pendingSteering: live?.pendingSteering
+        ? [...live.pendingSteering]
+        : existing?.pendingSteering
+          ? [...existing.pendingSteering]
+          : [],
+      pendingFollowUp: live?.pendingFollowUp
+        ? [...live.pendingFollowUp]
+        : existing?.pendingFollowUp
+          ? [...existing.pendingFollowUp]
+          : [],
       phase: 'ready',
       lastFocusedAt: Date.now(),
       sessionMeta: hist.sessionMeta,

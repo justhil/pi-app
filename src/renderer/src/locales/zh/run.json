@@ -5,7 +5,10 @@
     "running": "运行中",
     "failed": "失败",
     "thinking": "思考中",
-    "toolRunning": "工具中"
+    "toolRunning": "工具中",
+    "waitingUi": "等待输入",
+    "retrying": "重试中",
+    "stopping": "停止中…"
   },
   "metrics": {
     "tokens": "tokens",

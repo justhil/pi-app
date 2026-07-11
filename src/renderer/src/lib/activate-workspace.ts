@@ -196,6 +196,9 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
     return
   }
 
+  // Capture live running state BEFORE focus changes (runtime map + live timeline cache).
+  captureVisibleLiveSessionTimeline()
+
   store.setCurrentSession(sessionId)
   // Immediate paint: cache hit → timeline; cold → skeleton (never blank empty-chat).
   focusSessionSync(sessionId, file)

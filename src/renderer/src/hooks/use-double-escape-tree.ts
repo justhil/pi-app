@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { composerTextEmpty } from './composer-text-empty'
 
-function composerTextEmpty(): boolean {
-  const el = document.querySelector('[data-composer-root] textarea') as HTMLTextAreaElement | null
-  if (!el) return true
-  return !el.value.trim()
-}
+export { composerTextEmpty, isRichInputElementEmpty } from './composer-text-empty'
 
 /**
  * Empty composer double-Esc:

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PanelRight, RefreshCw } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -10,6 +11,7 @@ import { toast } from 'sonner'
  * Cursor UI 实验：右栏收起时由窄轨承担展开入口，此处只保留「刷新」；展开时仍显示收起按钮。
  */
 export function MainColRightPanelToggle() {
+  const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.rightPanelCollapsed)
   const toggle = useUIStore((s) => s.toggleRightPanel)
   const [reloading, setReloading] = useState(false)
@@ -19,8 +21,8 @@ export function MainColRightPanelToggle() {
     setReloading(true)
     try {
       const r = await reloadCurrentSessionData()
-      if (r.ok) toast.success('已刷新会话数据')
-      else toast.error(r.error || '刷新失败')
+      if (r.ok) toast.success(t('common:sessionReload.success'))
+      else toast.error(r.error || t('common:sessionReload.failed'))
     } finally {
       setReloading(false)
     }
@@ -38,7 +40,7 @@ export function MainColRightPanelToggle() {
         <button
           type="button"
           onClick={toggle}
-          title="收起右侧面板"
+          title={t('common:topbar.collapseRightPanel')}
           className={btnBase}
           style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
         >
@@ -49,7 +51,7 @@ export function MainColRightPanelToggle() {
         type="button"
         onClick={() => void onReload()}
         disabled={reloading}
-        title="刷新会话数据（与 CLI 同步）"
+        title={t('common:sessionReload.title')}
         className={cn(btnBase, 'transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground')}
         style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
       >

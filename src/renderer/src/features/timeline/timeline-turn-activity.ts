@@ -264,6 +264,20 @@ export function buildToolListActivitySummary(
         runId: tool.runId,
         isError: tool.isError,
       })),
+      children: tools.map((tool) => ({
+        kind: 'tool' as const,
+        item: {
+          id: tool.id,
+          type: 'tool-call',
+          toolName: tool.toolName,
+          toolPhase: tool.toolPhase,
+          toolArgs: tool.toolArgs,
+          toolDetail: tool.toolDetail,
+          toolOutput: tool.toolOutput,
+          runId: tool.runId,
+          isError: tool.isError,
+        },
+      })),
     },
   ]
   const runIds = new Set(tools.map((tool) => tool.runId).filter((id): id is string => !!id))

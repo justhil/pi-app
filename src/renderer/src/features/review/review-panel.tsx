@@ -149,15 +149,15 @@ export function ReviewPanel() {
   const scopeHint =
     scope === 'turn'
       ? turnRunId
-        ? `本轮 run ${turnRunId.slice(0, 8)}…`
-        : '尚无本轮（发一条消息后可见）'
+        ? t('review:scopeHintTurn', { id: turnRunId.slice(0, 8) })
+        : t('review:scopeHintNoTurn')
       : scope === 'session'
-        ? `本对话累计 ${fileChanges.length} 个文件`
+        ? t('review:scopeHintSession', { count: fileChanges.length })
         : gitData?.isRepo === false
-          ? '非 Git 仓库'
+          ? t('review:scopeHintNotRepo')
           : gitData?.branch
-            ? `分支 ${gitData.branch}`
-            : 'Git 工作区'
+            ? t('review:scopeHintBranch', { branch: gitData.branch })
+            : t('review:scopeHintGit')
 
   return (
     <div className="flex h-full flex-col">
@@ -184,13 +184,13 @@ export function ReviewPanel() {
               type="button"
               onClick={toggleDiffMode}
               className="chrome-icon-btn rounded p-1"
-              title={diffMode === 'inline' ? '切换到并排视图' : '切换到内联视图'}
+              title={diffMode === 'inline' ? t('review:toggleSplit') : t('review:toggleInline')}
             >
               {diffMode === 'inline' ? <Columns2 className="h-3 w-3" /> : <Rows2 className="h-3 w-3" />}
             </button>
           )}
           {scope === 'git' && (
-            <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title="刷新">
+            <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title={t('review:refresh')}>
               <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
             </button>
           )}
@@ -201,7 +201,7 @@ export function ReviewPanel() {
           <div className="border-b border-border/40 px-3 py-2">
             <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-foreground-secondary/70">
               <GitBranch className="h-3 w-3" />
-              最近提交
+              {t('review:recentCommits')}
             </div>
             <pre className="max-h-28 overflow-y-auto font-mono text-[10px] leading-relaxed text-foreground-secondary/90">
               {gitData.log}
@@ -216,9 +216,9 @@ export function ReviewPanel() {
           <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
             <GitBranch className="h-8 w-8 text-muted-foreground/25" />
             <span className="text-[12px] text-foreground-secondary">
-              {gitData.message || '当前目录不是 Git 仓库'}
+              {gitData.message || t('review:notGitRepo')}
             </span>
-            <span className="text-[11px] text-muted-foreground/50">临时对话或未初始化的文件夹通常没有 Git</span>
+            <span className="text-[11px] text-muted-foreground/50">{t('review:notGitHint')}</span>
           </div>
         ) : scope === 'git' && gitData?.error ? (
           <p className="px-3 py-4 text-[11px] text-destructive/80">{gitData.error}</p>

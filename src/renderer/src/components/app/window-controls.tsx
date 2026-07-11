@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Minus, Square, X, Copy } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { isMac } from '@renderer/lib/platform'
 
 /** 无边框窗口：最小化 / 最大化(还原) / 关闭（Windows/Linux 顶栏右侧） */
 export function WindowControls({ className }: { className?: string }) {
+  const { t } = useTranslation()
   const [maximized, setMaximized] = useState(false)
 
   const refresh = useCallback(() => {
@@ -31,7 +33,7 @@ export function WindowControls({ className }: { className?: string }) {
     <div className={cn('flex h-9 items-stretch', className)}>
       <button
         type="button"
-        title="最小化"
+        title={t('common:window.minimize')}
         onClick={minimize}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
       >
@@ -39,7 +41,7 @@ export function WindowControls({ className }: { className?: string }) {
       </button>
       <button
         type="button"
-        title={maximized ? '还原' : '最大化'}
+        title={maximized ? t('common:window.restore') : t('common:window.maximize')}
         onClick={toggleMax}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
       >
@@ -51,7 +53,7 @@ export function WindowControls({ className }: { className?: string }) {
       </button>
       <button
         type="button"
-        title="关闭"
+        title={t('common:window.close')}
         onClick={close}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-red-600 hover:text-white"
       >

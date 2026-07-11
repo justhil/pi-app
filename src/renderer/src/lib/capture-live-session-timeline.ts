@@ -4,9 +4,21 @@ import {
 } from '@renderer/lib/live-session-timeline-cache'
 import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
-import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
+
+function isRuntimeRunningForFile(
+  sessionFile: string,
+  runtime: Record<string, boolean> | null | undefined,
+): boolean {
+  if (!sessionFile || !runtime) return false
+  const key = normalizeSessionFileKey(sessionFile) || sessionFile
+  if (runtime[sessionFile] === true || runtime[key] === true) return true
+  return Object.entries(runtime).some(
+    ([runtimeKey, running]) => running === true && sessionFilesEqual(runtimeKey, sessionFile),
+  )
+}
 
 export function captureVisibleLiveSessionTimeline(): void {
   // Always snapshot display into Session Shell cache (idle or running) for instant switch-back.
@@ -19,21 +31,44 @@ export function captureVisibleLiveSessionTimeline(): void {
 
   // Multi-session: capture live stream cache when the visible session is active.
   if (viewFile) {
-    const sessionRuntimeRunning = state.sessionRuntimeRunning?.[viewFile] === true
+    const runtimeRunning = isRuntimeRunningForFile(viewFile, state.sessionRuntimeRunning)
+    const workerRunningHere =
+      sessionFilesEqual(workerFile, viewFile) && workerSnap.status === 'running'
     const live =
       state.streamingAssistantId != null ||
       state.optimisticPendingUserText != null ||
-      sessionRuntimeRunning ||
-      (sessionFilesEqual(workerFile, viewFile) && workerSnap.status === 'running')
+      state.agentTurnBootstrapping === true ||
+      runtimeRunning ||
+      workerRunningHere ||
+      state.runState.status === 'running'
     if (live) {
       flushStreamPendingSync(useUIStore.getState, useUIStore.setState)
       const latest = useUIStore.getState()
+      // Keep runtime map honest while leaving a still-active turn.
+      if (
+        latest.runState.status === 'running' ||
+        latest.streamingAssistantId != null ||
+        latest.agentTurnBootstrapping ||
+        latest.optimisticPendingUserText != null
+      ) {
+        latest.setSessionRuntimeRunning(viewFile, true)
+      }
       const snap = {
         sessionId: latest.currentSessionId,
         sessionFile: viewFile,
         timelineItems: latest.timelineItems,
         streamingAssistantId: latest.streamingAssistantId,
-        runState: latest.runState,
+        runState: {
+          ...latest.runState,
+          status:
+            latest.runState.status === 'running' ||
+            latest.streamingAssistantId != null ||
+            latest.agentTurnBootstrapping ||
+            latest.optimisticPendingUserText != null ||
+            isRuntimeRunningForFile(viewFile, latest.sessionRuntimeRunning)
+              ? ('running' as const)
+              : latest.runState.status,
+        },
         pendingSteering: latest.pendingSteering,
         pendingFollowUp: latest.pendingFollowUp,
         optimisticPendingUserText: latest.optimisticPendingUserText,
@@ -62,7 +97,8 @@ export function captureVisibleLiveSessionTimeline(): void {
   if (
     cached.runState.status !== 'running' &&
     cached.streamingAssistantId == null &&
-    cached.optimisticPendingUserText == null
+    cached.optimisticPendingUserText == null &&
+    !cached.agentTurnBootstrapping
   ) {
     return
   }
@@ -70,4 +106,5 @@ export function captureVisibleLiveSessionTimeline(): void {
     ...cached,
     runState: { ...cached.runState, status: 'running' },
   })
+  useUIStore.getState().setSessionRuntimeRunning(workerFile, true)
 }

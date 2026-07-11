@@ -67,7 +67,13 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
     if (last?.type === 'assistant-message' && sid === last.id) return
     const emptyOpt = [...items]
       .reverse()
-      .find((i) => i.type === 'assistant-message' && i.id.startsWith('opt-asst-') && !i.text?.trim())
+      .find(
+        (i) =>
+          i.type === 'assistant-message' &&
+          i.id.startsWith('opt-asst-') &&
+          !i.text?.trim() &&
+          !i.thinkingText?.trim(),
+      )
     if (emptyOpt) {
       api.set({ streamingAssistantId: emptyOpt.id })
       return
@@ -96,13 +102,18 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
       })
       api.set({ streamingAssistantId: id })
     }
+    // Route thinking vs prose by contentKind only — never put body into thinking.
     if (event.contentKind === 'thinking') state.appendThinkingDelta(event.text)
     else state.appendDeltaToStreamingAssistant(event.text)
   } else if (event.phase === 'end') {
+    clearAgentTurnBootstrappingIfNeeded()
     const sid = api.get().streamingAssistantId
     const hasFinalText = event.text !== undefined && String(event.text).trim().length > 0
-    if (hasFinalText) state.setStreamingAssistantFinalText(event.text ?? '')
-    else if (!api.get().agentTurnBootstrapping && !api.get().optimisticPendingUserText) {
+    if (hasFinalText) {
+      // Final text is always assistant prose, never thinking.
+      if (event.contentKind === 'thinking') state.appendThinkingDelta(String(event.text))
+      else state.setStreamingAssistantFinalText(event.text ?? '')
+    } else if (!api.get().agentTurnBootstrapping && !api.get().optimisticPendingUserText) {
       api.set({ streamingAssistantId: null })
     }
     if (sid && event.sessionEntryId) {

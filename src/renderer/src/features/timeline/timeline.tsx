@@ -1,5 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
-import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
+import type { TimelineItem, ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { StreamingCaret, ThinkingIndicator } from './tool-card-primitives'
+import { StreamingCaret } from './tool-card-primitives'
 import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
@@ -29,13 +29,17 @@ import {
   scheduleTimelineScrollToBottom,
   useTimelineLiveFollow,
 } from './timeline-follow-scroll'
-import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { useSessionChrome } from '@renderer/lib/session-chrome'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
 import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnActivityBlock } from './turn-activity-block'
+import { shouldShowTimelineHonestyBanner } from '@renderer/lib/timeline-honesty'
+import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
+import { EmptyState } from '@renderer/components/ui/empty-state'
 import { enrichPlainTextWithPaths } from './markdown-inline-paths'
 import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
 import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
@@ -126,13 +130,17 @@ const TimelineItemBase = memo(function TimelineItem({
     // Empty incomplete leaf: rewind to previous user so session becomes continuable
     const resolvedRewindEntryId = rewindTargetFor(item)
     if (!hasText && !hasThinking) {
-      const boot = agentBoot
-      // Live placeholder while waiting for first tokens
-      if (streaming || boot) {
-        if (!agentRunning && !boot && !streaming) return null
+      // Optimistic / live wait: show thinking placeholder (not empty silence).
+      if (streaming || agentBoot) {
         return (
-          <div className="timeline-message-row py-1.5">
-            <ThinkingIndicator label={boot ? t('timeline:agentStarting') : t('timeline:waitingReply')} />
+          <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+            <ThinkingChainBlock
+              text=""
+              streaming
+              placeholder
+              startedAt={Number(item.timestamp ?? 0) || undefined}
+              labelSeed={String(item.id)}
+            />
           </div>
         )
       }
@@ -181,7 +189,12 @@ const TimelineItemBase = memo(function TimelineItem({
           }
         >
           {hasThinking && (
-            <ThinkingChainBlock text={String(item.thinkingText ?? '')} streaming={streaming} />
+            <ThinkingChainBlock
+              text={String(item.thinkingText ?? '')}
+              streaming={streaming}
+              startedAt={Number(item.timestamp ?? 0) || undefined}
+              labelSeed={String(item.id)}
+            />
           )}
           {hasText ? (
             <div
@@ -195,8 +208,6 @@ const TimelineItemBase = memo(function TimelineItem({
               </Suspense>
               {streaming && <StreamingCaret />}
             </div>
-          ) : streaming && agentRunning ? (
-            <ThinkingIndicator />
           ) : isInterrupted && !hasText ? (
             <div className="text-[12px] text-foreground-secondary">
               {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
@@ -289,17 +300,9 @@ export function Timeline() {
     const len = (item?.text?.length ?? 0) + (item?.thinkingText?.length ?? 0)
     return Math.floor(len / 64)
   })
-  const agentRunning = useUIStore((s) =>
-    composerTurnActive({
-      historySessionFile: s.historySessionFile,
-      workerLiveSnapshot: s.workerLiveSnapshot,
-      runState: s.runState,
-      streamingAssistantId: s.streamingAssistantId,
-      optimisticPendingUserText: s.optimisticPendingUserText,
-      sessionRuntimeRunning: s.sessionRuntimeRunning,
-      agentTurnBootstrapping: s.agentTurnBootstrapping,
-    }),
-  )
+  const extensionDialogOpen = useExtensionUIStore((s) => s.activePending != null)
+  const sessionChrome = useSessionChrome({ extensionDialogOpen })
+  const agentRunning = sessionChrome.canStop || sessionChrome.showSpinner
   const agentBoot = useUIStore((s) => s.agentTurnBootstrapping)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -474,9 +477,9 @@ export function Timeline() {
   const toolExpandSlots = useMemo(
     () =>
       visibleItems
-        .filter((i) => i.type === 'tool-call')
-        .map((i) => {
-          const toolRow = i as ToolTimelineItem
+        .filter((row) => row.type === 'tool-call')
+        .map((row) => {
+          const toolRow = row as ToolTimelineItem
           return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase }
         }),
     [visibleItems],
@@ -532,11 +535,10 @@ export function Timeline() {
 
   if (!hasWorkspace) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6">
-        <p className="max-w-xs text-center text-[13px] leading-relaxed text-foreground-secondary">
-          {t('timeline:emptyWorkspace')}
-        </p>
-      </div>
+      <EmptyState
+        title={t('timeline:emptyWorkspace')}
+        description={t('timeline:emptyHint')}
+      />
     )
   }
 
@@ -554,23 +556,25 @@ export function Timeline() {
     }
     if (historyLoadMiss) {
       return (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <p className="text-[14px] font-medium text-foreground">{t('timeline:historyIncomplete')}</p>
-          <p className="max-w-sm text-[13px] text-foreground-secondary">
-            {t('timeline:historyIncompleteHint', { count: historyTotalCount })}
-          </p>
-        </div>
+        <EmptyState
+          title={t('timeline:historyIncomplete')}
+          description={t('timeline:historyIncompleteHint', { count: historyTotalCount })}
+        >
+          <button
+            type="button"
+            className="mt-2 rounded-md border border-border/50 px-3 py-1.5 text-[12px] text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+            onClick={() => void reloadCurrentSessionData()}
+          >
+            {t('timeline:honestyReload')}
+          </button>
+        </EmptyState>
       )
     }
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center animate-in fade-in duration-[var(--motion-slow)]">
-        <div className="text-[14px] font-medium text-foreground/90">
-          {isEphemeralEmpty ? t('timeline:newChat') : t('timeline:placeholder')}
-        </div>
-        <p className="max-w-xs text-[12px] leading-relaxed text-foreground-secondary/70">
-          {isEphemeralEmpty ? t('timeline:firstMessageHint') : t('timeline:emptyHint')}
-        </p>
-      </div>
+      <EmptyState
+        title={isEphemeralEmpty ? t('timeline:newChat') : t('timeline:placeholder')}
+        description={isEphemeralEmpty ? t('timeline:firstMessageHint') : t('timeline:emptyHint')}
+      />
     )
   }
 
@@ -578,6 +582,13 @@ export function Timeline() {
   const hiddenInMemory = Math.max(0, segments.history.length - historyWindow.length)
   const hiddenOnServer = Math.max(0, historyTotalCount - historyLoadedCount)
   const hiddenCount = hiddenOnServer + hiddenInMemory
+  const showHonestyBanner = shouldShowTimelineHonestyBanner({
+    items: items as TimelineItem[],
+    historyTotalCount,
+    historyLoadedCount,
+    historyLoading,
+    historySessionFile,
+  })
 
   const renderDisplayBlock = (block: TimelineDisplayItem, blockKey: string, prev?: TimelineDisplayItem) => {
     const prevWasTool =
@@ -587,14 +598,12 @@ export function Timeline() {
 
     if (block.kind === 'tool-group') {
       const groupThinking = block.thinkingText?.trim() || ''
+      const hasOrderedExtras = (block.children?.length ?? 0) > 0
       return (
         <Fragment key={blockKey}>
           {showGroupGap && <div className="h-2" />}
           <div className="timeline-message-row space-y-0.5">
-            {groupThinking ? (
-              <ThinkingChainBlock text={groupThinking} streaming={false} />
-            ) : null}
-            {block.tools.length === 1 ? (
+            {block.tools.length === 1 && !groupThinking && !(block.foldedAssistantTexts?.length) && !hasOrderedExtras ? (
               <ToolCallRow
                 item={block.tools[0] as unknown as ToolTimelineItem}
                 autoExpandedInBudget={autoExpandedToolIds.has(block.tools[0].id)}
@@ -602,7 +611,10 @@ export function Timeline() {
             ) : (
               <ToolGroupSummary
                 tools={block.tools as unknown as ToolTimelineItem[]}
+                clusterChildren={block.children}
                 autoExpandedToolIds={autoExpandedToolIds}
+                thinkingText={groupThinking || undefined}
+                foldedAssistantTexts={block.foldedAssistantTexts}
               />
             )}
           </div>
@@ -651,37 +663,59 @@ export function Timeline() {
         key={historySessionFile || 'timeline'}
         className="chat-content-column py-4 ui-enter"
       >
-      {(hiddenCount > 0 || historyLoading) && (
+      {(hiddenCount > 0 || historyLoading || fetchingOlder) && (
         <button
           type="button"
           onClick={loadMoreHistory}
           disabled={historyLoading || fetchingOlder}
           className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground disabled:opacity-60"
         >
-          {historyLoading
-            ? t('timeline:loadingSession')
+          {historyLoading || fetchingOlder
+            ? t('timeline:loadingOlder')
             : t('timeline:loadOlder', { count: hiddenCount })}
         </button>
       )}
+      {showHonestyBanner && (
+        <div
+          className="mb-2 flex items-center justify-between gap-2 rounded-md border border-[color:var(--status-warn)]/25 bg-[color:var(--status-warn)]/[0.06] px-2.5 py-1.5 text-[11px] text-foreground-secondary"
+          role="status"
+        >
+          <span className="min-w-0 flex-1">{t('timeline:honestyBanner')}</span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1.5 py-0.5 font-medium text-foreground hover:bg-[var(--bg-hover)]"
+            onClick={() => void reloadCurrentSessionData()}
+            disabled={historyLoading}
+          >
+            {t('timeline:honestyReload')}
+          </button>
+        </div>
+      )}
       {leading.map((block, i) => renderDisplayBlock(block, `lead-${i}`, leading[i - 1]))}
-      {turnGroups.map((turn, turnIndex) => (
-        <Fragment key={turn.turnId}>
-          <TimelineItemBase
-            item={turn.userItem as unknown as TimelineRawItem}
-            streaming={false}
-            agentRunning={agentRunning}
-            agentBoot={agentBoot}
-            rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
-          />
-          {turn.blocks.map((block, bi) =>
-            renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
-          )}
-          <TurnActivityBlock
-            blocks={turn.blocks}
-            isStreaming={!!streamingAssistantId && turnIndex === turnGroups.length - 1}
-          />
-        </Fragment>
-      ))}
+      {turnGroups.map((turn, turnIndex) => {
+        const isLiveTurn =
+          turnIndex === turnGroups.length - 1 &&
+          (!!streamingAssistantId || agentRunning || sessionChrome.phase === 'waiting_ui')
+        return (
+          <Fragment key={turn.turnId}>
+            <TimelineItemBase
+              item={turn.userItem as unknown as TimelineRawItem}
+              streaming={false}
+              agentRunning={agentRunning}
+              agentBoot={agentBoot}
+              rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
+            />
+            {turn.blocks.map((block, bi) =>
+              renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
+            )}
+            {/* Files card only after the whole turn finishes (not mid-run). */}
+            <TurnActivityBlock
+              blocks={turn.blocks}
+              isStreaming={isLiveTurn}
+            />
+          </Fragment>
+        )
+      })}
       {leading.length === 0 &&
         turnGroups.length === 0 &&
         displayItems.map((block, i) => renderDisplayBlock(block, `orphan-${i}`, displayItems[i - 1]))}

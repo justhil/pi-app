@@ -5,7 +5,10 @@
     "running": "Running",
     "failed": "Failed",
     "thinking": "Thinking",
-    "toolRunning": "Tool"
+    "toolRunning": "Tool",
+    "waitingUi": "Waiting for input",
+    "retrying": "Retrying",
+    "stopping": "Stopping…"
   },
   "metrics": {
     "tokens": "tokens",

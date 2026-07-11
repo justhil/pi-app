@@ -7,5 +7,17 @@
   "empty": "暂无改动",
   "copyPath": "复制路径",
   "openFile": "打开文件",
-  "title": "代码变更"
+  "title": "代码变更",
+  "scopeHintTurn": "本轮 run {{id}}…",
+  "scopeHintNoTurn": "尚无本轮（发一条消息后可见）",
+  "scopeHintSession": "本对话累计 {{count}} 个文件",
+  "scopeHintNotRepo": "非 Git 仓库",
+  "scopeHintBranch": "分支 {{branch}}",
+  "scopeHintGit": "Git 工作区",
+  "toggleSplit": "切换到并排视图",
+  "toggleInline": "切换到内联视图",
+  "refresh": "刷新",
+  "recentCommits": "最近提交",
+  "notGitRepo": "当前目录不是 Git 仓库",
+  "notGitHint": "临时对话或未初始化的文件夹通常没有 Git"
 }

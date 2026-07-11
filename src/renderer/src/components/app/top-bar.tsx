@@ -8,11 +8,12 @@ import { WindowControls } from '@renderer/components/app/window-controls'
 interface TopBarProps {
   onBack?: () => void
   title?: string
+  /** @deprecated ignored — running status chrome removed */
   isRunning?: boolean
   projectName?: string
 }
 
-export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
+export function TopBar({ onBack, title, projectName }: TopBarProps) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
@@ -68,16 +69,6 @@ export function TopBar({ onBack, title, isRunning, projectName }: TopBarProps) {
           >
             <PanelRight className={cn('h-3.5 w-3.5 transition-transform duration-motion-normal ease-motion-ease', rightCollapsed && 'rotate-180')} />
           </button>
-        )}
-        {!isSettings && (
-          isRunning ? (
-            <div className="flex items-center gap-1.5 rounded-full bg-brand/10 px-2 py-0.5">
-              <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              <span className="text-[11px] font-medium text-green-600 dark:text-green-400">{t('common:app.status.running')}</span>
-            </div>
-          ) : (
-            <span className="text-[10px] text-foreground-secondary/70 tabular-nums">{t('common:app.status.ready')}</span>
-          )
         )}
         <WindowControls className={isSettings ? '-mr-2 border-l border-border/40 pl-0.5' : undefined} />
       </div>

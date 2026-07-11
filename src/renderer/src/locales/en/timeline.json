@@ -5,6 +5,7 @@
     "expand": "Expand summary"
   },
   "emptyState": "No messages",
+  "emptyWorkspace": "Open a folder, or start a temp chat under Chats",
   "code": "code",
   "copied": "Copied",
   "copy": "Copy",
@@ -14,6 +15,13 @@
   "thinkingActive": "Thinking",
   "thoughtDone": "Thought",
   "thinkingLines": " · {{count}}",
+  "thinkingLive": {
+    "thinking": "Thinking",
+    "briefly": "Thought briefly",
+    "working": "Working",
+    "reasoning": "Reasoning"
+  },
+  "thoughtForSeconds": "Thought for {{seconds}}s",
   "generating": "Generating",
   "agentStarting": "Starting",
   "waitingReply": "…",
@@ -36,11 +44,21 @@
   "jumpToNode": "Jump to node",
   "jumpNeedEntry": "Needs session entry id",
   "loadingSession": "Loading…",
+  "loadingOlder": "Loading older messages…",
   "loadOlder": "Older {{count}}",
+  "honestyBanner": "History may be incomplete — Reload",
+  "honestyReload": "Reload",
+  "toolOutputExpand": "Expand ({{count}} chars)",
+  "toolOutputCollapse": "Collapse",
   "jumpToBottom": "Jump to bottom",
   "jumpToLive": "Jump to bottom",
   "interruptedEmpty": "Incomplete reply — rewind to continue",
   "interruptedPartial": "Incomplete reply",
+  "chrome": {
+    "aria": "Turn status",
+    "completed": "Done",
+    "incomplete": "Incomplete"
+  },
   "activity": {
     "editedFiles": "Edited {{names}}",
     "explored": "explored {{count}} files",
@@ -48,6 +66,7 @@
     "commands": "ran {{count}} commands",
     "usedTools": "{{count}} tools · {{names}}",
     "filesChanged": "{{count}} files",
+    "filesReviewLink": "{{count}} files → Review",
     "review": "Review",
     "openFileHint": "{{path}}\nClick Files · Right-click Review"
   }

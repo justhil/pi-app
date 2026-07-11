@@ -69,16 +69,52 @@ describe('buildTimelineDisplayItems — tool merge across thinking', () => {
     expect(blocks[2]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
   })
 
-  it('does not merge tools across assistant messages that have prose', () => {
+  it('folds mid-turn assistant prose into tool-group when more tools follow', () => {
     const blocks = buildTimelineDisplayItems([
       tool('t1', 'read'),
       assistant('a1', '中间说明', 'think'),
       tool('t2', 'bash'),
     ])
-    expect(blocks).toHaveLength(3)
-    expect(blocks[0].kind).toBe('single')
-    expect(blocks[1].kind).toBe('single')
-    expect(blocks[2].kind).toBe('single')
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].kind).toBe('tool-group')
+    if (blocks[0].kind !== 'tool-group') return
+    expect(blocks[0].tools.map((row) => row.id)).toEqual(['t1', 't2'])
+    expect(blocks[0].foldedAssistantTexts).toEqual(['中间说明'])
+    expect(blocks[0].thinkingText).toContain('think')
+    // Order must follow timeline: tool → thinking → prose → tool
+    expect(blocks[0].children.map((child) => child.kind)).toEqual([
+      'tool',
+      'thinking',
+      'prose',
+      'tool',
+    ])
+    expect(blocks[0].children[2]).toMatchObject({ kind: 'prose', text: '中间说明' })
+  })
+
+  it('keeps thinking before tools when thinking arrives first', () => {
+    const blocks = buildTimelineDisplayItems([
+      thinking('th1', 'plan first'),
+      tool('t1', 'write'),
+      thinking('th2', 'then read'),
+      tool('t2', 'read'),
+    ])
+    expect(blocks).toHaveLength(1)
+    if (blocks[0].kind !== 'tool-group') return
+    expect(blocks[0].children.map((child) => child.kind)).toEqual([
+      'thinking',
+      'tool',
+      'thinking',
+      'tool',
+    ])
+  })
+
+  it('keeps final assistant prose outside the tool cluster', () => {
+    const blocks = buildTimelineDisplayItems([
+      tool('t1', 'read'),
+      assistant('a1', '最终回答'),
+    ])
+    expect(blocks.map((block) => block.kind)).toEqual(['single', 'single'])
+    expect(blocks[1]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
   })
 
   it('does not merge tools across user messages', () => {

@@ -2,6 +2,7 @@
 // 通用模板，由 adapter.toolCard.template 声明调用：media/list/tree/kv/default。
 // 不含任何插件名分支；所有结构化字段抽取走 adapter.toolCard.fields 或通用 details 扫描。
 import { useEffect, useState, type ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -210,12 +211,11 @@ const ListTemplate: ToolCardComponent = ({ item }) => {
 
   return (
     <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
-      {isRunning && statusLine && (
-        <div className="flex items-center gap-1.5 text-[11px] text-foreground-secondary/75">
-          <span className="tool-status-live-dot relative" />
-          <span className="animate-thinking-pulse">{statusLine}</span>
+      {isRunning && statusLine ? (
+        <div className="text-[11px] text-foreground-secondary/70 animate-tool-live-pulse">
+          {statusLine}
         </div>
-      )}
+      ) : null}
       {meta.length > 0 && (
         <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
           {meta.map((m, i) => (
@@ -267,7 +267,7 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
 
 // ── default template (syntax-highlighted text + artifact paths) ──
 const DefaultTemplate: ToolCardComponent = ({ item }) => {
-  const nativePreview = renderNativeToolPreview(item)
+  const nativePreview = renderNativeToolPreview(item, { flat: true })
   const details = item.toolDetails as { paths?: string[]; format?: string } | null | undefined
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
   const isExportTool = detailPaths.length > 0 && (item.toolName === 'preview_export' || item.toolName === 'studio_export_pdf' || item.toolName === 'studio_export_html')
@@ -306,15 +306,31 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
   )
 }
 
-// shared text output renderer (used inside list/kv fallbacks)
+// shared text output renderer (used inside list/kv fallbacks) — truncate with expand
 const ToolTextOutput: ToolCardComponent = ({ item }) => {
+  const { t } = useTranslation()
   const text = extractText(item.toolOutput || '')
+  const [expanded, setExpanded] = useState(false)
   if (!text) return null
+  const PREVIEW_CHARS = 2400
+  const needsFold = text.length > PREVIEW_CHARS
+  const shown = expanded || !needsFold ? text : text.slice(0, PREVIEW_CHARS)
   return (
     <div className="overflow-hidden rounded-md border border-border/30" style={{ background: 'color-mix(in srgb, var(--bg-2) 40%, transparent)' }}>
-      <div className="overflow-auto p-2 text-[11px] font-mono leading-relaxed max-h-56">
-        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(text, item.toolName || '')) }} />
+      <div className={cn('overflow-auto p-2 text-[11px] font-mono leading-relaxed', expanded ? 'max-h-96' : 'max-h-40')}>
+        <pre className="whitespace-pre-wrap break-all text-muted-foreground" dangerouslySetInnerHTML={{ __html: sanitizeHtml(syntaxHighlight(shown, item.toolName || '')) }} />
       </div>
+      {needsFold && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full border-t border-border/30 py-1 text-center text-[10px] text-foreground-secondary hover:text-foreground"
+        >
+          {expanded
+            ? t('timeline:toolOutputCollapse')
+            : t('timeline:toolOutputExpand', { count: text.length })}
+        </button>
+      )}
     </div>
   )
 }

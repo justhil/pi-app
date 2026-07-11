@@ -47,7 +47,8 @@
     "runDesc": "当前轮次状态与用量",
     "contextDesc": "会话上下文预览",
     "treeDesc": "会话树 / 回退（同 /tree）",
-    "filesDesc": "工作区文件预览与浏览"
+    "filesDesc": "工作区文件预览与浏览",
+    "unregistered": "未注册面板: {{id}}"
   },
   "settings": {
     "title": "设置",
@@ -119,5 +120,41 @@
   "retry": "重试",
   "newSession": "新会话",
   "loadingSettings": "加载设置…",
-  "resetToDefault": "恢复默认"
+  "resetToDefault": "恢复默认",
+  "errorBoundary": {
+    "renderFailed": "渲染失败",
+    "unknown": "未知错误"
+  },
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
+  },
+  "sessionReload": {
+    "success": "已刷新会话数据",
+    "failed": "刷新失败",
+    "title": "刷新会话数据（与 CLI 同步）"
+  },
+  "commandPalette": {
+    "title": "命令面板",
+    "placeholder": "输入命令…",
+    "empty": "无匹配命令",
+    "footer": "↑↓ 选择 · Enter 执行 · Esc 关闭",
+    "close": "关闭",
+    "settings": "打开设置",
+    "focusComposer": "聚焦输入框",
+    "openPanel": "打开 {{panel}} 面板",
+    "sessionTree": "打开会话树",
+    "shortcuts": "键盘快捷键"
+  },
+  "shortcuts": {
+    "title": "键盘快捷键",
+    "commandPalette": "打开命令面板",
+    "thisSheet": "显示本快捷键列表",
+    "sessionTree": "打开会话树浮层",
+    "restoreQueue": "将排队消息拉回输入框",
+    "stopOrDismiss": "停止运行 / 关闭浮层",
+    "navOnly": "仅导航 — 不新增 Agent 能力。"
+  }
 }

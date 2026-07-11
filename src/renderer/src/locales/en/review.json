@@ -7,5 +7,17 @@
   "empty": "No changes",
   "copyPath": "Copy path",
   "openFile": "Open file",
-  "title": "Code Changes"
+  "title": "Code Changes",
+  "scopeHintTurn": "This turn run {{id}}…",
+  "scopeHintNoTurn": "No turn yet (send a message first)",
+  "scopeHintSession": "Session total · {{count}} files",
+  "scopeHintNotRepo": "Not a Git repository",
+  "scopeHintBranch": "Branch {{branch}}",
+  "scopeHintGit": "Git workspace",
+  "toggleSplit": "Switch to side-by-side",
+  "toggleInline": "Switch to inline",
+  "refresh": "Refresh",
+  "recentCommits": "Recent commits",
+  "notGitRepo": "Current folder is not a Git repository",
+  "notGitHint": "Temp chats or uninitialized folders usually have no Git"
 }

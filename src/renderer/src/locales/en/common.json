@@ -47,7 +47,8 @@
     "runDesc": "Current turn status & usage",
     "contextDesc": "Session context preview",
     "treeDesc": "Session tree / rewind (like /tree)",
-    "filesDesc": "Workspace file preview & explorer"
+    "filesDesc": "Workspace file preview & explorer",
+    "unregistered": "Unregistered panel: {{id}}"
   },
   "settings": {
     "title": "Settings",
@@ -119,5 +120,41 @@
   "retry": "Retry",
   "newSession": "New session",
   "loadingSettings": "Loading settings…",
-  "resetToDefault": "Reset to default"
+  "resetToDefault": "Reset to default",
+  "errorBoundary": {
+    "renderFailed": "Render failed",
+    "unknown": "Unknown error"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
+  "sessionReload": {
+    "success": "Session data refreshed",
+    "failed": "Refresh failed",
+    "title": "Refresh session data (sync with CLI)"
+  },
+  "commandPalette": {
+    "title": "Command palette",
+    "placeholder": "Type a command…",
+    "empty": "No matching commands",
+    "footer": "↑↓ navigate · Enter run · Esc close",
+    "close": "Close",
+    "settings": "Open settings",
+    "focusComposer": "Focus composer",
+    "openPanel": "Open {{panel}} panel",
+    "sessionTree": "Open session tree",
+    "shortcuts": "Keyboard shortcuts"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "commandPalette": "Open command palette",
+    "thisSheet": "Show this shortcuts list",
+    "sessionTree": "Open session tree overlay",
+    "restoreQueue": "Restore queued message into composer",
+    "stopOrDismiss": "Stop run / dismiss overlay",
+    "navOnly": "Navigation only — no new agent capabilities."
+  }
 }

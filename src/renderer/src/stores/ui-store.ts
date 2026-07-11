@@ -224,6 +224,7 @@ export const useUIStore = create<UIState>()(
       const sid = s.streamingAssistantId
       const items = s.timelineItems.filter((i) => {
         if (i.type !== 'assistant-message') return true
+        if (i.incomplete) return true
         const hasText = !!(i.text && i.text.trim())
         const hasThink = !!(i.thinkingText && i.thinkingText.trim())
         if (!hasText && !hasThink) return i.id !== sid
@@ -335,8 +336,34 @@ export const useUIStore = create<UIState>()(
         if (normalizeSessionFileKey(existing) === key) delete next[existing]
       }
       if (running) next[key] = true
+      else delete next[key]
       return { sessionRuntimeRunning: next }
     }),
+  /** sessionFile → toolCallId → expanded (display memory only) */
+  toolExpandBySession: {} as Record<string, Record<string, boolean>>,
+  setToolCallExpanded: (toolCallId, expanded) =>
+    set((s) => {
+      const sessionKey =
+        normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
+      if (!toolCallId) return s
+      const sessionMap = { ...(s.toolExpandBySession[sessionKey] || {}) }
+      if (expanded == null) delete sessionMap[toolCallId]
+      else sessionMap[toolCallId] = expanded
+      return {
+        toolExpandBySession: {
+          ...s.toolExpandBySession,
+          [sessionKey]: sessionMap,
+        },
+      }
+    }),
+  getToolCallExpanded: (toolCallId) => {
+    const s = get()
+    if (!toolCallId) return undefined
+    const sessionKey =
+      normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
+    const value = s.toolExpandBySession[sessionKey]?.[toolCallId]
+    return value
+  },
   timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
   setTimelineMaxAutoExpandedTools: (n) =>
     set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n) }),

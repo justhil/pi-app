@@ -34,7 +34,7 @@ const SUPPORTED_PANEL_ICONS: Record<string, LucideIcon> = {
   review: GitBranch,
   run: Activity,
   context: FileSearch,
-  tree: GitBranch,
+  tree: ListTree,
   files: FolderTree,
   GitBranch,
   Activity,

@@ -1,4 +1,4 @@
-/** 将连续 tool-call 合并为展示块；工具前后的「纯思考」不打断合并，并入同一簇。 */
+/** 将连续 tool-call 合并为展示块；思考与「夹在工具之间的」助手正文并入同一簇，并保留时间线顺序。 */
 
 export type TimelineRawItem = {
   id: string
@@ -6,14 +6,31 @@ export type TimelineRawItem = {
   [key: string]: unknown
 }
 
+/** Ordered node inside a tool cluster (preserves event order). */
+export type TimelineClusterChild =
+  | {
+      kind: 'thinking'
+      id: string
+      text: string
+      streaming?: boolean
+      startedAt?: number
+      completedAt?: number
+    }
+  | { kind: 'tool'; item: TimelineRawItem }
+  | { kind: 'prose'; id: string; text: string }
+
 export type TimelineDisplayItem =
   | { kind: 'single'; item: TimelineRawItem; prevType?: string }
   | {
       kind: 'tool-group'
       groupId: string
       tools: TimelineRawItem[]
-      /** 夹在工具前后的 thinking-only 助手气泡合并后的正文 */
+      /** Timeline-ordered children (thinking / tool / mid-turn prose). */
+      children: TimelineClusterChild[]
+      /** @deprecated use children; kept for activity/summary consumers */
       thinkingText?: string
+      /** @deprecated use children */
+      foldedAssistantTexts?: string[]
     }
 
 /** 仅有思考、无正文的助手气泡——不作为工具合并的硬边界 */
@@ -28,20 +45,30 @@ function isToolCall(item: TimelineRawItem): boolean {
   return item.type === 'tool-call'
 }
 
-/** 会打断 tool 簇的边界：用户消息、有正文的助手、压缩/错误/斜杠等 */
+function isAssistantWithProse(item: TimelineRawItem): boolean {
+  return item.type === 'assistant-message' && !!String(item.text ?? '').trim()
+}
+
+/** 会打断 tool 簇的硬边界：用户消息、压缩/错误/斜杠等（助手正文见 canFoldAssistantIntoCluster） */
 function isHardBoundary(item: TimelineRawItem): boolean {
-  if (isToolCall(item) || isThinkingOnlyAssistant(item)) return false
+  if (isToolCall(item) || item.type === 'assistant-message') return false
   return true
 }
 
-function mergeThinkingTexts(items: TimelineRawItem[]): string | undefined {
-  const parts: string[] = []
-  for (const item of items) {
-    const chunk = String(item.thinkingText ?? '').trim()
-    if (chunk) parts.push(chunk)
+/**
+ * 助手正文仅在「后面还有 tool」时并入簇（Cursor：中间输出跟工具一起折；最终回答留在簇外）。
+ */
+export function canFoldAssistantIntoCluster(items: TimelineRawItem[], index: number): boolean {
+  const item = items[index]
+  if (!item || item.type !== 'assistant-message') return false
+  if (isThinkingOnlyAssistant(item)) return true
+  if (!isAssistantWithProse(item)) return false
+  for (let cursor = index + 1; cursor < items.length; cursor++) {
+    const next = items[cursor]
+    if (isToolCall(next)) return true
+    if (isHardBoundary(next)) return false
   }
-  if (parts.length === 0) return undefined
-  return parts.join('\n\n')
+  return false
 }
 
 function prevTypeFromOut(out: TimelineDisplayItem[]): string | undefined {
@@ -52,28 +79,90 @@ function prevTypeFromOut(out: TimelineDisplayItem[]): string | undefined {
 }
 
 /**
- * 从 index 起若进入「思考/工具」混合段，返回应吞入的结束下标（exclusive）。
- * 段内可含 thinking-only 与 tool-call；遇硬边界停止。
- * 若段内没有任何 tool-call，返回 null（调用方按普通 single 处理）。
+ * 从 index 起吞入 tool / thinking / 可折叠助手正文，返回结束下标（exclusive）。
+ * 若段内无 tool-call，返回 null。
  */
 function findAgentClusterEnd(items: TimelineRawItem[], start: number): number | null {
-  let i = start
+  let index = start
   let toolCount = 0
-  while (i < items.length) {
-    const row = items[i]
+  while (index < items.length) {
+    const row = items[index]
     if (isToolCall(row)) {
       toolCount++
-      i++
+      index++
       continue
     }
     if (isThinkingOnlyAssistant(row)) {
-      i++
+      index++
+      continue
+    }
+    if (canFoldAssistantIntoCluster(items, index)) {
+      index++
       continue
     }
     break
   }
   if (toolCount === 0) return null
-  return i
+  return index
+}
+
+function toolPhaseIsLive(item: TimelineRawItem): boolean {
+  const phase = String(item.toolPhase ?? '')
+  return phase === 'start' || phase === 'update'
+}
+
+/** Expand a cluster slice into ordered children (thinking / tool / prose). */
+export function buildClusterChildren(slice: TimelineRawItem[]): TimelineClusterChild[] {
+  const children: TimelineClusterChild[] = []
+  for (const row of slice) {
+    if (isToolCall(row)) {
+      children.push({ kind: 'tool', item: row })
+      continue
+    }
+    if (row.type !== 'assistant-message') continue
+
+    const thinking = String(row.thinkingText ?? '').trim()
+    const prose = String(row.text ?? '').trim()
+    const startedAt = typeof row.timestamp === 'number' ? row.timestamp : undefined
+    const incomplete = !!(row as { incomplete?: boolean }).incomplete
+    const streaming =
+      incomplete ||
+      // live empty-ish assistant still streaming thinking
+      (!prose && !!thinking && !!(row as { streaming?: boolean }).streaming)
+
+    if (thinking) {
+      children.push({
+        kind: 'thinking',
+        id: `${row.id}-think`,
+        text: thinking,
+        streaming: streaming && !prose,
+        startedAt,
+        completedAt: streaming && !prose ? undefined : startedAt,
+      })
+    }
+    // Only fold mid-turn prose when this assistant was included because more tools follow
+    // (slice membership already encodes that). Keep prose after its own thinking, before later tools.
+    if (prose) {
+      children.push({ kind: 'prose', id: `${row.id}-prose`, text: prose })
+    }
+  }
+  return children
+}
+
+function mergeThinkingFromChildren(children: TimelineClusterChild[]): string | undefined {
+  const parts = children
+    .filter((child): child is Extract<TimelineClusterChild, { kind: 'thinking' }> => child.kind === 'thinking')
+    .map((child) => child.text.trim())
+    .filter(Boolean)
+  return parts.length > 0 ? parts.join('\n\n') : undefined
+}
+
+function foldProseFromChildren(children: TimelineClusterChild[]): string[] | undefined {
+  const parts = children
+    .filter((child): child is Extract<TimelineClusterChild, { kind: 'prose' }> => child.kind === 'prose')
+    .map((child) => child.text.trim())
+    .filter(Boolean)
+  return parts.length > 0 ? parts : undefined
 }
 
 export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDisplayItem[] {
@@ -83,16 +172,17 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
   while (index < items.length) {
     const item = items[index]
 
-    // 尝试吞入「思考 + 工具」混合簇（思考可出现在工具前/中/后，只要中间无硬边界）
-    if (isToolCall(item) || isThinkingOnlyAssistant(item)) {
+    if (isToolCall(item) || isThinkingOnlyAssistant(item) || canFoldAssistantIntoCluster(items, index)) {
       const clusterEnd = findAgentClusterEnd(items, index)
       if (clusterEnd != null) {
         const slice = items.slice(index, clusterEnd)
         const tools = slice.filter(isToolCall)
-        const thinkingItems = slice.filter(isThinkingOnlyAssistant)
-        const thinkingText = mergeThinkingTexts(thinkingItems)
+        const children = buildClusterChildren(slice)
+        const thinkingText = mergeThinkingFromChildren(children)
+        const foldedAssistantTexts = foldProseFromChildren(children)
+        const hasNonToolChild = children.some((child) => child.kind !== 'tool')
 
-        if (tools.length === 1 && !thinkingText) {
+        if (tools.length === 1 && !hasNonToolChild) {
           out.push({
             kind: 'single',
             item: tools[0],
@@ -103,7 +193,9 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
             kind: 'tool-group',
             groupId: `tg-${tools[0].id}`,
             tools,
+            children,
             thinkingText,
+            foldedAssistantTexts,
           })
         }
         index = clusterEnd
@@ -111,10 +203,6 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
       }
     }
 
-    // 硬边界或孤立思考（后面没有工具）→ 原样 single
-    if (!isHardBoundary(item) && !isToolCall(item) && !isThinkingOnlyAssistant(item)) {
-      // 理论上不会走到：tool/thinking 已处理，其余皆 hard
-    }
     out.push({
       kind: 'single',
       item,
@@ -124,4 +212,9 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
   }
 
   return out
+}
+
+/** Whether any tool in the cluster is still running (for group live chrome). */
+export function clusterHasLiveTool(tools: TimelineRawItem[]): boolean {
+  return tools.some(toolPhaseIsLive)
 }

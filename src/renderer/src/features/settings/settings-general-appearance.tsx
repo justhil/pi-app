@@ -29,6 +29,7 @@ export function GeneralSettings() {
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   useEffect(() => {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
       if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
@@ -119,67 +120,81 @@ export function GeneralSettings() {
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">
-          {t('settings:general.workers')}
-        </div>
-        <SettingRow
-          label={t('settings:general.maxSessionWorkers')}
-          description={t('settings:general.maxSessionWorkersDesc')}
+        <button
+          type="button"
+          className="mb-2 flex w-full items-center justify-between text-left"
+          onClick={() => setAdvancedOpen((open) => !open)}
+          aria-expanded={advancedOpen}
         >
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={draft.maxSessionWorkers}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (!Number.isFinite(n)) return
-              setMaxSessionWorkers(n)
-            }}
-            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
-          />
-        </SettingRow>
-        <SettingRow
-          label={t('settings:general.sessionWorkerIdleTimeout')}
-          description={t('settings:general.sessionWorkerIdleTimeoutDesc')}
-        >
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={draft.sessionWorkerIdleTimeoutMinutes}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (!Number.isFinite(n)) return
-              setSessionWorkerIdleTimeoutMinutes(n)
-            }}
-            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
-          />
-        </SettingRow>
-      </div>
-
-      <div className="rounded-xl border border-border/60 bg-card/40 p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">
-          {t('settings:general.timeline')}
-        </div>
-        <SettingRow
-          label={t('settings:general.timelineToolAutoExpandMax')}
-          description={t('settings:general.timelineToolAutoExpandMaxDesc')}
-        >
-          <input
-            type="number"
-            min={1}
-            max={50}
-            step={1}
-            value={draft.timelineMaxAutoExpandedTools}
-            onChange={(e) => {
-              const n = Number(e.target.value)
-              if (!Number.isFinite(n)) return
-              setTimelineMaxAutoExpandedTools(n)
-            }}
-            className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
-          />
-        </SettingRow>
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/75">
+            {t('settings:general.advanced')}
+          </span>
+          <span className="text-[11px] text-muted-foreground/60">
+            {advancedOpen ? t('settings:general.hideAdvanced') : t('settings:general.showAdvanced')}
+          </span>
+        </button>
+        {advancedOpen ? (
+          <div className="space-y-0">
+            <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+              {t('settings:general.workers')}
+            </div>
+            <SettingRow
+              label={t('settings:general.maxSessionWorkers')}
+              description={t('settings:general.maxSessionWorkersDesc')}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={draft.maxSessionWorkers}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n)) return
+                  setMaxSessionWorkers(n)
+                }}
+                className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+              />
+            </SettingRow>
+            <SettingRow
+              label={t('settings:general.sessionWorkerIdleTimeout')}
+              description={t('settings:general.sessionWorkerIdleTimeoutDesc')}
+            >
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={draft.sessionWorkerIdleTimeoutMinutes}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n)) return
+                  setSessionWorkerIdleTimeoutMinutes(n)
+                }}
+                className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+              />
+            </SettingRow>
+            <div className="mb-2 mt-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
+              {t('settings:general.timeline')}
+            </div>
+            <SettingRow
+              label={t('settings:general.timelineToolAutoExpandMax')}
+              description={t('settings:general.timelineToolAutoExpandMaxDesc')}
+            >
+              <input
+                type="number"
+                min={0}
+                max={50}
+                step={1}
+                value={draft.timelineMaxAutoExpandedTools}
+                onChange={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n)) return
+                  setTimelineMaxAutoExpandedTools(n)
+                }}
+                className="w-[5.5rem] rounded-lg border border-border bg-background px-2.5 py-1 text-right text-[12px] tabular-nums text-foreground"
+              />
+            </SettingRow>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-border/60 bg-card/40 p-4">

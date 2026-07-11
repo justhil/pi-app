@@ -92,6 +92,8 @@
   "steering": "转向 · ",
   "queued": "排队 · ",
   "queueHint": "Alt+↑ 拉回输入框 · 运行中 Esc 拉回并停止",
+  "queueTitle": "{{count}} 条排队",
+  "queueAria": "待发送队列，共 {{count}} 条",
   "removeFile": "移除文件",
   "openedConfigToast": "已打开 {{name}} 配置",
   "openedPanelToast": "已打开 {{panel}} 面板",

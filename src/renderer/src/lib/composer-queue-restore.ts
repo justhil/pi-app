@@ -1,7 +1,7 @@
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { markAbortUiHold } from '@renderer/lib/abort-ui-hold'
-import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { markStreamingAssistantIncomplete } from '@renderer/lib/mark-streaming-incomplete'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
@@ -11,6 +11,7 @@ export function applyComposerAbortUi(): void {
   // Do not gate on composerTurnActive — that can disagree with the Stop button
   // (e.g. sessionRuntimeRunning set but this helper omitted that field).
   markAbortUiHold()
+  markStreamingAssistantIncomplete(() => useUIStore.getState(), 'aborted')
   store.setRunState({
     status: 'idle',
     activeRunId: undefined,
@@ -24,6 +25,7 @@ export function applyComposerAbortUi(): void {
   })
   store.clearPendingQueue()
   store.markAbortQueueIgnore()
+  // Keep incomplete assistants; only drop empty non-incomplete bubbles.
   store.pruneEmptyAssistantBubbles()
   const viewFile = store.historySessionFile
   store.setWorkerLiveSnapshot({

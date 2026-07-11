@@ -48,6 +48,11 @@
     --success-semantic: #00b42a;
     --warning-semantic: #ff7d00;
     --danger-semantic: #f53f3f;
+    /* Session chrome / timeline status strip (display-shell) */
+    --status-live: #00b42a;
+    --status-warn: #ff7d00;
+    --status-error: #f53f3f;
+    --status-idle: #454d5f;
 
     /* Border */
     --border-base: #e5e6eb;
@@ -149,6 +154,10 @@
     --success-semantic: #3fb950;
     --warning-semantic: #d29922;
     --danger-semantic: #f85149;  /* errorForeground */
+    --status-live: #3fb950;
+    --status-warn: #d29922;
+    --status-error: #f85149;
+    --status-idle: #9d9d9d;
 
     /* Border — sideBar.border / panel.border */
     --border-base: #2b2b2b;
@@ -1299,6 +1308,39 @@
   .animate-thinking-pulse {
     animation: thinking-pulse 1.2s ease-in-out infinite;
   }
+  /* Soft slow live pulse for collapsed tool lines (Cursor-like) */
+  @keyframes tool-live-pulse {
+    0%, 100% { opacity: 0.42; }
+    50% { opacity: 0.88; }
+  }
+  .animate-tool-live-pulse {
+    animation: tool-live-pulse 2.4s ease-in-out infinite;
+  }
+  /* Thinking label: left-to-right soft shimmer while streaming */
+  @keyframes thinking-shimmer-ltr {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+  .thinking-shimmer-ltr {
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--text-secondary) 35%, transparent) 0%,
+      color-mix(in srgb, var(--text-secondary) 35%, transparent) 35%,
+      color-mix(in srgb, var(--text-primary) 72%, transparent) 50%,
+      color-mix(in srgb, var(--text-secondary) 35%, transparent) 65%,
+      color-mix(in srgb, var(--text-secondary) 35%, transparent) 100%
+    );
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: thinking-shimmer-ltr 2.2s ease-in-out infinite;
+  }
 
   /* 参考桌面客户端 skeleton shimmer */
   @keyframes skeleton-shimmer {
@@ -1790,6 +1832,44 @@
   --session-pixel-shadow-dim: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+/* Sidebar: soft 3×3 running glyph (quiet, secondary-text tone) */
+.session-running-pixel-grid {
+  opacity: 0.72;
+  transition: opacity 220ms ease;
+}
+.sidebar-session-row:hover .session-running-pixel-grid,
+.nav-row-active .session-running-pixel-grid {
+  opacity: 0.88;
+}
+.session-running-pixel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  transition:
+    background-color 520ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.session-running-pixel--on {
+  background: color-mix(in srgb, var(--text-secondary) 48%, transparent);
+  opacity: 1;
+}
+.dark .session-running-pixel {
+  background: color-mix(in srgb, var(--text-secondary) 12%, transparent);
+}
+.dark .session-running-pixel--on {
+  background: color-mix(in srgb, var(--text-secondary) 52%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-running-pixel {
+    transition: none !important;
+  }
+  .session-running-pixel--on {
+    opacity: 0.7;
+  }
+}
+
 .session-pixel-logo {
   display: grid;
   gap: var(--session-pixel-gap);
@@ -1871,45 +1951,42 @@
   height: 6px;
   border-radius: 9999px;
   background: #10b981;
-  animation: tool-status-pulse 1.15s ease-in-out infinite;
-  box-shadow: 0 0 0 0 color-mix(in srgb, #10b981 35%, transparent);
+  /* pulse kept for rare legacy use; tool rows no longer show this */
+  animation: none;
+  opacity: 0.85;
 }
 .tool-status-live-dot::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, #10b981 55%, transparent);
-  animation: tool-status-ring 1.35s ease-out infinite;
+  content: none;
 }
 .tool-status-live-dot--solid {
-  animation: tool-status-pulse 1.15s ease-in-out infinite;
+  animation: none;
 }
 .tool-call-row-hit {
   background: transparent;
 }
 .tool-call-row-hit:hover {
-  background: color-mix(in srgb, var(--bg-hover) 85%, transparent);
+  background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
 }
 .tool-call-row-hit--live {
-  background: color-mix(in srgb, #10b981 5%, transparent);
+  /* subtle only — text uses animate-thinking-pulse */
+  background: transparent;
 }
 .tool-call-row-hit--error {
-  background: color-mix(in srgb, #f59e0b 4%, transparent);
+  background: color-mix(in srgb, #f59e0b 3%, transparent);
 }
 .tool-group-hit {
-  border: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-2) 55%, transparent);
+  border: none;
+  background: transparent;
 }
 .tool-group-hit:hover {
-  background: color-mix(in srgb, var(--bg-hover) 90%, transparent);
+  background: color-mix(in srgb, var(--bg-hover) 65%, transparent);
 }
 .tool-group-hit--live {
-  border-color: color-mix(in srgb, #10b981 22%, var(--border-base));
-  background: color-mix(in srgb, #10b981 5%, var(--bg-2));
+  border: none;
+  background: transparent;
 }
 .tool-group-hit--error {
-  border-color: color-mix(in srgb, #f59e0b 22%, var(--border-base));
+  border: none;
 }
 .shell-track-right-rail {
   border-top: none;

@@ -125,7 +125,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   alertOnBackgroundRunIdle: z.boolean(),
   maxSessionWorkers: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   sessionWorkerIdleTimeoutMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  timelineMaxAutoExpandedTools: z.number().int().min(1).max(50),
+  timelineMaxAutoExpandedTools: z.number().int().min(0).max(50),
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),
   sessionDisplayNames: z.record(z.string()),

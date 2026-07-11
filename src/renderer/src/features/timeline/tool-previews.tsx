@@ -70,7 +70,7 @@ function DiffBody({ rows }: { rows: DiffRow[] }) {
   )
 }
 
-function EditWritePreview({ item }: { item: ToolTimelineItem }) {
+function EditWritePreview({ item, flat }: { item: ToolTimelineItem; flat?: boolean }) {
   const args = normalizeToolArgs(item.toolArgs)
   const output = extractToolText(item.toolOutput || '')
   const path = fullPathFromArgs(args)
@@ -80,7 +80,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
   const diff = resolveEditWriteDiffRows(item)
 
   if (diff) {
-    const openDefault = item.toolName === 'edit'
+    const openDefault = false
     return (
       <NativePreviewPanel
         itemRunId={item.runId}
@@ -88,6 +88,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
         title={name}
         meta={diff.label ? <span className="text-[10px] text-foreground-secondary">{diff.label}</span> : undefined}
         defaultOpen={openDefault}
+        flat={flat}
       >
         <DiffBody rows={diff.rows} />
       </NativePreviewPanel>
@@ -101,6 +102,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
         title={name}
         meta={<span className="text-[10px] text-green-600 dark:text-green-400">写入</span>}
         defaultOpen={false}
+        flat={flat}
       >
         <div className="p-1">
           <CodeBlockView code={newStr} lang={lang} previewLines={6} defaultExpanded={false} />
@@ -119,6 +121,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
         </span>
       }
       defaultOpen={false}
+      flat={flat}
     >
       {output ? (
         <div className="p-2 text-[11px] text-foreground-secondary whitespace-pre-wrap">{output}</div>
@@ -133,7 +136,7 @@ function EditWritePreview({ item }: { item: ToolTimelineItem }) {
   )
 }
 
-function ReadPreview({ item }: { item: ToolTimelineItem }) {
+function ReadPreview({ item, flat }: { item: ToolTimelineItem; flat?: boolean }) {
   const args = normalizeToolArgs(item.toolArgs)
   const path = fullPathFromArgs(args)
   const name = fileNameFromArgs(args)
@@ -148,6 +151,7 @@ function ReadPreview({ item }: { item: ToolTimelineItem }) {
       title={name}
       meta={<span className="text-[10px] tabular-nums text-foreground-secondary">{lineCount} 行</span>}
       defaultOpen={false}
+      flat={flat}
     >
       <div className="p-1">
         <CodeBlockView code={text} lang={lang} previewLines={8} defaultExpanded={false} />
@@ -167,7 +171,7 @@ function highlightPattern(text: string, pattern: string): ReactNode {
   ))
 }
 
-function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: boolean }) {
+function GrepFindPreview({ item, isFind, flat }: { item: ToolTimelineItem; isFind?: boolean; flat?: boolean }) {
   const args = normalizeToolArgs(item.toolArgs)
   const pattern = String(args?.pattern || args?.query || args?.glob || '')
   const output = extractToolText(item.toolOutput || '')
@@ -181,7 +185,8 @@ function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: bo
       icon={isFind ? <FolderSearch className="h-3.5 w-3.5 shrink-0 text-violet-500" /> : <Search className="h-3.5 w-3.5 shrink-0 text-blue-500" />}
       title={isFind ? `find ${pattern}` : `grep "${pattern}"`}
       meta={<span className="text-[10px] tabular-nums text-foreground-secondary">{lines.length} 条</span>}
-      defaultOpen={lines.length > 0 && lines.length <= 4}
+      defaultOpen={false}
+      flat={flat}
     >
       {show.length === 0 ? (
         <div className="px-2.5 py-2 text-[11px] text-foreground-secondary">无结果</div>
@@ -230,7 +235,7 @@ function GrepFindPreview({ item, isFind }: { item: ToolTimelineItem; isFind?: bo
   )
 }
 
-function BashPreview({ item }: { item: ToolTimelineItem }) {
+function BashPreview({ item, flat }: { item: ToolTimelineItem; flat?: boolean }) {
   const args = normalizeToolArgs(item.toolArgs)
   const command = String(args.command || args.cmd || '')
   const output = extractToolText(item.toolOutput || '').replace(/\n$/, '')
@@ -242,6 +247,7 @@ function BashPreview({ item }: { item: ToolTimelineItem }) {
       title={command ? `$ ${command.length > 48 ? command.slice(0, 48) + '…' : command}` : 'bash'}
       meta={exitHint ? <span className={cn('text-[10px]', item.isError && 'text-destructive')}>{exitHint}</span> : undefined}
       defaultOpen={false}
+      flat={flat}
     >
       {output ? (
         <div className="p-1">
@@ -260,7 +266,7 @@ function BashPreview({ item }: { item: ToolTimelineItem }) {
   )
 }
 
-function LsPreview({ item }: { item: ToolTimelineItem }) {
+function LsPreview({ item, flat }: { item: ToolTimelineItem; flat?: boolean }) {
   const path = fullPathFromArgs(normalizeToolArgs(item.toolArgs)) || '.'
   const output = extractToolText(item.toolOutput || '')
   return (
@@ -268,6 +274,7 @@ function LsPreview({ item }: { item: ToolTimelineItem }) {
       icon={<FolderSearch className="h-3.5 w-3.5 text-foreground-secondary" />}
       title={`ls ${path}`}
       defaultOpen={false}
+      flat={flat}
     >
       <div className="p-1">
         <CodeBlockView code={output || '(empty)'} previewLines={10} defaultExpanded={false} />
@@ -276,14 +283,18 @@ function LsPreview({ item }: { item: ToolTimelineItem }) {
   )
 }
 
-export function renderNativeToolPreview(item: ToolTimelineItem): React.ReactNode | null {
+export function renderNativeToolPreview(
+  item: ToolTimelineItem,
+  opts?: { flat?: boolean },
+): React.ReactNode | null {
   const name = item.toolName || ''
-  if (name === 'edit' || name === 'write') return <EditWritePreview item={item} />
-  if (name === 'read') return <ReadPreview item={item} />
-  if (name === 'grep' || name === 'ffgrep') return <GrepFindPreview item={item} />
-  if (name === 'fffind' || name === 'find') return <GrepFindPreview item={item} isFind />
-  if (name === 'bash') return <BashPreview item={item} />
-  if (name === 'ls') return <LsPreview item={item} />
+  const flat = opts?.flat === true
+  if (name === 'edit' || name === 'write') return <EditWritePreview item={item} flat={flat} />
+  if (name === 'read') return <ReadPreview item={item} flat={flat} />
+  if (name === 'grep' || name === 'ffgrep') return <GrepFindPreview item={item} flat={flat} />
+  if (name === 'fffind' || name === 'find') return <GrepFindPreview item={item} isFind flat={flat} />
+  if (name === 'bash') return <BashPreview item={item} flat={flat} />
+  if (name === 'ls') return <LsPreview item={item} flat={flat} />
   return null
 }
 

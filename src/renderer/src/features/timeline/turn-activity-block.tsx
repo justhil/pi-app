@@ -58,14 +58,15 @@ function FileChangeRow({ file }: { file: TurnFileStat }) {
 }
 
 /**
- * End-of-turn files card only (activity line lives on collapsed tool-group header).
- * Links into right-panel Review / Files.
+ * End-of-turn files card only.
+ * Hidden while the turn is still live (agent running / streaming / waiting UI).
  */
 export const TurnActivityBlock = memo(function TurnActivityBlock({
   blocks,
   isStreaming,
 }: {
   blocks: TimelineDisplayItem[]
+  /** True while the whole turn is still in progress — hide file list until done. */
   isStreaming?: boolean
 }) {
   const { t } = useTranslation()
@@ -80,6 +81,7 @@ export const TurnActivityBlock = memo(function TurnActivityBlock({
     })
   }, [blocks, fileChanges, workspace])
 
+  // Wait until the full agent turn finishes — not just assistant stream end.
   if (isStreaming) return null
   if (summary.files.length === 0) return null
 

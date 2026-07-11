@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { RightPanelCatalogItem } from '@shared/right-panels'
 import { GenericAdapterSidePanel } from './generic-adapter-side-panel'
 import { WorkspaceTasksSidePanel } from './workspace-tasks-side-panel'
@@ -17,6 +18,7 @@ const ADAPTER_PANEL_COMPONENTS: Record<string, React.ComponentType<import('./sid
 }
 
 export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefined }) {
+  const { t } = useTranslation()
   if (!item) return null
   const wrap = (node: React.ReactNode) => <Suspense fallback={null}>{node}</Suspense>
 
@@ -39,5 +41,5 @@ export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefine
   if (item.id === 'tree') return wrap(<TreePanel />)
   if (item.id === 'files') return wrap(<WorkspaceFilesPanel />)
 
-  return <div className="p-4 text-[12px] text-muted-foreground">未注册面板: {item.id}</div>
+  return <div className="p-4 text-[12px] text-muted-foreground">{t('common:panel.unregistered', { id: item.id })}</div>
 }

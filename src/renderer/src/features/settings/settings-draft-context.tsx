@@ -171,12 +171,17 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
   discardDraftRef.current = discard
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (!dirty) return true
+    // Recompute from refs so we never skip commit after a stale dirty closure.
+    const appDirtyNow =
+      !!draftRef.current && draftSignature(draftRef.current) !== baselineSigRef.current
+    const dirtyNow = appDirtyNow || anySettingsSliceDirty()
+    if (!dirtyNow) return true
     setSaving(true)
     try {
       await commitAllSettingsSlices()
       const d = draftRef.current
       if (d) {
+        // Prefer signature of the committed draft (commit mutates asrConfig in place).
         const sig = draftSignature(d)
         baselineSigRef.current = sig
         draftDirtyRef.current = false
@@ -189,12 +194,12 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       notifySettingsDirtyChanged()
       return true
     } catch (e) {
-      console.error(e)
+      console.error('[settings] save failed', e)
       return false
     } finally {
       setSaving(false)
     }
-  }, [dirty])
+  }, [])
 
   const discardAll = useCallback(async () => {
     await discardAllSettingsSlices()

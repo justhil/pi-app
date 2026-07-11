@@ -14,6 +14,10 @@ export type ToolExpandSlot = {
   toolPhase?: string
 }
 
+/**
+ * Auto-expand budget for live tools.
+ * maxExpanded=0 → never auto-expand (Cursor default: collapsed, subtle live pulse only).
+ */
 export function pickAutoExpandedToolIds(
   slots: ToolExpandSlot[],
   opts: {
@@ -23,13 +27,14 @@ export function pickAutoExpandedToolIds(
   },
 ): Set<string> {
   const max = opts.maxExpanded ?? DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS
+  if (max <= 0) return new Set()
   if (!opts.agentRunning || !opts.activeRunId) return new Set()
 
-  const runSlots = slots.filter((s) => s.runId && s.runId === opts.activeRunId)
+  const runSlots = slots.filter((slot) => slot.runId && slot.runId === opts.activeRunId)
   const eligible = runSlots.filter(
-    (s) => s.toolPhase === 'start' || s.toolPhase === 'update',
+    (slot) => slot.toolPhase === 'start' || slot.toolPhase === 'update',
   )
   const pool = eligible.length > 0 ? eligible : runSlots
   const tail = pool.slice(-max)
-  return new Set(tail.map((s) => s.id))
+  return new Set(tail.map((slot) => slot.id))
 }

@@ -30,22 +30,41 @@ import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-ho
 import { AppToaster } from '@renderer/components/app/app-toaster'
 import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
 import { hydrateThemeFromSettings } from '@renderer/features/settings/settings-draft'
-import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
+import { EmptyState } from '@renderer/components/ui/empty-state'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
 type View = 'main' | 'settings'
 
-const SettingsPage = lazy(() => import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })))
-const ModelPicker = lazy(() => import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })))
-const ThinkingPicker = lazy(() => import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })))
-const SessionTreeOverlay = lazy(() => import('@renderer/features/rewind/session-tree-overlay').then((m) => ({ default: m.SessionTreeOverlay })))
-const SessionForkOverlay = lazy(() => import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })))
-const ProjectHomeView = lazy(() => import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })))
+const SettingsPage = lazy(() =>
+  import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })),
+)
+const ModelPicker = lazy(() =>
+  import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })),
+)
+const ThinkingPicker = lazy(() =>
+  import('@renderer/features/composer/thinking-picker').then((m) => ({ default: m.ThinkingPicker })),
+)
+const SessionTreeOverlay = lazy(() =>
+  import('@renderer/features/rewind/session-tree-overlay').then((m) => ({ default: m.SessionTreeOverlay })),
+)
+const SessionForkOverlay = lazy(() =>
+  import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })),
+)
+const ProjectHomeView = lazy(() =>
+  import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })),
+)
+
+function ShellSuspenseFallback({ label }: { label: string }) {
+  return <EmptyState compact title={label} className="min-h-[12rem]" />
+}
 
 export default function App() {
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -57,18 +76,6 @@ export default function App() {
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const setSessions = useUIStore((s) => s.setSessions)
-  // Multi-session: chrome "running" is for the *visible* session only, not residual global runState.
-  const isRunning = useUIStore((s) =>
-    composerTurnActive({
-      historySessionFile: s.historySessionFile,
-      workerLiveSnapshot: s.workerLiveSnapshot,
-      runState: s.runState,
-      streamingAssistantId: s.streamingAssistantId,
-      optimisticPendingUserText: s.optimisticPendingUserText,
-      sessionRuntimeRunning: s.sessionRuntimeRunning,
-      agentTurnBootstrapping: s.agentTurnBootstrapping,
-    }),
-  )
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -78,7 +85,7 @@ export default function App() {
 
   useEffect(() => {
     if (ephemeralSandboxDraft) {
-      setWorkspaceTitle('新对话')
+      setWorkspaceTitle(t('common:home.newChat'))
       return
     }
     if (!currentWorkspace) {
@@ -90,11 +97,14 @@ export default function App() {
       setWorkspaceTitle(currentWorkspace.split(/[\\/]/).pop())
       return
     }
-    ipcClient.invoke('workspace.sandbox.list').then((r) => {
-      const box = (r?.sandboxes || []).find((b: { path: string }) => b.path === currentWorkspace)
-      setWorkspaceTitle(box?.label || '临时对话')
-    }).catch(() => setWorkspaceTitle('临时对话'))
-  }, [currentWorkspace, ephemeralSandboxDraft])
+    ipcClient
+      .invoke('workspace.sandbox.list')
+      .then((r) => {
+        const box = (r?.sandboxes || []).find((b: { path: string }) => b.path === currentWorkspace)
+        setWorkspaceTitle(box?.label || t('common:sidebar.tempChat'))
+      })
+      .catch(() => setWorkspaceTitle(t('common:sidebar.tempChat')))
+  }, [currentWorkspace, ephemeralSandboxDraft, t])
 
   const projectName = workspaceTitle
 
@@ -103,6 +113,24 @@ export default function App() {
     window.addEventListener('pi-desktop:open-fork-selector', onOpenFork)
     return () => window.removeEventListener('pi-desktop:open-fork-selector', onOpenFork)
   }, [setForkOpen])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase()
+      const mod = event.metaKey || event.ctrlKey
+      if (mod && key === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(true)
+        return
+      }
+      if (mod && key === '/') {
+        event.preventDefault()
+        setShortcutsOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [])
 
   useEffect(() => {
     markExtensionNotifyAppReady()
@@ -120,7 +148,9 @@ export default function App() {
         .invoke('settings.get', { key: 'timelineMaxAutoExpandedTools' })
         .then((res) => {
           const raw = res?.settings?.timelineMaxAutoExpandedTools
-          useUIStore.getState().setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
+          useUIStore
+            .getState()
+            .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
         .catch(() => {})
     })
@@ -130,19 +160,19 @@ export default function App() {
   useEffect(() => {
     const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
     void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {
-      fetchWorkerLiveSnapshot().then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap)).catch(() => {})
+      fetchWorkerLiveSnapshot()
+        .then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap))
+        .catch(() => {})
     })
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
     })
-    // 不再从 auto-opened 自动设 workspace；用户在 Project Home 自行选择项目
     return () => {
       unsubEvents()
       unsubExit()
     }
   }, [setWorkspace])
 
-  // B-layer slash config-page routing: open settings view + adapters config subpage
   useEffect(() => {
     if (pendingExtensionConfig) {
       setView('settings')
@@ -155,9 +185,12 @@ export default function App() {
 
   useEffect(() => {
     if (!currentWorkspace) return
-    ipcClient.invoke('session.list', { workspaceId: currentWorkspace }).then((res) => {
-      if (res?.sessions) setSessions(res.sessions)
-    }).catch(() => {})
+    ipcClient
+      .invoke('session.list', { workspaceId: currentWorkspace })
+      .then((res) => {
+        if (res?.sessions) setSessions(res.sessions)
+      })
+      .catch(() => {})
   }, [currentWorkspace, setSessions])
 
   const handleOpenProject = async () => {
@@ -179,17 +212,34 @@ export default function App() {
   const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
-  const isHomeMode = !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
+  const isHomeMode =
+    !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
 
   const handleSelectProject = async (path: string) => {
     await activateWorkspace(path, { preferHome: true })
   }
 
+  const paletteAndShortcuts = (
+    <>
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onOpenSettings={() => setView('settings')}
+        onOpenSessionTree={canUseTree ? () => setTreeOpen(true) : undefined}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+      />
+      <ShortcutsHelpSheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+    </>
+  )
+
   if (view === 'settings') {
     return (
       <ErrorBoundary>
-        <div className="flex h-screen flex-col overflow-hidden text-foreground" style={{ background: 'var(--surface-sidebar)' }}>
+        <div
+          className="flex h-screen flex-col overflow-hidden text-foreground"
+          style={{ background: 'var(--surface-sidebar)' }}
+        >
           <TopBar
             onBack={() => {
               useUIStore.getState().requestExtensionConfig(null)
@@ -200,25 +250,32 @@ export default function App() {
           />
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <ErrorBoundary label="settings">
-              <Suspense fallback={null}>
+              <Suspense fallback={<ShellSuspenseFallback label={t('common:loadingSettings')} />}>
                 <SettingsPage />
               </Suspense>
             </ErrorBoundary>
           </div>
         </div>
+        {paletteAndShortcuts}
       </ErrorBoundary>
     )
   }
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen flex-col overflow-hidden text-foreground" style={{ background: 'var(--surface-sidebar)' }}>
-        <ImmersiveChrome isRunning={isRunning} projectName={projectName} />
+      <div
+        className="flex h-screen flex-col overflow-hidden text-foreground"
+        style={{ background: 'var(--surface-sidebar)' }}
+      >
+        <ImmersiveChrome projectName={projectName} />
         <MainLayoutShell
           left={
             <Sidebar>
               <SidebarContent>
-                <ProjectSidebar onOpenProject={handleOpenProject} openProjectLabel={t('sidebar.openProject')} />
+                <ProjectSidebar
+                  onOpenProject={handleOpenProject}
+                  openProjectLabel={t('sidebar.openProject')}
+                />
               </SidebarContent>
               <div className="border-t border-border/50 p-1.5">
                 <SidebarItem
@@ -232,10 +289,12 @@ export default function App() {
           center={
             <MainColumnWithTimelineScroll className="h-full">
               {showHome ? (
-                <Suspense fallback={null}>
+                <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
                   <ProjectHomeView
                     projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
-                    subtitle={ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined}
+                    subtitle={
+                      ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined
+                    }
                     recentProjects={recentProjects}
                     currentWorkspace={currentWorkspace}
                     ephemeralSandboxDraft={ephemeralSandboxDraft}
@@ -262,11 +321,10 @@ export default function App() {
                 activePanel={activePanel}
                 setActivePanel={setActivePanel}
               />
-              {/* Unmount panel bodies while collapsed so timers/IPC/effects stop (CSS hide is not enough). */}
               {!rightPanelCollapsed ? (
                 <div className="flex-1 overflow-hidden">
                   <ErrorBoundary label="panel">
-                    <Suspense fallback={null}>
+                    <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
                       <SidePanelHost item={activeCatalogItem} />
                     </Suspense>
                   </ErrorBoundary>
@@ -278,6 +336,7 @@ export default function App() {
       </div>
       <AppToaster />
       <ExtensionUIHost />
+      {paletteAndShortcuts}
       <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}
         {thinkingPickerOpen && <ThinkingPicker />}
@@ -287,4 +346,3 @@ export default function App() {
     </ErrorBoundary>
   )
 }
-

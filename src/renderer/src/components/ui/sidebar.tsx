@@ -44,15 +44,16 @@ export function SidebarItem({ label, active, onClick, icon }: {
   icon?: React.ReactNode
 }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
       className={cn(
-        'nav-row sider-item-motion mx-1.5 flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] leading-[20px]',
+        'nav-row sider-item-motion mx-1.5 flex w-[calc(100%-0.75rem)] cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] leading-[20px]',
         active ? 'nav-row-active font-medium text-foreground' : 'text-foreground-secondary/90 hover:text-foreground',
       )}
     >
       {icon}
       <span className="sidebar-label-fade">{label}</span>
-    </div>
+    </button>
   )
 }

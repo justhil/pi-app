@@ -24,12 +24,14 @@ import { hideAllDelayedTooltips } from './delayed-tooltip'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
 import {
-  composerTurnActive,
   applyLiveSnapshotToView,
   fetchWorkerLiveSnapshot,
   isSessionPreviewComposeLocked,
   isViewingWorkerBoundSession,
+  composerTurnActive,
 } from '@renderer/lib/session-worker-sync'
+import { useSessionChrome } from '@renderer/lib/session-chrome'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { insertTextAtCursor } from './composer-editor-caret'
 import { makeComposerEditorAdapter } from './composer-editor-adapter'
 import { useComposerSlash } from './use-composer-slash'
@@ -72,18 +74,10 @@ export function Composer() {
     ],
   )
   const canSendMessages = canCompose && !sessionPreview
-  const isRunning = useUIStore((s) =>
-    composerTurnActive({
-      historySessionFile: s.historySessionFile,
-      workerLiveSnapshot: s.workerLiveSnapshot,
-      runState: s.runState,
-      streamingAssistantId: s.streamingAssistantId,
-      optimisticPendingUserText: s.optimisticPendingUserText,
-      sessionRuntimeRunning: s.sessionRuntimeRunning,
-      agentTurnBootstrapping: s.agentTurnBootstrapping,
-    }),
-  )
-  const showComposerStop = isRunning
+  const extensionDialogOpen = useExtensionUIStore((s) => s.activePending != null)
+  const sessionChrome = useSessionChrome({ extensionDialogOpen })
+  const isRunning = sessionChrome.canStop || sessionChrome.showSpinner
+  const showComposerStop = sessionChrome.canStop
   const model = useUIStore((s) => s.runState.model)
   const thinkingLevel = useUIStore((s) => s.runState.thinkingLevel)
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)

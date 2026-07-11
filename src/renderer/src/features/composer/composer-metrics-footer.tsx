@@ -61,16 +61,9 @@ function ComposerMetricsFooterImpl({
         </>
       )}
 
-      {isRunning && !tokPerSec && (
-        <>
-          {(hasContext) && sep}
-          <span className="text-green-600/70 dark:text-green-400/70">{t('composer:running')}</span>
-        </>
-      )}
-
       {usage && (usage.input > 0 || usage.output > 0) && (
         <>
-          {(hasContext || tokPerSec || isRunning) && sep}
+          {(hasContext || tokPerSec) && sep}
           <span>
             {t('composer:turnUsage', { in: formatTokens(usage.input), out: formatTokens(usage.output) })}
           </span>

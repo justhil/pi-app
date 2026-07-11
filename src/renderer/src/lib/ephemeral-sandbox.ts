@@ -5,7 +5,7 @@ import { beginSessionNavigation } from '@renderer/lib/session-navigation'
 
 export function titleFromFirstMessage(text: string, maxLen = 48): string {
   const one = text.replace(/\s+/g, ' ').trim()
-  if (!one) return '临时对话'
+  if (!one) return 'New chat'
   return one.length > maxLen ? `${one.slice(0, maxLen)}…` : one
 }
 

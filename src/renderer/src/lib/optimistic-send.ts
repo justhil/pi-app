@@ -39,9 +39,15 @@ export function appendOptimisticOutgoingMessage(text: string, opts?: OptimisticS
   })
   useUIStore.setState({
     optimisticPendingUserText: trimmed,
-    agentTurnBootstrapping: opts?.bootstrap === true,
+    // Always show optimistic thinking wait chrome until first token / tool / idle.
+    agentTurnBootstrapping: true,
     streamingAssistantId: assistantId,
   })
+  // Mark this session running immediately so switch-away/back keeps chrome/sidebar alive
+  // before the first worker `run` event arrives.
+  if (store.historySessionFile) {
+    store.setSessionRuntimeRunning(store.historySessionFile, true)
+  }
   requestTimelineBottomAnchor('message-sent')
   if (store.runState.status !== 'running') {
     store.setRunState({ status: 'running', startTime: ts })

@@ -191,6 +191,13 @@ export interface UIState {
   /** sessionFile → running (sidebar spinner) */
   sessionRuntimeRunning: Record<string, boolean>
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
+  /**
+   * Session-scoped tool row expand memory (toolCallId → expanded).
+   * Display-only; not persisted across app restarts.
+   */
+  toolExpandBySession: Record<string, Record<string, boolean>>
+  setToolCallExpanded: (toolCallId: string, expanded: boolean | null) => void
+  getToolCallExpanded: (toolCallId: string) => boolean | undefined
   timelineMaxAutoExpandedTools: number
   setTimelineMaxAutoExpandedTools: (n: number) => void
   sidebarWidth: number

@@ -10,6 +10,17 @@ describe('pickAutoExpandedToolIds', () => {
     const ids = pickAutoExpandedToolIds([slot('a')], {
       agentRunning: false,
       activeRunId: 'run-1',
+      maxExpanded: 15,
+    })
+    expect(ids.size).toBe(0)
+  })
+
+  it('returns empty when maxExpanded is 0', () => {
+    const slots = Array.from({ length: 5 }, (_, i) => slot(`t${i}`, 'run-1', 'update'))
+    const ids = pickAutoExpandedToolIds(slots, {
+      agentRunning: true,
+      activeRunId: 'run-1',
+      maxExpanded: 0,
     })
     expect(ids.size).toBe(0)
   })

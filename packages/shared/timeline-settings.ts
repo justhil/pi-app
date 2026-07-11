@@ -1,5 +1,5 @@
-export const DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS = 15
-export const TIMELINE_MAX_AUTO_EXPANDED_TOOLS_MIN = 1
+export const DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS = 0
+export const TIMELINE_MAX_AUTO_EXPANDED_TOOLS_MIN = 0
 export const TIMELINE_MAX_AUTO_EXPANDED_TOOLS_MAX = 50
 
 export function normalizeTimelineMaxAutoExpandedTools(raw: unknown): number {

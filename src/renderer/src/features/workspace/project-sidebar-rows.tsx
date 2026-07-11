@@ -1,11 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Folder, Inbox, Loader2, Plus } from 'lucide-react'
+import { ChevronRight, Folder, Inbox, Plus } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { SessionRunningPixelGrid } from './session-running-pixel-grid'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 
 export function ProjectSessionTree({
@@ -92,7 +93,7 @@ export function ProjectSessionTree({
                 {s.title || s.sessionId.slice(0, 8)}
               </div>
               <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
-                {new Date(s.updatedAt).toLocaleDateString('zh-CN', {
+                {new Date(s.updatedAt).toLocaleString(undefined, {
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',
@@ -101,9 +102,9 @@ export function ProjectSessionTree({
               </div>
             </div>
             {running ? (
-              <Loader2
-                className="h-3 w-3 shrink-0 animate-spin text-muted-foreground/45"
-                aria-hidden
+              <SessionRunningPixelGrid
+                className="ml-0.5 opacity-80"
+                title={t('common:status.running', { defaultValue: 'Running' })}
               />
             ) : null}
           </div>
@@ -196,6 +197,9 @@ export function SandboxDialogRow({
   onOpen: () => void
   onContextMenu: (e: React.MouseEvent) => void
 }) {
+  const { t } = useTranslation()
+  const displayLabel =
+    box.label?.trim() || t('common:sidebar.tempChat')
   return (
     <div
       key={box.path}
@@ -211,9 +215,9 @@ export function SandboxDialogRow({
     >
       <Inbox className={cn('h-4 w-4 shrink-0', active ? 'text-brand' : 'opacity-70')} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] leading-[20px] text-foreground">{box.label}</div>
+        <div className="truncate text-[14px] leading-[20px] text-foreground">{displayLabel}</div>
         <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
-          {new Date(box.createdAt).toLocaleDateString('zh-CN', {
+          {new Date(box.createdAt).toLocaleString(undefined, {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',

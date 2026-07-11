@@ -4,13 +4,9 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useTranslation } from 'react-i18next'
-import { composerTurnActive } from '@renderer/lib/session-worker-sync'
 
 /**
- * Cursor-inspired collapsed right rail:
- * - thin icon strip instead of full disappearance
- * - run pulse at top when agent is active
- * - one-click open + switch panel
+ * Collapsed right rail: panel icons only (no run-status green pulse).
  */
 export function RightPanelCollapsedRail() {
   const { t } = useTranslation()
@@ -21,20 +17,6 @@ export function RightPanelCollapsedRail() {
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
-  const runState = useUIStore((s) => s.runState)
-  const errorCount = useUIStore((s) => s.runState.errorCount)
-
-  const isRunning = useUIStore((s) =>
-    composerTurnActive({
-      historySessionFile: s.historySessionFile,
-      workerLiveSnapshot: s.workerLiveSnapshot,
-      runState: s.runState,
-      streamingAssistantId: s.streamingAssistantId,
-      optimisticPendingUserText: s.optimisticPendingUserText,
-      sessionRuntimeRunning: s.sessionRuntimeRunning,
-      agentTurnBootstrapping: s.agentTurnBootstrapping,
-    }),
-  )
 
   const panels = useMemo(
     () => buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder),
@@ -50,47 +32,12 @@ export function RightPanelCollapsedRail() {
     }
   }
 
-  const statusTitle = isRunning
-    ? runState.activeTool
-      ? `Running · ${runState.activeTool}`
-      : 'Running'
-    : runState.status === 'failed'
-      ? 'Failed'
-      : errorCount > 0
-        ? `${errorCount} tool errors`
-        : 'Idle'
-
   return (
     <aside
       className="right-collapsed-rail electron-no-drag flex h-full w-10 shrink-0 flex-col items-center border-l border-border/40 py-2"
       style={{ background: 'color-mix(in srgb, var(--bg-base) 96%, var(--surface-sidebar))' }}
-      aria-label="Right panel rail"
+      aria-label={t('common:topbar.expandRightPanel')}
     >
-      <button
-        type="button"
-        title={statusTitle}
-        onClick={() => openPanel('run')}
-        className={cn(
-          'relative mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
-          'hover:bg-[var(--bg-hover)]',
-          isRunning && 'bg-emerald-500/[0.08]',
-          !isRunning && errorCount > 0 && 'bg-amber-500/[0.08]',
-        )}
-      >
-        <span
-          className={cn(
-            'h-2 w-2 rounded-full',
-            isRunning && 'bg-emerald-500 tool-status-live-dot--solid',
-            !isRunning && runState.status === 'failed' && 'bg-amber-500/80',
-            !isRunning && runState.status !== 'failed' && errorCount > 0 && 'bg-amber-500/60',
-            !isRunning && runState.status !== 'failed' && errorCount === 0 && 'bg-foreground-secondary/25',
-          )}
-        />
-        {isRunning && (
-          <span className="pointer-events-none absolute inset-0 rounded-lg ring-1 ring-emerald-500/20" />
-        )}
-      </button>
-
       <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden px-1">
         {panels.map((panel) => {
           const Icon = panel.icon
@@ -116,7 +63,7 @@ export function RightPanelCollapsedRail() {
 
       <button
         type="button"
-        title="Expand right panel"
+        title={t('common:topbar.expandRightPanel')}
         onClick={() => toggleRightPanel()}
         className="chrome-icon-btn mt-1 flex h-8 w-8 items-center justify-center rounded-lg text-foreground-secondary"
       >

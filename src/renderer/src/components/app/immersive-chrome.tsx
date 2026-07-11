@@ -6,13 +6,15 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 
-/** 无边框窗口顶栏：可拖拽区域 + 侧栏开关 + 运行状态（主对话页无厚重 TopBar） */
+/** 无边框窗口顶栏：可拖拽区域 + 侧栏开关（主对话页无厚重 TopBar；无运行绿点/状态条） */
 export function ImmersiveChrome({
   projectName,
-  isRunning,
 }: {
   projectName?: string
+  /** @deprecated ignored — status strip removed for lower chrome noise */
   isRunning?: boolean
+  /** @deprecated ignored */
+  statusLabelKey?: string
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -49,14 +51,6 @@ export function ImmersiveChrome({
         </div>
       </div>
       <div className="electron-no-drag flex h-9 items-center gap-2">
-        {isRunning ? (
-          <div className="flex items-center gap-1.5 rounded-full px-2 py-0.5" style={{ background: 'color-mix(in srgb, var(--brand) 12%, transparent)' }}>
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            <span className="text-[10px] font-medium text-green-600 dark:text-green-400">{t('common:app.status.running')}</span>
-          </div>
-        ) : (
-          <span className="text-[10px] text-foreground-secondary/70 tabular-nums">{t('common:app.status.ready')}</span>
-        )}
         <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />
       </div>
     </div>

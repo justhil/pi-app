@@ -33,6 +33,7 @@ describe('captureVisibleLiveSessionTimeline', () => {
       optimisticPendingUserText: null,
       agentTurnBootstrapping: false,
       sessionRuntimeRunning: {},
+      setSessionRuntimeRunning: vi.fn(),
     }
   })
 

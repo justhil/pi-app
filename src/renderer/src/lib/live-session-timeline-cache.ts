@@ -334,6 +334,22 @@ export function applyBackgroundAppEventToLiveTimeline(sessionFile: string, event
     snap.pendingFollowUp = [...event.followUp]
   } else if (event.type === 'agent_error') {
     flushBackgroundLiveDeltasSync(key)
+    const stopReason = event.kind === 'aborted' ? 'aborted' : 'error'
+    if (snap.streamingAssistantId) {
+      const streamId = snap.streamingAssistantId
+      snap.timelineItems = snap.timelineItems.map((item) =>
+        item.id === streamId ? { ...item, incomplete: true, stopReason } : item,
+      )
+    } else {
+      for (let index = snap.timelineItems.length - 1; index >= 0; index--) {
+        const row = snap.timelineItems[index]
+        if (row.type === 'user-message') break
+        if (row.type === 'assistant-message') {
+          snap.timelineItems[index] = { ...row, incomplete: true, stopReason }
+          break
+        }
+      }
+    }
     snap.streamingAssistantId = null
     snap.agentTurnBootstrapping = false
     snap.runState = { ...snap.runState, status: event.kind === 'aborted' ? 'idle' : 'failed' }
