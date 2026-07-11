@@ -24,7 +24,7 @@
 
 > GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.16/CHANGELOG.md)
 
-$2 — 2026-07-10
+## [0.4.15] — 2026-07-10
 
 ### 新增
 
@@ -41,7 +41,7 @@ $2 — 2026-07-10
 
 > GitHub Release 正文链接本文件：[CHANGELOG.md](https://github.com/justhil/pi-app/blob/v0.4.15/CHANGELOG.md)
 
-## [0.4.14] — 2026-07-10
+## [0.4.14]## [0.4.15] — 2026-07-10
 
 ### 新增
 
