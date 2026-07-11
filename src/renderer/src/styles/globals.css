@@ -753,6 +753,17 @@
     color: var(--danger-semantic);
     background: color-mix(in srgb, var(--danger-semantic) 12%, transparent);
   }
+  /* Line-ref chips: same attachment chrome, slight brand tint */
+  .rich-attachment-chip--line-ref {
+    border-color: color-mix(in srgb, var(--brand) 32%, var(--border-base));
+    background: color-mix(in srgb, var(--brand) 8%, var(--bg-2));
+  }
+  .rich-attachment-chip--line-ref .rich-attachment-icon {
+    color: var(--brand);
+  }
+  .attachment-chip--line-ref {
+    border-color: color-mix(in srgb, var(--brand) 28%, var(--border-base)) !important;
+  }
   .attachment-chip {
     transition:
       background-color var(--motion-normal) var(--motion-ease),
@@ -1913,4 +1924,13 @@
   .right-collapsed-rail {
     animation: none !important;
   }
+}
+
+/* Cursor-style line gutter + : always visible hit target on hover */
+.line-gutter-add {
+  flex-shrink: 0;
+}
+.group\/line:hover .line-gutter-add,
+.group\/line:focus-within .line-gutter-add {
+  opacity: 1;
 }

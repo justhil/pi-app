@@ -80,8 +80,10 @@ export function ReviewPanel() {
     const onFocus = (e: Event) => {
       const path = (e as CustomEvent<{ path?: string }>).detail?.path
       if (path) {
-        setFocusGitPath(path.replace(/\\/g, '/'))
-        setExpandedGitPath(path.replace(/\\/g, '/'))
+        const normalized = path.replace(/\\/g, '/')
+        setFocusGitPath(normalized)
+        setExpandedGitPath(normalized)
+        setExpandedMetaPath(normalized)
       }
     }
     window.addEventListener('pi-desktop:review-focus-file', onFocus)
@@ -251,7 +253,11 @@ export function ReviewPanel() {
         ) : (
           <div className="py-1.5">
             {files.map((fc) => {
-              const open = expandedMetaPath === fc.path
+              const open =
+                expandedMetaPath === fc.path ||
+                (!!focusGitPath &&
+                  (fc.path.replace(/\\/g, '/') === focusGitPath ||
+                    fc.path.replace(/\\/g, '/').endsWith(`/${focusGitPath}`)))
               return (
                 <div key={`${fc.path}-${fc.runId || ''}`} className="group">
                   <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--bg-hover)]">

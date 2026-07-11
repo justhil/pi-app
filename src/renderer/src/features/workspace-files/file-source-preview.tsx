@@ -5,6 +5,7 @@ import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
+import { LineGutterAddButton } from '@renderer/components/ui/line-gutter-add'
 import { PREVIEW_SHIKI_MAX_CHARS } from './file-preview-limits'
 
 const FOLD_LINES = 48
@@ -14,10 +15,19 @@ type Props = {
   lang?: string
   fill?: boolean
   readComplete: boolean
+  /** Workspace-relative path for line refs into the composer */
+  path?: string
   onRequestFullContent?: () => Promise<string | null>
 }
 
-export function FileSourcePreview({ code, lang, fill, readComplete, onRequestFullContent }: Props) {
+export function FileSourcePreview({
+  code,
+  lang,
+  fill,
+  readComplete,
+  path,
+  onRequestFullContent,
+}: Props) {
   const { t } = useTranslation('files')
   const [expanded, setExpanded] = useState(false)
   const [fullCode, setFullCode] = useState<string | null>(null)
@@ -79,13 +89,18 @@ export function FileSourcePreview({ code, lang, fill, readComplete, onRequestFul
         <div className="inline-block min-h-min min-w-full align-top">
           <div className="flex min-w-max font-mono text-[11px] leading-[1.5]">
             <div
-              className="sticky left-0 z-[2] shrink-0 select-none border-r border-border/50 bg-[var(--bg-2)] py-2 pl-3 pr-4 text-right text-foreground-secondary/70"
-              style={{ minWidth: `${gutterCh}ch` }}
+              className="sticky left-0 z-[2] shrink-0 select-none border-r border-border/50 bg-[var(--bg-2)] py-2 pl-1 pr-2 text-right text-foreground-secondary/70"
+              style={{ minWidth: `${gutterCh + 2}ch` }}
               aria-hidden
             >
-              {visibleLines.map((_, i) => (
-                <div key={i} className="h-[1.5em] tabular-nums">
-                  {i + 1}
+              {visibleLines.map((lineText, i) => (
+                <div key={i} className="group/line flex h-[1.5em] items-center justify-end gap-0.5 tabular-nums">
+                  {path ? (
+                    <LineGutterAddButton path={path} line={i + 1} content={lineText} />
+                  ) : (
+                    <span className="w-[1.15em]" />
+                  )}
+                  <span className="w-[2.5ch] text-right">{i + 1}</span>
                 </div>
               ))}
             </div>

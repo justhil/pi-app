@@ -4,6 +4,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import type { DiffFile, DiffHunk, DiffLine } from '@shared/diff-model'
 import { buildSplitDiffRows } from '@shared/diff-split'
 import { ReviewHunkComments } from './review-hunk-comments'
+import { LineGutterAddButton } from '@renderer/components/ui/line-gutter-add'
 import {
   FilePlus,
   FileEdit,
@@ -84,12 +85,41 @@ function DiffHunkView({
       </div>
       {mode === 'inline' ? (
         <div className="overflow-x-auto font-mono text-[10px] leading-[1.5]">
-          {hunk.lines.map((l, i) => (
-            <div key={i} className={cn('flex px-2 whitespace-pre', lineColor(l.type))}>
-              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">{linePrefix(l.type)}</span>
-              <span className="min-w-0">{l.content}</span>
-            </div>
-          ))}
+          {hunk.lines.map((l, i) => {
+            const lineNo =
+              l.type === 'removed'
+                ? l.oldLineNumber
+                : l.type === 'added' || l.type === 'context'
+                  ? l.newLineNumber ?? l.oldLineNumber
+                  : undefined
+            const canRef = !!lineNo && l.type !== 'hunk-header'
+            return (
+              <div
+                key={i}
+                className={cn('group/line flex items-stretch px-1 whitespace-pre', lineColor(l.type))}
+              >
+                <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
+                  {canRef ? (
+                    <LineGutterAddButton
+                      path={filePath}
+                      line={lineNo!}
+                      content={l.content}
+                      className="mr-0.5"
+                    />
+                  ) : (
+                    <span className="w-[1.15em]" />
+                  )}
+                  <span className="w-6 text-right tabular-nums">
+                    {lineNo ?? linePrefix(l.type)}
+                  </span>
+                </span>
+                <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
+                  {linePrefix(l.type)}
+                </span>
+                <span className="min-w-0 flex-1">{l.content}</span>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <SplitHunk hunk={hunk} filePath={filePath} />
@@ -114,38 +144,62 @@ function SplitHunk({ hunk, filePath }: { hunk: DiffHunk; filePath: string }) {
   return (
     <div className="grid grid-cols-2 overflow-x-auto font-mono text-[10px] leading-[1.5]">
       <div className="border-r border-border/30">
-        {rows.map((row, i) => (
-          <div
-            key={i}
-            className={cn(
-              'flex px-2 whitespace-pre',
-              row.left.kind === 'remove' && 'bg-red-500/8 text-red-700 dark:text-red-300',
-              row.left.kind === 'context' && 'text-foreground-secondary',
-            )}
-          >
-            <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
-              {row.left.kind === 'remove' ? '-' : ' '}
-            </span>
-            <span className="min-w-0">{row.left.text}</span>
-          </div>
-        ))}
+        {rows.map((row, i) => {
+          const lineNo = row.left.oldLine ?? row.left.newLine
+          const canRef = !!lineNo && row.left.kind !== 'empty'
+          return (
+            <div
+              key={i}
+              className={cn(
+                'group/line flex items-stretch px-1 whitespace-pre',
+                row.left.kind === 'remove' && 'bg-red-500/8 text-red-700 dark:text-red-300',
+                row.left.kind === 'context' && 'text-foreground-secondary',
+              )}
+            >
+              <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
+                {canRef ? (
+                  <LineGutterAddButton path={filePath} line={lineNo!} content={row.left.text} />
+                ) : (
+                  <span className="w-[1.15em]" />
+                )}
+                <span className="w-6 text-right tabular-nums">{lineNo ?? ''}</span>
+              </span>
+              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
+                {row.left.kind === 'remove' ? '-' : ' '}
+              </span>
+              <span className="min-w-0 flex-1">{row.left.text}</span>
+            </div>
+          )
+        })}
       </div>
       <div>
-        {rows.map((row, i) => (
-          <div
-            key={i}
-            className={cn(
-              'flex px-2 whitespace-pre',
-              row.right.kind === 'add' && 'bg-green-500/8 text-green-700 dark:text-green-300',
-              row.right.kind === 'context' && 'text-foreground-secondary',
-            )}
-          >
-            <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
-              {row.right.kind === 'add' ? '+' : ' '}
-            </span>
-            <span className="min-w-0">{row.right.text}</span>
-          </div>
-        ))}
+        {rows.map((row, i) => {
+          const lineNo = row.right.newLine ?? row.right.oldLine
+          const canRef = !!lineNo && row.right.kind !== 'empty'
+          return (
+            <div
+              key={i}
+              className={cn(
+                'group/line flex items-stretch px-1 whitespace-pre',
+                row.right.kind === 'add' && 'bg-green-500/8 text-green-700 dark:text-green-300',
+                row.right.kind === 'context' && 'text-foreground-secondary',
+              )}
+            >
+              <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
+                {canRef ? (
+                  <LineGutterAddButton path={filePath} line={lineNo!} content={row.right.text} />
+                ) : (
+                  <span className="w-[1.15em]" />
+                )}
+                <span className="w-6 text-right tabular-nums">{lineNo ?? ''}</span>
+              </span>
+              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
+                {row.right.kind === 'add' ? '+' : ' '}
+              </span>
+              <span className="min-w-0 flex-1">{row.right.text}</span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

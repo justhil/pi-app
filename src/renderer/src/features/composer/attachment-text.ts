@@ -1,10 +1,18 @@
 type TextSegment = { type: 'text'; text: string }
-type FileSegment = { type: 'file'; attachment: { path: string } }
+type FileSegment = {
+  type: 'file'
+  attachment: {
+    path: string
+    kind?: string
+    line?: number
+    endLine?: number
+    name?: string
+  }
+}
 type ClipboardImageSegment = { type: 'clipboard-image'; path: string; name: string }
 type Segment = TextSegment | FileSegment | ClipboardImageSegment
 
 export const CLIPBOARD_IMAGE_PAYLOAD = '[image file]'
-
 
 function isClipboardTempPath(path: string): boolean {
   const base = path.split(/[\\/]/).pop() || ''
@@ -21,7 +29,16 @@ export function segmentsToPromptPayload(segments: Segment[]): string {
     }
     if (out && !/\s$/.test(out)) out += ' '
     if (seg.type === 'file') {
-      out += isClipboardTempPath(seg.attachment.path) ? seg.attachment.path : `@${seg.attachment.path}`
+      const att = seg.attachment
+      if (att.kind === 'line-ref' && att.line != null) {
+        const linePart =
+          att.endLine != null && att.endLine !== att.line
+            ? `${att.line}-${att.endLine}`
+            : String(att.line)
+        out += `@${att.path}:${linePart}`
+      } else {
+        out += isClipboardTempPath(att.path) ? att.path : `@${att.path}`
+      }
     } else {
       out += seg.path
     }

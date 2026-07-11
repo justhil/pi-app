@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import MarkdownView from '@renderer/features/timeline/markdown-view'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
@@ -240,6 +240,7 @@ export function FilePreviewRouter({
         code={content}
         lang={lang}
         fill={fill}
+        path={relativePath}
         readComplete={readComplete}
         onRequestFullContent={requestFullContent}
       />,

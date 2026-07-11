@@ -20,26 +20,45 @@ function AttachmentChipImpl({
 }) {
   const { t } = useTranslation()
   const Icon = getAttachmentIcon(attachment.kind)
+  const isLineRef = attachment.kind === 'line-ref'
   const handleOpen = () => {
+    if (isLineRef) {
+      // Open file in Files panel when possible
+      void import('@renderer/lib/open-workspace-path').then(({ openWorkspaceRelativePath }) => {
+        openWorkspaceRelativePath(attachment.path)
+      })
+      return
+    }
     void ipcClient.invoke('shell.openPath', { path: attachment.path })
   }
+
+  const tooltip = isLineRef
+    ? `${attachment.path}:${attachment.line ?? ''}${attachment.snippet ? `\n${attachment.snippet}` : ''}`
+    : attachment.path
 
   const chip = (
     <span
       className={cn(
         'attachment-chip inline-flex items-center gap-1.5 rounded-md border border-border/40 bg-[var(--bg-2)]/85 px-2.5 py-1.5 text-[12px] leading-tight text-foreground-secondary',
-        openable && 'cursor-pointer',
+        isLineRef && 'attachment-chip--line-ref border-primary/25 bg-primary/[0.06]',
+        (openable || isLineRef) && 'cursor-pointer',
         className,
       )}
-      onClick={openable ? handleOpen : undefined}
+      onClick={openable || isLineRef ? handleOpen : undefined}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0 opacity-65" strokeWidth={2} />
+      <Icon className={cn('h-3.5 w-3.5 shrink-0 opacity-65', isLineRef && 'text-primary/80')} strokeWidth={2} />
       <span className="max-w-[220px] truncate font-mono text-[12px]">{attachment.name}</span>
       {onRemove && (
         <button
           type="button"
-          onPointerDown={(e) => { e.stopPropagation(); hideAllDelayedTooltips() }}
-          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            hideAllDelayedTooltips()
+          }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
           className="attachment-chip-remove -mr-0.5 rounded p-0.5 opacity-45"
           aria-label={t('composer:removeFile')}
         >
@@ -50,7 +69,7 @@ function AttachmentChipImpl({
   )
 
   return (
-    <DelayedTooltip content={attachment.path}>
+    <DelayedTooltip content={tooltip}>
       {chip}
     </DelayedTooltip>
   )

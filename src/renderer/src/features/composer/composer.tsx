@@ -9,6 +9,7 @@ import {
   renderRichTextFromPlain,
   renderRichFromSegments,
   placeCaretAtEnd,
+  attachmentChipKey,
   type Segment,
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
@@ -91,6 +92,7 @@ export function Composer() {
   const setThinkingPickerOpen = useUIStore((s) => s.setThinkingPickerOpen)
   const [composerFocused, setComposerFocused] = useState(false)
   const composerPrefill = useUIStore((s) => s.composerPrefill)
+  const composerPrefillMode = useUIStore((s) => s.composerPrefillMode)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
   const { voiceState, toggle: toggleVoice, disabled: voiceDisabled } = useVoiceInput(canSendMessages, (spoken) => {
@@ -183,9 +185,24 @@ export function Composer() {
 
   useEffect(() => {
     if (composerPrefill == null) return
-    setContent(composerPrefill)
+    const el = editorRef.current
+    if (!el) return
+    if (composerPrefillMode === 'append') {
+      const current = serializeRichInput(el).displayText
+      const next = current.trim()
+        ? `${current.replace(/\s+$/, '')}\n${composerPrefill}`
+        : composerPrefill
+      setContent(next)
+    } else {
+      setContent(composerPrefill)
+    }
     setComposerPrefill(null)
-  }, [composerPrefill, setComposerPrefill, setContent])
+    // Focus after line-ref insert so user can keep typing
+    requestAnimationFrame(() => {
+      el.focus()
+      placeCaretAtEnd(el)
+    })
+  }, [composerPrefill, composerPrefillMode, setComposerPrefill, setContent])
 
   useEffect(() => {
     if (!historySessionFile) return
@@ -323,11 +340,11 @@ export function Composer() {
       >
         {attachments.length > 0 && (
           <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
-            {attachments.map((a) => (
+            {attachments.map((a, index) => (
               <AttachmentChip
-                key={a.path}
+                key={attachmentChipKey(a, index)}
                 attachment={a}
-                onRemove={() => attachmentHandlers.removeAttachment(a.path)}
+                onRemove={() => attachmentHandlers.removeAttachment(a)}
               />
             ))}
           </div>

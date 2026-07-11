@@ -57,7 +57,17 @@ export interface TimelineItem {
   attachments?: { path: string; name: string; kind: string }[]
   segments?: Array<
     | { type: 'text'; text: string }
-    | { type: 'file'; attachment: { path: string; name: string; kind: string } }
+    | {
+        type: 'file'
+        attachment: {
+          path: string
+          name: string
+          kind: string
+          line?: number
+          endLine?: number
+          snippet?: string
+        }
+      }
     | { type: 'clipboard-image'; path: string; name: string }
   >
   timestamp: number
@@ -149,7 +159,11 @@ export interface UIState {
   addFileChange: (fc: FileChange) => void
   clearFileChanges: () => void
   composerPrefill: string | null
+  /** replace = overwrite input; append = add after existing draft */
+  composerPrefillMode: 'replace' | 'append'
   setComposerPrefill: (text: string | null) => void
+  /** Append snippet to composer (line refs, etc.) without wiping the draft */
+  appendComposerPrefill: (text: string) => void
   activePanel: string
   setActivePanel: (p: string) => void
   rightPanelCatalog: RightPanelCatalogItem[]

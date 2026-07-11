@@ -1,5 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
-import type { TimelineItem, ToolTimelineItem } from '@renderer/stores/ui-store-types'
+import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import { cn } from '@renderer/lib/utils'
 import { useTranslation } from 'react-i18next'
 import {
@@ -34,9 +34,8 @@ import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
 import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
-import { deriveTurnTimingsFromItems } from './timeline-turn-timing'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
-import { TurnFooter } from './turn-footer'
+import { TurnActivityBlock } from './turn-activity-block'
 import { enrichPlainTextWithPaths } from './markdown-inline-paths'
 import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
 import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
@@ -92,9 +91,23 @@ const TimelineItemBase = memo(function TimelineItem({
             {segments.map((s: Segment, i: number) => {
               if (s.type === 'text') return <span key={i}>{enrichPlainTextWithPaths(s.text)}</span>
               if (s.type === 'clipboard-image') {
-                return <AttachmentChip key={i} attachment={{ path: s.path, name: s.name, kind: 'image' }} openable className="mx-0.5" />
+                return (
+                  <AttachmentChip
+                    key={i}
+                    attachment={{ path: s.path, name: s.name, kind: 'image' }}
+                    openable
+                    className="mx-0.5"
+                  />
+                )
               }
-              return <AttachmentChip key={i} attachment={s.attachment as AttachmentMeta} openable className="mx-0.5" />
+              return (
+                <AttachmentChip
+                  key={i}
+                  attachment={s.attachment as AttachmentMeta}
+                  openable
+                  className="mx-0.5"
+                />
+              )
             })}
           </div>
         </MessageHoverShell>
@@ -505,12 +518,6 @@ export function Timeline() {
     () => groupDisplayBlocksByTurn(displayItems),
     [displayItems],
   )
-  // structureEpoch is a stable string when only stream text changes; recompute only on structure shifts.
-  const turnTimings = useMemo(
-    () => deriveTurnTimingsFromItems(items),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: structureEpoch only
-    [structureEpoch],
-  )
   const rewindEntryByItemId = useMemo(() => {
     const map = new Map<string, string | undefined>()
     const raw = items as unknown as TimelineRawItem[]
@@ -588,14 +595,25 @@ export function Timeline() {
     const showGroupGap = prevWasTool && curIsAssistant
 
     if (block.kind === 'tool-group') {
+      const groupThinking = block.thinkingText?.trim() || ''
       return (
         <Fragment key={blockKey}>
           {showGroupGap && <div className="h-2" />}
-          <div className="timeline-message-row">
-            <ToolGroupSummary
-              tools={block.tools as unknown as ToolTimelineItem[]}
-              autoExpandedToolIds={autoExpandedToolIds}
-            />
+          <div className="timeline-message-row space-y-0.5">
+            {groupThinking ? (
+              <ThinkingChainBlock text={groupThinking} streaming={false} />
+            ) : null}
+            {block.tools.length === 1 ? (
+              <ToolCallRow
+                item={block.tools[0] as unknown as ToolTimelineItem}
+                autoExpandedInBudget={autoExpandedToolIds.has(block.tools[0].id)}
+              />
+            ) : (
+              <ToolGroupSummary
+                tools={block.tools as unknown as ToolTimelineItem[]}
+                autoExpandedToolIds={autoExpandedToolIds}
+              />
+            )}
           </div>
         </Fragment>
       )
@@ -655,7 +673,7 @@ export function Timeline() {
         </button>
       )}
       {leading.map((block, i) => renderDisplayBlock(block, `lead-${i}`, leading[i - 1]))}
-      {turnGroups.map((turn, ti) => (
+      {turnGroups.map((turn, turnIndex) => (
         <Fragment key={turn.turnId}>
           <TimelineItemBase
             item={turn.userItem as unknown as TimelineRawItem}
@@ -667,12 +685,9 @@ export function Timeline() {
           {turn.blocks.map((block, bi) =>
             renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
           )}
-          <TurnFooter
-            toolCount={turn.toolCount}
-            endedAt={turn.endedAt}
-            durationMs={turnTimings.get(turn.turnId)?.durationMs}
-            isLast={ti === turnGroups.length - 1}
-            streaming={!!streamingAssistantId && ti === turnGroups.length - 1}
+          <TurnActivityBlock
+            blocks={turn.blocks}
+            isStreaming={!!streamingAssistantId && turnIndex === turnGroups.length - 1}
           />
         </Fragment>
       ))}

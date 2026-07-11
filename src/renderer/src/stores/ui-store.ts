@@ -285,7 +285,21 @@ export const useUIStore = create<UIState>()(
     })),
 
   composerPrefill: null,
-  setComposerPrefill: (text) => set({ composerPrefill: text }),
+  composerPrefillMode: 'replace' as const,
+  setComposerPrefill: (text) => set({ composerPrefill: text, composerPrefillMode: 'replace' }),
+  appendComposerPrefill: (text) => {
+    const snippet = String(text || '').trimEnd()
+    if (!snippet) return
+    set((s) => {
+      if (s.composerPrefill != null && s.composerPrefillMode === 'append') {
+        return {
+          composerPrefill: `${s.composerPrefill.replace(/\s+$/, '')}\n${snippet}`,
+          composerPrefillMode: 'append' as const,
+        }
+      }
+      return { composerPrefill: snippet, composerPrefillMode: 'append' as const }
+    })
+  },
 
   activePanel: 'review',
   rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],

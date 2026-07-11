@@ -34,7 +34,7 @@ export const MarkdownPathText = memo(function MarkdownPathText({ text }: { text:
             if (e.shiftKey) openReviewGitForPath(path)
             else openWorkspaceRelativePath(path)
           }}
-          title="打开文件（Shift+点击：Review）"
+          title="点击打开 Files · Shift+点击打开 Review"
         >
           {full}
         </button>,

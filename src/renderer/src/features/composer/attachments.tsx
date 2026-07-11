@@ -24,11 +24,35 @@ export type AttachmentKind =
   | 'audio'
   | 'video'
   | 'file'
+  /** Code line reference (Cursor-style path:line chip) */
+  | 'line-ref'
 
 export interface AttachmentMeta {
   path: string
   name: string
   kind: AttachmentKind
+  /** For line-ref chips */
+  line?: number
+  endLine?: number
+  snippet?: string
+  /**
+   * Stable DOM / React identity for chips. Same path may appear multiple times
+   * (file + line-refs, or duplicate attaches) — never use path alone as a React key.
+   */
+  chipId?: string
+}
+
+/** Unique key for React lists and remove-by-identity. */
+export function attachmentChipKey(meta: AttachmentMeta, index = 0): string {
+  if (meta.chipId) return meta.chipId
+  if (meta.kind === 'line-ref') {
+    return `line-ref:${meta.path}:${meta.line ?? 0}:${meta.endLine ?? ''}:${meta.name}:${index}`
+  }
+  return `file:${meta.path}:${meta.kind}:${index}`
+}
+
+export function newAttachmentChipId(): string {
+  return `chip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }
 
 export interface TextSegment { type: 'text'; text: string }
@@ -65,6 +89,7 @@ export function getAttachmentIcon(kind: AttachmentKind): LucideIcon {
     case 'code': return FileCode2
     case 'audio': return Music
     case 'video': return Video
+    case 'line-ref': return FileCode2
     default: return File
   }
 }
@@ -94,6 +119,7 @@ function buildIconSvgs() {
   const icons: Record<AttachmentKind, LucideIcon> = {
     image: ImageIcon, pdf: FileText, doc: FileText, sheet: FileSpreadsheet,
     archive: FileArchive, code: FileCode2, audio: Music, video: Video, file: File,
+    'line-ref': FileCode2,
   }
   for (const k of Object.keys(icons) as AttachmentKind[]) {
     ICON_SVGS[k] = renderToStaticMarkup(createElement(icons[k], { size: 11, strokeWidth: 2 }))
@@ -103,16 +129,32 @@ buildIconSvgs()
 
 /** 为富文本编辑器构建一个不可编辑的内联 chip DOM 节点。 */
 export function createAttachmentChip(meta: AttachmentMeta): HTMLSpanElement {
+  const chipId = meta.chipId || newAttachmentChipId()
   const span = document.createElement('span')
   span.setAttribute('contenteditable', 'false')
+  span.dataset.attachmentChipId = chipId
   span.dataset.attachmentPath = meta.path
   span.dataset.attachmentName = meta.name
   span.dataset.attachmentKind = meta.kind
-  span.className = 'rich-attachment-chip'
-  wireDelayedTooltip(span, meta.path)
-  span.innerHTML = '<span class="rich-attachment-icon">' + ICON_SVGS[meta.kind] + '</span>'
-    + '<span class="rich-attachment-name">' + escapeHtml(meta.name) + '</span>'
-    + '<button type="button" class="rich-attachment-remove" aria-label="\u79fb\u9664\u6587\u4ef6"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
+  if (meta.line != null) span.dataset.attachmentLine = String(meta.line)
+  if (meta.endLine != null) span.dataset.attachmentEndLine = String(meta.endLine)
+  if (meta.snippet) span.dataset.attachmentSnippet = meta.snippet
+  span.className =
+    meta.kind === 'line-ref' ? 'rich-attachment-chip rich-attachment-chip--line-ref' : 'rich-attachment-chip'
+  const tooltip =
+    meta.kind === 'line-ref'
+      ? `${meta.path}:${meta.line ?? ''}${meta.snippet ? `\n${meta.snippet}` : ''}`
+      : meta.path
+  wireDelayedTooltip(span, tooltip)
+  const displayName = escapeHtml(meta.name)
+  span.innerHTML =
+    '<span class="rich-attachment-icon">' +
+    (ICON_SVGS[meta.kind] || ICON_SVGS.file) +
+    '</span>' +
+    '<span class="rich-attachment-name">' +
+    displayName +
+    '</span>' +
+    '<button type="button" class="rich-attachment-remove" aria-label="\u79fb\u9664"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>'
   return span
 }
 
@@ -180,12 +222,21 @@ export function serializeRichInput(el: HTMLElement): {
         const e = child as HTMLElement
         if (e.dataset.attachmentPath) {
           flush()
+          const kind = (e.dataset.attachmentKind as AttachmentKind) || 'file'
+          const lineRaw = e.dataset.attachmentLine
+          const endLineRaw = e.dataset.attachmentEndLine
           const meta: AttachmentMeta = {
             path: e.dataset.attachmentPath,
             name: e.dataset.attachmentName || '',
-            kind: (e.dataset.attachmentKind as AttachmentKind) || 'file',
+            kind,
+            chipId: e.dataset.attachmentChipId,
+            ...(lineRaw ? { line: Number(lineRaw) } : {}),
+            ...(endLineRaw ? { endLine: Number(endLineRaw) } : {}),
+            ...(e.dataset.attachmentSnippet ? { snippet: e.dataset.attachmentSnippet } : {}),
           }
           segments.push({ type: 'file', attachment: meta })
+          // Include line-ref so composer treats chips as content (send button / empty check).
+          // They are not on-disk uploads; prompt payload uses @path:line via segments.
           attachments.push(meta)
         } else if (e.tagName === 'BR') {
           textBuf += '\n'

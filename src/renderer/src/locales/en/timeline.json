@@ -40,5 +40,14 @@
   "jumpToBottom": "Jump to bottom",
   "jumpToLive": "Jump to bottom · follow live",
   "interruptedEmpty": "Reply incomplete (app closed or interrupted). Rewind to the previous message to continue.",
-  "interruptedPartial": "Reply incomplete (interrupted)"
+  "interruptedPartial": "Reply incomplete (interrupted)",
+  "activity": {
+    "editedFiles": "Edited {{names}}",
+    "explored": "explored {{count}} files",
+    "searches": "{{count}} searches",
+    "commands": "ran {{count}} commands",
+    "usedTools": "Used {{count}} tools · {{names}}",
+    "filesChanged": "{{count}} files changed",
+    "review": "Review"
+  }
 }

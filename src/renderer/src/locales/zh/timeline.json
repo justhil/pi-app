@@ -40,5 +40,14 @@
   "jumpToBottom": "回到底部",
   "jumpToLive": "回到底部 · 继续跟踪",
   "interruptedEmpty": "回复未完成（程序关闭或中断）。可点回退到上一条后继续。",
-  "interruptedPartial": "回复未完成（已中断）"
+  "interruptedPartial": "回复未完成（已中断）",
+  "activity": {
+    "editedFiles": "已编辑 {{names}}",
+    "explored": "浏览 {{count}} 个文件",
+    "searches": "{{count}} 次搜索",
+    "commands": "运行 {{count}} 条命令",
+    "usedTools": "使用 {{count}} 个工具 · {{names}}",
+    "filesChanged": "{{count}} 个文件已更改",
+    "review": "Review"
+  }
 }

@@ -46,7 +46,12 @@ export function useComposerAttachments(opts: {
       const el = editorRef.current
       if (!el || metas.length === 0) return
       el.focus()
-      for (const m of metas) insertAttachmentAtCursor(el, m)
+      for (const m of metas) {
+        insertAttachmentAtCursor(el, {
+          ...m,
+          chipId: m.chipId || `chip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`,
+        })
+      }
       updateFromEditor()
     },
     [editorRef, updateFromEditor],
@@ -260,18 +265,41 @@ export function useComposerAttachments(opts: {
   )
 
   const removeAttachment = useCallback(
-    (path: string) => {
+    (meta: AttachmentMeta) => {
       hideAllDelayedTooltips()
       const el = editorRef.current
       if (!el) return
-      const chip = el.querySelector(`[data-attachment-path="${CSS.escape(path)}"]`) as HTMLElement | null
+      let chip: HTMLElement | null = null
+      if (meta.chipId) {
+        chip = el.querySelector(
+          `[data-attachment-chip-id="${CSS.escape(meta.chipId)}"]`,
+        ) as HTMLElement | null
+      }
+      if (!chip) {
+        const candidates = el.querySelectorAll(
+          `[data-attachment-path="${CSS.escape(meta.path)}"]`,
+        )
+        for (const node of candidates) {
+          const element = node as HTMLElement
+          const kind = element.dataset.attachmentKind || 'file'
+          if (kind !== meta.kind) continue
+          if (meta.kind === 'line-ref') {
+            if (element.dataset.attachmentLine !== String(meta.line ?? '')) continue
+            if ((element.dataset.attachmentEndLine || '') !== String(meta.endLine ?? '')) continue
+          }
+          chip = element
+          break
+        }
+      }
       if (!chip) return
       const prev = chip.previousSibling
       const next = chip.nextSibling
-      if (prev && prev.nodeType === Node.TEXT_NODE && (prev.nodeValue || '') === '\u200B')
+      if (prev && prev.nodeType === Node.TEXT_NODE && (prev.nodeValue || '') === '\u200B') {
         prev.parentNode?.removeChild(prev)
-      if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '') === '\u200B')
+      }
+      if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '') === '\u200B') {
         next.parentNode?.removeChild(next)
+      }
       chip.parentNode?.removeChild(chip)
       el.normalize()
       updateFromEditor()

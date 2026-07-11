@@ -9,7 +9,6 @@ import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-
 import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
 import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
-import i18n from '@renderer/lib/i18n'
 import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
@@ -168,21 +167,3 @@ function ToolCallRowImpl({
 }
 
 export const ToolCallRow = memo(ToolCallRowImpl)
-
-export function summarizeToolGroup(tools: ToolTimelineItem[]): {
-  label: string
-  running: boolean
-  hasError: boolean
-} {
-  const names = tools.map((t) => t.toolName || 'tool')
-  const uniq = [...new Set(names)]
-  const head = uniq.slice(0, 4).join(', ')
-  const more = uniq.length > 4 ? ` +${uniq.length - 4}` : ''
-  const running = tools.some((t) => t.toolPhase === 'start' || t.toolPhase === 'update')
-  const hasError = tools.some((t) => t.isError)
-  return {
-    label: i18n.t('timeline:toolsCount', { count: tools.length, head, more }),
-    running,
-    hasError,
-  }
-}
