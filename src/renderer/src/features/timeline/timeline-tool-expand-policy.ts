@@ -15,8 +15,10 @@ export type ToolExpandSlot = {
 }
 
 /**
- * Auto-expand budget for live tools.
- * maxExpanded=0 → never auto-expand (Cursor default: collapsed, subtle live pulse only).
+ * Auto-expand budget for tools in the active run.
+ * maxExpanded=0 → never auto-expand.
+ * While agent is running: expand the last N tools of the current run (any phase).
+ * User click override lives in toolExpandBySession and always wins in ToolCallRow.
  */
 export function pickAutoExpandedToolIds(
   slots: ToolExpandSlot[],
@@ -31,10 +33,6 @@ export function pickAutoExpandedToolIds(
   if (!opts.agentRunning || !opts.activeRunId) return new Set()
 
   const runSlots = slots.filter((slot) => slot.runId && slot.runId === opts.activeRunId)
-  const eligible = runSlots.filter(
-    (slot) => slot.toolPhase === 'start' || slot.toolPhase === 'update',
-  )
-  const pool = eligible.length > 0 ? eligible : runSlots
-  const tail = pool.slice(-max)
+  const tail = runSlots.slice(-max)
   return new Set(tail.map((slot) => slot.id))
 }

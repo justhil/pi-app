@@ -28,13 +28,13 @@ function MessageHoverActionsImpl({
     })
   }
   return (
-    <div className={cn('flex h-8 items-center gap-2', align === 'right' && 'flex-row-reverse justify-end')}>
+    <div className={cn('flex h-7 items-center gap-1.5', align === 'right' && 'flex-row-reverse justify-end')}>
       {onFork && (
         <button
           type="button"
           disabled={!sessionEntryId}
           onClick={() => sessionEntryId && onFork(sessionEntryId)}
-          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
+          className="chrome-icon-btn flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
           title={
             sessionEntryId
               ? t('timeline:forkFromHere', { defaultValue: '从此 Fork 新会话' })
@@ -49,7 +49,7 @@ function MessageHoverActionsImpl({
           type="button"
           disabled={!sessionEntryId}
           onClick={() => sessionEntryId && onRewind(sessionEntryId)}
-          className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
+          className="chrome-icon-btn flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
           title={
             sessionEntryId
               ? t('timeline:jumpToNode')
@@ -62,7 +62,7 @@ function MessageHoverActionsImpl({
       <button
         type="button"
         onClick={copy}
-        className="chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary"
+        className="chrome-icon-btn flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary"
         title={t('timeline:copy')}
       >
         {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
@@ -78,6 +78,10 @@ function MessageHoverActionsImpl({
 
 export const MessageHoverActions = memo(MessageHoverActionsImpl)
 
+/**
+ * Message chrome: actions live in normal document flow (not absolute overlay).
+ * Collapsed by default (0 height) so timeline stays dense; expands on hover/focus.
+ */
 export function MessageHoverShell({
   align,
   children,
@@ -88,6 +92,7 @@ export function MessageHoverShell({
   actions: ReactNode
 }) {
   const [hovered, setHovered] = useState(false)
+  const hasActions = actions != null && actions !== false
   return (
     <div
       className={cn('message-hover-shell', align === 'right' && 'items-end')}
@@ -95,9 +100,17 @@ export function MessageHoverShell({
       onMouseLeave={() => setHovered(false)}
     >
       {children}
-      <div className={cn('message-actions-slot', hovered && 'message-actions-slot-visible')}>
-        {actions}
-      </div>
+      {hasActions ? (
+        <div
+          className={cn(
+            'message-actions-slot',
+            align === 'right' && 'message-actions-slot--end',
+            hovered && 'message-actions-slot-visible',
+          )}
+        >
+          <div className="message-actions-slot-inner">{actions}</div>
+        </div>
+      ) : null}
     </div>
   )
 }

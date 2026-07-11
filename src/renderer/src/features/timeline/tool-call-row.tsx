@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight } from 'lucide-react'
@@ -10,9 +10,10 @@ import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-
 import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
 import { renderNativeToolPreview } from './tool-previews'
 import { buildToolSummary } from './tool-previews'
-import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
+import { countToolDiffStats } from './timeline-turn-activity'
+import { DiffStatBadge } from './diff-stat-badge'
 
 const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
 
@@ -29,20 +30,31 @@ function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
   return <>{renderToolCard(item, template)}</>
 }
 
-function toolSummaryLine(item: ToolTimelineItem): string {
+function toolArgSummary(item: ToolTimelineItem): string {
   const argSummary = buildToolSummary(item.toolName || '', item.toolArgs, item.toolDetail)
   if (argSummary) return argSummary
   if (item.toolStatusLine) return String(item.toolStatusLine)
-  const o = (item.toolOutput || '').trim()
-  if (!o) return ''
-  const l = o.split('\n').find((x: string) => x.trim()) || ''
-  return l.length > 72 ? l.slice(0, 72) + '…' : l
+  const output = (item.toolOutput || '').trim()
+  if (!output) return ''
+  const firstLine = output.split('\n').find((line) => line.trim()) || ''
+  return firstLine.length > 72 ? firstLine.slice(0, 72) + '…' : firstLine
+}
+
+function humanToolVerbKey(toolName: string): string {
+  const name = (toolName || '').toLowerCase()
+  if (name === 'read' || name === 'ls') return 'timeline:activity.verbRead'
+  if (name === 'edit' || name === 'write' || name === 'insert') return 'timeline:activity.verbEdit'
+  if (name === 'bash') return 'timeline:activity.verbRun'
+  if (name === 'grep' || name === 'ffgrep' || name === 'find' || name === 'fffind') {
+    return 'timeline:activity.verbSearch'
+  }
+  return 'timeline:activity.verbUsed'
 }
 
 /**
- * Cursor-like tool row: single text line by default.
- * Auto-expand only when budget allows (max=0 → never).
- * Expanded body is flat (no nested title row).
+ * Paper Agent tool row: natural-language summary as primary text.
+ * Mutate tools show +N -M on the right; auto-expand respects budget.
+ * Expand always works via local state; session store is optional persistence.
  */
 function ToolCallRowImpl({
   item,
@@ -51,42 +63,60 @@ function ToolCallRowImpl({
 }: {
   item: ToolTimelineItem
   compact?: boolean
-  /** True when this tool falls in the auto-expand budget for the live run. */
   autoExpandedInBudget?: boolean
 }) {
   const { t } = useTranslation()
   const agentRunning = useUIStore((s) => s.runState.status === 'running')
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
+  const expandKey = item.toolCallId || item.id
   const rememberedExpanded = useUIStore((s) => {
-    const toolCallId = item.toolCallId
-    if (!toolCallId) return undefined
+    if (!expandKey) return undefined
     const sessionKey =
       normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
-    return s.toolExpandBySession[sessionKey]?.[toolCallId]
+    return s.toolExpandBySession[sessionKey]?.[expandKey]
   })
   const setToolCallExpanded = useUIStore((s) => s.setToolCallExpanded)
+  // Local fallback when store key missing or store write fails — click must always toggle.
+  const [localExpanded, setLocalExpanded] = useState<boolean | null>(null)
   const isCurrentRun = !!item.runId && item.runId === activeRunId
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
-  const hasToolBody = !!item.toolOutput || !!item.toolDetails || !!item.toolArgs
-  const autoExpanded = agentRunning && isCurrentRun && hasToolBody && autoExpandedInBudget
-  // User preference wins; otherwise auto-expand budget for live tools.
-  const expanded = rememberedExpanded ?? autoExpanded
-  const rawSum = toolSummaryLine(item)
-  const liveStatus =
-    isRunning && item.toolStatusLine ? String(item.toolStatusLine) : null
+  const hasToolBody = !!(item.toolOutput || item.toolDetails || item.toolArgs || item.toolDetail)
+  const autoExpanded = autoExpandedInBudget && agentRunning && isCurrentRun && hasToolBody
+  const expanded =
+    localExpanded ?? rememberedExpanded ?? autoExpanded
+  const argSummary = toolArgSummary(item)
+  const liveStatus = isRunning && item.toolStatusLine ? String(item.toolStatusLine) : null
+  const diffStats = useMemo(() => countToolDiffStats(item), [item])
+
+  const primaryLabel = useMemo(() => {
+    if (liveStatus) return liveStatus
+    if (argSummary) {
+      return t(humanToolVerbKey(item.toolName || ''), {
+        detail: argSummary,
+        name: item.toolName || 'tool',
+        defaultValue: argSummary,
+      })
+    }
+    if (isRunning) return t('timeline:activity.workingTool', { name: item.toolName || 'tool' })
+    return item.toolName || t('timeline:activity.usedTools', { count: 1, names: 'tool' })
+  }, [liveStatus, argSummary, isRunning, item.toolName, t])
+
+  const toggleExpanded = () => {
+    if (!hasToolBody) return
+    const next = !expanded
+    setLocalExpanded(next)
+    if (expandKey) setToolCallExpanded(expandKey, next)
+  }
 
   return (
-    <div className={cn('tool-call-row', compact ? 'py-0' : 'py-px')}>
+    <div className={cn('tool-call-row', compact ? 'py-0' : 'py-0')}>
       <button
         type="button"
-        onClick={() => {
-          if (!hasToolBody) return
-          const next = !expanded
-          if (item.toolCallId) setToolCallExpanded(item.toolCallId, next)
-        }}
+        title={item.toolName || undefined}
+        aria-expanded={!!expanded && hasToolBody}
+        onClick={toggleExpanded}
         className={cn(
-          'group tool-call-row-hit flex w-full items-center gap-1 rounded-sm text-left transition-colors duration-150',
-          compact ? 'px-0.5 py-0.5' : 'px-1 py-0.5',
+          'group timeline-activity-row tool-call-row-hit px-0.5 py-0 w-full',
           hasToolBody && 'cursor-pointer',
           !hasToolBody && 'cursor-default',
           isRunning && 'tool-call-row-hit--live',
@@ -95,29 +125,19 @@ function ToolCallRowImpl({
       >
         {hasToolBody ? (
           <ChevronRight
-            className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/40"
+            className="chevron-expand h-3 w-3 shrink-0 timeline-text-placeholder"
             data-open={expanded ? 'true' : 'false'}
           />
         ) : (
           <span className="w-3 shrink-0" aria-hidden />
         )}
-        <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 opacity-55" />
-        <span
-          className={cn(
-            'max-w-[9rem] shrink-0 truncate text-[11px] font-mono tracking-tight',
-            isRunning
-              ? 'text-foreground-secondary/70 animate-tool-live-pulse'
-              : 'text-foreground-secondary/55',
-          )}
-        >
-          {item.toolName}
-        </span>
+        <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 timeline-text-quiet" />
         {item.extensionUiSuspended ? (
           <button
             type="button"
-            className="ml-1 shrink-0 rounded-sm border border-border/50 px-1.5 py-0.5 text-[10px] font-medium text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
-            onClick={(e) => {
-              e.stopPropagation()
+            className="ml-1 shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] timeline-text-secondary hover:bg-[var(--bg-hover)]"
+            onClick={(event) => {
+              event.stopPropagation()
               useExtensionUIStore.getState().resumeSuspended()
             }}
           >
@@ -126,21 +146,25 @@ function ToolCallRowImpl({
         ) : (
           <span
             className={cn(
-              'ml-0.5 min-w-0 flex-1 truncate text-[11px] leading-snug',
-              isRunning
-                ? 'text-foreground-secondary/65 animate-tool-live-pulse'
-                : 'text-foreground-secondary/70',
+              'timeline-activity-label timeline-text-quiet min-w-0 truncate',
+              isRunning && 'timeline-activity-label--live',
+              !isRunning && 'group-hover:opacity-70',
             )}
           >
-            {liveStatus ? liveStatus : rawSum ? rawSum : isRunning ? '…' : null}
+            {primaryLabel}
           </span>
         )}
+        <DiffStatBadge
+          additions={diffStats.additions}
+          deletions={diffStats.deletions}
+          className="ml-auto pl-2"
+        />
       </button>
-      <CollapsiblePanel open={expanded && hasToolBody} className="mt-0">
-        <div className="tool-call-body ml-3.5 border-l border-border/15 pl-1.5 pb-0.5 pt-0.5">
+      {expanded && hasToolBody ? (
+        <div className="tool-call-body ml-3.5 border-l border-border/12 pl-1.5 pb-0.5 pt-0.5">
           <ToolOutputExpanded item={item} />
         </div>
-      </CollapsiblePanel>
+      ) : null}
     </div>
   )
 }

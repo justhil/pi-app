@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   markTrailingIncompleteAssistants,
   resolveRewindTargetEntryId,
+  isToolBridgeEmptyAssistant,
+  isInterruptedAssistantRow,
   type IncompleteTimelineRow,
 } from './timeline-incomplete'
 
@@ -23,6 +25,40 @@ describe('markTrailingIncompleteAssistants', () => {
     ]
     const out = markTrailingIncompleteAssistants(items)
     expect(out[1].incomplete).toBeUndefined()
+  })
+
+  it('does not mark empty tool-bridge assistants mid-turn', () => {
+    const items: IncompleteTimelineRow[] = [
+      { id: 'u1', type: 'user-message', text: 'go', sessionEntryId: 'user-1' },
+      { id: 'a1', type: 'assistant-message', text: '', sessionEntryId: 'asst-bridge' },
+      { id: 't1', type: 'tool-call' },
+      { id: 'a2', type: 'assistant-message', text: '', sessionEntryId: 'asst-bridge-2' },
+      { id: 't2', type: 'tool-call' },
+      { id: 'a3', type: 'assistant-message', text: 'done', sessionEntryId: 'asst-final' },
+    ]
+    const out = markTrailingIncompleteAssistants(items)
+    expect(out[1].incomplete).toBeUndefined()
+    expect(out[3].incomplete).toBeUndefined()
+    expect(out[5].incomplete).toBeUndefined()
+  })
+
+  it('clears false incomplete on tool-bridge rows', () => {
+    const items: IncompleteTimelineRow[] = [
+      { id: 'u1', type: 'user-message', text: 'go', sessionEntryId: 'user-1' },
+      {
+        id: 'a1',
+        type: 'assistant-message',
+        text: '',
+        sessionEntryId: 'asst-bridge',
+        incomplete: true,
+        stopReason: 'interrupted',
+      },
+      { id: 't1', type: 'tool-call' },
+      { id: 'a2', type: 'assistant-message', text: 'ok', sessionEntryId: 'asst-final' },
+    ]
+    const out = markTrailingIncompleteAssistants(items)
+    expect(out[1].incomplete).toBeUndefined()
+    expect(isToolBridgeEmptyAssistant(out, 1)).toBe(true)
   })
 })
 
@@ -48,5 +84,24 @@ describe('resolveRewindTargetEntryId', () => {
       { id: 'a1', type: 'assistant-message', text: 'ok', sessionEntryId: 'asst-1' },
     ]
     expect(resolveRewindTargetEntryId(items, items[1])).toBe('asst-1')
+  })
+})
+
+describe('isInterruptedAssistantRow', () => {
+  it('empty body alone is not interrupted', () => {
+    expect(
+      isInterruptedAssistantRow({ type: 'assistant-message', text: '', sessionEntryId: 'x' }),
+    ).toBe(false)
+  })
+
+  it('incomplete flag is interrupted', () => {
+    expect(
+      isInterruptedAssistantRow({
+        type: 'assistant-message',
+        text: '',
+        incomplete: true,
+        stopReason: 'interrupted',
+      }),
+    ).toBe(true)
   })
 })

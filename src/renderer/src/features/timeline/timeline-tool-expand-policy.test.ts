@@ -38,7 +38,7 @@ describe('pickAutoExpandedToolIds', () => {
     expect(ids.has('t0')).toBe(false)
   })
 
-  it('prefers running tools when present', () => {
+  it('includes completed tools in the budget while agent is running', () => {
     const slots = [
       slot('done', 'run-1', 'end'),
       slot('live', 'run-1', 'update'),
@@ -49,6 +49,17 @@ describe('pickAutoExpandedToolIds', () => {
       maxExpanded: 15,
     })
     expect(ids.has('live')).toBe(true)
-    expect(ids.has('done')).toBe(false)
+    expect(ids.has('done')).toBe(true)
+  })
+
+  it('ignores tools from other runs', () => {
+    const slots = [slot('other', 'run-old', 'end'), slot('cur', 'run-1', 'end')]
+    const ids = pickAutoExpandedToolIds(slots, {
+      agentRunning: true,
+      activeRunId: 'run-1',
+      maxExpanded: 15,
+    })
+    expect(ids.has('cur')).toBe(true)
+    expect(ids.has('other')).toBe(false)
   })
 })

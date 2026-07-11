@@ -21,7 +21,7 @@ import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
-import { resolveRewindTargetEntryId } from '@shared/timeline-incomplete'
+import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import {
   TIMELINE_LOAD_OLDER_SCROLL_TOP_PX,
@@ -53,6 +53,8 @@ const TimelineItemBase = memo(function TimelineItem({
   agentRunning,
   agentBoot,
   rewindEntryId,
+  /** Only the last prose leaf of a turn (or user) should expose copy/rewind chrome. */
+  showMessageActions = true,
 }: {
   item: TimelineRawItem
   prevType?: string
@@ -61,6 +63,7 @@ const TimelineItemBase = memo(function TimelineItem({
   agentBoot: boolean
   /** Pre-resolved incomplete-assistant / user rewind target for this row */
   rewindEntryId?: string
+  showMessageActions?: boolean
 }) {
   const { t } = useTranslation()
   const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
@@ -71,27 +74,23 @@ const TimelineItemBase = memo(function TimelineItem({
       ? (item.segments as Segment[])
       : [{ type: 'text', text: String(item.text || '') }]
     return (
-      <div className={cn('timeline-message-row', prevType === 'user-message' ? 'py-1' : 'py-2.5')}>
+      <div className="timeline-message-row timeline-user-row">
         <MessageHoverShell
           align="right"
           actions={
-            <MessageHoverActions
-              text={String(item.text ?? '')}
-              timestamp={Number(item.timestamp ?? 0)}
-              align="right"
-              sessionEntryId={rewindTargetFor(item)}
-              onRewind={(id) => void navigateSessionToEntry(id)}
-              onFork={(id) => void forkSessionFromEntry(id)}
-            />
+            showMessageActions ? (
+              <MessageHoverActions
+                text={String(item.text ?? '')}
+                timestamp={Number(item.timestamp ?? 0)}
+                align="right"
+                sessionEntryId={rewindTargetFor(item)}
+                onRewind={(id) => void navigateSessionToEntry(id)}
+                onFork={(id) => void forkSessionFromEntry(id)}
+              />
+            ) : null
           }
         >
-          <div
-            className="max-w-[80%] px-3.5 py-2 text-[15px] leading-[1.7] text-foreground whitespace-pre-wrap break-words transition-shadow duration-300 ease-out"
-            style={{
-              background: 'var(--message-user-bg)',
-              borderRadius: '8px 0 8px 8px',
-            }}
-          >
+          <div className="timeline-user-bubble">
             {segments.map((s: Segment, i: number) => {
               if (s.type === 'text') return <span key={i}>{enrichPlainTextWithPaths(s.text)}</span>
               if (s.type === 'clipboard-image') {
@@ -123,17 +122,19 @@ const TimelineItemBase = memo(function TimelineItem({
     const hasText = !!String(item.text ?? '').trim()
     const hasThinking = !!String(item.thinkingText ?? '').trim()
     const sessionEntryId = item.sessionEntryId as string | undefined
-    const incomplete = !!(item as { incomplete?: boolean }).incomplete
-    const stopReason = String((item as { stopReason?: string }).stopReason || '')
-    const isInterrupted =
-      incomplete || stopReason === 'aborted' || stopReason === 'interrupted' || stopReason === 'error'
+    const isInterrupted = isInterruptedAssistantRow(item as { type?: string; incomplete?: boolean; stopReason?: string; text?: string; thinkingText?: string })
     // Empty incomplete leaf: rewind to previous user so session becomes continuable
     const resolvedRewindEntryId = rewindTargetFor(item)
+    // Activity-density row: thinking-only (no prose) — no 32px hover slot, no message padding
+    const isActivityThinkingOnly = hasThinking && !hasText && !isInterrupted
+    // Mid-turn bridge prose is part of the same reply — no per-segment message chrome.
+    const allowMessageActions = showMessageActions && !streaming
+
     if (!hasText && !hasThinking) {
       // Optimistic / live wait: show thinking placeholder (not empty silence).
       if (streaming || agentBoot) {
         return (
-          <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+          <div className="timeline-message-row timeline-activity-item">
             <ThinkingChainBlock
               text=""
               streaming
@@ -144,24 +145,25 @@ const TimelineItemBase = memo(function TimelineItem({
           </div>
         )
       }
-      // History: empty incomplete assistant after crash/force-quit — still show so user can rewind
-      // Prefer incomplete flag / previous-user target even when this leaf has no entry id.
-      if (sessionEntryId || isInterrupted || resolvedRewindEntryId) {
+      // Only show interrupted chrome for true incomplete leaves — not mid-turn tool bridges.
+      if (isInterrupted) {
         return (
-          <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
+          <div className="timeline-message-row timeline-prose-row">
             <MessageHoverShell
               align="left"
               actions={
-                <MessageHoverActions
-                  text=""
-                  timestamp={Number(item.timestamp ?? 0)}
-                  align="left"
-                  sessionEntryId={resolvedRewindEntryId}
-                  onRewind={(id) => void navigateSessionToEntry(id)}
-                />
+                allowMessageActions ? (
+                  <MessageHoverActions
+                    text=""
+                    timestamp={Number(item.timestamp ?? 0)}
+                    align="left"
+                    sessionEntryId={resolvedRewindEntryId}
+                    onRewind={(id) => void navigateSessionToEntry(id)}
+                  />
+                ) : null
               }
             >
-              <div className="rounded-lg border border-dashed border-border/50 px-3 py-2 text-[12px] text-foreground-secondary">
+              <div className="timeline-status-line timeline-status-line--warn text-[12px]">
                 {t('timeline:interruptedEmpty', {
                   defaultValue: '回复未完成（程序关闭或中断）。可点回退到上一条后继续。',
                 })}
@@ -170,14 +172,59 @@ const TimelineItemBase = memo(function TimelineItem({
           </div>
         )
       }
+      // Empty tool-bridge residue (should usually be absorbed by display clustering)
       return null
     }
+
+    if (isActivityThinkingOnly) {
+      return (
+        <div className="timeline-message-row timeline-activity-item">
+          <ThinkingChainBlock
+            text={String(item.thinkingText ?? '')}
+            streaming={streaming}
+            startedAt={Number(item.timestamp ?? 0) || undefined}
+            labelSeed={String(item.id)}
+          />
+        </div>
+      )
+    }
+
+    const proseBody = (
+      <>
+        {hasThinking && (
+          <ThinkingChainBlock
+            text={String(item.thinkingText ?? '')}
+            streaming={streaming}
+            startedAt={Number(item.timestamp ?? 0) || undefined}
+            labelSeed={String(item.id)}
+          />
+        )}
+        {hasText ? (
+          <div
+            className={cn(
+              'min-w-0 text-[15px] leading-[1.65] timeline-text-body',
+              streaming && 'assistant-stream-live',
+            )}
+          >
+            <Suspense fallback={<p className="whitespace-pre-wrap break-words">{String(item.text ?? '')}</p>}>
+              <MarkdownView streaming={streaming}>{String(item.text ?? '')}</MarkdownView>
+            </Suspense>
+            {streaming && <StreamingCaret />}
+          </div>
+        ) : isInterrupted && !hasText ? (
+          <div className="text-[12px] timeline-text-quiet">
+            {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
+          </div>
+        ) : null}
+      </>
+    )
+
     return (
-      <div className={cn('timeline-message-row', prevType === 'assistant-message' ? 'py-1.5' : 'py-2.5')}>
-        <MessageHoverShell
-          align="left"
-          actions={
-            !streaming ? (
+      <div className="timeline-message-row timeline-prose-row">
+        {allowMessageActions ? (
+          <MessageHoverShell
+            align="left"
+            actions={
               <MessageHoverActions
                 text={String(item.text ?? '')}
                 timestamp={Number(item.timestamp ?? 0)}
@@ -185,53 +232,36 @@ const TimelineItemBase = memo(function TimelineItem({
                 sessionEntryId={isInterrupted && !hasText ? resolvedRewindEntryId : sessionEntryId}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
-            ) : null
-          }
-        >
-          {hasThinking && (
-            <ThinkingChainBlock
-              text={String(item.thinkingText ?? '')}
-              streaming={streaming}
-              startedAt={Number(item.timestamp ?? 0) || undefined}
-              labelSeed={String(item.id)}
-            />
-          )}
-          {hasText ? (
-            <div
-              className={cn(
-                'min-w-0 text-[15px] leading-[1.7] text-foreground',
-                streaming && 'assistant-stream-live',
-              )}
-            >
-              <Suspense fallback={<p className="whitespace-pre-wrap break-words">{String(item.text ?? '')}</p>}>
-                <MarkdownView streaming={streaming}>{String(item.text ?? '')}</MarkdownView>
-              </Suspense>
-              {streaming && <StreamingCaret />}
-            </div>
-          ) : isInterrupted && !hasText ? (
-            <div className="text-[12px] text-foreground-secondary">
-              {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
-            </div>
-          ) : null}
-        </MessageHoverShell>
+            }
+          >
+            {proseBody}
+          </MessageHoverShell>
+        ) : (
+          proseBody
+        )}
       </div>
     )
   }
 
   if (item.type === 'slash') {
     const status = item.slashStatus || 'dispatched'
-    const iconCls = status === 'error' ? 'text-destructive' : status === 'ok' ? 'text-green-500' : 'text-blue-500'
+    const iconCls =
+      status === 'error'
+        ? 'text-destructive/70'
+        : status === 'ok'
+          ? 'text-emerald-600/70 dark:text-emerald-400/70'
+          : 'timeline-text-quiet'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
     const label =
       status === 'error' ? t('timeline:statusFailed') : status === 'ok' ? t('timeline:statusDone') : String(item.text ?? '').includes('失败') ? t('timeline:statusFailed') : t('timeline:statusExecuted')
     return (
-      <div className="py-1.5 animate-in fade-in slide-in-from-bottom-1 duration-motion-normal ease-motion-ease">
-        <div className="flex items-center gap-2 rounded-lg border border-border/40 px-2.5 py-1 text-[11px] text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
-          <Icon className={cn('h-3 w-3 shrink-0 opacity-80', iconCls)} />
-          <span className="font-mono font-medium text-foreground">{String(item.slashCommand ?? '')}</span>
-          <span className={cn('text-[10px] uppercase tracking-wide', iconCls)}>{label}</span>
+      <div className="py-1">
+        <div className="timeline-status-line">
+          <Icon className={cn('h-3 w-3 shrink-0', iconCls)} />
+          <span className="font-mono text-[12px] timeline-text-secondary">{String(item.slashCommand ?? '')}</span>
+          <span className={cn('text-[11px]', iconCls)}>{label}</span>
           {String(item.text ?? '').length > 0 && (
-            <span className="truncate text-foreground-secondary">{String(item.text ?? '')}</span>
+            <span className="truncate timeline-text-quiet">{String(item.text ?? '')}</span>
           )}
         </div>
       </div>
@@ -240,12 +270,14 @@ const TimelineItemBase = memo(function TimelineItem({
 
   if (item.type === 'compaction') {
     return (
-      <div className="py-2">
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/50 px-2.5 py-1.5 text-foreground-secondary" style={{ background: 'var(--bg-1)' }}>
-          <Archive className="h-3 w-3 opacity-70" />
-          <span className="text-[11px]">{t('timeline:compacted')}</span>
+      <div className="py-1.5">
+        <div className="timeline-status-line">
+          <Archive className="h-3 w-3 shrink-0 timeline-text-placeholder" />
+          <span className="text-[12px] timeline-text-quiet">{t('timeline:compacted')}</span>
           {String(item.text ?? '').length > 0 && (
-            <span className="truncate text-[11px] opacity-80">{String(item.text ?? '').slice(0, 100)}...</span>
+            <span className="truncate text-[11px] timeline-text-placeholder">
+              {String(item.text ?? '').slice(0, 100)}...
+            </span>
           )}
         </div>
       </div>
@@ -255,11 +287,6 @@ const TimelineItemBase = memo(function TimelineItem({
   if (item.type === 'error') {
     const kind = item.errorKind as string | undefined
     const isAbort = kind === 'aborted'
-    // Cursor-like: soft amber for abort/errors in timeline — avoid loud destructive banners
-    const borderCls = isAbort
-      ? 'border-amber-500/30 bg-amber-500/[0.05]'
-      : 'border-amber-500/25 bg-amber-500/[0.04]'
-    const textCls = 'text-amber-900/85 dark:text-amber-100/85'
     const title = isAbort
       ? t('timeline:aborted')
       : kind === 'retry'
@@ -267,22 +294,15 @@ const TimelineItemBase = memo(function TimelineItem({
         : t('timeline:runError')
     return (
       <div className="py-1.5">
-        <div className={cn('rounded-lg border px-3 py-2', borderCls)}>
-          <div className="flex items-center gap-2">
-            <AlertCircle className={cn('h-3.5 w-3.5 shrink-0 opacity-75', textCls)} />
-            <span className={cn('text-[11px] font-medium', textCls)}>{title}</span>
-          </div>
-          {item.text != null && String(item.text) && (
-            <pre
-              className={cn(
-                'mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed opacity-90',
-                textCls,
-              )}
-            >
-              {String(item.text)}
-            </pre>
-          )}
+        <div className={cn('timeline-status-line', isAbort ? 'timeline-status-line--warn' : 'timeline-status-line--error')}>
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 opacity-80" />
+          <span className="text-[12px] font-medium">{title}</span>
         </div>
+        {item.text != null && String(item.text) && (
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words border-l-2 border-transparent pl-2.5 font-mono text-[11px] leading-relaxed timeline-text-quiet">
+            {String(item.text)}
+          </pre>
+        )}
       </div>
     )
   }
@@ -590,33 +610,25 @@ export function Timeline() {
     historySessionFile,
   })
 
-  const renderDisplayBlock = (block: TimelineDisplayItem, blockKey: string, prev?: TimelineDisplayItem) => {
-    const prevWasTool =
-      prev?.kind === 'tool-group' || (prev?.kind === 'single' && prev.item.type === 'tool-call')
-    const curIsAssistant = block.kind === 'single' && block.item.type === 'assistant-message'
-    const showGroupGap = prevWasTool && curIsAssistant
-
+  const renderDisplayBlock = (
+    block: TimelineDisplayItem,
+    blockKey: string,
+    opts?: { showMessageActions?: boolean },
+  ) => {
+    const showMessageActions = opts?.showMessageActions !== false
     if (block.kind === 'tool-group') {
       const groupThinking = block.thinkingText?.trim() || ''
-      const hasOrderedExtras = (block.children?.length ?? 0) > 0
+      const stableGroupKey = block.groupId || `tg-${block.tools[0]?.id || blockKey}`
       return (
-        <Fragment key={blockKey}>
-          {showGroupGap && <div className="h-2" />}
-          <div className="timeline-message-row space-y-0.5">
-            {block.tools.length === 1 && !groupThinking && !(block.foldedAssistantTexts?.length) && !hasOrderedExtras ? (
-              <ToolCallRow
-                item={block.tools[0] as unknown as ToolTimelineItem}
-                autoExpandedInBudget={autoExpandedToolIds.has(block.tools[0].id)}
-              />
-            ) : (
-              <ToolGroupSummary
-                tools={block.tools as unknown as ToolTimelineItem[]}
-                clusterChildren={block.children}
-                autoExpandedToolIds={autoExpandedToolIds}
-                thinkingText={groupThinking || undefined}
-                foldedAssistantTexts={block.foldedAssistantTexts}
-              />
-            )}
+        <Fragment key={stableGroupKey}>
+          <div className="timeline-message-row timeline-activity-item">
+            <ToolGroupSummary
+              tools={block.tools as unknown as ToolTimelineItem[]}
+              clusterChildren={block.children}
+              autoExpandedToolIds={autoExpandedToolIds}
+              thinkingText={groupThinking || undefined}
+              foldedAssistantTexts={block.foldedAssistantTexts}
+            />
           </div>
         </Fragment>
       )
@@ -624,8 +636,8 @@ export function Timeline() {
     const { item, prevType } = block
     if (item.type === 'tool-call') {
       return (
-        <Fragment key={blockKey}>
-          <div className="timeline-message-row">
+        <Fragment key={item.id || blockKey}>
+          <div className="timeline-message-row timeline-activity-item">
             <ToolCallRow
               item={item as unknown as ToolTimelineItem}
               autoExpandedInBudget={autoExpandedToolIds.has(item.id)}
@@ -635,8 +647,7 @@ export function Timeline() {
       )
     }
     return (
-      <Fragment key={blockKey}>
-        {showGroupGap && <div className="h-2" />}
+      <Fragment key={item.id || blockKey}>
         <TimelineItemBase
           item={item}
           prevType={prevType}
@@ -644,9 +655,25 @@ export function Timeline() {
           agentRunning={agentRunning}
           agentBoot={agentBoot}
           rewindEntryId={rewindEntryByItemId.get(item.id)}
+          showMessageActions={showMessageActions}
         />
       </Fragment>
     )
+  }
+
+  /** Last assistant prose block id in a turn — only that leaf gets message actions. */
+  const lastProseIdInTurn = (blocks: TimelineDisplayItem[]): string | null => {
+    for (let index = blocks.length - 1; index >= 0; index--) {
+      const block = blocks[index]
+      if (
+        block.kind === 'single' &&
+        block.item.type === 'assistant-message' &&
+        !!String(block.item.text ?? '').trim()
+      ) {
+        return block.item.id
+      }
+    }
+    return null
   }
 
   return (
@@ -661,7 +688,7 @@ export function Timeline() {
       <div
         ref={contentRef}
         key={historySessionFile || 'timeline'}
-        className="chat-content-column py-4 ui-enter"
+        className="chat-content-column py-4"
       >
       {(hiddenCount > 0 || historyLoading || fetchingOlder) && (
         <button
@@ -691,11 +718,19 @@ export function Timeline() {
           </button>
         </div>
       )}
-      {leading.map((block, i) => renderDisplayBlock(block, `lead-${i}`, leading[i - 1]))}
+      {leading.map((block, i) =>
+        renderDisplayBlock(block, `lead-${i}`, {
+          showMessageActions:
+            block.kind === 'single' &&
+            block.item.type === 'assistant-message' &&
+            block.item.id === lastProseIdInTurn(leading),
+        }),
+      )}
       {turnGroups.map((turn, turnIndex) => {
         const isLiveTurn =
           turnIndex === turnGroups.length - 1 &&
           (!!streamingAssistantId || agentRunning || sessionChrome.phase === 'waiting_ui')
+        const turnLastProseId = lastProseIdInTurn(turn.blocks)
         return (
           <Fragment key={turn.turnId}>
             <TimelineItemBase
@@ -704,21 +739,43 @@ export function Timeline() {
               agentRunning={agentRunning}
               agentBoot={agentBoot}
               rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
+              showMessageActions
             />
-            {turn.blocks.map((block, bi) =>
-              renderDisplayBlock(block, `${turn.turnId}-b${bi}`, turn.blocks[bi - 1]),
-            )}
-            {/* Files card only after the whole turn finishes (not mid-run). */}
-            <TurnActivityBlock
-              blocks={turn.blocks}
-              isStreaming={isLiveTurn}
-            />
+            {turn.blocks.map((block, bi) => {
+              // One reply = one message chrome: only the final prose leaf after the turn settles.
+              const isLastProse =
+                !isLiveTurn &&
+                block.kind === 'single' &&
+                block.item.type === 'assistant-message' &&
+                block.item.id === turnLastProseId
+              return renderDisplayBlock(
+                block,
+                block.kind === 'tool-group'
+                  ? block.groupId
+                  : block.kind === 'single'
+                    ? block.item.id
+                    : `${turn.turnId}-b${bi}`,
+                { showMessageActions: isLastProse },
+              )
+            })}
+            {/* Cursor-style files card: only on the last completed turn.
+                Older turns never keep a card; a new live turn hides this until done. */}
+            {turnIndex === turnGroups.length - 1 && !isLiveTurn ? (
+              <TurnActivityBlock blocks={turn.blocks} />
+            ) : null}
           </Fragment>
         )
       })}
       {leading.length === 0 &&
         turnGroups.length === 0 &&
-        displayItems.map((block, i) => renderDisplayBlock(block, `orphan-${i}`, displayItems[i - 1]))}
+        displayItems.map((block, i) =>
+          renderDisplayBlock(block, `orphan-${i}`, {
+            showMessageActions:
+              block.kind === 'single' &&
+              block.item.type === 'assistant-message' &&
+              block.item.id === lastProseIdInTurn(displayItems),
+          }),
+        )}
       {/*
         Stream tail pad: while agent is live, leave blank room under the last bubble so
         new tokens grow into empty space instead of constantly shoving the viewport.

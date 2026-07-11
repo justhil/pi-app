@@ -66,8 +66,17 @@
     "commands": "ran {{count}} commands",
     "usedTools": "{{count}} tools · {{names}}",
     "filesChanged": "{{count}} files",
+    "filesChangedTitle": "{{count}} Files Changed",
+    "showMoreFiles": "Show {{count}} more",
+    "showFewerFiles": "Show less",
     "filesReviewLink": "{{count}} files → Review",
     "review": "Review",
-    "openFileHint": "{{path}}\nClick Files · Right-click Review"
+    "openFileHint": "{{path}}\nClick Files · Right-click Review",
+    "verbRead": "Read {{detail}}",
+    "verbEdit": "Edited {{detail}}",
+    "verbRun": "Ran {{detail}}",
+    "verbSearch": "Searched {{detail}}",
+    "verbUsed": "Used {{name}} · {{detail}}",
+    "workingTool": "Running {{name}}…"
   }
 }

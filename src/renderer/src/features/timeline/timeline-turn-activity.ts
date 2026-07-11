@@ -80,6 +80,15 @@ function countDiffRows(item: ToolTimelineItem): { additions: number; deletions: 
   return { additions, deletions }
 }
 
+/** Public: +/− line counts for a single mutate tool (edit/write/insert). */
+export function countToolDiffStats(item: ToolTimelineItem): { additions: number; deletions: number } {
+  const name = (item.toolName || '').toLowerCase()
+  if (name !== 'edit' && name !== 'write' && name !== 'insert') {
+    return { additions: 0, deletions: 0 }
+  }
+  return countDiffRows(item)
+}
+
 function pathFromTool(item: ToolTimelineItem): string | null {
   if (item.toolDetail && (item.toolDetail.type === 'edit' || item.toolDetail.type === 'write' || item.toolDetail.type === 'read')) {
     const path = item.toolDetail.path

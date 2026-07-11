@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTimelineDisplayItems,
   isThinkingOnlyAssistant,
+  canFoldAssistantIntoCluster,
+  isActivitySegmentSealed,
   type TimelineRawItem,
 } from './timeline-display-items'
 
@@ -9,8 +11,8 @@ function thinking(id: string, text: string): TimelineRawItem {
   return { id, type: 'assistant-message', text: '', thinkingText: text, timestamp: 1 }
 }
 
-function tool(id: string, name: string): TimelineRawItem {
-  return { id, type: 'tool-call', toolName: name, toolPhase: 'end', timestamp: 1 }
+function tool(id: string, name: string, phase: string = 'end'): TimelineRawItem {
+  return { id, type: 'tool-call', toolName: name, toolPhase: phase, timestamp: 1 }
 }
 
 function assistant(id: string, text: string, thinkingText = ''): TimelineRawItem {
@@ -25,96 +27,125 @@ describe('isThinkingOnlyAssistant', () => {
   it('detects thinking-only bubbles', () => {
     expect(isThinkingOnlyAssistant(thinking('a', 'plan'))).toBe(true)
     expect(isThinkingOnlyAssistant(assistant('a', 'hello', 'plan'))).toBe(false)
-    expect(isThinkingOnlyAssistant(assistant('a', '', ''))).toBe(false)
-    expect(isThinkingOnlyAssistant(tool('t', 'read'))).toBe(false)
   })
 })
 
-describe('buildTimelineDisplayItems — tool merge across thinking', () => {
-  it('merges contiguous tools without thinking (unchanged)', () => {
+describe('canFoldAssistantIntoCluster', () => {
+  it('never folds prose assistants', () => {
+    const items = [tool('t1', 'read'), assistant('a1', '中间说明'), tool('t2', 'bash')]
+    expect(canFoldAssistantIntoCluster(items, 1)).toBe(false)
+  })
+})
+
+describe('isActivitySegmentSealed', () => {
+  it('seals only when next item is prose', () => {
+    const items = [tool('t1', 'read'), assistant('a1', 'done')]
+    expect(isActivitySegmentSealed(items, 1)).toBe(true)
+    expect(isActivitySegmentSealed([tool('t1', 'read')], 1)).toBe(false)
+  })
+})
+
+describe('buildTimelineDisplayItems — flat until prose seals', () => {
+  it('keeps open tool activity flat (no summary hierarchy)', () => {
     const blocks = buildTimelineDisplayItems([
       user('u1', 'go'),
-      tool('t1', 'read'),
-      tool('t2', 'bash'),
+      thinking('th1', 'plan'),
+      tool('t1', 'read', 'start'),
+      tool('t2', 'bash', 'start'),
     ])
-    expect(blocks).toHaveLength(2)
-    expect(blocks[0].kind).toBe('single')
-    expect(blocks[1]).toMatchObject({
-      kind: 'tool-group',
-      tools: [{ id: 't1' }, { id: 't2' }],
-    })
+    expect(blocks.map((block) => block.kind)).toEqual([
+      'single',
+      'single',
+      'single',
+      'single',
+    ])
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
+      'u1',
+      'th1',
+      't1',
+      't2',
+    ])
   })
 
-  it('merges tools split by thinking-only assistants and folds thinking text', () => {
-    // Matches screenshot: think → write → think → read → bash → think
+  it('collapses prior tools into summary only after prose appears', () => {
+    const open = buildTimelineDisplayItems([tool('t1', 'read'), tool('t2', 'bash')])
+    expect(open.every((block) => block.kind === 'single')).toBe(true)
+
+    const sealed = buildTimelineDisplayItems([
+      tool('t1', 'read'),
+      tool('t2', 'bash'),
+      assistant('a1', '中间结论'),
+    ])
+    expect(sealed.map((block) => block.kind)).toEqual(['tool-group', 'single'])
+    if (sealed[0].kind === 'tool-group') {
+      expect(sealed[0].groupId).toBe('tg-t1')
+      expect(sealed[0].tools.map((row) => row.id)).toEqual(['t1', 't2'])
+    }
+    expect(sealed[1]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
+  })
+
+  it('merges thinking into sealed group after prose', () => {
     const blocks = buildTimelineDisplayItems([
-      user('u1', 'test tools'),
-      thinking('th1', '先写临时文件'),
+      user('u1', 'test'),
+      thinking('th1', '先写'),
       tool('t1', 'write'),
-      thinking('th2', '再 read grep'),
+      thinking('th2', '再读'),
       tool('t2', 'read'),
-      tool('t3', 'bash'),
-      thinking('th3', '最后删掉'),
       assistant('a1', '完成了。'),
     ])
-
-    expect(blocks.map((b) => b.kind)).toEqual(['single', 'tool-group', 'single'])
-    const group = blocks[1]
-    expect(group.kind).toBe('tool-group')
-    if (group.kind !== 'tool-group') return
-    expect(group.tools.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
-    expect(group.thinkingText).toContain('先写临时文件')
-    expect(group.thinkingText).toContain('再 read grep')
-    expect(group.thinkingText).toContain('最后删掉')
-    expect(blocks[2]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
+    expect(blocks.map((block) => block.kind)).toEqual(['single', 'tool-group', 'single'])
+    if (blocks[1].kind !== 'tool-group') return
+    expect(blocks[1].tools.map((row) => row.id)).toEqual(['t1', 't2'])
+    expect(blocks[1].thinkingText).toContain('先写')
+    expect(blocks[1].thinkingText).toContain('再读')
   })
 
-  it('folds mid-turn assistant prose into tool-group when more tools follow', () => {
+  it('seals each tool segment when its following prose arrives', () => {
     const blocks = buildTimelineDisplayItems([
+      user('u1', 'go'),
+      thinking('th1', 'plan'),
       tool('t1', 'read'),
-      assistant('a1', '中间说明', 'think'),
-      tool('t2', 'bash'),
+      tool('t2', 'grep'),
+      assistant('a1', '中间结论'),
+      thinking('th2', 'next'),
+      tool('t3', 'edit'),
+      assistant('a2', '最终回答'),
     ])
-    expect(blocks).toHaveLength(1)
-    expect(blocks[0].kind).toBe('tool-group')
-    if (blocks[0].kind !== 'tool-group') return
-    expect(blocks[0].tools.map((row) => row.id)).toEqual(['t1', 't2'])
-    expect(blocks[0].foldedAssistantTexts).toEqual(['中间说明'])
-    expect(blocks[0].thinkingText).toContain('think')
-    // Order must follow timeline: tool → thinking → prose → tool
-    expect(blocks[0].children.map((child) => child.kind)).toEqual([
-      'tool',
-      'thinking',
-      'prose',
-      'tool',
+    expect(blocks.map((block) => block.kind)).toEqual([
+      'single',
+      'tool-group',
+      'single',
+      'tool-group',
+      'single',
     ])
-    expect(blocks[0].children[2]).toMatchObject({ kind: 'prose', text: '中间说明' })
+    if (blocks[1].kind === 'tool-group') {
+      expect(blocks[1].tools.map((row) => row.id)).toEqual(['t1', 't2'])
+    }
+    if (blocks[3].kind === 'tool-group') {
+      expect(blocks[3].tools.map((row) => row.id)).toEqual(['t3'])
+    }
   })
 
-  it('keeps thinking before tools when thinking arrives first', () => {
-    const blocks = buildTimelineDisplayItems([
-      thinking('th1', 'plan first'),
-      tool('t1', 'write'),
-      thinking('th2', 'then read'),
-      tool('t2', 'read'),
-    ])
-    expect(blocks).toHaveLength(1)
-    if (blocks[0].kind !== 'tool-group') return
-    expect(blocks[0].children.map((child) => child.kind)).toEqual([
-      'thinking',
-      'tool',
-      'thinking',
-      'tool',
-    ])
-  })
-
-  it('keeps final assistant prose outside the tool cluster', () => {
-    const blocks = buildTimelineDisplayItems([
+  it('keeps tools after prose flat until the next prose seals them', () => {
+    const mid = buildTimelineDisplayItems([
       tool('t1', 'read'),
-      assistant('a1', '最终回答'),
+      assistant('a1', '中间'),
+      tool('t2', 'edit', 'start'),
     ])
-    expect(blocks.map((block) => block.kind)).toEqual(['single', 'single'])
-    expect(blocks[1]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
+    expect(mid.map((block) => block.kind)).toEqual(['tool-group', 'single', 'single'])
+    expect(mid[2]).toMatchObject({ kind: 'single', item: { id: 't2' } })
+  })
+
+  it('absorbs empty tool-bridge shells while flat', () => {
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'test'),
+      { id: 'a-empty', type: 'assistant-message', text: '', thinkingText: '' },
+      tool('t1', 'write', 'start'),
+    ])
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
+      'u1',
+      't1',
+    ])
   })
 
   it('does not merge tools across user messages', () => {
@@ -123,35 +154,23 @@ describe('buildTimelineDisplayItems — tool merge across thinking', () => {
       user('u2', 'next'),
       tool('t2', 'bash'),
     ])
-    expect(blocks).toHaveLength(3)
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
+      't1',
+      'u2',
+      't2',
+    ])
   })
 
-  it('keeps orphan thinking-only as single when no tools follow', () => {
+  it('keeps orphan thinking as single when no tools follow', () => {
     const blocks = buildTimelineDisplayItems([
       user('u1', 'hi'),
       thinking('th1', 'only think'),
       assistant('a1', 'reply'),
     ])
-    expect(blocks.map((b) => (b.kind === 'single' ? b.item.id : b.kind))).toEqual([
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
       'u1',
       'th1',
       'a1',
     ])
-  })
-
-  it('single tool with surrounding thinking becomes tool-group with thinkingText', () => {
-    const blocks = buildTimelineDisplayItems([
-      thinking('th1', 'plan'),
-      tool('t1', 'read'),
-      thinking('th2', 'done'),
-    ])
-    expect(blocks).toHaveLength(1)
-    expect(blocks[0]).toMatchObject({
-      kind: 'tool-group',
-      tools: [{ id: 't1' }],
-    })
-    if (blocks[0].kind === 'tool-group') {
-      expect(blocks[0].thinkingText).toBe('plan\n\ndone')
-    }
   })
 })

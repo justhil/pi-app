@@ -74,15 +74,15 @@ const BUILTIN_ICON: Record<string, ComponentType<{ className?: string }>> = {
 }
 
 function ToolIconImpl({ name, className }: { name: string; className?: string }) {
-  const cls = className || 'h-3.5 w-3.5'
+  const cls = className || 'h-3.5 w-3.5 timeline-text-quiet'
   const Builtin = BUILTIN_ICON[name]
   if (Builtin) {
-    return <Builtin className={cn(cls, 'text-foreground-secondary/55')} />
+    return <Builtin className={cn(cls, 'text-current')} />
   }
   const adapter = resolveAdapterForTool(name)
   const iconName = adapter?.toolCard?.icon
   const Comp = (iconName && ICON_MAP[iconName]) || Wrench
-  return <Comp className={cn(cls, 'text-foreground-secondary/50')} />
+  return <Comp className={cn(cls, 'text-current')} />
 }
 
 export const ToolIcon = memo(ToolIconImpl)

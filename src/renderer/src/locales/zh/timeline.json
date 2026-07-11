@@ -66,8 +66,17 @@
     "commands": "运行 {{count}} 命令",
     "usedTools": "{{count}} 工具 · {{names}}",
     "filesChanged": "{{count}} 个文件",
+    "filesChangedTitle": "{{count}} 个文件已更改",
+    "showMoreFiles": "展开其余 {{count}} 个",
+    "showFewerFiles": "收起",
     "filesReviewLink": "{{count}} 个文件 → Review",
     "review": "Review",
-    "openFileHint": "{{path}}\n点击 Files · 右键 Review"
+    "openFileHint": "{{path}}\n点击 Files · 右键 Review",
+    "verbRead": "读了 {{detail}}",
+    "verbEdit": "编辑了 {{detail}}",
+    "verbRun": "运行了 {{detail}}",
+    "verbSearch": "搜索了 {{detail}}",
+    "verbUsed": "使用了 {{name}} · {{detail}}",
+    "workingTool": "正在运行 {{name}}…"
   }
 }

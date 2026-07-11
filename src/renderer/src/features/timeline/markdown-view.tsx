@@ -15,6 +15,7 @@ import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timelin
 import { splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
+import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
 import { Check, ChevronDown, Copy } from 'lucide-react'
 
 function CodeBlock({
@@ -239,7 +240,7 @@ const MarkdownView = memo(function MarkdownView({
   if (usePlainStream) {
     return (
       <div className={cn('prose-chat prose-chat-streaming', className)}>
-        <p className="stream-live-tail my-1 whitespace-pre-wrap break-words">{liveTail}</p>
+        <StreamLiveTailBlock text={liveTail} streaming />
       </div>
     )
   }
@@ -255,9 +256,7 @@ const MarkdownView = memo(function MarkdownView({
             {committedMd}
           </ReactMarkdown>
         ) : null}
-        {liveTail ? (
-          <p className="stream-live-tail my-1 whitespace-pre-wrap break-words leading-relaxed">{liveTail}</p>
-        ) : null}
+        {liveTail ? <StreamLiveTailBlock text={liveTail} streaming /> : null}
       </div>
     )
   }

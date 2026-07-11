@@ -24,7 +24,9 @@ describe('incomplete assistant after force-quit', () => {
   it('UI keeps empty incomplete assistants for rewind', () => {
     const text = src('src/renderer/src/features/timeline/timeline.tsx')
     assert.match(text, /interruptedEmpty/)
-    assert.match(text, /sessionEntryId \|\| isInterrupted/)
+    assert.match(text, /isInterruptedAssistantRow/)
+    // Only true incomplete leaves show interrupted chrome (not tool-bridge empties)
+    assert.match(text, /Only show interrupted chrome for true incomplete/)
   })
 
   it('dispose aborts active turn before session.dispose', () => {

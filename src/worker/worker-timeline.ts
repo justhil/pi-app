@@ -26,11 +26,16 @@ function pushAssistantItem(
     timestamp: number
     sessionEntryId?: string
     stopReason?: string
+    /** Same assistant message also emitted toolCall blocks — not a crash leaf. */
+    hasToolCalls?: boolean
   },
 ): void {
-  const incomplete =
-    !opts.text.trim() &&
-    !opts.thinkingText.trim()
+  const emptyBody = !opts.text.trim() && !opts.thinkingText.trim()
+  const errorStop =
+    opts.stopReason === 'aborted' || opts.stopReason === 'error' || opts.stopReason === 'interrupted'
+  // Mid-turn tool-use bridges are empty by design — only mark incomplete on true errors
+  // or empty leaves without tool calls (crash before first token / tool).
+  const incomplete = emptyBody && (errorStop || !opts.hasToolCalls)
   items.push({
     id: `hist-${++msgSeq}`,
     type: 'assistant-message',
@@ -38,7 +43,7 @@ function pushAssistantItem(
     thinkingText: opts.thinkingText || undefined,
     timestamp: opts.timestamp,
     ...(opts.sessionEntryId ? { sessionEntryId: opts.sessionEntryId } : {}),
-    ...(incomplete || opts.stopReason === 'aborted' || opts.stopReason === 'error'
+    ...(incomplete
       ? { incomplete: true, stopReason: opts.stopReason || 'interrupted' }
       : opts.stopReason
         ? { stopReason: opts.stopReason }
@@ -69,6 +74,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         thinkingText,
         timestamp: ts,
         stopReason: pm.stopReason,
+        hasToolCalls: toolCalls.length > 0,
       })
       for (const c of toolCalls) {
         const tc = c as { toolCall?: { name?: string; input?: unknown; arguments?: unknown; id?: string } }
@@ -192,6 +198,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
         timestamp: ts,
         sessionEntryId: sid,
         stopReason: m.stopReason,
+        hasToolCalls: toolCalls.length > 0,
       })
       for (const c of toolCalls) {
         const cc = c as {

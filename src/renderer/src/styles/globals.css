@@ -36,7 +36,7 @@
     --bg-3: #e5e6eb;
     --bg-hover: #f3f4f6;
     --bg-active: #e5e6eb;
-    --message-user-bg: #F3F3F4;
+    --message-user-bg: #F6F6F7;
 
     /* ── 参考桌面客户端 text colors (light: avoid pure black) ── */
     --text-primary: #12141a;
@@ -228,26 +228,39 @@
   .interactive-row {
     transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease, border-color var(--motion-fast) ease, box-shadow var(--motion-normal) ease, opacity var(--motion-fast) ease;
   }
-  /* Message hover：固定 32px 操作行占位，只淡入不改变布局（参考桌面客户端 messages.css） */
+  /* Message hover: in-flow actions, collapsed height until hover (no permanent 32px gap) */
   .message-hover-shell {
     display: flex;
     flex-direction: column;
   }
   .message-actions-slot {
-    height: 32px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-rows: 0fr;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      grid-template-rows 160ms cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 140ms ease;
   }
-  .message-hover-shell.items-end .message-actions-slot {
+  .message-actions-slot-inner {
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    height: 28px;
+  }
+  .message-actions-slot--end .message-actions-slot-inner {
     justify-content: flex-end;
   }
   .message-actions-slot-visible {
+    grid-template-rows: 1fr;
     opacity: 1;
     pointer-events: auto;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .message-actions-slot {
+      transition: none;
+    }
   }
   .hover-reveal {
     opacity: 0;
@@ -308,11 +321,12 @@
     display: none;
   }
   .shell-track-center .main-chat-column {
-    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    /* Paper Agent: flat paper sheet — no nested card chrome */
+    border-radius: 0;
     background: var(--bg-base);
     overflow: hidden;
     height: 100%;
-    box-shadow: 0 0 0 1px var(--border-base);
+    box-shadow: none;
   }
   .shell-track-right {
     position: relative;
@@ -1204,6 +1218,122 @@
   .animate-in.fade-in.slide-in-from-bottom-1 {
     animation: slide-in-from-bottom-1 var(--motion-normal) var(--motion-ease) both;
   }
+  /* ── Paper Agent timeline text ladder (4 levels only) ── */
+  .timeline-text-body {
+    color: var(--text-primary);
+  }
+  .timeline-text-secondary {
+    color: color-mix(in srgb, var(--text-secondary) 100%, transparent);
+    opacity: 0.62;
+  }
+  .timeline-text-quiet {
+    color: var(--text-secondary);
+    opacity: 0.48;
+  }
+  .timeline-text-placeholder {
+    color: var(--text-secondary);
+    opacity: 0.35;
+  }
+  .timeline-activity-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 0.25rem;
+    border: none;
+    background: transparent;
+    padding: 0.0625rem 0.125rem;
+    min-height: 1.375rem;
+    text-align: left;
+    transition: background-color 150ms ease;
+  }
+  .timeline-activity-row:hover {
+    background: color-mix(in srgb, var(--bg-hover) 65%, transparent);
+  }
+  .timeline-activity-label {
+    min-width: 0;
+    flex: 1;
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0.005em;
+  }
+  /* Flat thinking/tool stack: no message chrome gap */
+  .timeline-activity-item {
+    margin: 0;
+    padding-block: 0;
+  }
+  .timeline-activity-item + .timeline-activity-item {
+    margin-top: 0;
+  }
+  /* Dense turn stack: activity ↔ prose ↔ activity share tight rhythm */
+  .timeline-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .timeline-prose-row {
+    margin: 0;
+    padding-block: 0.25rem;
+  }
+  .timeline-activity-item + .timeline-prose-row,
+  .timeline-prose-row + .timeline-activity-item {
+    /* one soft breath only — not double py + hover slot */
+    margin-top: 0.125rem;
+  }
+  .timeline-user-row {
+    padding-block: 0.5rem 0.375rem;
+  }
+  .timeline-user-row + .timeline-activity-item,
+  .timeline-user-row + .timeline-prose-row {
+    margin-top: 0.125rem;
+  }
+  .timeline-activity-label--live {
+    animation: tool-live-pulse 2.4s ease-in-out infinite;
+  }
+  .timeline-status-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    border-left: 2px solid color-mix(in srgb, var(--border-base) 80%, transparent);
+    background: transparent;
+    padding: 0.25rem 0 0.25rem 0.625rem;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    opacity: 0.62;
+  }
+  .timeline-status-line--warn {
+    border-left-color: color-mix(in srgb, var(--status-warn) 55%, transparent);
+    color: color-mix(in srgb, var(--status-warn) 70%, var(--text-primary));
+    opacity: 0.9;
+  }
+  .timeline-status-line--error {
+    border-left-color: color-mix(in srgb, var(--status-error) 45%, transparent);
+    color: color-mix(in srgb, var(--status-error) 55%, var(--text-primary));
+    opacity: 0.9;
+  }
+  .timeline-mid-prose {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-primary);
+    opacity: 0.78;
+  }
+  .timeline-user-bubble {
+    max-width: 80%;
+    padding: 0.5rem 0.875rem;
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--message-user-bg);
+    border-radius: 10px 2px 10px 10px;
+  }
+  .dark .timeline-user-bubble {
+    background: color-mix(in srgb, var(--message-user-bg) 92%, transparent);
+  }
+
   /* 列表行默认无入场动画，避免滚动/流式时大量 keyframes 掉帧 */
   .timeline-message-row {
     contain: layout style;
@@ -1375,17 +1505,17 @@
     max-width: var(--composer-content-max);
   }
 
-  /* ── Markdown chat typography (参考桌面客户端 desktop-ui-markdown) ── */
+  /* ── Markdown chat typography (Paper Agent) ── */
   .prose-chat {
     font-size: 15px;
-    line-height: 1.7;
+    line-height: 1.65;
     word-break: break-word;
     overflow-wrap: anywhere;
     color: var(--text-primary);
   }
   .prose-chat > :first-child { margin-top: 0; }
   .prose-chat > :last-child { margin-bottom: 0; }
-  .prose-chat p { margin-block: 16px; }
+  .prose-chat p { margin-block: 0.45em; }
   .prose-chat > p:first-child { margin-top: 0; }
   .prose-chat > p:last-child { margin-bottom: 0; }
   .prose-chat strong { font-weight: 600; color: var(--text-primary); }
@@ -1436,18 +1566,22 @@
     border-top: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
     margin: 28px 0;
   }
-  .prose-chat ol, .prose-chat ul { padding-inline-start: 24px; }
-  .prose-chat li { margin-block: 6px; }
+  .prose-chat ol, .prose-chat ul { padding-inline-start: 1.35em; margin-block: 0.4em; }
+  .prose-chat li { margin-block: 0.2em; }
+  .prose-chat table {
+    margin-block: 0.5em;
+    border-collapse: collapse;
+  }
   .prose-chat th {
-    padding: 8px;
+    padding: 6px 8px;
     border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
     background: color-mix(in srgb, var(--bg-1) 70%, transparent);
     font-weight: bold;
   }
   .prose-chat td {
-    padding: 8px;
+    padding: 6px 8px;
     border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    min-width: 120px;
+    min-width: 80px;
   }
   /* ── KaTeX（行内 / 块级 / 化学式 / 错误态）── */
   .prose-chat .katex {
@@ -1533,11 +1667,45 @@
   .prose-chat-streaming .stream-live-tail,
   .assistant-stream-live .prose-chat {
     letter-spacing: 0.004em;
-    line-height: 1.75;
+    line-height: 1.65;
     font-weight: 400;
   }
   .stream-live-tail {
     contain: layout style;
+  }
+  /* Soft tip fade for newest stream chars (≤2 char lag buffer) */
+  @keyframes stream-char-tip-in {
+    from {
+      opacity: 0.28;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .stream-char-tip {
+    animation: stream-char-tip-in 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stream-char-tip {
+      animation: none !important;
+    }
+  }
+  /* New tool row: tiny opacity settle, no layout transform (avoids jump flash) */
+  @keyframes timeline-tool-row-in {
+    from {
+      opacity: 0.45;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .timeline-tool-row-enter {
+    animation: timeline-tool-row-in 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-tool-row-enter {
+      animation: none !important;
+    }
   }
   .prose-chat-streaming .katex-display,
   .prose-chat-streaming .math-display-shell {
@@ -1965,14 +2133,13 @@
   background: transparent;
 }
 .tool-call-row-hit:hover {
-  background: color-mix(in srgb, var(--bg-hover) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-hover) 65%, transparent);
 }
 .tool-call-row-hit--live {
-  /* subtle only — text uses animate-thinking-pulse */
   background: transparent;
 }
 .tool-call-row-hit--error {
-  background: color-mix(in srgb, #f59e0b 3%, transparent);
+  background: transparent;
 }
 .tool-group-hit {
   border: none;
@@ -1987,6 +2154,7 @@
 }
 .tool-group-hit--error {
   border: none;
+  background: transparent;
 }
 .shell-track-right-rail {
   border-top: none;
@@ -2006,6 +2174,11 @@
   }
   .tool-status-live-dot {
     opacity: 1;
+  }
+  .timeline-activity-label--live,
+  .thinking-shimmer-ltr,
+  .animate-tool-live-pulse {
+    animation: none !important;
   }
   .right-collapsed-rail {
     animation: none !important;

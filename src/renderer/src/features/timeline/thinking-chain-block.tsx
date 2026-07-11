@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { CollapsiblePanel } from '@renderer/components/ui/collapsible-panel'
 
 const LIVE_LABEL_KEYS = [
   'timeline:thinkingLive.thinking',
@@ -25,10 +24,9 @@ function formatThoughtDuration(ms: number): { seconds: number; labelKey: string 
 }
 
 /**
- * Thinking chain: muted, collapsed by default.
- * Live: left-to-right shimmer + varied soft labels.
- * Done: "Thought for Xs" style.
- * placeholder: optimistic waiting row with no body text yet.
+ * Thinking: quiet 12px activity line.
+ * Live: shimmer only (no stacked pulse).
+ * Done: "Thought for Xs".
  */
 export function ThinkingChainBlock({
   text,
@@ -43,7 +41,6 @@ export function ThinkingChainBlock({
   nested?: boolean
   startedAt?: number
   labelSeed?: string
-  /** Optimistic wait row: show live label without expandable body. */
   placeholder?: boolean
 }) {
   const { t } = useTranslation()
@@ -93,7 +90,7 @@ export function ThinkingChainBlock({
   if (!placeholder && !body) return null
 
   return (
-    <div className={cn(nested ? 'mb-0.5' : 'mb-1')}>
+    <div className="mb-0">
       <button
         type="button"
         onClick={() => {
@@ -101,8 +98,8 @@ export function ThinkingChainBlock({
           setUserOpen((prev) => !prev)
         }}
         className={cn(
-          'row-hover flex w-full items-center gap-1 rounded-sm px-0.5 py-0.5 text-left',
-          (placeholder || !body) && 'cursor-default',
+          'timeline-activity-row',
+          (placeholder || !body) && 'cursor-default hover:bg-transparent',
         )}
       >
         {placeholder || !body ? (
@@ -110,31 +107,29 @@ export function ThinkingChainBlock({
         ) : (
           <ChevronRight
             className={cn(
-              'chevron-expand h-3 w-3 text-foreground-secondary/40',
+              'chevron-expand h-3 w-3 timeline-text-placeholder',
               open && 'rotate-90',
             )}
           />
         )}
         <span
           className={cn(
-            'text-[11px] text-foreground-secondary/50',
-            isLive && 'thinking-shimmer-ltr',
+            'timeline-activity-label',
+            isLive ? 'thinking-shimmer-ltr' : 'timeline-text-quiet',
           )}
         >
           {label}
         </span>
       </button>
-      {!placeholder && body ? (
-        <CollapsiblePanel open={open} className="mt-0">
-          <div
-            className={cn(
-              'max-h-40 overflow-auto border-l border-border/20 pl-2 text-[11px] leading-[1.5] text-foreground-secondary/40 whitespace-pre-wrap break-words font-mono',
-              nested ? 'ml-3' : 'ml-3.5',
-            )}
-          >
-            {body}
-          </div>
-        </CollapsiblePanel>
+      {!placeholder && body && open ? (
+        <div
+          className={cn(
+            'max-h-40 overflow-auto border-l border-border/12 pl-2 text-[11px] leading-[1.5] timeline-text-placeholder whitespace-pre-wrap break-words font-mono',
+            nested ? 'ml-3' : 'ml-3.5',
+          )}
+        >
+          {body}
+        </div>
       ) : null}
     </div>
   )
