@@ -18,7 +18,7 @@ import {
 } from '@shared/timeline-settings'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
-import type { FileChange, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
+import type { FileChange, RunState, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 import {
   clearStreamPending,
   deleteStreamPendingForId,
@@ -256,11 +256,30 @@ export const useUIStore = create<UIState>()(
   runState: { status: 'idle', toolCount: 0, errorCount: 0 },
   setRunState: (patch) => set((s) => {
     const clean = sanitizeRunStatePatch(patch as Record<string, unknown>)
-    const next = { ...s.runState, ...clean }
+    const next = { ...s.runState } as RunState & Record<string, unknown>
     const extra: Partial<UIState> = {}
-    if (clean.model !== undefined) extra.lastModel = clean.model as string
-    if (clean.thinkingLevel !== undefined) extra.lastThinking = clean.thinkingLevel as string
-    return { runState: next, ...extra }
+    for (const [key, value] of Object.entries(clean)) {
+      if (key === 'model') {
+        if (value == null || value === '') {
+          delete next.model
+        } else {
+          next.model = value as string
+          extra.lastModel = value as string
+        }
+        continue
+      }
+      if (key === 'thinkingLevel') {
+        if (value == null || value === '') {
+          delete next.thinkingLevel
+        } else {
+          next.thinkingLevel = value as string
+          extra.lastThinking = value as string
+        }
+        continue
+      }
+      next[key] = value
+    }
+    return { runState: next as RunState, ...extra }
   }),
 
   fileChanges: [],

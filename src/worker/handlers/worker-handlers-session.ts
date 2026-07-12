@@ -21,6 +21,11 @@ import {
   listSessions,
 } from '../worker-runtime.js'
 
+function currentModelFallbackMessage(): string | undefined {
+  const message = String(st.runtime?.modelFallbackMessage || '').trim()
+  return message || undefined
+}
+
 export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         if (st.session) {
           try {
@@ -122,6 +127,7 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
               model: modelStr,
               thinkingLevel: st.session.thinkingLevel,
               leafId: st.session.sessionManager.getLeafId?.() ?? null,
+              modelFallbackMessage: currentModelFallbackMessage(),
             })
             return
           }
@@ -149,6 +155,7 @@ export async function handleLoadsession(msg: WorkerIncomingMessage, reply: Worke
             model: modelStr,
             thinkingLevel: st.session?.thinkingLevel,
             leafId: st.session?.sessionManager.getLeafId?.() ?? null,
+            modelFallbackMessage: currentModelFallbackMessage(),
           })
         } catch (e: unknown) {
           reply({ type: 'error', error: `loadSession failed: ${errorMessage(e)}` })

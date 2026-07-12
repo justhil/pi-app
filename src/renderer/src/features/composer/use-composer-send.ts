@@ -82,37 +82,37 @@ export function useComposerSend(opts: {
         if (routed.handled) return
       }
       try {
+        const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
         if (!running && draft) {
           appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
           const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
           await finalizeEphemeralSandboxOnFirstSend(pendMsg)
-          const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-          await sendPrompt()
-          await afterPromptSent()
+          const bind = await sendPrompt()
+          await afterPromptSent(bind)
           return
         }
         if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
           appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
           const { materializePendingNewSession } = await import('@renderer/lib/new-session')
           await materializePendingNewSession(store.currentWorkspace, pendMsg)
-          const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-          await sendPrompt()
-          await afterPromptSent()
+          const bind = await sendPrompt()
+          await afterPromptSent(bind)
           return
         }
         if (running) {
           const queue = queueOpts?.queue ?? 'steer'
           if (queue === 'steer') {
-            await ipcClient.invoke('prompt.steer', promptPayload())
+            const bind = await ipcClient.invoke('prompt.steer', promptPayload())
+            await afterPromptSent(bind)
           } else {
-            await ipcClient.invoke('prompt.followUp', promptPayload())
+            const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
+            await afterPromptSent(bind)
           }
           return
         }
         appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
-        const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-        await sendPrompt()
-        await afterPromptSent()
+        const bind = await sendPrompt()
+        await afterPromptSent(bind)
       } catch (e) {
         console.error('Send failed:', e)
         const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')

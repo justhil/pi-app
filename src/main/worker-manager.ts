@@ -631,7 +631,13 @@ export class WorkerManager {
   async loadSession(
     sessionFile: string,
     opts?: { force?: boolean; cwd?: string; leafId?: string | null },
-  ): Promise<{ sessionId: string; model?: string; leafId?: string | null }> {
+  ): Promise<{
+    sessionId: string
+    model?: string
+    leafId?: string | null
+    thinkingLevel?: string
+    modelFallbackMessage?: string
+  }> {
     // Lazy-start path: must resolve cwd even when no Worker is running yet.
     const cwd = this.resolveWorkspaceCwd(opts?.cwd)
     if (!cwd) {
@@ -668,6 +674,8 @@ export class WorkerManager {
       sessionId: String(r.sessionId ?? ''),
       model: r.model as string | undefined,
       leafId: (r.leafId as string | null | undefined) ?? null,
+      thinkingLevel: r.thinkingLevel as string | undefined,
+      modelFallbackMessage: r.modelFallbackMessage as string | undefined,
     }
   }
   async renameSessionFile(sessionFile: string, title: string): Promise<{ ok: boolean; title?: string; error?: string }> {

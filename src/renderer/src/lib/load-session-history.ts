@@ -56,7 +56,15 @@ export async function loadSessionHistoryWithRetry(
     if (delay > 0) await sleep(delay)
 
     if (alignWorkerOnRetry && attempt >= 2) {
-      await ipcClient.invoke('session.prepare', { sessionFile }).catch(() => {})
+      const prepared = await ipcClient.invoke('session.prepare', { sessionFile }).catch(() => null)
+      if (prepared?.bound) {
+        const { applyWorkerBoundModelDisplay } = await import('@renderer/lib/session-display-meta')
+        applyWorkerBoundModelDisplay({
+          model: prepared.model,
+          thinkingLevel: prepared.thinkingLevel,
+          modelFallbackMessage: prepared.modelFallbackMessage,
+        })
+      }
       clearSessionHistoryCache(sessionFile)
     }
 

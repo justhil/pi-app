@@ -2,6 +2,13 @@
 
 面向仓库的完整版本记录。发版时由 `scripts/generate-release-notes.mjs` 从对应章节生成 **GitHub Release 正文**（用户可读更新说明，应用内「发现新版本」弹窗展示）。发布与应用内更新流程见 [doc/RELEASE.md](doc/RELEASE.md)。
 
+## [0.4.19] — 2026-07-12
+
+### 修复
+
+- **#19 历史会话模型被静默换成 Claude**：会话保存的模型无法恢复时，SDK 会 fallback；现将 `modelFallbackMessage` 以 toast 明确提示，不再只写 Worker 日志
+- **绑定后 Composer 模型展示**：Worker 已绑定当前会话时，以 runtime 模型为准，JSONL / lastModel 不再盖住真实发送模型
+
 ## [0.4.18] — 2026-07-12
 
 ### 新增

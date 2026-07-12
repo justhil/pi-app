@@ -1,10 +1,13 @@
+import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { normalizeModelKey, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
+import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 
 export type SessionDisplayMeta = {
   model?: string
   thinkingLevel?: string
+  modelFallbackMessage?: string
 }
 
 /** 从 pi 全局 settings 读取默认模型 / thinking（Worker 未绑会话时也能显示） */
@@ -20,61 +23,110 @@ export async function fetchPiDefaultDisplayMeta(): Promise<SessionDisplayMeta> {
     if (provider && modelId) out.model = `${provider}/${modelId}`
     else if (modelId && String(modelId).includes('/')) out.model = String(modelId)
     return out
-  } catch (e) {
+  } catch {
     return {}
   }
 }
 
+/** Show SDK model-restore fallback once (toast). Safe to call from event handlers. */
+export function notifyModelFallback(message: string | null | undefined): void {
+  const text = String(message || '').trim()
+  if (!text) return
+  toast.warning(text, { duration: 12_000, id: `model-fallback:${text}` })
+}
+
 /**
- * 合并：Worker 已绑当前 historySessionFile 时优先 runtime；仅 pending 预览时用 JSONL meta。
- * 其次 pi 默认，最后 lastModel。
+ * Apply live Worker model/thinking after bind (loadSession / prompt.send).
+ * Runtime is authoritative — never keep JSONL meta when Worker is bound to the viewed session.
+ */
+export function applyWorkerBoundModelDisplay(result: {
+  model?: string | null
+  thinkingLevel?: string | null
+  modelFallbackMessage?: string | null
+}): void {
+  const store = useUIStore.getState()
+  const wm = normalizeModelKey(result.model)
+  const wt = normalizeThinkingLevel(result.thinkingLevel)
+  const patch: SessionDisplayMeta = {}
+  if (wm) patch.model = wm
+  if (wt) patch.thinkingLevel = wt
+  if (Object.keys(patch).length > 0) store.setRunState(patch)
+  notifyModelFallback(result.modelFallbackMessage)
+}
+
+/**
+ * Composer model/thinking display merge.
+ *
+ * When Worker is bound to the currently viewed session, runtime model/thinking are
+ * authoritative — JSONL sessionMeta must not cover them (issue #19).
+ * JSONL / pi defaults / lastModel only apply while unbound / preview-only.
  */
 export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null): Promise<void> {
   const store = useUIStore.getState()
   const patch: SessionDisplayMeta = {}
 
   const previewFile = store.historySessionFile
-  let trustWorker = !previewFile
+  let workerBoundToView = !previewFile
+  let workerModel: string | undefined
+  let workerThinking: string | undefined
 
   try {
     const res = await ipcClient.invoke('ipc:runtime.getState', {})
     const st = res?.state as { sessionFile?: string; model?: string; thinkingLevel?: string } | null
-    if (previewFile && st?.sessionFile) {
-      trustWorker = st.sessionFile === previewFile
+    if (previewFile) {
+      workerBoundToView = isViewingWorkerBoundSession(previewFile, st?.sessionFile)
+    } else if (st?.sessionFile) {
+      workerBoundToView = true
     }
-    if (trustWorker && st) {
-      const wm = normalizeModelKey(st.model)
-      const wt = normalizeThinkingLevel(st.thinkingLevel)
-      if (wm) patch.model = wm
-      if (wt) patch.thinkingLevel = wt
+    if (workerBoundToView && st) {
+      workerModel = normalizeModelKey(st.model)
+      workerThinking = normalizeThinkingLevel(st.thinkingLevel)
+      if (workerModel) patch.model = workerModel
+      if (workerThinking) patch.thinkingLevel = workerThinking
     }
-  } catch (e) {
+  } catch {
     /* worker not ready */
   }
 
-  const fromMetaModel = normalizeModelKey(meta?.model)
-  const fromMetaThink = normalizeThinkingLevel(meta?.thinkingLevel)
-  if (!patch.model && fromMetaModel) patch.model = fromMetaModel
-  if (!patch.thinkingLevel && fromMetaThink) patch.thinkingLevel = fromMetaThink
+  // Bound: runtime only (plus fill missing thinking from defaults/last). Never JSONL model.
+  // Unbound preview: JSONL meta is OK for display until first bind.
+  if (!workerBoundToView) {
+    const fromMetaModel = normalizeModelKey(meta?.model)
+    const fromMetaThink = normalizeThinkingLevel(meta?.thinkingLevel)
+    if (!patch.model && fromMetaModel) patch.model = fromMetaModel
+    if (!patch.thinkingLevel && fromMetaThink) patch.thinkingLevel = fromMetaThink
+  }
 
   if (!patch.model || !patch.thinkingLevel) {
     const defaults = await fetchPiDefaultDisplayMeta()
     const dm = normalizeModelKey(defaults.model)
     const dt = normalizeThinkingLevel(defaults.thinkingLevel)
-    if (!patch.model && dm) patch.model = dm
+    // When bound, do not invent a different model from pi defaults — only fill thinking.
+    if (!workerBoundToView && !patch.model && dm) patch.model = dm
     if (!patch.thinkingLevel && dt) patch.thinkingLevel = dt
   }
 
   const lm = normalizeModelKey(store.lastModel)
   const lt = normalizeThinkingLevel(store.lastThinking)
-  if (!patch.model && lm) patch.model = lm
+  if (!workerBoundToView && !patch.model && lm) patch.model = lm
   if (!patch.thinkingLevel && lt) patch.thinkingLevel = lt
 
   const cur = store.runState
-  const finalModel = patch.model ?? normalizeModelKey(cur.model)
-  const finalThink = patch.thinkingLevel ?? normalizeThinkingLevel(cur.thinkingLevel) ?? 'off'
+  // Bound without a model key: clear stale display rather than keep JSONL/lastModel
+  let finalModel = patch.model ?? (!workerBoundToView ? normalizeModelKey(cur.model) : undefined)
+  if (workerBoundToView && workerModel) finalModel = workerModel
+  if (workerBoundToView && !workerModel) finalModel = undefined
+
+  const finalThink =
+    patch.thinkingLevel ??
+    workerThinking ??
+    normalizeThinkingLevel(cur.thinkingLevel) ??
+    'off'
+
   store.setRunState({
-    ...(finalModel ? { model: finalModel } : {}),
+    model: finalModel,
     thinkingLevel: finalThink,
   })
+
+  notifyModelFallback(meta?.modelFallbackMessage)
 }

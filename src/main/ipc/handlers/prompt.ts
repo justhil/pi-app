@@ -7,7 +7,7 @@ import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 
 export function registerPromptHandlers(): void {
   const bindBeforePrompt = async (sessionFile?: string) => {
-    await ensureWorkerSessionBound(
+    return ensureWorkerSessionBound(
       (f, o) =>
         workerManager.loadSession(f, {
           force: o?.force,
@@ -34,11 +34,16 @@ export function registerPromptHandlers(): void {
   }
 
   registerHandlerWithSchema('ipc:prompt.send', promptTextSchema, async (req) => {
-    await bindBeforePrompt(req.sessionFile)
+    const bind = await bindBeforePrompt(req.sessionFile)
     await workerManager.sendPrompt(req.text, req.sessionFile)
     // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
     // Cleanup is TTL/startup prune + optional quit, not immediate delete-on-send.
-    return { messageId: `msg-${Date.now()}` }
+    return {
+      messageId: `msg-${Date.now()}`,
+      model: bind?.model,
+      thinkingLevel: bind?.thinkingLevel,
+      modelFallbackMessage: bind?.modelFallbackMessage,
+    }
   })
 
   registerHandlerWithSchema('ipc:clipboard.writeTempImage', clipboardWriteTempImageSchema, async (req) => {
@@ -57,15 +62,25 @@ export function registerPromptHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:prompt.steer', promptTextSchema, async (req) => {
-    await bindBeforePrompt(req.sessionFile)
+    const bind = await bindBeforePrompt(req.sessionFile)
     await workerManager.steer(req.text, req.sessionFile)
-    return { steered: true }
+    return {
+      steered: true,
+      model: bind?.model,
+      thinkingLevel: bind?.thinkingLevel,
+      modelFallbackMessage: bind?.modelFallbackMessage,
+    }
   })
 
   registerHandlerWithSchema('ipc:prompt.followUp', promptTextSchema, async (req) => {
-    await bindBeforePrompt(req.sessionFile)
+    const bind = await bindBeforePrompt(req.sessionFile)
     await workerManager.followUp(req.text, req.sessionFile)
-    return { messageId: `msg-${Date.now()}` }
+    return {
+      messageId: `msg-${Date.now()}`,
+      model: bind?.model,
+      thinkingLevel: bind?.thinkingLevel,
+      modelFallbackMessage: bind?.modelFallbackMessage,
+    }
   })
 
   registerHandler('ipc:prompt.abort', async (req) => {

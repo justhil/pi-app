@@ -54,20 +54,19 @@ export function sanitizeRunStatePatch(patch: {
   model?: unknown
   thinkingLevel?: unknown
   [k: string]: unknown
-}): { model?: string; thinkingLevel?: string; [k: string]: unknown } {
-  const out: { model?: string; thinkingLevel?: string; [k: string]: unknown } = {}
+}): { model?: string | null; thinkingLevel?: string | null; [k: string]: unknown } {
+  const out: { model?: string | null; thinkingLevel?: string | null; [k: string]: unknown } = {}
   for (const [k, v] of Object.entries(patch)) {
     if (k !== 'model' && k !== 'thinkingLevel') out[k] = v
   }
+  // Explicit model/thinking keys may clear (null) so bound runtime can wipe stale JSONL display.
   if ('model' in patch) {
     const m = normalizeModelKey(patch.model)
-    if (m) out.model = m
-    else delete out.model
+    out.model = m ?? null
   }
   if ('thinkingLevel' in patch) {
     const t = normalizeThinkingLevel(patch.thinkingLevel)
-    if (t) out.thinkingLevel = t
-    else delete out.thinkingLevel
+    out.thinkingLevel = t ?? null
   }
   return out
 }

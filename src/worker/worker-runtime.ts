@@ -101,14 +101,29 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   st.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     handleSessionEvent(event)
   })
+  emitSessionModelState()
+}
+
+/** Push current session model to renderer; optionally include SDK model restore fallback. */
+export function emitSessionModelState(opts?: { modelFallbackMessage?: string | null }): void {
+  if (!st.session) return
   const modelStr = currentSessionModelKey()
+  const fallback = String(opts?.modelFallbackMessage || '').trim()
   emit({
     ...baseEvent(),
     type: 'run',
     phase: 'state',
     model: modelStr,
-    thinkingLevel: session.thinkingLevel,
+    thinkingLevel: st.session.thinkingLevel,
+    ...(fallback ? { modelFallbackMessage: fallback } : {}),
   })
+}
+
+function noteModelFallbackFromRuntime(): void {
+  const fallback = String(st.runtime?.modelFallbackMessage || '').trim()
+  if (!fallback) return
+  console.warn('[Worker] Model fallback:', fallback)
+  emitSessionModelState({ modelFallbackMessage: fallback })
 }
 
 function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
@@ -190,10 +205,7 @@ export async function initSession(cwd: string): Promise<void> {
   st.runtime = runtime
   wireRuntimeCallbacks(runtime)
   await rebindAfterRuntimeReplace(runtime.session)
-
-  if (runtime.modelFallbackMessage) {
-    console.warn('[Worker] Model fallback:', runtime.modelFallbackMessage)
-  }
+  noteModelFallbackFromRuntime()
 }
 
 /**
@@ -226,6 +238,7 @@ export async function switchOrLoadSession(
     st.runtime = runtime
     wireRuntimeCallbacks(runtime)
     await rebindAfterRuntimeReplace(runtime.session)
+    noteModelFallbackFromRuntime()
     return
   }
 
@@ -249,6 +262,7 @@ export async function switchOrLoadSession(
       console.warn('[Worker] leaf override after switchSession failed:', e)
     }
   }
+  noteModelFallbackFromRuntime()
 }
 
 export async function runtimeNewSession(): Promise<{ cancelled: boolean }> {

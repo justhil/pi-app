@@ -132,10 +132,23 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       })
     }
   } else if (event.phase === 'state') {
+    const viewFile = state.historySessionFile
+    const evFile = (event as { sessionFile?: string }).sessionFile
+    // Only apply model/thinking from the viewed session (or unscoped events).
+    if (viewFile && evFile && !isViewingWorkerBoundSession(viewFile, evFile)) {
+      return
+    }
     const patch: Record<string, string | undefined> = {}
-    if (event.model !== undefined) patch.model = event.model
+    if (event.model !== undefined) {
+      // Empty model from bound runtime clears stale JSONL/display model.
+      patch.model = event.model ? String(event.model) : undefined
+    }
     if (event.thinkingLevel !== undefined) patch.thinkingLevel = event.thinkingLevel
-    state.setRunState(patch)
+    if (Object.keys(patch).length > 0) state.setRunState(patch)
+    const fallback = (event as { modelFallbackMessage?: string }).modelFallbackMessage
+    if (fallback) {
+      void import('@renderer/lib/session-display-meta').then((m) => m.notifyModelFallback(fallback))
+    }
   }
   if (event.usage) state.setRunState({ usage: event.usage })
   if (event.toolStats) {

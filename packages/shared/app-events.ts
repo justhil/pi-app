@@ -45,6 +45,11 @@ export interface RunEvent extends AppEventBase {
   phase: 'started' | 'running' | 'idle' | 'failed' | 'cancelled' | 'state'
   model?: string
   thinkingLevel?: string
+  /**
+   * SDK could not restore the session's saved model (missing registry entry / auth)
+   * and fell back to another model. Surface in UI — do not leave as worker-only log.
+   */
+  modelFallbackMessage?: string
   usage?: {
     input: number
     output: number

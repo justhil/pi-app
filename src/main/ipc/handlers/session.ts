@@ -87,7 +87,8 @@ export function registerSessionHandlers(): void {
         bound: true,
         sessionId: r.sessionId,
         model: r.model,
-        thinkingLevel: (r as { thinkingLevel?: string }).thinkingLevel,
+        thinkingLevel: r.thinkingLevel,
+        modelFallbackMessage: r.modelFallbackMessage,
       }
     } catch (e: unknown) {
       setPendingWorkerSessionFile(sessionFile)

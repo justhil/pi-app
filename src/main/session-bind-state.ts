@@ -24,18 +24,26 @@ export function getPendingWorkerSessionFile(): string | null {
   return pendingWorkerSessionFile
 }
 
+export type WorkerSessionBindResult = {
+  sessionId: string
+  model?: string
+  thinkingLevel?: string
+  modelFallbackMessage?: string
+}
+
 export async function ensureWorkerSessionBound(
   loadSession: (
     sessionFile: string,
     opts?: { force?: boolean },
-  ) => Promise<{ sessionId: string; model?: string }>,
+  ) => Promise<WorkerSessionBindResult>,
   opts?: { force?: boolean; sessionFile?: string | null },
-): Promise<void> {
+): Promise<WorkerSessionBindResult | null> {
   if (pendingEphemeralSandboxDraft) {
     throw new Error('EPHEMERAL_SANDBOX_DRAFT')
   }
   const file = opts?.sessionFile || pendingWorkerSessionFile
-  if (!file) return
-  await loadSession(file, { force: opts?.force === true })
+  if (!file) return null
+  const result = await loadSession(file, { force: opts?.force === true })
   pendingWorkerSessionFile = null
+  return result
 }

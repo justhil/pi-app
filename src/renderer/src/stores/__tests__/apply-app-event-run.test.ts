@@ -17,6 +17,11 @@ import { handleRun, shouldSuppressPrematureRunIdle } from '../apply-app-event-ru
 import type { StoreApi } from '../apply-app-event-types'
 import type { RunState, TimelineItem, UIState } from '../ui-store-types'
 
+const notifyModelFallback = vi.fn()
+vi.mock('@renderer/lib/session-display-meta', () => ({
+  notifyModelFallback: (...args: unknown[]) => notifyModelFallback(...args),
+}))
+
 function makeApi(): {
   api: StoreApi
   state: Record<string, unknown>
@@ -118,5 +123,31 @@ describe('handleRun idle (agent completion)', () => {
     expect((state.runState as RunState).status).toBe('idle')
     expect(state.streamingAssistantId).toBeNull()
     expect((state.workerLiveSnapshot as { status: string }).status).toBe('idle')
+  })
+
+  it('run.state applies runtime model and surfaces modelFallbackMessage', async () => {
+    notifyModelFallback.mockClear()
+    const { api, state } = makeApi()
+    ;(state.runState as RunState).model = 'custom/gpt-5.6-terra'
+    handleRun(
+      {
+        type: 'run',
+        phase: 'state',
+        seq: 3,
+        workspaceId: '/w',
+        sessionFile: '/s.jsonl',
+        model: 'anthropic/claude-opus-4-8',
+        thinkingLevel: 'high',
+        modelFallbackMessage: 'Could not restore model custom/gpt-5.6-terra. Using anthropic/claude-opus-4-8',
+        timestamp: Date.now(),
+      } as never,
+      api,
+    )
+
+    expect((state.runState as RunState).model).toBe('anthropic/claude-opus-4-8')
+    expect((state.runState as RunState).thinkingLevel).toBe('high')
+    await vi.waitFor(() => {
+      expect(notifyModelFallback).toHaveBeenCalled()
+    })
   })
 })
