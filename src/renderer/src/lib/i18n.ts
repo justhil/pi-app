@@ -10,6 +10,7 @@ import zhAdapters from '../locales/zh/adapters.json'
 import zhRun from '../locales/zh/run.json'
 import zhExtension from '../locales/zh/extension.json'
 import zhFiles from '../locales/zh/files.json'
+import zhUpdate from '../locales/zh/update.json'
 import enCommon from '../locales/en/common.json'
 import enTimeline from '../locales/en/timeline.json'
 import enReview from '../locales/en/review.json'
@@ -20,6 +21,7 @@ import enAdapters from '../locales/en/adapters.json'
 import enRun from '../locales/en/run.json'
 import enExtension from '../locales/en/extension.json'
 import enFiles from '../locales/en/files.json'
+import enUpdate from '../locales/en/update.json'
 
 function detectInitialLanguage(): 'zh' | 'en' {
   const sys = (navigator.language || 'en').toLowerCase()
@@ -39,6 +41,7 @@ i18n.use(initReactI18next).init({
       run: zhRun,
       extension: zhExtension,
       files: zhFiles,
+      update: zhUpdate,
     },
     en: {
       common: enCommon,
@@ -51,6 +54,7 @@ i18n.use(initReactI18next).init({
       run: enRun,
       extension: enExtension,
       files: enFiles,
+      update: enUpdate,
     },
   },
   lng: detectInitialLanguage(),

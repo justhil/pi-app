@@ -634,8 +634,17 @@
     background: transparent !important;
     padding: 0;
   }
-  .native-code-shiki pre {
+  .native-code-shiki pre,
+  .native-code-shiki code {
     margin: 0;
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+    tab-size: 2;
+  }
+  /* Shiki / plain fallback injected via dangerouslySetInnerHTML */
+  .native-code-shiki {
+    white-space: pre;
   }
   .composer-shell {
     background: var(--bg-base);

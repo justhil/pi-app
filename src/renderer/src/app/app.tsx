@@ -32,6 +32,7 @@ import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-poli
 import { hydrateThemeFromSettings } from '@renderer/features/settings/settings-draft'
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
+import { AppUpdateHost } from '@renderer/lib/app-update-notify'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
@@ -257,6 +258,7 @@ export default function App() {
           </div>
         </div>
         {paletteAndShortcuts}
+        <AppUpdateHost />
       </ErrorBoundary>
     )
   }
@@ -336,6 +338,7 @@ export default function App() {
       </div>
       <AppToaster />
       <ExtensionUIHost />
+      <AppUpdateHost />
       {paletteAndShortcuts}
       <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}

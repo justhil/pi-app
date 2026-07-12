@@ -184,14 +184,28 @@ jobs:
         with:
           subject-path: release-assets/**
 
+      # Release body = 用户可读更新说明（应用内弹窗展示）。禁止仅放 CHANGELOG 链接占位。
+      - name: Draft release notes from CHANGELOG
+        id: notes
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          if ! node scripts/generate-release-notes.mjs "$VER" > release-body.md; then
+            echo "::error::CHANGELOG.md missing section for ${VER}. Add user-facing notes before tagging."
+            exit 1
+          fi
+          if ! grep -q '[^[:space:]]' release-body.md; then
+            echo "::error::Generated release body is empty"
+            exit 1
+          fi
+          echo "Release body preview:"
+          head -n 60 release-body.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
-          body: |
-            完整更新日志：**[CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)**
-
-            Release 说明：**[doc/RELEASE.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/doc/RELEASE.md)**
+          body_path: release-body.md
           files: release-assets/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

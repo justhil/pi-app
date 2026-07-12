@@ -1,6 +1,23 @@
 # Changelog
 
-各版本条目维护于本文件。GitHub [Releases](https://github.com/justhil/pi-app/releases) 正文链接至对应 tag 下的本文件（见 [doc/RELEASE.md](doc/RELEASE.md)）。
+面向仓库的完整版本记录。发版时由 `scripts/generate-release-notes.mjs` 从对应章节生成 **GitHub Release 正文**（用户可读更新说明，应用内「发现新版本」弹窗展示）。发布与应用内更新流程见 [doc/RELEASE.md](doc/RELEASE.md)。
+
+## [0.4.18] — 2026-07-12
+
+### 新增
+
+- **软件内更新提醒与一键升级**：启动后后台检查 GitHub Releases（不阻塞 UI；失败静默）；有更新时弹窗展示 Release 更新说明，支持 **本次忽略** / **忽略本版本** / **更新**（下载安装包并自动启动安装程序）
+- **Release 正文生成**：CI 从 CHANGELOG 生成用户可读 Release body，禁止仅放 CHANGELOG 链接占位；应用内公告即该正文
+- **侧栏代码预览高亮**：内置更多语言的 Shiki 高亮（按需加载）；预览不再自动折叠长文件
+
+### 修复
+
+- **#21 更新后会话列表为空**：打包不再用 `!**/doc/**` 误删 `yaml` 运行时 `dist/doc/directives.js`，修复 `session.list` / Worker 初始化 `MODULE_NOT_FOUND`
+- **更新检查竞态**：检查结果可在 renderer 订阅前缓冲，挂载后通过 pending 拉取，避免漏弹窗
+
+### 注意
+
+- 从 0.4.15–0.4.17 受 #21 影响的安装包请升级到本版本；磁盘上会话文件一般仍在，升级后即可重新列出
 
 ## [0.4.17] — 2026-07-12
 

@@ -1,4 +1,5 @@
 import type { AppEvent } from '@shared/app-events'
+import type { AppUpdateAvailableInfo, AppUpdateDownloadProgress } from '@shared/app-update'
 
 declare global {
   interface Window {
@@ -11,9 +12,8 @@ declare global {
       onAutoOpened: (callback: (info: { workspaceId: string }) => void) => () => void
       onExtensionUIRequest: (callback: (request: unknown) => void) => () => void
       onExtensionUIDismiss: (callback: (payload: { type: string; id?: string; reason?: string }) => void) => () => void
-      onAppUpdateAvailable: (
-        callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
-      ) => () => void
+      onAppUpdateAvailable: (callback: (info: AppUpdateAvailableInfo) => void) => () => void
+      onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       ping: () => string
     }
@@ -63,11 +63,16 @@ export function onExtensionUIDismiss(
   return window.piDesktop.onExtensionUIDismiss(callback)
 }
 
-export function onAppUpdateAvailable(
-  callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
-): () => void {
+export function onAppUpdateAvailable(callback: (info: AppUpdateAvailableInfo) => void): () => void {
   if (!window.piDesktop) return () => {}
   return window.piDesktop.onAppUpdateAvailable(callback)
+}
+
+export function onAppUpdateDownloadProgress(
+  callback: (info: AppUpdateDownloadProgress) => void,
+): () => void {
+  if (!window.piDesktop?.onAppUpdateDownloadProgress) return () => {}
+  return window.piDesktop.onAppUpdateDownloadProgress(callback)
 }
 
 export function onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {

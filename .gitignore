@@ -39,7 +39,7 @@ nul
 .env.*
 !.env.example
 
-# Agent / local assistant instructions (not shipped)
+# Agent / local assistant instructions (本机约定，不进仓库)
 AGENTS.md
 
 # IDE / editor local (not shipped)

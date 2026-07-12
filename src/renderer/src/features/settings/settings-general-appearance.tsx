@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
+import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -46,13 +48,22 @@ export function GeneralSettings() {
         return
       }
       if (r.hasUpdate && r.latestVersion) {
-        setUpdateCheck(t('settings:general.updateHasNew', { version: r.latestVersion, current: r.currentVersion }))
-        toast.info(t('settings:general.foundNewVersion', { version: r.latestVersion }), {
-          action: {
-            label: t('settings:general.openReleasePage'),
-            onClick: () => void ipcClient.invoke('app.openRelease', { url: r.releaseUrl }),
-          },
-        })
+        setUpdateCheck(
+          t('settings:general.updateHasNew', {
+            version: r.latestVersion,
+            current: r.currentVersion,
+          }),
+        )
+        const dialogInfo: AppUpdateAvailableInfo = {
+          currentVersion: r.currentVersion,
+          latestVersion: String(r.latestVersion).replace(/^v/i, ''),
+          releaseUrl: r.releaseUrl,
+          releaseNotes: r.releaseNotes || '',
+          downloadUrl: r.downloadUrl ?? null,
+          downloadName: r.downloadName ?? null,
+          assets: r.assets || [],
+        }
+        showAppUpdateDialog(dialogInfo)
       } else {
         setUpdateCheck(t('settings:general.updateLatest', { version: r.currentVersion }))
       }

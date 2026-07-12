@@ -118,6 +118,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   recentProjects: z.array(z.string()),
   autoOpenLastProject: z.boolean(),
   autoCheckRegistryUpdates: z.boolean(),
+  ignoredUpdateVersion: z.string(),
   alertSoundEnabled: z.boolean(),
   alertNotificationEnabled: z.boolean(),
   alertOnExtensionUi: z.boolean(),

@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
 import { LineGutterAddButton } from '@renderer/components/ui/line-gutter-add'
 import { PREVIEW_SHIKI_MAX_CHARS } from './file-preview-limits'
-
-const FOLD_LINES = 48
 
 type Props = {
   code: string
@@ -20,6 +16,9 @@ type Props = {
   onRequestFullContent?: () => Promise<string | null>
 }
 
+/**
+ * Workspace file code preview: full content (no auto-fold), Shiki highlight when possible.
+ */
 export function FileSourcePreview({
   code,
   lang,
@@ -28,24 +27,30 @@ export function FileSourcePreview({
   path,
   onRequestFullContent,
 }: Props) {
-  const { t } = useTranslation('files')
-  const [expanded, setExpanded] = useState(false)
   const [fullCode, setFullCode] = useState<string | null>(null)
-  const [loadingFull, setLoadingFull] = useState(false)
   const [html, setHtml] = useState<string | null>(null)
 
   const displayCode = fullCode ?? code
   const lines = useMemo(() => displayCode.split('\n'), [displayCode])
+  const useShiki = displayCode.length <= PREVIEW_SHIKI_MAX_CHARS
 
+  // New file content: drop any previous full-load cache.
   useEffect(() => {
-    setExpanded(false)
     setFullCode(null)
+    setHtml(null)
   }, [code])
 
-  const needsFold = lines.length > FOLD_LINES
-  const visibleLines = expanded || !needsFold ? lines : lines.slice(0, FOLD_LINES)
-  const visibleText = visibleLines.join('\n')
-  const useShiki = visibleText.length <= PREVIEW_SHIKI_MAX_CHARS
+  // Truncated first read: fetch full file once (still no fold UI).
+  useEffect(() => {
+    if (readComplete || !onRequestFullContent || fullCode != null) return
+    let cancelled = false
+    void onRequestFullContent().then((next) => {
+      if (!cancelled && next != null) setFullCode(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [readComplete, onRequestFullContent, fullCode, code])
 
   useEffect(() => {
     if (!useShiki) {
@@ -53,25 +58,15 @@ export function FileSourcePreview({
       return
     }
     let cancelled = false
-    highlightCodeToHtml(visibleText, lang).then((h) => {
-      if (!cancelled) setHtml(h)
+    highlightCodeToHtml(displayCode, lang).then((highlighted) => {
+      if (!cancelled) setHtml(highlighted)
     })
     return () => {
       cancelled = true
     }
-  }, [visibleText, lang, useShiki])
+  }, [displayCode, lang, useShiki])
 
-  const onExpand = async () => {
-    if (!expanded && !readComplete && !fullCode && onRequestFullContent) {
-      setLoadingFull(true)
-      const next = await onRequestFullContent()
-      setLoadingFull(false)
-      if (next != null) setFullCode(next)
-    }
-    setExpanded(true)
-  }
-
-  const lineCount = visibleLines.length
+  const lineCount = lines.length
   const gutterCh = Math.max(2, String(lineCount).length) + 2
 
   return (
@@ -93,51 +88,35 @@ export function FileSourcePreview({
               style={{ minWidth: `${gutterCh + 2}ch` }}
               aria-hidden
             >
-              {visibleLines.map((lineText, i) => (
-                <div key={i} className="group/line flex h-[1.5em] items-center justify-end gap-0.5 tabular-nums">
+              {lines.map((lineText, lineIndex) => (
+                <div
+                  key={lineIndex}
+                  className="group/line flex h-[1.5em] items-center justify-end gap-0.5 tabular-nums"
+                >
                   {path ? (
-                    <LineGutterAddButton path={path} line={i + 1} content={lineText} />
+                    <LineGutterAddButton path={path} line={lineIndex + 1} content={lineText} />
                   ) : (
                     <span className="w-[1.15em]" />
                   )}
-                  <span className="w-[2.5ch] text-right">{i + 1}</span>
+                  <span className="w-[2.5ch] text-right">{lineIndex + 1}</span>
                 </div>
               ))}
             </div>
             <div className="min-w-0 shrink-0 py-2 pl-5 pr-4">
               {useShiki && html != null ? (
                 <div
-                  className="native-code-shiki [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[11px] [&_pre]:whitespace-pre"
+                  className="native-code-shiki font-mono text-[11px] leading-[1.5] text-foreground [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:bg-transparent [&_code]:text-[11px]"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
                 />
               ) : (
-                <pre className="m-0 whitespace-pre text-foreground">{visibleText}</pre>
+                <pre className="m-0 whitespace-pre font-mono text-[11px] leading-[1.5] text-foreground">
+                  {displayCode}
+                </pre>
               )}
             </div>
           </div>
         </div>
       </OverlayScrollHost2D>
-      {needsFold && !expanded ? (
-        <button
-          type="button"
-          disabled={loadingFull}
-          onClick={() => void onExpand()}
-          className="flex w-full shrink-0 items-center justify-center gap-1 border-t border-border/40 py-2 text-[11px] text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
-        >
-          <ChevronDown className="h-3.5 w-3.5" />
-          {loadingFull ? t('preview.loading') : t('preview.expandAll', { count: lines.length })}
-        </button>
-      ) : null}
-      {needsFold && expanded ? (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="flex w-full shrink-0 items-center justify-center gap-1 border-t border-border/40 py-1.5 text-[10px] text-foreground-secondary hover:text-foreground"
-        >
-          <ChevronDown className="h-3 w-3 rotate-180" />
-          {t('preview.collapse')}
-        </button>
-      ) : null}
     </div>
   )
 }

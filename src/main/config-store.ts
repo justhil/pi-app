@@ -23,6 +23,8 @@ export interface StoreSchema {
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */
   autoCheckRegistryUpdates: boolean
+  /** 用户选择「忽略本版本」的 semver（无 v 前缀）；空字符串 = 未忽略 */
+  ignoredUpdateVersion: string
   /** 全局：用户提醒是否播放提示音 */
   alertSoundEnabled: boolean
   /** 全局：用户提醒是否使用系统通知 */
@@ -68,6 +70,7 @@ const store = new Store<StoreSchema>({
     language: 'zh',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
+    ignoredUpdateVersion: '',
     alertSoundEnabled: true,
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,

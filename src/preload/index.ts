@@ -7,6 +7,7 @@ const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
 const EXT_UI_CHANNEL = 'ipc:extension-ui-request'
 const EXT_UI_DISMISS_CHANNEL = 'ipc:extension-ui-dismiss'
 const APP_UPDATE_CHANNEL = 'ipc:app-update-available'
+const APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL = 'ipc:app-update-download-progress'
 
 const api = {
   invoke(channel: string, request?: unknown): Promise<unknown> {
@@ -59,15 +60,16 @@ const api = {
     return () => ipcRenderer.off(EXT_UI_DISMISS_CHANNEL, handler)
   },
 
-  onAppUpdateAvailable(
-    callback: (info: { currentVersion: string; latestVersion: string; releaseUrl: string }) => void,
-  ): () => void {
-    const handler = (
-      _event: unknown,
-      data: { currentVersion: string; latestVersion: string; releaseUrl: string },
-    ): void => callback(data)
+  onAppUpdateAvailable(callback: (info: unknown) => void): () => void {
+    const handler = (_event: unknown, data: unknown): void => callback(data)
     ipcRenderer.on(APP_UPDATE_CHANNEL, handler)
     return () => ipcRenderer.off(APP_UPDATE_CHANNEL, handler)
+  },
+
+  onAppUpdateDownloadProgress(callback: (info: unknown) => void): () => void {
+    const handler = (_event: unknown, data: unknown): void => callback(data)
+    ipcRenderer.on(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
+    return () => ipcRenderer.off(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
   },
 
   onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {

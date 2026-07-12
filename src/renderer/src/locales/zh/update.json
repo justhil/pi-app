@@ -1,0 +1,15 @@
+{
+  "title": "发现新版本",
+  "versionLine": "v{{latest}} 可用（当前 v{{current}}）",
+  "notesHeading": "更新说明",
+  "noNotes": "本次发布未附带详细说明。可打开发布页查看。",
+  "remindLater": "本次忽略",
+  "ignoreVersion": "忽略本版本",
+  "updateNow": "更新",
+  "openRelease": "打开发布页",
+  "updating": "更新中…",
+  "downloading": "下载中…",
+  "downloadingPercent": "下载中 {{percent}}%",
+  "launchingInstaller": "正在启动安装程序…",
+  "downloadFailed": "下载失败：{{error}}"
+}

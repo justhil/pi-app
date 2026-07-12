@@ -9,15 +9,34 @@ export type FilePreviewMode =
   | 'sheet'
 
 const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff', 'avif'])
+/** Prefer code preview (Shiki) for languages we can highlight. */
 const CODE_EXT = new Set([
-  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'rs', 'go', 'java', 'c', 'cpp', 'cc', 'h', 'hpp', 'cs', 'rb',
-  'php', 'swift', 'kt', 'sh', 'json', 'yaml', 'yml', 'toml', 'xml', 'css', 'scss', 'vue', 'svelte', 'sql', 'lua', 'dart', 'gradle',
+  // Web
+  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'mts', 'cts', 'json', 'jsonc', 'json5',
+  'html', 'htm', 'css', 'scss', 'less', 'vue', 'svelte', 'astro', 'mdx',
+  // Systems
+  'py', 'pyi', 'rs', 'go', 'java', 'kt', 'kts', 'c', 'h', 'cc', 'cpp', 'cxx', 'hpp', 'hh',
+  'cs', 'rb', 'php', 'swift', 'dart', 'scala', 'sc', 'lua', 'r', 'pl', 'pm', 'jl',
+  'hs', 'ex', 'exs', 'erl', 'clj', 'cljs', 'fs', 'fsi', 'fsx', 'ml', 'mli',
+  'zig', 'nim', 'cr', 'v', 'sol', 'move', 'wat', 's', 'asm',
+  // Shell / ops
+  'sh', 'bash', 'zsh', 'ps1', 'psm1', 'bat', 'cmd', 'fish',
+  'dockerfile', 'nginx', 'makefile', 'mk', 'cmake', 'gradle', 'groovy',
+  // Data / config
+  'yaml', 'yml', 'toml', 'xml', 'xsl', 'xsd', 'sql', 'graphql', 'gql',
+  'prisma', 'proto', 'tf', 'tfvars', 'hcl', 'properties',
+  // Docs / misc
+  'tex', 'bib', 'rst', 'adoc', 'diff', 'patch', 'http', 'mermaid', 'mmd',
+  'hbs', 'j2', 'jinja', 'jinja2', 'liquid', 'twig', 'pug', 'jade',
+  'm', 'mm', 'glsl', 'frag', 'vert', 'hlsl', 'wgsl', 'gd', 'nix', 'scm', 'el', 'vim',
 ])
-const TEXT_EXT = new Set(['txt', 'log', 'env', 'ini', 'cfg', 'conf', 'gitignore', 'dockerignore'])
+const TEXT_EXT = new Set([
+  'txt', 'log', 'env', 'ini', 'cfg', 'conf', 'gitignore', 'dockerignore', 'csv', 'tsv',
+])
 const ARCHIVE_EXT = new Set(['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'tgz', 'zst'])
 const AUDIO_EXT = new Set(['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'opus', 'wma'])
 const VIDEO_EXT = new Set(['mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'm4v', 'wmv'])
-const SHEET_EXT = new Set(['xls', 'xlsx', 'csv', 'tsv', 'ods', 'numbers'])
+const SHEET_EXT = new Set(['xls', 'xlsx', 'ods', 'numbers'])
 
 export function extOfPath(path: string): string {
   const base = path.split(/[\\/]/).pop() || path

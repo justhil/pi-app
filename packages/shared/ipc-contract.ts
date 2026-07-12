@@ -231,10 +231,31 @@ export interface AppCheckUpdateResponse {
   latestVersion: string | null
   hasUpdate: boolean
   releaseUrl: string
+  releaseNotes?: string
+  downloadUrl?: string | null
+  downloadName?: string | null
+  assets?: import('./app-update').AppUpdateAsset[]
   error?: string
 }
 export interface AppOpenReleaseRequest { url?: string }
 export interface AppOpenReleaseResponse { ok: boolean }
+export interface AppGetPendingUpdateRequest {}
+export interface AppGetPendingUpdateResponse {
+  update: import('./app-update').AppUpdateAvailableInfo | null
+}
+export interface AppDismissUpdatePromptRequest {}
+export interface AppDismissUpdatePromptResponse { ok: boolean }
+export interface AppIgnoreUpdateVersionRequest { version: string }
+export interface AppIgnoreUpdateVersionResponse { ok: boolean }
+export interface AppDownloadUpdateRequest {
+  url: string
+  fileName?: string
+}
+export interface AppDownloadUpdateResponse {
+  ok: boolean
+  path?: string
+  error?: string
+}
 
 // ── Events ──
 export interface EventsSubscribeRequest { channels?: string[] }
@@ -276,7 +297,23 @@ export interface IpcMethodMap {
   'settings.get': { request: SettingsGetRequest; response: SettingsGetResponse }
   'settings.set': { request: SettingsSetRequest; response: SettingsSetResponse }
   'app.checkUpdate': { request: AppCheckUpdateRequest; response: AppCheckUpdateResponse }
+  'app.getPendingUpdate': {
+    request: AppGetPendingUpdateRequest
+    response: AppGetPendingUpdateResponse
+  }
+  'app.dismissUpdatePrompt': {
+    request: AppDismissUpdatePromptRequest
+    response: AppDismissUpdatePromptResponse
+  }
   'app.openRelease': { request: AppOpenReleaseRequest; response: AppOpenReleaseResponse }
+  'app.ignoreUpdateVersion': {
+    request: AppIgnoreUpdateVersionRequest
+    response: AppIgnoreUpdateVersionResponse
+  }
+  'app.downloadUpdate': {
+    request: AppDownloadUpdateRequest
+    response: AppDownloadUpdateResponse
+  }
   'events.subscribe': { request: EventsSubscribeRequest; response: EventsSubscribeResponse; stream: AppEvent }
 }
 

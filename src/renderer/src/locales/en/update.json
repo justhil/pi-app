@@ -1,0 +1,15 @@
+{
+  "title": "Update available",
+  "versionLine": "v{{latest}} is available (current v{{current}})",
+  "notesHeading": "Release notes",
+  "noNotes": "No detailed notes were attached to this release. Open the release page for more.",
+  "remindLater": "Not now",
+  "ignoreVersion": "Skip this version",
+  "updateNow": "Update",
+  "openRelease": "Open release page",
+  "updating": "Updating…",
+  "downloading": "Downloading…",
+  "downloadingPercent": "Downloading {{percent}}%",
+  "launchingInstaller": "Launching installer…",
+  "downloadFailed": "Download failed: {{error}}"
+}

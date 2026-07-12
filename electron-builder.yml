@@ -15,8 +15,13 @@ files:
   - package.json
   - '!**/*.{ts,map}'
   # 依赖文档不进安装包（如 @earendil-works/pi-coding-agent/docs ~2.6MB）
+  # 禁止使用 `!**/doc/**`：yaml@2 运行时需要 dist/doc/directives.js。
+  # 若排除该目录，Linux/Windows asar 内 session.list / Worker init 会 MODULE_NOT_FOUND，
+  # 表现为「项目还在、会话全部消失」（GitHub #21）。
   - '!**/docs/**'
-  - '!**/doc/**'
+  # 仅剔除已知纯文档 doc 树（非运行时）
+  - '!**/bignumber.js/doc/**'
+  - '!**/readable-stream/**/doc/**'
 
 extraFiles:
   - from: build/icon.png

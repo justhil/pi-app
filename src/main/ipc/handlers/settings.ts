@@ -34,11 +34,40 @@ export function registerSettingsHandlers(): void {
     return checkGitHubReleaseUpdate()
   })
 
+  registerHandler('ipc:app.getPendingUpdate', async () => {
+    const { getPendingAppUpdate } = await import('../../updater')
+    return { update: getPendingAppUpdate() }
+  })
+
+  registerHandler('ipc:app.dismissUpdatePrompt', async () => {
+    const { clearPendingAppUpdate } = await import('../../updater')
+    clearPendingAppUpdate()
+    return { ok: true }
+  })
+
   registerHandler('ipc:app.openRelease', async (req) => {
     const slug = (process.env.PI_DESKTOP_GITHUB_REPO || 'justhil/pi-app').trim()
     const url = (req.url && String(req.url).trim()) || `https://github.com/${slug}/releases`
     await shell.openExternal(url)
     return { ok: true }
+  })
+
+  registerHandler('ipc:app.ignoreUpdateVersion', async (req) => {
+    const version = String(req.version || '')
+      .trim()
+      .replace(/^v/i, '')
+    configStore.set('ignoredUpdateVersion', version)
+    const { clearPendingAppUpdate } = await import('../../updater')
+    clearPendingAppUpdate()
+    return { ok: true }
+  })
+
+  registerHandler('ipc:app.downloadUpdate', async (req) => {
+    const { downloadAndLaunchUpdate } = await import('../../app-update-download')
+    return downloadAndLaunchUpdate({
+      url: String(req.url || ''),
+      fileName: String(req.fileName || 'update.bin'),
+    })
   })
 
   registerHandler('ipc:alerts.signal', async (req) => {
