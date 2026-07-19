@@ -185,8 +185,7 @@ export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbe
 
     if (ext.source === 'project' || ext.source === 'global') {
       const scope = ext.source === 'project' ? 'project' : ('user' as const)
-      const baseDir =
-        ext.source === 'project' ? join(resolvedCwd, '.pi', 'extensions') : join(agentDir, 'extensions')
+      const baseDir = ext.source === 'project' ? join(resolvedCwd, '.pi') : agentDir
       const absPath = ext.mainFilePath
       if (!absPath) {
         ext.piSync = false

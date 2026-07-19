@@ -2,6 +2,19 @@
 
 面向仓库的完整版本记录。发版时由 `scripts/generate-release-notes.mjs` 从对应章节生成 **GitHub Release 正文**（用户可读更新说明，应用内「发现新版本」弹窗展示）。发布与应用内更新流程见 [doc/RELEASE.md](doc/RELEASE.md)。
 
+## [0.4.20] — 2026-07-20
+
+### 修复
+
+- **#24 关闭扩展按钮无效**：扩展启停规则改为以 Pi settings 资源根为基准，正确写入 `-extensions/...`，与 pi-coding-agent 的资源加载路径保持一致
+- **#25 macOS GUI 环境变量不完整**：Finder / Dock 启动时同步 login shell 环境，provider key、代理及工具链变量会传递给 Worker 和后续子进程；保留启动器显式变量并过滤 Electron 控制变量
+- **#26 启动首屏语言错误**：首次 React 渲染前恢复已保存语言，不再需要进入设置页后才切回中文；同时同步 HTML 文档语言
+
+### 优化
+
+- **Pi 运行时兼容性**：内置 `@earendil-works/pi-coding-agent` 更新至 0.80.7
+- **主进程测试门禁**：Vitest 纳入 `src/main` 单元测试，并补充扩展路径、login shell 环境与启动语言回归用例
+
 ## [0.4.19] — 2026-07-12
 
 ### 修复

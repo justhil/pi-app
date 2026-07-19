@@ -10,6 +10,7 @@ export default defineConfig({
     setupFiles: ['src/renderer/src/test/setup.ts'],
     include: [
       'src/renderer/src/**/*.test.{ts,tsx}',
+      'src/main/**/*.test.ts',
       'packages/shared/**/*.test.ts',
       'src/extension-compat/**/*.test.ts',
     ],

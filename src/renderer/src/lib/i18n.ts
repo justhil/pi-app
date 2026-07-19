@@ -22,13 +22,27 @@ import enRun from '../locales/en/run.json'
 import enExtension from '../locales/en/extension.json'
 import enFiles from '../locales/en/files.json'
 import enUpdate from '../locales/en/update.json'
+import { ipcClient } from './ipc-client'
 
-function detectInitialLanguage(): 'zh' | 'en' {
-  const sys = (navigator.language || 'en').toLowerCase()
-  return sys.startsWith('zh') ? 'zh' : 'en'
+type AppLanguage = 'zh' | 'en'
+
+function detectInitialLanguage(): AppLanguage {
+  const systemLanguage = (navigator.language || 'en').toLowerCase()
+  return systemLanguage.startsWith('zh') ? 'zh' : 'en'
 }
 
-i18n.use(initReactI18next).init({
+function normalizeAppLanguage(language: unknown, fallbackLanguage: AppLanguage): AppLanguage {
+  const normalizedLanguage = String(language ?? '').toLowerCase()
+  if (normalizedLanguage.startsWith('zh')) return 'zh'
+  if (normalizedLanguage.startsWith('en')) return 'en'
+  return fallbackLanguage
+}
+
+function applyDocumentLanguage(language: AppLanguage): void {
+  document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
+}
+
+const i18nInitialization = i18n.use(initReactI18next).init({
   resources: {
     zh: {
       common: zhCommon,
@@ -64,5 +78,29 @@ i18n.use(initReactI18next).init({
     escapeValue: false,
   },
 })
+
+i18n.on('languageChanged', (language) => {
+  applyDocumentLanguage(normalizeAppLanguage(language, detectInitialLanguage()))
+})
+
+export async function hydrateLanguageFromSettings(): Promise<AppLanguage> {
+  const settingsResponsePromise = ipcClient
+    .invoke('settings.get', { key: 'language' })
+    .catch(() => ({ settings: {} }))
+
+  const [, settingsResponse] = await Promise.all([i18nInitialization, settingsResponsePromise])
+  const currentLanguage = normalizeAppLanguage(
+    i18n.resolvedLanguage || i18n.language,
+    detectInitialLanguage(),
+  )
+  const savedLanguage = normalizeAppLanguage(
+    settingsResponse?.settings?.language,
+    currentLanguage,
+  )
+
+  if (currentLanguage !== savedLanguage) await i18n.changeLanguage(savedLanguage)
+  applyDocumentLanguage(savedLanguage)
+  return savedLanguage
+}
 
 export default i18n

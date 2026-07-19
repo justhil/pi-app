@@ -1,6 +1,6 @@
 {
   "name": "pi-desktop",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",
@@ -31,7 +31,7 @@
     "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.3",
+    "@earendil-works/pi-coding-agent": "0.80.7",
     "@radix-ui/react-switch": "^1.1.3",
     "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
@@ -50,6 +50,7 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "shell-env": "^4.0.3",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.24.1",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { WorkerSlot } from '../worker-manager-types'
 import {
   canAcquireNewWorker,
@@ -13,6 +13,12 @@ import {
   MAX_TIMER_DELAY_MS,
 } from '../worker-pool-config'
 import { normalizeSessionKey, workspacePoolKey } from '../worker-session-key'
+
+vi.mock('../config-store', () => ({
+  configStore: {
+    get: vi.fn(() => undefined),
+  },
+}))
 
 function fakeSlot(poolKey: string, cwd: string, active: boolean, lastFg = Date.now()): WorkerSlot {
   return {
