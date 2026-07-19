@@ -42,10 +42,19 @@ function fakeSlot(poolKey: string, cwd: string, active: boolean, lastFg = Date.n
 
 describe('worker-session-key', () => {
   it('should_normalize_session_paths_consistently', () => {
-    const a = normalizeSessionKey('C:/tmp/s.jsonl')
-    const b = normalizeSessionKey('c:\\tmp\\s.jsonl')
-    expect(a).toBeTruthy()
-    expect(a.toLowerCase()).toBe(b.toLowerCase())
+    const workspaceDirectory = process.cwd().replace(/\\/g, '/')
+    const directPath = normalizeSessionKey(`${workspaceDirectory}/tmp/s.jsonl`)
+    const redundantSegmentPath = normalizeSessionKey(
+      `${workspaceDirectory}/tmp/./s.jsonl`,
+    )
+
+    expect(directPath).toBeTruthy()
+    expect(redundantSegmentPath).toBe(directPath)
+
+    if (process.platform === 'win32') {
+      const lowerCaseDrivePath = `${directPath.charAt(0).toLowerCase()}${directPath.slice(1)}`
+      expect(normalizeSessionKey(lowerCaseDrivePath)).toBe(directPath)
+    }
   })
 
   it('should_prefix_workspace_pool_keys', () => {
