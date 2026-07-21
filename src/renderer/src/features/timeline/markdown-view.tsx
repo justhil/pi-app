@@ -111,6 +111,21 @@ const REHYPE_PLUGINS: Pluggable[] = [
 
 const STREAM_PLAIN_ONLY_MAX = 96
 
+/**
+ * 流式尾部是否含块级语法（表格/标题/列表/引用/代码块）。
+ * 这些结构在纯文本尾部会显示成原始符号，需要走 Markdown 渲染才能实时成型。
+ */
+function tailHasBlockSyntax(text: string): boolean {
+  if (!text) return false
+  return (
+    /(^|\n)\s{0,3}#{1,6}\s/.test(text) || // 标题
+    /(^|\n)\s{0,3}>/.test(text) || // 引用
+    /(^|\n)\s{0,3}([-*+]\s|\d+[.)]\s)/.test(text) || // 列表
+    /(^|\n)\s{0,3}```/.test(text) || // 代码块
+    /(^|\n)\s{0,3}\|/.test(text) // 表格行（含分隔行，行首以 | 开头）
+  )
+}
+
 const MarkdownView = memo(function MarkdownView({
   children,
   className,
@@ -139,7 +154,11 @@ const MarkdownView = memo(function MarkdownView({
   const committedPrefix = streaming ? committedStableRef.current : ''
   const liveTail = streaming ? children.slice(committedPrefix.length) : ''
   const usePlainStream =
-    !!streaming && !committedPrefix && liveTail.length > 0 && liveTail.length <= STREAM_PLAIN_ONLY_MAX
+    !!streaming &&
+    !committedPrefix &&
+    liveTail.length > 0 &&
+    liveTail.length <= STREAM_PLAIN_ONLY_MAX &&
+    !tailHasBlockSyntax(liveTail)
 
   const markdown = useMemo(
     () =>
@@ -256,7 +275,19 @@ const MarkdownView = memo(function MarkdownView({
             {committedMd}
           </ReactMarkdown>
         ) : null}
-        {liveTail ? <StreamLiveTailBlock text={liveTail} streaming /> : null}
+        {liveTail ? (
+          tailHasBlockSyntax(liveTail) ? (
+            <ReactMarkdown
+              remarkPlugins={buildRemarkPlugins(false)}
+              rehypePlugins={REHYPE_PLUGINS}
+              components={components}
+            >
+              {preprocessMarkdownMath(liveTail, { streaming: false })}
+            </ReactMarkdown>
+          ) : (
+            <StreamLiveTailBlock text={liveTail} streaming />
+          )
+        ) : null}
       </div>
     )
   }
