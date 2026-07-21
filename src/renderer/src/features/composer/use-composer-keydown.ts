@@ -49,6 +49,9 @@ export function useComposerKeyDown(opts: {
         handleSend,
         runComposerAbort,
       } = opts
+      // 输入法正在组词时（含按 Enter 选词的瞬间），交给 IME 处理，不触发任何快捷键/发送
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return
+
       const alt = e.altKey
       if (
         !showPopover &&
