@@ -26,6 +26,7 @@
     "appVersion": "应用版本",
     "appVersionDesc": "手动检查更新；有新版本时弹窗展示说明并可一键下载安装",
     "checkUpdate": "检查更新",
+    "openGitHub": "GitHub 主页",
     "checking": "检查中…",
     "updateCheckFailed": "检查失败",
     "updateHasNew": "有新版本 v{{version}}（当前 v{{current}}）",

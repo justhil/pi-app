@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
-import type { AppUpdateAvailableInfo } from '@shared/app-update'
+
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
@@ -41,47 +41,56 @@ export function GeneralSettings() {
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const checkTimeoutRef = useRef<number | null>(null)
+
+  const clearCheckTimeout = () => {
+    if (checkTimeoutRef.current) {
+      window.clearTimeout(checkTimeoutRef.current)
+      checkTimeoutRef.current = null
+    }
+  }
+
   useEffect(() => {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
       if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
     })
   }, [])
 
-  const handleCheckUpdate = async () => {
+  const handleCheckUpdate = () => {
     setCheckingUpdate(true)
     setUpdateCheck(null)
-    try {
-      const r = await ipcClient.invoke('app.checkUpdate', {})
-      if (!r?.ok) {
-        setUpdateCheck(r?.error || t('settings:general.updateCheckFailed'))
-        return
-      }
-      if (r.hasUpdate && r.latestVersion) {
+    clearCheckTimeout()
+    checkTimeoutRef.current = window.setTimeout(() => {
+      setCheckingUpdate(false)
+      setUpdateCheck(t('settings:general.updateCheckFailed'))
+    }, 10000)
+    void ipcClient.invoke('app.checkUpdate', {})
+  }
+
+  useEffect(() => {
+    const unsubscribe = onAppUpdateAvailable((info) => {
+      if (!checkingUpdate) return
+      clearCheckTimeout()
+      if (info.latestVersion && info.latestVersion !== info.currentVersion) {
         setUpdateCheck(
           t('settings:general.updateHasNew', {
-            version: r.latestVersion,
-            current: r.currentVersion,
+            version: info.latestVersion,
+            current: info.currentVersion,
           }),
         )
-        const dialogInfo: AppUpdateAvailableInfo = {
-          currentVersion: r.currentVersion,
-          latestVersion: String(r.latestVersion).replace(/^v/i, ''),
-          releaseUrl: r.releaseUrl,
-          releaseNotes: r.releaseNotes || '',
-          downloadUrl: r.downloadUrl ?? null,
-          downloadName: r.downloadName ?? null,
-          assets: r.assets || [],
-        }
-        showAppUpdateDialog(dialogInfo)
+        showAppUpdateDialog(info)
+      } else if (info.latestVersion) {
+        setUpdateCheck(t('settings:general.updateLatest', { version: info.currentVersion }))
       } else {
-        setUpdateCheck(t('settings:general.updateLatest', { version: r.currentVersion }))
+        setUpdateCheck(t('settings:general.updateCheckFailed'))
       }
-    } catch (e) {
-      setUpdateCheck(t('settings:general.updateCheckFailed'))
-    } finally {
       setCheckingUpdate(false)
+    })
+    return () => {
+      clearCheckTimeout()
+      unsubscribe()
     }
-  }
+  }, [checkingUpdate, t])
 
   return (
     <div className="space-y-8">
@@ -99,14 +108,26 @@ export function GeneralSettings() {
         </SettingRow>
         <SettingRow label={t('settings:general.appVersion')} description={t('settings:general.appVersionDesc')}>
           <div className="flex flex-col items-start gap-1 sm:items-end">
-            <button
-              type="button"
-              disabled={checkingUpdate}
-              onClick={() => void handleCheckUpdate()}
-              className={btnOutline}
-            >
-              {checkingUpdate ? t('settings:general.checking') : t('settings:general.checkUpdate')}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={checkingUpdate}
+                onClick={() => void handleCheckUpdate()}
+                className={btnOutline}
+              >
+                {checkingUpdate ? t('settings:general.checking') : t('settings:general.checkUpdate')}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void ipcClient.invoke('app.openRelease', { url: 'https://github.com/justhil/pi-app' })
+                }
+                className={btnOutline}
+                title={t('settings:general.openGitHub')}
+              >
+                {t('settings:general.openGitHub')}
+              </button>
+            </div>
             {updateCheck && (
               <span className="max-w-[220px] text-xs text-muted-foreground/70 sm:text-right">{updateCheck}</span>
             )}

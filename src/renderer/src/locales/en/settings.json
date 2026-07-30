@@ -26,6 +26,7 @@
     "appVersion": "App version",
     "appVersionDesc": "Check now; if an update exists, show notes and one-click install",
     "checkUpdate": "Check for updates",
+    "openGitHub": "GitHub",
     "checking": "Checking…",
     "updateCheckFailed": "Check failed",
     "updateHasNew": "New version v{{version}} available (current v{{current}})",

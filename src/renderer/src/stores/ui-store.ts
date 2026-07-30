@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { applyAppEvent } from '@renderer/stores/apply-app-event'
 import {
@@ -391,7 +391,7 @@ export const useUIStore = create<UIState>()(
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   rightPanelWidth: 288,
-  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 0), 720) }),
+  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 280), 720) }),
   rightPanelCollapsed: false,
   toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
   filesPreviewChatExpand: false,

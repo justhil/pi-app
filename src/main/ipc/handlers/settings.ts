@@ -1,4 +1,5 @@
 import { shell } from 'electron'
+import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
@@ -31,7 +32,25 @@ export function registerSettingsHandlers(): void {
 
   registerHandler('ipc:app.checkUpdate', async () => {
     const { checkGitHubReleaseUpdate } = await import('../../github-release-check')
-    return checkGitHubReleaseUpdate()
+    const { getMainWindow } = await import('../../window')
+    const win = getMainWindow()
+
+    // Fire-and-forget: the result is pushed via ipc:app-update-available
+    // so the Settings UI does not block while the network call is in flight.
+    void checkGitHubReleaseUpdate().then((result) => {
+      if (!win || win.isDestroyed() || !result.ok || !result.hasUpdate || !result.latestVersion) return
+      const payload: AppUpdateAvailableInfo = {
+        currentVersion: result.currentVersion,
+        latestVersion: result.latestVersion.replace(/^v/i, ''),
+        releaseUrl: result.releaseUrl,
+        releaseNotes: result.releaseNotes,
+        downloadUrl: result.downloadUrl,
+        downloadName: result.downloadName,
+        assets: result.assets,
+      }
+      win.webContents.send('ipc:app-update-available', payload)
+    })
+    return { ok: true, checking: true }
   })
 
   registerHandler('ipc:app.getPendingUpdate', async () => {
