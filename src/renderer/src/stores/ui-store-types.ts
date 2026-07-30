@@ -36,6 +36,7 @@ export interface TimelineItem {
   type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'
   text?: string
   thinkingText?: string
+  thinkingDuration?: number
   toolName?: string
   toolCallId?: string
   toolPhase?: string

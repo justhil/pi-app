@@ -135,10 +135,14 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
       api.set({ streamingAssistantId: null })
     }
     if (sid) {
+      const item = api.get().timelineItems.find((i) => i.id === sid)
+      const thinkingDuration =
+        item?.timestamp && item.thinkingText ? Date.now() - item.timestamp : undefined
       state.updateTimelineItem(sid, {
         runId: event.runId,
         turnId: event.turnId,
         ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
+        ...(thinkingDuration ? { thinkingDuration } : {}),
       })
     }
     if (!api.get().agentTurnBootstrapping) state.pruneEmptyAssistantBubbles()

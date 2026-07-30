@@ -22,7 +22,7 @@ export type TimelineClusterChild =
       text: string
       streaming?: boolean
       startedAt?: number
-      completedAt?: number
+      duration?: number
     }
   | { kind: 'tool'; item: TimelineRawItem }
   /** @deprecated prose never enters tool clusters */
@@ -162,7 +162,7 @@ export function buildClusterChildren(slice: TimelineRawItem[]): TimelineClusterC
         text: thinking,
         streaming,
         startedAt,
-        completedAt: streaming ? undefined : startedAt,
+        duration: (row as { thinkingDuration?: number }).thinkingDuration,
       })
     }
   }

@@ -183,6 +183,7 @@ const TimelineItemBase = memo(function TimelineItem({
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
             startedAt={Number(item.timestamp ?? 0) || undefined}
+            duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
           />
         </div>
@@ -196,6 +197,7 @@ const TimelineItemBase = memo(function TimelineItem({
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
             startedAt={Number(item.timestamp ?? 0) || undefined}
+            duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
           />
         )}

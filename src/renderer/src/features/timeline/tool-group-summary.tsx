@@ -120,6 +120,7 @@ function ToolGroupSummaryImpl({
                   text={child.text}
                   streaming={!!child.streaming}
                   startedAt={child.startedAt}
+                  duration={child.duration}
                   labelSeed={child.id}
                   nested
                 />

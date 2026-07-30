@@ -33,6 +33,7 @@ export function ThinkingChainBlock({
   streaming,
   nested = false,
   startedAt,
+  duration,
   labelSeed,
   placeholder = false,
 }: {
@@ -40,6 +41,7 @@ export function ThinkingChainBlock({
   streaming?: boolean
   nested?: boolean
   startedAt?: number
+  duration?: number
   labelSeed?: string
   placeholder?: boolean
 }) {
@@ -62,8 +64,10 @@ export function ThinkingChainBlock({
 
   useEffect(() => {
     if (!isLive) {
-      if (startedAtRef.current != null) {
-        setElapsedMs(Math.max(0, Date.now() - startedAtRef.current))
+      if (duration != null) {
+        setElapsedMs(duration)
+      } else {
+        setElapsedMs(0)
       }
       return
     }
@@ -74,7 +78,7 @@ export function ThinkingChainBlock({
     tick()
     const timer = window.setInterval(tick, 500)
     return () => window.clearInterval(timer)
-  }, [isLive])
+  }, [isLive, duration])
 
   const liveKey = useMemo(
     () => pickStableLiveKey(labelSeed || body.slice(0, 24) || 'think'),
@@ -83,8 +87,11 @@ export function ThinkingChainBlock({
 
   const label = useMemo(() => {
     if (isLive) return t(liveKey)
-    const duration = formatThoughtDuration(elapsedMs || 1000)
-    return t(duration.labelKey, { seconds: duration.seconds })
+    if (elapsedMs > 0) {
+      const d = formatThoughtDuration(elapsedMs)
+      return t(d.labelKey, { seconds: d.seconds })
+    }
+    return t('timeline:thoughtDone')
   }, [isLive, liveKey, elapsedMs, t])
 
   if (!placeholder && !body) return null
