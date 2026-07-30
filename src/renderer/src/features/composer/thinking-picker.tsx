@@ -25,19 +25,26 @@ export function ThinkingPicker() {
   if (!open) return null
 
   const pick = async (level: string) => {
+    const previous = useUIStore.getState().runState.thinkingLevel
+    useUIStore.getState().setRunState({ thinkingLevel: level })
+    setOpen(false)
     try {
       await ipcClient.invoke('thinkingLevel.set', {
         sessionId: '',
         sessionFile: sessionFile ?? undefined,
         level,
       })
-      useUIStore.getState().setRunState({ thinkingLevel: level })
       toast.success(`Thinking: ${level}`)
     } catch (e) {
+      const isWorkerNotStarted =
+        e instanceof Error && e.message.toLowerCase().includes('worker not started')
+      if (isWorkerNotStarted) {
+        return
+      }
       console.error('thinkingLevel.set failed:', e)
+      useUIStore.getState().setRunState({ thinkingLevel: previous })
       toast.error('切换失败')
     }
-    setOpen(false)
   }
 
   return (
