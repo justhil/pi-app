@@ -647,10 +647,11 @@ export async function hydrateSessionView(
 
     if (sessionFilesEqual(focusKey, sessionKey)) {
       bindViewToUiStore(next)
+      // Bind the worker to this session before showing composer meta/context so
+      // the displayed model and token counts come from the correct runtime.
+      await ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
       useUIStore.getState().setHistoryLoading(false)
-      // Non-blocking: composer meta / pending bind must not delay timeline paint
       void applyComposerDisplayMeta(hist.sessionMeta)
-      void ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
     }
   } catch (error) {
     console.error('[session-shell] hydrate failed:', error)

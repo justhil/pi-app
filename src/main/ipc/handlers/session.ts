@@ -74,8 +74,20 @@ export function registerSessionHandlers(): void {
   })
 
   registerHandler('ipc:session.setPendingBind', async (req) => {
-    setPendingWorkerSessionFile(req.sessionFile ?? null)
-    if (req.sessionFile) workerManager.focusExistingSession(req.sessionFile)
+    const sessionFile = req.sessionFile ?? null
+    setPendingWorkerSessionFile(sessionFile)
+    if (sessionFile) {
+      workerManager.focusExistingSession(sessionFile)
+      // Eagerly load the session on the running worker so composer model/context
+      // refresh from the correct runtime state after switching sessions.
+      if (workerManager.isRunning && workerManager.cwd) {
+        try {
+          await workerManager.loadSession(sessionFile)
+        } catch (e) {
+          console.warn('[session.setPendingBind] loadSession failed:', e)
+        }
+      }
+    }
     return { ok: true }
   })
 

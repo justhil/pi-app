@@ -95,6 +95,11 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
     const fromMetaThink = normalizeThinkingLevel(meta?.thinkingLevel)
     if (!patch.model && fromMetaModel) patch.model = fromMetaModel
     if (!patch.thinkingLevel && fromMetaThink) patch.thinkingLevel = fromMetaThink
+
+    // Prefer the current session's persisted model id when no live worker is bound yet.
+    const currentSession = store.sessions.find((s) => s.sessionId === store.currentSessionId)
+    const sessionModel = normalizeModelKey(currentSession?.modelId)
+    if (!patch.model && sessionModel) patch.model = sessionModel
   }
 
   if (!patch.model || !patch.thinkingLevel) {
