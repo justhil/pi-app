@@ -443,10 +443,15 @@ export const useUIStore = create<UIState>()(
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
-      version: 2,
+      version: 3,
       migrate: (persistedState) => {
         const p = persistedState as Partial<UIState>
-        return { ...p, currentWorkspace: null } as UIState
+        return {
+          ...p,
+          currentWorkspace: null,
+          rightPanelWidth: 288,
+          rightPanelCollapsed: false,
+        } as UIState
       },
     },
   ),
