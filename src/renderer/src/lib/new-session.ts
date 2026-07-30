@@ -31,6 +31,23 @@ export async function materializePendingNewSession(workspaceId: string, firstMes
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
   }
 
+  // Apply the user's pre-selected model/thinking level to the new session.
+  const { runState } = store
+  if (sessionFile) {
+    if (runState.model && runState.model.includes('/')) {
+      const [provider, ...modelIdParts] = runState.model.split('/')
+      const modelId = modelIdParts.join('/')
+      void ipcClient
+        .invoke('model.set', { sessionId: '', sessionFile, provider, modelId })
+        .catch(() => {})
+    }
+    if (runState.thinkingLevel) {
+      void ipcClient
+        .invoke('thinkingLevel.set', { sessionId: '', sessionFile, level: runState.thinkingLevel })
+        .catch(() => {})
+    }
+  }
+
   const { refreshComposerRunDisplay } = await import('@renderer/lib/composer-run-display')
   void refreshComposerRunDisplay()
 
