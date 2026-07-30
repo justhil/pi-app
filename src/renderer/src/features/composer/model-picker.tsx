@@ -73,6 +73,13 @@ export function ModelPicker() {
       })
       toast.success(t('composer:switchedModel', { key }))
     } catch (e) {
+      const isWorkerNotStarted =
+        e instanceof Error && e.message.toLowerCase().includes('worker not started')
+      if (isWorkerNotStarted) {
+        // No active session/worker yet; local state is already updated and will
+        // take effect once a workspace session starts.
+        return
+      }
       console.error('model.set failed:', e)
       useUIStore.getState().setRunState({ model: previous })
       toast.error(t('composer:switchFailed'))
