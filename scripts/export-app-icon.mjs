@@ -1,9 +1,9 @@
 /**
- * 从 resources/icon.svg 导出 build/icon.png (1024) 供 electron-builder → icon.ico
+ * 从 resources/icon.svg 导出 build/icon.png (1024) 与 build/icon.ico (256) 供打包与运行时图标
  * 需要: npm i -D sharp
  * 运行: node scripts/export-app-icon.mjs
  */
-import { mkdir, readFile } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -11,6 +11,27 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const svgPath = join(root, 'resources', 'icon.svg')
 const outDir = join(root, 'build')
 const outPng = join(outDir, 'icon.png')
+const outIco = join(outDir, 'icon.ico')
+
+function pngToIco(pngBuffer) {
+  // 生成只含一张 256x256 PNG 的 .ico（Windows 任务栏/托盘可直接解析）
+  const header = Buffer.alloc(6)
+  header.writeUInt16LE(0, 0) // Reserved
+  header.writeUInt16LE(1, 2) // Type: icon
+  header.writeUInt16LE(1, 4) // Count
+
+  const entry = Buffer.alloc(16)
+  entry.writeUInt8(0, 0) // Width: 0 表示 256
+  entry.writeUInt8(0, 1) // Height: 0 表示 256
+  entry.writeUInt8(0, 2) // Colors
+  entry.writeUInt8(0, 3) // Reserved
+  entry.writeUInt16LE(1, 4) // Planes
+  entry.writeUInt16LE(32, 6) // Bit count
+  entry.writeUInt32LE(pngBuffer.length, 8) // Bytes in res
+  entry.writeUInt32LE(22, 12) // Offset
+
+  return Buffer.concat([header, entry, pngBuffer])
+}
 
 async function main() {
   let sharp
@@ -22,9 +43,13 @@ async function main() {
   }
   const svg = await readFile(svgPath)
   await mkdir(outDir, { recursive: true })
+
   await sharp(svg, { density: 300 }).resize(1024, 1024).png().toFile(outPng)
   console.log('Wrote', outPng)
-  console.log('打包: npm run package:win 会使用 build/icon.ico（需 electron-builder 从 icon.png 生成，或自行转 ico）')
+
+  const png256 = await sharp(svg, { density: 300 }).resize(256, 256).png().toBuffer()
+  await writeFile(outIco, pngToIco(png256))
+  console.log('Wrote', outIco)
 }
 
 main().catch((e) => {

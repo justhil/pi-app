@@ -391,7 +391,7 @@ export const useUIStore = create<UIState>()(
   sidebarCollapsed: false,
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   rightPanelWidth: 288,
-  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 280), 720) }),
+  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 0), 720) }),
   rightPanelCollapsed: false,
   toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
   filesPreviewChatExpand: false,
@@ -433,7 +433,6 @@ export const useUIStore = create<UIState>()(
       name: 'pi-desktop-ui',
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
-        currentWorkspace: s.currentWorkspace,
         recentProjects: s.recentProjects,
         activePanel: s.activePanel,
         theme: s.theme,
@@ -444,7 +443,11 @@ export const useUIStore = create<UIState>()(
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
-      version: 1,
+      version: 2,
+      migrate: (persistedState) => {
+        const p = persistedState as Partial<UIState>
+        return { ...p, currentWorkspace: null } as UIState
+      },
     },
   ),
 )

@@ -26,6 +26,8 @@ files:
 extraFiles:
   - from: build/icon.png
     to: resources/build/icon.png
+  - from: build/icon.ico
+    to: resources/build/icon.ico
 
 # 可选：运行 scripts/fetch-codex-asr 后放入 resources/codex-asr；缺失时回退 PATH 中的 codex-asr
 extraResources:

@@ -61,6 +61,9 @@ export function ModelPicker() {
 
   const pick = async (m: ModelRow) => {
     const key = `${m.provider}/${m.id}`
+    const previous = currentModel
+    useUIStore.getState().setRunState({ model: key })
+    setOpen(false)
     try {
       await ipcClient.invoke('model.set', {
         sessionId: '',
@@ -68,13 +71,12 @@ export function ModelPicker() {
         provider: m.provider,
         modelId: m.id,
       })
-      useUIStore.getState().setRunState({ model: key })
       toast.success(t('composer:switchedModel', { key }))
     } catch (e) {
       console.error('model.set failed:', e)
+      useUIStore.getState().setRunState({ model: previous })
       toast.error(t('composer:switchFailed'))
     }
-    setOpen(false)
   }
 
   const toggleProvider = (provider: string) => {

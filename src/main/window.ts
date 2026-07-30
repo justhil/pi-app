@@ -4,15 +4,22 @@ import { join } from 'path'
 
 const isMac = process.platform === 'darwin'
 const isLinux = process.platform === 'linux'
-const useFrameless = process.platform === 'win32' || isMac || isLinux
+const isWin = process.platform === 'win32'
+const useFrameless = isWin || isMac || isLinux
 
 function resolveWindowIcon() {
-  const candidates = [
+  const icoCandidates = isWin
+    ? [
+        join(process.resourcesPath, 'build', 'icon.ico'),
+        join(__dirname, '../../build/icon.ico'),
+      ]
+    : []
+  const pngCandidates = [
     join(process.resourcesPath, 'build', 'icon.png'),
     join(__dirname, '../../build/icon.png'),
     join(__dirname, '../../resources/icon.png'),
   ]
-  for (const p of candidates) {
+  for (const p of [...icoCandidates, ...pngCandidates]) {
     if (existsSync(p)) {
       const img = nativeImage.createFromPath(p)
       if (!img.isEmpty()) return img

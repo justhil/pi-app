@@ -1,6 +1,6 @@
 // Bridges pi ExtensionUIContext to Electron (RPC-style pending requests + ask_user_question custom UI)
 
-import type { EventBus } from '@earendil-works/pi-coding-agent'
+import type { EventBus, Theme } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
 
 export const ASK_USER_PROMPT_EVENT = 'rpiv:ask-user:prompt'
@@ -75,6 +75,21 @@ function createDialogPromise<T>(
     emit(request)
   })
 }
+
+const desktopTheme = {
+  fg: (_color: unknown, text: string) => text,
+  bg: (_color: unknown, text: string) => text,
+  bold: (text: string) => text,
+  italic: (text: string) => text,
+  underline: (text: string) => text,
+  inverse: (text: string) => text,
+  strikethrough: (text: string) => text,
+  getFgAnsi: () => '',
+  getBgAnsi: () => '',
+  getColorMode: () => 'truecolor' as const,
+  getThinkingBorderColor: () => (text: string) => text,
+  getBashModeBorderColor: () => (text: string) => text,
+} as unknown as Theme
 
 export function createDesktopUIBridge(
   eventBus: EventBus,
@@ -225,7 +240,7 @@ export function createDesktopUIBridge(
     getEditorComponent: () => undefined,
 
     get theme() {
-      return {}
+      return desktopTheme
     },
     getAllThemes: () => [],
     getTheme: () => undefined,
