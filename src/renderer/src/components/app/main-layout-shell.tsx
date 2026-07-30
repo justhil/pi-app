@@ -38,7 +38,12 @@ export function MainLayoutShell({
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (leftDragRef.current) setLeftWidth(e.clientX)
-      if (rightDragRef.current) setRightWidth(window.innerWidth - e.clientX)
+      if (rightDragRef.current) {
+        const minCenterGap = 120
+        const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth
+        const maxRight = Math.max(280, window.innerWidth - leftColW - minCenterGap)
+        setRightWidth(Math.min(window.innerWidth - e.clientX, maxRight))
+      }
     }
     const onUp = () => {
       if (leftDragRef.current || rightDragRef.current) {
@@ -56,7 +61,7 @@ export function MainLayoutShell({
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [setLeftWidth, setRightWidth])
+  }, [setLeftWidth, setRightWidth, leftCollapsed, leftWidth])
 
   const leftCol = leftCollapsed ? '0px' : `${leftWidth}px`
   const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${rightWidth}px`
