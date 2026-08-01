@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { normalizeFontName } from '@shared/custom-theme'
-import { ICON_THEMES } from '@shared/icon-theme'
+import { normalizeFontName } from '../../../packages/shared/custom-theme.ts'
+import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
 
 export const shellOpenPathSchema = z.object({
   path: z.string(),

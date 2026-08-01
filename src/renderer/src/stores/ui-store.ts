@@ -1,21 +1,12 @@
 ﻿import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { applyAppEvent } from '@renderer/stores/apply-app-event'
-import {
-  coerceActivePanel,
-  CORE_RIGHT_PANEL_CATALOG,
-  defaultCoreRightPanelPrefs,
-} from '@shared/right-panels'
 import { sanitizeRunStatePatch } from '@renderer/lib/format-run-display'
 import {
   dedupeAdjacentUserMessages,
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import { projectTimelineItems } from '@shared/timeline-projection'
-import {
-  DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
-  normalizeTimelineMaxAutoExpandedTools,
-} from '@shared/timeline-settings'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import type { FileChange, RunState, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
@@ -25,6 +16,7 @@ import {
   flushStreamPendingSync,
   queueStreamDelta,
 } from '@renderer/stores/ui-store-stream'
+import { createShellSlice } from '@renderer/stores/ui-store-shell-slice'
 
 export type { TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 
@@ -321,29 +313,7 @@ export const useUIStore = create<UIState>()(
     })
   },
 
-  activePanel: 'review',
-  rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],
-  setActivePanel: (p) =>
-    set((s) => ({
-      activePanel: s.rightPanelPrefs[p]
-        ? p
-        : coerceActivePanel(p, s.rightPanelPrefs, s.rightPanelCatalog, s.rightPanelOrder),
-    })),
-  rightPanelPrefs: defaultCoreRightPanelPrefs(),
-  rightPanelOrder: [],
-  applyRightPanelRuntime: (catalog, prefs, order) =>
-    set((s) => {
-      const nextOrder = order?.length ? order : s.rightPanelOrder
-      return {
-        rightPanelCatalog: catalog,
-        rightPanelPrefs: prefs,
-        rightPanelOrder: nextOrder,
-        activePanel: coerceActivePanel(s.activePanel, prefs, catalog, nextOrder),
-      }
-    }),
-
-  theme: 'system',
-  setTheme: (t) => set({ theme: t }),
+  ...createShellSlice(set, get),
   sessionRuntimeRunning: {},
   setSessionRuntimeRunning: (sessionFile, running) =>
     set((s) => {
@@ -358,44 +328,6 @@ export const useUIStore = create<UIState>()(
       else delete next[key]
       return { sessionRuntimeRunning: next }
     }),
-  /** sessionFile → toolCallId → expanded (display memory only) */
-  toolExpandBySession: {} as Record<string, Record<string, boolean>>,
-  setToolCallExpanded: (toolCallId, expanded) =>
-    set((s) => {
-      const sessionKey =
-        normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
-      if (!toolCallId) return s
-      const sessionMap = { ...(s.toolExpandBySession[sessionKey] || {}) }
-      if (expanded == null) delete sessionMap[toolCallId]
-      else sessionMap[toolCallId] = expanded
-      return {
-        toolExpandBySession: {
-          ...s.toolExpandBySession,
-          [sessionKey]: sessionMap,
-        },
-      }
-    }),
-  getToolCallExpanded: (toolCallId) => {
-    const s = get()
-    if (!toolCallId) return undefined
-    const sessionKey =
-      normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
-    const value = s.toolExpandBySession[sessionKey]?.[toolCallId]
-    return value
-  },
-  timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
-  setTimelineMaxAutoExpandedTools: (n) =>
-    set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n) }),
-  sidebarWidth: 260,
-  setSidebarWidth: (w) => set({ sidebarWidth: Math.min(Math.max(w, 200), 360) }),
-  sidebarCollapsed: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-  rightPanelWidth: 288,
-  setRightPanelWidth: (w) => set({ rightPanelWidth: Math.min(Math.max(w, 280), 9999) }),
-  rightPanelCollapsed: false,
-  toggleRightPanel: () => set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
-  filesPreviewChatExpand: false,
-
   lastModel: null,
   lastThinking: null,
   rememberModel: (model) => set({ lastModel: model }),

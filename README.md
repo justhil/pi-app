@@ -6,7 +6,7 @@
 
 The desktop app for the [pi](https://github.com/jvm/pi-mono) coding agent — same agent you run in the terminal, now with a timeline, side panels, and a real window.
 
-[![Version](https://img.shields.io/badge/version-0.4.10-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.5.4-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
 [![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
 [![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
@@ -125,6 +125,12 @@ Bundled binaries come from [codex-asr releases](https://github.com/Wangnov/codex
 | Switching sessions feels slow at first | Only recent messages load immediately; the rest loads when you send or use the tree |
 | Voice doesn't work | Open Settings → Voice; check the token or run `codex login` to refresh — typing still works |
 | Closed an extension popup | Use **Continue** on the timeline |
+
+## Sponsor
+
+If pi Desktop has been useful to you, you can support its continued maintenance using the QR code below.
+
+<img src="doc/assets/sponsor-qr.png" alt="Sponsor QR code" width="320" />
 
 ## Community
 

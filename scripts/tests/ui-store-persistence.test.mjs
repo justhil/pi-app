@@ -8,8 +8,8 @@ const root = process.cwd()
 describe('ui-store persistence invariants', () => {
   it('persists layout/workspace prefs but not transient timeline/session state', () => {
     const src = readFileSync(join(root, 'src/renderer/src/stores/ui-store.ts'), 'utf8')
-    const partialize = src.slice(src.indexOf('partialize:'), src.indexOf('version: 1'))
-    assert.match(partialize, /currentWorkspace: s\.currentWorkspace/)
+    const partialize = src.slice(src.indexOf('partialize:'), src.indexOf('version:', src.indexOf('partialize:')))
+    assert.doesNotMatch(partialize, /currentWorkspace/)
     assert.match(partialize, /recentProjects: s\.recentProjects/)
     assert.doesNotMatch(partialize, /timelineItems/)
     assert.doesNotMatch(partialize, /sessions/)

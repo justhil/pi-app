@@ -39,8 +39,10 @@ describe('dark theme visual tokens (VS Code Dark Modern)', () => {
   })
 
   it('should_keep_dark_shell_edges_flat_not_bright', () => {
+    const dark = darkBlock(css)
     assert.match(css, /\.dark \.shell-track-center \.main-chat-column/)
-    assert.match(css, /\.dark \.composer-shell/)
+    assert.match(dark, /--composer-shell-border:\s*#3a3a3a/i)
+    assert.match(css, /\.composer-shell \{[^}]*border-color:\s*var\(--composer-shell-border\)/s)
     assert.doesNotMatch(
       css,
       /\.dark \.shell-track-center \.main-chat-column \{[^}]*#ffffff/,

@@ -12,6 +12,7 @@ vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
     getState: () => ({
       historySessionFile: '/proj/sessions/a.jsonl',
+      sessions: [],
       lastModel: 'anthropic/claude-from-last',
       lastThinking: 'low',
       runState: { model: 'jsonl/stale-display', thinkingLevel: 'medium' },

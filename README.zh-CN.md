@@ -5,7 +5,7 @@
 
 [pi](https://github.com/jvm/pi-mono) 编码助手的桌面应用 — 终端里跑的那个 Agent，现在有了时间线、侧栏和一个正经窗口。
 
-[![Version](https://img.shields.io/badge/version-0.4.10-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.5.4-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
 [![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
 [![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
@@ -125,6 +125,12 @@ pi 有不断壮大的 npm 包生态 — 子 Agent、生图、搜索、哈锡锚�
 | 换会话一开始有点慢 | 先显示最近一段，发消息或用树跳转后会补全 |
 | 语音不可用 | 设置 → 语音输入；检查 token 或跑 `codex login` 刷新 — 不影响打字 |
 | 误关了扩展弹窗 | 时间线点 **继续作答** |
+
+## 赞助支持
+
+如果 pi Desktop 对你有帮助，欢迎通过下方二维码支持项目的持续维护。
+
+<img src="doc/assets/sponsor-qr.png" alt="赞助二维码" width="320" />
 
 ## 交流
 

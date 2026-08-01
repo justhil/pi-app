@@ -45,7 +45,14 @@ describe('checkGitHubReleaseUpdate network wiring', () => {
       ),
     )
 
-    const result = await checkGitHubReleaseUpdate()
+    const platform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32' })
+    let result: Awaited<ReturnType<typeof checkGitHubReleaseUpdate>>
+    try {
+      result = await checkGitHubReleaseUpdate()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: platform })
+    }
 
     expect(electron.fetch).toHaveBeenCalledTimes(1)
     expect(electron.fetch.mock.calls[0][0]).toBe(
