@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = process.cwd()
-const css = readFileSync(join(root, 'src/renderer/src/styles/globals.css'), 'utf8')
+const css = readFileSync(join(root, 'src/renderer/src/styles/globals.css'), 'utf8').replace(/\r\n/g, '\n')
 
 function darkBlock(source) {
   const start = source.indexOf('.dark {')
