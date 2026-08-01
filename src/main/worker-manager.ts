@@ -437,11 +437,12 @@ export class WorkerManager {
     const r = await this.request('clearQueue', sessionFile ? { sessionFile } : {})
     return { steering: (r.steering as string[]) || [], followUp: (r.followUp as string[]) || [] }
   }
-  async setModel(provider: string, modelId: string, sessionFile?: string): Promise<void> {
+  async setModel(provider: string, modelId: string, sessionFile?: string): Promise<string> {
     const response = await this.request('setModel', { provider, modelId, sessionFile })
     if (sessionFile && response.leafId !== undefined) {
       setSessionLeafOverride(sessionFile, response.leafId as string | null)
     }
+    return String(response.modelId || '')
   }
   async setThinkingLevel(level: string, sessionFile?: string): Promise<void> {
     const response = await this.request('setThinkingLevel', { level, sessionFile })
@@ -741,6 +742,13 @@ export class WorkerManager {
 
   get isRunning(): boolean {
     return this.foregroundSlot() != null
+  }
+
+  get hasActiveTurns(): boolean {
+    for (const slot of this.pool.values()) {
+      if (slot.agentTurnActive) return true
+    }
+    return false
   }
 
   async awaitReady(): Promise<void> {

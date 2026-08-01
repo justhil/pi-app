@@ -27,17 +27,35 @@ function currentModelFallbackMessage(): string | undefined {
 }
 
 export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
-        if (st.session) {
-          try {
-            // Resolve model from the st.session's modelRegistry (no dynamic pi-ai import — it's a nested dep not hoisted).
-            const model = resolveModelFromRegistry(st.session.modelRegistry as PiModelRegistryLike, String(msg.provider ?? ''), String(msg.modelId ?? ''))
-            if (model) await st.session.setModel(model as Parameters<typeof st.session.setModel>[0])
-            const modelStr = currentSessionModelKey()
-            emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel })
-          } catch (e) { console.error('[Worker] setModel failed:', e) }
-        }
-        reply({ type: 'setModel-done' })
-        return
+  const provider = String(msg.provider ?? '')
+  const modelId = String(msg.modelId ?? '')
+  if (!st.session) {
+    reply({ type: 'error', error: 'Worker session not started' })
+    return
+  }
+  try {
+    const model = resolveModelFromRegistry(
+      st.session.modelRegistry as PiModelRegistryLike,
+      provider,
+      modelId,
+    )
+    if (!model) {
+      reply({ type: 'error', error: `MODEL_NOT_FOUND: ${provider}/${modelId}` })
+      return
+    }
+    await st.session.setModel(model as Parameters<typeof st.session.setModel>[0])
+    const actualModel = currentSessionModelKey()
+    if (actualModel !== `${provider}/${modelId}`) {
+      reply({ type: 'error', error: `MODEL_NOT_CONFIRMED: ${actualModel || 'unknown'}` })
+      return
+    }
+    emit({ ...baseEvent(), type: 'run', phase: 'state', model: actualModel, thinkingLevel: st.session.thinkingLevel })
+    reply({ type: 'setModel-done', modelId: actualModel })
+  } catch (e: unknown) {
+    const message = errorMessage(e)
+    console.error('[Worker] setModel failed:', e)
+    reply({ type: 'error', error: message })
+  }
 }
 
 

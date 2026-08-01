@@ -39,8 +39,8 @@ export type PiModelsConfig = {
   providers: Record<string, PiProviderConfig>
 }
 
-export function getModelsJsonPath(): string {
-  return join(homedir(), '.pi', 'agent', 'models.json')
+export function getModelsJsonPath(agentDir = join(homedir(), '.pi', 'agent')): string {
+  return join(agentDir, 'models.json')
 }
 
 function stripJsonComments(input: string): string {
@@ -49,14 +49,14 @@ function stripJsonComments(input: string): string {
     .replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (m, tail) => tail ?? (m[0] === '"' ? m : ''))
 }
 
-export function readModelsConfigRaw(): {
+export function readModelsConfigRaw(modelsPath = getModelsJsonPath()): {
   path: string
   config: PiModelsConfig
   raw?: string
   parseError?: string
   warnings?: string[]
 } {
-  const path = getModelsJsonPath()
+  const path = modelsPath
   if (!existsSync(path)) {
     return { path, config: { providers: {} } }
   }
@@ -76,10 +76,8 @@ async function loadPiSdk(): Promise<typeof import('@earendil-works/pi-coding-age
   return import(pathToFileURL(active.entryPath).href)
 }
 
-async function validateWithPiSdk(config: PiModelsConfig): Promise<string | undefined> {
+async function validateWithPiSdk(sdk: unknown, agentDir: string, config: PiModelsConfig): Promise<string | undefined> {
   try {
-    const sdk = await loadPiSdk()
-    const agentDir = sdk.getAgentDir?.() ?? join(homedir(), '.pi', 'agent')
     return await validateModelsConfigWithSdk(sdk, agentDir, config)
   } catch (e: unknown) {
     return (e as { message?: string })?.message || '校验失败'
@@ -114,30 +112,46 @@ export function modelsCatalogFromConfig(config: PiModelsConfig): ModelsJsonCatal
   return out
 }
 
-export async function readModelsConfig(): Promise<{
+export async function readModelsConfigWithSdk(sdk: unknown, agentDir: string): Promise<{
   path: string
   config: PiModelsConfig
   schemaError?: string
   parseError?: string
   warnings?: string[]
 }> {
-  const base = readModelsConfigRaw()
+  const base = readModelsConfigRaw(getModelsJsonPath(agentDir))
   if (base.parseError) return base
-  const schemaError = await validateWithPiSdk(base.config)
+  const schemaError = await validateWithPiSdk(sdk, agentDir, base.config)
   return { ...base, schemaError }
 }
 
-export async function writeModelsConfig(config: PiModelsConfig): Promise<{ ok: boolean; error?: string; path: string }> {
-  const path = getModelsJsonPath()
+export async function readModelsConfig(): Promise<Awaited<ReturnType<typeof readModelsConfigWithSdk>>> {
+  const sdk = await loadPiSdk()
+  const agentDir = sdk.getAgentDir?.() ?? join(homedir(), '.pi', 'agent')
+  return readModelsConfigWithSdk(sdk, agentDir)
+}
+
+export async function writeModelsConfigWithSdk(
+  config: PiModelsConfig,
+  sdk: unknown,
+  agentDir: string,
+): Promise<{ ok: boolean; error?: string; path: string }> {
+  const path = getModelsJsonPath(agentDir)
   const { config: normalized, warnings } = normalizeModelsConfig(config)
   if (warnings.length) {
     console.warn('[models.json] normalize on save:', warnings.join('; '))
   }
-  const schemaError = await validateWithPiSdk(normalized)
+  const schemaError = await validateWithPiSdk(sdk, agentDir, normalized)
   if (schemaError) return { ok: false, error: schemaError, path }
   mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, `${JSON.stringify(normalized, null, 2)}\n`, 'utf-8')
   return { ok: true, path }
+}
+
+export async function writeModelsConfig(config: PiModelsConfig): Promise<{ ok: boolean; error?: string; path: string }> {
+  const sdk = await loadPiSdk()
+  const agentDir = sdk.getAgentDir?.() ?? join(homedir(), '.pi', 'agent')
+  return writeModelsConfigWithSdk(config, sdk, agentDir)
 }
 
 function resolveApiKeyForFetch(apiKey?: string): string | undefined {

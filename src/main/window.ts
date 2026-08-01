@@ -1,33 +1,12 @@
-import { BrowserWindow, nativeImage, shell } from 'electron'
-import { existsSync } from 'fs'
+import { BrowserWindow, shell } from 'electron'
 import { join } from 'path'
+import { is } from '@electron-toolkit/utils'
+import { resolveAppIcon } from './app-icon'
 
 const isMac = process.platform === 'darwin'
 const isLinux = process.platform === 'linux'
 const isWin = process.platform === 'win32'
 const useFrameless = isWin || isMac || isLinux
-
-function resolveWindowIcon() {
-  const icoCandidates = isWin
-    ? [
-        join(process.resourcesPath, 'build', 'icon.ico'),
-        join(__dirname, '../../build/icon.ico'),
-      ]
-    : []
-  const pngCandidates = [
-    join(process.resourcesPath, 'build', 'icon.png'),
-    join(__dirname, '../../build/icon.png'),
-    join(__dirname, '../../resources/icon.png'),
-  ]
-  for (const p of [...icoCandidates, ...pngCandidates]) {
-    if (existsSync(p)) {
-      const img = nativeImage.createFromPath(p)
-      if (!img.isEmpty()) return img
-    }
-  }
-  return undefined
-}
-import { is } from '@electron-toolkit/utils'
 import { configStore } from './config-store'
 import { customThemeRendererArgument } from './custom-theme-startup'
 import { workerManager } from './worker-manager'
@@ -109,7 +88,7 @@ export function createWindow(): BrowserWindow {
       ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 12, y: 10 } }
       : {}),
     title: 'pi Desktop',
-    icon: resolveWindowIcon(),
+    icon: resolveAppIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       additionalArguments: [customThemeRendererArgument()],

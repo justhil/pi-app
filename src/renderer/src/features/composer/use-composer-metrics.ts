@@ -83,7 +83,7 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
       return
     }
     ipcClient
-      .invoke('model.list', {})
+      .invoke('model.list', { scope: 'catalog' })
       .then((r) => {
         const models = (r?.models || []) as { id: string; name: string; contextWindow?: number }[]
         const matchedModel =

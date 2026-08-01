@@ -37,14 +37,23 @@ export async function materializePendingNewSession(workspaceId: string, firstMes
     if (runState.model && runState.model.includes('/')) {
       const [provider, ...modelIdParts] = runState.model.split('/')
       const modelId = modelIdParts.join('/')
-      void ipcClient
-        .invoke('model.set', { sessionId: '', sessionFile, provider, modelId })
-        .catch(() => {})
+      const modelResult = await ipcClient.invoke('model.set', {
+        sessionId: '',
+        sessionFile,
+        provider,
+        modelId,
+      })
+      const requestedModel = `${provider}/${modelId}`
+      if (modelResult.modelId !== requestedModel) {
+        throw new Error(`Model selection was not confirmed: ${modelResult.modelId || 'unknown'}`)
+      }
     }
     if (runState.thinkingLevel) {
-      void ipcClient
-        .invoke('thinkingLevel.set', { sessionId: '', sessionFile, level: runState.thinkingLevel })
-        .catch(() => {})
+      await ipcClient.invoke('thinkingLevel.set', {
+        sessionId: '',
+        sessionFile,
+        level: runState.thinkingLevel,
+      })
     }
   }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Loader2, RefreshCw, X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
@@ -22,6 +23,7 @@ const FILTER_OPTS: { key: TreeFilterMode; label: string }[] = [
 ]
 
 export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
   const sessionFile = useUIStore((s) => s.historySessionFile)
   const rawTree = useUIStore((s) => s.rewindTreeNodes) as SessionTreeNode[]
   const loading = useUIStore((s) => s.rewindLoadingTree)
@@ -121,7 +123,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
           <div>
             <h2 className="text-[15px] font-semibold">会话树</h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              同 TUI <span className="font-mono">/tree</span> · ↑↓ 选择 · Enter 跳转 · Esc 关闭
+              {t('timeline:treeOverlayHint')}
             </p>
           </div>
           <div className="flex items-center gap-1">

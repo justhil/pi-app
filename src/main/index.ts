@@ -6,6 +6,7 @@ import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
+import { destroyAppTray, ensureAppTray } from './tray'
 // Prevent EPIPE / write errors from crashing the main process
 process.stdout?.on?.('error', () => {})
 process.stderr?.on?.('error', () => {})
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
     })
   }
   createMenu()
+  ensureAppTray()
 
   // CSP: inject Content-Security-Policy header in production (skip dev for Vite HMR)
   if (!is.dev) {
@@ -138,6 +140,7 @@ async function gracefulShutdownWorkers(): Promise<void> {
 }
 
 app.on('before-quit', (event) => {
+  destroyAppTray()
   if (isQuittingGracefully) return
   event.preventDefault()
   void gracefulShutdownWorkers().finally(() => {

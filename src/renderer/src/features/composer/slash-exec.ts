@@ -54,22 +54,37 @@ export async function executeSlashCommand(
         return true
       }
       try {
-        if (arg.includes('/')) {
-          const [provider, modelId] = arg.split('/')
-          await ipcClient.invoke('model.set', { sessionId: '', provider, modelId })
-          store.setRunState({ model: `${provider}/${modelId}` })
-          toast.success(i18n.t('composer:toast.modelSet', { model: `${provider}/${modelId}` }))
+        let provider: string | undefined
+        let modelId: string | undefined
+        const separator = arg.indexOf('/')
+        if (separator >= 0) {
+          provider = arg.slice(0, separator)
+          modelId = arg.slice(separator + 1)
         } else {
-          const res = (await ipcClient.invoke('model.list', {})) as { models?: Array<{ id: string; name?: string; provider: string }> }
+          const res = (await ipcClient.invoke('model.list', { scope: 'available' })) as { models?: Array<{ id: string; name?: string; provider: string }> }
           const hit = (res?.models || []).find((mm) => mm.id === arg || mm.name === arg)
-          if (hit) {
-            await ipcClient.invoke('model.set', { sessionId: '', provider: hit.provider, modelId: hit.id })
-            store.setRunState({ model: `${hit.provider}/${hit.id}` })
-            toast.success(i18n.t('composer:toast.modelSet', { model: `${hit.provider}/${hit.id}` }))
-          } else {
-            toast.error(i18n.t('composer:modelNotFound', { arg }))
-          }
+          provider = hit?.provider
+          modelId = hit?.id
         }
+        if (!provider || !modelId) {
+          toast.error(i18n.t('composer:modelNotFound', { arg }))
+          return true
+        }
+        const requestedModel = `${provider}/${modelId}`
+        const sessionFile = store.historySessionFile
+        if (!sessionFile) {
+          store.setRunState({ model: requestedModel })
+          toast.success(i18n.t('composer:toast.modelSet', { model: requestedModel }))
+          return true
+        }
+        const response = await ipcClient.invoke('model.set', {
+          sessionId: '',
+          sessionFile,
+          provider,
+          modelId,
+        })
+        store.setRunState({ model: response.modelId })
+        toast.success(i18n.t('composer:toast.modelSet', { model: response.modelId }))
       } catch (e) {
         console.error('/model failed:', e)
         toast.error(i18n.t('composer:switchModelFailed'))

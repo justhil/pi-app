@@ -1,10 +1,12 @@
-import { existsSync, mkdtempSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   listAvailableModelsWithSdk,
+  listCatalogModelsWithSdk,
   resolveAvailableModels,
+  resolveCatalogModels,
   UNSUPPORTED_MODEL_SDK_ERROR,
   validateModelsConfigWithSdk,
   validateModelsPathWithSdk,
@@ -41,6 +43,25 @@ describe('active SDK model compatibility', () => {
       ),
     ).resolves.toBe('legacy schema error')
     expect(registryCreate).toHaveBeenCalledWith(auth, 'C:/tmp/models.json')
+  })
+
+  it('should_validate_models_with_the_registry_getError_api', async () => {
+    const auth = {}
+    const getError = vi.fn(() => 'registry schema error')
+    const authCreate = vi.fn(() => auth)
+    const registryCreate = vi.fn(() => ({ getError }))
+
+    await expect(
+      validateModelsPathWithSdk(
+        {
+          AuthStorage: { create: authCreate },
+          ModelRegistry: { create: registryCreate },
+        },
+        'C:/tmp/models.json',
+      ),
+    ).resolves.toBe('registry schema error')
+    expect(registryCreate).toHaveBeenCalledWith(auth, 'C:/tmp/models.json')
+    expect(getError).toHaveBeenCalledOnce()
   })
 
   it('should_return_a_stable_error_for_an_unsupported_sdk', async () => {
@@ -108,6 +129,115 @@ describe('active SDK model compatibility', () => {
     expect(existsSync(modelsPath)).toBe(false)
   })
 
+  it('should_list_the_complete_catalog_with_the_modern_model_runtime_without_network', async () => {
+    const models = [
+      { id: 'built-in', provider: 'anthropic' },
+      { id: 'store-only', provider: 'custom' },
+    ]
+    const getModels = vi.fn(() => models)
+    const create = vi.fn(async () => ({ getModels }))
+
+    await expect(listCatalogModelsWithSdk({ ModelRuntime: { create } })).resolves.toEqual(models)
+    expect(create).toHaveBeenCalledWith({ allowModelNetwork: false })
+    expect(getModels).toHaveBeenCalledOnce()
+  })
+
+  it('should_use_the_legacy_catalog_when_a_hybrid_modern_runtime_lacks_getModels', async () => {
+    const models = [{ id: 'legacy-catalog', provider: 'custom' }]
+    const runtimeCreate = vi.fn(async () => ({ getAvailableSnapshot: () => [] }))
+    const auth = {}
+    const authCreate = vi.fn(() => auth)
+    const getAll = vi.fn(() => models)
+    const registryCreate = vi.fn(() => ({ getAll }))
+
+    await expect(
+      listCatalogModelsWithSdk({
+        ModelRuntime: { create: runtimeCreate },
+        AuthStorage: { create: authCreate },
+        ModelRegistry: { create: registryCreate },
+      }),
+    ).resolves.toEqual(models)
+    expect(runtimeCreate).toHaveBeenCalledWith({ allowModelNetwork: false })
+    expect(registryCreate).toHaveBeenCalledWith(auth)
+    expect(getAll).toHaveBeenCalledOnce()
+  })
+
+  it('should_let_the_modern_sdk_merge_an_override_only_models_file_with_its_store', async () => {
+    const agentDir = mkdtempSync(join(tmpdir(), 'pi-model-catalog-'))
+    const modelsPath = join(agentDir, 'models.json')
+    const storePath = join(agentDir, 'models-store.json')
+    const overrideConfig = { models: [{ id: 'override-only', provider: 'custom' }] }
+    const storeConfig = { models: [{ id: 'store-only', provider: 'custom' }] }
+    writeFileSync(modelsPath, JSON.stringify(overrideConfig), 'utf8')
+    writeFileSync(storePath, JSON.stringify(storeConfig), 'utf8')
+    const originalFiles = readdirSync(agentDir)
+    const create = vi.fn(async (options?: { modelsPath?: string | null; allowModelNetwork?: boolean }) => {
+      const activeModelsPath = options?.modelsPath || ''
+      const overrides = JSON.parse(readFileSync(activeModelsPath, 'utf8')) as typeof overrideConfig
+      const store = JSON.parse(
+        readFileSync(join(activeModelsPath, '..', 'models-store.json'), 'utf8'),
+      ) as typeof storeConfig
+      return { getModels: () => [...store.models, ...overrides.models] }
+    })
+
+    await expect(
+      listCatalogModelsWithSdk({
+        getAgentDir: () => agentDir,
+        ModelRuntime: { create },
+      }),
+    ).resolves.toEqual([
+      { id: 'store-only', provider: 'custom' },
+      { id: 'override-only', provider: 'custom' },
+    ])
+    expect(create).toHaveBeenCalledWith({ modelsPath, allowModelNetwork: false })
+    expect(readdirSync(agentDir)).toEqual(originalFiles)
+    expect(readFileSync(modelsPath, 'utf8')).toBe(JSON.stringify(overrideConfig))
+    expect(readFileSync(storePath, 'utf8')).toBe(JSON.stringify(storeConfig))
+  })
+
+  it('should_list_the_complete_catalog_with_the_legacy_registry', async () => {
+    const models = [
+      { id: 'built-in', provider: 'anthropic' },
+      { id: 'override', provider: 'custom' },
+    ]
+    const auth = {}
+    const authCreate = vi.fn(() => auth)
+    const getAll = vi.fn(() => models)
+    const registryCreate = vi.fn(() => ({ getAll }))
+
+    await expect(
+      listCatalogModelsWithSdk({
+        AuthStorage: { create: authCreate },
+        ModelRegistry: { create: registryCreate },
+      }),
+    ).resolves.toEqual(models)
+    expect(registryCreate).toHaveBeenCalledWith(auth)
+    expect(getAll).toHaveBeenCalledOnce()
+  })
+
+  it('should_prefer_the_sdk_catalog_when_models_json_contains_only_overrides', async () => {
+    const sdk = vi.fn(async () => [
+      { id: 'built-in', provider: 'anthropic' },
+      { id: 'store-only', provider: 'custom' },
+    ])
+    const modelsJson = vi.fn(() => [{ id: 'override-only', provider: 'custom' }])
+
+    await expect(resolveCatalogModels({ sdk, catalog: modelsJson })).resolves.toEqual([
+      { id: 'built-in', provider: 'anthropic' },
+      { id: 'store-only', provider: 'custom' },
+    ])
+    expect(modelsJson).not.toHaveBeenCalled()
+  })
+
+  it('should_fall_back_to_models_json_when_the_sdk_catalog_is_unsupported', async () => {
+    const modelsJson = vi.fn(() => [{ id: 'override-only', provider: 'custom' }])
+
+    await expect(
+      resolveCatalogModels({ sdk: vi.fn(async () => []), catalog: modelsJson }),
+    ).resolves.toEqual([{ id: 'override-only', provider: 'custom' }])
+    expect(modelsJson).toHaveBeenCalledOnce()
+  })
+
   it('should_list_available_models_with_the_modern_model_runtime', async () => {
     const models = [{ id: 'modern', provider: 'test' }]
     const create = vi.fn(async () => ({ getAvailable: vi.fn(async () => models) }))
@@ -148,9 +278,7 @@ describe('active SDK model compatibility', () => {
     const sdk = vi.fn(async () => [{ id: 'sdk' }])
     const catalog = vi.fn(() => [{ id: 'catalog' }])
 
-    await expect(resolveAvailableModels({ worker, sdk, catalog })).resolves.toEqual([
-      { id: 'worker' },
-    ])
+    await expect(resolveAvailableModels({ worker, sdk })).resolves.toEqual([{ id: 'worker' }])
     expect(sdk).not.toHaveBeenCalled()
     expect(catalog).not.toHaveBeenCalled()
   })
@@ -160,32 +288,45 @@ describe('active SDK model compatibility', () => {
     const sdk = vi.fn(async () => [{ id: 'sdk' }])
     const catalog = vi.fn(() => [{ id: 'catalog' }])
 
-    await expect(resolveAvailableModels({ worker, sdk, catalog })).resolves.toEqual([
-      { id: 'sdk' },
-    ])
+    await expect(resolveAvailableModels({ worker, sdk })).resolves.toEqual([{ id: 'sdk' }])
     expect(catalog).not.toHaveBeenCalled()
   })
 
-  it('should_fall_back_to_disk_catalog_when_worker_and_sdk_fail', async () => {
+  it('should_return_empty_without_reading_catalog_when_worker_and_sdk_fail', async () => {
     const onWorkerError = vi.fn()
     const onSdkError = vi.fn()
+    const catalog = vi.fn(() => [{ id: 'catalog' }])
     const workerError = new Error('worker failed')
     const sdkError = new Error('sdk failed')
 
-    await expect(
-      resolveAvailableModels({
-        worker: vi.fn(async () => {
-          throw workerError
-        }),
-        sdk: vi.fn(async () => {
-          throw sdkError
-        }),
-        catalog: () => [{ id: 'catalog' }],
-        onWorkerError,
-        onSdkError,
+    const input = {
+      worker: vi.fn(async () => {
+        throw workerError
       }),
-    ).resolves.toEqual([{ id: 'catalog' }])
+      sdk: vi.fn(async () => {
+        throw sdkError
+      }),
+      catalog,
+      onWorkerError,
+      onSdkError,
+    }
+
+    await expect(resolveAvailableModels(input)).resolves.toEqual([])
+    expect(catalog).not.toHaveBeenCalled()
     expect(onWorkerError).toHaveBeenCalledWith(workerError)
     expect(onSdkError).toHaveBeenCalledWith(sdkError)
+  })
+
+  it('should_return_empty_without_reading_catalog_when_worker_and_sdk_are_empty', async () => {
+    const catalog = vi.fn(() => [{ id: 'catalog' }])
+
+    const input = {
+      worker: vi.fn(async () => []),
+      sdk: vi.fn(async () => []),
+      catalog,
+    }
+
+    await expect(resolveAvailableModels(input)).resolves.toEqual([])
+    expect(catalog).not.toHaveBeenCalled()
   })
 })

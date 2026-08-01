@@ -109,7 +109,7 @@ export interface ModelInfo {
 }
 export interface ModelListRequest {
   workspaceId?: string
-  /** catalog=~/.pi/agent/models.json 全部条目（设置默认模型）；available=已配置鉴权（Composer） */
+  /** catalog=active Pi SDK 完整目录（设置默认模型）；available=已配置鉴权（Composer） */
   scope?: 'catalog' | 'available'
 }
 export interface ModelListResponse { models: ModelInfo[] }

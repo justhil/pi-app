@@ -166,6 +166,20 @@ describe('pruneIdleWorkersByTimeout', () => {
   })
 })
 
+describe('WorkerManager active turns', () => {
+  it('reports an active turn from any worker slot', () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot> }
+    internals.pool.set('/s/idle', fakeSlot('/s/idle', '/w', false))
+    internals.pool.set('/s/running', fakeSlot('/s/running', '/w', true))
+
+    expect(manager.hasActiveTurns).toBe(true)
+
+    internals.pool.get('/s/running')!.agentTurnActive = false
+    expect(manager.hasActiveTurns).toBe(false)
+  })
+})
+
 describe('session-scoped RPC routing', () => {
   it('should_not_move_view_foreground_when_targeting_an_existing_background_worker', async () => {
     const manager = new WorkerManager()

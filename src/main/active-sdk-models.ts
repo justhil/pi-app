@@ -13,16 +13,20 @@ export type ModelEntry = {
 
 type LegacyRegistry = {
   getModelsJsonError?: () => unknown
-  getAvailable?: () => ModelEntry[] | Promise<ModelEntry[]>
+  getError?: () => unknown
+  getAll?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
+  getAvailable?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
 }
 
 type ModernRuntime = {
   getError?: () => unknown
+  getModels?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
   getAvailable?: () => Promise<readonly ModelEntry[]>
   getAvailableSnapshot?: () => readonly ModelEntry[]
 }
 
 type ActiveModelSdk = {
+  getAgentDir?: () => string
   AuthStorage?: { create?: () => unknown }
   ModelRegistry?: { create?: (auth: unknown, modelsPath?: string) => LegacyRegistry }
   ModelRuntime?: {
@@ -82,18 +86,37 @@ export async function validateModelsPathWithSdk(
   if (hasLegacyRegistry(module)) {
     const auth = module.AuthStorage!.create!()
     const registry = module.ModelRegistry!.create!(auth, modelsPath)
-    if (typeof registry.getModelsJsonError !== 'function') return UNSUPPORTED_MODEL_SDK_ERROR
-    const error = registry.getModelsJsonError()
-    return error ? String(error) : undefined
+    if (typeof registry.getModelsJsonError === 'function') {
+      const error = registry.getModelsJsonError()
+      return error ? String(error) : undefined
+    }
+    if (typeof registry.getError === 'function') {
+      const error = registry.getError()
+      return error ? String(error) : undefined
+    }
+    return UNSUPPORTED_MODEL_SDK_ERROR
   }
 
   return UNSUPPORTED_MODEL_SDK_ERROR
 }
 
+export async function resolveCatalogModels(input: {
+  sdk: () => Promise<readonly ModelEntry[]>
+  catalog: () => readonly ModelEntry[]
+  onSdkError?: (error: unknown) => void
+}): Promise<readonly ModelEntry[]> {
+  try {
+    const models = await input.sdk()
+    if (models.length > 0) return models
+  } catch (error) {
+    input.onSdkError?.(error)
+  }
+  return input.catalog()
+}
+
 export async function resolveAvailableModels(input: {
   worker?: () => Promise<readonly ModelEntry[]>
   sdk: () => Promise<readonly ModelEntry[]>
-  catalog: () => readonly ModelEntry[]
   onWorkerError?: (error: unknown) => void
   onSdkError?: (error: unknown) => void
 }): Promise<readonly ModelEntry[]> {
@@ -111,7 +134,29 @@ export async function resolveAvailableModels(input: {
   } catch (error) {
     input.onSdkError?.(error)
   }
-  return input.catalog()
+  return []
+}
+
+export async function listCatalogModelsWithSdk(
+  sdk: unknown,
+): Promise<readonly ModelEntry[]> {
+  const module = sdk as ActiveModelSdk
+  if (hasModernRuntime(module)) {
+    const agentDir = module.getAgentDir?.()
+    const runtime = await module.ModelRuntime!.create!({
+      ...(agentDir ? { modelsPath: join(agentDir, 'models.json') } : {}),
+      allowModelNetwork: false,
+    })
+    if (runtime.getModels) return runtime.getModels()
+  }
+
+  if (hasLegacyRegistry(module)) {
+    const auth = module.AuthStorage!.create!()
+    const registry = module.ModelRegistry!.create!(auth)
+    return (await registry.getAll?.()) ?? []
+  }
+
+  return []
 }
 
 export async function listAvailableModelsWithSdk(

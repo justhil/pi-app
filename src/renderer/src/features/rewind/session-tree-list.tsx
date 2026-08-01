@@ -1,5 +1,6 @@
 import { ArrowLeft, Bot, GitBranch, MessageSquare, Sparkles, Wrench } from '@renderer/components/icons'
 import { useMemo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { buildGitLaneLayout } from './session-tree-git-lanes'
 import { SessionTreeGraphColumn } from './session-tree-graph-column'
@@ -90,6 +91,7 @@ export function SessionTreeList({
   /** Optional trailing control per row (e.g. Fork on user messages) */
   renderTrailing?: (node: SessionTreeNode) => ReactNode
 }) {
+  const { t } = useTranslation()
   const layout = useMemo(
     () => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null),
     [nodes, showGuides],
@@ -112,11 +114,8 @@ export function SessionTreeList({
             >
               <button
                 type="button"
-                title={n.isLeaf ? '当前位置' : onActivate ? 'Enter 或双击跳转' : '跳转到此节点'}
-                onClick={() => {
-                  onSelect?.(n.id)
-                  if (!n.isLeaf && onActivate) onActivate(n.id)
-                }}
+                title={n.isLeaf ? '当前位置' : onActivate ? t('timeline:treeViewNode') : t('timeline:jumpToNode')}
+                onClick={() => onSelect?.(n.id)}
                 onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
                 className={cn(
                   'flex min-w-0 flex-1 items-stretch gap-0 py-0.5 pl-0 pr-1 text-left',
@@ -154,7 +153,7 @@ export function SessionTreeList({
                 </span>
               </button>
               {trailing != null && (
-                <div className="flex shrink-0 items-center pr-0.5 opacity-0 transition-opacity group-hover/tree-row:opacity-100 focus-within:opacity-100">
+                <div className="flex shrink-0 items-center pr-0.5 transition-opacity">
                   {trailing}
                 </div>
               )}

@@ -59,10 +59,7 @@ export function SettingsNav({
       className="flex h-full min-h-0 w-[220px] shrink-0 flex-col overflow-hidden border-r border-border/50 bg-surface-sidebar sm:w-56"
       aria-label={title}
     >
-      <div className="shrink-0 px-4 pb-2 pt-5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/50">
-        {title}
-      </div>
-      <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-2 pb-4">
+      <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-2 pb-4 pt-5">
         <div className="flex flex-col gap-4">{children}</div>
       </OverlayScrollHost>
     </nav>

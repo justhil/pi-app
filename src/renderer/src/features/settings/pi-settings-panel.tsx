@@ -94,35 +94,24 @@ export function PiSettingsPanel() {
 
   const reloadSdk = useCallback(async (opts?: { refresh?: boolean }) => {
     const refreshArg = opts?.refresh ? { refresh: true } : {}
-    try {
-      const status = await ipcClient.invoke('sdk.status', refreshArg)
-      setSdkStatus(status)
-      setEnvTarget(status?.active?.kind || 'builtin')
-      void ipcClient.invoke('sdk.listAvailable', refreshArg).then((avail) => {
-        setRegistry(avail)
-        setSelectedVersion((cur) => cur || (avail?.latest ?? ''))
-      })
-    } catch (e) {
-      console.error('sdk status load failed', e)
-    }
+    const status = await ipcClient.invoke('sdk.status', refreshArg)
+    setSdkStatus(status)
+    setEnvTarget(status?.active?.kind || 'builtin')
+    const avail = await ipcClient.invoke('sdk.listAvailable', refreshArg)
+    setRegistry(avail)
+    setSelectedVersion((cur) => cur || (avail?.latest ?? ''))
   }, [])
 
   useEffect(() => {
-    void reloadSdk()
+    void reloadSdk().catch((error) => console.error('sdk status load failed', error))
   }, [reloadSdk])
 
   useEffect(() => {
     return onAppEvent((event) => {
       if (event.type !== 'sdk-install-progress') return
       if (event.line) setInstallOutput((prev) => [...prev, event.line!])
-      if (event.done) {
-        setInstalling(false)
-        if (event.error) toast.error(`${t('settings:pi.upgradeFailed')}: ${event.error}`)
-        else toast.success(t('settings:pi.upgradeSuccess'))
-        void reloadSdk({ refresh: true })
-      }
     })
-  }, [reloadSdk, t])
+  }, [])
 
   const onInstall = useCallback(async () => {
     if (!selectedVersion) return
@@ -131,14 +120,23 @@ export function PiSettingsPanel() {
     try {
       const res = await ipcClient.invoke('sdk.install', { version: selectedVersion })
       if (res?.ok === false) {
-        setInstalling(false)
         toast.error(res.error || t('settings:pi.upgradeFailed'))
+        return
       }
+      setSdkStatus((current) => current ? { ...current, active: res.active } : current)
+      setEnvTarget(res.active.kind)
+      try {
+        await reloadSdk({ refresh: true })
+      } catch (error) {
+        console.error('sdk refresh after install failed', error)
+      }
+      toast.success(t('settings:pi.upgradeSuccess'))
     } catch (e: unknown) {
-      setInstalling(false)
       toast.error(e instanceof Error ? e.message : t('settings:pi.upgradeFailed'))
+    } finally {
+      setInstalling(false)
     }
-  }, [selectedVersion, t])
+  }, [reloadSdk, selectedVersion, t])
 
   const onSwitchEnv = useCallback(
     async (target: 'builtin' | 'global' | 'user') => {
@@ -149,14 +147,21 @@ export function PiSettingsPanel() {
           toast.error(res.error || t('settings:pi.switchFailed'))
           return
         }
+        setSdkStatus((current) => current ? { ...current, active: res.active } : current)
+        setEnvTarget(res.active.kind)
+        try {
+          await reloadSdk({ refresh: true })
+        } catch (error) {
+          console.error('sdk refresh after switch failed', error)
+        }
+        const activeKind = res.active.kind
         const label =
-          target === 'builtin'
+          activeKind === 'builtin'
             ? t('settings:pi.switchSuccessBuiltin')
-            : target === 'global'
+            : activeKind === 'global'
               ? t('settings:pi.switchSuccessGlobal')
               : t('settings:pi.switchSuccessUser')
         toast.success(label)
-        void reloadSdk({ refresh: true })
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : t('settings:pi.switchFailed'))
       } finally {

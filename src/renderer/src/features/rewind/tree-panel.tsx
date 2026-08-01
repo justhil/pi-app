@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GitFork, Loader2, RefreshCw } from '@renderer/components/icons'
+import { GitFork, Loader2, RefreshCw, Undo2 } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
@@ -12,6 +12,7 @@ import {
   type TreeFilterMode,
 } from '@renderer/features/rewind/session-tree-list'
 import { cn } from '@renderer/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 const FILTER_OPTS: { key: TreeFilterMode; label: string }[] = [
   { key: 'default', label: '默认' },
@@ -22,6 +23,7 @@ const FILTER_OPTS: { key: TreeFilterMode; label: string }[] = [
 ]
 
 export function TreePanel() {
+  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const sessionFile = useUIStore((s) => s.historySessionFile)
   const rawTree = useUIStore((s) => s.rewindTreeNodes) as SessionTreeNode[]
@@ -70,7 +72,7 @@ export function TreePanel() {
         <div className="min-w-0">
           <span className="font-medium text-foreground">会话树</span>
           <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-            同 TUI <span className="font-mono">/tree</span> · 点击跳转 · 用户旁 Fork
+            {t('timeline:treePanelHint')}
           </p>
         </div>
         <button
@@ -133,21 +135,36 @@ export function TreePanel() {
               onActivate={(id) => void navigateSessionToEntry(id)}
               showGuides={showGuides}
               rowClassName="text-[11px]"
-              renderTrailing={(node) =>
-                node.entryType === 'message' && node.role === 'user' ? (
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
-                    title="Fork 到新会话"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      void forkSessionFromEntry(node.id)
-                    }}
-                  >
-                    <GitFork className="h-3.5 w-3.5" />
-                  </button>
-                ) : null
-              }
+              renderTrailing={(node) => (
+                <>
+                  {!node.isLeaf && (
+                    <button
+                      type="button"
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
+                      title={t('timeline:jumpToNode')}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void navigateSessionToEntry(node.id)
+                      }}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {node.entryType === 'message' && node.role === 'user' && (
+                    <button
+                      type="button"
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
+                      title="Fork 到新会话"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void forkSessionFromEntry(node.id)
+                      }}
+                    >
+                      <GitFork className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </>
+              )}
             />
           </>
         )}

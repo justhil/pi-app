@@ -16,6 +16,25 @@ import {
   invalidateSdkManagerCaches,
 } from '../../sdk-manager'
 import { errorMessage } from '@shared/error-message'
+import { confirmSdkSelection } from '../../sdk-selection-transaction'
+import { probeSelectedSdk } from '../sdk-session'
+
+async function restartWorkers(): Promise<void> {
+  const cwd = workerManager.cwd || configStore.get('currentProject')
+  if (!cwd) return
+  await workerManager.stop()
+  await workerManager.start(cwd)
+}
+
+function rejectActiveTurns(): string | null {
+  return workerManager.hasActiveTurns ? '当前有 Agent 正在运行，无法切换 SDK' : null
+}
+
+async function verifySelectedSdk(target: 'builtin' | 'global' | 'user') {
+  const active = await probeSelectedSdk(target)
+  if (workerManager.lastSdkFallback) throw new Error('Worker 加载目标 SDK 失败并回退到内置环境')
+  return active
+}
 
 export function registerPiSdkHandlers(): void {
   registerHandler('ipc:pi.getInfo', async () => readPiInfo())
@@ -37,14 +56,13 @@ export function registerPiSdkHandlers(): void {
       return { ok: false, path: '', error: '无效 config' }
     }
     const r = await writeModelsConfig(config)
-    if (r.ok && workerManager.isRunning) {
-      try {
-        await workerManager.reloadModels()
-      } catch (e) {
-        console.error('[IPC] pi.models.set reloadModels failed:', e)
-      }
+    if (!r.ok || !workerManager.isRunning) return r
+    try {
+      await workerManager.reloadModels()
+      return r
+    } catch (e) {
+      return { ...r, ok: false, error: `模型配置已写入，但重载失败: ${errorMessage(e)}` }
     }
-    return r
   })
 
   registerHandler('ipc:pi.models.fetch', async (req) =>
@@ -70,41 +88,54 @@ export function registerPiSdkHandlers(): void {
 
   registerHandlerWithSchema('ipc:sdk.install', sdkInstallSchema, async (req) => {
     const version = String(req.version || '').trim()
+    const activeTurnError = rejectActiveTurns()
+    if (activeTurnError) return { ok: false, error: activeTurnError }
     const registry = await listRegistryVersions()
     if (!isAllowedSdkVersion(version, registry)) {
       return { ok: false, error: 'version not in registry list' }
     }
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const userDataDir = app.getPath('userData')
+    const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
     try {
       await installVersion(version, (line) => {
         if (win) sendEvent(win, { type: 'sdk-install-progress', version, line })
       })
-      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
       invalidateSdkManagerCaches()
       clearGlobalSdkPathCache()
-      const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (cwd) {
-        await workerManager.stop()
-        await workerManager.start(cwd)
-      }
-      return { ok: true }
+      const active = await confirmSdkSelection({
+        target: 'user',
+        rollbackTarget: previousTarget === 'user' ? 'builtin' : previousTarget,
+        restartWorker: restartWorkers,
+        verifySelection: verifySelectedSdk,
+        rollbackSelection: switchTo,
+      })
+      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
+      return { ok: true, active }
     } catch (e: unknown) {
-      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error: errorMessage(e) })
-      return { ok: false, error: errorMessage(e) }
+      const error = errorMessage(e)
+      if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error })
+      return { ok: false, error }
     }
   })
 
   registerHandler('ipc:sdk.switch', async (req) => {
     const target: 'builtin' | 'global' | 'user' =
       req?.target === 'global' ? 'global' : req?.target === 'user' ? 'user' : 'builtin'
+    const activeTurnError = rejectActiveTurns()
+    if (activeTurnError) return { ok: false, error: activeTurnError }
+    const userDataDir = app.getPath('userData')
+    const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
     try {
       await switchTo(target)
-      const cwd = workerManager.cwd || configStore.get('currentProject')
-      if (cwd) {
-        await workerManager.stop()
-        await workerManager.start(cwd)
-      }
-      return { ok: true, active: target }
+      const active = await confirmSdkSelection({
+        target,
+        rollbackTarget: previousTarget,
+        restartWorker: restartWorkers,
+        verifySelection: verifySelectedSdk,
+        rollbackSelection: switchTo,
+      })
+      return { ok: true, active }
     } catch (e: unknown) {
       return { ok: false, error: errorMessage(e) }
     }

@@ -4,7 +4,12 @@ import { configStore } from '../../config-store'
 import { isSandboxWorkspacePath } from '../../sandbox-workspaces'
 import { readModelsConfigRaw, modelsCatalogFromConfig } from '../../pi-models-json'
 import { getActiveSdkModule } from '../sdk-session'
-import { listAvailableModelsWithSdk, resolveAvailableModels } from '../../active-sdk-models'
+import {
+  listAvailableModelsWithSdk,
+  listCatalogModelsWithSdk,
+  resolveAvailableModels,
+  resolveCatalogModels,
+} from '../../active-sdk-models'
 
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
@@ -25,7 +30,14 @@ export function registerModelRuntimeHandlers(): void {
       return { models: modelsCatalogFromConfig(config) }
     }
 
-    if (scope === 'catalog') return catalogFromDisk()
+    if (scope === 'catalog') {
+      const models = await resolveCatalogModels({
+        sdk: async () => mapRegistry(await listCatalogModelsWithSdk(await getActiveSdkModule())),
+        catalog: () => catalogFromDisk().models,
+        onSdkError: (error) => console.error('[IPC] model.list catalog failed:', error),
+      })
+      return { models }
+    }
 
     const models = await resolveAvailableModels({
       worker: workerManager.isRunning
@@ -37,7 +49,6 @@ export function registerModelRuntimeHandlers(): void {
             )
         : undefined,
       sdk: async () => mapRegistry(await listAvailableModelsWithSdk(await getActiveSdkModule())),
-      catalog: () => catalogFromDisk().models,
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })
@@ -53,8 +64,10 @@ export function registerModelRuntimeHandlers(): void {
       modelId = req.modelId
     } else {
       const raw = req.modelId || ''
-      if (raw.includes('/')) {
-        ;[provider, modelId] = raw.split('/') as [string, string]
+      const separator = raw.indexOf('/')
+      if (separator >= 0) {
+        provider = raw.slice(0, separator)
+        modelId = raw.slice(separator + 1)
       } else {
         provider = 'anthropic'
         modelId = raw
@@ -65,8 +78,8 @@ export function registerModelRuntimeHandlers(): void {
       if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')
       await workerManager.start(cwd)
     }
-    await workerManager.setModel(provider, modelId, sessionFile)
-    return { modelId: `${provider}/${modelId}` }
+    const actualModel = await workerManager.setModel(provider, modelId, sessionFile)
+    return { modelId: actualModel }
   })
 
   registerHandler('ipc:model.cycle', async () => ({ modelId: '', thinkingLevel: 'medium' }))

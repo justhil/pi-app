@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { X, Search, Check, Cpu, ChevronRight } from '@renderer/components/icons'
+import { X, Search, Check, Cpu, ChevronRight, Loader2 } from '@renderer/components/icons'
 import { toast } from 'sonner'
 import { formatModelFull } from '@renderer/lib/format-run-display'
 
@@ -36,12 +36,13 @@ export function ModelPicker() {
   const [models, setModels] = useState<ModelRow[]>([])
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [pendingModel, setPendingModel] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setQuery('')
     setExpanded({})
-    ipcClient.invoke('model.list').then((res) => setModels(res?.models || [])).catch(() => {})
+    ipcClient.invoke('model.list', { scope: 'available' }).then((res) => setModels(res?.models || [])).catch(() => {})
   }, [open])
 
   const filtered = useMemo(() => {
@@ -60,29 +61,29 @@ export function ModelPicker() {
   const searching = query.trim().length > 0
 
   const pick = async (m: ModelRow) => {
-    const key = `${m.provider}/${m.id}`
-    const previous = currentModel
-    useUIStore.getState().setRunState({ model: key })
-    setOpen(false)
+    const requestedModel = `${m.provider}/${m.id}`
+    if (!sessionFile) {
+      useUIStore.getState().setRunState({ model: requestedModel })
+      setOpen(false)
+      return
+    }
+    setPendingModel(requestedModel)
     try {
-      await ipcClient.invoke('model.set', {
+      const response = await ipcClient.invoke('model.set', {
         sessionId: '',
-        sessionFile: sessionFile ?? undefined,
+        sessionFile,
         provider: m.provider,
         modelId: m.id,
       })
-      toast.success(t('composer:switchedModel', { key }))
+      const actualModel = response.modelId
+      useUIStore.getState().setRunState({ model: actualModel })
+      setOpen(false)
+      toast.success(t('composer:switchedModel', { key: actualModel }))
     } catch (e) {
-      const isWorkerNotStarted =
-        e instanceof Error && e.message.toLowerCase().includes('worker not started')
-      if (isWorkerNotStarted) {
-        // No active session/worker yet; local state is already updated and will
-        // take effect once a workspace session starts.
-        return
-      }
       console.error('model.set failed:', e)
-      useUIStore.getState().setRunState({ model: previous })
-      toast.error(t('composer:switchFailed'))
+      toast.error(e instanceof Error ? e.message : t('composer:switchFailed'))
+    } finally {
+      setPendingModel(null)
     }
   }
 
@@ -175,13 +176,16 @@ export function ModelPicker() {
                       {rows.map((m) => {
                         const key = `${m.provider}/${m.id}`
                         const active = currentModel === key
+                        const pending = pendingModel === key
                         return (
                           <button
                             key={key}
                             type="button"
                             onClick={() => pick(m)}
+                            disabled={pendingModel !== null}
+                            aria-busy={pending}
                             className={cn(
-                              'picker-row flex w-full items-center gap-2.5 py-2 pl-9 pr-4 text-left',
+                              'picker-row flex w-full items-center gap-2.5 py-2 pl-9 pr-4 text-left disabled:cursor-wait disabled:opacity-70',
                               active && 'bg-[var(--bg-active)]',
                             )}
                           >
@@ -198,7 +202,9 @@ export function ModelPicker() {
                                 <div className="truncate text-[11px] text-muted-foreground/60">{m.name}</div>
                               )}
                             </div>
-                            {active && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                            {pending
+                              ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                              : active && <Check className="h-4 w-4 shrink-0 text-primary" />}
                           </button>
                         )
                       })}

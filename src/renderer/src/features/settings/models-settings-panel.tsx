@@ -19,6 +19,7 @@ import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-a
 import type { LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
 import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry, ProviderAvatar } from './models-settings-shared'
 import { ModelsProviderCard } from './models-provider-card'
+import { saveModelsConfigDraft } from './save-models-config'
 
 export function ModelsSettingsPanel() {
   const { t } = useTranslation('settings')
@@ -29,6 +30,7 @@ export function ModelsSettingsPanel() {
   const [loadWarnings, setLoadWarnings] = useState<string[]>([])
   const [manualAddProviderId, setManualAddProviderId] = useState<string | null>(null)
   const [schemaError, setSchemaError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [fetching, setFetching] = useState<string | null>(null)
@@ -44,32 +46,31 @@ export function ModelsSettingsPanel() {
   } | null>(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await ipcClient.invoke('pi.models.get', {})
-      setFilePath(res?.path || '')
-      setParseError(res?.parseError || null)
-      setSchemaError(res?.schemaError || null)
-      setLoadWarnings(res?.warnings?.length ? res.warnings : [])
-      const cfg = res?.config ?? { providers: {} }
-      setBaseline(cloneConfig(cfg))
-      setDraft(cloneConfig(cfg))
-      const keys = Object.keys(cfg.providers || {})
-      setExpanded((prev) => {
-        const next = { ...prev }
-        for (const k of keys) if (next[k] === undefined) next[k] = keys.length <= 3
-        return next
-      })
-    } catch (e: unknown) {
-      toast.error((e instanceof Error ? e.message : String(e)) || t('models.loadFailedToast'))
-    } finally {
-      setLoading(false)
-    }
-  }, [t])
+    const res = await ipcClient.invoke('pi.models.get', {})
+    setFilePath(res?.path || '')
+    setParseError(res?.parseError || null)
+    setSchemaError(res?.schemaError || null)
+    setLoadWarnings(res?.warnings?.length ? res.warnings : [])
+    setSaveError(null)
+    const cfg = res?.config ?? { providers: {} }
+    setBaseline(cloneConfig(cfg))
+    setDraft(cloneConfig(cfg))
+    const keys = Object.keys(cfg.providers || {})
+    setExpanded((prev) => {
+      const next = { ...prev }
+      for (const k of keys) if (next[k] === undefined) next[k] = keys.length <= 3
+      return next
+    })
+  }, [])
 
   useEffect(() => {
+    setLoading(true)
     void load()
-  }, [load])
+      .catch((e: unknown) => {
+        toast.error((e instanceof Error ? e.message : String(e)) || t('models.loadFailedToast'))
+      })
+      .finally(() => setLoading(false))
+  }, [load, t])
 
   const patchDraft = useCallback((fn: (c: PiModelsConfigPayload) => void) => {
     setDraft((prev) => {
@@ -87,9 +88,18 @@ export function ModelsSettingsPanel() {
     isDirty: () => !configEqual(draft, baseline),
     commit: async () => {
       if (!draft || configEqual(draft, baseline)) return
-      const res = await ipcClient.invoke('pi.models.set', { config: draft })
-      if (!res?.ok) throw new Error(res?.error || t('models.saveFailed'))
-      await load()
+      try {
+        await saveModelsConfigDraft(draft, {
+          setConfig: (config) => ipcClient.invoke('pi.models.set', { config }),
+          reload: load,
+        })
+      } catch (error) {
+        const message = error instanceof Error && error.message !== 'SAVE_FAILED'
+          ? error.message
+          : t('models.saveFailed')
+        setSaveError(message)
+        throw new Error(message)
+      }
     },
     discard: () => {
       if (baseline) setDraft(cloneConfig(baseline))
@@ -229,17 +239,22 @@ export function ModelsSettingsPanel() {
         title={t('models.providerLabel')}
         description={t('models.description', { path: filePath || '~/.pi/agent/models.json' })}
         action={
-          <button type="button" className={btnOutline} onClick={() => void load()}>
+          <button
+            type="button"
+            className={btnOutline}
+            onClick={() => void load().catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))}
+          >
             <RefreshCw className="mr-1 inline h-3 w-3" strokeWidth={2} />
             {t('models.reload')}
           </button>
         }
       />
 
-      {(parseError || schemaError) && (
+      {(parseError || schemaError || saveError) && (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 whitespace-pre-wrap px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
           {parseError && <div>{parseError}</div>}
           {schemaError && <div>{schemaError}</div>}
+          {saveError && <div>{saveError}</div>}
         </div>
       )}
 

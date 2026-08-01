@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, Zap, Circle, FolderOpen, Plus, MessageSquare, Settings, Activity, GitBranch, ListTree, CircleDot, PanelLeft, PanelRight } from '@renderer/components/icons'
+import { ChevronLeft, CircleDot, PanelLeft, PanelRight } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
@@ -49,7 +49,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
           </button>
         )}
         <div className="flex items-center gap-1.5">
-          <CircleDot className="h-3.5 w-3.5 text-primary" />
+          {!isSettings && <CircleDot className="h-3.5 w-3.5 text-primary" />}
           <span className="text-[13px] font-semibold tracking-tight">{title || t('common:app.name')}</span>
         </div>
         {projectName && (

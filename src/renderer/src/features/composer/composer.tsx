@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, Upload, Plus } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -41,6 +41,11 @@ import { useComposerAttachments } from './use-composer-attachments'
 import { useComposerKeyDown } from './use-composer-keydown'
 import { useComposerFileSearch } from './use-composer-file-search'
 import { ComposerFilePopover } from './composer-file-popover'
+import {
+  composerDraftContextKey,
+  readTransientComposerDraft,
+  rememberTransientComposerDraft,
+} from './composer-transient-draft'
 
 export function Composer() {
   const { t } = useTranslation()
@@ -56,6 +61,13 @@ export function Composer() {
   const workerLiveSnapshot = useUIStore((s) => s.workerLiveSnapshot)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
+  const draftContextKey = composerDraftContextKey({
+    currentWorkspace,
+    currentSessionId,
+    historySessionFile,
+    ephemeralSandboxDraft,
+    pendingNewSessionPlaceholder: pendingNew,
+  })
   const canCompose = !!currentWorkspace || ephemeralSandboxDraft
   const sessionPreview = useMemo(
     () =>
@@ -100,11 +112,27 @@ export function Composer() {
   const updateFromEditor = useCallback(() => {
     const el = editorRef.current
     if (!el) return
-    const { displayText, attachments: atts } = serializeRichInput(el)
+    const { displayText, attachments: atts, segments } = serializeRichInput(el)
+    rememberTransientComposerDraft(draftContextKey, segments)
     setText(displayText)
     setAttachments(atts)
     setEditorRevision((revision) => revision + 1)
-  }, [])
+  }, [draftContextKey])
+
+  useLayoutEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+    const draft = readTransientComposerDraft(draftContextKey)
+    renderRichFromSegments(el, draft ?? [])
+    syncRichInputEmpty(el)
+    const restored = serializeRichInput(el)
+    setText(restored.displayText)
+    setAttachments(restored.attachments)
+    setEditorRevision((revision) => revision + 1)
+    return () => {
+      rememberTransientComposerDraft(draftContextKey, serializeRichInput(el).segments)
+    }
+  }, [draftContextKey])
 
   const setContent = useCallback(
     (plain: string) => {
@@ -194,11 +222,22 @@ export function Composer() {
     const el = editorRef.current
     if (!el) return
     if (composerPrefillMode === 'append') {
-      const current = serializeRichInput(el).displayText
-      const next = current.trim()
-        ? `${current.replace(/\s+$/, '')}\n${composerPrefill}`
-        : composerPrefill
-      setContent(next)
+      const next = [...serializeRichInput(el).segments]
+      const last = next.at(-1)
+      if (!last) {
+        next.push({ type: 'text', text: composerPrefill })
+      } else if (last.type === 'text') {
+        next[next.length - 1] = {
+          type: 'text',
+          text: `${last.text.replace(/\s+$/, '')}\n${composerPrefill}`,
+        }
+      } else {
+        next.push({ type: 'text', text: `\n${composerPrefill}` })
+      }
+      renderRichFromSegments(el, next)
+      syncRichInputEmpty(el)
+      updateFromEditor()
+      placeCaretAtEnd(el)
     } else {
       setContent(composerPrefill)
     }

@@ -21,7 +21,7 @@
     "test:unit:watch": "vitest",
     "typecheck": "tsc -p tsconfig.web.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint .",
-    "package": "electron-vite build && electron-builder",
+    "package": "npm run icon:export && electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
     "docs:adapters": "node scripts/generate-adapter-readme-table.mjs",
     "test:e2e": "playwright test",
