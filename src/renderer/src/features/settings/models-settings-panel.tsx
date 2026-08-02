@@ -36,6 +36,7 @@ export function ModelsSettingsPanel() {
   const [fetching, setFetching] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [remoteCatalog, setRemoteCatalog] = useState<Record<string, { ids: string[]; error?: string }>>({})
+  const [catalogModels, setCatalogModels] = useState<Array<{ id: string; provider?: string }>>([])
   const [expandedLocalModel, setExpandedLocalModel] = useState<Record<string, boolean>>({})
   const [apiKeyVisible, setApiKeyVisible] = useState<Record<string, boolean>>({})
   const [confirmState, setConfirmState] = useState<{
@@ -52,6 +53,8 @@ export function ModelsSettingsPanel() {
     setSchemaError(res?.schemaError || null)
     setLoadWarnings(res?.warnings?.length ? res.warnings : [])
     setSaveError(null)
+    const catalog = await ipcClient.invoke('model.list', { scope: 'catalog' }).catch(() => ({ models: [] }))
+    setCatalogModels(catalog?.models || [])
     const cfg = res?.config ?? { providers: {} }
     setBaseline(cloneConfig(cfg))
     setDraft(cloneConfig(cfg))
@@ -106,6 +109,22 @@ export function ModelsSettingsPanel() {
       notifySettingsDirtyChanged()
     },
   })
+
+  const catalogByProvider = useMemo(() => {
+    const byProvider: Record<string, Set<string>> = {}
+    for (const model of catalogModels) {
+      if (!model.provider || !model.id) continue
+      ;(byProvider[model.provider] ??= new Set()).add(model.id)
+    }
+    return Object.fromEntries(
+      Object.entries(byProvider).map(([providerId, ids]) => [providerId, [...ids].sort((a, b) => a.localeCompare(b))]),
+    )
+  }, [catalogModels])
+
+  const catalogOnlyProviderIds = useMemo(
+    () => Object.keys(catalogByProvider).filter((providerId) => !draft?.providers[providerId]).sort((a, b) => a.localeCompare(b)),
+    [catalogByProvider, draft],
+  )
 
   const providerIds = useMemo(
     () => Object.keys(draft?.providers || {}).sort((a, b) => a.localeCompare(b)),
@@ -324,7 +343,7 @@ export function ModelsSettingsPanel() {
         </div>
       </div>
 
-      {providerIds.length === 0 ? (
+      {providerIds.length === 0 && catalogOnlyProviderIds.length === 0 ? (
         <div className="ui-enter rounded-lg border border-dashed border-border/60 bg-muted/15 px-6 py-10 text-center">
           <Sparkles className="mx-auto h-4 w-4 text-muted-foreground/50" strokeWidth={1.5} />
           <p className="mt-3 text-base font-medium text-foreground/90">{t('models.noProviders')}</p>
@@ -332,8 +351,13 @@ export function ModelsSettingsPanel() {
         </div>
       ) : (
         <div className="space-y-2">
-          {providerIds.map((pid, cardIndex) => (
-            <ModelsProviderCard
+          {providerIds.map((pid, cardIndex) => {
+            const catalogIds = Array.from(new Set([
+              ...(catalogByProvider[pid] || []),
+              ...(remoteCatalog[pid]?.ids || []),
+            ]))
+            return (
+              <ModelsProviderCard
               key={pid}
               pid={pid}
               cardIndex={cardIndex}
@@ -341,7 +365,7 @@ export function ModelsSettingsPanel() {
               open={expanded[pid] === true}
               onToggleOpen={() => setExpanded((e) => ({ ...e, [pid]: !e[pid] }))}
               fetching={fetching === pid}
-              remoteIds={remoteCatalog[pid]?.ids || []}
+              remoteIds={catalogIds}
               remoteError={remoteCatalog[pid]?.error}
               apiKeyVisible={!!apiKeyVisible[pid]}
               onToggleApiKeyVisible={() => setApiKeyVisible((s) => ({ ...s, [pid]: !s[pid] }))}
@@ -379,8 +403,39 @@ export function ModelsSettingsPanel() {
               onAddModel={(id) => addModelToLocal(pid, id)}
               onAddAllNew={() => addAllNewToLocal(pid)}
               onUpdateModel={(modelId, patch) => updateModelEntry(pid, modelId, patch)}
-              onRemoveModel={(modelId) => removeModel(pid, modelId)}
-            />
+                onRemoveModel={(modelId) => removeModel(pid, modelId)}
+              />
+            )
+          })}
+          {catalogOnlyProviderIds.map((providerId) => (
+            <details
+              key={providerId}
+              className="ui-enter rounded-lg border border-border/60 bg-card/40 px-4 py-3 shadow-sm"
+              open={catalogOnlyProviderIds.length <= 3}
+            >
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center gap-3">
+                  <ProviderAvatar label={providerId} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-sm font-semibold text-foreground">{providerId}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('models.catalogModelCount', { count: catalogByProvider[providerId].length })}
+                    </div>
+                  </div>
+                </div>
+              </summary>
+              <ul className="mt-3 grid max-h-[min(280px,42vh)] gap-1 overflow-y-auto sm:grid-cols-2">
+                {catalogByProvider[providerId].map((modelId) => (
+                  <li
+                    key={modelId}
+                    className="truncate rounded-md bg-muted/35 px-2.5 py-1.5 font-mono text-xs text-foreground/80"
+                    title={modelId}
+                  >
+                    {modelId}
+                  </li>
+                ))}
+              </ul>
+            </details>
           ))}
         </div>
       )}

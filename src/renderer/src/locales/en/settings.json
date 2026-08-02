@@ -327,6 +327,7 @@
     "needsFetch": "fetch models yourself",
     "noProviders": "No providers yet",
     "noProvidersHint": "Click \"Add provider\" to pick a template or set up a custom relay.",
+    "catalogModelCount": "Pi catalog · {{count}} models",
     "changeTemplate": "Template",
     "name": "Name",
     "api": "API",

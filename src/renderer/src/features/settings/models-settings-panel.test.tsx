@@ -16,10 +16,19 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('./models-provider-card', () => ({
-  ModelsProviderCard: ({ onUpdateProvider }: { onUpdateProvider: (patch: { name: string }) => void }) => (
-    <button type="button" onClick={() => onUpdateProvider({ name: 'Changed provider' })}>
-      edit provider
-    </button>
+  ModelsProviderCard: ({
+    onUpdateProvider,
+    remoteIds = [],
+  }: {
+    onUpdateProvider: (patch: { name: string }) => void
+    remoteIds?: string[]
+  }) => (
+    <>
+      <button type="button" onClick={() => onUpdateProvider({ name: 'Changed provider' })}>
+        edit provider
+      </button>
+      <div>{remoteIds.map((id) => <span key={id}>{id}</span>)}</div>
+    </>
   ),
 }))
 
@@ -43,6 +52,17 @@ const normalizedConfig = {
   },
 }
 
+const catalogModels = [
+  {
+    id: 'store-only',
+    name: 'Store only',
+    provider: 'custom',
+    contextWindow: 128000,
+    maxOutput: 4096,
+    available: true,
+  },
+]
+
 function getRequest(method: string) {
   return vi.mocked(ipcClient.invoke).mock.calls.filter(([name]) => name === method)
 }
@@ -59,8 +79,10 @@ describe('ModelsSettingsPanel save', () => {
   it('writes the edited provider, reloads the normalized config, and clears dirty state', async () => {
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: catalogModels })
       .mockResolvedValueOnce({ ok: true, path: 'models.json' })
       .mockResolvedValueOnce({ path: 'models.json', config: normalizedConfig })
+      .mockResolvedValueOnce({ models: catalogModels })
 
     render(<ModelsSettingsPanel />)
     fireEvent.click(await screen.findByRole('button', { name: 'edit provider' }))
@@ -74,12 +96,17 @@ describe('ModelsSettingsPanel save', () => {
       ['pi.models.set', { config: normalizedConfig }],
     ])
     expect(getRequest('pi.models.get')).toHaveLength(2)
+    expect(getRequest('model.list')).toEqual([
+      ['model.list', { scope: 'catalog' }],
+      ['model.list', { scope: 'catalog' }],
+    ])
     await waitFor(() => expect(getDirtySettingsSlices()).toEqual([]))
   })
 
   it('keeps the edited provider dirty and displays the write error', async () => {
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: [] })
       .mockResolvedValueOnce({ ok: false, path: 'models.json', error: 'invalid provider config' })
 
     render(<ModelsSettingsPanel />)
@@ -97,6 +124,7 @@ describe('ModelsSettingsPanel save', () => {
   it('keeps the edited provider dirty when post-save reload fails', async () => {
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: [] })
       .mockResolvedValueOnce({ ok: true, path: 'models.json' })
       .mockRejectedValueOnce(new Error('reload failed'))
 
@@ -109,5 +137,60 @@ describe('ModelsSettingsPanel save', () => {
 
     expect(getDirtySettingsSlices().map((slice) => slice.id)).toEqual(['pi-models'])
     expect(screen.getByText('reload failed')).toBeTruthy()
+  })
+
+  it('shows SDK catalog providers when models.json is absent or empty', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: { providers: {} } })
+      .mockResolvedValueOnce({ models: catalogModels })
+
+    render(<ModelsSettingsPanel />)
+
+    expect(await screen.findByText('custom')).toBeTruthy()
+    expect(screen.getByText('store-only')).toBeTruthy()
+    expect(getRequest('pi.models.set')).toEqual([])
+  })
+
+  it('displays SDK catalog models when models.json only has overrides and saves only the config draft', async () => {
+    const overrideOnlyConfig = {
+      providers: {
+        custom: {
+          name: 'Custom provider',
+          models: [{ id: 'override-only' }],
+          modelOverrides: { 'store-only': { contextWindow: 64000 } },
+        },
+      },
+    }
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: overrideOnlyConfig })
+      .mockResolvedValueOnce({ models: catalogModels })
+      .mockResolvedValueOnce({ ok: true, path: 'models.json' })
+      .mockResolvedValueOnce({ path: 'models.json', config: overrideOnlyConfig })
+      .mockResolvedValueOnce({ models: catalogModels })
+
+    render(<ModelsSettingsPanel />)
+
+    expect(await screen.findByText('store-only')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit provider' }))
+    await waitFor(() => expect(getDirtySettingsSlices().map((slice) => slice.id)).toEqual(['pi-models']))
+    await act(async () => {
+      await commitAllSettingsSlices()
+    })
+
+    expect(getRequest('pi.models.set')).toEqual([
+      ['pi.models.set', { config: expect.objectContaining({
+        providers: expect.objectContaining({
+          custom: expect.objectContaining({
+            models: [{ id: 'override-only' }],
+            modelOverrides: { 'store-only': { contextWindow: 64000 } },
+          }),
+        }),
+      }) }],
+    ])
+    expect(getRequest('model.list')).toEqual([
+      ['model.list', { scope: 'catalog' }],
+      ['model.list', { scope: 'catalog' }],
+    ])
   })
 })

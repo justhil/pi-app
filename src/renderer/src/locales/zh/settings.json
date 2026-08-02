@@ -327,6 +327,7 @@
     "needsFetch": "需自行拉取模型",
     "noProviders": "暂无供应商",
     "noProvidersHint": "点「添加供应商」选模板或自建中转。",
+    "catalogModelCount": "Pi 模型目录 · {{count}} 个模型",
     "changeTemplate": "换模板",
     "name": "名称",
     "api": "接口",

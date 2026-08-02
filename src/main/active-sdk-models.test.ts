@@ -162,6 +162,29 @@ describe('active SDK model compatibility', () => {
     expect(getAll).toHaveBeenCalledOnce()
   })
 
+  it('should_list_store_models_when_models_json_is_absent', async () => {
+    const agentDir = mkdtempSync(join(tmpdir(), 'pi-model-store-only-'))
+    const modelsPath = join(agentDir, 'models.json')
+    const storePath = join(agentDir, 'models-store.json')
+    const storeConfig = { models: [{ id: 'store-only', provider: 'custom' }] }
+    writeFileSync(storePath, JSON.stringify(storeConfig), 'utf8')
+    const create = vi.fn(async (options?: { modelsPath?: string | null; allowModelNetwork?: boolean }) => {
+      expect(options?.modelsPath).toBe(modelsPath)
+      expect(existsSync(modelsPath)).toBe(false)
+      const store = JSON.parse(readFileSync(storePath, 'utf8')) as typeof storeConfig
+      return { getModels: () => store.models }
+    })
+
+    await expect(
+      listCatalogModelsWithSdk({
+        getAgentDir: () => agentDir,
+        ModelRuntime: { create },
+      }),
+    ).resolves.toEqual([{ id: 'store-only', provider: 'custom' }])
+    expect(create).toHaveBeenCalledWith({ modelsPath, allowModelNetwork: false })
+    expect(existsSync(modelsPath)).toBe(false)
+  })
+
   it('should_let_the_modern_sdk_merge_an_override_only_models_file_with_its_store', async () => {
     const agentDir = mkdtempSync(join(tmpdir(), 'pi-model-catalog-'))
     const modelsPath = join(agentDir, 'models.json')
