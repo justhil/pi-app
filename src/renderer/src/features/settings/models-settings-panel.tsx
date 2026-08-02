@@ -53,8 +53,8 @@ export function ModelsSettingsPanel() {
     setSchemaError(res?.schemaError || null)
     setLoadWarnings(res?.warnings?.length ? res.warnings : [])
     setSaveError(null)
-    const catalog = await ipcClient.invoke('model.list', { scope: 'catalog' }).catch(() => ({ models: [] }))
-    setCatalogModels(catalog?.models || [])
+    const available = await ipcClient.invoke('model.list', { scope: 'available' }).catch(() => ({ models: [] }))
+    setCatalogModels(available?.models || [])
     const cfg = res?.config ?? { providers: {} }
     setBaseline(cloneConfig(cfg))
     setDraft(cloneConfig(cfg))
@@ -352,9 +352,10 @@ export function ModelsSettingsPanel() {
       ) : (
         <div className="space-y-2">
           {providerIds.map((pid, cardIndex) => {
+            const configuredModelIds = new Set((draft?.providers[pid].models || []).map((model) => model.id))
             const catalogIds = Array.from(new Set([
-              ...(catalogByProvider[pid] || []),
-              ...(remoteCatalog[pid]?.ids || []),
+              ...(catalogByProvider[pid] || []).filter((id) => !configuredModelIds.has(id)),
+              ...(remoteCatalog[pid]?.ids || []).filter((id) => !configuredModelIds.has(id)),
             ]))
             return (
               <ModelsProviderCard
