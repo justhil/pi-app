@@ -33,7 +33,7 @@ export function ModelEntryEditor({
   onRemove: () => void
 }) {
   const { t } = useTranslation('settings')
-  const input = model.input || ['text']
+  const input = Array.isArray(model.input) ? model.input : ['text']
   const hasText = input.includes('text')
   const hasImage = input.includes('image')
 
@@ -47,22 +47,22 @@ export function ModelEntryEditor({
 
   const thinkingEntries = Object.entries(model.thinkingLevelMap || {})
 
-  const updateThinkingMap = (next: Record<string, string>) => {
+  const updateThinkingMap = (next: Record<string, string | null>) => {
     onChange({ thinkingLevelMap: Object.keys(next).length ? next : undefined })
   }
 
   const setThinkingKey = (oldKey: string, newKey: string) => {
     const map = { ...(model.thinkingLevelMap || {}) }
-    if (map[newKey] !== undefined) return
-    const val = map[oldKey]
+    if (Object.hasOwn(map, newKey)) return
+    const value = map[oldKey]
     delete map[oldKey]
-    map[newKey] = val ?? newKey
+    map[newKey] = value
     updateThinkingMap(map)
   }
 
   const setThinkingValue = (key: string, value: string) => {
     const map = { ...(model.thinkingLevelMap || {}) }
-    map[key] = value
+    map[key] = value || null
     updateThinkingMap(map)
   }
 
@@ -74,7 +74,7 @@ export function ModelEntryEditor({
 
   const addThinkingEntry = () => {
     const map = { ...(model.thinkingLevelMap || {}) }
-    const available = THINKING_LEVEL_OPTIONS.find((o) => !map[o])
+    const available = THINKING_LEVEL_OPTIONS.find((option) => !Object.hasOwn(map, option))
     if (available) {
       map[available] = available
       updateThinkingMap(map)
@@ -254,7 +254,7 @@ export function ModelEntryEditor({
                         <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={2} />
                         <input
                           className={modelEntryInputCls}
-                          value={val}
+                          value={val ?? ''}
                           placeholder={t('models.thinkingParamPlaceholder')}
                           onChange={(e) => setThinkingValue(key, e.target.value)}
                         />

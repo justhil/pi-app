@@ -123,11 +123,23 @@ export interface ModelSetResponse { modelId: string }
 export interface ModelCycleRequest { sessionId: string; direction?: 'next' | 'prev' }
 export interface ModelCycleResponse { modelId: string; thinkingLevel: string }
 
-export type PiModelsApiType =
-  | 'openai-completions'
-  | 'openai-responses'
-  | 'anthropic-messages'
-  | 'google-generative-ai'
+export type PiModelsApiType = string
+
+export interface PiModelsModelConfig {
+  id: string
+  name?: string
+  api?: string
+  reasoning?: boolean
+  input?: ('text' | 'image')[]
+  contextWindow?: number
+  maxTokens?: number
+  thinkingLevelMap?: Record<string, string | null>
+  baseUrl?: string
+  headers?: Record<string, unknown>
+  cost?: Record<string, unknown>
+  compat?: Record<string, unknown>
+  [key: string]: unknown
+}
 
 export interface PiModelsProviderConfig {
   name?: string
@@ -135,23 +147,17 @@ export interface PiModelsProviderConfig {
   api?: PiModelsApiType
   apiKey?: string
   authHeader?: boolean
-  headers?: Record<string, string>
+  headers?: Record<string, unknown>
   compat?: Record<string, unknown>
-  models?: {
-    id: string
-    name?: string
-    api?: string
-    reasoning?: boolean
-    input?: ('text' | 'image')[]
-    contextWindow?: number
-    maxTokens?: number
-    thinkingLevelMap?: Record<string, string>
-  }[]
+  oauth?: string
+  models?: PiModelsModelConfig[]
   modelOverrides?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export interface PiModelsConfigPayload {
   providers: Record<string, PiModelsProviderConfig>
+  [key: string]: unknown
 }
 
 export interface PiModelsGetRequest {}
@@ -160,6 +166,7 @@ export interface PiModelsGetResponse {
   config: PiModelsConfigPayload
   parseError?: string
   schemaError?: string
+  warnings?: string[]
 }
 
 export interface PiModelsSetRequest { config: PiModelsConfigPayload }

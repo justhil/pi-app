@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { homedir } from 'os'
 import { app } from 'electron'
@@ -7,36 +7,39 @@ import { resolveActiveSdk } from './sdk-loader'
 import { normalizeModelsConfig } from './models-config-normalize'
 import { validateModelsConfigWithSdk } from './active-sdk-models'
 
-export type PiModelsApi =
-  | 'openai-completions'
-  | 'openai-responses'
-  | 'anthropic-messages'
-  | 'google-generative-ai'
-
 export type PiModelDefinition = {
   id: string
   name?: string
   api?: string
   reasoning?: boolean
-  input?: ('text' | 'image')[]
+  input?: unknown
   contextWindow?: number
   maxTokens?: number
-  thinkingLevelMap?: Record<string, string>
+  thinkingLevelMap?: Record<string, string | null>
+  baseUrl?: string
+  headers?: Record<string, unknown>
+  cost?: Record<string, unknown>
+  compat?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export type PiProviderConfig = {
   name?: string
   baseUrl?: string
-  api?: PiModelsApi
+  api?: string
   apiKey?: string
   authHeader?: boolean
-  headers?: Record<string, string>
+  headers?: Record<string, unknown>
   models?: PiModelDefinition[]
   modelOverrides?: Record<string, unknown>
+  oauth?: string
+  compat?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export type PiModelsConfig = {
   providers: Record<string, PiProviderConfig>
+  [key: string]: unknown
 }
 
 export function getModelsJsonPath(agentDir = join(homedir(), '.pi', 'agent')): string {
@@ -76,7 +79,7 @@ async function loadPiSdk(): Promise<typeof import('@earendil-works/pi-coding-age
   return import(pathToFileURL(active.entryPath).href)
 }
 
-async function validateWithPiSdk(sdk: unknown, agentDir: string, config: PiModelsConfig): Promise<string | undefined> {
+async function validateWithPiSdk(sdk: unknown, agentDir: string, config: unknown): Promise<string | undefined> {
   try {
     return await validateModelsConfigWithSdk(sdk, agentDir, config)
   } catch (e: unknown) {
@@ -131,20 +134,118 @@ export async function readModelsConfig(): Promise<Awaited<ReturnType<typeof read
   return readModelsConfigWithSdk(sdk, agentDir)
 }
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>
+  return null
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeDraftModel(model: PiModelDefinition): PiModelDefinition {
+  const normalized = cloneJson(model)
+  if (Array.isArray(normalized.input)) normalized.input = [...normalized.input]
+  if (normalized.thinkingLevelMap) normalized.thinkingLevelMap = { ...normalized.thinkingLevelMap }
+  return normalized
+}
+
+function normalizeDraftProvider(provider: PiProviderConfig): PiProviderConfig {
+  const normalized = cloneJson(provider)
+  if (normalized.headers) normalized.headers = { ...normalized.headers }
+  if (normalized.compat) normalized.compat = { ...normalized.compat }
+  if (normalized.modelOverrides) normalized.modelOverrides = cloneJson(normalized.modelOverrides)
+  if (normalized.models) normalized.models = normalized.models.map(normalizeDraftModel)
+  return normalized
+}
+
+function normalizeDraftConfig(config: PiModelsConfig): PiModelsConfig {
+  return {
+    ...cloneJson(config),
+    providers: Object.fromEntries(
+      Object.entries(config.providers || {}).map(([key, provider]) => [key, normalizeDraftProvider(provider)]),
+    ),
+  }
+}
+
+function mergeModelWithRetained(
+  draft: PiModelDefinition,
+  retainedById: Map<string, PiModelDefinition>,
+): PiModelDefinition {
+  const retained = retainedById.get(draft.id.trim())
+  return retained ? { ...retained, ...draft } : draft
+}
+
+function mergeProviderWithRetained(draft: PiProviderConfig, retained: PiProviderConfig | undefined): PiProviderConfig {
+  const merged = retained ? { ...retained, ...draft } : draft
+  if (!draft.models || !retained?.models) return merged
+  const retainedById = new Map(retained.models.map((model) => [model.id, model]))
+  return { ...merged, models: draft.models.map((model) => mergeModelWithRetained(model, retainedById)) }
+}
+
+function readRetainedModelsConfig(modelsPath: string): Record<string, unknown> | null {
+  if (!existsSync(modelsPath)) return null
+  return asRecord(JSON.parse(stripJsonComments(readFileSync(modelsPath, 'utf-8'))))
+}
+
+export function mergeModelsConfigWithRetained(config: PiModelsConfig, retainedRoot: Record<string, unknown> | null): unknown {
+  const draft = normalizeDraftConfig(config)
+  const retainedProviders = asRecord(retainedRoot?.providers)
+  if (!retainedRoot || !retainedProviders) return draft
+  return {
+    ...retainedRoot,
+    ...draft,
+    providers: Object.fromEntries(
+      Object.entries(draft.providers).map(([key, provider]) => [
+        key,
+        mergeProviderWithRetained(provider, asRecord(retainedProviders[key]) as PiProviderConfig | null ?? undefined),
+      ]),
+    ),
+  }
+}
+
+function redactConfigSecrets(message: string, config: PiModelsConfig): string {
+  let redacted = message
+  for (const provider of Object.values(config.providers)) {
+    if (provider.apiKey && !provider.apiKey.startsWith('$') && !provider.apiKey.startsWith('!')) {
+      redacted = redacted.replaceAll(provider.apiKey, '[REDACTED]')
+    }
+  }
+  return redacted
+}
+
 export async function writeModelsConfigWithSdk(
   config: PiModelsConfig,
   sdk: unknown,
   agentDir: string,
 ): Promise<{ ok: boolean; error?: string; path: string }> {
   const path = getModelsJsonPath(agentDir)
-  const { config: normalized, warnings } = normalizeModelsConfig(config)
-  if (warnings.length) {
-    console.warn('[models.json] normalize on save:', warnings.join('; '))
+  let retainedRoot: Record<string, unknown> | null
+  try {
+    retainedRoot = readRetainedModelsConfig(path)
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `原 models.json 无法解析，未写入: ${(error as { message?: string })?.message || 'JSON 解析失败'}`,
+      path,
+    }
   }
-  const schemaError = await validateWithPiSdk(sdk, agentDir, normalized)
-  if (schemaError) return { ok: false, error: schemaError, path }
+  const merged = mergeModelsConfigWithRetained(config, retainedRoot)
+  const { config: normalized, warnings } = normalizeModelsConfig(merged)
+  if (warnings.length) {
+    console.warn('[models.json] structure warnings:', warnings.join('; '))
+  }
+  const output = asRecord(merged) ?? normalized
+  const schemaError = await validateWithPiSdk(sdk, agentDir, output)
+  if (schemaError) return { ok: false, error: redactConfigSecrets(schemaError, config), path }
   mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, `${JSON.stringify(normalized, null, 2)}\n`, 'utf-8')
+  const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`
+  try {
+    writeFileSync(tmpPath, `${JSON.stringify(output, null, 2)}\n`, 'utf-8')
+    renameSync(tmpPath, path)
+  } finally {
+    rmSync(tmpPath, { force: true })
+  }
   return { ok: true, path }
 }
 
