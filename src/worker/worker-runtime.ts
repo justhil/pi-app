@@ -4,6 +4,7 @@ import type {
   AgentSessionRuntime,
   CreateAgentSessionRuntimeFactory,
   EventBus,
+  ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
 import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
@@ -14,10 +15,14 @@ import {
 } from './worker-session-events.js'
 import { errorMessage } from '@shared/error-message'
 
+export type WorkerModelRuntime = Pick<ModelRuntime, 'getModel' | 'getAvailable' | 'refresh'>
+
 export type WorkerMutableState = {
   sdk: typeof import('@earendil-works/pi-coding-agent') | null
   activeSdkPath: string | null
   sharedEventBus: EventBus | null
+  /** Canonical model/auth runtime owned by the current AgentSessionRuntime services. */
+  modelRuntime: WorkerModelRuntime | null
   /** Live AgentSession (always mirrors runtime.session when runtime is set). */
   session: AgentSession | null
   /** Owns session replacement: new / switch / fork / clone. */
@@ -38,6 +43,7 @@ export const st: WorkerMutableState = {
   sdk: null,
   activeSdkPath: null,
   sharedEventBus: null,
+  modelRuntime: null,
   session: null,
   runtime: null,
   uiBridge: null,
@@ -101,6 +107,7 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   detachSessionSubscription()
   resetSessionEventTracking()
   st.session = session
+  st.modelRuntime = st.runtime?.services.modelRuntime ?? session.modelRuntime ?? null
   st.currentSessionId = session.sessionId
   st.currentRunId = ''
   st.currentTurnId = ''
@@ -167,6 +174,8 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
 function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
   runtime.setBeforeSessionInvalidate(() => {
     detachSessionSubscription()
+    st.session = null
+    st.modelRuntime = null
     st.agentTurnActive = false
     st.promptPreflightActive = false
   })
@@ -193,6 +202,7 @@ async function disposeRuntimeOrSession(): Promise<void> {
       }
     }
     st.runtime = null
+    st.modelRuntime = null
     st.session = null
     return
   }
@@ -204,6 +214,7 @@ async function disposeRuntimeOrSession(): Promise<void> {
     }
     st.session = null
   }
+  st.modelRuntime = null
 }
 
 export async function initSession(cwd: string): Promise<void> {

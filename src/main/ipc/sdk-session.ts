@@ -18,13 +18,13 @@ export function validateSelectedSdkModule(sdk: ProbedSdkModule): void {
   if (!sessionManager || typeof sessionManager.create !== 'function') {
     throw new Error('SDK 缺少 SessionManager.create export')
   }
-  const hasLegacySessionFactory = typeof sdk.createAgentSession === 'function'
   const hasRuntimeSessionFactory =
+    typeof sdk.ModelRuntime === 'function' &&
     typeof sdk.createAgentSessionRuntime === 'function' &&
     typeof sdk.createAgentSessionServices === 'function' &&
     typeof sdk.createAgentSessionFromServices === 'function'
-  if (!hasLegacySessionFactory && !hasRuntimeSessionFactory) {
-    throw new Error('SDK 缺少创建 session 所需 export')
+  if (!hasRuntimeSessionFactory) {
+    throw new Error('SDK 缺少 ModelRuntime session services，请切换到 Pi 0.83.0 或更高版本')
   }
 }
 

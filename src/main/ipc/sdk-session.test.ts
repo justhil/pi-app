@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { validateSelectedSdkModule } from './sdk-session'
 
 describe('selected SDK module probe', () => {
-  it('accepts the legacy session factory capability shape', () => {
+  it('rejects the legacy factory shape without ModelRuntime services', () => {
     expect(() =>
       validateSelectedSdkModule({
         getAgentDir: () => '/agent',
         SessionManager: { create: () => ({}) },
         createAgentSession: () => ({}),
       }),
-    ).not.toThrow()
+    ).toThrow('SDK 缺少 ModelRuntime session services')
   })
 
   it('accepts the runtime session factory capability shape', () => {
@@ -17,6 +17,7 @@ describe('selected SDK module probe', () => {
       validateSelectedSdkModule({
         getAgentDir: () => '/agent',
         SessionManager: { create: () => ({}) },
+        ModelRuntime: class {},
         createAgentSessionRuntime: () => ({}),
         createAgentSessionServices: () => ({}),
         createAgentSessionFromServices: () => ({}),
@@ -31,6 +32,6 @@ describe('selected SDK module probe', () => {
         SessionManager: { create: () => ({}) },
         createAgentSessionRuntime: () => ({}),
       }),
-    ).toThrow('SDK 缺少创建 session 所需 export')
+    ).toThrow('SDK 缺少 ModelRuntime session services')
   })
 })

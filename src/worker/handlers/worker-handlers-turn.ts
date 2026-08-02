@@ -207,6 +207,8 @@ export async function handleDispose(msg: WorkerIncomingMessage, reply: WorkerRep
           console.error('[Worker] session.dispose failed:', e)
         }
         st.session = null
+        st.modelRuntime = null
+        st.runtime = null
         reply({ type: 'dispose-done' })
         return
 }

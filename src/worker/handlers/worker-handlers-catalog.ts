@@ -6,7 +6,11 @@ import { st } from '../worker-runtime.js'
 
 export async function handleReloadmodels(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
-          st.session?.modelRegistry?.refresh?.()
+          if (!st.modelRuntime) {
+            reply({ type: 'error', error: 'MODEL_RUNTIME_NOT_READY' })
+            return
+          }
+          await st.modelRuntime.refresh()
           reply({ type: 'reloadModels-done', ok: true })
         } catch (e: unknown) {
           reply({ type: 'error', error: `reloadModels failed: ${errorMessage(e)}` })
@@ -17,8 +21,8 @@ export async function handleReloadmodels(msg: WorkerIncomingMessage, reply: Work
 
 export async function handleGetmodels(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
-          const models = st.session
-            ? await st.session.modelRegistry.getAvailable()
+          const models = st.modelRuntime
+            ? await st.modelRuntime.getAvailable()
             : []
           reply({
             type: 'getModels-done',

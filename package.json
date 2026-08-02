@@ -31,7 +31,7 @@
     "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.80.7",
+    "@earendil-works/pi-coding-agent": "0.83.0",
     "@fluentui/react-icons": "2.0.334",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/react": "1.1.9",

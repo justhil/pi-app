@@ -11,6 +11,7 @@ export default defineConfig({
     include: [
       'src/renderer/src/**/*.test.{ts,tsx}',
       'src/main/**/*.test.ts',
+      'src/worker/**/*.test.ts',
       'packages/shared/**/*.test.ts',
       'src/extension-compat/**/*.test.ts',
     ],

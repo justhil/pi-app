@@ -1,4 +1,3 @@
-import { resolveModelFromRegistry, type PiModelRegistryLike } from '@shared/pi-model-registry'
 import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
 import { projectTimelineItems } from '@shared/timeline-projection'
@@ -34,11 +33,7 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
     return
   }
   try {
-    const model = resolveModelFromRegistry(
-      st.session.modelRegistry as PiModelRegistryLike,
-      provider,
-      modelId,
-    )
+    const model = st.modelRuntime?.getModel(provider, modelId)
     if (!model) {
       reply({ type: 'error', error: `MODEL_NOT_FOUND: ${provider}/${modelId}` })
       return
