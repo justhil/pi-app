@@ -1,6 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { openSessionIntoWorker } from '@renderer/lib/open-session'
+import { openSessionIntoWorker, openSessionPreview } from '@renderer/lib/open-session'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { beginSessionNavigation, assertSessionNavigation } from '@renderer/lib/session-navigation'
@@ -9,6 +9,7 @@ import { chooseWorkspaceSession, type WorkspaceSessionChoice } from '@renderer/l
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { focusSessionSync } from '@renderer/lib/session-shell'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -28,6 +29,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   }
   const store = useUIStore.getState()
   if (store.ephemeralSandboxDraft) store.clearEphemeralSandboxDraft()
+  store.setSubagentSessionGroup(null)
 
   const sameProject = store.currentWorkspace === path
   if (!sameProject) {
@@ -196,6 +198,11 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
     return
   }
 
+  const group = store.subagentSessionGroup
+  if (!group || !sessionFilesEqual(group.parentSessionFile, file)) {
+    store.setSubagentSessionGroup(null)
+  }
+
   // Capture live running state BEFORE focus changes (runtime map + live timeline cache).
   captureVisibleLiveSessionTimeline()
 
@@ -204,4 +211,21 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
   focusSessionSync(sessionId, file)
 
   await openSessionIntoWorker(sessionId, file, navToken, { workerReady: true })
+}
+
+/** Same-project read-only child view. Never binds the child session for prompts. */
+export async function previewSessionInPlace(
+  sessionId: string,
+  sessionFile: string,
+  navToken = beginSessionNavigation(),
+): Promise<void> {
+  if (!assertSessionNavigation(navToken)) return
+  const store = useUIStore.getState()
+  store.clearPendingNewSessionPlaceholder()
+
+  captureVisibleLiveSessionTimeline()
+  store.setCurrentSession(sessionId)
+  focusSessionSync(sessionId, sessionFile)
+
+  await openSessionPreview(sessionId, sessionFile, navToken)
 }

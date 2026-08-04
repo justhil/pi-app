@@ -79,11 +79,12 @@ export function isViewingDifferentSessionThanWorker(
 }
 
 export function isSessionPreviewComposeLocked(
-  _viewSessionFile?: string | null,
+  viewSessionFile?: string | null,
   _workerSessionFile?: string | null,
   _workerStatus?: WorkerLiveSnapshot['status'],
+  readOnlyPreview = false,
 ): boolean {
-  return false
+  return readOnlyPreview && !!viewSessionFile
 }
 
 export function isViewingWorkerBoundSession(

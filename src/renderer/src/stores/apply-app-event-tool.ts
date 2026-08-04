@@ -1,4 +1,4 @@
-import { extractStatusFromOutput } from '@extension-compat/json-path'
+import { extractStatusFromOutput, extractTextFromToolOutput } from '@extension-compat/json-path'
 import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { resolveToolCardDef } from '@renderer/features/timeline/tool-card-registry'
 import type { StoreApi, ToolEvent } from '@renderer/stores/apply-app-event-types'
@@ -60,10 +60,11 @@ export function handleTool(event: ToolEvent, api: StoreApi): void {
     const items = state.timelineItems
     const lastTool = findLiveToolRowByCallId(items, event.toolCallId)
     const line = extractStatusFromOutput(event.output, resolveToolCardDef(event.toolName)?.statusField)
-    if (lastTool?.id && line) {
+    if (lastTool?.id && (line || event.details !== undefined)) {
       state.updateTimelineItem(lastTool.id, {
         toolPhase: 'update',
-        toolStatusLine: line,
+        ...(line ? { toolStatusLine: line } : {}),
+        ...(event.details !== undefined ? { toolDetails: event.details } : {}),
         runId: event.runId,
         turnId: event.turnId,
       })
@@ -74,12 +75,8 @@ export function handleTool(event: ToolEvent, api: StoreApi): void {
   if (event.phase === 'end') {
     const items = api.get().timelineItems
     const lastTool = findLiveToolRowByCallId(items, event.toolCallId)
-    let outText = ''
-    const raw = event.output
-    if (typeof raw === 'string') outText = raw
-    else if (raw && typeof raw === 'object' && 'content' in raw && Array.isArray((raw as { content: unknown[] }).content)) {
-      outText = (raw as { content: { text?: string }[] }).content.map((c) => c?.text || '').join('')
-    } else if (raw != null) outText = JSON.stringify(raw, null, 2)
+    const readableOutput = extractTextFromToolOutput(event.output)
+    const outText = readableOutput || (event.output == null ? '' : JSON.stringify(event.output, null, 2))
     if (lastTool?.id) {
       const toolDetail = toolCallDetailFromPi(event.toolName, lastTool.toolArgs, outText)
       state.updateTimelineItem(lastTool.id, {

@@ -77,13 +77,20 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         hasToolCalls: toolCalls.length > 0,
       })
       for (const c of toolCalls) {
-        const tc = c as { toolCall?: { name?: string; input?: unknown; arguments?: unknown; id?: string } }
-        const name = tc.toolCall?.name || 'tool'
-        const input = tc.toolCall?.input || tc.toolCall?.arguments
-        const callId = tc.toolCall?.id || ''
+        const tc = c as {
+          name?: string
+          input?: unknown
+          arguments?: unknown
+          id?: string
+          toolCall?: { name?: string; input?: unknown; arguments?: unknown; id?: string }
+        }
+        const name = tc.name || tc.toolCall?.name || 'tool'
+        const input = tc.input ?? tc.arguments ?? tc.toolCall?.input ?? tc.toolCall?.arguments
+        const callId = tc.id || tc.toolCall?.id || ''
         const item: Record<string, unknown> = {
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
+          ...(callId ? { toolCallId: callId } : {}),
           toolName: name,
           toolArgs: input || undefined,
           toolPhase: 'end',
@@ -95,7 +102,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         if (callId) toolCallIndex.set(callId, idx)
       }
     } else if (pm.role === 'toolResult') {
-      const text = extractToolResult(pm)
+      const text = extractText(pm) || extractToolResult(pm)
       const callId = pm.toolCallId || ''
       const toolName = pm.toolName || ''
       let targetIdx = callId ? toolCallIndex.get(callId) : undefined
@@ -114,14 +121,20 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
       }
       if (targetIdx !== undefined && items[targetIdx]) {
         items[targetIdx].toolOutput = text.slice(0, 4000)
+        if (callId) items[targetIdx].toolCallId = callId
+        if (pm.details !== undefined) items[targetIdx].toolDetails = pm.details
+        if (pm.isError !== undefined) items[targetIdx].isError = pm.isError
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
         items.push({
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
+          ...(callId ? { toolCallId: callId } : {}),
           toolName: toolName || 'result',
           toolPhase: 'end',
           toolOutput: text.slice(0, 2000),
+          ...(pm.details !== undefined ? { toolDetails: pm.details } : {}),
+          ...(pm.isError !== undefined ? { isError: pm.isError } : {}),
           timestamp: ts,
         })
       }
@@ -213,6 +226,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
         const item: Record<string, unknown> = {
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
+          ...(callId ? { toolCallId: callId } : {}),
           toolName: name,
           toolArgs: input || undefined,
           toolPhase: 'end',
@@ -244,14 +258,20 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       }
       if (targetIdx !== undefined && items[targetIdx]) {
         items[targetIdx].toolOutput = text.slice(0, 4000)
+        if (callId) items[targetIdx].toolCallId = callId
+        if (m.details !== undefined) items[targetIdx].toolDetails = m.details
+        if (m.isError !== undefined) items[targetIdx].isError = m.isError
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
         items.push({
           id: `hist-${++msgSeq}`,
           type: 'tool-call',
+          ...(callId ? { toolCallId: callId } : {}),
           toolName: toolName || 'result',
           toolPhase: 'end',
           toolOutput: text.slice(0, 2000),
+          ...(m.details !== undefined ? { toolDetails: m.details } : {}),
+          ...(m.isError !== undefined ? { isError: m.isError } : {}),
           timestamp: ts,
           sessionEntryId: sid,
         })

@@ -2,6 +2,7 @@ import type { AppEvent } from '@shared/app-events'
 import type { ToolCallDetail } from '@shared/tool-call-detail'
 import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panels'
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import type { SubagentSessionGroup } from '@renderer/lib/subagent-session-types'
 
 export interface SessionItem {
   sessionId: string
@@ -144,6 +145,8 @@ export interface UIState {
   historyLoading: boolean
   setHistoryMeta: (total: number, loaded: number, sessionFile: string | null) => void
   setHistoryLoading: (v: boolean) => void
+  subagentSessionGroup: SubagentSessionGroup | null
+  setSubagentSessionGroup: (group: SubagentSessionGroup | null) => void
   timelineItems: TimelineItem[]
   streamingAssistantId: string | null
   appendTimeline: (item: TimelineItem) => void

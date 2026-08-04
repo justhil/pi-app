@@ -10,6 +10,7 @@ import {
 } from '@shared/worker-message'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath, extractStatusFromOutput } from '../extension-compat/json-path.js'
+import { enrichToolChildSessionFiles } from '../extension-compat/tool-child-session.js'
 import type { DesktopUIBridge } from './desktop-ui-bridge.js'
 import { lastAssistantFromMessages } from './session-event-helpers.js'
 
@@ -236,20 +237,34 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
     }
     case 'tool_execution_update': {
       const statusLine = extractStatusFromOutput(event.partialResult)
-      if (statusLine) {
+      const partialResult = event.partialResult as { details?: unknown } | null | undefined
+      const parentSessionFile = typeof base.sessionFile === 'string' ? base.sessionFile : undefined
+      const details = enrichToolChildSessionFiles(
+        event.toolName,
+        parentSessionFile,
+        partialResult?.details,
+      )
+      if (statusLine || details !== undefined) {
         deps.emit({
           ...base,
           type: 'tool',
           toolCallId: event.toolCallId,
           toolName: event.toolName,
           phase: 'update',
-          output: statusLine,
+          output: statusLine ?? undefined,
+          details,
         } as AppEvent)
       }
       break
     }
     case 'tool_execution_end': {
       const endResult = event.result as { details?: unknown }
+      const parentSessionFile = typeof base.sessionFile === 'string' ? base.sessionFile : undefined
+      const details = enrichToolChildSessionFiles(
+        event.toolName,
+        parentSessionFile,
+        endResult?.details,
+      )
       deps.emit({
         ...base,
         type: 'tool',
@@ -257,7 +272,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         toolName: event.toolName,
         phase: 'end',
         output: endResult,
-        details: endResult?.details,
+        details,
         isError: event.isError,
       } as AppEvent)
       if (event.toolName === 'edit' || event.toolName === 'write') {

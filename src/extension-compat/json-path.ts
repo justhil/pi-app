@@ -11,7 +11,8 @@ export function extractJsonPath(obj: unknown, path: string): unknown {
   return cur
 }
 
-function textFromOutput(output: unknown): string {
+/** Convert a Pi tool result/update envelope into readable text. */
+export function extractTextFromToolOutput(output: unknown): string {
   if (!output) return ''
   if (typeof output === 'string') return output
   if (Array.isArray((output as { content?: unknown }).content)) {
@@ -36,7 +37,7 @@ export function extractStatusFromOutput(output: unknown, statusField?: string): 
     const v = extractJsonPath(root, statusField)
     if (v != null && String(v).trim()) text = String(v).trim()
   }
-  if (!text) text = textFromOutput(output).trim()
+  if (!text) text = extractTextFromToolOutput(output).trim()
   if (!text) return null
   if (text.length > 120) return `${text.slice(0, 120)}…`
   return text

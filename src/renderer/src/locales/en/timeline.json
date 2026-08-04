@@ -62,6 +62,36 @@
     "completed": "Done",
     "incomplete": "Incomplete"
   },
+  "tree": {
+    "title": "Agents",
+    "runningCount": "{{count}} running",
+    "completedCount": "{{count}} completed",
+    "failedCount": "{{count}} failed",
+    "tools": "{{count}} tools",
+    "tokens": "{{count}} tokens",
+    "openSession": "Open {{agent}} session",
+    "noDetails": "Waiting for agent details…",
+    "phase": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "detached": "Background",
+      "unknown": "Status unavailable"
+    },
+    "state": {
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "detached": "Background",
+      "unknown": "Unknown"
+    },
+    "failure": {
+      "timedOut": "Timed out",
+      "interrupted": "Interrupted",
+      "stopped": "Stopped"
+    }
+  },
   "activity": {
     "editedFiles": "Edited {{names}}",
     "explored": "explored {{count}} files",

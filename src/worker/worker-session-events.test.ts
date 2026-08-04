@@ -165,6 +165,81 @@ describe('worker session event lifecycle', () => {
     )
   })
 
+  it('preserves structured details from tool progress updates', () => {
+    const harness = createSessionEventHarness()
+    const details = {
+      mode: 'parallel',
+      progress: [{ agent: 'scout', status: 'running', toolCount: 3 }],
+    }
+
+    handleSessionEvent(
+      {
+        type: 'tool_execution_update',
+        toolCallId: 'subagent-call-1',
+        toolName: 'subagent',
+        partialResult: {
+          content: [{ type: 'text', text: '1 agent running' }],
+          details,
+        },
+      } as unknown as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    expect(harness.emittedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'tool',
+        phase: 'update',
+        toolCallId: 'subagent-call-1',
+        details,
+      }),
+    )
+  })
+
+  it('should_expose_running_child_session_file_when_subagent_progress_updates', () => {
+    const harness = createSessionEventHarness()
+
+    handleSessionEvent(
+      {
+        type: 'tool_execution_update',
+        toolCallId: 'subagent-call-1',
+        toolName: 'subagent',
+        partialResult: {
+          content: [{ type: 'text', text: '1 agent running' }],
+          details: {
+            mode: 'single',
+            runId: 'a87a8307',
+            results: [
+              {
+                agent: 'scout',
+                progress: {
+                  index: 0,
+                  status: 'running',
+                },
+              },
+            ],
+          },
+        },
+      } as unknown as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    expect(harness.emittedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'tool',
+        phase: 'update',
+        details: expect.objectContaining({
+          results: [
+            expect.objectContaining({
+              sessionFile: expect.stringMatching(
+                /session[\\/]a87a8307[\\/]run-0[\\/]session\.jsonl$/,
+              ),
+            }),
+          ],
+        }),
+      }),
+    )
+  })
+
   it('should_keep_repeated_deltas_in_cumulative_state_before_snapshot', () => {
     const harness = createSessionEventHarness()
     handleSessionEvent(

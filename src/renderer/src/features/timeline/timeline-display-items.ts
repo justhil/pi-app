@@ -223,7 +223,7 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
             continue
           }
         } else {
-          const sealed = isActivitySegmentSealed(items, clusterEnd)
+          const sealed = isActivitySegmentSealed(items, clusterEnd) && !clusterHasLiveTool(tools)
           if (sealed) {
             // Next item is prose — collapse prior tools into one summary line.
             const children = buildClusterChildren(slice)

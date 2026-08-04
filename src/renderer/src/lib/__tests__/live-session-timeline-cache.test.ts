@@ -128,6 +128,52 @@ describe('live-session-timeline-cache', () => {
     expect(assistant?.text).toBe('last chunk')
   })
 
+  it('routes concurrent same-name background tool updates by toolCallId', () => {
+    const sessionFile = '/tmp/background-parallel-subagents.jsonl'
+    for (const toolCallId of ['subagent-1', 'subagent-2']) {
+      applyBackgroundAppEventToLiveTimeline(sessionFile, {
+        type: 'tool',
+        phase: 'start',
+        toolCallId,
+        toolName: 'subagent',
+        input: {},
+        seq: toolCallId === 'subagent-1' ? 1 : 2,
+        workspaceId: '/workspace',
+        sessionFile,
+        timestamp: 3,
+      })
+    }
+
+    const details = {
+      mode: 'single',
+      progress: [{ agent: 'scout', status: 'running', toolCount: 4 }],
+    }
+    applyBackgroundAppEventToLiveTimeline(sessionFile, {
+      type: 'tool',
+      phase: 'update',
+      toolCallId: 'subagent-1',
+      toolName: 'subagent',
+      output: 'scout is working',
+      details,
+      seq: 3,
+      workspaceId: '/workspace',
+      sessionFile,
+      timestamp: 4,
+    })
+
+    const tools = getLiveSessionTimeline(sessionFile)?.timelineItems.filter(
+      (item) => item.type === 'tool-call',
+    )
+    expect(tools?.find((item) => item.toolCallId === 'subagent-1')).toMatchObject({
+      toolPhase: 'update',
+      toolStatusLine: 'scout is working',
+      toolDetails: details,
+    })
+    expect(tools?.find((item) => item.toolCallId === 'subagent-2')).toMatchObject({
+      toolPhase: 'start',
+    })
+  })
+
   it('should_add_delivered_queued_user_turn_to_background_timeline', () => {
     const sessionFile = '/tmp/background-queued-user.jsonl'
     saveLiveSessionTimeline({

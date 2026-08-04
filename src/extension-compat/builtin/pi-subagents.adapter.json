@@ -13,7 +13,15 @@
   "tier": "headless",
   "toolCard": {
     "template": "tree",
-    "icon": "GitBranch"
+    "icon": "GitBranch",
+    "childSession": {
+      "layout": "parent-session-run-directory",
+      "runIdPath": "$.runId",
+      "resultIndexPath": "$.progress.index",
+      "progressIndexPath": "$.index",
+      "childDirectoryPrefix": "run-",
+      "fileName": "session.jsonl"
+    }
   },
   "config": {
     "note": "子代理执行由扩展；桌面按 details（mode/runId/results/progress）渲染工具卡片。"

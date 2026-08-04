@@ -63,6 +63,7 @@ export const sessionDeleteSchema = z.object({
 
 export const sessionPrepareSchema = z.object({
   sessionFile: z.string().min(1),
+  bind: z.boolean().optional(),
 })
 
 export const workspaceOpenSchema = z.object({

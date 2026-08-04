@@ -84,6 +84,22 @@ describe('buildTimelineDisplayItems — flat until prose seals', () => {
     expect(sealed[1]).toMatchObject({ kind: 'single', item: { id: 'a1' } })
   })
 
+  it('keeps a prose-closed cluster flat until every tool has ended', () => {
+    const whileRunning = buildTimelineDisplayItems([
+      tool('subagent-a', 'subagent', 'update'),
+      tool('subagent-b', 'subagent', 'end'),
+      assistant('a1', '中间结论'),
+    ])
+    expect(whileRunning.map((block) => block.kind)).toEqual(['single', 'single', 'single'])
+
+    const afterCompletion = buildTimelineDisplayItems([
+      tool('subagent-a', 'subagent', 'end'),
+      tool('subagent-b', 'subagent', 'end'),
+      assistant('a1', '中间结论'),
+    ])
+    expect(afterCompletion.map((block) => block.kind)).toEqual(['tool-group', 'single'])
+  })
+
   it('merges thinking into sealed group after prose', () => {
     const blocks = buildTimelineDisplayItems([
       user('u1', 'test'),

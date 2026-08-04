@@ -417,6 +417,7 @@ export async function hydrateSessionView(
   sessionKey: string,
   sessionId: string | null,
   navToken?: number,
+  options?: { bindWorker?: boolean },
 ): Promise<void> {
   if (navToken != null && !assertSessionNavigation(navToken)) return
 
@@ -647,9 +648,10 @@ export async function hydrateSessionView(
 
     if (sessionFilesEqual(focusKey, sessionKey)) {
       bindViewToUiStore(next)
-      // Bind the worker to this session before showing composer meta/context so
-      // the displayed model and token counts come from the correct runtime.
-      await ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
+      if (options?.bindWorker !== false) {
+        // Normal conversations bind before showing composer meta/context.
+        await ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
+      }
       useUIStore.getState().setHistoryLoading(false)
       void applyComposerDisplayMeta(hist.sessionMeta)
     }

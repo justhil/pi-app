@@ -8,6 +8,41 @@ import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-se
 import { focusSession, focusSessionSync, hydrateSessionView } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
+async function openExistingSessionView(
+  sessionId: string,
+  sessionFile: string,
+  navToken: number | undefined,
+  bindWorker: boolean,
+): Promise<void> {
+  captureVisibleLiveSessionTimeline()
+  useExtensionUIStore.getState().resetForSessionContext()
+
+  const { sessionKey, instant } = focusSessionSync(sessionId, sessionFile)
+  if (navToken != null && !assertSessionNavigation(navToken)) return
+
+  if (bindWorker) {
+    void ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
+  }
+  void refreshSessionTree(sessionFile)
+
+  if (instant) {
+    void hydrateSessionView(sessionKey, sessionId, navToken, { bindWorker }).then(() => {
+      if (navToken != null && !assertSessionNavigation(navToken)) return
+      const latest = useUIStore.getState()
+      if (!sessionFilesEqual(latest.historySessionFile, sessionFile)) return
+      if (latest.historyLoading) latest.setHistoryLoading(false)
+    })
+    return
+  }
+
+  await hydrateSessionView(sessionKey, sessionId, navToken, { bindWorker })
+  if (navToken != null && !assertSessionNavigation(navToken)) return
+
+  const latest = useUIStore.getState()
+  if (!sessionFilesEqual(latest.historySessionFile, sessionFile)) return
+  if (latest.historyLoading) latest.setHistoryLoading(false)
+}
+
 /**
  * Open / switch conversation session.
  *
@@ -24,10 +59,10 @@ export async function openSessionIntoWorker(
   navToken?: number,
   _opts?: { workerReady?: boolean },
 ): Promise<void> {
-  captureVisibleLiveSessionTimeline()
   const store = useUIStore.getState()
 
   if (!sessionFile) {
+    captureVisibleLiveSessionTimeline()
     store.setCurrentSession(sessionId)
     store.clearTimeline()
     store.clearFileChanges()
@@ -49,35 +84,16 @@ export async function openSessionIntoWorker(
     return
   }
 
-  useExtensionUIStore.getState().resetForSessionContext()
+  await openExistingSessionView(sessionId, sessionFile, navToken, true)
+}
 
-  // Instant focus: cache hit skips full-screen loading skeleton
-  const { sessionKey, instant } = focusSessionSync(sessionId, sessionFile)
-  if (navToken != null && !assertSessionNavigation(navToken)) return
-
-  // Pending bind is cheap — do not wait on hydrate for interactivity.
-  void ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
-  // Session tree is non-critical chrome; never block timeline paint.
-  void refreshSessionTree(sessionFile)
-
-  if (instant) {
-    // Cache hit: paint immediately; revalidate disk in background (no skeleton).
-    void hydrateSessionView(sessionKey, sessionId, navToken).then(() => {
-      if (navToken != null && !assertSessionNavigation(navToken)) return
-      const latest = useUIStore.getState()
-      if (!sessionFilesEqual(latest.historySessionFile, sessionFile)) return
-      if (latest.historyLoading) latest.setHistoryLoading(false)
-    })
-    return
-  }
-
-  // Cold open: await disk tail once (disk-only IPC, no worker spawn).
-  await hydrateSessionView(sessionKey, sessionId, navToken)
-  if (navToken != null && !assertSessionNavigation(navToken)) return
-
-  const latest = useUIStore.getState()
-  if (!sessionFilesEqual(latest.historySessionFile, sessionFile)) return
-  if (latest.historyLoading) latest.setHistoryLoading(false)
+/** Open a child session as disk-backed history without binding it for prompts. */
+export async function openSessionPreview(
+  sessionId: string,
+  sessionFile: string,
+  navToken?: number,
+): Promise<void> {
+  await openExistingSessionView(sessionId, sessionFile, navToken, false)
 }
 
 /** Same as focusSession for callers that only need shell semantics */

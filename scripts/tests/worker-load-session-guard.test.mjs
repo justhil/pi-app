@@ -21,7 +21,7 @@ describe('worker loadSession guard', () => {
     assert.ok(prepareStart >= 0 && prepareEnd > prepareStart, 'prepare handler markers')
     const prepareBlock = text.slice(prepareStart, prepareEnd)
     assert.doesNotMatch(prepareBlock, /loadSession|ensureSessionWorker|workerManager\.start/)
-    assert.match(prepareBlock, /readSessionIdFromFile\(sessionFile\)/)
+    assert.match(prepareBlock, /resolvePreparedSessionFile\(sessionFile, listSessionsOnDisk\)/)
   })
 
   it('prompt marks agentTurnActive before awaiting session.prompt', () => {

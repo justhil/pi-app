@@ -62,6 +62,36 @@
     "completed": "完成",
     "incomplete": "未完成"
   },
+  "tree": {
+    "title": "子代理",
+    "runningCount": "{{count}} 个运行中",
+    "completedCount": "{{count}} 个已完成",
+    "failedCount": "{{count}} 个失败",
+    "tools": "{{count}} 个工具",
+    "tokens": "{{count}} tokens",
+    "openSession": "打开 {{agent}} 会话",
+    "noDetails": "正在等待子代理详情…",
+    "phase": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "detached": "后台运行",
+      "unknown": "状态不可用"
+    },
+    "state": {
+      "pending": "等待中",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "detached": "后台运行",
+      "unknown": "未知"
+    },
+    "failure": {
+      "timedOut": "执行超时",
+      "interrupted": "执行被中断",
+      "stopped": "执行已停止"
+    }
+  },
   "activity": {
     "editedFiles": "已编辑 {{names}}",
     "explored": "浏览 {{count}} 文件",

@@ -3,6 +3,7 @@ import { workerManager } from '../../worker-manager'
 import { listRewindCheckpoints } from '../../pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
+import { resolvePreparedSessionFile } from '../../session-prepare'
 import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
 import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
@@ -94,11 +95,19 @@ export function registerSessionHandlers(): void {
   registerHandlerWithSchema('ipc:session.prepare', sessionPrepareSchema, async (req) => {
     const sessionFile = req.sessionFile
     if (!sessionFile) {
-      setPendingWorkerSessionFile(null)
+      if (req.bind !== false) setPendingWorkerSessionFile(null)
       return { bound: false, sessionId: null as string | null }
     }
-    setPendingWorkerSessionFile(sessionFile)
-    return { bound: false, sessionId: readSessionIdFromFile(sessionFile) }
+    if (req.bind !== false) setPendingWorkerSessionFile(sessionFile)
+    const prepared = await resolvePreparedSessionFile(sessionFile, listSessionsOnDisk)
+    if (req.bind !== false && prepared?.sessionFile && prepared.sessionFile !== sessionFile) {
+      setPendingWorkerSessionFile(prepared.sessionFile)
+    }
+    return {
+      bound: false,
+      sessionId: prepared?.sessionId ?? null,
+      sessionFile: prepared?.sessionFile ?? sessionFile,
+    }
   })
 
   registerHandler('ipc:session.setEphemeralDraft', async (req) => {

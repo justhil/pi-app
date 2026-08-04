@@ -91,6 +91,15 @@ export interface ToolCardDef {
   statusField?: string // JSONPath into tool_execution_update, e.g. "$.output.text"
   icon?: string // lucide icon name
   fields?: Record<string, string> // template field -> JSONPath
+  /** Derive live child session files when a tree tool only publishes run/index metadata. */
+  childSession?: {
+    layout: 'parent-session-run-directory'
+    runIdPath: string
+    resultIndexPath?: string
+    progressIndexPath?: string
+    childDirectoryPrefix?: string
+    fileName?: string
+  }
 }
 
 export interface InteractDef {

@@ -8,13 +8,15 @@ import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
-import { Check, FileText, X } from '@renderer/components/icons'
+import { FileText } from '@renderer/components/icons'
 import { renderNativeToolPreview } from './tool-previews'
+import { TreeToolCard } from './tree-tool-card'
 import { applyToolCardFields } from '@extension-compat/json-path'
 import { resolveToolCardDef } from './tool-card-registry'
 
 export interface ToolItem {
   id?: string
+  toolCallId?: string
   toolName?: string
   toolOutput?: string
   toolDetails?: unknown
@@ -143,67 +145,8 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
   )
 }
 
-// ── tree template (subagent / trellis_subagent / contact_supervisor) ──
-// Generic: parse details.results[] or single-agent shape; mode from details.mode or toolName.
-const TreeTemplate: ToolCardComponent = ({ item }) => {
-  const details = item.toolDetails as Record<string, unknown> | null | undefined
-  const toolName = item.toolName || ''
-  let mode = String(details?.mode || toolName)
-  const runId = (details?.runId ?? details?.asyncId) as string | undefined
-  let results: { agent?: string; status?: string; error?: string }[] = []
-  const progressSummary = details?.progressSummary as { running?: number; completed?: number; failed?: number } | undefined
-  if (details?.agent != null && !Array.isArray(details?.results)) {
-    mode = 'trellis'
-    results = [{ agent: String(details.agent), status: String(details.status ?? ''), error: details.error as string | undefined }]
-  } else if (Array.isArray(details?.results)) {
-    results = (details.results as Array<{ agent?: string; name?: string; status?: string; state?: string; error?: string }>).map((r) => ({
-      agent: r.agent || r.name,
-      status: r.status || r.state,
-      error: r.error,
-    }))
-  }
-  if (!details || results.length === 0 && !runId) {
-    const out = (item.toolOutput || '').slice(0, 1200)
-    return <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border/35 p-2 text-[11px] text-muted-foreground" style={{ background: 'color-mix(in srgb, var(--bg-2) 45%, transparent)' }}>{out || '—'}</pre>
-  }
-  return (
-    <div className="mt-1 space-y-2 rounded-md border border-border/35 p-2">
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <span className="font-mono uppercase">{mode || toolName}</span>
-        {runId && <span className="truncate font-mono">{runId}</span>}
-      </div>
-      {progressSummary && (
-        <div className="flex gap-3 text-[10px] tabular-nums text-muted-foreground">
-          {progressSummary.running != null && <span>{progressSummary.running}</span>}
-          {progressSummary.completed != null && (
-            <span className="inline-flex items-center gap-0.5">
-              <Check className="h-3 w-3" strokeWidth={2} />
-              {progressSummary.completed}
-            </span>
-          )}
-          {progressSummary.failed != null && progressSummary.failed > 0 && (
-            <span className="inline-flex items-center gap-0.5">
-              <X className="h-3 w-3" strokeWidth={2} />
-              {progressSummary.failed}
-            </span>
-          )}
-        </div>
-      )}
-      <div className="space-y-1">
-        {results.length === 0 && <div className="text-[11px] text-muted-foreground/50">—</div>}
-        {results.map((r, i) => (
-          <div key={i} className={cn(
-            'flex items-center justify-between gap-2 rounded-md border border-border/30 px-2 py-1',
-            r.status === 'failed' || r.status === 'timedOut' ? 'border-amber-500/25 bg-amber-500/[0.04]' : '',
-          )}>
-            <span className="font-mono text-[11px]">{r.agent || 'agent'}</span>
-            <span className="text-[10px] uppercase text-muted-foreground">{r.status || '—'}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+// Generic tree renderer selected exclusively by adapter.toolCard.template.
+const TreeTemplate: ToolCardComponent = ({ item }) => <TreeToolCard item={item} className="mt-1" />
 
 // ── list template (search / docs_search / web_fetch etc.) ──
 // Generic: render a list of items (sources/results) + metadata; in-progress status from toolStatusLine.

@@ -180,6 +180,7 @@ export function ProjectSidebar({
         store.clearTimeline()
         store.clearFileChanges()
         store.setHistoryMeta(0, 0, null)
+        store.setSubagentSessionGroup(null)
         void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
       }
       setExpandedPaths((prev) => new Set(prev).add(workspacePath))

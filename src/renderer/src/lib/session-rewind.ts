@@ -1,10 +1,12 @@
 import { toast } from 'sonner'
+import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
 import { getSessionMessagesFromDiskViaIpc } from '@renderer/lib/session-history'
+import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 
 /**
  * Rewind / jump to a session tree entry (pi navigateTree semantics).
@@ -14,6 +16,10 @@ import { getSessionMessagesFromDiskViaIpc } from '@renderer/lib/session-history'
 export async function navigateSessionToEntry(targetId: string): Promise<boolean> {
   console.log('[rewind] navigateSessionToEntry start, targetId=', targetId)
   try {
+    if (isCurrentSubagentSessionPreview()) {
+      toast.warning(i18n.t('composer:toast.subagentPreviewReadOnly'))
+      return false
+    }
     const st = useUIStore.getState()
     const fromHistory = st.historySessionFile
     const fromSessions = st.sessions.find((s) => s.sessionId === st.currentSessionId)?.sessionFile

@@ -45,6 +45,7 @@ export const useUIStore = create<UIState>()(
       historyLoadedCount: 0,
       historySessionFile: null,
       historyLoading: false,
+      subagentSessionGroup: null,
     })
     void import('@renderer/lib/ipc-client').then(({ ipcClient }) =>
       ipcClient.invoke('session.setEphemeralDraft', { active: true }).catch(() => {}),
@@ -59,6 +60,7 @@ export const useUIStore = create<UIState>()(
       pendingNewSessionPlaceholder: true,
       ephemeralSandboxDraft: false,
       currentSessionId: '__pending_new__',
+      subagentSessionGroup: null,
       ...(keep
         ? {}
         : {
@@ -99,9 +101,10 @@ export const useUIStore = create<UIState>()(
           : s.recentProjects,
         ...(changed
           ? {
-              sessions: [],
-              currentSessionId: null,
-            }
+            sessions: [],
+            currentSessionId: null,
+            subagentSessionGroup: null,
+          }
           : {}),
       }
     }),
@@ -113,6 +116,7 @@ export const useUIStore = create<UIState>()(
     if (id === null) {
       set({
         currentSessionId: null,
+        subagentSessionGroup: null,
         rewindTreeNodes: [],
         rewindWorkerBound: false,
         rewindLoadingTree: false,
@@ -194,6 +198,8 @@ export const useUIStore = create<UIState>()(
   setHistoryMeta: (total, loaded, sessionFile) =>
     set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile }),
   setHistoryLoading: (v) => set({ historyLoading: v }),
+  subagentSessionGroup: null,
+  setSubagentSessionGroup: (group) => set({ subagentSessionGroup: group }),
 
   timelineItems: [],
   streamingAssistantId: null,

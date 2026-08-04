@@ -12,6 +12,7 @@ import {
 } from '@renderer/stores/apply-app-event-handlers'
 import { applyBackgroundAppEvent, eventSessionFile } from '@renderer/stores/apply-app-event-background'
 import { markLiveSessionTurnEnded } from '@renderer/lib/live-session-timeline-cache'
+import { reduceSubagentSessionGroupToolEvent } from '@renderer/lib/subagent-session-activity'
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
 export type { StoreApi } from '@renderer/stores/apply-app-event-types'
@@ -19,6 +20,12 @@ export type { StoreApi } from '@renderer/stores/apply-app-event-types'
 export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (!isSessionScopedAppEvent(event)) return
   const state = api.get()
+  if (event.type === 'tool' && state.subagentSessionGroup) {
+    const nextGroup = reduceSubagentSessionGroupToolEvent(state.subagentSessionGroup, event)
+    if (nextGroup !== state.subagentSessionGroup) {
+      state.setSubagentSessionGroup(nextGroup)
+    }
+  }
   const route = resolveAppEventRoute(state, event)
   if (route === 'drop') return
   if (route === 'background') {

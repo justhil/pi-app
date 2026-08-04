@@ -29,6 +29,7 @@ beforeEach(() => {
     optimisticPendingUserText: null,
     sessionRuntimeRunning: {},
     agentTurnBootstrapping: false,
+    subagentSessionGroup: null,
   })
 })
 
@@ -81,5 +82,32 @@ describe('session fork renderer actions', () => {
       '/sessions/clone.jsonl',
     )
     expect(useUIStore.getState().composerPrefill).toBeNull()
+  })
+
+  it('should_block_branch_mutations_in_read_only_subagent_preview', async () => {
+    useUIStore.setState({
+      currentSessionId: 'child-session',
+      historySessionFile: '/sessions/child.jsonl',
+      subagentSessionGroup: {
+        workspacePath: '/workspace',
+        parentSessionId: 'source-session',
+        parentSessionFile: '/sessions/source.jsonl',
+        previewSessionFile: '/sessions/child.jsonl',
+        children: [
+          {
+            key: 'call-1:0',
+            agent: 'scout',
+            state: 'completed',
+            sessionFile: '/sessions/child.jsonl',
+          },
+        ],
+      },
+    })
+
+    await expect(forkSessionFromEntry('user-entry')).resolves.toBe(false)
+    await expect(cloneCurrentSession()).resolves.toBe(false)
+
+    expect(mocks.invoke).not.toHaveBeenCalledWith('session.fork', expect.anything())
+    expect(mocks.invoke).not.toHaveBeenCalledWith('session.clone', expect.anything())
   })
 })

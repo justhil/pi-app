@@ -5,6 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 
 function resolveSourceSessionFile(): string | null {
   const store = useUIStore.getState()
@@ -15,6 +16,10 @@ function resolveSourceSessionFile(): string | null {
 }
 
 function assertIdleForBranchAction(): boolean {
+  if (isCurrentSubagentSessionPreview()) {
+    toast.warning(i18n.t('composer:toast.subagentPreviewReadOnly'))
+    return false
+  }
   const store = useUIStore.getState()
   const busy = composerTurnActive({
     historySessionFile: store.historySessionFile,
@@ -203,6 +208,7 @@ export async function cloneCurrentSession(): Promise<boolean> {
 }
 
 export async function loadForkCandidates(): Promise<Array<{ entryId: string; text: string }>> {
+  if (isCurrentSubagentSessionPreview()) return []
   const sessionFile = resolveSourceSessionFile()
   if (!sessionFile) return []
   try {

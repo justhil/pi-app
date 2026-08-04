@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppEvent } from '@shared/app-events'
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 import type { RunState, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
@@ -9,6 +9,11 @@ import {
   saveLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
 import { clearSessionTimelineView, getSessionTimelineView } from '@renderer/lib/session-timeline-views'
+
+vi.mock('@renderer/features/timeline/tool-card-registry', () => ({
+  resolveToolCardTemplate: (toolName: string | undefined) => toolName === 'subagent' ? 'tree' : undefined,
+  resolveToolCardDef: () => undefined,
+}))
 
 const liveFile = '/tmp/live.jsonl'
 const previewFile = '/tmp/preview.jsonl'
@@ -36,6 +41,10 @@ function makeApi(): StoreApi {
     pendingFollowUp: [] as string[],
     rightPanelCatalog: [],
     rightPanelPrefs: {},
+    subagentSessionGroup: null,
+    setSubagentSessionGroup: (group: UIState['subagentSessionGroup']) => {
+      state.subagentSessionGroup = group
+    },
     setWorkerLiveSnapshot: (snap: UIState['workerLiveSnapshot']) => {
       state.workerLiveSnapshot = snap
     },
@@ -134,5 +143,45 @@ describe('applyAppEvent background live session routing', () => {
     }
     expect(api.get().timelineItems).toEqual([])
     expect(getLiveSessionTimeline(liveFile)?.timelineItems.at(-1)?.text).toBe('hello world')
+  })
+
+  it('should_reclaim_background_subagent_rows_without_clearing_preview_identity', () => {
+    const api = makeApi()
+    api.set({
+      subagentSessionGroup: {
+        workspacePath: '/w/preview',
+        parentSessionId: 'live-session',
+        parentSessionFile: liveFile,
+        previewSessionFile: previewFile,
+        children: [
+          {
+            key: 'call-1:0',
+            agent: 'scout',
+            state: 'running',
+            sessionFile: previewFile,
+          },
+        ],
+      },
+    })
+
+    applyAppEvent({
+      type: 'tool',
+      phase: 'end',
+      toolCallId: 'call-1',
+      toolName: 'subagent',
+      details: {
+        results: [{ agent: 'scout', exitCode: 0, sessionFile: previewFile }],
+      },
+      seq: 20,
+      workspaceId: '/w/preview',
+      sessionId: 'live-session',
+      sessionFile: liveFile,
+      timestamp: 10,
+    }, api)
+
+    expect(api.get().subagentSessionGroup).toEqual(expect.objectContaining({
+      previewSessionFile: previewFile,
+      children: [],
+    }))
   })
 })

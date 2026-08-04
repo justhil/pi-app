@@ -41,6 +41,8 @@ import { useComposerAttachments } from './use-composer-attachments'
 import { useComposerKeyDown } from './use-composer-keydown'
 import { useComposerFileSearch } from './use-composer-file-search'
 import { ComposerFilePopover } from './composer-file-popover'
+import { ComposerAgentActivity } from './composer-agent-activity'
+import { isSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 import {
   composerDraftContextKey,
   readTransientComposerDraft,
@@ -58,6 +60,7 @@ export function Composer() {
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const currentSessionId = useUIStore((s) => s.currentSessionId)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const subagentSessionGroup = useUIStore((s) => s.subagentSessionGroup)
   const workerLiveSnapshot = useUIStore((s) => s.workerLiveSnapshot)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const pendingNew = useUIStore((s) => s.pendingNewSessionPlaceholder)
@@ -69,6 +72,10 @@ export function Composer() {
     pendingNewSessionPlaceholder: pendingNew,
   })
   const canCompose = !!currentWorkspace || ephemeralSandboxDraft
+  const readOnlySubagentPreview = useMemo(
+    () => isSubagentSessionPreview(subagentSessionGroup, historySessionFile),
+    [historySessionFile, subagentSessionGroup],
+  )
   const sessionPreview = useMemo(
     () =>
       !ephemeralSandboxDraft &&
@@ -78,6 +85,7 @@ export function Composer() {
         historySessionFile,
         workerLiveSnapshot.sessionFile,
         workerLiveSnapshot.status,
+        readOnlySubagentPreview,
       ),
     [
       ephemeralSandboxDraft,
@@ -85,6 +93,7 @@ export function Composer() {
       historySessionFile,
       workerLiveSnapshot.sessionFile,
       workerLiveSnapshot.status,
+      readOnlySubagentPreview,
     ],
   )
   const canSendMessages = canCompose && !sessionPreview
@@ -108,6 +117,12 @@ export function Composer() {
     const el = editorRef.current
     if (el) insertTextAtCursor(el, spoken)
   })
+
+  useEffect(() => {
+    if (!sessionPreview) return
+    setModelPickerOpen(false)
+    setThinkingPickerOpen(false)
+  }, [sessionPreview, setModelPickerOpen, setThinkingPickerOpen])
 
   const updateFromEditor = useCallback(() => {
     const el = editorRef.current
@@ -178,7 +193,7 @@ export function Composer() {
 
   const slash = useComposerSlash(
     text,
-    canCompose,
+    canSendMessages,
     currentSessionId,
     currentWorkspace,
     applySegmentsChange,
@@ -366,10 +381,14 @@ export function Composer() {
         onAcceptCommand={slash.acceptCommand}
         onAcceptArg={slash.acceptArg}
       />
+      <ComposerAgentActivity
+        composerAnchorRef={slashPopoverAnchorRef}
+        completionPopoverOpen={fileSearch.show || slash.showPopover}
+      />
       <ComposerPendingQueue />
       {sessionPreview && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200/90">
-          <span className="min-w-0 flex-1">{t('composer:previewBanner')}</span>
+          <span className="min-w-0 flex-1">{t('composer:subagentPreviewBanner')}</span>
           {workerLiveSnapshot.status === 'running' && (
             <span className="shrink-0 rounded-md bg-amber-500/15 px-2 py-0.5 font-medium">
               {t('composer:previewBackgroundRunning')}
@@ -439,7 +458,7 @@ export function Composer() {
               voiceState === 'recording' || voiceState === 'transcribing'
                 ? ''
                 : sessionPreview
-                  ? t('composer:previewReadOnly')
+                  ? t('composer:subagentPreviewReadOnly')
                   : ephemeralSandboxDraft && !currentWorkspace
                     ? t('composer:firstMsgIsTitle')
                     : canCompose
@@ -462,7 +481,7 @@ export function Composer() {
               <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
             )}
             <div className="min-w-0 flex-1">
-              {canCompose && (
+              {canSendMessages && (
                 <ComposerModelStrip
                   model={model}
                   thinkingLevel={thinkingLevel}

@@ -5,6 +5,7 @@ import {
 } from '@renderer/lib/streaming-timeline-preserve'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { normalizeTimelineMessageText } from '@renderer/lib/timeline-dedupe'
+import { extractStatusFromOutput, extractTextFromToolOutput } from '@extension-compat/json-path'
 import type { AppEvent } from '@shared/app-events'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 
@@ -369,12 +370,31 @@ function applyTool(
   if (idx < 0) return
   const realIdx = snap.timelineItems.length - 1 - idx
   const item = snap.timelineItems[realIdx]
+  if (event.phase === 'update') {
+    const statusLine = extractStatusFromOutput(event.output)
+    snap.timelineItems[realIdx] = {
+      ...item,
+      toolPhase: 'update',
+      ...(statusLine ? { toolStatusLine: statusLine } : {}),
+      ...(event.details !== undefined ? { toolDetails: event.details } : {}),
+      runId: event.runId,
+      turnId: event.turnId,
+    }
+    snap.runState = {
+      ...snap.runState,
+      activeTool: event.toolName,
+      ...(statusLine ? { activeToolStatus: statusLine } : {}),
+    }
+    return
+  }
   if (event.phase === 'end') {
+    const readableOutput = extractTextFromToolOutput(event.output)
     snap.timelineItems[realIdx] = {
       ...item,
       toolPhase: 'end',
-      toolOutput: typeof event.output === 'string' ? event.output : event.output == null ? '' : JSON.stringify(event.output, null, 2),
+      toolOutput: readableOutput || (event.output == null ? '' : JSON.stringify(event.output, null, 2)),
       toolDetails: event.details,
+      toolStatusLine: undefined,
       runId: event.runId,
       turnId: event.turnId,
       isError: event.isError,

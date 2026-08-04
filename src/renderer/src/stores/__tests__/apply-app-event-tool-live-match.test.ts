@@ -54,6 +54,32 @@ describe('live tool match by toolCallId only', () => {
       nextItemId: () => 'x',
     } as unknown as StoreApi
 
+    const progressDetails = {
+      progress: [{ agent: 'first', status: 'running', toolCount: 2 }],
+    }
+    handleTool(
+      {
+        type: 'tool',
+        phase: 'update',
+        toolCallId: 'tc1',
+        toolName: 'bash',
+        output: 'working',
+        details: progressDetails,
+        runId: 'r1',
+        timestamp: 2,
+        sessionId: 's',
+        workspaceId: 'w',
+        seq: 0,
+      },
+      api,
+    )
+    expect(timelineItems[0]).toMatchObject({
+      toolPhase: 'update',
+      toolStatusLine: 'working',
+      toolDetails: progressDetails,
+    })
+    expect(timelineItems[1].toolDetails).toBeUndefined()
+
     handleTool(
       {
         type: 'tool',

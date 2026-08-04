@@ -22,6 +22,9 @@ export type PiSessionMessage = {
   errorMessage?: string
   timestamp?: string | number
   toolName?: string
+  toolCallId?: string
+  details?: unknown
+  isError?: boolean
 }
 
 export type PiCompactionEndResult = {

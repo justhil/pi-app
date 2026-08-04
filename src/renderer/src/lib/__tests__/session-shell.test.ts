@@ -36,10 +36,12 @@ import {
   clearSessionShellForTests,
   captureFocusFromUiStore,
   focusSessionSync,
+  hydrateSessionView,
   getSessionView,
   listSessionViewKeys,
   evictSessionViewsIfNeeded,
 } from '../session-shell'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { composerTurnActive } from '../session-worker-sync'
 
 describe('session-shell', () => {
@@ -92,6 +94,18 @@ describe('session-shell', () => {
     const { instant } = focusSessionSync('s2', '/tmp/b.jsonl')
     expect(instant).toBe(false)
     expect(useUIStore.getState().historyLoading).toBe(true)
+  })
+
+  it('should_not_bind_worker_when_hydrating_read_only_preview', async () => {
+    focusSessionSync('child-session', '/tmp/child.jsonl')
+
+    await hydrateSessionView('/tmp/child.jsonl', 'child-session', undefined, {
+      bindWorker: false,
+    })
+
+    expect(vi.mocked(ipcClient.invoke)).not.toHaveBeenCalledWith('session.setPendingBind', {
+      sessionFile: '/tmp/child.jsonl',
+    })
   })
 
   it('non-empty cache is instant even if phase was left hydrating', () => {

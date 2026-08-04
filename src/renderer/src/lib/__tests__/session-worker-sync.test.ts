@@ -25,10 +25,21 @@ describe('session-worker-sync', () => {
     vi.mocked(ipcClient.invoke).mockReset()
   })
 
-  it('does not lock compose for multi-session pool (F1 per session)', () => {
+  it('does not lock compose for normal multi-session navigation', () => {
     expect(
       isSessionPreviewComposeLocked('/view/session.jsonl', '/worker/session.jsonl', 'running'),
     ).toBe(false)
+  })
+
+  it('should_lock_compose_when_viewing_a_subagent_preview', () => {
+    expect(
+      isSessionPreviewComposeLocked(
+        '/view/subagent.jsonl',
+        '/worker/parent.jsonl',
+        'running',
+        true,
+      ),
+    ).toBe(true)
   })
 
   it('detects view vs worker session mismatch', () => {
