@@ -19,7 +19,7 @@ import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
-import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
@@ -384,11 +384,14 @@ export function Timeline() {
       if (!entryId || typeof entryId !== 'string') return
       viewSeqRef.current += 1
       viewTailSnapshotRef.current = useUIStore.getState().timelineItems.at(-1) ?? null
+      // A view jump is a navigation away from the leaf: detach live-follow so the
+      // follow controller never pins the viewport back to the bottom after the reveal.
+      followLiveRef.current = false
       setViewTarget(entryId)
     }
     window.addEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
     return () => window.removeEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
-  }, [])
+  }, [followLiveRef])
 
   // Reveal a pending view target: scroll when rendered, expand the virtual
   // window when loaded, or fetch a bounded read-only chunk when not loaded.
@@ -402,6 +405,7 @@ export function Timeline() {
       const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(entryId) : entryId
       const row = el.querySelector(`[data-session-entry-id="${escaped}"]`)
       if (row) {
+        followLiveRef.current = false
         row.scrollIntoView({ block: 'center' })
         window.dispatchEvent(new Event('timeline-scroll'))
         viewSeqRef.current += 1
@@ -442,26 +446,54 @@ export function Timeline() {
         let allFetched: TimelineItem[] = chunk
         const targetPos = typeof res.totalCount === 'number' ? res.totalCount : 0
         const pre = useUIStore.getState()
-        if (targetPos > 0 && pre.historyTotalCount > targetPos) {
-          const gap = pre.historyTotalCount - targetPos
-          const tailRes = await fetchSessionHistoryTail(
-            sessionFile,
-            Math.min(gap, VIEW_REVEAL_CHUNK_LIMIT),
-            { leafId: null },
-          )
+        const total = pre.historyTotalCount
+        if (targetPos > 0 && total > targetPos) {
+          const gap = total - targetPos
+          // One leaf-anchored call reaches back at most 500 items (handler clamp).
+          const gapFetched = Math.min(gap, 500)
+          const tailRes = await fetchSessionHistoryTail(sessionFile, gapFetched, { leafId: null })
           if (seq !== viewSeqRef.current) return
           if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
           allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+          // When the target is further than 500 items below the loaded tail, the
+          // gap fetch leaves a hole between the target and the tail. Close it with
+          // one offset-based page spanning exactly the middle.
+          const gapTailStart = total - gapFetched + 1
+          const middleLength = gapTailStart - 1 - targetPos
+          if (middleLength > 0) {
+            const middleRes = await fetchSessionHistoryOlder(
+              sessionFile,
+              gapFetched,
+              Math.min(middleLength, 500),
+            )
+            if (seq !== viewSeqRef.current) return
+            if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+            // Oldest-first: target chunk, then the middle, then the tail remainder.
+            allFetched = [
+              ...chunk,
+              ...((middleRes.items || []) as TimelineItem[]),
+              ...((tailRes.items || []) as TimelineItem[]),
+            ]
+          }
         }
         const latest = useUIStore.getState()
         const missing = missingOlderItems(allFetched, latest.timelineItems)
         if (missing.length) {
           latest.prependHistoryItems(missing)
           const after = useUIStore.getState()
-          // Pin loadedCount when the reveal now covers the whole session so the
-          // older-loader stops cleanly instead of fetching overlapping pages.
-          if (after.historyTotalCount > 0 && after.historyLoadedCount >= after.historyTotalCount) {
-            useUIStore.setState({ historyLoadedCount: after.historyTotalCount })
+          // Recompute loadedCount from the true coverage: everything from the chunk
+          // start (targetPos - chunkLen + 1) through the leaf is now loaded. This
+          // keeps the older-loader's offset honest so it never fetches pages that
+          // overlap or fall out of order.
+          if (after.historyTotalCount > 0) {
+            const chunkLen = Math.min(VIEW_REVEAL_CHUNK_LIMIT, targetPos)
+            const covered = after.historyTotalCount - (targetPos - chunkLen)
+            useUIStore.setState({
+              historyLoadedCount: Math.min(
+                after.historyTotalCount,
+                Math.max(after.historyLoadedCount, covered),
+              ),
+            })
           }
         }
       })()

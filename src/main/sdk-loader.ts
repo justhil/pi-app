@@ -1,6 +1,6 @@
 // SDK Loader - 解析当前生效 pi SDK 入口（内置 / 全局 / 独立环境）
 
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import {
   discoverGlobalPiCodingAgentRoot,
@@ -21,8 +21,14 @@ export interface ActiveSdk {
 
 let globalSdkPathCache: string | null | undefined
 
+// Resolving the active SDK is expensive for 'global' (synchronous npm spawns,
+// up to a few seconds on Windows). Cache the full result keyed by the SDK config
+// file's mtime so session.getMessages etc. never re-run the discovery per call.
+let activeSdkCache: { key: string; value: ActiveSdk } | null = null
+
 export function clearGlobalSdkPathCache(): void {
   globalSdkPathCache = undefined
+  activeSdkCache = null
 }
 
 export function readBuiltinSdkVersion(): string {
@@ -46,9 +52,10 @@ function validateEntry(pkgRoot: string): boolean {
 
 export function resolveGlobalSdkPath(): string | null {
   if (globalSdkPathCache !== undefined) return globalSdkPathCache
-  const result = discoverGlobalPiCodingAgentRoot()
-  if (result) globalSdkPathCache = result
-  return result
+  // Cache the outcome regardless of success — a broken npm must not trigger the
+  // synchronous npm scan again on every getMessages call.
+  globalSdkPathCache = discoverGlobalPiCodingAgentRoot()
+  return globalSdkPathCache
 }
 
 export function readGlobalSdkVersion(): string | null {
@@ -90,23 +97,49 @@ function readCurrentJson(userDataDir: string): CurrentJson {
   }
 }
 
+function sdkConfigStamp(userDataDir: string): string {
+  try {
+    const p = join(userDataDir, 'sdk', 'current.json')
+    return `${userDataDir}|${statSync(p).mtimeMs}`
+  } catch {
+    return `${userDataDir}|missing`
+  }
+}
+
 export function resolveActiveSdk(userDataDir: string): ActiveSdk {
+  const key = sdkConfigStamp(userDataDir)
+  if (activeSdkCache && activeSdkCache.key === key) return activeSdkCache.value
   const { active } = readCurrentJson(userDataDir)
+  let value: ActiveSdk
   if (active === 'global') {
     const globalRoot = resolveGlobalSdkPath()
     if (globalRoot) {
       const entry = resolveEntryPath(globalRoot)
-      if (entry) return { kind: 'global', version: readGlobalSdkVersion() || '', entryPath: entry }
+      if (entry) {
+        value = { kind: 'global', version: readGlobalSdkVersion() || '', entryPath: entry }
+        activeSdkCache = { key, value }
+        return value
+      }
     }
-    return { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG, fallbackReason: 'global-unavailable' }
+    value = { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG, fallbackReason: 'global-unavailable' }
+    activeSdkCache = { key, value }
+    return value
   }
   if (active === 'user') {
     const userRoot = resolveUserSdkPath(userDataDir)
     if (userRoot) {
       const entry = resolveEntryPath(userRoot)
-      if (entry) return { kind: 'user', version: readUserSdkVersion(userDataDir) || '', entryPath: entry }
+      if (entry) {
+        value = { kind: 'user', version: readUserSdkVersion(userDataDir) || '', entryPath: entry }
+        activeSdkCache = { key, value }
+        return value
+      }
     }
-    return { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG, fallbackReason: 'user-unavailable' }
+    value = { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG, fallbackReason: 'user-unavailable' }
+    activeSdkCache = { key, value }
+    return value
   }
-  return { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG }
+  value = { kind: 'builtin', version: readBuiltinSdkVersion(), entryPath: PKG }
+  activeSdkCache = { key, value }
+  return value
 }

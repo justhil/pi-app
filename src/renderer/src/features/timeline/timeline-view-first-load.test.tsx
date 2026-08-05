@@ -228,3 +228,53 @@ describe('Timeline view-entry reveal during first session load', () => {
     expect(loadedIds()).toEqual(Array.from({ length: TAIL_COUNT }, (_, i) => i + TAIL_START))
   })
 })
+
+describe('Timeline view-entry reveal to a far-away node (gap larger than one chunk)', () => {
+  const BIG_TOTAL = 700
+  const BIG_TAIL_START = 621
+
+  function bigDisk() {
+    const leafChunk = diskChunk(1, 6) // branch up to entry-3
+    const gapTail = diskChunk(201, BIG_TOTAL) // leaf-anchored remainder (500 clamp)
+    const middle = diskChunk(7, 200) // strictly between target and the gap tail
+    const tailChunk = diskChunk(BIG_TAIL_START, BIG_TOTAL) // plain tail (no leafId)
+    vi.mocked(ipcClient.invoke).mockImplementation(((name: string, args: { leafId?: string | null; limit?: number; offset?: number }) => {
+      if (name === 'session.getMessages') {
+        if (args.leafId === 'entry-3') {
+          return Promise.resolve({ items: leafChunk, totalCount: 6, sourceCount: 6 })
+        }
+        if (args.leafId === null) {
+          return Promise.resolve({ items: gapTail, totalCount: BIG_TOTAL, sourceCount: gapTail.length })
+        }
+        if ((args.offset ?? 0) > 0) {
+          return Promise.resolve({ items: middle, totalCount: BIG_TOTAL, sourceCount: middle.length })
+        }
+        return Promise.resolve({ items: tailChunk, totalCount: BIG_TOTAL, sourceCount: tailChunk.length })
+      }
+      return Promise.resolve({ items: [], totalCount: 0, sourceCount: 0 })
+    }) as never)
+  }
+
+  it('fills the middle between the target chunk and the tail so the store stays fully contiguous', async () => {
+    useUIStore.setState(
+      baseState({
+        timelineItems: diskChunk(BIG_TAIL_START, BIG_TOTAL),
+        historyLoadedCount: BIG_TOTAL - BIG_TAIL_START + 1,
+        historyTotalCount: BIG_TOTAL,
+      }),
+    )
+    bigDisk()
+
+    render(<Timeline />)
+    act(() => requestTimelineViewEntry('entry-3'))
+
+    await flushMicrotasks()
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    const target = scrollIntoView.mock.contexts[0] as HTMLElement
+    expect(target?.dataset?.sessionEntryId).toBe('entry-3')
+    // [1..700] fully contiguous — no hole between entry-3 and the tail.
+    expect(loadedIds()).toEqual(Array.from({ length: BIG_TOTAL }, (_, i) => i + 1))
+    expect(useUIStore.getState().historyLoadedCount).toBe(BIG_TOTAL)
+  })
+})
