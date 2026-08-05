@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GitFork, Loader2, RefreshCw, Undo2 } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
@@ -133,6 +134,8 @@ export function TreePanel() {
               selectedId={selectedId}
               onSelect={setSelectedId}
               onActivate={(id) => void navigateSessionToEntry(id)}
+              onView={(id) => requestTimelineViewEntry(id)}
+              viewOnSingleClick
               showGuides={showGuides}
               rowClassName="text-[11px]"
               renderTrailing={(node) => (
