@@ -49,6 +49,25 @@ export function getActiveSdkModule(
   return import(pathToFileURL(active.entryPath).href)
 }
 
+/**
+ * Warm the SDK module graph in the background so the first folder click / session
+ * open never pays a cold dynamic import (measured ~0.8–2s for the global SDK in
+ * Electron). Runs once per app start; safe to call multiple times (Node caches).
+ */
+export function warmSdkModules(): void {
+  void (async () => {
+    try {
+      await getActiveSdkModule()
+      // Also preload the session-manager module used by getMessages / tree reads
+      // (a separate module graph from the package index).
+      const { buildTimelinePageFromSessionFile } = await import('@shared/session-jsonl-timeline')
+      void buildTimelinePageFromSessionFile
+    } catch (e) {
+      console.warn('[sdk] warm-up failed:', e)
+    }
+  })()
+}
+
 type ProbedSdkModule = Record<string, unknown>
 
 export function validateSelectedSdkModule(sdk: ProbedSdkModule): void {
