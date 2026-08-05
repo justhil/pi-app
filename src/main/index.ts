@@ -95,6 +95,11 @@ app.whenReady().then(() => {
   const win = createWindow()
   workerManager.setMainWindow(win)
   refreshGitWorkspaceWatch(win)
+  // Warm the SDK module graph off the user's critical path: the first folder
+  // click / session open pays a cold dynamic import (~1s+ with a global SDK).
+  setImmediate(() => {
+    void import('./ipc/sdk-session').then(({ warmSdkModules }) => warmSdkModules())
+  })
   if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
     win.once('show', () => {
       setTimeout(() => {
