@@ -6,8 +6,19 @@ import { useUIStore } from '@renderer/stores/ui-store'
 /** settings.get(recentProjects) 的响应延迟可控制，用来暴露 setWorkspace 到 reload 之间的瞬态帧 */
 let resolveRecentProjects: ((v: unknown) => void) | null = null
 let deferNextRecentProjects = false
+/** session.list 延迟可控制，用来暴露切换后会话列表重新加载期间的帧 */
+let resolveNextSessionList: ((v: unknown) => void) | null = null
+let deferNextSessionList = false
 
-const invokeMock = vi.fn(async (method: string, req?: { key?: string }) => {
+const invokeMock = vi.fn(async (method: string, req?: { key?: string; workspaceId?: string }) => {
+  if (method === 'session.list') {
+    if (deferNextSessionList) {
+      return new Promise((res) => {
+        resolveNextSessionList = res
+      })
+    }
+    return { sessions: [{ sessionId: 's1', title: '会话1', updatedAt: 1, modelId: 'm' }] }
+  }
   if (method === 'settings.get' && req?.key === 'recentProjects') {
     if (deferNextRecentProjects) {
       return new Promise((res) => {
@@ -44,6 +55,8 @@ describe('ProjectSidebar folder list stability', () => {
   beforeEach(() => {
     resolveRecentProjects = null
     deferNextRecentProjects = false
+    resolveNextSessionList = null
+    deferNextSessionList = false
     invokeMock.mockClear()
     useUIStore.setState({
       currentWorkspace: '/proj/A',
@@ -112,5 +125,46 @@ describe('ProjectSidebar folder list stability', () => {
     })
     const trees = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
     expect(trees[1] || '').not.toContain('A的会话')
+  })
+
+  it('shows the cached session list immediately on switch instead of 加载中 while re-fetching', async () => {
+    const { container } = render(<ProjectSidebar onOpenProject={() => {}} openProjectLabel="打开" />)
+    await act(async () => {
+      resolveRecentProjects?.({ settings: { recentProjects: ['/proj/A', '/proj/B', '/proj/C'] } })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // B 的会话已缓存（来自之前的访问）
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('pi-desktop:workspace-sessions', {
+          detail: { workspaceId: '/proj/B', sessions: [{ sessionId: 'b1', title: 'B的会话', updatedAt: 2, modelId: 'm' }] },
+        }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // 切换到 B，且本次重新拉取挂起（模拟真实 IPC 耗时）
+    deferNextSessionList = true
+    await act(async () => {
+      useUIStore.getState().setWorkspace('/proj/B')
+      // 等 rAF：currentWorkspace effect 展开 B 并开始重新拉取
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+
+    const treeText = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
+    expect(treeText.join('')).not.toContain('加载中')
+    expect(treeText.join('')).toContain('B的会话')
+
+    // 放行重新拉取，列表仍稳定
+    await act(async () => {
+      resolveNextSessionList?.({
+        sessions: [{ sessionId: 'b1', title: 'B的会话', updatedAt: 2, modelId: 'm' }],
+      })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    const after = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
+    expect(after.join('')).not.toContain('加载中')
+    expect(after.join('')).toContain('B的会话')
   })
 })

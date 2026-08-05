@@ -225,7 +225,12 @@ export function ProjectSidebar({
   const mergedSessionsByWorkspace = useMemo(() => {
     const next = { ...sessionsByWorkspace }
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      next[currentWorkspace] = sessions
+      // 缓存优先：切换工作区时 setWorkspace 会清空 store.sessions，
+      // 若直接覆盖会丢掉目标文件夹已缓存的会话列表（每次都重新“加载中”）。
+      // 仅当目标文件夹从未加载过（无缓存键）时才用 store.sessions 兜底。
+      if (!(currentWorkspace in next)) {
+        next[currentWorkspace] = sessions
+      }
     }
     return next
   }, [sessionsByWorkspace, currentWorkspace, sessions])
