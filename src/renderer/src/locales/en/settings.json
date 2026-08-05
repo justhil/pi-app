@@ -57,6 +57,8 @@
     "langZh": "中文",
     "langEn": "English",
     "recentProjects": "Recent projects",
+    "fixedOrder": "Keep project order fixed",
+    "fixedOrderDesc": "Keep the project list order stable when opening projects (new ones append to the end); off = most recently used first (default)",
     "noRecentProjects": "No recent projects yet",
     "noRecentProjectsHint": "Open a workspace to see it here"
   },
