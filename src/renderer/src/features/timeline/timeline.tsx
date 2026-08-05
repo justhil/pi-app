@@ -423,19 +423,48 @@ export function Timeline() {
       if (!sessionFile) return
       const captured = viewTailSnapshotRef.current
       const tail = all.at(-1) ?? null
-      viewLoadRef.current = fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
-        leafId: plan.entryId,
-        bypassCache: true,
-      })
-        .then(({ items: fetched }) => {
-          if (seq !== viewSeqRef.current) return
-          const latest = useUIStore.getState()
-          if (userSentSince(captured, latest.timelineItems.at(-1) ?? null)) return
-          const chunk = (fetched || []) as TimelineItem[]
-          if (isTargetNewerThanStore(chunk, tail)) return
-          const missing = missingOlderItems(chunk, latest.timelineItems)
-          if (missing.length) latest.prependHistoryItems(missing)
+      viewLoadRef.current = (async () => {
+        const res = await fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
+          leafId: plan.entryId,
+          bypassCache: true,
         })
+        if (seq !== viewSeqRef.current) return
+        const chunk = (res.items || []) as TimelineItem[]
+        if (!chunk.length) return
+        if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+        if (isTargetNewerThanStore(chunk, tail)) return
+
+        // The leaf-anchored fetch reports the target's absolute position (branch
+        // length). When the loaded tail does not start right above the target, fetch
+        // the tail-anchored remainder so the store stays contiguous — otherwise a
+        // hole is left between the target region and the tail, corrupting later
+        // offset-based older-loading.
+        let allFetched: TimelineItem[] = chunk
+        const targetPos = typeof res.totalCount === 'number' ? res.totalCount : 0
+        const pre = useUIStore.getState()
+        if (targetPos > 0 && pre.historyTotalCount > targetPos) {
+          const gap = pre.historyTotalCount - targetPos
+          const tailRes = await fetchSessionHistoryTail(
+            sessionFile,
+            Math.min(gap, VIEW_REVEAL_CHUNK_LIMIT),
+            { leafId: null },
+          )
+          if (seq !== viewSeqRef.current) return
+          if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+          allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+        }
+        const latest = useUIStore.getState()
+        const missing = missingOlderItems(allFetched, latest.timelineItems)
+        if (missing.length) {
+          latest.prependHistoryItems(missing)
+          const after = useUIStore.getState()
+          // Pin loadedCount when the reveal now covers the whole session so the
+          // older-loader stops cleanly instead of fetching overlapping pages.
+          if (after.historyTotalCount > 0 && after.historyLoadedCount >= after.historyTotalCount) {
+            useUIStore.setState({ historyLoadedCount: after.historyTotalCount })
+          }
+        }
+      })()
         .catch((error: unknown) => {
           console.error('[Timeline] view-entry load failed', error)
         })
@@ -549,13 +578,21 @@ export function Timeline() {
 
   // Reset the virtualization window only when the session file changes — not when
   // older messages are prepended (that changes items[0].id and must not reset).
+  const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
-    viewSeqRef.current += 1
-    viewLoadRef.current = null
-    setViewTarget(null)
+    const prevFile = prevSessionFileRef.current
+    prevSessionFileRef.current = historySessionFile ?? null
+    // First hydration (null → file): keep a pending view jump so it re-plans
+    // against the freshly loaded store. A real session switch drops the old jump
+    // and cancels its in-flight fetch.
+    if (prevFile != null) {
+      viewSeqRef.current += 1
+      viewLoadRef.current = null
+      setViewTarget(null)
+    }
     followLiveRef.current = true
     requestAnimationFrame(() => {
       const el = scrollRef.current
