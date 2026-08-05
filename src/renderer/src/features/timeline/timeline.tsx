@@ -19,10 +19,20 @@ import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
+import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
+import {
+  TIMELINE_VIEW_ENTRY_EVENT,
+  VIEW_REVEAL_CHUNK_LIMIT,
+  isTargetNewerThanStore,
+  missingOlderItems,
+  planViewReveal,
+  userSentSince,
+  type TimelineViewEntryDetail,
+} from './timeline-view-jump'
 import {
   TIMELINE_LOAD_OLDER_SCROLL_TOP_PX,
   TIMELINE_STREAM_TAIL_PAD_PX,
@@ -343,6 +353,12 @@ export function Timeline() {
   const [renderCount, setRenderCount] = useState(PAGE)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+
+  // ---- Non-destructive view jumps from the session tree (click = view, dblclick = rewind) ----
+  const viewSeqRef = useRef(0)
+  const viewLoadRef = useRef<Promise<void> | null>(null)
+  const viewTailSnapshotRef = useRef<{ id?: string; type?: string } | null>(null)
+  const [viewTarget, setViewTarget] = useState<string | null>(null)
   const lastTailId = items[items.length - 1]?.id
   // contentEpoch intentionally ignores raw stream text length — height growth is observed.
   const contentEpoch = `${lastTailId ?? ''}:${renderCount}:${historySessionFile ?? ''}`
@@ -359,6 +375,76 @@ export function Timeline() {
   )
   useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
+  // View-jump listener: the tree side only dispatches an entry id; reveal logic
+  // lives here because the viewport (renderCount / scrollRef / items) is local.
+  useEffect(() => {
+    const onViewEntry = (e: Event) => {
+      const detail = (e as CustomEvent<TimelineViewEntryDetail>).detail
+      const entryId = detail?.entryId
+      if (!entryId || typeof entryId !== 'string') return
+      viewSeqRef.current += 1
+      viewTailSnapshotRef.current = useUIStore.getState().timelineItems.at(-1) ?? null
+      setViewTarget(entryId)
+    }
+    window.addEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
+    return () => window.removeEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
+  }, [])
+
+  // Reveal a pending view target: scroll when rendered, expand the virtual
+  // window when loaded, or fetch a bounded read-only chunk when not loaded.
+  // Any user interaction (wheel, sending a message, a newer request) cancels it.
+  useLayoutEffect(() => {
+    if (!viewTarget) return
+    const seq = viewSeqRef.current
+    const el = scrollRef.current
+    if (el) {
+      const entryId = viewTarget
+      const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(entryId) : entryId
+      const row = el.querySelector(`[data-session-entry-id="${escaped}"]`)
+      if (row) {
+        row.scrollIntoView({ block: 'center' })
+        window.dispatchEvent(new Event('timeline-scroll'))
+        viewSeqRef.current += 1
+        setViewTarget(null)
+        return
+      }
+    }
+
+    const st = useUIStore.getState()
+    const all = st.timelineItems
+    const plan = planViewReveal(viewTarget, all, renderCountRef.current, st.historySessionFile)
+    if (plan.kind === 'scroll') {
+      setRenderCount((count) => Math.max(count, plan.requiredRenderCount))
+      return
+    }
+    if (plan.kind === 'load') {
+      if (viewLoadRef.current) return
+      const sessionFile = st.historySessionFile
+      if (!sessionFile) return
+      const captured = viewTailSnapshotRef.current
+      const tail = all.at(-1) ?? null
+      viewLoadRef.current = fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
+        leafId: plan.entryId,
+        bypassCache: true,
+      })
+        .then(({ items: fetched }) => {
+          if (seq !== viewSeqRef.current) return
+          const latest = useUIStore.getState()
+          if (userSentSince(captured, latest.timelineItems.at(-1) ?? null)) return
+          const chunk = (fetched || []) as TimelineItem[]
+          if (isTargetNewerThanStore(chunk, tail)) return
+          const missing = missingOlderItems(chunk, latest.timelineItems)
+          if (missing.length) latest.prependHistoryItems(missing)
+        })
+        .catch((error: unknown) => {
+          console.error('[Timeline] view-entry load failed', error)
+        })
+        .finally(() => {
+          viewLoadRef.current = null
+        })
+    }
+  }, [viewTarget, renderCount, items, historySessionFile])
+
   useEffect(() => {
     const el = scrollRef.current
     registerTimelineScrollEl(el)
@@ -367,7 +453,11 @@ export function Timeline() {
     el.addEventListener('scroll', notify, { passive: true })
     // Upward wheel detaches live-follow immediately so stream growth never fights the user.
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY !== 0) onUserScrollIntent(e.deltaY)
+      if (e.deltaY !== 0) {
+        onUserScrollIntent(e.deltaY)
+        // A pending view jump yields to the user's own scroll.
+        viewSeqRef.current += 1
+      }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
     const ro = new ResizeObserver(notify)
@@ -463,6 +553,9 @@ export function Timeline() {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
+    viewSeqRef.current += 1
+    viewLoadRef.current = null
+    setViewTarget(null)
     followLiveRef.current = true
     requestAnimationFrame(() => {
       const el = scrollRef.current
@@ -648,18 +741,24 @@ export function Timeline() {
         </Fragment>
       )
     }
-    return (
-      <Fragment key={item.id || blockKey}>
-        <TimelineItemBase
-          item={item}
-          prevType={prevType}
-          streaming={streamingAssistantId === item.id}
-          agentRunning={agentRunning}
-          agentBoot={agentBoot}
-          rewindEntryId={rewindEntryByItemId.get(item.id)}
-          showMessageActions={showMessageActions}
-        />
-      </Fragment>
+    const rowEntryId = item.sessionEntryId as string | undefined
+    const row = (
+      <TimelineItemBase
+        item={item}
+        prevType={prevType}
+        streaming={streamingAssistantId === item.id}
+        agentRunning={agentRunning}
+        agentBoot={agentBoot}
+        rewindEntryId={rewindEntryByItemId.get(item.id)}
+        showMessageActions={showMessageActions}
+      />
+    )
+    return rowEntryId ? (
+      <div key={item.id || blockKey} data-session-entry-id={rowEntryId}>
+        {row}
+      </div>
+    ) : (
+      <Fragment key={item.id || blockKey}>{row}</Fragment>
     )
   }
 
@@ -735,14 +834,24 @@ export function Timeline() {
         const turnLastProseId = lastProseIdInTurn(turn.blocks)
         return (
           <Fragment key={turn.turnId}>
-            <TimelineItemBase
-              item={turn.userItem as unknown as TimelineRawItem}
-              streaming={false}
-              agentRunning={agentRunning}
-              agentBoot={agentBoot}
-              rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
-              showMessageActions
-            />
+            {(() => {
+              const userEntryId = turn.userItem.sessionEntryId as string | undefined
+              const userRow = (
+                <TimelineItemBase
+                  item={turn.userItem as unknown as TimelineRawItem}
+                  streaming={false}
+                  agentRunning={agentRunning}
+                  agentBoot={agentBoot}
+                  rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
+                  showMessageActions
+                />
+              )
+              return userEntryId ? (
+                <div data-session-entry-id={userEntryId}>{userRow}</div>
+              ) : (
+                userRow
+              )
+            })()}
             {turn.blocks.map((block, bi) => {
               // One reply = one message chrome: only the final prose leaf after the turn settles.
               const isLastProse =
