@@ -99,7 +99,13 @@ export function ProjectSidebar({
             if (fixedOrderRef.current) merged.push(currentWorkspace)
             else merged.unshift(currentWorkspace)
           }
-          useUIStore.setState({ recentProjects: [...new Set(merged)].slice(0, 16) })
+          const next = [...new Set(merged)].slice(0, 16)
+          useUIStore.setState((state) => {
+            // 顺序/内容无变化时保持引用稳定，避免固定顺序下每次切换工作区都触发整个侧栏重渲染
+            const prev = state.recentProjects
+            if (prev.length === next.length && prev.every((p, i) => p === next[i])) return {}
+            return { recentProjects: next }
+          })
         }
       })
       .catch(() => {})
@@ -133,7 +139,10 @@ export function ProjectSidebar({
   useEffect(() => {
     if (!currentWorkspace || isSandboxPath(currentWorkspace)) return
     const frame = requestAnimationFrame(() => {
-      setExpandedPaths((previous) => new Set(previous).add(currentWorkspace))
+      setExpandedPaths((previous) => {
+        if (previous.has(currentWorkspace)) return previous
+        return new Set(previous).add(currentWorkspace)
+      })
       void loadWorkspaceSessions(currentWorkspace)
     })
     return () => cancelAnimationFrame(frame)

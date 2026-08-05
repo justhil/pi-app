@@ -96,9 +96,8 @@ export const useUIStore = create<UIState>()(
         currentWorkspace: path,
         ephemeralSandboxDraft: false,
         pendingNewSessionPlaceholder: false,
-        recentProjects: path
-          ? [path, ...s.recentProjects.filter((p) => p !== path)].slice(0, 16)
-          : s.recentProjects,
+        // 不在此处重排 recentProjects：侧栏顺序以主进程配置为准（reloadSidebarSettings 同步），
+        // 此处 unshift 会让固定顺序模式下列表先跳顶再弹回（闪烁），MRU 模式也由磁盘路径列表当前置顶兜底。
         ...(changed
           ? {
             sessions: [],
