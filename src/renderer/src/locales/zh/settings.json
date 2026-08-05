@@ -57,6 +57,8 @@
     "langZh": "中文",
     "langEn": "English",
     "recentProjects": "最近项目",
+    "fixedOrder": "固定项目顺序",
+    "fixedOrderDesc": "打开项目时保持列表顺序不变（新项目追加到末尾）；关闭时按最近使用排序（默认）",
     "noRecentProjects": "暂无最近项目",
     "noRecentProjectsHint": "打开工作区后将出现在此"
   },

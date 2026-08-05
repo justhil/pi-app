@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, FolderOpen, Inbox, Plus } from '@renderer/components/icons'
@@ -18,6 +18,7 @@ import {
   type SandboxEntry,
   type SessionItem,
 } from './project-sidebar-types'
+import { projectFolderOrder } from './project-folder-order'
 import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow } from './project-sidebar-rows'
 
 export function ProjectSidebar({
@@ -38,6 +39,8 @@ export function ProjectSidebar({
   const [loadingSessionPaths, setLoadingSessionPaths] = useState<Set<string>>(() => new Set())
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
+  const [recentProjectsFixedOrder, setRecentProjectsFixedOrder] = useState(false)
+  const fixedOrderRef = useRef(false)
   const [sectionOpen, setSectionOpen] = useState(true)
 
   const refreshSandboxes = useCallback(() => {
@@ -84,8 +87,7 @@ export function ProjectSidebar({
     return () => window.removeEventListener('pi-desktop:sandboxes-changed', onChanged)
   }, [refreshSandboxes])
 
-  useEffect(() => {
-    refreshSandboxes()
+  const reloadSidebarSettings = useCallback(() => {
     ipcClient
       .invoke('settings.get', { key: 'recentProjects' })
       .then((res) => {
@@ -94,13 +96,38 @@ export function ProjectSidebar({
           const diskOnly = list.filter((p) => !isSandboxPath(p))
           const merged = [...diskOnly]
           if (currentWorkspace && !isSandboxPath(currentWorkspace) && !merged.includes(currentWorkspace)) {
-            merged.unshift(currentWorkspace)
+            if (fixedOrderRef.current) merged.push(currentWorkspace)
+            else merged.unshift(currentWorkspace)
           }
           useUIStore.setState({ recentProjects: [...new Set(merged)].slice(0, 16) })
         }
       })
       .catch(() => {})
-  }, [refreshSandboxes, currentWorkspace])
+    ipcClient
+      .invoke('settings.get', { key: 'recentProjectsFixedOrder' })
+      .then((res) => {
+        const v = res?.settings?.recentProjectsFixedOrder === true
+        fixedOrderRef.current = v
+        setRecentProjectsFixedOrder(v)
+      })
+      .catch(() => {})
+  }, [currentWorkspace])
+
+  useEffect(() => {
+    refreshSandboxes()
+    reloadSidebarSettings()
+  }, [refreshSandboxes, reloadSidebarSettings])
+
+  useEffect(() => {
+    const onSettingsChanged = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { key?: string } | undefined
+      if (!detail?.key || detail.key === 'recentProjects' || detail.key === 'recentProjectsFixedOrder') {
+        reloadSidebarSettings()
+      }
+    }
+    window.addEventListener('pi-desktop:settings-changed', onSettingsChanged)
+    return () => window.removeEventListener('pi-desktop:settings-changed', onSettingsChanged)
+  }, [reloadSidebarSettings])
 
   // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
@@ -124,14 +151,11 @@ export function ProjectSidebar({
     return () => window.removeEventListener('pi-desktop:workspace-sessions', onWorkspaceSessions)
   }, [])
 
-  const diskPaths = (() => {
-    const set = new Set<string>()
-    if (currentWorkspace && !isSandboxPath(currentWorkspace)) set.add(currentWorkspace)
-    for (const p of recentProjects) {
-      if (!isSandboxPath(p)) set.add(p)
-    }
-    return [...set]
-  })()
+  const diskPaths = useMemo(() => {
+    const diskRecent = recentProjects.filter((p) => !isSandboxPath(p))
+    const diskCurrent = currentWorkspace && !isSandboxPath(currentWorkspace) ? currentWorkspace : null
+    return projectFolderOrder(diskRecent, diskCurrent, recentProjectsFixedOrder)
+  }, [recentProjects, currentWorkspace, recentProjectsFixedOrder])
 
   const switchDiskProject = async (path: string) => {
     if (path === currentWorkspace && !ephemeralSandboxDraft) return
