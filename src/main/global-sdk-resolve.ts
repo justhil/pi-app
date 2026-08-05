@@ -192,7 +192,9 @@ function scanModuleRoot(moduleRoot: string): string | null {
 
 /**
  * 全局 pi-coding-agent 包根目录。
- * 优先 npm i -g（list JSON → prefix/root 目录扫描），再 pi-node / where pi。
+ * 优先纯文件系统路径（env 推导的 npm 全局目录 / pi-node 布局）——绝大多数默认
+ * prefix 安装无需任何子进程即可命中，避免同步 npm spawn 阻塞主进程；仅非常规
+ * 布局才回退到 npm list / prefix / where pi。
  */
 export function discoverGlobalPiCodingAgentRoot(): string | null {
   const seen = new Set<string>()
@@ -205,7 +207,19 @@ export function discoverGlobalPiCodingAgentRoot(): string | null {
   }
   const tryModuleRoot = (moduleRoot: string): string | null => tryPkgRoot(scanModuleRoot(moduleRoot))
 
-  // 1) npm i -g：npm list 给出的安装 path（最准）
+  // 0) env 推导的全局 node_modules（无子进程）：APPDATA/npm、npm_config_prefix、HOME
+  for (const moduleRoot of npmGlobalModuleRootsFromEnv()) {
+    const hit = tryModuleRoot(moduleRoot)
+    if (hit) return hit
+  }
+
+  // 0b) pi-node 等独立安装布局（无子进程）
+  for (const moduleRoot of piNodeStyleModuleRoots()) {
+    const hit = tryModuleRoot(moduleRoot)
+    if (hit) return hit
+  }
+
+  // 1) npm i -g：npm list 给出的安装 path（最准，但需同步 spawn）
   for (const { cmd, args } of npmCliPairs()) {
     if (args[0] !== 'list') continue
     const out = spawnLines(cmd, args).join('\n')
@@ -213,7 +227,7 @@ export function discoverGlobalPiCodingAgentRoot(): string | null {
     if (hit) return hit
   }
 
-  // 2) npm i -g：prefix/node_modules、npm root -g、APPDATA/npm/node_modules 等
+  // 2) npm i -g：prefix/node_modules、npm root -g（需同步 spawn）
   for (const moduleRoot of collectNpmGlobalModuleRoots()) {
     const hit = tryModuleRoot(moduleRoot)
     if (hit) return hit
@@ -222,12 +236,6 @@ export function discoverGlobalPiCodingAgentRoot(): string | null {
   // 3) where pi / which pi（含 Roaming\\npm\\pi.cmd 旁的 node_modules）
   const shimHit = tryPkgRoot(resolveViaPiShim())
   if (shimHit) return shimHit
-
-  // 4) pi-node 等独立安装布局
-  for (const moduleRoot of piNodeStyleModuleRoots()) {
-    const hit = tryModuleRoot(moduleRoot)
-    if (hit) return hit
-  }
 
   return null
 }
