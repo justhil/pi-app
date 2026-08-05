@@ -48,11 +48,23 @@ export function insertBrAtCursor(el: HTMLElement) {
   range.setStartAfter(br)
   range.setEndAfter(br)
   range.insertNode(after)
-  range.setStartAfter(after)
-  range.setEndAfter(after)
-  sel?.removeAllRanges()
-  sel?.addRange(range)
+  // Normalize before placing the caret: normalize merges the ZWSP with adjacent text (e.g.
+  // "\u200Bcd"); setting the selection first would leave it referencing a removed node.
   el.normalize()
+  const next = br.nextSibling
+  if (sel) {
+    const caretRange = document.createRange()
+    if (next && next.nodeType === Node.TEXT_NODE) {
+      // The ZWSP is the 1st char of the text node after the <br>; put the caret after it (offset 1).
+      caretRange.setStart(next, 1)
+      caretRange.setEnd(next, 1)
+    } else {
+      caretRange.setStartAfter(br)
+      caretRange.setEndAfter(br)
+    }
+    sel.removeAllRanges()
+    sel.addRange(caretRange)
+  }
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
@@ -66,13 +78,46 @@ export function insertTextAtCursor(el: HTMLElement, text: string) {
     range.selectNodeContents(el)
     range.collapse(false)
   }
+  // Record the insertion anchor: normalize merges/removes the inserted text node, so capture
+  // the original position first and derive the caret from it.
+  const anchorIsText = range.startContainer.nodeType === Node.TEXT_NODE
+  const anchorNode = range.startContainer
+  const anchorOffset = range.startOffset
   range.deleteContents()
   const node = document.createTextNode(text)
   range.insertNode(node)
-  range.setStartAfter(node)
-  range.setEndAfter(node)
-  sel?.removeAllRanges()
-  sel?.addRange(range)
+  const prev = node.previousSibling
+  // Normalize before placing the caret so the selection never references merged/removed nodes.
   el.normalize()
+  if (sel) {
+    const caretRange = document.createRange()
+    if (anchorIsText && anchorNode.parentNode) {
+      // Caret was inside a text node with offset > 0: that node keeps the full merged text
+      // after normalize; caret = original offset + inserted text length.
+      caretRange.setStart(anchorNode, anchorOffset + text.length)
+      caretRange.setEnd(anchorNode, anchorOffset + text.length)
+    } else if (anchorIsText && node.parentNode) {
+      // Caret was at the start of a text node (offset 0): the original node was removed by
+      // normalize, the inserted node survives; caret = inserted text length.
+      caretRange.setStart(node, text.length)
+      caretRange.setEnd(node, text.length)
+    } else if (prev && prev.parentNode && prev.nodeType === Node.TEXT_NODE) {
+      // Insert at an element boundary with a preceding text node: the new text merges into it;
+      // caret sits at its end.
+      const prevText = prev as Text
+      caretRange.setStart(prevText, prevText.length)
+      caretRange.setEnd(prevText, prevText.length)
+    } else if (node.parentNode) {
+      // Insert at an element boundary with no preceding text: the inserted node survives (it may
+      // absorb following text); caret sits right after the inserted text.
+      caretRange.setStart(node, text.length)
+      caretRange.setEnd(node, text.length)
+    } else {
+      caretRange.selectNodeContents(el)
+      caretRange.collapse(false)
+    }
+    sel.removeAllRanges()
+    sel.addRange(caretRange)
+  }
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
