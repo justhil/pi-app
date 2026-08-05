@@ -184,6 +184,34 @@ describe('Timeline view-entry reveal during first session load', () => {
     expect(useUIStore.getState().historyLoadedCount).toBe(TOTAL)
   })
 
+  it('does not lose a landed jump when the hydrate tail bind lands after the reveal', async () => {
+    // Click during the skeleton: the reveal loads the full [1..60] and lands.
+    useUIStore.setState(baseState({ timelineItems: [], historyLoading: true, historyLoadedCount: 0 }))
+    mockDisk()
+
+    render(<Timeline />)
+    act(() => requestTimelineViewEntry('entry-3'))
+    await flushMicrotasks()
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect(useUIStore.getState().timelineItems.length).toBe(TOTAL)
+
+    // The session-shell hydrate then binds its 80-item tail — the display store
+    // must NOT shrink back to the tail and un-render the just-landed target.
+    act(() => {
+      useUIStore.setState({
+        timelineItems: diskChunk(TAIL_START, TOTAL),
+        historyLoadedCount: TAIL_COUNT,
+        historyLoading: false,
+      })
+    })
+    await flushMicrotasks()
+
+    // The store recovers the reveal's superset (self-heal re-plans the jump).
+    expect(loadedIds()).toEqual(Array.from({ length: TOTAL }, (_, i) => i + 1))
+    expect(useUIStore.getState().historyLoadedCount).toBe(TOTAL)
+  })
+
   it('does not fetch extra history when the target is already inside the loaded tail', async () => {
     useUIStore.setState(
       baseState({

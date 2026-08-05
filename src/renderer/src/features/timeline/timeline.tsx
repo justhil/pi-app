@@ -358,6 +358,7 @@ export function Timeline() {
   const viewSeqRef = useRef(0)
   const viewLoadRef = useRef<Promise<void> | null>(null)
   const viewTailSnapshotRef = useRef<{ id?: string; type?: string } | null>(null)
+  const viewLandedRef = useRef<{ entryId: string; seq: number } | null>(null)
   const [viewTarget, setViewTarget] = useState<string | null>(null)
   const lastTailId = items[items.length - 1]?.id
   // contentEpoch intentionally ignores raw stream text length — height growth is observed.
@@ -383,6 +384,7 @@ export function Timeline() {
       const entryId = detail?.entryId
       if (!entryId || typeof entryId !== 'string') return
       viewSeqRef.current += 1
+      viewLandedRef.current = null
       viewTailSnapshotRef.current = useUIStore.getState().timelineItems.at(-1) ?? null
       // A view jump is a navigation away from the leaf: detach live-follow so the
       // follow controller never pins the viewport back to the bottom after the reveal.
@@ -409,6 +411,10 @@ export function Timeline() {
         row.scrollIntoView({ block: 'center' })
         window.dispatchEvent(new Event('timeline-scroll'))
         viewSeqRef.current += 1
+        // Remember the landing: if a later store replacement (e.g. a late
+        // session-shell hydrate bind) removes the target from the store, the
+        // self-heal effect below re-plans so the jump is not undone.
+        viewLandedRef.current = { entryId, seq: viewSeqRef.current }
         setViewTarget(null)
         return
       }
@@ -506,6 +512,25 @@ export function Timeline() {
     }
   }, [viewTarget, renderCount, items, historySessionFile])
 
+  // Self-heal: a view jump that already landed must survive a store replacement
+  // that drops its target (late hydrate bind, focus re-bind, …). When the landed
+  // entry vanishes from the store, re-plan the reveal instead of leaving the
+  // viewport on unrelated content.
+  useEffect(() => {
+    const landed = viewLandedRef.current
+    if (!landed) return
+    if (viewSeqRef.current !== landed.seq) {
+      viewLandedRef.current = null
+      return
+    }
+    const present = useUIStore
+      .getState()
+      .timelineItems.some((it) => it.sessionEntryId === landed.entryId || it.id === landed.entryId)
+    if (present) return
+    viewLandedRef.current = null
+    setViewTarget(landed.entryId)
+  }, [items, viewTarget])
+
   useEffect(() => {
     const el = scrollRef.current
     registerTimelineScrollEl(el)
@@ -518,6 +543,7 @@ export function Timeline() {
         onUserScrollIntent(e.deltaY)
         // A pending view jump yields to the user's own scroll.
         viewSeqRef.current += 1
+        viewLandedRef.current = null
       }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
@@ -531,7 +557,7 @@ export function Timeline() {
       ro.disconnect()
     }
   }, [hasWorkspace, onUserScrollIntent, historySessionFile])
-  const scrollHeightBeforeLoadRef = useRef<number | null>(null)
+  const scrollHeightBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
 
@@ -558,7 +584,7 @@ export function Timeline() {
 
     if (canFetchDisk) {
       setFetchingOlder(true)
-      scrollHeightBeforeLoadRef.current = el.scrollHeight
+      scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
       const offset = st.historyLoadedCount
       const sessionFile = st.historySessionFile!
       void prependOlderTimelinePage(sessionFile, offset)
@@ -596,16 +622,21 @@ export function Timeline() {
     }
 
     // In-memory reveal only (already loaded items outside the render window).
-    scrollHeightBeforeLoadRef.current = el.scrollHeight
+    scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
     setRenderCount((count) => Math.min(count + PAGE, segs.history.length))
   }, [fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
-    const previousScrollHeight = scrollHeightBeforeLoadRef.current
-    if (!el || previousScrollHeight == null) return
+    const previous = scrollHeightBeforeLoadRef.current
+    if (!el || previous == null) return
     scrollHeightBeforeLoadRef.current = null
-    el.scrollTop = el.scrollHeight - previousScrollHeight
+    // Anchor the viewport's content (not the bottom): when older rows are
+    // prepended / the render window grows, keep the same content at the top of
+    // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
+    // the view toward the leaf right after a view-jump landed on an old node.
+    const growth = el.scrollHeight - previous.scrollHeight
+    el.scrollTop = previous.scrollTop + growth
   }, [renderCount, items.length])
 
   // Reset the virtualization window only when the session file changes — not when
@@ -623,6 +654,7 @@ export function Timeline() {
     if (prevFile != null) {
       viewSeqRef.current += 1
       viewLoadRef.current = null
+      viewLandedRef.current = null
       setViewTarget(null)
     }
     followLiveRef.current = true
