@@ -7,6 +7,13 @@ import { RightPanelCollapsedRail } from '@renderer/components/app/right-panel-co
 /** Collapsed right rail width — keep in sync with RightPanelCollapsedRail (w-10 = 40px) */
 const RIGHT_COLLAPSED_RAIL_PX = 40
 
+/** Minimum width the center column keeps next to a panel while dragging / resizing the window. */
+const MIN_CENTER_GAP = 120
+
+/** Minimum panel widths (mirror the clamps in ui-store-shell-slice). */
+const MIN_SIDEBAR_PX = 200
+const MIN_RIGHT_PANEL_PX = 280
+
 /**
  * 三栏 Grid：侧栏用 0fr ↔ 固定宽 过渡，中间列 1fr 由浏览器插值，避免 width 动画每帧重排 Timeline。
  * Cursor UI 实验：右栏收起时保留窄 icon rail（状态点 + 面板入口），不完全消失。
@@ -39,9 +46,8 @@ export function MainLayoutShell({
     const onMove = (e: MouseEvent) => {
       if (leftDragRef.current) setLeftWidth(e.clientX)
       if (rightDragRef.current) {
-        const minCenterGap = 120
         const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth
-        const maxRight = Math.max(280, window.innerWidth - leftColW - minCenterGap)
+        const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth - leftColW - MIN_CENTER_GAP)
         setRightWidth(Math.min(window.innerWidth - e.clientX, maxRight))
       }
     }
@@ -62,6 +68,29 @@ export function MainLayoutShell({
       window.removeEventListener('mouseup', onUp)
     }
   }, [setLeftWidth, setRightWidth, leftCollapsed, leftWidth])
+
+  // Adapt persisted panel widths when the window is resized: the columns are fixed px from the
+  // store, so without this they either overflow the window (center collapses to 0) on smaller
+  // windows or stay disproportionately small on larger ones.
+  useEffect(() => {
+    const onWindowResize = () => {
+      const { innerWidth } = window
+      const state = useUIStore.getState()
+      if (!state.sidebarCollapsed) {
+        // Cap the sidebar to 40% of the window so the center column stays usable.
+        const maxLeft = Math.max(MIN_SIDEBAR_PX, Math.round(innerWidth * 0.4))
+        if (state.sidebarWidth > maxLeft) state.setSidebarWidth(maxLeft)
+      }
+      const after = useUIStore.getState()
+      const leftColW = after.sidebarCollapsed ? RIGHT_COLLAPSED_RAIL_PX : after.sidebarWidth
+      const maxRight = Math.max(MIN_RIGHT_PANEL_PX, innerWidth - leftColW - MIN_CENTER_GAP)
+      if (after.rightPanelWidth > maxRight) after.setRightPanelWidth(maxRight)
+    }
+    window.addEventListener('resize', onWindowResize)
+    // Also clamp once on mount so oversized persisted widths adapt to the current window.
+    onWindowResize()
+    return () => window.removeEventListener('resize', onWindowResize)
+  }, [])
 
   const leftCol = leftCollapsed ? '0px' : `${leftWidth}px`
   const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${rightWidth}px`
