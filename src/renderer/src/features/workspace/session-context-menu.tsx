@@ -186,9 +186,9 @@ export function SessionContextMenuPortal({
             document.body,
           )
         : null}
-        autoNameTarget={renameTarget?.sessionFile ? { sessionFile: renameTarget.sessionFile } : null}
       <RenamePromptDialog
         open={!!renameTarget}
+        autoNameTarget={renameTarget?.sessionFile ? { sessionFile: renameTarget.sessionFile } : null}
         title={t('common:sidebar.renameSession')}
         defaultValue={renameDefault}
         onConfirm={submitRename}
