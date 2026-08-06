@@ -4,10 +4,21 @@ import { ModelPicker } from './model-picker'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 
+const { toastSpies, userActionToastMock } = vi.hoisted(() => ({
+  toastSpies: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
+    error: vi.fn(),
+  },
+  userActionToastMock: { success: vi.fn() },
+}))
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: vi.fn(() => Promise.resolve({ adapters: [] })) },
 }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: toastSpies }))
+vi.mock('@renderer/lib/startup-toast-guard', () => ({ userActionToast: userActionToastMock }))
 
 const invoke = vi.mocked(ipcClient.invoke)
 
@@ -29,7 +40,7 @@ describe('ModelPicker runtime confirmation', () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('model.list', { scope: 'available' }))
   })
 
-  it('keeps the confirmed model selected while switching and applies the returned runtime model', async () => {
+  it('optimistically closes while switching and applies the returned runtime model', async () => {
     let confirmSwitch: ((value: { modelId: string }) => void) | undefined
     invoke.mockImplementation(async (method) => {
       if (method === 'model.list') {
@@ -45,11 +56,16 @@ describe('ModelPicker runtime confirmation', () => {
     fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
 
-    expect(useUIStore.getState().runState.model).toBe('anthropic/old')
-    expect(screen.getByRole('button', { name: /gpt\/new/i })).toBeDisabled()
+    expect(useUIStore.getState().runState.model).toBe('openai/gpt/new')
+    expect(useUIStore.getState().modelPickerOpen).toBe(false)
 
     confirmSwitch?.({ modelId: 'openai/gpt/new' })
     await waitFor(() => expect(useUIStore.getState().runState.model).toBe('openai/gpt/new'))
+    await waitFor(() => expect(useUIStore.getState().modelPickerOpen).toBe(false))
+    // The boot-guard bypass must still surface a user-initiated success toast.
+    await waitFor(() =>
+      expect(userActionToastMock.success).toHaveBeenCalledWith(expect.stringContaining('openai/gpt/new')),
+    )
   })
 
   it('stores a new-session preselection without touching a running Worker', async () => {
