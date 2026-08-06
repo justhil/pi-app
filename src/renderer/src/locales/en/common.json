@@ -73,9 +73,10 @@
     "send": "Send",
     "stop": "Stop",
     "selectProjectFirst": "Open a project first",
-    "externalUpdate": "External update synced",
-    "externalUpdateInfo": "Session was updated externally (e.g. by the CLI); content was auto-synced into this view. Use the top-right refresh button for a full reload",
-    "externalUpdateConfirm": "Session was modified externally (e.g. CLI). Reload before sending?"
+    "externalSyncActive": "Syncing external conversation",
+    "externalSyncActiveInfo": "An external process (e.g. CLI) is writing to this session; content is auto-synced into this view. Hides after ~5s without external writes",
+    "externalSyncError": "External sync failed",
+    "externalSyncErrorRetry": "Sync failed — click to reload session data"
   },
   "panel": {
     "review": "Review",

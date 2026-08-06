@@ -12,9 +12,9 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
   const sessionFile = store.historySessionFile
   const sessionId = store.currentSessionId
 
-  // 先消除徽标：接下来是完整重载（视图将包含磁盘全部内容）；
-  // 若中途失败也不残留“外部更新”状态（CLI 若继续写入会自动重新亮起）
-  useUIStore.getState().setExternalUpdateFor(null)
+  // 先消除指示：接下来是完整重载（视图将包含磁盘全部内容）；
+  // 若中途失败也不残留“外部同步中”状态（CLI 若继续写入会自动重新亮起）
+  useUIStore.getState().setExternalSyncPhase('idle')
 
   await refreshWorkspaceSessionLists().catch(() => {})
 
@@ -35,8 +35,8 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     store.setHistoryMeta(totalCount, items.length, sessionFile)
     await applyComposerDisplayMeta(sessionMeta)
     void refreshSessionTree(sessionFile)
-    // 完整重载已把磁盘内容并入视图：外部更新状态视为已确认，徽标消除（CLI 若继续写入会自动再亮）
-    useUIStore.getState().setExternalUpdateFor(null)
+    // 完整重载已把磁盘内容并入视图：外部同步指示视为已确认，消除（CLI 若继续写入会自动再亮）
+    useUIStore.getState().setExternalSyncPhase('idle')
     // 重载确认的是磁盘最新内容：把视口钉回最新（用户可能在检查历史位置时触发重载）
     requestTimelineBottomAnchor('session-reloaded')
     return { ok: true }

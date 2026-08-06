@@ -73,9 +73,10 @@
     "send": "发送",
     "stop": "停止",
     "selectProjectFirst": "请先打开项目",
-    "externalUpdate": "外部更新已同步",
-    "externalUpdateInfo": "会话被外部（如命令行）更新，内容已自动同步到视图；如需完整重载，请用右上角「刷新会话数据」按钮",
-    "externalUpdateConfirm": "会话已被外部（如命令行）修改。发送前是否重载会话？"
+    "externalSyncActive": "正在同步外部对话",
+    "externalSyncActiveInfo": "检测到外部（如命令行）正在写入本会话，内容已自动同步到视图；约 5 秒无外部写入后此指示自动隐藏",
+    "externalSyncError": "外部同步异常",
+    "externalSyncErrorRetry": "同步失败，点击重新加载会话数据"
   },
   "panel": {
     "review": "Review",

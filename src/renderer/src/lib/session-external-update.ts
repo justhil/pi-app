@@ -5,8 +5,35 @@ import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 /**
  * 外部更新：CLI 等非 app worker 对当前查看会话 JSONL 的追加。
- * 视图层只读合并磁盘新尾部（不改 worker 内存态）；无新增时视为 app 自身写入，不亮角标。
+ * 视图层只读合并磁盘新尾部（不改 worker 内存态）。同步状态驱动三态指示器：
+ * active（外部对话进行中，绿色动效）→ 5s 无外部写入后 idle（本轮结束隐藏）；
+ * IPC 异常 → error（橙色/红色，可点击重试）。
  */
+
+const EXTERNAL_SYNC_IDLE_MS = 5000
+
+let idleTimer: ReturnType<typeof setTimeout> | null = null
+
+function markExternalSyncActive(): void {
+  const setPhase = useUIStore.getState().setExternalSyncPhase
+  setPhase('active')
+  if (idleTimer) clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    // 仅当期间没有新的外部写入时转为 idle（本轮对话结束）
+    if (useUIStore.getState().externalSyncPhase === 'active') {
+      useUIStore.getState().setExternalSyncPhase('idle')
+    }
+  }, EXTERNAL_SYNC_IDLE_MS)
+}
+
+export function markExternalSyncError(): void {
+  if (idleTimer) {
+    clearTimeout(idleTimer)
+    idleTimer = null
+  }
+  useUIStore.getState().setExternalSyncPhase('error')
+}
+
 export async function handleSessionExternalUpdate(sessionFile: string): Promise<void> {
   const store = useUIStore.getState()
   const viewFile = store.historySessionFile
@@ -39,14 +66,20 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
       showNonMessageEntries: store.showNonMessageEntries,
     })) as typeof res
   } catch {
+    markExternalSyncError()
     return
   }
   const newItems = (res?.items || []) as TimelineItem[]
-  if (!Array.isArray(newItems) || newItems.length === 0) return
+  if (!Array.isArray(newItems) || newItems.length === 0) {
+    if (res?.error) markExternalSyncError()
+    return
+  }
 
   const { sanitizeHistoryTimeline, dedupeAdjacentUserMessages } = await import(
     '@renderer/lib/timeline-dedupe'
   )
+  // zustand setState 返回 undefined，不能靠返回值判断是否新增；用 updater 内捕获
+  let hasNewItems = false
   useUIStore.setState((s) => {
     if (!s.historySessionFile || !sessionFilesEqual(s.historySessionFile, sessionFile)) return {}
     const cleaned = sanitizeHistoryTimeline(newItems)
@@ -54,18 +87,14 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
     const existingIds = new Set(s.timelineItems.map((i) => i.sessionEntryId ?? i.id))
     const fresh = cleaned.filter((i) => !existingIds.has(i.sessionEntryId ?? i.id))
     const merged = dedupeAdjacentUserMessages([...s.timelineItems, ...fresh])
-    const added = merged.length - s.timelineItems.length
-    if (added <= 0) return {}
+    const addedCount = merged.length - s.timelineItems.length
+    if (addedCount <= 0) return {}
+    hasNewItems = true
     return {
       timelineItems: merged,
       historyTotalCount: typeof res.totalCount === 'number' ? res.totalCount : s.historyTotalCount,
-      historyLoadedCount: s.historyLoadedCount + added,
-      externalUpdateFor: sessionFile,
+      historyLoadedCount: s.historyLoadedCount + addedCount,
     }
   })
-}
-
-export function isCurrentSessionExternallyUpdated(): boolean {
-  const s = useUIStore.getState()
-  return !!s.externalUpdateFor && !!s.historySessionFile && sessionFilesEqual(s.externalUpdateFor, s.historySessionFile)
+  if (hasNewItems) markExternalSyncActive()
 }
