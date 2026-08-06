@@ -7,6 +7,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { X, Search, Check, Cpu, ChevronRight, Loader2 } from '@renderer/components/icons'
 import { toast } from 'sonner'
+import { userActionToast } from '@renderer/lib/startup-toast-guard'
 import { formatModelFull } from '@renderer/lib/format-run-display'
 import {
   peekAvailableModels,
@@ -85,7 +86,13 @@ export function ModelPicker() {
       setOpen(false)
       return
     }
+    const confirmedModel = useUIStore.getState().runState.model
+    // Session restore can still be in flight on the first switch (~1s). Do not
+    // hold the picker open while main safely routes setModel behind loadSession.
+    // Revert and reopen if runtime confirmation eventually fails.
+    useUIStore.getState().setRunState({ model: requestedModel })
     setPendingModel(requestedModel)
+    setOpen(false)
     try {
       const response = await ipcClient.invoke('model.set', {
         sessionId: '',
@@ -93,11 +100,14 @@ export function ModelPicker() {
         provider: m.provider,
         modelId: m.id,
       })
-      const actualModel = response.modelId
+      const actualModel = response.modelId || requestedModel
       useUIStore.getState().setRunState({ model: actualModel })
-      setOpen(false)
-      toast.success(t('composer:switchedModel', { key: actualModel }))
+      // Boot guard silences toast.success for the first 22s after launch; a
+      // user-initiated model switch must still confirm visibly.
+      userActionToast.success(t('composer:switchedModel', { key: actualModel }))
     } catch (e) {
+      useUIStore.getState().setRunState({ model: confirmedModel })
+      setOpen(true)
       console.error('model.set failed:', e)
       toast.error(e instanceof Error ? e.message : t('composer:switchFailed'))
     } finally {

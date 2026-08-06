@@ -14,7 +14,18 @@ vi.mock('@renderer/lib/ipc-client', () => ({
   onAppEvent: vi.fn(() => () => {}),
 }))
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+const { toastSpies, userActionToastMock } = vi.hoisted(() => ({
+  toastSpies: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    message: vi.fn(),
+    error: vi.fn(),
+  },
+  userActionToastMock: { success: vi.fn() },
+}))
+vi.mock('sonner', () => ({ toast: toastSpies }))
+vi.mock('@renderer/lib/startup-toast-guard', () => ({ userActionToast: userActionToastMock }))
 
 const invoke = vi.mocked(ipcClient.invoke)
 const onAppEventMock = vi.mocked(onAppEvent)
@@ -23,6 +34,8 @@ let appEventSubscribers: Array<(event: AppEvent) => void> = []
 
 beforeEach(() => {
   invoke.mockReset()
+  userActionToastMock.success.mockClear()
+  for (const spy of Object.values(toastSpies)) spy.mockClear()
   appEventSubscribers = []
   onAppEventMock.mockImplementation((cb) => {
     appEventSubscribers.push(cb)
@@ -158,5 +171,73 @@ describe('ModelPicker runtime confirmation', () => {
 
     await waitFor(() => expect(useUIStore.getState().runState.model).toBe('anthropic/old'))
     expect(useUIStore.getState().modelPickerOpen).toBe(true)
+  })
+
+  it('does not pollute the current session when the request was issued for another session', async () => {
+    let confirmSwitch: ((value: { modelId: string }) => void) | undefined
+    invoke.mockImplementation(async (method) => {
+      if (method === 'model.list') {
+        return { models: [{ provider: 'openai', id: 'gpt/new', available: true }] }
+      }
+      if (method === 'model.set') {
+        return await new Promise<{ modelId: string }>((resolve) => { confirmSwitch = resolve })
+      }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    render(<ModelPicker />)
+    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
+    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    expect(useUIStore.getState().runState.model).toBe('openai/gpt/new')
+
+    // 请求在途时用户切到另一个会话
+    useUIStore.setState({ historySessionFile: 'C:/sessions/two.jsonl' })
+    useUIStore.setState({ runState: { ...useUIStore.getState().runState, model: 'anthropic/b' } })
+
+    confirmSwitch?.({ modelId: 'openai/gpt/new' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    // 旧会话的结算不得覆盖新会话的 runState，也不得弹成功 toast
+    expect(useUIStore.getState().runState.model).toBe('anthropic/b')
+    expect(userActionToastMock.success).not.toHaveBeenCalled()
+  })
+
+  it('a newer pick wins over a slow earlier request (stale result ignored)', async () => {
+    const resolvers: Array<(value: { modelId: string }) => void> = []
+    invoke.mockImplementation(async (method) => {
+      if (method === 'model.list') {
+        return {
+          models: [
+            { provider: 'openai', id: 'gpt/new', available: true },
+            { provider: 'openai', id: 'gpt-next', available: true },
+          ],
+        }
+      }
+      if (method === 'model.set') {
+        return await new Promise<{ modelId: string }>((resolve) => { resolvers.push(resolve) })
+      }
+      throw new Error(`unexpected ${method}`)
+    })
+
+    const first = render(<ModelPicker />)
+    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
+    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    // 模拟 App 条件卸载：关闭后组件卸载，重新打开是新实例（局部 pending 重置）
+    first.unmount()
+    useUIStore.setState({ modelPickerOpen: true })
+    render(<ModelPicker />)
+    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt-next/i }))
+    expect(resolvers).toHaveLength(2)
+
+    // 旧请求最后才返回：token 已过期，必须被忽略（不得覆盖第二次选择）
+    resolvers[0]?.({ modelId: 'openai/gpt/new' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(useUIStore.getState().runState.model).toBe('openai/gpt-next')
+    expect(userActionToastMock.success).not.toHaveBeenCalled()
+    // 新请求结算
+    resolvers[1]?.({ modelId: 'openai/gpt-next' })
+    await waitFor(() =>
+      expect(userActionToastMock.success).toHaveBeenCalledWith(expect.stringContaining('openai/gpt-next')),
+    )
   })
 })
