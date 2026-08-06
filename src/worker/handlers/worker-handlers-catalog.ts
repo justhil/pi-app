@@ -11,6 +11,8 @@ export async function handleReloadmodels(msg: WorkerIncomingMessage, reply: Work
             reply({ type: 'error', error: 'MODEL_RUNTIME_NOT_READY' })
             return
           }
+          // 重新读取刚写入的 models.json。这里不显式传 allowNetwork：
+          // 与 setModel 关键路径的稳定性相比，宁可保留 SDK 默认刷新行为。
           await st.modelRuntime.refresh()
           reply({ type: 'reloadModels-done', ok: true })
         } catch (e: unknown) {

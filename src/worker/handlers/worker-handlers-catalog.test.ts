@@ -47,7 +47,7 @@ describe('worker model catalog handlers', () => {
     await handleReloadmodels({}, reloadReply)
     await handleGetmodels({}, listReply)
 
-    expect(runtime.refresh).toHaveBeenCalledOnce()
+    expect(runtime.refresh).toHaveBeenCalledWith()
     expect(runtime.getAvailable).toHaveBeenCalledOnce()
     expect(reloadReply).toHaveBeenCalledWith({ type: 'reloadModels-done', ok: true })
     expect(listReply).toHaveBeenCalledWith({

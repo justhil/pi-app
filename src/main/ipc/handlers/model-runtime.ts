@@ -3,7 +3,12 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { isSandboxWorkspacePath } from '../../sandbox-workspaces'
-import { readModelsConfigRaw, modelsCatalogFromConfig } from '../../pi-models-json'
+import {
+  readModelsConfigRaw,
+  modelsCatalogFromConfig,
+  fetchRemoteModelsCached,
+  updateModelsConfigLight,
+} from '../../pi-models-json'
 import { getActiveSdkModule } from '../sdk-session'
 import { getSessionContextPreviewFromDisk } from '../../session-context-preview'
 import { getSessionLeafOverride } from '../../session-leaf-override'
@@ -16,7 +21,145 @@ import {
   listCatalogModelsWithSdk,
   resolveAvailableModels,
   resolveCatalogModels,
+  type ModelEntry,
 } from '../../active-sdk-models'
+
+type ModelRow = {
+  id: string
+  name: string
+  provider?: string
+  contextWindow: number
+  maxOutput: number
+  available: boolean
+}
+
+function mapRegistry(
+  models: readonly {
+    id: string
+    name?: string
+    provider?: string
+    contextWindow?: number
+    maxOutput?: number
+    maxTokens?: number
+  }[],
+): ModelRow[] {
+  return models.map((m) => ({
+    id: m.id,
+    name: m.name || m.id,
+    provider: m.provider,
+    contextWindow: m.contextWindow || 0,
+    maxOutput: m.maxOutput || m.maxTokens || 0,
+    available: true,
+  }))
+}
+
+/** 明确不是对话/文本生成的类型（网关可能把图片/视频/3D/音频模型也列在 /v1/models 里）。 */
+const NON_CHAT_MODEL_TYPES = new Set([
+  'image',
+  'imagegen',
+  'image-gen',
+  'video',
+  'videogen',
+  'video-gen',
+  'audio',
+  'tts',
+  'stt',
+  'speech',
+  'embedding',
+  'rerank',
+  'moderation',
+  '3d',
+  '3d-model',
+  // 部分网关用 model_type: "model" 标记 3D 生成模型
+  'model',
+])
+
+/**
+ * 从 models.json 里配置了 baseUrl 的服务商拉取 /v1/models 目录（带 TTL 缓存），
+ * 过滤掉明确的非对话类型，与本地/SDK 解析结果合并后展示给模型选择器。
+ */
+async function remoteCatalogModels(): Promise<ModelRow[]> {
+  const { config } = readModelsConfigRaw()
+  const rows: ModelRow[] = []
+  await Promise.allSettled(
+    Object.entries(config.providers || {}).map(async ([provider, p]) => {
+      if (!p?.baseUrl) return
+      const r = await fetchRemoteModelsCached(
+        { baseUrl: p.baseUrl, apiKey: p.apiKey, authHeader: p.authHeader },
+        { timeoutMs: 4_000 },
+      )
+      if (!r.ok) return
+      for (const m of r.models) {
+        if (m.modelType && NON_CHAT_MODEL_TYPES.has(m.modelType.toLowerCase())) continue
+        rows.push({
+          id: m.id,
+          name: m.name || m.id,
+          provider,
+          contextWindow: 0,
+          maxOutput: 0,
+          available: true,
+        })
+      }
+    }),
+  )
+  return rows
+}
+
+/**
+ * 选中模型时若该 provider 已配置 baseUrl 但模型未声明，自动写入最小模型条目并重载，
+ * 让网关拉取到的模型可以真正被会话使用。写入走轻量 update（无 SDK 校验/import，
+ * 串行队列内基于磁盘最新状态追加），避免切换模型时卡顿。
+ */
+async function ensureModelDeclaredInConfig(provider: string, modelId: string): Promise<void> {
+  const r = await updateModelsConfigLight((current) => {
+    const prov = current.providers?.[provider]
+    if (!prov || !prov.baseUrl) return current
+    if ((prov.models || []).some((m) => m?.id === modelId)) return current
+    return {
+      ...current,
+      providers: {
+        ...current.providers,
+        [provider]: {
+          ...prov,
+          models: [...(prov.models || []), { id: modelId, name: modelId, input: ['text'] }],
+        },
+      },
+    }
+  })
+  if (!r.ok) {
+    console.warn('[IPC] model.set auto-register failed:', r.error)
+    return
+  }
+  if (!r.changed) return
+  try {
+    await workerManager.reloadModels()
+  } catch (e) {
+    console.error('[IPC] model.set reloadModels failed:', e)
+  }
+}
+
+/**
+ * 合并本地/SDK 解析结果与远程网关目录：同一 provider+id 以本地为准（保留完整配置），
+ * 远程补充未声明的模型。本地信息优先，远程不覆盖。
+ */
+function mergeModelRows(local: readonly ModelEntry[], remote: readonly ModelRow[]): ModelRow[] {
+  const byKey = new Map<string, ModelRow>()
+  for (const m of local) {
+    byKey.set(`${m.provider}:${m.id}`, {
+      id: m.id,
+      name: m.name || m.id,
+      provider: m.provider,
+      contextWindow: m.contextWindow || 0,
+      maxOutput: m.maxOutput || m.maxTokens || 0,
+      available: true,
+    })
+  }
+  for (const m of remote) {
+    const key = `${m.provider}:${m.id}`
+    if (!byKey.has(key)) byKey.set(key, m)
+  }
+  return [...byKey.values()]
+}
 
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
@@ -35,7 +178,7 @@ export function registerModelRuntimeHandlers(): void {
 
     const catalogFromDisk = () => {
       const { config, parseError } = readModelsConfigRaw()
-      if (parseError) return { models: [] as ReturnType<typeof mapRegistry> }
+      if (parseError) return { models: [] as ModelRow[] }
       return { models: modelsCatalogFromConfig(config) }
     }
 
@@ -71,7 +214,7 @@ export function registerModelRuntimeHandlers(): void {
         catalog: () => catalogFromDisk().models,
         onSdkError: (error) => console.error('[IPC] model.list catalog failed:', error),
       })
-      return { models }
+      return { models: mergeModelRows(models, await remoteCatalogModels()) }
     }
 
     const models = await resolveAvailableModels({
@@ -87,7 +230,7 @@ export function registerModelRuntimeHandlers(): void {
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })
-    return { models }
+    return { models: mergeModelRows(models, await remoteCatalogModels()) }
   })
 
   registerHandler('ipc:model.set', async (req) => {
@@ -108,6 +251,8 @@ export function registerModelRuntimeHandlers(): void {
         modelId = raw
       }
     }
+    // 网关拉取到的模型可能尚未写入 models.json：先自动注册再设置，避免 MODEL_NOT_FOUND
+    await ensureModelDeclaredInConfig(provider, modelId)
     if (!workerManager.isRunning && !sessionFile) {
       const cwd = workerManager.cwd || configStore.get('currentProject')
       if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')

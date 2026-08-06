@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
+import { mkdir, rename, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { app } from 'electron'
 import { pathToFileURL } from 'node:url'
@@ -255,6 +256,65 @@ export async function writeModelsConfig(config: PiModelsConfig): Promise<{ ok: b
   return writeModelsConfigWithSdk(config, sdk, agentDir)
 }
 
+let lightWriteChain: Promise<unknown> = Promise.resolve()
+
+/**
+ * 轻量更新 models.json：在串行写入点内读取磁盘最新配置，应用 apply 变更后
+ * 原子写盘（异步 fs），不做 SDK 校验。用于低风险的自动注册（如 model.set 兜底
+ * 追加网关拉取到的模型），避免触发全局 SDK 动态 import（冷启动实测 ~1s）与
+ * ModelRuntime 校验开销；串行队列 + 基于磁盘最新状态的变更保证并发追加不丢条目。
+ */
+export function updateModelsConfigLight(
+  apply: (current: PiModelsConfig) => PiModelsConfig,
+  agentDir = join(homedir(), '.pi', 'agent'),
+): Promise<
+  | { ok: true; path: string; changed: boolean }
+  | { ok: false; error: string; path: string }
+> {
+  const path = getModelsJsonPath(agentDir)
+  const run = async () => {
+    try {
+      const current = readModelsConfigRaw(path).config
+      const next = apply(current)
+      if (next === current) return { ok: true as const, path, changed: false }
+      let retainedRoot: Record<string, unknown> | null
+      try {
+        retainedRoot = readRetainedModelsConfig(path)
+      } catch (error: unknown) {
+        return {
+          ok: false as const,
+          error: `原 models.json 无法解析，未写入: ${(error as { message?: string })?.message || 'JSON 解析失败'}`,
+          path,
+        }
+      }
+      const merged = mergeModelsConfigWithRetained(next, retainedRoot)
+      const { config: normalized, warnings } = normalizeModelsConfig(merged)
+      if (warnings.length) {
+        console.warn('[models.json] structure warnings:', warnings.join('; '))
+      }
+      const output = asRecord(merged) ?? normalized
+      await mkdir(dirname(path), { recursive: true })
+      const tmpPath = `${path}.${process.pid}.${Date.now()}.tmp`
+      try {
+        await writeFile(tmpPath, `${JSON.stringify(output, null, 2)}\n`, 'utf-8')
+        await rename(tmpPath, path)
+      } finally {
+        await rm(tmpPath, { force: true }).catch(() => undefined)
+      }
+      return { ok: true as const, path, changed: true }
+    } catch (error: unknown) {
+      return {
+        ok: false as const,
+        error: (error as { message?: string })?.message || '写入失败',
+        path,
+      }
+    }
+  }
+  const result = lightWriteChain.then(run, run)
+  lightWriteChain = result.catch(() => undefined)
+  return result
+}
+
 function resolveApiKeyForFetch(apiKey?: string): string | undefined {
   if (!apiKey) return undefined
   const m = apiKey.match(/^\$([A-Z0-9_]+)$|^\$\{([A-Z0-9_]+)\}$/)
@@ -272,11 +332,22 @@ function modelsListUrl(baseUrl: string): string {
   return `${trimmed}/v1/models`
 }
 
-export async function fetchRemoteModelIds(input: {
-  baseUrl: string
-  apiKey?: string
-  authHeader?: boolean
-}): Promise<{ ok: true; ids: string[] } | { ok: false; error: string }> {
+export type RemoteModelEntry = {
+  id: string
+  name?: string
+  /** OpenAI 兼容响应中的 model_type / type（网关可能有，如 chat / image / video）。 */
+  modelType?: string
+}
+
+/** 从 OpenAI 兼容 /v1/models 拉取完整模型目录（保留类型信息）。 */
+export async function fetchRemoteModels(
+  input: {
+    baseUrl: string
+    apiKey?: string
+    authHeader?: boolean
+  },
+  options?: { timeoutMs?: number },
+): Promise<{ ok: true; models: RemoteModelEntry[] } | { ok: false; error: string }> {
   const baseUrl = input.baseUrl?.trim()
   if (!baseUrl) return { ok: false, error: '缺少 baseUrl' }
   const key = resolveApiKeyForFetch(input.apiKey)
@@ -287,18 +358,65 @@ export async function fetchRemoteModelIds(input: {
     else headers['x-api-key'] = key
   }
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(25_000) })
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(options?.timeoutMs ?? 25_000) })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
       return { ok: false, error: `HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}` }
     }
-    const data = (await res.json()) as { data?: { id?: string }[]; models?: { id?: string; name?: string }[] }
-    const fromData = (data.data || []).map((m) => m.id).filter(Boolean) as string[]
-    const fromModels = (data.models || []).map((m) => m.id || m.name).filter(Boolean) as string[]
-    const ids = [...new Set([...fromData, ...fromModels])].sort((a, b) => a.localeCompare(b))
-    if (ids.length === 0) return { ok: false, error: '响应中未找到模型列表（需 OpenAI 兼容 /v1/models）' }
-    return { ok: true, ids }
+    const raw = (await res.json()) as {
+      data?: { id?: string; name?: string; model_type?: string; type?: string }[]
+      models?: { id?: string; name?: string; model_type?: string; type?: string }[]
+    }
+    const collect = (rows: typeof raw.data | undefined): RemoteModelEntry[] =>
+      (rows || []).flatMap((m) => {
+        const id = m.id || m.name
+        if (!id) return []
+        return [{ id, name: m.name || id, modelType: m.model_type || m.type }]
+      })
+    const models = [...new Map([...collect(raw.data), ...collect(raw.models)].map((m) => [m.id, m])).values()].sort(
+      (a, b) => a.id.localeCompare(b.id),
+    )
+    if (models.length === 0) return { ok: false, error: '响应中未找到模型列表（需 OpenAI 兼容 /v1/models）' }
+    return { ok: true, models }
   } catch (e: unknown) {
     return { ok: false, error: (e as { message?: string })?.message || '请求失败' }
   }
+}
+
+export async function fetchRemoteModelIds(input: {
+  baseUrl: string
+  apiKey?: string
+  authHeader?: boolean
+}): Promise<{ ok: true; ids: string[] } | { ok: false; error: string }> {
+  const result = await fetchRemoteModels(input)
+  if (!result.ok) return result
+  return { ok: true, ids: result.models.map((m) => m.id) }
+}
+
+const remoteCatalogCache = new Map<string, { at: number; models: RemoteModelEntry[] }>()
+/** 远程模型目录缓存有效期（60 秒）：模型选择器每次打开都会合并远程目录，
+ *  缓存过期时自动拉取最新列表，避免网关上新模型后长时间显示不全。 */
+export const REMOTE_MODEL_CATALOG_TTL_MS = 60_000
+
+/** 带 TTL 缓存的远程模型目录拉取，按 baseUrl 缓存。 */
+export async function fetchRemoteModelsCached(
+  input: {
+    baseUrl: string
+    apiKey?: string
+    authHeader?: boolean
+  },
+  options?: { timeoutMs?: number },
+): Promise<{ ok: true; models: RemoteModelEntry[] } | { ok: false; error: string }> {
+  const baseUrl = input.baseUrl?.trim()
+  if (!baseUrl) return { ok: false, error: '缺少 baseUrl' }
+  const hit = remoteCatalogCache.get(baseUrl)
+  if (hit && Date.now() - hit.at < REMOTE_MODEL_CATALOG_TTL_MS) return { ok: true, models: hit.models }
+  const result = await fetchRemoteModels({ baseUrl, apiKey: input.apiKey, authHeader: input.authHeader }, options)
+  if (result.ok) remoteCatalogCache.set(baseUrl, { at: Date.now(), models: result.models })
+  return result
+}
+
+/** 清空远程模型目录缓存（测试用）。 */
+export function clearRemoteModelCatalogCache(): void {
+  remoteCatalogCache.clear()
 }
