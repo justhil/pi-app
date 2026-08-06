@@ -51,6 +51,8 @@ export const sessionGetMessagesSchema = z.object({
   limit: z.number().optional(),
   /** After navigateTree: force branch tip so history matches rewound leaf */
   leafId: z.string().nullable().optional(),
+  /** 元事件（model_change / thinking_level_change）是否输出为时间线条目 */
+  showNonMessageEntries: z.boolean().optional(),
 })
 
 export const sessionNewSchema = z.object({

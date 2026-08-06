@@ -39,6 +39,7 @@ export type SettingsDraft = {
   maxSessionWorkers: number
   sessionWorkerIdleTimeoutMinutes: number
   timelineMaxAutoExpandedTools: number
+  showNonMessageEntries: boolean
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
@@ -94,6 +95,7 @@ export function draftSignature(d: SettingsDraft): string {
     maxSessionWorkers: d.maxSessionWorkers,
     sessionWorkerIdleTimeoutMinutes: d.sessionWorkerIdleTimeoutMinutes,
     timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
+    showNonMessageEntries: d.showNonMessageEntries,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
@@ -127,6 +129,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     maxSessionWorkers: normalizeMaxSessionWorkersUi(s.maxSessionWorkers),
     sessionWorkerIdleTimeoutMinutes: normalizeIdleTimeoutMinutesUi(s.sessionWorkerIdleTimeoutMinutes),
     timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
+    showNonMessageEntries: s.showNonMessageEntries === true,
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
@@ -247,6 +250,10 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     key: 'timelineMaxAutoExpandedTools',
     value: draft.timelineMaxAutoExpandedTools,
   })
+  await ipcClient.invoke('settings.set', {
+    key: 'showNonMessageEntries',
+    value: draft.showNonMessageEntries,
+  })
   await ipcClient.invoke('settings.set', { key: 'extensionOverrides', value: draft.extensionOverrides })
   await ipcClient.invoke('rightPanels.saveLayout', {
     prefs: draft.rightPanelPrefs,
@@ -260,6 +267,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   useUIStore.getState().setTheme(draft.theme)
   applyIconTheme(draft.iconTheme)
   useUIStore.getState().setTimelineMaxAutoExpandedTools(draft.timelineMaxAutoExpandedTools)
+  useUIStore.getState().setShowNonMessageEntries(draft.showNonMessageEntries)
   applyThemeToDocument(draft.theme)
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)

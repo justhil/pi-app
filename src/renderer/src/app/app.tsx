@@ -164,6 +164,12 @@ export default function App() {
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
         .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'showNonMessageEntries' })
+        .then((res) => {
+          useUIStore.getState().setShowNonMessageEntries(res?.settings?.showNonMessageEntries === true)
+        })
+        .catch(() => {})
     })
     return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])

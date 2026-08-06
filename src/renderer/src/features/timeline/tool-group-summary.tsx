@@ -32,11 +32,20 @@ function ToolGroupSummaryImpl({
   foldedAssistantTexts?: string[]
 }) {
   const { t } = useTranslation()
-  const [userExpanded, setUserExpanded] = useState(false)
+  // 三态：null=未手动操作（跟随窗口预算）；true/false=用户手动展开/折叠（优先于窗口）
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const fileChanges = useUIStore((s) => s.fileChanges)
   const workspace = useUIStore((s) => s.currentWorkspace)
 
   const hasError = tools.some((tool) => tool.isError)
+
+  // 组内任一工具行命中活动窗口预算 → 组自动展开（与“最近 N 个过程行展开”语义一致）
+  const windowAutoExpanded = useMemo(
+    () => !!autoExpandedToolIds && tools.some((tool) => autoExpandedToolIds.has(tool.id)),
+    [tools, autoExpandedToolIds],
+  )
+  const expanded = userExpanded ?? windowAutoExpanded
+  const toggleExpanded = (): void => setUserExpanded((prev) => !(prev ?? windowAutoExpanded))
 
   const summary = useMemo(
     () => buildToolListActivitySummary(tools, fileChanges, workspace),
@@ -90,8 +99,8 @@ function ToolGroupSummaryImpl({
     <div className="py-0">
       <button
         type="button"
-        aria-expanded={userExpanded}
-        onClick={() => setUserExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        onClick={toggleExpanded}
         className={cn(
           'group timeline-activity-row tool-group-hit w-full',
           hasError && 'tool-group-hit--error',
@@ -99,7 +108,7 @@ function ToolGroupSummaryImpl({
       >
         <ChevronRight
           className="chevron-expand h-3 w-3 shrink-0 timeline-text-placeholder"
-          data-open={userExpanded ? 'true' : 'false'}
+          data-open={expanded ? 'true' : 'false'}
         />
         <span className="timeline-activity-label timeline-text-quiet min-w-0 truncate group-hover:opacity-70">
           {activityLabel}
@@ -110,7 +119,7 @@ function ToolGroupSummaryImpl({
           className="ml-auto pl-2"
         />
       </button>
-      {userExpanded ? (
+      {expanded ? (
         <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
           {orderedChildren.map((child) => {
             if (child.kind === 'thinking') {
@@ -123,6 +132,7 @@ function ToolGroupSummaryImpl({
                   duration={child.duration}
                   labelSeed={child.id}
                   nested
+                  autoExpanded={expanded}
                 />
               )
             }
@@ -142,7 +152,7 @@ function ToolGroupSummaryImpl({
                 <ToolCallRow
                   item={toolItem}
                   compact
-                  autoExpandedInBudget={!!autoExpandedToolIds?.has(toolItem.id)}
+                  autoExpandedInBudget={expanded}
                 />
               </div>
             )

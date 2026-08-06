@@ -249,6 +249,7 @@ export function registerSessionHandlers(): void {
         offset,
         limit || undefined,
         leafId,
+        { showNonMessageEntries: req.showNonMessageEntries === true },
       )
       return {
         items: disk.items,

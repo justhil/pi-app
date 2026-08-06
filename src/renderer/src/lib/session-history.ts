@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 
 export interface GetMessagesResult {
   items: unknown[]
@@ -23,7 +24,8 @@ const INITIAL_TAIL = 80
 const PAGE = 80
 
 function cacheKey(sessionFile: string, offset: number, limit: number) {
-  return `${sessionFile}|${offset}|${limit}`
+  const showMeta = useUIStore.getState().showNonMessageEntries ? 'meta' : 'nometa'
+  return `${showMeta}|${sessionFile}|${offset}|${limit}`
 }
 
 export async function fetchSessionHistoryTail(
@@ -48,6 +50,7 @@ export async function fetchSessionHistoryTail(
     sessionFile,
     offset: 0,
     limit,
+    showNonMessageEntries: useUIStore.getState().showNonMessageEntries,
     ...(opts?.leafId !== undefined ? { leafId: opts.leafId } : {}),
   })
   const items = res?.items || []
@@ -77,7 +80,12 @@ export async function fetchSessionHistoryOlder(
   if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
     return { items: hit.items, sourceCount: hit.sourceCount, totalCount: hit.totalCount }
   }
-  const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset, limit })
+  const res = await ipcClient.invoke('session.getMessages', {
+    sessionFile,
+    offset,
+    limit,
+    showNonMessageEntries: useUIStore.getState().showNonMessageEntries,
+  })
   const items = res?.items || []
   const sourceCount =
     typeof (res as { sourceCount?: number })?.sourceCount === 'number'
@@ -108,6 +116,7 @@ export async function getSessionMessagesFromDiskViaIpc(
     sessionFile,
     offset: 0,
     limit: 80,
+    showNonMessageEntries: useUIStore.getState().showNonMessageEntries,
     ...(leafId !== undefined ? { leafId } : {}),
   })
   const items = res?.items || []

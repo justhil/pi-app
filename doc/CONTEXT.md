@@ -16,6 +16,17 @@
 
 **闪烁根因（勿回退）**：`ui-store.setWorkspace` 曾把当前工作区 unshift 到 `recentProjects` 最前——固定模式下侧栏先跳顶，随后 `reloadSidebarSettings` 从主进程拉回真实顺序——先跳再弹回 = 每次切换可见闪烁。修复：`setWorkspace` 不再重排 `recentProjects`（侧栏顺序以主进程配置为唯一事实源；MRU 模式由 `projectFolderOrder` 的“当前置顶”规则兜底即时显示）。另：`reloadSidebarSettings` 在顺序无变化时保持数组引用稳定，避免固定模式下每次切换都触发整个侧栏重渲染。
 
+## 会话显示特性术语（glossary）
+
+- **过程内容（activity item）**：时间线里非对话正文的条目——思考块（thinking）、工具调用行（tool-call，含命令执行）、skill 调用块。与对话正文（user/assistant 气泡）相对。
+- **活动窗口（activity window）**：过程内容的滚动展开窗口，大小 N 可在设置中配置。默认折叠所有过程内容，仅**自动展开最新 N 个**；有新增过程内容时，超出窗口的最旧项回到折叠态。**用户手动展开/折叠优先于窗口**（窗口不强制折叠用户明确展开的项）。N=0 表示禁用窗口（保持纯手动行为）。整个时间线统一计数，不按回合分界。
+- **元事件条目（non-message entry）**：`model_change` / `thinking_level_change` 等非消息 JSONL 条目。默认不展示；设置开关打开后，在时间线中以一行小字展示（如「切换到 acme/example-model · thinking: high」），相邻的 model+thinking 变更合并为一条。
+- **skill 调用块（skill invocation）**：以 `<skill name="..." location="...">` 开头的独立用户消息（pi 把 skill 内容作为用户消息注入）。渲染为一行折叠摘要「调用 skill: <name>」，点击展开全文；**默认折叠、不受活动窗口 N 限制**；摘要层不显示 location 路径（含本机用户名，避免泄漏）。
+
+### 决策记录：活动窗口与 skill/元事件展示（2026）
+
+时间线可读性与信息容积的权衡：过程内容全展开则 AI 执行时刷屏，全折叠则看不到进展。定案：**默认折叠 + 滑动窗口自动展开最新 N 个 + 手动优先**（见 glossary「活动窗口」）；skill 调用块单独折叠（默认折叠、不受窗口限制）；元事件条目默认隐藏、开关可开。这三类均为纯展示层行为，**开关与 N 存放 app 私有 config-store，不进 pi settings**。
+
 ## 进程边界
 
 | 进程 | 目录 | 职责 |

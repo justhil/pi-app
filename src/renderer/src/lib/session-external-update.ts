@@ -36,6 +36,7 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
       sessionFile,
       offset: 0,
       limit: 0,
+      showNonMessageEntries: store.showNonMessageEntries,
     })) as typeof res
   } catch {
     return

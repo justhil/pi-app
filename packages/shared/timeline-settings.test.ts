@@ -5,10 +5,10 @@ import {
 } from './timeline-settings'
 
 describe('normalizeTimelineMaxAutoExpandedTools', () => {
-  it('defaults invalid to 0 (Cursor-like collapsed tools)', () => {
+  it('defaults invalid to default window size', () => {
     expect(normalizeTimelineMaxAutoExpandedTools(undefined)).toBe(DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS)
     expect(normalizeTimelineMaxAutoExpandedTools('x')).toBe(DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS)
-    expect(DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS).toBe(0)
+    expect(DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS).toBe(5)
   })
 
   it('allows 0 and clamps to 0–50', () => {
