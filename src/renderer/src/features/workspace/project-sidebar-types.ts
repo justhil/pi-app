@@ -15,6 +15,9 @@ export type SessionItem = {
   updatedAt: number
   messageCount?: number
   modelId: string
+  archivedAt?: number
+  /** 所属项目/沙箱路径（用于已归档条目的恢复/删除分发） */
+  workspacePath?: string
 }
 
 export function diskProjectName(path: string) {

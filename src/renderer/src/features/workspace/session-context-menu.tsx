@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2 } from '@renderer/components/icons'
+import { Pencil, Trash2, Archive } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -12,6 +12,7 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { BatchArchiveDialog } from './batch-archive-dialog'
 import type { SessionMenuTarget } from './session-context-menu-types'
 
 export type { SessionMenuTarget } from './session-context-menu-types'
@@ -25,15 +26,16 @@ export function SessionContextMenuPortal({
 }: {
   menu: MenuState
   onClose: () => void
-  onSessionsChange: () => void
+  onSessionsChange: (workspacePath?: string) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
+  const [batchTarget, setBatchTarget] = useState<SessionMenuTarget | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
-  const refreshList = () => onSessionsChange()
+  const refreshList = (path?: string) => onSessionsChange(path)
 
   const submitRename = async (title: string) => {
     const target = renameTarget
@@ -94,6 +96,27 @@ export function SessionContextMenuPortal({
     onClose()
   }
 
+  const runArchive = async (target: SessionMenuTarget) => {
+    if (!target.sessionFile) {
+      toast.error(t('common:sidebar.archiveMissingFile'))
+      onClose()
+      return
+    }
+    try {
+      const r = await ipcClient.invoke('session.archive', {
+        sessionFile: target.sessionFile,
+        archived: true,
+      })
+      if (r?.ok) {
+        toast.success(t('common:sidebar.archived'))
+        refreshList()
+      } else toast.error(r?.error || t('common:sidebar.archiveFailed'))
+    } catch (e) {
+      toast.error(t('common:sidebar.archiveFailed'))
+    }
+    onClose()
+  }
+
   const itemClass = contextMenuItemClass
   const renameDefault =
     renameTarget?.title || renameTarget?.sessionId.slice(0, 8) || ''
@@ -124,6 +147,31 @@ export function SessionContextMenuPortal({
               </button>
               <button
                 type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runArchive(menu.target)
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.archive')}
+              </button>
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setBatchTarget(menu.target)
+                  onClose()
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.batchArchive')}
+              </button>
+              <button
+                type="button"
                 className={contextMenuDangerItemClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -144,6 +192,23 @@ export function SessionContextMenuPortal({
         defaultValue={renameDefault}
         onConfirm={submitRename}
         onCancel={() => setRenameTarget(null)}
+      />
+      <BatchArchiveDialog
+        open={!!batchTarget}
+        workspacePath={batchTarget?.workspacePath || ''}
+        onCancel={() => setBatchTarget(null)}
+        onDone={(count) => {
+          const target = batchTarget
+          setBatchTarget(null)
+          if (count < 0) {
+            toast.error(t('common:sidebar.archiveFailed'))
+          } else if (count === 0) {
+            toast.info(t('common:sidebar.batchArchiveNone'))
+          } else {
+            toast.success(t('common:sidebar.batchArchived', { count }))
+          }
+          refreshList(target?.workspacePath)
+        }}
       />
     </>
   )

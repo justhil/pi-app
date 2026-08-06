@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2 } from '@renderer/components/icons'
+import { Archive, Pencil, Trash2 } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -12,8 +12,9 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { BatchArchiveDialog } from './batch-archive-dialog'
 
-type MenuState = { x: number; y: number; path: string; label: string } | null
+type MenuState = { x: number; y: number; path: string; label: string; sessionFile?: string } | null
 type RenameState = { path: string; label: string } | null
 
 export function SandboxContextMenuPortal({
@@ -28,6 +29,7 @@ export function SandboxContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameState, setRenameState] = useState<RenameState>(null)
+  const [batchOpen, setBatchOpen] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -74,6 +76,20 @@ export function SandboxContextMenuPortal({
     onClose()
   }
 
+  const runArchive = async (state: NonNullable<MenuState>) => {
+    const file = state.sessionFile || state.path
+    try {
+      const r = await ipcClient.invoke('session.archive', { sessionFile: file, archived: true })
+      if (r?.ok) {
+        toast.success(t('common:sidebar.archived'))
+        onListChange()
+      } else toast.error(r?.error || t('common:sidebar.archiveFailed'))
+    } catch {
+      toast.error(t('common:sidebar.archiveFailed'))
+    }
+    onClose()
+  }
+
   const itemClass = contextMenuItemClass
 
   return (
@@ -102,6 +118,31 @@ export function SandboxContextMenuPortal({
               </button>
               <button
                 type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runArchive(menu)
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.archive')}
+              </button>
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setBatchOpen(true)
+                  onClose()
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.batchArchive')}
+              </button>
+              <button
+                type="button"
                 className={contextMenuDangerItemClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -122,6 +163,23 @@ export function SandboxContextMenuPortal({
         defaultValue={renameState?.label ?? ''}
         onConfirm={submitRename}
         onCancel={() => setRenameState(null)}
+      />
+      <BatchArchiveDialog
+        open={batchOpen}
+        workspacePath=""
+        sandbox
+        onCancel={() => setBatchOpen(false)}
+        onDone={(count) => {
+          setBatchOpen(false)
+          if (count < 0) {
+            toast.error(t('common:sidebar.archiveFailed'))
+          } else if (count === 0) {
+            toast.info(t('common:sidebar.batchArchiveNone'))
+          } else {
+            toast.success(t('common:sidebar.batchArchived', { count }))
+          }
+          onListChange()
+        }}
       />
     </>
   )
