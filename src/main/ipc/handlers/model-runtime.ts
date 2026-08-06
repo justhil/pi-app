@@ -115,13 +115,18 @@ async function ensureModelDeclaredInConfig(provider: string, modelId: string): P
     const prov = current.providers?.[provider]
     if (!prov || !prov.baseUrl) return current
     if ((prov.models || []).some((m) => m?.id === modelId)) return current
+    // 聊天模型默认声明支持扩展思考：否则 pi 会把该模型当作不支持 reasoning，
+    // 将用户设置的 thinking level 静默钳制成 off（网关目录本身不声明此能力）。
     return {
       ...current,
       providers: {
         ...current.providers,
         [provider]: {
           ...prov,
-          models: [...(prov.models || []), { id: modelId, name: modelId, input: ['text'] }],
+          models: [
+            ...(prov.models || []),
+            { id: modelId, name: modelId, input: ['text'], reasoning: true },
+          ],
         },
       },
     }

@@ -158,7 +158,7 @@ describe('model.list remote merge', () => {
 })
 
 describe('model.set auto-register', () => {
-  it('writes a minimal model entry and reloads before setting a fetched model', async () => {
+  it('writes a chat model entry with reasoning enabled and reloads before setting a fetched model', async () => {
     let applied: Record<string, unknown> | undefined
     mocks.updateModelsConfigLight.mockImplementation(async (apply) => {
       const current = mocks.readModelsConfigRaw().config
@@ -177,7 +177,7 @@ describe('model.set auto-register', () => {
       providers: {
         acme: {
           baseUrl: 'https://ai-gateway.example/v1',
-          models: [expect.objectContaining({ id: 'Hy3', input: ['text'] })],
+          models: [expect.objectContaining({ id: 'Hy3', input: ['text'], reasoning: true })],
         },
       },
     })
