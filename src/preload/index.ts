@@ -86,6 +86,18 @@ const api = {
     return () => ipcRenderer.off('ipc:git-workspace-changed', handler)
   },
 
+  onSessionExternalUpdate(callback: (payload: { sessionFile: string }) => void): () => void {
+    const handler = (_event: unknown, data: { sessionFile: string }): void => callback(data)
+    ipcRenderer.on('ipc:session-external-update', handler)
+    return () => ipcRenderer.off('ipc:session-external-update', handler)
+  },
+
+  onWorkspaceSessionsChanged(callback: (payload: { workspaceId: string }) => void): () => void {
+    const handler = (_event: unknown, data: { workspaceId: string }): void => callback(data)
+    ipcRenderer.on('ipc:workspace-sessions-changed', handler)
+    return () => ipcRenderer.off('ipc:workspace-sessions-changed', handler)
+  },
+
   ping: (): string => 'pong',
 }
 

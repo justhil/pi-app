@@ -17,6 +17,8 @@ declare global {
       onAppUpdateAvailable: (callback: (info: AppUpdateAvailableInfo) => void) => () => void
       onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
+      onSessionExternalUpdate?: (callback: (payload: { sessionFile: string }) => void) => () => void
+      onWorkspaceSessionsChanged?: (callback: (payload: { workspaceId: string }) => void) => () => void
       ping: () => string
     }
   }

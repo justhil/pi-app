@@ -18,6 +18,7 @@ import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
 import { getMainWindow } from '../../window'
 import { refreshGitWorkspaceWatch } from '../../git-workspace-watch'
+import { refreshSessionDirWatch } from '../../session-dir-watch'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -27,6 +28,7 @@ export function registerWorkspaceHandlers(): void {
     try {
       const r = await workerManager.start(path)
       refreshGitWorkspaceWatch(getMainWindow())
+      void refreshSessionDirWatch(getMainWindow())
       return { ok: true, workspaceId: path, sessionId: r.sessionId, model: r.model }
     } catch (e: unknown) {
       return { ok: false, workspaceId: path, error: errorMessage(e) || 'Worker start failed' }
@@ -51,12 +53,14 @@ export function registerWorkspaceHandlers(): void {
       try {
         await workerManager.start(path)
         refreshGitWorkspaceWatch(getMainWindow())
+        void refreshSessionDirWatch(getMainWindow())
       } catch (e) {
         console.error('[IPC] Worker start failed:', e)
         throw e
       }
     } else {
       refreshGitWorkspaceWatch(getMainWindow())
+      void refreshSessionDirWatch(getMainWindow())
     }
     return { workspaceId: path, path, name }
   })
@@ -64,6 +68,7 @@ export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.switch', async (req) => {
     const result = await workerManager.start(req.workspaceId)
     refreshGitWorkspaceWatch(getMainWindow())
+    void refreshSessionDirWatch(getMainWindow())
     return {
       workspaceId: req.workspaceId,
       path: req.workspaceId,

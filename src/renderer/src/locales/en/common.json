@@ -72,7 +72,10 @@
     "placeholder": "Message or / command",
     "send": "Send",
     "stop": "Stop",
-    "selectProjectFirst": "Open a project first"
+    "selectProjectFirst": "Open a project first",
+    "externalUpdate": "External update synced",
+    "externalUpdateInfo": "Session was updated externally (e.g. by the CLI); content was auto-synced into this view. Use the top-right refresh button for a full reload",
+    "externalUpdateConfirm": "Session was modified externally (e.g. CLI). Reload before sending?"
   },
   "panel": {
     "review": "Review",

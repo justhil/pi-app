@@ -60,6 +60,16 @@ export function useComposerSend(opts: {
         sessionRuntimeRunning: store.sessionRuntimeRunning,
         agentTurnBootstrapping: store.agentTurnBootstrapping,
       })
+      // 外部更新过的会话：发送前提示重载（视图层只读合并不碰 worker，发送需重载 worker 上下文）
+      if (!running) {
+        const { isCurrentSessionExternallyUpdated } = await import('@renderer/lib/session-external-update')
+        if (isCurrentSessionExternallyUpdated()) {
+          if (!window.confirm(t('composer:externalUpdateConfirm'))) return
+          const { reloadCurrentSessionData } = await import('@renderer/lib/reload-current-session-data')
+          await reloadCurrentSessionData()
+          useUIStore.getState().setExternalUpdateFor(null)
+        }
+      }
       if (displayText.trim()) inputHistory.recordSent(displayText.trim())
       const { hideAllDelayedTooltips } = await import('./delayed-tooltip')
       hideAllDelayedTooltips()

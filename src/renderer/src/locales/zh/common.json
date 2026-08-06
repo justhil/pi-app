@@ -72,7 +72,10 @@
     "placeholder": "消息或 / 命令",
     "send": "发送",
     "stop": "停止",
-    "selectProjectFirst": "请先打开项目"
+    "selectProjectFirst": "请先打开项目",
+    "externalUpdate": "外部更新已同步",
+    "externalUpdateInfo": "会话被外部（如命令行）更新，内容已自动同步到视图；如需完整重载，请用右上角「刷新会话数据」按钮",
+    "externalUpdateConfirm": "会话已被外部（如命令行）修改。发送前是否重载会话？"
   },
   "panel": {
     "review": "Review",

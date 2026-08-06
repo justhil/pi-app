@@ -145,6 +145,8 @@ export interface UIState {
   historyLoading: boolean
   setHistoryMeta: (total: number, loaded: number, sessionFile: string | null) => void
   setHistoryLoading: (v: boolean) => void
+  externalUpdateFor: string | null
+  setExternalUpdateFor: (sessionFile: string | null) => void
   subagentSessionGroup: SubagentSessionGroup | null
   setSubagentSessionGroup: (group: SubagentSessionGroup | null) => void
   timelineItems: TimelineItem[]

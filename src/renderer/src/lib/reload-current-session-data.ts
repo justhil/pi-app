@@ -11,7 +11,11 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
   const sessionFile = store.historySessionFile
   const sessionId = store.currentSessionId
 
-  await refreshWorkspaceSessionLists()
+  // 先消除徽标：接下来是完整重载（视图将包含磁盘全部内容）；
+  // 若中途失败也不残留“外部更新”状态（CLI 若继续写入会自动重新亮起）
+  useUIStore.getState().setExternalUpdateFor(null)
+
+  await refreshWorkspaceSessionLists().catch(() => {})
 
   if (!sessionFile || !sessionId) {
     return { ok: true }
@@ -30,6 +34,8 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     store.setHistoryMeta(totalCount, items.length, sessionFile)
     await applyComposerDisplayMeta(sessionMeta)
     void refreshSessionTree(sessionFile)
+    // 完整重载已把磁盘内容并入视图：外部更新状态视为已确认，徽标消除（CLI 若继续写入会自动再亮）
+    useUIStore.getState().setExternalUpdateFor(null)
     return { ok: true }
   } catch (e: unknown) {
     console.error('[reloadCurrentSessionData]', e)

@@ -168,6 +168,8 @@ export const useUIStore = create<UIState>()(
       timelineItems: cleaned,
       streamingAssistantId: keepRunning ? streamingAssistantId : null,
       fileChanges: [],
+      // 完整历史重载 = 视图已同步：外部更新徽标随之消除（避免跨会话残留）
+      externalUpdateFor: null,
       runState: {
         ...runState,
         status: keepRunning ? 'running' : 'idle',
@@ -194,9 +196,12 @@ export const useUIStore = create<UIState>()(
   historyLoadedCount: 0,
   historySessionFile: null,
   historyLoading: false,
+  /** 当前查看会话被外部（如 CLI）更新过的标记；null = 无 */
+  externalUpdateFor: null as string | null,
   setHistoryMeta: (total, loaded, sessionFile) =>
     set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile }),
   setHistoryLoading: (v) => set({ historyLoading: v }),
+  setExternalUpdateFor: (sessionFile) => set({ externalUpdateFor: sessionFile }),
   subagentSessionGroup: null,
   setSubagentSessionGroup: (group) => set({ subagentSessionGroup: group }),
 

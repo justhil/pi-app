@@ -15,6 +15,7 @@ import {
 import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerMetricsInline } from './composer-metrics-inline'
+import { ComposerExternalUpdateBadge } from './composer-external-update-badge'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
@@ -480,6 +481,7 @@ export function Composer() {
             {canCompose && (
               <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
             )}
+            <ComposerExternalUpdateBadge />
             <div className="min-w-0 flex-1">
               {canSendMessages && (
                 <ComposerModelStrip
