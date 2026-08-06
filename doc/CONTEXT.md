@@ -16,6 +16,20 @@
 
 **闪烁根因（勿回退）**：`ui-store.setWorkspace` 曾把当前工作区 unshift 到 `recentProjects` 最前——固定模式下侧栏先跳顶，随后 `reloadSidebarSettings` 从主进程拉回真实顺序——先跳再弹回 = 每次切换可见闪烁。修复：`setWorkspace` 不再重排 `recentProjects`（侧栏顺序以主进程配置为唯一事实源；MRU 模式由 `projectFolderOrder` 的“当前置顶”规则兜底即时显示）。另：`reloadSidebarSettings` 在顺序无变化时保持数组引用稳定，避免固定模式下每次切换都触发整个侧栏重渲染。
 
+## 会话管理特性术语（glossary）
+
+- **自动命名（auto-name）**：手动触发（重命名对话框内"自动生成"），用规则从会话首条用户消息提取标题（剥离行首 `/` 命令调用、剔除 URL 与文件路径——不适宜作标题、折叠空白、截断约 40~50 字），结果经 `session_info` 写入 JSONL（与 TUI `/name` 同机制），**不重命名会话文件或文件夹**。已有人工命名（存在 `session_info`）的会话点自动命名时覆盖。
+- **归档（archived）**：把会话从默认列表隐藏；元数据存 configStore（`Record<规范化会话文件路径, 归档时间戳>`），侧栏"已归档"视图可恢复/删除。归档会话收到新消息**不会**自动取消归档。
+- **外部更新（external update）**：非本 app worker 对会话 JSONL 的追加（典型：CLI 并发写同一会话）。app 空闲时**自动**把磁盘新尾部合并进时间线视图（不改变 worker 内存态）；检测到外部更新时亮「外部更新已同步」状态徽标（仅提示，不可交互）；完整手动刷新走右上角「刷新会话数据」按钮；用户在外部更新过的会话上发送新消息时提示重载。
+
+### 决策记录：会话标题与归档状态只用元数据，不重命名文件（2026）
+
+会话文件路径（`~/.pi/agent/sessions/<编码cwd>/<时间戳>_<uuid>.jsonl`）是 TUI 与 app 共享的稳定定位键，重命名会破坏 `sessionDisplayNames` 键、worker 绑定、树引用等。因此：**标题 = JSONL `session_info`（TUI 可见）+ configStore overlay（app 本地）**；**归档 = configStore `Record<路径, 时间戳>`**。勿再考虑重命名会话文件/文件夹。
+
+### 决策记录：外部更新走视图层只读合并，不重载 worker（2026）
+
+CLI 与 app 同开一会话时，CLI 追加 JSONL。检测到外部更新后，app 只把磁盘新尾部合并进时间线视图（读路径 `session.getMessages` 本就磁盘直读、不依赖 worker），**绝不自动重载/覆盖 worker 内存态**——避免并发写互相覆盖与上下文丢失。用户若在外部更新过的会话上继续发消息，提示先重载。监测机制：fs.watch 当前工作区会话目录（一个 watcher）+ 事件路由（命中当前会话→尾合并；新文件→刷新列表），切换会话只改路由；**定时轮询（~3s）兜底 Windows 丢事件**，另 debounce + 窗口聚焦时强制刷新。
+
 ## 会话显示特性术语（glossary）
 
 - **过程内容（activity item）**：时间线里非对话正文的条目——思考块（thinking）、工具调用行（tool-call，含命令执行）、skill 调用块。与对话正文（user/assistant 气泡）相对。
