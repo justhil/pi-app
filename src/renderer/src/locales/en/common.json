@@ -47,6 +47,8 @@
     "archiveMissingFile": "Cannot archive: session file path is missing",
     "noArchived": "No archived sessions",
     "restore": "Restore",
+    "autoGenerate": "Auto-generate",
+    "autoNameHint": "Extract title from the first message (strips / commands)",
     "batchArchive": "Batch archive…",
     "batchArchiveSandboxTitle": "Batch archive temp chats",
     "batchArchiveSandbox": "Batch archive all temp chats (by last activity)",

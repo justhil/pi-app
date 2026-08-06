@@ -47,6 +47,8 @@
     "archiveMissingFile": "无法归档：缺少会话文件路径",
     "noArchived": "没有已归档的会话",
     "restore": "恢复",
+    "autoGenerate": "自动生成",
+    "autoNameHint": "从首条消息提取标题（剥离 / 命令）",
     "batchArchive": "批量归档…",
     "batchArchiveSandboxTitle": "批量归档普通对话",
     "batchArchiveSandbox": "批量归档所有普通对话（按最后活动时间）",

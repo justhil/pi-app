@@ -45,6 +45,8 @@ export interface SessionListRequest { workspaceId?: string; includeArchived?: bo
 export interface SessionListResponse { sessions: SessionInfo[] }
 export interface SessionArchiveRequest { sessionFile: string; archived: boolean }
 export interface SessionArchiveResponse { ok: boolean; error?: string }
+export interface SessionAutoNamePreviewRequest { sessionFile: string }
+export interface SessionAutoNamePreviewResponse { ok: boolean; title?: string; error?: string }
 export interface SessionOpenRequest { sessionId: string; sessionFile?: string }
 export interface SessionOpenResponse { session: SessionInfo }
 export interface SessionNewRequest { workspaceId: string; title?: string; modelId?: string }
@@ -312,6 +314,7 @@ export interface IpcMethodMap {
   'session.clone': { request: SessionCloneRequest; response: SessionCloneResponse }
   'session.rename': { request: SessionRenameRequest; response: SessionRenameResponse }
   'session.archive': { request: SessionArchiveRequest; response: SessionArchiveResponse }
+  'session.autoNamePreview': { request: SessionAutoNamePreviewRequest; response: SessionAutoNamePreviewResponse }
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }
   'session.export': { request: SessionExportRequest; response: SessionExportResponse }
   'prompt.send': { request: PromptSendRequest; response: PromptSendResponse }
