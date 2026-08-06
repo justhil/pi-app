@@ -1,7 +1,8 @@
+
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2 } from '@renderer/components/icons'
+import { Pencil, Trash2, Archive } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -12,6 +13,7 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { BatchArchiveDialog } from './batch-archive-dialog'
 import type { SessionMenuTarget } from './session-context-menu-types'
 
 export type { SessionMenuTarget } from './session-context-menu-types'
@@ -22,18 +24,25 @@ export function SessionContextMenuPortal({
   menu,
   onClose,
   onSessionsChange,
+  onSessionRenamed,
+  onSessionRemoved,
 }: {
   menu: MenuState
   onClose: () => void
-  onSessionsChange: () => void
+  onSessionsChange: (workspacePath?: string) => void
+  /** 重命名成功后本地更新侧栏条目标题：避免整列表重拉（重命名不改变列表顺序，重拉只会引起重渲染闪烁） */
+  onSessionRenamed?: (payload: { sessionFile: string; title: string; workspacePath: string }) => void
+  /** 删除确认后立即从侧栏移除条目：删除 IPC 可能较慢（worker 重建 runtime），不让 UI 干等 */
+  onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
+  const [batchTarget, setBatchTarget] = useState<SessionMenuTarget | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
-  const refreshList = () => onSessionsChange()
+  const refreshList = (path?: string) => onSessionsChange(path)
 
   const submitRename = async (title: string) => {
     const target = renameTarget
@@ -52,7 +61,11 @@ export function SessionContextMenuPortal({
       })
       if (r?.ok) {
         toast.success(t('common:sidebar.renamed'))
-        refreshList()
+        if (onSessionRenamed) {
+          onSessionRenamed({ sessionFile: target.sessionFile, title, workspacePath: target.workspacePath })
+        } else {
+          refreshList(target.workspacePath)
+        }
         setRenameTarget(null)
       } else toast.error(r?.error || t('common:sidebar.renameFailed'))
     } catch (e) {
@@ -71,6 +84,9 @@ export function SessionContextMenuPortal({
       onClose()
       return
     }
+    // 确认后立即乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等；
+    // 完成或失败后再以整列表刷新校准。
+    onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionFile: target.sessionFile,
@@ -86,10 +102,36 @@ export function SessionContextMenuPortal({
           void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
         }
         toast.success(t('common:sidebar.deleted'))
-        refreshList()
-      } else toast.error(r?.error || t('common:sidebar.deleteFailed'))
+        refreshList(target.workspacePath)
+      } else {
+        toast.error(r?.error || t('common:sidebar.deleteFailed'))
+        // 失败时也刷新：把乐观移除的条目恢复回来
+        refreshList(target.workspacePath)
+      }
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
+      refreshList(target.workspacePath)
+    }
+    onClose()
+  }
+
+  const runArchive = async (target: SessionMenuTarget) => {
+    if (!target.sessionFile) {
+      toast.error(t('common:sidebar.archiveMissingFile'))
+      onClose()
+      return
+    }
+    try {
+      const r = await ipcClient.invoke('session.archive', {
+        sessionFile: target.sessionFile,
+        archived: true,
+      })
+      if (r?.ok) {
+        toast.success(t('common:sidebar.archived'))
+        refreshList(target.workspacePath)
+      } else toast.error(r?.error || t('common:sidebar.archiveFailed'))
+    } catch (e) {
+      toast.error(t('common:sidebar.archiveFailed'))
     }
     onClose()
   }
@@ -124,6 +166,31 @@ export function SessionContextMenuPortal({
               </button>
               <button
                 type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runArchive(menu.target)
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.archive')}
+              </button>
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setBatchTarget(menu.target)
+                  onClose()
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.batchArchive')}
+              </button>
+              <button
+                type="button"
                 className={contextMenuDangerItemClass}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
@@ -138,6 +205,15 @@ export function SessionContextMenuPortal({
             document.body,
           )
         : null}
+      <BatchArchiveDialog
+        open={!!batchTarget}
+        workspacePath={batchTarget?.workspacePath || ''}
+        onCancel={() => setBatchTarget(null)}
+        onDone={(count) => {
+          setBatchTarget(null)
+          if (count >= 0) refreshList(batchTarget?.workspacePath)
+        }}
+      />
       <RenamePromptDialog
         open={!!renameTarget}
         title={t('common:sidebar.renameSession')}
@@ -147,4 +223,5 @@ export function SessionContextMenuPortal({
       />
     </>
   )
+
 }

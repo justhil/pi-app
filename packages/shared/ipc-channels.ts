@@ -86,6 +86,9 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:session.prepare',
   'ipc:session.reloadFromDisk',
   'ipc:session.rename',
+  'ipc:session.archive',
+  'ipc:session.archiveBatch',
+  'ipc:session.restoreBatch',
   'ipc:session.setEphemeralDraft',
   'ipc:session.setPendingBind',
   'ipc:session.tree',
@@ -116,6 +119,8 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:workspace.sandbox.create',
   'ipc:workspace.sandbox.delete',
   'ipc:workspace.sandbox.list',
+  'ipc:workspace.sandbox.listArchived',
+  'ipc:workspace.sandbox.archiveBatch',
   'ipc:workspace.sandbox.rename',
   'ipc:workspace.switch',
 ] as const

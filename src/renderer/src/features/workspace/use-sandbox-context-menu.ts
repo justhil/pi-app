@@ -1,14 +1,14 @@
 import { useState } from 'react'
 
-type MenuState = { x: number; y: number; path: string; label: string } | null
+type MenuState = { x: number; y: number; path: string; label: string; sessionFile?: string } | null
 
 export function useSandboxContextMenu(onListChange: () => void) {
   const [menu, setMenu] = useState<MenuState>(null)
 
-  const open = (e: React.MouseEvent, path: string, label: string) => {
+  const open = (e: React.MouseEvent, path: string, label: string, sessionFile?: string) => {
     e.preventDefault()
     e.stopPropagation()
-    setMenu({ x: e.clientX, y: e.clientY, path, label })
+    setMenu({ x: e.clientX, y: e.clientY, path, label, sessionFile })
   }
 
   const close = () => setMenu(null)

@@ -32,15 +32,21 @@ export interface WorkspaceFsSearchResponse {
 // ── Session ──
 export interface SessionInfo {
   sessionId: string
+  sessionFile?: string
   workspaceId: string
   title: string
   createdAt: number
   updatedAt: number
+  messageCount?: number
   modelId: string
   status: 'idle' | 'busy' | 'error'
+  /** 归档时间戳（毫秒）；未归档的会话缺省 */
+  archivedAt?: number
 }
-export interface SessionListRequest { workspaceId?: string }
+export interface SessionListRequest { workspaceId?: string; includeArchived?: boolean }
 export interface SessionListResponse { sessions: SessionInfo[] }
+export interface SessionArchiveRequest { sessionFile: string; archived: boolean }
+export interface SessionArchiveResponse { ok: boolean; error?: string }
 export interface SessionOpenRequest { sessionId: string; sessionFile?: string }
 export interface SessionOpenResponse { session: SessionInfo }
 export interface SessionNewRequest { workspaceId: string; title?: string; modelId?: string }
@@ -300,6 +306,7 @@ export interface IpcMethodMap {
   'session.forkCandidates': { request: SessionForkCandidatesRequest; response: SessionForkCandidatesResponse }
   'session.clone': { request: SessionCloneRequest; response: SessionCloneResponse }
   'session.rename': { request: SessionRenameRequest; response: SessionRenameResponse }
+  'session.archive': { request: SessionArchiveRequest; response: SessionArchiveResponse }
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }
   'session.export': { request: SessionExportRequest; response: SessionExportResponse }
   'context.preview': { request: ContextPreviewRequest; response: ContextPreviewResponse }

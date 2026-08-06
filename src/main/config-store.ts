@@ -53,6 +53,8 @@ export interface StoreSchema {
   timelineMaxAutoExpandedTools: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
+  /** 归档会话：键为规范化后的 sessionFile 绝对路径，值为归档时间戳（毫秒） */
+  archivedSessions: Record<string, number>
   /** 语音输入 ASR 配置 */
   asrConfig: AsrConfig
   /** Agent 运行时：host = Windows 宿主，wsl = 在 WSL 发行版内运行 */
@@ -96,6 +98,7 @@ const store = new Store<StoreSchema>({
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     sessionDisplayNames: {},
+    archivedSessions: {},
     asrConfig: {
       provider: 'codex-asr-builtin',
       language: 'auto',
