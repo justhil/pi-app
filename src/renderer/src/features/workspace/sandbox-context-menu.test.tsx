@@ -69,4 +69,40 @@ describe('SandboxContextMenuPortal batch archive', () => {
     expect(onListChange).toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('offers 自动生成 in the rename dialog when a session file is bound', async () => {
+    invokeMock.mockResolvedValue({ ok: true, title: '帮我修 bug' })
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <SandboxContextMenuPortal menu={MENU} onClose={onClose} onListChange={() => {}} />,
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.rename'))
+    })
+    rerender(<SandboxContextMenuPortal menu={null} onClose={onClose} onListChange={() => {}} />)
+
+    const autoButton = screen.getByText('common:sidebar.autoGenerate')
+    expect(autoButton).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(autoButton)
+    })
+    expect(invokeMock).toHaveBeenCalledWith('session.autoNamePreview', {
+      sessionFile: '/sandbox-workspaces/abc/s.jsonl',
+    })
+    expect((document.querySelector('input[type="text"]') as HTMLInputElement).value).toBe('帮我修 bug')
+  })
+
+  it('hides 自动生成 when the sandbox has no bound session file', async () => {
+    render(
+      <SandboxContextMenuPortal
+        menu={{ ...MENU, sessionFile: undefined }}
+        onClose={() => {}}
+        onListChange={() => {}}
+      />,
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.rename'))
+    })
+    expect(screen.queryByText('common:sidebar.autoGenerate')).toBeNull()
+  })
 })
