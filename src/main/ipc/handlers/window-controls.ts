@@ -1,7 +1,15 @@
 import { registerHandler } from '../registry'
 import { getMainWindow } from '../../window'
+import { handleCloseDecision } from '../../window-close-guard'
 
 export function registerWindowControlHandlers(): void {
+  registerHandler('ipc:window:close-decision', async (req) => {
+    const action = (req as { action?: string } | null)?.action
+    if (action !== 'wait' && action !== 'now' && action !== 'cancel') {
+      return { ok: false, reason: 'invalid_action' }
+    }
+    return handleCloseDecision(action)
+  })
   registerHandler('ipc:window:minimize', async () => {
     getMainWindow()?.minimize()
     return { ok: true }

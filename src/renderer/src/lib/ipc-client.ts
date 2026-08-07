@@ -19,6 +19,7 @@ declare global {
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       onSessionExternalUpdate?: (callback: (payload: { sessionFile: string }) => void) => () => void
       onWorkspaceSessionsChanged?: (callback: (payload: { workspaceId: string }) => void) => () => void
+      onCloseRequested?: (callback: (info: { isStreaming: boolean }) => void) => () => void
       ping: () => string
     }
   }
@@ -82,4 +83,11 @@ export function onAppUpdateDownloadProgress(
 export function onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {
   if (!window.piDesktop) return () => {}
   return window.piDesktop.onGitWorkspaceChanged(callback)
+}
+
+export function onCloseRequested(
+  callback: (info: { isStreaming: boolean }) => void,
+): () => void {
+  if (!window.piDesktop?.onCloseRequested) return () => {}
+  return window.piDesktop.onCloseRequested(callback)
 }

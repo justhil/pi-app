@@ -174,7 +174,14 @@
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "还原",
-    "close": "关闭"
+    "close": "关闭",
+    "closeWhileRunningTitle": "当前有对话正在进行",
+    "closeWhileRunningMessage": "关闭窗口会中断正在进行的对话，其尾部内容不会保存。可以选择等待对话完成后再关闭，这样会话会完整保存，之后可以继续（如用 pi 命令行）。",
+    "waitThenClose": "等待完成后再关闭",
+    "closeNow": "立即关闭",
+    "waitingTitle": "正在等待对话结束…",
+    "waitingMessage": "对话（含上下文压缩）完成后窗口将自动关闭。",
+    "cancelWait": "取消等待"
   },
   "sessionReload": {
     "success": "已刷新会话数据",

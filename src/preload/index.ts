@@ -97,6 +97,11 @@ const api = {
     ipcRenderer.on('ipc:workspace-sessions-changed', handler)
     return () => ipcRenderer.off('ipc:workspace-sessions-changed', handler)
   },
+  onCloseRequested(callback: (info: { isStreaming: boolean }) => void): () => void {
+    const handler = (_event: unknown, data: { isStreaming: boolean }): void => callback(data)
+    ipcRenderer.on('ipc:close-requested', handler)
+    return () => ipcRenderer.off('ipc:close-requested', handler)
+  },
 
   ping: (): string => 'pong',
 }
