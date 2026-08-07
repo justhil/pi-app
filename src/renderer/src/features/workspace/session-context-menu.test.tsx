@@ -93,9 +93,20 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
 
   it('delete refreshes the owning workspace', async () => {
     invokeMock.mockResolvedValue({ ok: true })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onSessionsChange = vi.fn()
-    render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={onSessionsChange} />)
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <SessionContextMenuPortal
+        menu={MENU}
+        onClose={onClose}
+        onSessionsChange={onSessionsChange}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+    rerender(<SessionContextMenuPortal menu={null} onClose={onClose} onSessionsChange={onSessionsChange} />)
 
     await act(async () => {
       fireEvent.click(screen.getByText('common:sidebar.delete'))
@@ -106,6 +117,8 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
       sessionFile: '/proj/a/s1.jsonl',
     })
     expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
+    // 确认后对话框立即关闭，不等到删除 IPC 返回
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('archive refreshes the owning workspace', async () => {

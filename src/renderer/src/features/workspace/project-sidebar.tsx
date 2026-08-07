@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, Archive, FolderOpen, Inbox, Plus } from '@renderer/components/icons'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { toast } from 'sonner'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
@@ -199,6 +200,39 @@ export function ProjectSidebar({
     [],
   )
 
+  const [confirmState, setConfirmState] = useState<{
+    title: string
+    message: string
+    confirmLabel: string
+    onConfirm: () => void
+  } | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+
+  /**
+   * 删除确认后立即从侧栏移除条目：删除 IPC 要等 worker 重建 runtime，先给用户即时反馈，
+   * 删除完成或失败后再以整列表刷新校准。
+   */
+  const applySessionRemoved = useCallback(
+    (payload: { sessionFile: string; workspacePath: string }) => {
+      const { sessionFile, workspacePath } = payload
+      const removeByFile = (items: SessionItem[]) =>
+        items.filter((s) => !(s.sessionFile && sessionFilesEqual(s.sessionFile, sessionFile)))
+      setSessionsByWorkspace((previous) => {
+        const current = previous[workspacePath]
+        if (!current) return previous
+        const next = removeByFile(current)
+        return next.length === current.length ? previous : { ...previous, [workspacePath]: next }
+      })
+      if (workspacePath === useUIStore.getState().currentWorkspace) {
+        useUIStore.setState((state) => {
+          const next = removeByFile(state.sessions)
+          return next.length === state.sessions.length ? {} : { sessions: next }
+        })
+      }
+    },
+    [],
+  )
+
   const toggleArchived = useCallback(
     (workspacePath: string) => {
       setArchivedByWorkspace((previous) => {
@@ -235,29 +269,40 @@ export function ProjectSidebar({
   )
 
   const deleteArchived = useCallback(
-    async (workspacePath: string, session: SessionItem) => {      if (!session.sessionFile) return
+    (workspacePath: string, session: SessionItem) => {
+      if (!session.sessionFile) return
       const name = session.title || session.sessionId.slice(0, 8)
-      if (!window.confirm(t('common:sidebar.deleteSessionConfirm', { name }))) return
-      try {
-        const r = await ipcClient.invoke('session.delete', {
-          sessionId: session.sessionId,
-          sessionFile: session.sessionFile,
-        })
-        if (r?.ok) {
-          const cur = useUIStore.getState().currentSessionId
-          if (cur === session.sessionId) {
-            useUIStore.getState().setCurrentSession('')
-            useUIStore.getState().clearTimeline()
-            useUIStore.getState().loadHistoryItems([])
-            useUIStore.getState().setHistoryMeta(0, 0, null)
-            void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
+      setConfirmState({
+        title: t('common:sidebar.deleteSessionTitle'),
+        message: t('common:sidebar.deleteSessionConfirm', { name }),
+        confirmLabel: t('common:sidebar.delete'),
+        onConfirm: async () => {
+          setConfirmBusy(true)
+          try {
+            const r = await ipcClient.invoke('session.delete', {
+              sessionId: session.sessionId,
+              sessionFile: session.sessionFile,
+            })
+            if (r?.ok) {
+              const cur = useUIStore.getState().currentSessionId
+              if (cur === session.sessionId) {
+                useUIStore.getState().setCurrentSession('')
+                useUIStore.getState().clearTimeline()
+                useUIStore.getState().loadHistoryItems([])
+                useUIStore.getState().setHistoryMeta(0, 0, null)
+                void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
+              }
+              refreshSessionsAfterMutation(workspacePath)
+              refreshArchivedAfterMutation(workspacePath)
+            }
+          } catch (e) {
+            console.error('[ProjectSidebar] delete archived failed:', e)
+          } finally {
+            setConfirmBusy(false)
+            setConfirmState(null)
           }
-          refreshSessionsAfterMutation(workspacePath)
-          refreshArchivedAfterMutation(workspacePath)
-        }
-      } catch (e) {
-        console.error('[ProjectSidebar] delete archived failed:', e)
-      }
+        },
+      })
     },
     [refreshSessionsAfterMutation, refreshArchivedAfterMutation, t],
   )
@@ -301,17 +346,27 @@ export function ProjectSidebar({
   )
 
   const deleteSandboxArchived = useCallback(
-    async (box: SandboxEntry & { archivedAt: number }) => {
-      if (!window.confirm(t('common:sidebar.deleteConfirm', { name: box.label }))) return
-      try {
-        const r = await ipcClient.invoke('workspace.sandbox.delete', { path: box.path })
-        if (r?.ok) {
-          refreshSandboxes()
-          void loadSandboxArchived({ silent: true })
-        }
-      } catch (e) {
-        console.error('[ProjectSidebar] delete sandbox failed:', e)
-      }
+    (box: SandboxEntry & { archivedAt: number }) => {
+      setConfirmState({
+        title: t('common:sidebar.deleteSandboxTitle'),
+        message: t('common:sidebar.deleteConfirm', { name: box.label }),
+        confirmLabel: t('common:sidebar.delete'),
+        onConfirm: async () => {
+          setConfirmBusy(true)
+          try {
+            const r = await ipcClient.invoke('workspace.sandbox.delete', { path: box.path })
+            if (r?.ok) {
+              refreshSandboxes()
+              void loadSandboxArchived({ silent: true })
+            }
+          } catch (e) {
+            console.error('[ProjectSidebar] delete sandbox failed:', e)
+          } finally {
+            setConfirmBusy(false)
+            setConfirmState(null)
+          }
+        },
+      })
     },
     [refreshSandboxes, loadSandboxArchived, t],
   )
@@ -761,6 +816,18 @@ export function ProjectSidebar({
         menu={projectMenu.menu}
         onClose={projectMenu.close}
         onListChange={refreshSessionsAfterMutation}
+      />
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel || ''}
+        destructive
+        busy={confirmBusy}
+        onConfirm={() => {
+          if (confirmState) void confirmState.onConfirm()
+        }}
+        onCancel={() => setConfirmState(null)}
       />
 
       <div className="mt-2 px-1.5">

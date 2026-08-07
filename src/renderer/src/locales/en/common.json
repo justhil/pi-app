@@ -66,7 +66,10 @@
     "batchRestoreRun": "Restore",
     "batchRestored": "Restored {{count}} sessions",
     "batchRestoreNone": "No sessions to restore",
-    "batchRestoreFailed": "Batch restore failed"
+    "batchRestoreFailed": "Batch restore failed",
+    "deleteSessionTitle": "Delete session",
+    "deleteSandboxTitle": "Delete temp chat",
+    "removeProjectTitle": "Remove project from list"
   },
   "composer": {
     "placeholder": "Message or / command",

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Pencil, Trash2, Archive } from '@renderer/components/icons'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -35,6 +36,8 @@ export function SessionContextMenuPortal({
   const { t } = useTranslation()
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
   const [batchTarget, setBatchTarget] = useState<SessionMenuTarget | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -69,17 +72,20 @@ export function SessionContextMenuPortal({
     }
   }
 
-  const runDelete = async (target: SessionMenuTarget) => {
-    const defaultTitle = target.title || target.sessionId.slice(0, 8)
+  const runDelete = (target: SessionMenuTarget) => {
     if (!target.sessionFile) {
       toast.error(t('common:sidebar.deleteMissingFile'))
       onClose()
       return
     }
-    if (!window.confirm(t('common:sidebar.deleteSessionConfirm', { name: defaultTitle }))) {
-      onClose()
-      return
-    }
+    setDeleteTarget(target)
+    onClose()
+  }
+
+  const confirmDelete = async () => {
+    const target = deleteTarget
+    if (!target || deleting) return
+    setDeleting(true)
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionId: target.sessionId,
@@ -96,11 +102,17 @@ export function SessionContextMenuPortal({
         }
         toast.success(t('common:sidebar.deleted'))
         refreshList(target.workspacePath)
-      } else toast.error(r?.error || t('common:sidebar.deleteFailed'))
+      } else {
+        toast.error(r?.error || t('common:sidebar.deleteFailed'))
+        refreshList(target.workspacePath)
+      }
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
+      refreshList(target.workspacePath)
+    } finally {
+      setDeleting(false)
+      setDeleteTarget(null)
     }
-    onClose()
   }
 
   const runArchive = async (target: SessionMenuTarget) => {
@@ -217,6 +229,18 @@ export function SessionContextMenuPortal({
           }
           refreshList(target?.workspacePath)
         }}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={t('common:sidebar.deleteSessionTitle')}
+        message={t('common:sidebar.deleteSessionConfirm', {
+          name: deleteTarget?.title || deleteTarget?.sessionId.slice(0, 8) || '',
+        })}
+        confirmLabel={t('common:sidebar.delete')}
+        destructive
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
       />
     </>
   )

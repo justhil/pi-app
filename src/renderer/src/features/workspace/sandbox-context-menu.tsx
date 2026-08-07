@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Archive, Pencil, Trash2 } from '@renderer/components/icons'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -16,6 +17,7 @@ import { BatchArchiveDialog } from './batch-archive-dialog'
 
 type MenuState = { x: number; y: number; path: string; label: string; sessionFile?: string } | null
 type RenameState = { path: string; label: string; sessionFile?: string } | null
+type DeleteState = { path: string; label: string } | null
 
 export function SandboxContextMenuPortal({
   menu,
@@ -30,6 +32,8 @@ export function SandboxContextMenuPortal({
   const { t } = useTranslation()
   const [renameState, setRenameState] = useState<RenameState>(null)
   const [batchOpen, setBatchOpen] = useState(false)
+  const [deleteState, setDeleteState] = useState<DeleteState>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -51,16 +55,20 @@ export function SandboxContextMenuPortal({
     }
   }
 
-  const runDelete = async (path: string, label: string) => {
-    if (!window.confirm(t('common:sidebar.deleteConfirm', { name: label }))) {
-      onClose()
-      return
-    }
+  const runDelete = (path: string, label: string) => {
+    setDeleteState({ path, label })
+    onClose()
+  }
+
+  const confirmDelete = async () => {
+    const state = deleteState
+    if (!state || deleting) return
+    setDeleting(true)
     try {
-      const r = await ipcClient.invoke('workspace.sandbox.delete', { path })
+      const r = await ipcClient.invoke('workspace.sandbox.delete', { path: state.path })
       if (r?.ok) {
         const cur = useUIStore.getState().currentWorkspace
-        if (cur === path) {
+        if (cur === state.path) {
           useUIStore.getState().setWorkspace(null)
           useUIStore.getState().clearTimeline()
           useUIStore.getState().setCurrentSession('')
@@ -72,8 +80,10 @@ export function SandboxContextMenuPortal({
       } else toast.error(t('common:sidebar.deleteFailed'))
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
+    } finally {
+      setDeleting(false)
+      setDeleteState(null)
     }
-    onClose()
   }
 
   const runArchive = async (state: NonNullable<MenuState>) => {
@@ -181,6 +191,16 @@ export function SandboxContextMenuPortal({
           }
           onListChange()
         }}
+      />
+      <ConfirmDialog
+        open={!!deleteState}
+        title={t('common:sidebar.deleteSandboxTitle')}
+        message={t('common:sidebar.deleteConfirm', { name: deleteState?.label || '' })}
+        confirmLabel={t('common:sidebar.delete')}
+        destructive
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteState(null)}
       />
     </>
   )

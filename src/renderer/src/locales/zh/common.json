@@ -66,7 +66,10 @@
     "batchRestoreRun": "执行恢复",
     "batchRestored": "已恢复 {{count}} 个会话",
     "batchRestoreNone": "没有可恢复的会话",
-    "batchRestoreFailed": "批量恢复失败"
+    "batchRestoreFailed": "批量恢复失败",
+    "deleteSessionTitle": "删除会话",
+    "deleteSandboxTitle": "删除临时对话",
+    "removeProjectTitle": "从列表移除项目"
   },
   "composer": {
     "placeholder": "消息或 / 命令",
