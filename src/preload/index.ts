@@ -87,6 +87,11 @@ const api = {
     return () => ipcRenderer.off('ipc:git-workspace-changed', handler)
   },
 
+  onCloseRequested(callback: (info: { isStreaming: boolean }) => void): () => void {
+    const handler = (_event: unknown, data: { isStreaming: boolean }): void => callback(data)
+    ipcRenderer.on('ipc:close-requested', handler)
+    return () => ipcRenderer.off('ipc:close-requested', handler)
+  },
   ping: (): string => 'pong',
 }
 
