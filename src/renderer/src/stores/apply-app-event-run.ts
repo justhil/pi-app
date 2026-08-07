@@ -95,6 +95,9 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
       optimisticPendingUserText: null,
       agentTurnBootstrapping: false,
       streamingAssistantId: null,
+      // Compaction always finishes before the run settles; a lost compaction_end
+      // event (worker crash) must not leave the badge stuck.
+      compactionActive: false,
     })
     const rs = api.get().runState
     const wasActive = rs.status === 'running' || rs.status === 'failed'

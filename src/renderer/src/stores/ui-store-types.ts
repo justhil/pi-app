@@ -34,7 +34,7 @@ export type ToolTimelineItem = {
 
 export interface TimelineItem {
   id: string
-  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'
+  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash' | 'model-change'
   text?: string
   thinkingText?: string
   thinkingDuration?: number
@@ -145,6 +145,9 @@ export interface UIState {
   historyLoading: boolean
   setHistoryMeta: (total: number, loaded: number, sessionFile: string | null) => void
   setHistoryLoading: (v: boolean) => void
+  /** 外部（如 CLI）会话同步状态：idle=无外部写入；active=外部对话进行中；error=同步异常 */
+  externalSyncPhase: 'idle' | 'active' | 'error'
+  setExternalSyncPhase: (phase: 'idle' | 'active' | 'error') => void
   subagentSessionGroup: SubagentSessionGroup | null
   setSubagentSessionGroup: (group: SubagentSessionGroup | null) => void
   timelineItems: TimelineItem[]
@@ -159,6 +162,8 @@ export interface UIState {
   clearTimeline: () => void
   runState: RunState
   setRunState: (patch: Partial<RunState>) => void
+  compactionActive: boolean
+  setCompactionActive: (active: boolean) => void
   workerLiveSnapshot: WorkerLiveSnapshot
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   fileChanges: FileChange[]
@@ -204,8 +209,15 @@ export interface UIState {
   toolExpandBySession: Record<string, Record<string, boolean>>
   setToolCallExpanded: (toolCallId: string, expanded: boolean | null) => void
   getToolCallExpanded: (toolCallId: string) => boolean | undefined
+  /** Session-scoped skill invocation row expand memory（默认折叠，不受滑动窗口限制） */
+  skillExpandBySession: Record<string, Record<string, boolean>>
+  setSkillInvocationExpanded: (itemId: string, expanded: boolean | null) => void
+  getSkillInvocationExpanded: (itemId: string) => boolean | undefined
   timelineMaxAutoExpandedTools: number
   setTimelineMaxAutoExpandedTools: (n: number) => void
+  /** 时间线是否展示元事件条目（model_change / thinking_level_change） */
+  showNonMessageEntries: boolean
+  setShowNonMessageEntries: (v: boolean) => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean

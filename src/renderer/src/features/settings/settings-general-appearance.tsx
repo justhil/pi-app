@@ -38,6 +38,7 @@ export function GeneralSettings() {
     setSessionWorkerIdleTimeoutMinutes,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
+  const [fixedOrder, setFixedOrder] = useState(false)
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -54,7 +55,20 @@ export function GeneralSettings() {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
       if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
     })
+    ipcClient.invoke('settings.get', { key: 'recentProjectsFixedOrder' }).then((res) => {
+      if (typeof res?.settings?.recentProjectsFixedOrder === 'boolean') {
+        setFixedOrder(res.settings.recentProjectsFixedOrder)
+      }
+    })
   }, [])
+
+  const toggleFixedOrder = (next: boolean) => {
+    setFixedOrder(next)
+    void ipcClient.invoke('settings.set', { key: 'recentProjectsFixedOrder', value: next }).then(() => {
+      // 通知侧栏立即按新顺序重排
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjectsFixedOrder' } }))
+    })
+  }
 
   const handleCheckUpdate = () => {
     setCheckingUpdate(true)
@@ -238,6 +252,9 @@ export function GeneralSettings() {
       </SettingsSection>
 
       <SettingsSection title={t('settings:general.recentProjects')}>
+        <SettingRow label={t('settings:general.fixedOrder')} description={t('settings:general.fixedOrderDesc')}>
+          <Switch checked={fixedOrder} onCheckedChange={toggleFixedOrder} />
+        </SettingRow>
         {recentProjects.length > 0 ? (
           <div className="space-y-1 py-3">
             {recentProjects.map((p, i) => (
@@ -261,7 +278,8 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools } = useSettingsDraft()
+  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setShowNonMessageEntries } =
+    useSettingsDraft()
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
     { key: 'light', icon: Sun },
@@ -346,6 +364,15 @@ export function AppearanceSettings() {
               setTimelineMaxAutoExpandedTools(n)
             }}
             className={numberInputCls}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('settings:appearance.showNonMessageEntries')}
+          description={t('settings:appearance.showNonMessageEntriesDesc')}
+        >
+          <Switch
+            checked={draft.showNonMessageEntries}
+            onCheckedChange={setShowNonMessageEntries}
           />
         </SettingRow>
       </SettingsSection>

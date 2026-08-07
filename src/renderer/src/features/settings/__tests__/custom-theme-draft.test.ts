@@ -18,6 +18,7 @@ vi.mock('@renderer/stores/ui-store', () => ({
     getState: () => ({
       setTheme: vi.fn(),
       setTimelineMaxAutoExpandedTools: vi.fn(),
+      setShowNonMessageEntries: vi.fn(),
       applyRightPanelRuntime: vi.fn(),
     }),
   },
@@ -40,6 +41,7 @@ function draft(): SettingsDraft {
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: 3,
+    showNonMessageEntries: false,
     extensionOverrides: {},
     rightPanelCatalog: [],
     rightPanelPrefs: {},

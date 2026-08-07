@@ -198,6 +198,7 @@ type ViewStore = {
   runState: RunState
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   setRunState: (patch: Partial<RunState>) => void
+  setSessionRuntimeRunning: (file: string, running: boolean) => void
 }
 
 /**
@@ -233,6 +234,14 @@ export function applyLiveSnapshotToView(
 
   store.setWorkerLiveSnapshot(boundSnap)
   syncViewRunStateFromWorkerSnapshot(viewSessionFile, boundSnap, (p) => store.setRunState(p))
+
+  // Lost run.idle fallback: a worker idle snapshot (or abort-forced idle) proves the
+  // turn ended even if the run.idle AppEvent never arrived (worker crash / dropped
+  // event). Without this, a stale sessionRuntimeRunning entry keeps the Composer
+  // Stop button lit after the conversation finished.
+  if (boundSnap.status === 'idle' && viewSessionFile) {
+    store.setSessionRuntimeRunning(viewSessionFile, false)
+  }
 }
 
 export function resetVisibleComposerTurnState(set: {

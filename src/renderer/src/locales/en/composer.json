@@ -100,6 +100,7 @@
   "queueHint": "Alt+↑ to pull back into the input · Esc while running pulls back and stops",
   "queueTitle": "{{count}} queued",
   "queueAria": "Pending queue, {{count}} items",
+  "compactionActiveHint": "Compacting context… you can keep sending; messages are queued and run after compaction finishes",
   "subagents": {
     "title": "Subagents",
     "working": "{{count}} Working",

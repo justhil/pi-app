@@ -178,4 +178,63 @@ describe('RichInput height reset', () => {
     expect(input.style.height).toBe('112px')
     expect(input).toHaveClass('min-h-[2.5rem]')
   })
+
+  it('scrolls the caret into view when a programmatic insert pushes it below the fold', () => {
+    scrollHeight = 180
+    const { container } = render(<RichInput />)
+    const input = container.querySelector('.rich-input') as HTMLDivElement
+
+    let scrollTopValue = 0
+    Object.defineProperty(input, 'clientHeight', { configurable: true, get: () => 112 })
+    Object.defineProperty(input, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (v: number) => {
+        scrollTopValue = v
+      },
+    })
+
+    // Simulate Shift+Enter placing the caret below the fold (content 180px, viewport 112px):
+    // the collapsed range's rect bottom is beyond the viewport, so scroll to the bottom.
+    const range = {
+      collapsed: true,
+      commonAncestorContainer: input,
+      endContainer: input,
+      endOffset: 0,
+      getBoundingClientRect: () => ({ top: 0, bottom: 160, width: 0, height: 160 } as DOMRect),
+    } as unknown as Range
+    const selection = { rangeCount: 1, getRangeAt: () => range } as unknown as Selection
+    vi.spyOn(window, 'getSelection').mockReturnValue(selection)
+
+    input.textContent = 'x'.repeat(180)
+    act(() => mutationCallback?.([], {} as MutationObserver))
+    flushAnimationFrames()
+
+    expect(scrollTopValue).toBe(48) // 160 - 112
+  })
+
+  it('preserves the user scroll position across height refreshes', () => {
+    scrollHeight = 180
+    const { container } = render(<RichInput />)
+    const input = container.querySelector('.rich-input') as HTMLDivElement
+
+    let scrollTopValue = 0
+    Object.defineProperty(input, 'clientHeight', { configurable: true, get: () => 112 })
+    Object.defineProperty(input, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTopValue,
+      set: (v: number) => {
+        scrollTopValue = v
+      },
+    })
+    scrollTopValue = 30
+
+    // No caret inside the editor (jsdom's default selection is empty): the refresh only keeps
+    // the scroll position and does not scroll further.
+    inputWidth = 600
+    act(() => resizeCallback?.([resizeEntry(input, inputWidth)], {} as ResizeObserver))
+    flushAnimationFrames()
+
+    expect(scrollTopValue).toBe(30)
+  })
 })

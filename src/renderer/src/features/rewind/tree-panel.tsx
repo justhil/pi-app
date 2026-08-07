@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GitFork, Loader2, RefreshCw, Undo2 } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
@@ -38,10 +39,10 @@ export function TreePanel() {
   }, [sessionFile])
 
   useEffect(() => {
-    if (sessionFile && rawTree.length === 0 && !loading && !treeError) {
-      void refreshSessionTree(sessionFile)
-    }
-  }, [sessionFile, rawTree.length, loading, treeError])
+    // 挂载 / 切换会话时刷新：树数据是发送时点刷新后的快照，仅凭空树判断会
+    // 漏掉“新消息已写入 JSONL 但树未更新”的情况（例如压缩排队期间发送）。
+    if (sessionFile) void refreshSessionTree(sessionFile)
+  }, [sessionFile])
 
   const filtered = useMemo(() => filterSessionTreeNodes(rawTree, filter), [rawTree, filter])
   const { nodes: display, truncated, hiddenCount } = useMemo(
@@ -133,6 +134,8 @@ export function TreePanel() {
               selectedId={selectedId}
               onSelect={setSelectedId}
               onActivate={(id) => void navigateSessionToEntry(id)}
+              onView={(id) => requestTimelineViewEntry(id)}
+              viewOnSingleClick
               showGuides={showGuides}
               rowClassName="text-[11px]"
               renderTrailing={(node) => (

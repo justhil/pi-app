@@ -1,6 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 import { vi } from 'vitest'
 
+// jsdom does not enable pretendToBeVisual by default, so requestAnimationFrame
+// never fires in tests. Polyfill with setTimeout so deferred UI commits (e.g.
+// the model-switch toast after the picker unmounts) resolve in tests too.
+if (!globalThis.requestAnimationFrame) {
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback) =>
+    setTimeout(() => cb(performance.now()), 16) as unknown as number
+  globalThis.cancelAnimationFrame = (id: number) => clearTimeout(id)
+}
+
 // Mock matchMedia (not available in jsdom)
 if (!window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2 } from '@renderer/components/icons'
+import { Archive, Pencil, Trash2 } from '@renderer/components/icons'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -12,9 +13,11 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { BatchArchiveDialog } from './batch-archive-dialog'
 
-type MenuState = { x: number; y: number; path: string; label: string } | null
-type RenameState = { path: string; label: string } | null
+type MenuState = { x: number; y: number; path: string; label: string; sessionFile?: string } | null
+type RenameState = { path: string; label: string; sessionFile?: string } | null
+type DeleteState = { path: string; label: string } | null
 
 export function SandboxContextMenuPortal({
   menu,
@@ -28,6 +31,9 @@ export function SandboxContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameState, setRenameState] = useState<RenameState>(null)
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [deleteState, setDeleteState] = useState<DeleteState>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -49,16 +55,20 @@ export function SandboxContextMenuPortal({
     }
   }
 
-  const runDelete = async (path: string, label: string) => {
-    if (!window.confirm(t('common:sidebar.deleteConfirm', { name: label }))) {
-      onClose()
-      return
-    }
+  const runDelete = (path: string, label: string) => {
+    setDeleteState({ path, label })
+    onClose()
+  }
+
+  const confirmDelete = async () => {
+    const state = deleteState
+    if (!state || deleting) return
+    setDeleting(true)
     try {
-      const r = await ipcClient.invoke('workspace.sandbox.delete', { path })
+      const r = await ipcClient.invoke('workspace.sandbox.delete', { path: state.path })
       if (r?.ok) {
         const cur = useUIStore.getState().currentWorkspace
-        if (cur === path) {
+        if (cur === state.path) {
           useUIStore.getState().setWorkspace(null)
           useUIStore.getState().clearTimeline()
           useUIStore.getState().setCurrentSession('')
@@ -70,6 +80,22 @@ export function SandboxContextMenuPortal({
       } else toast.error(t('common:sidebar.deleteFailed'))
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
+    } finally {
+      setDeleting(false)
+      setDeleteState(null)
+    }
+  }
+
+  const runArchive = async (state: NonNullable<MenuState>) => {
+    const file = state.sessionFile || state.path
+    try {
+      const r = await ipcClient.invoke('session.archive', { sessionFile: file, archived: true })
+      if (r?.ok) {
+        toast.success(t('common:sidebar.archived'))
+        onListChange()
+      } else toast.error(r?.error || t('common:sidebar.archiveFailed'))
+    } catch {
+      toast.error(t('common:sidebar.archiveFailed'))
     }
     onClose()
   }
@@ -93,12 +119,37 @@ export function SandboxContextMenuPortal({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
-                  setRenameState({ path: menu.path, label: menu.label })
+                  setRenameState({ path: menu.path, label: menu.label, sessionFile: menu.sessionFile })
                   onClose()
                 }}
               >
                 <Pencil className="h-3 w-3 shrink-0" strokeWidth={2} />
                 {t('common:sidebar.rename')}
+              </button>
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runArchive(menu)
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.archive')}
+              </button>
+              <button
+                type="button"
+                className={itemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setBatchOpen(true)
+                  onClose()
+                }}
+              >
+                <Archive className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.batchArchive')}
               </button>
               <button
                 type="button"
@@ -118,10 +169,38 @@ export function SandboxContextMenuPortal({
         : null}
       <RenamePromptDialog
         open={!!renameState}
+        autoNameTarget={renameState?.sessionFile ? { sessionFile: renameState.sessionFile } : null}
         title={t('common:sidebar.renameTempChat')}
         defaultValue={renameState?.label ?? ''}
         onConfirm={submitRename}
         onCancel={() => setRenameState(null)}
+      />
+      <BatchArchiveDialog
+        open={batchOpen}
+        workspacePath=""
+        sandbox
+        onCancel={() => setBatchOpen(false)}
+        onDone={(count) => {
+          setBatchOpen(false)
+          if (count < 0) {
+            toast.error(t('common:sidebar.archiveFailed'))
+          } else if (count === 0) {
+            toast.info(t('common:sidebar.batchArchiveNone'))
+          } else {
+            toast.success(t('common:sidebar.batchArchived', { count }))
+          }
+          onListChange()
+        }}
+      />
+      <ConfirmDialog
+        open={!!deleteState}
+        title={t('common:sidebar.deleteSandboxTitle')}
+        message={t('common:sidebar.deleteConfirm', { name: deleteState?.label || '' })}
+        confirmLabel={t('common:sidebar.delete')}
+        destructive
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteState(null)}
       />
     </>
   )

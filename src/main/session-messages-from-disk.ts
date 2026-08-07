@@ -9,6 +9,7 @@ export async function getSessionMessagesFromDisk(
   offset?: number,
   limit?: number,
   leafId?: string | null,
+  opts?: { showNonMessageEntries?: boolean },
 ): Promise<{
   items: Array<Record<string, unknown>>
   totalCount: number
@@ -18,7 +19,7 @@ export async function getSessionMessagesFromDisk(
   const activeSdkPath = active.kind === 'builtin' ? null : active.entryPath
   return buildTimelinePageFromSessionFile(
     sessionFile,
-    { offset, limit, leafId, activeSdkPath },
+    { offset, limit, leafId, activeSdkPath, showNonMessageEntries: opts?.showNonMessageEntries },
     timelineItemsFromBranchPath,
   )
 }

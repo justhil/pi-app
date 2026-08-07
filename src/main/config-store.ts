@@ -4,9 +4,12 @@ import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
 import { bindSecretStoreBacking } from './secret-store'
+import { nextRecentProjects } from './recent-projects'
 
 export interface StoreSchema {
   recentProjects: string[]
+  /** 侧栏项目列表固定顺序（不随打开而置顶）；false = 最近使用排序（默认） */
+  recentProjectsFixedOrder: boolean
   currentProject: string | null
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
   theme: 'light' | 'dark' | 'system'
@@ -30,6 +33,8 @@ export interface StoreSchema {
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */
   autoCheckRegistryUpdates: boolean
+  /** 上次自动更新检查时间戳（毫秒）；0 = 从未检查。用于避免每次启动都打 GitHub */
+  lastUpdateCheckAt: number
   /** 用户选择「忽略本版本」的 semver（无 v 前缀）；空字符串 = 未忽略 */
   ignoredUpdateVersion: string
   /** 全局：用户提醒是否播放提示音 */
@@ -46,10 +51,14 @@ export interface StoreSchema {
   maxSessionWorkers: number
   /** 空闲 worker 回收时间（分钟）；0 = 不因超时回收 */
   sessionWorkerIdleTimeoutMinutes: number
-  /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
+  /** 时间线过程内容（工具/思考）滑动窗口大小；0 = 禁用自动展开 */
   timelineMaxAutoExpandedTools: number
+  /** 时间线是否展示元事件条目（model_change / thinking_level_change）；默认隐藏 */
+  showNonMessageEntries: boolean
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
+  /** 归档会话：键为规范化后的 sessionFile 绝对路径，值为归档时间戳（毫秒） */
+  archivedSessions: Record<string, number>
   /** 语音输入 ASR 配置 */
   asrConfig: AsrConfig
 }
@@ -58,6 +67,7 @@ const store = new Store<StoreSchema>({
   name: 'pi-desktop',
   defaults: {
     recentProjects: [],
+    recentProjectsFixedOrder: false,
     currentProject: null,
     windowBounds: null,
     theme: 'system',
@@ -80,6 +90,7 @@ const store = new Store<StoreSchema>({
     language: 'zh',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
+    lastUpdateCheckAt: 0,
     ignoredUpdateVersion: '',
     alertSoundEnabled: true,
     alertNotificationEnabled: true,
@@ -89,7 +100,9 @@ const store = new Store<StoreSchema>({
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+    showNonMessageEntries: false,
     sessionDisplayNames: {},
+    archivedSessions: {},
     asrConfig: {
       provider: 'codex-asr-builtin',
       language: 'auto',
@@ -122,9 +135,10 @@ export const configStore = {
   },
 
   addRecentProject(path: string): void {
-    const recent = store.get('recentProjects').filter((p: string) => p !== path)
-    recent.unshift(path)
-    store.set('recentProjects', recent.slice(0, 10))
+    store.set(
+      'recentProjects',
+      nextRecentProjects(store.get('recentProjects'), path, store.get('recentProjectsFixedOrder')),
+    )
   },
 
   removeRecentProject(path: string): void {

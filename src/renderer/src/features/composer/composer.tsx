@@ -15,6 +15,7 @@ import {
 import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerMetricsInline } from './composer-metrics-inline'
+import { ExternalSyncIndicator } from './external-sync-indicator'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
@@ -37,6 +38,7 @@ import { makeComposerEditorAdapter } from './composer-editor-adapter'
 import { useComposerSlash } from './use-composer-slash'
 import { ComposerSlashPopover } from './composer-slash-popover'
 import { useComposerSend } from './use-composer-send'
+import { ComposerCompactionBanner } from './composer-compaction-banner'
 import { useComposerAttachments } from './use-composer-attachments'
 import { useComposerKeyDown } from './use-composer-keydown'
 import { useComposerFileSearch } from './use-composer-file-search'
@@ -385,6 +387,7 @@ export function Composer() {
         composerAnchorRef={slashPopoverAnchorRef}
         completionPopoverOpen={fileSearch.show || slash.showPopover}
       />
+      <ComposerCompactionBanner />
       <ComposerPendingQueue />
       {sessionPreview && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200/90">
@@ -480,6 +483,7 @@ export function Composer() {
             {canCompose && (
               <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
             )}
+            <ExternalSyncIndicator />
             <div className="min-w-0 flex-1">
               {canSendMessages && (
                 <ComposerModelStrip

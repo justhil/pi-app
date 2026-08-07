@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Folder, GitBranch, Inbox, Plus } from '@renderer/components/icons'
+import { Archive, ChevronRight, Folder, GitBranch, Inbox, Plus, RotateCcw, Trash2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
@@ -313,6 +313,116 @@ export function ProjectDiskRow({
         </button>
       </div>
       <SidebarAnimatedCollapse open={open}>{sessionTree}</SidebarAnimatedCollapse>
+    </div>
+  )
+}
+
+export function ArchivedSessionEntry({
+  archived,
+  loading,
+  open,
+  onToggle,
+  onRestore,
+  onDelete,
+  onOpen,
+  onContextMenu,
+  onHeaderContextMenu,
+}: {
+  archived: SessionItem[]
+  loading: boolean
+  open: boolean
+  onToggle: () => void
+  onRestore: (session: SessionItem) => void
+  onDelete: (session: SessionItem) => void
+  onOpen: (session: SessionItem) => void
+  /** 右键某个已归档会话时触发（用于取消归档/删除菜单） */
+  onContextMenu?: (e: React.MouseEvent, session: SessionItem) => void
+  /** 右键“已归档”分组头部时触发（用于批量取消归档菜单） */
+  onHeaderContextMenu?: (e: React.MouseEvent) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="mt-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="nav-row sidebar-archived-entry flex min-h-[30px] w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[12px] text-foreground-secondary hover:text-foreground"
+        aria-expanded={open}
+        onContextMenu={
+          onHeaderContextMenu
+            ? (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onHeaderContextMenu(e)
+              }
+            : undefined
+        }
+      >
+        <ChevronRight
+          className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/70"
+          data-open={open ? 'true' : 'false'}
+        />
+        <Archive className="h-3.5 w-3.5 shrink-0 opacity-75" />
+        <span className="flex-1 truncate">{t('common:sidebar.archived')}</span>
+        {archived.length > 0 && (
+          <span className="text-[10px] tabular-nums text-foreground-secondary/60">{archived.length}</span>
+        )}
+      </button>
+      <SidebarAnimatedCollapse open={open}>
+        <div className="ml-4 border-l border-border/35 pl-1.5 pt-0.5">
+          {loading ? (
+            <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:loading')}</p>
+          ) : archived.length === 0 ? (
+            <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noArchived')}</p>
+          ) : (
+            archived.map((s) => (
+              <div
+                key={s.sessionId}
+                className="sidebar-archived-row mb-0.5 flex min-h-[34px] items-center gap-0.5 rounded-md px-1"
+                onContextMenu={onContextMenu ? (e) => onContextMenu(e, s) : undefined}
+              >
+                <button
+                  type="button"
+                  onClick={() => onOpen(s)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-[var(--bg-hover)]/70"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[12px] leading-[17px] text-foreground/85">
+                      {s.title || s.sessionId.slice(0, 8)}
+                    </div>
+                    <div className="text-[10px] leading-[14px] tabular-nums text-foreground-secondary/75">
+                      {s.archivedAt
+                        ? new Date(s.archivedAt).toLocaleString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : ''}
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  title={t('common:sidebar.restore')}
+                  onClick={() => onRestore(s)}
+                  className="chrome-icon-btn flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 hover:text-foreground"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title={t('common:sidebar.delete')}
+                  onClick={() => onDelete(s)}
+                  className="chrome-icon-btn flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </SidebarAnimatedCollapse>
     </div>
   )
 }

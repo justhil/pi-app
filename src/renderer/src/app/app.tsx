@@ -38,6 +38,7 @@ import {
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
+import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
@@ -164,6 +165,12 @@ export default function App() {
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
         .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'showNonMessageEntries' })
+        .then((res) => {
+          useUIStore.getState().setShowNonMessageEntries(res?.settings?.showNonMessageEntries === true)
+        })
+        .catch(() => {})
     })
     return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])
@@ -180,9 +187,25 @@ export default function App() {
       const store = useUIStore.getState()
       clearExitedSessionRuntime(info, store.setSessionRuntimeRunning)
     })
+    const unsubExternal = window.piDesktop?.onSessionExternalUpdate
+      ? window.piDesktop.onSessionExternalUpdate(({ sessionFile }) => {
+          void import('@renderer/lib/session-external-update').then((m) =>
+            m.handleSessionExternalUpdate(sessionFile),
+          )
+        })
+      : undefined
+    const unsubSessionsChanged = window.piDesktop?.onWorkspaceSessionsChanged
+      ? window.piDesktop.onWorkspaceSessionsChanged(() => {
+          void import('@renderer/lib/refresh-workspace-session-lists').then((m) =>
+            m.refreshWorkspaceSessionLists(),
+          )
+        })
+      : undefined
     return () => {
       unsubEvents()
       unsubExit()
+      unsubExternal?.()
+      unsubSessionsChanged?.()
     }
   }, [setWorkspace])
 
@@ -271,6 +294,7 @@ export default function App() {
         </div>
         {paletteAndShortcuts}
         <AppUpdateHost />
+        <CloseDecisionDialog />
       </ErrorBoundary>
     )
   }
@@ -351,6 +375,7 @@ export default function App() {
       <AppToaster />
       <ExtensionUIHost />
       <AppUpdateHost />
+      <CloseDecisionDialog />
       {paletteAndShortcuts}
       <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}

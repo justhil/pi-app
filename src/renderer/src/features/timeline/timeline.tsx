@@ -14,15 +14,26 @@ import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
+import { SkillInvocationRow, isSkillInvocationMessage } from './skill-invocation-row'
 import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawItem } from './timeline-display-items'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
+import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
+import {
+  TIMELINE_VIEW_ENTRY_EVENT,
+  VIEW_REVEAL_CHUNK_LIMIT,
+  isTargetNewerThanStore,
+  missingOlderItems,
+  planViewReveal,
+  userSentSince,
+  type TimelineViewEntryDetail,
+} from './timeline-view-jump'
 import {
   TIMELINE_LOAD_OLDER_SCROLL_TOP_PX,
   TIMELINE_STREAM_TAIL_PAD_PX,
@@ -31,10 +42,13 @@ import {
 } from './timeline-follow-scroll'
 import { useSessionChrome } from '@renderer/lib/session-chrome'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
-import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
+import {
+  requestTimelineBottomAnchor,
+  useTimelineBottomAnchorController,
+} from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
-import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
+import { pickAutoExpandedActivityIds } from './timeline-tool-expand-policy'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnActivityBlock } from './turn-activity-block'
 import { shouldShowTimelineHonestyBanner } from '@renderer/lib/timeline-honesty'
@@ -53,6 +67,8 @@ const TimelineItemBase = memo(function TimelineItem({
   agentRunning,
   agentBoot,
   rewindEntryId,
+  /** 滑动窗口：该行是否被窗口自动展开（思考块用） */
+  autoExpanded = false,
   /** Only the last prose leaf of a turn (or user) should expose copy/rewind chrome. */
   showMessageActions = true,
 }: {
@@ -63,6 +79,7 @@ const TimelineItemBase = memo(function TimelineItem({
   agentBoot: boolean
   /** Pre-resolved incomplete-assistant / user rewind target for this row */
   rewindEntryId?: string
+  autoExpanded?: boolean
   showMessageActions?: boolean
 }) {
   const { t } = useTranslation()
@@ -70,6 +87,14 @@ const TimelineItemBase = memo(function TimelineItem({
     rewindEntryId ?? (row.sessionEntryId as string | undefined)
 
   if (item.type === 'user-message') {
+    // skill 调用：pi 把 skill 内容作为独立用户消息注入，折叠为一行摘要（默认折叠、不受窗口限制）
+    if (isSkillInvocationMessage(String(item.text || ''))) {
+      return (
+        <div className="timeline-message-row timeline-activity-item">
+          <SkillInvocationRow item={item as unknown as TimelineItem} />
+        </div>
+      )
+    }
     const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
       ? (item.segments as Segment[])
       : [{ type: 'text', text: String(item.text || '') }]
@@ -182,6 +207,7 @@ const TimelineItemBase = memo(function TimelineItem({
           <ThinkingChainBlock
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
+            autoExpanded={autoExpanded}
             startedAt={Number(item.timestamp ?? 0) || undefined}
             duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
@@ -196,6 +222,7 @@ const TimelineItemBase = memo(function TimelineItem({
           <ThinkingChainBlock
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
+            autoExpanded={autoExpanded}
             startedAt={Number(item.timestamp ?? 0) || undefined}
             duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
@@ -309,6 +336,24 @@ const TimelineItemBase = memo(function TimelineItem({
     )
   }
 
+  if (item.type === 'model-change') {
+    const meta = item as unknown as TimelineItem & { model?: string; thinkingLevel?: string }
+    const parts: string[] = []
+    if (meta.model) parts.push(t('timeline:modelChangeTo', { model: meta.model }))
+    if (meta.thinkingLevel) {
+      parts.push(t('timeline:thinkingLevelChangeTo', { level: meta.thinkingLevel }))
+    }
+    if (parts.length === 0) return null
+    return (
+      <div className="timeline-message-row timeline-activity-item">
+        <div className="flex items-center gap-1.5 px-0.5 text-[11px] timeline-text-quiet">
+          <span aria-hidden className="h-1 w-1 rounded-full bg-border" />
+          <span>{parts.join(' · ')}</span>
+        </div>
+      </div>
+    )
+  }
+
   return null
 })
 
@@ -343,6 +388,13 @@ export function Timeline() {
   const [renderCount, setRenderCount] = useState(PAGE)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+
+  // ---- Non-destructive view jumps from the session tree (click = view, dblclick = rewind) ----
+  const viewSeqRef = useRef(0)
+  const viewLoadRef = useRef<Promise<void> | null>(null)
+  const viewTailSnapshotRef = useRef<{ id?: string; type?: string } | null>(null)
+  const viewLandedRef = useRef<{ entryId: string; seq: number } | null>(null)
+  const [viewTarget, setViewTarget] = useState<string | null>(null)
   const lastTailId = items[items.length - 1]?.id
   // contentEpoch intentionally ignores raw stream text length — height growth is observed.
   const contentEpoch = `${lastTailId ?? ''}:${renderCount}:${historySessionFile ?? ''}`
@@ -359,6 +411,195 @@ export function Timeline() {
   )
   useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
+  // When a session skeleton finishes loading (cold open / switch-back), the
+  // session-enter anchor above may have run while scrollRef was still null
+  // (loading view renders no scroll pane), so the pin was lost. Re-anchor once
+  // the pane exists so the viewport lands on the latest content.
+  const prevHistoryLoadingRef = useRef(historyLoading)
+  useEffect(() => {
+    const wasLoading = prevHistoryLoadingRef.current
+    prevHistoryLoadingRef.current = historyLoading
+    if (wasLoading && !historyLoading && historySessionFile) {
+      requestTimelineBottomAnchor('session-enter')
+    }
+  }, [historyLoading, historySessionFile])
+
+  // View-jump listener: the tree side only dispatches an entry id; reveal logic
+  // lives here because the viewport (renderCount / scrollRef / items) is local.
+  useEffect(() => {
+    const onViewEntry = (e: Event) => {
+      const detail = (e as CustomEvent<TimelineViewEntryDetail>).detail
+      const entryId = detail?.entryId
+      if (!entryId || typeof entryId !== 'string') return
+      viewSeqRef.current += 1
+      viewLandedRef.current = null
+      viewTailSnapshotRef.current = useUIStore.getState().timelineItems.at(-1) ?? null
+      // A view jump is a navigation away from the leaf: detach live-follow so the
+      // follow controller never pins the viewport back to the bottom after the reveal.
+      followLiveRef.current = false
+      setViewTarget(entryId)
+    }
+    window.addEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
+    return () => window.removeEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
+  }, [followLiveRef])
+
+  // Reveal a pending view target: scroll when rendered, expand the virtual
+  // window when loaded, or fetch a bounded read-only chunk when not loaded.
+  // Any user interaction (wheel, sending a message, a newer request) cancels it.
+  useLayoutEffect(() => {
+    if (!viewTarget) return
+    const seq = viewSeqRef.current
+    const el = scrollRef.current
+    if (el) {
+      const entryId = viewTarget
+      const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(entryId) : entryId
+      const row = el.querySelector(`[data-session-entry-id="${escaped}"]`)
+      if (row) {
+        followLiveRef.current = false
+        row.scrollIntoView({ block: 'center' })
+        window.dispatchEvent(new Event('timeline-scroll'))
+        viewSeqRef.current += 1
+        // Remember the landing: if a later store replacement (e.g. a late
+        // session-shell hydrate bind) removes the target from the store, the
+        // self-heal effect below re-plans so the jump is not undone.
+        viewLandedRef.current = { entryId, seq: viewSeqRef.current }
+        setViewTarget(null)
+        return
+      }
+    }
+
+    const st = useUIStore.getState()
+    const all = st.timelineItems
+    const plan = planViewReveal(viewTarget, all, renderCountRef.current, st.historySessionFile)
+    if (plan.kind === 'none' && plan.reason === 'covered' && el) {
+      // The target is inside the render window, so its row is in the DOM — but
+      // possibly without a data-session-entry-id (optimistic placeholder whose
+      // entry id never arrived). Fall back to the item-id anchor so the click
+      // still lands on the message instead of silently doing nothing.
+      const targetItem = all.find(
+        (it) => it.sessionEntryId === viewTarget || it.id === viewTarget,
+      )
+      const anchor = targetItem
+        ? el.querySelector(`[data-item-id="${CSS.escape(String(targetItem.id))}"]`)
+        : null
+      if (anchor) {
+        followLiveRef.current = false
+        anchor.scrollIntoView({ block: 'center' })
+        window.dispatchEvent(new Event('timeline-scroll'))
+        viewSeqRef.current += 1
+        viewLandedRef.current = { entryId: viewTarget, seq: viewSeqRef.current }
+      }
+      setViewTarget(null)
+      return
+    }
+    if (plan.kind === 'scroll') {
+      setRenderCount((count) => Math.max(count, plan.requiredRenderCount))
+      return
+    }
+    if (plan.kind === 'load') {
+      if (viewLoadRef.current) return
+      const sessionFile = st.historySessionFile
+      if (!sessionFile) return
+      const captured = viewTailSnapshotRef.current
+      const tail = all.at(-1) ?? null
+      viewLoadRef.current = (async () => {
+        const res = await fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
+          leafId: plan.entryId,
+          bypassCache: true,
+        })
+        if (seq !== viewSeqRef.current) return
+        const chunk = (res.items || []) as TimelineItem[]
+        if (!chunk.length) return
+        if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+        if (isTargetNewerThanStore(chunk, tail)) return
+
+        // The leaf-anchored fetch reports the target's absolute position (branch
+        // length). When the loaded tail does not start right above the target, fetch
+        // the tail-anchored remainder so the store stays contiguous — otherwise a
+        // hole is left between the target region and the tail, corrupting later
+        // offset-based older-loading.
+        let allFetched: TimelineItem[] = chunk
+        const targetPos = typeof res.totalCount === 'number' ? res.totalCount : 0
+        const pre = useUIStore.getState()
+        const total = pre.historyTotalCount
+        if (targetPos > 0 && total > targetPos) {
+          const gap = total - targetPos
+          // One leaf-anchored call reaches back at most 500 items (handler clamp).
+          const gapFetched = Math.min(gap, 500)
+          const tailRes = await fetchSessionHistoryTail(sessionFile, gapFetched, { leafId: null })
+          if (seq !== viewSeqRef.current) return
+          if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+          allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+          // When the target is further than 500 items below the loaded tail, the
+          // gap fetch leaves a hole between the target and the tail. Close it with
+          // one offset-based page spanning exactly the middle.
+          const gapTailStart = total - gapFetched + 1
+          const middleLength = gapTailStart - 1 - targetPos
+          if (middleLength > 0) {
+            const middleRes = await fetchSessionHistoryOlder(
+              sessionFile,
+              gapFetched,
+              Math.min(middleLength, 500),
+            )
+            if (seq !== viewSeqRef.current) return
+            if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+            // Oldest-first: target chunk, then the middle, then the tail remainder.
+            allFetched = [
+              ...chunk,
+              ...((middleRes.items || []) as TimelineItem[]),
+              ...((tailRes.items || []) as TimelineItem[]),
+            ]
+          }
+        }
+        const latest = useUIStore.getState()
+        const missing = missingOlderItems(allFetched, latest.timelineItems)
+        if (missing.length) {
+          latest.prependHistoryItems(missing)
+          const after = useUIStore.getState()
+          // Recompute loadedCount from the true coverage: everything from the chunk
+          // start (targetPos - chunkLen + 1) through the leaf is now loaded. This
+          // keeps the older-loader's offset honest so it never fetches pages that
+          // overlap or fall out of order.
+          if (after.historyTotalCount > 0) {
+            const chunkLen = Math.min(VIEW_REVEAL_CHUNK_LIMIT, targetPos)
+            const covered = after.historyTotalCount - (targetPos - chunkLen)
+            useUIStore.setState({
+              historyLoadedCount: Math.min(
+                after.historyTotalCount,
+                Math.max(after.historyLoadedCount, covered),
+              ),
+            })
+          }
+        }
+      })()
+        .catch((error: unknown) => {
+          console.error('[Timeline] view-entry load failed', error)
+        })
+        .finally(() => {
+          viewLoadRef.current = null
+        })
+    }
+  }, [viewTarget, renderCount, items, historySessionFile])
+
+  // Self-heal: a view jump that already landed must survive a store replacement
+  // that drops its target (late hydrate bind, focus re-bind, …). When the landed
+  // entry vanishes from the store, re-plan the reveal instead of leaving the
+  // viewport on unrelated content.
+  useEffect(() => {
+    const landed = viewLandedRef.current
+    if (!landed) return
+    if (viewSeqRef.current !== landed.seq) {
+      viewLandedRef.current = null
+      return
+    }
+    const present = useUIStore
+      .getState()
+      .timelineItems.some((it) => it.sessionEntryId === landed.entryId || it.id === landed.entryId)
+    if (present) return
+    viewLandedRef.current = null
+    setViewTarget(landed.entryId)
+  }, [items, viewTarget])
+
   useEffect(() => {
     const el = scrollRef.current
     registerTimelineScrollEl(el)
@@ -367,7 +608,12 @@ export function Timeline() {
     el.addEventListener('scroll', notify, { passive: true })
     // Upward wheel detaches live-follow immediately so stream growth never fights the user.
     const onWheel = (e: WheelEvent) => {
-      if (e.deltaY !== 0) onUserScrollIntent(e.deltaY)
+      if (e.deltaY !== 0) {
+        onUserScrollIntent(e.deltaY)
+        // A pending view jump yields to the user's own scroll.
+        viewSeqRef.current += 1
+        viewLandedRef.current = null
+      }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
     const ro = new ResizeObserver(notify)
@@ -380,7 +626,7 @@ export function Timeline() {
       ro.disconnect()
     }
   }, [hasWorkspace, onUserScrollIntent, historySessionFile])
-  const scrollHeightBeforeLoadRef = useRef<number | null>(null)
+  const scrollHeightBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
 
@@ -407,7 +653,7 @@ export function Timeline() {
 
     if (canFetchDisk) {
       setFetchingOlder(true)
-      scrollHeightBeforeLoadRef.current = el.scrollHeight
+      scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
       const offset = st.historyLoadedCount
       const sessionFile = st.historySessionFile!
       void prependOlderTimelinePage(sessionFile, offset)
@@ -445,24 +691,44 @@ export function Timeline() {
     }
 
     // In-memory reveal only (already loaded items outside the render window).
-    scrollHeightBeforeLoadRef.current = el.scrollHeight
+    scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
     setRenderCount((count) => Math.min(count + PAGE, segs.history.length))
   }, [fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
-    const previousScrollHeight = scrollHeightBeforeLoadRef.current
-    if (!el || previousScrollHeight == null) return
+    const previous = scrollHeightBeforeLoadRef.current
+    if (!el || previous == null) return
     scrollHeightBeforeLoadRef.current = null
-    el.scrollTop = el.scrollHeight - previousScrollHeight
+    // Anchor the viewport's content (not the bottom): when older rows are
+    // prepended / the render window grows, keep the same content at the top of
+    // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
+    // the view toward the leaf right after a view-jump landed on an old node.
+    // Use the CURRENT scrollTop (not the load-start snapshot): the user may keep
+    // scrolling while the fetch is in flight, and restoring the stale snapshot
+    // yanks the viewport back to where the load began.
+    const growth = el.scrollHeight - previous.scrollHeight
+    el.scrollTop = el.scrollTop + growth
   }, [renderCount, items.length])
 
   // Reset the virtualization window only when the session file changes — not when
   // older messages are prepended (that changes items[0].id and must not reset).
+  const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
+    const prevFile = prevSessionFileRef.current
+    prevSessionFileRef.current = historySessionFile ?? null
+    // First hydration (null → file): keep a pending view jump so it re-plans
+    // against the freshly loaded store. A real session switch drops the old jump
+    // and cancels its in-flight fetch.
+    if (prevFile != null) {
+      viewSeqRef.current += 1
+      viewLoadRef.current = null
+      viewLandedRef.current = null
+      setViewTarget(null)
+    }
     followLiveRef.current = true
     requestAnimationFrame(() => {
       const el = scrollRef.current
@@ -499,21 +765,27 @@ export function Timeline() {
   const toolExpandSlots = useMemo(
     () =>
       visibleItems
-        .filter((row) => row.type === 'tool-call')
+        .filter(
+          (row) =>
+            row.type === 'tool-call' ||
+            (row.type === 'assistant-message' &&
+              !!String((row as { thinkingText?: string }).thinkingText ?? '').trim()),
+        )
         .map((row) => {
           const toolRow = row as ToolTimelineItem
-          return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase }
+          return {
+            id: toolRow.id,
+            kind: row.type === 'assistant-message' ? ('thinking' as const) : ('tool' as const),
+          }
         }),
     [visibleItems],
   )
   const autoExpandedToolIds = useMemo(
     () =>
-      pickAutoExpandedToolIds(toolExpandSlots, {
-        agentRunning,
-        activeRunId,
+      pickAutoExpandedActivityIds(toolExpandSlots, {
         maxExpanded: timelineMaxAutoExpandedTools,
       }),
-    [toolExpandSlots, agentRunning, activeRunId, timelineMaxAutoExpandedTools],
+    [toolExpandSlots, timelineMaxAutoExpandedTools],
   )
   // Structure-only fingerprint: stream text must not rebuild timings / rewind targets.
   const structureEpoch = useMemo(
@@ -648,18 +920,27 @@ export function Timeline() {
         </Fragment>
       )
     }
-    return (
-      <Fragment key={item.id || blockKey}>
-        <TimelineItemBase
-          item={item}
-          prevType={prevType}
-          streaming={streamingAssistantId === item.id}
-          agentRunning={agentRunning}
-          agentBoot={agentBoot}
-          rewindEntryId={rewindEntryByItemId.get(item.id)}
-          showMessageActions={showMessageActions}
-        />
-      </Fragment>
+    const rowEntryId = item.sessionEntryId as string | undefined
+    const row = (
+      <TimelineItemBase
+        item={item}
+        prevType={prevType}
+        streaming={streamingAssistantId === item.id}
+        agentRunning={agentRunning}
+        agentBoot={agentBoot}
+        autoExpanded={autoExpandedToolIds.has(item.id)}
+        rewindEntryId={rewindEntryByItemId.get(item.id)}
+        showMessageActions={showMessageActions}
+      />
+    )
+    return rowEntryId ? (
+      <div key={item.id || blockKey} data-session-entry-id={rowEntryId} data-item-id={item.id}>
+        {row}
+      </div>
+    ) : (
+      <div key={item.id || blockKey} data-item-id={item.id}>
+        {row}
+      </div>
     )
   }
 
@@ -735,14 +1016,26 @@ export function Timeline() {
         const turnLastProseId = lastProseIdInTurn(turn.blocks)
         return (
           <Fragment key={turn.turnId}>
-            <TimelineItemBase
-              item={turn.userItem as unknown as TimelineRawItem}
-              streaming={false}
-              agentRunning={agentRunning}
-              agentBoot={agentBoot}
-              rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
-              showMessageActions
-            />
+            {(() => {
+              const userEntryId = turn.userItem.sessionEntryId as string | undefined
+              const userRow = (
+                <TimelineItemBase
+                  item={turn.userItem as unknown as TimelineRawItem}
+                  streaming={false}
+                  agentRunning={agentRunning}
+                  agentBoot={agentBoot}
+                  rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
+                  showMessageActions
+                />
+              )
+              return userEntryId ? (
+                <div data-session-entry-id={userEntryId} data-item-id={turn.userItem.id}>
+                  {userRow}
+                </div>
+              ) : (
+                <div data-item-id={turn.userItem.id}>{userRow}</div>
+              )
+            })()}
             {turn.blocks.map((block, bi) => {
               // One reply = one message chrome: only the final prose leaf after the turn settles.
               const isLastProse =

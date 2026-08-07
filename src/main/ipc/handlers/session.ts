@@ -5,6 +5,8 @@ import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
 import { resolvePreparedSessionFile } from '../../session-prepare'
 import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
+import { archiveSession, archiveSessionsByRule, clearSessionArchive, getArchivedAt, restoreSession, restoreSessions, restoreSessionsByRule } from '../../session-archive'
+import { autoNameTitle } from '../../session-auto-name'
 import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
   bindSandboxSession,
@@ -36,23 +38,29 @@ import { errorMessage } from '@shared/error-message'
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    const includeArchived = req.includeArchived === true
     const sessions = workspaceId ? await listSessionsOnDisk(workspaceId) : []
-    const formatted = sessions.map((s: SessionOnDiskRow) => ({
-      sessionId: s.id,
-      sessionFile: s.path,
-      workspaceId: s.cwd || workspaceId,
-      title: resolveSessionListTitle(
-        s.path,
-        s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
-        s.name,
-      ),
-      createdAt: s.created?.getTime() || 0,
-      updatedAt: s.modified?.getTime() || 0,
-      messageCount: s.messageCount || 0,
-      modelId: '',
-      status: 'idle' as const,
-    }))
-    return { sessions: formatted }
+    const formatted = sessions.map((s: SessionOnDiskRow) => {
+      const archivedAt = getArchivedAt(s.path)
+      return {
+        sessionId: s.id,
+        sessionFile: s.path,
+        workspaceId: s.cwd || workspaceId,
+        title: resolveSessionListTitle(
+          s.path,
+          s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
+          s.name,
+        ),
+        createdAt: s.created?.getTime() || 0,
+        updatedAt: s.modified?.getTime() || 0,
+        messageCount: s.messageCount || 0,
+        modelId: '',
+        status: 'idle' as const,
+        archivedAt: archivedAt ?? undefined,
+      }
+    })
+    const visible = includeArchived ? formatted : formatted.filter((s) => s.archivedAt === undefined)
+    return { sessions: visible }
   })
 
   registerHandler('ipc:session.open', async (req) => {
@@ -241,6 +249,7 @@ export function registerSessionHandlers(): void {
         offset,
         limit || undefined,
         leafId,
+        { showNonMessageEntries: req.showNonMessageEntries === true },
       )
       return {
         items: disk.items,
@@ -515,10 +524,62 @@ export function registerSessionHandlers(): void {
     return { ok: true, title }
   })
 
+  registerHandler('ipc:session.archive', async (req) => {
+    const file = (req.sessionFile as string | undefined)?.trim()
+    if (!file) return { ok: false, error: 'missing sessionFile' }
+    if (req.archived === true) archiveSession(file)
+    else restoreSession(file)
+    return { ok: true }
+  })
+
+  registerHandler('ipc:session.restoreBatch', async (req) => {
+    const raw = Array.isArray(req.sessionFiles) ? req.sessionFiles : []
+    const files = raw.filter((f: unknown): f is string => typeof f === 'string' && f.length > 0)
+    const keepRecent = req.keepRecent == null ? undefined : Math.max(0, Number(req.keepRecent) || 0)
+    const restored =
+      keepRecent == null ? restoreSessions(files) : restoreSessionsByRule({ paths: files, keepRecent })
+    return { ok: true, restored }
+  })
+
+  registerHandler('ipc:session.archiveBatch', async (req) => {
+    const workspaceId =
+      String(req.workspaceId || '').trim() || workerManager.cwd || configStore.get('currentProject') || ''
+    const before = Number(req.before) || 0
+    const keepRecent = req.keepRecent == null ? undefined : Math.max(0, Number(req.keepRecent) || 0)
+    if (!workspaceId) return { ok: false, error: 'missing workspaceId' }
+    if (req.before == null && req.keepRecent == null) return { ok: false, error: 'missing rule (before | keepRecent)' }
+    try {
+      const rows = await listSessionsOnDisk(workspaceId)
+      const archived = archiveSessionsByRule({
+        rows: rows.map((r) => ({ path: r.path, modified: r.modified })),
+        before: before > 0 ? before : undefined,
+        keepRecent,
+      })
+      return { ok: true, archived }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'archiveBatch failed' }
+    }
+  })
+
+  registerHandler('ipc:session.autoNamePreview', async (req) => {
+    const file = (req.sessionFile as string | undefined)?.trim()
+    if (!file) return { ok: false, error: 'missing sessionFile' }
+    try {
+      const title = await autoNameTitle(file)
+      if (!title) return { ok: false, error: 'no title source' }
+      return { ok: true, title }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'autoName failed' }
+    }
+  })
+
   registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
     const file = req.sessionFile
     const r = await workerManager.deleteSessionFile(file)
-    if (r.ok) clearSessionDisplayName(file)
+    if (r.ok) {
+      clearSessionDisplayName(file)
+      clearSessionArchive(file)
+    }
     return { ok: !!r.ok, error: r.error }
   })
 
