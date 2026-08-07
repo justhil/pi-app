@@ -4,6 +4,7 @@ import { TreePanel } from './tree-panel'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
+import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 
 vi.mock('@renderer/lib/session-rewind', () => ({ navigateSessionToEntry: vi.fn(async () => true) }))
 vi.mock('@renderer/lib/session-fork', () => ({ forkSessionFromEntry: vi.fn(async () => true) }))
@@ -71,5 +72,14 @@ describe('TreePanel user-only filter', () => {
 
     expect(screen.getByRole('button', { name: /第一条用户消息/i })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /第一条回复/i })).toBeNull()
+  })
+
+  it('refreshes the tree on mount and when the session file changes', () => {
+    const refresh = vi.mocked(refreshSessionTree)
+    render(<TreePanel />)
+    expect(refresh).toHaveBeenCalledWith('/tmp/proj/session.jsonl')
+
+    act(() => useUIStore.setState({ historySessionFile: '/other/session.jsonl' }))
+    expect(refresh).toHaveBeenLastCalledWith('/other/session.jsonl')
   })
 })
