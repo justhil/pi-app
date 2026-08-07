@@ -3,6 +3,7 @@ import type { CompactionEvent, StoreApi } from '@renderer/stores/apply-app-event
 export function handleCompaction(event: CompactionEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'start') {
+    state.setCompactionActive(true)
     void Promise.all([
       import('@renderer/lib/extension-ui-channel'),
       import('@renderer/stores/extension-ui-store'),
@@ -11,6 +12,7 @@ export function handleCompaction(event: CompactionEvent, api: StoreApi): void {
       st.useExtensionUIStore.getState().clearAfterRespond()
     })
   } else if (event.phase === 'end') {
+    state.setCompactionActive(false)
     state.appendTimeline({
       id: api.nextItemId(),
       type: 'compaction',

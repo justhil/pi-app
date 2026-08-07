@@ -158,6 +158,8 @@ export interface UIState {
   clearTimeline: () => void
   runState: RunState
   setRunState: (patch: Partial<RunState>) => void
+  compactionActive: boolean
+  setCompactionActive: (active: boolean) => void
   workerLiveSnapshot: WorkerLiveSnapshot
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   fileChanges: FileChange[]
