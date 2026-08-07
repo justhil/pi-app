@@ -704,8 +704,11 @@ export function Timeline() {
     // prepended / the render window grows, keep the same content at the top of
     // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
     // the view toward the leaf right after a view-jump landed on an old node.
+    // Use the CURRENT scrollTop (not the load-start snapshot): the user may keep
+    // scrolling while the fetch is in flight, and restoring the stale snapshot
+    // yanks the viewport back to where the load began.
     const growth = el.scrollHeight - previous.scrollHeight
-    el.scrollTop = previous.scrollTop + growth
+    el.scrollTop = el.scrollTop + growth
   }, [renderCount, items.length])
 
   // Reset the virtualization window only when the session file changes — not when

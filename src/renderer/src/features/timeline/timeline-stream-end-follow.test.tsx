@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Timeline } from './timeline'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -168,5 +168,48 @@ describe('stream end + session switch-back follow behavior', () => {
     expect(scrollIntoView).toHaveBeenCalled()
     const target = scrollIntoView.mock.contexts[0] as HTMLElement
     expect(target?.dataset?.itemId).toBe('entry-60')
+  })
+
+  it('keeps the viewport position when older history finishes loading while the user scrolled', async () => {
+    useUIStore.setState(
+      baseState({
+        timelineItems: diskChunk(TAIL_START, TOTAL),
+        historyLoadedCount: TOTAL - TAIL_START + 1,
+      }),
+    )
+    let resolveFetch: (v: unknown) => void = () => {}
+    vi.mocked(ipcClient.invoke).mockImplementation(async (channel: string) => {
+      if (channel === 'session.getMessages') {
+        await new Promise<unknown>((r) => {
+          resolveFetch = r
+        })
+        return { items: diskChunk(20, 39), sourceCount: 20, totalCount: TOTAL }
+      }
+      return { items: [], totalCount: 0, sourceCount: 0 }
+    })
+
+    render(<Timeline />)
+    const pane = mockScrollPane(6000, 800)
+    // Let the mount-time session-enter anchor settle before we start scrolling.
+    await flushRaf()
+    // User scrolls near the top: the scroll handler starts loading the older page.
+    pane.scrollTop = 100
+    fireEvent.scroll(pane)
+
+    // While the fetch is in flight the user keeps scrolling (say into the
+    // region that is about to be prepended). The anchor must preserve THIS
+    // position, not the one captured when the load started.
+    pane.scrollTop = 1500
+    Object.defineProperty(pane, 'scrollHeight', { configurable: true, get: () => 6600 })
+
+    await act(async () => {
+      resolveFetch({ items: diskChunk(20, 39), sourceCount: 20, totalCount: TOTAL })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await flushRaf()
+
+    // 1500 + growth(6600 - 6000). The old snapshot formula would land on 700.
+    expect(pane.scrollTop).toBe(1500 + 600)
   })
 })
