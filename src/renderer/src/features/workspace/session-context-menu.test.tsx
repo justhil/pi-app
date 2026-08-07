@@ -41,6 +41,56 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     invokeMock.mockClear()
   })
 
+  it('rename reports the new title for a local in-place sidebar update', async () => {
+    invokeMock.mockResolvedValue({ ok: true, title: '新标题' })
+    const onSessionRenamed = vi.fn()
+    const onSessionsChange = vi.fn()
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <SessionContextMenuPortal
+        menu={MENU}
+        onClose={onClose}
+        onSessionsChange={onSessionsChange}
+        onSessionRenamed={onSessionRenamed}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.rename'))
+    })
+    rerender(
+      <SessionContextMenuPortal
+        menu={null}
+        onClose={onClose}
+        onSessionsChange={onSessionsChange}
+        onSessionRenamed={onSessionRenamed}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.change(document.querySelector('input[type="text"]') as Element, {
+        target: { value: '新标题' },
+      })
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:confirm'))
+    })
+
+    expect(invokeMock).toHaveBeenCalledWith('session.rename', {
+      sessionId: 's1',
+      sessionFile: '/proj/a/s1.jsonl',
+      title: '新标题',
+      workspaceId: '/proj/a',
+    })
+    expect(onSessionRenamed).toHaveBeenCalledWith({
+      sessionFile: '/proj/a/s1.jsonl',
+      title: '新标题',
+      workspacePath: '/proj/a',
+    })
+    // 重命名不再触发整列表重拉
+    expect(onSessionsChange).not.toHaveBeenCalled()
+  })
+
   it('delete refreshes the owning workspace', async () => {
     invokeMock.mockResolvedValue({ ok: true })
     vi.spyOn(window, 'confirm').mockReturnValue(true)

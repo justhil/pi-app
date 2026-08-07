@@ -23,10 +23,13 @@ export function SessionContextMenuPortal({
   menu,
   onClose,
   onSessionsChange,
+  onSessionRenamed,
 }: {
   menu: MenuState
   onClose: () => void
   onSessionsChange: (workspacePath?: string) => void
+  /** 重命名成功后本地更新侧栏条目标题：避免整列表重拉（重命名不改变列表顺序，重拉只会引起重渲染闪烁） */
+  onSessionRenamed?: (payload: { sessionFile: string; title: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -54,7 +57,11 @@ export function SessionContextMenuPortal({
       })
       if (r?.ok) {
         toast.success(t('common:sidebar.renamed'))
-        refreshList(target.workspacePath)
+        onSessionRenamed?.({
+          sessionFile: target.sessionFile,
+          title,
+          workspacePath: target.workspacePath,
+        })
         setRenameTarget(null)
       } else toast.error(r?.error || t('common:sidebar.renameFailed'))
     } catch (e) {
