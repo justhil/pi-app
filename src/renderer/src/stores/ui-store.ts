@@ -284,6 +284,9 @@ export const useUIStore = create<UIState>()(
     return { runState: next as RunState, ...extra }
   }),
 
+  compactionActive: false,
+  setCompactionActive: (active) => set({ compactionActive: active }),
+
   fileChanges: [],
   addFileChange: (fc) => set((s) => ({ fileChanges: [...s.fileChanges.filter(f => f.path !== fc.path), fc] })),
   clearFileChanges: () => set({ fileChanges: [] }),
