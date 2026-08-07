@@ -5,9 +5,16 @@ import { useUIStore } from '@renderer/stores/ui-store'
 
 /** 记录 session.list 的调用，用来断言 rename 后不重拉列表 */
 const sessionListCalls: Array<{ workspaceId?: string; includeArchived?: boolean }> = []
+/** 手动控制 session.delete 的完成时机，验证乐观移除在删除完成前生效 */
+let resolveDelete: ((v: unknown) => void) | null = null
 
 const invokeMock = vi.fn(async (method: string, req?: unknown) => {
   const params = (req || {}) as { key?: string; workspaceId?: string; includeArchived?: boolean }
+  if (method === 'session.delete') {
+    return new Promise((resolve) => {
+      resolveDelete = resolve
+    })
+  }
   if (method === 'session.list') {
     sessionListCalls.push(params)
     const ws = params.workspaceId
@@ -52,6 +59,7 @@ vi.mock('react-i18next', () => ({
 describe('ProjectSidebar rename of a non-current project session', () => {
   beforeEach(() => {
     sessionListCalls.length = 0
+    resolveDelete = null
     invokeMock.mockClear()
     useUIStore.setState({
       currentWorkspace: '/proj/A',
@@ -141,5 +149,69 @@ describe('ProjectSidebar rename of a non-current project session', () => {
     expect(
       sessionListCalls.filter((c) => c.workspaceId === '/proj/B' && c.includeArchived).length,
     ).toBe(bArchivedCallsBeforeRename)
+  })
+
+  it('removes the entry immediately on delete confirm and refetches on completion', async () => {
+    const { container } = render(<ProjectSidebar onOpenProject={() => {}} openProjectLabel="打开" />)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // 展开 B，缓存 B 的会话
+    const projRow = [...container.querySelectorAll('.sidebar-project-row')].find((n) =>
+      n.textContent?.includes('B'),
+    )
+    await act(async () => {
+      fireEvent.click(projRow!.querySelector('.sidebar-project-hit') as Element)
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('pi-desktop:workspace-sessions', {
+          detail: {
+            workspaceId: '/proj/B',
+            sessions: [
+              { sessionId: 'b1', title: '旧标题', updatedAt: 2, modelId: 'm', sessionFile: '/proj/B/b1.jsonl' },
+            ],
+          },
+        }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    const bRow = [...container.querySelectorAll('.sidebar-session-row')].find((n) =>
+      n.textContent?.includes('旧标题'),
+    )
+    expect(bRow).toBeTruthy()
+
+    const bListCallsBeforeDelete = sessionListCalls.filter((c) => c.workspaceId === '/proj/B').length
+
+    // 右键 B 的会话 → 删除 → 确认
+    await act(async () => {
+      fireEvent.contextMenu(bRow as Element)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+
+    // 删除 IPC 尚未完成（worker 还在重建 runtime）：条目已立即从列表消失，对话框已关闭
+    expect(resolveDelete).toBeTruthy()
+    expect(
+      [...container.querySelectorAll('.sidebar-session-row')].some((n) =>
+        n.textContent?.includes('旧标题'),
+      ),
+    ).toBe(false)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // 删除完成后刷新列表校准
+    await act(async () => {
+      resolveDelete!({ ok: true })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    const bListCallsAfterDelete = sessionListCalls.filter((c) => c.workspaceId === '/proj/B').length
+    expect(bListCallsAfterDelete).toBeGreaterThan(bListCallsBeforeDelete)
   })
 })

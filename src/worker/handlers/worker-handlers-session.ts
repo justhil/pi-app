@@ -207,10 +207,11 @@ export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply:
             return
           }
           const fs = await import('node:fs')
+          // 先删文件：让删除动作立即生效（不阻塞在 runtime 重建上）
+          if (fs.existsSync(file)) await fs.promises.unlink(file)
           if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
             await initSession(st.currentCwd)
           }
-          if (fs.existsSync(file)) fs.unlinkSync(file)
           reply({ type: 'sessionDeleteFile-done', ok: true })
         } catch (e: unknown) {
           reply({ type: 'sessionDeleteFile-done', ok: false, error: errorMessage(e) })

@@ -811,6 +811,7 @@ export function ProjectSidebar({
         onClose={sessionMenu.close}
         onSessionsChange={refreshSessionsAfterMutation}
         onSessionRenamed={applySessionRenamed}
+        onSessionRemoved={applySessionRemoved}
       />
       <ProjectContextMenuPortal
         menu={projectMenu.menu}

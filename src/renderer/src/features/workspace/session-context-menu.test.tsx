@@ -91,22 +91,31 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     expect(onSessionsChange).not.toHaveBeenCalled()
   })
 
-  it('delete refreshes the owning workspace', async () => {
+  it('delete refreshes the owning workspace and reports the removed session', async () => {
     invokeMock.mockResolvedValue({ ok: true })
     const onSessionsChange = vi.fn()
+    const onSessionRemoved = vi.fn()
     const onClose = vi.fn()
     const { rerender } = render(
       <SessionContextMenuPortal
         menu={MENU}
         onClose={onClose}
         onSessionsChange={onSessionsChange}
+        onSessionRemoved={onSessionRemoved}
       />,
     )
 
     await act(async () => {
       fireEvent.click(screen.getByText('common:sidebar.delete'))
     })
-    rerender(<SessionContextMenuPortal menu={null} onClose={onClose} onSessionsChange={onSessionsChange} />)
+    rerender(
+      <SessionContextMenuPortal
+        menu={null}
+        onClose={onClose}
+        onSessionsChange={onSessionsChange}
+        onSessionRemoved={onSessionRemoved}
+      />,
+    )
 
     await act(async () => {
       fireEvent.click(screen.getByText('common:sidebar.delete'))
@@ -115,6 +124,10 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     expect(invokeMock).toHaveBeenCalledWith('session.delete', {
       sessionId: 's1',
       sessionFile: '/proj/a/s1.jsonl',
+    })
+    expect(onSessionRemoved).toHaveBeenCalledWith({
+      sessionFile: '/proj/a/s1.jsonl',
+      workspacePath: '/proj/a',
     })
     expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
     // 确认后对话框立即关闭，不等到删除 IPC 返回

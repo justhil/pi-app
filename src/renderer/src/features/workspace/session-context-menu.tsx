@@ -25,12 +25,15 @@ export function SessionContextMenuPortal({
   onClose,
   onSessionsChange,
   onSessionRenamed,
+  onSessionRemoved,
 }: {
   menu: MenuState
   onClose: () => void
   onSessionsChange: (workspacePath?: string) => void
   /** 重命名成功后本地更新侧栏条目标题：避免整列表重拉（重命名不改变列表顺序，重拉只会引起重渲染闪烁） */
   onSessionRenamed?: (payload: { sessionFile: string; title: string; workspacePath: string }) => void
+  /** 删除确认后立即从侧栏移除条目：删除 IPC 可能较慢（worker 重建 runtime），不让 UI 干等 */
+  onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -86,6 +89,9 @@ export function SessionContextMenuPortal({
     const target = deleteTarget
     if (!target || deleting) return
     setDeleting(true)
+    // 立即关闭对话框并乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等
+    setDeleteTarget(null)
+    if (target.sessionFile) onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionId: target.sessionId,
