@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import type { AskQuestionPayload } from '@renderer/features/extension-ui/questionnaire-dialog'
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
 
@@ -77,11 +78,23 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
     set({ activePending: s.pending, suspended: null })
   },
 
-  clearAfterRespond: () => set({ activePending: null, suspended: null }),
+  clearAfterRespond: () => {
+    const active = get().activePending
+    if (active?.id) {
+      // Tell the worker its pending dialog is gone, so its promise doesn't hang
+      // the turn when the response was routed to the wrong slot or never arrived.
+      void ipcClient.invoke('extension.cancelUI', { id: active.id, reason: 'renderer-clear' }).catch(() => {})
+    }
+    set({ activePending: null, suspended: null })
+  },
 
   pruneStaleSuspension: () => pruneStaleSuspension(),
 
   resetForSessionContext: () => {
+    const active = get().activePending
+    if (active?.id) {
+      void ipcClient.invoke('extension.cancelUI', { id: active.id, reason: 'session-reset' }).catch(() => {})
+    }
     set({ activePending: null, suspended: null })
     void import('@renderer/lib/extension-ui-channel').then((m) => m.clearExtensionDialogDedupe())
   },

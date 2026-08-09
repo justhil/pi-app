@@ -21,6 +21,7 @@ import {
   canAcquireNewWorker,
   disposeWorkerSlot,
   evictIdleWorkers,
+  extensionUiDialogSource,
   forkWorkerForCwd,
   getBackgroundWorkerState,
   pruneIdleWorkersByTimeout,
@@ -735,9 +736,33 @@ export class WorkerManager {
     cancelled?: boolean
     result?: unknown
   }): void {
-    const slot = this.foregroundSlot()
-    if (!slot) return
+    // Route the response back to the slot that owns this dialog (registered when the
+    // request was forwarded); fall back to the foreground slot when unknown/stopping.
+    let slot: WorkerSlot | null = null
+    const id = response.id
+    const poolKey = id ? extensionUiDialogSource.get(id) : undefined
+    if (poolKey) {
+      slot = this.pool.get(poolKey) ?? null
+      extensionUiDialogSource.delete(id)
+    }
+    if (!slot || slot.stopping) slot = this.foregroundSlot()
+    if (!slot || slot.stopping) return
     slot.worker.postMessage({ type: 'extension-ui-response', response })
+  }
+
+  /** Tell the originating worker that its pending dialog was cancelled by the renderer. */
+  cancelExtensionUI(id: string | undefined, reason: string): void {
+    let slot: WorkerSlot | null = null
+    if (id) {
+      const poolKey = extensionUiDialogSource.get(id)
+      if (poolKey) {
+        slot = this.pool.get(poolKey) ?? null
+        extensionUiDialogSource.delete(id)
+      }
+    }
+    if (!slot || slot.stopping) slot = this.foregroundSlot()
+    if (!slot || slot.stopping) return
+    slot.worker.postMessage({ type: 'extension-ui-cancel', cancel: { id, reason } })
   }
 
   get isRunning(): boolean {

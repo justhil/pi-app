@@ -7,6 +7,13 @@ import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
 
+/**
+ * Tracks which worker slot owns each in-flight extension UI dialog (id → poolKey).
+ * Registered when a request is forwarded to the renderer, so responses and cancels
+ * can be routed back to the originating slot instead of only the foreground one.
+ */
+export const extensionUiDialogSource = new Map<string, string>()
+
 function createSlot(
   poolKey: string,
   cwd: string,
@@ -92,7 +99,7 @@ export function attachWorkerHandlers(
       agentTurnActive: boolean
     }) => void
     onSlotExit: (slot: WorkerSlot, code: number) => void
-    /** When set, only forward extension UI from this pool key (X1). */
+    /** When set, only notify-type extension UI is forwarded from non-foreground slots. */
     getForegroundPoolKey?: () => string | null
   },
 ): void {
@@ -145,28 +152,30 @@ export function attachWorkerHandlers(
       win &&
       !win.isDestroyed()
     ) {
-      const fg = opts.getForegroundPoolKey?.() ?? null
-      if (fg && fg !== slot.poolKey) {
-        // X1: only foreground session dismiss noise
-      } else {
-        win.webContents.send('ipc:extension-ui-dismiss', {
-          type: data.type,
-          id: data.id,
-          reason: data.reason,
-        })
-      }
+      // Drop the foreground gate: a background worker's dialog may be dismissed
+      // (timeout/abort/compaction) while its own slot is not foreground.
+      const dialogId = typeof data.id === 'string' ? data.id : undefined
+      if (dialogId && extensionUiDialogSource.has(dialogId)) extensionUiDialogSource.delete(dialogId)
+      win.webContents.send('ipc:extension-ui-dismiss', {
+        type: data.type,
+        id: data.id,
+        reason: data.reason,
+      })
     }
 
     if (data.type === 'extension-ui-request' && win && !win.isDestroyed()) {
-      const req = data.request as { method?: string; notifyType?: string; message?: string }
+      const req = data.request as { id?: string; method?: string; notifyType?: string; message?: string }
       const method = req?.method || ''
       const fg = opts.getForegroundPoolKey?.() ?? null
       const isForeground = !fg || fg === slot.poolKey
-      if (!isForeground && method !== 'notify') return
+      // Dialog requests from any slot must reach the renderer — background agents
+      // calling ask_user_question/select/confirm would otherwise never show a popup.
       const allow =
         method !== 'notify' || slot.agentTurnActive || req.notifyType === 'error'
       if (!allow) return
-      if (!isForeground && req.notifyType !== 'error') return
+      // Non-foreground notify stays gated (except errors) to avoid toast noise.
+      if (!isForeground && method === 'notify' && req.notifyType !== 'error') return
+      if (req?.id) extensionUiDialogSource.set(req.id, slot.poolKey)
       win.webContents.send('ipc:extension-ui-request', data.request)
     }
 

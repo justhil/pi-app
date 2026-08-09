@@ -180,6 +180,13 @@ export async function handleExtensionUiResponse(msg: WorkerIncomingMessage, repl
 }
 
 
+export async function handleExtensionUiCancel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+        st.uiBridge?.handleExtensionUiCancel?.(msg.cancel as { id?: string; reason?: string })
+        reply({ type: 'extension-ui-cancel-done' })
+        return
+}
+
+
 export async function handleDispose(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         st.uiBridge?.dispose()
         st.uiBridge = null

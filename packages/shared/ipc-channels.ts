@@ -29,6 +29,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:extension.config.get',
   'ipc:extension.config.set',
   'ipc:extension.respondUI',
+  'ipc:extension.cancelUI',
   'ipc:extensions.list',
   'ipc:extensions.missingRuntimePackages',
   'ipc:extensions.setEnabled',

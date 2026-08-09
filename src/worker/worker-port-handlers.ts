@@ -13,6 +13,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'followUp': Turn.handleFollowup,
   'clearQueue': Turn.handleClearqueue,
   'extension-ui-response': Turn.handleExtensionUiResponse,
+  'extension-ui-cancel': Turn.handleExtensionUiCancel,
   'dispose': Turn.handleDispose,
   'ping': Turn.handlePing,
   'setModel': Session.handleSetmodel,

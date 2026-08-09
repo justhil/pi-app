@@ -23,6 +23,8 @@ type Pending = {
 export type DesktopUIBridge = {
   uiContext: Record<string, unknown>
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
+  /** Resolve a pending dialog as cancelled (renderer cleared it without a response). */
+  handleExtensionUiCancel: (cancel: { id?: string; reason?: string }) => void
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
   setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
   dispose: () => void
@@ -66,6 +68,24 @@ function createDialogPromise<T>(
         opts?.onDismiss?.(id, 'timeout')
         resolve(defaultValue)
       }, opts.timeout)
+    } else if (request.method !== 'notify') {
+      // Fallback timeout: a dialog that never gets a response (renderer cleared it,
+      // response routed to the wrong slot, window closed...) must not hang the turn forever.
+      timeoutId = setTimeout(() => {
+        cleanup()
+        opts?.onDismiss?.(id, 'timeout')
+        try {
+          emit({
+            id: randomUUID(),
+            method: 'notify',
+            notifyType: 'warning',
+            message: 'Dialog wait timed out after 5 minutes; auto-cancelled, conversation can continue',
+          })
+        } catch {
+          /* ignore */
+        }
+        resolve(defaultValue)
+      }, 5 * 60 * 1000)
     }
     pending.set(id, {
       resolve: (v) => resolve(parse(v as ExtensionUIResponse)),
@@ -251,6 +271,12 @@ export function createDesktopUIBridge(
 
   return {
     uiContext,
+    handleExtensionUiCancel(cancel: { id?: string; reason?: string }) {
+      const p = cancel?.id ? pending.get(cancel.id) : undefined
+      if (!p) return
+      p.cleanup()
+      p.resolve({ cancelled: true })
+    },
     handleExtensionUIResponse(response: ExtensionUIResponse) {
       const p = pending.get(response.id)
       if (!p) return
