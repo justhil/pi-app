@@ -197,6 +197,8 @@ export interface UIState {
   /** sessionFile → running (sidebar spinner) */
   sessionRuntimeRunning: Record<string, boolean>
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
+  /** Clear stale optimistic send/stream markers (used when the bound worker is provably idle). */
+  reconcileIdleMarkers: () => void
   /**
    * Session-scoped tool row expand memory (toolCallId → expanded).
    * Display-only; not persisted across app restarts.

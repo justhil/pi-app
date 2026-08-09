@@ -334,6 +334,12 @@ export const useUIStore = create<UIState>()(
       else delete next[key]
       return { sessionRuntimeRunning: next }
     }),
+  reconcileIdleMarkers: () =>
+    set({
+      streamingAssistantId: null,
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+    }),
   lastModel: null,
   lastThinking: null,
   rememberModel: (model) => set({ lastModel: model }),

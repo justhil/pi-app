@@ -198,6 +198,9 @@ type ViewStore = {
   runState: RunState
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   setRunState: (patch: Partial<RunState>) => void
+  /** Optional: clear stale optimistic markers once the bound worker is provably idle. */
+  reconcileIdleMarkers?: () => void
+  setSessionRuntimeRunning?: (sessionFile: string, running: boolean) => void
 }
 
 /**
@@ -233,6 +236,20 @@ export function applyLiveSnapshotToView(
 
   store.setWorkerLiveSnapshot(boundSnap)
   syncViewRunStateFromWorkerSnapshot(viewSessionFile, boundSnap, (p) => store.setRunState(p))
+
+  // Reconcile: when the bound worker is idle for the viewed session, clear the
+  // optimistic send markers (streamingAssistantId / optimisticPendingUserText /
+  // agentTurnBootstrapping) that can survive a mid-turn session switch and leave
+  // the composer stuck on "conversation in progress".
+  if (
+    boundSnap.status !== 'running' &&
+    boundSnap.sessionFile &&
+    viewSessionFile &&
+    sessionFilesEqual(boundSnap.sessionFile, viewSessionFile)
+  ) {
+    store.reconcileIdleMarkers?.()
+    store.setSessionRuntimeRunning?.(viewSessionFile, false)
+  }
 }
 
 export function resetVisibleComposerTurnState(set: {

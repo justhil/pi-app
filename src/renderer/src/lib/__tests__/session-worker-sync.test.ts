@@ -205,4 +205,45 @@ describe('session-worker-sync', () => {
     expect(snap).toEqual({ sessionId: null, sessionFile: '/b.jsonl', status: 'idle' })
     expect(runStatus).toBeNull()
   })
+
+  it('reconciles stale optimistic markers when bound worker is idle for the viewed session', () => {
+    const reconciled: string[] = []
+    const runtimeFlags: Array<[string, boolean]> = []
+    applyLiveSnapshotToView(
+      '/view.jsonl',
+      { sessionId: 's1', sessionFile: '/view.jsonl', status: 'idle' },
+      {
+        historySessionFile: '/view.jsonl',
+        runState: { status: 'idle', toolCount: 0, errorCount: 0 },
+        setWorkerLiveSnapshot: () => {},
+        setRunState: () => {},
+        reconcileIdleMarkers: () => {
+          reconciled.push('reconcile')
+        },
+        setSessionRuntimeRunning: (f, running) => {
+          runtimeFlags.push([f, running])
+        },
+      },
+    )
+    expect(reconciled).toEqual(['reconcile'])
+    expect(runtimeFlags).toEqual([['/view.jsonl', false]])
+  })
+
+  it('does not reconcile when the bound worker is still running', () => {
+    let reconciled = false
+    applyLiveSnapshotToView(
+      '/view.jsonl',
+      { sessionId: 's1', sessionFile: '/view.jsonl', status: 'running' },
+      {
+        historySessionFile: '/view.jsonl',
+        runState: { status: 'running', toolCount: 0, errorCount: 0 },
+        setWorkerLiveSnapshot: () => {},
+        setRunState: () => {},
+        reconcileIdleMarkers: () => {
+          reconciled = true
+        },
+      },
+    )
+    expect(reconciled).toBe(false)
+  })
 })
