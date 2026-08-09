@@ -130,4 +130,52 @@ describe('resolveAppEventRoute', () => {
       ),
     ).toBe('background')
   })
+
+  it('backgrounds old-session events during pending new-session placeholder', () => {
+    expect(
+      resolveAppEventRoute(
+        {
+          currentWorkspace: '/w/preview',
+          currentSessionId: '__pending_new__',
+          historySessionFile: null,
+          workerLiveSnapshot: { sessionId: 'w-old', sessionFile: '/tmp/old.jsonl' },
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          phase: 'delta',
+          text: 'stale',
+          seq: 1,
+          workspaceId: '/w/preview',
+          sessionFile: '/tmp/old.jsonl',
+          sessionId: 'w-old',
+          timestamp: 1,
+        },
+      ),
+    ).toBe('background')
+  })
+
+  it('backgrounds events on Home (no session selected) even when worker matches evFile', () => {
+    expect(
+      resolveAppEventRoute(
+        {
+          currentWorkspace: '/w/preview',
+          currentSessionId: null,
+          historySessionFile: null,
+          workerLiveSnapshot: { sessionId: 'w-old', sessionFile: '/tmp/old.jsonl' },
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          phase: 'delta',
+          text: 'stale',
+          seq: 1,
+          workspaceId: '/w/preview',
+          sessionFile: '/tmp/old.jsonl',
+          sessionId: 'w-old',
+          timestamp: 1,
+        },
+      ),
+    ).toBe('background')
+  })
 })

@@ -177,6 +177,10 @@ export function ProjectSidebar({
         const store = useUIStore.getState()
         store.clearPendingNewSessionPlaceholder()
         store.setCurrentSession(null)
+        // Clear the stale worker snapshot: while the placeholder is open the worker
+        // is still bound to the previous session, and a stale snapshot would route
+        // that session's events as visible (new session jumping to the most recent).
+        store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
         store.clearTimeline()
         store.clearFileChanges()
         store.setHistoryMeta(0, 0, null)

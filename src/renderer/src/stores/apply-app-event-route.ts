@@ -1,5 +1,6 @@
 import type { SessionScopedAppEvent } from '@shared/app-event-session'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 
 export type AppEventRoute = 'visible' | 'background' | 'drop'
 
@@ -24,6 +25,12 @@ export function resolveAppEventRoute(state: RouteState, event: SessionScopedAppE
   const viewSid = state.currentSessionId
   const workerSid = state.workerLiveSnapshot.sessionId
   const evSid = event.sessionId
+
+  // Pending-new-session placeholder (not yet materialized) or Home (no bound
+  // session): viewFile is empty, so the old workerFile==evFile match would draw
+  // the previous session's events into the blank timeline (new session jumping to
+  // the most recent). Route everything to background until a real session binds.
+  if (!viewFile && (!viewSid || viewSid === PENDING_NEW_SESSION_ID)) return 'background'
 
   if (evFile) {
     if (viewFile && sessionFilesEqual(evFile, viewFile)) return 'visible'
