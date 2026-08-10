@@ -13,8 +13,8 @@ import {
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
 
-type MenuState = { x: number; y: number; path: string; label: string } | null
-type RenameState = { path: string; label: string } | null
+type MenuState = { x: number; y: number; path: string; label: string; sessionFile?: string } | null
+type RenameState = { path: string; label: string; sessionFile?: string } | null
 
 export function SandboxContextMenuPortal({
   menu,
@@ -93,7 +93,7 @@ export function SandboxContextMenuPortal({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
-                  setRenameState({ path: menu.path, label: menu.label })
+                  setRenameState({ path: menu.path, label: menu.label, sessionFile: menu.sessionFile })
                   onClose()
                 }}
               >
@@ -118,6 +118,7 @@ export function SandboxContextMenuPortal({
         : null}
       <RenamePromptDialog
         open={!!renameState}
+        autoNameTarget={renameState?.sessionFile ? { sessionFile: renameState.sessionFile } : null}
         title={t('common:sidebar.renameTempChat')}
         defaultValue={renameState?.label ?? ''}
         onConfirm={submitRename}
