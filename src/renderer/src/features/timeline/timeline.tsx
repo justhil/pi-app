@@ -19,7 +19,7 @@ import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
-import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
@@ -358,6 +358,7 @@ export function Timeline() {
   const viewSeqRef = useRef(0)
   const viewLoadRef = useRef<Promise<void> | null>(null)
   const viewTailSnapshotRef = useRef<{ id?: string; type?: string } | null>(null)
+  const viewLandedRef = useRef<{ entryId: string; seq: number } | null>(null)
   const [viewTarget, setViewTarget] = useState<string | null>(null)
   const lastTailId = items[items.length - 1]?.id
   // contentEpoch intentionally ignores raw stream text length — height growth is observed.
@@ -383,12 +384,16 @@ export function Timeline() {
       const entryId = detail?.entryId
       if (!entryId || typeof entryId !== 'string') return
       viewSeqRef.current += 1
+      viewLandedRef.current = null
       viewTailSnapshotRef.current = useUIStore.getState().timelineItems.at(-1) ?? null
+      // A view jump is a navigation away from the leaf: detach live-follow so the
+      // follow controller never pins the viewport back to the bottom after the reveal.
+      followLiveRef.current = false
       setViewTarget(entryId)
     }
     window.addEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
     return () => window.removeEventListener(TIMELINE_VIEW_ENTRY_EVENT, onViewEntry)
-  }, [])
+  }, [followLiveRef])
 
   // Reveal a pending view target: scroll when rendered, expand the virtual
   // window when loaded, or fetch a bounded read-only chunk when not loaded.
@@ -402,9 +407,14 @@ export function Timeline() {
       const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(entryId) : entryId
       const row = el.querySelector(`[data-session-entry-id="${escaped}"]`)
       if (row) {
+        followLiveRef.current = false
         row.scrollIntoView({ block: 'center' })
         window.dispatchEvent(new Event('timeline-scroll'))
         viewSeqRef.current += 1
+        // Remember the landing: if a later store replacement (e.g. a late
+        // session-shell hydrate bind) removes the target from the store, the
+        // self-heal effect below re-plans so the jump is not undone.
+        viewLandedRef.current = { entryId, seq: viewSeqRef.current }
         setViewTarget(null)
         return
       }
@@ -423,19 +433,76 @@ export function Timeline() {
       if (!sessionFile) return
       const captured = viewTailSnapshotRef.current
       const tail = all.at(-1) ?? null
-      viewLoadRef.current = fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
-        leafId: plan.entryId,
-        bypassCache: true,
-      })
-        .then(({ items: fetched }) => {
-          if (seq !== viewSeqRef.current) return
-          const latest = useUIStore.getState()
-          if (userSentSince(captured, latest.timelineItems.at(-1) ?? null)) return
-          const chunk = (fetched || []) as TimelineItem[]
-          if (isTargetNewerThanStore(chunk, tail)) return
-          const missing = missingOlderItems(chunk, latest.timelineItems)
-          if (missing.length) latest.prependHistoryItems(missing)
+      viewLoadRef.current = (async () => {
+        const res = await fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
+          leafId: plan.entryId,
+          bypassCache: true,
         })
+        if (seq !== viewSeqRef.current) return
+        const chunk = (res.items || []) as TimelineItem[]
+        if (!chunk.length) return
+        if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+        if (isTargetNewerThanStore(chunk, tail)) return
+
+        // The leaf-anchored fetch reports the target's absolute position (branch
+        // length). When the loaded tail does not start right above the target, fetch
+        // the tail-anchored remainder so the store stays contiguous — otherwise a
+        // hole is left between the target region and the tail, corrupting later
+        // offset-based older-loading.
+        let allFetched: TimelineItem[] = chunk
+        const targetPos = typeof res.totalCount === 'number' ? res.totalCount : 0
+        const pre = useUIStore.getState()
+        const total = pre.historyTotalCount
+        if (targetPos > 0 && total > targetPos) {
+          const gap = total - targetPos
+          // One leaf-anchored call reaches back at most 500 items (handler clamp).
+          const gapFetched = Math.min(gap, 500)
+          const tailRes = await fetchSessionHistoryTail(sessionFile, gapFetched, { leafId: null })
+          if (seq !== viewSeqRef.current) return
+          if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+          allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+          // When the target is further than 500 items below the loaded tail, the
+          // gap fetch leaves a hole between the target and the tail. Close it with
+          // one offset-based page spanning exactly the middle.
+          const gapTailStart = total - gapFetched + 1
+          const middleLength = gapTailStart - 1 - targetPos
+          if (middleLength > 0) {
+            const middleRes = await fetchSessionHistoryOlder(
+              sessionFile,
+              gapFetched,
+              Math.min(middleLength, 500),
+            )
+            if (seq !== viewSeqRef.current) return
+            if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+            // Oldest-first: target chunk, then the middle, then the tail remainder.
+            allFetched = [
+              ...chunk,
+              ...((middleRes.items || []) as TimelineItem[]),
+              ...((tailRes.items || []) as TimelineItem[]),
+            ]
+          }
+        }
+        const latest = useUIStore.getState()
+        const missing = missingOlderItems(allFetched, latest.timelineItems)
+        if (missing.length) {
+          latest.prependHistoryItems(missing)
+          const after = useUIStore.getState()
+          // Recompute loadedCount from the true coverage: everything from the chunk
+          // start (targetPos - chunkLen + 1) through the leaf is now loaded. This
+          // keeps the older-loader's offset honest so it never fetches pages that
+          // overlap or fall out of order.
+          if (after.historyTotalCount > 0) {
+            const chunkLen = Math.min(VIEW_REVEAL_CHUNK_LIMIT, targetPos)
+            const covered = after.historyTotalCount - (targetPos - chunkLen)
+            useUIStore.setState({
+              historyLoadedCount: Math.min(
+                after.historyTotalCount,
+                Math.max(after.historyLoadedCount, covered),
+              ),
+            })
+          }
+        }
+      })()
         .catch((error: unknown) => {
           console.error('[Timeline] view-entry load failed', error)
         })
@@ -444,6 +511,25 @@ export function Timeline() {
         })
     }
   }, [viewTarget, renderCount, items, historySessionFile])
+
+  // Self-heal: a view jump that already landed must survive a store replacement
+  // that drops its target (late hydrate bind, focus re-bind, …). When the landed
+  // entry vanishes from the store, re-plan the reveal instead of leaving the
+  // viewport on unrelated content.
+  useEffect(() => {
+    const landed = viewLandedRef.current
+    if (!landed) return
+    if (viewSeqRef.current !== landed.seq) {
+      viewLandedRef.current = null
+      return
+    }
+    const present = useUIStore
+      .getState()
+      .timelineItems.some((it) => it.sessionEntryId === landed.entryId || it.id === landed.entryId)
+    if (present) return
+    viewLandedRef.current = null
+    setViewTarget(landed.entryId)
+  }, [items, viewTarget])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -457,6 +543,7 @@ export function Timeline() {
         onUserScrollIntent(e.deltaY)
         // A pending view jump yields to the user's own scroll.
         viewSeqRef.current += 1
+        viewLandedRef.current = null
       }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
@@ -470,7 +557,7 @@ export function Timeline() {
       ro.disconnect()
     }
   }, [hasWorkspace, onUserScrollIntent, historySessionFile])
-  const scrollHeightBeforeLoadRef = useRef<number | null>(null)
+  const scrollHeightBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
 
@@ -497,7 +584,7 @@ export function Timeline() {
 
     if (canFetchDisk) {
       setFetchingOlder(true)
-      scrollHeightBeforeLoadRef.current = el.scrollHeight
+      scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
       const offset = st.historyLoadedCount
       const sessionFile = st.historySessionFile!
       void prependOlderTimelinePage(sessionFile, offset)
@@ -535,27 +622,41 @@ export function Timeline() {
     }
 
     // In-memory reveal only (already loaded items outside the render window).
-    scrollHeightBeforeLoadRef.current = el.scrollHeight
+    scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
     setRenderCount((count) => Math.min(count + PAGE, segs.history.length))
   }, [fetchingOlder])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
-    const previousScrollHeight = scrollHeightBeforeLoadRef.current
-    if (!el || previousScrollHeight == null) return
+    const previous = scrollHeightBeforeLoadRef.current
+    if (!el || previous == null) return
     scrollHeightBeforeLoadRef.current = null
-    el.scrollTop = el.scrollHeight - previousScrollHeight
+    // Anchor the viewport's content (not the bottom): when older rows are
+    // prepended / the render window grows, keep the same content at the top of
+    // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
+    // the view toward the leaf right after a view-jump landed on an old node.
+    const growth = el.scrollHeight - previous.scrollHeight
+    el.scrollTop = previous.scrollTop + growth
   }, [renderCount, items.length])
 
   // Reset the virtualization window only when the session file changes — not when
   // older messages are prepended (that changes items[0].id and must not reset).
+  const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
     setRenderCount(PAGE)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
-    viewSeqRef.current += 1
-    viewLoadRef.current = null
-    setViewTarget(null)
+    const prevFile = prevSessionFileRef.current
+    prevSessionFileRef.current = historySessionFile ?? null
+    // First hydration (null → file): keep a pending view jump so it re-plans
+    // against the freshly loaded store. A real session switch drops the old jump
+    // and cancels its in-flight fetch.
+    if (prevFile != null) {
+      viewSeqRef.current += 1
+      viewLoadRef.current = null
+      viewLandedRef.current = null
+      setViewTarget(null)
+    }
     followLiveRef.current = true
     requestAnimationFrame(() => {
       const el = scrollRef.current
