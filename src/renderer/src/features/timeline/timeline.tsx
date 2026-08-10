@@ -41,7 +41,10 @@ import {
 } from './timeline-follow-scroll'
 import { useSessionChrome } from '@renderer/lib/session-chrome'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
-import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
+import {
+  requestTimelineBottomAnchor,
+  useTimelineBottomAnchorController,
+} from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
 import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
@@ -376,6 +379,19 @@ export function Timeline() {
   )
   useTimelineBottomAnchorController(scrollRef, followLiveRef, historySessionFile)
 
+  // When a session skeleton finishes loading (cold open / switch-back), the
+  // session-enter anchor above may have run while scrollRef was still null
+  // (loading view renders no scroll pane), so the pin was lost. Re-anchor once
+  // the pane exists so the viewport lands on the latest content.
+  const prevHistoryLoadingRef = useRef(historyLoading)
+  useEffect(() => {
+    const wasLoading = prevHistoryLoadingRef.current
+    prevHistoryLoadingRef.current = historyLoading
+    if (wasLoading && !historyLoading && historySessionFile) {
+      requestTimelineBottomAnchor('session-enter')
+    }
+  }, [historyLoading, historySessionFile])
+
   // View-jump listener: the tree side only dispatches an entry id; reveal logic
   // lives here because the viewport (renderCount / scrollRef / items) is local.
   useEffect(() => {
@@ -423,6 +439,27 @@ export function Timeline() {
     const st = useUIStore.getState()
     const all = st.timelineItems
     const plan = planViewReveal(viewTarget, all, renderCountRef.current, st.historySessionFile)
+    if (plan.kind === 'none' && plan.reason === 'covered' && el) {
+      // The target is inside the render window, so its row is in the DOM — but
+      // possibly without a data-session-entry-id (optimistic placeholder whose
+      // entry id never arrived). Fall back to the item-id anchor so the click
+      // still lands on the message instead of silently doing nothing.
+      const targetItem = all.find(
+        (it) => it.sessionEntryId === viewTarget || it.id === viewTarget,
+      )
+      const anchor = targetItem
+        ? el.querySelector(`[data-item-id="${CSS.escape(String(targetItem.id))}"]`)
+        : null
+      if (anchor) {
+        followLiveRef.current = false
+        anchor.scrollIntoView({ block: 'center' })
+        window.dispatchEvent(new Event('timeline-scroll'))
+        viewSeqRef.current += 1
+        viewLandedRef.current = { entryId: viewTarget, seq: viewSeqRef.current }
+      }
+      setViewTarget(null)
+      return
+    }
     if (plan.kind === 'scroll') {
       setRenderCount((count) => Math.max(count, plan.requiredRenderCount))
       return
@@ -635,8 +672,11 @@ export function Timeline() {
     // prepended / the render window grows, keep the same content at the top of
     // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
     // the view toward the leaf right after a view-jump landed on an old node.
+    // Use the CURRENT scrollTop (not the load-start snapshot): the user may keep
+    // scrolling while the fetch is in flight, and restoring the stale snapshot
+    // yanks the viewport back to where the load began.
     const growth = el.scrollHeight - previous.scrollHeight
-    el.scrollTop = previous.scrollTop + growth
+    el.scrollTop = el.scrollTop + growth
   }, [renderCount, items.length])
 
   // Reset the virtualization window only when the session file changes — not when
@@ -855,11 +895,13 @@ export function Timeline() {
       />
     )
     return rowEntryId ? (
-      <div key={item.id || blockKey} data-session-entry-id={rowEntryId}>
+      <div key={item.id || blockKey} data-session-entry-id={rowEntryId} data-item-id={item.id}>
         {row}
       </div>
     ) : (
-      <Fragment key={item.id || blockKey}>{row}</Fragment>
+      <div key={item.id || blockKey} data-item-id={item.id}>
+        {row}
+      </div>
     )
   }
 
@@ -948,9 +990,11 @@ export function Timeline() {
                 />
               )
               return userEntryId ? (
-                <div data-session-entry-id={userEntryId}>{userRow}</div>
+                <div data-session-entry-id={userEntryId} data-item-id={turn.userItem.id}>
+                  {userRow}
+                </div>
               ) : (
-                userRow
+                <div data-item-id={turn.userItem.id}>{userRow}</div>
               )
             })()}
             {turn.blocks.map((block, bi) => {
