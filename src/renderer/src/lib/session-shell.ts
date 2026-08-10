@@ -647,7 +647,7 @@ export async function hydrateSessionView(
       useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)
     }
 
-    const next: SessionView = {
+    let next: SessionView = {
       sessionKey,
       sessionId: sessionId ?? existing?.sessionId ?? null,
       items: cloneItems(merged),
@@ -674,6 +674,22 @@ export async function hydrateSessionView(
     views.set(sessionKey, next)
 
     if (sessionFilesEqual(focusKey, sessionKey)) {
+      // A view-jump reveal may have loaded far more history than this 80-item
+      // tail fetch (its store supersedes the tail). Never shrink the display
+      // store back to the tail mid-reveal — that removed the just-landed target
+      // from the DOM and visually "stole" the jump. Compare against the CURRENT
+      // focused store (the merge above used a snapshot captured before the
+      // fetch), keep the richer items, and never reset the loaded counter.
+      const focusedNow = useUIStore.getState()
+      if (sessionFilesEqual(focusedNow.historySessionFile, sessionKey)) {
+        // Keep the richer display store and never shrink the loaded counter.
+        const focusedRicher = focusedNow.timelineItems.length >= next.items.length
+        next = {
+          ...next,
+          items: focusedRicher ? cloneItems(focusedNow.timelineItems) : next.items,
+          historyLoaded: Math.max(next.historyLoaded, focusedNow.historyLoadedCount),
+        }
+      }
       bindViewToUiStore(next)
       if (options?.bindWorker !== false) {
         // Normal conversations bind before showing composer meta/context.
