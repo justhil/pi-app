@@ -28,6 +28,8 @@ declare global {
           sessionFile?: string
         }) => void,
       ) => () => void
+      onSessionExternalUpdate?: (callback: (payload: { sessionFile: string }) => void) => () => void
+      onWorkspaceSessionsChanged?: (callback: (payload: { workspaceId: string }) => void) => () => void
       ping: () => string
     }
   }

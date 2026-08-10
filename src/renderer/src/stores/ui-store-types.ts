@@ -143,6 +143,9 @@ export interface UIState {
   historyLoading: boolean
   setHistoryMeta: (total: number, loaded: number, sessionFile: string | null) => void
   setHistoryLoading: (v: boolean) => void
+  /** 外部（如 CLI）会话同步状态：idle=无外部写入；active=外部对话进行中；error=同步异常 */
+  externalSyncPhase: 'idle' | 'active' | 'error'
+  setExternalSyncPhase: (phase: 'idle' | 'active' | 'error') => void
   subagentSessionGroup: SubagentSessionGroup | null
   setSubagentSessionGroup: (group: SubagentSessionGroup | null) => void
   timelineItems: TimelineItem[]

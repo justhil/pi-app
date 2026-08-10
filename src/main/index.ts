@@ -2,6 +2,7 @@ import './bootstrap-path'
 import { app, shell, BrowserWindow, dialog, session, Menu } from 'electron'
 import { createWindow } from './window'
 import { refreshGitWorkspaceWatch } from './git-workspace-watch'
+import { refreshSessionDirWatch } from './session-dir-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { sessionPreviewProcess } from './session-preview-process'
@@ -115,6 +116,7 @@ app.whenReady().then(() => {
   win.on('focus', () => notifyForegroundChanged())
   win.on('restore', () => notifyForegroundChanged())
   refreshGitWorkspaceWatch(win)
+  void refreshSessionDirWatch(win)
   if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
     win.once('show', () => {
       setTimeout(() => {
