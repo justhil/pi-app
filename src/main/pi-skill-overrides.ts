@@ -1,16 +1,18 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
 import { skillStorageKey } from './pi-resources-editor'
+import { resolveActiveAgentDir, resolveActiveAgentSettingsFile } from './agent-dir'
 
-const GLOBAL_SETTINGS = join(homedir(), '.pi', 'agent', 'settings.json')
+function globalSettingsFile(): string {
+  return resolveActiveAgentSettingsFile()
+}
 
 export type DesktopSkillOverrides = Record<string, boolean>
 
 export function readGlobalSettingsJson(): Record<string, unknown> {
-  if (!existsSync(GLOBAL_SETTINGS)) return {}
+  if (!existsSync(globalSettingsFile())) return {}
   try {
-    return JSON.parse(readFileSync(GLOBAL_SETTINGS, 'utf-8'))
+    return JSON.parse(readFileSync(globalSettingsFile(), 'utf-8'))
   } catch (e) {
     return {}
   }
@@ -52,9 +54,9 @@ export function setSkillEnabledInGlobal(name: string, path: string | undefined, 
     overrides[key] = false
   }
   settings.desktopSkillOverrides = overrides
-  const dir = join(homedir(), '.pi', 'agent')
+  const dir = resolveActiveAgentDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(GLOBAL_SETTINGS, JSON.stringify(settings, null, 2), 'utf-8')
+  writeFileSync(globalSettingsFile(), JSON.stringify(settings, null, 2), 'utf-8')
   return overrides
 }
 
@@ -75,9 +77,9 @@ export function applySkillOverridesBatch(
     }
   }
   settings.desktopSkillOverrides = overrides
-  const dir = join(homedir(), '.pi', 'agent')
+  const dir = resolveActiveAgentDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(GLOBAL_SETTINGS, JSON.stringify(settings, null, 2), 'utf-8')
+  writeFileSync(globalSettingsFile(), JSON.stringify(settings, null, 2), 'utf-8')
   return overrides
 }
 
@@ -93,8 +95,8 @@ export function migrateElectronSkillOverrides(
   }
   const settings = readGlobalSettingsJson()
   settings.desktopSkillOverrides = merged
-  const dir = join(homedir(), '.pi', 'agent')
+  const dir = resolveActiveAgentDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(GLOBAL_SETTINGS, JSON.stringify(settings, null, 2), 'utf-8')
+  writeFileSync(globalSettingsFile(), JSON.stringify(settings, null, 2), 'utf-8')
   return merged
 }

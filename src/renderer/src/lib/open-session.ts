@@ -5,7 +5,13 @@ import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
-import { focusSession, focusSessionSync, hydrateSessionView } from '@renderer/lib/session-shell'
+import {
+  focusSession,
+  focusSessionSync,
+  getFocusSessionKey,
+  getSessionView,
+  hydrateSessionView,
+} from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 async function openExistingSessionView(
@@ -17,7 +23,17 @@ async function openExistingSessionView(
   captureVisibleLiveSessionTimeline()
   useExtensionUIStore.getState().resetForSessionContext()
 
-  const { sessionKey, instant } = focusSessionSync(sessionId, sessionFile)
+  // switchSessionInPlace / activateWorkspace / previewSessionInPlace 已在同一同步流程里
+  // capture + focus 过本会话；这里跳过冗余的再次 capture + 重绑定，减少每次切换的合并开销。
+  const alreadyFocused = sessionFilesEqual(getFocusSessionKey(), sessionFile)
+  let sessionKey: string
+  let instant: boolean
+  if (alreadyFocused) {
+    sessionKey = getFocusSessionKey()!
+    instant = (getSessionView(sessionKey)?.items.length ?? 0) > 0
+  } else {
+    ;({ sessionKey, instant } = focusSessionSync(sessionId, sessionFile))
+  }
   if (navToken != null && !assertSessionNavigation(navToken)) return
 
   if (bindWorker) {

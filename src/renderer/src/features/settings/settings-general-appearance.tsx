@@ -7,6 +7,7 @@ import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
+import { RuntimeSettingsPanel } from '@renderer/features/settings/runtime-settings-panel'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
 import { btnOutline, numberInputCls } from '@renderer/features/settings/settings-controls'
@@ -236,6 +237,8 @@ export function GeneralSettings() {
           </div>
         </SettingRow>
       </SettingsSection>
+
+      <RuntimeSettingsPanel />
 
       <SettingsSection title={t('settings:general.recentProjects')}>
         {recentProjects.length > 0 ? (

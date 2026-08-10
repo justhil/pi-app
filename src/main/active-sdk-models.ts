@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { join } from 'path'
+import { resolveActiveAgentDir } from './agent-dir'
 
 export type ModelEntry = {
   id: string
@@ -139,12 +140,12 @@ export async function resolveAvailableModels(input: {
 
 export async function listCatalogModelsWithSdk(
   sdk: unknown,
+  agentDir = resolveActiveAgentDir(),
 ): Promise<readonly ModelEntry[]> {
   const module = sdk as ActiveModelSdk
   if (hasModernRuntime(module)) {
-    const agentDir = module.getAgentDir?.()
     const runtime = await module.ModelRuntime!.create!({
-      ...(agentDir ? { modelsPath: join(agentDir, 'models.json') } : {}),
+      modelsPath: join(agentDir, 'models.json'),
       allowModelNetwork: false,
     })
     if (runtime.getModels) return runtime.getModels()
@@ -161,10 +162,14 @@ export async function listCatalogModelsWithSdk(
 
 export async function listAvailableModelsWithSdk(
   sdk: unknown,
+  agentDir = resolveActiveAgentDir(),
 ): Promise<readonly ModelEntry[]> {
   const module = sdk as ActiveModelSdk
   if (hasModernRuntime(module)) {
-    const runtime = await module.ModelRuntime!.create!({ allowModelNetwork: true })
+    const runtime = await module.ModelRuntime!.create!({
+      modelsPath: join(agentDir, 'models.json'),
+      allowModelNetwork: true,
+    })
     if (runtime.getAvailable) return runtime.getAvailable()
     return runtime.getAvailableSnapshot?.() ?? []
   }

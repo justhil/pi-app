@@ -60,6 +60,7 @@ function baseDraft(): SettingsDraft {
       timeoutMs: 120000,
       builtinServePort: 18788,
     },
+    agentRuntime: { mode: 'host', distro: null },
   }
 }
 

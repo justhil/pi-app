@@ -3,7 +3,7 @@
 // 外部文件按 match.names（扩展包名）覆盖内置整份适配器，而非仅同 id 深合并
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
+import { getActiveDesktopDir } from './active-dirs'
 import type { AdapterCatalog, AdapterJson, AdapterLoadError, InteractDef } from './adapter-schema'
 
 // Builtin adapters are imported as modules so they survive bundling (no runtime fs read needed).
@@ -52,7 +52,7 @@ const BUILTIN: AdapterJson[] = [
   powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
   hashlineEditAdapter,
 ].map((a) => a as unknown as AdapterJson)
-const USER_DIR = join(homedir(), '.pi', 'desktop', 'adapters')
+const USER_DIR = () => join(getActiveDesktopDir(), 'adapters')
 let cachedCatalog: AdapterCatalog | null = null
 let cachedProjectDir: string | null = null
 
@@ -150,7 +150,7 @@ export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
     sources[raw.id] = 'builtin'
   }
 
-  const userOverrides = parseAdapterFiles(readDir(USER_DIR), errors)
+  const userOverrides = parseAdapterFiles(readDir(USER_DIR()), errors)
   adapters = applyPackageOverrides(adapters, userOverrides)
   for (const a of userOverrides) sources[a.id] = 'override'
 

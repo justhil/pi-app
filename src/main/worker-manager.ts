@@ -29,6 +29,8 @@ import {
 } from './worker-manager-pool'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
+import { isWslWindowsPath } from '@shared/wsl-path'
+import { isWslRuntimeActive } from './wsl/runtime-config'
 import { readMaxSessionWorkers } from './worker-pool-config'
 import { configStore } from './config-store'
 import { readSessionMetaFromFile } from './session-file-meta'
@@ -177,6 +179,29 @@ export class WorkerManager {
     return init
   }
 
+  /**
+   * Find a pool slot to reuse for `sessionFile` on `cwd`. Prefers the
+   * workspace slot, then any idle (non-running) slot already bound to the same
+   * cwd — re-keying an idle worker to the new session avoids forking a fresh
+   * WSL worker on every session switch (WSL forks are seconds: wsl.exe spawn +
+   * SDK import). Never steals a slot mid-turn: a running session keeps its
+   * worker so its agent can finish in the background.
+   */
+  private findReusableSlotForSession(sessionFile: string, cwd: string): WorkerSlot | null {
+    const sk = normalizeSessionKey(sessionFile)
+    const wsKey = workspacePoolKey(cwd)
+    const wsSlot = this.pool.get(wsKey)
+    if (wsSlot && !wsSlot.stopping && (!wsSlot.sessionFile || wsSlot.sessionFile === sk)) {
+      return wsSlot
+    }
+    for (const slot of this.pool.values()) {
+      if (slot === wsSlot || slot.stopping || slot.agentTurnActive) continue
+      if (slot.cwd !== cwd) continue
+      return slot
+    }
+    return null
+  }
+
   private async ensureSessionWorkerUnlocked(sessionFile: string, cwd: string): Promise<InitResult> {
     const sk = normalizeSessionKey(sessionFile)
     if (!sk) throw new Error('sessionFile required')
@@ -194,19 +219,20 @@ export class WorkerManager {
       return this.initResultFromSlot(existing)
     }
 
-    // Reuse workspace slot on same cwd if unbound / same session
-    const wsKey = workspacePoolKey(cwd)
-    const wsSlot = this.pool.get(wsKey)
-    if (wsSlot && !wsSlot.stopping && (!wsSlot.sessionFile || wsSlot.sessionFile === sk)) {
-      const wasForeground = this.foregroundPoolKey === wsKey
-      this.pool.delete(wsKey)
-      wsSlot.poolKey = sk
-      wsSlot.sessionFile = sk
-      this.pool.set(sk, wsSlot)
+    // Reuse an idle same-cwd worker (workspace slot or any non-running session
+    // slot) instead of forking — session switches then share a single worker.
+    const reusable = this.findReusableSlotForSession(sessionFile, cwd)
+    if (reusable) {
+      const oldKey = reusable.poolKey
+      const wasForeground = this.foregroundPoolKey === oldKey
+      if (this.pool.get(oldKey) === reusable) this.pool.delete(oldKey)
+      reusable.poolKey = sk
+      reusable.sessionFile = sk
+      this.pool.set(sk, reusable)
       if (wasForeground) this.foregroundPoolKey = sk
-      if (wsSlot.initPromise) await wsSlot.initPromise
-      await this.requestOnSlot(wsSlot, 'loadSession', { sessionFile: sk })
-      return this.initResultFromSlot(wsSlot)
+      if (reusable.initPromise) await reusable.initPromise
+      await this.requestOnSlot(reusable, 'loadSession', { sessionFile: sk }).catch(() => null)
+      return this.initResultFromSlot(reusable)
     }
 
     const cap = canAcquireNewWorker(this.pool)
@@ -541,8 +567,82 @@ export class WorkerManager {
   }
 
   async listSessions(cwd?: string): Promise<WorkerSessionOnDisk[]> {
-    const r = await this.request('listSessions', { cwd })
+    const target = (cwd || '').trim()
+    const slot = await this.ensureListSlotForCwd(target)
+    if (!slot) return []
+    const r = await this.requestOnSlot(slot, 'listSessions', { cwd: target })
     return (r.sessions as WorkerSessionOnDisk[]) || []
+  }
+
+  /**
+   * Resolve a worker slot able to list sessions for `cwd`. Prefers a live slot
+   * bound to the same cwd; falls back to an environment-compatible slot (WSL
+   * targets only ever use WSL workers — a host worker's SDK cannot see WSL
+   * session dirs). When the target is a WSL path and no WSL worker is alive,
+   * forks a WSL workspace worker so the list is not spuriously empty.
+   */
+  private async ensureListSlotForCwd(cwd: string): Promise<WorkerSlot | null> {
+    const target = (cwd || '').trim()
+    const targetIsWsl = this.isWslTargetPath(target)
+    if (target) {
+      const wsKey = workspacePoolKey(target)
+      const byWs = this.pool.get(wsKey)
+      if (byWs && !byWs.stopping) return byWs
+      for (const slot of this.pool.values()) {
+        if (!slot.stopping && slot.cwd === target) return slot
+      }
+    }
+    const foreground = this.foregroundSlot()
+    if (foreground && !foreground.stopping && !targetIsWsl) return foreground
+    for (const slot of this.pool.values()) {
+      if (slot.stopping) continue
+      if (targetIsWsl && !this.isWslSlot(slot)) continue
+      if (!targetIsWsl && this.isWslSlot(slot)) continue
+      return slot
+    }
+    if (targetIsWsl) return this.forkListWorkerForWsl(target)
+    return null
+  }
+
+  private isWslTargetPath(cwd: string): boolean {
+    // WSL 模式下 worker 一律 fork 进 WSL（forkWorkerForCwd 按 runtime 决定），
+    // 宿主路径（含 sandbox 的 C:\...）也会被 windowsPathToWsl 转成 /mnt/c/...，
+    // 会话同样写在 WSL 内，因此 WSL 运行时下任意路径都按 WSL 目标处理。
+    // 不能再用 cwd.startsWith('/') 判 WSL：Linux/macOS 宿主下所有 POSIX 路径
+    // 都会命中，导致 listSessions 误选 slot / 误 fork。宿主下只认显式 WSL UNC 路径。
+    return isWslRuntimeActive() || isWslWindowsPath(cwd)
+  }
+
+  private isWslSlot(slot: WorkerSlot): boolean {
+    return isWslRuntimeActive() || isWslWindowsPath(slot.cwd)
+  }
+
+  /** Fork a WSL workspace worker (not foreground) purely to serve listSessions. */
+  private async forkListWorkerForWsl(cwd: string): Promise<WorkerSlot | null> {
+    const key = workspacePoolKey(cwd)
+    const cap = canAcquireNewWorker(this.pool)
+    if (!cap.ok) {
+      evictIdleWorkers(this.pool, {
+        foregroundKey: this.foregroundPoolKey,
+        maxWorkers: readMaxSessionWorkers(),
+      })
+    }
+    if (!canAcquireNewWorker(this.pool).ok) return null
+    try {
+      const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: key, sessionFile: null })
+      this.pool.set(key, slot)
+      attachWorkerHandlers(slot, slot.worker, {
+        mainWindow: this.mainWindow,
+        getForegroundPoolKey: () => this.foregroundPoolKey,
+        onAppEvent: (p) => this.forwardAppEvent(p),
+        onSlotExit: (s, code) => this.handleSlotExit(s, code),
+      })
+      await init
+      return slot
+    } catch (e) {
+      console.warn('[workerManager] list worker fork failed:', e)
+      return null
+    }
   }
   /**
    * Read-only runtime snapshot.

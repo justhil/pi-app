@@ -52,6 +52,8 @@ export interface StoreSchema {
   sessionDisplayNames: Record<string, string>
   /** 语音输入 ASR 配置 */
   asrConfig: AsrConfig
+  /** Agent 运行时：host = Windows 宿主，wsl = 在 WSL 发行版内运行 */
+  agentRuntime: { mode: 'host' | 'wsl'; distro: string | null }
 }
 
 const store = new Store<StoreSchema>({
@@ -96,6 +98,7 @@ const store = new Store<StoreSchema>({
       timeoutMs: 120000,
       builtinServePort: 18788,
     } as AsrConfig,
+    agentRuntime: { mode: 'host', distro: null },
   },
 })
 

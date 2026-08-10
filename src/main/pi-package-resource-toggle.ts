@@ -1,10 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join, relative, resolve, dirname } from 'path'
-import { homedir } from 'os'
 import { errorMessage } from '@shared/error-message'
-
-const AGENT_DIR = join(homedir(), '.pi', 'agent')
-const GLOBAL_SETTINGS = join(AGENT_DIR, 'settings.json')
+import { resolveActiveAgentSettingsFile } from './agent-dir'
 
 export type PiResourceScope = 'user' | 'project'
 
@@ -44,7 +41,7 @@ function projectSettingsPath(cwd: string): string {
 }
 
 function getSettingsFile(scope: PiResourceScope, cwd: string): string {
-  return scope === 'project' ? projectSettingsPath(cwd) : GLOBAL_SETTINGS
+  return scope === 'project' ? projectSettingsPath(cwd) : resolveActiveAgentSettingsFile()
 }
 
 function stripPatternPrefix(p: string): string {

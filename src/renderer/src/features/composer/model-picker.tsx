@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import { X, Search, Check, Cpu, ChevronRight, Loader2 } from '@renderer/components/icons'
@@ -38,12 +38,27 @@ export function ModelPicker() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [pendingModel, setPendingModel] = useState<string | null>(null)
 
+  const reload = useMemo(
+    () => () => {
+      ipcClient.invoke('model.list', { scope: 'available' }).then((res) => setModels(res?.models || [])).catch(() => {})
+    },
+    [],
+  )
+
   useEffect(() => {
     if (!open) return
     setQuery('')
     setExpanded({})
-    ipcClient.invoke('model.list', { scope: 'available' }).then((res) => setModels(res?.models || [])).catch(() => {})
-  }, [open])
+    reload()
+    const unsub = onAppEvent((event) => {
+      // Worker bound a session and pushed its runtime model state → the picker's
+      // earlier SDK fallback may have been empty (worker not ready yet). Reload.
+      if (event?.type !== 'run') return
+      if (event.phase !== 'state' && event.phase !== 'started') return
+      reload()
+    })
+    return unsub
+  }, [open, reload])
 
   const filtered = useMemo(() => {
     if (!query) return models

@@ -6,6 +6,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
 import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
+import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import {
   settingsEqual,
   type PiInfo,
@@ -46,6 +47,8 @@ export function PiSettingsPanel() {
   const [switching, setSwitching] = useState(false)
   const [envTarget, setEnvTarget] = useState<'builtin' | 'global' | 'user'>('builtin')
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const { draft: settingsDraft } = useSettingsDraft()
+  const isWslRuntime = settingsDraft?.agentRuntime?.mode === 'wsl' && !!settingsDraft?.agentRuntime?.distro
 
   const loadModelsForDropdown = useCallback(async () => {
     try {
@@ -258,6 +261,7 @@ export function PiSettingsPanel() {
           installOutput={installOutput}
           onSwitchEnv={onSwitchEnv}
           onInstall={onInstall}
+          isWslRuntime={isWslRuntime}
         />
         {ui && <PiSettingsEnvAuthRows info={info} ui={ui} />}
       </SettingsSection>

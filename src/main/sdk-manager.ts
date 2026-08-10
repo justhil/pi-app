@@ -15,6 +15,12 @@ import {
   readBuiltinSdkVersion,
   type SdkKind,
 } from './sdk-loader'
+import {
+  resolveWslActiveSdk,
+  assertWslSdkAvailable,
+  invalidateWslSdkResolveCache,
+} from './wsl/sdk-resolve'
+import { invalidateWslEnvCaches } from './wsl/wsl-exec'
 
 const PKG = '@earendil-works/pi-coding-agent'
 const REGISTRY_URL = 'https://registry.npmjs.org/@earendil-works%2Fpi-coding-agent'
@@ -40,7 +46,10 @@ let registryCache: { at: number; value: { versions: string[]; latest: string | n
 
 export function invalidateSdkManagerCaches(): void {
   sdkStatusCache = null
+  wslSdkCache = null
   registryCache = null
+  invalidateWslSdkResolveCache()
+  invalidateWslEnvCaches()
 }
 
 /** 检测系统 npm 是否可用（超时 3s 或非 0 视为不可用）。结果缓存。 */
@@ -75,6 +84,47 @@ export function readSdkStatusCached(userDataDir: string, opts?: { refresh?: bool
   }
   const value = readSdkStatus(userDataDir)
   sdkStatusCache = { at: now, value }
+  return value
+}
+
+/**
+ * WSL 模式下全局 SDK 探测：发行版内 `npm i -g` 的 pi-coding-agent 视为全局版本。
+ * 探测是异步的（要跑 wsl.exe bash 探测脚本），返回发行版内 SDK 的版本与生效 kind。
+ */
+export async function readWslSdkStatus(
+  distro: string,
+  opts?: { refresh?: boolean },
+): Promise<{
+  globalVersion: string | null
+  active: SdkStatus['active']
+}> {
+  const sdk = await resolveWslActiveSdk(distro, opts)
+  if (!sdk) {
+    const builtinVersion = readBuiltinSdkVersion()
+    return { globalVersion: null, active: { kind: 'builtin', version: builtinVersion } }
+  }
+  return {
+    globalVersion: sdk.version,
+    active: { kind: 'global', version: sdk.version || readBuiltinSdkVersion() },
+  }
+}
+
+let wslSdkCache: { at: number; distro: string; value: { globalVersion: string | null; active: SdkStatus['active'] } } | null = null
+
+/**
+ * WSL 模式生效环境探测（含 TTL 缓存，独立于宿主 sdkStatusCache）。
+ * WSL 模式下 worker 实际用 resolveWslActiveSdk 决定 SDK，current.json 只在宿主模式生效。
+ */
+export async function readWslSdkStatusCached(
+  distro: string,
+  opts?: { refresh?: boolean },
+): Promise<{ globalVersion: string | null; active: SdkStatus['active'] }> {
+  const now = Date.now()
+  if (!opts?.refresh && wslSdkCache && wslSdkCache.distro === distro && now - wslSdkCache.at < SDK_STATUS_TTL_MS) {
+    return wslSdkCache.value
+  }
+  const value = await readWslSdkStatus(distro, opts)
+  wslSdkCache = { at: now, distro, value }
   return value
 }
 
@@ -210,28 +260,44 @@ export function installVersion(version: string, onProgress: (line: string) => vo
 }
 
 /** 切换生效环境。global/user 需先校验对应 pi 可解析；builtin 直接写。 */
-export function switchTo(target: SdkKind): Promise<void> {
+export async function switchTo(target: SdkKind): Promise<void> {
   const done = () => {
     invalidateSdkManagerCaches()
   }
+  const { getAgentRuntimeConfig } = await import('./wsl/runtime-config')
+  const runtime = getAgentRuntimeConfig()
+  const wslDistro = runtime.mode === 'wsl' && runtime.distro ? runtime.distro : null
+
   if (target === 'builtin') {
+    if (wslDistro) {
+      // WSL 模式下 worker 由 resolveWslActiveSdk 决定 SDK，current.json 只在宿主生效，
+      // 写入 builtin 标记是无效的，直接拒绝以免 UI 状态与真实行为不一致。
+      return Promise.reject(new Error('WSL 模式下仅支持发行版内全局 SDK，无法切换到内置环境'))
+    }
     writeActive('builtin')
     done()
-    return Promise.resolve()
+    return
   }
   if (target === 'global') {
-    if (!resolveGlobalSdkPath()) return Promise.reject(new Error('全局 pi 不可用，无法切换到全局版本'))
+    if (wslDistro) {
+      await assertWslSdkAvailable(wslDistro, { refresh: true })
+    } else if (!resolveGlobalSdkPath()) {
+      return Promise.reject(new Error('全局 pi 不可用，无法切换到全局版本'))
+    }
     writeActive('global')
     done()
-    return Promise.resolve()
+    return
   }
   // user
+  if (wslDistro) {
+    return Promise.reject(new Error('WSL 模式下暂不支持独立环境，请直接在发行版内使用 npm 管理'))
+  }
   if (!resolveUserSdkPath(app.getPath('userData'))) {
     return Promise.reject(new Error('独立环境未安装，无法切换；请先升级安装'))
   }
   writeActive('user')
   done()
-  return Promise.resolve()
+  return
 }
 
 export function isInstalling(): boolean {

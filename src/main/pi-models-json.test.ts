@@ -8,6 +8,12 @@ import {
   type PiModelsConfig,
 } from './pi-models-json'
 
+vi.mock('./config-store', () => ({
+  configStore: {
+    get: vi.fn(() => undefined),
+  },
+}))
+
 const tempDirs: string[] = []
 
 function createSdk(getError?: () => string | undefined) {

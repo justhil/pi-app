@@ -22,7 +22,7 @@ import {
   listPiBuiltinPromptFiles,
   listPluginInjectedPromptFiles,
   groupPromptCatalog,
-  PI_GLOBAL_SYSTEM_MD,
+  getGlobalSystemMd,
   type PromptCatalogItem,
 } from '../../pi-prompt-catalog'
 import { listRevisions, pushRevision, restoreRevision, readRevision } from '../../resource-revisions'
@@ -194,7 +194,7 @@ export function registerSkillsResourceHandlers(): void {
       }
     }
     const resolved = resolve(path)
-    const isGlobalSystem = resolved.toLowerCase() === resolve(PI_GLOBAL_SYSTEM_MD).toLowerCase()
+    const isGlobalSystem = resolved.toLowerCase() === resolve(getGlobalSystemMd()).toLowerCase()
     if (isGlobalSystem && !existsSync(resolved)) {
       let seed =
         '# pi 系统提示词\n\n' +

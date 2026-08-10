@@ -1,6 +1,5 @@
 import { execFile } from 'child_process'
 import { existsSync, statSync } from 'fs'
-import { homedir } from 'os'
 import { basename, join, relative, sep } from 'path'
 import { promisify } from 'util'
 import type {
@@ -9,6 +8,7 @@ import type {
   WorkspaceFsSearchResponse,
 } from '@shared/ipc-contract'
 import { resolvePathUnderWorkspace } from './workspace-fs'
+import { resolveActiveAgentDir } from './agent-dir'
 
 const execFileAsync = promisify(execFile)
 const FD_ENUMERATION_LIMIT = 100
@@ -105,7 +105,7 @@ async function verifyFdExecutable(candidate: string): Promise<boolean> {
 
 export async function resolveFdExecutable(): Promise<string | null> {
   if (cachedFdExecutable !== undefined) return cachedFdExecutable
-  const agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent')
+  const agentDir = process.env.PI_CODING_AGENT_DIR || resolveActiveAgentDir()
   const managed = join(agentDir, 'bin', process.platform === 'win32' ? 'fd.exe' : 'fd')
   if (existsSync(managed)) {
     cachedFdExecutable = managed

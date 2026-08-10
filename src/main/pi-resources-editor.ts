@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join, basename, dirname, resolve } from 'path'
-import { homedir } from 'os'
+import { resolveActiveAgentDir } from './agent-dir'
 
 export type ResourceSource = 'project' | 'global' | 'settings' | 'package' | 'unknown'
 
@@ -21,7 +21,7 @@ export type PromptListItem = {
 }
 
 function agentDir() {
-  return join(homedir(), '.pi', 'agent')
+  return resolveActiveAgentDir()
 }
 
 function parseFrontmatter(raw: string): { meta: Record<string, string>; body: string } {

@@ -14,6 +14,8 @@ import {
   resetSessionEventTracking,
 } from './worker-session-events.js'
 import { errorMessage } from '@shared/error-message'
+import { sendToMain } from './worker-transport.js'
+import { translateEventPaths } from './worker-path-bridge.js'
 
 export type WorkerModelRuntime = Pick<ModelRuntime, 'getModel' | 'getAvailable' | 'refresh'>
 
@@ -68,7 +70,7 @@ export function beginRunIdentity(): void {
 }
 
 export function emit(event: AppEvent): void {
-  process.parentPort?.postMessage({ type: 'app-event', event })
+  sendToMain({ type: 'app-event', event: translateEventPaths(event) })
 }
 
 function now(): number {
@@ -371,7 +373,7 @@ function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').Extensio
     if (!st.agentTurnActive) {
       if (req.notifyType === 'error') {
         traceWorkerUi(req, true)
-        process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+        sendToMain({ type: 'extension-ui-request', request: req })
       } else {
         traceWorkerUi(req, false)
       }
@@ -379,11 +381,11 @@ function postExtensionUiToDesktop(req: import('./desktop-ui-bridge.js').Extensio
     }
   }
   traceWorkerUi(req, true)
-  process.parentPort?.postMessage({ type: 'extension-ui-request', request: req })
+  sendToMain({ type: 'extension-ui-request', request: req })
 }
 
 function postExtensionUiDismiss(id: string, reason: 'timeout' | 'abort'): void {
-  process.parentPort?.postMessage({ type: 'extension-ui-dismiss', id, reason })
+  sendToMain({ type: 'extension-ui-dismiss', id, reason })
 }
 
 export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {

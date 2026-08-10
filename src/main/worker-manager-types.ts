@@ -1,6 +1,6 @@
-import type { UtilityProcess } from 'electron'
 import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
+import type { WorkerTransport } from './worker-transport'
 
 export type WorkerInitResult = {
   sessionId: string
@@ -14,7 +14,7 @@ export type WorkerSlot = {
   cwd: string
   /** Bound session file when known; null for workspace-only slots */
   sessionFile: string | null
-  worker: UtilityProcess
+  worker: WorkerTransport
   pendingRequests: Map<
     string,
     { resolve: (v: WorkerResponsePayload) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }

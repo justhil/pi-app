@@ -2,15 +2,24 @@ import { utilityProcess, app, type BrowserWindow } from 'electron'
 import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
+import { windowsPathToWsl } from '@shared/wsl-path'
 import { resolveActiveSdk } from './sdk-loader'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
+import {
+  createUtilityProcessTransport,
+  createWslWorkerTransport,
+  type WorkerTransport,
+} from './worker-transport'
+import { getAgentRuntimeConfig } from './wsl/runtime-config'
+import { resolveWslActiveSdk } from './wsl/sdk-resolve'
+import { syncWorkerBundleToWsl } from './wsl/worker-host'
 
 function createSlot(
   poolKey: string,
   cwd: string,
-  worker: Electron.UtilityProcess,
+  worker: WorkerTransport,
   sessionFile: string | null = null,
 ): WorkerSlot {
   const now = Date.now()
@@ -81,7 +90,7 @@ export async function remapSessionWorkerSlot(
 
 export function attachWorkerHandlers(
   slot: WorkerSlot,
-  forked: Electron.UtilityProcess,
+  transport: WorkerTransport,
   opts: {
     mainWindow: BrowserWindow | null
     onAppEvent: (payload: {
@@ -96,29 +105,22 @@ export function attachWorkerHandlers(
     getForegroundPoolKey?: () => string | null
   },
 ): void {
-  if (forked.stderr) {
-    forked.stderr.on('error', () => {})
-    forked.stderr.on('data', (chunk: Buffer) => {
-      for (const line of chunk.toString().split('\n')) {
-        if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
-      }
-    })
+  const onStderrChunk = (chunk: string): void => {
+    for (const line of chunk.split('\n')) {
+      if (line.trim()) safeWrite(`[Worker:stderr] ${line}`)
+    }
   }
-  if (forked.stdout) {
-    forked.stdout.on('error', () => {})
-    forked.stdout.on('data', (chunk: Buffer) => {
-      for (const line of chunk.toString().split('\n')) {
-        if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
-      }
-    })
+  const onStdoutChunk = (chunk: string): void => {
+    for (const line of chunk.split('\n')) {
+      if (line.trim()) safeWrite(`[Worker:stdout] ${line}`)
+    }
   }
+  transport.onStderr(onStderrChunk)
+  transport.onStdout(onStdoutChunk)
 
-  forked.on('message', (event: { data?: WorkerResponsePayload } | WorkerResponsePayload) => {
-    if (slot.worker !== forked) return
-    const data = (typeof event === 'object' && event !== null && 'data' in event
-      ? (event as { data?: WorkerResponsePayload }).data
-      : event) as WorkerResponsePayload | undefined
-    if (!data) return
+  transport.onMessage((data) => {
+    if (slot.worker !== transport) return
+    if (!data || typeof data !== 'object') return
 
     if (data.type === 'app-event') {
       const ev = data.event as AppEvent
@@ -198,8 +200,8 @@ export function attachWorkerHandlers(
     }
   })
 
-  forked.on('exit', (code) => {
-    if (slot.worker !== forked) {
+  transport.onExit((code) => {
+    if (slot.worker !== transport) {
       safeWrite(`[WorkerManager] Ignoring stale worker exit (code ${code})`)
       return
     }
@@ -280,11 +282,39 @@ export async function forkWorkerForCwd(
   opts?: { poolKey?: string; sessionFile?: string | null },
 ): Promise<{ slot: WorkerSlot; init: Promise<WorkerInitResult> }> {
   const poolKey = opts?.poolKey || workspacePoolKey(cwd)
-  const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], { stdio: 'pipe' })
-  const slot = createSlot(poolKey, cwd, forked, opts?.sessionFile ?? null)
+  const runtime = getAgentRuntimeConfig()
+  let transport: WorkerTransport
+  let sdkPath: string | null
+  let workerCwd = cwd
+  if (runtime.mode === 'wsl' && runtime.distro) {
+    const sdk = await resolveWslActiveSdk(runtime.distro)
+    if (!sdk) {
+      throw new Error(
+        `[WSL] 发行版 ${runtime.distro} 内未找到 pi-coding-agent，请在 WSL 中执行 npm i -g @earendil-works/pi-coding-agent`,
+      )
+    }
+    const workerWslPath = syncWorkerBundleToWsl(runtime.distro)
+    if (!workerWslPath) {
+      throw new Error('[WSL] 无法将 worker 同步到 WSL 发行版（检查 out/main/worker.mjs）')
+    }
+    const wslCwd = windowsPathToWsl(runtime.distro, cwd)
+    workerCwd = wslCwd
+    transport = createWslWorkerTransport({
+      distro: runtime.distro,
+      wslCwd,
+      workerWslPath,
+    })
+    sdkPath = sdk.entryPath
+  } else {
+    const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], { stdio: 'pipe' })
+    transport = createUtilityProcessTransport(forked)
+    const activeSdk = resolveActiveSdk(app.getPath('userData'))
+    sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
+  }
+  const slot = createSlot(poolKey, cwd, transport, opts?.sessionFile ?? null)
   const initPromise = new Promise<WorkerInitResult>((resolve, reject) => {
     const timer = setTimeout(() => {
-      if (slot.worker !== forked) return
+      if (slot.worker !== transport) return
       slot.initResolver = null
       slot.initRejecter = null
       slot.initPromise = null
@@ -300,9 +330,7 @@ export async function forkWorkerForCwd(
     }
   })
   slot.initPromise = initPromise
-  const activeSdk = resolveActiveSdk(app.getPath('userData'))
-  const sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
-  forked.postMessage({ type: 'init', cwd, sdkPath })
+  transport.postMessage({ type: 'init', cwd: workerCwd, sdkPath })
   return { slot, init: initPromise }
 }
 

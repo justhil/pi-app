@@ -3,6 +3,7 @@ import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
+import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { settingsSetSchema } from '../schemas'
 
@@ -27,6 +28,11 @@ export function registerSettingsHandlers(): void {
       return { key: req.key, value: asrConfigForSettingsResponse(loadAsrConfig()) }
     }
     configStore.set(key, req.value as StoreSchema[typeof key])
+    if (key === 'agentRuntime') {
+      // 宿主 ↔ WSL 切换会改变 active 用户目录（~/.pi/agent、~/.pi/desktop），
+      // 清理 adapter catalog 缓存避免继续读旧 runtime 的目录。
+      invalidateAdapterCatalog()
+    }
     return { key: req.key, value: req.value }
   })
 

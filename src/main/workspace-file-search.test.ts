@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildWorkspaceFileSearchQuery,
   clearWorkspaceFileSearchCaches,
@@ -9,6 +9,12 @@ import {
   resolveFdExecutable,
   workspaceFsSearch,
 } from './workspace-file-search'
+
+vi.mock('./config-store', () => ({
+  configStore: {
+    get: vi.fn(() => undefined),
+  },
+}))
 
 describe('workspace file search query and ranking', () => {
   it('normalizes slash scopes and rejects traversal outside the workspace', () => {

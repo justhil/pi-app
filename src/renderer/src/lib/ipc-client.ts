@@ -6,6 +6,7 @@ declare global {
   interface Window {
     piDesktop?: {
       readonly customThemeDisabled?: boolean
+      readonly platform?: string
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       invoke: (channel: string, request?: any) => Promise<any>
       getPathForFile: (file: File) => string

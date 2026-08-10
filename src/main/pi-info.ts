@@ -2,10 +2,10 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
 import { execSync } from 'child_process'
 import { app } from 'electron'
 import { resolveActiveSdk } from './sdk-loader'
+import { resolveActiveAgentDir } from './agent-dir'
 
 export interface PiInfo {
   sdkVersion: string
@@ -19,7 +19,7 @@ export interface PiInfo {
 }
 
 export function readPiInfo(): PiInfo {
-  const agentDir = join(homedir(), '.pi', 'agent')
+  const agentDir = resolveActiveAgentDir()
   const info: PiInfo = {
     sdkVersion: '',
     agentDir,
@@ -90,7 +90,7 @@ export interface ResourceList {
 }
 
 export function readResourceList(cwd: string): ResourceList {
-  const agentDir = join(homedir(), '.pi', 'agent')
+  const agentDir = resolveActiveAgentDir()
   const result: ResourceList = { skills: [], prompts: [], extensions: [], themes: [], packages: [] }
 
   const scan = (dir: string, source: string) => {

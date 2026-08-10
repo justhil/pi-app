@@ -16,6 +16,7 @@ export function PiSettingsSdkSection({
   installOutput,
   onSwitchEnv,
   onInstall,
+  isWslRuntime = false,
 }: {
   info: PiInfo | null
   sdkStatus: SdkStatus | null
@@ -29,6 +30,7 @@ export function PiSettingsSdkSection({
   installOutput: string[]
   onSwitchEnv: (target: 'builtin' | 'global' | 'user') => void
   onInstall: () => void
+  isWslRuntime?: boolean
 }) {
   const { t } = useTranslation()
   return (
@@ -80,6 +82,12 @@ export function PiSettingsSdkSection({
       {sdkStatus?.workerFallback && (
         <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">{t('settings:pi.fallbackWorker')}</div>
       )}
+      {isWslRuntime && (
+        <div className="mt-2 text-xs text-sky-600 dark:text-sky-400">{t('settings:pi.wslModeHint')}</div>
+      )}
+      {isWslRuntime && sdkStatus && !sdkStatus.globalVersion && (
+        <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">{t('settings:pi.wslGlobalNotDetected')}</div>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground/70">{t('settings:pi.switchEnv')}</span>
         <select
@@ -88,7 +96,9 @@ export function PiSettingsSdkSection({
           disabled={switching || installing}
           onChange={(e) => setEnvTarget(e.target.value as 'builtin' | 'global' | 'user')}
         >
-          <option value="builtin">{t('settings:pi.switchEnvBuiltin')}</option>
+          <option value="builtin" disabled={isWslRuntime}>
+            {t('settings:pi.switchEnvBuiltin')}
+          </option>
           <option value="global" disabled={!sdkStatus?.globalVersion}>
             {t('settings:pi.switchEnvGlobal')}
             {!sdkStatus?.globalVersion ? t('settings:pi.switchEnvGlobalNotDetected') : ''}
@@ -113,34 +123,36 @@ export function PiSettingsSdkSection({
           {switching ? t('settings:pi.switching') : t('settings:pi.switch')}
         </button>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground/70">{t('settings:pi.upgradeEnv')}</span>
-        <select
-          className={cn(selectCls, 'min-w-[8rem]')}
-          value={selectedVersion}
-          disabled={installing || !sdkStatus?.npmAvailable}
-          onChange={(e) => setSelectedVersion(e.target.value)}
-        >
-          <option value="">{t('settings:pi.selectVersion')}</option>
-          {(registry?.versions || [])
-            .slice()
-            .reverse()
-            .map((v) => (
-              <option key={v} value={v}>
-                {v}
-                {v === registry?.latest ? ` ${t('settings:pi.latest')}` : ''}
-              </option>
-            ))}
-        </select>
-        <button
-          type="button"
-          className={btnPrimary}
-          disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
-          onClick={onInstall}
-        >
-          {installing ? t('settings:pi.installing') : t('settings:pi.upgradeSwitch')}
-        </button>
-      </div>
+      {!isWslRuntime && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground/70">{t('settings:pi.upgradeEnv')}</span>
+          <select
+            className={cn(selectCls, 'min-w-[8rem]')}
+            value={selectedVersion}
+            disabled={installing || !sdkStatus?.npmAvailable}
+            onChange={(e) => setSelectedVersion(e.target.value)}
+          >
+            <option value="">{t('settings:pi.selectVersion')}</option>
+            {(registry?.versions || [])
+              .slice()
+              .reverse()
+              .map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                  {v === registry?.latest ? ` ${t('settings:pi.latest')}` : ''}
+                </option>
+              ))}
+          </select>
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
+            onClick={onInstall}
+          >
+            {installing ? t('settings:pi.installing') : t('settings:pi.upgradeSwitch')}
+          </button>
+        </div>
+      )}
       {(installing || installOutput.length > 0) && (
         <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted/50 p-2 font-mono text-2xs whitespace-pre-wrap text-muted-foreground">
           {installOutput.join('\n')}

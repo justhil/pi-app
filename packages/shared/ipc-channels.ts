@@ -103,6 +103,8 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:window:isMaximized',
   'ipc:window:maximize',
   'ipc:window:minimize',
+  'ipc:wsl.listDistros',
+  'ipc:wsl.probeDistro',
   'ipc:workspace.ensureWorker',
   'ipc:workspace.fs.listDir',
   'ipc:workspace.fs.readText',
