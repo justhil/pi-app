@@ -22,10 +22,16 @@ export function SessionContextMenuPortal({
   menu,
   onClose,
   onSessionsChange,
+  onSessionRenamed,
+  onSessionRemoved,
 }: {
   menu: MenuState
   onClose: () => void
   onSessionsChange: (workspacePath?: string) => void
+  /** 重命名成功后本地更新侧栏条目标题：避免整列表重拉（重命名不改变列表顺序，重拉只会引起重渲染闪烁） */
+  onSessionRenamed?: (payload: { sessionFile: string; title: string; workspacePath: string }) => void
+  /** 删除确认后立即从侧栏移除条目：删除 IPC 可能较慢（worker 重建 runtime），不让 UI 干等 */
+  onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -52,7 +58,11 @@ export function SessionContextMenuPortal({
       })
       if (r?.ok) {
         toast.success(t('common:sidebar.renamed'))
-        refreshList(target.workspacePath)
+        if (onSessionRenamed) {
+          onSessionRenamed({ sessionFile: target.sessionFile, title, workspacePath: target.workspacePath })
+        } else {
+          refreshList(target.workspacePath)
+        }
         setRenameTarget(null)
       } else toast.error(r?.error || t('common:sidebar.renameFailed'))
     } catch (e) {
@@ -71,6 +81,9 @@ export function SessionContextMenuPortal({
       onClose()
       return
     }
+    // 确认后立即乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等；
+    // 完成或失败后再以整列表刷新校准。
+    onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionFile: target.sessionFile,
@@ -87,9 +100,14 @@ export function SessionContextMenuPortal({
         }
         toast.success(t('common:sidebar.deleted'))
         refreshList(target.workspacePath)
-      } else toast.error(r?.error || t('common:sidebar.deleteFailed'))
+      } else {
+        toast.error(r?.error || t('common:sidebar.deleteFailed'))
+        // 失败时也刷新：把乐观移除的条目恢复回来
+        refreshList(target.workspacePath)
+      }
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
+      refreshList(target.workspacePath)
     }
     onClose()
   }

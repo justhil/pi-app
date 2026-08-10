@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionContextMenuPortal } from './session-context-menu'
 
-const invokeMock = vi.fn(async (_method: unknown, _req?: unknown) => ({}))
+const invokeMock = vi.fn(async (_method: unknown, _req?: unknown): Promise<unknown> => ({}))
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: (method: unknown, req?: unknown) => invokeMock(method, req) },
 }))
@@ -79,5 +79,67 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
       workspaceId: '/proj/a',
     })
     expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
+  })
+
+  it('rename applies the title in place when onSessionRenamed is provided', async () => {
+    invokeMock.mockResolvedValue({ ok: true })
+    const onSessionsChange = vi.fn()
+    const onSessionRenamed = vi.fn()
+    render(
+      <SessionContextMenuPortal
+        menu={MENU}
+        onClose={() => {}}
+        onSessionsChange={onSessionsChange}
+        onSessionRenamed={onSessionRenamed}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.rename'))
+    })
+    const input = document.querySelector('input[type="text"]') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '新标题' } })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:confirm'))
+    })
+
+    expect(onSessionRenamed).toHaveBeenCalledWith({
+      sessionFile: '/proj/a/s1.jsonl',
+      title: '新标题',
+      workspacePath: '/proj/a',
+    })
+    // 原地更新时不再整列表重拉
+    expect(onSessionsChange).not.toHaveBeenCalled()
+  })
+
+  it('delete optimistically removes the entry before the IPC resolves', async () => {
+    let resolveDelete: (v: unknown) => void = () => {}
+    invokeMock.mockImplementation(async (method: unknown) => {
+      if (method === 'session.delete') return new Promise<unknown>((r) => (resolveDelete = r))
+      return { ok: true }
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const onSessionRemoved = vi.fn()
+    render(
+      <SessionContextMenuPortal
+        menu={MENU}
+        onClose={() => {}}
+        onSessionsChange={() => {}}
+        onSessionRemoved={onSessionRemoved}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+
+    // 乐观移除在 IPC 完成前就已发生
+    expect(onSessionRemoved).toHaveBeenCalledWith({
+      sessionFile: '/proj/a/s1.jsonl',
+      workspacePath: '/proj/a',
+    })
+    await act(async () => {
+      resolveDelete({ ok: true })
+    })
   })
 })
