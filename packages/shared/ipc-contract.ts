@@ -40,6 +40,8 @@ export interface SessionInfo {
   status: 'idle' | 'busy' | 'error'
 }
 export interface SessionListRequest { workspaceId?: string }
+export interface SessionAutoNamePreviewRequest { sessionFile: string }
+export interface SessionAutoNamePreviewResponse { ok: boolean; title?: string; error?: string }
 export interface SessionListResponse { sessions: SessionInfo[] }
 export interface SessionOpenRequest { sessionId: string; sessionFile?: string }
 export interface SessionOpenResponse { session: SessionInfo }
@@ -300,6 +302,7 @@ export interface IpcMethodMap {
   'session.forkCandidates': { request: SessionForkCandidatesRequest; response: SessionForkCandidatesResponse }
   'session.clone': { request: SessionCloneRequest; response: SessionCloneResponse }
   'session.rename': { request: SessionRenameRequest; response: SessionRenameResponse }
+  'session.autoNamePreview': { request: SessionAutoNamePreviewRequest; response: SessionAutoNamePreviewResponse }
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }
   'session.export': { request: SessionExportRequest; response: SessionExportResponse }
   'context.preview': { request: ContextPreviewRequest; response: ContextPreviewResponse }

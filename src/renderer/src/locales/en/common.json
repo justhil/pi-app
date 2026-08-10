@@ -30,6 +30,8 @@
     "firstMsgIsTitle": "First message is the title",
     "projects": "Projects",
     "rename": "Rename",
+    "autoGenerate": "Auto-generate",
+    "autoNameHint": "Extract title from the first message (strips / commands)",
     "delete": "Delete",
     "renamed": "Renamed",
     "renameFailed": "Rename failed",

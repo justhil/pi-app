@@ -86,6 +86,8 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:session.prepare',
   'ipc:session.reloadFromDisk',
   'ipc:session.rename',
+  'ipc:session.autoNamePreview',
+
   'ipc:session.setEphemeralDraft',
   'ipc:session.setPendingBind',
   'ipc:session.tree',

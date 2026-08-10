@@ -30,6 +30,8 @@
     "firstMsgIsTitle": "首条消息即标题",
     "projects": "项目",
     "rename": "重命名",
+    "autoGenerate": "自动生成",
+    "autoNameHint": "从首条消息提取标题（剥离 / 命令）",
     "delete": "删除",
     "renamed": "已重命名",
     "renameFailed": "重命名失败",

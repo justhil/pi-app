@@ -5,6 +5,7 @@ import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
 import { resolvePreparedSessionFile } from '../../session-prepare'
 import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
+import { autoNameTitle } from '../../session-auto-name'
 import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
   bindSandboxSession,
@@ -535,6 +536,18 @@ export function registerSessionHandlers(): void {
     clearSessionDisplayName(file)
     await sessionPreviewProcess.invalidateListSessions(workspaceCwd)
     return { ok: true, title }
+  })
+
+  registerHandler('ipc:session.autoNamePreview', async (req) => {
+    const file = (req.sessionFile as string | undefined)?.trim()
+    if (!file) return { ok: false, error: 'missing sessionFile' }
+    try {
+      const title = await autoNameTitle(file)
+      if (!title) return { ok: false, error: 'no title source' }
+      return { ok: true, title }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'autoName failed' }
+    }
   })
 
   registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
