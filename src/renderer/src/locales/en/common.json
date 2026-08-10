@@ -40,7 +40,11 @@
     "deleteFailed": "Delete failed",
     "deleteMissingFile": "Cannot delete: session file path is missing",
     "deleteSessionConfirm": "Delete session \"{{name}}\"? Its pi session file will be permanently removed.",
-    "deleteConfirm": "Delete \"{{name}}\"? Directory and pi sessions will be removed."
+    "deleteConfirm": "Delete \"{{name}}\"? Directory and pi sessions will be removed.",
+    "deleteSessionTitle": "Delete session",
+    "deleteSandboxTitle": "Delete temp chat",
+    "removeProjectTitle": "Remove project from list"
+
   },
   "composer": {
     "placeholder": "Message or / command",

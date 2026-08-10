@@ -12,6 +12,7 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import type { SessionMenuTarget } from './session-context-menu-types'
 
 export type { SessionMenuTarget } from './session-context-menu-types'
@@ -30,6 +31,8 @@ export function SessionContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -60,17 +63,20 @@ export function SessionContextMenuPortal({
     }
   }
 
-  const runDelete = async (target: SessionMenuTarget) => {
-    const defaultTitle = target.title || target.sessionId.slice(0, 8)
+  const runDelete = (target: SessionMenuTarget) => {
     if (!target.sessionFile) {
       toast.error(t('common:sidebar.deleteMissingFile'))
       onClose()
       return
     }
-    if (!window.confirm(t('common:sidebar.deleteSessionConfirm', { name: defaultTitle }))) {
-      onClose()
-      return
-    }
+    setDeleteTarget(target)
+    onClose()
+  }
+
+  const confirmDelete = async () => {
+    const target = deleteTarget
+    if (!target || deleting) return
+    setDeleting(true)
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionFile: target.sessionFile,
@@ -91,7 +97,8 @@ export function SessionContextMenuPortal({
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
     }
-    onClose()
+    setDeleting(false)
+    setDeleteTarget(null)
   }
 
   const itemClass = contextMenuItemClass
@@ -138,6 +145,18 @@ export function SessionContextMenuPortal({
             document.body,
           )
         : null}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={t('common:sidebar.deleteSessionTitle')}
+        message={t('common:sidebar.deleteSessionConfirm', {
+          name: deleteTarget?.title || deleteTarget?.sessionId.slice(0, 8) || '',
+        })}
+        confirmLabel={t('common:sidebar.delete')}
+        destructive
+        busy={deleting}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
       <RenamePromptDialog
         open={!!renameTarget}
         title={t('common:sidebar.renameSession')}

@@ -40,7 +40,11 @@
     "deleteFailed": "删除失败",
     "deleteMissingFile": "无法删除：缺少会话文件路径",
     "deleteSessionConfirm": "删除会话「{{name}}」？对应的 pi 会话文件将永久删除。",
-    "deleteConfirm": "删除「{{name}}」？目录与 pi 会话将一并移除。"
+    "deleteConfirm": "删除「{{name}}」？目录与 pi 会话将一并移除。",
+    "deleteSessionTitle": "删除会话",
+    "deleteSandboxTitle": "删除临时对话",
+    "removeProjectTitle": "从列表移除项目"
+
   },
   "composer": {
     "placeholder": "消息或 / 命令",

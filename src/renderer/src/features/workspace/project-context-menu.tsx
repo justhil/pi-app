@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen, ListX } from '@renderer/components/icons'
+import { ConfirmDialog } from '@renderer/components/ui/confirm-dialog'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
@@ -26,6 +27,8 @@ export function ProjectContextMenuPortal({
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
+  const [removeState, setRemoveState] = useState<{ path: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -41,22 +44,25 @@ export function ProjectContextMenuPortal({
     onClose()
   }
 
-  const runRemove = async (path: string, name: string) => {
-    if (!window.confirm(t('common:sidebar.removeProjectConfirm', { name }))) {
-      onClose()
-      return
-    }
+  const runRemove = (path: string, name: string) => {
+    setRemoveState({ path, name })
+    onClose()
+  }
+
+  const confirmRemove = async () => {
+    const state = removeState
+    if (!state || removing) return
+    setRemoving(true)
     try {
-      const r = await ipcClient.invoke('project.removeRecent', { path })
+      const r = await ipcClient.invoke('project.removeRecent', { path: state.path })
       if (!r?.ok) {
         toast.error(r?.error || t('common:sidebar.removeFailed'))
-        onClose()
         return
       }
       const store = useUIStore.getState()
-      const nextRecent = store.recentProjects.filter((p) => p !== path)
+      const nextRecent = store.recentProjects.filter((p) => p !== state.path)
       useUIStore.setState({ recentProjects: nextRecent })
-      if (store.currentWorkspace === path) {
+      if (store.currentWorkspace === state.path) {
         const nextPath = nextRecent[0]
         if (nextPath) {
           await activateWorkspace(nextPath, { preferHome: true })
@@ -73,20 +79,24 @@ export function ProjectContextMenuPortal({
       onListChange()
     } catch (e) {
       toast.error(t('common:sidebar.removeFailed'))
+    } finally {
+      setRemoving(false)
+      setRemoveState(null)
     }
-    onClose()
   }
 
-  if (!menu) return null
+  if (!menu && !removeState) return null
 
   return createPortal(
-    <div
-      ref={ref}
-      className={contextMenuPanelClass}
-      style={{ left: menu.x, top: menu.y }}
-      role="menu"
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <>
+      {menu && (
+        <div
+          ref={ref}
+          className={contextMenuPanelClass}
+          style={{ left: menu.x, top: menu.y }}
+          role="menu"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
       <button
         type="button"
         className={contextMenuItemClass}
@@ -111,7 +121,20 @@ export function ProjectContextMenuPortal({
         <ListX className="h-3 w-3 shrink-0" strokeWidth={2} />
         {t('common:sidebar.removeFromList')}
       </button>
-    </div>,
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!removeState}
+        title={t('common:sidebar.removeProjectTitle')}
+        message={t('common:sidebar.removeProjectConfirm', { name: removeState?.name || '' })}
+        confirmLabel={t('common:sidebar.removeFromList')}
+        destructive
+        busy={removing}
+        onConfirm={() => void confirmRemove()}
+        onCancel={() => setRemoveState(null)}
+      />
+    </>,
+
     document.body,
   )
 }
