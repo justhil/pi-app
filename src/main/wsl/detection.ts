@@ -2,7 +2,14 @@
  * Enumerating and probing WSL distros on the Windows host.
  */
 
-import { runWslDistroCdSync, runWslDistroSync, runWslSync, wslDefaultShellSync, wslHomeDirSync } from './wsl-exec.js'
+import {
+  isValidWslDistroName,
+  runWslAsync,
+  runWslDistroAsync,
+  runWslDistroCdAsync,
+  wslDefaultShell,
+  wslHomeDir,
+} from './wsl-exec.js'
 
 export interface WslDistroInfo {
   name: string
@@ -10,8 +17,8 @@ export interface WslDistroInfo {
   isDefault: boolean
 }
 
-export function listWslDistros(): WslDistroInfo[] {
-  const json = runWslSync(['--list', '--format', 'json'], { timeout: 15000 })
+export async function listWslDistros(): Promise<WslDistroInfo[]> {
+  const json = await runWslAsync(['--list', '--format', 'json'], { timeout: 15000 })
   if (json.status === 0 && json.stdout.trim()) {
     try {
       const parsed = JSON.parse(json.stdout) as {
@@ -39,7 +46,7 @@ export function listWslDistros(): WslDistroInfo[] {
     }
   }
 
-  const quiet = runWslSync(['--list', '--quiet'], { timeout: 15000 })
+  const quiet = await runWslAsync(['--list', '--quiet'], { timeout: 15000 })
   const names = quiet.stdout
     .split('\n')
     .map((line) => line.trim().replace(/^[\uFEFF\x00]+|[\uFEFF\x00]+$/g, ''))
@@ -59,7 +66,7 @@ export interface WslProbeResult {
   error?: string
 }
 
-export function probeWslDistro(distro: string): WslProbeResult {
+export async function probeWslDistro(distro: string): Promise<WslProbeResult> {
   const result: WslProbeResult = {
     ok: false,
     distro,
@@ -70,27 +77,33 @@ export function probeWslDistro(distro: string): WslProbeResult {
     supportsCd: true,
   }
 
-  const home = wslHomeDirSync(distro)
+  if (!isValidWslDistroName(distro)) {
+    result.error = 'invalid wsl distro'
+    return result
+  }
+
+  const [home, supportsCdResult, shell] = await Promise.all([
+    wslHomeDir(distro),
+    runWslDistroCdAsync(distro, '/', ['true']),
+    wslDefaultShell(distro),
+  ])
   if (!home) {
     result.error = 'WSL 发行版不可用或尚未初始化'
     return result
   }
 
-  result.supportsCd = runWslDistroCdSync(distro, '/', ['true']).status === 0
+  result.supportsCd = supportsCdResult.status === 0
 
-  const shell = wslDefaultShellSync(distro)
-
-  const node = runWslDistroSync(distro, [shell, '-lc', 'command -v node && node --version'])
+  const [node, deps] = await Promise.all([
+    runWslDistroAsync(distro, [shell, '-lc', 'command -v node && node --version']),
+    runWslDistroAsync(distro, [shell, '-lc', 'command -v npm; command -v git; command -v pi']),
+  ])
   if (node.status === 0) {
     result.node = true
     const version = node.stdout.trim().split('\n').pop()?.trim()
     if (version) result.nodeVersion = version.replace(/^v/, '')
   }
 
-  const deps = runWslDistroSync(
-    distro,
-    [shell, '-lc', 'command -v npm; command -v git; command -v pi'],
-  )
   const lines = deps.stdout.trim().split('\n').filter(Boolean)
   for (const line of lines) {
     const bin = line.split('/').pop()?.trim()
@@ -101,9 +114,7 @@ export function probeWslDistro(distro: string): WslProbeResult {
 
   result.ok = result.node && result.npm
   if (!result.ok) {
-    result.error = result.node
-      ? '检测到 Node，但未找到 npm'
-      : 'WSL 内未检测到 Node.js'
+    result.error = result.node ? '检测到 Node，但未找到 npm' : 'WSL 内未检测到 Node.js'
   }
   return result
 }

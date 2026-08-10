@@ -12,6 +12,8 @@ export type WorkerSlot = {
   /** Pool map key: sessionFile abs path or `ws:${cwd}` */
   poolKey: string
   cwd: string
+  /** Runtime identity captured when this worker was created. */
+  runtime: { mode: 'host' | 'wsl'; distro: string | null }
   /** Bound session file when known; null for workspace-only slots */
   sessionFile: string | null
   worker: WorkerTransport

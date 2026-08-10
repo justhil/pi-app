@@ -84,7 +84,7 @@
     "missingNpm": "缺少 npm",
     "missingGit": "缺少 git",
     "missingPi": "缺少 pi",
-    "noCdFlag": "发行版不支持 --cd（将自动退化到 home 目录）"
+    "noCdFlag": "发行版不支持 --cd（将使用 shell 进入项目目录）"
   },
   "appearance": {
     "timeline": "时间线",

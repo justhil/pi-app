@@ -4,6 +4,9 @@ import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
 import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
+import { workerManager } from '../../worker-manager'
+import { invalidateSdkManagerCaches } from '../../sdk-manager'
+import { invalidateListSessionsCache } from '../sdk-session'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { settingsSetSchema } from '../schemas'
 
@@ -27,12 +30,23 @@ export function registerSettingsHandlers(): void {
       saveAsrConfig(req.value as StoreSchema['asrConfig'])
       return { key: req.key, value: asrConfigForSettingsResponse(loadAsrConfig()) }
     }
-    configStore.set(key, req.value as StoreSchema[typeof key])
     if (key === 'agentRuntime') {
-      // 宿主 ↔ WSL 切换会改变 active 用户目录（~/.pi/agent、~/.pi/desktop），
-      // 清理 adapter catalog 缓存避免继续读旧 runtime 的目录。
-      invalidateAdapterCatalog()
+      const current = configStore.get('agentRuntime')
+      const next = req.value as StoreSchema['agentRuntime']
+      const changed = current?.mode !== next.mode || current?.distro !== next.distro
+      if (changed) {
+        if (workerManager.hasActiveTurns) throw new Error('AGENT_RUNTIME_BUSY')
+        await workerManager.stop()
+      }
+      configStore.set(key, next)
+      if (changed) {
+        invalidateAdapterCatalog()
+        invalidateSdkManagerCaches()
+        invalidateListSessionsCache()
+      }
+      return { key: req.key, value: next }
     }
+    configStore.set(key, req.value as StoreSchema[typeof key])
     return { key: req.key, value: req.value }
   })
 

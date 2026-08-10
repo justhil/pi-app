@@ -30,7 +30,7 @@ import {
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
 import { isWslWindowsPath } from '@shared/wsl-path'
-import { isWslRuntimeActive } from './wsl/runtime-config'
+import { getAgentRuntimeConfig, isWslRuntimeActive } from './wsl/runtime-config'
 import { readMaxSessionWorkers } from './worker-pool-config'
 import { configStore } from './config-store'
 import { readSessionMetaFromFile } from './session-file-meta'
@@ -113,6 +113,11 @@ export class WorkerManager {
     slot.lastForegroundAt = Date.now()
   }
 
+  private slotMatchesCurrentRuntime(slot: WorkerSlot): boolean {
+    const runtime = getAgentRuntimeConfig()
+    return slot.runtime.mode === runtime.mode && slot.runtime.distro === runtime.distro
+  }
+
   /** Update view/extension UI authority without creating or binding a worker. */
   focusExistingSession(sessionFile: string): boolean {
     const sk = normalizeSessionKey(sessionFile)
@@ -127,7 +132,7 @@ export class WorkerManager {
   private async startWorkspaceUnlocked(cwd: string): Promise<InitResult> {
     const key = workspacePoolKey(cwd)
     const existing = this.pool.get(key)
-    if (existing && !existing.stopping) {
+    if (existing && !existing.stopping && this.slotMatchesCurrentRuntime(existing)) {
       this.setForeground(existing)
       evictIdleWorkers(this.pool, {
         foregroundKey: key,
@@ -144,7 +149,7 @@ export class WorkerManager {
 
     // Prefer reusing any session slot already on this cwd as workspace foreground
     for (const slot of this.pool.values()) {
-      if (slot.cwd === cwd && !slot.stopping) {
+      if (slot.cwd === cwd && !slot.stopping && this.slotMatchesCurrentRuntime(slot)) {
         this.setForeground(slot)
         return this.initResultFromSlot(slot)
       }
@@ -191,11 +196,17 @@ export class WorkerManager {
     const sk = normalizeSessionKey(sessionFile)
     const wsKey = workspacePoolKey(cwd)
     const wsSlot = this.pool.get(wsKey)
-    if (wsSlot && !wsSlot.stopping && (!wsSlot.sessionFile || wsSlot.sessionFile === sk)) {
+    if (
+      wsSlot &&
+      !wsSlot.stopping &&
+      this.slotMatchesCurrentRuntime(wsSlot) &&
+      (!wsSlot.sessionFile || wsSlot.sessionFile === sk)
+    ) {
       return wsSlot
     }
     for (const slot of this.pool.values()) {
       if (slot === wsSlot || slot.stopping || slot.agentTurnActive) continue
+      if (!this.slotMatchesCurrentRuntime(slot)) continue
       if (slot.cwd !== cwd) continue
       return slot
     }
@@ -207,7 +218,7 @@ export class WorkerManager {
     if (!sk) throw new Error('sessionFile required')
 
     const existing = this.pool.get(sk)
-    if (existing && !existing.stopping) {
+    if (existing && !existing.stopping && this.slotMatchesCurrentRuntime(existing)) {
       existing.sessionFile = sk
       evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
@@ -587,9 +598,9 @@ export class WorkerManager {
     if (target) {
       const wsKey = workspacePoolKey(target)
       const byWs = this.pool.get(wsKey)
-      if (byWs && !byWs.stopping) return byWs
+      if (byWs && !byWs.stopping && this.slotMatchesCurrentRuntime(byWs)) return byWs
       for (const slot of this.pool.values()) {
-        if (!slot.stopping && slot.cwd === target) return slot
+        if (!slot.stopping && slot.cwd === target && this.slotMatchesCurrentRuntime(slot)) return slot
       }
     }
     const foreground = this.foregroundSlot()
@@ -614,7 +625,7 @@ export class WorkerManager {
   }
 
   private isWslSlot(slot: WorkerSlot): boolean {
-    return isWslRuntimeActive() || isWslWindowsPath(slot.cwd)
+    return slot.runtime.mode === 'wsl'
   }
 
   /** Fork a WSL workspace worker (not foreground) purely to serve listSessions. */

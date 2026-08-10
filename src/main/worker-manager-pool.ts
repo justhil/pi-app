@@ -19,6 +19,7 @@ import { syncWorkerBundleToWsl } from './wsl/worker-host'
 function createSlot(
   poolKey: string,
   cwd: string,
+  runtime: { mode: 'host' | 'wsl'; distro: string | null },
   worker: WorkerTransport,
   sessionFile: string | null = null,
 ): WorkerSlot {
@@ -26,6 +27,7 @@ function createSlot(
   return {
     poolKey,
     cwd,
+    runtime,
     sessionFile,
     worker,
     pendingRequests: new Map(),
@@ -311,7 +313,7 @@ export async function forkWorkerForCwd(
     const activeSdk = resolveActiveSdk(app.getPath('userData'))
     sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
   }
-  const slot = createSlot(poolKey, cwd, transport, opts?.sessionFile ?? null)
+  const slot = createSlot(poolKey, cwd, runtime, transport, opts?.sessionFile ?? null)
   const initPromise = new Promise<WorkerInitResult>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (slot.worker !== transport) return

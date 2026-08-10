@@ -84,7 +84,7 @@
     "missingNpm": "no npm",
     "missingGit": "no git",
     "missingPi": "no pi",
-    "noCdFlag": "distro lacks --cd (will fall back to home dir)"
+    "noCdFlag": "distro lacks --cd (will use a shell cwd fallback)"
   },
   "appearance": {
     "timeline": "Timeline",

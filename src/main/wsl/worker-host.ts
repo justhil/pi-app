@@ -14,6 +14,10 @@ import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
 
 const cdSupportCache = new Map<string, boolean>()
 
+export function invalidateWslCdSupportCache(): void {
+  cdSupportCache.clear()
+}
+
 /** Whether `wsl.exe --cd` is supported for this distro (probed once, cached). */
 export function wslCdFlagSupported(distro: string): boolean {
   const cached = cdSupportCache.get(distro)
@@ -115,9 +119,18 @@ export interface SpawnWslWorkerOptions {
 export function spawnWorkerInWsl(opts: SpawnWslWorkerOptions): ChildProcess {
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
-    args.push('--cd', opts.wslCwd)
+    args.push('--cd', opts.wslCwd, '--', 'node', opts.workerWslPath)
+  } else {
+    args.push(
+      '--',
+      'bash',
+      '-lc',
+      'cd -- "$1" && exec node "$2"',
+      'bash',
+      opts.wslCwd,
+      opts.workerWslPath,
+    )
   }
-  args.push('--', 'node', opts.workerWslPath)
   const env: Record<string, string> = {
     ...process.env,
     [WORKER_STDIO_ENV]: '1',
