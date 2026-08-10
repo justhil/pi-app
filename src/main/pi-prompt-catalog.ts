@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { join, resolve, basename, dirname } from 'path'
-import { homedir } from 'os'
 import { readGlobalSettingsJson } from './pi-skill-overrides'
+import { resolveActiveAgentDir } from './agent-dir'
 
 export type PromptCategory = 'plugin_inject' | 'agents_context' | 'pi_builtin' | 'prompt_template'
 
@@ -19,10 +19,13 @@ export type PromptCatalogItem = {
   inSystemContext?: boolean
 }
 
-export const PI_AGENT_DIR = join(homedir(), '.pi', 'agent')
-export const PI_GLOBAL_SYSTEM_MD = join(PI_AGENT_DIR, 'SYSTEM.md')
+export function getActivePiAgentDir(): string {
+  return resolveActiveAgentDir()
+}
+export function getGlobalSystemMd(): string {
+  return join(resolveActiveAgentDir(), 'SYSTEM.md')
+}
 
-const AGENT_DIR = PI_AGENT_DIR
 const CONTEXT_NAMES = ['AGENTS.md', 'AGENTS.MD', 'CLAUDE.md', 'CLAUDE.MD']
 
 function loadContextFileFromDir(dir: string): { path: string; content: string } | null {
@@ -45,7 +48,7 @@ export function listAgentsContextFiles(cwd: string): PromptCatalogItem[] {
   const items: PromptCatalogItem[] = []
   const seen = new Set<string>()
 
-  const global = loadContextFileFromDir(AGENT_DIR)
+  const global = loadContextFileFromDir(resolveActiveAgentDir())
   if (global) {
     seen.add(global.path.toLowerCase())
     items.push({
@@ -96,9 +99,9 @@ export function listAgentsContextFiles(cwd: string): PromptCatalogItem[] {
 export function listPiBuiltinPromptFiles(cwd: string, projectTrusted = true): PromptCatalogItem[] {
   const out: PromptCatalogItem[] = []
   const projectSystem = join(cwd, '.pi', 'SYSTEM.md')
-  const globalSystem = PI_GLOBAL_SYSTEM_MD
+  const globalSystem = getGlobalSystemMd()
   const projectAppend = join(cwd, '.pi', 'APPEND_SYSTEM.md')
-  const globalAppend = join(AGENT_DIR, 'APPEND_SYSTEM.md')
+  const globalAppend = join(resolveActiveAgentDir(), 'APPEND_SYSTEM.md')
 
   if (projectTrusted && existsSync(projectSystem)) {
     out.push({
@@ -198,8 +201,9 @@ export function listPluginInjectedPromptFiles(cwd: string): PromptCatalogItem[] 
   const seen = new Set<string>()
   const items: PromptCatalogItem[] = []
 
-  const npmRoot = join(AGENT_DIR, 'npm', 'node_modules')
-  const gitRoot = join(AGENT_DIR, 'git')
+  const agentDir = resolveActiveAgentDir()
+  const npmRoot = join(agentDir, 'npm', 'node_modules')
+  const gitRoot = join(agentDir, 'git')
 
   const addFile = (full: string, pkgLabel: string) => {
     const key = full.toLowerCase()
@@ -253,7 +257,7 @@ export function listPluginInjectedPromptFiles(cwd: string): PromptCatalogItem[] 
     }
   }
 
-  const extDirs = [join(AGENT_DIR, 'extensions'), join(cwd, '.pi', 'extensions')]
+  const extDirs = [join(resolveActiveAgentDir(), 'extensions'), join(cwd, '.pi', 'extensions')]
   for (const extDir of extDirs) {
     if (!existsSync(extDir)) continue
     try {

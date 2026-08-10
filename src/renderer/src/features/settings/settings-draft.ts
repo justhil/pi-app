@@ -23,6 +23,8 @@ import {
 export type ThemeChoice = 'light' | 'dark' | 'system'
 export type LanguageChoice = 'zh' | 'en'
 
+export type AgentRuntimeChoice = { mode: 'host' | 'wsl'; distro: string | null }
+
 export type SettingsDraft = {
   theme: ThemeChoice
   iconTheme: IconTheme
@@ -44,6 +46,7 @@ export type SettingsDraft = {
   rightPanelPrefs: RightPanelPrefs
   rightPanelOrder: string[]
   asrConfig: AsrConfig
+  agentRuntime: AgentRuntimeChoice
 }
 
 function normalizeLanguage(raw: unknown, fallback: LanguageChoice): LanguageChoice {
@@ -77,6 +80,15 @@ export function asrConfigFromSettingsResponse(raw: AsrConfig): AsrConfig {
   })
 }
 
+export function normalizeAgentRuntime(raw: unknown): AgentRuntimeChoice {
+  const r = (raw || {}) as { mode?: unknown; distro?: unknown }
+  if (r.mode === 'wsl') {
+    const distro = typeof r.distro === 'string' && r.distro.trim() ? r.distro.trim() : null
+    return { mode: 'wsl', distro }
+  }
+  return { mode: 'host', distro: null }
+}
+
 export function draftSignature(d: SettingsDraft): string {
   return JSON.stringify({
     theme: d.theme,
@@ -98,6 +110,7 @@ export function draftSignature(d: SettingsDraft): string {
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
     asrConfig: normalizeAsrForSignature(d.asrConfig),
+    agentRuntime: d.agentRuntime,
   })
 }
 
@@ -132,6 +145,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     rightPanelPrefs: prefs,
     rightPanelOrder: order,
     asrConfig: asrConfigFromSettingsResponse((s.asrConfig || {}) as AsrConfig),
+    agentRuntime: normalizeAgentRuntime(s.agentRuntime),
   }
 }
 
@@ -256,6 +270,8 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   const asrRes = await ipcClient.invoke('settings.set', { key: 'asrConfig', value: draft.asrConfig })
   const savedAsr = asrConfigFromSettingsResponse((asrRes?.value || draft.asrConfig) as AsrConfig)
   draft.asrConfig = savedAsr
+
+  await ipcClient.invoke('settings.set', { key: 'agentRuntime', value: draft.agentRuntime })
 
   useUIStore.getState().setTheme(draft.theme)
   applyIconTheme(draft.iconTheme)

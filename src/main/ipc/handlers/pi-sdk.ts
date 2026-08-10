@@ -8,6 +8,7 @@ import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../
 import { clearGlobalSdkPathCache } from '../../sdk-loader'
 import {
   readSdkStatusCached,
+  readWslSdkStatusCached,
   listRegistryVersionsCached,
   listRegistryVersions,
   installVersion,
@@ -18,6 +19,8 @@ import {
 import { errorMessage } from '@shared/error-message'
 import { confirmSdkSelection } from '../../sdk-selection-transaction'
 import { probeSelectedSdk } from '../sdk-session'
+import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
+import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
 
 async function restartWorkers(): Promise<void> {
   const cwd = workerManager.cwd || configStore.get('currentProject')
@@ -31,6 +34,15 @@ function rejectActiveTurns(): string | null {
 }
 
 async function verifySelectedSdk(target: 'builtin' | 'global' | 'user') {
+  const runtime = getAgentRuntimeConfig()
+  if (runtime.mode === 'wsl' && runtime.distro) {
+    // WSL 模式：worker 用发行版内 SDK，切换 global = 确认发行版内可解析后重启 worker
+    if (target === 'global') {
+      const sdk = await assertWslSdkAvailable(runtime.distro)
+      return { kind: 'global' as const, version: sdk.version || '' }
+    }
+    throw new Error('WSL 模式下仅支持全局版本，无法切换到其他环境')
+  }
   const active = await probeSelectedSdk(target)
   if (workerManager.lastSdkFallback) throw new Error('Worker 加载目标 SDK 失败并回退到内置环境')
   return active
@@ -76,8 +88,15 @@ export function registerPiSdkHandlers(): void {
   registerHandler('ipc:sdk.status', async (req) => {
     const refresh = req?.refresh === true
     if (refresh) clearGlobalSdkPathCache()
-    const status = readSdkStatusCached(app.getPath('userData'), { refresh })
+    const cachedStatus = readSdkStatusCached(app.getPath('userData'), { refresh })
+    const status = { ...cachedStatus, active: { ...cachedStatus.active } }
     status.workerFallback = workerManager.lastSdkFallback
+    const runtime = getAgentRuntimeConfig()
+    if (runtime.mode === 'wsl' && runtime.distro) {
+      const wsl = await readWslSdkStatusCached(runtime.distro, { refresh })
+      status.globalVersion = wsl.globalVersion
+      status.active = wsl.active
+    }
     return status
   })
 
@@ -90,6 +109,10 @@ export function registerPiSdkHandlers(): void {
     const version = String(req.version || '').trim()
     const activeTurnError = rejectActiveTurns()
     if (activeTurnError) return { ok: false, error: activeTurnError }
+    const runtime = getAgentRuntimeConfig()
+    if (runtime.mode === 'wsl' && runtime.distro) {
+      return { ok: false, error: 'WSL 模式下不支持独立环境安装；请在发行版内直接 npm i -g 管理 SDK 版本' }
+    }
     const registry = await listRegistryVersions()
     if (!isAllowedSdkVersion(version, registry)) {
       return { ok: false, error: 'version not in registry list' }

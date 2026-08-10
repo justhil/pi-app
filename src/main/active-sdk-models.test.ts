@@ -2,6 +2,11 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } fro
 import { tmpdir } from 'os'
 import { basename, join } from 'path'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('./agent-dir', () => ({
+  resolveActiveAgentDir: () => '/default/agent',
+}))
+
 import {
   listAvailableModelsWithSdk,
   listCatalogModelsWithSdk,
@@ -137,8 +142,10 @@ describe('active SDK model compatibility', () => {
     const getModels = vi.fn(() => models)
     const create = vi.fn(async () => ({ getModels }))
 
-    await expect(listCatalogModelsWithSdk({ ModelRuntime: { create } })).resolves.toEqual(models)
-    expect(create).toHaveBeenCalledWith({ allowModelNetwork: false })
+    await expect(
+      listCatalogModelsWithSdk({ ModelRuntime: { create } }, '/agent'),
+    ).resolves.toEqual(models)
+    expect(create).toHaveBeenCalledWith({ modelsPath: '/agent/models.json', allowModelNetwork: false })
     expect(getModels).toHaveBeenCalledOnce()
   })
 
@@ -151,13 +158,16 @@ describe('active SDK model compatibility', () => {
     const registryCreate = vi.fn(() => ({ getAll }))
 
     await expect(
-      listCatalogModelsWithSdk({
-        ModelRuntime: { create: runtimeCreate },
-        AuthStorage: { create: authCreate },
-        ModelRegistry: { create: registryCreate },
-      }),
+      listCatalogModelsWithSdk(
+        {
+          ModelRuntime: { create: runtimeCreate },
+          AuthStorage: { create: authCreate },
+          ModelRegistry: { create: registryCreate },
+        },
+        '/agent',
+      ),
     ).resolves.toEqual(models)
-    expect(runtimeCreate).toHaveBeenCalledWith({ allowModelNetwork: false })
+    expect(runtimeCreate).toHaveBeenCalledWith({ modelsPath: '/agent/models.json', allowModelNetwork: false })
     expect(registryCreate).toHaveBeenCalledWith(auth)
     expect(getAll).toHaveBeenCalledOnce()
   })
@@ -176,10 +186,7 @@ describe('active SDK model compatibility', () => {
     })
 
     await expect(
-      listCatalogModelsWithSdk({
-        getAgentDir: () => agentDir,
-        ModelRuntime: { create },
-      }),
+      listCatalogModelsWithSdk({ ModelRuntime: { create } }, agentDir),
     ).resolves.toEqual([{ id: 'store-only', provider: 'custom' }])
     expect(create).toHaveBeenCalledWith({ modelsPath, allowModelNetwork: false })
     expect(existsSync(modelsPath)).toBe(false)
@@ -204,10 +211,7 @@ describe('active SDK model compatibility', () => {
     })
 
     await expect(
-      listCatalogModelsWithSdk({
-        getAgentDir: () => agentDir,
-        ModelRuntime: { create },
-      }),
+      listCatalogModelsWithSdk({ ModelRuntime: { create } }, agentDir),
     ).resolves.toEqual([
       { id: 'store-only', provider: 'custom' },
       { id: 'override-only', provider: 'custom' },
@@ -265,15 +269,20 @@ describe('active SDK model compatibility', () => {
     const models = [{ id: 'modern', provider: 'test' }]
     const create = vi.fn(async () => ({ getAvailable: vi.fn(async () => models) }))
 
-    await expect(listAvailableModelsWithSdk({ ModelRuntime: { create } })).resolves.toEqual(models)
-    expect(create).toHaveBeenCalledWith({ allowModelNetwork: true })
+    await expect(
+      listAvailableModelsWithSdk({ ModelRuntime: { create } }, '/agent'),
+    ).resolves.toEqual(models)
+    expect(create).toHaveBeenCalledWith({ modelsPath: '/agent/models.json', allowModelNetwork: true })
   })
 
   it('should_list_available_models_from_a_modern_snapshot', async () => {
     const models = [{ id: 'snapshot', provider: 'test' }]
     const create = vi.fn(async () => ({ getAvailableSnapshot: vi.fn(() => models) }))
 
-    await expect(listAvailableModelsWithSdk({ ModelRuntime: { create } })).resolves.toEqual(models)
+    await expect(
+      listAvailableModelsWithSdk({ ModelRuntime: { create } }, '/agent'),
+    ).resolves.toEqual(models)
+    expect(create).toHaveBeenCalledWith({ modelsPath: '/agent/models.json', allowModelNetwork: true })
   })
 
   it('should_list_available_models_with_the_legacy_registry', async () => {

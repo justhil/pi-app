@@ -3,7 +3,7 @@
 // 否则 app-local (configStore)。取代原先的 per-plugin config 后端。
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs'
 import { dirname, join } from 'path'
-import { homedir } from 'os'
+import { getActiveAgentDir, getActiveHomeDir } from './active-dirs'
 import { configStore } from '../main/config-store'
 import { findAdapterById } from './adapter-loader'
 import type { AdapterJson, ConfigField } from './adapter-schema'
@@ -15,8 +15,8 @@ function maskKey(key: string): string {
 }
 
 function expandPath(p: string): string {
-  if (p === '~') return homedir()
-  if (p.startsWith('~/') || p.startsWith('~\\')) return join(homedir(), p.slice(2))
+  if (p === '~') return getActiveHomeDir()
+  if (p.startsWith('~/') || p.startsWith('~\\')) return join(getActiveHomeDir(), p.slice(2))
   return p
 }
 
@@ -40,7 +40,7 @@ function readSharedFile(path: string): SharedFileRead {
 
 /** Path to the pi global settings.json (~/.pi/agent/settings.json). */
 function piSettingsPath(): string {
-  return join(homedir(), '.pi', 'agent', 'settings.json')
+  return join(getActiveAgentDir(), 'settings.json')
 }
 
 /** Read a single top-level key from pi global settings.json. */

@@ -1,10 +1,16 @@
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ExtensionProbeResult } from '../../extension-compat/extension-probe'
 import { applyPiSyncToExtensionProbes } from '../pi-extension-probe-sync'
 import { setPiExtensionEnabled } from '../pi-package-resource-toggle'
+
+vi.mock('../config-store', () => ({
+  configStore: {
+    get: vi.fn(() => undefined),
+  },
+}))
 
 describe('project extension settings patterns', () => {
   it('should_disable_project_extension_when_sdk_resolves_from_project_pi_root', () => {

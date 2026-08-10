@@ -176,6 +176,12 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
     .object({ width: z.number(), height: z.number(), x: z.number().optional(), y: z.number().optional() })
     .nullable(),
   asrConfig: z.record(z.unknown()),
+  agentRuntime: z
+    .object({
+      mode: z.enum(['host', 'wsl']),
+      distro: z.string().nullable(),
+    })
+    .strict(),
 }
 
 export const settingsSetSchema = z

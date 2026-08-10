@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, statSync } from 'fs'
 import { join, resolve } from 'path'
-import { homedir } from 'os'
 import type { ExtensionProbeResult } from '../extension-compat/extension-probe.js'
 import type { PiExtensionToggleTarget } from './pi-package-resource-toggle.js'
 import { isTopLevelExtensionEnabled } from './pi-package-resource-toggle.js'
 import { readGlobalSettingsJson } from './pi-skill-overrides'
+import { resolveActiveAgentDir } from './agent-dir'
 
 function stripPatternPrefix(p: string): string {
   if (p.startsWith('!') || p.startsWith('+') || p.startsWith('-')) return p.slice(1)
@@ -144,7 +144,7 @@ function packageEnabledFromSettings(
 
 export function applyPiSyncToExtensionProbes(cwd: string, probes: ExtensionProbeResult[]): void {
   const resolvedCwd = resolve(cwd)
-  const agentDir = join(homedir(), '.pi', 'agent')
+  const agentDir = resolveActiveAgentDir()
   const globalSettings = readGlobalSettingsJson()
   const projectSettings = readProjectSettings(resolvedCwd)
 

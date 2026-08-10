@@ -31,6 +31,10 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   if (store.ephemeralSandboxDraft) store.clearEphemeralSandboxDraft()
   store.setSubagentSessionGroup(null)
 
+  // 切换开始立即清显示状态：任何中间帧都只画骨架，绝不残留上一个会话（如临时对话）的内容。
+  store.clearTimeline()
+  store.setHistoryLoading(true)
+
   const sameProject = store.currentWorkspace === path
   if (!sameProject) {
     console.log('[activateWorkspace] workspace change', store.currentWorkspace, '->', path)
@@ -205,6 +209,10 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
 
   // Capture live running state BEFORE focus changes (runtime map + live timeline cache).
   captureVisibleLiveSessionTimeline()
+
+  // 立即清显示状态，避免中间帧残留上一会话内容。
+  store.clearTimeline()
+  store.setHistoryLoading(true)
 
   store.setCurrentSession(sessionId)
   // Immediate paint: cache hit → timeline; cold → skeleton (never blank empty-chat).

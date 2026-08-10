@@ -1,7 +1,8 @@
-import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
+import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import type { WorkerSlot } from '../worker-manager-types'
 import { WorkerManager } from '../worker-manager'
+import type { WorkerTransport } from '../worker-transport'
 import {
   attachWorkerHandlers,
   canAcquireNewWorker,
@@ -25,6 +26,24 @@ vi.mock('../config-store', () => ({
     get: vi.fn(() => undefined),
   },
 }))
+
+function makeFakeTransport(): WorkerTransport & { emitMessage: (m: WorkerResponsePayload) => void } {
+  const messageListeners: Array<(m: WorkerResponsePayload) => void> = []
+  return {
+    kind: 'utilityProcess',
+    postMessage: vi.fn(),
+    onMessage: (cb) => {
+      messageListeners.push(cb)
+    },
+    onExit: () => {},
+    onStdout: () => {},
+    onStderr: () => {},
+    kill: () => {},
+    emitMessage: (m) => {
+      for (const cb of messageListeners) cb(m)
+    },
+  }
+}
 
 function fakeSlot(poolKey: string, cwd: string, active: boolean, lastFg = Date.now()): WorkerSlot {
   return {
@@ -180,34 +199,137 @@ describe('WorkerManager active turns', () => {
   })
 })
 
+describe('WorkerManager listSessions routing', () => {
+  function respondingSlot(poolKey: string, cwd: string): WorkerSlot {
+    const transport = makeFakeTransport()
+    transport.postMessage = vi.fn((message: { requestId?: string }) => {
+      queueMicrotask(() => {
+        transport.emitMessage({
+          type: 'listSessions-done',
+          requestId: message.requestId,
+          sessions: [{ id: 's1', cwd }],
+        } as WorkerResponsePayload)
+      })
+    })
+    const slot = fakeSlot(poolKey, cwd, false)
+    slot.worker = transport
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: null,
+      onAppEvent: vi.fn(),
+      onSlotExit: vi.fn(),
+    })
+    return slot
+  }
+
+  it('prefers a same-cwd WSL slot over a host foreground slot', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as {
+      pool: Map<string, WorkerSlot>
+      foregroundPoolKey: string | null
+    }
+    const wslCwd = '\\\\wsl.localhost\\Debian\\root\\proj'
+    const wslSlot = respondingSlot('ws:' + wslCwd, wslCwd)
+    internals.pool.set('ws:' + wslCwd, wslSlot)
+    internals.pool.set('ws:C:\\host\\proj', respondingSlot('ws:C:\\host\\proj', 'C:\\host\\proj'))
+    internals.foregroundPoolKey = 'ws:C:\\host\\proj'
+
+    const rows = await manager.listSessions(wslCwd)
+    expect(rows).toEqual([{ id: 's1', cwd: wslCwd }])
+  })
+
+  it('does not route a WSL target to a host worker when no WSL slot exists', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot> }
+    const hostSlot = respondingSlot('ws:C:\\host\\proj', 'C:\\host\\proj')
+    internals.pool.set('ws:C:\\host\\proj', hostSlot)
+
+    const rows = await manager.listSessions('\\\\wsl.localhost\\Debian\\root\\proj')
+    expect(rows).toEqual([])
+  })
+})
+
+describe('WorkerManager session-worker reuse', () => {
+  function boundSlot(poolKey: string, cwd: string): WorkerSlot {
+    const transport = makeFakeTransport()
+    transport.postMessage = vi.fn((message: { requestId?: string }) => {
+      queueMicrotask(() => {
+        transport.emitMessage({
+          type: 'done',
+          requestId: message.requestId,
+          state: { sessionFile: poolKey, isStreaming: false },
+        } as WorkerResponsePayload)
+      })
+    })
+    const slot = fakeSlot(poolKey, cwd, false)
+    slot.worker = transport
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: null,
+      onAppEvent: vi.fn(),
+      onSlotExit: vi.fn(),
+    })
+    return slot
+  }
+
+  it('reuses an idle same-cwd session worker instead of forking a new one', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as {
+      pool: Map<string, WorkerSlot>
+      foregroundPoolKey: string | null
+    }
+    const cwd = '/w'
+    const sA = normalizeSessionKey('/w/session-a.jsonl')
+    const sB = normalizeSessionKey('/w/session-b.jsonl')
+    const slotA = boundSlot(sA, cwd)
+    internals.pool.set(sA, slotA)
+    internals.foregroundPoolKey = sA
+
+    await manager.loadSession(sB, { cwd })
+
+    // pool 只保留一个 slot，且被 rekey 到新 session（没有 fork 新 worker）
+    expect(internals.pool.size).toBe(1)
+    expect(internals.pool.has(sA)).toBe(false)
+    expect(internals.pool.has(sB)).toBe(true)
+    expect(internals.pool.get(sB)).toBe(slotA)
+    expect(internals.foregroundPoolKey).toBe(sB)
+  })
+
+  it('does not steal a same-cwd slot that is mid-turn', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot> }
+    const cwd = '/w'
+    const sA = normalizeSessionKey('/w/session-a.jsonl')
+    const sB = normalizeSessionKey('/w/session-b.jsonl')
+    const runningA = fakeSlot(sA, cwd, true)
+    internals.pool.set(sA, runningA)
+
+    // 无空闲 slot 可复用 → 尝试 fork。此时 pool 已满且 running 不可 evict，
+    // 但只验证 running slot 未被 rekey。
+    await expect(manager.loadSession(sB, { cwd })).rejects.toThrow()
+    expect(internals.pool.has(sA)).toBe(true)
+    expect(internals.pool.has(sB)).toBe(false)
+    expect(runningA.sessionFile).toBe(sA)
+  })
+})
+
 describe('session-scoped RPC routing', () => {
   it('should_not_move_view_foreground_when_targeting_an_existing_background_worker', async () => {
     const manager = new WorkerManager()
-    const foregroundProcess = new EventEmitter() as EventEmitter & {
-      postMessage: ReturnType<typeof vi.fn>
-      stdout?: EventEmitter
-      stderr?: EventEmitter
-    }
-    foregroundProcess.postMessage = vi.fn()
-    const backgroundProcess = new EventEmitter() as EventEmitter & {
-      postMessage: ReturnType<typeof vi.fn>
-      stdout?: EventEmitter
-      stderr?: EventEmitter
-    }
-    const foregroundKey = normalizeSessionKey('/s/a')
+    const foregroundProcess = { postMessage: vi.fn() } as unknown as WorkerSlot['worker']
+    const backgroundTransport = makeFakeTransport()
     const backgroundKey = normalizeSessionKey('/s/b')
+    const foregroundKey = normalizeSessionKey('/s/a')
     const foregroundSlot = fakeSlot(foregroundKey, '/w', false)
     const backgroundSlot = fakeSlot(backgroundKey, '/w', false)
-    foregroundSlot.worker = foregroundProcess as unknown as WorkerSlot['worker']
-    backgroundSlot.worker = backgroundProcess as unknown as WorkerSlot['worker']
-    backgroundProcess.postMessage = vi.fn((message: { requestId?: string }) => {
+    foregroundSlot.worker = foregroundProcess
+    backgroundSlot.worker = backgroundTransport
+    backgroundTransport.postMessage = vi.fn((message: { requestId?: string }) => {
       queueMicrotask(() => {
-        backgroundProcess.emit('message', {
+        backgroundTransport.emitMessage({
           type: 'queueCleared',
           requestId: message.requestId,
           steering: [],
           followUp: [],
-        })
+        } as WorkerResponsePayload)
       })
     })
     attachWorkerHandlers(backgroundSlot, backgroundSlot.worker, {
@@ -304,14 +426,20 @@ describe('worker process exit', () => {
   it('should_reject_all_pending_requests_when_current_worker_exits', async () => {
     vi.useFakeTimers()
     try {
-      const processEmitter = new EventEmitter() as EventEmitter & {
-        postMessage: ReturnType<typeof vi.fn>
-        stdout?: EventEmitter
-        stderr?: EventEmitter
+      const exitHandlers: Array<(code: number) => void> = []
+      const transport: WorkerTransport = {
+        kind: 'utilityProcess',
+        postMessage: vi.fn(),
+        onMessage: () => {},
+        onExit: (cb) => {
+          exitHandlers.push(cb)
+        },
+        onStdout: () => {},
+        onStderr: () => {},
+        kill: () => {},
       }
-      processEmitter.postMessage = vi.fn()
       const slot = fakeSlot('/s/a', '/w', true)
-      slot.worker = processEmitter as unknown as WorkerSlot['worker']
+      slot.worker = transport
 
       attachWorkerHandlers(slot, slot.worker, {
         mainWindow: null,
@@ -323,7 +451,7 @@ describe('worker process exit', () => {
       const rejection = pendingRequest.catch((error: unknown) => error)
       expect(slot.pendingRequests.size).toBe(1)
 
-      processEmitter.emit('exit', 17)
+      for (const cb of exitHandlers) cb(17)
       await Promise.resolve()
 
       expect(slot.pendingRequests.size).toBe(0)

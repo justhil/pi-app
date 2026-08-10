@@ -3,7 +3,7 @@
 
 import { existsSync, readdirSync, statSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
-import { homedir } from 'os'
+import { getActiveAgentDir } from './active-dirs'
 
 export interface ExtensionProbeResult {
   id: string
@@ -155,10 +155,10 @@ function resolveGitPackageDir(agentDir: string, repoName: string): string | null
 
 // Find install dir: npm node_modules first, then ~/.pi/agent/git/<host>/<owner>/<repoName>
 function resolvePackageDir(name: string, agentDir?: string): string | null {
-  const nm = join(homedir(), '.pi', 'agent', 'npm', 'node_modules')
+  const nm = join(getActiveAgentDir(), 'npm', 'node_modules')
   const direct = join(nm, name)
   if (existsSync(direct) && statSync(direct).isDirectory()) return direct
-  const ad = agentDir || join(homedir(), '.pi', 'agent')
+  const ad = agentDir || getActiveAgentDir()
   return resolveGitPackageDir(ad, name)
 }
 
@@ -178,7 +178,7 @@ function parsePackageSource(source: unknown): { type: 'npm' | 'git' | 'local'; n
 
 export function probeExtensions(cwd: string): ExtensionProbeResult[] {
   const results: ExtensionProbeResult[] = []
-  const agentDir = join(homedir(), '.pi', 'agent')
+  const agentDir = getActiveAgentDir()
   CURRENT_CWD = cwd
 
   // Refresh known-tools from v2 adapter.json for this project.

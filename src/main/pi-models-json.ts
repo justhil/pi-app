@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
-import { homedir } from 'os'
 import { app } from 'electron'
 import { pathToFileURL } from 'node:url'
 import { resolveActiveSdk } from './sdk-loader'
 import { normalizeModelsConfig } from './models-config-normalize'
 import { validateModelsConfigWithSdk } from './active-sdk-models'
+import { resolveActiveAgentDir } from './agent-dir'
 
 export type PiModelDefinition = {
   id: string
@@ -42,7 +42,7 @@ export type PiModelsConfig = {
   [key: string]: unknown
 }
 
-export function getModelsJsonPath(agentDir = join(homedir(), '.pi', 'agent')): string {
+export function getModelsJsonPath(agentDir = resolveActiveAgentDir()): string {
   return join(agentDir, 'models.json')
 }
 
@@ -130,7 +130,7 @@ export async function readModelsConfigWithSdk(sdk: unknown, agentDir: string): P
 
 export async function readModelsConfig(): Promise<Awaited<ReturnType<typeof readModelsConfigWithSdk>>> {
   const sdk = await loadPiSdk()
-  const agentDir = sdk.getAgentDir?.() ?? join(homedir(), '.pi', 'agent')
+  const agentDir = resolveActiveAgentDir()
   return readModelsConfigWithSdk(sdk, agentDir)
 }
 
@@ -251,7 +251,7 @@ export async function writeModelsConfigWithSdk(
 
 export async function writeModelsConfig(config: PiModelsConfig): Promise<{ ok: boolean; error?: string; path: string }> {
   const sdk = await loadPiSdk()
-  const agentDir = sdk.getAgentDir?.() ?? join(homedir(), '.pi', 'agent')
+  const agentDir = resolveActiveAgentDir()
   return writeModelsConfigWithSdk(config, sdk, agentDir)
 }
 

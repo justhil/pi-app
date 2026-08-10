@@ -17,6 +17,7 @@ import {
   draftSignature,
   loadSettingsDraftFromDisk,
   previewDraftUi,
+  type AgentRuntimeChoice,
   type SettingsDraft,
   type ThemeChoice,
   type LanguageChoice,
@@ -63,6 +64,7 @@ type SettingsDraftContextValue = {
   setMaxSessionWorkers: (n: number) => void
   setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
+  setAgentRuntime: (r: AgentRuntimeChoice) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
   reorderRightPanels: (fromId: string, toIndex: number) => void
@@ -264,6 +266,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
           ...d,
           timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n),
         })),
+      setAgentRuntime: (r) => patch((d) => ({ ...d, agentRuntime: r })),
       setExtensionOverride: (id, enabled) =>
         patch((d) => ({
           ...d,

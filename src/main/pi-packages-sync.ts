@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
 import { errorMessage } from '@shared/error-message'
+import { resolveActiveAgentDir } from './agent-dir'
 
-const AGENT_DIR = () => join(homedir(), '.pi', 'agent')
+const AGENT_DIR = () => resolveActiveAgentDir()
 
 /** 与终端常用、但常被漏写进 settings.packages 的 git 包 */
 const RECOMMENDED_GIT_PACKAGES: { entry: string; repoFolder: string }[] = [

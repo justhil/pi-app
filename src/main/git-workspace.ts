@@ -1,15 +1,42 @@
 import { execFileSync } from 'child_process'
-import { existsSync, writeFileSync, unlinkSync } from 'fs'
+import { existsSync } from 'fs'
 import { join } from 'path'
-import { tmpdir } from 'os'
-import { errorMessage } from '@shared/error-message'
+import { getAgentRuntimeConfig } from './wsl/runtime-config'
+import { runGitInWsl } from './wsl/git-delegate'
 
-function execStderr(e: unknown): string {
-  if (typeof e === 'object' && e !== null && 'stderr' in e) {
-    const s = (e as { stderr?: { toString?: () => string } }).stderr
-    return s?.toString?.()?.trim() || ''
+function activeWslDistro(): string | null {
+  const { mode, distro } = getAgentRuntimeConfig()
+  return mode === 'wsl' && distro ? distro : null
+}
+
+function gitExecSync(
+  cwd: string,
+  args: string[],
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
+): { status: number; stdout: string; stderr: string } {
+  const distro = activeWslDistro()
+  if (distro) {
+    const r = runGitInWsl(distro, cwd, args, { timeout: opts.timeout, input: opts.input })
+    return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr }
   }
-  return ''
+  try {
+    const stdout = execFileSync('git', args, {
+      cwd,
+      encoding: 'utf-8',
+      timeout: opts.timeout ?? 8000,
+      maxBuffer: opts.maxBuffer ?? 4 * 1024 * 1024,
+      input: opts.input,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    return { status: 0, stdout: stdout ?? '', stderr: '' }
+  } catch (e: unknown) {
+    const err = e as { status?: number; stdout?: { toString(): string }; stderr?: { toString(): string } }
+    return {
+      status: typeof err.status === 'number' ? err.status : -1,
+      stdout: err.stdout?.toString() ?? '',
+      stderr: err.stderr?.toString() ?? '',
+    }
+  }
 }
 
 function isNotGitRepo(stderr: string, message: string): boolean {
@@ -30,29 +57,21 @@ export function isGitRepository(cwd: string): boolean {
 export function runGit(
   cwd: string,
   args: string[],
-  options?: { timeout?: number; maxBuffer?: number },
+  options?: { timeout?: number; maxBuffer?: number; input?: string },
 ): { ok: true; stdout: string } | { ok: false; notRepo: boolean; message: string } {
   if (!isGitRepository(cwd)) {
     return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
   }
-  try {
-    const stdout = execFileSync('git', args, {
-      cwd,
-      encoding: 'utf-8',
-      timeout: options?.timeout ?? 8000,
-      maxBuffer: options?.maxBuffer ?? 4 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-    return { ok: true, stdout: stdout ?? '' }
-  } catch (e: unknown) {
-    const stderr = execStderr(e)
-    const message = (errorMessage(e) || String(e)).trim()
-    if (isNotGitRepo(stderr, message)) {
+  const r = gitExecSync(cwd, args, options)
+  if (r.status !== 0) {
+    const message = (r.stderr || r.stdout || '').trim() || 'git 命令失败'
+    if (isNotGitRepo(r.stderr, message)) {
       return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
     }
-    const short = stderr.split('\n').find((l: string) => l.trim()) || message.split('\n')[0] || 'git 命令失败'
+    const short = r.stderr.split('\n').find((l: string) => l.trim()) || message.split('\n')[0] || 'git 命令失败'
     return { ok: false, notRepo: false, message: short.slice(0, 500) }
   }
+  return { ok: true, stdout: r.stdout ?? '' }
 }
 
 export type GitWorkspaceSnapshot = {
@@ -103,17 +122,9 @@ export function stageHunks(
   for (const f of files) {
     for (const patch of f.hunkPatches) {
       if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
-      try {
-        execFileSync('git', ['apply', '--cached', '--recount'], {
-          cwd,
-          input: patch,
-          encoding: 'utf-8',
-          timeout: 10000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-      } catch (e: unknown) {
-        const stderr = execStderr(e)
-        return { ok: false, error: stderr || errorMessage(e) || 'git apply 失败' }
+      const r = gitExecSync(cwd, ['apply', '--cached', '--recount'], { timeout: 10000, input: patch })
+      if (r.status !== 0) {
+        return { ok: false, error: (r.stderr || 'git apply 失败').trim().slice(0, 500) }
       }
     }
   }
@@ -128,37 +139,23 @@ export function unstageHunks(
   for (const f of files) {
     for (const patch of f.hunkPatches) {
       if (!patch) continue
-      try {
-        execFileSync('git', ['apply', '-R', '--cached'], {
-          cwd,
-          input: patch,
-          encoding: 'utf-8',
-          timeout: 10000,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        })
-      } catch (e: unknown) {
-        const stderr = execStderr(e)
-        return { ok: false, error: stderr || errorMessage(e) || 'git apply -R 失败' }
+      const r = gitExecSync(cwd, ['apply', '-R', '--cached'], { timeout: 10000, input: patch })
+      if (r.status !== 0) {
+        return { ok: false, error: (r.stderr || 'git apply -R 失败').trim().slice(0, 500) }
       }
     }
   }
   return { ok: true }
 }
 
-/** 提交：临时文件传 message 避免 shell 注入 */
+/** 提交：message 经 stdin（-F -）传入，避免临时文件与 shell 注入问题 */
 export function commitChanges(
   cwd: string,
   message: string,
 ): { ok: boolean; error?: string; commitHash?: string } {
   if (!message.trim()) return { ok: false, error: 'commit message 为空' }
-  const tmpFile = join(tmpdir(), `pi-commit-${Date.now()}.txt`)
-  writeFileSync(tmpFile, message, 'utf-8')
-  try {
-    const r = runGit(cwd, ['commit', '-F', tmpFile])
-    if (!r.ok) return { ok: false, error: r.message }
-    const hashR = runGit(cwd, ['rev-parse', 'HEAD'], { timeout: 3000 })
-    return { ok: true, commitHash: hashR.ok ? hashR.stdout.trim() : undefined }
-  } finally {
-    try { unlinkSync(tmpFile) } catch (e) { /* */ }
-  }
+  const r = runGit(cwd, ['commit', '-F', '-'], { timeout: 15000, input: message })
+  if (!r.ok) return { ok: false, error: r.message }
+  const hashR = runGit(cwd, ['rev-parse', 'HEAD'], { timeout: 3000 })
+  return { ok: true, commitHash: hashR.ok ? hashR.stdout.trim() : undefined }
 }

@@ -1,18 +1,29 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelPicker } from './model-picker'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import type { AppEvent } from '@shared/app-events'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: vi.fn(() => Promise.resolve({ adapters: [] })) },
+  onAppEvent: vi.fn(() => () => {}),
 }))
+
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const invoke = vi.mocked(ipcClient.invoke)
+const onAppEventMock = vi.mocked(onAppEvent)
+
+let appEventSubscribers: Array<(event: AppEvent) => void> = []
 
 beforeEach(() => {
   invoke.mockReset()
+  appEventSubscribers = []
+  onAppEventMock.mockImplementation((cb) => {
+    appEventSubscribers.push(cb)
+    return () => {}
+  })
   useUIStore.setState({
     modelPickerOpen: true,
     historySessionFile: 'C:/sessions/one.jsonl',
@@ -27,6 +38,33 @@ describe('ModelPicker runtime confirmation', () => {
     render(<ModelPicker />)
 
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('model.list', { scope: 'available' }))
+  })
+
+  it('reloads available models when the worker binds a session', async () => {
+    invoke.mockResolvedValue({ models: [{ provider: 'openai', id: 'gpt-4', available: true }] })
+
+    render(<ModelPicker />)
+    await waitFor(() => expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(1))
+
+    appEventSubscribers.forEach((cb) =>
+      cb({ type: 'run', phase: 'state', seq: 1, workspaceId: 'C:/ws', timestamp: Date.now() }),
+    )
+
+    await waitFor(() => expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(2))
+    expect(await screen.findByRole('button', { name: /gpt-4/i })).toBeTruthy()
+  })
+
+  it('does not reload on non-run events', async () => {
+    invoke.mockResolvedValue({ models: [] })
+
+    render(<ModelPicker />)
+    await waitFor(() => expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(1))
+
+    appEventSubscribers.forEach((cb) =>
+      cb({ type: 'file', source: 'write', path: 'C:/x.txt', changeType: 'added', seq: 1, workspaceId: 'C:/ws', timestamp: Date.now() }),
+    )
+    await new Promise((r) => setTimeout(r, 20))
+    expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(1)
   })
 
   it('keeps the confirmed model selected while switching and applies the returned runtime model', async () => {

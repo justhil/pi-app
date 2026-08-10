@@ -2,6 +2,8 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { randomUUID } from 'crypto'
+import { resolveActiveDesktopDir } from './agent-dir'
+import { isWslRuntimeActive } from './wsl/runtime-config'
 
 const META_FILE = '.pi-desktop-sandbox.json'
 
@@ -15,15 +17,27 @@ export interface SandboxMeta {
 }
 
 export function getSandboxRoot(): string {
+  // WSL 模式下 sandbox 工作区建在发行版内（~/.pi/desktop/sandbox-workspaces，
+  // UNC 视图），避免 WSL worker 通过 /mnt/c 访问 Windows 宿主目录。
+  if (isWslRuntimeActive()) {
+    return join(resolveActiveDesktopDir(), 'sandbox-workspaces')
+  }
+  return join(app.getPath('userData'), 'sandbox-workspaces')
+}
+
+function legacySandboxRoot(): string {
   return join(app.getPath('userData'), 'sandbox-workspaces')
 }
 
 export function isSandboxWorkspacePath(path: string): boolean {
   if (!path) return false
-  const root = getSandboxRoot()
   const norm = path.replace(/\\/g, '/')
-  const rootNorm = root.replace(/\\/g, '/')
-  return norm === rootNorm || norm.startsWith(rootNorm + '/')
+  // 同时识别迁移前的 userData sandbox（宿主模式下两者一致）。
+  for (const root of [getSandboxRoot(), legacySandboxRoot()]) {
+    const rootNorm = root.replace(/\\/g, '/')
+    if (norm === rootNorm || norm.startsWith(rootNorm + '/')) return true
+  }
+  return false
 }
 
 function readMeta(dir: string): SandboxMeta | null {

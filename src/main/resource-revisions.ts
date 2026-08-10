@@ -1,9 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
 import { createHash } from 'crypto'
-
-const REV_ROOT = join(homedir(), '.pi', 'agent', 'desktop-revisions')
+import { resolveActiveAgentDir } from './agent-dir'
 
 export type RevisionEntry = {
   id: string
@@ -12,9 +10,13 @@ export type RevisionEntry = {
   hash: string
 }
 
+function revRoot(): string {
+  return join(resolveActiveAgentDir(), 'desktop-revisions')
+}
+
 function revDir(filePath: string) {
   const h = createHash('sha256').update(filePath).digest('hex').slice(0, 24)
-  return join(REV_ROOT, h)
+  return join(revRoot(), h)
 }
 
 function metaPath(filePath: string) {

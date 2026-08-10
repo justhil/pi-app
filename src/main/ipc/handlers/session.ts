@@ -20,7 +20,7 @@ import {
 import { flattenTreeFromSessionFile } from '../../session-tree-from-file'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
-import { listSessionsOnDisk, type SessionOnDiskRow } from '../sdk-session'
+import { listSessionsOnDisk, invalidateListSessionsCache, type SessionOnDiskRow } from '../sdk-session'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -78,10 +78,12 @@ export function registerSessionHandlers(): void {
     const sessionFile = req.sessionFile ?? null
     setPendingWorkerSessionFile(sessionFile)
     if (sessionFile) {
-      workerManager.focusExistingSession(sessionFile)
-      // Eagerly load the session on the running worker so composer model/context
-      // refresh from the correct runtime state after switching sessions.
-      if (workerManager.isRunning && workerManager.cwd) {
+      const hasLiveSlot = workerManager.focusExistingSession(sessionFile)
+      // Eagerly load only when the session already has a live worker slot so the
+      // composer model/context refresh from the correct runtime state after switching.
+      // Otherwise defer to first-prompt lazy load — never block UI switching on a
+      // WSL worker fork (which takes seconds).
+      if (hasLiveSlot && workerManager.isRunning && workerManager.cwd) {
         try {
           await workerManager.loadSession(sessionFile)
         } catch (e) {
@@ -261,6 +263,7 @@ export function registerSessionHandlers(): void {
     }
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession()
+    invalidateListSessionsCache(workspaceId)
     const state = await workerManager.getState().catch(() => ({}))
     const sessionFile =
       result.sessionFile || (state as { sessionFile?: string })?.sessionFile
@@ -356,6 +359,7 @@ export function registerSessionHandlers(): void {
         }
       }
       setPendingWorkerSessionFile(null)
+      invalidateListSessionsCache(workspaceId)
       return {
         cancelled: false,
         editorText: result.editorText,
@@ -445,6 +449,7 @@ export function registerSessionHandlers(): void {
         }
       }
       setPendingWorkerSessionFile(null)
+      invalidateListSessionsCache(workspaceId)
       return {
         cancelled: false,
         sessionId: result.sessionId,
@@ -512,13 +517,17 @@ export function registerSessionHandlers(): void {
     const r = await renamePiSessionOnDisk(file, title, workspaceCwd)
     if (!r.ok) return { ok: false, title, error: r.error || 'rename failed' }
     clearSessionDisplayName(file)
+    invalidateListSessionsCache(workspaceCwd)
     return { ok: true, title }
   })
 
   registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
     const file = req.sessionFile
     const r = await workerManager.deleteSessionFile(file)
-    if (r.ok) clearSessionDisplayName(file)
+    if (r.ok) {
+      clearSessionDisplayName(file)
+      invalidateListSessionsCache(workerManager.cwd ?? undefined)
+    }
     return { ok: !!r.ok, error: r.error }
   })
 
