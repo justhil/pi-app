@@ -25,7 +25,7 @@ export function SessionContextMenuPortal({
 }: {
   menu: MenuState
   onClose: () => void
-  onSessionsChange: () => void
+  onSessionsChange: (workspacePath?: string) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -33,7 +33,7 @@ export function SessionContextMenuPortal({
 
   useDismissContextMenu(!!menu, ref, onClose)
 
-  const refreshList = () => onSessionsChange()
+  const refreshList = (path?: string) => onSessionsChange(path)
 
   const submitRename = async (title: string) => {
     const target = renameTarget
@@ -52,7 +52,7 @@ export function SessionContextMenuPortal({
       })
       if (r?.ok) {
         toast.success(t('common:sidebar.renamed'))
-        refreshList()
+        refreshList(target.workspacePath)
         setRenameTarget(null)
       } else toast.error(r?.error || t('common:sidebar.renameFailed'))
     } catch (e) {
@@ -86,7 +86,7 @@ export function SessionContextMenuPortal({
           void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
         }
         toast.success(t('common:sidebar.deleted'))
-        refreshList()
+        refreshList(target.workspacePath)
       } else toast.error(r?.error || t('common:sidebar.deleteFailed'))
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
