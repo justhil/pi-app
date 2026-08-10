@@ -86,3 +86,11 @@ scripts/rewrite-commit-messages.txt
 scripts/fix-arrow-syntax.py*.tgz
 scripts/git-rewrite-public-main.ps1
 scripts/git-rewrite-public-main.sh
+
+# Local machine artifacts (本机配置与残留，不进仓库)
+opencode.json
+# Root-level stray build output (out/ is ignored; a copy escaped to repo root)
+/index.js
+# WSL mount residue (本地产物，勿提交；目录名以反斜杠开头，git 不解析转义，
+# 用通配匹配 UNC 前缀)
+*wsl.localhost*
