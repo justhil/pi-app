@@ -173,6 +173,7 @@ export class SessionPreviewProcess {
     offset: number
     limit?: number
     leafId?: string | null
+    showNonMessageEntries?: boolean
   }): Promise<DiskSessionMessages> {
     return this.request('session.getMessages', { ...payload, cwd: payload.cwd })
   }

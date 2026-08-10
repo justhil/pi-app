@@ -49,8 +49,10 @@ export interface StoreSchema {
   maxSessionWorkers: number
   /** 空闲 worker 回收时间（分钟）；0 = 不因超时回收 */
   sessionWorkerIdleTimeoutMinutes: number
-  /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
+  /** 时间线过程内容（工具/思考）滑动窗口大小；0 = 禁用自动展开 */
   timelineMaxAutoExpandedTools: number
+  /** 时间线是否展示元事件条目（model_change / thinking_level_change）；默认隐藏 */
+  showNonMessageEntries: boolean
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 语音输入 ASR 配置 */
@@ -95,6 +97,7 @@ const store = new Store<StoreSchema>({
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+    showNonMessageEntries: false,
     sessionDisplayNames: {},
     asrConfig: {
       provider: 'codex-asr-builtin',

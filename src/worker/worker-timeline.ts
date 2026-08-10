@@ -147,11 +147,42 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
   return markTrailingIncompleteAssistants(items)
 }
 
-/** 按当前 leaf 的 getBranch() 顺序建时间线，与 TUI 树上路径一致。 */
-export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<string, unknown>> {
+/** 按当前 leaf 的 getBranch() 顺序建时间线，与 TUI 树上路径一致。
+ * opts.showNonMessageEntries 为 true 时，把 model_change / thinking_level_change
+ * 等元事件输出为 type:'model-change' 条目（相邻的 model+thinking 变更合并为一条）。
+ */
+export function timelineItemsFromBranchPath(
+  path: unknown[],
+  opts?: { showNonMessageEntries?: boolean },
+): Array<Record<string, unknown>> {
   const items: Array<Record<string, unknown>> = []
   const toolCallIndex = new Map<string, number>()
   const now = Date.now()
+
+  // 相邻元事件合并缓冲：model_change 与 thinking_level_change 常成对出现（任一顺序），
+  // 合并成一条「切换到 x · thinking: y」展示，避免两条噪音。
+  let pendingMeta: {
+    sid?: string
+    ts: number
+    model?: string
+    thinkingLevel?: string
+  } | null = null
+  const flushMeta = (): void => {
+    if (!pendingMeta) return
+    if (pendingMeta.model || pendingMeta.thinkingLevel) {
+      items.push({
+        id: `hist-${++msgSeq}`,
+        type: 'model-change',
+        timestamp: pendingMeta.ts,
+        ...(pendingMeta.sid ? { sessionEntryId: pendingMeta.sid } : {}),
+        ...(pendingMeta.model ? { model: pendingMeta.model } : {}),
+        ...(pendingMeta.thinkingLevel
+          ? { thinkingLevel: pendingMeta.thinkingLevel }
+          : {}),
+      })
+    }
+    pendingMeta = null
+  }
 
   for (const entry of path) {
     const e = entry as {
@@ -159,10 +190,32 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       id?: string
       type?: string
       summary?: string
+      provider?: string
+      modelId?: string
+      thinkingLevel?: string
       message?: PiSessionMessage & { content?: unknown[] }
     }
     const ts = e.timestamp ? new Date(e.timestamp).getTime() : now
     const sid = e.id
+
+    if (opts?.showNonMessageEntries) {
+      if (e.type === 'model_change' || e.type === 'thinking_level_change') {
+        const provider = String(e.provider || '')
+        const modelId = String(e.modelId || '')
+        const model = provider && modelId ? `${provider}/${modelId}` : undefined
+        if (!pendingMeta) {
+          pendingMeta = { sid, ts, model, thinkingLevel: e.thinkingLevel }
+        } else {
+          // 合并相邻元事件：model 优先填 provider/modelId，thinking 优先填 thinkingLevel
+          if (model) pendingMeta.model = model
+          if (e.thinkingLevel) pendingMeta.thinkingLevel = e.thinkingLevel
+          if (sid) pendingMeta.sid = sid
+          pendingMeta.ts = Math.max(pendingMeta.ts, ts)
+        }
+        continue
+      }
+      flushMeta()
+    }
 
     if (e.type === 'compaction' && e.summary) {
       items.push({
@@ -279,6 +332,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       }
     }
   }
+  flushMeta()
   // Force-quit mid-stream leaves empty assistant leaf — mark so UI keeps it + rewind works.
   return markTrailingIncompleteAssistants(items)
 }

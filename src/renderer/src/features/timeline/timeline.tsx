@@ -14,6 +14,7 @@ import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
+import { SkillInvocationRow, isSkillInvocationMessage } from './skill-invocation-row'
 import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawItem } from './timeline-display-items'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
@@ -34,7 +35,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTimelineBottomAnchorController } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
 import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
-import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
+import { pickAutoExpandedActivityIds } from './timeline-tool-expand-policy'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnActivityBlock } from './turn-activity-block'
 import { shouldShowTimelineHonestyBanner } from '@renderer/lib/timeline-honesty'
@@ -53,6 +54,8 @@ const TimelineItemBase = memo(function TimelineItem({
   agentRunning,
   agentBoot,
   rewindEntryId,
+  /** 滑动窗口：该行是否被窗口自动展开（思考块用） */
+  autoExpanded = false,
   /** Only the last prose leaf of a turn (or user) should expose copy/rewind chrome. */
   showMessageActions = true,
 }: {
@@ -63,6 +66,7 @@ const TimelineItemBase = memo(function TimelineItem({
   agentBoot: boolean
   /** Pre-resolved incomplete-assistant / user rewind target for this row */
   rewindEntryId?: string
+  autoExpanded?: boolean
   showMessageActions?: boolean
 }) {
   const { t } = useTranslation()
@@ -70,6 +74,14 @@ const TimelineItemBase = memo(function TimelineItem({
     rewindEntryId ?? (row.sessionEntryId as string | undefined)
 
   if (item.type === 'user-message') {
+    // skill 调用：pi 把 skill 内容作为独立用户消息注入，折叠为一行摘要（默认折叠、不受窗口限制）
+    if (isSkillInvocationMessage(String(item.text || ''))) {
+      return (
+        <div className="timeline-message-row timeline-activity-item">
+          <SkillInvocationRow item={item as unknown as TimelineItem} />
+        </div>
+      )
+    }
     const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
       ? (item.segments as Segment[])
       : [{ type: 'text', text: String(item.text || '') }]
@@ -182,6 +194,7 @@ const TimelineItemBase = memo(function TimelineItem({
           <ThinkingChainBlock
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
+            autoExpanded={autoExpanded}
             startedAt={Number(item.timestamp ?? 0) || undefined}
             duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
@@ -196,6 +209,7 @@ const TimelineItemBase = memo(function TimelineItem({
           <ThinkingChainBlock
             text={String(item.thinkingText ?? '')}
             streaming={streaming}
+            autoExpanded={autoExpanded}
             startedAt={Number(item.timestamp ?? 0) || undefined}
             duration={Number(item.thinkingDuration ?? 0) || undefined}
             labelSeed={String(item.id)}
@@ -305,6 +319,24 @@ const TimelineItemBase = memo(function TimelineItem({
             {String(item.text)}
           </pre>
         )}
+      </div>
+    )
+  }
+
+  if (item.type === 'model-change') {
+    const meta = item as unknown as TimelineItem & { model?: string; thinkingLevel?: string }
+    const parts: string[] = []
+    if (meta.model) parts.push(t('timeline:modelChangeTo', { model: meta.model }))
+    if (meta.thinkingLevel) {
+      parts.push(t('timeline:thinkingLevelChangeTo', { level: meta.thinkingLevel }))
+    }
+    if (parts.length === 0) return null
+    return (
+      <div className="timeline-message-row timeline-activity-item">
+        <div className="flex items-center gap-1.5 px-0.5 text-[11px] timeline-text-quiet">
+          <span aria-hidden className="h-1 w-1 rounded-full bg-border" />
+          <span>{parts.join(' · ')}</span>
+        </div>
       </div>
     )
   }
@@ -499,21 +531,27 @@ export function Timeline() {
   const toolExpandSlots = useMemo(
     () =>
       visibleItems
-        .filter((row) => row.type === 'tool-call')
+        .filter(
+          (row) =>
+            row.type === 'tool-call' ||
+            (row.type === 'assistant-message' &&
+              !!String((row as { thinkingText?: string }).thinkingText ?? '').trim()),
+        )
         .map((row) => {
           const toolRow = row as ToolTimelineItem
-          return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase }
+          return {
+            id: toolRow.id,
+            kind: row.type === 'assistant-message' ? ('thinking' as const) : ('tool' as const),
+          }
         }),
     [visibleItems],
   )
   const autoExpandedToolIds = useMemo(
     () =>
-      pickAutoExpandedToolIds(toolExpandSlots, {
-        agentRunning,
-        activeRunId,
+      pickAutoExpandedActivityIds(toolExpandSlots, {
         maxExpanded: timelineMaxAutoExpandedTools,
       }),
-    [toolExpandSlots, agentRunning, activeRunId, timelineMaxAutoExpandedTools],
+    [toolExpandSlots, timelineMaxAutoExpandedTools],
   )
   // Structure-only fingerprint: stream text must not rebuild timings / rewind targets.
   const structureEpoch = useMemo(
@@ -648,18 +686,29 @@ export function Timeline() {
         </Fragment>
       )
     }
-    return (
-      <Fragment key={item.id || blockKey}>
-        <TimelineItemBase
-          item={item}
-          prevType={prevType}
-          streaming={streamingAssistantId === item.id}
-          agentRunning={agentRunning}
-          agentBoot={agentBoot}
-          rewindEntryId={rewindEntryByItemId.get(item.id)}
-          showMessageActions={showMessageActions}
-        />
-      </Fragment>
+
+    const rowEntryId = item.sessionEntryId as string | undefined
+    const row = (
+      <TimelineItemBase
+        item={item}
+        prevType={prevType}
+        streaming={streamingAssistantId === item.id}
+        agentRunning={agentRunning}
+        agentBoot={agentBoot}
+        autoExpanded={autoExpandedToolIds.has(item.id)}
+        rewindEntryId={rewindEntryByItemId.get(item.id)}
+        showMessageActions={showMessageActions}
+      />
+    )
+    return rowEntryId ? (
+      <div key={item.id || blockKey} data-session-entry-id={rowEntryId} data-item-id={item.id}>
+        {row}
+      </div>
+    ) : (
+      <div key={item.id || blockKey} data-item-id={item.id}>
+        {row}
+      </div>
+
     )
   }
 

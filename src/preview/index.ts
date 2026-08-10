@@ -53,6 +53,7 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         message.payload.limit == null ? undefined : Number(message.payload.limit),
         message.payload.leafId as string | null | undefined,
         message.activeSdkPath,
+        message.payload.showNonMessageEntries === true ? { showNonMessageEntries: true } : undefined,
       )
     } else if (message.type === 'session.tree') {
       result = await flattenTreeFromSessionFile(
@@ -60,6 +61,7 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         String(message.payload.cwd || ''),
         message.payload.leafId as string | null | undefined,
         message.activeSdkPath,
+        message.payload.showNonMessageEntries === true ? { showNonMessageEntries: true } : undefined,
       )
     } else if (message.type === 'pi.settings.set') {
       const sdk = message.activeSdkPath

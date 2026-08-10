@@ -13,6 +13,10 @@
   "expand": "展开 {{count}} 行",
   "thinkingChain": "思考",
   "thinkingActive": "思考中",
+  "skillInvoked": "调用 skill: {{name}}",
+  "skillUnknown": "未知 skill",
+  "modelChangeTo": "切换到 {{model}}",
+  "thinkingLevelChangeTo": "thinking: {{level}}",
   "thoughtDone": "思考",
   "thinkingLines": " · {{count}}",
   "thinkingLive": {

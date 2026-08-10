@@ -60,6 +60,7 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         message.limit == null ? undefined : Number(message.limit),
         message.leafId as string | null | undefined,
         message.sdkPath,
+        message.showNonMessageEntries === true ? { showNonMessageEntries: true } : undefined,
       )
     } else if (message.type === 'session.tree') {
       result = await flattenTreeFromSessionFile(
@@ -67,6 +68,7 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         String(message.cwd || ''),
         message.leafId as string | null | undefined,
         message.sdkPath,
+        message.showNonMessageEntries === true ? { showNonMessageEntries: true } : undefined,
       )
     } else if (message.type === 'pi.settings.set') {
       const sdk = await import(message.sdkPath)

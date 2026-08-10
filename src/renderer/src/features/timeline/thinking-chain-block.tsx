@@ -36,6 +36,7 @@ export function ThinkingChainBlock({
   duration,
   labelSeed,
   placeholder = false,
+  autoExpanded = false,
 }: {
   text: string
   streaming?: boolean
@@ -44,10 +45,13 @@ export function ThinkingChainBlock({
   duration?: number
   labelSeed?: string
   placeholder?: boolean
+  /** 滑动窗口自动展开；用户手动折叠优先（点击后以手动状态为准） */
+  autoExpanded?: boolean
 }) {
   const { t } = useTranslation()
-  const [userOpen, setUserOpen] = useState(false)
-  const open = userOpen && !placeholder
+  // undefined = 用户未操作（跟随窗口）；false = 手动折叠；true = 手动展开（永远优先）
+  const [userOpen, setUserOpen] = useState<boolean | undefined>(undefined)
+  const open = (userOpen === undefined ? autoExpanded : userOpen) && !placeholder
   const startedAtRef = useRef<number | null>(startedAt ?? null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const body = text.trim()
@@ -102,7 +106,8 @@ export function ThinkingChainBlock({
         type="button"
         onClick={() => {
           if (placeholder || !body) return
-          setUserOpen((prev) => !prev)
+          // 手动优先：点击即记录用户意图，窗口不再覆盖
+          setUserOpen(!open)
         }}
         className={cn(
           'timeline-activity-row',

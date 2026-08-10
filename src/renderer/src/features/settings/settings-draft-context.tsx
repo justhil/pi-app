@@ -65,6 +65,8 @@ type SettingsDraftContextValue = {
   setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
   setAgentRuntime: (r: AgentRuntimeChoice) => void
+
+  setShowNonMessageEntries: (v: boolean) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
   reorderRightPanels: (fromId: string, toIndex: number) => void
@@ -267,6 +269,8 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
           timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n),
         })),
       setAgentRuntime: (r) => patch((d) => ({ ...d, agentRuntime: r })),
+
+      setShowNonMessageEntries: (v) => patch((d) => ({ ...d, showNonMessageEntries: v === true })),
       setExtensionOverride: (id, enabled) =>
         patch((d) => ({
           ...d,

@@ -67,8 +67,6 @@ function ToolCallRowImpl({
   autoExpandedInBudget?: boolean
 }) {
   const { t } = useTranslation()
-  const agentRunning = useUIStore((s) => s.runState.status === 'running')
-  const activeRunId = useUIStore((s) => s.runState.activeRunId)
   const expandKey = item.toolCallId || item.id
   const rememberedExpanded = useUIStore((s) => {
     if (!expandKey) return undefined
@@ -79,10 +77,10 @@ function ToolCallRowImpl({
   const setToolCallExpanded = useUIStore((s) => s.setToolCallExpanded)
   // Local fallback when store key missing or store write fails — click must always toggle.
   const [localExpanded, setLocalExpanded] = useState<boolean | null>(null)
-  const isCurrentRun = !!item.runId && item.runId === activeRunId
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
   const hasToolBody = !!(item.toolOutput || item.toolDetails || item.toolArgs || item.toolDetail)
-  const autoExpanded = autoExpandedInBudget && agentRunning && isCurrentRun && hasToolBody
+  // 滑动窗口：是否由静态尾部窗口选中（不依赖 agent 运行状态，历史会话同样生效）
+  const autoExpanded = autoExpandedInBudget && hasToolBody
   const expanded =
     localExpanded ?? rememberedExpanded ?? autoExpanded
   const argSummary = toolArgSummary(item)

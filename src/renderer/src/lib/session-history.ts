@@ -28,7 +28,8 @@ function activeWorkspace(): string | undefined {
 }
 
 function cacheKey(sessionFile: string, offset: number, limit: number) {
-  return `${sessionFile}|${offset}|${limit}`
+  const showMeta = useUIStore.getState().showNonMessageEntries ? 'meta' : 'nometa'
+  return `${showMeta}|${sessionFile}|${offset}|${limit}`
 }
 
 export async function fetchSessionHistoryTail(

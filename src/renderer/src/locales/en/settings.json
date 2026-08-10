@@ -90,8 +90,10 @@
   },
   "appearance": {
     "timeline": "Timeline",
-    "timelineToolAutoExpandMax": "Max auto-expanded tools",
-    "timelineToolAutoExpandMaxDesc": "During an active run, how many recent tool rows auto-expand details; 0 = always collapsed like Cursor (only subtle pulse). Range 0–50, default 0",
+    "timelineToolAutoExpandMax": "Activity items auto-expanded",
+    "timelineToolAutoExpandMaxDesc": "Sliding window: thinking / tool calls / command runs stay collapsed by default; only the newest N activity rows auto-expand, and the oldest collapses as new ones arrive. Manual expand/collapse always wins. 0 = window off (always collapsed). Range 0–50, default 5",
+    "showNonMessageEntries": "Show model-change entries",
+    "showNonMessageEntriesDesc": "Show non-message entries in the timeline (e.g. model switch, thinking-level change). Hidden by default. Reopen the session to apply",
     "title": "Appearance",
     "description": "Theme preview updates instantly; persist with \"Save\" at the bottom.",
     "theme": "Theme",

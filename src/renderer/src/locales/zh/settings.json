@@ -90,8 +90,10 @@
   },
   "appearance": {
     "timeline": "时间线",
-    "timelineToolAutoExpandMax": "工具自动展开上限",
-    "timelineToolAutoExpandMaxDesc": "当前对话运行中，同时自动展开详情的工具条数；0 = 始终折叠（仅淡闪烁，类似 Cursor）。范围 0–50，默认 0",
+    "timelineToolAutoExpandMax": "过程内容自动展开数量",
+    "timelineToolAutoExpandMaxDesc": "滑动窗口：时间线中思考/工具调用/命令执行等过程内容默认折叠，仅自动展开最新的 N 个，新增时最旧的自动折叠。手动展开/折叠优先于窗口。0 = 禁用窗口（始终折叠）。范围 0–50，默认 5",
+    "showNonMessageEntries": "展示模型变更记录",
+    "showNonMessageEntriesDesc": "在时间线中展示非消息条目（如模型切换、思考级别变更），默认隐藏。开启后需重新打开会话生效",
     "title": "外观",
     "description": "主题预览即时生效；持久化需点页面底部「保存」。",
     "theme": "主题",

@@ -65,8 +65,10 @@ export async function buildTimelinePageFromSessionFile(
     limit?: number
     leafId?: string | null
     activeSdkPath?: string | null
+    /** 是否把 model_change / thinking_level_change 元事件输出为时间线条目 */
+    showNonMessageEntries?: boolean
   },
-  timelineItemsFromBranchPath: (path: unknown[]) => Array<Record<string, unknown>>,
+  timelineItemsFromBranchPath: (path: unknown[], opts?: { showNonMessageEntries?: boolean }) => Array<Record<string, unknown>>,
 ): Promise<SessionTimelinePage> {
   const offset = Math.max(0, Number(opts.offset) || 0)
   const sm = await loadSessionManagerModule(opts.activeSdkPath)
@@ -83,7 +85,9 @@ export async function buildTimelinePageFromSessionFile(
   }
 
   const branchPath = smOpen.getBranch()
-  const all = timelineItemsFromBranchPath(branchPath)
+  const all = timelineItemsFromBranchPath(branchPath, {
+    showNonMessageEntries: opts.showNonMessageEntries === true,
+  })
   const totalCount = all.length
   const limit = Math.min(500, Math.max(1, Number(opts.limit) || totalCount || 1))
   const items = paginateItems(all, offset, limit)

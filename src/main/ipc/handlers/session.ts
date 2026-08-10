@@ -259,6 +259,9 @@ export function registerSessionHandlers(): void {
         offset,
         limit: limit || undefined,
         leafId,
+        // 元事件展示开关是 app 私有设置，主进程直接读 config-store，
+        // renderer 调用方无需逐调用透传
+        showNonMessageEntries: configStore.get('showNonMessageEntries') === true,
       })
       return {
         items: disk.items,

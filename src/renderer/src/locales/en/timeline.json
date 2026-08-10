@@ -13,6 +13,10 @@
   "expand": "Expand {{count}} lines",
   "thinkingChain": "Thinking",
   "thinkingActive": "Thinking",
+  "skillInvoked": "Skill invoked: {{name}}",
+  "skillUnknown": "unknown skill",
+  "modelChangeTo": "Switched to {{model}}",
+  "thinkingLevelChangeTo": "thinking: {{level}}",
   "thoughtDone": "Thought",
   "thinkingLines": " · {{count}}",
   "thinkingLive": {

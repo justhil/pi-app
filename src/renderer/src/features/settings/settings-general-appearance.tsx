@@ -277,7 +277,8 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools } = useSettingsDraft()
+  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setShowNonMessageEntries } =
+    useSettingsDraft()
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
     { key: 'light', icon: Sun },
@@ -362,6 +363,15 @@ export function AppearanceSettings() {
               setTimelineMaxAutoExpandedTools(n)
             }}
             className={numberInputCls}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('settings:appearance.showNonMessageEntries')}
+          description={t('settings:appearance.showNonMessageEntriesDesc')}
+        >
+          <Switch
+            checked={draft.showNonMessageEntries}
+            onCheckedChange={setShowNonMessageEntries}
           />
         </SettingRow>
       </SettingsSection>

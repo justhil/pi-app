@@ -28,8 +28,13 @@ type ShellSlice = Pick<
   | 'toolExpandBySession'
   | 'setToolCallExpanded'
   | 'getToolCallExpanded'
+  | 'skillExpandBySession'
+  | 'setSkillInvocationExpanded'
+  | 'getSkillInvocationExpanded'
   | 'timelineMaxAutoExpandedTools'
   | 'setTimelineMaxAutoExpandedTools'
+  | 'showNonMessageEntries'
+  | 'setShowNonMessageEntries'
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
@@ -97,9 +102,38 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
         '__none__'
       return state.toolExpandBySession[sessionKey]?.[toolCallId]
     },
+    skillExpandBySession: {},
+    setSkillInvocationExpanded: (itemId, expanded) =>
+      set((state) => {
+        const sessionKey =
+          normalizeSessionFileKey(state.historySessionFile || '') ||
+          state.historySessionFile ||
+          '__none__'
+        if (!itemId) return state
+        const sessionMap = { ...(state.skillExpandBySession[sessionKey] || {}) }
+        if (expanded == null) delete sessionMap[itemId]
+        else sessionMap[itemId] = expanded
+        return {
+          skillExpandBySession: {
+            ...state.skillExpandBySession,
+            [sessionKey]: sessionMap,
+          },
+        }
+      }),
+    getSkillInvocationExpanded: (itemId) => {
+      if (!itemId) return undefined
+      const state = get()
+      const sessionKey =
+        normalizeSessionFileKey(state.historySessionFile || '') ||
+        state.historySessionFile ||
+        '__none__'
+      return state.skillExpandBySession[sessionKey]?.[itemId]
+    },
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     setTimelineMaxAutoExpandedTools: (count) =>
       set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(count) }),
+    showNonMessageEntries: false,
+    setShowNonMessageEntries: (v) => set({ showNonMessageEntries: v === true }),
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,

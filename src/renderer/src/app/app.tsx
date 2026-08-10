@@ -169,6 +169,12 @@ export default function App() {
         })
         .catch(() => {})
       prefetchAvailableModels()
+      void ipcClient
+        .invoke('settings.get', { key: 'showNonMessageEntries' })
+        .then((res) => {
+          useUIStore.getState().setShowNonMessageEntries(res?.settings?.showNonMessageEntries === true)
+        })
+        .catch(() => {})
     })
     return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])
@@ -194,6 +200,7 @@ export default function App() {
     return () => {
       unsubEvents()
       unsubExit()
+
     }
   }, [setWorkspace])
 

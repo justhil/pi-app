@@ -34,7 +34,7 @@ export type ToolTimelineItem = {
 
 export interface TimelineItem {
   id: string
-  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash'
+  type: 'user-message' | 'assistant-message' | 'tool-call' | 'compaction' | 'error' | 'slash' | 'model-change'
   text?: string
   thinkingText?: string
   thinkingDuration?: number
@@ -204,8 +204,15 @@ export interface UIState {
   toolExpandBySession: Record<string, Record<string, boolean>>
   setToolCallExpanded: (toolCallId: string, expanded: boolean | null) => void
   getToolCallExpanded: (toolCallId: string) => boolean | undefined
+  /** Session-scoped skill invocation row expand memory（默认折叠，不受滑动窗口限制） */
+  skillExpandBySession: Record<string, Record<string, boolean>>
+  setSkillInvocationExpanded: (itemId: string, expanded: boolean | null) => void
+  getSkillInvocationExpanded: (itemId: string) => boolean | undefined
   timelineMaxAutoExpandedTools: number
   setTimelineMaxAutoExpandedTools: (n: number) => void
+  /** 时间线是否展示元事件条目（model_change / thinking_level_change） */
+  showNonMessageEntries: boolean
+  setShowNonMessageEntries: (v: boolean) => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean
