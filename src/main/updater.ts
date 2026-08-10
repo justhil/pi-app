@@ -24,13 +24,26 @@ export function clearPendingAppUpdate(): void {
 }
 
 /**
+ * Auto-check throttle: one GitHub call per day at most. The release list barely
+ * changes, and a 5s+ network round-trip on every app start (especially with slow
+ * GitHub access) should never coincide with the user's first interactions.
+ */
+export const UPDATE_CHECK_TTL_MS = 24 * 60 * 60 * 1000
+
+/**
  * Startup update check: never blocks the UI thread beyond scheduling.
  * Failures are logged only — no toast / dialog.
  * Skips versions the user chose to ignore for this machine.
+ * Throttled to one attempt per day via configStore.lastUpdateCheckAt.
  */
 export function initUpdater(mainWindow: BrowserWindow): void {
   if (configStore.get('autoCheckRegistryUpdates') === false) {
     log.info('[Updater] auto check disabled')
+    return
+  }
+  const lastCheckAt = Number(configStore.get('lastUpdateCheckAt') || 0)
+  if (lastCheckAt > 0 && Date.now() - lastCheckAt < UPDATE_CHECK_TTL_MS) {
+    log.info('[Updater] auto check skipped (checked within the last 24h)')
     return
   }
 
@@ -72,6 +85,11 @@ export function initUpdater(mainWindow: BrowserWindow): void {
       })
       .catch((err) => {
         log.warn('[Updater] check failed:', err)
+      })
+      .finally(() => {
+        // Record every completed attempt (success or failure) so an offline start
+        // does not retry GitHub on the very next app launch.
+        configStore.set('lastUpdateCheckAt', Date.now())
       })
   })
 }
