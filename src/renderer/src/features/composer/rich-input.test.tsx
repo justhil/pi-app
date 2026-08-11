@@ -237,4 +237,54 @@ describe('RichInput height reset', () => {
 
     expect(scrollTopValue).toBe(30)
   })
+
+  it('zero-size caret probe does not feed back into the mutation observer (no rAF loop)', () => {
+    // Chrome 在元素边界（空行 / <br> 后）的光标会给出零尺寸 rect；此时用临时探针测量。
+    // 探针插入/移除会触发 MutationObserver → 又调度 rAF → 下一帧再插探针 = 永久循环。
+    // 测量期间必须临时断开 observer，且一轮刷新后不得再有新的 rAF 被调度。
+    scrollHeight = 180
+    const { container } = render(<RichInput />)
+    const input = container.querySelector('.rich-input') as HTMLDivElement
+
+    Object.defineProperty(input, 'clientHeight', { configurable: true, get: () => 112 })
+    Object.defineProperty(input, 'scrollTop', {
+      configurable: true,
+      get: () => 0,
+      set: () => undefined,
+    })
+
+    const zeroRect = { top: 0, bottom: 0, width: 0, height: 0 } as DOMRect
+    const range = {
+      collapsed: true,
+      commonAncestorContainer: input,
+      endContainer: input,
+      endOffset: 0,
+      getBoundingClientRect: () => zeroRect,
+      insertNode: vi.fn(),
+    } as unknown as Range
+    const selection = {
+      rangeCount: 1,
+      getRangeAt: () => range,
+      removeAllRanges: () => undefined,
+      addRange: () => undefined,
+    } as unknown as Selection
+    vi.spyOn(window, 'getSelection').mockReturnValue(selection)
+    const createRange = vi.spyOn(document, 'createRange').mockReturnValue({
+      setStart: () => undefined,
+      collapse: () => undefined,
+    } as unknown as Range)
+
+    input.textContent = 'x'.repeat(180)
+    const probeSpy = vi.spyOn(document, 'createElement')
+    act(() => mutationCallback?.([], {} as MutationObserver))
+    flushAnimationFrames()
+
+    // 探针路径被使用：断开 observer → 插入探针 → 移除 → 恢复
+    expect(range.insertNode).toHaveBeenCalled()
+    expect(mutationDisconnect).toHaveBeenCalled()
+    expect(createRange).toHaveBeenCalled()
+    // 循环已断：刷新结束后没有新的 rAF 排队
+    expect(animationFrames).toHaveLength(0)
+    void probeSpy
+  })
 })

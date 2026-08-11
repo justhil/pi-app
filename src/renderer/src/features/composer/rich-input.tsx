@@ -53,7 +53,10 @@ function collectTextNodeContent(node: Node): string {
  * independent of scrolling. Returns null when the caret is outside the editor, a selection is
  * active, or the position cannot be measured.
  */
-function caretContentRange(el: HTMLElement): { top: number; bottom: number } | null {
+function caretContentRange(
+  el: HTMLElement,
+  mutationObserver?: MutationObserver | null,
+): { top: number; bottom: number } | null {
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return null
   const range = sel.getRangeAt(0)
@@ -74,6 +77,9 @@ function caretContentRange(el: HTMLElement): { top: number; bottom: number } | n
   // A collapsed caret at an element boundary (blank line / right after a <br>) can produce a
   // zero-sized rect in Chrome. Insert a temporary zero-width probe node at the caret, measure,
   // then remove it and restore the selection.
+  // 探针插入/移除会被 editor 的 MutationObserver 当作内容变更，再次调度 rAF → 下一帧又插探针，
+  // 形成永久测量循环。测量期间临时断开 observer，探针读写不再触发任何回调。
+  if (mutationObserver) mutationObserver.disconnect()
   const probe = document.createElement('span')
   probe.style.cssText = 'display:inline-block;width:0;height:1px'
   probe.textContent = '\u200B'
@@ -82,6 +88,9 @@ function caretContentRange(el: HTMLElement): { top: number; bottom: number } | n
   range.insertNode(probe)
   const probed = measure(probe.getBoundingClientRect())
   probe.remove()
+  if (mutationObserver) {
+    mutationObserver.observe(el, { childList: true, characterData: true, subtree: true })
+  }
   const sel2 = window.getSelection()
   if (sel2) {
     const restore = document.createRange()
@@ -94,8 +103,9 @@ function caretContentRange(el: HTMLElement): { top: number; bottom: number } | n
 }
 
 /** Scroll the editor so the caret is back in view (no-op when the caret is absent/unmeasurable). */
-function scrollCaretIntoView(el: HTMLElement) {
-  const caret = caretContentRange(el)
+function scrollCaretIntoView(el: HTMLElement, mutationObserver?: MutationObserver | null) {
+  if (el.scrollHeight <= el.clientHeight) return
+  const caret = caretContentRange(el, mutationObserver)
   if (!caret) return
   const viewTop = el.scrollTop
   const viewBottom = viewTop + el.clientHeight
@@ -112,6 +122,9 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
 ) {
   const innerRef = useRef<HTMLDivElement>(null)
   const animationFrameRef = useRef<number | null>(null)
+  // 探针测量期间要临时断开 MutationObserver（见 caretContentRange），
+  // 通过 ref 传递避免闭包捕获旧实例。
+  const mutationObserverRef = useRef<MutationObserver | null>(null)
   useImperativeHandle(ref, () => innerRef.current as HTMLDivElement, [])
 
   const refreshLayoutAndEmpty = () => {
@@ -126,7 +139,7 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
     node.scrollTop = Math.min(prevScrollTop, Math.max(node.scrollHeight - node.clientHeight, 0))
     // Programmatic inserts (Shift+Enter, paste, voice input) skip the browser's caret-into-view
     // scrolling, so bring the caret back into view manually (no-op while content fits).
-    scrollCaretIntoView(node)
+    scrollCaretIntoView(node, mutationObserverRef.current)
   }
 
   const scheduleRefreshLayoutAndEmpty = () => {
@@ -168,9 +181,11 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
       characterData: true,
       subtree: true,
     })
+    mutationObserverRef.current = mutationObserver
     return () => {
       resizeObserver.disconnect()
       mutationObserver.disconnect()
+      mutationObserverRef.current = null
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
