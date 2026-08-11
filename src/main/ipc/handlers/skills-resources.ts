@@ -16,6 +16,7 @@ import {
   setSkillEnabledInGlobal,
   applySkillOverridesBatch,
   migrateElectronSkillOverrides,
+  normalizeSkillPath,
 } from '../../pi-skill-overrides'
 import {
   listAgentsContextFiles,
@@ -26,6 +27,7 @@ import {
   type PromptCatalogItem,
 } from '../../pi-prompt-catalog'
 import { listRevisions, pushRevision, restoreRevision, readRevision } from '../../resource-revisions'
+import { resolveActiveHomeDir } from '../../agent-dir'
 import type { ResourceSource } from '../../pi-resources-editor'
 import { errorMessage } from '@shared/error-message'
 
@@ -36,7 +38,9 @@ export function registerSkillsResourceHandlers(): void {
       migrateElectronSkillOverrides(legacy)
       configStore.set('skillOverrides', {})
     }
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    // worker 未启动时回退到当前运行时的 home（WSL 模式为 \\wsl.localhost\<distro>\<home>），
+    // 使 `~/.pi/skills` 顶层全局 skills 在未打开工作区时也能被扫描到。
+    const cwd = workerManager.cwd || configStore.get('currentProject') || resolveActiveHomeDir()
     const overrides = getDesktopSkillOverrides()
     const disk = listSkillsOnDisk(cwd)
     let worker: { name: string; path?: string; description?: string; source?: string }[] = []
@@ -58,7 +62,7 @@ export function registerSkillsResourceHandlers(): void {
       })
     }
     for (const s of worker) {
-      const path = s.path || ''
+      const path = normalizeSkillPath(s.path) || ''
       const key = skillStorageKey(s.name, path || undefined)
       const existing = path ? byPath.get(path) : undefined
       const row = {
@@ -81,7 +85,7 @@ export function registerSkillsResourceHandlers(): void {
 
   registerHandler('ipc:skills.setEnabled', async (req) => {
     const name = String(req.name || '')
-    const path = req.path ? String(req.path) : undefined
+    const path = normalizeSkillPath(req.path ? String(req.path) : undefined)
     const enabled = req.enabled !== false
     if (!name && !path) return { ok: false }
     const overrides = setSkillEnabledInGlobal(name || 'unknown', path, enabled)
@@ -95,7 +99,7 @@ export function registerSkillsResourceHandlers(): void {
     const normalized = changes
       .map((c: { name?: string; path?: string; enabled?: boolean }) => ({
         name: String(c?.name || ''),
-        path: c?.path ? String(c.path) : undefined,
+        path: c?.path ? normalizeSkillPath(String(c.path)) : undefined,
         enabled: c?.enabled !== false,
       }))
       .filter((c: { name: string; path?: string }) => c.name || c.path)
@@ -104,7 +108,7 @@ export function registerSkillsResourceHandlers(): void {
   })
 
   registerHandler('ipc:prompts.list', async () => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || resolveActiveHomeDir()
     let projectTrusted = true
     let defaultSystemPreview = ''
     if (workerManager.isRunning) {
@@ -138,7 +142,7 @@ export function registerSkillsResourceHandlers(): void {
       try {
         const worker = await workerManager.getPromptTemplatesList()
         for (const t of worker) {
-          const path = t.path || ''
+          const path = normalizeSkillPath(t.path) || ''
           if (path && tplByPath.has(path)) {
             const cur = tplByPath.get(path)!
             tplByPath.set(path, { ...cur, description: t.description || cur.description })
@@ -180,17 +184,22 @@ export function registerSkillsResourceHandlers(): void {
   })
 
   registerHandler('ipc:resource.read', async (req) => {
-    const path = String(req.path || '')
+    const path = normalizeSkillPath(String(req.path || ''))
     if (!path) return { error: 'missing path' }
     if (path === 'pi-desktop://system-prompt-preview') {
       try {
         if (!workerManager.isRunning) {
-          return { content: '（Worker 未启动，打开工作区后重试）', path, revisions: [] }
+          const cwd = workerManager.cwd || configStore.get('currentProject')
+          if (!cwd) {
+            return { content: '（请先打开工作区，worker 启动后即可预览系统提示词）', path, revisions: [] }
+          }
+          await workerManager.start(cwd)
         }
         const ctx = await workerManager.getContextPrompts()
         return { content: String(ctx.builtSystemPreview || '（空）'), path, revisions: [] }
       } catch (e: unknown) {
-        return { error: errorMessage(e) }
+        console.error('[IPC] resource.read system prompt preview failed:', e)
+        return { content: `（获取系统提示词预览失败：${errorMessage(e)}）`, path, revisions: [] }
       }
     }
     const resolved = resolve(path)
@@ -219,7 +228,7 @@ export function registerSkillsResourceHandlers(): void {
   })
 
   registerHandler('ipc:resource.write', async (req) => {
-    const path = String(req.path || '')
+    const path = normalizeSkillPath(String(req.path || '')) || ''
     if (path.startsWith('pi-desktop://')) return { ok: false, error: '只读预览不可保存' }
     const content = String(req.content ?? '')
     if (!path) return { ok: false, error: 'missing path' }

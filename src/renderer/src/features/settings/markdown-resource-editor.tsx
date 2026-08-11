@@ -95,17 +95,22 @@ export function MarkdownResourceEditor({
   })
 
   const load = useCallback(async (p: string) => {
-    const res = await ipcClient.invoke('resource.read', { path: p })
-    if (res?.error) {
-      toast.error(res.error)
-      return
+    try {
+      const res = await ipcClient.invoke('resource.read', { path: p })
+      if (res?.error) {
+        toast.error(res.error)
+        return
+      }
+      const text = res.content || ''
+      setContent(text)
+      setSavedContent(text)
+      setLoadedPath(res.path || p)
+      setRevisions(res.revisions || [])
+      markDirty(false)
+    } catch (e) {
+      console.error('[PromptsEditor] resource.read invoke failed:', e)
+      toast.error(e instanceof Error ? e.message : String(e))
     }
-    const text = res.content || ''
-    setContent(text)
-    setSavedContent(text)
-    setLoadedPath(res.path || p)
-    setRevisions(res.revisions || [])
-    markDirty(false)
   }, [])
 
   useEffect(() => {
