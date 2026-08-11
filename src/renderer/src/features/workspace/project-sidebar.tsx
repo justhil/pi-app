@@ -225,10 +225,14 @@ export function ProjectSidebar({
   const mergedSessionsByWorkspace = useMemo(() => {
     const next = { ...sessionsByWorkspace }
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      // 缓存优先：切换工作区时 setWorkspace 会清空 store.sessions，
-      // 若直接覆盖会丢掉目标文件夹已缓存的会话列表（每次都重新“加载中”）。
-      // 仅当目标文件夹从未加载过（无缓存键）时才用 store.sessions 兜底。
-      if (!(currentWorkspace in next)) {
+      // store.sessions 是当前工作区的实时列表：新建 / fork / 删除都会更新它（不一定发布
+      // workspace-sessions 事件）。一旦实时列表非空就以它为准——否则新建/fork 的新会话会被
+      // 旧缓存遮蔽，侧栏一直显示旧列表直到手动刷新。
+      // 仅当切换工作区产生的瞬态空列表（setWorkspace 同步清空 sessions）且有缓存键时
+      // 才保留缓存，避免每次切换都闪“加载中”；空列表且无缓存则直接回填空列表。
+      if (sessions.length > 0) {
+        next[currentWorkspace] = sessions
+      } else if (!(currentWorkspace in next)) {
         next[currentWorkspace] = sessions
       }
     }

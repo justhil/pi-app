@@ -167,4 +167,41 @@ describe('ProjectSidebar folder list stability', () => {
     expect(after.join('')).not.toContain('加载中')
     expect(after.join('')).toContain('B的会话')
   })
+
+  it('prefers the live session list over a stale cache so a new session is not hidden', async () => {
+    const { container } = render(<ProjectSidebar onOpenProject={() => {}} openProjectLabel="打开" />)
+    await act(async () => {
+      resolveRecentProjects?.({ settings: { recentProjects: ['/proj/A', '/proj/B'] } })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // B 已有旧缓存（来自之前的访问）
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent('pi-desktop:workspace-sessions', {
+          detail: { workspaceId: '/proj/B', sessions: [{ sessionId: 'b1', title: 'B的旧会话', updatedAt: 2, modelId: 'm' }] },
+        }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    // 切换到 B（setWorkspace 清空 store.sessions → 瞬态期显示缓存）
+    await act(async () => {
+      useUIStore.getState().setWorkspace('/proj/B')
+      await new Promise((resolve) => setTimeout(resolve, 30))
+    })
+
+    // 新建会话只更新 store.sessions、不发布 workspace-sessions 事件：
+    // 实时列表必须优先于旧缓存，否则新会话被旧缓存遮蔽
+    await act(async () => {
+      useUIStore.getState().setSessions([
+        { sessionId: 'b1', title: 'B的旧会话', updatedAt: 2, modelId: 'm' },
+        { sessionId: 'b2', title: '新会话', updatedAt: 3, modelId: 'm' },
+      ])
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    const treeText = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
+    expect(treeText.join('')).toContain('新会话')
+  })
 })
