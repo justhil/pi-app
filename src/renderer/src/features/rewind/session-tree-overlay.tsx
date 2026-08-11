@@ -11,6 +11,7 @@ import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree
 import {
   SessionTreeList,
   filterSessionTreeNodes,
+  resolveViewTargetId,
   type SessionTreeNode,
   type TreeFilterMode,
 } from '@renderer/features/rewind/session-tree-list'
@@ -113,7 +114,9 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
         if (next) setSelectedId(next.id)
       } else if (e.key === 'Enter' && selectedId) {
         e.preventDefault()
-        void view(selectedId)
+        // 与单击共用同一映射：toolResult / 元条目解析到最近的可见消息，避免发原始 id 落点失败
+        const idx = visible.findIndex((n) => n.id === selectedId)
+        void view(resolveViewTargetId(visible, idx >= 0 ? idx : 0))
       }
     }
     window.addEventListener('keydown', onKey, true)

@@ -148,4 +148,30 @@ describe('resolveViewTargetId', () => {
     const nodes = [msgNode('m1'), toolNode('t1')]
     expect(resolveViewTargetId(nodes, 1)).toBe('m1')
   })
+
+  it('toolResult messages resolve to a landable message instead of their merged id', () => {
+    // toolResult 的 entryType 也是 message，但时间线合并进前一条 assistant 工具行，
+    // 没有自己的锚点——必须解析到最近的可见消息
+    const toolResultNode = (id: string): SessionTreeNode => ({
+      id,
+      depth: 0,
+      entryType: 'message',
+      role: 'toolResult',
+      isLeaf: false,
+    })
+    const assistant = (id: string): SessionTreeNode => ({
+      id,
+      depth: 0,
+      entryType: 'message',
+      role: 'assistant',
+      isLeaf: false,
+    })
+
+    const nodes = [assistant('a1'), toolResultNode('r1'), assistant('a2')]
+    // 前一条 assistant 工具行仍在树中：优先解析到它
+    expect(resolveViewTargetId(nodes, 1)).toBe('a1')
+    // 无更早消息时回退到下一条可见消息
+    const nodes2 = [toolResultNode('r1'), assistant('a2')]
+    expect(resolveViewTargetId(nodes2, 0)).toBe('a2')
+  })
 })

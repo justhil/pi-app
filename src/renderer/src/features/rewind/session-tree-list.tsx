@@ -50,20 +50,38 @@ export function filterSessionTreeNodes(nodes: SessionTreeNode[], mode: TreeFilte
   })
 }
 
+/** 时间线里能直接落点的树条目：user/assistant/system 消息。 */
+function isLandableViewTarget(n: SessionTreeNode): boolean {
+  if (n.entryType !== 'message') return false
+  // toolResult 的 entryType 也是 message，但时间线把它的输出合并进前一条
+  // assistant 工具行，不生成该 entry id 的锚点——单击/Enter 跳过去无法落点
+  return n.role !== 'toolResult'
+}
+
 /**
- * Non-message tree entries (tool / compaction / branch_summary / labels) have no
- * 1:1 timeline row, so a view jump lands on the nearest message instead: prefer
- * the next one (the reply that used this entry), fall back to the previous one.
+ * Non-message tree entries (tool / compaction / branch_summary / labels / toolResult)
+ * have no 1:1 timeline row, so a view jump lands on the nearest message instead:
+ * prefer the next one (the reply that used this entry), fall back to the previous one.
  */
 export function resolveViewTargetId(nodes: SessionTreeNode[], index: number): string {
   const node = nodes[index]
   if (!node) return ''
-  if (node.entryType === 'message') return node.id
-  for (let i = index + 1; i < nodes.length; i++) {
-    if (nodes[i].entryType === 'message') return nodes[i].id
+  if (isLandableViewTarget(node)) return node.id
+  // toolResult 是前一条 assistant 工具行的输出（已合并进该行），优先回退到它；
+  // 其它元条目优先找“使用该条目的下一条消息”。
+  const preferNext = node.role !== 'toolResult'
+  if (preferNext) {
+    for (let i = index + 1; i < nodes.length; i++) {
+      if (isLandableViewTarget(nodes[i])) return nodes[i].id
+    }
   }
   for (let i = index - 1; i >= 0; i--) {
-    if (nodes[i].entryType === 'message') return nodes[i].id
+    if (isLandableViewTarget(nodes[i])) return nodes[i].id
+  }
+  if (!preferNext) {
+    for (let i = index + 1; i < nodes.length; i++) {
+      if (isLandableViewTarget(nodes[i])) return nodes[i].id
+    }
   }
   return node.id
 }
