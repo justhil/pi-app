@@ -79,4 +79,17 @@ describe('refreshSessionTree concurrency guard', () => {
     ])
     expect(useUIStore.getState().rewindKey).toBe('/b.jsonl')
   })
+
+  it('switching to no session invalidates an in-flight refresh and clears the store', async () => {
+    const p1 = refreshSessionTree('/a.jsonl')
+    // 切到无会话：序号递增，A 的在途响应必须失效并清空树
+    refreshSessionTree(null)
+    expect(useUIStore.getState().rewindTreeNodes).toEqual([])
+    expect(useUIStore.getState().rewindKey).toBe('')
+
+    pending[0].resolve({ nodes: [{ id: 'a1', entryType: 'message', isLeaf: true }] })
+    await p1
+    expect(useUIStore.getState().rewindTreeNodes).toEqual([])
+    expect(useUIStore.getState().rewindKey).toBe('')
+  })
 })
