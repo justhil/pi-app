@@ -212,6 +212,38 @@ describe('session-worker-sync', () => {
     expect(cleared).toEqual([])
   })
 
+  it('fetchWorkerLiveSnapshot reports unknown (not idle) when IPC fails', async () => {
+    vi.mocked(ipcClient.invoke).mockRejectedValue(new Error('ipc down'))
+    const snap = await fetchWorkerLiveSnapshot('/w', '/b.jsonl')
+    expect(snap.status).toBe('unknown')
+  })
+
+  it('applyLiveSnapshotToView keeps old state when snapshot is unknown (failed query)', () => {
+    // 查询失败不能清掉运行态，否则正在跑的任务会失去停止入口并停掉轮询
+    let snap: { sessionId: string | null; sessionFile: string | null; status: string } | null = null
+    const cleared: string[] = []
+    applyLiveSnapshotToView(
+      '/view.jsonl',
+      { sessionId: null, sessionFile: '/view.jsonl', status: 'unknown' },
+      {
+        historySessionFile: '/view.jsonl',
+        runState: { status: 'running', toolCount: 0, errorCount: 0 },
+        setWorkerLiveSnapshot: (s) => {
+          snap = s
+        },
+        setRunState: (p) => {
+          void p
+        },
+        setSessionRuntimeRunning: (file, running) => {
+          if (!running) cleared.push(file)
+        },
+      },
+    )
+    // 旧 snapshot 与运行态都保留
+    expect(snap).toBeNull()
+    expect(cleared).toEqual([])
+  })
+
   it('applyLiveSnapshotToView clears stale runtime entry when the worker is idle', () => {
     // The run.idle AppEvent never arrived (or was routed as background), leaving
     // sessionRuntimeRunning[view] = true — the Composer Stop button stays lit even
