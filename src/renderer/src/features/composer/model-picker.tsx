@@ -14,8 +14,20 @@ import {
   refreshAvailableModels,
   subscribeAvailableModels,
 } from '@renderer/lib/available-models-cache'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 type ModelRow = { id: string; provider: string; name?: string; available?: boolean }
+
+// 跨卸载的模型切换请求状态：picker 关闭后 App 条件卸载组件，局部 state 会丢失；
+// 旧请求晚结算时可能覆盖用户随后发起的新选择，或污染已切换会话的 runState。
+// 用模块级 pending + 递增 token：过期结果（更新选择 / 已切会话）一律忽略。
+type PendingModelSwitch = {
+  token: number
+  sessionFile: string
+  requestedModel: string
+}
+let modelSwitchToken = 0
+let pendingModelSwitch: PendingModelSwitch | null = null
 
 function groupByProvider(models: ModelRow[]): { provider: string; models: ModelRow[] }[] {
   const map = new Map<string, ModelRow[]>()
@@ -86,32 +98,38 @@ export function ModelPicker() {
       setOpen(false)
       return
     }
-    const confirmedModel = useUIStore.getState().runState.model
-    // Session restore can still be in flight on the first switch (~1s). Do not
-    // hold the picker open while main safely routes setModel behind loadSession.
-    // Revert and reopen if runtime confirmation eventually fails.
-    useUIStore.getState().setRunState({ model: requestedModel })
+    const targetFile = sessionFile
+    // 切换期间保持打开并禁用其它行，runtime 确认后才关闭/更新（上游语义）。
+    // 请求可能跨 picker 关闭/重开、或用户切换会话后结算：用 token + session 守卫忽略过期结果。
+    const token = ++modelSwitchToken
+    pendingModelSwitch = { token, sessionFile: targetFile, requestedModel }
     setPendingModel(requestedModel)
-    setOpen(false)
     try {
       const response = await ipcClient.invoke('model.set', {
         sessionId: '',
-        sessionFile,
+        sessionFile: targetFile,
         provider: m.provider,
         modelId: m.id,
       })
+      if (token !== modelSwitchToken) return
+      const now = useUIStore.getState()
+      if (!sessionFilesEqual(now.historySessionFile, targetFile)) return
       const actualModel = response.modelId || requestedModel
-      useUIStore.getState().setRunState({ model: actualModel })
+      now.setRunState({ model: actualModel })
+      if (pendingModelSwitch?.token === token) pendingModelSwitch = null
+      setOpen(false)
       // Boot guard silences toast.success for the first 22s after launch; a
       // user-initiated model switch must still confirm visibly.
       userActionToast.success(t('composer:switchedModel', { key: actualModel }))
     } catch (e) {
-      useUIStore.getState().setRunState({ model: confirmedModel })
-      setOpen(true)
+      if (token !== modelSwitchToken) return
+      const now = useUIStore.getState()
+      if (!sessionFilesEqual(now.historySessionFile, targetFile)) return
+      if (pendingModelSwitch?.token === token) pendingModelSwitch = null
       console.error('model.set failed:', e)
       toast.error(e instanceof Error ? e.message : t('composer:switchFailed'))
     } finally {
-      setPendingModel(null)
+      if (token === modelSwitchToken) setPendingModel(null)
     }
   }
 

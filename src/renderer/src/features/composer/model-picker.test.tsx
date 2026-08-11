@@ -188,7 +188,8 @@ describe('ModelPicker runtime confirmation', () => {
     render(<ModelPicker />)
     fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
-    expect(useUIStore.getState().runState.model).toBe('openai/gpt/new')
+    // 非乐观：runtime 确认前 runState 保持原值
+    expect(useUIStore.getState().runState.model).toBe('anthropic/old')
 
     // 请求在途时用户切到另一个会话
     useUIStore.setState({ historySessionFile: 'C:/sessions/two.jsonl' })
@@ -221,7 +222,8 @@ describe('ModelPicker runtime confirmation', () => {
     const first = render(<ModelPicker />)
     fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
-    // 模拟 App 条件卸载：关闭后组件卸载，重新打开是新实例（局部 pending 重置）
+    // 模拟 App 条件卸载：关闭 picker 后组件卸载（局部 pending 重置），再重新打开选第二个
+    useUIStore.setState({ modelPickerOpen: false })
     first.unmount()
     useUIStore.setState({ modelPickerOpen: true })
     render(<ModelPicker />)
@@ -232,7 +234,7 @@ describe('ModelPicker runtime confirmation', () => {
     // 旧请求最后才返回：token 已过期，必须被忽略（不得覆盖第二次选择）
     resolvers[0]?.({ modelId: 'openai/gpt/new' })
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(useUIStore.getState().runState.model).toBe('openai/gpt-next')
+    expect(useUIStore.getState().runState.model).toBe('anthropic/old')
     expect(userActionToastMock.success).not.toHaveBeenCalled()
     // 新请求结算
     resolvers[1]?.({ modelId: 'openai/gpt-next' })
