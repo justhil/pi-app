@@ -126,7 +126,7 @@ function resolveRunUI(
     optimisticPendingUserText: string | null
     agentTurnBootstrapping: boolean
     workerSessionFile: string | null
-    workerStatus: 'idle' | 'running' | 'failed'
+    workerStatus: 'idle' | 'running' | 'failed' | 'unknown'
   },
 ): SessionRunUI {
   if (input.runtime[sessionKey] === true) return 'running'

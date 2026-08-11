@@ -6,7 +6,7 @@ import type { RunState } from '@renderer/stores/ui-store-types'
 export type WorkerLiveSnapshot = {
   sessionId: string | null
   sessionFile: string | null
-  status: 'idle' | 'running' | 'failed'
+  status: 'idle' | 'running' | 'failed' | 'unknown'
 }
 
 function runtimeRunningForSession(
@@ -45,7 +45,9 @@ export async function fetchWorkerLiveSnapshot(
     | undefined
 
   if (!st) {
-    return { sessionId: null, sessionFile: requested, status: 'idle' }
+    // IPC 失败/无响应与 worker 明确 idle 是两回事：失败必须保留旧状态，
+    // 否则一次瞬态查询失败就会清掉运行态并停掉轮询，正在跑的任务失去停止入口。
+    return { sessionId: null, sessionFile: requested, status: 'unknown' }
   }
 
   const repliedFile = st.sessionFile ? normalizeSessionFileKey(st.sessionFile) || st.sessionFile : null
@@ -178,6 +180,8 @@ export function syncViewRunStateFromWorkerSnapshot(
   }
   if (snap.status === 'running') {
     setRunState({ status: 'running', activeTool: undefined, activeToolStatus: undefined })
+  } else if (snap.status === 'unknown') {
+    // 查询失败：保留当前 runState，不降级为 idle
   } else {
     setRunState({
       status: snap.status === 'failed' ? 'failed' : 'idle',
@@ -198,6 +202,7 @@ type ViewStore = {
   runState: RunState
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   setRunState: (patch: Partial<RunState>) => void
+  setSessionRuntimeRunning: (file: string, running: boolean) => void
 }
 
 /**
@@ -210,6 +215,11 @@ export function applyLiveSnapshotToView(
   store: ViewStore,
 ): void {
   const normalized = normalizeWorkerLiveSnapshotForView(snap)
+
+  if (normalized.status === 'unknown') {
+    // 查询失败/无响应：保留旧 snapshot 与运行态，等下一次成功轮询再收敛
+    return
+  }
 
   if (viewSessionFile) {
     if (normalized.sessionFile && !sessionFilesEqual(normalized.sessionFile, viewSessionFile)) {
@@ -233,6 +243,14 @@ export function applyLiveSnapshotToView(
 
   store.setWorkerLiveSnapshot(boundSnap)
   syncViewRunStateFromWorkerSnapshot(viewSessionFile, boundSnap, (p) => store.setRunState(p))
+
+  // Lost run.idle fallback: a worker idle snapshot (or abort-forced idle) proves the
+  // turn ended even if the run.idle AppEvent never arrived (worker crash / dropped
+  // event). Without this, a stale sessionRuntimeRunning entry keeps the Composer
+  // Stop button lit after the conversation finished.
+  if (boundSnap.status === 'idle' && viewSessionFile) {
+    store.setSessionRuntimeRunning(viewSessionFile, false)
+  }
 }
 
 export function resetVisibleComposerTurnState(set: {
