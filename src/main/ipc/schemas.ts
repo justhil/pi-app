@@ -66,6 +66,13 @@ export const sessionPrepareSchema = z.object({
   bind: z.boolean().optional(),
 })
 
+export const contextPreviewSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1),
+  })
+  .strict()
+
 export const workspaceOpenSchema = z.object({
   path: z.string().min(1),
   awaitWorker: z.boolean().optional(),

@@ -24,11 +24,7 @@ function assertIdleForBranchAction(): boolean {
   const busy = composerTurnActive({
     historySessionFile: store.historySessionFile,
     workerLiveSnapshot: store.workerLiveSnapshot,
-    runState: store.runState,
-    streamingAssistantId: store.streamingAssistantId,
-    optimisticPendingUserText: store.optimisticPendingUserText,
     sessionRuntimeRunning: store.sessionRuntimeRunning,
-    agentTurnBootstrapping: store.agentTurnBootstrapping,
   })
   if (busy) {
     toast.warning(i18n.t('composer:toast.sessionBusyBranch', {

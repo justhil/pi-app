@@ -114,20 +114,20 @@ export function canAbortWorkerTurn(
  * Multi-session authority (in order):
  * 1. sessionRuntimeRunning[view]  — set from AppEvents scoped by sessionFile
  * 2. workerLiveSnapshot bound to view && running
- * 3. local streaming markers (optimistic / streamingAssistantId) when worker is not foreign
+ *
+ * Local optimistic markers are display data, not a session identity. They must not
+ * authorize Stop after a view switch until one of the session-scoped signals above
+ * confirms that the visible worker is running.
  *
  * NEVER trust global runState.status alone — residual after switch caused flaky chrome/composer.
  */
 export function composerTurnActive(input: {
   historySessionFile: string | null
   workerLiveSnapshot: WorkerLiveSnapshot
-  runState: { status: string }
-  streamingAssistantId: string | null
-  optimisticPendingUserText: string | null
   sessionRuntimeRunning?: Record<string, boolean> | null
-  agentTurnBootstrapping?: boolean
 }): boolean {
   const viewFile = input.historySessionFile
+  if (!viewFile) return false
   if (runtimeRunningForSession(viewFile, input.sessionRuntimeRunning)) return true
 
   const workerFile = input.workerLiveSnapshot.sessionFile
@@ -135,21 +135,6 @@ export function composerTurnActive(input: {
   const workerBoundHere = sessionFilesEqual(viewFile, workerFile)
 
   if (workerBoundHere && workerRunning) return true
-
-  const localStreaming =
-    input.streamingAssistantId != null ||
-    input.optimisticPendingUserText != null ||
-    input.agentTurnBootstrapping === true
-
-  if (localStreaming) {
-    // Foreign worker snap must not keep Stop lit for an idle view with cleared markers —
-    // but if markers exist they belong to the current view (openSession clears on switch).
-    if (viewFile && workerFile && !sessionFilesEqual(viewFile, workerFile) && workerRunning) {
-      // Local markers + foreign running worker: still show active if markers present
-      // (user just switched mid-send onto a session that has optimistic UI). Keep true.
-    }
-    return true
-  }
 
   // Explicitly ignore residual runState.status === 'running'
   return false
@@ -167,7 +152,7 @@ export function syncViewRunStateFromWorkerSnapshot(
   }) => void,
 ): void {
   if (!isViewingWorkerBoundSession(viewSessionFile, snap.sessionFile)) return
-  if (isAbortUiHoldActive()) {
+  if (isAbortUiHoldActive(viewSessionFile)) {
     setRunState({
       status: 'idle',
       activeTool: undefined,
@@ -188,16 +173,21 @@ export function syncViewRunStateFromWorkerSnapshot(
   }
 }
 
-export function normalizeWorkerLiveSnapshotForView(snap: WorkerLiveSnapshot): WorkerLiveSnapshot {
-  if (!isAbortUiHoldActive()) return snap
+export function normalizeWorkerLiveSnapshotForView(
+  snap: WorkerLiveSnapshot,
+  viewSessionFile: string | null | undefined = snap.sessionFile,
+): WorkerLiveSnapshot {
+  if (!isAbortUiHoldActive(viewSessionFile)) return snap
   return { ...snap, status: 'idle' }
 }
 
 type ViewStore = {
   historySessionFile: string | null
   runState: RunState
+  agentTurnBootstrapping?: boolean
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   setRunState: (patch: Partial<RunState>) => void
+  reconcileSessionRuntimeIdle?: (sessionFile: string) => void
 }
 
 /**
@@ -209,7 +199,7 @@ export function applyLiveSnapshotToView(
   snap: WorkerLiveSnapshot,
   store: ViewStore,
 ): void {
-  const normalized = normalizeWorkerLiveSnapshotForView(snap)
+  const normalized = normalizeWorkerLiveSnapshotForView(snap, viewSessionFile)
 
   if (viewSessionFile) {
     if (normalized.sessionFile && !sessionFilesEqual(normalized.sessionFile, viewSessionFile)) {
@@ -231,6 +221,19 @@ export function applyLiveSnapshotToView(
     sessionFile: normalized.sessionFile ?? viewSessionFile ?? null,
   }
 
+  // A first-send poll can race ahead of the worker's run.started event. Ignore
+  // that idle sample completely; once a run id exists, a later idle is terminal.
+  if (
+    boundSnap.status === 'idle' &&
+    store.agentTurnBootstrapping === true &&
+    !store.runState.activeRunId
+  ) {
+    return
+  }
+
+  if (boundSnap.status !== 'running' && viewSessionFile) {
+    store.reconcileSessionRuntimeIdle?.(viewSessionFile)
+  }
   store.setWorkerLiveSnapshot(boundSnap)
   syncViewRunStateFromWorkerSnapshot(viewSessionFile, boundSnap, (p) => store.setRunState(p))
 }

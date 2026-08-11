@@ -1,6 +1,7 @@
 /** Worker ↔ Main JSON-RPC style payloads (loosely typed JSON). */
 
 import type { PiSessionMessage } from './worker-message'
+import type { SessionContextPreview } from './session-context-preview'
 
 export type WorkerCommandInfo = {
   name: string
@@ -24,7 +25,7 @@ export type WorkerPromptTemplate = {
 
 export type WorkerState = Record<string, unknown>
 
-export type WorkerContextPreview = Record<string, unknown> | null
+export type WorkerContextPreview = SessionContextPreview | null
 
 export type WorkerModelRow = {
   id?: string

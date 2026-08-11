@@ -54,11 +54,7 @@ export function useComposerSend(opts: {
       const running = composerTurnActive({
         historySessionFile: store.historySessionFile,
         workerLiveSnapshot: store.workerLiveSnapshot,
-        runState: store.runState,
-        streamingAssistantId: store.streamingAssistantId,
-        optimisticPendingUserText: store.optimisticPendingUserText,
         sessionRuntimeRunning: store.sessionRuntimeRunning,
-        agentTurnBootstrapping: store.agentTurnBootstrapping,
       })
       if (displayText.trim()) inputHistory.recordSent(displayText.trim())
       const { hideAllDelayedTooltips } = await import('./delayed-tooltip')
@@ -69,7 +65,9 @@ export function useComposerSend(opts: {
       editorRef.current?.focus()
       const pendingNew = store.pendingNewSessionPlaceholder
       const homeMode = !store.currentSessionId && store.timelineItems.length === 0
-      const { appendOptimisticOutgoingMessage } = await import('@renderer/lib/optimistic-send')
+      const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
+        await import('@renderer/lib/optimistic-send')
+      let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
       const promptPayload = () => ({
         sessionId: '',
         sessionFile: useUIStore.getState().historySessionFile ?? undefined,
@@ -84,17 +82,33 @@ export function useComposerSend(opts: {
       try {
         const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
         if (!running && draft) {
-          appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
+          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+            bootstrap: true,
+            attachments: atts,
+            segments,
+          })
           const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
           await finalizeEphemeralSandboxOnFirstSend(pendMsg)
+          bindOptimisticOutgoingToSession(
+            optimisticToken,
+            useUIStore.getState().historySessionFile,
+          )
           const bind = await sendPrompt()
           await afterPromptSent(bind)
           return
         }
         if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
-          appendOptimisticOutgoingMessage(pendMsg, { bootstrap: true, attachments: atts, segments })
+          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+            bootstrap: true,
+            attachments: atts,
+            segments,
+          })
           const { materializePendingNewSession } = await import('@renderer/lib/new-session')
           await materializePendingNewSession(store.currentWorkspace, pendMsg)
+          bindOptimisticOutgoingToSession(
+            optimisticToken,
+            useUIStore.getState().historySessionFile,
+          )
           const bind = await sendPrompt()
           await afterPromptSent(bind)
           return
@@ -110,14 +124,15 @@ export function useComposerSend(opts: {
           }
           return
         }
-        appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
+        optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
         const bind = await sendPrompt()
         await afterPromptSent(bind)
       } catch (e) {
         console.error('Send failed:', e)
         const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
-        clearOptimisticOutgoing()
-        useUIStore.getState().setRunState({ status: 'idle' })
+        if (clearOptimisticOutgoing(optimisticToken)) {
+          useUIStore.getState().setRunState({ status: 'idle' })
+        }
         toast.error(t('composer:toast.sendFailed'))
       }
     },
@@ -167,7 +182,7 @@ export function useComposerSend(opts: {
   )
 
   const handleAbort = useCallback(() => {
-    if (isComposerAbortCooldown()) return
+    if (isComposerAbortCooldown(useUIStore.getState().historySessionFile)) return
     const el = editorRef.current
     const currentText = el ? serializeRichInput(el).displayText : text
     void runComposerAbort(currentText)

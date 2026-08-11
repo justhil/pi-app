@@ -3,6 +3,7 @@
 import type { AppEvent } from './app-events'
 import type { DiffResult } from './diff-model'
 import type { CompatibilityLevel } from './extension-types'
+import type { SessionContextPreview } from './session-context-preview'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -87,6 +88,8 @@ export interface SessionCompactRequest { sessionId: string }
 export interface SessionCompactResponse { sessionId: string; compacted: boolean; tokensSaved: number }
 export interface SessionExportRequest { sessionId: string; format: 'json' | 'markdown' | 'html' }
 export interface SessionExportResponse { content: string; format: string; filename: string }
+export interface ContextPreviewRequest { sessionFile: string; workspaceId: string }
+export interface ContextPreviewResponse { preview: SessionContextPreview | null }
 
 // ── Prompt ──
 export interface PromptSendRequest { sessionId: string; text: string }
@@ -95,8 +98,8 @@ export interface PromptSteerRequest { sessionId: string; text: string }
 export interface PromptSteerResponse { steered: boolean }
 export interface PromptFollowUpRequest { sessionId: string; text: string }
 export interface PromptFollowUpResponse { messageId: string }
-export interface PromptAbortRequest { sessionId: string }
-export interface PromptAbortResponse { aborted: boolean }
+export interface PromptAbortRequest { sessionId: string; sessionFile: string }
+export interface PromptAbortResponse { aborted: boolean; ignored?: boolean; reason?: string; noWorker?: boolean }
 
 // ── Model ──
 export interface ModelInfo {
@@ -307,6 +310,7 @@ export interface IpcMethodMap {
   'session.rename': { request: SessionRenameRequest; response: SessionRenameResponse }
   'session.compact': { request: SessionCompactRequest; response: SessionCompactResponse }
   'session.export': { request: SessionExportRequest; response: SessionExportResponse }
+  'context.preview': { request: ContextPreviewRequest; response: ContextPreviewResponse }
   'prompt.send': { request: PromptSendRequest; response: PromptSendResponse }
   'prompt.steer': { request: PromptSteerRequest; response: PromptSteerResponse }
   'prompt.followUp': { request: PromptFollowUpRequest; response: PromptFollowUpResponse }

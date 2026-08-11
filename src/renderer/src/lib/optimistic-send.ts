@@ -1,4 +1,6 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import { clearAbortQueueIgnore, clearAbortUiHold } from '@renderer/lib/abort-ui-hold'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
@@ -13,10 +15,33 @@ export type OptimisticSendOpts = {
   segments?: TimelineItem['segments']
 }
 
+export type OptimisticSendToken = {
+  sessionFile: string | null
+  assistantId: string
+}
+
+function markOptimisticSessionRunning(sessionFile: string): void {
+  clearAbortUiHold(sessionFile)
+  clearAbortQueueIgnore(sessionFile)
+  useUIStore.getState().setSessionRuntimeRunning(sessionFile, true)
+}
+
+export function bindOptimisticOutgoingToSession(
+  token: OptimisticSendToken | null,
+  sessionFile: string | null,
+): void {
+  if (!token || !sessionFile) return
+  token.sessionFile = sessionFile
+  markOptimisticSessionRunning(sessionFile)
+}
+
 /** 发送后立即在 Timeline 展示用户消息 + 助手等待占位 */
-export function appendOptimisticOutgoingMessage(text: string, opts?: OptimisticSendOpts): void {
+export function appendOptimisticOutgoingMessage(
+  text: string,
+  opts?: OptimisticSendOpts,
+): OptimisticSendToken | null {
   const trimmed = text.trim()
-  if (!trimmed) return
+  if (!trimmed) return null
   const store = useUIStore.getState()
   const ts = Date.now()
   const userId = `opt-user-${++optSeq}`
@@ -46,16 +71,34 @@ export function appendOptimisticOutgoingMessage(text: string, opts?: OptimisticS
   // Mark this session running immediately so switch-away/back keeps chrome/sidebar alive
   // before the first worker `run` event arrives.
   if (store.historySessionFile) {
-    store.setSessionRuntimeRunning(store.historySessionFile, true)
+    markOptimisticSessionRunning(store.historySessionFile)
   }
   requestTimelineBottomAnchor('message-sent')
   if (store.runState.status !== 'running') {
     store.setRunState({ status: 'running', startTime: ts })
   }
+  return { sessionFile: store.historySessionFile, assistantId }
 }
 
-export function clearOptimisticOutgoing(): void {
+export function clearOptimisticOutgoing(token: OptimisticSendToken | null): boolean {
+  if (!token) return false
   const store = useUIStore.getState()
-  if (!store.optimisticPendingUserText && !store.agentTurnBootstrapping) return
-  useUIStore.setState({ optimisticPendingUserText: null, agentTurnBootstrapping: false })
+  const ownsAssistant = store.streamingAssistantId === token.assistantId
+  const sameView = token.sessionFile
+    ? sessionFilesEqual(store.historySessionFile, token.sessionFile)
+    : ownsAssistant
+  const ownsVisibleTurn = sameView && ownsAssistant
+  const targetFile = token.sessionFile ?? (ownsVisibleTurn ? store.historySessionFile : null)
+
+  if (targetFile && (!sameView || ownsVisibleTurn)) {
+    store.setSessionRuntimeRunning(targetFile, false)
+  }
+  if (!ownsVisibleTurn) return false
+
+  useUIStore.setState({
+    optimisticPendingUserText: null,
+    agentTurnBootstrapping: false,
+    streamingAssistantId: null,
+  })
+  return true
 }

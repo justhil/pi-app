@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PENDING_NEW_SESSION_ID } from '@renderer/lib/session-ids'
 import { resolveAppEventRoute } from '../apply-app-event-route'
 
 const baseState = {
@@ -62,6 +63,30 @@ describe('resolveAppEventRoute', () => {
         },
       ),
     ).toBe('visible')
+  })
+
+  it('keeps old worker events out of a pending-new session', () => {
+    expect(
+      resolveAppEventRoute(
+        {
+          currentWorkspace: '/w/preview',
+          currentSessionId: PENDING_NEW_SESSION_ID,
+          historySessionFile: null,
+          workerLiveSnapshot: { sessionId: 'old-sid', sessionFile: '/tmp/old.jsonl' },
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          phase: 'delta',
+          text: 'old token',
+          seq: 1,
+          workspaceId: '/w/preview',
+          sessionFile: '/tmp/old.jsonl',
+          sessionId: 'old-sid',
+          timestamp: 1,
+        },
+      ),
+    ).toBe('background')
   })
 
   it('backgrounds events from another workspace', () => {

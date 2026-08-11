@@ -160,7 +160,6 @@ describe('just-sent user message survives session switch during streaming', () =
       runState: { status: 'idle', toolCount: 0, errorCount: 0 },
       workerLiveSnapshot: { sessionId: 'session-a', sessionFile: sessionA, status: 'idle' },
       fileChanges: [],
-      ignoreQueueSyncUntil: 0,
     })
   })
 

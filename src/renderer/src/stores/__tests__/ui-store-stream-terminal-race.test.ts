@@ -69,7 +69,6 @@ describe('foreground stream terminal ordering', () => {
       agentTurnBootstrapping: false,
       pendingSteering: [],
       pendingFollowUp: [],
-      ignoreQueueSyncUntil: 0,
       sessionRuntimeRunning: { '/workspace/session.jsonl': true },
       workerLiveSnapshot: {
         sessionId: 'session-1',
