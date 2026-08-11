@@ -1,9 +1,14 @@
-import { registerHandler } from '../registry'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { isSandboxWorkspacePath } from '../../sandbox-workspaces'
 import { readModelsConfigRaw, modelsCatalogFromConfig } from '../../pi-models-json'
 import { getActiveSdkModule } from '../sdk-session'
+import { getSessionContextPreviewFromDisk } from '../../session-context-preview'
+import { getSessionLeafOverride } from '../../session-leaf-override'
+import { authorizeTrustedSessionFile } from '../../trusted-workspace'
+import { isWslRuntimeActive } from '../../wsl/runtime-config'
+import { contextPreviewSchema } from '../schemas'
 import {
   listAvailableModelsWithSdk,
   listCatalogModelsWithSdk,
@@ -113,10 +118,28 @@ export function registerModelRuntimeHandlers(): void {
     return { state: await workerManager.getState() }
   })
 
-  registerHandler('ipc:context.preview', async () => {
-    if (!workerManager.isRunning) return { preview: null }
+  registerHandlerWithSchema('ipc:context.preview', contextPreviewSchema, async (req) => {
+    const { sessionFile, workspaceId } = req
+    const authorized = authorizeTrustedSessionFile(workspaceId, sessionFile)
+    if (!authorized.ok) return { preview: null }
+
+    if (workerManager.isRunning) {
+      try {
+        const preview = await workerManager.getSessionContextPreview(authorized.sessionFile)
+        if (preview) return { preview }
+      } catch (e) {
+        console.warn('[IPC] live context.preview failed, using disk:', e)
+      }
+    }
+    if (isWslRuntimeActive()) return { preview: null }
+
     try {
-      return { preview: await workerManager.getSessionContextPreview() }
+      return {
+        preview: await getSessionContextPreviewFromDisk(
+          authorized.sessionFile,
+          getSessionLeafOverride(authorized.sessionFile),
+        ),
+      }
     } catch (e) {
       console.error('[IPC] context.preview failed:', e)
       return { preview: null }

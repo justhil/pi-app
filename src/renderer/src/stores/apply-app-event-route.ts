@@ -1,5 +1,6 @@
 import type { SessionScopedAppEvent } from '@shared/app-event-session'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { isPlaceholderSessionId } from '@renderer/lib/session-ids'
 
 export type AppEventRoute = 'visible' | 'background' | 'drop'
 
@@ -24,6 +25,8 @@ export function resolveAppEventRoute(state: RouteState, event: SessionScopedAppE
   const viewSid = state.currentSessionId
   const workerSid = state.workerLiveSnapshot.sessionId
   const evSid = event.sessionId
+
+  if (!viewFile && (!viewSid || isPlaceholderSessionId(viewSid))) return 'background'
 
   if (evFile) {
     if (viewFile && sessionFilesEqual(evFile, viewFile)) return 'visible'

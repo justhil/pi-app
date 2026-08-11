@@ -17,6 +17,8 @@ import {
   queueStreamDelta,
 } from '@renderer/stores/ui-store-stream'
 import { createShellSlice } from '@renderer/stores/ui-store-shell-slice'
+import { createRuntimeSlice } from '@renderer/stores/ui-store-runtime-slice'
+import { isAbortQueueIgnoreActive } from '@renderer/lib/abort-ui-hold'
 
 export type { TimelineItem, UIState } from '@renderer/stores/ui-store-types'
 
@@ -319,20 +321,7 @@ export const useUIStore = create<UIState>()(
   },
 
   ...createShellSlice(set, get),
-  sessionRuntimeRunning: {},
-  setSessionRuntimeRunning: (sessionFile, running) =>
-    set((s) => {
-      const key = normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
-      if (!key) return s
-      const next = { ...s.sessionRuntimeRunning }
-      // Drop any alias keys that normalize to the same path
-      for (const existing of Object.keys(next)) {
-        if (normalizeSessionFileKey(existing) === key) delete next[existing]
-      }
-      if (running) next[key] = true
-      else delete next[key]
-      return { sessionRuntimeRunning: next }
-    }),
+  ...createRuntimeSlice(set),
   lastModel: null,
   lastThinking: null,
   rememberModel: (model) => set({ lastModel: model }),
@@ -351,10 +340,9 @@ export const useUIStore = create<UIState>()(
   agentTurnBootstrapping: false,
   pendingSteering: [],
   pendingFollowUp: [],
-  ignoreQueueSyncUntil: 0,
-  markAbortQueueIgnore: (ms = 5000) => set({ ignoreQueueSyncUntil: Date.now() + ms }),
   setPendingQueue: (steering, followUp) => {
-    if (Date.now() < get().ignoreQueueSyncUntil) {
+    const state = get()
+    if (isAbortQueueIgnoreActive(state.historySessionFile)) {
       const hasQueued = steering.length > 0 || followUp.length > 0
       if (hasQueued) return
     }

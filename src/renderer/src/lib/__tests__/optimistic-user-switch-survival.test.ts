@@ -17,7 +17,10 @@ vi.mock('@renderer/features/timeline/timeline-bottom-anchor', () => ({
   requestTimelineBottomAnchor: vi.fn(),
 }))
 
-import { appendOptimisticOutgoingMessage } from '@renderer/lib/optimistic-send'
+import {
+  appendOptimisticOutgoingMessage,
+  clearOptimisticOutgoing,
+} from '@renderer/lib/optimistic-send'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
 import {
@@ -160,8 +163,19 @@ describe('just-sent user message survives session switch during streaming', () =
       runState: { status: 'idle', toolCount: 0, errorCount: 0 },
       workerLiveSnapshot: { sessionId: 'session-a', sessionFile: sessionA, status: 'idle' },
       fileChanges: [],
-      ignoreQueueSyncUntil: 0,
     })
+  })
+
+  it('should_clear_failed_optimistic_send_after_switching_away', async () => {
+    const token = appendOptimisticOutgoingMessage('never sent')
+    switchToB()
+
+    clearOptimisticOutgoing(token)
+    await switchBackToA(priorHistory.map((item) => ({ ...item })))
+
+    expect(useUIStore.getState().runState.status).toBe('idle')
+    expect(useUIStore.getState().optimisticPendingUserText).toBeNull()
+    expect(userTexts()).toEqual(['first question'])
   })
 
   it('should_keep_user_message_when_disk_tail_lags_behind_send', async () => {

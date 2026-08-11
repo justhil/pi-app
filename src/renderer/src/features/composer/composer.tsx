@@ -289,11 +289,7 @@ export function Composer() {
       return composerTurnActive({
         historySessionFile: s.historySessionFile,
         workerLiveSnapshot: s.workerLiveSnapshot,
-        runState: s.runState,
-        streamingAssistantId: s.streamingAssistantId,
-        optimisticPendingUserText: s.optimisticPendingUserText,
         sessionRuntimeRunning: s.sessionRuntimeRunning,
-        agentTurnBootstrapping: s.agentTurnBootstrapping,
       })
     }
     // Initial pull only when this view might already be running (avoid racing open-session idle reset)

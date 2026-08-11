@@ -116,7 +116,6 @@ export interface AppEventStoreSlice {
   fileChanges: FileChange[]
   optimisticPendingUserText: string | null
   agentTurnBootstrapping: boolean
-  ignoreQueueSyncUntil: number
   pendingSteering: string[]
   pendingFollowUp: string[]
   rightPanelCatalog: RightPanelCatalogItem[]
@@ -197,6 +196,7 @@ export interface UIState {
   /** sessionFile → running (sidebar spinner) */
   sessionRuntimeRunning: Record<string, boolean>
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
+  reconcileSessionRuntimeIdle: (sessionFile: string) => void
   /**
    * Session-scoped tool row expand memory (toolCallId → expanded).
    * Display-only; not persisted across app restarts.
@@ -231,7 +231,5 @@ export interface UIState {
   pendingFollowUp: string[]
   setPendingQueue: (steering: string[], followUp: string[]) => void
   clearPendingQueue: () => void
-  ignoreQueueSyncUntil: number
-  markAbortQueueIgnore: (ms?: number) => void
   processEvent: (event: AppEvent) => void
 }

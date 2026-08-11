@@ -34,6 +34,28 @@ describe('new session model preselection', () => {
     store.setSessions.mockReset()
   })
 
+  it('binds the created session before model confirmation completes', async () => {
+    let confirmModel: ((value: { modelId: string }) => void) | undefined
+    const onSessionCreated = vi.fn()
+    invoke.mockImplementation((method: string) => {
+      if (method === 'session.new') {
+        return Promise.resolve({ session: { sessionId: 'new-id', sessionFile: 'C:/sessions/new.jsonl' } })
+      }
+      if (method === 'session.setPendingBind') return Promise.resolve({ ok: true })
+      if (method === 'model.set') return new Promise((resolve) => { confirmModel = resolve })
+      if (method === 'thinkingLevel.set') return Promise.resolve({ ok: true })
+      if (method === 'session.list') return Promise.resolve({ sessions: [] })
+      return Promise.resolve({})
+    })
+
+    const materialized = materializePendingNewSession('D:/workspace', 'first prompt', onSessionCreated)
+    await vi.waitFor(() => expect(onSessionCreated).toHaveBeenCalledWith('C:/sessions/new.jsonl'))
+    expect(confirmModel).toBeDefined()
+
+    confirmModel?.({ modelId: 'openai/org/model/v2' })
+    await materialized
+  })
+
   it('waits for model confirmation before finishing session materialization', async () => {
     let confirmModel: ((value: { modelId: string }) => void) | undefined
     invoke.mockImplementation((method: string) => {

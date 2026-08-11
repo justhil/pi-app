@@ -262,7 +262,7 @@ export function registerSessionHandlers(): void {
       await workerManager.start(workspaceId)
     }
     setPendingWorkerSessionFile(null)
-    const result = await workerManager.newSession()
+    const result = await workerManager.newSession(workspaceId)
     invalidateListSessionsCache(workspaceId)
     const state = await workerManager.getState().catch(() => ({}))
     const sessionFile =

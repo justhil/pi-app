@@ -5,21 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { RefreshCw, ChevronDown, ChevronRight, Layers, MessageSquare } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
-
-type Segment = {
-  index: number
-  role: string
-  chars: number
-  preview: string
-  label?: string
-}
-
-type ContextPreview = {
-  messageCount: number
-  estimatedChars: number
-  snippets?: string[]
-  segments?: Segment[]
-}
+import { useSessionContextPreview } from './use-session-context-preview'
 
 const ROLE_STYLE: Record<string, { bar: string; badge: string; labelKey: string }> = {
   user: { bar: 'bg-blue-500/70', badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', labelKey: 'context:userLabel' },
@@ -44,26 +30,13 @@ export function ContextPanel() {
   const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const model = useUIStore((s) => s.runState.model)
-  const [preview, setPreview] = useState<ContextPreview | null>(null)
+  const { preview, loading, refresh } = useSessionContextPreview()
   const [contextWindow, setContextWindow] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
 
-  const load = () => {
-    if (!workspace) return
-    setLoading(true)
-    ipcClient
-      .invoke('context.preview')
-      .then((r) => setPreview(r?.preview || null))
-      .catch(() => setPreview(null))
-      .finally(() => setLoading(false))
-  }
-
   useEffect(() => {
-    // Context panel is only mounted while active; one-shot load on open / workspace change.
-    // Manual refresh remains available via the panel button; no idle polling.
-    load()
-  }, [workspace])
+    setExpanded(new Set())
+  }, [preview?.sessionFile])
 
   useEffect(() => {
     if (!workspace || !model) {
@@ -115,7 +88,7 @@ export function ContextPanel() {
           <Layers className="h-4 w-4 text-foreground-secondary/70" />
           <span className="text-[13px] font-semibold text-foreground">{t('context:title')}</span>
         </div>
-        <button type="button" onClick={load} className="chrome-icon-btn rounded-md p-1.5" title={t('context:refresh')}>
+        <button type="button" onClick={() => void refresh()} className="chrome-icon-btn rounded-md p-1.5" title={t('context:refresh')}>
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
         </button>
       </div>

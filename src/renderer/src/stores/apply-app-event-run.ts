@@ -1,4 +1,4 @@
-import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import { isAbortQueueIgnoreActive, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
@@ -40,18 +40,23 @@ function markViewIdle(state: ReturnType<StoreApi['get']>): void {
   }
 }
 
-export function handleRun(event: RunEvent, api: StoreApi): void {
+export function handleRun(event: RunEvent, api: StoreApi): boolean {
   const state = api.get()
   if (event.phase === 'started' || event.phase === 'running') {
-    if (isAbortUiHoldActive()) return
-    if (Date.now() < state.ignoreQueueSyncUntil && event.phase === 'running') return
-
     // Visible-route handler: still refuse to apply if event names a different session
     // (route bugs / unscoped events must not re-light the viewed session).
     const viewFile = state.historySessionFile
     const evFile = (event as { sessionFile?: string }).sessionFile
+    const eventSessionFile = evFile || viewFile
+    if (isAbortUiHoldActive(eventSessionFile)) return false
+    if (
+      event.phase === 'running' &&
+      isAbortQueueIgnoreActive(eventSessionFile)
+    ) {
+      return false
+    }
     if (viewFile && evFile && !isViewingWorkerBoundSession(viewFile, evFile)) {
-      return
+      return false
     }
 
     const runPatch: Record<string, unknown> = {
@@ -73,7 +78,7 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
         status: 'running',
       })
     }
-    return
+    return true
   }
   if (event.phase === 'idle' || event.phase === 'cancelled') {
     flushStreamPendingSync(api.get, api.set)
@@ -88,7 +93,7 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
         optimistic: !!s.optimisticPendingUserText,
         bootstrapping: s.agentTurnBootstrapping,
       })
-      return
+      return true
     }
     // Authoritative completion (pi agent_end / !isStreaming): clear all local turn markers.
     api.set({
@@ -120,7 +125,7 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
         body: sec > 0 ? `Agent 已空闲（约 ${sec} 秒）` : 'Agent 已空闲，可继续输入',
       })
     }
-    return
+    return true
   }
   if (event.phase === 'failed') {
     flushStreamPendingSync(api.get, api.set)
@@ -139,7 +144,7 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
     const evFile = (event as { sessionFile?: string }).sessionFile
     // Only apply model/thinking from the viewed session (or unscoped events).
     if (viewFile && evFile && !isViewingWorkerBoundSession(viewFile, evFile)) {
-      return
+      return false
     }
     const patch: Record<string, string | undefined> = {}
     if (event.model !== undefined) {
@@ -157,4 +162,5 @@ export function handleRun(event: RunEvent, api: StoreApi): void {
   if (event.toolStats) {
     state.setRunState({ toolCount: event.toolStats.total, errorCount: event.toolStats.failed })
   }
+  return true
 }

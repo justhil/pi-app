@@ -66,6 +66,16 @@ export function getSessionView(sessionFile: string | null | undefined): SessionV
   return views.get(key) ?? null
 }
 
+export function patchSessionView(
+  sessionFile: string,
+  patch: Partial<Omit<SessionView, 'sessionKey'>>,
+): void {
+  const key = sessionKeyFromFile(sessionFile)
+  const view = views.get(key)
+  if (!view) return
+  views.set(key, { ...view, ...patch, sessionKey: key })
+}
+
 export function listSessionViewKeys(): string[] {
   return [...views.keys()]
 }
@@ -221,12 +231,13 @@ export function bindViewToUiStore(view: SessionView): void {
     live?.streamingAssistantId != null ||
     live?.optimisticPendingUserText != null ||
     live?.agentTurnBootstrapping === true
+  const terminalLive = live != null && !liveRunning
 
   // Prefer the strongest running signal: shell view, runtime map, or live cache.
   const effectiveRunUI: SessionRunUI =
-    view.runUI === 'failed'
+    view.runUI === 'failed' || live?.runState.status === 'failed'
       ? 'failed'
-      : view.runUI === 'running' || runtimeRunning || liveRunning
+      : (view.runUI === 'running' && !terminalLive) || runtimeRunning || liveRunning
         ? 'running'
         : 'idle'
 
@@ -242,13 +253,15 @@ export function bindViewToUiStore(view: SessionView): void {
     live && view.streamingAssistantId === live.streamingAssistantId
       ? live.timelineItems
       : view.items
-  const streamingAssistantId = resolveMergedStreamingAssistantId(
-    view.items,
-    streamCandidateItems,
-    view.streamingAssistantId,
-  )
-  const optimisticPendingUserText = view.optimisticPendingUserText
-  const agentTurnBootstrapping = view.agentTurnBootstrapping
+  const streamingAssistantId = terminalLive
+    ? null
+    : resolveMergedStreamingAssistantId(
+        view.items,
+        streamCandidateItems,
+        view.streamingAssistantId,
+      )
+  const optimisticPendingUserText = terminalLive ? null : view.optimisticPendingUserText
+  const agentTurnBootstrapping = terminalLive ? false : view.agentTurnBootstrapping
 
   useUIStore.setState({
     currentSessionId: view.sessionId,
@@ -355,6 +368,7 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
       live?.streamingAssistantId != null ||
       live?.optimisticPendingUserText != null ||
       live?.agentTurnBootstrapping === true
+    const terminalLive = live != null && !liveRunning
     const remixedItems =
       view.items.length > 0 ? mergeLiveIntoItems(sessionKey, view.items) : view.items
     const remixedStreamingAssistantId = resolveMergedStreamingAssistantId(
@@ -362,7 +376,7 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
       live?.timelineItems ?? view.items,
       live ? live.streamingAssistantId : view.streamingAssistantId,
     )
-    if (runtimeRunning || liveRunning || view.runUI === 'running') {
+    if (runtimeRunning || liveRunning || (view.runUI === 'running' && !terminalLive)) {
       view = {
         ...view,
         items: remixedItems,
@@ -376,19 +390,24 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
           : view.agentTurnBootstrapping,
       }
     } else {
-      const resolved = resolveRunUI(sessionKey, {
-        runtime,
-        streamingAssistantId: remixedStreamingAssistantId,
-        optimisticPendingUserText: view.optimisticPendingUserText,
-        agentTurnBootstrapping: view.agentTurnBootstrapping,
-        workerSessionFile: sessionKey,
-        workerStatus: 'idle',
-      })
+      const resolved =
+        live?.runState.status === 'failed'
+          ? 'failed'
+          : resolveRunUI(sessionKey, {
+              runtime,
+              streamingAssistantId: remixedStreamingAssistantId,
+              optimisticPendingUserText: terminalLive ? null : view.optimisticPendingUserText,
+              agentTurnBootstrapping: terminalLive ? false : view.agentTurnBootstrapping,
+              workerSessionFile: sessionKey,
+              workerStatus: 'idle',
+            })
       view = {
         ...view,
         items: remixedItems,
         runUI: resolved,
         streamingAssistantId: remixedStreamingAssistantId,
+        optimisticPendingUserText: terminalLive ? null : view.optimisticPendingUserText,
+        agentTurnBootstrapping: terminalLive ? false : view.agentTurnBootstrapping,
       }
     }
     views.set(sessionKey, view)
@@ -572,6 +591,7 @@ export async function hydrateSessionView(
       live?.streamingAssistantId != null ||
       live?.optimisticPendingUserText != null ||
       live?.agentTurnBootstrapping === true
+    const priorRunningWithoutTerminalLive = priorRunUI === 'running' && !live
 
     const streamCandidateItems = focusedState
       ? focusedState.timelineItems
@@ -606,13 +626,20 @@ export async function hydrateSessionView(
       agentTurnBootstrapping,
       workerSessionFile: sessionKey,
       workerStatus:
-        runtimeSaysRunning || liveSaysRunning || priorRunUI === 'running' ? 'running' : 'idle',
+        live?.runState.status === 'failed'
+          ? 'failed'
+          : runtimeSaysRunning || liveSaysRunning || priorRunningWithoutTerminalLive
+            ? 'running'
+            : 'idle',
     })
     // Never demote a still-running session to idle just because disk hydrate lacks markers.
     const finalRunUI: SessionRunUI =
       runUI === 'failed'
         ? 'failed'
-        : runUI === 'running' || priorRunUI === 'running' || runtimeSaysRunning || liveSaysRunning
+        : runUI === 'running' ||
+            priorRunningWithoutTerminalLive ||
+            runtimeSaysRunning ||
+            liveSaysRunning
           ? 'running'
           : 'idle'
 

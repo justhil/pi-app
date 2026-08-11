@@ -36,7 +36,6 @@ function makeApi(): StoreApi {
     fileChanges: [],
     optimisticPendingUserText: null,
     agentTurnBootstrapping: false,
-    ignoreQueueSyncUntil: 0,
     pendingSteering: [] as string[],
     pendingFollowUp: [] as string[],
     rightPanelCatalog: [],

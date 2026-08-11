@@ -1,17 +1,24 @@
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { markAbortUiHold } from '@renderer/lib/abort-ui-hold'
+import { markAbortQueueIgnore, markAbortUiHold } from '@renderer/lib/abort-ui-hold'
+import { markLiveSessionTurnEnded } from '@renderer/lib/live-session-timeline-cache'
 import { markStreamingAssistantIncomplete } from '@renderer/lib/mark-streaming-incomplete'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
-export function applyComposerAbortUi(): void {
+export function applyComposerAbortUi(sessionFile: string): void {
   const store = useUIStore.getState()
+  markAbortUiHold(sessionFile)
+  markAbortQueueIgnore(sessionFile)
+  store.setSessionRuntimeRunning(sessionFile, false)
+  markLiveSessionTurnEnded(sessionFile, 'idle')
+  if (!sessionFilesEqual(store.historySessionFile, sessionFile)) return
+
   // Always clear focus-session turn UI on explicit abort click.
   // Do not gate on composerTurnActive — that can disagree with the Stop button
   // (e.g. sessionRuntimeRunning set but this helper omitted that field).
-  markAbortUiHold()
   flushStreamPendingSync(useUIStore.getState, useUIStore.setState)
   markStreamingAssistantIncomplete(() => useUIStore.getState(), 'aborted')
   store.setRunState({
@@ -26,7 +33,6 @@ export function applyComposerAbortUi(): void {
     optimisticPendingUserText: null,
   })
   store.clearPendingQueue()
-  store.markAbortQueueIgnore()
   // Keep incomplete assistants; only drop empty non-incomplete bubbles.
   store.pruneEmptyAssistantBubbles()
   const viewFile = store.historySessionFile
@@ -35,7 +41,6 @@ export function applyComposerAbortUi(): void {
     sessionFile: viewFile,
     status: 'idle',
   })
-  if (viewFile) store.setSessionRuntimeRunning(viewFile, false)
   void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
 }
 

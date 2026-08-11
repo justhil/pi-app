@@ -33,6 +33,7 @@ import { isWslWindowsPath } from '@shared/wsl-path'
 import { getAgentRuntimeConfig, isWslRuntimeActive } from './wsl/runtime-config'
 import { readMaxSessionWorkers } from './worker-pool-config'
 import { configStore } from './config-store'
+import { createNewSessionInPool } from './worker-manager-new-session'
 import { readSessionMetaFromFile } from './session-file-meta'
 import {
   applySettledRunToSessionLeafOverride,
@@ -155,15 +156,15 @@ export class WorkerManager {
       }
     }
 
-    const cap = canAcquireNewWorker(this.pool)
-    if (!cap.ok) {
-      evictIdleWorkers(this.pool, {
+    const maxWorkers = readMaxSessionWorkers()
+    if (this.pool.size >= maxWorkers) {
+      await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
-        maxWorkers: readMaxSessionWorkers(),
+        maxWorkers: maxWorkers - 1,
       })
     }
-    const cap2 = canAcquireNewWorker(this.pool)
-    if (!cap2.ok) throw new Error(cap2.reason)
+    const cap = canAcquireNewWorker(this.pool)
+    if (!cap.ok) throw new Error(cap.reason)
 
     const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: key, sessionFile: null })
     this.pool.set(key, slot)
@@ -246,15 +247,15 @@ export class WorkerManager {
       return this.initResultFromSlot(reusable)
     }
 
-    const cap = canAcquireNewWorker(this.pool)
-    if (!cap.ok) {
-      evictIdleWorkers(this.pool, {
+    const maxWorkers = readMaxSessionWorkers()
+    if (this.pool.size >= maxWorkers) {
+      await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
-        maxWorkers: readMaxSessionWorkers(),
+        maxWorkers: maxWorkers - 1,
       })
     }
-    const cap2 = canAcquireNewWorker(this.pool)
-    if (!cap2.ok) throw new Error(cap2.reason)
+    const cap = canAcquireNewWorker(this.pool)
+    if (!cap.ok) throw new Error(cap.reason)
 
     const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: sk, sessionFile: sk })
     this.pool.set(sk, slot)
@@ -451,18 +452,14 @@ export class WorkerManager {
    * Abort agent turn on the session's existing worker only.
    * Never ensure/create a worker just to abort (would race F1 / wrong cwd).
    */
-  async abort(sessionFile?: string): Promise<void> {
-    if (sessionFile) {
-      const sk = normalizeSessionKey(sessionFile)
-      const slot = this.pool.get(sk)
-      if (!slot || slot.stopping) {
-        // No live worker for this session — already idle from UI's perspective.
-        return
-      }
-      await this.requestOnSlot(slot, 'abort', { sessionFile: sk })
+  async abort(sessionFile: string): Promise<void> {
+    const sk = normalizeSessionKey(sessionFile)
+    const slot = this.pool.get(sk)
+    if (!slot || slot.stopping) {
+      // No live worker for this session — already idle from UI's perspective.
       return
     }
-    await this.request('abort', {})
+    await this.requestOnSlot(slot, 'abort', { sessionFile: sk })
   }
   async steer(text: string, sessionFile?: string): Promise<void> {
     await this.request('steer', { text, sessionFile })
@@ -487,14 +484,24 @@ export class WorkerManager {
       setSessionLeafOverride(sessionFile, response.leafId as string | null)
     }
   }
-  async newSession(): Promise<{ sessionId: string; sessionFile?: string }> {
-    const r = await this.request('newSession')
-    const sessionId = String(r.sessionId ?? '')
-    const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
-    if (sessionFile) {
-      await this.remapForegroundSlotToSessionFile(sessionFile)
-    }
-    return { sessionId, sessionFile }
+  async newSession(cwd: string): Promise<{ sessionId: string; sessionFile?: string }> {
+    const run = this.lifecycleChain.then(() =>
+      createNewSessionInPool({
+        cwd,
+        pool: this.pool,
+        mainWindow: this.mainWindow,
+        foregroundPoolKey: () => this.foregroundPoolKey,
+        slotMatchesCurrentRuntime: (slot) => this.slotMatchesCurrentRuntime(slot),
+        setForeground: (slot) => this.setForeground(slot),
+        onAppEvent: (payload) => this.forwardAppEvent(payload),
+        onSlotExit: (slot, code) => this.handleSlotExit(slot, code),
+      }),
+    )
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
   }
 
   /**
@@ -631,11 +638,11 @@ export class WorkerManager {
   /** Fork a WSL workspace worker (not foreground) purely to serve listSessions. */
   private async forkListWorkerForWsl(cwd: string): Promise<WorkerSlot | null> {
     const key = workspacePoolKey(cwd)
-    const cap = canAcquireNewWorker(this.pool)
-    if (!cap.ok) {
-      evictIdleWorkers(this.pool, {
+    const maxWorkers = readMaxSessionWorkers()
+    if (this.pool.size >= maxWorkers) {
+      await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
-        maxWorkers: readMaxSessionWorkers(),
+        maxWorkers: maxWorkers - 1,
       })
     }
     if (!canAcquireNewWorker(this.pool).ok) return null
@@ -696,9 +703,15 @@ export class WorkerManager {
     const r = await this.request('getCommands')
     return { commands: (r.commands as WorkerCommandInfo[]) || [], hasSession: !!r.hasSession }
   }
-  async getSessionContextPreview(): Promise<WorkerContextPreview> {
-    const r = await this.request('getSessionContextPreview')
-    return (r.preview as WorkerContextPreview) || null
+  async getSessionContextPreview(sessionFile: string): Promise<WorkerContextPreview> {
+    const sk = normalizeSessionKey(sessionFile)
+    if (!sk) return null
+    const slot = this.pool.get(sk)
+    if (!slot || slot.stopping) return null
+    const r = await this.requestOnSlot(slot, 'getSessionContextPreview', { sessionFile: sk })
+    const preview = (r.preview as WorkerContextPreview) || null
+    if (!preview) return null
+    return { ...preview, sessionFile: slot.sessionFile || sk }
   }
   async getSkillsList(): Promise<WorkerSkillInfo[]> {
     const r = await this.request('getSkillsList')

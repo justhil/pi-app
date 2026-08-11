@@ -345,19 +345,19 @@ export function evictBackgroundWorkers(
   foregroundKey: string,
   _keepKey?: string | null,
 ): void {
-  evictIdleWorkers(pool, {
+  void evictIdleWorkers(pool, {
     foregroundKey,
     maxWorkers: readMaxSessionWorkers(),
   })
 }
 
-export function evictIdleWorkers(
+export async function evictIdleWorkers(
   pool: Map<string, WorkerSlot>,
   opts: {
     foregroundKey: string | null
     maxWorkers?: number
   },
-): void {
+): Promise<void> {
   const maxWorkers = opts.maxWorkers ?? readMaxSessionWorkers()
   // Hard capacity: dispose oldest-foreground idle first. UI focus changes alone
   // never dispose idle workers; TTL cleanup is owned by pruneIdleWorkersByTimeout.
@@ -373,11 +373,8 @@ export function evictIdleWorkers(
     }
     if (!victimKey) break
     const s = pool.get(victimKey)!
-    void disposeWorkerSlot(s).then(() => {
-      if (pool.get(victimKey!) === s) pool.delete(victimKey!)
-    })
-    // Sync delete so while loop progresses even if dispose is async
     pool.delete(victimKey)
+    await disposeWorkerSlot(s)
   }
 }
 
