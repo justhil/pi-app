@@ -160,4 +160,32 @@ describe('timelineItemsFromBranchPath non-message entries', () => {
     expect(metas[0]).toMatchObject({ model: 'acme/a' })
     expect(metas[1]).toMatchObject({ model: 'acme/b' })
   })
+
+  it('keeps every step of consecutive same-kind meta changes (A→B→C not collapsed to C)', () => {
+    const path = [
+      { id: 'm1', type: 'model_change', provider: 'acme', modelId: 'a', timestamp: '2026-08-06T00:00:00Z' },
+      { id: 'm2', type: 'model_change', provider: 'acme', modelId: 'b', timestamp: '2026-08-06T00:01:00Z' },
+      { id: 'm3', type: 'model_change', provider: 'acme', modelId: 'c', timestamp: '2026-08-06T00:02:00Z' },
+      { id: 'u', type: 'message', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] } },
+    ]
+    const metas = timelineItemsFromBranchPath(path, { showNonMessageEntries: true }).filter(
+      (i) => i.type === 'model-change',
+    )
+    expect(metas).toHaveLength(3)
+    expect(metas.map((m) => m.model)).toEqual(['acme/a', 'acme/b', 'acme/c'])
+  })
+
+  it('merges a complementary thinking change after a model change, then flushes on the next model change', () => {
+    const path = [
+      { id: 'm1', type: 'model_change', provider: 'acme', modelId: 'a', timestamp: '2026-08-06T00:00:00Z' },
+      { id: 't1', type: 'thinking_level_change', thinkingLevel: 'high', timestamp: '2026-08-06T00:01:00Z' },
+      { id: 'm2', type: 'model_change', provider: 'acme', modelId: 'b', timestamp: '2026-08-06T00:02:00Z' },
+    ]
+    const metas = timelineItemsFromBranchPath(path, { showNonMessageEntries: true }).filter(
+      (i) => i.type === 'model-change',
+    )
+    expect(metas).toHaveLength(2)
+    expect(metas[0]).toMatchObject({ model: 'acme/a', thinkingLevel: 'high' })
+    expect(metas[1]).toMatchObject({ model: 'acme/b' })
+  })
 })

@@ -206,11 +206,20 @@ export function timelineItemsFromBranchPath(
         if (!pendingMeta) {
           pendingMeta = { sid, ts, model, thinkingLevel: e.thinkingLevel }
         } else {
-          // 合并相邻元事件：model 优先填 provider/modelId，thinking 优先填 thinkingLevel
-          if (model) pendingMeta.model = model
-          if (e.thinkingLevel) pendingMeta.thinkingLevel = e.thinkingLevel
-          if (sid) pendingMeta.sid = sid
-          pendingMeta.ts = Math.max(pendingMeta.ts, ts)
+          // 只允许“互补字段”合并（model + thinking）；同类字段已存在说明是
+          // 连续变更（如 A→B→C），必须先 flush 再开新条目，否则前一次被覆盖、
+          // 时间线静默丢失历史
+          const canMergeModel = !!model && !pendingMeta.model
+          const canMergeThinking = !!e.thinkingLevel && !pendingMeta.thinkingLevel
+          if (!canMergeModel && !canMergeThinking) {
+            flushMeta()
+            pendingMeta = { sid, ts, model, thinkingLevel: e.thinkingLevel }
+          } else {
+            if (model) pendingMeta.model = model
+            if (e.thinkingLevel) pendingMeta.thinkingLevel = e.thinkingLevel
+            if (sid) pendingMeta.sid = sid
+            pendingMeta.ts = Math.max(pendingMeta.ts, ts)
+          }
         }
         continue
       }

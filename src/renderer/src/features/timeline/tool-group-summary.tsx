@@ -132,7 +132,7 @@ function ToolGroupSummaryImpl({
                   duration={child.duration}
                   labelSeed={child.id}
                   nested
-                  autoExpanded={expanded}
+                  autoExpanded={autoExpandedToolIds?.has(child.id) ?? false}
                 />
               )
             }
@@ -152,7 +152,7 @@ function ToolGroupSummaryImpl({
                 <ToolCallRow
                   item={toolItem}
                   compact
-                  autoExpandedInBudget={expanded}
+                  autoExpandedInBudget={autoExpandedToolIds?.has(toolItem.id) ?? false}
                 />
               </div>
             )
