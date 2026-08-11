@@ -24,14 +24,16 @@ vi.mock('@renderer/stores/extension-ui-store', () => ({
 
 import { handleCompaction } from '../apply-app-event-compaction'
 import { handleRun } from '../apply-app-event-run'
+import { applyBackgroundAppEvent } from '../apply-app-event-background'
+import { useUIStore } from '@renderer/stores/ui-store'
 import type { StoreApi } from '../apply-app-event-types'
 import type { CompactionEvent } from '../apply-app-event-types'
 
 function makeApi(): { api: StoreApi; state: Record<string, unknown> } {
   const state: Record<string, unknown> = {
-    compactionActive: false,
-    setCompactionActive: (active: boolean) => {
-      state.compactionActive = active
+    compactingSessions: {},
+    setCompactingSession: (sessionFile: string | null, active: boolean) => {
+      useUIStore.getState().setCompactingSession(sessionFile, active)
     },
     appendTimeline: () => undefined,
     runState: { status: 'running', activeRunId: 'run-1', startTime: Date.now() - 2000 },
@@ -59,47 +61,71 @@ function makeApi(): { api: StoreApi; state: Record<string, unknown> } {
   }
 }
 
-function compactionEvent(phase: 'start' | 'end', summary?: string): CompactionEvent {
+function compactionEvent(phase: 'start' | 'end', summary?: string, sessionFile = '/s.jsonl'): CompactionEvent {
   return {
     type: 'compaction',
     phase,
     summary,
+    sessionFile,
     timestamp: Date.now(),
   } as CompactionEvent
 }
 
-describe('handleCompaction compactionActive state', () => {
+describe('handleCompaction per-session state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useUIStore.setState({ compactingSessions: {} })
   })
 
-  it('sets compactionActive on start and clears it on end', () => {
-    const { api, state } = makeApi()
+  it('sets the compaction flag for the event session and clears it on end', () => {
+    const { api } = makeApi()
 
     handleCompaction(compactionEvent('start'), api)
-    expect(state.compactionActive).toBe(true)
+    expect(useUIStore.getState().compactingSessions['/s.jsonl']).toBe(true)
 
     handleCompaction(compactionEvent('end', 'summary text'), api)
-    expect(state.compactionActive).toBe(false)
+    expect(useUIStore.getState().compactingSessions['/s.jsonl']).toBe(false)
   })
 
-  it('run idle clears a stale compactionActive after a lost compaction_end', () => {
-    const { api, state } = makeApi()
+  it('isolates compaction state per session', () => {
+    const { api } = makeApi()
+
+    handleCompaction(compactionEvent('start', undefined, '/a.jsonl'), api)
+    // B 从未压缩：不得显示压缩中
+    expect(useUIStore.getState().compactingSessions['/b.jsonl']).toBeUndefined()
+    // A 的 end 只清 A，不影响 B
+    handleCompaction(compactionEvent('end', undefined, '/a.jsonl'), api)
+    expect(useUIStore.getState().compactingSessions['/a.jsonl']).toBe(false)
+  })
+
+  it('background compaction events keep the session flag in sync', () => {
+    const { api } = makeApi()
+    // A 在前台开始压缩后用户切到 B：A 的 start/end 都走后台路由
+    applyBackgroundAppEvent(compactionEvent('start', undefined, '/a.jsonl'))
+    expect(useUIStore.getState().compactingSessions['/a.jsonl']).toBe(true)
+
+    applyBackgroundAppEvent(compactionEvent('end', undefined, '/a.jsonl'))
+    expect(useUIStore.getState().compactingSessions['/a.jsonl']).toBe(false)
+  })
+
+  it('run idle clears a stale compaction flag after a lost compaction_end', () => {
+    const { api } = makeApi()
 
     handleCompaction(compactionEvent('start'), api)
-    expect(state.compactionActive).toBe(true)
+    expect(useUIStore.getState().compactingSessions['/s.jsonl']).toBe(true)
 
     // Worker crashed mid-compaction: no compaction_end arrives. A later run idle
-    // (next turn / reconnect) must clear the stale badge.
+    // (next turn / reconnect) must clear the stale badge for this session.
     handleRun(
       {
         type: 'run',
         phase: 'idle',
         runId: 'run-1',
+        sessionFile: '/s.jsonl',
         timestamp: Date.now(),
       } as never,
       api,
     )
-    expect(state.compactionActive).toBe(false)
+    expect(useUIStore.getState().compactingSessions['/s.jsonl']).toBe(false)
   })
 })

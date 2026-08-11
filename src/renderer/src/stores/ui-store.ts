@@ -281,8 +281,12 @@ export const useUIStore = create<UIState>()(
     return { runState: next as RunState, ...extra }
   }),
 
-  compactionActive: false,
-  setCompactionActive: (active) => set({ compactionActive: active }),
+  compactingSessions: {},
+  setCompactingSession: (sessionFile, active) =>
+    set((s) => {
+      const key = sessionFile ? normalizeSessionFileKey(sessionFile) || sessionFile : ''
+      return { compactingSessions: { ...s.compactingSessions, [key]: active } }
+    }),
 
   fileChanges: [],
   addFileChange: (fc) => set((s) => ({ fileChanges: [...s.fileChanges.filter(f => f.path !== fc.path), fc] })),
