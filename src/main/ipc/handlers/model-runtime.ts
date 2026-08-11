@@ -21,7 +21,6 @@ import {
   listCatalogModelsWithSdk,
   resolveAvailableModels,
   resolveCatalogModels,
-  type ModelEntry,
 } from '../../active-sdk-models'
 
 type ModelRow = {
@@ -31,6 +30,8 @@ type ModelRow = {
   contextWindow: number
   maxOutput: number
   available: boolean
+  managedBy?: string
+  auth?: { supported?: boolean; configured?: boolean }
 }
 
 function mapRegistry(
@@ -110,7 +111,7 @@ async function remoteCatalogModels(): Promise<ModelRow[]> {
  * 让网关拉取到的模型可以真正被会话使用。写入走轻量 update（无 SDK 校验/import，
  * 串行队列内基于磁盘最新状态追加），避免切换模型时卡顿。
  */
-async function ensureModelDeclaredInConfig(provider: string, modelId: string): Promise<void> {
+async function ensureModelDeclaredInConfig(provider: string, modelId: string, sessionFile?: string): Promise<void> {
   const r = await updateModelsConfigLight((current) => {
     const prov = current.providers?.[provider]
     if (!prov || !prov.baseUrl) return current
@@ -137,7 +138,9 @@ async function ensureModelDeclaredInConfig(provider: string, modelId: string): P
   }
   if (!r.changed) return
   try {
-    await workerManager.reloadModels()
+    // 目标会话可能绑定在后台 worker slot：刷新必须按 sessionFile 路由，
+    // 否则 foreground 拿到新模型而目标 slot 仍是旧配置 → MODEL_NOT_FOUND
+    await workerManager.reloadModels(sessionFile)
   } catch (e) {
     console.error('[IPC] model.set reloadModels failed:', e)
   }
@@ -150,14 +153,19 @@ async function ensureModelDeclaredInConfig(provider: string, modelId: string): P
 function mergeModelRows(local: readonly ModelEntry[], remote: readonly ModelRow[]): ModelRow[] {
   const byKey = new Map<string, ModelRow>()
   for (const m of local) {
-    byKey.set(`${m.provider}:${m.id}`, {
+    const row: ModelRow = {
       id: m.id,
       name: m.name || m.id,
       provider: m.provider,
       contextWindow: m.contextWindow || 0,
       maxOutput: m.maxOutput || m.maxTokens || 0,
-      available: true,
-    })
+      available: m.available ?? true,
+    }
+    // settings scope 由 mapRegistry 提供鉴权/归属信息，合并远程模型时必须保留；
+    // catalog 等 scope 不携带这些字段，保持原样（不输出多余键）。
+    if (m.managedBy !== undefined) row.managedBy = m.managedBy
+    if (m.auth !== undefined) row.auth = m.auth
+    byKey.set(`${m.provider}:${m.id}`, row)
   }
   for (const m of remote) {
     const key = `${m.provider}:${m.id}`
@@ -183,7 +191,7 @@ export function registerModelRuntimeHandlers(): void {
 
     const catalogFromDisk = () => {
       const { config, parseError } = readModelsConfigRaw()
-      if (parseError) return { models: [] as ModelRow[] }
+      if (parseError) return { models: [] as ModelEntry[] }
       return { models: modelsCatalogFromConfig(config) }
     }
 
@@ -257,7 +265,7 @@ export function registerModelRuntimeHandlers(): void {
       }
     }
     // 网关拉取到的模型可能尚未写入 models.json：先自动注册再设置，避免 MODEL_NOT_FOUND
-    await ensureModelDeclaredInConfig(provider, modelId)
+    await ensureModelDeclaredInConfig(provider, modelId, sessionFile)
     if (!workerManager.isRunning && !sessionFile) {
       const cwd = workerManager.cwd || configStore.get('currentProject')
       if (!cwd || isSandboxWorkspacePath(cwd)) throw new Error('Worker not started')

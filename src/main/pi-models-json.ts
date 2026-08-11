@@ -266,7 +266,7 @@ let lightWriteChain: Promise<unknown> = Promise.resolve()
  */
 export function updateModelsConfigLight(
   apply: (current: PiModelsConfig) => PiModelsConfig,
-  agentDir = join(homedir(), '.pi', 'agent'),
+  agentDir?: string,
 ): Promise<
   | { ok: true; path: string; changed: boolean }
   | { ok: false; error: string; path: string }

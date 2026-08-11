@@ -747,9 +747,11 @@ export class WorkerManager {
     const r = await this.request('getModels')
     return (r.models as WorkerModelRow[]) || []
   }
-  async reloadModels(): Promise<void> {
+  async reloadModels(sessionFile?: string): Promise<void> {
     if (!this.isRunning) return
-    await this.request('reloadModels')
+    // sessionFile 存在时路由到对应 worker slot：无参只刷新 foreground，
+    // 自动注册模型后若目标会话是后台 slot，旧 worker 仍会报 MODEL_NOT_FOUND
+    await this.request('reloadModels', sessionFile ? { sessionFile } : undefined)
   }
   async getPiSettings(): Promise<Record<string, unknown>> {
     return ((await this.request('getPiSettings')).settings as Record<string, unknown>) || {}

@@ -16,6 +16,13 @@ vi.mock('../registry', () => ({
   registerHandler: (channel: string, handler: (request: Record<string, unknown>) => Promise<unknown>) => {
     mocks.handlers.set(channel, handler)
   },
+  registerHandlerWithSchema: (
+    channel: string,
+    _schema: unknown,
+    handler: (request: Record<string, unknown>) => Promise<unknown>,
+  ) => {
+    mocks.handlers.set(channel, handler)
+  },
 }))
 
 vi.mock('../../pi-models-json', () => ({
