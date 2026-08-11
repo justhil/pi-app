@@ -209,8 +209,14 @@ export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply:
           const fs = await import('node:fs')
           // 先删文件：让删除动作立即生效（不阻塞在 runtime 重建上）
           if (fs.existsSync(file)) await fs.promises.unlink(file)
-          if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
-            await initSession(st.currentCwd)
+          // 提交点：文件已删除，删除本身已成功。之后 runtime 重建是收尾动作，
+          // 失败不得把已成功的删除报告为失败（否则 renderer 误报且标题缓存不清）
+          try {
+            if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
+              await initSession(st.currentCwd)
+            }
+          } catch (rebuildError: unknown) {
+            console.warn('[Worker] sessionDeleteFile: rebuild after delete failed', errorMessage(rebuildError))
           }
           reply({ type: 'sessionDeleteFile-done', ok: true })
         } catch (e: unknown) {
