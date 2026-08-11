@@ -72,28 +72,26 @@ export function MainLayoutShell({
   // Adapt persisted panel widths when the window is resized: the columns are fixed px from the
   // store, so without this they either overflow the window (center collapses to 0) on smaller
   // windows or stay disproportionately small on larger ones.
+  // 注意：窗口缩小只是“临时生效的展示值”，不得写回持久化首选宽度——否则缩小一次就永久
+  // 丢失用户设置（放大后无法恢复）。resize 只触发重渲染，实际 clamp 在渲染时实时计算。
+  const [windowWidth, setWindowWidth] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 0,
+  )
   useEffect(() => {
-    const onWindowResize = () => {
-      const { innerWidth } = window
-      const state = useUIStore.getState()
-      if (!state.sidebarCollapsed) {
-        // Cap the sidebar to 40% of the window so the center column stays usable.
-        const maxLeft = Math.max(MIN_SIDEBAR_PX, Math.round(innerWidth * 0.4))
-        if (state.sidebarWidth > maxLeft) state.setSidebarWidth(maxLeft)
-      }
-      const after = useUIStore.getState()
-      const leftColW = after.sidebarCollapsed ? RIGHT_COLLAPSED_RAIL_PX : after.sidebarWidth
-      const maxRight = Math.max(MIN_RIGHT_PANEL_PX, innerWidth - leftColW - MIN_CENTER_GAP)
-      if (after.rightPanelWidth > maxRight) after.setRightPanelWidth(maxRight)
-    }
+    const onWindowResize = () => setWindowWidth(window.innerWidth)
     window.addEventListener('resize', onWindowResize)
-    // Also clamp once on mount so oversized persisted widths adapt to the current window.
-    onWindowResize()
+    // 挂载时也触发一次，让超大的持久化宽度适配当前窗口
     return () => window.removeEventListener('resize', onWindowResize)
   }, [])
 
-  const leftCol = leftCollapsed ? '0px' : `${leftWidth}px`
-  const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${rightWidth}px`
+  const maxLeftFor = (w: number): number => Math.max(MIN_SIDEBAR_PX, Math.round(w * 0.4))
+  const effectiveLeft = leftCollapsed ? 0 : Math.min(leftWidth, maxLeftFor(windowWidth))
+  const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : effectiveLeft
+  const maxRight = Math.max(MIN_RIGHT_PANEL_PX, windowWidth - leftColW - MIN_CENTER_GAP)
+  const effectiveRight = rightCollapsed ? RIGHT_COLLAPSED_RAIL_PX : Math.min(rightWidth, maxRight)
+
+  const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
+  const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${effectiveRight}px`
   const gridCols = filesChatPreview
     ? `${leftCol} 0px minmax(0, 1fr)`
     : `${leftCol} minmax(0, 1fr) ${rightCol}`
