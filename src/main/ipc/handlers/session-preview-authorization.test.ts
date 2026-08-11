@@ -51,7 +51,7 @@ vi.mock('../../worker-manager', () => ({
 }))
 
 vi.mock('../../config-store', () => ({
-  configStore: { get: vi.fn(() => '/workspace') },
+  configStore: { get: vi.fn(() => '/workspace'), set: vi.fn() },
 }))
 
 vi.mock('../../session-leaf-override', () => ({
@@ -70,6 +70,7 @@ vi.mock('../../session-prepare', () => ({ resolvePreparedSessionFile: vi.fn() })
 vi.mock('../../session-display-names', () => ({
   clearSessionDisplayName: vi.fn(),
   resolveSessionListTitle: vi.fn(),
+  normalizeSessionFileKey: (f: string) => f,
 }))
 vi.mock('../../pi-rewind-read', () => ({ listRewindCheckpoints: vi.fn() }))
 vi.mock('../../session-branch-anchors', () => ({ listMessageAnchorsFromSessionFile: vi.fn() }))

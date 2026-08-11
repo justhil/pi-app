@@ -210,8 +210,16 @@ export function SessionContextMenuPortal({
         workspacePath={batchTarget?.workspacePath || ''}
         onCancel={() => setBatchTarget(null)}
         onDone={(count) => {
+          const target = batchTarget
           setBatchTarget(null)
-          if (count >= 0) refreshList(batchTarget?.workspacePath)
+          if (count < 0) {
+            toast.error(t('common:sidebar.archiveFailed'))
+          } else if (count === 0) {
+            toast.info(t('common:sidebar.batchArchiveNone'))
+          } else {
+            toast.success(t('common:sidebar.batchArchived', { count }))
+          }
+          refreshList(target?.workspacePath)
         }}
       />
       <RenamePromptDialog

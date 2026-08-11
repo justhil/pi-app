@@ -51,6 +51,7 @@ vi.mock('../../worker-manager', () => ({
 vi.mock('../../config-store', () => ({
   configStore: {
     get: vi.fn((key: string) => key === 'currentProject' ? mocks.currentProject : key === 'recentProjects' ? mocks.recentProjects : undefined),
+    set: vi.fn(),
   },
 }))
 
@@ -74,7 +75,7 @@ vi.mock('../../session-bind-state', () => ({
   setPendingWorkerSessionFile: vi.fn(),
 }))
 vi.mock('../../session-prepare', () => ({ resolvePreparedSessionFile: vi.fn() }))
-vi.mock('../../session-display-names', () => ({ clearSessionDisplayName: vi.fn(), resolveSessionListTitle: vi.fn() }))
+vi.mock('../../session-display-names', () => ({ clearSessionDisplayName: vi.fn(), resolveSessionListTitle: vi.fn(), normalizeSessionFileKey: (f: string) => f }))
 vi.mock('../../pi-rewind-read', () => ({ listRewindCheckpoints: vi.fn() }))
 vi.mock('../../session-branch-anchors', () => ({ listMessageAnchorsFromSessionFile: vi.fn() }))
 vi.mock('../../rename-pi-session', () => ({ renamePiSessionOnDisk: vi.fn() }))

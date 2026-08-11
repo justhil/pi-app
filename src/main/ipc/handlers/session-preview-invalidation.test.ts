@@ -51,7 +51,7 @@ vi.mock('../../worker-manager', () => ({
   },
 }))
 
-vi.mock('../../config-store', () => ({ configStore: { get: vi.fn(() => '/workspace') } }))
+vi.mock('../../config-store', () => ({ configStore: { get: vi.fn(() => '/workspace'), set: vi.fn() } }))
 vi.mock('../../session-bind-state', () => ({
   ensureWorkerSessionBound: vi.fn(),
   getPendingWorkerSessionFile: vi.fn(),
@@ -62,6 +62,7 @@ vi.mock('../../session-prepare', () => ({ resolvePreparedSessionFile: vi.fn() })
 vi.mock('../../session-display-names', () => ({
   clearSessionDisplayName: vi.fn(),
   resolveSessionListTitle: vi.fn((_file, fallback) => fallback),
+  normalizeSessionFileKey: (f: string) => f,
 }))
 vi.mock('../../rename-pi-session', () => ({ renamePiSessionOnDisk: mocks.renamePiSessionOnDisk }))
 vi.mock('../../sandbox-workspaces', () => ({

@@ -267,6 +267,17 @@ export function ProjectSidebar({
       try {
         const r = await ipcClient.invoke('workspace.sandbox.delete', { path: box.path })
         if (r?.ok) {
+          // 已归档的临时对话也可能处于激活状态：删除后必须清理失效工作区，
+          // 否则后续操作仍指向已被递归删除的目录（与普通删除路径一致）
+          const cur = useUIStore.getState().currentWorkspace
+          if (cur === box.path) {
+            const store = useUIStore.getState()
+            store.setWorkspace(null)
+            store.clearTimeline()
+            store.setCurrentSession('')
+            store.loadHistoryItems([])
+            store.setHistoryMeta(0, 0, null)
+          }
           refreshSandboxes()
           void loadSandboxArchived({ silent: true })
         }
@@ -558,7 +569,16 @@ export function ProjectSidebar({
   const mergedSessionsByWorkspace = useMemo(() => {
     const next = { ...sessionsByWorkspace }
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      next[currentWorkspace] = sessions
+      // store.sessions 是当前工作区的实时列表：新建 / fork / 删除都会更新它（不一定发布
+      // workspace-sessions 事件）。一旦实时列表非空就以它为准——否则新建/fork 的新会话会被
+      // 旧缓存遮蔽，侧栏一直显示旧列表直到手动刷新。
+      // 仅当切换工作区产生的瞬态空列表（setWorkspace 同步清空 sessions）且有缓存键时
+      // 才保留缓存，避免每次切换都闪“加载中”；空列表且无缓存则直接回填空列表。
+      if (sessions.length > 0) {
+        next[currentWorkspace] = sessions
+      } else if (!(currentWorkspace in next)) {
+        next[currentWorkspace] = sessions
+      }
     }
     return next
   }, [sessionsByWorkspace, currentWorkspace, sessions])
