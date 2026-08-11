@@ -57,8 +57,10 @@ export function planViewReveal(
  */
 export function missingOlderItems(fetched: TimelineItem[], existing: TimelineItem[]): TimelineItem[] {
   if (!fetched.length) return []
-  const known = new Set(existing.map((it) => it.id ?? it.sessionEntryId ?? ''))
-  return fetched.filter((it) => !known.has(it.id ?? it.sessionEntryId ?? ''))
+  // 去重以稳定的 sessionEntryId 优先：磁盘投影每次都会生成新的 hist-* id，
+  // 若按 id 去重，重读尾部时同一批条目的 hist id 不同会被当成新增重复 prepend。
+  const known = new Set(existing.map((it) => it.sessionEntryId ?? it.id ?? ''))
+  return fetched.filter((it) => !known.has(it.sessionEntryId ?? it.id ?? ''))
 }
 
 /**

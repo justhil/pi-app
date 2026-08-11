@@ -77,6 +77,19 @@ describe('missingOlderItems', () => {
   it('returns empty for an empty chunk', () => {
     expect(missingOlderItems([], [item('a')])).toEqual([])
   })
+
+  it('dedupes by sessionEntryId even when the projection ids differ (hist-* re-read)', () => {
+    // 重读尾部时磁盘投影会给同一条目生成新的 hist-* id：按 id 去重会把
+    // 已加载的条目当新增重复 prepend，必须按稳定的 sessionEntryId 去重。
+    const fetched = [
+      { ...item('hist-1', 'e1'), id: 'hist-1' },
+      { ...item('hist-2', 'e2'), id: 'hist-2' },
+      { ...item('hist-3', 'e3'), id: 'hist-3' },
+    ]
+    const existing = [{ ...item('hist-old-1', 'e2'), id: 'hist-old-1' }]
+    const missing = missingOlderItems(fetched, existing).map((it) => it.id)
+    expect(missing).toEqual(['hist-1', 'hist-3'])
+  })
 })
 
 describe('isTargetNewerThanStore', () => {

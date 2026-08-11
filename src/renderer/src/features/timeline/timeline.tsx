@@ -500,23 +500,28 @@ export function Timeline() {
           allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
           // When the target is further than 500 items below the loaded tail, the
           // gap fetch leaves a hole between the target and the tail. Close it with
-          // one offset-based page spanning exactly the middle.
-          const gapTailStart = total - gapFetched + 1
-          const middleLength = gapTailStart - 1 - targetPos
-          if (middleLength > 0) {
-            const middleRes = await fetchSessionHistoryOlder(
-              sessionFile,
-              gapFetched,
-              Math.min(middleLength, 500),
-            )
-            if (seq !== viewSeqRef.current) return
-            if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
-            // Oldest-first: target chunk, then the middle, then the tail remainder.
-            allFetched = [
-              ...chunk,
-              ...((middleRes.items || []) as TimelineItem[]),
-              ...((tailRes.items || []) as TimelineItem[]),
-            ]
+          // offset-based pages (max 500 each), oldest-first, looping until the
+          // hole is contiguous — a single page would still leave a gap while the
+          // loadedCount below claims full coverage and blocks older-loading.
+          const holeLength = gap - gapFetched
+          if (holeLength > 0) {
+            const middle: TimelineItem[] = []
+            let holeStart = targetPos + 1
+            let remaining = holeLength
+            while (remaining > 0) {
+              const pageLen = Math.min(remaining, 500)
+              // offset 语义：距尾部倒数第 offset 条之后的 pageLen 条
+              const offsetFromTail = total - (holeStart + pageLen - 1)
+              const pageRes = await fetchSessionHistoryOlder(sessionFile, offsetFromTail, pageLen)
+              if (seq !== viewSeqRef.current) return
+              if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
+              const page = (pageRes.items || []) as TimelineItem[]
+              if (!page.length) break
+              middle.push(...page)
+              holeStart += page.length
+              remaining -= page.length
+            }
+            allFetched = [...chunk, ...middle, ...((tailRes.items || []) as TimelineItem[])]
           }
         }
         const latest = useUIStore.getState()
