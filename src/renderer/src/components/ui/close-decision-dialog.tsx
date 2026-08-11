@@ -26,8 +26,15 @@ export function CloseDecisionDialog() {
     })
   }, [])
 
+  // Tell main the dialog is actually visible so its no-answer fallback is
+  // cleared — an unanswered prompt must never abort the running turn.
+  useEffect(() => {
+    if (!open) return
+    void ipcClient.invoke('window:close-decision-shown').catch(() => {})
+  }, [open])
+
   const decide = (action: CloseAction) => {
-    void ipcClient.invoke('window.close-decision', { action })
+    void ipcClient.invoke('window:close-decision', { action })
     if (action === 'wait') {
       setWaiting(true)
     } else {

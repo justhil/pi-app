@@ -48,7 +48,7 @@ describe('CloseDecisionDialog', () => {
     render(<CloseDecisionDialog />)
     emitCloseRequested()
     fireEvent.click(screen.getByText('Wait for it to finish, then close'))
-    expect(mocks.invoke).toHaveBeenCalledWith('window.close-decision', { action: 'wait' })
+    expect(mocks.invoke).toHaveBeenCalledWith('window:close-decision', { action: 'wait' })
     expect(screen.getByText('Waiting for the conversation to finish…')).toBeTruthy()
   })
 
@@ -56,7 +56,7 @@ describe('CloseDecisionDialog', () => {
     render(<CloseDecisionDialog />)
     emitCloseRequested()
     fireEvent.click(screen.getByText('Close now'))
-    expect(mocks.invoke).toHaveBeenCalledWith('window.close-decision', { action: 'now' })
+    expect(mocks.invoke).toHaveBeenCalledWith('window:close-decision', { action: 'now' })
     expect(screen.queryByText(/A conversation is still running/i)).toBeNull()
   })
 
@@ -64,7 +64,7 @@ describe('CloseDecisionDialog', () => {
     render(<CloseDecisionDialog />)
     emitCloseRequested()
     fireEvent.click(screen.getByText('Cancel'))
-    expect(mocks.invoke).toHaveBeenCalledWith('window.close-decision', { action: 'cancel' })
+    expect(mocks.invoke).toHaveBeenCalledWith('window:close-decision', { action: 'cancel' })
     expect(screen.queryByText(/A conversation is still running/i)).toBeNull()
   })
 
@@ -73,6 +73,6 @@ describe('CloseDecisionDialog', () => {
     emitCloseRequested()
     fireEvent.click(screen.getByText('Wait for it to finish, then close'))
     fireEvent.click(screen.getByText('Cancel waiting'))
-    expect(mocks.invoke).toHaveBeenLastCalledWith('window.close-decision', { action: 'cancel' })
+    expect(mocks.invoke).toHaveBeenLastCalledWith('window:close-decision', { action: 'cancel' })
   })
 })

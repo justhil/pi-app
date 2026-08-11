@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const workerState = vi.hoisted(() => ({ hasActiveTurns: false }))
 
+const appMock = vi.hoisted(() => ({ on: vi.fn(), quit: vi.fn() }))
+
 vi.mock('electron', () => ({
   BrowserWindow: {
     getAllWindows: () => [winMock.instance],
   },
+  app: appMock,
 }))
 
 vi.mock('./worker-manager', () => ({
@@ -26,7 +29,13 @@ const winMock = vi.hoisted(() => {
   return { instance }
 })
 
-import { installWindowCloseGuard, handleCloseDecision, __resetWindowCloseGuardForTest } from './window-close-guard'
+import {
+  installWindowCloseGuard,
+  handleCloseDecision,
+  handleCloseDecisionShown,
+  guardAppQuit,
+  __resetWindowCloseGuardForTest,
+} from './window-close-guard'
 
 type CloseEvent = { preventDefault: () => void }
 
@@ -37,6 +46,8 @@ describe('window-close-guard', () => {
   beforeEach(() => {
     __resetWindowCloseGuardForTest()
     workerState.hasActiveTurns = false
+    appMock.on.mockReset()
+    appMock.quit.mockReset()
     winMock.instance.on.mockReset()
     winMock.instance.webContents.send.mockReset()
     winMock.instance.close.mockReset()
@@ -105,6 +116,16 @@ describe('window-close-guard', () => {
     expect(winMock.instance.close).not.toHaveBeenCalled()
   })
 
+  it('wait has no fixed timeout: a long-running turn is never force-closed', () => {
+    vi.useFakeTimers()
+    workerState.hasActiveTurns = true
+    closeHandler?.(makeEvent())
+    handleCloseDecision('wait')
+    vi.advanceTimersByTime(30 * 60 * 1000)
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).toHaveBeenCalledTimes(1)
+  })
+
   it('decision cancel keeps the window open and allows a fresh decision later', () => {
     workerState.hasActiveTurns = true
     closeHandler?.(makeEvent())
@@ -118,8 +139,60 @@ describe('window-close-guard', () => {
     expect(winMock.instance.close).toHaveBeenCalled()
   })
 
+  it('renderer ack of the visible dialog disarms the no-answer fallback', () => {
+    vi.useFakeTimers()
+    workerState.hasActiveTurns = true
+    closeHandler?.(makeEvent())
+    handleCloseDecisionShown()
+    // Past the original ack window with the dialog visible: no force close.
+    vi.advanceTimersByTime(61 * 1000)
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+  })
+
+  it('without a renderer ack the no-answer fallback unblocks the window', () => {
+    vi.useFakeTimers()
+    workerState.hasActiveTurns = true
+    closeHandler?.(makeEvent())
+    vi.advanceTimersByTime(61 * 1000)
+    expect(winMock.instance.close).toHaveBeenCalled()
+  })
+
   it('invalid action is rejected', () => {
     const res = handleCloseDecision('bogus' as never)
     expect(res).toEqual({ ok: false, reason: 'invalid_action' })
+  })
+
+  describe('guardAppQuit (tray Quit / Cmd+Q)', () => {
+    it('allows quit when no turn is running', () => {
+      const e = makeEvent()
+      expect(guardAppQuit(e)).toBe(true)
+      expect(e.preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('diverts quit to the close-decision flow while a turn is running', () => {
+      workerState.hasActiveTurns = true
+      const e = makeEvent()
+      expect(guardAppQuit(e)).toBe(false)
+      expect(e.preventDefault).toHaveBeenCalled()
+      expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
+        isStreaming: true,
+      })
+    })
+
+    it('ignores repeated quit attempts while a decision is pending', () => {
+      workerState.hasActiveTurns = true
+      guardAppQuit(makeEvent())
+      const e = makeEvent()
+      expect(guardAppQuit(e)).toBe(false)
+      expect(winMock.instance.webContents.send).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows the quit after the user chose now, and re-issues app.quit', () => {
+      workerState.hasActiveTurns = true
+      guardAppQuit(makeEvent())
+      handleCloseDecision('now')
+      expect(appMock.quit).toHaveBeenCalled()
+      expect(guardAppQuit(makeEvent())).toBe(true)
+    })
   })
 })

@@ -1,6 +1,6 @@
 import { registerHandler } from '../registry'
 import { getMainWindow } from '../../window'
-import { handleCloseDecision } from '../../window-close-guard'
+import { handleCloseDecision, handleCloseDecisionShown } from '../../window-close-guard'
 
 export function registerWindowControlHandlers(): void {
   registerHandler('ipc:window:close-decision', async (req) => {
@@ -9,6 +9,11 @@ export function registerWindowControlHandlers(): void {
       return { ok: false, reason: 'invalid_action' }
     }
     return handleCloseDecision(action)
+  })
+  registerHandler('ipc:window:close-decision-shown', async () => {
+    // Renderer confirms the dialog is visible: the no-answer fallback is cleared.
+    handleCloseDecisionShown()
+    return { ok: true }
   })
   registerHandler('ipc:window:minimize', async () => {
     getMainWindow()?.minimize()
