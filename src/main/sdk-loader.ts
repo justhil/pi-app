@@ -19,12 +19,16 @@ export interface ActiveSdk {
   fallbackReason?: string
 }
 
-let globalSdkPathCache: string | null | undefined
+let globalSdkPathCache: { value: string | null; at: number } | null | undefined
 
 // Resolving the active SDK is expensive for 'global' (synchronous npm spawns,
 // up to a few seconds on Windows). Cache the full result keyed by the SDK config
 // file's mtime so session.getMessages etc. never re-run the discovery per call.
-let activeSdkCache: { key: string; value: ActiveSdk } | null = null
+// 失败结果（null / fallback）只短暂缓存：用户可能在进程运行中修复或新装全局 SDK，
+// 永久负缓存会让设置页重读永远命中 null。
+const FAILED_RESOLVE_TTL_MS = 30 * 1000
+
+let activeSdkCache: { key: string; value: ActiveSdk; at: number } | null = null
 
 export function clearGlobalSdkPathCache(): void {
   globalSdkPathCache = undefined
@@ -50,12 +54,16 @@ function validateEntry(pkgRoot: string): boolean {
   return validatePiCodingAgentRoot(pkgRoot)
 }
 
-export function resolveGlobalSdkPath(): string | null {
-  if (globalSdkPathCache !== undefined) return globalSdkPathCache
-  // Cache the outcome regardless of success — a broken npm must not trigger the
-  // synchronous npm scan again on every getMessages call.
-  globalSdkPathCache = discoverGlobalPiCodingAgentRoot()
-  return globalSdkPathCache
+export function resolveGlobalSdkPath(opts?: { skipSpawn?: boolean }): string | null {
+  const cached = globalSdkPathCache
+  if (cached != null) {
+    const isFresh = cached.value !== null || Date.now() - cached.at < FAILED_RESOLVE_TTL_MS
+    if (isFresh) return cached.value
+  }
+  // 命中失败结果且 TTL 已过：重新探测（成功结果永久缓存，直到 clear）
+  const value = discoverGlobalPiCodingAgentRoot(opts)
+  globalSdkPathCache = { value, at: Date.now() }
+  return value
 }
 
 export function readGlobalSdkVersion(): string | null {
@@ -142,20 +150,25 @@ function sdkConfigStamp(userDataDir: string): string {
     return `${userDataDir}|missing`
   }
 }
-}
 
-export function resolveActiveSdk(userDataDir: string): ActiveSdk {
+export function resolveActiveSdk(userDataDir: string, opts?: { skipSpawn?: boolean }): ActiveSdk {
   const key = sdkConfigStamp(userDataDir)
-  if (activeSdkCache && activeSdkCache.key === key) return activeSdkCache.value
-  const value = computeActiveSdk(userDataDir)
-  activeSdkCache = { key, value }
+  const cached = activeSdkCache
+  if (cached && cached.key === key) {
+    // 失败结果（fallbackReason）只缓存 FAILED_RESOLVE_TTL_MS：
+    // 用户新装/修复 SDK 后，设置页强制刷新不应永远命中旧的 builtin 回退。
+    const isFailure = cached.value.fallbackReason !== undefined
+    if (!isFailure || Date.now() - cached.at < FAILED_RESOLVE_TTL_MS) return cached.value
+  }
+  const value = computeActiveSdk(userDataDir, opts)
+  activeSdkCache = { key, value, at: Date.now() }
   return value
 }
 
-function computeActiveSdk(userDataDir: string): ActiveSdk {
+function computeActiveSdk(userDataDir: string, opts?: { skipSpawn?: boolean }): ActiveSdk {
   const { active } = readCurrentJson(userDataDir)
   if (active === 'global') {
-    const globalRoot = resolveGlobalSdkPath()
+    const globalRoot = resolveGlobalSdkPath(opts)
     if (globalRoot) {
       const entry = resolveEntryPath(globalRoot)
       if (entry) return { kind: 'global', version: readGlobalSdkVersion() || '', entryPath: entry }

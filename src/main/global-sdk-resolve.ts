@@ -195,8 +195,10 @@ function scanModuleRoot(moduleRoot: string): string | null {
  * 优先纯文件系统路径（env 推导的 npm 全局目录 / pi-node 布局）——绝大多数默认
  * prefix 安装无需任何子进程即可命中，避免同步 npm spawn 阻塞主进程；仅非常规
  * 布局才回退到 npm list / prefix / where pi。
+ * skipSpawn 用于启动预热等场景：只做无子进程的便宜探测，昂贵回退留给按需路径。
  */
-export function discoverGlobalPiCodingAgentRoot(): string | null {
+export function discoverGlobalPiCodingAgentRoot(opts?: { skipSpawn?: boolean }): string | null {
+  const skipSpawn = opts?.skipSpawn === true
   const seen = new Set<string>()
   const tryPkgRoot = (root: string | null | undefined): string | null => {
     if (!root) return null
@@ -218,6 +220,8 @@ export function discoverGlobalPiCodingAgentRoot(): string | null {
     const hit = tryModuleRoot(moduleRoot)
     if (hit) return hit
   }
+
+  if (skipSpawn) return null
 
   // 1) npm i -g：npm list 给出的安装 path（最准，但需同步 spawn）
   for (const { cmd, args } of npmCliPairs()) {

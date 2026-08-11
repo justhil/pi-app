@@ -37,12 +37,16 @@ export function toSessionOnDiskRows(rows: unknown[]): SessionOnDiskRow[] {
     }))
 }
 
+
 export function getActiveSdkModule(
   userDataDir: string,
   activeSdkPath?: string | null,
+  opts?: { skipSpawn?: boolean },
 ): Promise<typeof import('@earendil-works/pi-coding-agent')> {
   if (activeSdkPath) return import(pathToFileURL(activeSdkPath).href)
-  const active = resolveActiveSdk(userDataDir)
+  // 预热/后台场景 skipSpawn=true：只做无子进程的便宜解析，避免启动时同步 npm spawn 阻塞主线程
+  const active = resolveActiveSdk(userDataDir, opts)
+
   if (active.kind === 'builtin') {
     return import(active.entryPath)
   }
@@ -54,10 +58,13 @@ export function getActiveSdkModule(
  * open never pays a cold dynamic import (measured ~0.8–2s for the global SDK in
  * Electron). Runs once per app start; safe to call multiple times (Node caches).
  */
-export function warmSdkModules(): void {
+export function warmSdkModules(userDataDir: string): void {
   void (async () => {
     try {
-      await getActiveSdkModule()
+      // 预热只做“便宜”解析（env / pi-node 布局，无子进程）：纯路径未命中时
+      // 回退到内置 SDK 预热其模块图。昂贵的 npm spawn 探测留给按需路径，
+      // 绝不把最长 15s 的同步 spawnSync 提前到应用启动阻塞主线程。
+      await getActiveSdkModule(userDataDir, undefined, { skipSpawn: true })
       // Also preload the session-manager module used by getMessages / tree reads
       // (a separate module graph from the package index).
       const { buildTimelinePageFromSessionFile } = await import('@shared/session-jsonl-timeline')
