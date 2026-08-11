@@ -7,7 +7,7 @@ const discoverMock = vi.fn<() => string | null>(() => null)
 
 vi.mock('./global-sdk-resolve', () => ({
   discoverGlobalPiCodingAgentRoot: () => discoverMock(),
-  resolvePackageEntryPath: vi.fn(() => null),
+  resolvePackageEntryPath: vi.fn((root: string | null) => (root ? `${root}/index.js` : null)),
   validatePiCodingAgentRoot: vi.fn(() => false),
 }))
 
@@ -65,5 +65,51 @@ describe('resolveActiveSdk caching', () => {
     const next = resolveActiveSdk(dir)
     expect(next.kind).toBe('builtin')
     expect(next.fallbackReason).toBeUndefined()
+  })
+
+  it('re-resolves a failed discovery after the negative TTL expires', () => {
+    vi.useFakeTimers()
+    try {
+      const dir = makeUserDataDir('global')
+      discoverMock.mockReturnValue(null)
+      expect(resolveGlobalSdkPath()).toBeNull()
+      expect(discoverMock).toHaveBeenCalledTimes(1)
+
+      // TTL 未过：仍命中负缓存
+      expect(resolveGlobalSdkPath()).toBeNull()
+      expect(discoverMock).toHaveBeenCalledTimes(1)
+
+      // 模拟用户随后外部安装了全局 SDK；TTL 过后重新探测到路径
+      vi.advanceTimersByTime(31_000)
+      discoverMock.mockReturnValue('/new/global/root')
+      expect(resolveGlobalSdkPath()).toBe('/new/global/root')
+      expect(discoverMock).toHaveBeenCalledTimes(2)
+
+      // 成功后永久缓存（不再反复扫描）
+      expect(resolveGlobalSdkPath()).toBe('/new/global/root')
+      expect(discoverMock).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('resolveActiveSdk re-checks a failed resolution after the negative TTL expires', () => {
+    vi.useFakeTimers()
+    try {
+      const dir = makeUserDataDir('global')
+      discoverMock.mockReturnValue(null)
+      const first = resolveActiveSdk(dir)
+      expect(first.fallbackReason).toBe('global-unavailable')
+      expect(discoverMock).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(31_000)
+      discoverMock.mockReturnValue('/new/global/root')
+      const next = resolveActiveSdk(dir)
+      // 配置 mtime 未变，但负 TTL 已过 → 重新解析出全局 SDK
+      expect(discoverMock).toHaveBeenCalledTimes(2)
+      expect(next.fallbackReason).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
