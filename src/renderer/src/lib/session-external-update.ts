@@ -45,11 +45,7 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
     composerTurnActive({
       historySessionFile: store.historySessionFile,
       workerLiveSnapshot: store.workerLiveSnapshot,
-      runState: store.runState,
-      streamingAssistantId: store.streamingAssistantId,
-      optimisticPendingUserText: store.optimisticPendingUserText,
       sessionRuntimeRunning: store.sessionRuntimeRunning,
-      agentTurnBootstrapping: store.agentTurnBootstrapping,
     })
   ) {
     return
@@ -61,6 +57,7 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
     // 直接拉尾部页（含全部或最近 500 条），再按 id 过滤出真正的新增尾部。
     res = (await ipcClient.invoke('session.getMessages', {
       sessionFile,
+      workspaceId: store.currentWorkspace || undefined,
       offset: 0,
       limit: 0,
     })) as typeof res
@@ -82,9 +79,25 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
   useUIStore.setState((s) => {
     if (!s.historySessionFile || !sessionFilesEqual(s.historySessionFile, sessionFile)) return {}
     const cleaned = sanitizeHistoryTimeline(newItems)
-    // 尾部页会包含已加载的历史：只保留视图里还没有的条目，避免重复追加。
+    // 视图可能只加载了尾部若干条（分页未拉满）：不能按“视图里没有的 id 都是新增”过滤，
+    // 否则磁盘页里更早、尚未加载的历史会被误追加到尾部并推高 historyLoadedCount，
+    // 永久阻断旧历史分页。以视图尾部最后一个持久化条目为锚点，只追加锚点之后的磁盘条目。
     const existingIds = new Set(s.timelineItems.map((i) => i.sessionEntryId ?? i.id))
-    const fresh = cleaned.filter((i) => !existingIds.has(i.sessionEntryId ?? i.id))
+    let anchorId: string | null = null
+    for (let i = s.timelineItems.length - 1; i >= 0; i--) {
+      const eid = s.timelineItems[i].sessionEntryId
+      // 真实 JSONL entry id 才有资格当锚点（投影的 hist-* 不是持久化条目）
+      if (eid && !String(eid).startsWith('hist-')) {
+        anchorId = eid
+        break
+      }
+    }
+    const anchorIdx = anchorId ? cleaned.findIndex((i) => (i.sessionEntryId ?? i.id) === anchorId) : -1
+    // 锚点不在磁盘尾部页里（如页被 500 条截断、锚点更早）：保守不追加，避免乱序
+    if (anchorIdx === -1) return {}
+    const fresh = cleaned
+      .slice(anchorIdx + 1)
+      .filter((i) => !existingIds.has(i.sessionEntryId ?? i.id))
     const merged = dedupeAdjacentUserMessages([...s.timelineItems, ...fresh])
     const addedCount = merged.length - s.timelineItems.length
     if (addedCount <= 0) return {}

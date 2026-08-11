@@ -143,4 +143,63 @@ describe('session external update merge', () => {
     expect(setStateCb).not.toHaveBeenCalled()
     expect(setExternalSyncPhase).not.toHaveBeenCalled()
   })
+
+  it('only appends entries after the view tail anchor when history is partially loaded', async () => {
+    // 视图只加载了尾部 2 条（e4/e5）；磁盘页含全部 6 条。
+    // 锚点 = 视图尾部持久化条目 e5；只能追加 e6，不能把未加载的 e1-e3 当新增。
+    getState.mockReturnValue({
+      ...baseState,
+      historyTotalCount: 5,
+      historyLoadedCount: 2,
+      timelineItems: [
+        { id: 'm4', type: 'user-message', text: 'four', sessionEntryId: 'e4' },
+        { id: 'm5', type: 'assistant', text: 'five', sessionEntryId: 'e5' },
+      ],
+    })
+    invoke.mockResolvedValue({
+      items: [
+        { id: 'm1', type: 'user-message', text: 'one', sessionEntryId: 'e1' },
+        { id: 'm2', type: 'assistant', text: 'two', sessionEntryId: 'e2' },
+        { id: 'm3', type: 'user-message', text: 'three', sessionEntryId: 'e3' },
+        { id: 'm4', type: 'user-message', text: 'four', sessionEntryId: 'e4' },
+        { id: 'm5', type: 'assistant', text: 'five', sessionEntryId: 'e5' },
+        { id: 'm6', type: 'assistant', text: 'six', sessionEntryId: 'e6' },
+      ],
+      totalCount: 6,
+    })
+
+    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+
+    const updaterResult = setStateCb.mock.calls[0][0] as {
+      timelineItems: Array<{ id: string }>
+      historyLoadedCount: number
+    }
+    expect(updaterResult.timelineItems.map((i) => i.id)).toEqual(['m4', 'm5', 'm6'])
+    expect(updaterResult.historyLoadedCount).toBe(3)
+  })
+
+  it('does not append anything when the view tail anchor is not in the disk page', async () => {
+    // 磁盘尾部页被 500 条截断，锚点 e5 已不在页内：保守跳过，避免把中间未加载的历史乱序追加
+    getState.mockReturnValue({
+      ...baseState,
+      timelineItems: [
+        { id: 'm4', type: 'user-message', text: 'four', sessionEntryId: 'e4' },
+        { id: 'm5', type: 'assistant', text: 'five', sessionEntryId: 'e5' },
+      ],
+    })
+    invoke.mockResolvedValue({
+      items: [
+        { id: 'm100', type: 'user-message', text: 'x', sessionEntryId: 'e100' },
+        { id: 'm101', type: 'assistant', text: 'y', sessionEntryId: 'e101' },
+      ],
+      totalCount: 102,
+    })
+
+    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+
+    expect(setStateCb).toHaveBeenCalledOnce()
+    const updaterResult = setStateCb.mock.calls[0][0]
+    expect(updaterResult).toEqual({})
+    expect(setExternalSyncPhase).not.toHaveBeenCalled()
+  })
 })

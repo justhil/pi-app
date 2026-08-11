@@ -1,7 +1,7 @@
 import { readdir, stat } from 'fs/promises'
 import { watch, type FSWatcher } from 'fs'
 import { join, resolve } from 'path'
-import type { BrowserWindow } from 'electron'
+import { app, type BrowserWindow } from 'electron'
 import { configStore } from './config-store'
 import { workerManager } from './worker-manager'
 import { getPendingWorkerSessionFile } from './session-bind-state'
@@ -136,7 +136,7 @@ export async function refreshSessionDirWatch(win: BrowserWindow | null): Promise
   const cwd = workerManager.cwd || configStore.get('currentProject') || ''
   if (!cwd || !win) return
   try {
-    const { getAgentDir } = await getActiveSdkModule()
+    const { getAgentDir } = await getActiveSdkModule(app.getPath('userData'))
     // 与 SDK getDefaultSessionDir 同一编码：~/.pi/agent/sessions/--<cwd 转义>--
     const resolvedCwd = resolve(cwd)
     const safePath = `--${resolvedCwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
