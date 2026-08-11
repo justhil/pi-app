@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { app, BrowserWindow } from 'electron'
 import { workerManager } from './worker-manager'
 
 /**
@@ -11,18 +11,24 @@ import { workerManager } from './worker-manager'
  * - now: close immediately, aborting the running turn (status quo behaviour).
  * - cancel: keep the window open and clear the pending decision.
  *
- * Tray quit / Cmd+Q go through the same window close path, so they are guarded
- * too. `forceClose` bypasses the guard once a decision has been made.
+ * Both window close and app quit (tray Quit / Cmd+Q) are guarded. `forceClose`
+ * bypasses the guard once a decision has been made.
  */
 let forceClose = false
 let closeDecisionPending = false
-let decisionTimeout: ReturnType<typeof setTimeout> | null = null
+let decisionAckTimer: ReturnType<typeof setTimeout> | null = null
 let waitPollTimer: ReturnType<typeof setInterval> | null = null
+let pendingOrigin: 'window' | 'app' | null = null
 
 const WAIT_POLL_MS = 500
-const WAIT_TIMEOUT_MS = 15 * 60 * 1000
-/** If the renderer never answers the close request (crash), stop blocking the window. */
-const DECISION_TIMEOUT_MS = 60 * 1000
+/**
+ * Fallback for a renderer that never answers: if it does not confirm the
+ * decision dialog was actually displayed (crash / hang) within this window,
+ * stop blocking the app window. Once the dialog is shown, the timer is cleared
+ * and the user decides at their own pace — an unanswered prompt must never
+ * abort a running turn.
+ */
+const DECISION_ACK_TIMEOUT_MS = 60 * 1000
 
 function getWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows()[0] ?? null
@@ -35,28 +41,54 @@ function stopWaitPoll(): void {
   }
 }
 
-function clearDecisionTimeout(): void {
-  if (decisionTimeout) {
-    clearTimeout(decisionTimeout)
-    decisionTimeout = null
+function clearDecisionAckTimer(): void {
+  if (decisionAckTimer) {
+    clearTimeout(decisionAckTimer)
+    decisionAckTimer = null
   }
 }
 
-function closeNow(win: BrowserWindow): void {
-  stopWaitPoll()
-  clearDecisionTimeout()
-  closeDecisionPending = false
-  forceClose = true
-  if (!win.isDestroyed()) win.close()
+function requestCloseDecision(origin: 'window' | 'app'): boolean {
+  const win = getWindow()
+  if (!win || win.isDestroyed()) return false
+  pendingOrigin = origin
+  closeDecisionPending = true
+  clearDecisionAckTimer()
+  decisionAckTimer = setTimeout(() => {
+    if (!closeDecisionPending) return
+    // Renderer never confirmed the dialog is visible (crash / hang): stop
+    // blocking. The turn is already lost anyway — do not keep the app stuck.
+    closeDecisionPending = false
+    decisionAckTimer = null
+    forceClose = true
+    const winNow = getWindow()
+    if (winNow && !winNow.isDestroyed()) winNow.close()
+    if (origin === 'app') app.quit()
+  }, DECISION_ACK_TIMEOUT_MS)
+  win.webContents.send('ipc:close-requested', { isStreaming: true })
+  return true
 }
 
-function startWaitAndClose(win: BrowserWindow): void {
+function closeNow(): void {
   stopWaitPoll()
-  const startedAt = Date.now()
+  clearDecisionAckTimer()
+  closeDecisionPending = false
+  forceClose = true
+  const win = getWindow()
+  if (win && !win.isDestroyed()) win.close()
+  // Tray Quit / Cmd+Q originated as app.quit(): closing the window alone leaves
+  // the app running on darwin, so re-issue the quit (now passes the guard).
+  if (pendingOrigin === 'app') app.quit()
+}
+
+function startWaitAndClose(): void {
+  stopWaitPoll()
+  // No fixed timeout: the user explicitly chose to wait, so the window closes
+  // only once the turn (including compaction) settles. If it never settles,
+  // the dialog's "Cancel waiting" remains the escape hatch.
   waitPollTimer = setInterval(() => {
-    const timedOut = Date.now() - startedAt > WAIT_TIMEOUT_MS
-    if (!workerManager.hasActiveTurns || timedOut) {
-      closeNow(win)
+    if (!workerManager.hasActiveTurns) {
+      closeNow()
     }
   }, WAIT_POLL_MS)
 }
@@ -65,29 +97,36 @@ export function installWindowCloseGuard(win: BrowserWindow): void {
   win.on('close', (event) => {
     if (forceClose) return
     event.preventDefault()
-    if (waitPollTimer) {
-      // Already waiting for the running turn — ignore further close attempts.
-      return
-    }
-    if (closeDecisionPending) {
-      // Dialog is already open; a repeated close click must not re-ask.
+    if (waitPollTimer || closeDecisionPending) {
+      // Already waiting or asking — repeated close clicks must not re-ask.
       return
     }
     if (workerManager.hasActiveTurns) {
-      closeDecisionPending = true
-      clearDecisionTimeout()
-      decisionTimeout = setTimeout(() => {
-        closeDecisionPending = false
-        decisionTimeout = null
-        // Renderer never answered (crash / hang): fall back to closing now.
-        const winNow = getWindow()
-        if (winNow && !winNow.isDestroyed()) closeNow(winNow)
-      }, DECISION_TIMEOUT_MS)
-      win.webContents.send('ipc:close-requested', { isStreaming: true })
+      requestCloseDecision('window')
       return
     }
-    closeNow(win)
+    closeNow()
   })
+}
+
+/**
+ * Guard for app.quit() paths (tray Quit, Cmd+Q, window menu). Returns true when
+ * the quit should proceed normally (no running turn, or a decision was made);
+ * false when the quit is being diverted to the close-decision flow.
+ */
+export function guardAppQuit(event: { preventDefault: () => void }): boolean {
+  if (forceClose) return true
+  if (waitPollTimer || closeDecisionPending) {
+    // A decision is already pending — this repeated quit attempt is ignored.
+    event.preventDefault()
+    return false
+  }
+  if (workerManager.hasActiveTurns) {
+    event.preventDefault()
+    requestCloseDecision('app')
+    return false
+  }
+  return true
 }
 
 export function handleCloseDecision(action: 'wait' | 'now' | 'cancel'): { ok: boolean; reason?: string } {
@@ -95,24 +134,31 @@ export function handleCloseDecision(action: 'wait' | 'now' | 'cancel'): { ok: bo
   if (!win) return { ok: false }
   if (action === 'wait') {
     closeDecisionPending = false
-    clearDecisionTimeout()
-    startWaitAndClose(win)
+    clearDecisionAckTimer()
+    startWaitAndClose()
   } else if (action === 'now') {
-    closeNow(win)
+    closeNow()
   } else if (action === 'cancel') {
     closeDecisionPending = false
-    clearDecisionTimeout()
+    clearDecisionAckTimer()
     stopWaitPoll()
+    pendingOrigin = null
   } else {
     return { ok: false, reason: 'invalid_action' }
   }
   return { ok: true }
 }
 
+/** Renderer confirms the decision dialog is visible — the ack fallback no longer applies. */
+export function handleCloseDecisionShown(): void {
+  if (closeDecisionPending) clearDecisionAckTimer()
+}
+
 /** Test-only reset of module-level guard state. */
 export function __resetWindowCloseGuardForTest(): void {
   forceClose = false
   closeDecisionPending = false
-  clearDecisionTimeout()
+  clearDecisionAckTimer()
   stopWaitPoll()
+  pendingOrigin = null
 }
