@@ -49,6 +49,7 @@ function fakeSlot(poolKey: string, cwd: string, active: boolean, lastFg = Date.n
   return {
     poolKey,
     cwd,
+    runtime: { mode: 'host', distro: null },
     sessionFile: poolKey.startsWith('ws:') ? null : poolKey,
     worker: {} as WorkerSlot['worker'],
     pendingRequests: new Map(),

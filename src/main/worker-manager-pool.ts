@@ -4,7 +4,7 @@ import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { windowsPathToWsl } from '@shared/wsl-path'
 import { resolveActiveSdk } from './sdk-loader'
-import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
+import type { WorkerInitResult, WorkerRuntimeIdentity, WorkerSlot } from './worker-manager-types'
 import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
 import {
@@ -21,11 +21,13 @@ function createSlot(
   cwd: string,
   worker: WorkerTransport,
   sessionFile: string | null = null,
+  runtime: WorkerRuntimeIdentity = { mode: 'host', distro: null },
 ): WorkerSlot {
   const now = Date.now()
   return {
     poolKey,
     cwd,
+    runtime,
     sessionFile,
     worker,
     pendingRequests: new Map(),
@@ -219,7 +221,7 @@ export async function disposeWorkerSlot(slot: WorkerSlot): Promise<void> {
   }
   slot.initPromise = null
   const proc = slot.worker
-  const wasActive = !!slot.agentTurnActive
+  const wasActive = slot.agentTurnActive
   // Always try abort on dispose when we have a session file — agentTurnActive can lag
   // behind true streaming if events were missed, and force-quit needs a terminal leaf.
   if (wasActive || slot.sessionFile) {
@@ -311,7 +313,10 @@ export async function forkWorkerForCwd(
     const activeSdk = resolveActiveSdk(app.getPath('userData'))
     sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
   }
-  const slot = createSlot(poolKey, cwd, transport, opts?.sessionFile ?? null)
+  const slot = createSlot(poolKey, cwd, transport, opts?.sessionFile ?? null, {
+    mode: runtime.mode,
+    distro: runtime.distro,
+  })
   const initPromise = new Promise<WorkerInitResult>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (slot.worker !== transport) return

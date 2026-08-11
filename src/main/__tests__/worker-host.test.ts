@@ -52,6 +52,7 @@ vi.mock('child_process', () => ({
 vi.mock('../wsl/wsl-exec', () => ({
   runWslDistroCdSync: mocks.runWslDistroCdSync,
   wslHomeDirSync: vi.fn(() => '/root'),
+  wslDefaultShellSync: vi.fn(() => 'bash'),
 }))
 
 vi.mock('@shared/wsl-path', () => ({
@@ -116,13 +117,21 @@ describe('spawnWorkerInWsl', () => {
     }
   })
 
-  it('omits --cd when the flag is unsupported', () => {
+  it('falls back to shell cd -- when the --cd flag is unsupported', () => {
     mocks.runWslDistroCdSync.mockReturnValue({ status: 1, stdout: '', stderr: 'bad' })
     expect(wslCdFlagSupported('Ubuntu')).toBe(false)
     mocks.spawn.mockReturnValue({})
     spawnWorkerInWsl({ distro: 'Ubuntu', wslCwd: '/home/u/proj', workerWslPath: '/root/.pi-desktop/worker.mjs' })
     const [, args] = mocks.spawn.mock.calls[0]
-    expect(args).toEqual(['-d', 'Ubuntu', '--', 'node', '/root/.pi-desktop/worker.mjs'])
+    // 旧版 wsl.exe：进程必须经 shell 显式进入项目目录，不能落在发行版默认 home
+    expect(args).toEqual([
+      '-d',
+      'Ubuntu',
+      '--',
+      'bash',
+      '-lc',
+      "cd -- '/home/u/proj' && exec node '/root/.pi-desktop/worker.mjs'",
+    ])
   })
 
   it('caches the --cd support probe per distro', () => {

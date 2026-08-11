@@ -3,9 +3,11 @@ import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
-import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
+import { invalidateAdapterCatalog } from '@extension-compat/adapter-loader.ts'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { settingsSetSchema } from '../schemas'
+import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
+import { workerManager } from '../../worker-manager'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -27,11 +29,19 @@ export function registerSettingsHandlers(): void {
       saveAsrConfig(req.value as StoreSchema['asrConfig'])
       return { key: req.key, value: asrConfigForSettingsResponse(loadAsrConfig()) }
     }
+    const prevRuntime = getAgentRuntimeConfig()
     configStore.set(key, req.value as StoreSchema[typeof key])
     if (key === 'agentRuntime') {
       // 宿主 ↔ WSL 切换会改变 active 用户目录（~/.pi/agent、~/.pi/desktop），
       // 清理 adapter catalog 缓存避免继续读旧 runtime 的目录。
       invalidateAdapterCatalog()
+      const nextRuntime = getAgentRuntimeConfig()
+      if (prevRuntime.mode !== nextRuntime.mode || prevRuntime.distro !== nextRuntime.distro) {
+        // 切换 runtime 必须受控停掉旧 Worker 池：否则按相同 cwd/session key
+        // 复用旧 slot，消息仍跑在旧 runtime 上（host↔WSL 互相穿透）。
+        // 停池后下次会话切换/发消息会按新 runtime 重新 fork。
+        await workerManager.stop()
+      }
     }
     return { key: req.key, value: req.value }
   })

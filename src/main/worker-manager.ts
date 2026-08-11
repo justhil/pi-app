@@ -614,7 +614,9 @@ export class WorkerManager {
   }
 
   private isWslSlot(slot: WorkerSlot): boolean {
-    return isWslRuntimeActive() || isWslWindowsPath(slot.cwd)
+    // 以 slot 创建时的 runtime 身份判定，不读全局配置：runtime 切换后旧 slot
+    // 仍按原身份分类，避免把旧 host slot 误判为 WSL slot（反之亦然）。
+    return slot.runtime.mode === 'wsl' || isWslWindowsPath(slot.cwd)
   }
 
   /** Fork a WSL workspace worker (not foreground) purely to serve listSessions. */

@@ -138,23 +138,38 @@ export function runWslDistroCdSync(
   return runWslSync(['-d', distro, '--cd', wslCwd, '--', ...args], opts)
 }
 
-/** Async variant used for probes that may run in parallel. */
-export function runWslDistroAsync(
-  distro: string,
+/**
+ * Async variant of `runWslSync` (spawn-based, never blocks the main thread).
+ * Used for IPC-facing probes: opening Settings or picking a distro must not
+ * freeze Electron Main while `wsl.exe` boots a distro (can take 8–15s).
+ */
+export function runWslAsync(
   args: string[],
-  opts: { timeout?: number } = {},
+  opts: { timeout?: number; input?: string } = {},
 ): Promise<WslExecResult> {
-  if (!isValidWslDistroName(distro)) {
-    return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
-  }
   return new Promise((resolve) => {
-    const child = spawn(WSL_EXE, ['-d', distro, '--', ...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const child = spawn(WSL_EXE, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
     })
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
+    let code: number | null = null
     let settled = false
+    if (opts.input) {
+      child.stdin?.write(opts.input)
+    }
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      child.stdin?.end()
+      resolve({
+        status: code,
+        stdout: decodeWslOutput(Buffer.concat(stdoutChunks)),
+        stderr: decodeWslOutput(Buffer.concat(stderrChunks)),
+      })
+    }
     const timer = setTimeout(() => {
       if (settled) return
       settled = true
@@ -177,17 +192,36 @@ export function runWslDistroAsync(
       clearTimeout(timer)
       resolve({ status: -1, stdout: '', stderr: errorMessage(e) || 'wsl spawn error' })
     })
-    child.on('close', (code) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve({
-        status: code,
-        stdout: decodeWslOutput(Buffer.concat(stdoutChunks)),
-        stderr: decodeWslOutput(Buffer.concat(stderrChunks)),
-      })
+    child.on('close', (c) => {
+      code = c
+      finish()
     })
   })
+}
+
+/** Async variant used for probes that may run in parallel. */
+export function runWslDistroAsync(
+  distro: string,
+  args: string[],
+  opts: { timeout?: number } = {},
+): Promise<WslExecResult> {
+  if (!isValidWslDistroName(distro)) {
+    return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
+  }
+  return runWslAsync(['-d', distro, '--', ...args], opts)
+}
+
+/** Async variant of `runWslDistroCdSync` (`--cd` must precede the `--` separator). */
+export function runWslDistroCdAsync(
+  distro: string,
+  wslCwd: string,
+  args: string[],
+  opts: { timeout?: number } = {},
+): Promise<WslExecResult> {
+  if (!isValidWslDistroName(distro)) {
+    return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
+  }
+  return runWslAsync(['-d', distro, '--cd', wslCwd, '--', ...args], opts)
 }
 
 /** WSL home directory (e.g. `/home/user`). Returns null when the distro is unusable. */
@@ -217,6 +251,17 @@ export function wslHomeDirSync(distro: string): string | null {
   return value
 }
 
+/** Async variant of `wslHomeDirSync` sharing the same TTL cache. */
+export async function wslHomeDirAsync(distro: string): Promise<string | null> {
+  const cached = wslHomeCache.get(distro)
+  if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
+  const r = await runWslDistroAsync(distro, ['bash', '-lc', 'printf %s "$HOME"'], { timeout: 15000 })
+  const home = r.stdout.trim()
+  const value = r.status === 0 && home.startsWith('/') ? home : null
+  wslHomeCache.set(distro, { at: Date.now(), value })
+  return value
+}
+
 /**
  * Default login shell of the distro's user (e.g. `/usr/bin/zsh` -> `zsh`).
  * Follows the system default so probes/workers run under the same shell the
@@ -230,6 +275,21 @@ export function wslDefaultShellSync(distro: string): string {
   const cached = wslShellCache.get(distro)
   if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
   const r = runWslDistroSync(distro, ['bash', '-lc', 'printf %s "$SHELL"'])
+  const raw = r.stdout.trim().split('\n').filter(Boolean).pop()?.trim()
+  const base = raw?.split('/').pop()
+  const value =
+    base && /^[a-z][a-z0-9-]*$/i.test(base) && base !== 'false' && base !== 'nologin'
+      ? base
+      : 'bash'
+  wslShellCache.set(distro, { at: Date.now(), value })
+  return value
+}
+
+/** Async variant of `wslDefaultShellSync` sharing the same TTL cache. */
+export async function wslDefaultShellAsync(distro: string): Promise<string> {
+  const cached = wslShellCache.get(distro)
+  if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
+  const r = await runWslDistroAsync(distro, ['bash', '-lc', 'printf %s "$SHELL"'], { timeout: 15000 })
   const raw = r.stdout.trim().split('\n').filter(Boolean).pop()?.trim()
   const base = raw?.split('/').pop()
   const value =

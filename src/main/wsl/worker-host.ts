@@ -10,7 +10,7 @@ import { join } from 'path'
 import { createHash } from 'crypto'
 import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
-import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
+import { runWslDistroCdSync, wslDefaultShellSync, wslHomeDirSync } from './wsl-exec.js'
 
 const cdSupportCache = new Map<string, boolean>()
 
@@ -112,12 +112,25 @@ export interface SpawnWslWorkerOptions {
   workerWslPath: string
 }
 
+/** Single-quote a shell word; embedded quotes are escaped (no double quotes
+ *  involved, so `wsl.exe`'s Windows command-line parsing cannot mangle it). */
+function shQuote(word: string): string {
+  return `'${word.replace(/'/g, `'\\''`)}'`
+}
+
 export function spawnWorkerInWsl(opts: SpawnWslWorkerOptions): ChildProcess {
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
     args.push('--cd', opts.wslCwd)
+    args.push('--', 'node', opts.workerWslPath)
+  } else {
+    // 旧版 wsl.exe 不支持 --cd：直接跑 node 会落在发行版默认 home，worker 的
+    // process.cwd() 错位会让相对工具调用 / 项目级 .pi、AGENTS 配置 / git 全部
+    // 针对错误目录。改为经发行版 shell 显式 cd 进项目目录再 exec node。
+    const shell = wslDefaultShellSync(opts.distro)
+    const command = `cd -- ${shQuote(opts.wslCwd)} && exec node ${shQuote(opts.workerWslPath)}`
+    args.push('--', shell, '-lc', command)
   }
-  args.push('--', 'node', opts.workerWslPath)
   const env: Record<string, string> = {
     ...process.env,
     [WORKER_STDIO_ENV]: '1',
