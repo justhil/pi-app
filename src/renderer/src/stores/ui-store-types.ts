@@ -158,8 +158,9 @@ export interface UIState {
   clearTimeline: () => void
   runState: RunState
   setRunState: (patch: Partial<RunState>) => void
-  compactionActive: boolean
-  setCompactionActive: (active: boolean) => void
+  /** 压缩进行中的会话，按规范化 sessionFile 键控（A 的压缩状态不得串到 B） */
+  compactingSessions: Record<string, boolean>
+  setCompactingSession: (sessionFile: string | null, active: boolean) => void
   workerLiveSnapshot: WorkerLiveSnapshot
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   fileChanges: FileChange[]
