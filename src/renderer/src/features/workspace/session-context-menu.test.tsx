@@ -52,8 +52,8 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     })
 
     expect(invokeMock).toHaveBeenCalledWith('session.delete', {
-      sessionId: 's1',
       sessionFile: '/proj/a/s1.jsonl',
+      workspaceId: '/proj/a',
     })
     expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
   })
