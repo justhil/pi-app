@@ -30,7 +30,9 @@ export function ConfirmDialog({
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
+      // busy 期间确认操作已提交（不可取消的 IPC 在途）：Escape 也必须被屏蔽，
+      // 否则对话框消失会让用户误以为操作已取消，后台删除却继续完成。
+      if (e.key === 'Escape' && !busy) onCancel()
       if (e.key === 'Enter' && !busy) onConfirm()
     }
     document.addEventListener('keydown', onKey)
@@ -44,6 +46,7 @@ export function ConfirmDialog({
       className="electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onPointerDown={(e) => {
+        if (busy) return
         if (e.target === e.currentTarget) onCancel()
       }}
     >

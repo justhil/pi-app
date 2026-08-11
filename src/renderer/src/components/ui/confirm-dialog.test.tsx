@@ -48,6 +48,17 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
+  it('rejects Escape and overlay clicks while busy so the committed action is not hidden', () => {
+    // busy = 不可取消的 IPC 已在途：Escape / 遮罩点击若关掉对话框，
+    // 用户会误以为操作已取消，后台删除却继续完成。
+    const onCancel = vi.fn()
+    render(<ConfirmDialog open title="t" message="m" busy onConfirm={() => {}} onCancel={onCancel} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.pointerDown(screen.getByRole('presentation'))
+    fireEvent.click(screen.getByText('common:cancel'))
+    expect(onCancel).not.toHaveBeenCalled()
+  })
+
   it('renders nothing when closed', () => {
     render(<ConfirmDialog open={false} title="t" message="m" onConfirm={() => {}} onCancel={() => {}} />)
     expect(screen.queryByRole('dialog')).toBeNull()
