@@ -5,6 +5,7 @@ import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { sessionPreviewProcess } from './session-preview-process'
+import { guardAppQuit } from './window-close-guard'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
 import { destroyAppTray, ensureAppTray } from './tray'
@@ -143,6 +144,9 @@ async function gracefulShutdownWorkers(): Promise<void> {
 }
 
 app.on('before-quit', (event) => {
+  // A running turn must get the close-decision prompt first (tray Quit / Cmd+Q).
+  // Keep the tray alive while the user decides so a hidden window remains reachable.
+  if (!guardAppQuit(event)) return
   destroyAppTray()
   if (isQuittingGracefully) return
   event.preventDefault()

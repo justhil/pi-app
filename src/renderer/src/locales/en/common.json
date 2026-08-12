@@ -141,7 +141,14 @@
     "minimize": "Minimize",
     "maximize": "Maximize",
     "restore": "Restore",
-    "close": "Close"
+    "close": "Close",
+    "closeWhileRunningTitle": "A conversation is still running",
+    "closeWhileRunningMessage": "Closing now would interrupt the running conversation and lose its tail. You can wait for it to finish so the session is saved completely and can be continued later (e.g. with the pi CLI).",
+    "waitThenClose": "Wait for it to finish, then close",
+    "closeNow": "Close now",
+    "waitingTitle": "Waiting for the conversation to finish…",
+    "waitingMessage": "The window will close automatically once the conversation (including context compaction) completes.",
+    "cancelWait": "Cancel waiting"
   },
   "sessionReload": {
     "success": "Session data refreshed",
