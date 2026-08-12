@@ -10,7 +10,10 @@ export type WorkerExitInfo = {
 export function clearExitedSessionRuntime(
   info: WorkerExitInfo,
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void,
+  setCompactingSession: (sessionFile: string, active: boolean) => void,
 ): void {
   const sessionFile = normalizeSessionFileKey(info.sessionFile || '') || info.sessionFile || ''
-  if (sessionFile) setSessionRuntimeRunning(sessionFile, false)
+  if (!sessionFile) return
+  setSessionRuntimeRunning(sessionFile, false)
+  setCompactingSession(sessionFile, false)
 }
