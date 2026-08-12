@@ -12,6 +12,14 @@ describe('CodeBlockView', () => {
     expect(await screen.findByText('typescript')).toBeInTheDocument()
   })
 
+  it('marks the scroll container as independent and contains overscroll', () => {
+    const { container } = render(<CodeBlockView code="hello" lang="text" />)
+
+    const scrollContainer = container.querySelector('.native-code-shiki')
+    expect(scrollContainer).toHaveAttribute('data-independent-scroll')
+    expect(scrollContainer).toHaveClass('overflow-auto', 'overscroll-contain')
+  })
+
   it('shows copy control', async () => {
     render(<CodeBlockView code="hello" lang="text" />)
     expect(await screen.findByRole('button', { name: /copy|复制|copied|已复制/i })).toBeInTheDocument()
