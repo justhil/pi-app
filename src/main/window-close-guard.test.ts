@@ -22,8 +22,14 @@ vi.mock('./worker-manager', () => ({
 const winMock = vi.hoisted(() => {
   const instance = {
     on: vi.fn(),
+    once: vi.fn(),
     webContents: { send: vi.fn() },
     isDestroyed: () => false,
+    isMinimized: () => false,
+    isVisible: () => true,
+    restore: vi.fn(),
+    show: vi.fn(),
+    focus: vi.fn(),
     close: vi.fn(),
   }
   return { instance }
@@ -49,7 +55,11 @@ describe('window-close-guard', () => {
     appMock.on.mockReset()
     appMock.quit.mockReset()
     winMock.instance.on.mockReset()
+    winMock.instance.once.mockReset()
     winMock.instance.webContents.send.mockReset()
+    winMock.instance.restore.mockReset()
+    winMock.instance.show.mockReset()
+    winMock.instance.focus.mockReset()
     winMock.instance.close.mockReset()
     closeHandler = null
     winMock.instance.on.mockImplementation((_evt: string, cb: (e: CloseEvent) => void) => {
@@ -162,6 +172,30 @@ describe('window-close-guard', () => {
     expect(res).toEqual({ ok: false, reason: 'invalid_action' })
   })
 
+  it('scopes force close to the closing window', () => {
+    const firstCloseHandler = closeHandler
+    firstCloseHandler?.(makeEvent())
+
+    const secondClose = vi.fn()
+    const secondOn = vi.fn((_event: string, handler: (e: CloseEvent) => void) => {
+      closeHandler = handler
+    })
+    installWindowCloseGuard({
+      ...winMock.instance,
+      on: secondOn,
+      once: vi.fn(),
+      close: secondClose,
+    } as never)
+
+    workerState.hasActiveTurns = true
+    closeHandler?.(makeEvent())
+
+    expect(secondClose).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
+      isStreaming: true,
+    })
+  })
+
   describe('guardAppQuit (tray Quit / Cmd+Q)', () => {
     it('allows quit when no turn is running', () => {
       const e = makeEvent()
@@ -185,6 +219,20 @@ describe('window-close-guard', () => {
       const e = makeEvent()
       expect(guardAppQuit(e)).toBe(false)
       expect(winMock.instance.webContents.send).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows and focuses a hidden window before asking for a quit decision', () => {
+      workerState.hasActiveTurns = true
+      vi.spyOn(winMock.instance, 'isVisible').mockReturnValueOnce(false)
+      const e = makeEvent()
+
+      expect(guardAppQuit(e)).toBe(false)
+
+      expect(winMock.instance.show).toHaveBeenCalledOnce()
+      expect(winMock.instance.focus).toHaveBeenCalledOnce()
+      expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
+        isStreaming: true,
+      })
     })
 
     it('allows the quit after the user chose now, and re-issues app.quit', () => {
