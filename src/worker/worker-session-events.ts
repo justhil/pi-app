@@ -4,6 +4,7 @@ import { assistantStreamDeltaFromMessageUpdate } from '@shared/pi-message-update
 import { takeStreamUpdate } from '@shared/stream-merge'
 import {
   extractTextFromPiMessage,
+  normalizeUserMessageDisplayText,
   piUsageTotals,
   type PiCompactionEndResult,
   type PiSessionMessage,
@@ -141,7 +142,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
           type: 'message',
           role: 'user',
           phase: 'start',
-          text: extractTextFromPiMessage(msg),
+          text: normalizeUserMessageDisplayText(extractTextFromPiMessage(msg)),
         } as AppEvent)
       }
       break
@@ -312,8 +313,8 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       deps.emit({
         ...base,
         type: 'queue',
-        steering: [...(event.steering || [])],
-        followUp: [...(event.followUp || [])],
+        steering: (event.steering || []).map(normalizeUserMessageDisplayText),
+        followUp: (event.followUp || []).map(normalizeUserMessageDisplayText),
       } as AppEvent)
       break
     }

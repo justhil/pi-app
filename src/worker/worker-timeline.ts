@@ -2,6 +2,7 @@ import {
   extractTextFromPiMessage,
   extractThinkingFromPiMessage,
   extractToolResultFromPiMessage,
+  normalizeUserMessageDisplayText,
   piMessageTimestamp,
   type PiSessionMessage,
 } from '@shared/worker-message'
@@ -62,7 +63,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
     const content = Array.isArray(pm.content) ? pm.content : []
 
     if (pm.role === 'user') {
-      const text = extractText(pm)
+      const text = normalizeUserMessageDisplayText(extractText(pm))
       if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
     } else if (pm.role === 'assistant') {
       const text = extractText(pm)
@@ -189,7 +190,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
     const content = m.content || []
 
     if (m.role === 'user') {
-      const text = extractText(m)
+      const text = normalizeUserMessageDisplayText(extractText(m))
       // Keep empty user only if we have an entry id (rare); normally require text.
       if (text || sid) {
         items.push({

@@ -1,10 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { handlePrompt } from './handlers/worker-handlers-turn'
 import { handleSessionEvent, resetSessionEventTracking } from './worker-session-events'
 import type { SessionEventDeps } from './worker-session-events'
-import { handlePrompt } from './handlers/worker-handlers-turn'
 import { st } from './worker-runtime'
+
+const expandedSkill = `<skill name="demo-skill" location="/skills/demo-skill/SKILL.md">
+References are relative to /skills/demo-skill.
+
+# Demo
+
+Secret skill body.
+</skill>
+
+explain this`
 
 type SessionEventHarness = {
   dependencies: SessionEventDeps
@@ -139,6 +149,48 @@ describe('worker session event lifecycle', () => {
       ),
     ).toEqual([expect.objectContaining({ type: 'run', phase: 'idle' })])
     expect(harness.getAgentTurnActive()).toBe(false)
+  })
+
+  it('should_display_skill_command_when_sdk_expands_skill_block', () => {
+    const harness = createSessionEventHarness()
+
+    handleSessionEvent(
+      {
+        type: 'message_start',
+        message: { role: 'user', content: [{ type: 'text', text: expandedSkill }] },
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    expect(harness.emittedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'message',
+        role: 'user',
+        phase: 'start',
+        text: '/skill:demo-skill explain this',
+      }),
+    )
+  })
+
+  it('normalizes expanded skill prompts in queue projections', () => {
+    const harness = createSessionEventHarness()
+
+    handleSessionEvent(
+      {
+        type: 'queue_update',
+        steering: [expandedSkill],
+        followUp: [expandedSkill],
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    expect(harness.emittedEvents).toContainEqual(
+      expect.objectContaining({
+        type: 'queue',
+        steering: ['/skill:demo-skill explain this'],
+        followUp: ['/skill:demo-skill explain this'],
+      }),
+    )
   })
 
   it('should_forward_delivered_queued_user_message_start_with_text', () => {
