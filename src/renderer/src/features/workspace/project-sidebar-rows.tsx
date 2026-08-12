@@ -329,6 +329,15 @@ export function SandboxDialogRow({
   onContextMenu: (e: React.MouseEvent) => void
 }) {
   const { t } = useTranslation()
+  const running = useUIStore((state) =>
+    !!(
+      box.sessionFile &&
+      Object.entries(state.sessionRuntimeRunning).some(
+        ([runtimeKey, isRunning]) =>
+          isRunning && sessionFilesEqual(runtimeKey, box.sessionFile),
+      )
+    ),
+  )
   const displayLabel =
     box.label?.trim() || t('common:sidebar.tempChat')
   return (
@@ -356,6 +365,12 @@ export function SandboxDialogRow({
           })}
         </div>
       </div>
+      {running ? (
+        <SessionRunningPixelGrid
+          className="ml-0.5 opacity-80"
+          title={t('common:status.running', { defaultValue: 'Running' })}
+        />
+      ) : null}
     </div>
   )
 }
