@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
@@ -55,7 +56,7 @@ export function registerModelRuntimeHandlers(): void {
     if (scope === 'catalog' || scope === 'settings') {
       const models = await resolveCatalogModels({
         sdk: async () => {
-          const catalog = await listCatalogModelsWithSdk(await getActiveSdkModule())
+          const catalog = await listCatalogModelsWithSdk(await getActiveSdkModule(app.getPath('userData')))
           return scope === 'settings'
             ? mapRegistry(catalog)
             : catalog.map((model) => ({
@@ -82,7 +83,7 @@ export function registerModelRuntimeHandlers(): void {
               ),
             )
         : undefined,
-      sdk: async () => mapRegistry(await listAvailableModelsWithSdk(await getActiveSdkModule())),
+      sdk: async () => mapRegistry(await listAvailableModelsWithSdk(await getActiveSdkModule(app.getPath('userData')))),
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })

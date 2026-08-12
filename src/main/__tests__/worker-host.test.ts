@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => {
   return {
     spawn: vi.fn(),
     runWslDistroCdSync: vi.fn(),
-    wslPathToWindows: vi.fn((_distro: string, wslPath: string) => wslPath),
+    wslPathToWindows: vi.fn((_distro: string, _wslPath: string) => '/root/.pi-desktop'),
     fs: {
       existsSync: (p: string) => {
         const norm = (x: string) => x.replace(/\\/g, '/').replace(/\/+$/, '')
@@ -49,6 +49,10 @@ vi.mock('child_process', () => ({
   spawn: mocks.spawn,
 }))
 
+vi.mock('../utility-entry-path', () => ({
+  resolveUtilityEntry: (entryName: string) => join(process.cwd(), 'src/main/wsl', entryName),
+}))
+
 vi.mock('../wsl/wsl-exec', () => ({
   runWslDistroCdSync: mocks.runWslDistroCdSync,
   wslHomeDirSync: vi.fn(() => '/root'),
@@ -72,6 +76,7 @@ vi.mock('fs', () => {
 import { spawnWorkerInWsl, wslCdFlagSupported, syncWorkerBundleToWsl, invalidateWslCdSupportCache } from '../wsl/worker-host'
 
 const WSL_DIR = join(process.cwd(), 'src/main/wsl')
+const unc = (...parts: string[]): string => join('/', ...parts)
 
 beforeEach(() => {
   mocks.spawn.mockReset()
@@ -157,10 +162,10 @@ describe('syncWorkerBundleToWsl', () => {
     const result = syncWorkerBundleToWsl('Debian')
 
     expect(result).toBe('/root/.pi-desktop/worker.mjs')
-    expect(mocks.fs.files.get('/root/.pi-desktop/worker.mjs')).toBe('export const x = 1')
-    expect(mocks.fs.files.get('/root/.pi-desktop/chunks/worker-message.js')).toBe('export const m = 1')
-    expect(mocks.fs.files.get('/root/.pi-desktop/chunks/worker-timeline.js')).toBe('export const t = 1')
-    expect(mocks.fs.files.get('/root/.pi-desktop/package.json')).toBe(JSON.stringify({ type: 'module' }))
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.mjs'))).toBe('export const x = 1')
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'chunks', 'worker-message.js'))).toBe('export const m = 1')
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'chunks', 'worker-timeline.js'))).toBe('export const t = 1')
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'package.json'))).toBe(JSON.stringify({ type: 'module' }))
   })
 
   it('returns null when out/main/worker.mjs is missing', () => {
@@ -185,12 +190,12 @@ describe('syncWorkerBundleToWsl', () => {
     mocks.fs.files.set(join(WSL_DIR, 'chunks', 'worker-message.js'), 'export const m = 1')
 
     syncWorkerBundleToWsl('Debian')
-    const staleMarker = mocks.fs.files.get('/root/.pi-desktop/worker.hash')
+    const staleMarker = mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.hash'))
     expect(staleMarker).toBeTruthy()
 
     mocks.fs.files.set(join(WSL_DIR, 'worker.mjs'), 'export const y = 2')
     syncWorkerBundleToWsl('Debian')
-    expect(mocks.fs.files.get('/root/.pi-desktop/worker.mjs')).toBe('export const y = 2')
-    expect(mocks.fs.files.get('/root/.pi-desktop/worker.hash')).not.toBe(staleMarker)
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.mjs'))).toBe('export const y = 2')
+    expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.hash'))).not.toBe(staleMarker)
   })
 })

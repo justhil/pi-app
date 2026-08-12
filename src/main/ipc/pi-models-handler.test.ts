@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   switchTo: vi.fn(),
   isAllowedSdkVersion: vi.fn(),
   confirmSdkSelection: vi.fn(),
+  stopPreview: vi.fn(),
   workerRunning: true,
 }))
 
@@ -70,6 +71,13 @@ vi.mock('../sdk-manager', () => ({
 }))
 vi.mock('./sdk-session', () => ({ probeSelectedSdk: vi.fn() }))
 vi.mock('../sdk-selection-transaction', () => ({ confirmSdkSelection: mocks.confirmSdkSelection }))
+vi.mock('../session-preview-process', () => ({
+  sessionPreviewProcess: { stop: mocks.stopPreview },
+}))
+vi.mock('../wsl/runtime-config', () => ({
+  getAgentRuntimeConfig: vi.fn(() => ({ mode: 'host', distro: null })),
+}))
+vi.mock('../wsl/sdk-resolve', () => ({ assertWslSdkAvailable: vi.fn() }))
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '') },
   BrowserWindow: { getFocusedWindow: mocks.getFocusedWindow, getAllWindows: mocks.getAllWindows },
@@ -94,21 +102,42 @@ beforeEach(() => {
   mocks.reloadModels.mockReset()
   mocks.sendEvent.mockReset()
   mocks.getAllWindows.mockReset().mockReturnValue([])
-  mocks.readSdkStatusCached.mockReset()
+  mocks.readSdkStatusCached.mockReset().mockReturnValue({ active: { kind: 'builtin' } })
   mocks.listRegistryVersionsCached.mockReset()
-  mocks.listRegistryVersions.mockReset()
-  mocks.installVersion.mockReset()
+  mocks.listRegistryVersions.mockReset().mockResolvedValue(['0.83.0'])
+  mocks.installVersion.mockReset().mockResolvedValue({ userDir: 'user-new' })
   mocks.finalizeVersionInstall.mockReset()
   mocks.readSdkSelection.mockReset().mockReturnValue({ kind: 'builtin' })
   mocks.getFocusedWindow.mockReset().mockReturnValue(undefined)
-  mocks.switchTo.mockReset()
-  mocks.isAllowedSdkVersion.mockReset()
-  mocks.confirmSdkSelection.mockReset()
+  mocks.switchTo.mockReset().mockResolvedValue(undefined)
+  mocks.isAllowedSdkVersion.mockReset().mockReturnValue(true)
+  mocks.confirmSdkSelection.mockReset().mockResolvedValue({ kind: 'builtin', version: '0.83.0' })
+  mocks.stopPreview.mockReset()
   mocks.workerRunning = true
   registerPiSdkHandlers()
 })
 
 describe('pi.models IPC handlers', () => {
+  it.each([
+    ['ipc:sdk.install', { version: '0.83.0' }],
+    ['ipc:sdk.switch', { target: 'builtin' }],
+  ])('stops preview before %s changes the selected SDK', async (channel, request) => {
+    const order: string[] = []
+    mocks.stopPreview.mockImplementation(() => order.push('preview-stop'))
+    mocks.installVersion.mockImplementation(async () => {
+      order.push('install')
+      return { userDir: 'user-new' }
+    })
+    mocks.switchTo.mockImplementation(async () => {
+      order.push('switch')
+    })
+
+    await expect(mocks.handlers.get(channel)!(request)).resolves.toMatchObject({ ok: true })
+
+    expect(order[0]).toBe('preview-stop')
+    expect(order).toContain(channel === 'ipc:sdk.install' ? 'install' : 'switch')
+  })
+
   it('writes through the production owner and reloads the running Worker before success', async () => {
     mocks.writeModelsConfig.mockResolvedValue({ ok: true, path: 'active-agent/models.json' })
     mocks.reloadModels.mockResolvedValue(undefined)
@@ -156,9 +185,6 @@ describe('pi.models IPC handlers', () => {
     const windows = [{ id: 1 }, { id: 2 }]
     mocks.getAllWindows.mockReturnValue(windows)
     mocks.getFocusedWindow.mockReturnValue(windows[0])
-    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
-    mocks.listRegistryVersions.mockResolvedValue(['0.83.0'])
-    mocks.isAllowedSdkVersion.mockReturnValue(true)
     mocks.installVersion.mockResolvedValue({ userDir: 'user-new' })
     mocks.confirmSdkSelection.mockResolvedValue({ kind: 'user', version: '0.83.0' })
 
@@ -174,8 +200,6 @@ describe('pi.models IPC handlers', () => {
 
   it('passes the exact previous user generation into install rollback', async () => {
     mocks.readSdkSelection.mockReturnValue({ kind: 'user', userDir: 'user-old' })
-    mocks.listRegistryVersions.mockResolvedValue(['0.83.0'])
-    mocks.isAllowedSdkVersion.mockReturnValue(true)
     mocks.installVersion.mockResolvedValue({ userDir: 'user-new' })
     mocks.confirmSdkSelection.mockRejectedValue(new Error('Worker validation failed'))
 
@@ -194,7 +218,6 @@ describe('pi.models IPC handlers', () => {
   it('notifies every renderer only after an SDK switch succeeds', async () => {
     const windows = [{ id: 1 }, { id: 2 }]
     mocks.getAllWindows.mockReturnValue(windows)
-    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
     mocks.confirmSdkSelection.mockResolvedValue({ kind: 'global', version: '0.83.0' })
 
     const response = await mocks.handlers.get('ipc:sdk.switch')!({ target: 'global' })
@@ -207,7 +230,6 @@ describe('pi.models IPC handlers', () => {
   })
 
   it('does not notify renderers when an SDK switch fails', async () => {
-    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
     mocks.switchTo.mockRejectedValue(new Error('switch failed'))
 
     const response = await mocks.handlers.get('ipc:sdk.switch')!({ target: 'global' })

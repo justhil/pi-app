@@ -13,7 +13,7 @@ export function registerReviewHandlers(): void {
   registerHandler('ipc:review.getDiff', async (req) => {
     const cwd = getTrustedWorkspaceRoot() || process.cwd()
     if (req.scope === 'git') {
-      const snap = readGitWorkspaceSnapshot(cwd)
+      const snap = await readGitWorkspaceSnapshot(cwd)
       return {
         diff: {
           raw: snap.raw,

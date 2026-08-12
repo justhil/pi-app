@@ -35,16 +35,18 @@ export async function flattenTreeFromSessionFile(
   sessionFile: string,
   _cwd: string,
   leafIdOverride?: string | null,
+  activeSdkPath?: string | null,
 ): Promise<{ nodes: FlatTreeNode[]; leafId: string | null }> {
   if (!sessionFile || !existsSync(sessionFile)) {
     return { nodes: [], leafId: null }
   }
 
   const { pathToFileURL, fileURLToPath } = await import('node:url')
-  const { dirname, join } = await import('node:path')
-  const mainUrl = import.meta.resolve('@earendil-works/pi-coding-agent')
-  const resolved = fileURLToPath(mainUrl)
-  const pkgRoot = dirname(dirname(resolved))
+  const { dirname, isAbsolute, join } = await import('node:path')
+  const pkgRoot =
+    activeSdkPath && isAbsolute(activeSdkPath)
+      ? dirname(dirname(activeSdkPath))
+      : dirname(dirname(fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))))
   const smPath = join(pkgRoot, 'dist', 'core', 'session-manager.js')
   const sm = (await import(pathToFileURL(smPath).href)) as {
     loadEntriesFromFile: (f: string) => SessionEntry[]

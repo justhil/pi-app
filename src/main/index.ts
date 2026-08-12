@@ -4,6 +4,7 @@ import { createWindow } from './window'
 import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
+import { sessionPreviewProcess } from './session-preview-process'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
 import { destroyAppTray, ensureAppTray } from './tray'
@@ -130,6 +131,8 @@ async function gracefulShutdownWorkers(): Promise<void> {
     await workerManager.stop()
   } catch (error) {
     console.error('[Main] graceful worker stop failed:', error)
+  } finally {
+    sessionPreviewProcess.stop()
   }
   try {
     const asr = await import('./asr/codex-asr-manager')

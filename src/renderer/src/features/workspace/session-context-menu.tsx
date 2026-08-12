@@ -73,8 +73,8 @@ export function SessionContextMenuPortal({
     }
     try {
       const r = await ipcClient.invoke('session.delete', {
-        sessionId: target.sessionId,
         sessionFile: target.sessionFile,
+        workspaceId: target.workspacePath,
       })
       if (r?.ok) {
         const cur = useUIStore.getState().currentSessionId

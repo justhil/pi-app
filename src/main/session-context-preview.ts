@@ -1,12 +1,13 @@
 import { buildSessionContextPreview, type SessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
+import { app } from 'electron'
 import { getActiveSdkModule } from './ipc/sdk-session'
 
 export async function getSessionContextPreviewFromDisk(
   sessionFile: string,
   leafId?: string | null,
 ): Promise<SessionContextPreview> {
-  const { SessionManager } = await getActiveSdkModule()
+  const { SessionManager } = await getActiveSdkModule(app.getPath('userData'))
   const session = SessionManager.open(sessionFile)
   if (leafId === null) session.resetLeaf()
   else if (typeof leafId === 'string' && leafId.length > 0) session.branch(leafId)

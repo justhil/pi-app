@@ -141,7 +141,7 @@ export function runWslDistroCdSync(
 /** Async variant used for probes that may run in parallel. */
 export function runWslAsync(
   args: string[],
-  opts: { timeout?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number } = {},
 ): Promise<WslExecResult> {
   return new Promise((resolve) => {
     const child = spawn(WSL_EXE, args, {
@@ -150,30 +150,46 @@ export function runWslAsync(
     })
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
+    const maxBuffer = opts.maxBuffer ?? 16 * 1024 * 1024
+    let stdoutBytes = 0
+    let stderrBytes = 0
     let settled = false
     const timer = setTimeout(() => {
       if (settled) return
-      settled = true
       child.kill()
-      resolve({
+      settle({
         status: -1,
         stdout: decodeWslOutput(Buffer.concat(stdoutChunks)),
         stderr: `${decodeWslOutput(Buffer.concat(stderrChunks))}\n[wsl] timed out`,
       })
     }, opts.timeout ?? 20000)
-    child.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk))
-    child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk))
-    child.on('error', (error) => {
+    function settle(result: WslExecResult): void {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      resolve({ status: -1, stdout: '', stderr: errorMessage(error) || 'wsl spawn error' })
+      resolve(result)
+    }
+    const onData = (stream: 'stdout' | 'stderr', chunk: Buffer): void => {
+      if (settled) return
+      const chunks = stream === 'stdout' ? stdoutChunks : stderrChunks
+      chunks.push(chunk)
+      if (stream === 'stdout') stdoutBytes += chunk.length
+      else stderrBytes += chunk.length
+      if ((stream === 'stdout' ? stdoutBytes : stderrBytes) <= maxBuffer) return
+      child.kill()
+      settle({
+        status: -1,
+        stdout: decodeWslOutput(Buffer.concat(stdoutChunks)),
+        stderr: 'WSL process output exceeded maxBuffer',
+      })
+    }
+    child.stdout?.on('data', (chunk: Buffer) => onData('stdout', chunk))
+    child.stderr?.on('data', (chunk: Buffer) => onData('stderr', chunk))
+    child.on('error', (error) => {
+      settle({ status: -1, stdout: '', stderr: errorMessage(error) || 'wsl spawn error' })
     })
     child.on('close', (code) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve({
+      settle({
         status: code,
         stdout: decodeWslOutput(Buffer.concat(stdoutChunks)),
         stderr: decodeWslOutput(Buffer.concat(stderrChunks)),
@@ -186,7 +202,7 @@ export function runWslAsync(
 export function runWslDistroAsync(
   distro: string,
   args: string[],
-  opts: { timeout?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number } = {},
 ): Promise<WslExecResult> {
   if (!isValidWslDistroName(distro)) {
     return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
@@ -198,7 +214,7 @@ export function runWslDistroCdAsync(
   distro: string,
   wslCwd: string,
   args: string[],
-  opts: { timeout?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number } = {},
 ): Promise<WslExecResult> {
   if (!isValidWslDistroName(distro)) {
     return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })

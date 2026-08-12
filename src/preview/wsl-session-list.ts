@@ -1,5 +1,4 @@
 import { pathToFileURL } from 'node:url'
-import { resolveActiveSdk, type SdkKind } from '../sdk-loader'
 
 export type SessionOnDiskRow = {
   id: string
@@ -37,50 +36,6 @@ export function toSessionOnDiskRows(rows: unknown[]): SessionOnDiskRow[] {
     }))
 }
 
-export function getActiveSdkModule(
-  userDataDir: string,
-  activeSdkPath?: string | null,
-): Promise<typeof import('@earendil-works/pi-coding-agent')> {
-  if (activeSdkPath) return import(pathToFileURL(activeSdkPath).href)
-  const active = resolveActiveSdk(userDataDir)
-  if (active.kind === 'builtin') {
-    return import(active.entryPath)
-  }
-  return import(pathToFileURL(active.entryPath).href)
-}
-
-type ProbedSdkModule = Record<string, unknown>
-
-export function validateSelectedSdkModule(sdk: ProbedSdkModule): void {
-  if (typeof sdk.getAgentDir !== 'function') throw new Error('SDK 缺少 getAgentDir export')
-  const sessionManager = sdk.SessionManager as Record<string, unknown> | undefined
-  if (!sessionManager || typeof sessionManager.create !== 'function') {
-    throw new Error('SDK 缺少 SessionManager.create export')
-  }
-  const hasRuntimeSessionFactory =
-    typeof sdk.ModelRuntime === 'function' &&
-    typeof sdk.createAgentSessionRuntime === 'function' &&
-    typeof sdk.createAgentSessionServices === 'function' &&
-    typeof sdk.createAgentSessionFromServices === 'function'
-  if (!hasRuntimeSessionFactory) {
-    throw new Error('SDK 缺少 ModelRuntime session services，请切换到 Pi 0.83.0 或更高版本')
-  }
-}
-
-export async function probeSelectedSdk(target: SdkKind, userDataDir: string): Promise<{
-  kind: SdkKind
-  version: string
-  fallbackReason?: string
-}> {
-  const active = resolveActiveSdk(userDataDir)
-  if (active.kind !== target) throw new Error(`预期 ${target}，实际 ${active.kind}`)
-  const sdk = await getActiveSdkModule(userDataDir)
-  validateSelectedSdkModule(sdk as unknown as ProbedSdkModule)
-  return { kind: active.kind, version: active.version, fallbackReason: active.fallbackReason }
-}
-
-// WSL 下 session.list 走 worker 通道（可能 fork 专职 worker，秒级），
-// 会话切换时渲染进程会连续触发多次 list，用短 TTL 缓存合并它们。
 const LIST_SESSIONS_TTL_MS = 3_000
 const listSessionsCache = new Map<string, { at: number; value: SessionOnDiskRow[] }>()
 const listSessionsRevisions = new Map<string, number>()
@@ -99,19 +54,16 @@ export function invalidateListSessionsCache(workspaceId?: string): void {
 
 export async function listSessionsOnDisk(
   workspaceId: string,
-  userDataDir: string,
-  rowsFromWorker?: unknown[],
-  activeSdkPath?: string | null,
+  activeSdkPath: string,
 ): Promise<SessionOnDiskRow[]> {
   const cached = listSessionsCache.get(workspaceId)
   if (cached && Date.now() - cached.at < LIST_SESSIONS_TTL_MS) return cached.value
   const generation = listSessionsGeneration
   const revision = listSessionsRevisions.get(workspaceId) ?? 0
-  const value = rowsFromWorker
-    ? toSessionOnDiskRows(rowsFromWorker)
-    : toSessionOnDiskRows(
-        await (await getActiveSdkModule(userDataDir, activeSdkPath)).SessionManager.list(workspaceId),
-      )
+  const sdk = await import(pathToFileURL(activeSdkPath).href) as {
+    SessionManager: { list: (cwd: string) => Promise<unknown[]> }
+  }
+  const value = toSessionOnDiskRows(await sdk.SessionManager.list(workspaceId))
   if (
     listSessionsGeneration === generation &&
     (listSessionsRevisions.get(workspaceId) ?? 0) === revision

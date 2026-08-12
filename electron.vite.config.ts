@@ -21,10 +21,14 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/main/index.ts'),
           worker: resolve(__dirname, 'src/worker/index.ts'),
+          preview: resolve(__dirname, 'src/preview/index.ts'),
+          'preview-wsl': resolve(__dirname, 'src/preview/wsl.ts'),
         },
         output: {
           entryFileNames: (chunk) => {
-            return chunk.name === 'worker' ? '[name].mjs' : '[name].js'
+            return chunk.name === 'worker' || chunk.name === 'preview' || chunk.name === 'preview-wsl'
+              ? '[name].mjs'
+              : '[name].js'
           },
           format: 'es',
         },

@@ -1,5 +1,4 @@
 import { utilityProcess, app, type BrowserWindow } from 'electron'
-import { join } from 'path'
 import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { windowsPathToWsl } from '@shared/wsl-path'
@@ -15,6 +14,7 @@ import {
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 import { resolveWslActiveSdk } from './wsl/sdk-resolve'
 import { syncWorkerBundleToWsl } from './wsl/worker-host'
+import { resolveUtilityEntry } from './utility-entry-path'
 
 function createSlot(
   poolKey: string,
@@ -308,7 +308,7 @@ export async function forkWorkerForCwd(
     })
     sdkPath = sdk.entryPath
   } else {
-    const forked = utilityProcess.fork(join(__dirname, 'worker.mjs'), [], { stdio: 'pipe' })
+    const forked = utilityProcess.fork(resolveUtilityEntry('worker.mjs'), [], { stdio: 'pipe' })
     transport = createUtilityProcessTransport(forked)
     const activeSdk = resolveActiveSdk(app.getPath('userData'))
     sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
