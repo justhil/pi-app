@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { ChevronRight, FolderOpen, Inbox, Plus } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
@@ -12,6 +11,7 @@ import { SessionContextMenuPortal } from './session-context-menu'
 import { useSessionContextMenu } from './use-session-context-menu'
 import { ProjectContextMenuPortal } from './project-context-menu'
 import { useProjectContextMenu } from './use-project-context-menu'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
 import {
   diskProjectName,
@@ -177,7 +177,7 @@ export function ProjectSidebar({
   }
 
   const handleNewSandboxDialog = () => {
-    useUIStore.getState().enterEphemeralSandboxDraft()
+    enterBlankSession('ephemeral-sandbox')
     void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
   }
 
@@ -208,15 +208,7 @@ export function ProjectSidebar({
       if (workspacePath !== currentWorkspace) {
         await activateWorkspace(workspacePath, { preferHome: true })
       } else {
-        const store = useUIStore.getState()
-        store.clearPendingNewSessionPlaceholder()
-        useExtensionUIStore.getState().resetForSessionContext()
-        store.setCurrentSession(null)
-        store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
-        store.clearTimeline()
-        store.clearFileChanges()
-        store.setHistoryMeta(0, 0, null)
-        store.setSubagentSessionGroup(null)
+        enterBlankSession('pending-project')
         void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
       }
       setExpandedPaths((prev) => new Set(prev).add(workspacePath))

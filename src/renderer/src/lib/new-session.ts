@@ -2,10 +2,11 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { titleFromFirstMessage } from '@renderer/lib/ephemeral-sandbox'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 
 /** 侧栏「新会话」：仅占位，不碰 Worker */
 export function enterNewSessionPlaceholder(): void {
-  useUIStore.getState().enterPendingNewSessionPlaceholder()
+  enterBlankSession('pending-project')
 }
 
 /** 首条消息：创建真实 session，并在拿到 sessionFile 后立即回调。 */

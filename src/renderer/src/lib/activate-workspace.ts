@@ -10,6 +10,7 @@ import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-se
 import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { focusSessionSync } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { enterBlankSession, resetBlankSessionProjection } from '@renderer/lib/blank-session-transition'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -23,7 +24,8 @@ export type ActivateWorkspaceOptions = {
 export async function activateWorkspace(path: string, options?: ActivateWorkspaceOptions): Promise<void> {
   const navToken = beginSessionNavigation()
   const leavingWorkspace = useUIStore.getState().currentWorkspace
-  captureVisibleLiveSessionTimeline()
+  if (options?.preferHome) resetBlankSessionProjection()
+  else captureVisibleLiveSessionTimeline()
   if (leavingWorkspace && leavingWorkspace !== path) {
     void fetchWorkerLiveSnapshot(leavingWorkspace).catch(() => {})
   }
@@ -191,7 +193,7 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
   store.clearPendingNewSessionPlaceholder()
 
   if (sessionId === PENDING_NEW_SESSION_ID) {
-    store.enterPendingNewSessionPlaceholder()
+    enterBlankSession('pending-project')
     return
   }
 
