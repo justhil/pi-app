@@ -128,9 +128,7 @@ export interface UIState {
   setWorkspace: (path: string | null) => void
   ephemeralSandboxDraft: boolean
   pendingNewSessionPlaceholder: boolean
-  enterEphemeralSandboxDraft: () => void
   clearEphemeralSandboxDraft: () => void
-  enterPendingNewSessionPlaceholder: (opts?: { keepTimeline?: boolean }) => void
   clearPendingNewSessionPlaceholder: () => void
   sessions: SessionItem[]
   currentSessionId: string | null

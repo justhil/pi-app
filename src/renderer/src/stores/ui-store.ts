@@ -34,54 +34,6 @@ export const useUIStore = create<UIState>()(
   recentProjects: [],
   ephemeralSandboxDraft: false,
   pendingNewSessionPlaceholder: false,
-  enterEphemeralSandboxDraft: () => {
-    set({
-      ephemeralSandboxDraft: true,
-      pendingNewSessionPlaceholder: false,
-      currentWorkspace: null,
-      currentSessionId: '__ephemeral_draft__',
-      timelineItems: [],
-      streamingAssistantId: null,
-      fileChanges: [],
-      historyTotalCount: 0,
-      historyLoadedCount: 0,
-      historySessionFile: null,
-      historyLoading: false,
-      subagentSessionGroup: null,
-    })
-    void import('@renderer/lib/ipc-client').then(({ ipcClient }) =>
-      ipcClient.invoke('session.setEphemeralDraft', { active: true }).catch(() => {}),
-    )
-    void import('@renderer/stores/extension-ui-store').then(({ useExtensionUIStore }) =>
-      useExtensionUIStore.getState().resetForSessionContext(),
-    )
-  },
-  enterPendingNewSessionPlaceholder: (opts) => {
-    const keep = opts?.keepTimeline === true
-    set({
-      pendingNewSessionPlaceholder: true,
-      ephemeralSandboxDraft: false,
-      currentSessionId: '__pending_new__',
-      subagentSessionGroup: null,
-      ...(keep
-        ? {}
-        : {
-            timelineItems: [],
-            streamingAssistantId: null,
-            fileChanges: [],
-            historyTotalCount: 0,
-            historyLoadedCount: 0,
-            historySessionFile: null,
-            historyLoading: false,
-          }),
-    })
-    void import('@renderer/lib/ipc-client').then(({ ipcClient }) =>
-      ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {}),
-    )
-    void import('@renderer/stores/extension-ui-store').then(({ useExtensionUIStore }) =>
-      useExtensionUIStore.getState().resetForSessionContext(),
-    )
-  },
   clearPendingNewSessionPlaceholder: () => {
     set({ pendingNewSessionPlaceholder: false })
   },
