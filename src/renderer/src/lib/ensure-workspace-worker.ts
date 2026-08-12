@@ -2,6 +2,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { resolveBootWorkspaceState } from '@renderer/lib/boot-workspace-state'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 let bootstrapping: Promise<void> | null = null
 
 /**
@@ -17,7 +18,7 @@ export function ensureWorkspaceWorkerOnBoot(): Promise<void> {
     const boot = resolveBootWorkspaceState(persisted)
     if (boot.ephemeralDraft) {
       void ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
-      useUIStore.getState().enterEphemeralSandboxDraft()
+      enterBlankSession('ephemeral-sandbox')
       queueMicrotask(() => void refreshComposerRunDisplay())
       return
     }

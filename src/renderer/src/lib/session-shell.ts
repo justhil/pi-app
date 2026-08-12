@@ -192,7 +192,8 @@ export function captureFocusFromUiStore(): void {
         ? cloneItems(prev.items)
         : []
 
-  if (items.length === 0 && runUI === 'idle' && !prev) return
+  const hasPendingQueue = latest.pendingSteering.length > 0 || latest.pendingFollowUp.length > 0
+  if (items.length === 0 && runUI === 'idle' && !prev && !hasPendingQueue) return
 
   views.set(sessionKey, {
     sessionKey,
