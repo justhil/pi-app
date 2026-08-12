@@ -38,6 +38,8 @@ function makeApi(): {
     historySessionFile: '/s.jsonl',
     currentSessionId: 'sid',
     workerLiveSnapshot: { sessionId: 'sid', sessionFile: '/s.jsonl', status: 'running' },
+    compactingSessions: {},
+    setCompactingSession: vi.fn(),
     timelineItems: [
       { id: 'opt-asst-1', type: 'assistant-message', text: '', thinkingText: '', timestamp: 1 },
     ] as TimelineItem[],

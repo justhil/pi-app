@@ -189,7 +189,11 @@ export default function App() {
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
       const store = useUIStore.getState()
-      clearExitedSessionRuntime(info, store.setSessionRuntimeRunning)
+      clearExitedSessionRuntime(
+        info,
+        store.setSessionRuntimeRunning,
+        store.setCompactingSession,
+      )
     })
     return () => {
       unsubEvents()

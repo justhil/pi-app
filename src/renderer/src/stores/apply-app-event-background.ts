@@ -22,6 +22,12 @@ export function applyBackgroundAppEvent(event: AppEvent): void {
   const cacheFile = eventSessionFile(event)
   if (!cacheFile) return
 
+  // 后台会话的压缩也要同步会话级压缩状态：否则 A 的 start 转后台后
+  // end 也走这里，前台标志永远清不掉，切回 A 时错显压缩中
+  if (event.type === 'compaction') {
+    useUIStore.getState().setCompactingSession(cacheFile, event.phase === 'start')
+  }
+
   applyBackgroundAppEventToLiveTimeline(cacheFile, event)
 
   const isStreamDelta =
