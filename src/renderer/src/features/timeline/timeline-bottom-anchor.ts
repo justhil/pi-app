@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, type MutableRefObject, type RefObject } from 'react'
 import { isTimelineNearBottom, scheduleTimelineScrollToBottom } from './timeline-follow-scroll'
 
-export type TimelineAnchorReason = 'session-enter' | 'message-sent' | 'jump-to-bottom' | 'resume-stream'
+export type TimelineAnchorReason =
+  | 'session-enter'
+  | 'message-sent'
+  | 'jump-to-bottom'
+  | 'resume-stream'
+  | 'session-reloaded'
 
 const ANCHOR_EVENT = 'pi-desktop:timeline-anchor'
 
@@ -25,7 +30,10 @@ export function useTimelineBottomAnchorController(
   const runAnchor = useCallback(
     (reason: TimelineAnchorReason) => {
       const forceFollow =
-        reason === 'session-enter' || reason === 'message-sent' || reason === 'jump-to-bottom'
+        reason === 'session-enter' ||
+        reason === 'message-sent' ||
+        reason === 'jump-to-bottom' ||
+        reason === 'session-reloaded'
       if (forceFollow) {
         followLiveRef.current = true
       } else if (reason === 'resume-stream') {

@@ -111,8 +111,21 @@ export function useTimelineLiveFollow(
   // New message / turn identity / viewport window — pin only if still following.
   // Token growth must NOT schedule scroll here; ResizeObserver handles height changes.
   useEffect(() => {
-    pinIfFollowing()
-  }, [opts.lastTailId, opts.streamingAssistantId, opts.agentRunning, opts.contentEpoch, pinIfFollowing])
+    if (opts.streamingAssistantId != null) {
+      pinIfFollowing()
+      return
+    }
+    // Stream ended: a turn finalizes right after (stopReason, activity card, pad
+    // shrink) and the content height changes. If the user is still at the bottom,
+    // re-engage follow so the finalized turn pins the viewport to the leaf. This
+    // heals a follow detached earlier by a view jump or a near-bottom scroll race
+    // (a detached follow would otherwise leave the viewport stranded mid-history).
+    const el = scrollRef.current
+    if (el && isTimelineNearBottom(el)) {
+      followLiveRef.current = true
+      scheduleTimelineScrollToBottom(el)
+    }
+  }, [opts.lastTailId, opts.streamingAssistantId, opts.agentRunning, opts.contentEpoch, pinIfFollowing, scrollRef])
 
   // Content height changes (tool expand, markdown layout, stream reflow) while following.
   // Observe the stable content root once — do NOT recreate ResizeObserver on every token.

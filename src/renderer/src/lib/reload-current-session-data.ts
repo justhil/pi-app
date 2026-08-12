@@ -2,6 +2,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { loadSessionHistoryWithRetry } from '@renderer/lib/load-session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
+import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
@@ -30,6 +31,8 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     store.setHistoryMeta(totalCount, items.length, sessionFile)
     await applyComposerDisplayMeta(sessionMeta)
     void refreshSessionTree(sessionFile)
+    // 重载确认的是磁盘最新内容：把视口钉回最新（用户可能在检查历史位置时触发重载）
+    requestTimelineBottomAnchor('session-reloaded')
     return { ok: true }
   } catch (e: unknown) {
     console.error('[reloadCurrentSessionData]', e)
