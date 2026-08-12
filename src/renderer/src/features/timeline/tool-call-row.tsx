@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight } from '@renderer/components/icons'
+import { ChevronRight, BookOpen } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { ToolIcon } from './tool-icon'
@@ -14,6 +14,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import { countToolDiffStats } from './timeline-turn-activity'
 import { DiffStatBadge } from './diff-stat-badge'
+import { resolveSkillContextActivity } from './skill-context-activity'
 
 const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
 
@@ -85,10 +86,16 @@ function ToolCallRowImpl({
   const expanded =
     localExpanded ?? rememberedExpanded ?? autoExpanded
   const argSummary = toolArgSummary(item)
+  const skillContext = resolveSkillContextActivity(item.toolName || '', item.toolArgs, item.toolDetail)
   const liveStatus = isRunning && item.toolStatusLine ? String(item.toolStatusLine) : null
   const diffStats = useMemo(() => countToolDiffStats(item), [item])
 
   const primaryLabel = useMemo(() => {
+    if (skillContext) {
+      return t('timeline:activity.skillContext', {
+        name: skillContext.name,
+      })
+    }
     if (liveStatus) return liveStatus
     if (argSummary) {
       return t(humanToolVerbKey(item.toolName || ''), {
@@ -99,7 +106,7 @@ function ToolCallRowImpl({
     }
     if (isRunning) return t('timeline:activity.workingTool', { name: item.toolName || 'tool' })
     return item.toolName || t('timeline:activity.usedTools', { count: 1, names: 'tool' })
-  }, [liveStatus, argSummary, isRunning, item.toolName, t])
+  }, [skillContext, liveStatus, argSummary, isRunning, item.toolName, t])
 
   const toggleExpanded = () => {
     if (!hasToolBody) return
@@ -112,7 +119,7 @@ function ToolCallRowImpl({
     <div className={cn('tool-call-row', compact ? 'py-0' : 'py-0')}>
       <button
         type="button"
-        title={item.toolName || undefined}
+        title={skillContext ? primaryLabel : item.toolName || undefined}
         aria-expanded={!!expanded && hasToolBody}
         onClick={toggleExpanded}
         className={cn(
@@ -131,7 +138,11 @@ function ToolCallRowImpl({
         ) : (
           <span className="w-3 shrink-0" aria-hidden />
         )}
-        <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 timeline-text-quiet" />
+        {skillContext ? (
+          <BookOpen className="h-3 w-3 shrink-0 text-primary/75" strokeWidth={1.8} />
+        ) : (
+          <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 timeline-text-quiet" />
+        )}
         {item.extensionUiSuspended ? (
           <button
             type="button"
@@ -146,7 +157,8 @@ function ToolCallRowImpl({
         ) : (
           <span
             className={cn(
-              'timeline-activity-label timeline-text-quiet min-w-0 truncate',
+              'timeline-activity-label min-w-0 truncate',
+              skillContext ? 'timeline-text-secondary' : 'timeline-text-quiet',
               isRunning && 'timeline-activity-label--live',
               !isRunning && 'group-hover:opacity-70',
             )}

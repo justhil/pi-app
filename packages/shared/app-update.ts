@@ -1,4 +1,4 @@
-/** Shared app-update payload (main → renderer). */
+/** Shared app-update payloads (main → renderer). */
 
 export type AppUpdateAssetKind = 'setup' | 'portable' | 'dmg' | 'zip' | 'appimage' | 'deb' | 'other'
 
@@ -20,6 +20,11 @@ export type AppUpdateAvailableInfo = {
   downloadName: string | null
   assets: AppUpdateAsset[]
 }
+
+export type AppUpdateCheckResult =
+  | { status: 'available'; update: AppUpdateAvailableInfo }
+  | { status: 'up-to-date'; currentVersion: string; latestVersion: string }
+  | { status: 'error' }
 
 export type AppUpdateDownloadProgress = {
   phase: 'downloading' | 'launching' | 'done' | 'error'

@@ -13,14 +13,14 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'user',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         restartWorker,
         verifySelection,
         rollbackSelection,
       }),
     ).rejects.toThrow('目标失败: target import failed；已回滚到 builtin')
 
-    expect(rollbackSelection).toHaveBeenCalledWith('builtin')
+    expect(rollbackSelection).toHaveBeenCalledWith({ kind: 'builtin' })
     expect(restartWorker).toHaveBeenCalledTimes(2)
     expect(verifySelection).toHaveBeenNthCalledWith(1, 'user')
     expect(verifySelection).toHaveBeenNthCalledWith(2, 'builtin')
@@ -32,7 +32,7 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'user',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         restartWorker: vi.fn(async () => {}),
         verifySelection: vi.fn(async (target) => ({ ...active, kind: target })),
         rollbackSelection: vi.fn(),
@@ -51,14 +51,14 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'global',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         verifySelection,
         restartWorker,
         rollbackSelection,
       }),
     ).rejects.toThrow('预期 global，实际 builtin')
 
-    expect(rollbackSelection).toHaveBeenCalledWith('builtin')
+    expect(rollbackSelection).toHaveBeenCalledWith({ kind: 'builtin' })
     expect(restartWorker).toHaveBeenCalledTimes(2)
   })
 
@@ -66,7 +66,7 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'user',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         verifySelection: vi.fn(async () => {
           throw new Error('target import failed')
         }),
@@ -87,7 +87,7 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'user',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         verifySelection,
         restartWorker: vi.fn(async () => {}),
         rollbackSelection: vi.fn(async () => {}),
@@ -104,7 +104,7 @@ describe('SDK selection transaction', () => {
     await expect(
       confirmSdkSelection({
         target: 'global',
-        rollbackTarget: 'builtin',
+        rollbackTarget: { kind: 'builtin' },
         verifySelection: vi.fn(async (target) => ({ kind: target, version: 'test' })),
         restartWorker,
         rollbackSelection: vi.fn(async () => {}),

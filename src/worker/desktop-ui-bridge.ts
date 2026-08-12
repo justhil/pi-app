@@ -23,6 +23,7 @@ type Pending = {
 export type DesktopUIBridge = {
   uiContext: Record<string, unknown>
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
+  handleExtensionUiCancel: (cancel: { id?: string; reason?: string }) => void
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
   setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
   dispose: () => void
@@ -251,6 +252,12 @@ export function createDesktopUIBridge(
 
   return {
     uiContext,
+    handleExtensionUiCancel(cancel) {
+      const p = cancel.id ? pending.get(cancel.id) : undefined
+      if (!p) return
+      p.cleanup()
+      p.resolve({ cancelled: true })
+    },
     handleExtensionUIResponse(response: ExtensionUIResponse) {
       const p = pending.get(response.id)
       if (!p) return

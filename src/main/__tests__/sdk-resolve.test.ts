@@ -4,7 +4,28 @@ const mocks = vi.hoisted(() => ({
   runWslDistroAsync: vi.fn(),
   wslHomeDirSync: vi.fn(() => '/root'),
   wslDefaultShellSync: vi.fn(() => 'bash'),
+  wslPathToWindows: vi.fn((distro: string, path: string) =>
+    `\\\\wsl.localhost\\${distro}${path.replace(/\//g, '\\')}`,
+  ),
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  readFileSync: vi.fn(() => '{"version":"0.83.0"}'),
   resolvePackageEntryPath: vi.fn((uncRoot: string) => `${uncRoot}\\dist\\index.js`),
+}))
+
+vi.mock('@shared/wsl-path', () => ({
+  wslPathToWindows: mocks.wslPathToWindows,
+}))
+
+vi.mock('fs', () => ({
+  default: {
+    mkdirSync: mocks.mkdirSync,
+    writeFileSync: mocks.writeFileSync,
+    readFileSync: mocks.readFileSync,
+  },
+  mkdirSync: mocks.mkdirSync,
+  writeFileSync: mocks.writeFileSync,
+  readFileSync: mocks.readFileSync,
 }))
 
 vi.mock('../wsl/wsl-exec', () => ({
@@ -21,6 +42,10 @@ import { resolveWslActiveSdk, assertWslSdkAvailable, invalidateWslSdkResolveCach
 
 beforeEach(() => {
   mocks.runWslDistroAsync.mockReset()
+  mocks.wslPathToWindows.mockClear()
+  mocks.mkdirSync.mockReset()
+  mocks.writeFileSync.mockReset()
+  mocks.readFileSync.mockReset().mockReturnValue('{"version":"0.83.0"}')
   mocks.resolvePackageEntryPath.mockReset()
   invalidateWslSdkResolveCache()
 })

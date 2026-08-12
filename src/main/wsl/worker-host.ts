@@ -6,10 +6,11 @@
 
 import { spawn, type ChildProcess } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'fs'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { createHash } from 'crypto'
 import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
+import { resolveUtilityEntry } from '../utility-entry-path'
 import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
 
 const cdSupportCache = new Map<string, boolean>()
@@ -51,7 +52,7 @@ export function wslWorkerBundleWsl(distro: string): string | null {
  * avoids re-copying ~240KB over the UNC mount on every fork).
  */
 function computeWorkerBundleHash(): string | null {
-  const source = join(__dirname, 'worker.mjs')
+  const source = resolveUtilityEntry('worker.mjs')
   if (!existsSync(source)) return null
   const h = createHash('sha256')
   const addFile = (path: string): void => {
@@ -65,7 +66,7 @@ function computeWorkerBundleHash(): string | null {
     }
   }
   addFile(source)
-  const chunksSrc = join(__dirname, 'chunks')
+  const chunksSrc = join(dirname(source), 'chunks')
   if (existsSync(chunksSrc)) {
     for (const name of readdirSync(chunksSrc).sort()) addFile(join(chunksSrc, name))
   }
@@ -73,7 +74,7 @@ function computeWorkerBundleHash(): string | null {
 }
 
 export function syncWorkerBundleToWsl(distro: string): string | null {
-  const source = join(__dirname, 'worker.mjs')
+  const source = resolveUtilityEntry('worker.mjs')
   if (!existsSync(source)) return null
 
   const dirWsl = wslWorkerDirWsl(distro)
@@ -96,7 +97,7 @@ export function syncWorkerBundleToWsl(distro: string): string | null {
 
   writeFileSync(join(dirUnc, 'worker.mjs'), readFileSync(source, 'utf-8'), 'utf-8')
 
-  const chunksSrc = join(__dirname, 'chunks')
+  const chunksSrc = join(dirname(source), 'chunks')
   if (existsSync(chunksSrc)) {
     const chunksDest = join(dirUnc, 'chunks')
     mkdirSync(chunksDest, { recursive: true })

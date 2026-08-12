@@ -1,5 +1,6 @@
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import { errorMessage } from '@shared/error-message'
+import { projectModelCatalog } from '@shared/model-auth-projection'
 import type { WorkerCommandRow, WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
 import { st } from '../worker-runtime.js'
@@ -39,6 +40,23 @@ export async function handleGetmodels(msg: WorkerIncomingMessage, reply: WorkerR
           reply({ type: 'error', error: `getModels failed: ${errorMessage(e)}` })
         }
         return
+}
+
+
+export async function handleGetmodelsettingssnapshot(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    if (!st.modelRuntime) {
+      reply({ type: 'error', error: 'MODEL_RUNTIME_NOT_READY' })
+      return
+    }
+    const models = await st.modelRuntime.getModels()
+    reply({
+      type: 'getModelSettingsSnapshot-done',
+      models: await projectModelCatalog(st.modelRuntime, models),
+    })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `getModelSettingsSnapshot failed: ${errorMessage(e)}` })
+  }
 }
 
 

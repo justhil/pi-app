@@ -1,7 +1,7 @@
 // SDK Loader - 解析当前生效 pi SDK 入口（内置 / 全局 / 独立环境）
 
 import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import {
   discoverGlobalPiCodingAgentRoot,
   resolvePackageEntryPath,
@@ -55,8 +55,16 @@ export function readGlobalSdkVersion(): string | null {
   return readVersionAt(resolveGlobalSdkPath())
 }
 
-export function resolveUserSdkPath(userDataDir: string): string | null {
-  const pkgRoot = join(userDataDir, 'sdk', 'current', 'node_modules', '@earendil-works', 'pi-coding-agent')
+export function resolveUserSdkPath(userDataDir: string, userDir?: string): string | null {
+  const activeUserDir = userDir || readCurrentJson(userDataDir).userDir
+  const pkgRoot = join(
+    userDataDir,
+    'sdk',
+    activeUserDir || 'current',
+    'node_modules',
+    '@earendil-works',
+    'pi-coding-agent',
+  )
   return validateEntry(pkgRoot) ? pkgRoot : null
 }
 
@@ -76,18 +84,47 @@ function readVersionAt(pkgRoot: string | null): string | null {
 
 interface CurrentJson {
   active: SdkKind
+  userDir?: string
 }
+
+export type SdkSelection =
+  | { kind: 'builtin' | 'global' }
+  | { kind: 'user'; userDir?: string }
 
 function readCurrentJson(userDataDir: string): CurrentJson {
   try {
     const p = join(userDataDir, 'sdk', 'current.json')
     if (!existsSync(p)) return { active: 'builtin' }
     const data = JSON.parse(readFileSync(p, 'utf-8'))
-    if (data?.active === 'global' || data?.active === 'user') return { active: data.active }
+    if (data?.active === 'global') return { active: 'global' }
+    if (data?.active === 'user') {
+      const userDir = data.userDir
+      if (userDir === undefined) return { active: 'user' }
+      if (
+        typeof userDir !== 'string' ||
+        userDir === '.' ||
+        userDir === '..' ||
+        basename(userDir) !== userDir
+      ) {
+        return { active: 'builtin' }
+      }
+      return { active: 'user', userDir }
+    }
     return { active: 'builtin' }
   } catch (e) {
     return { active: 'builtin' }
   }
+}
+
+export function readSdkSelection(userDataDir: string): SdkSelection {
+  const current = readCurrentJson(userDataDir)
+  return current.active === 'user'
+    ? { kind: 'user', ...(current.userDir ? { userDir: current.userDir } : {}) }
+    : { kind: current.active }
+}
+
+export function resolveUserSdkInstallDir(userDataDir: string): string | undefined {
+  return readCurrentJson(userDataDir).userDir
 }
 
 export function resolveActiveSdk(userDataDir: string): ActiveSdk {

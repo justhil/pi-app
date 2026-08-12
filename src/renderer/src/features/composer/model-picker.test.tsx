@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelPicker } from './model-picker'
+import {
+  clearAvailableModelsCacheForTests,
+  refreshAvailableModels,
+} from '@renderer/lib/available-models-cache'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { AppEvent } from '@shared/app-events'
@@ -24,6 +28,7 @@ beforeEach(() => {
     appEventSubscribers.push(cb)
     return () => {}
   })
+  clearAvailableModelsCacheForTests()
   useUIStore.setState({
     modelPickerOpen: true,
     historySessionFile: 'C:/sessions/one.jsonl',
@@ -32,6 +37,36 @@ beforeEach(() => {
 })
 
 describe('ModelPicker runtime confirmation', () => {
+  it('renders a warm cached list before the open refresh resolves', async () => {
+    invoke.mockResolvedValueOnce({ models: [{ provider: 'openai', id: 'cached', available: true }] })
+    await refreshAvailableModels()
+    let resolveRefresh: ((value: { models: Array<{ provider: string; id: string; available: boolean }> }) => void) | undefined
+    invoke.mockImplementation(() => new Promise((resolve) => { resolveRefresh = resolve }))
+
+    render(<ModelPicker />)
+
+    expect(screen.getByRole('button', { name: /openai/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /openai/i }))
+    expect(screen.getByRole('button', { name: /cached/i })).toBeTruthy()
+    expect(invoke.mock.calls.filter(([method]) => method === 'model.list')).toHaveLength(2)
+
+    resolveRefresh?.({ models: [{ provider: 'openai', id: 'fresh', available: true }] })
+    expect(await screen.findByRole('button', { name: /fresh/i })).toBeTruthy()
+  })
+
+  it('keeps cached choices visible when the open refresh fails', async () => {
+    invoke.mockResolvedValueOnce({ models: [{ provider: 'openai', id: 'cached', available: true }] })
+    await refreshAvailableModels()
+    invoke.mockRejectedValueOnce(new Error('offline'))
+
+    render(<ModelPicker />)
+    fireEvent.click(screen.getByRole('button', { name: /openai/i }))
+
+    expect(screen.getByRole('button', { name: /cached/i })).toBeTruthy()
+    await waitFor(() => expect(invoke.mock.calls.filter(([method]) => method === 'model.list')).toHaveLength(2))
+    expect(screen.getByRole('button', { name: /cached/i })).toBeTruthy()
+  })
+
   it('requests only models available for selection', async () => {
     invoke.mockResolvedValue({ models: [] })
 

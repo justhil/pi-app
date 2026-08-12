@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { extname, join } from 'node:path'
 import { createRequire } from 'node:module'
 
 const root = process.cwd()
@@ -12,7 +12,30 @@ describe('incomplete session recovery contracts', () => {
     const src = readFileSync(join(root, 'src/main/index.ts'), 'utf8')
     assert.match(src, /before-quit/)
     assert.match(src, /gracefulShutdownWorkers/)
-    assert.match(src, /await workerManager\.stop/)
+    assert.match(src, /await workerManager\.stop\(\)[\s\S]*finally\s*\{[\s\S]*sessionPreviewProcess\.stop\(\)/)
+  })
+
+  it('every renderer getMessages request carries the current workspace', () => {
+    const rendererRoot = join(root, 'src/renderer/src')
+    const files = []
+    const visit = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name)
+        if (statSync(path).isDirectory()) visit(path)
+        else if (['.ts', '.tsx'].includes(extname(path)) && !path.includes('.test.')) files.push(path)
+      }
+    }
+    visit(rendererRoot)
+
+    let calls = 0
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8')
+      for (const match of src.matchAll(/invoke\('session\.getMessages',\s*\{([\s\S]*?)\}\)/g)) {
+        calls += 1
+        assert.match(match[1], /\bworkspaceId\b/, `${file} getMessages call lacks workspaceId`)
+      }
+    }
+    assert.ok(calls > 0)
   })
 
   it('disposeWorkerSlot always aborts when sessionFile present', () => {

@@ -71,8 +71,9 @@ function CodeBlockViewImpl({
         </button>
       </div>
       <div
+        data-independent-scroll
         className={cn(
-          'native-code-shiki overflow-auto text-[11px] leading-[1.45]',
+          'native-code-shiki overflow-auto overscroll-contain text-[11px] leading-[1.45]',
           expanded ? maxHeightExpanded : 'max-h-40',
         )}
       >

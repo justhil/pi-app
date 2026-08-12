@@ -58,6 +58,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   } else if (options?.preferHome) {
     store.clearTimeline()
     store.setCurrentSession(null)
+    store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
     store.setHistoryMeta(0, 0, null)
     store.setHistoryLoading(false)
   } else {
@@ -106,6 +107,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     }
     store.clearPendingNewSessionPlaceholder()
     store.setCurrentSession(null)
+    store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
     store.setHistoryMeta(0, 0, null)
     store.setHistoryLoading(false)
     void refreshComposerRunDisplay()

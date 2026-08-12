@@ -1,4 +1,5 @@
 import { dirname } from 'path'
+import { app } from 'electron'
 import { getActiveSdkModule } from './ipc/sdk-session'
 import { workerManager } from './worker-manager'
 
@@ -19,7 +20,7 @@ export async function renamePiSessionOnDisk(
   }
 
   try {
-    const { SessionManager } = await getActiveSdkModule()
+    const { SessionManager } = await getActiveSdkModule(app.getPath('userData'))
     const sm = SessionManager.open(sessionFile, undefined, cwd)
     sm.appendSessionInfo(name)
     return { ok: true }

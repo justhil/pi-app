@@ -1,8 +1,8 @@
-import { execFileSync } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
-import { runGitInWsl } from './wsl/git-delegate'
+import { runGitInWsl, runGitInWslAsync } from './wsl/git-delegate'
 
 function activeWslDistro(): string | null {
   const { mode, distro } = getAgentRuntimeConfig()
@@ -74,6 +74,57 @@ export function runGit(
   return { ok: true, stdout: r.stdout ?? '' }
 }
 
+async function gitExec(
+  cwd: string,
+  args: string[],
+  opts: { timeout?: number; maxBuffer?: number } = {},
+): Promise<{ status: number; stdout: string; stderr: string }> {
+  const distro = activeWslDistro()
+  if (distro) {
+    const r = await runGitInWslAsync(distro, cwd, args, {
+      timeout: opts.timeout,
+      maxBuffer: opts.maxBuffer,
+    })
+    return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr }
+  }
+  return new Promise((resolve) => {
+    execFile('git', args, {
+      cwd,
+      encoding: 'utf-8',
+      timeout: opts.timeout ?? 8000,
+      maxBuffer: opts.maxBuffer ?? 4 * 1024 * 1024,
+      windowsHide: true,
+    }, (error, stdout, stderr) => {
+      const e = error as NodeJS.ErrnoException & { code?: string | number } | null
+      resolve({
+        status: error ? typeof e?.code === 'number' ? e.code : -1 : 0,
+        stdout: stdout ?? '',
+        stderr: stderr ?? error?.message ?? '',
+      })
+    })
+  })
+}
+
+async function runGitReadOnly(
+  cwd: string,
+  args: string[],
+  options?: { timeout?: number; maxBuffer?: number },
+): Promise<{ ok: true; stdout: string } | { ok: false; notRepo: boolean; message: string }> {
+  if (!isGitRepository(cwd)) {
+    return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+  }
+  const r = await gitExec(cwd, args, options)
+  if (r.status !== 0) {
+    const message = (r.stderr || r.stdout || '').trim() || 'git 命令失败'
+    if (isNotGitRepo(r.stderr, message)) {
+      return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+    }
+    const short = r.stderr.split('\n').find((line) => line.trim()) || message.split('\n')[0] || 'git 命令失败'
+    return { ok: false, notRepo: false, message: short.slice(0, 500) }
+  }
+  return { ok: true, stdout: r.stdout ?? '' }
+}
+
 export type GitWorkspaceSnapshot = {
   isRepo: boolean
   branch: string
@@ -83,7 +134,7 @@ export type GitWorkspaceSnapshot = {
   message?: string
 }
 
-export function readGitWorkspaceSnapshot(cwd: string): GitWorkspaceSnapshot {
+export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspaceSnapshot> {
   if (!isGitRepository(cwd)) {
     return {
       isRepo: false,
@@ -95,16 +146,15 @@ export function readGitWorkspaceSnapshot(cwd: string): GitWorkspaceSnapshot {
     }
   }
 
-  const branchR = runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 })
+  const [branchR, diffR, statusR, logR] = await Promise.all([
+    runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
+    runGitReadOnly(cwd, ['diff'], { timeout: 10000 }),
+    runGitReadOnly(cwd, ['status', '--porcelain', '-b'], { timeout: 5000 }),
+    runGitReadOnly(cwd, ['log', '--oneline', '-12'], { timeout: 5000 }),
+  ])
   const branch = branchR.ok ? branchR.stdout.trim() : ''
-
-  const diffR = runGit(cwd, ['diff'], { timeout: 10000 })
   const raw = diffR.ok ? diffR.stdout : ''
-
-  const statusR = runGit(cwd, ['status', '--porcelain', '-b'], { timeout: 5000 })
   const status = statusR.ok ? statusR.stdout : ''
-
-  const logR = runGit(cwd, ['log', '--oneline', '-12'], { timeout: 5000 })
   const log = logR.ok ? logR.stdout.trim() : ''
 
   if (!diffR.ok && diffR.notRepo) {

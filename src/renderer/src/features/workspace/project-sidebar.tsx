@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { ChevronRight, FolderOpen, Inbox, Plus } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
@@ -209,7 +210,9 @@ export function ProjectSidebar({
       } else {
         const store = useUIStore.getState()
         store.clearPendingNewSessionPlaceholder()
+        useExtensionUIStore.getState().resetForSessionContext()
         store.setCurrentSession(null)
+        store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
         store.clearTimeline()
         store.clearFileChanges()
         store.setHistoryMeta(0, 0, null)

@@ -77,9 +77,9 @@ describe('git-workspace host mode', () => {
     expect(cachedAfter).toBe('')
   })
 
-  it('readGitWorkspaceSnapshot returns repo metadata', () => {
+  it('readGitWorkspaceSnapshot returns repo metadata', async () => {
     const dir = makeRepo()
-    const snap = readGitWorkspaceSnapshot(dir)
+    const snap = await readGitWorkspaceSnapshot(dir)
     expect(snap.isRepo).toBe(true)
     expect(snap.branch).toMatch(/^(master|main)$/)
     expect(typeof snap.raw).toBe('string')

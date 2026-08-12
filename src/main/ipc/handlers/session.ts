@@ -17,10 +17,10 @@ import {
   setPendingEphemeralSandboxDraft,
   setPendingWorkerSessionFile,
 } from '../../session-bind-state'
-import { flattenTreeFromSessionFile } from '../../session-tree-from-file'
+import { sessionPreviewProcess } from '../../session-preview-process'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
-import { listSessionsOnDisk, invalidateListSessionsCache, type SessionOnDiskRow } from '../sdk-session'
+import type { SessionOnDiskRow } from '../sdk-session'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -30,13 +30,15 @@ import {
   sessionNavigateTreeSchema,
   sessionNewSchema,
   sessionPrepareSchema,
+  sessionTreeSchema,
 } from '../schemas'
+import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { errorMessage } from '@shared/error-message'
 
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
-    const sessions = workspaceId ? await listSessionsOnDisk(workspaceId) : []
+    const sessions = workspaceId ? await sessionPreviewProcess.listSessions(workspaceId) : []
     const formatted = sessions.map((s: SessionOnDiskRow) => ({
       sessionId: s.id,
       sessionFile: s.path,
@@ -101,7 +103,9 @@ export function registerSessionHandlers(): void {
       return { bound: false, sessionId: null as string | null }
     }
     if (req.bind !== false) setPendingWorkerSessionFile(sessionFile)
-    const prepared = await resolvePreparedSessionFile(sessionFile, listSessionsOnDisk)
+    const prepared = await resolvePreparedSessionFile(sessionFile, (workspaceId) =>
+      sessionPreviewProcess.listSessions(workspaceId),
+    )
     if (req.bind !== false && prepared?.sessionFile && prepared.sessionFile !== sessionFile) {
       setPendingWorkerSessionFile(prepared.sessionFile)
     }
@@ -118,9 +122,16 @@ export function registerSessionHandlers(): void {
     return { ok: true }
   })
 
-  registerHandler('ipc:session.tree', async (req) => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    let sessionFile = req?.sessionFile as string | undefined
+  registerHandlerWithSchema('ipc:session.tree', sessionTreeSchema, async (req) => {
+    const requestedSessionFile = req.sessionFile
+    const authorized = requestedSessionFile
+      ? authorizeTrustedSessionFile(req.workspaceId, requestedSessionFile)
+      : null
+    if (authorized && !authorized.ok) {
+      return { nodes: [], leafId: null, error: authorized.error }
+    }
+    const cwd = authorized?.cwd || workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    let sessionFile = authorized?.sessionFile
     let workerSessionFile: string | undefined
     let leafOverride: string | null | undefined
     if (sessionFile) leafOverride = getSessionLeafOverride(sessionFile)
@@ -140,7 +151,11 @@ export function registerSessionHandlers(): void {
     }
     if (sessionFile) {
       try {
-        const r = await flattenTreeFromSessionFile(sessionFile, cwd, leafOverride)
+        const r = await sessionPreviewProcess.getTree({
+          sessionFile,
+          cwd,
+          leafId: leafOverride,
+        })
         return { nodes: r.nodes, leafId: r.leafId, workerBound: workerSessionFile === sessionFile }
       } catch (e: unknown) {
         return { nodes: [], leafId: null, error: errorMessage(e) }
@@ -212,7 +227,8 @@ export function registerSessionHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:session.getMessages', sessionGetMessagesSchema, async (req) => {
-    if (!req.sessionFile) return { items: [], totalCount: 0 }
+    const authorized = authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
+    if (!authorized.ok) return { items: [], totalCount: 0, error: authorized.error }
     const offset = req.offset ?? 0
     const limit = req.limit ?? 0
     // Disk-first timeline preview. NEVER spawn/ensure a worker just to read history —
@@ -223,12 +239,12 @@ export function registerSessionHandlers(): void {
           ? req.leafId
           : req.leafId === null
             ? null
-            : getSessionLeafOverride(req.sessionFile)
+            : getSessionLeafOverride(authorized.sessionFile)
 
       // If a live worker already has this session, prefer its leaf when no override.
       if (leafId === undefined) {
         try {
-          const st = await workerManager.getState(req.sessionFile)
+          const st = await workerManager.getState(authorized.sessionFile)
           if (st && 'leafId' in st && (st as { leafId?: string | null }).leafId != null) {
             leafId = (st as { leafId?: string | null }).leafId ?? null
           }
@@ -237,13 +253,13 @@ export function registerSessionHandlers(): void {
         }
       }
 
-      const { getSessionMessagesFromDisk } = await import('../../session-messages-from-disk.js')
-      const disk = await getSessionMessagesFromDisk(
-        req.sessionFile,
+      const disk = await sessionPreviewProcess.getMessages({
+        sessionFile: authorized.sessionFile,
+        cwd: authorized.cwd,
         offset,
-        limit || undefined,
+        limit: limit || undefined,
         leafId,
-      )
+      })
       return {
         items: disk.items,
         sourceCount: disk.items.length,
@@ -263,7 +279,7 @@ export function registerSessionHandlers(): void {
     }
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession(workspaceId)
-    invalidateListSessionsCache(workspaceId)
+    await sessionPreviewProcess.invalidateListSessions(workspaceId)
     const state = await workerManager.getState().catch(() => ({}))
     const sessionFile =
       result.sessionFile || (state as { sessionFile?: string })?.sessionFile
@@ -359,7 +375,7 @@ export function registerSessionHandlers(): void {
         }
       }
       setPendingWorkerSessionFile(null)
-      invalidateListSessionsCache(workspaceId)
+      await sessionPreviewProcess.invalidateListSessions(workspaceId)
       return {
         cancelled: false,
         editorText: result.editorText,
@@ -449,7 +465,7 @@ export function registerSessionHandlers(): void {
         }
       }
       setPendingWorkerSessionFile(null)
-      invalidateListSessionsCache(workspaceId)
+      await sessionPreviewProcess.invalidateListSessions(workspaceId)
       return {
         cancelled: false,
         sessionId: result.sessionId,
@@ -517,16 +533,17 @@ export function registerSessionHandlers(): void {
     const r = await renamePiSessionOnDisk(file, title, workspaceCwd)
     if (!r.ok) return { ok: false, title, error: r.error || 'rename failed' }
     clearSessionDisplayName(file)
-    invalidateListSessionsCache(workspaceCwd)
+    await sessionPreviewProcess.invalidateListSessions(workspaceCwd)
     return { ok: true, title }
   })
 
   registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
-    const file = req.sessionFile
-    const r = await workerManager.deleteSessionFile(file)
+    const authorized = authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
+    if (!authorized.ok) return { ok: false, error: authorized.error }
+    const r = await workerManager.deleteSessionFile(authorized.sessionFile)
     if (r.ok) {
-      clearSessionDisplayName(file)
-      invalidateListSessionsCache(workerManager.cwd ?? undefined)
+      clearSessionDisplayName(authorized.sessionFile)
+      await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
     }
     return { ok: !!r.ok, error: r.error }
   })

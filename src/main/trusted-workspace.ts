@@ -1,6 +1,8 @@
 import { isAbsolute, posix, resolve } from 'path'
+import { existsSync } from 'fs'
 import { isWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
 import { configStore } from './config-store'
+import { isSandboxWorkspacePath } from './sandbox-workspaces'
 import { readSessionMetaFromFile } from './session-file-meta'
 import { workerManager } from './worker-manager'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
@@ -43,12 +45,26 @@ function workspacePathsEqual(a: string, b: string): boolean {
   return windowsPath ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
+function resolveTrustedSessionCwd(reqCwd: string | undefined): { ok: true; cwd: string } | { ok: false; error: string } {
+  const target = String(reqCwd || '').trim()
+  if (!target) return authorizeTrustedCwd(reqCwd)
+  const trusted = [
+    getTrustedWorkspaceRoot(),
+    ...(configStore.get('recentProjects') || []),
+  ].find((workspace) => workspace && workspacePathsEqual(workspace, target))
+  if (trusted) return { ok: true, cwd: trusted }
+  if (isPortableAbsolutePath(target) && isSandboxWorkspacePath(target) && existsSync(target)) {
+    return { ok: true, cwd: target }
+  }
+  return { ok: false, error: 'cwd_not_trusted' }
+}
+
 /** Authorize a renderer-provided session path before opening it in the main process. */
 export function authorizeTrustedSessionFile(
   reqCwd: string | undefined,
   requestedSessionFile: string | undefined,
 ): TrustedSessionFileResult {
-  const authorizedCwd = authorizeTrustedCwd(reqCwd)
+  const authorizedCwd = resolveTrustedSessionCwd(reqCwd)
   if (!authorizedCwd.ok) return authorizedCwd
 
   const sessionFile = String(requestedSessionFile || '').trim()

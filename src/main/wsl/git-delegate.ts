@@ -8,7 +8,20 @@
  */
 
 import { windowsPathToWsl } from '@shared/wsl-path'
-import { isValidWslDistroName, runWslSync, type WslExecResult } from './wsl-exec'
+import { isValidWslDistroName, runWslDistroCdAsync, runWslSync, type WslExecResult } from './wsl-exec'
+
+export async function runGitInWslAsync(
+  distro: string,
+  winCwd: string,
+  args: string[],
+  opts: { timeout?: number; maxBuffer?: number } = {},
+): Promise<WslExecResult> {
+  if (!isValidWslDistroName(distro)) {
+    return { status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` }
+  }
+  const wslCwd = windowsPathToWsl(distro, winCwd) || '/'
+  return runWslDistroCdAsync(distro, wslCwd, ['git', ...args], opts)
+}
 
 export function runGitInWsl(
   distro: string,

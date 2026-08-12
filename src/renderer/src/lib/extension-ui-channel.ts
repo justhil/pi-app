@@ -63,12 +63,12 @@ export function clearExtensionDialogDedupe(): void {
   seenDialogIds.clear()
 }
 
-/** Worker 侧对话框超时/中止或 compaction 开始时，清理 Renderer 悬挂的 activePending */
+/** Worker 侧对话框超时/中止或 compaction 开始时，清理 Renderer 悬挂状态 */
 export function dismissExtensionDialogState(id?: string): void {
   const st = useExtensionUIStore.getState()
-  const active = st.activePending
-  if (!active) return
-  if (id && active.id !== id) return
+  const activeId = st.activePending?.id
+  const suspendedId = st.suspended?.requestId
+  if (id && activeId !== id && suspendedId !== id) return
   if (id) seenDialogIds.delete(id)
   st.clearAfterRespond()
 }

@@ -66,8 +66,9 @@ function CodeBlock({
         </button>
       </div>
       <pre
+        data-independent-scroll
         className={cn(
-          'overflow-auto px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
+          'overflow-auto overscroll-contain px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
           !expanded && needsFold && 'max-h-[4.5rem]',
         )}
         style={{ margin: 0, color: 'var(--text-primary)' }}

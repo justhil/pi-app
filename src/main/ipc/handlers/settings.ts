@@ -8,7 +8,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { settingsSetSchema } from '../schemas'
 import { workerManager } from '../../worker-manager'
 import { invalidateSdkManagerCaches } from '../../sdk-manager'
-import { invalidateListSessionsCache } from '../sdk-session'
+import { sessionPreviewProcess } from '../../session-preview-process'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -37,6 +37,7 @@ export function registerSettingsHandlers(): void {
       if (changed) {
         if (workerManager.hasActiveTurns) throw new Error('AGENT_RUNTIME_BUSY')
         await workerManager.stop()
+        sessionPreviewProcess.stop()
       }
       configStore.set(key, next)
       if (changed) {
@@ -44,7 +45,6 @@ export function registerSettingsHandlers(): void {
         // 清理 adapter catalog 与 SDK 缓存，避免继续读旧 runtime 的目录。
         invalidateAdapterCatalog()
         invalidateSdkManagerCaches()
-        invalidateListSessionsCache()
       }
       return { key: req.key, value: next }
     }
@@ -54,14 +54,19 @@ export function registerSettingsHandlers(): void {
 
   registerHandler('ipc:app.checkUpdate', async () => {
     const { checkGitHubReleaseUpdate } = await import('../../github-release-check')
-    const { getMainWindow } = await import('../../window')
-    const win = getMainWindow()
 
-    // Fire-and-forget: the result is pushed via ipc:app-update-available
-    // so the Settings UI does not block while the network call is in flight.
-    void checkGitHubReleaseUpdate().then((result) => {
-      if (!win || win.isDestroyed() || !result.ok || !result.hasUpdate || !result.latestVersion) return
-      const payload: AppUpdateAvailableInfo = {
+    try {
+      const result = await checkGitHubReleaseUpdate()
+      if (!result.ok) return { status: 'error' }
+      if (!result.hasUpdate || !result.latestVersion) {
+        return {
+          status: 'up-to-date',
+          currentVersion: result.currentVersion,
+          latestVersion: result.latestVersion ?? result.currentVersion,
+        }
+      }
+
+      const update: AppUpdateAvailableInfo = {
         currentVersion: result.currentVersion,
         latestVersion: result.latestVersion.replace(/^v/i, ''),
         releaseUrl: result.releaseUrl,
@@ -70,9 +75,10 @@ export function registerSettingsHandlers(): void {
         downloadName: result.downloadName,
         assets: result.assets,
       }
-      win.webContents.send('ipc:app-update-available', payload)
-    })
-    return { ok: true, checking: true }
+      return { status: 'available', update }
+    } catch {
+      return { status: 'error' }
+    }
   })
 
   registerHandler('ipc:app.getPendingUpdate', async () => {

@@ -19,6 +19,12 @@ import { PiSettingsSdkSection } from './pi-settings-sdk-section'
 import { PiSettingsFormSections } from './pi-settings-form-sections'
 import { PiSettingsEnvAuthRows } from './pi-settings-env-auth-rows'
 import { savePiSettingsDraft } from './save-pi-settings'
+import {
+  ensureAvailableModels,
+  peekAvailableModels,
+  refreshAvailableModels,
+  subscribeAvailableModels,
+} from '@renderer/lib/available-models-cache'
 
 export type { PiSettingsSnapshot } from './pi-settings-shared'
 
@@ -34,7 +40,9 @@ export function PiSettingsPanel() {
   ]
   const [info, setInfo] = useState<PiInfo | null>(null)
   const [settings, setSettings] = useState<PiSettingsSnapshot | null>(null)
-  const [models, setModels] = useState<Array<{ id: string; name?: string; provider?: string; available?: boolean }>>([])
+  const [models, setModels] = useState<Array<{ id: string; name?: string; provider?: string; available?: boolean }>>(
+    () => peekAvailableModels(),
+  )
   const [loadError, setLoadError] = useState<string | null>(null)
   const [baseline, setBaseline] = useState<PiSettingsSnapshot | null>(null)
   const [draft, setDraft] = useState<PiSettingsSnapshot | null>(null)
@@ -52,12 +60,13 @@ export function PiSettingsPanel() {
 
   const loadModelsForDropdown = useCallback(async () => {
     try {
-      const modelsRes = await ipcClient.invoke('model.list', { scope: 'catalog' })
-      setModels((modelsRes?.models || []).filter((m: { available?: boolean }) => m.available !== false))
+      await ensureAvailableModels()
     } catch {
-      setModels([])
+      setModels(peekAvailableModels())
     }
   }, [])
+
+  useEffect(() => subscribeAvailableModels(setModels), [])
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -111,10 +120,14 @@ export function PiSettingsPanel() {
 
   useEffect(() => {
     return onAppEvent((event) => {
+      if (event.type === 'sdk-runtime-changed') {
+        void loadModelsForDropdown()
+        return
+      }
       if (event.type !== 'sdk-install-progress') return
       if (event.line) setInstallOutput((prev) => [...prev, event.line!])
     })
-  }, [])
+  }, [loadModelsForDropdown])
 
   const onInstall = useCallback(async () => {
     if (!selectedVersion) return
@@ -129,7 +142,10 @@ export function PiSettingsPanel() {
       setSdkStatus((current) => current ? { ...current, active: res.active } : current)
       setEnvTarget(res.active.kind)
       try {
-        await reloadSdk({ refresh: true })
+        await Promise.all([
+          reloadSdk({ refresh: true }),
+          loadModelsForDropdown(),
+        ])
       } catch (error) {
         console.error('sdk refresh after install failed', error)
       }
@@ -139,7 +155,7 @@ export function PiSettingsPanel() {
     } finally {
       setInstalling(false)
     }
-  }, [reloadSdk, selectedVersion, t])
+  }, [loadModelsForDropdown, reloadSdk, selectedVersion, t])
 
   const onSwitchEnv = useCallback(
     async (target: 'builtin' | 'global' | 'user') => {
@@ -153,7 +169,10 @@ export function PiSettingsPanel() {
         setSdkStatus((current) => current ? { ...current, active: res.active } : current)
         setEnvTarget(res.active.kind)
         try {
-          await reloadSdk({ refresh: true })
+          await Promise.all([
+            reloadSdk({ refresh: true }),
+            loadModelsForDropdown(),
+          ])
         } catch (error) {
           console.error('sdk refresh after switch failed', error)
         }
@@ -171,7 +190,7 @@ export function PiSettingsPanel() {
         setSwitching(false)
       }
     },
-    [reloadSdk, t],
+    [loadModelsForDropdown, reloadSdk, t],
   )
 
   const queuePatch = useCallback((p: Record<string, unknown>) => {
@@ -214,15 +233,10 @@ export function PiSettingsPanel() {
 
   const ui = draft ?? settings
 
-  const modelOptions = useMemo(() => {
-    const list = [...models]
-    const curP = String(ui?.defaultProvider || '')
-    const curM = String(ui?.defaultModel || '')
-    if (curP && curM && !list.some((m) => m.provider === curP && m.id === curM)) {
-      list.unshift({ provider: curP, id: curM, name: `${curP}/${curM}`, available: true })
-    }
-    return list.sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`))
-  }, [models, ui?.defaultProvider, ui?.defaultModel])
+  const modelOptions = useMemo(
+    () => [...models].sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`)),
+    [models],
+  )
 
   const currentModelKey =
     ui?.defaultProvider && ui?.defaultModel ? `${ui.defaultProvider}/${ui.defaultModel}` : ''

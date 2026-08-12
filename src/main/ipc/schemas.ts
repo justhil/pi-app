@@ -45,21 +45,34 @@ export const sessionNavigateTreeSchema = z.object({
   label: z.string().optional(),
 })
 
-export const sessionGetMessagesSchema = z.object({
-  sessionFile: z.string(),
-  offset: z.number().optional(),
-  limit: z.number().optional(),
-  /** After navigateTree: force branch tip so history matches rewound leaf */
-  leafId: z.string().nullable().optional(),
-})
+export const sessionTreeSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1).optional(),
+    workspaceId: z.string().trim().min(1).optional(),
+  })
+  .strict()
+
+export const sessionGetMessagesSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1).optional(),
+    offset: z.number().int().min(0).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+    /** After navigateTree: force branch tip so history matches rewound leaf */
+    leafId: z.string().nullable().optional(),
+  })
+  .strict()
 
 export const sessionNewSchema = z.object({
   workspaceId: z.string().min(1),
 })
 
-export const sessionDeleteSchema = z.object({
-  sessionFile: z.string().min(1),
-})
+export const sessionDeleteSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1),
+  })
+  .strict()
 
 export const sessionPrepareSchema = z.object({
   sessionFile: z.string().min(1),

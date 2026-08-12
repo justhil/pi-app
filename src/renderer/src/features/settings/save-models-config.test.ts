@@ -32,11 +32,13 @@ describe('saveModelsConfigDraft', () => {
 
   it('reports a reload failure after the config was written', async () => {
     const setConfig = vi.fn(async () => ({ ok: true }))
+    const onWritten = vi.fn()
     const reload = vi.fn(async () => {
       throw new Error('reload failed')
     })
 
-    await expect(saveModelsConfigDraft(draft, { setConfig, reload })).rejects.toThrow('reload failed')
+    await expect(saveModelsConfigDraft(draft, { setConfig, onWritten, reload })).rejects.toThrow('reload failed')
     expect(setConfig).toHaveBeenCalledWith(draft)
+    expect(onWritten).toHaveBeenCalledOnce()
   })
 })

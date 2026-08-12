@@ -2,6 +2,11 @@ import { mkdirSync, rmSync, writeFileSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { join } from 'path'
 import { resolveActiveAgentDir } from './agent-dir'
+import {
+  projectModelCatalog,
+  type ModelAuthProjection,
+  type ModelAuthProjectionRuntime,
+} from '@shared/model-auth-projection'
 
 export type ModelEntry = {
   id: string
@@ -10,16 +15,19 @@ export type ModelEntry = {
   contextWindow?: number
   maxOutput?: number
   maxTokens?: number
+  available?: boolean
+  managedBy?: 'active-sdk'
+  auth?: ModelAuthProjection
 }
 
-type LegacyRegistry = {
+type LegacyRegistry = ModelAuthProjectionRuntime & {
   getModelsJsonError?: () => unknown
   getError?: () => unknown
   getAll?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
   getAvailable?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
 }
 
-type ModernRuntime = {
+type ModernRuntime = ModelAuthProjectionRuntime & {
   getError?: () => unknown
   getModels?: () => readonly ModelEntry[] | Promise<readonly ModelEntry[]>
   getAvailable?: () => Promise<readonly ModelEntry[]>
@@ -148,13 +156,21 @@ export async function listCatalogModelsWithSdk(
       modelsPath: join(agentDir, 'models.json'),
       allowModelNetwork: false,
     })
-    if (runtime.getModels) return runtime.getModels()
+    if (runtime.getModels) {
+      return projectModelCatalog(runtime, await runtime.getModels())
+    }
   }
 
   if (hasLegacyRegistry(module)) {
     const auth = module.AuthStorage!.create!()
     const registry = module.ModelRegistry!.create!(auth)
-    return (await registry.getAll?.()) ?? []
+    return projectModelCatalog(
+      {
+        getProviderAuthStatus: registry.getProviderAuthStatus?.bind(registry),
+        listCredentials: registry.listCredentials?.bind(registry),
+      },
+      (await registry.getAll?.call(registry)) ?? [],
+    )
   }
 
   return []
@@ -177,7 +193,7 @@ export async function listAvailableModelsWithSdk(
   if (hasLegacyRegistry(module)) {
     const auth = module.AuthStorage!.create!()
     const registry = module.ModelRegistry!.create!(auth)
-    return (await registry.getAvailable?.()) ?? []
+    return (await registry.getAvailable?.call(registry)) ?? []
   }
 
   return []

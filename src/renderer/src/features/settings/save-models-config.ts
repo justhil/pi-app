@@ -5,9 +5,11 @@ export async function saveModelsConfigDraft(
   actions: {
     setConfig: (config: PiModelsConfigPayload) => Promise<{ ok: boolean; error?: string }>
     reload: () => Promise<void>
+    onWritten?: () => void
   },
 ): Promise<void> {
   const response = await actions.setConfig(draft)
   if (!response.ok) throw new Error(response.error || 'SAVE_FAILED')
+  actions.onWritten?.()
   await actions.reload()
 }

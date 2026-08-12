@@ -1,8 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+
+const sandboxRoot = join(tmpdir(), `pi-trusted-workspace-${process.pid}`)
 
 const mocks = vi.hoisted(() => ({
   cwd: '/workspace' as string | null,
   currentProject: null as string | null,
+  recentProjects: [] as string[],
+  sandboxPath: '' as string,
   runtime: { mode: 'host' as 'host' | 'wsl', distro: null as string | null },
   readSessionMetaFromFile: vi.fn(),
 }))
@@ -16,7 +23,13 @@ vi.mock('../worker-manager', () => ({
 }))
 
 vi.mock('../config-store', () => ({
-  configStore: { get: vi.fn(() => mocks.currentProject) },
+  configStore: {
+    get: vi.fn((key: string) => key === 'currentProject' ? mocks.currentProject : mocks.recentProjects),
+  },
+}))
+
+vi.mock('../sandbox-workspaces', () => ({
+  isSandboxWorkspacePath: vi.fn((path: string) => path === mocks.sandboxPath),
 }))
 
 vi.mock('../wsl/runtime-config', () => ({
@@ -32,10 +45,16 @@ import { authorizeTrustedSessionFile } from '../trusted-workspace'
 describe('authorizeTrustedSessionFile', () => {
   beforeEach(() => {
     mocks.cwd = '/workspace'
+    mocks.currentProject = null
+    mocks.recentProjects = []
+    mocks.sandboxPath = join(sandboxRoot, 'managed')
+    mkdirSync(mocks.sandboxPath, { recursive: true })
     mocks.runtime = { mode: 'host', distro: null }
     mocks.readSessionMetaFromFile.mockReset()
     mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/workspace' })
   })
+
+  afterEach(() => rmSync(sandboxRoot, { recursive: true, force: true }))
 
   it('accepts an absolute session whose header belongs to the active workspace', () => {
     expect(authorizeTrustedSessionFile('/workspace', '/sessions/a.jsonl')).toEqual({
@@ -59,6 +78,27 @@ describe('authorizeTrustedSessionFile', () => {
     expect(authorizeTrustedSessionFile('/workspace', '/sessions/b.jsonl')).toEqual({
       ok: false,
       error: 'session_workspace_mismatch',
+    })
+  })
+
+  it('accepts a persisted recent project and a managed sandbox but rejects arbitrary renderer cwd', () => {
+    mocks.recentProjects = ['/background']
+    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-b', cwd: '/background' })
+    expect(authorizeTrustedSessionFile('/background', '/sessions/background.jsonl')).toEqual({
+      ok: true,
+      cwd: '/background',
+      sessionFile: '/sessions/background.jsonl',
+    })
+
+    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-s', cwd: mocks.sandboxPath })
+    expect(authorizeTrustedSessionFile(mocks.sandboxPath, '/sessions/sandbox.jsonl')).toEqual(
+      expect.objectContaining({ ok: true, cwd: mocks.sandboxPath }),
+    )
+
+    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-e', cwd: '/evil' })
+    expect(authorizeTrustedSessionFile('/evil', '/sessions/evil.jsonl')).toEqual({
+      ok: false,
+      error: 'cwd_not_trusted',
     })
   })
 

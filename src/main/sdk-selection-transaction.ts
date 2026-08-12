@@ -1,5 +1,5 @@
 import { errorMessage } from '@shared/error-message'
-import type { SdkKind } from './sdk-loader'
+import type { SdkKind, SdkSelection } from './sdk-loader'
 
 export type ConfirmedSdkSelection = {
   kind: SdkKind
@@ -9,10 +9,10 @@ export type ConfirmedSdkSelection = {
 
 type SelectionTransactionInput = {
   target: SdkKind
-  rollbackTarget: SdkKind
+  rollbackTarget: SdkSelection
   restartWorker: () => Promise<void>
   verifySelection: (target: SdkKind) => Promise<ConfirmedSdkSelection>
-  rollbackSelection: (target: SdkKind) => Promise<void>
+  rollbackSelection: (target: SdkSelection) => Promise<void>
 }
 
 function mismatchError(expected: SdkKind, actual: SdkKind): Error {
@@ -29,8 +29,8 @@ async function verifyTarget(input: SelectionTransactionInput): Promise<Confirmed
 async function rollbackTarget(input: SelectionTransactionInput): Promise<void> {
   await input.rollbackSelection(input.rollbackTarget)
   await input.restartWorker()
-  const active = await input.verifySelection(input.rollbackTarget)
-  if (active.kind !== input.rollbackTarget) throw mismatchError(input.rollbackTarget, active.kind)
+  const active = await input.verifySelection(input.rollbackTarget.kind)
+  if (active.kind !== input.rollbackTarget.kind) throw mismatchError(input.rollbackTarget.kind, active.kind)
 }
 
 export async function confirmSdkSelection(
@@ -46,6 +46,6 @@ export async function confirmSdkSelection(
         `目标失败: ${errorMessage(targetError)}；回滚失败: ${errorMessage(rollbackError)}`,
       )
     }
-    throw new Error(`目标失败: ${errorMessage(targetError)}；已回滚到 ${input.rollbackTarget}`)
+    throw new Error(`目标失败: ${errorMessage(targetError)}；已回滚到 ${input.rollbackTarget.kind}`)
   }
 }

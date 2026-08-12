@@ -3,6 +3,7 @@
 import type { AppEvent } from './app-events'
 import type { DiffResult } from './diff-model'
 import type { CompatibilityLevel } from './extension-types'
+import type { ModelAuthProjection } from './model-auth-projection'
 import type { SessionContextPreview } from './session-context-preview'
 
 // ── Workspace ──
@@ -109,11 +110,13 @@ export interface ModelInfo {
   contextWindow: number
   maxOutput: number
   available: boolean
+  managedBy?: 'active-sdk'
+  auth?: ModelAuthProjection
 }
 export interface ModelListRequest {
   workspaceId?: string
-  /** catalog=active Pi SDK 完整目录（设置默认模型）；available=已配置鉴权（Composer） */
-  scope?: 'catalog' | 'available'
+  /** catalog=active Pi SDK 完整目录（默认模型等）；available=已配置鉴权（Composer）；settings=无网络完整目录及脱敏鉴权状态 */
+  scope?: 'catalog' | 'available' | 'settings'
 }
 export interface ModelListResponse { models: ModelInfo[] }
 export interface ModelSetRequest {
@@ -259,18 +262,7 @@ export interface SettingsSetResponse { key: string; value: unknown }
 
 // ── App update (GitHub Releases) ──
 export interface AppCheckUpdateRequest {}
-export interface AppCheckUpdateResponse {
-  ok: boolean
-  currentVersion: string
-  latestVersion: string | null
-  hasUpdate: boolean
-  releaseUrl: string
-  releaseNotes?: string
-  downloadUrl?: string | null
-  downloadName?: string | null
-  assets?: import('./app-update').AppUpdateAsset[]
-  error?: string
-}
+export type AppCheckUpdateResponse = import('./app-update').AppUpdateCheckResult
 export interface AppOpenReleaseRequest { url?: string }
 export interface AppOpenReleaseResponse { ok: boolean }
 export interface AppGetPendingUpdateRequest {}

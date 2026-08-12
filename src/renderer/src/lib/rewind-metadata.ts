@@ -23,7 +23,10 @@ export async function refreshSessionTree(sessionFile: string | null): Promise<vo
   }
 
   try {
-    const treeRes = await ipcClient.invoke('session.tree', { sessionFile })
+    const treeRes = await ipcClient.invoke('session.tree', {
+      sessionFile,
+      workspaceId: useUIStore.getState().currentWorkspace || undefined,
+    })
     // 过期响应丢弃：期间已有更新的请求发出，或已切到其它会话。
     if (seq !== rewindTreeRequestSeq || useUIStore.getState().rewindKey !== key) return
     const nodes = (treeRes?.nodes || []) as Array<{

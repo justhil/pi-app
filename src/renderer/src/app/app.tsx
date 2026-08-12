@@ -39,6 +39,10 @@ import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/com
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
+import {
+  invalidateAvailableModels,
+  prefetchAvailableModels,
+} from '@renderer/lib/available-models-cache'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
@@ -164,12 +168,19 @@ export default function App() {
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
         .catch(() => {})
+      prefetchAvailableModels()
     })
     return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])
 
   useEffect(() => {
-    const unsubEvents = onAppEvent((event) => useUIStore.getState().processEvent(event))
+    const unsubEvents = onAppEvent((event) => {
+      if (event.type === 'sdk-runtime-changed') {
+        invalidateAvailableModels()
+        prefetchAvailableModels()
+      }
+      useUIStore.getState().processEvent(event)
+    })
     void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {
       fetchWorkerLiveSnapshot()
         .then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap))

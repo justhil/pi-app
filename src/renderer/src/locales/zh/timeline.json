@@ -106,6 +106,7 @@
     "review": "Review",
     "openFileHint": "{{path}}\n点击 Files · 右键 Review",
     "verbRead": "读了 {{detail}}",
+    "skillContext": "已载入 Skill 上下文 · {{name}}",
     "verbEdit": "编辑了 {{detail}}",
     "verbRun": "运行了 {{detail}}",
     "verbSearch": "搜索了 {{detail}}",

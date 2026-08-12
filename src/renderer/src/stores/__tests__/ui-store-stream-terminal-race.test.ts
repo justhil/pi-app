@@ -208,24 +208,25 @@ describe('foreground stream terminal ordering', () => {
   })
 
   it('should_reuse_only_the_matching_optimistic_user_row', () => {
+    const command = '/skill:demo-skill explain this'
     useUIStore.setState({
       timelineItems: [
         {
           id: 'opt-user-1',
           type: 'user-message',
-          text: 'continue',
+          text: command,
           timestamp: 1,
         },
       ],
       streamingAssistantId: null,
-      optimisticPendingUserText: 'continue',
+      optimisticPendingUserText: command,
     })
 
     useUIStore.getState().processEvent({
       type: 'message',
       role: 'user',
       phase: 'start',
-      text: 'continue',
+      text: command,
       runId: 'run-2',
       seq: 7,
       workspaceId: '/workspace',
@@ -235,6 +236,7 @@ describe('foreground stream terminal ordering', () => {
 
     const state = useUIStore.getState()
     expect(state.timelineItems.filter((item) => item.type === 'user-message')).toHaveLength(1)
+    expect(state.timelineItems.find((item) => item.type === 'user-message')?.text).toBe(command)
     expect(state.optimisticPendingUserText).toBeNull()
   })
 

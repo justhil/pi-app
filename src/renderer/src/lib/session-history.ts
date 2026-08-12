@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 
 export interface GetMessagesResult {
   items: unknown[]
@@ -21,6 +22,10 @@ const sliceCache = new Map<
 const SLICE_TTL_MS = 120_000
 const INITIAL_TAIL = 80
 const PAGE = 80
+
+function activeWorkspace(): string | undefined {
+  return useUIStore.getState().currentWorkspace || undefined
+}
 
 function cacheKey(sessionFile: string, offset: number, limit: number) {
   return `${sessionFile}|${offset}|${limit}`
@@ -46,6 +51,7 @@ export async function fetchSessionHistoryTail(
   }
   const res = await ipcClient.invoke('session.getMessages', {
     sessionFile,
+    workspaceId: activeWorkspace(),
     offset: 0,
     limit,
     ...(opts?.leafId !== undefined ? { leafId: opts.leafId } : {}),
@@ -77,7 +83,12 @@ export async function fetchSessionHistoryOlder(
   if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
     return { items: hit.items, sourceCount: hit.sourceCount, totalCount: hit.totalCount }
   }
-  const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset, limit })
+  const res = await ipcClient.invoke('session.getMessages', {
+    sessionFile,
+    workspaceId: activeWorkspace(),
+    offset,
+    limit,
+  })
   const items = res?.items || []
   const sourceCount =
     typeof (res as { sourceCount?: number })?.sourceCount === 'number'
@@ -106,6 +117,7 @@ export async function getSessionMessagesFromDiskViaIpc(
 ): Promise<GetMessagesResult> {
   const res = await ipcClient.invoke('session.getMessages', {
     sessionFile,
+    workspaceId: activeWorkspace(),
     offset: 0,
     limit: 80,
     ...(leafId !== undefined ? { leafId } : {}),

@@ -355,6 +355,7 @@ describe('live-session-timeline-cache', () => {
 
   it('should_reuse_background_optimistic_user_row', () => {
     const sessionFile = '/tmp/background-optimistic-user.jsonl'
+    const command = '/skill:demo-skill explain this'
     saveLiveSessionTimeline({
       sessionId: 'session-1',
       sessionFile,
@@ -362,7 +363,7 @@ describe('live-session-timeline-cache', () => {
         {
           id: 'opt-user-1',
           type: 'user-message',
-          text: 'continue',
+          text: command,
           timestamp: 1,
         },
       ],
@@ -370,7 +371,7 @@ describe('live-session-timeline-cache', () => {
       runState: { status: 'running', toolCount: 0, errorCount: 0 },
       pendingSteering: [],
       pendingFollowUp: [],
-      optimisticPendingUserText: 'continue',
+      optimisticPendingUserText: command,
       agentTurnBootstrapping: true,
     })
 
@@ -378,7 +379,7 @@ describe('live-session-timeline-cache', () => {
       type: 'message',
       role: 'user',
       phase: 'start',
-      text: 'continue',
+      text: command,
       runId: 'run-1',
       seq: 2,
       workspaceId: '/workspace',
@@ -388,6 +389,7 @@ describe('live-session-timeline-cache', () => {
 
     const snapshot = getLiveSessionTimeline(sessionFile)
     expect(snapshot?.timelineItems.filter((item) => item.type === 'user-message')).toHaveLength(1)
+    expect(snapshot?.timelineItems.find((item) => item.type === 'user-message')?.text).toBe(command)
     expect(snapshot?.optimisticPendingUserText).toBeNull()
     expect(snapshot?.agentTurnBootstrapping).toBe(false)
   })

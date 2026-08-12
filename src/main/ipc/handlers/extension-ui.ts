@@ -8,6 +8,11 @@ export function registerExtensionUiHandlers(): void {
     return { ok: true }
   })
 
+  registerHandler('ipc:extension.cancelUI', async (req) => {
+    workerManager.cancelExtensionUI(req.id, req.reason ?? 'renderer-cancel')
+    return { ok: true }
+  })
+
   registerHandler('ipc:extension.config.get', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
     return { config: configStore.getExtensionConfig(workspaceId, req.extensionId) || {} }

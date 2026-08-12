@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+import { PassThrough } from 'node:stream'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -14,6 +16,7 @@ vi.mock('child_process', () => ({
 import {
   decodeWslOutput,
   runWslSync,
+  runWslAsync,
   runWslDistroCdSync,
   wslDefaultShellSync,
   wslHomeDirSync,
@@ -108,6 +111,36 @@ describe('runWslSync', () => {
     expect(r.status).toBe(1)
     expect(r.stdout).toBe('Debian')
     expect(r.stderr).toBe('Error text')
+  })
+})
+
+describe('runWslAsync', () => {
+  beforeEach(() => {
+    mocks.spawn.mockReset()
+  })
+
+  it('kills the child with a stable error when stdout exceeds maxBuffer', async () => {
+    const child = new EventEmitter() as EventEmitter & {
+      stdout: PassThrough
+      stderr: PassThrough
+      kill: ReturnType<typeof vi.fn>
+    }
+    child.stdout = new PassThrough()
+    child.stderr = new PassThrough()
+    child.kill = vi.fn()
+    mocks.spawn.mockReturnValue(child)
+
+    const result = runWslAsync(['-d', 'Debian', '--', 'git', 'diff'], {
+      timeout: 5000,
+      maxBuffer: 4,
+    })
+    child.stdout.write(Buffer.from('12345'))
+
+    await expect(result).resolves.toMatchObject({
+      status: -1,
+      stderr: 'WSL process output exceeded maxBuffer',
+    })
+    expect(child.kill).toHaveBeenCalledOnce()
   })
 })
 

@@ -17,7 +17,10 @@ import { errorMessage } from '@shared/error-message'
 import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 
-export type WorkerModelRuntime = Pick<ModelRuntime, 'getModel' | 'getAvailable' | 'refresh'>
+export type WorkerModelRuntime = Pick<
+  ModelRuntime,
+  'getModel' | 'getModels' | 'getAvailable' | 'refresh' | 'getProviderAuthStatus' | 'listCredentials'
+>
 
 export type WorkerMutableState = {
   sdk: typeof import('@earendil-works/pi-coding-agent') | null

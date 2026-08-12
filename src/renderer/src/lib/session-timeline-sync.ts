@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
+import { useUIStore } from '@renderer/stores/ui-store'
 import {
   isTimelineCatchUpComplete,
   planTimelineTailFetch,
@@ -25,7 +26,8 @@ export async function fetchTimelineHistoryPage(
 }
 
 async function fetchPage(sessionFile: string, offset: number, limit: number): Promise<HistoryPage> {
-  const res = await ipcClient.invoke('session.getMessages', { sessionFile, offset, limit })
+  const workspaceId = useUIStore.getState().currentWorkspace || undefined
+  const res = await ipcClient.invoke('session.getMessages', { sessionFile, workspaceId, offset, limit })
   const err = (res as { error?: string })?.error
   if (err) return { items: [], sourceCount: 0, totalCount: 0, error: err }
   const sourceItems = (res?.items || []) as TimelineItem[]
