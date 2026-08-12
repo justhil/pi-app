@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
+import { QuestionnaireOptions } from './questionnaire-options'
+import { QuestionnaireFooter } from './questionnaire-footer'
 
 export type AskQuestionPayload = {
   question: string
@@ -29,11 +31,12 @@ export function QuestionnaireDialog({
   const [singleChoice, setSingleChoice] = useState<Record<number, string>>({})
   const [multiChoice, setMultiChoice] = useState<Record<number, string[]>>({})
   const [customText, setCustomText] = useState<Record<number, string>>({})
+  const [previewChoice, setPreviewChoice] = useState<Record<number, string>>({})
 
   const q = questions[tab]
   const isLast = tab >= questions.length - 1
 
-  const submitAll = () => {
+  const submitAll = (single = singleChoice) => {
     const answers = questions.map((question, questionIndex) => {
       const custom = customText[questionIndex]?.trim()
       if (custom) {
@@ -52,7 +55,7 @@ export function QuestionnaireDialog({
         questionIndex,
         question: question.question,
         kind: 'option' as const,
-        answer: singleChoice[questionIndex] || null,
+        answer: single[questionIndex] || null,
       }
     })
     onSubmit({ cancelled: false, answers })
@@ -71,58 +74,26 @@ export function QuestionnaireDialog({
   const hasPreviewLayout =
     !q.multiSelect && q.options.some((o) => typeof o.preview === 'string' && o.preview.length > 0)
   const selectedLabel = singleChoice[tab]
-  const previewOpt = q.options.find((o) => o.label === selectedLabel)
+  const previewOpt = q.options.find((o) => o.label === (previewChoice[tab] || selectedLabel))
   const previewText =
     typeof previewOpt?.preview === 'string' && previewOpt.preview.length > 0
       ? previewOpt.preview
       : q.options.find((o) => typeof o.preview === 'string' && o.preview)?.preview
 
-  const optionList = (
-    <div className="space-y-2">
-      {q.options.map((opt) => {
-        const checked = q.multiSelect
-          ? (multiChoice[tab] || []).includes(opt.label)
-          : singleChoice[tab] === opt.label
-        return (
-          <button
-            key={opt.label}
-            type="button"
-            onClick={() => {
-              if (q.multiSelect) {
-                const prev = multiChoice[tab] || []
-                setMultiChoice({
-                  ...multiChoice,
-                  [tab]: checked ? prev.filter((x) => x !== opt.label) : [...prev, opt.label],
-                })
-              } else {
-                setSingleChoice({ ...singleChoice, [tab]: opt.label })
-              }
-            }}
-            className={cn(
-              'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
-              checked ? 'border-primary/50 bg-accent' : 'hover:bg-accent/40',
-            )}
-          >
-            <span
-              className={cn(
-                'mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2',
-                checked ? 'border-primary bg-primary' : 'border-muted-foreground/40',
-              )}
-            />
-            <div className="min-w-0">
-              <div className="text-[13px] font-medium">{opt.label}</div>
-              {opt.description && (
-                <div className="text-[12px] text-muted-foreground">{opt.description}</div>
-              )}
-              {opt.hasPreview && !opt.preview && (
-                <div className="text-[10px] text-amber-600/80">含预览（选此项后右侧显示）</div>
-              )}
-            </div>
-          </button>
-        )
-      })}
-    </div>
-  )
+  const chooseSingle = (label: string) => {
+    const next = { ...singleChoice, [tab]: label }
+    setSingleChoice(next)
+    if (isLast) submitAll(next)
+    else setTab(tab + 1)
+  }
+
+  const toggleMulti = (label: string, checked: boolean) => {
+    const previous = multiChoice[tab] || []
+    setMultiChoice({
+      ...multiChoice,
+      [tab]: checked ? [...previous, label] : previous.filter((value) => value !== label),
+    })
+  }
 
   return (
     <div
@@ -162,7 +133,23 @@ export function QuestionnaireDialog({
             hasPreviewLayout && 'grid grid-cols-1 gap-4 md:grid-cols-2',
           )}
         >
-          <div>{optionList}</div>
+          <div>
+            <QuestionnaireOptions
+              question={q}
+              singleValue={singleChoice[tab]}
+              multiValue={multiChoice[tab] || []}
+              onSingleChange={chooseSingle}
+              onMultiChange={toggleMulti}
+              onPreview={(label) => setPreviewChoice({ ...previewChoice, [tab]: label })}
+            />
+            <textarea
+              className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px]"
+              rows={2}
+              placeholder="自定义答案…"
+              value={customText[tab] || ''}
+              onChange={(e) => setCustomText({ ...customText, [tab]: e.target.value })}
+            />
+          </div>
           {hasPreviewLayout && (
             <div className="min-h-[120px] rounded-lg border border-border/60 bg-muted/30 p-3">
               <div className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
@@ -177,63 +164,18 @@ export function QuestionnaireDialog({
               )}
             </div>
           )}
-          {!hasPreviewLayout && !q.multiSelect && (
-            <textarea
-              className="mt-4 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px]"
-              rows={2}
-              placeholder="自定义答案…"
-              value={customText[tab] || ''}
-              onChange={(e) => setCustomText({ ...customText, [tab]: e.target.value })}
-            />
-          )}
         </div>
 
-        <div className="flex justify-between border-t px-5 py-3">
-          <div className="flex gap-3">
-            <button
-              type="button"
-              className="text-[13px] text-muted-foreground hover:text-foreground"
-              onClick={onSuspend}
-            >
-              稍后作答
-            </button>
-            <button
-              type="button"
-              className="text-[13px] text-destructive/80 hover:text-destructive"
-              onClick={onCancel}
-            >
-              取消并通知扩展
-            </button>
-          </div>
-          <div className="flex gap-2">
-            {tab > 0 && (
-              <button
-                type="button"
-                className="rounded-md border px-3 py-1.5 text-[13px]"
-                onClick={() => setTab(tab - 1)}
-              >
-                上一题
-              </button>
-            )}
-            {!isLast ? (
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground"
-                onClick={() => setTab(tab + 1)}
-              >
-                下一题
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="rounded-md bg-primary px-3 py-1.5 text-[13px] text-primary-foreground"
-                onClick={submitAll}
-              >
-                提交
-              </button>
-            )}
-          </div>
-        </div>
+        <QuestionnaireFooter
+          tab={tab}
+          isLast={isLast}
+          canAdvance={!!q.multiSelect || !!customText[tab]?.trim()}
+          onPrevious={() => setTab(tab - 1)}
+          onNext={() => setTab(tab + 1)}
+          onSubmit={() => submitAll()}
+          onSuspend={onSuspend}
+          onCancel={onCancel}
+        />
       </div>
     </div>
   )
