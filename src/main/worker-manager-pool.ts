@@ -200,7 +200,15 @@ export function attachWorkerHandlers(
       const method = req?.method || ''
       const fg = opts.getForegroundPoolKey?.() ?? null
       const isForeground = !fg || fg === slot.poolKey
-      if (!isForeground && method !== 'notify') return
+      if (!isForeground && method !== 'notify') {
+        if (req.id) {
+          slot.worker?.postMessage({
+            type: 'extension-ui-cancel',
+            cancel: { id: req.id, reason: 'background-session' },
+          })
+        }
+        return
+      }
       const allow =
         method !== 'notify' || slot.agentTurnActive || req.notifyType === 'error'
       if (!allow) return
