@@ -66,6 +66,13 @@ export const sessionPrepareSchema = z.object({
   bind: z.boolean().optional(),
 })
 
+export const contextPreviewSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1),
+  })
+  .strict()
+
 export const workspaceOpenSchema = z.object({
   path: z.string().min(1),
   awaitWorker: z.boolean().optional(),
@@ -152,6 +159,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   language: z.enum(['zh', 'en']),
   currentProject: z.string().nullable(),
   recentProjects: z.array(z.string()),
+  recentProjectsFixedOrder: z.boolean(),
   autoOpenLastProject: z.boolean(),
   autoCheckRegistryUpdates: z.boolean(),
   ignoredUpdateVersion: z.string(),

@@ -191,11 +191,25 @@ export function insertAttachmentAtCursor(el: HTMLElement, meta: AttachmentMeta) 
   frag.appendChild(chip)
   frag.appendChild(after)
   range.insertNode(frag)
+  // Normalize before placing the caret: normalize may merge the ZWSP with adjacent text
+  // (e.g. "\u200Bcd"); a selection referencing the merged ZWSP node would lose the caret.
+  // The chip is an element, so normalize never removes it.
   el.normalize()
-  range.setStartAfter(after)
-  range.setEndAfter(after)
-  sel?.removeAllRanges()
-  sel?.addRange(range)
+  const chipNext = chip.nextSibling
+  if (sel) {
+    const caretRange = document.createRange()
+    if (chipNext && chipNext.nodeType === Node.TEXT_NODE) {
+      // Place the caret after the chip: offset 1 into the following text node (after the ZWSP,
+      // which may already be merged with the following text).
+      caretRange.setStart(chipNext, 1)
+      caretRange.setEnd(chipNext, 1)
+    } else {
+      caretRange.setStartAfter(chip)
+      caretRange.setEndAfter(chip)
+    }
+    sel.removeAllRanges()
+    sel.addRange(caretRange)
+  }
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 

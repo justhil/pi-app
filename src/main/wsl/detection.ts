@@ -9,6 +9,7 @@
  */
 
 import {
+  isValidWslDistroName,
   runWslAsync,
   runWslDistroAsync,
   runWslDistroCdAsync,
@@ -151,6 +152,11 @@ async function runProbeWslDistroAsync(distro: string): Promise<WslProbeResult> {
     supportsCd: true,
   }
 
+  if (!isValidWslDistroName(distro)) {
+    result.error = 'invalid wsl distro'
+    return result
+  }
+
   const home = await wslHomeDirAsync(distro)
   if (!home) {
     result.error = 'WSL 发行版不可用或尚未初始化'
@@ -185,9 +191,14 @@ async function runProbeWslDistroAsync(distro: string): Promise<WslProbeResult> {
 
   result.ok = result.node && result.npm
   if (!result.ok) {
-    result.error = result.node
-      ? '检测到 Node，但未找到 npm'
-      : 'WSL 内未检测到 Node.js'
+    result.error = result.node ? '检测到 Node，但未找到 npm' : 'WSL 内未检测到 Node.js'
   }
   return result
 }
+
+/**
+ * 上游命名兼容别名：host 侧 settings/wsl handlers 仍以 `listWslDistros` /
+ * `probeWslDistro` 引用，内部即带 TTL 缓存与单飞行的异步实现。
+ */
+export const listWslDistros = listWslDistrosAsync
+export const probeWslDistro = probeWslDistroAsync

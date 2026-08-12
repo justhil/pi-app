@@ -57,6 +57,8 @@
     "langZh": "中文",
     "langEn": "English",
     "recentProjects": "Recent projects",
+    "fixedOrder": "Keep project order fixed",
+    "fixedOrderDesc": "Keep the project list order stable when opening projects (new ones append to the end); off = most recently used first (default)",
     "noRecentProjects": "No recent projects yet",
     "noRecentProjectsHint": "Open a workspace to see it here"
   },
@@ -84,7 +86,7 @@
     "missingNpm": "no npm",
     "missingGit": "no git",
     "missingPi": "no pi",
-    "noCdFlag": "distro lacks --cd (will fall back to home dir)"
+    "noCdFlag": "distro lacks --cd (will use a shell cwd fallback)"
   },
   "appearance": {
     "timeline": "Timeline",

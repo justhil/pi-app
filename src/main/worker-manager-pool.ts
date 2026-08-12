@@ -19,9 +19,9 @@ import { syncWorkerBundleToWsl } from './wsl/worker-host'
 function createSlot(
   poolKey: string,
   cwd: string,
+  runtime: WorkerRuntimeIdentity,
   worker: WorkerTransport,
   sessionFile: string | null = null,
-  runtime: WorkerRuntimeIdentity = { mode: 'host', distro: null },
 ): WorkerSlot {
   const now = Date.now()
   return {
@@ -313,10 +313,7 @@ export async function forkWorkerForCwd(
     const activeSdk = resolveActiveSdk(app.getPath('userData'))
     sdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
   }
-  const slot = createSlot(poolKey, cwd, transport, opts?.sessionFile ?? null, {
-    mode: runtime.mode,
-    distro: runtime.distro,
-  })
+  const slot = createSlot(poolKey, cwd, runtime, transport, opts?.sessionFile ?? null)
   const initPromise = new Promise<WorkerInitResult>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (slot.worker !== transport) return
@@ -348,19 +345,19 @@ export function evictBackgroundWorkers(
   foregroundKey: string,
   _keepKey?: string | null,
 ): void {
-  evictIdleWorkers(pool, {
+  void evictIdleWorkers(pool, {
     foregroundKey,
     maxWorkers: readMaxSessionWorkers(),
   })
 }
 
-export function evictIdleWorkers(
+export async function evictIdleWorkers(
   pool: Map<string, WorkerSlot>,
   opts: {
     foregroundKey: string | null
     maxWorkers?: number
   },
-): void {
+): Promise<void> {
   const maxWorkers = opts.maxWorkers ?? readMaxSessionWorkers()
   // Hard capacity: dispose oldest-foreground idle first. UI focus changes alone
   // never dispose idle workers; TTL cleanup is owned by pruneIdleWorkersByTimeout.
@@ -376,11 +373,8 @@ export function evictIdleWorkers(
     }
     if (!victimKey) break
     const s = pool.get(victimKey)!
-    void disposeWorkerSlot(s).then(() => {
-      if (pool.get(victimKey!) === s) pool.delete(victimKey!)
-    })
-    // Sync delete so while loop progresses even if dispose is async
     pool.delete(victimKey)
+    await disposeWorkerSlot(s)
   }
 }
 

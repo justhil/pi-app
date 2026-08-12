@@ -1,4 +1,4 @@
-import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
+import { buildSessionContextPreview } from '@shared/session-context-preview'
 import { errorMessage } from '@shared/error-message'
 import type { WorkerCommandRow, WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -91,89 +91,13 @@ export async function handleGetcommands(msg: WorkerIncomingMessage, reply: Worke
 
 export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
-          const lines: string[] = []
-          const segments: { index: number; role: string; chars: number; preview: string; label?: string }[] = []
-          let msgCount = 0
-          let estChars = 0
-          const roleCharTotals: Record<string, number> = {}
-
-          const addRoleChars = (roleKey: string, chars: number) => {
-            if (chars <= 0) return
-            roleCharTotals[roleKey] = (roleCharTotals[roleKey] || 0) + chars
-          }
-
-          const normalizeRoleBucket = (role: string): string => {
-            if (role === 'user') return 'user'
-            if (role === 'assistant') return 'assistant'
-            if (role === 'toolResult' || role === 'tool') return 'tool'
-            if (role === 'system') return 'system'
-            if (role === 'compactionSummary' || role === 'branchSummary') return 'summary'
-            return 'other'
-          }
-
-          if (st.session) {
-            const systemPromptText =
-              typeof st.session.systemPrompt === 'string' ? st.session.systemPrompt : ''
-            const systemChars = systemPromptText.length
-            if (systemChars > 0) {
-              addRoleChars('system', systemChars)
-              estChars += systemChars
-              segments.push({
-                index: 0,
-                role: 'system',
-                chars: systemChars,
-                preview: systemPromptText.slice(0, 280),
-                label: 'system',
-              })
-            }
-
-            for (const m of st.session.messages || []) {
-              msgCount++
-              const hm = m as PiSessionMessage
-              const t = extractTextFromPiMessage(hm)
-              estChars += t.length
-              const role = hm.role || '?'
-              addRoleChars(normalizeRoleBucket(role), t.length)
-              let label: string | undefined
-              if (role === 'toolResult' && hm.toolName) label = hm.toolName
-              if (role === 'assistant' && Array.isArray(hm.content)) {
-                const tools = hm.content
-                  .filter((c) => (c as { type?: string }).type === 'toolCall')
-                  .map((c) => (c as { toolCall?: { name?: string } }).toolCall?.name)
-                  .filter(Boolean)
-                if (tools.length) label = tools.join(', ')
-              }
-              segments.push({
-                index: segments.length,
-                role,
-                chars: t.length,
-                preview: t.slice(0, 280),
-                label,
-              })
-              if (lines.length < 12 && t) {
-                lines.push(`[${role}] ${t.slice(0, 200)}${t.length > 200 ? '…' : ''}`)
-              }
-            }
-          }
-
-          const roleOrder = ['system', 'user', 'assistant', 'tool', 'summary', 'other'] as const
-          const roleBreakdown = roleOrder
-            .filter((key) => (roleCharTotals[key] || 0) > 0)
-            .map((key) => ({
-              role: key,
-              chars: roleCharTotals[key] || 0,
-            }))
-
           reply({
             type: 'getSessionContextPreview-done',
-            preview: {
+            preview: buildSessionContextPreview({
               sessionId: st.currentSessionId,
-              messageCount: msgCount,
-              estimatedChars: estChars,
-              snippets: lines,
-              segments,
-              roleBreakdown,
-            },
+              sessionFile: st.session?.sessionFile || String(msg.sessionFile || ''),
+              messages: st.session?.messages,
+            }),
           })
         } catch (e: unknown) {
           reply({ type: 'error', error: `getSessionContextPreview failed: ${errorMessage(e)}` })

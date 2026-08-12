@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { handleGetmodels, handleReloadmodels } from './worker-handlers-catalog'
+import {
+  handleGetmodels,
+  handleGetsessioncontextpreview,
+  handleReloadmodels,
+} from './worker-handlers-catalog'
 import { st, type WorkerModelRuntime } from '../worker-runtime'
 
 function modelRuntimeWith(options?: {
@@ -15,6 +19,8 @@ function modelRuntimeWith(options?: {
 
 afterEach(() => {
   st.modelRuntime = null
+  st.session = null
+  st.currentSessionId = ''
 })
 
 describe('worker model catalog handlers', () => {
@@ -48,6 +54,29 @@ describe('worker model catalog handlers', () => {
         maxOutput: 0,
         available: true,
       }],
+    })
+  })
+})
+
+describe('worker context preview handler', () => {
+  it('uses the persisted-message metric even when the live session has a system prompt', async () => {
+    st.currentSessionId = 'session-a'
+    st.session = {
+      sessionFile: '/sessions/a.jsonl',
+      systemPrompt: 'live-only-system-prompt',
+      messages: [{ role: 'user', content: 'hello' }],
+    } as never
+    const reply = vi.fn()
+
+    await handleGetsessioncontextpreview({ sessionFile: '/sessions/a.jsonl' }, reply)
+
+    expect(reply).toHaveBeenCalledWith({
+      type: 'getSessionContextPreview-done',
+      preview: expect.objectContaining({
+        sessionFile: '/sessions/a.jsonl',
+        estimatedChars: 5,
+        roleBreakdown: [{ role: 'user', chars: 5 }],
+      }),
     })
   })
 })

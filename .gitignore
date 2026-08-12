@@ -55,6 +55,9 @@ AGENTS.md
 .pi/
 .trellis/
 
+# Understand-Anything knowledge graph (local analysis artifact, not app source)
+.ua/
+
 # Generated / scratch / test artifacts
 .image-gen/
 screenshot*.png

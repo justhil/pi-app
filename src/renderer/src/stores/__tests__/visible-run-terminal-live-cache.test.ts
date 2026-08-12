@@ -42,7 +42,6 @@ describe('visible run terminal retires stale live cache', () => {
       agentTurnBootstrapping: false,
       pendingSteering: [],
       pendingFollowUp: [],
-      ignoreQueueSyncUntil: 0,
       sessionRuntimeRunning: { [sessionFile]: true },
       workerLiveSnapshot: { sessionId: 'session-1', sessionFile, status: 'running' },
       runState: { status: 'running', activeRunId: 'run-1', toolCount: 0, errorCount: 0 },

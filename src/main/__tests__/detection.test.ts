@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../wsl/wsl-exec', () => ({
+  isValidWslDistroName: (distro: string) => /^[A-Za-z0-9._-]+$/.test(distro),
   runWslAsync: mocks.runWslAsync,
   runWslDistroAsync: mocks.runWslDistroAsync,
   runWslDistroCdAsync: mocks.runWslDistroCdAsync,

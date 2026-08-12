@@ -203,7 +203,11 @@ export function WorkspaceFilesPanel() {
       <div
         className={cn('files-split-grid min-h-0 flex-1', explorerCollapsed && 'files-split-grid--collapsed')}
         style={{
-          gridTemplateColumns: explorerCollapsed ? 'minmax(0, 1fr) 0px' : 'minmax(0, 1fr) 220px',
+          // Tree rail adapts to the panel width instead of a fixed 220px: it grows with wider
+          // panels (up to 240px) and yields space to the preview on narrow ones (min 150px).
+          gridTemplateColumns: explorerCollapsed
+            ? 'minmax(0, 1fr) 0px'
+            : 'minmax(0, 1fr) minmax(150px, min(240px, 38%))',
         }}
       >
         <div className="files-preview-scroll flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--bg-base)]">

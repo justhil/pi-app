@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, FolderOpen, Inbox, Plus } from '@renderer/components/icons'
@@ -18,6 +18,7 @@ import {
   type SandboxEntry,
   type SessionItem,
 } from './project-sidebar-types'
+import { projectFolderOrder } from './project-folder-order'
 import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow } from './project-sidebar-rows'
 
 export function ProjectSidebar({
@@ -38,6 +39,8 @@ export function ProjectSidebar({
   const [loadingSessionPaths, setLoadingSessionPaths] = useState<Set<string>>(() => new Set())
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
+  const [recentProjectsFixedOrder, setRecentProjectsFixedOrder] = useState(false)
+  const fixedOrderRef = useRef(false)
   const [sectionOpen, setSectionOpen] = useState(true)
 
   const refreshSandboxes = useCallback(() => {
@@ -84,8 +87,7 @@ export function ProjectSidebar({
     return () => window.removeEventListener('pi-desktop:sandboxes-changed', onChanged)
   }, [refreshSandboxes])
 
-  useEffect(() => {
-    refreshSandboxes()
+  const reloadSidebarSettings = useCallback(() => {
     ipcClient
       .invoke('settings.get', { key: 'recentProjects' })
       .then((res) => {
@@ -94,19 +96,53 @@ export function ProjectSidebar({
           const diskOnly = list.filter((p) => !isSandboxPath(p))
           const merged = [...diskOnly]
           if (currentWorkspace && !isSandboxPath(currentWorkspace) && !merged.includes(currentWorkspace)) {
-            merged.unshift(currentWorkspace)
+            if (fixedOrderRef.current) merged.push(currentWorkspace)
+            else merged.unshift(currentWorkspace)
           }
-          useUIStore.setState({ recentProjects: [...new Set(merged)].slice(0, 16) })
+          const next = [...new Set(merged)].slice(0, 16)
+          useUIStore.setState((state) => {
+            // 顺序/内容无变化时保持引用稳定，避免固定顺序下每次切换工作区都触发整个侧栏重渲染
+            const prev = state.recentProjects
+            if (prev.length === next.length && prev.every((p, i) => p === next[i])) return {}
+            return { recentProjects: next }
+          })
         }
       })
       .catch(() => {})
-  }, [refreshSandboxes, currentWorkspace])
+    ipcClient
+      .invoke('settings.get', { key: 'recentProjectsFixedOrder' })
+      .then((res) => {
+        const v = res?.settings?.recentProjectsFixedOrder === true
+        fixedOrderRef.current = v
+        setRecentProjectsFixedOrder(v)
+      })
+      .catch(() => {})
+  }, [currentWorkspace])
+
+  useEffect(() => {
+    refreshSandboxes()
+    reloadSidebarSettings()
+  }, [refreshSandboxes, reloadSidebarSettings])
+
+  useEffect(() => {
+    const onSettingsChanged = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { key?: string } | undefined
+      if (!detail?.key || detail.key === 'recentProjects' || detail.key === 'recentProjectsFixedOrder') {
+        reloadSidebarSettings()
+      }
+    }
+    window.addEventListener('pi-desktop:settings-changed', onSettingsChanged)
+    return () => window.removeEventListener('pi-desktop:settings-changed', onSettingsChanged)
+  }, [reloadSidebarSettings])
 
   // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
     if (!currentWorkspace || isSandboxPath(currentWorkspace)) return
     const frame = requestAnimationFrame(() => {
-      setExpandedPaths((previous) => new Set(previous).add(currentWorkspace))
+      setExpandedPaths((previous) => {
+        if (previous.has(currentWorkspace)) return previous
+        return new Set(previous).add(currentWorkspace)
+      })
       void loadWorkspaceSessions(currentWorkspace)
     })
     return () => cancelAnimationFrame(frame)
@@ -124,14 +160,11 @@ export function ProjectSidebar({
     return () => window.removeEventListener('pi-desktop:workspace-sessions', onWorkspaceSessions)
   }, [])
 
-  const diskPaths = (() => {
-    const set = new Set<string>()
-    if (currentWorkspace && !isSandboxPath(currentWorkspace)) set.add(currentWorkspace)
-    for (const p of recentProjects) {
-      if (!isSandboxPath(p)) set.add(p)
-    }
-    return [...set]
-  })()
+  const diskPaths = useMemo(() => {
+    const diskRecent = recentProjects.filter((p) => !isSandboxPath(p))
+    const diskCurrent = currentWorkspace && !isSandboxPath(currentWorkspace) ? currentWorkspace : null
+    return projectFolderOrder(diskRecent, diskCurrent, recentProjectsFixedOrder)
+  }, [recentProjects, currentWorkspace, recentProjectsFixedOrder])
 
   const switchDiskProject = async (path: string) => {
     if (path === currentWorkspace && !ephemeralSandboxDraft) return
@@ -192,7 +225,16 @@ export function ProjectSidebar({
   const mergedSessionsByWorkspace = useMemo(() => {
     const next = { ...sessionsByWorkspace }
     if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
-      next[currentWorkspace] = sessions
+      // store.sessions 是当前工作区的实时列表：新建 / fork / 删除都会更新它（不一定发布
+      // workspace-sessions 事件）。一旦实时列表非空就以它为准——否则新建/fork 的新会话会被
+      // 旧缓存遮蔽，侧栏一直显示旧列表直到手动刷新。
+      // 仅当切换工作区产生的瞬态空列表（setWorkspace 同步清空 sessions）且有缓存键时
+      // 才保留缓存，避免每次切换都闪“加载中”；空列表且无缓存则直接回填空列表。
+      if (sessions.length > 0) {
+        next[currentWorkspace] = sessions
+      } else if (!(currentWorkspace in next)) {
+        next[currentWorkspace] = sessions
+      }
     }
     return next
   }, [sessionsByWorkspace, currentWorkspace, sessions])

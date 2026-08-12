@@ -8,8 +8,12 @@ export function enterNewSessionPlaceholder(): void {
   useUIStore.getState().enterPendingNewSessionPlaceholder()
 }
 
-/** 首条消息：创建真实 session 并刷新侧栏 */
-export async function materializePendingNewSession(workspaceId: string, firstMessage: string): Promise<void> {
+/** 首条消息：创建真实 session，并在拿到 sessionFile 后立即回调。 */
+export async function materializePendingNewSession(
+  workspaceId: string,
+  firstMessage: string,
+  onSessionCreated?: (sessionFile: string) => void,
+): Promise<void> {
   if (!workspaceId) return
   const store = useUIStore.getState()
 
@@ -27,6 +31,7 @@ export async function materializePendingNewSession(workspaceId: string, firstMes
   store.clearFileChanges()
   if (sessionFile) {
     store.setHistoryMeta(0, 0, sessionFile)
+    onSessionCreated?.(sessionFile)
     // session.new 后 Worker 已是新会话，勿 setPendingBind（否则 prompt.send 会再 loadSession 卡很久）
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
   }

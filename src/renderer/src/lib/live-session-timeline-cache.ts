@@ -104,6 +104,24 @@ export function getLiveSessionTimeline(sessionFile: string): LiveSessionTimeline
   }
 }
 
+export function updateLiveSessionTimeline(
+  sessionFile: string,
+  update: (snapshot: LiveSessionTimelineSnapshot) => LiveSessionTimelineSnapshot,
+): void {
+  const key = cacheKey(sessionFile)
+  if (!key) return
+  flushBackgroundLiveDeltasSync(key)
+  const snapshot = liveTimelines.get(key)
+  if (!snapshot) return
+  saveLiveSessionTimeline(update({
+    ...snapshot,
+    timelineItems: cloneItems(snapshot.timelineItems),
+    persistedEntryOverlap: [...(snapshot.persistedEntryOverlap ?? [])],
+    pendingSteering: [...snapshot.pendingSteering],
+    pendingFollowUp: [...snapshot.pendingFollowUp],
+  }))
+}
+
 export function clearLiveSessionTimeline(sessionFile?: string | null): void {
   if (sessionFile) {
     const key = cacheKey(sessionFile)

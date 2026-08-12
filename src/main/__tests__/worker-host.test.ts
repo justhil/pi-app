@@ -70,12 +70,13 @@ vi.mock('fs', () => {
   return { ...fns, default: fns }
 })
 
-import { spawnWorkerInWsl, wslCdFlagSupported, syncWorkerBundleToWsl } from '../wsl/worker-host'
+import { spawnWorkerInWsl, wslCdFlagSupported, syncWorkerBundleToWsl, invalidateWslCdSupportCache } from '../wsl/worker-host'
 
 const WSL_DIR = join(process.cwd(), 'src/main/wsl')
 
 beforeEach(() => {
   mocks.spawn.mockReset()
+  invalidateWslCdSupportCache()
   mocks.runWslDistroCdSync.mockReset()
   mocks.runWslDistroCdSync.mockReturnValue({ status: 0, stdout: '', stderr: '' })
   mocks.fs.files.clear()
@@ -117,20 +118,26 @@ describe('spawnWorkerInWsl', () => {
     }
   })
 
-  it('falls back to shell cd -- when the --cd flag is unsupported', () => {
+  it('uses an argument-safe shell cd fallback when --cd is unsupported', () => {
     mocks.runWslDistroCdSync.mockReturnValue({ status: 1, stdout: '', stderr: 'bad' })
     expect(wslCdFlagSupported('Ubuntu')).toBe(false)
     mocks.spawn.mockReturnValue({})
-    spawnWorkerInWsl({ distro: 'Ubuntu', wslCwd: '/home/u/proj', workerWslPath: '/root/.pi-desktop/worker.mjs' })
+    spawnWorkerInWsl({
+      distro: 'Ubuntu',
+      wslCwd: '/home/u/项目 with spaces',
+      workerWslPath: '/root/.pi-desktop/worker.mjs',
+    })
     const [, args] = mocks.spawn.mock.calls[0]
-    // 旧版 wsl.exe：进程必须经 shell 显式进入项目目录，不能落在发行版默认 home
     expect(args).toEqual([
       '-d',
       'Ubuntu',
       '--',
       'bash',
       '-lc',
-      "cd -- '/home/u/proj' && exec node '/root/.pi-desktop/worker.mjs'",
+      'cd -- "$1" && exec node "$2"',
+      'bash',
+      '/home/u/项目 with spaces',
+      '/root/.pi-desktop/worker.mjs',
     ])
   })
 

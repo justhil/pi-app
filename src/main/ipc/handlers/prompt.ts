@@ -83,17 +83,18 @@ export function registerPromptHandlers(): void {
 
   registerHandler('ipc:prompt.abort', async (req) => {
     const sessionFile = req?.sessionFile as string | undefined
+    if (!sessionFile) {
+      return { aborted: false, ignored: true, reason: 'session_required' }
+    }
     // Always attempt abort for the requested session. Path-normalize match only
     // blocks when getState clearly points at a *different* live session.
-    if (sessionFile) {
-      const want = normalizeSessionKey(sessionFile)
-      const st = await workerManager.getState(sessionFile).catch(() => null)
-      const got = normalizeSessionKey(String((st as { sessionFile?: string } | null)?.sessionFile || ''))
-      const streaming = !!(st as { isStreaming?: boolean } | null)?.isStreaming
-      // Foreign running session — refuse (safety). Idle/missing slot — still abort by key.
-      if (got && want && got !== want && streaming) {
-        return { aborted: false, ignored: true, reason: 'session_mismatch' }
-      }
+    const want = normalizeSessionKey(sessionFile)
+    const st = await workerManager.getState(sessionFile).catch(() => null)
+    const got = normalizeSessionKey(String((st as { sessionFile?: string } | null)?.sessionFile || ''))
+    const streaming = !!(st as { isStreaming?: boolean } | null)?.isStreaming
+    // Foreign running session — refuse (safety). Idle/missing slot — still abort by key.
+    if (got && want && got !== want && streaming) {
+      return { aborted: false, ignored: true, reason: 'session_mismatch' }
     }
     try {
       await workerManager.abort(sessionFile)
@@ -117,7 +118,7 @@ export function registerPromptHandlers(): void {
     const all = [...(cleared.steering || []), ...(cleared.followUp || [])]
     const queuedText = all.join('\n')
     const combined = [queuedText, currentText.trim()].filter(Boolean).join('\n')
-    if (abort) await workerManager.abort(sessionFile)
+    if (abort && sessionFile) await workerManager.abort(sessionFile)
     return { restoredCount: all.length, combinedText: combined }
   })
 }

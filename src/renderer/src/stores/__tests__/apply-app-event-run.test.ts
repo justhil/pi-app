@@ -8,6 +8,7 @@ vi.mock('@renderer/lib/alert-trace', () => ({
 }))
 vi.mock('@renderer/lib/abort-ui-hold', () => ({
   isAbortUiHoldActive: () => false,
+  isAbortQueueIgnoreActive: () => false,
 }))
 vi.mock('@renderer/lib/extension-ui-tool-sync', () => ({
   reconcileAllStaleInteractiveToolRows: vi.fn(),
@@ -43,7 +44,6 @@ function makeApi(): {
     streamingAssistantId: 'opt-asst-1',
     optimisticPendingUserText: null,
     agentTurnBootstrapping: false,
-    ignoreQueueSyncUntil: 0,
     runState,
     setRunState: (patch: Partial<RunState>) => {
       state.runState = { ...(state.runState as RunState), ...patch }
@@ -123,6 +123,26 @@ describe('handleRun idle (agent completion)', () => {
     expect((state.runState as RunState).status).toBe('idle')
     expect(state.streamingAssistantId).toBeNull()
     expect((state.workerLiveSnapshot as { status: string }).status).toBe('idle')
+  })
+
+  it('does not suppress a visible run because another session was just aborted', () => {
+    const { api, state } = makeApi()
+    state.historySessionFile = '/b.jsonl'
+    handleRun(
+      {
+        type: 'run',
+        phase: 'running',
+        seq: 2,
+        workspaceId: '/w',
+        sessionFile: '/b.jsonl',
+        runId: 'run-b',
+        timestamp: Date.now(),
+      } as never,
+      api,
+    )
+
+    expect((state.runState as RunState).status).toBe('running')
+    expect((state.runState as RunState).activeRunId).toBe('run-b')
   })
 
   it('run.state applies runtime model and surfaces modelFallbackMessage', async () => {

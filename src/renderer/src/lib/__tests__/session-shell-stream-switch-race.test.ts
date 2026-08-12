@@ -95,7 +95,6 @@ describe('session shell stream switch race', () => {
         status: 'running',
       },
       fileChanges: [],
-      ignoreQueueSyncUntil: 0,
     })
   })
 

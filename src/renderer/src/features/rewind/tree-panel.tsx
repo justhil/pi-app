@@ -38,10 +38,12 @@ export function TreePanel() {
   }, [sessionFile])
 
   useEffect(() => {
-    if (sessionFile && rawTree.length === 0 && !loading && !treeError) {
-      void refreshSessionTree(sessionFile)
-    }
-  }, [sessionFile, rawTree.length, loading, treeError])
+    // 挂载 / 切换会话（含切到无会话）时刷新：树数据是发送时点刷新后的快照，
+    // 仅凭空树判断会漏掉“新消息已写入 JSONL 但树未更新”的情况（例如压缩排队期间发送）。
+    // sessionFile 变 null 也必须刷新：让请求序号递增，使 A 的在途旧请求失效，
+    // 否则旧树的响应会在空会话 store 里回填。
+    void refreshSessionTree(sessionFile)
+  }, [sessionFile])
 
   const filtered = useMemo(() => filterSessionTreeNodes(rawTree, filter), [rawTree, filter])
   const { nodes: display, truncated, hiddenCount } = useMemo(

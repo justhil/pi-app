@@ -171,14 +171,11 @@ describe('session-shell', () => {
     expect(getSessionView('/tmp/run.jsonl')).not.toBeNull()
   })
 
-  it('composerTurnActive ignores residual runState (Phase A lock)', () => {
+  it('composerTurnActive ignores a running state owned by another session', () => {
     expect(
       composerTurnActive({
         historySessionFile: '/tmp/b.jsonl',
         workerLiveSnapshot: { sessionId: 'b', sessionFile: '/tmp/b.jsonl', status: 'idle' },
-        runState: { status: 'running' },
-        streamingAssistantId: null,
-        optimisticPendingUserText: null,
         sessionRuntimeRunning: { '/tmp/a.jsonl': true },
       }),
     ).toBe(false)

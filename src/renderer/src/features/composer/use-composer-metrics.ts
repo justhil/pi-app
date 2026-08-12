@@ -3,23 +3,14 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
 import type { ContextRoleSlice } from '@renderer/features/run/context-donut'
-
-export type ContextPreview = {
-  messageCount: number
-  estimatedChars: number
-  roleBreakdown?: ContextRoleSlice[]
-}
-
-const RUNNING_CONTEXT_REFRESH_MS = 8000
+import { useSessionContextPreview } from '@renderer/features/context/use-session-context-preview'
 
 export function useComposerMetrics(options?: { enabled?: boolean }) {
   const metricsEnabled = options?.enabled !== false
   const workspace = useUIStore((s) => s.currentWorkspace)
-  const currentSessionId = useUIStore((s) => s.currentSessionId)
   const model = useUIStore((s) => s.runState.model)
   const usage = useUIStore((s) => s.runState.usage)
   const isRunning = useUIStore((s) => s.runState.status === 'running')
-  const historyLoading = useUIStore((s) => s.historyLoading)
   const streamingId = useUIStore((s) => s.streamingAssistantId)
   const streamLen = useUIStore((s) => {
     if (!s.streamingAssistantId) return 0
@@ -27,55 +18,18 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
     return item?.text?.length ?? 0
   })
 
-  const [contextPreview, setContextPreview] = useState<ContextPreview | null>(null)
+  const { preview: rawContextPreview } = useSessionContextPreview({ enabled: metricsEnabled })
+  const contextPreview = rawContextPreview
+    ? {
+        messageCount: rawContextPreview.messageCount,
+        estimatedChars: rawContextPreview.estimatedChars,
+        roleBreakdown: rawContextPreview.roleBreakdown as ContextRoleSlice[],
+      }
+    : null
   const [contextWindow, setContextWindow] = useState<number | null>(null)
   const [tps, setTps] = useState<number | null>(null)
 
   const streamRef = useRef({ id: null as string | null, start: 0, lastLen: 0, lastAt: 0 })
-
-  useEffect(() => {
-    if (!metricsEnabled || !workspace) {
-      setContextPreview(null)
-      return
-    }
-    let cancelled = false
-    const load = () => {
-      if (historyLoading) return
-      if (typeof document !== 'undefined' && document.hidden) return
-      ipcClient
-        .invoke('context.preview')
-        .then((r) => {
-          if (!cancelled && r?.preview) {
-            const rawBreakdown = Array.isArray(r.preview.roleBreakdown)
-              ? (r.preview.roleBreakdown as ContextRoleSlice[])
-              : undefined
-            setContextPreview({
-              messageCount: r.preview.messageCount ?? 0,
-              estimatedChars: r.preview.estimatedChars ?? 0,
-              roleBreakdown: rawBreakdown,
-            })
-          }
-        })
-        .catch(() => {})
-    }
-    // One-shot on session / history settle; poll only while the turn is running and visible.
-    load()
-    if (!isRunning) {
-      return () => {
-        cancelled = true
-      }
-    }
-    const intervalId = window.setInterval(load, RUNNING_CONTEXT_REFRESH_MS)
-    const onVisibility = () => {
-      if (!document.hidden) load()
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      cancelled = true
-      window.clearInterval(intervalId)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [metricsEnabled, workspace, currentSessionId, historyLoading, isRunning])
 
   useEffect(() => {
     if (!metricsEnabled || !workspace || !model) {

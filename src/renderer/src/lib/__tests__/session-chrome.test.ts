@@ -79,7 +79,7 @@ describe('selectSessionChrome', () => {
   })
 
   it('maps abort hold to stopping even after local idle clear', () => {
-    markAbortUiHold(5000)
+    markAbortUiHold('/a.jsonl', 5000)
     const view = selectSessionChrome(
       base({
         runState: { status: 'idle' },
@@ -91,11 +91,22 @@ describe('selectSessionChrome', () => {
     expect(view.showSpinner).toBe(true)
   })
 
+  it('does not project another session abort hold into the visible session', () => {
+    markAbortUiHold('/a.jsonl', 5000)
+
+    const view = selectSessionChrome(base({ historySessionFile: '/b.jsonl' }))
+
+    expect(view.phase).toBe('idle')
+    expect(view.canStop).toBe(false)
+    expect(view.showSpinner).toBe(false)
+  })
+
   it('maps streaming assistant to streaming phase', () => {
     const view = selectSessionChrome(
       base({
         streamingAssistantId: 'a1',
         runState: { status: 'running', activeRunId: 'r1' },
+        sessionRuntimeRunning: { '/a.jsonl': true },
       }),
     )
     expect(view.phase).toBe('streaming')
@@ -108,6 +119,7 @@ describe('selectSessionChrome', () => {
         agentTurnBootstrapping: true,
         optimisticPendingUserText: 'hi',
         runState: { status: 'running' },
+        sessionRuntimeRunning: { '/a.jsonl': true },
       }),
     )
     expect(view.phase).toBe('starting')

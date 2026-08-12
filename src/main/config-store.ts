@@ -4,9 +4,12 @@ import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
 import { bindSecretStoreBacking } from './secret-store'
+import { nextRecentProjects } from './recent-projects'
 
 export interface StoreSchema {
   recentProjects: string[]
+  /** 侧栏项目列表固定顺序（不随打开而置顶）；false = 最近使用排序（默认） */
+  recentProjectsFixedOrder: boolean
   currentProject: string | null
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
   theme: 'light' | 'dark' | 'system'
@@ -60,6 +63,7 @@ const store = new Store<StoreSchema>({
   name: 'pi-desktop',
   defaults: {
     recentProjects: [],
+    recentProjectsFixedOrder: false,
     currentProject: null,
     windowBounds: null,
     theme: 'system',
@@ -125,9 +129,10 @@ export const configStore = {
   },
 
   addRecentProject(path: string): void {
-    const recent = store.get('recentProjects').filter((p: string) => p !== path)
-    recent.unshift(path)
-    store.set('recentProjects', recent.slice(0, 10))
+    store.set(
+      'recentProjects',
+      nextRecentProjects(store.get('recentProjects'), path, store.get('recentProjectsFixedOrder')),
+    )
   },
 
   removeRecentProject(path: string): void {

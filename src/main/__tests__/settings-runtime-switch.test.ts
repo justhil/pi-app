@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => {
     handlers,
     stop: vi.fn(),
     invalidateAdapterCatalog: vi.fn(),
+    invalidateSdkManagerCaches: vi.fn(),
+    invalidateListSessionsCache: vi.fn(),
     getAgentRuntimeConfig: vi.fn(),
+    configGet: vi.fn(),
     configSet: vi.fn(),
     ipcMain: {
       handle: (channel: string, h: (event: unknown, req: unknown) => Promise<unknown>) => {
@@ -21,14 +24,16 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('electron', () => ({ shell: mocks.shell, ipcMain: mocks.ipcMain }))
-vi.mock('../worker-manager', () => ({ workerManager: { stop: mocks.stop } }))
+vi.mock('../worker-manager', () => ({ workerManager: { stop: mocks.stop, hasActiveTurns: false } }))
 vi.mock('../../extension-compat/adapter-loader', () => ({
   invalidateAdapterCatalog: mocks.invalidateAdapterCatalog,
 }))
+vi.mock('../sdk-manager', () => ({ invalidateSdkManagerCaches: mocks.invalidateSdkManagerCaches }))
+vi.mock('../sdk-session', () => ({ invalidateListSessionsCache: mocks.invalidateListSessionsCache }))
 vi.mock('../wsl/runtime-config', () => ({ getAgentRuntimeConfig: mocks.getAgentRuntimeConfig }))
 vi.mock('../config-store', () => ({
   configStore: {
-    get: vi.fn(),
+    get: mocks.configGet,
     getAll: vi.fn(() => ({})),
     set: mocks.configSet,
   },
@@ -51,7 +56,7 @@ vi.mock('../registry', () => ({
 import { registerSettingsHandlers } from '../ipc/handlers/settings'
 
 function setAgentRuntime(prev: AgentRuntimeConfig, next: AgentRuntimeConfig): Promise<unknown> {
-  mocks.getAgentRuntimeConfig.mockReturnValueOnce(prev).mockReturnValueOnce(next)
+  mocks.configGet.mockReturnValue(prev)
   const handler = mocks.handlers.get('ipc:settings.set')!
   return handler({ key: 'agentRuntime', value: next })
 }
@@ -60,6 +65,9 @@ beforeEach(() => {
   mocks.handlers.clear()
   mocks.stop.mockReset()
   mocks.invalidateAdapterCatalog.mockReset()
+  mocks.invalidateSdkManagerCaches.mockReset()
+  mocks.invalidateListSessionsCache.mockReset()
+  mocks.configGet.mockReset()
   mocks.configSet.mockReset()
   registerSettingsHandlers()
 })
@@ -95,7 +103,7 @@ describe('ipc:settings.set agentRuntime', () => {
       { mode: 'wsl', distro: 'Debian' },
       { mode: 'wsl', distro: 'Debian' },
     )
-    expect(mocks.invalidateAdapterCatalog).toHaveBeenCalledTimes(1)
+    expect(mocks.invalidateAdapterCatalog).not.toHaveBeenCalled()
     expect(mocks.stop).not.toHaveBeenCalled()
   })
 
