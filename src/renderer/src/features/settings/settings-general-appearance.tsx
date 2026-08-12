@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
@@ -43,14 +43,16 @@ export function GeneralSettings() {
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const checkTimeoutRef = useRef<number | null>(null)
+  const updateCheckAttemptRef = useRef(0)
+  const mountedRef = useRef(true)
 
-  const clearCheckTimeout = () => {
-    if (checkTimeoutRef.current) {
-      window.clearTimeout(checkTimeoutRef.current)
-      checkTimeoutRef.current = null
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      updateCheckAttemptRef.current += 1
     }
-  }
+  }, [])
 
   useEffect(() => {
     ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
@@ -71,41 +73,35 @@ export function GeneralSettings() {
     })
   }
 
-  const handleCheckUpdate = () => {
+  const handleCheckUpdate = async () => {
+    const attempt = ++updateCheckAttemptRef.current
     setCheckingUpdate(true)
     setUpdateCheck(null)
-    clearCheckTimeout()
-    checkTimeoutRef.current = window.setTimeout(() => {
-      setCheckingUpdate(false)
-      setUpdateCheck(t('settings:general.updateCheckFailed'))
-    }, 10000)
-    void ipcClient.invoke('app.checkUpdate', {})
-  }
 
-  useEffect(() => {
-    const unsubscribe = onAppUpdateAvailable((info) => {
-      if (!checkingUpdate) return
-      clearCheckTimeout()
-      if (info.latestVersion && info.latestVersion !== info.currentVersion) {
+    try {
+      const result = await ipcClient.invoke('app.checkUpdate', {})
+      if (!mountedRef.current || attempt !== updateCheckAttemptRef.current) return
+
+      if (result.status === 'available') {
         setUpdateCheck(
           t('settings:general.updateHasNew', {
-            version: info.latestVersion,
-            current: info.currentVersion,
+            version: result.update.latestVersion,
+            current: result.update.currentVersion,
           }),
         )
-        showAppUpdateDialog(info)
-      } else if (info.latestVersion) {
-        setUpdateCheck(t('settings:general.updateLatest', { version: info.currentVersion }))
+        showAppUpdateDialog(result.update)
+      } else if (result.status === 'up-to-date') {
+        setUpdateCheck(t('settings:general.updateLatest', { version: result.latestVersion }))
       } else {
         setUpdateCheck(t('settings:general.updateCheckFailed'))
       }
       setCheckingUpdate(false)
-    })
-    return () => {
-      clearCheckTimeout()
-      unsubscribe()
+    } catch {
+      if (!mountedRef.current || attempt !== updateCheckAttemptRef.current) return
+      setUpdateCheck(t('settings:general.updateCheckFailed'))
+      setCheckingUpdate(false)
     }
-  }, [checkingUpdate, t])
+  }
 
   return (
     <div className="space-y-8">
@@ -126,7 +122,7 @@ export function GeneralSettings() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={checkingUpdate}
+                aria-busy={checkingUpdate}
                 onClick={() => void handleCheckUpdate()}
                 className={btnOutline}
               >

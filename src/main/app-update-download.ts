@@ -1,4 +1,4 @@
-import { app, shell } from 'electron'
+import { app, net, shell } from 'electron'
 import { createWriteStream } from 'node:fs'
 import { mkdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -60,7 +60,7 @@ export async function downloadAndLaunchUpdate(opts: {
       fileName,
     })
 
-    const response = await fetch(url, {
+    const response = await net.fetch(url, {
       headers: { 'User-Agent': 'pi-desktop', Accept: 'application/octet-stream' },
       redirect: 'follow',
     })
