@@ -10,6 +10,7 @@ const useFrameless = isWin || isMac || isLinux
 import { configStore } from './config-store'
 import { customThemeRendererArgument } from './custom-theme-startup'
 import { workerManager } from './worker-manager'
+import { installWindowCloseGuard } from './window-close-guard'
 
 const MIN_W = 900
 const MIN_H = 600
@@ -97,6 +98,8 @@ export function createWindow(): BrowserWindow {
       nodeIntegration: false,
     },
   })
+
+  installWindowCloseGuard(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     if (isE2eTestMode()) {

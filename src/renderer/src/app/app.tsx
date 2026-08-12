@@ -38,6 +38,7 @@ import {
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
+import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
 import {
   invalidateAvailableModels,
@@ -286,6 +287,7 @@ export default function App() {
         </div>
         {paletteAndShortcuts}
         <AppUpdateHost />
+        <CloseDecisionDialog />
       </ErrorBoundary>
     )
   }
@@ -366,6 +368,7 @@ export default function App() {
       <AppToaster />
       <ExtensionUIHost />
       <AppUpdateHost />
+      <CloseDecisionDialog />
       {paletteAndShortcuts}
       <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}
