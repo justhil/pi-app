@@ -97,7 +97,12 @@ export class SessionPreviewProcess {
   }
 
   private async request<T>(
-    type: 'session.list' | 'session.getMessages' | 'session.tree' | 'session.invalidateList',
+    type:
+      | 'session.list'
+      | 'session.getMessages'
+      | 'session.tree'
+      | 'session.invalidateList'
+      | 'pi.settings.set',
     payload: Record<string, unknown>,
   ): Promise<T> {
     const generation = this.lifecycleGeneration
@@ -177,6 +182,10 @@ export class SessionPreviewProcess {
     leafId?: string | null
   }): Promise<{ nodes: FlatTreeNode[]; leafId: string | null }> {
     return this.request('session.tree', payload)
+  }
+
+  setPiSettings(patch: Record<string, unknown>, cwd: string): Promise<void> {
+    return this.request('pi.settings.set', { patch, cwd })
   }
 
   inspectLifecycleForTest(): { process: boolean; pending: number } {

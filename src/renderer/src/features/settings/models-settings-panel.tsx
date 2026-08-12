@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import { Boxes, Plus, RefreshCw, Sparkles } from '@renderer/components/icons'
+import { Boxes, Plus, RefreshCw } from '@renderer/components/icons'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -19,7 +19,9 @@ import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-a
 import type { LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
 import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry, ProviderAvatar } from './models-settings-shared'
 import { ModelsProviderCard } from './models-provider-card'
+import { ModelsSdkProviderSection } from './models-sdk-provider-section'
 import { saveModelsConfigDraft } from './save-models-config'
+import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 
 export function ModelsSettingsPanel() {
   const { t } = useTranslation('settings')
@@ -97,8 +99,10 @@ export function ModelsSettingsPanel() {
       try {
         await saveModelsConfigDraft(draft, {
           setConfig: (config) => ipcClient.invoke('pi.models.set', { config }),
+          onWritten: invalidateAvailableModels,
           reload: load,
         })
+        prefetchAvailableModels()
       } catch (error) {
         const message = error instanceof Error && error.message !== 'SAVE_FAILED'
           ? error.message
@@ -299,175 +303,130 @@ export function ModelsSettingsPanel() {
         </details>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Boxes className="h-4 w-4" strokeWidth={1.5} />
-          <span>
-            {t('models.configured')} <strong className="text-foreground">{providerIds.length}</strong>{' '}
-            {t('models.providers')}
-          </span>
-        </div>
-        <div className="relative">
-          <button type="button" className={btnPrimary} onClick={() => setAddMenuOpen((o) => !o)}>
-            <Plus className="mr-1 inline h-3 w-3" strokeWidth={2} />
-            {t('models.addProviderBtn')}
-          </button>
-          {addMenuOpen && (
-            <>
-              <button
-                type="button"
-                className="backdrop-motion fixed inset-0 z-40 cursor-default bg-black/20"
-                aria-label={t('models.close')}
-                onClick={() => setAddMenuOpen(false)}
-              />
-              <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2 shadow-lg">
-                <div className="px-2 py-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/50">
-                  {t('models.selectTemplate')}
-                </div>
-                <div className="max-h-[min(420px,60vh)] overflow-y-auto">
-                  {PROVIDER_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      className="settings-preset-menu-item flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left"
-                      onClick={() => addFromPreset(preset)}
-                    >
-                      <ProviderAvatar preset={preset} label={preset.label} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-base font-medium">{preset.label}</div>
-                        <div className="text-xs text-muted-foreground">{preset.tagline}</div>
-                        <div className="mt-0.5 font-mono text-2xs text-muted-foreground/50">
-                          {t('models.keyName')} {preset.defaultKey}
-                          {preset.starterModels?.length
-                            ? ` · ${t('models.containsModels', { count: preset.starterModels.length })}`
-                            : ` · ${t('models.needsFetch')}`}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {providerIds.length === 0 && sdkProviderIds.length === 0 ? (
-        <div className="ui-enter rounded-lg border border-dashed border-border/60 bg-muted/15 px-6 py-10 text-center">
-          <Sparkles className="mx-auto h-4 w-4 text-muted-foreground/50" strokeWidth={1.5} />
-          <p className="mt-3 text-base font-medium text-foreground/90">{t('models.noProviders')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('models.noProvidersHint')}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {providerIds.map((pid, cardIndex) => {
-            const catalogIds = Array.from(new Set(
-              (remoteCatalog[pid]?.ids || []).filter(
-                (id) => !(draft?.providers[pid].models || []).some((model) => model.id === id),
-              ),
-            ))
-            return (
-              <ModelsProviderCard
-              key={pid}
-              pid={pid}
-              cardIndex={cardIndex}
-              config={draft!}
-              open={expanded[pid] === true}
-              onToggleOpen={() => setExpanded((e) => ({ ...e, [pid]: !e[pid] }))}
-              fetching={fetching === pid}
-              remoteIds={catalogIds}
-              remoteError={remoteCatalog[pid]?.error}
-              apiKeyVisible={!!apiKeyVisible[pid]}
-              onToggleApiKeyVisible={() => setApiKeyVisible((s) => ({ ...s, [pid]: !s[pid] }))}
-              expandedLocalModel={expandedLocalModel}
-              onToggleLocalModel={(rowKey) =>
-                setExpandedLocalModel((e) => ({ ...e, [rowKey]: !e[rowKey] }))
-              }
-              onApplyPreset={(pr) =>
-                setConfirmState({
-                  title: t('models.applyTemplateTitle'),
-                  message: t('models.applyTemplateConfirm', { label: pr.label }),
-                  onConfirm: () => {
-                    setConfirmState(null)
-                    applyPresetToExisting(pid, pr)
-                  },
-                })
-              }
-              onUpdateProvider={(patch) => updateProvider(pid, patch)}
-              onFetchRemote={() => void fetchRemoteCatalog(pid)}
-              onManualAdd={() => setManualAddProviderId(pid)}
-              onRemoveProvider={() =>
-                setConfirmState({
-                  title: t('models.deleteProvider'),
-                  message: t('models.deleteProviderConfirm', {
-                    name: draft!.providers[pid].name || pid,
-                    id: pid,
-                  }),
-                  destructive: true,
-                  onConfirm: () => {
-                    setConfirmState(null)
-                    removeProvider(pid)
-                  },
-                })
-              }
-              onAddModel={(id) => addModelToLocal(pid, id)}
-              onAddAllNew={() => addAllNewToLocal(pid)}
-              onUpdateModel={(modelId, patch) => updateModelEntry(pid, modelId, patch)}
-                onRemoveModel={(modelId) => removeModel(pid, modelId)}
-              />
-            )
-          })}
-          {sdkProviderIds.map((providerId) => {
-            const models = sdkModelsByProvider[providerId]
-            const auth = models.find((model) => model.auth)?.auth
-            const authDetail = auth?.supported
-              ? auth.configured
-                ? [
-                  auth.type === 'oauth'
-                    ? t('models.authTypeOAuth')
-                    : auth.type === 'api_key'
-                      ? t('models.authTypeApiKey')
-                      : null,
-                  auth.source || null,
-                ].filter(Boolean).join(' · ')
-                : t('models.authNotConfigured')
-              : t('models.authUnavailable')
-            return (
-              <details
-                key={providerId}
-                className="ui-enter rounded-lg border border-border/60 bg-card/40 px-4 py-3 shadow-sm"
-                open={sdkProviderIds.length <= 3}
-              >
-                <summary className="cursor-pointer list-none">
-                  <div className="flex items-center gap-3">
-                    <ProviderAvatar label={providerId} />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-mono text-sm font-semibold text-foreground">{providerId}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {t('models.sdkAvailableModelCount', { count: models.length })}
-                      </div>
-                      <div className="mt-0.5 text-2xs text-muted-foreground">
-                        {t('models.sdkManagedReadOnly')} · {authDetail}
-                      </div>
-                    </div>
+      <section className="space-y-3" data-testid="user-provider-section">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <Boxes className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-foreground">{t('models.userProvidersTitle')}</h3>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                {t('models.userProvidersDescription', { count: providerIds.length })}
+              </p>
+            </div>
+          </div>
+          <div className="relative">
+            <button type="button" className={btnPrimary} onClick={() => setAddMenuOpen((o) => !o)}>
+              <Plus className="mr-1 inline h-3 w-3" strokeWidth={2} />
+              {t('models.addProviderBtn')}
+            </button>
+            {addMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  className="backdrop-motion fixed inset-0 z-40 cursor-default bg-black/20"
+                  aria-label={t('models.close')}
+                  onClick={() => setAddMenuOpen(false)}
+                />
+                <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2 shadow-lg">
+                  <div className="px-2 py-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/50">
+                    {t('models.selectTemplate')}
                   </div>
-                </summary>
-                <ul className="mt-3 grid max-h-[min(280px,42vh)] gap-1 overflow-y-auto sm:grid-cols-2">
-                  {models.map((model) => (
-                    <li
-                      key={model.id}
-                      className="truncate rounded-md bg-muted/35 px-2.5 py-1.5 font-mono text-xs text-foreground/80"
-                      title={model.id}
-                    >
-                      {model.id}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )
-          })}
+                  <div className="max-h-[min(420px,60vh)] overflow-y-auto">
+                    {PROVIDER_PRESETS.map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className="settings-preset-menu-item flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left"
+                        onClick={() => addFromPreset(preset)}
+                      >
+                        <ProviderAvatar preset={preset} label={preset.label} />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-base font-medium">{preset.label}</div>
+                          <div className="text-xs text-muted-foreground">{preset.tagline}</div>
+                          <div className="mt-0.5 font-mono text-2xs text-muted-foreground/50">
+                            {t('models.keyName')} {preset.defaultKey}
+                            {preset.starterModels?.length
+                              ? ` · ${t('models.containsModels', { count: preset.starterModels.length })}`
+                              : ` · ${t('models.needsFetch')}`}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      )}
+
+        {providerIds.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border/50 px-3 py-3 text-sm text-muted-foreground">
+            {t('models.userProvidersEmpty')}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {providerIds.map((pid, cardIndex) => {
+              const catalogIds = Array.from(new Set(
+                (remoteCatalog[pid]?.ids || []).filter(
+                  (id) => !(draft?.providers[pid].models || []).some((model) => model.id === id),
+                ),
+              ))
+              return (
+                <ModelsProviderCard
+                  key={pid}
+                  pid={pid}
+                  cardIndex={cardIndex}
+                  config={draft!}
+                  open={expanded[pid] === true}
+                  onToggleOpen={() => setExpanded((e) => ({ ...e, [pid]: !e[pid] }))}
+                  fetching={fetching === pid}
+                  remoteIds={catalogIds}
+                  remoteError={remoteCatalog[pid]?.error}
+                  apiKeyVisible={!!apiKeyVisible[pid]}
+                  onToggleApiKeyVisible={() => setApiKeyVisible((s) => ({ ...s, [pid]: !s[pid] }))}
+                  expandedLocalModel={expandedLocalModel}
+                  onToggleLocalModel={(rowKey) =>
+                    setExpandedLocalModel((e) => ({ ...e, [rowKey]: !e[rowKey] }))
+                  }
+                  onApplyPreset={(pr) =>
+                    setConfirmState({
+                      title: t('models.applyTemplateTitle'),
+                      message: t('models.applyTemplateConfirm', { label: pr.label }),
+                      onConfirm: () => {
+                        setConfirmState(null)
+                        applyPresetToExisting(pid, pr)
+                      },
+                    })
+                  }
+                  onUpdateProvider={(patch) => updateProvider(pid, patch)}
+                  onFetchRemote={() => void fetchRemoteCatalog(pid)}
+                  onManualAdd={() => setManualAddProviderId(pid)}
+                  onRemoveProvider={() =>
+                    setConfirmState({
+                      title: t('models.deleteProvider'),
+                      message: t('models.deleteProviderConfirm', {
+                        name: draft!.providers[pid].name || pid,
+                        id: pid,
+                      }),
+                      destructive: true,
+                      onConfirm: () => {
+                        setConfirmState(null)
+                        removeProvider(pid)
+                      },
+                    })
+                  }
+                  onAddModel={(id) => addModelToLocal(pid, id)}
+                  onAddAllNew={() => addAllNewToLocal(pid)}
+                  onUpdateModel={(modelId, patch) => updateModelEntry(pid, modelId, patch)}
+                  onRemoveModel={(modelId) => removeModel(pid, modelId)}
+                />
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <ModelsSdkProviderSection providerIds={sdkProviderIds} modelsByProvider={sdkModelsByProvider} />
 
       {manualAddProviderId && draft?.providers[manualAddProviderId] && (
         <ManualModelAddDialog

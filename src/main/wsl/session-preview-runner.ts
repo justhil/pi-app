@@ -6,7 +6,12 @@ import { resolveWslActiveSdk } from './sdk-resolve'
 import { spawnPreviewInWsl, syncPreviewBundleToWsl } from './preview-host'
 
 export type WslPreviewRequest = {
-  type: 'session.list' | 'session.getMessages' | 'session.tree' | 'session.invalidateList'
+  type:
+    | 'session.list'
+    | 'session.getMessages'
+    | 'session.tree'
+    | 'session.invalidateList'
+    | 'pi.settings.set'
   payload: Record<string, unknown>
   userDataDir: string
 }
@@ -128,7 +133,10 @@ export class WslSessionPreviewRunner {
     const generation = this.lifecycleGeneration
     const runtime = getAgentRuntimeConfig()
     if (runtime.mode !== 'wsl' || !runtime.distro) throw new Error('WSL preview runtime is not active')
-    const cwd = windowsPathToWsl(runtime.distro, String(request.payload.cwd || '')) || '/'
+    const cwd = windowsPathToWsl(
+      runtime.distro,
+      String(request.payload.cwd || request.payload.workspaceId || ''),
+    ) || '/'
     const payload: Record<string, unknown> = { ...request.payload, cwd }
     if (typeof payload.workspaceId === 'string') {
       payload.workspaceId = windowsPathToWsl(runtime.distro, payload.workspaceId)

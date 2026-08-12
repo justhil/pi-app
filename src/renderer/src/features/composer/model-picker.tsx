@@ -8,6 +8,11 @@ import { cn } from '@renderer/lib/utils'
 import { X, Search, Check, Cpu, ChevronRight, Loader2 } from '@renderer/components/icons'
 import { toast } from 'sonner'
 import { formatModelFull } from '@renderer/lib/format-run-display'
+import {
+  peekAvailableModels,
+  refreshAvailableModels,
+  subscribeAvailableModels,
+} from '@renderer/lib/available-models-cache'
 
 type ModelRow = { id: string; provider: string; name?: string; available?: boolean }
 
@@ -33,32 +38,30 @@ export function ModelPicker() {
   const setOpen = useUIStore((s) => s.setModelPickerOpen)
   const currentModel = useUIStore((s) => s.runState.model)
   const sessionFile = useUIStore((s) => s.historySessionFile)
-  const [models, setModels] = useState<ModelRow[]>([])
+  const [models, setModels] = useState<ModelRow[]>(() => peekAvailableModels())
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [pendingModel, setPendingModel] = useState<string | null>(null)
 
-  const reload = useMemo(
-    () => () => {
-      ipcClient.invoke('model.list', { scope: 'available' }).then((res) => setModels(res?.models || [])).catch(() => {})
-    },
-    [],
-  )
+  const reload = () => refreshAvailableModels().catch(() => peekAvailableModels())
+
+  useEffect(() => subscribeAvailableModels(setModels), [])
 
   useEffect(() => {
     if (!open) return
+    setModels(peekAvailableModels())
     setQuery('')
     setExpanded({})
-    reload()
+    void reload()
     const unsub = onAppEvent((event) => {
       // Worker bound a session and pushed its runtime model state → the picker's
       // earlier SDK fallback may have been empty (worker not ready yet). Reload.
       if (event?.type !== 'run') return
       if (event.phase !== 'state' && event.phase !== 'started') return
-      reload()
+      void reload()
     })
     return unsub
-  }, [open, reload])
+  }, [open])
 
   const filtered = useMemo(() => {
     if (!query) return models

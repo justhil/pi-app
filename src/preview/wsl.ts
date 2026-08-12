@@ -7,6 +7,7 @@ import {
 } from './wsl-session-list'
 import { getSessionMessagesFromDisk } from '../main/session-messages-from-disk'
 import { flattenTreeFromSessionFile } from '../main/session-tree-from-file'
+import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
 import { encodeWorkerFrame, WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
 import type { WorkerIncomingMessage } from '../worker/worker-port-types'
@@ -16,7 +17,12 @@ const distro = process.env[WORKER_WSL_DISTRO_ENV]
 if (!distro) throw new Error('WSL preview requires a distro')
 
 type WslPreviewRequest = WorkerIncomingMessage & {
-  type: 'session.list' | 'session.getMessages' | 'session.tree' | 'session.invalidateList'
+  type:
+    | 'session.list'
+    | 'session.getMessages'
+    | 'session.tree'
+    | 'session.invalidateList'
+    | 'pi.settings.set'
   userDataDir: string
   sdkPath: string
   workspaceId?: string
@@ -60,6 +66,15 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         message.leafId as string | null | undefined,
         message.sdkPath,
       )
+    } else if (message.type === 'pi.settings.set') {
+      const sdk = await import(message.sdkPath)
+      const manager = sdk.SettingsManager.create(
+        String(message.cwd || '/'),
+        sdk.getAgentDir(),
+        { projectTrusted: false },
+      )
+      await applyPiSettingsPatch(manager, (message.patch as Record<string, unknown>) || {})
+      result = null
     } else {
       throw new Error(`Unknown WSL preview request: ${String((message as { type?: string }).type)}`)
     }

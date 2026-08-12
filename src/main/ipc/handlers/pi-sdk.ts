@@ -196,7 +196,12 @@ export function registerPiSdkHandlers(): void {
 
   registerHandlerWithSchema('ipc:pi.settings.set', piSettingsSetSchema, async (req) => {
     try {
-      await workerManager.setPiSettings(req.patch)
+      if (workerManager.isRunning) {
+        await workerManager.setPiSettings(req.patch)
+      } else {
+        const { writePiAgentGlobalSettings } = await import('../../pi-agent-settings-write')
+        await writePiAgentGlobalSettings(req.patch)
+      }
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: errorMessage(e) }

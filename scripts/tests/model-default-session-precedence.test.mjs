@@ -11,6 +11,10 @@ describe('Pi default model precedence', () => {
       join(root, 'src/worker/handlers/worker-handlers-pi-settings.ts'),
       'utf8',
     )
+    const patchSource = readFileSync(
+      join(root, 'src/worker/pi-settings-patch.ts'),
+      'utf8',
+    )
     const rendererSource = readFileSync(
       join(root, 'src/renderer/src/features/settings/pi-settings-panel.tsx'),
       'utf8',
@@ -27,6 +31,7 @@ describe('Pi default model precedence', () => {
       'Settings save must not invoke Renderer model.set for the current session',
     )
     assert.match(rendererSource, /refreshComposer:\s*refreshComposerRunDisplay/)
-    assert.match(workerSource, /sm\.setDefaultModelAndProvider\(/)
+    assert.match(workerSource, /applyPiSettingsPatch\(sm, patch\)/)
+    assert.match(patchSource, /sm\.setDefaultModelAndProvider\(/)
   })
 })

@@ -19,6 +19,12 @@ import { PiSettingsSdkSection } from './pi-settings-sdk-section'
 import { PiSettingsFormSections } from './pi-settings-form-sections'
 import { PiSettingsEnvAuthRows } from './pi-settings-env-auth-rows'
 import { savePiSettingsDraft } from './save-pi-settings'
+import {
+  ensureAvailableModels,
+  peekAvailableModels,
+  refreshAvailableModels,
+  subscribeAvailableModels,
+} from '@renderer/lib/available-models-cache'
 
 export type { PiSettingsSnapshot } from './pi-settings-shared'
 
@@ -34,7 +40,9 @@ export function PiSettingsPanel() {
   ]
   const [info, setInfo] = useState<PiInfo | null>(null)
   const [settings, setSettings] = useState<PiSettingsSnapshot | null>(null)
-  const [models, setModels] = useState<Array<{ id: string; name?: string; provider?: string; available?: boolean }>>([])
+  const [models, setModels] = useState<Array<{ id: string; name?: string; provider?: string; available?: boolean }>>(
+    () => peekAvailableModels(),
+  )
   const [loadError, setLoadError] = useState<string | null>(null)
   const [baseline, setBaseline] = useState<PiSettingsSnapshot | null>(null)
   const [draft, setDraft] = useState<PiSettingsSnapshot | null>(null)
@@ -52,12 +60,13 @@ export function PiSettingsPanel() {
 
   const loadModelsForDropdown = useCallback(async () => {
     try {
-      const modelsRes = await ipcClient.invoke('model.list', { scope: 'catalog' })
-      setModels((modelsRes?.models || []).filter((m: { available?: boolean }) => m.available !== false))
+      await ensureAvailableModels()
     } catch {
-      setModels([])
+      setModels(peekAvailableModels())
     }
   }, [])
+
+  useEffect(() => subscribeAvailableModels(setModels), [])
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -224,15 +233,10 @@ export function PiSettingsPanel() {
 
   const ui = draft ?? settings
 
-  const modelOptions = useMemo(() => {
-    const list = [...models]
-    const curP = String(ui?.defaultProvider || '')
-    const curM = String(ui?.defaultModel || '')
-    if (curP && curM && !list.some((m) => m.provider === curP && m.id === curM)) {
-      list.unshift({ provider: curP, id: curM, name: `${curP}/${curM}`, available: true })
-    }
-    return list.sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`))
-  }, [models, ui?.defaultProvider, ui?.defaultModel])
+  const modelOptions = useMemo(
+    () => [...models].sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`)),
+    [models],
+  )
 
   const currentModelKey =
     ui?.defaultProvider && ui?.defaultModel ? `${ui.defaultProvider}/${ui.defaultModel}` : ''

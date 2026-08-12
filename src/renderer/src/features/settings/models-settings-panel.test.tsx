@@ -30,16 +30,17 @@ vi.mock('./models-provider-card', () => ({
   }: {
     onUpdateProvider: (patch: { name: string }) => void
     remoteIds?: string[]
-    config?: { providers?: Record<string, { models?: Array<{ id: string }> }> }
+    config?: { providers?: Record<string, { name?: string; models?: Array<{ id: string }> }> }
     pid?: string
   }) => (
-    <>
+    <div data-testid={`editable-provider-${pid}`}>
+      <span>{config?.providers?.[pid]?.name || pid}</span>
       <button type="button" onClick={() => onUpdateProvider({ name: 'Changed provider' })}>
         edit provider
       </button>
       <div>{remoteIds.map((id) => <span key={`remote:${id}`}>{id}</span>)}</div>
       <div>{(config?.providers?.[pid]?.models || []).map(({ id }) => <span key={`configured:${id}`}>{id}</span>)}</div>
-    </>
+    </div>
   ),
 }))
 
@@ -88,6 +89,44 @@ afterEach(() => {
 })
 
 describe('ModelsSettingsPanel save', () => {
+  it('separates editable user providers from the active Pi SDK catalog', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({
+        models: [{
+          ...availableModels[0],
+          managedBy: 'active-sdk',
+          auth: { supported: true, configured: true, source: 'stored', type: 'oauth' },
+        }],
+      })
+
+    render(<ModelsSettingsPanel />)
+
+    const userSection = await screen.findByTestId('user-provider-section')
+    const sdkSection = screen.getByTestId('sdk-provider-section')
+    expect(userSection).toHaveTextContent(/User-configured providers/i)
+    expect(userSection).toHaveTextContent(/Original provider/i)
+    expect(userSection).toContainElement(screen.getByRole('button', { name: /Add Provider/i }))
+    expect(sdkSection).toHaveTextContent(/Active Pi SDK providers/i)
+    expect(sdkSection).toHaveTextContent('store-only')
+    expect(sdkSection).not.toContainElement(screen.getByRole('button', { name: /Add Provider/i }))
+  })
+
+  it('keeps overlapping provider ids in separate ownership sections', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: availableModels })
+
+    render(<ModelsSettingsPanel />)
+
+    const userSection = await screen.findByTestId('user-provider-section')
+    const sdkSection = screen.getByTestId('sdk-provider-section')
+    expect(userSection).toHaveTextContent('Original provider')
+    expect(sdkSection).toHaveTextContent('custom')
+    expect(userSection).toHaveTextContent('model-a')
+    expect(sdkSection).toHaveTextContent('store-only')
+  })
+
   it('writes the edited provider, reloads the normalized config, and clears dirty state', async () => {
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
@@ -111,6 +150,7 @@ describe('ModelsSettingsPanel save', () => {
     expect(getRequest('model.list')).toEqual([
       ['model.list', { scope: 'settings' }],
       ['model.list', { scope: 'settings' }],
+      ['model.list', { scope: 'available' }],
     ])
     await waitFor(() => expect(getDirtySettingsSlices()).toEqual([]))
   })
@@ -325,6 +365,7 @@ describe('ModelsSettingsPanel save', () => {
     expect(getRequest('model.list')).toEqual([
       ['model.list', { scope: 'settings' }],
       ['model.list', { scope: 'settings' }],
+      ['model.list', { scope: 'available' }],
     ])
   })
 })

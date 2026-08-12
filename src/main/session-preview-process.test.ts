@@ -63,6 +63,26 @@ describe('Host session preview process lifecycle', () => {
     }
   })
 
+  it('routes settings writes through the host preview process without an AgentSession', async () => {
+    const proc = fakeProcess()
+    const preview = new SessionPreviewProcess()
+    mocks.fork.mockReturnValueOnce(proc)
+
+    const request = preview.setPiSettings({ defaultProvider: 'openai', defaultModel: 'gpt-5' }, 'C:\\Project')
+    await vi.waitFor(() => expect(proc.postMessage).toHaveBeenCalledOnce())
+    const message = proc.postMessage.mock.calls[0][0] as { requestId: string }
+    proc.emit('message', { requestId: message.requestId, ok: true, result: null })
+
+    await expect(request).resolves.toBeNull()
+    expect(proc.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'pi.settings.set',
+      payload: {
+        cwd: 'C:\\Project',
+        patch: { defaultProvider: 'openai', defaultModel: 'gpt-5' },
+      },
+    }))
+  })
+
   it('rejects a request when stop fires while a deferred active-SDK resolution is in progress', async () => {
     vi.useFakeTimers()
     const proc = fakeProcess()

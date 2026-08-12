@@ -7,6 +7,8 @@ function settingsManager() {
     globalSettings: {},
     markModified: vi.fn(),
     save: vi.fn(),
+    flush: vi.fn(async () => {}),
+    drainErrors: vi.fn(() => []),
     setDefaultModelAndProvider: vi.fn(),
     setDefaultProvider: vi.fn(),
     setDefaultModel: vi.fn(),

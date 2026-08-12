@@ -4,12 +4,19 @@ import {
 } from '../main/ipc/sdk-session'
 import { getSessionMessagesFromDisk } from '../main/session-messages-from-disk'
 import { flattenTreeFromSessionFile } from '../main/session-tree-from-file'
+import { pathToFileURL } from 'node:url'
+import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
 
 type PreviewRequest = {
   requestId: string
-  type: 'session.list' | 'session.getMessages' | 'session.tree' | 'session.invalidateList'
+  type:
+    | 'session.list'
+    | 'session.getMessages'
+    | 'session.tree'
+    | 'session.invalidateList'
+    | 'pi.settings.set'
   payload: Record<string, unknown>
   userDataDir: string
   activeSdkPath?: string | null
@@ -52,6 +59,20 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         message.payload.leafId as string | null | undefined,
         message.activeSdkPath,
       )
+    } else if (message.type === 'pi.settings.set') {
+      const sdk = message.activeSdkPath
+        ? await import(pathToFileURL(message.activeSdkPath).href)
+        : await import('@earendil-works/pi-coding-agent')
+      const manager = sdk.SettingsManager.create(
+        String(message.payload.cwd || process.cwd()),
+        sdk.getAgentDir(),
+        { projectTrusted: false },
+      )
+      await applyPiSettingsPatch(
+        manager,
+        (message.payload.patch as Record<string, unknown>) || {},
+      )
+      result = null
     } else {
       throw new Error(`Unknown preview request: ${String((message as { type?: string }).type)}`)
     }
