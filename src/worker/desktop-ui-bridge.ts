@@ -2,6 +2,16 @@
 
 import type { EventBus, Theme } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
+import type {
+  ExtensionUIQuestion,
+  ExtensionUIQuestionnaireResult,
+} from './questionnaire-types.js'
+
+export type {
+  ExtensionUIQuestion,
+  ExtensionUIQuestionAnswer,
+  ExtensionUIQuestionnaireResult,
+} from './questionnaire-types.js'
 
 export const ASK_USER_PROMPT_EVENT = 'rpiv:ask-user:prompt'
 
@@ -11,7 +21,13 @@ export type ExtensionUIRequest =
   | { id: string; method: 'input'; title: string; placeholder?: string; timeout?: number }
   | { id: string; method: 'editor'; title: string; prefill?: string }
   | { id: string; method: 'notify'; message: string; notifyType?: 'info' | 'warning' | 'error' }
-  | { id: string; method: 'custom'; kind: 'ask_user_question'; questions: unknown }
+  | {
+      id: string
+      method: 'custom'
+      kind: 'ask_user_question'
+      questions: ExtensionUIQuestion[]
+      toolCallId?: string
+    }
   | { id: string; method: 'custom'; kind: 'image_review'; image: string; title: string; question: string; context?: string; options: string[]; allowFeedback: boolean }
 
 type Pending = {
@@ -24,9 +40,21 @@ export type DesktopUIBridge = {
   uiContext: Record<string, unknown>
   handleExtensionUIResponse: (response: ExtensionUIResponse) => void
   handleExtensionUiCancel: (cancel: { id?: string; reason?: string }) => void
+  requestQuestionnaire: (
+    toolCallId: string,
+    questions: ExtensionUIQuestion[],
+    signal?: AbortSignal,
+  ) => Promise<ExtensionUIQuestionnaireResult>
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
   setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
   dispose: () => void
+}
+
+const bridgesByContext = new WeakMap<object, DesktopUIBridge>()
+
+export function getDesktopUIBridge(uiContext: unknown): DesktopUIBridge | null {
+  if (!uiContext || typeof uiContext !== 'object') return null
+  return bridgesByContext.get(uiContext as object) ?? null
 }
 
 export type ExtensionUIResponse = {
@@ -111,14 +139,14 @@ export function createDesktopUIBridge(
     lastAskPayload = payload as { questions: unknown }
   })
 
-  const buildAskQuestions = (): unknown[] => {
+  const buildAskQuestions = (): ExtensionUIQuestion[] => {
     // Prefer interact-cached questions (from tool args, has preview text) merged with event questions.
     type QRow = { options?: Array<{ preview?: string } & Record<string, unknown>> } & Record<string, unknown>
     const eventQs = (lastAskPayload?.questions as QRow[]) || []
     const interactQs = (interactArgs?.schema === 'questions' ? interactArgs.args.questions : null) as QRow[] | undefined
     const toolQs = interactQs || []
-    if (toolQs.length === 0) return eventQs
-    if (eventQs.length === 0) return toolQs
+    if (toolQs.length === 0) return eventQs as ExtensionUIQuestion[]
+    if (eventQs.length === 0) return toolQs as ExtensionUIQuestion[]
     return eventQs.map((eq, qi) => {
       const tq = toolQs[qi]
       if (!tq?.options) return eq
@@ -128,7 +156,7 @@ export function createDesktopUIBridge(
         return preview ? { ...eo, preview } : eo
       })
       return { ...eq, options: opts }
-    })
+    }) as ExtensionUIQuestion[]
   }
 
   const uiContext = {
@@ -250,7 +278,7 @@ export function createDesktopUIBridge(
     setToolsExpanded: () => {},
   }
 
-  return {
+  const bridge: DesktopUIBridge = {
     uiContext,
     handleExtensionUiCancel(cancel) {
       const p = cancel.id ? pending.get(cancel.id) : undefined
@@ -264,6 +292,21 @@ export function createDesktopUIBridge(
       p.cleanup()
       p.resolve(response)
     },
+    requestQuestionnaire(toolCallId, questions, signal) {
+      lastAskPayload = null
+      const id = randomUUID()
+      return createDialogPromise(
+        emitReq,
+        pending,
+        { id, method: 'custom', kind: 'ask_user_question', toolCallId, questions },
+        (response) =>
+          response.cancelled
+            ? { cancelled: true, answers: [] }
+            : (response.result as ExtensionUIQuestionnaireResult),
+        { cancelled: true, answers: [] },
+        { signal, ...dismissOpts },
+      )
+    },
     setInteractArgs(schema, args) {
       interactArgs = args ? { schema, args } : null
     },
@@ -275,6 +318,9 @@ export function createDesktopUIBridge(
         p.reject(new Error('UI bridge disposed'))
       }
       pending.clear()
+      bridgesByContext.delete(uiContext)
     },
   }
+  bridgesByContext.set(uiContext, bridge)
+  return bridge
 }
