@@ -102,7 +102,8 @@ export class SessionPreviewProcess {
       | 'session.getMessages'
       | 'session.tree'
       | 'session.invalidateList'
-      | 'pi.settings.set',
+      | 'pi.settings.set'
+      | 'system.prompt',
     payload: Record<string, unknown>,
   ): Promise<T> {
     const generation = this.lifecycleGeneration
@@ -182,6 +183,14 @@ export class SessionPreviewProcess {
     leafId?: string | null
   }): Promise<{ nodes: FlatTreeNode[]; leafId: string | null }> {
     return this.request('session.tree', payload)
+  }
+
+  getSystemPrompt(payload: {
+    cwd: string
+    globalSettings?: Record<string, unknown>
+    projectSettings?: Record<string, unknown>
+  }): Promise<string> {
+    return this.request('system.prompt', payload)
   }
 
   setPiSettings(patch: Record<string, unknown>, cwd: string): Promise<void> {

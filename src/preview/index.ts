@@ -6,6 +6,7 @@ import { getSessionMessagesFromDisk } from '../main/session-messages-from-disk'
 import { flattenTreeFromSessionFile } from '../main/session-tree-from-file'
 import { pathToFileURL } from 'node:url'
 import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
+import { buildSystemPromptPreview } from '../main/system-prompt-preview'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
 
@@ -17,6 +18,7 @@ type PreviewRequest = {
     | 'session.tree'
     | 'session.invalidateList'
     | 'pi.settings.set'
+    | 'system.prompt'
   payload: Record<string, unknown>
   userDataDir: string
   activeSdkPath?: string | null
@@ -73,6 +75,16 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         (message.payload.patch as Record<string, unknown>) || {},
       )
       result = null
+    } else if (message.type === 'system.prompt') {
+      const sdk = message.activeSdkPath
+        ? await import(pathToFileURL(message.activeSdkPath).href)
+        : await import('@earendil-works/pi-coding-agent')
+      result = await buildSystemPromptPreview(
+        sdk,
+        String(message.payload.cwd || process.cwd()),
+        (message.payload.globalSettings as Record<string, unknown>) || {},
+        (message.payload.projectSettings as Record<string, unknown>) || {},
+      )
     } else {
       throw new Error(`Unknown preview request: ${String((message as { type?: string }).type)}`)
     }

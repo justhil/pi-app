@@ -8,6 +8,7 @@ import {
 import { getSessionMessagesFromDisk } from '../main/session-messages-from-disk'
 import { flattenTreeFromSessionFile } from '../main/session-tree-from-file'
 import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
+import { buildSystemPromptPreview } from '../main/system-prompt-preview'
 import { encodeWorkerFrame, WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
 import type { WorkerIncomingMessage } from '../worker/worker-port-types'
@@ -23,6 +24,7 @@ type WslPreviewRequest = WorkerIncomingMessage & {
     | 'session.tree'
     | 'session.invalidateList'
     | 'pi.settings.set'
+    | 'system.prompt'
   userDataDir: string
   sdkPath: string
   workspaceId?: string
@@ -75,6 +77,14 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
       )
       await applyPiSettingsPatch(manager, (message.patch as Record<string, unknown>) || {})
       result = null
+    } else if (message.type === 'system.prompt') {
+      const sdk = await import(message.sdkPath)
+      result = await buildSystemPromptPreview(
+        sdk,
+        String(message.cwd || '/'),
+        (message.globalSettings as Record<string, unknown>) || {},
+        (message.projectSettings as Record<string, unknown>) || {},
+      )
     } else {
       throw new Error(`Unknown WSL preview request: ${String((message as { type?: string }).type)}`)
     }

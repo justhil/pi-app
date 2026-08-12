@@ -28,6 +28,12 @@ import {
 import { listRevisions, pushRevision, restoreRevision, readRevision } from '../../resource-revisions'
 import type { ResourceSource } from '../../pi-resources-editor'
 import { errorMessage } from '@shared/error-message'
+import { normalizeSessionKey } from '../../worker-session-key'
+import { sessionPreviewProcess } from '../../session-preview-process'
+import {
+  readPiAgentGlobalSettingsFromDisk,
+  readPiProjectSettingsFromDisk,
+} from '../../pi-agent-settings-read'
 
 export function registerSkillsResourceHandlers(): void {
   registerHandler('ipc:skills.list', async () => {
@@ -104,10 +110,13 @@ export function registerSkillsResourceHandlers(): void {
   })
 
   registerHandler('ipc:prompts.list', async () => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const cwd = configStore.get('currentProject') || workerManager.cwd || process.cwd()
+    const useLiveWorker =
+      workerManager.isRunning &&
+      normalizeSessionKey(workerManager.cwd || '') === normalizeSessionKey(cwd)
     let projectTrusted = true
     let defaultSystemPreview = ''
-    if (workerManager.isRunning) {
+    if (useLiveWorker) {
       try {
         const ctx = await workerManager.getContextPrompts()
         projectTrusted = ctx.projectTrusted !== false
@@ -134,7 +143,7 @@ export function registerSkillsResourceHandlers(): void {
     const disk = listPromptsOnDisk(cwd)
     const tplByPath = new Map<string, (typeof disk)[0]>()
     for (const p of disk) tplByPath.set(p.path, p)
-    if (workerManager.isRunning) {
+    if (useLiveWorker) {
       try {
         const worker = await workerManager.getPromptTemplatesList()
         for (const t of worker) {
@@ -184,11 +193,23 @@ export function registerSkillsResourceHandlers(): void {
     if (!path) return { error: 'missing path' }
     if (path === 'pi-desktop://system-prompt-preview') {
       try {
-        if (!workerManager.isRunning) {
-          return { content: '（Worker 未启动，打开工作区后重试）', path, revisions: [] }
+        const cwd = configStore.get('currentProject') || workerManager.cwd || process.cwd()
+        if (
+          workerManager.isRunning &&
+          normalizeSessionKey(workerManager.cwd || '') === normalizeSessionKey(cwd)
+        ) {
+          const ctx = await workerManager.getContextPrompts()
+          return { content: String(ctx.builtSystemPreview || '（空）'), path, revisions: [] }
         }
-        const ctx = await workerManager.getContextPrompts()
-        return { content: String(ctx.builtSystemPreview || '（空）'), path, revisions: [] }
+        return {
+          content: await sessionPreviewProcess.getSystemPrompt({
+            cwd,
+            globalSettings: readPiAgentGlobalSettingsFromDisk() || {},
+            projectSettings: readPiProjectSettingsFromDisk(cwd) || {},
+          }),
+          path,
+          revisions: [],
+        }
       } catch (e: unknown) {
         return { error: errorMessage(e) }
       }
@@ -199,10 +220,25 @@ export function registerSkillsResourceHandlers(): void {
       let seed =
         '# pi 系统提示词\n\n' +
         '保存本文件后将替换 pi 内置 harness 默认文案（与终端 pi 的 SYSTEM.md 一致）。\n\n'
-      if (workerManager.isRunning) {
+      const cwd = configStore.get('currentProject') || workerManager.cwd || process.cwd()
+      if (
+        workerManager.isRunning &&
+        normalizeSessionKey(workerManager.cwd || '') === normalizeSessionKey(cwd)
+      ) {
         try {
           const ctx = await workerManager.getContextPrompts()
           const built = String(ctx.builtSystemPreview || '').trim()
+          if (built) seed = built
+        } catch (e) {
+          /* */
+        }
+      } else {
+        try {
+          const built = (await sessionPreviewProcess.getSystemPrompt({
+            cwd,
+            globalSettings: readPiAgentGlobalSettingsFromDisk() || {},
+            projectSettings: readPiProjectSettingsFromDisk(cwd) || {},
+          })).trim()
           if (built) seed = built
         } catch (e) {
           /* */

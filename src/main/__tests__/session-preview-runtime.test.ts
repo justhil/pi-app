@@ -27,11 +27,19 @@ describe('preview utility bundle', () => {
       'WorkerManager',
       'forkWorker',
       'initSession',
-      'createAgentSession',
       'SessionManager.create',
     ]) {
       expect(wslPreviewBundle).not.toContain(forbidden)
     }
+    expect(wslPreviewBundle).toContain('SettingsManager.fromStorage')
+    expect(wslPreviewBundle).toContain('createSettingsStorage')
+    expect(wslPreviewBundle).toContain('projectTrusted: true')
+    expect(wslPreviewBundle).toContain('ModelRuntime.create')
+    expect(wslPreviewBundle).toContain('modelsPath: null')
+    expect(wslPreviewBundle).toContain('packages: []')
+    expect(wslPreviewBundle).toContain('extensions: []')
+    expect(wslPreviewBundle).toContain('SessionManager.inMemory')
+    expect(wslPreviewBundle).toContain('createAgentSession')
     expect(wslPreviewBundle).toContain('SessionManager.list')
     expect(wslPreviewEntry.length).toBeGreaterThan(0)
   })

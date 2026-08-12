@@ -124,6 +124,40 @@ describe('WSL session preview runner', () => {
     })
   })
 
+  it('routes system prompt preview through the WSL-native preview process', async () => {
+    const child = fakeChild()
+    mocks.spawnPreviewInWsl.mockReturnValue(child)
+    let written = ''
+    child.stdin.on('data', (chunk) => {
+      written += chunk.toString()
+      const request = JSON.parse(written.trim()) as { requestId: string; type: string }
+      child.stdout.write(encodeWorkerFrame({
+        requestId: request.requestId,
+        type: `${request.type}-done`,
+        result: 'assembled prompt',
+      }) + '\n')
+    })
+    const runner = new WslSessionPreviewRunner()
+
+    await expect(runner.request({
+      type: 'system.prompt',
+      payload: {
+        cwd: 'C:\\Project',
+        globalSettings: { defaultModel: 'gpt-5' },
+        projectSettings: { skills: ['.pi/skills/project-skill'] },
+      },
+      userDataDir: 'C:\\data',
+    })).resolves.toBe('assembled prompt')
+
+    expect(JSON.parse(written.trim())).toMatchObject({
+      type: 'system.prompt',
+      cwd: '/mnt/c/Project',
+      sdkPath: '/opt/pi/dist/index.js',
+      globalSettings: { defaultModel: 'gpt-5' },
+      projectSettings: { skills: ['.pi/skills/project-skill'] },
+    })
+  })
+
   it('uses native WSL paths and returns without touching AgentSession or worker pools', async () => {
     const child = fakeChild()
     mocks.spawnPreviewInWsl.mockReturnValue(child)

@@ -12,6 +12,7 @@ export type WslPreviewRequest = {
     | 'session.tree'
     | 'session.invalidateList'
     | 'pi.settings.set'
+    | 'system.prompt'
   payload: Record<string, unknown>
   userDataDir: string
 }

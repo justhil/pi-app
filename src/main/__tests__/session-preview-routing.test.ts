@@ -26,6 +26,8 @@ describe('session preview process routing', () => {
     expect(previewEntry).not.toContain('loadSession')
     expect(previewEntry).not.toContain('WorkerManager')
     expect(previewEntry).not.toContain('worker-manager')
+    expect(previewEntry).toContain('system.prompt')
+    expect(previewEntry).toContain('buildSystemPromptPreview')
     expect(sdkSession).not.toContain("from 'electron'")
     expect(diskMessages).not.toContain("from 'electron'")
     expect(previewEntry).toContain('message.userDataDir')
