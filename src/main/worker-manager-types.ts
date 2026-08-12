@@ -8,12 +8,18 @@ export type WorkerInitResult = {
   thinkingLevel?: string
 }
 
+export type WorkerRuntimeIdentity = {
+  /** Agent runtime captured at fork time — NOT the current global config. */
+  mode: 'host' | 'wsl'
+  distro: string | null
+}
+
 export type WorkerSlot = {
   /** Pool map key: sessionFile abs path or `ws:${cwd}` */
   poolKey: string
   cwd: string
-  /** Runtime identity captured when this worker was created. */
-  runtime: { mode: 'host' | 'wsl'; distro: string | null }
+  /** Runtime identity this slot was forked under (survives runtime switches). */
+  runtime: WorkerRuntimeIdentity
   /** Bound session file when known; null for workspace-only slots */
   sessionFile: string | null
   worker: WorkerTransport

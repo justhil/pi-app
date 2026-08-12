@@ -1,6 +1,7 @@
 import { registerHandler } from '../registry'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
+import { resolveActiveHomeDir } from '../../agent-dir'
 import { getDesktopSkillOverrides, isSkillEnabled } from '../../pi-skill-overrides'
 import { mergeSlashCommandLists, scanStaticSlashCommands, type SlashCatalogCommand } from '../../commands-catalog'
 import { resolveV2SlashPrefix } from '../../../extension-compat/adapter-loader'
@@ -17,7 +18,7 @@ export function registerCommandsSlashHandlers(): void {
   })
 
   registerHandler('ipc:commands.list', async () => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const cwd = workerManager.cwd || configStore.get('currentProject') || resolveActiveHomeDir()
     const overrides = getDesktopSkillOverrides()
     const filterSkills = (list: SlashCatalogCommand[]) =>
       list.filter((c) => {

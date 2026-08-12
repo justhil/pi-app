@@ -122,6 +122,10 @@ export function spawnWorkerInWsl(opts: SpawnWslWorkerOptions): ChildProcess {
   if (wslCdFlagSupported(opts.distro)) {
     args.push('--cd', opts.wslCwd, '--', 'node', opts.workerWslPath)
   } else {
+    // 旧版 wsl.exe 不支持 --cd：直接跑 node 会落在发行版默认 home，worker 的
+    // process.cwd() 错位会让相对工具调用 / 项目级 .pi、AGENTS 配置 / git 全部
+    // 针对错误目录。改为经发行版 bash 显式 cd 进项目目录再 exec node，
+    // 用位置参数传递路径，避免 Windows 命令行对引号语义的破坏。
     args.push(
       '--',
       'bash',

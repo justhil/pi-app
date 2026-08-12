@@ -121,7 +121,7 @@ export function RuntimeSettingsPanel() {
                 onClick={() => {
                   setProbeState('checking')
                   void ipcClient
-                    .invoke('wsl.probeDistro', { distro: runtime.distro })
+                    .invoke('wsl.probeDistro', { distro: runtime.distro, force: true })
                     .then((res) => setProbe((res?.result as WslProbeResult | undefined) ?? null))
                     .catch(() => setProbe(null))
                     .finally(() => setProbeState('idle'))

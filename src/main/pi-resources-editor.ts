@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { join, basename, dirname, resolve } from 'path'
-import { resolveActiveAgentDir } from './agent-dir'
+import { resolveActiveAgentDir, resolveActiveHomeDir } from './agent-dir'
 
 export type ResourceSource = 'project' | 'global' | 'settings' | 'package' | 'unknown'
 
@@ -90,6 +90,9 @@ export function listSkillsOnDisk(cwd: string): SkillListItem[] {
   const out: SkillListItem[] = []
   scanSkillMdFiles(join(cwd, '.pi', 'skills'), 'project', out)
   scanSkillMdFiles(join(agentDir(), 'skills'), 'global', out)
+  // 兼容用户把全局 skills 放在 `~/.pi/skills`（顶层，无 agent 层）的常见习惯：
+  // SDK 在 cwd=~ 时将其作为项目级加载，这里统一补扫，保证设置面板可见。
+  scanSkillMdFiles(join(resolveActiveHomeDir(), '.pi', 'skills'), 'global', out)
   const seen = new Set<string>()
   return out.filter((s) => {
     const k = s.path.toLowerCase()
@@ -125,6 +128,7 @@ export function listPromptsOnDisk(cwd: string): PromptListItem[] {
   const out: PromptListItem[] = []
   scanPromptsDir(join(cwd, '.pi', 'prompts'), 'project', out)
   scanPromptsDir(join(agentDir(), 'prompts'), 'global', out)
+  scanPromptsDir(join(resolveActiveHomeDir(), '.pi', 'prompts'), 'global', out)
   const seen = new Set<string>()
   return out.filter((p) => {
     const k = `${p.source}:${p.name}`

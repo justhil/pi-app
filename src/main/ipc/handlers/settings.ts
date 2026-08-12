@@ -3,12 +3,12 @@ import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
 import { getMainWindow } from '../../window'
-import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
+import { invalidateAdapterCatalog } from '@extension-compat/adapter-loader.ts'
+import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { settingsSetSchema } from '../schemas'
 import { workerManager } from '../../worker-manager'
 import { invalidateSdkManagerCaches } from '../../sdk-manager'
 import { sessionPreviewProcess } from '../../session-preview-process'
-import { registerHandler, registerHandlerWithSchema } from '../registry'
-import { settingsSetSchema } from '../schemas'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -41,6 +41,8 @@ export function registerSettingsHandlers(): void {
       }
       configStore.set(key, next)
       if (changed) {
+        // 宿主 ↔ WSL 切换会改变 active 用户目录（~/.pi/agent、~/.pi/desktop），
+        // 清理 adapter catalog 与 SDK 缓存，避免继续读旧 runtime 的目录。
         invalidateAdapterCatalog()
         invalidateSdkManagerCaches()
       }

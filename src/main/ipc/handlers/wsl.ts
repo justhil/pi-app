@@ -9,6 +9,6 @@ export function registerWslHandlers(): void {
   registerHandler('ipc:wsl.probeDistro', async (req) => {
     const distro = String(req.distro ?? '')
     if (!distro) return { ok: false, error: 'missing distro' }
-    return { result: await probeWslDistro(distro) }
+    return { result: await probeWslDistro(distro, { force: req.force === true }) }
   })
 }
