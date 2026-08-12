@@ -10,7 +10,7 @@ import {
   listSandboxWorkspaces,
   renameSandboxWorkspace,
 } from '../../sandbox-workspaces'
-import { listSessionsOnDisk } from '../sdk-session'
+import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
@@ -80,7 +80,7 @@ export function registerWorkspaceHandlers(): void {
       await Promise.all(
         listSandboxWorkspaces().map(async (s) => {
           if (!s.sessionId || !s.sessionFile) {
-            const latest = (await listSessionsOnDisk(s.path).catch(() => []))[0]
+            const latest = (await sessionPreviewProcess.listSessions(s.path).catch(() => []))[0]
             if (latest?.id && latest.path) {
               s.sessionId = latest.id
               s.sessionFile = latest.path

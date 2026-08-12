@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   hasActiveTurns: false,
   invalidateAdapterCatalog: vi.fn(),
   invalidateSdkManagerCaches: vi.fn(),
-  invalidateListSessionsCache: vi.fn(),
+  stopPreview: vi.fn(),
 }))
 
 vi.mock('./registry', () => ({
@@ -49,8 +49,8 @@ vi.mock('../sdk-manager', () => ({
   invalidateSdkManagerCaches: mocks.invalidateSdkManagerCaches,
 }))
 
-vi.mock('./sdk-session', () => ({
-  invalidateListSessionsCache: mocks.invalidateListSessionsCache,
+vi.mock('../session-preview-process', () => ({
+  sessionPreviewProcess: { stop: mocks.stopPreview },
 }))
 
 vi.mock('../asr-config-store', () => ({
@@ -73,7 +73,7 @@ beforeEach(() => {
   mocks.hasActiveTurns = false
   mocks.invalidateAdapterCatalog.mockReset()
   mocks.invalidateSdkManagerCaches.mockReset()
-  mocks.invalidateListSessionsCache.mockReset()
+  mocks.stopPreview.mockReset()
   registerSettingsHandlers()
 })
 
@@ -97,6 +97,9 @@ describe('agent runtime settings transaction', () => {
     mocks.stop.mockImplementation(async () => {
       order.push('stop')
     })
+    mocks.stopPreview.mockImplementation(() => {
+      order.push('preview-stop')
+    })
     mocks.configSet.mockImplementation(() => {
       order.push('persist')
     })
@@ -106,10 +109,10 @@ describe('agent runtime settings transaction', () => {
       value: { mode: 'wsl', distro: 'Debian' },
     })
 
-    expect(order).toEqual(['stop', 'persist'])
+    expect(order).toEqual(['stop', 'preview-stop', 'persist'])
+    expect(mocks.stopPreview).toHaveBeenCalledOnce()
     expect(mocks.invalidateAdapterCatalog).toHaveBeenCalledOnce()
     expect(mocks.invalidateSdkManagerCaches).toHaveBeenCalledOnce()
-    expect(mocks.invalidateListSessionsCache).toHaveBeenCalledOnce()
   })
 
   it('should_not_restart_workers_when_agent_runtime_is_unchanged', async () => {
@@ -119,6 +122,7 @@ describe('agent runtime settings transaction', () => {
     })
 
     expect(mocks.stop).not.toHaveBeenCalled()
+    expect(mocks.stopPreview).not.toHaveBeenCalled()
     expect(mocks.configSet).toHaveBeenCalledWith('agentRuntime', { mode: 'host', distro: null })
   })
 })

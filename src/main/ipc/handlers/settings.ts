@@ -6,7 +6,7 @@ import { getMainWindow } from '../../window'
 import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { workerManager } from '../../worker-manager'
 import { invalidateSdkManagerCaches } from '../../sdk-manager'
-import { invalidateListSessionsCache } from '../sdk-session'
+import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { settingsSetSchema } from '../schemas'
 
@@ -37,12 +37,12 @@ export function registerSettingsHandlers(): void {
       if (changed) {
         if (workerManager.hasActiveTurns) throw new Error('AGENT_RUNTIME_BUSY')
         await workerManager.stop()
+        sessionPreviewProcess.stop()
       }
       configStore.set(key, next)
       if (changed) {
         invalidateAdapterCatalog()
         invalidateSdkManagerCaches()
-        invalidateListSessionsCache()
       }
       return { key: req.key, value: next }
     }

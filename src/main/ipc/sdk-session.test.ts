@@ -1,36 +1,34 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { validateSelectedSdkModule, listSessionsOnDisk, invalidateListSessionsCache } from './sdk-session'
-
-vi.mock('../worker-manager', () => ({
-  workerManager: {
-    listSessions: vi.fn(async () => []),
-  },
-}))
-
-vi.mock('electron', () => ({
-  app: { getPath: vi.fn(() => '/tmp/pi-desktop-test') },
-}))
-
-vi.mock('../wsl/runtime-config', () => ({
-  isWslRuntimeActive: vi.fn(() => false),
-}))
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  invalidateListSessionsCache,
+  listSessionsOnDisk,
+  toSessionOnDiskRows,
+  validateSelectedSdkModule,
+} from './sdk-session'
 
 vi.mock('../sdk-loader', () => ({
-  resolveActiveSdk: vi.fn(() => ({ kind: 'builtin', entryPath: '/tmp/pi-desktop-test/sdk.mjs', version: '0.0.0' })),
+  resolveActiveSdk: vi.fn(() => ({
+    kind: 'builtin',
+    entryPath: '/tmp/pi-desktop-test/sdk.mjs',
+    version: '0.0.0',
+  })),
 }))
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
+const sdkList = vi.fn(async () => [
+  { id: 'h1', path: '/root/workspace/pi-app/.pi/s1.json' },
+])
 
 vi.mock('/tmp/pi-desktop-test/sdk.mjs', () => ({
-  SessionManager: {
-    list: vi.fn(async () => [
-      { id: 'h1', path: '/root/workspace/pi-app/.pi/s1.json' },
-    ]),
-  },
+  SessionManager: { list: sdkList },
 }))
-
-import { workerManager } from '../worker-manager'
-import { isWslRuntimeActive } from '../wsl/runtime-config'
-const mockIsWslRuntimeActive = isWslRuntimeActive as unknown as ReturnType<typeof vi.fn>
-const mockListSessions = workerManager.listSessions as unknown as ReturnType<typeof vi.fn>
 
 describe('selected SDK module probe', () => {
   it('rejects the legacy factory shape without ModelRuntime services', () => {
@@ -67,53 +65,73 @@ describe('selected SDK module probe', () => {
   })
 })
 
-describe('listSessionsOnDisk WSL routing', () => {
+describe('listSessionsOnDisk preview inputs', () => {
   beforeEach(() => {
-    mockListSessions.mockClear()
-    mockListSessions.mockResolvedValue([])
     invalidateListSessionsCache()
+    sdkList.mockReset()
+    sdkList.mockResolvedValue([
+      { id: 'h1', path: '/root/workspace/pi-app/.pi/s1.json' },
+    ])
   })
 
-  it('routes host-mode native paths to direct SDK read (worker not consulted)', async () => {
-    mockIsWslRuntimeActive.mockReturnValue(false)
-    const result = await listSessionsOnDisk('/root/workspace/pi-app')
+  it('loads host sessions from the selected SDK', async () => {
+    const result = await listSessionsOnDisk('/root/workspace/pi-app', '/tmp/pi-desktop-test')
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('h1')
-    expect(mockListSessions).not.toHaveBeenCalled()
+    expect(sdkList).toHaveBeenCalledWith('/root/workspace/pi-app')
   })
 
-  it('routes UNC paths through the worker channel in host mode', async () => {
-    mockIsWslRuntimeActive.mockReturnValue(false)
-    mockListSessions.mockResolvedValue([
-      { id: 's1', path: '\\\\wsl.localhost\\Debian\\root\\x\\.pi\\s1.json' },
-    ])
-    const result = await listSessionsOnDisk('\\\\wsl.localhost\\Debian\\root\\x')
-    expect(mockListSessions).toHaveBeenCalledWith('\\\\wsl.localhost\\Debian\\root\\x')
-    expect(result[0].path).toContain('\\\\wsl.localhost\\Debian\\root\\x')
+  it('reflects a successful mutation on the next list request', async () => {
+    sdkList
+      .mockResolvedValueOnce([{ id: 'before', path: '/root/workspace/pi-app/.pi/before.json' }])
+      .mockResolvedValueOnce([{ id: 'after', path: '/root/workspace/pi-app/.pi/after.json' }])
+
+    await expect(listSessionsOnDisk('/root/workspace/pi-app', '/tmp/pi-desktop-test'))
+      .resolves.toMatchObject([{ id: 'before' }])
+    invalidateListSessionsCache('/root/workspace/pi-app')
+    await expect(listSessionsOnDisk('/root/workspace/pi-app', '/tmp/pi-desktop-test'))
+      .resolves.toMatchObject([{ id: 'after' }])
+    expect(sdkList).toHaveBeenCalledTimes(2)
   })
 
-  it('routes Windows sandbox paths through the worker channel while WSL runtime is active', async () => {
-    mockIsWslRuntimeActive.mockReturnValue(true)
-    mockListSessions.mockResolvedValue([
+  it('does not let an in-flight list repopulate an invalidated workspace cache', async () => {
+    const firstList = deferred<{ id: string; path: string }[]>()
+    sdkList
+      .mockReturnValueOnce(firstList.promise)
+      .mockResolvedValueOnce([{ id: 'after', path: '/root/workspace/pi-app/.pi/after.json' }])
+
+    const stale = listSessionsOnDisk('/root/workspace/pi-app', '/tmp/pi-desktop-test')
+    await vi.waitFor(() => expect(sdkList).toHaveBeenCalledTimes(1))
+    invalidateListSessionsCache('/root/workspace/pi-app')
+    firstList.resolve([{ id: 'before', path: '/root/workspace/pi-app/.pi/before.json' }])
+
+    await expect(stale).resolves.toMatchObject([{ id: 'before' }])
+    await expect(listSessionsOnDisk('/root/workspace/pi-app', '/tmp/pi-desktop-test'))
+      .resolves.toMatchObject([{ id: 'after' }])
+    expect(sdkList).toHaveBeenCalledTimes(2)
+  })
+
+  it('normalizes WSL worker rows without importing a Worker manager', async () => {
+    const rows = [
       {
         id: 's1',
-        path: 'C:\\Users\\T\\AppData\\Roaming\\pi-desktop\\sandbox-workspaces\\781ac8c3\\s1.json',
+        sessionFile: '\\\\wsl.localhost\\Debian\\root\\x\\.pi\\s1.json',
+        created: '2026-08-11T00:00:00.000Z',
       },
-    ])
+    ]
     const result = await listSessionsOnDisk(
-      'C:\\Users\\T\\AppData\\Roaming\\pi-desktop\\sandbox-workspaces\\781ac8c3',
+      '\\\\wsl.localhost\\Debian\\root\\x',
+      '/tmp/pi-desktop-test',
+      rows,
     )
-    expect(mockListSessions).toHaveBeenCalledWith(
-      'C:\\Users\\T\\AppData\\Roaming\\pi-desktop\\sandbox-workspaces\\781ac8c3',
-    )
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('s1')
+    expect(result[0]).toMatchObject({ id: 's1', path: rows[0].sessionFile })
+    expect(result[0].created).toBeInstanceOf(Date)
+    expect(sdkList).not.toHaveBeenCalled()
   })
 
-  it('falls back to an empty list when the worker channel throws', async () => {
-    mockIsWslRuntimeActive.mockReturnValue(true)
-    mockListSessions.mockRejectedValue(new Error('boom'))
-    const result = await listSessionsOnDisk('\\\\wsl.localhost\\Debian\\root\\x')
-    expect(result).toEqual([])
+  it('normalizes invalid and sparse rows consistently', () => {
+    expect(toSessionOnDiskRows([null, { id: 1, path: 2 }])).toEqual([
+      { id: '1', path: '2' },
+    ])
   })
 })

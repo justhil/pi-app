@@ -55,7 +55,7 @@ describe('live session switch binding', () => {
 
   it('session.tree ignores pendingBind fallback and marks workerBound only for the matching file', () => {
     const text = src('src/main/ipc/handlers/session.ts')
-    const treeHandler = text.match(/registerHandler\('ipc:session\.tree'[\s\S]*?registerHandlerWithSchema\('ipc:session\.navigateTree'/)?.[0] ?? ''
+    const treeHandler = text.match(/registerHandlerWithSchema\('ipc:session\.tree'[\s\S]*?registerHandlerWithSchema\('ipc:session\.navigateTree'/)?.[0] ?? ''
     assert.doesNotMatch(treeHandler, /getPendingWorkerSessionFile\(\)/)
     assert.match(treeHandler, /workerBound:\s*workerSessionFile\s*===\s*sessionFile/)
   })

@@ -5,6 +5,13 @@ const mocks = vi.hoisted(() => ({
   readModelsConfig: vi.fn(),
   writeModelsConfig: vi.fn(),
   reloadModels: vi.fn(),
+  stopPreview: vi.fn(),
+  installVersion: vi.fn(),
+  switchTo: vi.fn(),
+  confirmSdkSelection: vi.fn(),
+  readSdkStatusCached: vi.fn(),
+  listRegistryVersions: vi.fn(),
+  isAllowedSdkVersion: vi.fn(),
   workerRunning: true,
 }))
 
@@ -44,16 +51,23 @@ vi.mock('../config-store', () => ({ configStore: { get: vi.fn(() => '') } }))
 vi.mock('../pi-info', () => ({ readPiInfo: vi.fn(), readResourceList: vi.fn() }))
 vi.mock('../sdk-loader', () => ({ clearGlobalSdkPathCache: vi.fn() }))
 vi.mock('../sdk-manager', () => ({
-  readSdkStatusCached: vi.fn(),
+  readSdkStatusCached: mocks.readSdkStatusCached,
   listRegistryVersionsCached: vi.fn(),
-  listRegistryVersions: vi.fn(),
-  installVersion: vi.fn(),
-  switchTo: vi.fn(),
-  isAllowedSdkVersion: vi.fn(),
+  listRegistryVersions: mocks.listRegistryVersions,
+  installVersion: mocks.installVersion,
+  switchTo: mocks.switchTo,
+  isAllowedSdkVersion: mocks.isAllowedSdkVersion,
   invalidateSdkManagerCaches: vi.fn(),
 }))
 vi.mock('./sdk-session', () => ({ probeSelectedSdk: vi.fn() }))
-vi.mock('../sdk-selection-transaction', () => ({ confirmSdkSelection: vi.fn() }))
+vi.mock('../sdk-selection-transaction', () => ({ confirmSdkSelection: mocks.confirmSdkSelection }))
+vi.mock('../session-preview-process', () => ({
+  sessionPreviewProcess: { stop: mocks.stopPreview },
+}))
+vi.mock('../wsl/runtime-config', () => ({
+  getAgentRuntimeConfig: vi.fn(() => ({ mode: 'host', distro: null })),
+}))
+vi.mock('../wsl/sdk-resolve', () => ({ assertWslSdkAvailable: vi.fn() }))
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '') },
   BrowserWindow: { getFocusedWindow: vi.fn(), getAllWindows: vi.fn(() => []) },
@@ -76,11 +90,39 @@ beforeEach(() => {
   mocks.readModelsConfig.mockReset()
   mocks.writeModelsConfig.mockReset()
   mocks.reloadModels.mockReset()
+  mocks.stopPreview.mockReset()
+  mocks.installVersion.mockReset()
+  mocks.installVersion.mockResolvedValue(undefined)
+  mocks.switchTo.mockReset()
+  mocks.switchTo.mockResolvedValue(undefined)
+  mocks.confirmSdkSelection.mockReset()
+  mocks.confirmSdkSelection.mockResolvedValue({ kind: 'builtin', version: '0.83.0' })
+  mocks.readSdkStatusCached.mockReset()
+  mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
+  mocks.listRegistryVersions.mockReset()
+  mocks.listRegistryVersions.mockResolvedValue(['0.83.0'])
+  mocks.isAllowedSdkVersion.mockReset()
+  mocks.isAllowedSdkVersion.mockReturnValue(true)
   mocks.workerRunning = true
   registerPiSdkHandlers()
 })
 
 describe('pi.models IPC handlers', () => {
+  it.each([
+    ['ipc:sdk.install', { version: '0.83.0' }],
+    ['ipc:sdk.switch', { target: 'builtin' }],
+  ])('stops preview before %s changes the selected SDK', async (channel, request) => {
+    const order: string[] = []
+    mocks.stopPreview.mockImplementation(() => order.push('preview-stop'))
+    mocks.installVersion.mockImplementation(async () => { order.push('install') })
+    mocks.switchTo.mockImplementation(async () => { order.push('switch') })
+
+    await expect(mocks.handlers.get(channel)!(request)).resolves.toMatchObject({ ok: true })
+
+    expect(order[0]).toBe('preview-stop')
+    expect(order).toContain(channel === 'ipc:sdk.install' ? 'install' : 'switch')
+  })
+
   it('writes through the production owner and reloads the running Worker before success', async () => {
     mocks.writeModelsConfig.mockResolvedValue({ ok: true, path: 'active-agent/models.json' })
     mocks.reloadModels.mockResolvedValue(undefined)

@@ -13,7 +13,8 @@ describe('session.getMessages disk preview', () => {
     assert.ok(start >= 0 && end > start)
     const block = src.slice(start, end)
     assert.doesNotMatch(block, /worker_not_ready/)
-    assert.match(block, /getSessionMessagesFromDisk/)
+    assert.match(block, /sessionPreviewProcess\.getMessages/)
+    assert.doesNotMatch(block, /getSessionMessagesFromDisk/)
   })
 
   it('shared JSONL timeline helper exists for main and worker', () => {

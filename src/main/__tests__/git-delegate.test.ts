@@ -8,21 +8,25 @@ const mocks = vi.hoisted(() => ({
       stderr: string
     }
   >(),
+  runWslDistroCdAsync: vi.fn(),
 }))
 
 vi.mock('../wsl/wsl-exec', () => ({
   runWslSync: mocks.runWslSync,
+  runWslDistroCdAsync: mocks.runWslDistroCdAsync,
   isValidWslDistroName: (d: string | null | undefined) =>
     typeof d === 'string' && d.trim() !== '' && /^[A-Za-z0-9._-]+$/.test(d),
   WSL_DISTRO_PATTERN: /^[A-Za-z0-9._-]+$/,
 }))
 
-import { runGitInWsl } from '../wsl/git-delegate'
+import { runGitInWsl, runGitInWslAsync } from '../wsl/git-delegate'
 
 describe('runGitInWsl', () => {
   beforeEach(() => {
     mocks.runWslSync.mockReset()
     mocks.runWslSync.mockReturnValue({ status: 0, stdout: 'ok', stderr: '' })
+    mocks.runWslDistroCdAsync.mockReset()
+    mocks.runWslDistroCdAsync.mockResolvedValue({ status: 0, stdout: 'ok', stderr: '' })
   })
 
   it('translates a Windows drive path to /mnt/<drive> and runs git in the distro', () => {
@@ -50,6 +54,31 @@ describe('runGitInWsl', () => {
     expect(mocks.runWslSync).toHaveBeenCalledWith(
       ['-d', 'Ubuntu', '--cd', '/mnt/d/repo', '--', 'git', 'apply', '--cached', '--recount'],
       { timeout: undefined, input: 'patch' },
+    )
+  })
+
+  it('runs read-only git asynchronously inside the requested distro cwd', async () => {
+    const result = await runGitInWslAsync('Ubuntu', 'C:\\project', ['status'], { timeout: 5000 })
+    expect(result).toEqual({ status: 0, stdout: 'ok', stderr: '' })
+    expect(mocks.runWslDistroCdAsync).toHaveBeenCalledWith(
+      'Ubuntu',
+      '/mnt/c/project',
+      ['git', 'status'],
+      { timeout: 5000 },
+    )
+  })
+
+  it('forwards maxBuffer for async WSL git', async () => {
+    await runGitInWslAsync('Ubuntu', 'C:\\project', ['diff'], {
+      timeout: 5000,
+      maxBuffer: 1024,
+    })
+
+    expect(mocks.runWslDistroCdAsync).toHaveBeenCalledWith(
+      'Ubuntu',
+      '/mnt/c/project',
+      ['git', 'diff'],
+      { timeout: 5000, maxBuffer: 1024 },
     )
   })
 

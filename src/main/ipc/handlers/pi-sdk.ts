@@ -21,6 +21,7 @@ import { confirmSdkSelection } from '../../sdk-selection-transaction'
 import { probeSelectedSdk } from '../sdk-session'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
+import { sessionPreviewProcess } from '../../session-preview-process'
 
 async function restartWorkers(): Promise<void> {
   const cwd = workerManager.cwd || configStore.get('currentProject')
@@ -43,7 +44,7 @@ async function verifySelectedSdk(target: 'builtin' | 'global' | 'user') {
     }
     throw new Error('WSL 模式下仅支持全局版本，无法切换到其他环境')
   }
-  const active = await probeSelectedSdk(target)
+  const active = await probeSelectedSdk(target, app.getPath('userData'))
   if (workerManager.lastSdkFallback) throw new Error('Worker 加载目标 SDK 失败并回退到内置环境')
   return active
 }
@@ -121,6 +122,7 @@ export function registerPiSdkHandlers(): void {
     const userDataDir = app.getPath('userData')
     const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
     try {
+      sessionPreviewProcess.stop()
       await installVersion(version, (line) => {
         if (win) sendEvent(win, { type: 'sdk-install-progress', version, line })
       })
@@ -150,6 +152,7 @@ export function registerPiSdkHandlers(): void {
     const userDataDir = app.getPath('userData')
     const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
     try {
+      sessionPreviewProcess.stop()
       await switchTo(target)
       const active = await confirmSdkSelection({
         target,
