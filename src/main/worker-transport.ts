@@ -6,6 +6,7 @@
  */
 
 import type { ChildProcess } from 'child_process'
+import { StringDecoder } from 'node:string_decoder'
 import type { UtilityProcess } from 'electron'
 import { decodeWorkerFrameLine } from '@shared/worker-frame'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
@@ -76,9 +77,10 @@ export function createWslWorkerTransport(opts: {
   let stdoutCb: ((chunk: string) => void) | null = null
   let stderrCb: ((chunk: string) => void) | null = null
   let frameBuffer = ''
+  const stdoutDecoder = new StringDecoder('utf8')
 
   child.stdout?.on('data', (chunk: Buffer) => {
-    frameBuffer += chunk.toString()
+    frameBuffer += stdoutDecoder.write(chunk)
     let idx = frameBuffer.indexOf('\n')
     while (idx >= 0) {
       const line = frameBuffer.slice(0, idx)

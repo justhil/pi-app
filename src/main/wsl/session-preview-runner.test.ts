@@ -197,6 +197,35 @@ describe('WSL session preview runner', () => {
     expect([...pool.keys()]).toEqual(['existing'])
   })
 
+  it('preserves split multibyte UTF-8 responses from the WSL preview process', async () => {
+    const child = fakeChild()
+    mocks.spawnPreviewInWsl.mockReturnValue(child)
+    child.stdin.on('data', (chunk) => {
+      const request = JSON.parse(chunk.toString()) as { requestId: string; type: string }
+      const frame = Buffer.from(encodeWorkerFrame({
+        requestId: request.requestId,
+        type: `${request.type}-done`,
+        result: { nodes: [{ id: 'a1', preview: '这是最新回复' }], leafId: 'a1' },
+      }) + '\n')
+      const split = frame.findIndex((byte, index) => index > 0 && (byte & 0xc0) === 0x80)
+      child.stdout.write(frame.subarray(0, split))
+      child.stdout.write(frame.subarray(split))
+    })
+    const runner = new WslSessionPreviewRunner()
+
+    await expect(runner.request({
+      type: 'session.tree',
+      payload: {
+        cwd: '\\\\wsl.localhost\\Ubuntu\\home\\u\\project',
+        sessionFile: '\\\\wsl.localhost\\Ubuntu\\home\\u\\s.jsonl',
+      },
+      userDataDir: 'C:\\data',
+    })).resolves.toEqual({
+      nodes: [{ id: 'a1', preview: '这是最新回复' }],
+      leafId: 'a1',
+    })
+  })
+
   it('reuses the dedicated preview process without allocating additional processes', async () => {
     const child = fakeChild()
     mocks.spawnPreviewInWsl.mockReturnValue(child)

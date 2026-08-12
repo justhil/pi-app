@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   authorizeTrustedSessionFile: vi.fn(),
   deleteSessionFile: vi.fn(),
   invalidateListSessions: vi.fn(),
+  listSessions: vi.fn(),
   getTree: vi.fn(),
   getMessages: vi.fn(),
   getState: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('../../trusted-workspace', () => ({
 
 vi.mock('../../session-preview-process', () => ({
   sessionPreviewProcess: {
-    listSessions: vi.fn(async () => []),
+    listSessions: mocks.listSessions,
     invalidateListSessions: mocks.invalidateListSessions,
     getTree: mocks.getTree,
     getMessages: mocks.getMessages,
@@ -88,6 +89,8 @@ describe('session preview authorization', () => {
   beforeEach(() => {
     mocks.handlers.clear()
     mocks.authorizeTrustedSessionFile.mockReset()
+    mocks.listSessions.mockReset()
+    mocks.listSessions.mockResolvedValue([])
     mocks.getTree.mockReset()
     mocks.getMessages.mockReset()
     mocks.getState.mockReset()
@@ -96,6 +99,16 @@ describe('session preview authorization', () => {
     mocks.invalidateListSessions.mockReset()
     mocks.invalidateListSessions.mockResolvedValue(undefined)
     registerSessionHandlers()
+  })
+
+  it('invalidates a requested session list before re-reading it', async () => {
+    await mocks.handlers.get('ipc:session.list')!({ workspaceId: '/workspace', refresh: true })
+
+    expect(mocks.invalidateListSessions).toHaveBeenCalledWith('/workspace')
+    expect(mocks.listSessions).toHaveBeenCalledWith('/workspace')
+    expect(mocks.invalidateListSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.listSessions.mock.invocationCallOrder[0],
+    )
   })
 
   it.each([

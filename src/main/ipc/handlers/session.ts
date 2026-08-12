@@ -38,6 +38,9 @@ import { errorMessage } from '@shared/error-message'
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
+    if (workspaceId && req.refresh === true) {
+      await sessionPreviewProcess.invalidateListSessions(workspaceId)
+    }
     const sessions = workspaceId ? await sessionPreviewProcess.listSessions(workspaceId) : []
     const formatted = sessions.map((s: SessionOnDiskRow) => ({
       sessionId: s.id,

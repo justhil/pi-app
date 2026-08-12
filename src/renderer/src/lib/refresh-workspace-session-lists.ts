@@ -35,7 +35,7 @@ async function listSessionsForWorkspace(workspaceId: string): Promise<void> {
 
   const listPromise = (async () => {
     try {
-      const listRes = await ipcClient.invoke('session.list', { workspaceId })
+      const listRes = await ipcClient.invoke('session.list', { workspaceId, refresh: true })
       const list = listRes?.sessions || []
       if (useUIStore.getState().currentWorkspace === workspaceId) {
         useUIStore.getState().setSessions(list)

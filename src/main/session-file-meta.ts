@@ -5,13 +5,19 @@ export type SessionFileMeta = {
   cwd: string | null
 }
 
+function sessionFilePathForFs(sessionFile: string): string {
+  if (process.platform !== 'win32' || !sessionFile.startsWith('//')) return sessionFile
+  return `\\\\${sessionFile.slice(2).replace(/\//g, '\\')}`
+}
+
 export function readSessionMetaFromFile(sessionFile: string): SessionFileMeta | null {
-  if (!sessionFile || !existsSync(sessionFile)) return null
+  const filePath = sessionFilePathForFs(sessionFile)
+  if (!filePath || !existsSync(filePath)) return null
   let fd: number | null = null
   try {
     // Session JSONL can be large. Metadata lives in its first non-empty line, so
     // never synchronously read/split the whole transcript on an IPC hot path.
-    fd = openSync(sessionFile, 'r')
+    fd = openSync(filePath, 'r')
     const cap = 64 * 1024
     const chunks: Buffer[] = []
     const scratch = Buffer.allocUnsafe(4 * 1024)

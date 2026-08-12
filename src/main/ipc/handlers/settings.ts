@@ -1,4 +1,4 @@
-import { shell } from 'electron'
+import { shell, BrowserWindow } from 'electron'
 import type { AppUpdateAvailableInfo } from '@shared/app-update'
 import { configStore, type StoreSchema } from '../../config-store'
 import { asrConfigForSettingsResponse, loadAsrConfig, saveAsrConfig } from '../../asr-config-store'
@@ -7,7 +7,7 @@ import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-load
 import { workerManager } from '../../worker-manager'
 import { invalidateSdkManagerCaches } from '../../sdk-manager'
 import { sessionPreviewProcess } from '../../session-preview-process'
-import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
 import { settingsSetSchema } from '../schemas'
 
 export function registerSettingsHandlers(): void {
@@ -43,6 +43,9 @@ export function registerSettingsHandlers(): void {
       if (changed) {
         invalidateAdapterCatalog()
         invalidateSdkManagerCaches()
+        for (const win of BrowserWindow.getAllWindows()) {
+          sendEvent(win, { type: 'sdk-runtime-changed' })
+        }
       }
       return { key: req.key, value: next }
     }
