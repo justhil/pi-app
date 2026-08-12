@@ -113,7 +113,7 @@ async function runGitReadOnly(
   if (!isGitRepository(cwd)) {
     return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
   }
-  const r = await gitExec(cwd, args, options)
+  const r = await gitExec(cwd, ['--no-optional-locks', ...args], options)
   if (r.status !== 0) {
     const message = (r.stderr || r.stdout || '').trim() || 'git 命令失败'
     if (isNotGitRepo(r.stderr, message)) {

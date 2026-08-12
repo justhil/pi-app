@@ -18,6 +18,17 @@ let watcher: FSWatcher | null = null
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let watchedCwd: string | null = null
 
+function shouldNotifyGitWorkspaceChange(filename: string | Buffer | null): boolean {
+  if (filename == null) return true
+  const basename = filename.toString().replace(/\\/g, '/').split('/').pop() || ''
+  return !(
+    basename.endsWith('.lock') ||
+    basename === 'gc.log' ||
+    basename === 'gc.pid' ||
+    basename === 'maintenance.lock'
+  )
+}
+
 function notifyGitChanged(win: BrowserWindow | null, cwd: string): void {
   if (!win || win.isDestroyed()) return
   win.webContents.send('ipc:git-workspace-changed', { cwd })
@@ -42,7 +53,8 @@ export function refreshGitWorkspaceWatch(win: BrowserWindow | null): void {
   }
   const gitDir = join(cwd, '.git')
   try {
-    watcher = watch(gitDir, { recursive: true }, () => {
+    watcher = watch(gitDir, { recursive: true }, (_eventType, filename) => {
+      if (!shouldNotifyGitWorkspaceChange(filename)) return
       if (debounceTimer) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
         debounceTimer = null

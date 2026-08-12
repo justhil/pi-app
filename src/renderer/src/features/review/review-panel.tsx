@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ipcClient, onGitWorkspaceChanged } from '@renderer/lib/ipc-client'
 import { parseGitDiff } from '@shared/diff-model'
 import {
   Copy,
@@ -14,8 +13,8 @@ import {
   Columns2,
   Rows2,
 } from '@renderer/components/icons'
-import { parseGitStatus } from './review-git-utils'
 import { ChangeIcon, FileDiffView, ReviewCommitBar, type DiffMode } from './review-diff-views'
+import { useReviewGitData } from './use-review-git-data'
 
 type AnyFileEntry = {
   path: string
@@ -38,21 +37,15 @@ export function ReviewPanel() {
   const lastRunId = useUIStore((s) => s.runState.lastRunId)
   const running = useUIStore((s) => s.runState.status === 'running')
   const [copiedPath, setCopiedPath] = useState<string | null>(null)
-  const [gitData, setGitData] = useState<{
-    files: { path: string; changeType: string }[]
-    raw: string
-    branch?: string
-    log?: string
-    error?: string
-    isRepo?: boolean
-    message?: string
-  } | null>(null)
-  const [loading, setLoading] = useState(false)
   const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null)
   const [focusGitPath, setFocusGitPath] = useState<string | null>(null)
   const [expandedMetaPath, setExpandedMetaPath] = useState<string | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('inline')
-  const [gitReloadKey, setGitReloadKey] = useState(0)
+  const { gitData, loading, refreshing, refresh: loadGit } = useReviewGitData({
+    enabled: scope === 'git',
+    workspace,
+    worktreeChangeSignal: fileChanges,
+  })
 
   const turnRunId = running ? activeRunId : lastRunId
 
@@ -89,41 +82,6 @@ export function ReviewPanel() {
     window.addEventListener('pi-desktop:review-focus-file', onFocus)
     return () => window.removeEventListener('pi-desktop:review-focus-file', onFocus)
   }, [])
-
-  const loadGit = () => {
-    if (!workspace) return
-    setLoading(true)
-    setGitReloadKey((k) => k + 1)
-    ipcClient
-      .invoke('review.getDiff', { sessionId: '', scope: 'git' })
-      .then((res) => {
-        if (res?.diff) {
-          const isRepo = res.diff.isRepo !== false
-          setGitData({
-            files: parseGitStatus(res.diff.status || ''),
-            raw: res.diff.raw || '',
-            branch: res.diff.branch,
-            log: res.diff.log,
-            isRepo,
-            message: res.diff.message,
-            error: isRepo ? res.diff.error : undefined,
-          })
-        }
-      })
-      .catch(() => setGitData(null))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    if (scope === 'git' && workspace) loadGit()
-  }, [scope, workspace])
-
-  useEffect(() => {
-    return onGitWorkspaceChanged((payload) => {
-      if (!workspace || payload.cwd.replace(/\\/g, '/') !== workspace.replace(/\\/g, '/')) return
-      if (scope === 'git') loadGit()
-    })
-  }, [scope, workspace])
 
   const turnFiles = useMemo(
     () => fileChanges.filter((f) => turnRunId && f.runId === turnRunId),
@@ -191,7 +149,7 @@ export function ReviewPanel() {
           )}
           {scope === 'git' && (
             <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title={t('review:refresh')}>
-              <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
+              <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
             </button>
           )}
         </div>
@@ -233,7 +191,7 @@ export function ReviewPanel() {
               const file = diffFiles.find((d) => d.path === fc.path || fc.path.endsWith(d.path))
               return (
                 <FileDiffView
-                  key={`${fc.path}-${gitReloadKey}`}
+                  key={fc.path}
                   file={file}
                   fallbackPath={fc.path}
                   fallbackChangeType={fc.changeType}
