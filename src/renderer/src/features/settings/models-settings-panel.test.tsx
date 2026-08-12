@@ -7,8 +7,14 @@ import {
 } from './settings-dirty-registry'
 import { ModelsSettingsPanel } from './models-settings-panel'
 
+const appEventListeners = new Set<(event: { type: string }) => void>()
+
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: vi.fn() },
+  onAppEvent: (listener: (event: { type: string }) => void) => {
+    appEventListeners.add(listener)
+    return () => appEventListeners.delete(listener)
+  },
 }))
 
 vi.mock('sonner', () => ({
@@ -74,6 +80,7 @@ function getRequest(method: string) {
 
 beforeEach(() => {
   vi.mocked(ipcClient.invoke).mockReset()
+  appEventListeners.clear()
 })
 
 afterEach(() => {
@@ -102,8 +109,8 @@ describe('ModelsSettingsPanel save', () => {
     ])
     expect(getRequest('pi.models.get')).toHaveLength(2)
     expect(getRequest('model.list')).toEqual([
-      ['model.list', { scope: 'available' }],
-      ['model.list', { scope: 'available' }],
+      ['model.list', { scope: 'settings' }],
+      ['model.list', { scope: 'settings' }],
     ])
     await waitFor(() => expect(getDirtySettingsSlices()).toEqual([]))
   })
@@ -144,8 +151,8 @@ describe('ModelsSettingsPanel save', () => {
     expect(screen.getByText('reload failed')).toBeTruthy()
   })
 
-  it('shows configured models plus SDK-available models without requesting the full catalog', async () => {
-    const providerAvailableModels = [
+  it('shows configured models plus the non-network SDK settings snapshot', async () => {
+    const providerSettingsModels = [
       ...availableModels,
       {
         id: 'model-a',
@@ -166,32 +173,119 @@ describe('ModelsSettingsPanel save', () => {
     ]
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
-      .mockResolvedValueOnce({ models: providerAvailableModels })
+      .mockResolvedValueOnce({ models: providerSettingsModels })
 
     render(<ModelsSettingsPanel />)
 
     expect(await screen.findByText('store-only')).toBeTruthy()
     expect(screen.getByText('logged-in')).toBeTruthy()
-    expect(screen.getAllByText('model-a')).toHaveLength(1)
+    expect(screen.getAllByText('model-a')).toHaveLength(2)
     expect(getRequest('model.list')).toEqual([
-      ['model.list', { scope: 'available' }],
+      ['model.list', { scope: 'settings' }],
     ])
+    expect(providerSettingsModels[0].available).toBe(true)
     expect(getRequest('pi.models.set')).toEqual([])
   })
 
-  it('shows SDK available providers when models.json is absent or empty', async () => {
+  it('keeps SDK runtime rows read-only when the provider also exists in models.json', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({
+        models: [{
+          ...availableModels[0],
+          managedBy: 'active-sdk',
+          auth: { supported: true, configured: true, source: 'environment', type: 'api_key' },
+        }],
+      })
+      .mockResolvedValueOnce({ ok: true, path: 'models.json' })
+      .mockResolvedValueOnce({ path: 'models.json', config: normalizedConfig })
+      .mockResolvedValueOnce({ models: availableModels })
+
+    render(<ModelsSettingsPanel />)
+
+    expect(await screen.findByText('store-only')).toBeTruthy()
+    expect(screen.getByText(/SDK-managed.*read-only/i)).toBeTruthy()
+    expect(screen.getByText(/API key.*environment/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'edit provider' }))
+    await waitFor(() => expect(getDirtySettingsSlices().map((slice) => slice.id)).toEqual(['pi-models']))
+    await act(async () => {
+      await commitAllSettingsSlices()
+    })
+
+    expect(getRequest('pi.models.set')).toEqual([
+      ['pi.models.set', { config: normalizedConfig }],
+    ])
+  })
+
+  it('reloads the active-SDK projection after a runtime change event', async () => {
     vi.mocked(ipcClient.invoke)
       .mockResolvedValueOnce({ path: 'models.json', config: { providers: {} } })
       .mockResolvedValueOnce({ models: availableModels })
+      .mockResolvedValueOnce({ path: 'models.json', config: { providers: {} } })
+      .mockResolvedValueOnce({ models: [{ ...availableModels[0], id: 'after-switch' }] })
+
+    render(<ModelsSettingsPanel />)
+    expect(await screen.findByText('store-only')).toBeTruthy()
+
+    act(() => {
+      for (const listener of appEventListeners) listener({ type: 'sdk-runtime-changed' })
+    })
+
+    expect(await screen.findByText('after-switch')).toBeTruthy()
+    expect(getRequest('model.list')).toEqual([
+      ['model.list', { scope: 'settings' }],
+      ['model.list', { scope: 'settings' }],
+    ])
+  })
+
+  it('shows SDK catalog providers as active-SDK managed read-only with redacted auth status', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: { providers: {} } })
+      .mockResolvedValueOnce({
+        models: [{
+          ...availableModels[0],
+          managedBy: 'active-sdk',
+          auth: { supported: true, configured: true, source: 'stored', type: 'oauth' },
+        }],
+      })
 
     render(<ModelsSettingsPanel />)
 
     expect(await screen.findByText('custom')).toBeTruthy()
     expect(screen.getByText('store-only')).toBeTruthy()
+    expect(screen.getByText(/SDK-managed.*read-only/i)).toBeTruthy()
+    expect(screen.getByText(/OAuth.*stored/i)).toBeTruthy()
     expect(getRequest('pi.models.set')).toEqual([])
   })
 
-  it('displays SDK available models when models.json only has overrides and saves only the config draft', async () => {
+  it('shows missing and unknown auth states without guessing from editable fields', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: { providers: {} } })
+      .mockResolvedValueOnce({
+        models: [
+          {
+            ...availableModels[0],
+            available: false,
+            managedBy: 'active-sdk',
+            auth: { supported: true, configured: false },
+          },
+          {
+            ...availableModels[0],
+            id: 'unknown-auth',
+            provider: 'legacy',
+            managedBy: 'active-sdk',
+            auth: { supported: false },
+          },
+        ],
+      })
+
+    render(<ModelsSettingsPanel />)
+
+    expect(await screen.findByText(/SDK-managed.*auth not configured/i)).toBeTruthy()
+    expect(screen.getByText(/SDK-managed.*auth status unavailable/i)).toBeTruthy()
+  })
+
+  it('displays SDK catalog models when models.json only has overrides and saves only the config draft', async () => {
     const overrideOnlyConfig = {
       providers: {
         custom: {
@@ -229,8 +323,8 @@ describe('ModelsSettingsPanel save', () => {
       }) }],
     ])
     expect(getRequest('model.list')).toEqual([
-      ['model.list', { scope: 'available' }],
-      ['model.list', { scope: 'available' }],
+      ['model.list', { scope: 'settings' }],
+      ['model.list', { scope: 'settings' }],
     ])
   })
 })

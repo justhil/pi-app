@@ -3,11 +3,11 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Boxes, Plus, RefreshCw, Sparkles } from '@renderer/components/icons'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-dirty-slice'
 import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
-import type { PiModelsConfigPayload, PiModelsProviderConfig } from '@shared/ipc-contract'
+import type { PiModelsConfigPayload, PiModelsProviderConfig, ModelInfo } from '@shared/ipc-contract'
 import {
   PROVIDER_PRESETS,
   allocateProviderKey,
@@ -36,7 +36,7 @@ export function ModelsSettingsPanel() {
   const [fetching, setFetching] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [remoteCatalog, setRemoteCatalog] = useState<Record<string, { ids: string[]; error?: string }>>({})
-  const [catalogModels, setCatalogModels] = useState<Array<{ id: string; provider?: string }>>([])
+  const [settingsModels, setSettingsModels] = useState<ModelInfo[]>([])
   const [expandedLocalModel, setExpandedLocalModel] = useState<Record<string, boolean>>({})
   const [apiKeyVisible, setApiKeyVisible] = useState<Record<string, boolean>>({})
   const [confirmState, setConfirmState] = useState<{
@@ -53,8 +53,8 @@ export function ModelsSettingsPanel() {
     setSchemaError(res?.schemaError || null)
     setLoadWarnings(res?.warnings?.length ? res.warnings : [])
     setSaveError(null)
-    const available = await ipcClient.invoke('model.list', { scope: 'available' }).catch(() => ({ models: [] }))
-    setCatalogModels(available?.models || [])
+    const snapshot = await ipcClient.invoke('model.list', { scope: 'settings' }).catch(() => ({ models: [] }))
+    setSettingsModels(snapshot?.models || [])
     const cfg = res?.config ?? { providers: {} }
     setBaseline(cloneConfig(cfg))
     setDraft(cloneConfig(cfg))
@@ -73,6 +73,9 @@ export function ModelsSettingsPanel() {
         toast.error((e instanceof Error ? e.message : String(e)) || t('models.loadFailedToast'))
       })
       .finally(() => setLoading(false))
+    return onAppEvent((event) => {
+      if (event.type === 'sdk-runtime-changed') void load()
+    })
   }, [load, t])
 
   const patchDraft = useCallback((fn: (c: PiModelsConfigPayload) => void) => {
@@ -110,20 +113,26 @@ export function ModelsSettingsPanel() {
     },
   })
 
-  const catalogByProvider = useMemo(() => {
-    const byProvider: Record<string, Set<string>> = {}
-    for (const model of catalogModels) {
+  const sdkModelsByProvider = useMemo(() => {
+    const byProvider: Record<string, ModelInfo[]> = {}
+    const seen = new Map<string, Set<string>>()
+    for (const model of settingsModels) {
       if (!model.provider || !model.id) continue
-      ;(byProvider[model.provider] ??= new Set()).add(model.id)
+      const ids = seen.get(model.provider) ?? new Set<string>()
+      if (ids.has(model.id)) continue
+      ids.add(model.id)
+      seen.set(model.provider, ids)
+      ;(byProvider[model.provider] ??= []).push(model)
     }
-    return Object.fromEntries(
-      Object.entries(byProvider).map(([providerId, ids]) => [providerId, [...ids].sort((a, b) => a.localeCompare(b))]),
-    )
-  }, [catalogModels])
+    for (const models of Object.values(byProvider)) {
+      models.sort((a, b) => a.id.localeCompare(b.id))
+    }
+    return byProvider
+  }, [settingsModels])
 
-  const catalogOnlyProviderIds = useMemo(
-    () => Object.keys(catalogByProvider).filter((providerId) => !draft?.providers[providerId]).sort((a, b) => a.localeCompare(b)),
-    [catalogByProvider, draft],
+  const sdkProviderIds = useMemo(
+    () => Object.keys(sdkModelsByProvider).sort((a, b) => a.localeCompare(b)),
+    [sdkModelsByProvider],
   )
 
   const providerIds = useMemo(
@@ -343,7 +352,7 @@ export function ModelsSettingsPanel() {
         </div>
       </div>
 
-      {providerIds.length === 0 && catalogOnlyProviderIds.length === 0 ? (
+      {providerIds.length === 0 && sdkProviderIds.length === 0 ? (
         <div className="ui-enter rounded-lg border border-dashed border-border/60 bg-muted/15 px-6 py-10 text-center">
           <Sparkles className="mx-auto h-4 w-4 text-muted-foreground/50" strokeWidth={1.5} />
           <p className="mt-3 text-base font-medium text-foreground/90">{t('models.noProviders')}</p>
@@ -352,11 +361,11 @@ export function ModelsSettingsPanel() {
       ) : (
         <div className="space-y-2">
           {providerIds.map((pid, cardIndex) => {
-            const configuredModelIds = new Set((draft?.providers[pid].models || []).map((model) => model.id))
-            const catalogIds = Array.from(new Set([
-              ...(catalogByProvider[pid] || []).filter((id) => !configuredModelIds.has(id)),
-              ...(remoteCatalog[pid]?.ids || []).filter((id) => !configuredModelIds.has(id)),
-            ]))
+            const catalogIds = Array.from(new Set(
+              (remoteCatalog[pid]?.ids || []).filter(
+                (id) => !(draft?.providers[pid].models || []).some((model) => model.id === id),
+              ),
+            ))
             return (
               <ModelsProviderCard
               key={pid}
@@ -408,36 +417,55 @@ export function ModelsSettingsPanel() {
               />
             )
           })}
-          {catalogOnlyProviderIds.map((providerId) => (
-            <details
-              key={providerId}
-              className="ui-enter rounded-lg border border-border/60 bg-card/40 px-4 py-3 shadow-sm"
-              open={catalogOnlyProviderIds.length <= 3}
-            >
-              <summary className="cursor-pointer list-none">
-                <div className="flex items-center gap-3">
-                  <ProviderAvatar label={providerId} />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-mono text-sm font-semibold text-foreground">{providerId}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('models.catalogModelCount', { count: catalogByProvider[providerId].length })}
+          {sdkProviderIds.map((providerId) => {
+            const models = sdkModelsByProvider[providerId]
+            const auth = models.find((model) => model.auth)?.auth
+            const authDetail = auth?.supported
+              ? auth.configured
+                ? [
+                  auth.type === 'oauth'
+                    ? t('models.authTypeOAuth')
+                    : auth.type === 'api_key'
+                      ? t('models.authTypeApiKey')
+                      : null,
+                  auth.source || null,
+                ].filter(Boolean).join(' · ')
+                : t('models.authNotConfigured')
+              : t('models.authUnavailable')
+            return (
+              <details
+                key={providerId}
+                className="ui-enter rounded-lg border border-border/60 bg-card/40 px-4 py-3 shadow-sm"
+                open={sdkProviderIds.length <= 3}
+              >
+                <summary className="cursor-pointer list-none">
+                  <div className="flex items-center gap-3">
+                    <ProviderAvatar label={providerId} />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-sm font-semibold text-foreground">{providerId}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {t('models.sdkAvailableModelCount', { count: models.length })}
+                      </div>
+                      <div className="mt-0.5 text-2xs text-muted-foreground">
+                        {t('models.sdkManagedReadOnly')} · {authDetail}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </summary>
-              <ul className="mt-3 grid max-h-[min(280px,42vh)] gap-1 overflow-y-auto sm:grid-cols-2">
-                {catalogByProvider[providerId].map((modelId) => (
-                  <li
-                    key={modelId}
-                    className="truncate rounded-md bg-muted/35 px-2.5 py-1.5 font-mono text-xs text-foreground/80"
-                    title={modelId}
-                  >
-                    {modelId}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ))}
+                </summary>
+                <ul className="mt-3 grid max-h-[min(280px,42vh)] gap-1 overflow-y-auto sm:grid-cols-2">
+                  {models.map((model) => (
+                    <li
+                      key={model.id}
+                      className="truncate rounded-md bg-muted/35 px-2.5 py-1.5 font-mono text-xs text-foreground/80"
+                      title={model.id}
+                    >
+                      {model.id}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )
+          })}
         </div>
       )}
 

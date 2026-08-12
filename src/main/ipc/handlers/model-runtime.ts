@@ -9,6 +9,7 @@ import { getSessionLeafOverride } from '../../session-leaf-override'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { isWslRuntimeActive } from '../../wsl/runtime-config'
 import { contextPreviewSchema } from '../schemas'
+import type { ModelEntry } from '../../active-sdk-models'
 import {
   listAvailableModelsWithSdk,
   listCatalogModelsWithSdk,
@@ -18,15 +19,17 @@ import {
 
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
-    const scope = req?.scope === 'available' ? 'available' : 'catalog'
-    const mapRegistry = (models: readonly { id: string; name?: string; provider?: string; contextWindow?: number; maxOutput?: number; maxTokens?: number }[]) =>
+    const scope = req?.scope === 'available' ? 'available' : req?.scope === 'settings' ? 'settings' : 'catalog'
+    const mapRegistry = (models: readonly ModelEntry[]) =>
       models.map((m) => ({
         id: m.id,
         name: m.name || m.id,
-        provider: m.provider,
+        provider: m.provider || '',
         contextWindow: m.contextWindow || 0,
         maxOutput: m.maxOutput || m.maxTokens || 0,
-        available: true,
+        available: m.available ?? true,
+        managedBy: m.managedBy,
+        auth: m.auth,
       }))
 
     const catalogFromDisk = () => {
@@ -35,9 +38,35 @@ export function registerModelRuntimeHandlers(): void {
       return { models: modelsCatalogFromConfig(config) }
     }
 
-    if (scope === 'catalog') {
+    if (scope === 'settings' && workerManager.isRunning) {
+      try {
+        return {
+          models: mapRegistry(
+            (await workerManager.getModelSettingsSnapshot()).filter(
+              (model): model is typeof model & { id: string } => typeof model.id === 'string',
+            ),
+          ),
+        }
+      } catch (error) {
+        console.error('[IPC] model.list settings worker failed:', error)
+      }
+    }
+
+    if (scope === 'catalog' || scope === 'settings') {
       const models = await resolveCatalogModels({
-        sdk: async () => mapRegistry(await listCatalogModelsWithSdk(await getActiveSdkModule())),
+        sdk: async () => {
+          const catalog = await listCatalogModelsWithSdk(await getActiveSdkModule())
+          return scope === 'settings'
+            ? mapRegistry(catalog)
+            : catalog.map((model) => ({
+                id: model.id,
+                name: model.name || model.id,
+                provider: model.provider || '',
+                contextWindow: model.contextWindow || 0,
+                maxOutput: model.maxOutput || model.maxTokens || 0,
+                available: true,
+              }))
+        },
         catalog: () => catalogFromDisk().models,
         onSdkError: (error) => console.error('[IPC] model.list catalog failed:', error),
       })
@@ -87,7 +116,10 @@ export function registerModelRuntimeHandlers(): void {
     return { modelId: actualModel }
   })
 
-  registerHandler('ipc:model.cycle', async () => ({ modelId: '', thinkingLevel: 'medium' }))
+  registerHandler('ipc:model.cycle', async () => ({
+    modelId: '',
+    thinkingLevel: 'medium',
+  }))
 
   registerHandler('ipc:thinkingLevel.set', async (req) => {
     const sessionFile = String(req.sessionFile || '').trim() || undefined

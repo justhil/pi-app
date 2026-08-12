@@ -1,5 +1,6 @@
 /** Worker ↔ Main JSON-RPC style payloads (loosely typed JSON). */
 
+import type { ModelAuthProjection } from './model-auth-projection'
 import type { PiSessionMessage } from './worker-message'
 import type { SessionContextPreview } from './session-context-preview'
 
@@ -31,6 +32,12 @@ export type WorkerModelRow = {
   id?: string
   provider?: string
   name?: string
+  contextWindow?: number
+  maxOutput?: number
+  maxTokens?: number
+  available?: boolean
+  managedBy?: 'active-sdk'
+  auth?: ModelAuthProjection
   [key: string]: unknown
 }
 

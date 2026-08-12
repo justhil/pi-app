@@ -31,6 +31,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'getMessages': Session.handleGetmessages,
   'reloadModels': Catalog.handleReloadmodels,
   'getModels': Catalog.handleGetmodels,
+  'getModelSettingsSnapshot': Catalog.handleGetmodelsettingssnapshot,
   'getCommands': Catalog.handleGetcommands,
   'getSessionContextPreview': Catalog.handleGetsessioncontextpreview,
   'getSkillsList': Catalog.handleGetskillslist,

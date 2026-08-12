@@ -111,10 +111,14 @@ export function PiSettingsPanel() {
 
   useEffect(() => {
     return onAppEvent((event) => {
+      if (event.type === 'sdk-runtime-changed') {
+        void loadModelsForDropdown()
+        return
+      }
       if (event.type !== 'sdk-install-progress') return
       if (event.line) setInstallOutput((prev) => [...prev, event.line!])
     })
-  }, [])
+  }, [loadModelsForDropdown])
 
   const onInstall = useCallback(async () => {
     if (!selectedVersion) return
@@ -129,7 +133,10 @@ export function PiSettingsPanel() {
       setSdkStatus((current) => current ? { ...current, active: res.active } : current)
       setEnvTarget(res.active.kind)
       try {
-        await reloadSdk({ refresh: true })
+        await Promise.all([
+          reloadSdk({ refresh: true }),
+          loadModelsForDropdown(),
+        ])
       } catch (error) {
         console.error('sdk refresh after install failed', error)
       }
@@ -139,7 +146,7 @@ export function PiSettingsPanel() {
     } finally {
       setInstalling(false)
     }
-  }, [reloadSdk, selectedVersion, t])
+  }, [loadModelsForDropdown, reloadSdk, selectedVersion, t])
 
   const onSwitchEnv = useCallback(
     async (target: 'builtin' | 'global' | 'user') => {
@@ -153,7 +160,10 @@ export function PiSettingsPanel() {
         setSdkStatus((current) => current ? { ...current, active: res.active } : current)
         setEnvTarget(res.active.kind)
         try {
-          await reloadSdk({ refresh: true })
+          await Promise.all([
+            reloadSdk({ refresh: true }),
+            loadModelsForDropdown(),
+          ])
         } catch (error) {
           console.error('sdk refresh after switch failed', error)
         }
@@ -171,7 +181,7 @@ export function PiSettingsPanel() {
         setSwitching(false)
       }
     },
-    [reloadSdk, t],
+    [loadModelsForDropdown, reloadSdk, t],
   )
 
   const queuePatch = useCallback((p: Record<string, unknown>) => {

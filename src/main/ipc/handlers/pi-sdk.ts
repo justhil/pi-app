@@ -5,13 +5,14 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
-import { clearGlobalSdkPathCache } from '../../sdk-loader'
+import { clearGlobalSdkPathCache, readSdkSelection } from '../../sdk-loader'
 import {
   readSdkStatusCached,
   readWslSdkStatusCached,
   listRegistryVersionsCached,
   listRegistryVersions,
   installVersion,
+  finalizeVersionInstall,
   switchTo,
   isAllowedSdkVersion,
   invalidateSdkManagerCaches,
@@ -21,6 +22,12 @@ import { confirmSdkSelection } from '../../sdk-selection-transaction'
 import { probeSelectedSdk } from '../sdk-session'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
+
+function sendSdkRuntimeChanged(): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    sendEvent(win, { type: 'sdk-runtime-changed' })
+  }
+}
 
 async function restartWorkers(): Promise<void> {
   const cwd = workerManager.cwd || configStore.get('currentProject')
@@ -119,23 +126,28 @@ export function registerPiSdkHandlers(): void {
     }
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
     const userDataDir = app.getPath('userData')
-    const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
+    const previousSelection = readSdkSelection(userDataDir)
+    let installedUserDir: string | undefined
     try {
-      await installVersion(version, (line) => {
+      const installed = await installVersion(version, (line) => {
         if (win) sendEvent(win, { type: 'sdk-install-progress', version, line })
       })
+      installedUserDir = installed.userDir
       invalidateSdkManagerCaches()
       clearGlobalSdkPathCache()
       const active = await confirmSdkSelection({
         target: 'user',
-        rollbackTarget: previousTarget === 'user' ? 'builtin' : previousTarget,
+        rollbackTarget: previousSelection,
         restartWorker: restartWorkers,
         verifySelection: verifySelectedSdk,
         rollbackSelection: switchTo,
       })
+      finalizeVersionInstall(installed.userDir, true)
       if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
+      sendSdkRuntimeChanged()
       return { ok: true, active }
     } catch (e: unknown) {
+      if (installedUserDir) finalizeVersionInstall(installedUserDir, false)
       const error = errorMessage(e)
       if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true, error })
       return { ok: false, error }
@@ -148,16 +160,17 @@ export function registerPiSdkHandlers(): void {
     const activeTurnError = rejectActiveTurns()
     if (activeTurnError) return { ok: false, error: activeTurnError }
     const userDataDir = app.getPath('userData')
-    const previousTarget = readSdkStatusCached(userDataDir, { refresh: true }).active.kind
+    const previousSelection = readSdkSelection(userDataDir)
     try {
-      await switchTo(target)
+      await switchTo({ kind: target })
       const active = await confirmSdkSelection({
         target,
-        rollbackTarget: previousTarget,
+        rollbackTarget: previousSelection,
         restartWorker: restartWorkers,
         verifySelection: verifySelectedSdk,
         rollbackSelection: switchTo,
       })
+      sendSdkRuntimeChanged()
       return { ok: true, active }
     } catch (e: unknown) {
       return { ok: false, error: errorMessage(e) }

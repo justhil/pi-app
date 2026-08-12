@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ModelAuthProjectionRuntime } from '@shared/model-auth-projection'
 import {
   handleGetmodels,
+  handleGetmodelsettingssnapshot,
   handleGetsessioncontextpreview,
   handleReloadmodels,
 } from './worker-handlers-catalog'
@@ -8,12 +10,16 @@ import { st, type WorkerModelRuntime } from '../worker-runtime'
 
 function modelRuntimeWith(options?: {
   models?: Array<{ provider: string; id: string; name?: string }>
+  catalog?: Array<{ provider: string; id: string; name?: string }>
   refresh?: () => Promise<unknown>
+  auth?: ModelAuthProjectionRuntime
 }): WorkerModelRuntime {
   return {
     getModel: vi.fn(),
+    getModels: vi.fn(() => options?.catalog ?? options?.models ?? []),
     getAvailable: vi.fn(async () => options?.models ?? []),
     refresh: vi.fn(options?.refresh ?? (async () => ({ providers: [] }))),
+    ...options?.auth,
   } as unknown as WorkerModelRuntime
 }
 
@@ -32,7 +38,7 @@ describe('worker model catalog handlers', () => {
     expect(reply).toHaveBeenCalledWith({ type: 'error', error: 'MODEL_RUNTIME_NOT_READY' })
   })
 
-  it('reloads and lists models through the shared ModelRuntime', async () => {
+  it('reloads and lists available models through the shared ModelRuntime', async () => {
     const runtime = modelRuntimeWith({ models: [{ provider: 'openai', id: 'gpt/new', name: 'GPT New' }] })
     st.modelRuntime = runtime
     const reloadReply = vi.fn()
@@ -55,6 +61,62 @@ describe('worker model catalog handlers', () => {
         available: true,
       }],
     })
+  })
+
+  it('returns a secret-free settings snapshot from the live Worker-owned runtime', async () => {
+    const getAuth = vi.fn(() => ({ apiKey: 'sk-secret' }))
+    const runtime = modelRuntimeWith({
+      catalog: [
+        { provider: 'anthropic', id: 'claude' },
+        { provider: 'openai', id: 'gpt' },
+      ],
+      auth: {
+        getProviderAuthStatus(provider: string) {
+          expect(this).toBe(runtime)
+          return { configured: provider === 'openai', source: 'stored' }
+        },
+        async listCredentials() {
+          expect(this).toBe(runtime)
+          return [{ providerId: 'openai', type: 'oauth', secret: 'credential-secret' }]
+        },
+        getAuth,
+      } as never,
+    })
+    st.modelRuntime = runtime
+    const reply = vi.fn()
+
+    await handleGetmodelsettingssnapshot({}, reply)
+
+    expect(runtime.getModels).toHaveBeenCalledOnce()
+    expect(runtime.getAvailable).not.toHaveBeenCalled()
+    expect(getAuth).not.toHaveBeenCalled()
+    const payload = reply.mock.calls[0]?.[0]
+    expect(payload).toEqual({
+      type: 'getModelSettingsSnapshot-done',
+      models: [
+        expect.objectContaining({
+          id: 'claude',
+          available: false,
+          managedBy: 'active-sdk',
+          auth: { supported: true, configured: false, source: 'stored', type: undefined },
+        }),
+        expect.objectContaining({
+          id: 'gpt',
+          available: true,
+          managedBy: 'active-sdk',
+          auth: { supported: true, configured: true, source: 'stored', type: 'oauth' },
+        }),
+      ],
+    })
+    expect(JSON.stringify(payload)).not.toMatch(/sk-secret|credential-secret/)
+  })
+
+  it('rejects a settings snapshot when ModelRuntime is not ready', async () => {
+    const reply = vi.fn()
+
+    await handleGetmodelsettingssnapshot({}, reply)
+
+    expect(reply).toHaveBeenCalledWith({ type: 'error', error: 'MODEL_RUNTIME_NOT_READY' })
   })
 })
 

@@ -1,7 +1,8 @@
 // SDK Manager - current.json 读写、registry 查询、独立环境安装编排、npm 可用性检测
 
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import { randomUUID } from 'crypto'
 import { spawn, spawnSync } from 'child_process'
 import { app } from 'electron'
 import { errorMessage } from '@shared/error-message'
@@ -10,10 +11,12 @@ import {
   resolveActiveSdk,
   resolveGlobalSdkPath,
   resolveUserSdkPath,
+  resolveUserSdkInstallDir,
   readGlobalSdkVersion,
   readUserSdkVersion,
   readBuiltinSdkVersion,
   type SdkKind,
+  type SdkSelection,
 } from './sdk-loader'
 import {
   resolveWslActiveSdk,
@@ -185,29 +188,72 @@ function currentJsonPath(): string {
   return join(sdkDir(), 'current.json')
 }
 
-function writeActive(target: SdkKind): void {
+function writeActive(selection: SdkSelection): void {
   const dir = sdkDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(currentJsonPath(), JSON.stringify({ active: target }, null, 2), 'utf-8')
+  const currentPath = currentJsonPath()
+  const tempPath = `${currentPath}.${randomUUID()}.tmp`
+  writeFileSync(
+    tempPath,
+    JSON.stringify(
+      {
+        active: selection.kind,
+        ...(selection.kind === 'user' && selection.userDir ? { userDir: selection.userDir } : {}),
+      },
+      null,
+      2,
+    ),
+    'utf-8',
+  )
+  try {
+    renameSync(tempPath, currentPath)
+  } catch (error) {
+    rmSync(tempPath, { force: true })
+    throw error
+  }
 }
 
-/** 独立环境 stage 目录：userData/sdk/current/ */
-function userStageDir(): string {
-  return join(sdkDir(), 'current')
+function userInstallDir(name: string): string {
+  return join(sdkDir(), name)
+}
+
+function removeOtherUserInstalls(activeDir: string): void {
+  for (const name of readdirSync(sdkDir())) {
+    if (name !== activeDir && (name === 'current' || name.startsWith('user-'))) {
+      try {
+        rmSync(userInstallDir(name), { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[SDK] failed to clean old user SDK:', errorMessage(error))
+      }
+    }
+  }
+}
+
+export interface InstalledSdkVersion {
+  userDir: string
 }
 
 /**
- * 安装指定版本到独立环境（userData/sdk/current/，覆盖式）。
- * 写最小 staging package.json → npm install → 退出 0 才写 current.json {active:"user"}。
+ * 安装指定版本到独立的 generation 目录。
+ * 写最小 package.json → npm install → 校验成功后原子更新 current.json 指针。
  */
-export function installVersion(version: string, onProgress: (line: string) => void): Promise<void> {
+export function installVersion(
+  version: string,
+  onProgress: (line: string) => void,
+): Promise<InstalledSdkVersion> {
   if (installing) return Promise.reject(new Error('正在安装，请等待当前升级完成'))
   installing = true
-  return new Promise<void>((resolve, reject) => {
-    const stage = userStageDir()
+  return new Promise<InstalledSdkVersion>((resolve, reject) => {
+    const generation = `user-${Date.now()}-${randomUUID()}`
+    const stage = userInstallDir(generation)
+    const removeStage = () => {
+      try {
+        rmSync(stage, { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[SDK] failed to clean incomplete user SDK:', errorMessage(error))
+      }
+    }
     try {
-      // 清掉旧独立环境，保证覆盖式安装（版本切换不留残留）
-      if (existsSync(stage)) rmSync(stage, { recursive: true, force: true })
       mkdirSync(stage, { recursive: true })
       writeFileSync(
         join(stage, 'package.json'),
@@ -216,15 +262,32 @@ export function installVersion(version: string, onProgress: (line: string) => vo
       )
     } catch (e: unknown) {
       installing = false
+      removeStage()
       reject(new Error(`准备安装目录失败: ${errorMessage(e)}`))
       return
     }
 
-    const child = spawn(
-      'npm',
-      ['install', `${PKG}@${version}`, '--no-audit', '--no-fund', '--omit=dev'],
-      { cwd: stage, shell: false, env: { ...process.env } },
-    )
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(
+        'npm',
+        ['install', `${PKG}@${version}`, '--no-audit', '--no-fund', '--omit=dev'],
+        { cwd: stage, shell: false, env: { ...process.env } },
+      )
+    } catch (error) {
+      installing = false
+      removeStage()
+      reject(new Error(`npm 启动失败: ${errorMessage(error)}`))
+      return
+    }
+    let settled = false
+    const fail = (error: Error) => {
+      if (settled) return
+      settled = true
+      installing = false
+      removeStage()
+      reject(error)
+    }
     const onLine = (buf: Buffer) => {
       for (const line of buf.toString().split('\n')) {
         const t = line.replace(/\r$/, '').trim()
@@ -234,36 +297,51 @@ export function installVersion(version: string, onProgress: (line: string) => vo
     child.stdout?.on('data', onLine)
     child.stderr?.on('data', onLine)
     child.on('error', (err) => {
-      installing = false
-      reject(new Error(`npm 启动失败: ${err.message}`))
+      fail(new Error(`npm 启动失败: ${err.message}`))
     })
     child.on('close', (code) => {
-      installing = false
+      if (settled) return
       if (code === 0) {
         // 校验安装结果可解析再写 current
-        if (!resolveUserSdkPath(app.getPath('userData'))) {
-          reject(new Error('npm 退出 0 但独立环境入口缺失，未切换'))
+        if (!resolveUserSdkPath(app.getPath('userData'), generation)) {
+          fail(new Error('npm 退出 0 但独立环境入口缺失，未切换'))
           return
         }
         try {
-          writeActive('user')
+          writeActive({ kind: 'user', userDir: generation })
+          settled = true
+          installing = false
           invalidateSdkManagerCaches()
-          resolve()
+          resolve({ userDir: generation })
         } catch (e: unknown) {
-          reject(new Error(`安装成功但写入配置失败: ${errorMessage(e)}`))
+          fail(new Error(`安装成功但写入配置失败: ${errorMessage(e)}`))
         }
       } else {
-        reject(new Error(`npm 退出码 ${code}`))
+        fail(new Error(`npm 退出码 ${code}`))
       }
     })
   })
 }
 
+export function finalizeVersionInstall(userDir: string, confirmed: boolean): void {
+  if (confirmed) removeOtherUserInstalls(userDir)
+  else rmSync(userInstallDir(userDir), { recursive: true, force: true })
+  invalidateSdkManagerCaches()
+}
+
 /** 切换生效环境。global/user 需先校验对应 pi 可解析；builtin 直接写。 */
-export async function switchTo(target: SdkKind): Promise<void> {
+export async function switchTo(selection: SdkSelection): Promise<void> {
+  const target = selection.kind
   const done = () => {
     invalidateSdkManagerCaches()
   }
+  const requestedUserDir = selection.kind === 'user' ? selection.userDir : undefined
+  const userRoot = target === 'user'
+    ? resolveUserSdkPath(app.getPath('userData'), requestedUserDir)
+    : null
+  const userDir = target === 'user'
+    ? requestedUserDir ?? resolveUserSdkInstallDir(app.getPath('userData'))
+    : undefined
   const { getAgentRuntimeConfig } = await import('./wsl/runtime-config')
   const runtime = getAgentRuntimeConfig()
   const wslDistro = runtime.mode === 'wsl' && runtime.distro ? runtime.distro : null
@@ -274,7 +352,7 @@ export async function switchTo(target: SdkKind): Promise<void> {
       // 写入 builtin 标记是无效的，直接拒绝以免 UI 状态与真实行为不一致。
       return Promise.reject(new Error('WSL 模式下仅支持发行版内全局 SDK，无法切换到内置环境'))
     }
-    writeActive('builtin')
+    writeActive({ kind: 'builtin' })
     done()
     return
   }
@@ -284,7 +362,7 @@ export async function switchTo(target: SdkKind): Promise<void> {
     } else if (!resolveGlobalSdkPath()) {
       return Promise.reject(new Error('全局 pi 不可用，无法切换到全局版本'))
     }
-    writeActive('global')
+    writeActive({ kind: 'global' })
     done()
     return
   }
@@ -292,10 +370,10 @@ export async function switchTo(target: SdkKind): Promise<void> {
   if (wslDistro) {
     return Promise.reject(new Error('WSL 模式下暂不支持独立环境，请直接在发行版内使用 npm 管理'))
   }
-  if (!resolveUserSdkPath(app.getPath('userData'))) {
+  if (!userRoot) {
     return Promise.reject(new Error('独立环境未安装，无法切换；请先升级安装'))
   }
-  writeActive('user')
+  writeActive({ kind: 'user', userDir })
   done()
   return
 }
