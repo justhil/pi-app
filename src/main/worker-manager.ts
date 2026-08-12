@@ -21,6 +21,7 @@ import {
   canAcquireNewWorker,
   disposeWorkerSlot,
   evictIdleWorkers,
+  extensionUiDialogSource,
   forkWorkerForCwd,
   getBackgroundWorkerState,
   pruneIdleWorkersByTimeout,
@@ -60,7 +61,7 @@ export class WorkerManager {
     if (this.idleTimer) return
     this.idleTimer = setInterval(() => {
       try {
-        pruneIdleWorkersByTimeout(this.pool, this.foregroundPoolKey)
+        pruneIdleWorkersByTimeout(this.pool, this.foregroundPoolKey, Date.now(), this.mainWindow)
       } catch {
         /* ignore */
       }
@@ -138,6 +139,7 @@ export class WorkerManager {
       evictIdleWorkers(this.pool, {
         foregroundKey: key,
         maxWorkers: readMaxSessionWorkers(),
+        mainWindow: this.mainWindow,
       })
       if (existing.initPromise) return existing.initPromise
       const live = await this.requestOnSlot(existing, 'getState').catch(() => null)
@@ -161,6 +163,7 @@ export class WorkerManager {
       await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
         maxWorkers: maxWorkers - 1,
+        mainWindow: this.mainWindow,
       })
     }
     const cap = canAcquireNewWorker(this.pool)
@@ -180,6 +183,7 @@ export class WorkerManager {
     evictIdleWorkers(this.pool, {
       foregroundKey: key,
       maxWorkers: readMaxSessionWorkers(),
+      mainWindow: this.mainWindow,
     })
 
     return init
@@ -224,6 +228,7 @@ export class WorkerManager {
       evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
         maxWorkers: readMaxSessionWorkers(),
+        mainWindow: this.mainWindow,
       })
       if (existing.initPromise) await existing.initPromise
       // Bind live session on worker
@@ -252,6 +257,7 @@ export class WorkerManager {
       await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
         maxWorkers: maxWorkers - 1,
+        mainWindow: this.mainWindow,
       })
     }
     const cap = canAcquireNewWorker(this.pool)
@@ -273,6 +279,7 @@ export class WorkerManager {
     evictIdleWorkers(this.pool, {
       foregroundKey: this.foregroundPoolKey,
       maxWorkers: readMaxSessionWorkers(),
+      mainWindow: this.mainWindow,
     })
 
     return this.initResultFromSlot(slot)
@@ -369,7 +376,7 @@ export class WorkerManager {
     const slots = [...this.pool.values()]
     this.pool.clear()
     this.foregroundPoolKey = null
-    await Promise.all(slots.map((s) => disposeWorkerSlot(s)))
+    await Promise.all(slots.map((s) => disposeWorkerSlot(s, this.mainWindow)))
   }
 
   private requestOnSlot(
@@ -643,6 +650,7 @@ export class WorkerManager {
       await evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
         maxWorkers: maxWorkers - 1,
+        mainWindow: this.mainWindow,
       })
     }
     if (!canAcquireNewWorker(this.pool).ok) return null
@@ -863,9 +871,22 @@ export class WorkerManager {
     cancelled?: boolean
     result?: unknown
   }): void {
-    const slot = this.foregroundSlot()
+    const slot = extensionUiDialogSource.get(response.id)
+    extensionUiDialogSource.delete(response.id)
     if (!slot) return
+    const existing = this.pool.get(slot.poolKey)
+    if (!existing || existing.worker !== slot.worker || existing.stopping) return
     slot.worker.postMessage({ type: 'extension-ui-response', response })
+  }
+
+  cancelExtensionUI(id: string | undefined, reason: string): void {
+    if (!id) return
+    const slot = extensionUiDialogSource.get(id)
+    extensionUiDialogSource.delete(id)
+    if (!slot) return
+    const existing = this.pool.get(slot.poolKey)
+    if (!existing || existing.worker !== slot.worker || existing.stopping) return
+    slot.worker.postMessage({ type: 'extension-ui-cancel', cancel: { id, reason } })
   }
 
   get isRunning(): boolean {

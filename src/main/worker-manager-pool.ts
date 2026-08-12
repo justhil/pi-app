@@ -16,6 +16,33 @@ import { resolveWslActiveSdk } from './wsl/sdk-resolve'
 import { syncWorkerBundleToWsl } from './wsl/worker-host'
 import { resolveUtilityEntry } from './utility-entry-path'
 
+export const extensionUiDialogSource = new Map<string, WorkerSlot>()
+
+export function dismissExtensionUiRequestsForSlot(
+  slot: WorkerSlot,
+  send: (payload: { type: 'extension-ui-dismiss'; id: string; reason?: string }) => void,
+  reason?: string,
+): void {
+  for (const [id, source] of extensionUiDialogSource) {
+    if (source !== slot) continue
+    extensionUiDialogSource.delete(id)
+    send({ type: 'extension-ui-dismiss', id, reason })
+  }
+}
+
+function clearExtensionUiSourcesForSlot(
+  slot: WorkerSlot,
+  win?: BrowserWindow | null,
+): void {
+  dismissExtensionUiRequestsForSlot(
+    slot,
+    (payload) => {
+      if (win && !win.isDestroyed()) win.webContents.send('ipc:extension-ui-dismiss', payload)
+    },
+    'worker-stopped',
+  )
+}
+
 function createSlot(
   poolKey: string,
   cwd: string,
@@ -152,7 +179,14 @@ export function attachWorkerHandlers(
       const fg = opts.getForegroundPoolKey?.() ?? null
       if (fg && fg !== slot.poolKey) {
         // X1: only foreground session dismiss noise
+      } else if (data.type === 'extension-ui-dismiss-all') {
+        dismissExtensionUiRequestsForSlot(
+          slot,
+          (payload) => win.webContents.send('ipc:extension-ui-dismiss', payload),
+          typeof data.reason === 'string' ? data.reason : undefined,
+        )
       } else {
+        if (data.id) extensionUiDialogSource.delete(String(data.id))
         win.webContents.send('ipc:extension-ui-dismiss', {
           type: data.type,
           id: data.id,
@@ -162,7 +196,7 @@ export function attachWorkerHandlers(
     }
 
     if (data.type === 'extension-ui-request' && win && !win.isDestroyed()) {
-      const req = data.request as { method?: string; notifyType?: string; message?: string }
+      const req = data.request as { id?: string; method?: string; notifyType?: string; message?: string }
       const method = req?.method || ''
       const fg = opts.getForegroundPoolKey?.() ?? null
       const isForeground = !fg || fg === slot.poolKey
@@ -171,6 +205,7 @@ export function attachWorkerHandlers(
         method !== 'notify' || slot.agentTurnActive || req.notifyType === 'error'
       if (!allow) return
       if (!isForeground && req.notifyType !== 'error') return
+      if (req.id && method !== 'notify') extensionUiDialogSource.set(req.id, slot)
       win.webContents.send('ipc:extension-ui-request', data.request)
     }
 
@@ -208,12 +243,17 @@ export function attachWorkerHandlers(
       return
     }
     rejectPendingWorkerRequests(slot, new Error(`Worker exited with code ${code}`))
+    clearExtensionUiSourcesForSlot(slot, opts.mainWindow)
     opts.onSlotExit(slot, code)
   })
 }
 
-export async function disposeWorkerSlot(slot: WorkerSlot): Promise<void> {
+export async function disposeWorkerSlot(
+  slot: WorkerSlot,
+  mainWindow?: BrowserWindow | null,
+): Promise<void> {
   slot.stopping = true
+  clearExtensionUiSourcesForSlot(slot, mainWindow)
   if (slot.initRejecter) {
     slot.initRejecter(new Error('Worker stopped'))
     slot.initResolver = null
@@ -356,6 +396,7 @@ export async function evictIdleWorkers(
   opts: {
     foregroundKey: string | null
     maxWorkers?: number
+    mainWindow?: BrowserWindow | null
   },
 ): Promise<void> {
   const maxWorkers = opts.maxWorkers ?? readMaxSessionWorkers()
@@ -374,7 +415,7 @@ export async function evictIdleWorkers(
     if (!victimKey) break
     const s = pool.get(victimKey)!
     pool.delete(victimKey)
-    await disposeWorkerSlot(s)
+    await disposeWorkerSlot(s, opts.mainWindow)
   }
 }
 
@@ -383,6 +424,7 @@ export function pruneIdleWorkersByTimeout(
   pool: Map<string, WorkerSlot>,
   foregroundKey: string | null,
   nowMs = Date.now(),
+  mainWindow?: BrowserWindow | null,
 ): number {
   const delay = minutesToIdleDelayMs(readSessionWorkerIdleTimeoutMinutes())
   if (delay == null) return 0
@@ -391,7 +433,7 @@ export function pruneIdleWorkersByTimeout(
     if (key === foregroundKey) continue
     if (slot.agentTurnActive) continue
     if (nowMs - slot.lastIdleAt < delay) continue
-    void disposeWorkerSlot(slot)
+    void disposeWorkerSlot(slot, mainWindow)
     pool.delete(key)
     removed++
   }

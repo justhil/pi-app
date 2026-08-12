@@ -26,6 +26,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:context.preview',
   'ipc:dialog:openDirectory',
   'ipc:dialog:openFiles',
+  'ipc:extension.cancelUI',
   'ipc:extension.config.get',
   'ipc:extension.config.set',
   'ipc:extension.respondUI',

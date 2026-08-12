@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { AskQuestionPayload } from '@renderer/features/extension-ui/questionnaire-dialog'
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
@@ -49,6 +50,12 @@ function pruneStaleSuspension(): void {
   if (!row?.extensionUiSuspended) useExtensionUIStore.setState({ suspended: null })
 }
 
+function cancelPendingDialog(reason: string): void {
+  const { activePending, suspended } = useExtensionUIStore.getState()
+  const id = activePending?.id ?? suspended?.requestId
+  if (id) void ipcClient.invoke('extension.cancelUI', { id, reason }).catch(() => {})
+}
+
 export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   activePending: null,
   suspended: null,
@@ -82,6 +89,7 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   pruneStaleSuspension: () => pruneStaleSuspension(),
 
   resetForSessionContext: () => {
+    cancelPendingDialog('session-reset')
     set({ activePending: null, suspended: null })
     void import('@renderer/lib/extension-ui-channel').then((m) => m.clearExtensionDialogDedupe())
   },

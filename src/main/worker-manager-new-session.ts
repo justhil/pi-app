@@ -76,6 +76,7 @@ async function runNewSession(
   await evictIdleWorkers(options.pool, {
     foregroundKey: slot.poolKey,
     maxWorkers: readMaxSessionWorkers(),
+    mainWindow: options.mainWindow,
   })
   return { sessionId, sessionFile }
 }
@@ -92,6 +93,7 @@ export async function createNewSessionInPool(
     await evictIdleWorkers(options.pool, {
       foregroundKey: null,
       maxWorkers: readMaxSessionWorkers() - 1,
+      mainWindow: options.mainWindow,
     })
   }
 
@@ -113,7 +115,7 @@ export async function createNewSessionInPool(
     return await runNewSession(slot, options)
   } catch (error) {
     if (options.pool.get(slot.poolKey) === slot) options.pool.delete(slot.poolKey)
-    await disposeWorkerSlot(slot)
+    await disposeWorkerSlot(slot, options.mainWindow)
     throw error
   }
 }

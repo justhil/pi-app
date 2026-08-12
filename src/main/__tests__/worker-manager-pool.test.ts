@@ -349,6 +349,8 @@ describe('session-scoped RPC routing', () => {
 
     await manager.clearPromptQueue('/s/b')
     await manager.loadSession('/s/b', { cwd: '/w' })
+    const { extensionUiDialogSource } = await import('../worker-manager-pool')
+    extensionUiDialogSource.set('foreground-response', foregroundSlot)
     manager.respondExtensionUI({ id: 'foreground-response', confirmed: true })
 
     expect(foregroundProcess.postMessage).toHaveBeenCalledWith({
@@ -420,6 +422,67 @@ describe('session worker re-key collisions', () => {
     expect(pool.get(targetKey)).toBe(target)
     expect(source.poolKey).toBe(sourceKey)
     expect(source.sessionFile).toBe(sourceKey)
+  })
+})
+
+describe('extension UI foreground isolation', () => {
+  it('should_suppress_background_dialogs_and_dismiss_all', () => {
+    const transport = makeFakeTransport()
+    const slot = fakeSlot('/s/background', '/w', true)
+    slot.worker = transport
+    const mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send: vi.fn() },
+    }
+
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: mainWindow as never,
+      getForegroundPoolKey: () => '/s/foreground',
+      onAppEvent: vi.fn(),
+      onSlotExit: vi.fn(),
+    })
+
+    transport.emitMessage({
+      type: 'extension-ui-request',
+      request: { id: 'background-dialog', method: 'confirm', title: 'Confirm', message: 'Continue?' },
+    } as WorkerResponsePayload)
+    transport.emitMessage({ type: 'extension-ui-dismiss-all', reason: 'compaction' } as WorkerResponsePayload)
+
+    expect(mainWindow.webContents.send).not.toHaveBeenCalled()
+  })
+
+  it('should_show_foreground_dialogs_and_dismiss_all', () => {
+    const transport = makeFakeTransport()
+    const slot = fakeSlot('/s/foreground', '/w', true)
+    slot.worker = transport
+    const mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send: vi.fn() },
+    }
+
+    attachWorkerHandlers(slot, slot.worker, {
+      mainWindow: mainWindow as never,
+      getForegroundPoolKey: () => '/s/foreground',
+      onAppEvent: vi.fn(),
+      onSlotExit: vi.fn(),
+    })
+
+    transport.emitMessage({
+      type: 'extension-ui-request',
+      request: { id: 'foreground-dialog', method: 'confirm', title: 'Confirm', message: 'Continue?' },
+    } as WorkerResponsePayload)
+    transport.emitMessage({ type: 'extension-ui-dismiss-all', reason: 'compaction' } as WorkerResponsePayload)
+
+    expect(mainWindow.webContents.send).toHaveBeenNthCalledWith(
+      1,
+      'ipc:extension-ui-request',
+      expect.objectContaining({ id: 'foreground-dialog' }),
+    )
+    expect(mainWindow.webContents.send).toHaveBeenNthCalledWith(
+      2,
+      'ipc:extension-ui-dismiss',
+      expect.objectContaining({ type: 'extension-ui-dismiss', id: 'foreground-dialog' }),
+    )
   })
 })
 

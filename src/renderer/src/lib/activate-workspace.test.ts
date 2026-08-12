@@ -36,6 +36,7 @@ describe('activateWorkspace clears the stale session list on a real workspace sw
     useUIStore.setState({
       currentWorkspace: '/proj/A',
       sessions: [{ sessionId: 'a1', title: 'A的会话', updatedAt: 1, modelId: 'm' }],
+      workerLiveSnapshot: { sessionId: 'a1', sessionFile: '/proj/A/a1.jsonl', status: 'running' },
     })
   })
 
@@ -45,6 +46,16 @@ describe('activateWorkspace clears the stale session list on a real workspace sw
     expect(useUIStore.getState().currentWorkspace).toBe('/proj/B')
     expect(useUIStore.getState().sessions).toEqual([])
     await promise
+  })
+
+  it('clears the old worker snapshot when switching to another workspace home', async () => {
+    await activateWorkspace('/proj/B', { preferHome: true })
+
+    expect(useUIStore.getState().workerLiveSnapshot).toEqual({
+      sessionId: null,
+      sessionFile: null,
+      status: 'idle',
+    })
   })
 
   it('keeps sessions when reactivating the same workspace', async () => {
