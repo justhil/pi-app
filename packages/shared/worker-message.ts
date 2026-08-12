@@ -38,6 +38,16 @@ export function piMessageTimestamp(m: PiSessionMessage | undefined, fallbackMs: 
   return Number.isFinite(t) ? t : fallbackMs
 }
 
+export function normalizeUserMessageDisplayText(text: string): string {
+  const match = text.match(
+    /^<skill name="([^"]+)" location="[^"]+">\n[\s\S]*?\n<\/skill>(?:\n\n([\s\S]+))?$/,
+  )
+  if (!match) return text
+
+  const args = match[2]?.trim()
+  return `/skill:${match[1]}${args ? ` ${args}` : ''}`
+}
+
 export function extractTextFromPiMessage(message: PiSessionMessage | string | null | undefined): string {
   if (!message) return ''
   if (typeof message === 'string') return message

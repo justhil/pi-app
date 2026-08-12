@@ -1,4 +1,5 @@
 import { errorMessage } from '@shared/error-message'
+import { normalizeUserMessageDisplayText } from '@shared/worker-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { ExtensionUIResponse } from '../desktop-ui-bridge.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -168,7 +169,11 @@ export async function handleFollowup(msg: WorkerIncomingMessage, reply: WorkerRe
 export async function handleClearqueue(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         if (!st.session) { reply({ type: 'clearQueue-done', steering: [], followUp: [] }); return }
         const cleared = st.session.clearQueue()
-        reply({ type: 'clearQueue-done', steering: cleared.steering || [], followUp: cleared.followUp || [] })
+        reply({
+          type: 'clearQueue-done',
+          steering: (cleared.steering || []).map(normalizeUserMessageDisplayText),
+          followUp: (cleared.followUp || []).map(normalizeUserMessageDisplayText),
+        })
         return
 }
 
