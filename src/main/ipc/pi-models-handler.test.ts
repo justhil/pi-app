@@ -5,6 +5,18 @@ const mocks = vi.hoisted(() => ({
   readModelsConfig: vi.fn(),
   writeModelsConfig: vi.fn(),
   reloadModels: vi.fn(),
+  sendEvent: vi.fn(),
+  getAllWindows: vi.fn(() => [] as Array<{ id: number }>),
+  readSdkStatusCached: vi.fn(),
+  listRegistryVersionsCached: vi.fn(),
+  listRegistryVersions: vi.fn(),
+  installVersion: vi.fn(),
+  finalizeVersionInstall: vi.fn(),
+  readSdkSelection: vi.fn(),
+  getFocusedWindow: vi.fn(() => undefined as { id: number } | undefined),
+  switchTo: vi.fn(),
+  isAllowedSdkVersion: vi.fn(),
+  confirmSdkSelection: vi.fn(),
   workerRunning: true,
 }))
 
@@ -19,7 +31,7 @@ vi.mock('./registry', () => ({
   ) => {
     mocks.handlers.set(channel, handler)
   },
-  sendEvent: vi.fn(),
+  sendEvent: mocks.sendEvent,
 }))
 
 vi.mock('../pi-models-json', () => ({
@@ -42,21 +54,25 @@ vi.mock('../worker-manager', () => ({
 
 vi.mock('../config-store', () => ({ configStore: { get: vi.fn(() => '') } }))
 vi.mock('../pi-info', () => ({ readPiInfo: vi.fn(), readResourceList: vi.fn() }))
-vi.mock('../sdk-loader', () => ({ clearGlobalSdkPathCache: vi.fn() }))
+vi.mock('../sdk-loader', () => ({
+  clearGlobalSdkPathCache: vi.fn(),
+  readSdkSelection: mocks.readSdkSelection,
+}))
 vi.mock('../sdk-manager', () => ({
-  readSdkStatusCached: vi.fn(),
-  listRegistryVersionsCached: vi.fn(),
-  listRegistryVersions: vi.fn(),
-  installVersion: vi.fn(),
-  switchTo: vi.fn(),
-  isAllowedSdkVersion: vi.fn(),
+  readSdkStatusCached: mocks.readSdkStatusCached,
+  listRegistryVersionsCached: mocks.listRegistryVersionsCached,
+  listRegistryVersions: mocks.listRegistryVersions,
+  installVersion: mocks.installVersion,
+  finalizeVersionInstall: mocks.finalizeVersionInstall,
+  switchTo: mocks.switchTo,
+  isAllowedSdkVersion: mocks.isAllowedSdkVersion,
   invalidateSdkManagerCaches: vi.fn(),
 }))
 vi.mock('./sdk-session', () => ({ probeSelectedSdk: vi.fn() }))
-vi.mock('../sdk-selection-transaction', () => ({ confirmSdkSelection: vi.fn() }))
+vi.mock('../sdk-selection-transaction', () => ({ confirmSdkSelection: mocks.confirmSdkSelection }))
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '') },
-  BrowserWindow: { getFocusedWindow: vi.fn(), getAllWindows: vi.fn(() => []) },
+  BrowserWindow: { getFocusedWindow: mocks.getFocusedWindow, getAllWindows: mocks.getAllWindows },
 }))
 
 import { registerPiSdkHandlers } from './handlers/pi-sdk'
@@ -76,6 +92,18 @@ beforeEach(() => {
   mocks.readModelsConfig.mockReset()
   mocks.writeModelsConfig.mockReset()
   mocks.reloadModels.mockReset()
+  mocks.sendEvent.mockReset()
+  mocks.getAllWindows.mockReset().mockReturnValue([])
+  mocks.readSdkStatusCached.mockReset()
+  mocks.listRegistryVersionsCached.mockReset()
+  mocks.listRegistryVersions.mockReset()
+  mocks.installVersion.mockReset()
+  mocks.finalizeVersionInstall.mockReset()
+  mocks.readSdkSelection.mockReset().mockReturnValue({ kind: 'builtin' })
+  mocks.getFocusedWindow.mockReset().mockReturnValue(undefined)
+  mocks.switchTo.mockReset()
+  mocks.isAllowedSdkVersion.mockReset()
+  mocks.confirmSdkSelection.mockReset()
   mocks.workerRunning = true
   registerPiSdkHandlers()
 })
@@ -122,5 +150,69 @@ describe('pi.models IPC handlers', () => {
       schemaError: undefined,
       warnings: ['normalized'],
     })
+  })
+
+  it('notifies every renderer only after an SDK install succeeds', async () => {
+    const windows = [{ id: 1 }, { id: 2 }]
+    mocks.getAllWindows.mockReturnValue(windows)
+    mocks.getFocusedWindow.mockReturnValue(windows[0])
+    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
+    mocks.listRegistryVersions.mockResolvedValue(['0.83.0'])
+    mocks.isAllowedSdkVersion.mockReturnValue(true)
+    mocks.installVersion.mockResolvedValue({ userDir: 'user-new' })
+    mocks.confirmSdkSelection.mockResolvedValue({ kind: 'user', version: '0.83.0' })
+
+    const response = await mocks.handlers.get('ipc:sdk.install')!({ version: '0.83.0' })
+
+    expect(response).toEqual({ ok: true, active: { kind: 'user', version: '0.83.0' } })
+    expect(mocks.finalizeVersionInstall).toHaveBeenCalledWith('user-new', true)
+    expect(mocks.sendEvent.mock.calls.slice(-2)).toEqual([
+      [windows[0], { type: 'sdk-runtime-changed' }],
+      [windows[1], { type: 'sdk-runtime-changed' }],
+    ])
+  })
+
+  it('passes the exact previous user generation into install rollback', async () => {
+    mocks.readSdkSelection.mockReturnValue({ kind: 'user', userDir: 'user-old' })
+    mocks.listRegistryVersions.mockResolvedValue(['0.83.0'])
+    mocks.isAllowedSdkVersion.mockReturnValue(true)
+    mocks.installVersion.mockResolvedValue({ userDir: 'user-new' })
+    mocks.confirmSdkSelection.mockRejectedValue(new Error('Worker validation failed'))
+
+    const response = await mocks.handlers.get('ipc:sdk.install')!({ version: '0.83.0' })
+
+    expect(response).toEqual({ ok: false, error: 'Worker validation failed' })
+    expect(mocks.confirmSdkSelection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: 'user',
+        rollbackTarget: { kind: 'user', userDir: 'user-old' },
+      }),
+    )
+    expect(mocks.finalizeVersionInstall).toHaveBeenCalledWith('user-new', false)
+  })
+
+  it('notifies every renderer only after an SDK switch succeeds', async () => {
+    const windows = [{ id: 1 }, { id: 2 }]
+    mocks.getAllWindows.mockReturnValue(windows)
+    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
+    mocks.confirmSdkSelection.mockResolvedValue({ kind: 'global', version: '0.83.0' })
+
+    const response = await mocks.handlers.get('ipc:sdk.switch')!({ target: 'global' })
+
+    expect(response).toEqual({ ok: true, active: { kind: 'global', version: '0.83.0' } })
+    expect(mocks.sendEvent.mock.calls).toEqual([
+      [windows[0], { type: 'sdk-runtime-changed' }],
+      [windows[1], { type: 'sdk-runtime-changed' }],
+    ])
+  })
+
+  it('does not notify renderers when an SDK switch fails', async () => {
+    mocks.readSdkStatusCached.mockReturnValue({ active: { kind: 'builtin' } })
+    mocks.switchTo.mockRejectedValue(new Error('switch failed'))
+
+    const response = await mocks.handlers.get('ipc:sdk.switch')!({ target: 'global' })
+
+    expect(response).toEqual({ ok: false, error: 'switch failed' })
+    expect(mocks.sendEvent).not.toHaveBeenCalled()
   })
 })

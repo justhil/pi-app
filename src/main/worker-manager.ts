@@ -731,6 +731,10 @@ export class WorkerManager {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
     return (r.items as WorkerCompletionItem[]) || []
   }
+  async getModelSettingsSnapshot(): Promise<WorkerModelRow[]> {
+    const r = await this.request('getModelSettingsSnapshot')
+    return (r.models as WorkerModelRow[]) || []
+  }
   async getModels(): Promise<WorkerModelRow[]> {
     const r = await this.request('getModels')
     return (r.models as WorkerModelRow[]) || []

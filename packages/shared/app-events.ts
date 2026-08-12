@@ -106,6 +106,11 @@ export interface SdkInstallProgressEvent {
   error?: string
 }
 
+/** Active SDK changed after a successful install/switch; invalidate SDK-owned projections. */
+export interface SdkRuntimeChangedEvent {
+  type: 'sdk-runtime-changed'
+}
+
 export type AppEvent =
   | MessageEvent
   | ToolEvent
@@ -116,5 +121,6 @@ export type AppEvent =
   | QueueEvent
   | AgentErrorEvent
   | SdkInstallProgressEvent
+  | SdkRuntimeChangedEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'
