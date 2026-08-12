@@ -6,10 +6,12 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import {
   SessionTreeList,
   filterSessionTreeNodes,
+  resolveViewTargetId,
   type SessionTreeNode,
   type TreeFilterMode,
 } from '@renderer/features/rewind/session-tree-list'
@@ -59,10 +61,25 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
     setSelectedId(prefer?.id ?? null)
   }, [open, visible, selectedId])
 
-  const activate = useCallback(
+  const view = useCallback(
     async (id: string) => {
       const node = rawTree.find((n) => n.id === id)
-      console.log('[rewind-overlay] activate called:', { id, nodeFound: !!node, isLeaf: node?.isLeaf })
+      if (!node) return
+      if (node.isLeaf) {
+        toast.info('已是当前对话位置')
+        return
+      }
+      onClose()
+      // 延迟一帧再跳转，确保浮层卸载不中断异步链
+      await new Promise((r) => requestAnimationFrame(() => r(null)))
+      requestTimelineViewEntry(id)
+    },
+    [rawTree, onClose],
+  )
+
+  const rewind = useCallback(
+    async (id: string) => {
+      const node = rawTree.find((n) => n.id === id)
       if (!node) return
       if (node.isLeaf) {
         toast.info('已是当前对话位置')
@@ -97,12 +114,14 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
         if (next) setSelectedId(next.id)
       } else if (e.key === 'Enter' && selectedId) {
         e.preventDefault()
-        void activate(selectedId)
+        // 与单击共用同一映射：toolResult / 元条目解析到最近的可见消息，避免发原始 id 落点失败
+        const idx = visible.findIndex((n) => n.id === selectedId)
+        void view(resolveViewTargetId(visible, idx >= 0 ? idx : 0))
       }
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [open, visible, selectedId, activate, onClose])
+  }, [open, visible, selectedId, view, onClose])
 
   if (!open) return null
 
@@ -175,7 +194,9 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
                 nodes={visible}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                onActivate={(id) => void activate(id)}
+                onActivate={(id) => void rewind(id)}
+                onView={(id) => void view(id)}
+                viewOnSingleClick
                 showGuides={showGuides}
               />
             </>

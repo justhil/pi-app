@@ -1,5 +1,5 @@
 import { ArrowLeft, Bot, GitBranch, MessageSquare, Sparkles, Wrench } from '@renderer/components/icons'
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { buildGitLaneLayout } from './session-tree-git-lanes'
@@ -50,6 +50,42 @@ export function filterSessionTreeNodes(nodes: SessionTreeNode[], mode: TreeFilte
   })
 }
 
+/** 时间线里能直接落点的树条目：user/assistant/system 消息。 */
+function isLandableViewTarget(n: SessionTreeNode): boolean {
+  if (n.entryType !== 'message') return false
+  // toolResult 的 entryType 也是 message，但时间线把它的输出合并进前一条
+  // assistant 工具行，不生成该 entry id 的锚点——单击/Enter 跳过去无法落点
+  return n.role !== 'toolResult'
+}
+
+/**
+ * Non-message tree entries (tool / compaction / branch_summary / labels / toolResult)
+ * have no 1:1 timeline row, so a view jump lands on the nearest message instead:
+ * prefer the next one (the reply that used this entry), fall back to the previous one.
+ */
+export function resolveViewTargetId(nodes: SessionTreeNode[], index: number): string {
+  const node = nodes[index]
+  if (!node) return ''
+  if (isLandableViewTarget(node)) return node.id
+  // toolResult 是前一条 assistant 工具行的输出（已合并进该行），优先回退到它；
+  // 其它元条目优先找“使用该条目的下一条消息”。
+  const preferNext = node.role !== 'toolResult'
+  if (preferNext) {
+    for (let i = index + 1; i < nodes.length; i++) {
+      if (isLandableViewTarget(nodes[i])) return nodes[i].id
+    }
+  }
+  for (let i = index - 1; i >= 0; i--) {
+    if (isLandableViewTarget(nodes[i])) return nodes[i].id
+  }
+  if (!preferNext) {
+    for (let i = index + 1; i < nodes.length; i++) {
+      if (isLandableViewTarget(nodes[i])) return nodes[i].id
+    }
+  }
+  return node.id
+}
+
 function nodeIcon(n: SessionTreeNode) {
   if (n.entryType === 'message' && n.role === 'user') return MessageSquare
   if (n.entryType === 'message' && n.role === 'assistant') return Bot
@@ -79,22 +115,38 @@ export function SessionTreeList({
   rowClassName,
   showGuides = true,
   renderTrailing,
+  viewOnSingleClick = false,
+  onView,
 }: {
   nodes: SessionTreeNode[]
   selectedId?: string | null
   onSelect?: (id: string) => void
   onActivate?: (id: string) => void
+  /** Non-destructive view jump: single click scrolls the timeline to the node's message. */
+  onView?: (id: string) => void
   className?: string
   rowClassName?: string
   /** false：仅文本列表（大树性能兜底） */
   showGuides?: boolean
   /** Optional trailing control per row (e.g. Fork on user messages) */
   renderTrailing?: (node: SessionTreeNode) => ReactNode
+  /** true: single click on a non-leaf row views it (no rewind); double-click rewinds. */
+  viewOnSingleClick?: boolean
 }) {
   const { t } = useTranslation()
   const layout = useMemo(
     () => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null),
     [nodes, showGuides],
+  )
+
+  // Debounces single-click view jumps so the second click of a double-click
+  // cancels the pending jump instead of firing a view before the rewind.
+  const viewTimer = useRef<number | null>(null)
+  useEffect(
+    () => () => {
+      if (viewTimer.current) window.clearTimeout(viewTimer.current)
+    },
+    [],
   )
 
   return (
@@ -114,9 +166,30 @@ export function SessionTreeList({
             >
               <button
                 type="button"
-                title={n.isLeaf ? '当前位置' : onActivate ? t('timeline:treeViewNode') : t('timeline:jumpToNode')}
-                onClick={() => onSelect?.(n.id)}
-                onDoubleClick={() => !n.isLeaf && onActivate?.(n.id)}
+                title={
+                  n.isLeaf
+                    ? '当前位置'
+                    : onActivate
+                      ? t('timeline:treeViewNode')
+                      : t('timeline:jumpToNode')
+                }
+                onClick={() => {
+                  onSelect?.(n.id)
+                  if (!viewOnSingleClick || n.isLeaf || !onView) return
+                  if (viewTimer.current) window.clearTimeout(viewTimer.current)
+                  viewTimer.current = window.setTimeout(() => {
+                    viewTimer.current = null
+                    onView(resolveViewTargetId(nodes, index))
+                  }, 250)
+                }}
+                onDoubleClick={() => {
+                  if (n.isLeaf || !onActivate) return
+                  if (viewTimer.current) {
+                    window.clearTimeout(viewTimer.current)
+                    viewTimer.current = null
+                  }
+                  onActivate(n.id)
+                }}
                 className={cn(
                   'flex min-w-0 flex-1 items-stretch gap-0 py-0.5 pl-0 pr-1 text-left',
                   n.isLeaf && 'font-medium',
