@@ -106,6 +106,7 @@
     "review": "Review",
     "openFileHint": "{{path}}\nClick Files · Right-click Review",
     "verbRead": "Read {{detail}}",
+    "skillContext": "Loaded Skill context · {{name}}",
     "verbEdit": "Edited {{detail}}",
     "verbRun": "Ran {{detail}}",
     "verbSearch": "Searched {{detail}}",

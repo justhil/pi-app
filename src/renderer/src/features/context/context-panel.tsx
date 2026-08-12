@@ -6,6 +6,7 @@ import { RefreshCw, ChevronDown, ChevronRight, Layers, MessageSquare } from '@re
 import { cn } from '@renderer/lib/utils'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
 import { useSessionContextPreview } from './use-session-context-preview'
+import { ContextMessageBody } from './context-message-body'
 
 const ROLE_STYLE: Record<string, { bar: string; badge: string; labelKey: string }> = {
   user: { bar: 'bg-blue-500/70', badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', labelKey: 'context:userLabel' },
@@ -191,12 +192,12 @@ export function ContextPanel() {
                         </div>
                       </button>
                       {open && (
-                        <pre className="max-h-40 overflow-auto border-t border-border/30 bg-[var(--bg-2)]/60 px-3 py-2 font-mono text-[11px] leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
+                        <ContextMessageBody>
                           {seg.preview || '(空)'}
                           {seg.chars > 280 && (
                             <span className="text-foreground-secondary/50"> … 共 {seg.chars} 字符</span>
                           )}
-                        </pre>
+                        </ContextMessageBody>
                       )}
                     </div>
                   )
