@@ -259,18 +259,7 @@ export interface SettingsSetResponse { key: string; value: unknown }
 
 // ── App update (GitHub Releases) ──
 export interface AppCheckUpdateRequest {}
-export interface AppCheckUpdateResponse {
-  ok: boolean
-  currentVersion: string
-  latestVersion: string | null
-  hasUpdate: boolean
-  releaseUrl: string
-  releaseNotes?: string
-  downloadUrl?: string | null
-  downloadName?: string | null
-  assets?: import('./app-update').AppUpdateAsset[]
-  error?: string
-}
+export type AppCheckUpdateResponse = import('./app-update').AppUpdateCheckResult
 export interface AppOpenReleaseRequest { url?: string }
 export interface AppOpenReleaseResponse { ok: boolean }
 export interface AppGetPendingUpdateRequest {}

@@ -52,14 +52,19 @@ export function registerSettingsHandlers(): void {
 
   registerHandler('ipc:app.checkUpdate', async () => {
     const { checkGitHubReleaseUpdate } = await import('../../github-release-check')
-    const { getMainWindow } = await import('../../window')
-    const win = getMainWindow()
 
-    // Fire-and-forget: the result is pushed via ipc:app-update-available
-    // so the Settings UI does not block while the network call is in flight.
-    void checkGitHubReleaseUpdate().then((result) => {
-      if (!win || win.isDestroyed() || !result.ok || !result.hasUpdate || !result.latestVersion) return
-      const payload: AppUpdateAvailableInfo = {
+    try {
+      const result = await checkGitHubReleaseUpdate()
+      if (!result.ok) return { status: 'error' }
+      if (!result.hasUpdate || !result.latestVersion) {
+        return {
+          status: 'up-to-date',
+          currentVersion: result.currentVersion,
+          latestVersion: result.latestVersion ?? result.currentVersion,
+        }
+      }
+
+      const update: AppUpdateAvailableInfo = {
         currentVersion: result.currentVersion,
         latestVersion: result.latestVersion.replace(/^v/i, ''),
         releaseUrl: result.releaseUrl,
@@ -68,9 +73,10 @@ export function registerSettingsHandlers(): void {
         downloadName: result.downloadName,
         assets: result.assets,
       }
-      win.webContents.send('ipc:app-update-available', payload)
-    })
-    return { ok: true, checking: true }
+      return { status: 'available', update }
+    } catch {
+      return { status: 'error' }
+    }
   })
 
   registerHandler('ipc:app.getPendingUpdate', async () => {
