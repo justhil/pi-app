@@ -4,6 +4,7 @@ import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import type { RunEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
+import { eventSessionFile } from '@renderer/stores/apply-app-event-background'
 
 /**
  * Whether a run.idle should be ignored as "too early" (race before agent_start).
@@ -101,6 +102,10 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       agentTurnBootstrapping: false,
       streamingAssistantId: null,
     })
+    // Compaction always finishes before the run settles; a lost compaction_end
+    // event (worker crash) must not leave the badge stuck. 只清本会话的压缩标志
+    const settledFile = eventSessionFile(event) || api.get().historySessionFile
+    api.get().setCompactingSession(settledFile ?? null, false)
     const rs = api.get().runState
     const wasActive = rs.status === 'running' || rs.status === 'failed'
     const prevRun = rs.activeRunId
