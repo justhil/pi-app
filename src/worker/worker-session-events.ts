@@ -219,7 +219,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
     case 'tool_execution_start': {
       if (uiBridge && event.args) {
         const interact = resolveInteractByTool(event.toolName)
-        if (interact) {
+        if (interact && interact.schema !== 'questions') {
           const extracted: Record<string, unknown> = {}
           for (const [field, path] of Object.entries(interact.fields || {})) {
             extracted[field] = extractJsonPath(event.args, path)
