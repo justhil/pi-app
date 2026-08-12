@@ -144,12 +144,11 @@ async function gracefulShutdownWorkers(): Promise<void> {
 }
 
 app.on('before-quit', (event) => {
+  // A running turn must get the close-decision prompt first (tray Quit / Cmd+Q).
+  // Keep the tray alive while the user decides so a hidden window remains reachable.
+  if (!guardAppQuit(event)) return
   destroyAppTray()
   if (isQuittingGracefully) return
-  // A running turn must get the close-decision prompt first (tray Quit / Cmd+Q).
-  // guardAppQuit prevents the event and asks the renderer; only when it returns
-  // true do we flush workers and exit.
-  if (!guardAppQuit(event)) return
   event.preventDefault()
   void gracefulShutdownWorkers().finally(() => {
     app.exit(0)

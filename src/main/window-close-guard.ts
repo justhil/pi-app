@@ -11,14 +11,16 @@ import { workerManager } from './worker-manager'
  * - now: close immediately, aborting the running turn (status quo behaviour).
  * - cancel: keep the window open and clear the pending decision.
  *
- * Both window close and app quit (tray Quit / Cmd+Q) are guarded. `forceClose`
- * bypasses the guard once a decision has been made.
+ * Both window close and app quit (tray Quit / Cmd+Q) are guarded. Close
+ * bypasses are scoped to the window or quit attempt that the user approved.
  */
-let forceClose = false
+let forceQuit = false
+let forceCloseWindows = new WeakSet<BrowserWindow>()
 let closeDecisionPending = false
 let decisionAckTimer: ReturnType<typeof setTimeout> | null = null
 let waitPollTimer: ReturnType<typeof setInterval> | null = null
 let pendingOrigin: 'window' | 'app' | null = null
+let pendingWindow: BrowserWindow | null = null
 
 const WAIT_POLL_MS = 500
 /**
@@ -52,7 +54,13 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
   const win = getWindow()
   if (!win || win.isDestroyed()) return false
   pendingOrigin = origin
+  pendingWindow = win
   closeDecisionPending = true
+  if (origin === 'app') {
+    if (win.isMinimized()) win.restore()
+    if (!win.isVisible()) win.show()
+    win.focus()
+  }
   clearDecisionAckTimer()
   decisionAckTimer = setTimeout(() => {
     if (!closeDecisionPending) return
@@ -60,25 +68,37 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
     // blocking. The turn is already lost anyway — do not keep the app stuck.
     closeDecisionPending = false
     decisionAckTimer = null
-    forceClose = true
-    const winNow = getWindow()
-    if (winNow && !winNow.isDestroyed()) winNow.close()
-    if (origin === 'app') app.quit()
+    const winNow = pendingWindow ?? getWindow()
+    if (winNow && !winNow.isDestroyed()) {
+      forceCloseWindows.add(winNow)
+      winNow.close()
+    }
+    if (origin === 'app') {
+      forceQuit = true
+      app.quit()
+    }
   }, DECISION_ACK_TIMEOUT_MS)
   win.webContents.send('ipc:close-requested', { isStreaming: true })
   return true
 }
 
-function closeNow(): void {
+function closeNow(targetWindow: BrowserWindow | null = pendingWindow ?? getWindow()): void {
   stopWaitPoll()
   clearDecisionAckTimer()
   closeDecisionPending = false
-  forceClose = true
-  const win = getWindow()
-  if (win && !win.isDestroyed()) win.close()
+  const origin = pendingOrigin
+  pendingOrigin = null
+  pendingWindow = null
+  if (targetWindow && !targetWindow.isDestroyed()) {
+    forceCloseWindows.add(targetWindow)
+    targetWindow.close()
+  }
   // Tray Quit / Cmd+Q originated as app.quit(): closing the window alone leaves
   // the app running on darwin, so re-issue the quit (now passes the guard).
-  if (pendingOrigin === 'app') app.quit()
+  if (origin === 'app') {
+    forceQuit = true
+    app.quit()
+  }
 }
 
 function startWaitAndClose(): void {
@@ -95,7 +115,7 @@ function startWaitAndClose(): void {
 
 export function installWindowCloseGuard(win: BrowserWindow): void {
   win.on('close', (event) => {
-    if (forceClose) return
+    if (forceCloseWindows.has(win)) return
     event.preventDefault()
     if (waitPollTimer || closeDecisionPending) {
       // Already waiting or asking — repeated close clicks must not re-ask.
@@ -105,7 +125,7 @@ export function installWindowCloseGuard(win: BrowserWindow): void {
       requestCloseDecision('window')
       return
     }
-    closeNow()
+    closeNow(win)
   })
 }
 
@@ -115,7 +135,7 @@ export function installWindowCloseGuard(win: BrowserWindow): void {
  * false when the quit is being diverted to the close-decision flow.
  */
 export function guardAppQuit(event: { preventDefault: () => void }): boolean {
-  if (forceClose) return true
+  if (forceQuit) return true
   if (waitPollTimer || closeDecisionPending) {
     // A decision is already pending — this repeated quit attempt is ignored.
     event.preventDefault()
@@ -143,6 +163,7 @@ export function handleCloseDecision(action: 'wait' | 'now' | 'cancel'): { ok: bo
     clearDecisionAckTimer()
     stopWaitPoll()
     pendingOrigin = null
+    pendingWindow = null
   } else {
     return { ok: false, reason: 'invalid_action' }
   }
@@ -156,9 +177,11 @@ export function handleCloseDecisionShown(): void {
 
 /** Test-only reset of module-level guard state. */
 export function __resetWindowCloseGuardForTest(): void {
-  forceClose = false
+  forceQuit = false
+  forceCloseWindows = new WeakSet<BrowserWindow>()
   closeDecisionPending = false
   clearDecisionAckTimer()
   stopWaitPoll()
   pendingOrigin = null
+  pendingWindow = null
 }
