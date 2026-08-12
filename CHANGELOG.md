@@ -2,6 +2,40 @@
 
 面向仓库的完整版本记录。发版时由 `scripts/generate-release-notes.mjs` 从对应章节生成 **GitHub Release 正文**（用户可读更新说明，应用内「发现新版本」弹窗展示）。发布与应用内更新流程见 [doc/RELEASE.md](doc/RELEASE.md)。
 
+## [0.5.7] — 2026-08-12
+
+### 新增
+
+- **WSL 原生运行时**：支持在指定 WSL 发行版内启动 Pi Worker、读取会话与资源并执行 Git / Preview；设置页可探测、切换和诊断发行版，Host / WSL 切换时会安全停止旧运行时
+- **子 Agent 运行可视化**：Composer、Timeline 与侧栏展示子 Agent 的运行进度、预览与结果，支持从父会话只读定位子会话，同时保持后台会话继续运行
+- **侧栏项目固定顺序**：可选择固定项目排列；默认仍保留最近使用顺序
+
+### 修复
+
+- **#48 冷启动与首次点击卡顿**：会话列表、历史消息和会话树解析移至独立 Preview utility process，Review Git 快照改为异步；大历史会话与大仓库加载不再阻塞 Electron Main
+- **#51 `/skill` 正文污染消息**：模型仍接收完整 Skill 上下文，但 Timeline、历史、排队与输入恢复只显示原始 `/skill:name` 命令；Skill 读取改为“载入 Skill 上下文”语义，不再伪装成普通文件工具
+- **#82 内层滚轮被外层抢走**：代码块、Markdown 代码、思考内容及 Context 展开消息拥有独立滚动边界，鼠标滚轮不再带动外层 Timeline / 面板
+- **#41 更新检查与系统代理**：手动检查明确区分“有更新 / 已是最新 / 检查失败”，更新包下载统一使用 Electron 网络栈，遵循系统代理与 PAC
+- **#40 模型设置与当前 Pi SDK 不一致**：默认模型和 Composer 只显示用户配置或已登录可用模型；用户供应商与 Pi SDK 只读目录分层展示，避免混淆
+- **无 Worker 时设置无法保存**：冷启动后未打开会话也可保存 Pi 默认模型和全局设置；Host、global / user SDK 与 WSL 均使用 SDK `SettingsManager` 的合并和锁语义
+- **多 Worker Extension UI 串话**：问答弹窗按请求来源路由响应与取消；后台 Worker 不再覆盖或取消前台弹窗，Worker 退出和会话切换会清理悬挂请求
+- **会话状态隔离**：瞬时 Worker 状态查询失败不再误判 idle；切换会话、Home 或新会话时清除旧运行快照，停止按钮和运行标记不再跨会话复活
+- **会话树旧数据回填**：打开或切空会话时刷新请求代际，迟到的旧会话树不会覆盖当前视图
+- **长输入光标不可见**：Composer 超过最大高度后保持 caret 可见，并消除 MutationObserver / caret probe 的反馈循环
+- **小窗口布局覆盖用户偏好**：窄窗仅临时压缩左右面板，放大后恢复持久化宽度
+
+### 优化
+
+- **模型列表即时打开**：应用启动后预热共享可用模型缓存；Composer、`/model` 与默认模型下拉立即显示缓存并后台刷新，失败时保留旧选项
+- **大型会话列表性能**：读取会话标题和工作区信息时只扫描 JSONL 头部，不再加载整个 transcript
+- **项目切换体验**：按工作区缓存会话列表，减少切换时清空、闪烁与排序跳动；新建或 Fork 后优先使用实时列表
+- **SDK 安装与切换安全性**：user SDK 使用独立 generation 路径避免 ESM 旧模块缓存；验证失败可回滚到原 user generation，并同步刷新 Preview 与模型目录
+
+### 注意
+
+- WSL 模式需要目标发行版内可用的 Node.js 与 Pi SDK；切换发行版后会重启相关 Worker / Preview 进程
+- “用户配置的供应商”仍只写 `~/.pi/agent/models.json`；“当前 Pi SDK 供应商”是脱敏只读目录，不会回写 `auth.json` 或 `models-store.json`
+
 ## [0.5.6] — 2026-08-03
 
 ### 修复
