@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   resolveCatalogModels: vi.fn(async (input: { sdk: () => Promise<unknown[]> }) => input.sdk()),
 }))
 
+vi.mock('electron', () => ({
+  app: { getPath: vi.fn(() => '/tmp/pi-user-data') },
+}))
+
 vi.mock('../registry', () => ({
   registerHandler: (channel: string, handler: (request?: Record<string, unknown>) => Promise<unknown>) =>
     mocks.handlers.set(channel, handler),
