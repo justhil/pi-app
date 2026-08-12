@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'child_process'
+import { StringDecoder } from 'node:string_decoder'
 import { decodeWorkerFrameLine } from '@shared/worker-frame'
 import { windowsPathToWsl } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from './runtime-config'
@@ -92,8 +93,9 @@ export class WslSessionPreviewRunner {
       this.assertLifecycle(generation)
     }
     let buffer = ''
+    const stdoutDecoder = new StringDecoder('utf8')
     proc.stdout?.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString()
+      buffer += stdoutDecoder.write(chunk)
       let newline = buffer.indexOf('\n')
       while (newline >= 0) {
         const line = buffer.slice(0, newline)

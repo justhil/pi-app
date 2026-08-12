@@ -1,6 +1,6 @@
 import { isAbsolute, posix, resolve } from 'path'
 import { existsSync } from 'fs'
-import { isWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
+import { isWslWindowsPath, wslPathToWindows, wslWindowsPathDistro } from '@shared/wsl-path'
 import { configStore } from './config-store'
 import { isSandboxWorkspacePath } from './sandbox-workspaces'
 import { readSessionMetaFromFile } from './session-file-meta'
@@ -33,8 +33,7 @@ function isPortableAbsolutePath(value: string): boolean {
 }
 
 function comparableWorkspacePath(value: string): string {
-  const wslPath = windowsPathToWsl(null, value).replace(/\\/g, '/')
-  const normalized = posix.normalize(wslPath)
+  const normalized = posix.normalize(value.replace(/\\/g, '/'))
   return normalized.length > 1 ? normalized.replace(/\/+$/, '') : normalized
 }
 
@@ -74,11 +73,14 @@ export function authorizeTrustedSessionFile(
 
   const meta = readSessionMetaFromFile(sessionFile)
   if (!meta?.cwd) return { ok: false, error: 'invalid_session' }
-  if (!workspacePathsEqual(meta.cwd, authorizedCwd.cwd)) {
+  const fileDistro = wslWindowsPathDistro(sessionFile)
+  const sessionCwd = fileDistro
+    ? wslPathToWindows(fileDistro, meta.cwd)
+    : meta.cwd
+  if (!workspacePathsEqual(sessionCwd, authorizedCwd.cwd)) {
     return { ok: false, error: 'session_workspace_mismatch' }
   }
 
-  const fileDistro = wslWindowsPathDistro(sessionFile)
   const workspaceDistro = wslWindowsPathDistro(authorizedCwd.cwd)
   const activeDistro = getAgentRuntimeConfig().distro
   const expectedDistro = workspaceDistro || activeDistro

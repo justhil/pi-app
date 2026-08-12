@@ -111,6 +111,19 @@ describe('authorizeTrustedSessionFile', () => {
     )
   })
 
+  it('authorizes WSL session headers against their Windows workspace view', () => {
+    mocks.cwd = 'C:\\project'
+    mocks.runtime = { mode: 'wsl', distro: 'Ubuntu' }
+    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/mnt/c/project' })
+
+    expect(
+      authorizeTrustedSessionFile(
+        mocks.cwd,
+        '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
+      ),
+    ).toEqual(expect.objectContaining({ ok: true, cwd: mocks.cwd }))
+  })
+
   it('rejects a WSL session from a distro other than the active runtime', () => {
     mocks.cwd = 'C:\\project'
     mocks.runtime = { mode: 'wsl', distro: 'Ubuntu' }

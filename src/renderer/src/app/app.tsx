@@ -40,10 +40,8 @@ import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
 import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
-import {
-  invalidateAvailableModels,
-  prefetchAvailableModels,
-} from '@renderer/lib/available-models-cache'
+import { handleSdkRuntimeChanged } from '@renderer/lib/sdk-runtime-changed'
+import { prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 
@@ -177,8 +175,7 @@ export default function App() {
   useEffect(() => {
     const unsubEvents = onAppEvent((event) => {
       if (event.type === 'sdk-runtime-changed') {
-        invalidateAvailableModels()
-        prefetchAvailableModels()
+        void handleSdkRuntimeChanged()
       }
       useUIStore.getState().processEvent(event)
     })

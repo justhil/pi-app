@@ -48,7 +48,10 @@ describe('refreshWorkspaceSessionLists', () => {
     await refreshWorkspaceSessionLists()
 
     expect(ipcClient.invoke).toHaveBeenCalledTimes(1)
-    expect(ipcClient.invoke).toHaveBeenCalledWith('session.list', { workspaceId: 'D:/projects/alpha' })
+    expect(ipcClient.invoke).toHaveBeenCalledWith('session.list', {
+      workspaceId: 'D:/projects/alpha',
+      refresh: true,
+    })
     expect(useUIStore.getState().sessions).toHaveLength(1)
   })
 
@@ -118,6 +121,9 @@ describe('refreshWorkspaceSessionLists', () => {
     })
 
     expect(ipcClient.invoke).toHaveBeenCalledTimes(1)
-    expect(ipcClient.invoke).toHaveBeenCalledWith('session.list', { workspaceId: 'D:/projects/alpha' })
+    expect(ipcClient.invoke).toHaveBeenCalledWith('session.list', {
+      workspaceId: 'D:/projects/alpha',
+      refresh: true,
+    })
   })
 })

@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   configSet: vi.fn(),
   stop: vi.fn(async () => {}),
   hasActiveTurns: false,
+  sendEvent: vi.fn(),
+  windows: [{ isDestroyed: vi.fn(() => false), webContents: { send: vi.fn() } }],
   invalidateAdapterCatalog: vi.fn(),
   invalidateSdkManagerCaches: vi.fn(),
   stopPreview: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock('./registry', () => ({
   ) => {
     mocks.handlers.set(channel, handler)
   },
+  sendEvent: mocks.sendEvent,
 }))
 
 vi.mock('../config-store', () => ({
@@ -60,7 +63,10 @@ vi.mock('../asr-config-store', () => ({
 }))
 
 vi.mock('../window', () => ({ getMainWindow: vi.fn(() => null) }))
-vi.mock('electron', () => ({ shell: { openExternal: vi.fn() } }))
+vi.mock('electron', () => ({
+  shell: { openExternal: vi.fn() },
+  BrowserWindow: { getAllWindows: vi.fn(() => mocks.windows) },
+}))
 
 import { registerSettingsHandlers } from './handlers/settings'
 
@@ -74,6 +80,7 @@ beforeEach(() => {
   mocks.invalidateAdapterCatalog.mockReset()
   mocks.invalidateSdkManagerCaches.mockReset()
   mocks.stopPreview.mockReset()
+  mocks.sendEvent.mockReset()
   registerSettingsHandlers()
 })
 
@@ -113,6 +120,10 @@ describe('agent runtime settings transaction', () => {
     expect(mocks.stopPreview).toHaveBeenCalledOnce()
     expect(mocks.invalidateAdapterCatalog).toHaveBeenCalledOnce()
     expect(mocks.invalidateSdkManagerCaches).toHaveBeenCalledOnce()
+    expect(mocks.sendEvent).toHaveBeenCalledWith(
+      mocks.windows[0],
+      { type: 'sdk-runtime-changed' },
+    )
   })
 
   it('should_not_restart_workers_when_agent_runtime_is_unchanged', async () => {
@@ -123,6 +134,7 @@ describe('agent runtime settings transaction', () => {
 
     expect(mocks.stop).not.toHaveBeenCalled()
     expect(mocks.stopPreview).not.toHaveBeenCalled()
+    expect(mocks.sendEvent).not.toHaveBeenCalled()
     expect(mocks.configSet).toHaveBeenCalledWith('agentRuntime', { mode: 'host', distro: null })
   })
 })

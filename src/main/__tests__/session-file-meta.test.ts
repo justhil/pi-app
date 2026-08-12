@@ -35,6 +35,23 @@ describe('session file metadata', () => {
     })
   })
 
+  it.skipIf(process.platform !== 'win32')('should_read_a_forward_slash_unc_session_path', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
+    temporaryDirectories.push(directory)
+    const sessionFile = join(directory, 'session.jsonl')
+    writeFileSync(
+      sessionFile,
+      `${JSON.stringify({ type: 'session', id: 'session-unc', cwd: '/tmp/ws' })}\n`,
+      'utf8',
+    )
+    const forwardSlashUnc = sessionFile.replace(/^\\\\/, '//').replace(/\\/g, '/')
+
+    expect(readSessionMetaFromFile(forwardSlashUnc)).toEqual({
+      sessionId: 'session-unc',
+      cwd: '/tmp/ws',
+    })
+  })
+
   it('should_read_header_even_when_preceded_by_blank_lines', () => {
     const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
     temporaryDirectories.push(directory)
