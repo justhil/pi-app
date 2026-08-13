@@ -26,7 +26,7 @@ export type CommandPaletteAction = {
 function openRightPanel(panelId: string) {
   const store = useUIStore.getState()
   store.setActivePanel(panelId)
-  if (store.rightPanelCollapsed) store.toggleRightPanel()
+  store.revealRightPanel()
 }
 
 function focusComposer() {

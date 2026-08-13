@@ -8,6 +8,12 @@ import {
   normalizeTimelineMaxAutoExpandedTools,
 } from '@shared/timeline-settings'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+import {
+  currentWindowWidth,
+  isRightPanelHidden,
+  nextRightPanelToggle,
+  revealRightPanelPatch,
+} from '@renderer/lib/right-panel-visibility'
 import type { UIState } from '@renderer/stores/ui-store-types'
 
 type StoreSet = (
@@ -37,7 +43,9 @@ type ShellSlice = Pick<
   | 'rightPanelWidth'
   | 'setRightPanelWidth'
   | 'rightPanelCollapsed'
+  | 'rightPanelExpandedOnNarrow'
   | 'toggleRightPanel'
+  | 'revealRightPanel'
   | 'filesPreviewChatExpand'
 >
 
@@ -108,8 +116,18 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),
     rightPanelCollapsed: false,
+    rightPanelExpandedOnNarrow: false,
     toggleRightPanel: () =>
-      set((state) => ({ rightPanelCollapsed: !state.rightPanelCollapsed })),
+      set((state) => {
+        const windowWidth = currentWindowWidth()
+        const hidden = isRightPanelHidden({
+          collapsed: state.rightPanelCollapsed,
+          expandedOnNarrow: state.rightPanelExpandedOnNarrow,
+          windowWidth,
+        })
+        return nextRightPanelToggle({ hidden, windowWidth })
+      }),
+    revealRightPanel: () => set(revealRightPanelPatch()),
     filesPreviewChatExpand: false,
   }
 }

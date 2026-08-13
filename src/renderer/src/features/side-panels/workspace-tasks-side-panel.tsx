@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckSquare, ListTree, BookOpen, FolderTree, RefreshCw, ChevronRight, Target, Clock } from '@renderer/components/icons'
+import { CheckSquare, ListTree, BookOpen, RefreshCw, ChevronRight } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
@@ -38,8 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-muted text-muted-foreground',
 }
 
-export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanelComponentProps) {
-  const headerTitle = title || panelId
+export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelComponentProps) {
   const [data, setData] = useState<TasksPanelState>({ ready: false, tasks: [] })
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -87,7 +86,6 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
   if (!workspace) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <FolderTree className="h-8 w-8 text-muted-foreground/30" />
         <span className="text-[12px] text-muted-foreground/50">请先打开项目</span>
       </div>
     )
@@ -96,7 +94,6 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
   if (loadError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <FolderTree className="h-8 w-8 text-muted-foreground/30" />
         <span className="text-[12px] text-muted-foreground/50">无法加载面板状态</span>
         <span className="text-[10px] font-mono text-muted-foreground/40">{loadError}</span>
         <button type="button" onClick={fetchData} className="text-[11px] text-primary hover:underline">重试</button>
@@ -107,7 +104,6 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
   if (!data.ready) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <FolderTree className="h-8 w-8 text-muted-foreground/30" />
         <span className="text-[12px] text-muted-foreground/50">当前项目无任务工作区布局</span>
         <span className="text-[10px] text-muted-foreground/40">需在项目根存在 `.trellis/`（stateProvider: workspace-trellis）</span>
       </div>
@@ -117,8 +113,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
   return (
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">{headerTitle}</span>
+      <div className="flex items-center justify-end px-2 py-1.5 border-b border-border/40">
         <button
           onClick={fetchData}
           disabled={loading}
@@ -131,7 +126,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
       {/* Task list */}
       {data.tasks.length > 0 && (
         <div className="px-2 py-1.5 space-y-1">
-          <div className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+          <div className="px-1 pb-1 text-[12px] text-foreground-secondary">
             活跃任务 ({data.tasks.length})
           </div>
           {data.tasks.map((task) => {
@@ -222,15 +217,14 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId, title }: SidePanel
       {/* Empty tasks */}
       {data.tasks.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
-          <Target className="h-6 w-6 text-muted-foreground/30" />
-          <span className="text-[11px] text-muted-foreground/50">暂无活跃任务</span>
+          <span className="text-[12px] text-foreground-secondary/70">暂无活跃任务</span>
         </div>
       )}
 
       {/* Journals */}
       {data.recentJournals && data.recentJournals.length > 0 && (
         <div className="px-2 py-1.5 space-y-1 border-t border-border/40 mt-1">
-          <div className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+          <div className="px-1 pb-1 text-[12px] text-foreground-secondary">
             最近日志
           </div>
           {data.recentJournals.map((j, i) => (

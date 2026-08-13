@@ -41,9 +41,8 @@ export function GenericAdapterSidePanel({ panelId, adapterId }: SidePanelCompone
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
-        <span className="font-mono text-[11px] text-muted-foreground">{panelId}</span>
-        <button type="button" onClick={() => void load()} className="text-[11px] text-primary hover:underline" disabled={loading}>
+      <div className="flex items-center justify-end border-b border-border/40 px-2 py-1.5">
+        <button type="button" onClick={() => void load()} className="text-[12px] text-foreground-secondary hover:text-foreground" disabled={loading}>
           刷新
         </button>
       </div>

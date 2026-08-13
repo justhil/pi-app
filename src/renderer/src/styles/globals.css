@@ -70,9 +70,10 @@
 
     /* Main paper surface + Composer shell curves */
     --main-chat-surface-radius: 16px;
+    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(18, 24, 40, 0.1);
     --main-chat-surface-shadow:
       -3px 0 8px -4px rgba(18, 24, 40, 0.14),
-      0 -2px 6px -3px rgba(18, 24, 40, 0.1);
+      var(--main-chat-surface-shadow-top);
     --composer-shell-radius: 20px;
     --composer-shell-border: color-mix(in srgb, var(--border-base) 82%, #aeb4bf);
     --composer-shell-border-hover: color-mix(in srgb, var(--brand) 20%, #c4c8d0);
@@ -223,9 +224,10 @@
     --focus-border: #3794ff;
     --focus-shadow: 0 0 0 1px #3794ff55, 0 2px 12px rgba(0, 0, 0, 0.35);
 
+    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(0, 0, 0, 0.2);
     --main-chat-surface-shadow:
       -3px 0 8px -4px rgba(0, 0, 0, 0.28),
-      0 -2px 6px -3px rgba(0, 0, 0, 0.2);
+      var(--main-chat-surface-shadow-top);
     --composer-shell-border: #3a3a3a;
     --composer-shell-border-hover: #46464a;
     --composer-shell-border-focus: color-mix(in srgb, var(--brand) 42%, #6a6a70);
@@ -386,6 +388,13 @@
   .shell-track-right {
     contain: layout paint;
     min-height: 0;
+  }
+  /* 展开右栏接上纸面顶阴影，contain 不能 paint 否则会裁掉向上的投影 */
+  .shell-track-right:not(.shell-track-right-rail) {
+    contain: layout;
+    z-index: 40;
+    border-top: none;
+    box-shadow: var(--main-chat-surface-shadow-top);
   }
   /* 左栏与对话区 grid 贴齐；主纸面左上角露出 center 的侧栏衬底 */
   .shell-track-left {

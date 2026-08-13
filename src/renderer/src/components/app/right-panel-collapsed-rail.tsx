@@ -3,6 +3,7 @@ import { PanelRightOpen } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { useTranslation } from 'react-i18next'
 
 /**
@@ -10,7 +11,7 @@ import { useTranslation } from 'react-i18next'
  */
 export function RightPanelCollapsedRail() {
   const { t } = useTranslation()
-  const collapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const collapsed = useRightPanelHidden()
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
@@ -27,9 +28,7 @@ export function RightPanelCollapsedRail() {
 
   const openPanel = (panelKey: string) => {
     setActivePanel(panelKey)
-    if (useUIStore.getState().rightPanelCollapsed) {
-      toggleRightPanel()
-    }
+    if (collapsed) toggleRightPanel()
   }
 
   return (

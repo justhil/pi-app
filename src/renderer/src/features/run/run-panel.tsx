@@ -2,10 +2,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Activity,
-  CircleDot,
   Wrench,
-  Sparkles,
   AlertTriangle,
 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
@@ -112,45 +109,31 @@ export function RunPanel() {
 
   const statusCopy: Record<
     RunVisualStatus,
-    { title: string; icon: typeof Activity; accent: string; badge: string; pulse?: boolean }
+    { title: string; badge: string }
   > = {
     idle: {
       title: t('run:status.idle'),
-      icon: CircleDot,
-      accent: 'text-foreground-secondary',
       badge: 'bg-[var(--bg-3)] text-foreground-secondary',
     },
     running: {
       title: t('run:status.running'),
-      icon: Activity,
-      accent: 'text-emerald-600 dark:text-emerald-400',
       badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-      pulse: true,
     },
     tool: {
       title: t('run:status.toolRunning'),
-      icon: Wrench,
-      accent: 'text-sky-600 dark:text-sky-400',
       badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-      pulse: true,
     },
     thinking: {
       title: t('run:status.thinking'),
-      icon: Sparkles,
-      accent: 'text-[var(--brand)]',
       badge: 'bg-[var(--brand)]/10 text-[var(--aou-7)] dark:text-[var(--aou-5)]',
-      pulse: true,
     },
     failed: {
       title: t('run:status.failed'),
-      icon: AlertTriangle,
-      accent: 'text-amber-600 dark:text-amber-400',
       badge: 'bg-amber-500/10 text-amber-800 dark:text-amber-200',
     },
   }
 
   const statusVisual = statusCopy[visualStatus]
-  const StatusIcon = statusVisual.icon
 
   return (
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
@@ -167,29 +150,6 @@ export function RunPanel() {
           )}
         />
         <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              'relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-2)]/80',
-              statusVisual.accent,
-            )}
-          >
-            <StatusIcon className={cn('h-3.5 w-3.5', statusVisual.pulse && 'animate-pulse')} />
-            {isRunning && (
-              <span
-                className={cn(
-                  'absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full',
-                  visualStatus === 'tool' ? 'bg-sky-500' : 'bg-emerald-500',
-                )}
-              >
-                <span
-                  className={cn(
-                    'absolute inset-0 animate-ping rounded-full opacity-60',
-                    visualStatus === 'tool' ? 'bg-sky-400' : 'bg-emerald-400',
-                  )}
-                />
-              </span>
-            )}
-          </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[13px] font-medium tracking-tight text-foreground">

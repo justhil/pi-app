@@ -215,7 +215,9 @@ export interface UIState {
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
   rightPanelCollapsed: boolean
+  rightPanelExpandedOnNarrow: boolean
   toggleRightPanel: () => void
+  revealRightPanel: () => void
   filesPreviewChatExpand: boolean
   lastModel: string | null
   lastThinking: string | null

@@ -24,7 +24,7 @@ export function openWorkspaceRelativePath(relPath: string): void {
   const raw = normalizeRelPath(relPath, store.currentWorkspace)
   if (!raw) return
   store.setActivePanel('files')
-  if (store.rightPanelCollapsed) store.toggleRightPanel()
+  store.revealRightPanel()
   window.dispatchEvent(
     new CustomEvent('pi-desktop:open-workspace-file', {
       detail: { rel: raw, name: raw.split('/').pop() || raw },
@@ -38,7 +38,7 @@ export function openReviewGitForPath(relPath: string): void {
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
   store.setActivePanel('review')
-  if (store.rightPanelCollapsed) store.toggleRightPanel()
+  store.revealRightPanel()
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'git' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {
@@ -53,7 +53,7 @@ export function openReviewSessionForPath(relPath: string): void {
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
   store.setActivePanel('review')
-  if (store.rightPanelCollapsed) store.toggleRightPanel()
+  store.revealRightPanel()
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'session' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {

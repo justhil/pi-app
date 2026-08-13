@@ -23,6 +23,7 @@ import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon } from '@renderer/components/icons'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
 import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
@@ -77,7 +78,7 @@ export default function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const activePanel = useUIStore((s) => s.activePanel)
-  const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const rightPanelHidden = useRightPanelHidden()
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
@@ -342,7 +343,7 @@ export default function App() {
               <ComposerDock heroMode={showHome}>
                 <Composer />
               </ComposerDock>
-              {rightPanelCollapsed && (
+              {rightPanelHidden && (
                 <ChatTimelineProgressRail placement="main-column-edge" />
               )}
             </MainColumnWithTimelineScroll>
@@ -354,7 +355,7 @@ export default function App() {
                 activePanel={activePanel}
                 setActivePanel={setActivePanel}
               />
-              {!rightPanelCollapsed ? (
+              {!rightPanelHidden ? (
                 <div className="flex-1 overflow-hidden">
                   <ErrorBoundary label="panel">
                     <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>

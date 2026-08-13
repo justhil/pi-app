@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Maximize2, Search } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { getAttachmentKind } from '@renderer/features/composer/attachments'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -22,8 +23,8 @@ export function WorkspaceFilesPanel() {
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
-  const rightPanelCollapsed = useUIStore((s) => s.rightPanelCollapsed)
-  const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
+  const rightPanelCollapsed = useRightPanelHidden()
+  const revealRightPanel = useUIStore((s) => s.revealRightPanel)
   const { listDir, readText } = useWorkspaceFs(workspaceRoot)
   const {
     tabs,
@@ -84,12 +85,12 @@ export function WorkspaceFilesPanel() {
   const toggleChatPreviewExpand = useCallback(() => {
     if (!previewPath) return
     if (!filesPreviewChatExpand) {
-      if (rightPanelCollapsed) toggleRightPanel()
+      if (rightPanelCollapsed) revealRightPanel()
       useUIStore.setState({ filesPreviewChatExpand: true })
       return
     }
     useUIStore.setState({ filesPreviewChatExpand: false })
-  }, [previewPath, filesPreviewChatExpand, rightPanelCollapsed, toggleRightPanel])
+  }, [previewPath, filesPreviewChatExpand, rightPanelCollapsed, revealRightPanel])
 
   const onSelectPath = useCallback(
     (rel: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => {

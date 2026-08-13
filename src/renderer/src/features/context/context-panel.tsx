@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { RefreshCw, ChevronDown, ChevronRight, Layers, MessageSquare } from '@renderer/components/icons'
+import { RefreshCw, ChevronDown, ChevronRight } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
 import { useSessionContextPreview } from './use-session-context-preview'
@@ -84,11 +84,7 @@ export function ContextPanel() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between border-b border-border/40 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-foreground-secondary/70" />
-          <span className="text-[13px] font-semibold text-foreground">{t('context:title')}</span>
-        </div>
+      <div className="flex shrink-0 items-center justify-end border-b border-border/40 px-2 py-1.5">
         <button type="button" onClick={() => void refresh()} className="chrome-icon-btn rounded-md p-1.5" title={t('context:refresh')}>
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
         </button>
@@ -96,7 +92,6 @@ export function ContextPanel() {
 
       {!preview ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-          <MessageSquare className="h-8 w-8 text-foreground-secondary/25" />
           <p className="text-[13px] leading-relaxed text-foreground-secondary/80">
             {t('context:workerNotReady')}
           </p>
