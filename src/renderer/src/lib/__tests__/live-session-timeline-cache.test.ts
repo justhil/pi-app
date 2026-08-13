@@ -353,6 +353,53 @@ describe('live-session-timeline-cache', () => {
     ).toHaveLength(2)
   })
 
+  it('should_reuse_unbound_background_optimistic_user_row_when_pending_marker_was_cleared', () => {
+    const sessionFile = '/tmp/background-unbound-optimistic-user.jsonl'
+    saveLiveSessionTimeline({
+      sessionId: 'session-1',
+      sessionFile,
+      timelineItems: [
+        {
+          id: 'opt-user-1',
+          type: 'user-message',
+          text: 'just sent',
+          timestamp: 1,
+        },
+        {
+          id: 'opt-asst-1',
+          type: 'assistant-message',
+          text: '',
+          thinkingText: '',
+          timestamp: 2,
+        },
+      ],
+      streamingAssistantId: 'opt-asst-1',
+      runState: { status: 'running', toolCount: 0, errorCount: 0 },
+      pendingSteering: [],
+      pendingFollowUp: [],
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+    })
+
+    applyBackgroundAppEventToLiveTimeline(sessionFile, {
+      type: 'message',
+      role: 'user',
+      phase: 'start',
+      text: 'just sent',
+      runId: 'run-1',
+      seq: 2,
+      workspaceId: '/workspace',
+      sessionFile,
+      timestamp: 2,
+    })
+
+    const snapshot = getLiveSessionTimeline(sessionFile)
+    const users = snapshot?.timelineItems.filter((item) => item.type === 'user-message') ?? []
+    expect(users).toHaveLength(1)
+    expect(users[0]?.id).toBe('opt-user-1')
+    expect(users[0]?.runId).toBe('run-1')
+  })
+
   it('should_reuse_background_optimistic_user_row', () => {
     const sessionFile = '/tmp/background-optimistic-user.jsonl'
     const command = '/skill:demo-skill explain this'

@@ -4,7 +4,10 @@ import {
   resolveMergedStreamingAssistantId,
 } from '@renderer/lib/streaming-timeline-preserve'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
-import { normalizeTimelineMessageText } from '@renderer/lib/timeline-dedupe'
+import {
+  isReusableOptimisticUserMessage,
+  normalizeTimelineMessageText,
+} from '@renderer/lib/timeline-dedupe'
 import { extractStatusFromOutput, extractTextFromToolOutput } from '@extension-compat/json-path'
 import type { AppEvent } from '@shared/app-events'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
@@ -306,9 +309,6 @@ function applyMessage(
 
   if (event.role === 'user' && event.phase === 'start') {
     const incomingText = normalizeTimelineMessageText(event.text)
-    const optimisticText = normalizeTimelineMessageText(
-      snap.optimisticPendingUserText ?? undefined,
-    )
     let lastUserIndex = -1
     for (let itemIndex = snap.timelineItems.length - 1; itemIndex >= 0; itemIndex--) {
       if (snap.timelineItems[itemIndex].type === 'user-message') {
@@ -317,9 +317,11 @@ function applyMessage(
       }
     }
     const lastUser = lastUserIndex >= 0 ? snap.timelineItems[lastUserIndex] : undefined
-    const lastUserText = normalizeTimelineMessageText(lastUser?.text)
-    const matchesOptimistic =
-      !!lastUser && !!optimisticText && lastUserText === optimisticText
+    const matchesOptimistic = isReusableOptimisticUserMessage(
+      lastUser,
+      event.text,
+      snap.optimisticPendingUserText,
+    )
 
     if (matchesOptimistic) {
       snap.timelineItems[lastUserIndex] = {

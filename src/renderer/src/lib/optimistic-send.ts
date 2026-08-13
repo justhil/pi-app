@@ -2,6 +2,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { clearAbortQueueIgnore, clearAbortUiHold } from '@renderer/lib/abort-ui-hold'
 import {
   getLiveSessionTimeline,
+  saveLiveSessionTimeline,
   updateLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
 import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
@@ -78,6 +79,25 @@ export function appendOptimisticOutgoingMessage(
   // before the first worker `run` event arrives.
   if (store.historySessionFile) {
     markOptimisticSessionRunning(store.historySessionFile)
+    const latest = useUIStore.getState()
+    saveLiveSessionTimeline({
+      sessionId: latest.currentSessionId,
+      sessionFile: store.historySessionFile,
+      timelineItems: latest.timelineItems,
+      streamingAssistantId: assistantId,
+      runState: latest.runState,
+      pendingSteering: latest.pendingSteering,
+      pendingFollowUp: latest.pendingFollowUp,
+      optimisticPendingUserText: trimmed,
+      agentTurnBootstrapping: true,
+    })
+    patchSessionView(store.historySessionFile, {
+      items: latest.timelineItems,
+      runUI: 'running',
+      streamingAssistantId: assistantId,
+      optimisticPendingUserText: trimmed,
+      agentTurnBootstrapping: true,
+    })
   }
   requestTimelineBottomAnchor('message-sent')
   if (store.runState.status !== 'running') {
