@@ -150,6 +150,10 @@
     "waitingMessage": "The window will close automatically once the conversation (including context compaction) completes.",
     "cancelWait": "Cancel waiting"
   },
+  "notification": {
+    "sessionGone": "This session was deleted or is unavailable",
+    "openFailed": "Could not open that session"
+  },
   "sessionReload": {
     "success": "Session data refreshed",
     "failed": "Refresh failed",
@@ -171,6 +175,7 @@
     "title": "Keyboard shortcuts",
     "commandPalette": "Open command palette",
     "thisSheet": "Show this shortcuts list",
+    "completionNotification": "Focus latest completion notification",
     "sessionTree": "Open session tree overlay",
     "restoreQueue": "Restore queued message into composer",
     "stopOrDismiss": "Stop run / dismiss overlay",

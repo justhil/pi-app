@@ -13,7 +13,8 @@ import { Composer } from '@renderer/features/composer/composer'
 import { TopBar } from '@renderer/components/app/top-bar'
 import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { onAppEvent, onWorkerExit, ipcClient } from '@renderer/lib/ipc-client'
+import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '@renderer/lib/ipc-client'
+import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-worker'
@@ -193,9 +194,13 @@ export default function App() {
         store.setCompactingSession,
       )
     })
+    const unsubNotify = onNotificationOpenSession((payload) => {
+      void handleNotificationOpenSession(payload)
+    })
     return () => {
       unsubEvents()
       unsubExit()
+      unsubNotify()
     }
   }, [setWorkspace])
 

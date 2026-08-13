@@ -4,6 +4,17 @@
   "send": "发送",
   "stop": "停止",
   "selectProjectFirst": "请先打开项目",
+  "adapterWidget": {
+    "progress": "{{completed}}/{{total}} 完成",
+    "inProgressCount": "{{count}} 项进行中",
+    "pendingCount": "{{count}} 项待办",
+    "complete": "全部完成",
+    "priority": {
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    }
+  },
   "previewReadOnly": "后台会话仍在运行，请先停止或切回该会话后再发送",
   "previewBanner": "正在预览其他会话；后台任务运行中，此处暂不可发送。",
   "previewBackgroundRunning": "后台运行中",

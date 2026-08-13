@@ -1,0 +1,29 @@
+{
+  "id": "magic-context-todo",
+  "displayName": "Magic Context Todo",
+  "description": "todowrite list above the composer",
+  "match": {
+    "names": ["@cortexkit/pi-magic-context", "pi-magic-context", "magic-context"],
+    "tools": ["todowrite"]
+  },
+  "tier": "partial",
+  "widget": {
+    "keys": ["magic-context-todos"],
+    "tools": ["todowrite"],
+    "placement": "aboveComposer",
+    "protocol": "todo-list-v1",
+    "icon": "ListTodo",
+    "title": "Todo",
+    "fields": {
+      "items": "todos",
+      "id": "id",
+      "text": "content",
+      "status": "status",
+      "priority": "priority"
+    }
+  },
+  "i18n": {
+    "zh": { "displayName": "Magic Context Todo", "description": "在输入框上方显示 todowrite 列表" },
+    "en": { "displayName": "Magic Context Todo", "description": "Show the todowrite list above the composer" }
+  }
+}

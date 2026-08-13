@@ -2,7 +2,11 @@ import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handlePrompt } from './handlers/worker-handlers-turn'
-import { handleSessionEvent, resetSessionEventTracking } from './worker-session-events'
+import {
+  handleSessionEvent,
+  resetCompletionTurnTracking,
+  resetSessionEventTracking,
+} from './worker-session-events'
 import type { SessionEventDeps } from './worker-session-events'
 import { st } from './worker-runtime'
 
@@ -82,6 +86,7 @@ describe('worker session event lifecycle', () => {
   beforeEach(() => {
     delete process.env.PI_AUDIO_TRACE
     resetSessionEventTracking()
+    resetCompletionTurnTracking()
   })
 
   it('should_publish_fresh_run_identity_when_agent_starts', () => {
@@ -149,6 +154,54 @@ describe('worker session event lifecycle', () => {
       ),
     ).toEqual([expect.objectContaining({ type: 'run', phase: 'idle' })])
     expect(harness.getAgentTurnActive()).toBe(false)
+    expect(harness.emittedEvents).toContainEqual(
+      expect.objectContaining({ type: 'completion', outcome: 'success', settled: true }),
+    )
+  })
+
+  it('does not emit completion while queued follow-up is still draining', async () => {
+    const harness = createSessionEventHarness()
+    handleSessionEvent(
+      { type: 'queue_update', steering: [], followUp: ['next'] } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent({ type: 'agent_start' } as AgentSessionEvent, harness.dependencies)
+    handleSessionEvent(
+      { type: 'agent_end', messages: [], willRetry: false } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent({ type: 'agent_settled' } as AgentSessionEvent, harness.dependencies)
+    await Promise.resolve()
+    expect(harness.emittedEvents.filter((event) => event.type === 'completion')).toEqual([])
+  })
+
+  it('emits sanitized completion previews from the current turn', async () => {
+    const harness = createSessionEventHarness()
+    handleSessionEvent({ type: 'agent_start' } as AgentSessionEvent, harness.dependencies)
+    handleSessionEvent(
+      {
+        type: 'message_start',
+        message: { role: 'user', content: [{ type: 'text', text: '修 C:\\Users\\admin\\secret.env' }] },
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      {
+        type: 'message_end',
+        message: { role: 'assistant', content: [{ type: 'text', text: '已处理 sk-abcdefghijklmnopqrstuvwxyz' }] },
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      { type: 'agent_end', messages: [], willRetry: false } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent({ type: 'agent_settled' } as AgentSessionEvent, harness.dependencies)
+    await Promise.resolve()
+    const completion = harness.emittedEvents.find((event) => event.type === 'completion')
+    expect(completion).toMatchObject({ outcome: 'success', settled: true })
+    expect(completion && 'promptPreview' in completion ? completion.promptPreview : '').not.toContain('secret.env')
+    expect(completion && 'responsePreview' in completion ? completion.responsePreview : '').not.toContain('sk-')
   })
 
   it('should_display_skill_command_when_sdk_expands_skill_block', () => {

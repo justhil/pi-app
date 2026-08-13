@@ -9,6 +9,13 @@ import { guardAppQuit } from './window-close-guard'
 import { configStore } from './config-store'
 import { is } from '@electron-toolkit/utils'
 import { destroyAppTray, ensureAppTray } from './tray'
+import {
+  disposeCompletionNotifications,
+  initializeCompletionNotifications,
+} from './completion-notification'
+import { notifyForegroundChanged } from './completion-notification-events'
+import { focusCompletionNotificationHost } from './completion-notification-delivery'
+import { isCompletionNotificationShortcut } from './completion-notification-shortcut'
 // Prevent EPIPE / write errors from crashing the main process
 process.stdout?.on?.('error', () => {})
 process.stderr?.on?.('error', () => {})
@@ -32,6 +39,13 @@ process.on('uncaughtException', (err) => {
   }
   setTimeout(() => app.quit(), 2000)
 })
+
+function attachCompletionNotificationShortcut(win: BrowserWindow): void {
+  win.webContents.on('before-input-event', (event, input) => {
+    if (!isCompletionNotificationShortcut(input)) return
+    if (focusCompletionNotificationHost()) event.preventDefault()
+  })
+}
 
 function createMenu(): void {
   // macOS keeps a minimal app menu (system convention); Windows/Linux remove the menu bar entirely.
@@ -71,6 +85,7 @@ app.whenReady().then(() => {
   }
   createMenu()
   ensureAppTray()
+  initializeCompletionNotifications()
 
   // CSP: inject Content-Security-Policy header in production (skip dev for Vite HMR)
   if (!is.dev) {
@@ -96,6 +111,9 @@ app.whenReady().then(() => {
   })
   const win = createWindow()
   workerManager.setMainWindow(win)
+  attachCompletionNotificationShortcut(win)
+  win.on('focus', () => notifyForegroundChanged())
+  win.on('restore', () => notifyForegroundChanged())
   refreshGitWorkspaceWatch(win)
   if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
     win.once('show', () => {
@@ -114,6 +132,9 @@ app.whenReady().then(() => {
     if (windows.length === 0) {
       const w = createWindow()
       workerManager.setMainWindow(w)
+      attachCompletionNotificationShortcut(w)
+      w.on('focus', () => notifyForegroundChanged())
+      w.on('restore', () => notifyForegroundChanged())
     }
   })
 })
@@ -134,6 +155,7 @@ async function gracefulShutdownWorkers(): Promise<void> {
     console.error('[Main] graceful worker stop failed:', error)
   } finally {
     sessionPreviewProcess.stop()
+    disposeCompletionNotifications()
   }
   try {
     const asr = await import('./asr/codex-asr-manager')

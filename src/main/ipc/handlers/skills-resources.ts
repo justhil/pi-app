@@ -4,19 +4,11 @@ import { registerHandler } from '../registry'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import {
-  listSkillsOnDisk,
   listPromptsOnDisk,
   readTextFileSafe,
   writeTextFileSafe,
-  skillStorageKey,
 } from '../../pi-resources-editor'
-import {
-  getDesktopSkillOverrides,
-  isSkillEnabled,
-  setSkillEnabledInGlobal,
-  applySkillOverridesBatch,
-  migrateElectronSkillOverrides,
-} from '../../pi-skill-overrides'
+import { migrateElectronSkillOverrides } from '../../pi-skill-overrides'
 import {
   listAgentsContextFiles,
   listPiBuiltinPromptFiles,
@@ -42,71 +34,83 @@ export function registerSkillsResourceHandlers(): void {
       migrateElectronSkillOverrides(legacy)
       configStore.set('skillOverrides', {})
     }
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const overrides = getDesktopSkillOverrides()
-    const disk = listSkillsOnDisk(cwd)
-    let worker: { name: string; path?: string; description?: string; source?: string }[] = []
-    if (workerManager.isRunning) {
-      try {
-        worker = await workerManager.getSkillsList()
-      } catch (e) {
-        console.error('[IPC] skills.list worker failed:', e)
-      }
+    const cwd = configStore.get('currentProject')
+    if (!cwd) {
+      return { complete: false, projectTrusted: false, effectiveSkills: [], candidates: [], skills: [] }
     }
-    const byPath = new Map<string, Record<string, unknown>>()
-    for (const s of disk) {
-      const key = skillStorageKey(s.name, s.path)
-      byPath.set(s.path, {
-        ...s,
-        key,
-        enabled: isSkillEnabled(s.name, s.path, overrides),
-        command: `/skill:${s.name}`,
-      })
+    if (
+      !workerManager.isRunning ||
+      normalizeSessionKey(workerManager.cwd || '') !== normalizeSessionKey(cwd)
+    ) {
+      await workerManager.start(cwd)
     }
-    for (const s of worker) {
-      const path = s.path || ''
-      const key = skillStorageKey(s.name, path || undefined)
-      const existing = path ? byPath.get(path) : undefined
-      const row = {
-        name: s.name,
-        description: s.description || (existing?.description as string) || '',
-        path: path || (existing?.path as string),
-        source: s.source || (existing?.source as string) || 'unknown',
-        key,
-        enabled: isSkillEnabled(s.name, path || (existing?.path as string), overrides),
-        command: `/skill:${s.name}`,
-        fromWorker: true,
-      }
-      if (path) byPath.set(path, { ...existing, ...row })
-      else if (![...byPath.values()].some((x) => x.name === s.name)) {
-        byPath.set(`worker:${s.name}`, row)
-      }
-    }
-    return { skills: [...byPath.values()] }
+    const catalog = await workerManager.getSkillsList()
+    const presentation = configStore.get('skillPresentation') || {}
+    const candidates = catalog.candidates.map((candidate) => ({
+      ...candidate,
+      path: candidate.filePath,
+      alias: presentation[candidate.key]?.alias,
+      icon: presentation[candidate.key]?.icon,
+    }))
+    return { ...catalog, candidates, skills: candidates }
   })
 
   registerHandler('ipc:skills.setEnabled', async (req) => {
-    const name = String(req.name || '')
-    const path = req.path ? String(req.path) : undefined
-    const enabled = req.enabled !== false
-    if (!name && !path) return { ok: false }
-    const overrides = setSkillEnabledInGlobal(name || 'unknown', path, enabled)
-    const key = skillStorageKey(name, path)
-    if (workerManager.isRunning) await workerManager.reloadResources().catch(() => {})
-    return { ok: true, key, enabled: isSkillEnabled(name, path, overrides) }
+    const key = String(req.key || '')
+    if (!key || !workerManager.isRunning) return { ok: false, error: 'SKILL_RUNTIME_NOT_READY' }
+    try {
+      const count = await workerManager.applySkillOverrides([{ key, enabled: req.enabled !== false }])
+      await workerManager.reloadResources()
+      return { ok: true, count }
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) }
+    }
   })
 
   registerHandler('ipc:skills.applyOverrides', async (req) => {
-    const changes = Array.isArray(req?.changes) ? req.changes : []
-    const normalized = changes
-      .map((c: { name?: string; path?: string; enabled?: boolean }) => ({
-        name: String(c?.name || ''),
-        path: c?.path ? String(c.path) : undefined,
-        enabled: c?.enabled !== false,
-      }))
-      .filter((c: { name: string; path?: string }) => c.name || c.path)
-    applySkillOverridesBatch(normalized)
-    return { ok: true, count: normalized.length }
+    const changes = Array.isArray(req?.changes)
+      ? req.changes.map((change: { key?: unknown; enabled?: unknown }) => ({
+          key: String(change.key || ''),
+          enabled: change.enabled !== false,
+        })).filter((change: { key: string }) => change.key)
+      : []
+    if (!workerManager.isRunning) return { ok: false, error: 'SKILL_RUNTIME_NOT_READY' }
+    try {
+      const count = await workerManager.applySkillOverrides(changes)
+      await workerManager.reloadResources()
+      return { ok: true, count }
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) }
+    }
+  })
+
+  registerHandler('ipc:skills.description.write', async (req) => {
+    if (!workerManager.isRunning) return { ok: false, error: 'SKILL_RUNTIME_NOT_READY' }
+    try {
+      const description = await workerManager.writeSkillDescription(
+        String(req.key || ''),
+        String(req.description || ''),
+      )
+      await workerManager.reloadResources()
+      return { ok: true, description }
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) }
+    }
+  })
+
+  registerHandler('ipc:skills.transfer', async (req) => {
+    if (!workerManager.isRunning) return { ok: false, error: 'SKILL_RUNTIME_NOT_READY' }
+    try {
+      const result = await workerManager.transferSkill(
+        String(req.key || ''),
+        req.target === 'project' ? 'project' : 'user',
+        req.mode === 'move' ? 'move' : 'copy',
+      )
+      await workerManager.reloadResources()
+      return result
+    } catch (error) {
+      return { ok: false, error: errorMessage(error) }
+    }
   })
 
   registerHandler('ipc:prompts.list', async () => {

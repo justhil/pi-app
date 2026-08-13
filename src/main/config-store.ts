@@ -22,6 +22,8 @@ export interface StoreSchema {
   extensionOverrides: Record<string, boolean>
   /** Skill 启用：key 为 skillStorageKey，false=禁用，缺省=启用 */
   skillOverrides: Record<string, boolean>
+  /** Desktop-only skill alias/icon, keyed by skillCatalogKey */
+  skillPresentation: Record<string, { alias?: string; icon?: string }>
   extensionConfigs: Record<string, Record<string, unknown>>
   /** 右侧栏 Tab 显示开关 */
   rightPanelPrefs: Record<string, boolean>
@@ -45,6 +47,13 @@ export interface StoreSchema {
   alertOnRunIdle: boolean
   /** 后台会话（非前台）run 结束时也提醒 */
   alertOnBackgroundRunIdle: boolean
+  /** Agent 失败时提醒 */
+  alertOnRunFailed: boolean
+  completionNotificationTimeoutSeconds: number
+  completionNotificationPreview: 'response' | 'fixed'
+  completionNotificationOnlyWhenUnfocused: boolean
+  completionNotificationDndUntil: number | null
+  completionNotificationDelivery: 'auto' | 'custom' | 'system'
   /** 同时保留的会话/工作区 worker 进程上限 */
   maxSessionWorkers: number
   /** 空闲 worker 回收时间（分钟）；0 = 不因超时回收 */
@@ -73,6 +82,7 @@ const store = new Store<StoreSchema>({
     panelWidths: null,
     extensionOverrides: {},
     skillOverrides: {},
+    skillPresentation: {},
     extensionConfigs: {},
     rightPanelPrefs: {
       review: true,
@@ -92,6 +102,12 @@ const store = new Store<StoreSchema>({
     alertOnExtensionUi: true,
     alertOnRunIdle: true,
     alertOnBackgroundRunIdle: false,
+    alertOnRunFailed: true,
+    completionNotificationTimeoutSeconds: 15,
+    completionNotificationPreview: 'response',
+    completionNotificationOnlyWhenUnfocused: true,
+    completionNotificationDndUntil: null,
+    completionNotificationDelivery: 'auto',
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,

@@ -8,6 +8,15 @@ vi.mock('electron', () => ({
 import { resolveUtilityEntry } from '../utility-entry-path'
 
 describe('resolveUtilityEntry', () => {
+  it('should_not_duplicate_out_main_when_electron_returns_the_built_main_directory', () => {
+    const builtMain = join('D:', 'workspace', 'pi-app', 'out', 'main')
+
+    expect(resolveUtilityEntry('worker.mjs', builtMain)).toBe(join(builtMain, 'worker.mjs'))
+    expect(resolveUtilityEntry('worker.mjs', builtMain)).not.toContain(
+      join('out', 'main', 'out', 'main'),
+    )
+  })
+
   it('should_resolve_worker_and_preview_from_the_app_root_when_callers_are_split_into_chunks', () => {
     const appPath = join('D:', 'workspace', 'pi-app')
 

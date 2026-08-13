@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
-import { join } from 'path'
+import { isSkillPathEnabled } from '@shared/skill-catalog'
 import { skillStorageKey } from './pi-resources-editor'
 import { resolveActiveAgentDir, resolveActiveAgentSettingsFile } from './agent-dir'
 
@@ -31,15 +31,8 @@ export function getDesktopSkillOverrides(): DesktopSkillOverrides {
 
 /** 未写入或 true → 启用；仅 false 为禁用 */
 export function isSkillEnabled(name: string, path: string | undefined, overrides: DesktopSkillOverrides): boolean {
-  const candidates = new Set<string>()
-  candidates.add(skillStorageKey(name, path))
-  candidates.add(skillStorageKey(name))
-  if (path) {
-    candidates.add(skillStorageKey(name, path.replace(/\\/g, '/')))
-  }
-  for (const k of candidates) {
-    if (overrides[k] === false) return false
-  }
+  if (path && !isSkillPathEnabled(path, overrides)) return false
+  if (!path && overrides[skillStorageKey(name)] === false) return false
   return true
 }
 

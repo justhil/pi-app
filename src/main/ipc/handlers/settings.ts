@@ -136,4 +136,10 @@ export function registerSettingsHandlers(): void {
     })
     return { ok: true }
   })
+
+  registerHandler('ipc:alerts.test', async () => {
+    const { deliverTestCompletionNotification } = await import('../../completion-notification')
+    deliverTestCompletionNotification()
+    return { ok: true }
+  })
 }

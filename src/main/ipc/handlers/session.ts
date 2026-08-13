@@ -17,6 +17,7 @@ import {
   setPendingEphemeralSandboxDraft,
   setPendingWorkerSessionFile,
 } from '../../session-bind-state'
+import { setVisibleSessionFile } from '../../completion-notification-events'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
@@ -96,6 +97,11 @@ export function registerSessionHandlers(): void {
         }
       }
     }
+    return { ok: true }
+  })
+
+  registerHandler('ipc:session.setVisible', async (req) => {
+    setVisibleSessionFile(typeof req.sessionFile === 'string' ? req.sessionFile : null)
     return { ok: true }
   })
 

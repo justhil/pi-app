@@ -47,6 +47,7 @@ export default defineConfig({
         external: ['electron'],
         input: {
           index: resolve(__dirname, 'src/preload/index.ts'),
+          notification: resolve(__dirname, 'src/preload/notification.ts'),
         },
         output: {
           format: 'cjs',

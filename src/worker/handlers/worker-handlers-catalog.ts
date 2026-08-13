@@ -1,9 +1,16 @@
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import { errorMessage } from '@shared/error-message'
+import type { SkillCatalogResponse } from '@shared/skill-catalog'
 import { projectModelCatalog } from '@shared/model-auth-projection'
 import type { WorkerCommandRow, WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
 import { st } from '../worker-runtime.js'
+import {
+  applySkillOverrideChanges,
+  getLiveWorkerSkillCatalog,
+  transferSkill,
+  writeSkillDescription,
+} from '../worker-skill-resources.js'
 
 export async function handleReloadmodels(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
@@ -125,25 +132,50 @@ export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage,
 
 
 export async function handleGetskillslist(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
-        try {
-          const skills: Array<Record<string, unknown>> = []
-          if (st.session) {
-            type SkillRow = { name?: string; description?: string; path?: string; filePath?: string; skillPath?: string; source?: string; sourceInfo?: { source?: string } }
-            const raw = (st.session.resourceLoader as { getSkills?: () => { skills?: SkillRow[] } }).getSkills?.()
-            for (const sk of raw?.skills || []) {
-              skills.push({
-                name: sk.name,
-                description: sk.description || '',
-                path: sk.path || sk.filePath || sk.skillPath,
-                source: sk.sourceInfo?.source || sk.source,
-              })
-            }
-          }
-          reply({ type: 'getSkillsList-done', skills })
-        } catch (e: unknown) {
-          reply({ type: 'error', error: `getSkillsList failed: ${errorMessage(e)}` })
-        }
-        return
+  try {
+    const live = getLiveWorkerSkillCatalog()
+    const catalog: SkillCatalogResponse = {
+      ...live,
+      candidates: live.candidates.map(({ nativeFilePath: _nativeFilePath, ...candidate }) => candidate),
+    }
+    reply({ type: 'getSkillsList-done', catalog })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `getSkillsList failed: ${errorMessage(e)}` })
+  }
+}
+
+export async function handleApplyskilloverrides(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    const changes = Array.isArray(msg.changes) ? msg.changes : []
+    const count = applySkillOverrideChanges(
+      changes.map((change: unknown) => {
+        const row = change as { key?: unknown; enabled?: unknown }
+        return { key: String(row.key || ''), enabled: row.enabled !== false }
+      }),
+    )
+    reply({ type: 'applySkillOverrides-done', ok: true, count })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `applySkillOverrides failed: ${errorMessage(e)}` })
+  }
+}
+
+export async function handleWriteskilldescription(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    const description = writeSkillDescription(String(msg.key || ''), String(msg.description || ''))
+    reply({ type: 'writeSkillDescription-done', ok: true, description })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `writeSkillDescription failed: ${errorMessage(e)}` })
+  }
+}
+
+export async function handleTransferskill(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    const target = msg.target === 'project' ? 'project' : 'user'
+    const mode = msg.mode === 'move' ? 'move' : 'copy'
+    reply({ type: 'transferSkill-done', ...transferSkill(String(msg.key || ''), target, mode) })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `transferSkill failed: ${errorMessage(e)}` })
+  }
 }
 
 

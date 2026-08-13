@@ -12,6 +12,14 @@ import {
 } from '@shared/custom-theme'
 import { injectCustomCssOverride } from '@renderer/lib/theme/inject-custom-css'
 import { applyCustomTheme } from '@renderer/lib/theme/inject-theme'
+import {
+  normalizeCompletionDelivery,
+  normalizeCompletionPreviewMode,
+  normalizeCompletionTimeoutSeconds,
+  normalizeDndUntil,
+  type CompletionDeliveryMode,
+  type CompletionPreviewMode,
+} from '@shared/completion-preview'
 import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
 import {
   normalizeRightPanelOrder,
@@ -38,6 +46,12 @@ export type SettingsDraft = {
   alertOnExtensionUi: boolean
   alertOnRunIdle: boolean
   alertOnBackgroundRunIdle: boolean
+  alertOnRunFailed: boolean
+  completionNotificationTimeoutSeconds: number
+  completionNotificationPreview: CompletionPreviewMode
+  completionNotificationOnlyWhenUnfocused: boolean
+  completionNotificationDndUntil: number | null
+  completionNotificationDelivery: CompletionDeliveryMode
   maxSessionWorkers: number
   sessionWorkerIdleTimeoutMinutes: number
   timelineMaxAutoExpandedTools: number
@@ -103,6 +117,12 @@ export function draftSignature(d: SettingsDraft): string {
     alertOnExtensionUi: d.alertOnExtensionUi,
     alertOnRunIdle: d.alertOnRunIdle,
     alertOnBackgroundRunIdle: d.alertOnBackgroundRunIdle,
+    alertOnRunFailed: d.alertOnRunFailed,
+    completionNotificationTimeoutSeconds: d.completionNotificationTimeoutSeconds,
+    completionNotificationPreview: d.completionNotificationPreview,
+    completionNotificationOnlyWhenUnfocused: d.completionNotificationOnlyWhenUnfocused,
+    completionNotificationDndUntil: d.completionNotificationDndUntil,
+    completionNotificationDelivery: d.completionNotificationDelivery,
     maxSessionWorkers: d.maxSessionWorkers,
     sessionWorkerIdleTimeoutMinutes: d.sessionWorkerIdleTimeoutMinutes,
     timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
@@ -137,6 +157,12 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     alertOnExtensionUi: s.alertOnExtensionUi !== false,
     alertOnRunIdle: s.alertOnRunIdle !== false,
     alertOnBackgroundRunIdle: s.alertOnBackgroundRunIdle === true,
+    alertOnRunFailed: s.alertOnRunFailed !== false,
+    completionNotificationTimeoutSeconds: normalizeCompletionTimeoutSeconds(s.completionNotificationTimeoutSeconds),
+    completionNotificationPreview: normalizeCompletionPreviewMode(s.completionNotificationPreview),
+    completionNotificationOnlyWhenUnfocused: s.completionNotificationOnlyWhenUnfocused !== false,
+    completionNotificationDndUntil: normalizeDndUntil(s.completionNotificationDndUntil),
+    completionNotificationDelivery: normalizeCompletionDelivery(s.completionNotificationDelivery),
     maxSessionWorkers: normalizeMaxSessionWorkersUi(s.maxSessionWorkers),
     sessionWorkerIdleTimeoutMinutes: normalizeIdleTimeoutMinutesUi(s.sessionWorkerIdleTimeoutMinutes),
     timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
@@ -248,6 +274,27 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   await ipcClient.invoke('settings.set', {
     key: 'alertOnBackgroundRunIdle',
     value: draft.alertOnBackgroundRunIdle,
+  })
+  await ipcClient.invoke('settings.set', { key: 'alertOnRunFailed', value: draft.alertOnRunFailed })
+  await ipcClient.invoke('settings.set', {
+    key: 'completionNotificationTimeoutSeconds',
+    value: normalizeCompletionTimeoutSeconds(draft.completionNotificationTimeoutSeconds),
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'completionNotificationPreview',
+    value: draft.completionNotificationPreview,
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'completionNotificationOnlyWhenUnfocused',
+    value: draft.completionNotificationOnlyWhenUnfocused,
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'completionNotificationDndUntil',
+    value: draft.completionNotificationDndUntil,
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'completionNotificationDelivery',
+    value: draft.completionNotificationDelivery,
   })
   await ipcClient.invoke('settings.set', {
     key: 'maxSessionWorkers',

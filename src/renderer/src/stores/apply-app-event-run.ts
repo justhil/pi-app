@@ -1,6 +1,5 @@
 import { isAbortQueueIgnoreActive, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
-import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import type { RunEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -123,12 +122,7 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
     state.pruneEmptyAssistantBubbles()
     void import('@renderer/lib/extension-ui-tool-sync').then((m) => m.reconcileAllStaleInteractiveToolRows())
     if (event.phase === 'idle' && wasActive && rs.startTime && durationMs != null && durationMs >= 800) {
-      const sec = Math.round(durationMs / 1000)
-      alertTrace('run_idle alert fired', { durationMs, sec })
-      void signalDesktopAlert('run_idle', {
-        title: 'pi Desktop · 运行结束',
-        body: sec > 0 ? `Agent 已空闲（约 ${sec} 秒）` : 'Agent 已空闲，可继续输入',
-      })
+      alertTrace('run_idle visible settle', { durationMs })
     }
     return true
   }

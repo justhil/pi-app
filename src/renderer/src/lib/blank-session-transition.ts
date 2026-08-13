@@ -1,5 +1,6 @@
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 
@@ -20,6 +21,7 @@ function clearBlankSessionProjection(): void {
     historyLoadedCount: 0,
     historySessionFile: null,
     historyLoading: false,
+    composerWidget: null,
     subagentSessionGroup: null,
     workerLiveSnapshot: { sessionId: null, sessionFile: null, status: 'idle' },
     runState: {
@@ -48,6 +50,7 @@ export function enterBlankSession(kind: BlankSessionKind): void {
     currentSessionId: kind === 'ephemeral-sandbox' ? '__ephemeral_draft__' : '__pending_new__',
   })
 
+  reportVisibleSession(null)
   if (kind === 'ephemeral-sandbox') {
     void ipcClient.invoke('session.setEphemeralDraft', { active: true }).catch(() => {})
   } else {

@@ -4,6 +4,17 @@
   "send": "Send",
   "stop": "Stop",
   "selectProjectFirst": "Open a project first",
+  "adapterWidget": {
+    "progress": "{{completed}}/{{total}} done",
+    "inProgressCount": "{{count}} in progress",
+    "pendingCount": "{{count}} pending",
+    "complete": "All done",
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    }
+  },
   "previewReadOnly": "Background chat is still running — stop it or switch back before sending here",
   "previewBanner": "Viewing another session while the background chat is running. Sending is disabled here.",
   "previewBackgroundRunning": "Running in background",

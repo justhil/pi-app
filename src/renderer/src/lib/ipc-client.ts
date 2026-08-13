@@ -19,6 +19,15 @@ declare global {
       onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       onCloseRequested?: (callback: (info: { isStreaming: boolean }) => void) => () => void
+      onNotificationOpenSession?: (
+        callback: (payload: {
+          ok: boolean
+          reason?: string
+          workspaceId?: string
+          sessionId?: string
+          sessionFile?: string
+        }) => void,
+      ) => () => void
       ping: () => string
     }
   }
@@ -89,4 +98,17 @@ export function onCloseRequested(
 ): () => void {
   if (!window.piDesktop?.onCloseRequested) return () => {}
   return window.piDesktop.onCloseRequested(callback)
+}
+
+export function onNotificationOpenSession(
+  callback: (payload: {
+    ok: boolean
+    reason?: string
+    workspaceId?: string
+    sessionId?: string
+    sessionFile?: string
+  }) => void,
+): () => void {
+  if (!window.piDesktop?.onNotificationOpenSession) return () => {}
+  return window.piDesktop.onNotificationOpenSession(callback)
 }

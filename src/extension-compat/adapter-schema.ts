@@ -114,6 +114,23 @@ export interface AdapterSlash {
 }
 
 /** 声明右栏 Tab：设置页自动出现开关；slash open-panel 可打开。 */
+export interface AdapterWidgetDef {
+  keys?: string[]
+  tools?: string[]
+  placement: 'aboveComposer'
+  protocol: 'todo-list-v1'
+  icon?: string
+  title?: string
+  fields?: {
+    items?: string
+    id?: string
+    text?: string
+    status?: string
+    done?: string
+    priority?: string
+  }
+}
+
 export interface AdapterSidePanel {
   /** main/side-panel-registry.ts 中的状态提供者 */
   stateProvider: string
@@ -145,6 +162,7 @@ export interface AdapterJson {
   toolCard?: ToolCardDef
   interact?: InteractDef
   slash?: AdapterSlash
+  widget?: AdapterWidgetDef
   sidePanel?: AdapterSidePanel
   /** 不依赖 npm 安装即可生效（如 trellis 靠项目 .trellis/ 目录） */
   alwaysVisible?: boolean

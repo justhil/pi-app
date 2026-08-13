@@ -298,7 +298,7 @@ export function ComposerAgentActivity({
   }
 
   return (
-    <div className="mb-1.5 flex min-h-7 items-center">
+    <div className="composer-agent-activity-launcher ml-auto flex min-h-7 shrink-0 items-center">
       <button
         ref={triggerRef}
         type="button"
@@ -311,15 +311,15 @@ export function ComposerAgentActivity({
               { count: displayCount },
             )}
         onClick={toggle}
-        className="electron-no-drag inline-flex h-7 items-center gap-1.5 rounded-full border border-border/55 bg-background/90 px-2.5 text-[11px] font-medium text-foreground-secondary shadow-sm transition-colors hover:border-border hover:bg-[var(--bg-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+        className="composer-agent-activity-trigger electron-no-drag inline-flex h-7 max-w-40 items-center gap-1.5 text-[11px] text-foreground-secondary focus-visible:outline-none"
       >
-        <span className="relative flex h-3.5 w-3.5 items-center justify-center" aria-hidden>
-          <GitBranch className="h-3.5 w-3.5" />
+        <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden>
+          <GitBranch className="h-3 w-3" />
           {activeRows.length > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-primary ring-2 ring-background" />
+            <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-primary" />
           )}
         </span>
-        <span aria-live="polite">
+        <span className="truncate" aria-live="polite">
           {retainedRunCompleted
             ? t('composer:subagents.completed')
             : t('composer:subagents.working', { count: displayCount })}

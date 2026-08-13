@@ -92,6 +92,28 @@ const api = {
     ipcRenderer.on('ipc:close-requested', handler)
     return () => ipcRenderer.off('ipc:close-requested', handler)
   },
+  onNotificationOpenSession(
+    callback: (payload: {
+      ok: boolean
+      reason?: string
+      workspaceId?: string
+      sessionId?: string
+      sessionFile?: string
+    }) => void,
+  ): () => void {
+    const handler = (
+      _event: unknown,
+      data: {
+        ok: boolean
+        reason?: string
+        workspaceId?: string
+        sessionId?: string
+        sessionFile?: string
+      },
+    ): void => callback(data)
+    ipcRenderer.on('ipc:notification-open-session', handler)
+    return () => ipcRenderer.off('ipc:notification-open-session', handler)
+  },
   ping: (): string => 'pong',
 }
 

@@ -21,6 +21,8 @@ import {
   resolveMergedStreamingAssistantId,
 } from '@renderer/lib/streaming-timeline-preserve'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
+import { reportVisibleSession } from '@renderer/lib/visible-session-report'
+import { getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -425,7 +427,9 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
   useUIStore.getState().setHistoryLoading(!instant)
   bindViewToUiStore(view)
   useUIStore.getState().clearFileChanges()
+  useUIStore.getState().setComposerWidget(getSessionComposerWidget(sessionFile))
   evictSessionViewsIfNeeded()
+  reportVisibleSession(sessionFile)
 
   return { sessionKey, instant, view }
 }

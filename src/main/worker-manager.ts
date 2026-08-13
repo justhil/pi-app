@@ -41,6 +41,7 @@ import {
   getSessionLeafOverride,
   setSessionLeafOverride,
 } from './session-leaf-override'
+import { observeAppEventForCompletion, observeWorkerExitForCompletion } from './completion-notification-events'
 
 interface InitResult extends WorkerInitResult {}
 
@@ -319,6 +320,7 @@ export class WorkerManager {
       enriched = base as unknown as AppEvent
     }
     applySettledRunToSessionLeafOverride(enriched)
+    observeAppEventForCompletion(enriched)
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
     this.mainWindow.webContents.send('ipc:events', enriched)
     void agentTurnActive
@@ -342,6 +344,9 @@ export class WorkerManager {
         sessionFile: slot.sessionFile,
         poolKey: key,
       })
+    }
+    if (code !== 0 && !slot.stopping) {
+      observeWorkerExitForCompletion({ cwd: slot.cwd, sessionFile: slot.sessionFile })
     }
 
     if (slot.stopping || code === 0 || !slot.autoRestartEnabled) return
@@ -721,9 +726,30 @@ export class WorkerManager {
     if (!preview) return null
     return { ...preview, sessionFile: slot.sessionFile || sk }
   }
-  async getSkillsList(): Promise<WorkerSkillInfo[]> {
+  async getSkillsList(): Promise<WorkerSkillInfo> {
     const r = await this.request('getSkillsList')
-    return (r.skills as WorkerSkillInfo[]) || []
+    return (r.catalog as WorkerSkillInfo) || {
+      complete: false,
+      projectTrusted: false,
+      effectiveSkills: [],
+      candidates: [],
+    }
+  }
+  async applySkillOverrides(changes: Array<{ key: string; enabled: boolean }>): Promise<number> {
+    const r = await this.request('applySkillOverrides', { changes })
+    return Number(r.count || 0)
+  }
+  async writeSkillDescription(key: string, description: string): Promise<string> {
+    const r = await this.request('writeSkillDescription', { key, description })
+    return String(r.description || '')
+  }
+  async transferSkill(
+    key: string,
+    target: 'user' | 'project',
+    mode: 'copy' | 'move',
+  ): Promise<{ ok: boolean; target?: string; name?: string }> {
+    const r = await this.request('transferSkill', { key, target, mode })
+    return { ok: r.ok === true, target: r.target as string | undefined, name: r.name as string | undefined }
   }
   async getPromptTemplatesList(): Promise<WorkerPromptTemplate[]> {
     const r = await this.request('getPromptTemplatesList')
@@ -733,7 +759,11 @@ export class WorkerManager {
     return this.request('getContextPrompts')
   }
   async reloadResources(): Promise<void> {
-    await this.request('reloadResources')
+    await Promise.all(
+      [...this.pool.values()]
+        .filter((slot) => !slot.stopping && this.slotMatchesCurrentRuntime(slot))
+        .map((slot) => this.requestOnSlot(slot, 'reloadResources')),
+    )
   }
   async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<WorkerCompletionItem[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })

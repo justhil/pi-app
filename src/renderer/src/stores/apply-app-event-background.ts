@@ -4,6 +4,7 @@ import {
   getLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
 import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
+import { applyExtensionWidgetEvent } from '@renderer/lib/extension-widget-cache'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 /** Session key for runtime map / background cache — event.sessionFile only. */
@@ -21,6 +22,11 @@ export function eventSessionFile(event: AppEvent): string | null {
 export function applyBackgroundAppEvent(event: AppEvent): void {
   const cacheFile = eventSessionFile(event)
   if (!cacheFile) return
+  if (event.type === 'completion') return
+  if (event.type === 'extension_widget') {
+    applyExtensionWidgetEvent(event)
+    return
+  }
 
   // 后台会话的压缩也要同步会话级压缩状态：否则 A 的 start 转后台后
   // end 也走这里，前台标志永远清不掉，切回 A 时错显压缩中
@@ -51,13 +57,4 @@ export function applyBackgroundAppEvent(event: AppEvent): void {
   if (event.type !== 'run') return
   const running = event.phase === 'running' || event.phase === 'started'
   useUIStore.getState().setSessionRuntimeRunning(cacheFile, running)
-  if (!running && (event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled')) {
-    void import('@renderer/lib/desktop-alerts').then(({ signalDesktopAlert }) => {
-      void signalDesktopAlert('run_idle', {
-        title: 'pi Desktop · 后台会话结束',
-        body: '有会话在后台运行结束',
-        background: true,
-      })
-    })
-  }
 }
