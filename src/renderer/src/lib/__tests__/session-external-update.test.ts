@@ -83,7 +83,7 @@ describe('session external update merge', () => {
       sessionFile: '/proj/sessions/a.jsonl',
       workspaceId: '/proj',
       offset: 0,
-      limit: 0,
+      limit: 500,
     })
     const updaterResult = setStateCb.mock.calls[0][0]
     expect(updaterResult).toMatchObject({ historyTotalCount: 4, historyLoadedCount: 4 })

@@ -134,13 +134,14 @@ type TailRead = {
 
 async function readTail(sessionFile: string): Promise<TailRead> {
   try {
-    // offset 语义是"从尾部倒数跳过 N 条"（倒序分页）；直接拉尾部页（最多 500 条）
+    // offset 语义是"从尾部倒数跳过 N 条"（倒序分页）；直接拉尾部页（最多 500 条）。
+    // IPC schema 要求 limit >= 1（上游新增校验），500 即 handler 内部封顶值。
     const store = useUIStore.getState()
     const res = (await ipcClient.invoke('session.getMessages', {
       sessionFile,
       workspaceId: store.currentWorkspace || undefined,
       offset: 0,
-      limit: 0,
+      limit: 500,
     })) as { items?: unknown[]; totalCount?: number; error?: string }
     return {
       error: res?.error,
