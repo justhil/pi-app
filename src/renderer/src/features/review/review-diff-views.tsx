@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef, type RefObject } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import type { DiffFile, DiffHunk, DiffLine } from '@shared/diff-model'
@@ -209,6 +209,8 @@ export function FileDiffView({
   cwd,
   defaultOpen,
   onMutated,
+  focusToken,
+  focusScrollRef,
 }: {
   file: DiffFile | undefined
   fallbackPath: string
@@ -218,10 +220,104 @@ export function FileDiffView({
   cwd: string
   defaultOpen: boolean
   onMutated: () => void
+  /** 焦点请求令牌：变化时若本文件是焦点目标则重新展开（面板已挂载时也能生效） */
+  focusToken?: number
+  /** 面板滚动容器：焦点跳转时把目标滚动到中上位置 */
+  focusScrollRef?: RefObject<HTMLDivElement | null>
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const lastFocusToken = useRef(focusToken)
+  const headerRef = useRef<HTMLDivElement>(null)
   const filePath = file?.path ?? fallbackPath
   const staged = group === 'staged'
+  /** 新增（未跟踪）文件不在 git diff 输出里：展开时读取全文按全量新增展示 */
+  const [addedContent, setAddedContent] = useState<string | null>(null)
+  const [addedLoading, setAddedLoading] = useState(false)
+  const [addedUnavailable, setAddedUnavailable] = useState(false)
+
+  /** 焦点目标在滚动容器中的落点：距顶部 25%（中上位置）。返回目标 scrollTop，用于后续漂移校正 */
+  const scrollFocusedIntoPlace = (smooth: boolean): number | null => {
+    const el = headerRef.current
+    const container = focusScrollRef?.current
+    if (!el || !container || typeof container.scrollTo !== 'function') return null
+    const relative =
+      el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+    const top = Math.max(0, relative - container.clientHeight * 0.25)
+    container.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' })
+    return top
+  }
+
+  const defaultOpenRef = useRef(defaultOpen)
+  defaultOpenRef.current = defaultOpen
+  /** 偶发布局漂移校正：若落点偏离期望位置超过阈值且无人为干预，重新定位（最多 attempts 次） */
+  const verifyFocusScroll = (expectedTop: number, attempts: number) => {
+    if (attempts <= 0 || !defaultOpenRef.current) return
+    const el = headerRef.current
+    const container = focusScrollRef?.current
+    if (!el || !container) return
+    // 平滑动画未完或用户已滚动容器：不干预
+    if (Math.abs(container.scrollTop - expectedTop) > 16) return
+    const actual = el.getBoundingClientRect().top - container.getBoundingClientRect().top
+    const want = container.clientHeight * 0.25
+    if (Math.abs(actual - want) > 56) {
+      container.scrollTo({ top: expectedTop, behavior: 'auto' })
+      window.setTimeout(() => verifyFocusScroll(expectedTop, attempts - 1), 150)
+    }
+  }
+
+  /** 焦点滚动 + 漂移校正回查。smooth=false（挂载首帧）时瞬时定位，避免与布局稳定竞态 */
+  const focusScrollIntoPlace = (smooth: boolean) => {
+    const top = scrollFocusedIntoPlace(smooth)
+    if (top == null) return
+    window.setTimeout(() => verifyFocusScroll(top, 3), smooth ? 250 : 60)
+    window.setTimeout(() => verifyFocusScroll(top, 2), smooth ? 550 : 200)
+    window.setTimeout(() => verifyFocusScroll(top, 1), smooth ? 900 : 450)
+  }
+
+  useEffect(() => {
+    if (focusToken == null || focusToken === lastFocusToken.current) return
+    lastFocusToken.current = focusToken
+    if (defaultOpen) {
+      setOpen(true)
+      // 焦点跳转：把目标文件滚动到面板中上位置（双 rAF 等展开布局稳定）
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => focusScrollIntoPlace(true))
+      })
+    }
+  }, [focusToken, defaultOpen, focusScrollRef])
+
+  // 挂载即焦点：面板刚切到 git scope、数据异步加载完后文件行才挂载，
+  // 此时 focusToken 已是最新值（令牌 effect 不会触发）——挂载时补一次滚动，
+  // 保证第一次点击与后续点击的落点一致。首帧用瞬时定位避免动画竞态。
+  useEffect(() => {
+    if (!defaultOpen) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => focusScrollIntoPlace(false))
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!open || file || fallbackChangeType !== 'added') return
+    if (addedContent != null || addedUnavailable || !cwd) return
+    let cancelled = false
+    setAddedLoading(true)
+    ipcClient
+      .invoke('workspace.fs.readText', { workspaceRoot: cwd, path: filePath })
+      .then((res: { ok?: boolean; content?: string }) => {
+        if (cancelled) return
+        if (res?.ok && typeof res.content === 'string') setAddedContent(res.content)
+        else setAddedUnavailable(true)
+      })
+      .catch(() => {
+        if (!cancelled) setAddedUnavailable(true)
+      })
+      .finally(() => {
+        if (!cancelled) setAddedLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, file, fallbackChangeType, cwd, filePath, addedContent, addedUnavailable])
 
   const toggleStage = useCallback(
     (_hunkIdx: number, hunk: DiffHunk) => {
@@ -243,6 +339,7 @@ export function FileDiffView({
   return (
     <div className="min-w-0 border-b border-border/30">
       <div
+        ref={headerRef}
         role="button"
         tabIndex={0}
         onClick={() => setOpen((o) => !o)}
@@ -273,7 +370,10 @@ export function FileDiffView({
           type="button"
           onClick={(e) => {
             e.stopPropagation()
-            void ipcClient.invoke('shell.showItemInFolder', { path: filePath })
+            // showItemInFolder 需要绝对路径；git scope 的文件路径是仓库相对路径
+            void ipcClient.invoke('shell.showItemInFolder', {
+              path: cwd ? `${cwd}/${filePath}` : filePath,
+            })
           }}
           className="opacity-0 group-hover:opacity-100 chrome-icon-btn rounded p-0.5"
           title="在文件夹显示"
@@ -290,13 +390,26 @@ export function FileDiffView({
           )}
           {file?.generated && <div className="px-3 py-1.5 text-[10px] text-muted-foreground/60">生成文件</div>}
           {(!file || file.hunks.length === 0) && (
-            <div className="px-3 py-3 text-[10px] text-muted-foreground/60">
-              {file?.binary
-                ? '二进制文件'
-                : file?.status === 'renamed'
-                  ? `重命名自 ${file.oldPath || fallbackPath}`
-                  : '无可显示文本差异'}
-            </div>
+            addedContent != null ? (
+              <div className="overflow-x-auto font-mono text-[10px] leading-[1.5]">
+                {addedContent.split('\n').map((line, index) => (
+                  <div key={index} className="diff-line-added flex whitespace-pre px-1">
+                    <span className="w-3 shrink-0 select-none text-foreground-secondary/40">+</span>
+                    <span className="min-w-0 flex-1">{line}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-3 py-3 text-[10px] text-muted-foreground/60">
+                {addedLoading
+                  ? '读取文件内容…'
+                  : file?.binary
+                    ? '二进制文件'
+                    : file?.status === 'renamed'
+                      ? `重命名自 ${file.oldPath || fallbackPath}`
+                      : '无可显示文本差异'}
+              </div>
+            )
           )}
           {file?.hunks.map((hunk, hi) => (
             <DiffHunkView

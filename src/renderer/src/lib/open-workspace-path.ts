@@ -23,8 +23,12 @@ export function openWorkspaceRelativePath(relPath: string): void {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace)
   if (!raw) return
-  store.setActivePanel('files')
-  store.revealRightPanel()
+  store.requestPanelOpen({
+    panel: 'files',
+    path: raw,
+    name: raw.split('/').pop() || raw,
+  })
+  // 双重投递兜底：面板已挂载时事件立即消费；未挂载时由 store 意图在挂载后消费（幂等）
   window.dispatchEvent(
     new CustomEvent('pi-desktop:open-workspace-file', {
       detail: { rel: raw, name: raw.split('/').pop() || raw },
@@ -37,8 +41,8 @@ export function openReviewGitForPath(relPath: string): void {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
-  store.setActivePanel('review')
-  store.revealRightPanel()
+  store.requestPanelOpen({ panel: 'review', scope: 'git', path: raw })
+  // 双重投递兜底（与 Files 同理）
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'git' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {
@@ -47,13 +51,18 @@ export function openReviewGitForPath(relPath: string): void {
   )
 }
 
+/** Open Review panel on git scope without a file target. */
+export function requestReviewPanel(): void {
+  useUIStore.getState().requestPanelOpen({ panel: 'review', scope: 'git' })
+  window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'git' }))
+}
+
 /** Open Review panel on session/turn file list and focus a path. */
 export function openReviewSessionForPath(relPath: string): void {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
-  store.setActivePanel('review')
-  store.revealRightPanel()
+  store.requestPanelOpen({ panel: 'review', scope: 'session', path: raw })
   window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'session' }))
   window.dispatchEvent(
     new CustomEvent('pi-desktop:review-focus-file', {

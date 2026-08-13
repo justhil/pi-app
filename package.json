@@ -59,7 +59,8 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.24.1",
-    "zustand": "^5.0.14"
+    "zustand": "^5.0.14",
+    "diff": "^8.0.4"
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^3.0.0",

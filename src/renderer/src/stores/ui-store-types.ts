@@ -5,6 +5,15 @@ import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panel
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import type { SubagentSessionGroup } from '@renderer/lib/subagent-session-types'
 
+/** 右栏面板导航意图：面板懒加载不丢目标（事件会被未挂载组件吞掉）。 */
+export type PanelOpenIntent = {
+  seq: number
+  panel: 'review' | 'files'
+  scope?: 'turn' | 'session' | 'git'
+  path?: string
+  name?: string
+}
+
 export interface SessionItem {
   sessionId: string
   sessionFile?: string
@@ -219,6 +228,9 @@ export interface UIState {
   toggleRightPanel: () => void
   revealRightPanel: () => void
   filesPreviewChatExpand: boolean
+  /** 一次性右栏面板打开意图（Review/Files 挂载后消费） */
+  panelOpenIntent: PanelOpenIntent | null
+  requestPanelOpen: (intent: Omit<PanelOpenIntent, 'seq'>) => void
   lastModel: string | null
   lastThinking: string | null
   rememberModel: (model: string) => void

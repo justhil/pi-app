@@ -42,6 +42,7 @@ import {
   setSessionLeafOverride,
 } from './session-leaf-override'
 import { observeAppEventForCompletion, observeWorkerExitForCompletion } from './completion-notification-events'
+import { persistTurnDiff } from './turn-diff-persist'
 
 interface InitResult extends WorkerInitResult {}
 
@@ -321,6 +322,14 @@ export class WorkerManager {
     }
     applySettledRunToSessionLeafOverride(enriched)
     observeAppEventForCompletion(enriched)
+    // 回合最终净 diff：转发给渲染器的同时持久化到 app 私有数据目录（重启后仍可展示）
+    if (enriched.type === 'turn_diff') {
+      try {
+        persistTurnDiff(enriched)
+      } catch (e) {
+        console.warn('[worker-manager] persistTurnDiff failed:', e)
+      }
+    }
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
     this.mainWindow.webContents.send('ipc:events', enriched)
     void agentTurnActive

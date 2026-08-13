@@ -1019,10 +1019,13 @@ export function Timeline() {
                 { showMessageActions: isLastProse },
               )
             })}
-            {/* Cursor-style files card: only on the last completed turn.
-                Older turns never keep a card; a new live turn hides this until done. */}
-            {turnIndex === turnGroups.length - 1 && !isLiveTurn ? (
-              <TurnActivityBlock blocks={turn.blocks} />
+            {/* Cursor-style files card：每个已完成回合保留一份（净 diff 跟随回合长期存在） */}
+            {!isLiveTurn ? (
+              <TurnActivityBlock
+                blocks={turn.blocks}
+                turnOrdinal={turnIndex}
+                isLastCompletedTurn={turnIndex === turnGroups.length - 1}
+              />
             ) : null}
           </Fragment>
         )

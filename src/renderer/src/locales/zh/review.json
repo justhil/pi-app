@@ -5,6 +5,7 @@
     "git": "Git 工作区"
   },
   "empty": "暂无改动",
+  "emptyGitHint": "工作区没有未提交的改动（可能已全部提交）。某个回合的改动可在时间线的文件卡片中展开查看。",
   "staged": "已暂存",
   "unstaged": "未暂存",
   "cleanTouched": "已不在工作区",

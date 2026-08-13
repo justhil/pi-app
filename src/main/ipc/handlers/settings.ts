@@ -9,6 +9,7 @@ import { invalidateSdkManagerCaches } from '../../sdk-manager'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
 import { settingsSetSchema } from '../schemas'
+import { normalizeTurnDiffSnapshotBytes } from '@shared/turn-diff-config'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -50,6 +51,11 @@ export function registerSettingsHandlers(): void {
       return { key: req.key, value: next }
     }
     configStore.set(key, req.value as StoreSchema[typeof key])
+    if (key === 'turnDiffSnapshotMaxBytes') {
+      // 上限统一归一化（0 = 关闭，封顶 16 MiB）
+      configStore.set(key, normalizeTurnDiffSnapshotBytes(req.value))
+      return { key: req.key, value: configStore.get(key) }
+    }
     return { key: req.key, value: req.value }
   })
 
