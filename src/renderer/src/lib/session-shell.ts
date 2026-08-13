@@ -23,6 +23,7 @@ import {
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
+import { resetExternalSessionSync } from '@renderer/lib/session-external-update'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -365,6 +366,8 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
   captureFocusFromUiStore()
 
   const sessionKey = sessionKeyFromFile(sessionFile)
+  // 切换会话：外部同步状态与在飞读取立即作废（不跨会话继承 active/error）
+  if (focusKey && !sessionFilesEqual(focusKey, sessionKey)) resetExternalSessionSync()
   focusKey = sessionKey
 
   let view = views.get(sessionKey)

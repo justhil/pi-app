@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.fn()
 const getState = vi.fn()
 const setStateCb = vi.fn()
 const setExternalSyncPhase = vi.fn()
+// 模拟 zustand 的三态指示器：set 后 getState 应反映新 phase
+let currentPhase: 'idle' | 'active' | 'error' = 'idle'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: (...args: unknown[]) => invoke(...args) },
@@ -11,7 +13,7 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 
 vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
-    getState: () => getState(),
+    getState: () => ({ ...getState(), externalSyncPhase: currentPhase }),
     // zustand setState(updater) 返回合并结果；handleSessionExternalUpdate 用它判断是否有新增
     setState: (updater: (s: never) => unknown) => {
       const result = updater(getState() as never)
@@ -25,10 +27,14 @@ vi.mock('@renderer/lib/session-worker-sync', () => ({
   composerTurnActive: () => false,
 }))
 
-import { handleSessionExternalUpdate } from '../session-external-update'
+import {
+  handleSessionExternalUpdate,
+  resetExternalSessionSync,
+} from '../session-external-update'
 
 const baseState = {
   historySessionFile: '/proj/sessions/a.jsonl',
+  currentWorkspace: '/proj',
   historyTotalCount: 2,
   historyLoadedCount: 2,
   timelineItems: [
@@ -44,67 +50,56 @@ const baseState = {
   setExternalSyncPhase,
 }
 
+function fullTailItems(): unknown[] {
+  return [
+    { id: 'm1', type: 'user-message', text: 'hello', sessionEntryId: 'e1' },
+    { id: 'm2', type: 'assistant', text: 'hi', sessionEntryId: 'e2' },
+    { id: 'm3', type: 'user-message', text: 'world', sessionEntryId: 'e3' },
+    { id: 'm4', type: 'assistant', text: 'ok', sessionEntryId: 'e4' },
+  ]
+}
+
 describe('session external update merge', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
+    currentPhase = 'idle'
+    setExternalSyncPhase.mockImplementation((phase: 'idle' | 'active' | 'error') => {
+      currentPhase = phase
+    })
     getState.mockReturnValue({ ...baseState })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('merges newly appended tail into the timeline and marks sync active', async () => {
-    // 尾部页包含全部条目（含已加载的旧条目），按 id 过滤后只追加新增部分
-    invoke.mockResolvedValue({
-      items: [
-        { id: 'm1', type: 'user-message', text: 'hello', sessionEntryId: 'e1' },
-        { id: 'm2', type: 'assistant', text: 'hi', sessionEntryId: 'e2' },
-        { id: 'm3', type: 'user-message', text: 'world', sessionEntryId: 'e3' },
-        { id: 'm4', type: 'assistant', text: 'ok', sessionEntryId: 'e4' },
-      ],
-      totalCount: 4,
-    })
+    invoke.mockResolvedValue({ items: fullTailItems(), totalCount: 4 })
 
     await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
 
     expect(invoke).toHaveBeenCalledWith('session.getMessages', {
       sessionFile: '/proj/sessions/a.jsonl',
+      workspaceId: '/proj',
       offset: 0,
       limit: 0,
     })
-    expect(setStateCb).toHaveBeenCalledOnce()
-
-    // Apply the captured updater to the base state and verify the merge result
     const updaterResult = setStateCb.mock.calls[0][0]
-    expect(updaterResult).toMatchObject({
-      historyTotalCount: 4,
-      historyLoadedCount: 4,
-    })
+    expect(updaterResult).toMatchObject({ historyTotalCount: 4, historyLoadedCount: 4 })
     const items = (updaterResult as { timelineItems: Array<{ id: string }> }).timelineItems
     expect(items.map((i) => i.id)).toEqual(['m1', 'm2', 'm3', 'm4'])
-    // 有新增 → 亮起绿色同步指示
     expect(setExternalSyncPhase).toHaveBeenCalledWith('active')
   })
 
   it('is idempotent: repeated events with no new items do not duplicate the timeline', async () => {
-    // 状态已包含全部 4 条（首次合并后的视图），磁盘返回相同内容 → 无新增 → 不重复
     getState.mockReturnValue({
       ...baseState,
-      timelineItems: [
-        { id: 'm1', type: 'user-message', text: 'hello', sessionEntryId: 'e1' },
-        { id: 'm2', type: 'assistant', text: 'hi', sessionEntryId: 'e2' },
-        { id: 'm3', type: 'user-message', text: 'world', sessionEntryId: 'e3' },
-        { id: 'm4', type: 'assistant', text: 'ok', sessionEntryId: 'e4' },
-      ],
+      timelineItems: fullTailItems().map((i, idx) => ({ ...(i as object), id: `m${idx + 1}` })),
       historyTotalCount: 4,
       historyLoadedCount: 4,
     })
-    invoke.mockResolvedValue({
-      items: [
-        { id: 'm1', type: 'user-message', text: 'hello', sessionEntryId: 'e1' },
-        { id: 'm2', type: 'assistant', text: 'hi', sessionEntryId: 'e2' },
-        { id: 'm3', type: 'user-message', text: 'world', sessionEntryId: 'e3' },
-        { id: 'm4', type: 'assistant', text: 'ok', sessionEntryId: 'e4' },
-      ],
-      totalCount: 4,
-    })
+    invoke.mockResolvedValue({ items: fullTailItems(), totalCount: 4 })
 
     await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
 
@@ -119,67 +114,110 @@ describe('session external update merge', () => {
     expect(setStateCb).not.toHaveBeenCalled()
   })
 
-  it('marks sync error when the IPC call throws', async () => {
+  it('retries a failed read and merges on the second attempt', async () => {
+    invoke
+      .mockRejectedValueOnce(new Error('ipc broken'))
+      .mockResolvedValueOnce({ items: fullTailItems(), totalCount: 4 })
+
+    const promise = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    await vi.advanceTimersByTimeAsync(600)
+    await promise
+
+    expect(invoke).toHaveBeenCalledTimes(2)
+    expect(setExternalSyncPhase).toHaveBeenCalledWith('active')
+    expect(setExternalSyncPhase).not.toHaveBeenCalledWith('error')
+  })
+
+  it('stays silent when all retries fail and no external activity was confirmed', async () => {
     invoke.mockRejectedValue(new Error('ipc broken'))
 
-    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    const promise = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    await vi.advanceTimersByTimeAsync(3000)
+    await promise
 
+    expect(invoke).toHaveBeenCalledTimes(3)
+    // 未确认外部活动：不亮 error（避免"没有 CLI 在跑却报外部同步异常"）
+    expect(setExternalSyncPhase).not.toHaveBeenCalledWith('error')
+  })
+
+  it('marks error only when failures happen inside a confirmed external activity window', async () => {
+    // 先成功合并一次 → active（确认外部活动窗口开启）
+    invoke.mockResolvedValueOnce({ items: fullTailItems(), totalCount: 4 })
+    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    expect(setExternalSyncPhase).toHaveBeenCalledWith('active')
+
+    // 窗口内（5s 未到）连续失败 → error
+    invoke.mockRejectedValue(new Error('ipc broken'))
+    const promise = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    await vi.advanceTimersByTimeAsync(3000)
+    await promise
     expect(setExternalSyncPhase).toHaveBeenCalledWith('error')
   })
 
-  it('marks sync error when the handler returns an error field', async () => {
-    invoke.mockResolvedValue({ items: [], totalCount: 0, error: 'boom' })
-
+  it('error is cleared by the slow reprobe once reads succeed again', async () => {
+    // 确认活动 → 失败 → error
+    invoke.mockResolvedValueOnce({ items: fullTailItems(), totalCount: 4 })
     await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
-
+    invoke.mockRejectedValue(new Error('ipc broken'))
+    const failing = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    await vi.advanceTimersByTimeAsync(3000)
+    await failing
     expect(setExternalSyncPhase).toHaveBeenCalledWith('error')
-  })
 
-  it('does not light the indicator when no new items exist on disk', async () => {
-    invoke.mockResolvedValue({ items: [], totalCount: 2 })
-
-    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
-
-    expect(setStateCb).not.toHaveBeenCalled()
-    expect(setExternalSyncPhase).not.toHaveBeenCalled()
-  })
-
-  it('only appends entries after the view tail anchor when history is partially loaded', async () => {
-    // 视图只加载了尾部 2 条（e4/e5）；磁盘页含全部 6 条。
-    // 锚点 = 视图尾部持久化条目 e5；只能追加 e6，不能把未加载的 e1-e3 当新增。
+    // 后续读取成功且无新增 → 自检解除 error
+    invoke.mockResolvedValue({ items: fullTailItems(), totalCount: 4 })
     getState.mockReturnValue({
       ...baseState,
-      historyTotalCount: 5,
-      historyLoadedCount: 2,
-      timelineItems: [
-        { id: 'm4', type: 'user-message', text: 'four', sessionEntryId: 'e4' },
-        { id: 'm5', type: 'assistant', text: 'five', sessionEntryId: 'e5' },
-      ],
+      timelineItems: fullTailItems().map((i, idx) => ({ ...(i as object), id: `m${idx + 1}` })),
+      historyTotalCount: 4,
+      historyLoadedCount: 4,
     })
-    invoke.mockResolvedValue({
-      items: [
-        { id: 'm1', type: 'user-message', text: 'one', sessionEntryId: 'e1' },
-        { id: 'm2', type: 'assistant', text: 'two', sessionEntryId: 'e2' },
-        { id: 'm3', type: 'user-message', text: 'three', sessionEntryId: 'e3' },
-        { id: 'm4', type: 'user-message', text: 'four', sessionEntryId: 'e4' },
-        { id: 'm5', type: 'assistant', text: 'five', sessionEntryId: 'e5' },
-        { id: 'm6', type: 'assistant', text: 'six', sessionEntryId: 'e6' },
-      ],
-      totalCount: 6,
+    await vi.advanceTimersByTimeAsync(10_100)
+    expect(setExternalSyncPhase).toHaveBeenCalledWith('idle')
+  })
+
+  it('resets everything on session switch: pending reads cannot mutate the new session', async () => {
+    invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ items: fullTailItems(), totalCount: 4 }), 1000)
+        }),
+    )
+    const slow = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    // 切换会话：代际 +1，清空指示器
+    resetExternalSessionSync()
+    getState.mockReturnValue({
+      ...baseState,
+      historySessionFile: '/proj/sessions/b.jsonl',
     })
+    await vi.advanceTimersByTimeAsync(1500)
+    await slow
+    expect(setStateCb).not.toHaveBeenCalled()
+    expect(setExternalSyncPhase).not.toHaveBeenCalledWith('active')
+  })
 
-    await handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+  it('coalesces concurrent notifications into one in-flight read', async () => {
+    let resolveFirst: (v: unknown) => void = () => {}
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+    )
+    invoke.mockResolvedValue({ items: fullTailItems(), totalCount: 4 })
+    const first = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    const second = handleSessionExternalUpdate('/proj/sessions/a.jsonl')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(invoke).toHaveBeenCalledTimes(1)
 
-    const updaterResult = setStateCb.mock.calls[0][0] as {
-      timelineItems: Array<{ id: string }>
-      historyLoadedCount: number
-    }
-    expect(updaterResult.timelineItems.map((i) => i.id)).toEqual(['m4', 'm5', 'm6'])
-    expect(updaterResult.historyLoadedCount).toBe(3)
+    resolveFirst({ items: fullTailItems(), totalCount: 4 })
+    await first
+    // 合并的第二次通知跟随执行
+    await second
+    expect(invoke).toHaveBeenCalledTimes(2)
   })
 
   it('does not append anything when the view tail anchor is not in the disk page', async () => {
-    // 磁盘尾部页被 500 条截断，锚点 e5 已不在页内：保守跳过，避免把中间未加载的历史乱序追加
     getState.mockReturnValue({
       ...baseState,
       timelineItems: [
