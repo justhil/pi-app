@@ -240,6 +240,47 @@ describe('foreground stream terminal ordering', () => {
     expect(state.optimisticPendingUserText).toBeNull()
   })
 
+  it('should_reuse_unbound_optimistic_user_row_when_pending_marker_was_cleared', () => {
+    useUIStore.setState({
+      timelineItems: [
+        {
+          id: 'opt-user-1',
+          type: 'user-message',
+          text: 'just sent',
+          timestamp: 1,
+        },
+        {
+          id: 'opt-asst-1',
+          type: 'assistant-message',
+          text: '',
+          thinkingText: '',
+          timestamp: 2,
+        },
+      ],
+      streamingAssistantId: 'opt-asst-1',
+      optimisticPendingUserText: null,
+    })
+
+    useUIStore.getState().processEvent({
+      type: 'message',
+      role: 'user',
+      phase: 'start',
+      text: 'just sent',
+      runId: 'run-2',
+      seq: 8,
+      workspaceId: '/workspace',
+      sessionFile: '/workspace/session.jsonl',
+      timestamp: 10,
+    })
+
+    const users = useUIStore
+      .getState()
+      .timelineItems.filter((item) => item.type === 'user-message')
+    expect(users).toHaveLength(1)
+    expect(users[0]?.id).toBe('opt-user-1')
+    expect(users[0]?.runId).toBe('run-2')
+  })
+
   it('should_bind_turn_id_to_visible_optimistic_message_and_tool_rows', () => {
     useUIStore.setState({
       timelineItems: [

@@ -234,7 +234,13 @@ export function bindViewToUiStore(view: SessionView): void {
     live?.streamingAssistantId != null ||
     live?.optimisticPendingUserText != null ||
     live?.agentTurnBootstrapping === true
-  const terminalLive = live != null && !liveRunning
+  const visibleLocalTurn =
+    sessionFilesEqual(state.historySessionFile, view.sessionKey) &&
+    (state.optimisticPendingUserText != null ||
+      state.agentTurnBootstrapping === true ||
+      (typeof state.streamingAssistantId === 'string' &&
+        state.streamingAssistantId.startsWith('opt-asst-')))
+  const terminalLive = live != null && !liveRunning && !visibleLocalTurn
 
   // Prefer the strongest running signal: shell view, runtime map, or live cache.
   const effectiveRunUI: SessionRunUI =
@@ -252,26 +258,37 @@ export function bindViewToUiStore(view: SessionView): void {
     state.setSessionRuntimeRunning(view.sessionKey, true)
   }
 
+  const displayItems = visibleLocalTurn ? state.timelineItems : view.items
   const streamCandidateItems =
     live && view.streamingAssistantId === live.streamingAssistantId
       ? live.timelineItems
-      : view.items
+      : displayItems
   const streamingAssistantId = terminalLive
     ? null
-    : resolveMergedStreamingAssistantId(
-        view.items,
-        streamCandidateItems,
-        view.streamingAssistantId,
-      )
-  const optimisticPendingUserText = terminalLive ? null : view.optimisticPendingUserText
-  const agentTurnBootstrapping = terminalLive ? false : view.agentTurnBootstrapping
+    : visibleLocalTurn
+      ? state.streamingAssistantId
+      : resolveMergedStreamingAssistantId(
+          displayItems,
+          streamCandidateItems,
+          view.streamingAssistantId,
+        )
+  const optimisticPendingUserText = terminalLive
+    ? null
+    : visibleLocalTurn
+      ? state.optimisticPendingUserText
+      : view.optimisticPendingUserText
+  const agentTurnBootstrapping = terminalLive
+    ? false
+    : visibleLocalTurn
+      ? state.agentTurnBootstrapping
+      : view.agentTurnBootstrapping
 
   useUIStore.setState({
     currentSessionId: view.sessionId,
     historySessionFile: view.sessionKey,
     historyTotalCount: view.historyTotal,
     historyLoadedCount: view.historyLoaded,
-    timelineItems: cloneItems(view.items),
+    timelineItems: cloneItems(displayItems),
     streamingAssistantId,
     optimisticPendingUserText,
     agentTurnBootstrapping,
@@ -688,7 +705,13 @@ export async function hydrateSessionView(
       const focusedNow = useUIStore.getState()
       if (sessionFilesEqual(focusedNow.historySessionFile, sessionKey)) {
         // Keep the richer display store and never shrink the loaded counter.
-        const focusedRicher = focusedNow.timelineItems.length >= next.items.length
+        const focusedHasLocalTurn =
+          focusedNow.optimisticPendingUserText != null ||
+          focusedNow.agentTurnBootstrapping === true ||
+          (typeof focusedNow.streamingAssistantId === 'string' &&
+            focusedNow.streamingAssistantId.startsWith('opt-asst-'))
+        const focusedRicher =
+          focusedHasLocalTurn || focusedNow.timelineItems.length >= next.items.length
         next = {
           ...next,
           items: focusedRicher ? cloneItems(focusedNow.timelineItems) : next.items,

@@ -1,4 +1,4 @@
-import { normalizeTimelineMessageText } from '@renderer/lib/timeline-dedupe'
+import { isReusableOptimisticUserMessage } from '@renderer/lib/timeline-dedupe'
 import type { MessageEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 
@@ -9,13 +9,10 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
       state.setRunState({ status: 'running', startTime: event.timestamp })
     }
     const opt = state.optimisticPendingUserText
-    const incoming = normalizeTimelineMessageText(event.text)
-    if (opt || incoming) {
+    if (opt || event.text) {
       const items = api.get().timelineItems
       const lastUser = [...items].reverse().find((i) => i.type === 'user-message')
-      const lastNorm = lastUser ? normalizeTimelineMessageText(lastUser.text) : ''
-      const optNorm = opt ? normalizeTimelineMessageText(opt) : ''
-      const matchesOpt = !!lastUser && !!optNorm && lastNorm === optNorm
+      const matchesOpt = isReusableOptimisticUserMessage(lastUser, event.text, opt)
       if (matchesOpt) {
         if (event.text?.trim()) {
           state.updateTimelineItem(lastUser!.id, {

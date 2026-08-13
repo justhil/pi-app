@@ -5,6 +5,25 @@ export function normalizeTimelineMessageText(t?: string): string {
   return (t || '').replace(/\s+/g, ' ').trim()
 }
 
+/** Pending 匹配，或尚未落盘的乐观用户行与 echo 同文。 */
+export function isReusableOptimisticUserMessage(
+  item: TimelineItem | undefined,
+  incomingText: string,
+  pendingText?: string | null,
+): boolean {
+  if (!item || item.type !== 'user-message') return false
+  const lastNorm = normalizeTimelineMessageText(item.text)
+  const pendingNorm = pendingText ? normalizeTimelineMessageText(pendingText) : ''
+  if (pendingNorm && lastNorm === pendingNorm) return true
+  const incoming = normalizeTimelineMessageText(incomingText)
+  return (
+    item.id.startsWith('opt-user-') &&
+    !item.sessionEntryId &&
+    !!incoming &&
+    lastNorm === incoming
+  )
+}
+
 /** 去掉乐观占位 id，避免与 JSONL 历史叠在一起 */
 export function stripOptimisticTimelineItems(items: TimelineItem[]): TimelineItem[] {
   return items.filter((i) => !String(i.id).startsWith('opt-'))

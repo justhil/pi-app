@@ -22,8 +22,12 @@ import {
   clearOptimisticOutgoing,
 } from '@renderer/lib/optimistic-send'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
-import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
 import {
+  clearLiveSessionTimeline,
+  saveLiveSessionTimeline,
+} from '@renderer/lib/live-session-timeline-cache'
+import {
+  captureFocusFromUiStore,
   clearSessionShellForTests,
   focusSessionSync,
   hydrateSessionView,
@@ -222,6 +226,70 @@ describe('just-sent user message survives session switch during streaming', () =
     switchToB()
 
     await switchBackToA(priorHistory.map((item) => ({ ...item })))
+
+    expect(userTexts()).toEqual(['first question', 'second question'])
+  })
+
+  it('should_keep_just_sent_optimistic_row_when_hydrate_finishes_late', async () => {
+    captureFocusFromUiStore()
+    focusSessionSync('session-a', sessionA)
+    saveLiveSessionTimeline({
+      sessionId: 'session-a',
+      sessionFile: sessionA,
+      timelineItems: priorHistory.map((item) => ({ ...item })),
+      streamingAssistantId: null,
+      runState: { status: 'idle', toolCount: 0, errorCount: 0 },
+      pendingSteering: [],
+      pendingFollowUp: [],
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+    })
+
+    let resolveHistory!: (value: {
+      items: TimelineItem[]
+      totalCount: number
+      sourceCount: number
+      error: null
+      sessionMeta: undefined
+    }) => void
+    historyMock.fetch.mockReturnValueOnce(
+      new Promise((done) => {
+        resolveHistory = done
+      }),
+    )
+
+    const hydration = hydrateSessionView(sessionA, 'session-a')
+    appendOptimisticOutgoingMessage('second question')
+    expect(userTexts()).toEqual(['first question', 'second question'])
+    expect(useUIStore.getState().optimisticPendingUserText).toBe('second question')
+
+    resolveHistory({
+      items: priorHistory.map((item) => ({ ...item })),
+      totalCount: 2,
+      sourceCount: 2,
+      error: null,
+      sessionMeta: undefined,
+    })
+    await hydration
+
+    expect(userTexts()).toEqual(['first question', 'second question'])
+    expect(useUIStore.getState().optimisticPendingUserText).toBe('second question')
+    expect(useUIStore.getState().timelineItems.some((item) => item.id.startsWith('opt-user-'))).toBe(
+      true,
+    )
+
+    useUIStore.getState().processEvent({
+      type: 'message',
+      role: 'user',
+      phase: 'start',
+      text: 'second question',
+      runId: 'run-2',
+      turnId: 'turn-2',
+      seq: 2,
+      workspaceId: '/workspace',
+      sessionFile: sessionA,
+      timestamp: 11,
+    })
 
     expect(userTexts()).toEqual(['first question', 'second question'])
   })
