@@ -1,3 +1,4 @@
+import type { AdapterWidgetProjection } from '@shared/adapter-widget'
 import type { AppEvent } from '@shared/app-events'
 import type { ToolCallDetail } from '@shared/tool-call-detail'
 import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panels'
@@ -232,5 +233,9 @@ export interface UIState {
   pendingFollowUp: string[]
   setPendingQueue: (steering: string[], followUp: string[]) => void
   clearPendingQueue: () => void
+  composerWidget: AdapterWidgetProjection | null
+  adapterWidgetExpandedBySession: Record<string, boolean>
+  setComposerWidget: (state: AdapterWidgetProjection | null) => void
+  toggleAdapterWidget: (key: string) => void
   processEvent: (event: AppEvent) => void
 }

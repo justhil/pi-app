@@ -1,0 +1,28 @@
+{
+  "id": "pi-deck-todo",
+  "displayName": "PiDeck Todo",
+  "description": "Projects Todo list above the composer",
+  "match": {
+    "names": ["pi-deck-todo"],
+    "tools": ["todo"]
+  },
+  "tier": "partial",
+  "widget": {
+    "keys": ["pi-deck-todo"],
+    "tools": ["todo"],
+    "placement": "aboveComposer",
+    "protocol": "todo-list-v1",
+    "icon": "ListTodo",
+    "title": "Todo",
+    "fields": {
+      "items": "todos",
+      "id": "id",
+      "text": "text",
+      "done": "done"
+    }
+  },
+  "i18n": {
+    "zh": { "displayName": "PiDeck Todo", "description": "在输入框上方显示当前会话 Todo" },
+    "en": { "displayName": "PiDeck Todo", "description": "Show the current session Todo list above the composer" }
+  }
+}

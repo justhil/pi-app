@@ -1,7 +1,8 @@
-import { app, Notification, BrowserWindow } from 'electron'
-import { execFile } from 'child_process'
+import { app, BrowserWindow } from 'electron'
 import { configStore } from './config-store'
 import { traceAudio } from './audio-trace'
+import { presentCompletionCard } from './completion-notification-delivery'
+import { buildCompletionNotificationCopy } from '@shared/completion-preview'
 
 export type DesktopAlertKind = 'extension_ui' | 'run_idle'
 
@@ -9,7 +10,6 @@ export type DesktopAlertPayload = {
   kind: DesktopAlertKind
   title: string
   body: string
-  /** Background session finished; requires alertOnBackgroundRunIdle */
   background?: boolean
 }
 
@@ -32,27 +32,6 @@ function notificationEnabled(): boolean {
   return configStore.get('alertNotificationEnabled') !== false
 }
 
-function playAlertSound(): void {
-  if (process.platform === 'win32') {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-Command', '[console]::beep(880,120); Start-Sleep -Milliseconds 40; [console]::beep(660,120)'],
-      { windowsHide: true },
-      () => {},
-    )
-    return
-  }
-  if (process.platform === 'darwin') {
-    execFile('afplay', ['/System/Library/Sounds/Glass.aiff'], () => {})
-    return
-  }
-  try {
-    process.stdout.write('\x07')
-  } catch (e) {
-    /* ignore */
-  }
-}
-
 let appUserModelIdSet = false
 
 function ensureNotificationIdentity(): void {
@@ -63,7 +42,10 @@ function ensureNotificationIdentity(): void {
   }
 }
 
+/** Extension UI only. Run completion is owned by CompletionNotificationController. */
 export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopAlertPayload): void {
+  if (payload.kind === 'run_idle') return
+
   const scenario = scenarioEnabled(payload.kind, payload.background === true)
   const doSound = soundEnabled()
   const doNotify = notificationEnabled()
@@ -73,34 +55,39 @@ export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopA
     body: payload.body?.slice(0, 80),
     background: payload.background,
     scenario,
-    alertSoundEnabled: configStore.get('alertSoundEnabled'),
-    alertNotificationEnabled: configStore.get('alertNotificationEnabled'),
-    willBeep: scenario && doSound,
     willNotify: scenario && doNotify,
+    willSound: scenario && doSound,
   })
-  if (!scenario) return
+  if (!scenario || (!doNotify && !doSound)) return
 
-  if (doSound) {
-    traceAudio('main.playAlertSound', { platform: process.platform })
-    playAlertSound()
-  }
+  ensureNotificationIdentity()
+  const language = configStore.get('language') === 'en' ? 'en' : 'zh'
+  const copy = buildCompletionNotificationCopy({
+    language,
+    outcome: 'success',
+    promptPreview: payload.title,
+    responsePreview: payload.body,
+    previewMode: 'response',
+  })
+  void presentCompletionCard(
+    {
+      notificationId: `ext-${Date.now()}`,
+      workspaceId: '',
+      outcome: 'success',
+      timeoutMs: 15_000,
+      sound: doSound,
+      copy: {
+        ...copy,
+        title: payload.title || copy.title,
+        body: payload.body || copy.body,
+        projectLabel: 'pi Desktop',
+        openLabel: language === 'zh' ? '返回应用' : 'Back to app',
+      },
+    },
+    doNotify ? 'auto' : 'custom',
+  )
 
-  if (doNotify && Notification.isSupported()) {
-    ensureNotificationIdentity()
-    const n = new Notification({
-      title: payload.title,
-      body: payload.body,
-      silent: true,
-    })
-    n.on('click', () => {
-      if (win && !win.isDestroyed()) {
-        if (win.isMinimized()) win.restore()
-        win.show()
-        win.focus()
-      }
-    })
-    n.show()
-  } else if (doSound && win && !win.isDestroyed()) {
+  if (!doNotify && win && !win.isDestroyed()) {
     win.flashFrame(true)
     setTimeout(() => {
       if (win && !win.isDestroyed()) win.flashFrame(false)

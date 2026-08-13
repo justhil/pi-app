@@ -88,8 +88,11 @@ function scanSkillMdFiles(dir: string, source: ResourceSource, out: SkillListIte
 
 export function listSkillsOnDisk(cwd: string): SkillListItem[] {
   const out: SkillListItem[] = []
+  const agent = agentDir()
   scanSkillMdFiles(join(cwd, '.pi', 'skills'), 'project', out)
-  scanSkillMdFiles(join(agentDir(), 'skills'), 'global', out)
+  scanSkillMdFiles(join(cwd, '.agents', 'skills'), 'project', out)
+  scanSkillMdFiles(join(agent, 'skills'), 'global', out)
+  scanSkillMdFiles(join(agent, '..', 'skills'), 'global', out)
   const seen = new Set<string>()
   return out.filter((s) => {
     const k = s.path.toLowerCase()

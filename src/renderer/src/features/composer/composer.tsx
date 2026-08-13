@@ -16,6 +16,7 @@ import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
+import { ComposerAdapterWidgetHost } from './composer-adapter-widget-host'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useComposerInputHistory } from './use-composer-input-history'
@@ -378,10 +379,6 @@ export function Composer() {
         onAcceptCommand={slash.acceptCommand}
         onAcceptArg={slash.acceptArg}
       />
-      <ComposerAgentActivity
-        composerAnchorRef={slashPopoverAnchorRef}
-        completionPopoverOpen={fileSearch.show || slash.showPopover}
-      />
       <ComposerCompactionBanner />
       <ComposerPendingQueue />
       {sessionPreview && (
@@ -394,6 +391,13 @@ export function Composer() {
           )}
         </div>
       )}
+      <div className="composer-accessory-row mb-0.5 flex min-w-0 items-start gap-2">
+        <ComposerAdapterWidgetHost />
+        <ComposerAgentActivity
+          composerAnchorRef={slashPopoverAnchorRef}
+          completionPopoverOpen={fileSearch.show || slash.showPopover}
+        />
+      </div>
       <div
         ref={slashPopoverAnchorRef}
         className={cn(

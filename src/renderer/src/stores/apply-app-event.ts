@@ -11,6 +11,7 @@ import {
   handleTool,
 } from '@renderer/stores/apply-app-event-handlers'
 import { applyBackgroundAppEvent, eventSessionFile } from '@renderer/stores/apply-app-event-background'
+import { applyExtensionWidgetEvent, getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
 import { markLiveSessionTurnEnded } from '@renderer/lib/live-session-timeline-cache'
 import { isAbortQueueIgnoreActive, shouldIgnoreAppEventAfterAbort } from '@renderer/lib/abort-ui-hold'
 import { reduceSubagentSessionGroupToolEvent } from '@renderer/lib/subagent-session-activity'
@@ -86,6 +87,14 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
       if (sessionKey) {
         markLiveSessionTurnEnded(sessionKey, event.kind === 'aborted' ? 'idle' : 'failed')
       }
+      break
+    }
+    case 'completion':
+      break
+    case 'extension_widget': {
+      applyExtensionWidgetEvent(event)
+      const viewFile = api.get().historySessionFile
+      if (viewFile) api.get().setComposerWidget(getSessionComposerWidget(viewFile))
       break
     }
   }

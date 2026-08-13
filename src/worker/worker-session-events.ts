@@ -1,5 +1,6 @@
 import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-import type { AppEvent } from '@shared/app-events'
+import type { AppEvent, CompletionEvent } from '@shared/app-events'
+import { sanitizeCompletionPreview, COMPLETION_BODY_MAX, COMPLETION_TITLE_MAX } from '@shared/completion-preview'
 import { assistantStreamDeltaFromMessageUpdate } from '@shared/pi-message-update'
 import { takeStreamUpdate } from '@shared/stream-merge'
 import {
@@ -22,6 +23,7 @@ export type SessionEventDeps = {
   getSession: () => AgentSession | null
   getSessionModelKey: () => string | undefined
   getUiBridge: () => DesktopUIBridge | null
+  captureAdapterTool?: (toolName: string, payload: unknown) => void
   isAgentTurnActive: () => boolean
   setAgentTurnActive: (v: boolean) => void
   setPromptPreflightActive: (value: boolean) => void
@@ -39,11 +41,24 @@ type PendingTerminalError = {
 let assistantTextSnapshot = ''
 let assistantThinkingSnapshot = ''
 let pendingTerminalError: PendingTerminalError | null = null
+let lastUserPreview = ''
+let lastAssistantPreview = ''
+let runStartedAt = 0
+let queuedSteering = 0
+let queuedFollowUp = 0
 
 export function resetSessionEventTracking(): void {
   assistantTextSnapshot = ''
   assistantThinkingSnapshot = ''
   pendingTerminalError = null
+}
+
+export function resetCompletionTurnTracking(): void {
+  lastUserPreview = ''
+  lastAssistantPreview = ''
+  runStartedAt = 0
+  queuedSteering = 0
+  queuedFollowUp = 0
 }
 
 function terminalErrorFromAssistant(
@@ -61,6 +76,13 @@ function terminalErrorFromAssistant(
 function emitSettledRun(deps: SessionEventDeps): void {
   const terminalError = pendingTerminalError
   const base = deps.baseEvent()
+  const promptPreview = sanitizeCompletionPreview(lastUserPreview, COMPLETION_TITLE_MAX)
+  const responsePreview = sanitizeCompletionPreview(
+    terminalError?.text || lastAssistantPreview || assistantTextSnapshot,
+    COMPLETION_BODY_MAX,
+  )
+  const durationMs = runStartedAt > 0 ? Math.max(0, Date.now() - runStartedAt) : undefined
+  const queueBusy = queuedSteering > 0 || queuedFollowUp > 0
   deps.setAgentTurnActive(false)
   deps.setPromptPreflightActive(false)
   pendingTerminalError = null
@@ -83,6 +105,17 @@ function emitSettledRun(deps: SessionEventDeps): void {
         : 'failed'
       : 'idle'
     deps.emit({ ...base, type: 'run', phase, settled: true } as AppEvent)
+    if (queueBusy) return
+    const outcome = phase === 'idle' ? 'success' : phase === 'cancelled' ? 'cancelled' : 'failed'
+    deps.emit({
+      ...base,
+      type: 'completion',
+      outcome,
+      settled: true,
+      promptPreview,
+      responsePreview,
+      durationMs,
+    } as CompletionEvent)
   })
 }
 
@@ -101,6 +134,8 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         deps.setCurrentTurnId(`turn-${deps.nextSeq()}`)
       }
       resetSessionEventTracking()
+      lastAssistantPreview = ''
+      runStartedAt = Date.now()
       deps.emit({ ...deps.baseEvent(), type: 'run', phase: 'running' } as AppEvent)
       break
     }
@@ -144,6 +179,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
           phase: 'start',
           text: normalizeUserMessageDisplayText(extractTextFromPiMessage(msg)),
         } as AppEvent)
+        lastUserPreview = normalizeUserMessageDisplayText(extractTextFromPiMessage(msg))
       }
       break
     }
@@ -189,7 +225,12 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
     }
     case 'message_end': {
       const msg = event.message as PiSessionMessage
-      if (msg?.role === 'assistant') pendingTerminalError = terminalErrorFromAssistant(msg)
+      if (msg?.role === 'assistant') {
+        pendingTerminalError = terminalErrorFromAssistant(msg)
+        lastAssistantPreview = extractTextFromPiMessage(msg)
+      } else if (msg?.role === 'user') {
+        lastUserPreview = normalizeUserMessageDisplayText(extractTextFromPiMessage(msg))
+      }
       const text = msg?.role === 'assistant' ? extractTextFromPiMessage(msg) : undefined
       queueMicrotask(() => {
         const entryId = session?.sessionManager?.getLeafId?.() ?? undefined
@@ -217,6 +258,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'tool_execution_start': {
+      if (event.args) deps.captureAdapterTool?.(event.toolName, event.args)
       if (uiBridge && event.args) {
         const interact = resolveInteractByTool(event.toolName)
         if (interact && interact.schema !== 'questions') {
@@ -246,6 +288,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         parentSessionFile,
         partialResult?.details,
       )
+      if (details !== undefined) deps.captureAdapterTool?.(event.toolName, details)
       if (statusLine || details !== undefined) {
         deps.emit({
           ...base,
@@ -267,6 +310,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         parentSessionFile,
         endResult?.details,
       )
+      deps.captureAdapterTool?.(event.toolName, details ?? endResult)
       deps.emit({
         ...base,
         type: 'tool',
@@ -316,6 +360,8 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         steering: (event.steering || []).map(normalizeUserMessageDisplayText),
         followUp: (event.followUp || []).map(normalizeUserMessageDisplayText),
       } as AppEvent)
+      queuedSteering = event.steering?.length ?? 0
+      queuedFollowUp = event.followUp?.length ?? 0
       break
     }
     case 'auto_retry_end': {

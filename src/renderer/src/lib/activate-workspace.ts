@@ -11,6 +11,7 @@ import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { focusSessionSync } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { enterBlankSession, resetBlankSessionProjection } from '@renderer/lib/blank-session-transition'
+import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -112,6 +113,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
     store.setHistoryMeta(0, 0, null)
     store.setHistoryLoading(false)
+    reportVisibleSession(null)
     void refreshComposerRunDisplay()
     return
   }

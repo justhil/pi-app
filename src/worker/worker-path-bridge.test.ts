@@ -72,4 +72,26 @@ describe('worker-path-bridge', () => {
       'C:\\Users\\T\\AppData\\Roaming\\pi-desktop\\sandbox-workspaces\\abc',
     )
   })
+
+  it('translates skill catalog display paths without rewriting opaque keys', async () => {
+    vi.stubEnv('PI_WSL_DISTRO', 'Debian')
+    vi.resetModules()
+
+    const bridge = await import('./worker-path-bridge')
+    const key = 'wsl:Debian|/root/.pi/agent/skills/review/SKILL.md|local'
+    const out = bridge.translateOutgoingPaths({
+      type: 'getSkillsList-done',
+      catalog: {
+        complete: true,
+        projectTrusted: true,
+        effectiveSkills: [],
+        candidates: [{ key, filePath: '/root/.pi/agent/skills/review/SKILL.md', baseDir: '/root/.pi/agent/skills/review' }],
+      },
+    })
+    const candidate = ((out.catalog as { candidates: Record<string, unknown>[] }).candidates)[0]
+
+    expect(candidate.filePath).toBe('\\\\wsl.localhost\\Debian\\root\\.pi\\agent\\skills\\review\\SKILL.md')
+    expect(candidate.baseDir).toBe('\\\\wsl.localhost\\Debian\\root\\.pi\\agent\\skills\\review')
+    expect(candidate.key).toBe(key)
+  })
 })

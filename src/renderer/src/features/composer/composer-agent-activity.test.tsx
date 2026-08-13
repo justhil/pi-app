@@ -66,6 +66,11 @@ describe('ComposerAgentActivity', () => {
   it('retains final details only while the popover remains open', async () => {
     renderActivity()
 
+    const launcher = screen.getByText('1 Working').closest('.composer-agent-activity-launcher')
+    expect(launcher).toHaveClass('ml-auto', 'shrink-0')
+    const trigger = screen.getByText('1 Working').closest('button')
+    expect(trigger).toHaveClass('composer-agent-activity-trigger', 'h-7')
+    expect(trigger).not.toHaveClass('border', 'rounded-full', 'shadow-sm')
     fireEvent.click(screen.getByText('1 Working'))
     expect(await screen.findByRole('dialog', { name: 'Subagents' })).toBeInTheDocument()
 

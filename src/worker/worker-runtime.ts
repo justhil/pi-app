@@ -9,9 +9,12 @@ import type {
 import type { AppEvent } from '@shared/app-events'
 import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
 import { createDesktopUIBridge, type DesktopUIBridge } from './desktop-ui-bridge.js'
+import { createDesktopWidgetHost } from './desktop-widget-host.js'
+import { applySkillsOverride } from './skill-override.js'
 import { decorateQuestionnaireTools } from './questionnaire-tool-decorator.js'
 import {
   handleSessionEvent as dispatchSessionEvent,
+  resetCompletionTurnTracking,
   resetSessionEventTracking,
 } from './worker-session-events.js'
 import { errorMessage } from '@shared/error-message'
@@ -34,6 +37,7 @@ export type WorkerMutableState = {
   /** Owns session replacement: new / switch / fork / clone. */
   runtime: AgentSessionRuntime | null
   uiBridge: DesktopUIBridge | null
+  widgetHost: ReturnType<typeof createDesktopWidgetHost> | null
   seq: number
   currentCwd: string
   currentSessionId: string
@@ -53,6 +57,7 @@ export const st: WorkerMutableState = {
   session: null,
   runtime: null,
   uiBridge: null,
+  widgetHost: null,
   seq: 0,
   currentCwd: '',
   currentSessionId: '',
@@ -112,6 +117,9 @@ function detachSessionSubscription(): void {
 export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<void> {
   detachSessionSubscription()
   resetSessionEventTracking()
+  resetCompletionTurnTracking()
+  st.widgetHost?.dispose()
+  st.widgetHost = null
   st.session = session
   st.modelRuntime = st.runtime?.services.modelRuntime ?? session.modelRuntime ?? null
   st.currentSessionId = session.sessionId
@@ -163,6 +171,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
+        skillsOverride: applySkillsOverride as never,
       },
     })
     const created = await sdk.createAgentSessionFromServices({
@@ -406,6 +415,20 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
     mode: 'rpc',
     commandContextActions: buildCommandContextActions(sess),
   })
+  st.widgetHost?.dispose()
+  st.widgetHost = createDesktopWidgetHost({
+    emit,
+    baseEvent,
+    projectDir: st.currentCwd,
+    theme: (st.uiBridge.uiContext as { theme?: unknown }).theme ?? {},
+  })
+  st.uiBridge.attachWidgetHost(st.widgetHost)
+  try {
+    const entries = sess.sessionManager?.getBranch?.() ?? sess.messages ?? []
+    st.widgetHost.reconstructFromBranch(Array.isArray(entries) ? entries : [])
+  } catch {
+    /* history reconstruction is best-effort */
+  }
 }
 
 function sessionEventDeps() {
@@ -415,6 +438,7 @@ function sessionEventDeps() {
     getSession: () => st.session,
     getSessionModelKey: currentSessionModelKey,
     getUiBridge: () => st.uiBridge,
+    captureAdapterTool: (toolName: string, payload: unknown) => st.widgetHost?.captureTool(toolName, payload),
     isAgentTurnActive: () => st.agentTurnActive,
     setAgentTurnActive: (v: boolean) => {
       st.agentTurnActive = v

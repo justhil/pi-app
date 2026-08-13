@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -23,6 +23,7 @@ export function useComposerSend(opts: {
   isRunning: boolean
 }) {
   const { t } = useTranslation()
+  const sendingRef = useRef(false)
   const {
     editorRef,
     text,
@@ -38,100 +39,107 @@ export function useComposerSend(opts: {
 
   const sendCurrent = useCallback(
     async (queueOpts?: { queue?: 'steer' | 'followUp' }) => {
-      if (extensionUiBlocksComposer()) {
-        toast.message(t('composer:toast.completeExtensionFirst'))
-        return
-      }
-      const el = editorRef.current
-      if (!el) return
-      const { displayText, payload, attachments: atts, segments } = serializeRichInput(el)
-      if (!displayText.trim() && atts.length === 0) return
-      const draft = useUIStore.getState().ephemeralSandboxDraft
-      const currentWorkspace = useUIStore.getState().currentWorkspace
-      if (!currentWorkspace && !draft) return
-      const store = useUIStore.getState()
-      const { composerTurnActive } = await import('@renderer/lib/session-worker-sync')
-      const running = composerTurnActive({
-        historySessionFile: store.historySessionFile,
-        workerLiveSnapshot: store.workerLiveSnapshot,
-        sessionRuntimeRunning: store.sessionRuntimeRunning,
-      })
-      if (displayText.trim()) inputHistory.recordSent(displayText.trim())
-      const { hideAllDelayedTooltips } = await import('./delayed-tooltip')
-      hideAllDelayedTooltips()
-      const { renderRichTextFromPlain } = await import('./attachments')
-      renderRichTextFromPlain(el, '')
-      updateFromEditor()
-      editorRef.current?.focus()
-      const pendingNew = store.pendingNewSessionPlaceholder
-      const homeMode = !store.currentSessionId && store.timelineItems.length === 0
-      const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
-        await import('@renderer/lib/optimistic-send')
-      let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
-      const promptPayload = () => ({
-        sessionId: '',
-        sessionFile: useUIStore.getState().historySessionFile ?? undefined,
-        text: payload,
-      })
-      const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
-      const pendMsg = displayText.trim()
-      if (pendMsg.startsWith('/')) {
-        const routed = await routeDesktopSlashBeforeSend(pendMsg)
-        if (routed.handled) return
-      }
+      if (sendingRef.current) return
+      sendingRef.current = true
       try {
-        const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
-        if (!running && draft) {
-          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
-            bootstrap: true,
-            attachments: atts,
-            segments,
-          })
-          const { finalizeEphemeralSandboxOnFirstSend } = await import('@renderer/lib/ephemeral-sandbox')
-          await finalizeEphemeralSandboxOnFirstSend(pendMsg)
-          bindOptimisticOutgoingToSession(
-            optimisticToken,
-            useUIStore.getState().historySessionFile,
-          )
-          const bind = await sendPrompt()
-          await afterPromptSent(bind)
+        if (extensionUiBlocksComposer()) {
+          toast.message(t('composer:toast.completeExtensionFirst'))
           return
         }
-        if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
-          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
-            bootstrap: true,
-            attachments: atts,
-            segments,
-          })
-          const { materializePendingNewSession } = await import('@renderer/lib/new-session')
-          await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
-            bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
-          })
-          const bind = await sendPrompt()
-          await afterPromptSent(bind)
-          return
+        const el = editorRef.current
+        if (!el) return
+        const { displayText, payload, attachments: atts, segments } = serializeRichInput(el)
+        if (!displayText.trim() && atts.length === 0) return
+        const draft = useUIStore.getState().ephemeralSandboxDraft
+        const currentWorkspace = useUIStore.getState().currentWorkspace
+        if (!currentWorkspace && !draft) return
+        const store = useUIStore.getState()
+        const { composerTurnActive } = await import('@renderer/lib/session-worker-sync')
+        const running = composerTurnActive({
+          historySessionFile: store.historySessionFile,
+          workerLiveSnapshot: store.workerLiveSnapshot,
+          sessionRuntimeRunning: store.sessionRuntimeRunning,
+        })
+        if (displayText.trim()) inputHistory.recordSent(displayText.trim())
+        const { hideAllDelayedTooltips } = await import('./delayed-tooltip')
+        hideAllDelayedTooltips()
+        const { renderRichTextFromPlain } = await import('./attachments')
+        renderRichTextFromPlain(el, '')
+        updateFromEditor()
+        editorRef.current?.focus()
+        const pendingNew = store.pendingNewSessionPlaceholder
+        const homeMode = !store.currentSessionId && store.timelineItems.length === 0
+        const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
+          await import('@renderer/lib/optimistic-send')
+        let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
+        const promptPayload = () => ({
+          sessionId: '',
+          sessionFile: useUIStore.getState().historySessionFile ?? undefined,
+          text: payload,
+        })
+        const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
+        const pendMsg = displayText.trim()
+        if (pendMsg.startsWith('/')) {
+          const routed = await routeDesktopSlashBeforeSend(pendMsg)
+          if (routed.handled) return
         }
-        if (running) {
-          const queue = queueOpts?.queue ?? 'steer'
-          if (queue === 'steer') {
-            const bind = await ipcClient.invoke('prompt.steer', promptPayload())
+        try {
+          const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
+          if (!running && draft) {
+            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+              bootstrap: true,
+              attachments: atts,
+              segments,
+            })
+            const { finalizeEphemeralSandboxOnFirstSend } =
+              await import('@renderer/lib/ephemeral-sandbox')
+            await finalizeEphemeralSandboxOnFirstSend(pendMsg)
+            bindOptimisticOutgoingToSession(
+              optimisticToken,
+              useUIStore.getState().historySessionFile,
+            )
+            const bind = await sendPrompt()
             await afterPromptSent(bind)
-          } else {
-            const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
-            await afterPromptSent(bind)
+            return
           }
-          return
+          if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
+            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+              bootstrap: true,
+              attachments: atts,
+              segments,
+            })
+            const { materializePendingNewSession } = await import('@renderer/lib/new-session')
+            await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
+              bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
+            })
+            const bind = await sendPrompt()
+            await afterPromptSent(bind)
+            return
+          }
+          if (running) {
+            const queue = queueOpts?.queue ?? 'steer'
+            if (queue === 'steer') {
+              const bind = await ipcClient.invoke('prompt.steer', promptPayload())
+              await afterPromptSent(bind)
+            } else {
+              const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
+              await afterPromptSent(bind)
+            }
+            return
+          }
+          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
+          const bind = await sendPrompt()
+          await afterPromptSent(bind)
+        } catch (e) {
+          console.error('Send failed:', e)
+          const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
+          if (clearOptimisticOutgoing(optimisticToken)) {
+            useUIStore.getState().setRunState({ status: 'idle' })
+          }
+          toast.error(t('composer:toast.sendFailed'))
         }
-        optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
-        const bind = await sendPrompt()
-        await afterPromptSent(bind)
-      } catch (e) {
-        console.error('Send failed:', e)
-        const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
-        if (clearOptimisticOutgoing(optimisticToken)) {
-          useUIStore.getState().setRunState({ status: 'idle' })
-        }
-        toast.error(t('composer:toast.sendFailed'))
+      } finally {
+        sendingRef.current = false
       }
     },
     [editorRef, inputHistory, t, updateFromEditor],

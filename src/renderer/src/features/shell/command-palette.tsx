@@ -308,6 +308,7 @@ export function ShortcutsHelpSheet({
   const rows: { keys: string; label: string }[] = [
     { keys: 'Ctrl/⌘ K', label: t('common:shortcuts.commandPalette') },
     { keys: 'Ctrl/⌘ /', label: t('common:shortcuts.thisSheet') },
+    { keys: 'Ctrl/⌘ ⇧ N', label: t('common:shortcuts.completionNotification') },
     { keys: 'Esc Esc', label: t('common:shortcuts.sessionTree') },
     { keys: 'Alt ↑', label: t('common:shortcuts.restoreQueue') },
     { keys: 'Esc', label: t('common:shortcuts.stopOrDismiss') },

@@ -41,6 +41,20 @@ export function toMainPath(p: string | null | undefined): string {
 const INCOMING_PATH_KEYS = new Set(['cwd', 'sessionFile'])
 const OUTGOING_PATH_KEYS = new Set(['sessionFile', 'busySessionFile'])
 
+function translateSkillCatalogPaths(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw
+  const catalog = { ...(raw as Record<string, unknown>) }
+  for (const key of ['candidates', 'effectiveSkills'] as const) {
+    if (!Array.isArray(catalog[key])) continue
+    catalog[key] = (catalog[key] as Record<string, unknown>[]).map((row) => ({
+      ...row,
+      ...(typeof row.filePath === 'string' ? { filePath: toMainPath(row.filePath) } : {}),
+      ...(typeof row.baseDir === 'string' ? { baseDir: toMainPath(row.baseDir) } : {}),
+    }))
+  }
+  return catalog
+}
+
 /** Deep-translate path fields on an incoming worker request payload. */
 export function translateIncomingPaths<T extends Record<string, unknown>>(msg: T): T {
   if (!workerDistro) return msg
@@ -64,6 +78,7 @@ export function translateOutgoingPaths(
       out[key] = toMainPath(out[key] as string)
     }
   }
+  if (out.catalog) out.catalog = translateSkillCatalogPaths(out.catalog)
   if (Array.isArray(out.sessions)) {
     out.sessions = (out.sessions as Record<string, unknown>[]).map((row) => {
       const r: Record<string, unknown> = { ...row }

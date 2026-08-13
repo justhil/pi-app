@@ -35,6 +35,12 @@ export function GeneralSettings() {
     setAlertOnExtensionUi,
     setAlertOnRunIdle,
     setAlertOnBackgroundRunIdle,
+    setAlertOnRunFailed,
+    setCompletionNotificationTimeoutSeconds,
+    setCompletionNotificationPreview,
+    setCompletionNotificationOnlyWhenUnfocused,
+    setCompletionNotificationDndMinutes,
+    setCompletionNotificationDelivery,
     setMaxSessionWorkers,
     setSessionWorkerIdleTimeoutMinutes,
   } = useSettingsDraft()
@@ -43,6 +49,8 @@ export function GeneralSettings() {
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [testingAlert, setTestingAlert] = useState(false)
+  const [alertTestFeedback, setAlertTestFeedback] = useState<'sent' | 'failed' | null>(null)
   const updateCheckAttemptRef = useRef(0)
   const mountedRef = useRef(true)
 
@@ -103,6 +111,19 @@ export function GeneralSettings() {
     }
   }
 
+  const handleTestAlert = async () => {
+    setTestingAlert(true)
+    setAlertTestFeedback(null)
+    try {
+      const result = await ipcClient.invoke('alerts.test', {})
+      setAlertTestFeedback(result?.ok === false ? 'failed' : 'sent')
+    } catch {
+      setAlertTestFeedback('failed')
+    } finally {
+      setTestingAlert(false)
+    }
+  }
+
   return (
     <div className="space-y-8">
       <SettingsPageHeader title={t('settings:general.title')} description={t('settings:general.description')} />
@@ -146,7 +167,10 @@ export function GeneralSettings() {
         </SettingRow>
       </SettingsSection>
 
-      <SettingsSection title={t('settings:general.alert')}>
+      <SettingsSection
+        title={t('settings:general.alert')}
+        description={t('settings:general.alertSectionDesc')}
+      >
         <SettingRow label={t('settings:general.alertSound')} description={t('settings:general.alertSoundDesc')}>
           <Switch checked={draft.alertSoundEnabled} onCheckedChange={setAlertSoundEnabled} />
         </SettingRow>
@@ -159,6 +183,12 @@ export function GeneralSettings() {
         >
           <Switch checked={draft.alertOnExtensionUi} onCheckedChange={setAlertOnExtensionUi} />
         </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection
+        title={t('settings:general.completionAlert')}
+        description={t('settings:general.completionAlertDesc')}
+      >
         <SettingRow label={t('settings:general.alertOnRunIdle')} description={t('settings:general.alertOnRunIdleDesc')}>
           <Switch checked={draft.alertOnRunIdle} onCheckedChange={setAlertOnRunIdle} />
         </SettingRow>
@@ -167,6 +197,132 @@ export function GeneralSettings() {
           description={t('settings:general.alertOnBackgroundRunIdleDesc')}
         >
           <Switch checked={draft.alertOnBackgroundRunIdle} onCheckedChange={setAlertOnBackgroundRunIdle} />
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertOnRunFailed')} description={t('settings:general.alertOnRunFailedDesc')}>
+          <Switch checked={draft.alertOnRunFailed} onCheckedChange={setAlertOnRunFailed} />
+        </SettingRow>
+        <SettingRow
+          label={t('settings:general.alertOnlyUnfocused')}
+          description={t('settings:general.alertOnlyUnfocusedDesc')}
+        >
+          <Switch
+            checked={draft.completionNotificationOnlyWhenUnfocused}
+            onCheckedChange={setCompletionNotificationOnlyWhenUnfocused}
+          />
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertPreview.label')} description={t('settings:general.alertPreviewDesc')}>
+          <div className="flex gap-1.5">
+            {(['response', 'fixed'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={draft.completionNotificationPreview === mode}
+                onClick={() => setCompletionNotificationPreview(mode)}
+                className={cn(
+                  'settings-chip min-h-11 rounded-md border px-3 text-sm',
+                  draft.completionNotificationPreview === mode
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/50',
+                )}
+              >
+                {t(`settings:general.alertPreview.${mode}`)}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertDelivery.label')} description={t('settings:general.alertDeliveryDesc')}>
+          <div className="flex flex-wrap gap-1.5">
+            {(['auto', 'custom', 'system'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={draft.completionNotificationDelivery === mode}
+                onClick={() => setCompletionNotificationDelivery(mode)}
+                className={cn(
+                  'settings-chip min-h-11 rounded-md border px-3 text-sm',
+                  draft.completionNotificationDelivery === mode
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/50',
+                )}
+              >
+                {t(`settings:general.alertDelivery.${mode}`)}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertTimeout')} description={t('settings:general.alertTimeoutDesc')}>
+          <input
+            type="number"
+            min={5}
+            max={60}
+            step={1}
+            value={draft.completionNotificationTimeoutSeconds}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (!Number.isFinite(n)) return
+              setCompletionNotificationTimeoutSeconds(n)
+            }}
+            className={numberInputCls}
+          />
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertDnd.label')} description={t('settings:general.alertDndDesc')}>
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { minutes: null as number | null, key: 'off' },
+              { minutes: 3, key: '3m' },
+              { minutes: 30, key: '30m' },
+              { minutes: 60, key: '1h' },
+            ].map((opt) => {
+              const selected = opt.minutes == null
+                ? !draft.completionNotificationDndUntil
+                : draft.completionNotificationDndUntil != null &&
+                  Math.abs(
+                    draft.completionNotificationDndUntil - Date.now() - opt.minutes * 60_000,
+                  ) < 5_000
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setCompletionNotificationDndMinutes(opt.minutes)}
+                  className={cn(
+                    'settings-chip min-h-11 rounded-md border px-3 text-sm',
+                    selected
+                      ? 'border-primary bg-primary/5 text-foreground'
+                      : 'border-border text-muted-foreground hover:bg-accent/50',
+                  )}
+                >
+                  {t(`settings:general.alertDnd.${opt.key}`)}
+                </button>
+              )
+            })}
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings:general.alertTest')} description={t('settings:general.alertTestDesc')}>
+          <div className="flex flex-col items-start gap-1.5 sm:items-end">
+            <button
+              type="button"
+              className={cn(btnOutline, 'min-h-11')}
+              aria-busy={testingAlert}
+              disabled={testingAlert}
+              onClick={() => void handleTestAlert()}
+            >
+              {testingAlert ? t('settings:general.alertTesting') : t('settings:general.alertTestAction')}
+            </button>
+            {alertTestFeedback ? (
+              <span
+                role="status"
+                className={cn(
+                  'text-xs',
+                  alertTestFeedback === 'sent' ? 'text-[var(--success-semantic)]' : 'text-destructive',
+                )}
+              >
+                {alertTestFeedback === 'sent'
+                  ? t('settings:general.alertTestSent')
+                  : t('settings:general.alertTestFailed')}
+              </span>
+            ) : null}
+          </div>
         </SettingRow>
       </SettingsSection>
 

@@ -1,6 +1,7 @@
 /** Worker ↔ Main JSON-RPC style payloads (loosely typed JSON). */
 
 import type { ModelAuthProjection } from './model-auth-projection'
+import type { SkillCatalogResponse } from './skill-catalog'
 import type { PiSessionMessage } from './worker-message'
 import type { SessionContextPreview } from './session-context-preview'
 
@@ -10,12 +11,7 @@ export type WorkerCommandInfo = {
   [key: string]: unknown
 }
 
-export type WorkerSkillInfo = {
-  name: string
-  path?: string
-  description?: string
-  source?: string
-}
+export type WorkerSkillInfo = SkillCatalogResponse
 
 export type WorkerPromptTemplate = {
   name: string

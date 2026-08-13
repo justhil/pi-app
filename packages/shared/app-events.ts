@@ -1,5 +1,8 @@
 // AppEvent - Unified event model for Renderer/Main/Worker
 
+import type { CompletionOutcome } from './completion-preview'
+import type { AdapterWidgetProjection, AdapterWidgetProtocol } from './adapter-widget'
+
 export interface AppEventBase {
   seq: number
   workspaceId: string
@@ -97,6 +100,25 @@ export interface AgentErrorEvent extends AppEventBase {
   stopReason?: string
 }
 
+/** Worker-owned completion fact. Main is the only delivery-policy owner. */
+export interface CompletionEvent extends AppEventBase {
+  type: 'completion'
+  outcome: CompletionOutcome
+  settled: true
+  promptPreview?: string
+  responsePreview?: string
+  durationMs?: number
+}
+
+export interface ExtensionWidgetEvent extends AppEventBase {
+  type: 'extension_widget'
+  phase: 'set' | 'clear'
+  widgetKey: string
+  adapterId: string
+  protocol: AdapterWidgetProtocol
+  state?: AdapterWidgetProjection
+}
+
 // SDK 安装进度（设置页 UI 用，与会话无关，不继承 AppEventBase）
 export interface SdkInstallProgressEvent {
   type: 'sdk-install-progress'
@@ -120,6 +142,8 @@ export type AppEvent =
   | SlashEvent
   | QueueEvent
   | AgentErrorEvent
+  | CompletionEvent
+  | ExtensionWidgetEvent
   | SdkInstallProgressEvent
   | SdkRuntimeChangedEvent
 

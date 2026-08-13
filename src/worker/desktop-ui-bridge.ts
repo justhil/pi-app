@@ -47,6 +47,7 @@ export type DesktopUIBridge = {
   ) => Promise<ExtensionUIQuestionnaireResult>
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
   setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
+  attachWidgetHost: (host: { setWidget: (key: string, content: unknown) => void; dispose: () => void } | null) => void
   dispose: () => void
 }
 
@@ -130,6 +131,7 @@ export function createDesktopUIBridge(
   let lastAskPayload: { questions: unknown } | null = null
   /** Interact args cached by Worker from adapter.json interact.fields, keyed by schema type. */
   let interactArgs: { schema: string; args: Record<string, unknown> } | null = null
+  let widgetHost: { setWidget: (key: string, content: unknown) => void; dispose: () => void } | null = null
 
   const emitReq = (req: ExtensionUIRequest) => {
     onRequest(req)
@@ -201,7 +203,9 @@ export function createDesktopUIBridge(
     setWorkingVisible: () => {},
     setWorkingIndicator: () => {},
     setHiddenThinkingLabel: () => {},
-    setWidget: () => {},
+    setWidget: (key: string, content?: unknown) => {
+      widgetHost?.setWidget(String(key || ''), content)
+    },
     setFooter: () => {},
     setHeader: () => {},
     setTitle: () => {},
@@ -310,9 +314,15 @@ export function createDesktopUIBridge(
     setInteractArgs(schema, args) {
       interactArgs = args ? { schema, args } : null
     },
+    attachWidgetHost(host) {
+      widgetHost?.dispose()
+      widgetHost = host
+    },
     dispose() {
       unsubAsk()
       interactArgs = null
+      widgetHost?.dispose()
+      widgetHost = null
       for (const p of pending.values()) {
         p.cleanup()
         p.reject(new Error('UI bridge disposed'))

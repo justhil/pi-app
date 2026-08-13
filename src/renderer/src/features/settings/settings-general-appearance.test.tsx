@@ -39,6 +39,12 @@ vi.mock('@renderer/features/settings/settings-draft-context', () => ({
       alertOnExtensionUi: false,
       alertOnRunIdle: false,
       alertOnBackgroundRunIdle: false,
+      alertOnRunFailed: true,
+      completionNotificationTimeoutSeconds: 15,
+      completionNotificationPreview: 'response',
+      completionNotificationOnlyWhenUnfocused: true,
+      completionNotificationDndUntil: null,
+      completionNotificationDelivery: 'auto',
       maxSessionWorkers: 2,
       sessionWorkerIdleTimeoutMinutes: 10,
       language: 'en',
@@ -51,6 +57,12 @@ vi.mock('@renderer/features/settings/settings-draft-context', () => ({
     setAlertOnExtensionUi: vi.fn(),
     setAlertOnRunIdle: vi.fn(),
     setAlertOnBackgroundRunIdle: vi.fn(),
+    setAlertOnRunFailed: vi.fn(),
+    setCompletionNotificationTimeoutSeconds: vi.fn(),
+    setCompletionNotificationPreview: vi.fn(),
+    setCompletionNotificationOnlyWhenUnfocused: vi.fn(),
+    setCompletionNotificationDndMinutes: vi.fn(),
+    setCompletionNotificationDelivery: vi.fn(),
     setMaxSessionWorkers: vi.fn(),
     setSessionWorkerIdleTimeoutMinutes: vi.fn(),
   }),
@@ -89,6 +101,40 @@ beforeEach(() => {
 })
 
 describe('GeneralSettings manual update feedback', () => {
+  it('exposes selected semantics for completion notification segments', () => {
+    render(<GeneralSettings />)
+
+    expect(screen.getByRole('button', { name: 'settings:general.alertPreview.response' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'settings:general.alertPreview.fixed' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(screen.getByRole('button', { name: 'settings:general.alertDelivery.auto' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'settings:general.alertDnd.off' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+  })
+
+  it('shows feedback for a test completion notification', async () => {
+    mocks.invoke.mockImplementation((method: string) => {
+      if (method === 'settings.get') return Promise.resolve({ settings: {} })
+      if (method === 'alerts.test') return Promise.resolve({ ok: true })
+      return Promise.resolve({ status: 'error' })
+    })
+    render(<GeneralSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings:general.alertTestAction' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('settings:general.alertTestSent')
+  })
+
   it('consumes a terminal result after the StrictMode effect remount', async () => {
     mocks.invoke.mockImplementation((method: string) => {
       if (method === 'settings.get') return Promise.resolve({ settings: {} })

@@ -23,6 +23,7 @@ import {
   type LanguageChoice,
 } from '@renderer/features/settings/settings-draft'
 import type { AsrConfig } from '@shared/asr-types'
+import type { CompletionDeliveryMode, CompletionPreviewMode } from '@shared/completion-preview'
 import type { IconTheme } from '@shared/icon-theme'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
@@ -61,6 +62,12 @@ type SettingsDraftContextValue = {
   setAlertOnExtensionUi: (v: boolean) => void
   setAlertOnRunIdle: (v: boolean) => void
   setAlertOnBackgroundRunIdle: (v: boolean) => void
+  setAlertOnRunFailed: (v: boolean) => void
+  setCompletionNotificationTimeoutSeconds: (n: number) => void
+  setCompletionNotificationPreview: (v: CompletionPreviewMode) => void
+  setCompletionNotificationOnlyWhenUnfocused: (v: boolean) => void
+  setCompletionNotificationDndMinutes: (minutes: number | null) => void
+  setCompletionNotificationDelivery: (v: CompletionDeliveryMode) => void
   setMaxSessionWorkers: (n: number) => void
   setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
@@ -250,6 +257,21 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setAlertOnExtensionUi: (v) => patch((d) => ({ ...d, alertOnExtensionUi: v })),
       setAlertOnRunIdle: (v) => patch((d) => ({ ...d, alertOnRunIdle: v })),
       setAlertOnBackgroundRunIdle: (v) => patch((d) => ({ ...d, alertOnBackgroundRunIdle: v })),
+      setAlertOnRunFailed: (v) => patch((d) => ({ ...d, alertOnRunFailed: v })),
+      setCompletionNotificationTimeoutSeconds: (n) =>
+        patch((d) => ({
+          ...d,
+          completionNotificationTimeoutSeconds: Number.isFinite(n) ? Math.min(60, Math.max(5, Math.round(n))) : d.completionNotificationTimeoutSeconds,
+        })),
+      setCompletionNotificationPreview: (v) => patch((d) => ({ ...d, completionNotificationPreview: v })),
+      setCompletionNotificationOnlyWhenUnfocused: (v) =>
+        patch((d) => ({ ...d, completionNotificationOnlyWhenUnfocused: v })),
+      setCompletionNotificationDndMinutes: (minutes) =>
+        patch((d) => ({
+          ...d,
+          completionNotificationDndUntil: minutes == null ? null : Date.now() + minutes * 60_000,
+        })),
+      setCompletionNotificationDelivery: (v) => patch((d) => ({ ...d, completionNotificationDelivery: v })),
       setMaxSessionWorkers: (n) =>
         patch((d) => ({
           ...d,

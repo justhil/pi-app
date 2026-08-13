@@ -299,6 +299,16 @@ export const useUIStore = create<UIState>()(
   agentTurnBootstrapping: false,
   pendingSteering: [],
   pendingFollowUp: [],
+  composerWidget: null,
+  adapterWidgetExpandedBySession: {},
+  setComposerWidget: (state) => set({ composerWidget: state }),
+  toggleAdapterWidget: (key) =>
+    set((s) => ({
+      adapterWidgetExpandedBySession: {
+        ...s.adapterWidgetExpandedBySession,
+        [key]: !s.adapterWidgetExpandedBySession[key],
+      },
+    })),
   setPendingQueue: (steering, followUp) => {
     const state = get()
     if (isAbortQueueIgnoreActive(state.historySessionFile)) {

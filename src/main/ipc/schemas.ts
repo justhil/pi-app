@@ -181,6 +181,12 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   alertOnExtensionUi: z.boolean(),
   alertOnRunIdle: z.boolean(),
   alertOnBackgroundRunIdle: z.boolean(),
+  alertOnRunFailed: z.boolean(),
+  completionNotificationTimeoutSeconds: z.number().int().min(5).max(60),
+  completionNotificationPreview: z.enum(['response', 'fixed']),
+  completionNotificationOnlyWhenUnfocused: z.boolean(),
+  completionNotificationDndUntil: z.number().nullable(),
+  completionNotificationDelivery: z.enum(['auto', 'custom', 'system']),
   maxSessionWorkers: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   sessionWorkerIdleTimeoutMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   timelineMaxAutoExpandedTools: z.number().int().min(0).max(50),
@@ -189,6 +195,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   sessionDisplayNames: z.record(z.string()),
   extensionOverrides: z.record(z.boolean()),
   skillOverrides: z.record(z.boolean()),
+  skillPresentation: z.record(z.object({ alias: z.string().optional(), icon: z.string().optional() }).strict()),
   extensionConfigs: z.record(z.record(z.unknown())),
   panelWidths: z
     .object({ sidebar: z.number(), right: z.number() })

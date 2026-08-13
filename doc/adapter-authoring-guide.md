@@ -176,6 +176,7 @@ builtin[]
 | `toolCard` | object | 时间线工具卡，见 §7 |
 | `interact` | object | 弹窗字段映射（问卷/审图），见 **§8** |
 | `slash` | object | 斜杠桌面语义，见 §10 |
+| `widget` | object | Composer 上方投影（本轮仅 `todo-list-v1` / `aboveComposer`） |
 | `sidePanel` | object | 右栏 Tab，见 §10 |
 
 ---
