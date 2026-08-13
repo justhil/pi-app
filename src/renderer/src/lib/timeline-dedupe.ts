@@ -8,7 +8,7 @@ export function normalizeTimelineMessageText(t?: string): string {
 /** Pending 匹配，或尚未落盘的乐观用户行与 echo 同文。 */
 export function isReusableOptimisticUserMessage(
   item: TimelineItem | undefined,
-  incomingText: string,
+  incomingText?: string,
   pendingText?: string | null,
 ): boolean {
   if (!item || item.type !== 'user-message') return false

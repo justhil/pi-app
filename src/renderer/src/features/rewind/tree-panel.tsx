@@ -71,13 +71,10 @@ export function TreePanel() {
 
   return (
     <div className="flex h-full flex-col text-[12px]">
-      <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
-        <div className="min-w-0">
-          <span className="font-medium text-foreground">会话树</span>
-          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-            {t('timeline:treePanelHint')}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-2 border-b border-border/40 px-2 py-1.5">
+        <p className="min-w-0 truncate text-[12px] text-foreground-secondary">
+          {t('timeline:treePanelHint')}
+        </p>
         <button
           type="button"
           className="chrome-icon-btn rounded-md p-1.5"
@@ -96,10 +93,10 @@ export function TreePanel() {
             type="button"
             onClick={() => setFilter(option.key)}
             className={cn(
-              'rounded-md px-2 py-0.5 text-[10px] transition-colors',
+              'h-7 rounded-md px-2.5 text-[12px] font-medium transition-colors',
               filter === option.key
-                ? 'bg-primary/12 font-medium text-primary'
-                : 'text-muted-foreground hover:bg-muted/80',
+                ? 'bg-[var(--bg-active)] text-foreground'
+                : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
             )}
           >
             {option.label}

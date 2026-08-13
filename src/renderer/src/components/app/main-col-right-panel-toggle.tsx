@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { PanelRight, RefreshCw } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
 import { toast } from 'sonner'
 
@@ -12,7 +13,7 @@ import { toast } from 'sonner'
  */
 export function MainColRightPanelToggle() {
   const { t } = useTranslation()
-  const collapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const collapsed = useRightPanelHidden()
   const toggle = useUIStore((s) => s.toggleRightPanel)
   const [reloading, setReloading] = useState(false)
 

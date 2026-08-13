@@ -334,6 +334,7 @@ export const useUIStore = create<UIState>()(
         sidebarCollapsed: s.sidebarCollapsed,
         rightPanelWidth: s.rightPanelWidth,
         rightPanelCollapsed: s.rightPanelCollapsed,
+        rightPanelExpandedOnNarrow: s.rightPanelExpandedOnNarrow,
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),

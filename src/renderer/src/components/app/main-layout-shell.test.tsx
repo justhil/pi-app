@@ -8,6 +8,7 @@ const DEFAULTS = {
   sidebarCollapsed: false,
   rightPanelWidth: 288,
   rightPanelCollapsed: false,
+  rightPanelExpandedOnNarrow: true,
 }
 
 beforeEach(() => {
@@ -68,6 +69,14 @@ describe('MainLayoutShell window-resize adaptation', () => {
     expect(s.rightPanelWidth).toBe(500)
     // 收起侧栏走 40px rail：右栏 500 放得下 → 展示不变
     expect(gridColumns()).toBe('0px minmax(0, 1fr) 500px')
+  })
+
+  it('should_collapse_right_panel_to_rail_on_narrow_window_until_expanded', () => {
+    useUIStore.setState({ rightPanelExpandedOnNarrow: false, rightPanelWidth: 288 })
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 })
+    render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+
+    expect(gridColumns()).toBe('260px minmax(0, 1fr) 40px')
   })
 
   it('adapts persisted oversized widths on mount without writing them back', () => {

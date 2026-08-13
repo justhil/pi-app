@@ -323,7 +323,7 @@ function applyMessage(
       snap.optimisticPendingUserText,
     )
 
-    if (matchesOptimistic) {
+    if (matchesOptimistic && lastUser) {
       snap.timelineItems[lastUserIndex] = {
         ...lastUser,
         text: incomingText ? event.text : lastUser.text,

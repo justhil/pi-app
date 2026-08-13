@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronLeft, CircleDot, PanelLeft, PanelRight } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 import { WindowControls } from '@renderer/components/app/window-controls'
 
@@ -17,7 +18,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const rightCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const rightCollapsed = useRightPanelHidden()
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
   const showRightToggle = !onBack
   const isSettings = !!onBack

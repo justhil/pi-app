@@ -119,15 +119,17 @@ export function ReviewPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex border-b border-border/80">
+      <div className="flex items-center gap-1 border-b border-border/40 px-2 py-1.5">
         {SCOPES.map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setScope(s)}
             className={cn(
-              'flex-1 px-2 py-2.5 text-[11px] font-medium transition-colors',
-              scope === s ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',
+              'h-7 rounded-md px-2.5 text-[12px] font-medium transition-colors',
+              scope === s
+                ? 'bg-[var(--bg-active)] text-foreground'
+                : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
             )}
           >
             {t(`review.scope.${s}`)}

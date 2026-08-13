@@ -20,7 +20,7 @@ function openReviewPanel(path?: string) {
   else {
     const store = useUIStore.getState()
     store.setActivePanel('review')
-    if (store.rightPanelCollapsed) store.toggleRightPanel()
+    store.revealRightPanel()
     window.dispatchEvent(new CustomEvent('pi-desktop:review-scope', { detail: 'session' }))
   }
 }

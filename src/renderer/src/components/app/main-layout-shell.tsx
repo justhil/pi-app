@@ -3,6 +3,7 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { PanelResizeEdge } from '@renderer/components/app/panel-resize-edge'
 import { RightPanelCollapsedRail } from '@renderer/components/app/right-panel-collapsed-rail'
+import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 
 /** Collapsed right rail width — keep in sync with RightPanelCollapsedRail (w-10 = 40px) */
 const RIGHT_COLLAPSED_RAIL_PX = 40
@@ -29,11 +30,11 @@ export function MainLayoutShell({
 }) {
   const leftCollapsed = useUIStore((s) => s.sidebarCollapsed)
   const leftWidth = useUIStore((s) => s.sidebarWidth)
-  const rightCollapsed = useUIStore((s) => s.rightPanelCollapsed)
+  const rightCollapsedPref = useUIStore((s) => s.rightPanelCollapsed)
+  const rightExpandedOnNarrow = useUIStore((s) => s.rightPanelExpandedOnNarrow)
   const rightWidth = useUIStore((s) => s.rightPanelWidth)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
-  const filesChatPreview = activePanel === 'files' && filesPreviewChatExpand && !rightCollapsed
 
   const [leftDragging, setLeftDragging] = useState(false)
   const [rightDragging, setRightDragging] = useState(false)
@@ -88,6 +89,12 @@ export function MainLayoutShell({
   const effectiveLeft = leftCollapsed ? 0 : Math.min(leftWidth, maxLeftFor(windowWidth))
   const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : effectiveLeft
   const maxRight = Math.max(MIN_RIGHT_PANEL_PX, windowWidth - leftColW - MIN_CENTER_GAP)
+  const rightCollapsed = isRightPanelHidden({
+    collapsed: rightCollapsedPref,
+    expandedOnNarrow: rightExpandedOnNarrow,
+    windowWidth,
+  })
+  const filesChatPreview = activePanel === 'files' && filesPreviewChatExpand && !rightCollapsed
   const effectiveRight = rightCollapsed ? RIGHT_COLLAPSED_RAIL_PX : Math.min(rightWidth, maxRight)
 
   const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
