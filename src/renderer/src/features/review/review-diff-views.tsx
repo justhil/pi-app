@@ -39,6 +39,39 @@ function linePrefix(type: DiffLine['type']): string {
   return ' '
 }
 
+function DiffCodeLine({
+  lineNo,
+  gutter,
+  prefix,
+  text,
+  className,
+  filePath,
+  canRef,
+}: {
+  lineNo?: number
+  gutter: string
+  prefix: string
+  text: string
+  className?: string
+  filePath: string
+  canRef: boolean
+}) {
+  return (
+    <div className={cn('group/line flex min-w-0 items-start px-1', className)}>
+      <span className="flex w-10 shrink-0 select-none items-start justify-end gap-0.5 pt-px pr-1 text-foreground-secondary/40">
+        {canRef && lineNo != null ? (
+          <LineGutterAddButton path={filePath} line={lineNo} content={text} className="mr-0.5" />
+        ) : (
+          <span className="w-[1.15em]" />
+        )}
+        <span className="w-6 text-right tabular-nums">{gutter}</span>
+      </span>
+      <span className="w-3 shrink-0 select-none text-foreground-secondary/40">{prefix}</span>
+      <span className="min-w-0 flex-1 whitespace-pre-wrap break-all">{text}</span>
+    </div>
+  )
+}
+
 function DiffHunkView({
   hunk,
   hunkIndex,
@@ -84,7 +117,7 @@ function DiffHunkView({
         </button>
       </div>
       {mode === 'inline' ? (
-        <div className="overflow-x-auto font-mono text-[10px] leading-[1.5]">
+        <div className="min-w-0 font-mono text-[10px] leading-[1.5]">
           {hunk.lines.map((l, i) => {
             const lineNo =
               l.type === 'removed'
@@ -92,32 +125,18 @@ function DiffHunkView({
                 : l.type === 'added' || l.type === 'context'
                   ? l.newLineNumber ?? l.oldLineNumber
                   : undefined
-            const canRef = !!lineNo && l.type !== 'hunk-header'
+            const prefix = linePrefix(l.type)
             return (
-              <div
+              <DiffCodeLine
                 key={i}
-                className={cn('group/line flex items-stretch px-1 whitespace-pre', lineColor(l.type))}
-              >
-                <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
-                  {canRef ? (
-                    <LineGutterAddButton
-                      path={filePath}
-                      line={lineNo!}
-                      content={l.content}
-                      className="mr-0.5"
-                    />
-                  ) : (
-                    <span className="w-[1.15em]" />
-                  )}
-                  <span className="w-6 text-right tabular-nums">
-                    {lineNo ?? linePrefix(l.type)}
-                  </span>
-                </span>
-                <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
-                  {linePrefix(l.type)}
-                </span>
-                <span className="min-w-0 flex-1">{l.content}</span>
-              </div>
+                lineNo={lineNo}
+                gutter={lineNo != null ? String(lineNo) : prefix}
+                prefix={prefix}
+                text={l.content}
+                className={lineColor(l.type)}
+                filePath={filePath}
+                canRef={!!lineNo && l.type !== 'hunk-header'}
+              />
             )
           })}
         </div>
@@ -142,65 +161,41 @@ function SplitHunk({ hunk, filePath }: { hunk: DiffHunk; filePath: string }) {
   }
   const rows = buildSplitDiffRows(pseudoFile).slice(1)
   return (
-    <div className="grid grid-cols-2 overflow-x-auto font-mono text-[10px] leading-[1.5]">
-      <div className="border-r border-border/30">
-        {rows.map((row, i) => {
-          const lineNo = row.left.oldLine ?? row.left.newLine
-          const canRef = !!lineNo && row.left.kind !== 'empty'
-          return (
-            <div
-              key={i}
+    <div className="grid min-w-0 grid-cols-2 font-mono text-[10px] leading-[1.5]">
+      {rows.map((row, i) => {
+        const leftNo = row.left.oldLine ?? row.left.newLine
+        const rightNo = row.right.newLine ?? row.right.oldLine
+        return (
+          <div key={i} className="contents">
+            <DiffCodeLine
+              lineNo={leftNo}
+              gutter={leftNo != null ? String(leftNo) : ''}
+              prefix={row.left.kind === 'remove' ? '-' : ' '}
+              text={row.left.text}
               className={cn(
-                'group/line flex items-stretch px-1 whitespace-pre',
+                'min-w-0 border-r border-border/30',
                 row.left.kind === 'remove' && 'diff-line-removed',
                 row.left.kind === 'context' && 'text-foreground-secondary',
               )}
-            >
-              <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
-                {canRef ? (
-                  <LineGutterAddButton path={filePath} line={lineNo!} content={row.left.text} />
-                ) : (
-                  <span className="w-[1.15em]" />
-                )}
-                <span className="w-6 text-right tabular-nums">{lineNo ?? ''}</span>
-              </span>
-              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
-                {row.left.kind === 'remove' ? '-' : ' '}
-              </span>
-              <span className="min-w-0 flex-1">{row.left.text}</span>
-            </div>
-          )
-        })}
-      </div>
-      <div>
-        {rows.map((row, i) => {
-          const lineNo = row.right.newLine ?? row.right.oldLine
-          const canRef = !!lineNo && row.right.kind !== 'empty'
-          return (
-            <div
-              key={i}
+              filePath={filePath}
+              canRef={!!leftNo && row.left.kind !== 'empty'}
+            />
+            <DiffCodeLine
+              lineNo={rightNo}
+              gutter={rightNo != null ? String(rightNo) : ''}
+              prefix={row.right.kind === 'add' ? '+' : ' '}
+              text={row.right.text}
               className={cn(
-                'group/line flex items-stretch px-1 whitespace-pre',
+                'min-w-0',
                 row.right.kind === 'add' && 'diff-line-added',
                 row.right.kind === 'context' && 'text-foreground-secondary',
               )}
-            >
-              <span className="flex w-10 shrink-0 select-none items-center justify-end gap-0.5 pr-1 text-foreground-secondary/40">
-                {canRef ? (
-                  <LineGutterAddButton path={filePath} line={lineNo!} content={row.right.text} />
-                ) : (
-                  <span className="w-[1.15em]" />
-                )}
-                <span className="w-6 text-right tabular-nums">{lineNo ?? ''}</span>
-              </span>
-              <span className="w-3 shrink-0 select-none text-foreground-secondary/40">
-                {row.right.kind === 'add' ? '+' : ' '}
-              </span>
-              <span className="min-w-0 flex-1">{row.right.text}</span>
-            </div>
-          )
-        })}
-      </div>
+              filePath={filePath}
+              canRef={!!rightNo && row.right.kind !== 'empty'}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -209,49 +204,44 @@ export function FileDiffView({
   file,
   fallbackPath,
   fallbackChangeType,
-  staged: fileStaged,
+  group,
   mode,
   cwd,
   defaultOpen,
+  onMutated,
 }: {
   file: DiffFile | undefined
   fallbackPath: string
   fallbackChangeType: string
-  staged: boolean
+  group: 'staged' | 'unstaged'
   mode: DiffMode
   cwd: string
   defaultOpen: boolean
+  onMutated: () => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  const [stagedHunks, setStagedHunks] = useState<Set<number>>(
-    () => (fileStaged && file ? new Set(file.hunks.map((_, i) => i)) : new Set()),
-  )
   const filePath = file?.path ?? fallbackPath
+  const staged = group === 'staged'
 
   const toggleStage = useCallback(
-    (hunkIdx: number, hunk: DiffHunk) => {
+    (_hunkIdx: number, hunk: DiffHunk) => {
       const patch = hunk.patch || ''
-      const isStaged = stagedHunks.has(hunkIdx)
-      const next = new Set(stagedHunks)
+      if (!patch) return
       ipcClient
-        .invoke(isStaged ? 'review.unstageHunks' : 'review.stageHunks', {
+        .invoke(staged ? 'review.unstageHunks' : 'review.stageHunks', {
           cwd,
           files: [{ path: filePath, hunkPatches: [patch] }],
         })
         .then((res) => {
-          if (res?.ok) {
-            if (isStaged) next.delete(hunkIdx)
-            else next.add(hunkIdx)
-            setStagedHunks(next)
-          }
+          if (res?.ok) onMutated()
         })
         .catch(() => {})
     },
-    [stagedHunks, filePath, cwd],
+    [staged, filePath, cwd, onMutated],
   )
 
   return (
-    <div className="border-b border-border/30">
+    <div className="min-w-0 border-b border-border/30">
       <div
         role="button"
         tabIndex={0}
@@ -292,16 +282,20 @@ export function FileDiffView({
         </button>
       </div>
       {open && (
-        <div className="border-t border-border/30 bg-[var(--bg-2)]">
+        <div className="min-w-0 overflow-hidden border-t border-border/30 bg-[var(--bg-2)]">
           {file?.large && (
             <div className="px-3 py-1.5 text-[10px] text-amber-600/80">
               大变更（{file.additions + file.deletions} 行）
             </div>
           )}
           {file?.generated && <div className="px-3 py-1.5 text-[10px] text-muted-foreground/60">生成文件</div>}
-          {!file && (
+          {(!file || file.hunks.length === 0) && (
             <div className="px-3 py-3 text-[10px] text-muted-foreground/60">
-              无可显示文本差异（二进制 / 纯重命名 / 模式变更）
+              {file?.binary
+                ? '二进制文件'
+                : file?.status === 'renamed'
+                  ? `重命名自 ${file.oldPath || fallbackPath}`
+                  : '无可显示文本差异'}
             </div>
           )}
           {file?.hunks.map((hunk, hi) => (
@@ -310,7 +304,7 @@ export function FileDiffView({
               hunk={hunk}
               hunkIndex={hi}
               mode={mode}
-              staged={stagedHunks.has(hi)}
+              staged={staged}
               onToggleStage={() => toggleStage(hi, hunk)}
               filePath={filePath}
               cwd={cwd}
@@ -323,7 +317,6 @@ export function FileDiffView({
 }
 
 export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted: () => void }) {
-  const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [committing, setCommitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -339,7 +332,6 @@ export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted
         if (res?.ok) {
           setHash(res.commitHash || null)
           setMessage('')
-          setOpen(false)
           onCommitted()
         } else {
           setError(res?.error || '提交失败')
@@ -350,45 +342,30 @@ export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted
   }
 
   return (
-    <div className="border-t border-border/40">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-[11px] text-foreground-secondary hover:bg-[var(--bg-hover)]"
-      >
+    <div className="space-y-2 border-t border-border/40 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] text-foreground-secondary">
         <GitCommitHorizontal className="h-3.5 w-3.5" />
-        提交暂存的变更
-      </button>
-      {open && (
-        <div className="space-y-2 px-3 pb-2">
-          <textarea
-            className="settings-field-focus w-full resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px]"
-            rows={3}
-            placeholder="commit message…"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-          />
-          {error && <div className="text-[10px] text-destructive">{error}</div>}
-          {hash && <div className="text-[10px] text-[var(--diff-added)]">已提交 {hash.slice(0, 8)}</div>}
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="settings-chip rounded-md border border-border px-2.5 py-1 text-[11px]"
-              onClick={() => setOpen(false)}
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              className="settings-chip rounded-md bg-primary px-2.5 py-1 text-[11px] text-primary-foreground disabled:opacity-40"
-              disabled={!message.trim() || committing}
-              onClick={handleCommit}
-            >
-              {committing ? '提交中…' : '提交'}
-            </button>
-          </div>
-        </div>
-      )}
+        提交已暂存
+      </div>
+      <textarea
+        className="settings-field-focus w-full resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px]"
+        rows={3}
+        placeholder="commit message…"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+      />
+      {error && <div className="text-[10px] text-destructive">{error}</div>}
+      {hash && <div className="text-[10px] text-[var(--diff-added)]">已提交 {hash.slice(0, 8)}</div>}
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="settings-chip rounded-md bg-primary px-2.5 py-1 text-[11px] text-primary-foreground disabled:opacity-40"
+          disabled={!message.trim() || committing}
+          onClick={handleCommit}
+        >
+          {committing ? '提交中…' : '提交'}
+        </button>
+      </div>
     </div>
   )
 }

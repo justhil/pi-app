@@ -1,7 +1,6 @@
 // IPC Contract - Complete typed method signatures for Renderer/Main/Worker
 
 import type { AppEvent } from './app-events'
-import type { DiffResult } from './diff-model'
 import type { CompatibilityLevel } from './extension-types'
 import type { ModelAuthProjection } from './model-auth-projection'
 import type { SessionContextPreview } from './session-context-preview'
@@ -214,7 +213,17 @@ export interface ReviewGetDiffRequest {
   scope: 'turn' | 'session' | 'git'
   turnId?: string
 }
-export interface ReviewGetDiffResponse { diff: DiffResult }
+export interface ReviewGitDiffPayload {
+  raw: string
+  stagedRaw?: string
+  status: string
+  scope: string
+  branch?: string
+  log?: string
+  isRepo?: boolean
+  message?: string
+}
+export interface ReviewGetDiffResponse { diff: ReviewGitDiffPayload }
 
 export interface ReviewStageHunksRequest {
   cwd: string

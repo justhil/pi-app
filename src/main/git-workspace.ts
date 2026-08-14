@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'child_process'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 import { runGitInWsl, runGitInWslAsync } from './wsl/git-delegate'
@@ -129,9 +129,45 @@ export type GitWorkspaceSnapshot = {
   isRepo: boolean
   branch: string
   raw: string
+  stagedRaw: string
   status: string
   log: string
   message?: string
+}
+
+const UNTRACKED_DIFF_MAX_BYTES = 256 * 1024
+
+function untrackedPatch(cwd: string, relPath: string): string {
+  const abs = join(cwd, relPath)
+  if (!existsSync(abs)) return ''
+  const stat = statSync(abs)
+  if (!stat.isFile() || stat.size > UNTRACKED_DIFF_MAX_BYTES) return ''
+  const buf = readFileSync(abs)
+  if (buf.includes(0)) return ''
+  const text = buf.toString('utf8')
+  const lines = text.split('\n')
+  return [
+    `diff --git a/${relPath} b/${relPath}`,
+    'new file mode 100644',
+    '--- /dev/null',
+    `+++ b/${relPath}`,
+    `@@ -0,0 +1,${Math.max(lines.length, 1)} @@`,
+    ...lines.map((line) => `+${line}`),
+    '',
+  ].join('\n')
+}
+
+function untrackedPathsFromStatus(status: string): string[] {
+  const out: string[] = []
+  for (const line of status.split('\n')) {
+    if (!line.startsWith('?? ')) continue
+    let path = line.slice(3).trim()
+    if (path.startsWith('"') && path.endsWith('"')) {
+      path = path.slice(1, -1).replace(/\\"/g, '"')
+    }
+    if (path && !path.endsWith('/')) out.push(path)
+  }
+  return out
 }
 
 export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspaceSnapshot> {
@@ -140,28 +176,36 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
       isRepo: false,
       branch: '',
       raw: '',
+      stagedRaw: '',
       status: '',
       log: '',
       message: '当前目录不是 Git 仓库',
     }
   }
 
-  const [branchR, diffR, statusR, logR] = await Promise.all([
+  const [branchR, diffR, stagedR, statusR, logR] = await Promise.all([
     runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
     runGitReadOnly(cwd, ['diff'], { timeout: 10000 }),
+    runGitReadOnly(cwd, ['diff', '--cached'], { timeout: 10000 }),
     runGitReadOnly(cwd, ['status', '--porcelain', '-b'], { timeout: 5000 }),
     runGitReadOnly(cwd, ['log', '--oneline', '-12'], { timeout: 5000 }),
   ])
   const branch = branchR.ok ? branchR.stdout.trim() : ''
-  const raw = diffR.ok ? diffR.stdout : ''
+  const stagedRaw = stagedR.ok ? stagedR.stdout : ''
   const status = statusR.ok ? statusR.stdout : ''
   const log = logR.ok ? logR.stdout.trim() : ''
+  let raw = diffR.ok ? diffR.stdout : ''
 
   if (!diffR.ok && diffR.notRepo) {
-    return { isRepo: false, branch: '', raw: '', status: '', log: '', message: diffR.message }
+    return { isRepo: false, branch: '', raw: '', stagedRaw: '', status: '', log: '', message: diffR.message }
   }
 
-  return { isRepo: true, branch, raw, status, log }
+  const extras = untrackedPathsFromStatus(status)
+    .map((path) => untrackedPatch(cwd, path))
+    .filter(Boolean)
+  if (extras.length) raw = [raw.trimEnd(), ...extras].filter(Boolean).join('\n')
+
+  return { isRepo: true, branch, raw, stagedRaw, status, log }
 }
 
 /** 选择性暂存 hunk：patch 来自已读真实 git diff，git apply --cached --recount */

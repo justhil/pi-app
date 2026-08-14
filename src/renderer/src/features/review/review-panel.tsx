@@ -2,28 +2,15 @@ import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { parseGitDiff } from '@shared/diff-model'
-import {
-  Copy,
-  Check,
-  GitBranch,
-  Loader2,
-  FileDiff,
-  RefreshCw,
-  Columns2,
-  Rows2,
-} from '@renderer/components/icons'
-import { ChangeIcon, FileDiffView, ReviewCommitBar, type DiffMode } from './review-diff-views'
+import { Columns2, Rows2, Loader2, RefreshCw } from '@renderer/components/icons'
+import { FileDiffView, ReviewCommitBar, type DiffMode } from './review-diff-views'
 import { useReviewGitData } from './use-review-git-data'
-
-type AnyFileEntry = {
-  path: string
-  changeType: string
-  staged?: boolean
-  source?: string
-  runId?: string
-  turnId?: string
-}
+import {
+  collectTouchedPaths,
+  filterReviewGroups,
+  groupReviewFiles,
+  type ReviewFileRow,
+} from './review-git-utils'
 
 const SCOPES = ['turn', 'session', 'git'] as const
 type Scope = (typeof SCOPES)[number]
@@ -32,38 +19,32 @@ export function ReviewPanel() {
   const { t } = useTranslation()
   const [scope, setScope] = useState<Scope>('session')
   const fileChanges = useUIStore((s) => s.fileChanges)
+  const timelineItems = useUIStore((s) => s.timelineItems)
   const workspace = useUIStore((s) => s.currentWorkspace)
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
   const lastRunId = useUIStore((s) => s.runState.lastRunId)
   const running = useUIStore((s) => s.runState.status === 'running')
-  const [copiedPath, setCopiedPath] = useState<string | null>(null)
-  const [expandedGitPath, setExpandedGitPath] = useState<string | null>(null)
-  const [focusGitPath, setFocusGitPath] = useState<string | null>(null)
-  const [expandedMetaPath, setExpandedMetaPath] = useState<string | null>(null)
+  const [expandedPath, setExpandedPath] = useState<string | null>(null)
+  const [focusPath, setFocusPath] = useState<string | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('inline')
   const { gitData, loading, refreshing, refresh: loadGit } = useReviewGitData({
-    enabled: scope === 'git',
+    enabled: true,
     workspace,
     worktreeChangeSignal: fileChanges,
   })
 
   const turnRunId = running ? activeRunId : lastRunId
+  const cwd = workspace || ''
 
   useEffect(() => {
     const saved = localStorage.getItem('reviewDiffMode')
     if (saved === 'split' || saved === 'inline') setDiffMode(saved)
   }, [])
 
-  const toggleDiffMode = () => {
-    const next = diffMode === 'inline' ? 'split' : 'inline'
-    setDiffMode(next)
-    localStorage.setItem('reviewDiffMode', next)
-  }
-
   useEffect(() => {
     const onScope = (e: Event) => {
-      const s = (e as CustomEvent<Scope>).detail
-      if (s && SCOPES.includes(s)) setScope(s)
+      const next = (e as CustomEvent<Scope>).detail
+      if (next && SCOPES.includes(next)) setScope(next)
     }
     window.addEventListener('pi-desktop:review-scope', onScope)
     return () => window.removeEventListener('pi-desktop:review-scope', onScope)
@@ -72,37 +53,33 @@ export function ReviewPanel() {
   useEffect(() => {
     const onFocus = (e: Event) => {
       const path = (e as CustomEvent<{ path?: string }>).detail?.path
-      if (path) {
-        const normalized = path.replace(/\\/g, '/')
-        setFocusGitPath(normalized)
-        setExpandedGitPath(normalized)
-        setExpandedMetaPath(normalized)
-      }
+      if (!path) return
+      const normalized = path.replace(/\\/g, '/')
+      setFocusPath(normalized)
+      setExpandedPath(normalized)
     }
     window.addEventListener('pi-desktop:review-focus-file', onFocus)
     return () => window.removeEventListener('pi-desktop:review-focus-file', onFocus)
   }, [])
 
-  const turnFiles = useMemo(
-    () => fileChanges.filter((f) => turnRunId && f.runId === turnRunId),
-    [fileChanges, turnRunId],
-  )
-
-  const files: AnyFileEntry[] =
-    scope === 'git' ? (gitData?.files as AnyFileEntry[]) || [] : scope === 'turn' ? turnFiles : fileChanges
-
-  const diffFiles = useMemo(() => {
-    if (scope !== 'git' || !gitData?.raw) return []
-    return parseGitDiff(gitData.raw)
-  }, [scope, gitData?.raw])
-
-  const cwd = workspace || ''
-
-  const handleCopy = (path: string) => {
-    navigator.clipboard.writeText(path)
-    setCopiedPath(path)
-    setTimeout(() => setCopiedPath(null), 1500)
-  }
+  const groups = useMemo(() => {
+    const all = groupReviewFiles({
+      status: gitData?.status || '',
+      unstagedRaw: gitData?.raw || '',
+      stagedRaw: gitData?.stagedRaw || '',
+    })
+    if (scope === 'git') return all
+    if (scope === 'turn' && !turnRunId) return { staged: [], unstaged: [], cleanTouched: [] }
+    const tools = timelineItems
+      .filter((item) => item.type === 'tool-call')
+      .map((item) => ({
+        toolName: item.toolName,
+        runId: item.runId,
+        toolDetail: item.toolDetail,
+        toolArgs: item.toolArgs,
+      }))
+    return filterReviewGroups(all, collectTouchedPaths(fileChanges, tools, scope === 'turn' ? turnRunId : null))
+  }, [gitData?.status, gitData?.raw, gitData?.stagedRaw, scope, fileChanges, timelineItems, turnRunId])
 
   const scopeHint =
     scope === 'turn'
@@ -110,145 +87,122 @@ export function ReviewPanel() {
         ? t('review:scopeHintTurn', { id: turnRunId.slice(0, 8) })
         : t('review:scopeHintNoTurn')
       : scope === 'session'
-        ? t('review:scopeHintSession', { count: fileChanges.length })
+        ? t('review:scopeHintSession', { count: groups.staged.length + groups.unstaged.length })
         : gitData?.isRepo === false
           ? t('review:scopeHintNotRepo')
           : gitData?.branch
             ? t('review:scopeHintBranch', { branch: gitData.branch })
             : t('review:scopeHintGit')
 
+  const isFocused = (path: string) => {
+    const n = path.replace(/\\/g, '/')
+    const focus = focusPath || expandedPath
+    return !!focus && (n === focus || n.endsWith(`/${focus}`) || focus.endsWith(`/${n}`))
+  }
+
+  const renderGroup = (title: string, rows: ReviewFileRow[], group: 'staged' | 'unstaged') => {
+    if (rows.length === 0) return null
+    return (
+      <section>
+        <div className="px-3 py-1.5 text-[10px] font-medium tracking-wide text-foreground-secondary/70">
+          {title} · {rows.length}
+        </div>
+        {rows.map((row) => (
+          <FileDiffView
+            key={`${group}:${row.path}`}
+            file={row.file}
+            fallbackPath={row.path}
+            fallbackChangeType={row.changeType}
+            group={group}
+            mode={diffMode}
+            cwd={cwd}
+            defaultOpen={isFocused(row.path)}
+            onMutated={loadGit}
+          />
+        ))}
+      </section>
+    )
+  }
+
+  const empty = groups.staged.length === 0 && groups.unstaged.length === 0 && groups.cleanTouched.length === 0
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-1 border-b border-border/40 px-2 py-1.5">
-        {SCOPES.map((s) => (
+        {SCOPES.map((item) => (
           <button
-            key={s}
+            key={item}
             type="button"
-            onClick={() => setScope(s)}
+            onClick={() => setScope(item)}
             className={cn(
               'h-7 rounded-md px-2.5 text-[12px] font-medium transition-colors',
-              scope === s
+              scope === item
                 ? 'bg-[var(--bg-active)] text-foreground'
                 : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
             )}
           >
-            {t(`review.scope.${s}`)}
+            {t(`review.scope.${item}`)}
           </button>
         ))}
       </div>
       <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-1.5">
         <span className="truncate text-[10px] text-foreground-secondary/80">{scopeHint}</span>
         <div className="flex items-center gap-1">
-          {scope === 'git' && diffFiles.length > 0 && (
+          {groups.staged.length + groups.unstaged.length > 0 && (
             <button
               type="button"
-              onClick={toggleDiffMode}
+              onClick={() => {
+                const next = diffMode === 'inline' ? 'split' : 'inline'
+                setDiffMode(next)
+                localStorage.setItem('reviewDiffMode', next)
+              }}
               className="chrome-icon-btn rounded p-1"
               title={diffMode === 'inline' ? t('review:toggleSplit') : t('review:toggleInline')}
             >
               {diffMode === 'inline' ? <Columns2 className="h-3 w-3" /> : <Rows2 className="h-3 w-3" />}
             </button>
           )}
-          {scope === 'git' && (
-            <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title={t('review:refresh')}>
-              <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
-            </button>
-          )}
+          <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title={t('review:refresh')}>
+            <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
+          </button>
         </div>
       </div>
       <div className="scrollbar-overlay flex-1 overflow-y-auto">
-        {scope === 'git' && gitData?.log && (
-          <div className="border-b border-border/40 px-3 py-2">
-            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold text-foreground-secondary/70">
-              <GitBranch className="h-3 w-3" />
-              {t('review:recentCommits')}
-            </div>
-            <pre className="max-h-28 overflow-y-auto font-mono text-[10px] leading-relaxed text-foreground-secondary/90">
-              {gitData.log}
-            </pre>
-          </div>
-        )}
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
           </div>
-        ) : scope === 'git' && gitData?.isRepo === false ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
-            <GitBranch className="h-8 w-8 text-muted-foreground/25" />
-            <span className="text-[12px] text-foreground-secondary">
-              {gitData.message || t('review:notGitRepo')}
-            </span>
-            <span className="text-[11px] text-muted-foreground/50">{t('review:notGitHint')}</span>
+        ) : gitData?.isRepo === false ? (
+          <div className="px-4 py-10 text-center text-[12px] leading-relaxed text-foreground-secondary">
+            {gitData.message || t('review:notGitRepo')}
+            <div className="mt-1 text-[11px] text-muted-foreground/60">{t('review:notGitHint')}</div>
           </div>
-        ) : scope === 'git' && gitData?.error ? (
+        ) : gitData?.error ? (
           <p className="px-3 py-4 text-[11px] text-destructive/80">{gitData.error}</p>
-        ) : files.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-12">
-            <FileDiff className="h-8 w-8 text-muted-foreground/25" />
-            <span className="text-[11px] text-muted-foreground/40">{t('review:empty')}</span>
-          </div>
-        ) : scope === 'git' ? (
-          <div className="py-1">
-            {files.map((fc) => {
-              const file = diffFiles.find((d) => d.path === fc.path || fc.path.endsWith(d.path))
-              return (
-                <FileDiffView
-                  key={fc.path}
-                  file={file}
-                  fallbackPath={fc.path}
-                  fallbackChangeType={fc.changeType}
-                  staged={fc.staged ?? false}
-                  mode={diffMode}
-                  cwd={cwd}
-                  defaultOpen={(() => {
-                    const n = (p: string) => p.replace(/\\/g, '/')
-                    const fp = focusGitPath ? n(focusGitPath) : null
-                    const cp = n(fc.path)
-                    return expandedGitPath === fc.path || (fp != null && (cp === fp || cp.endsWith(`/${fp}`)))
-                  })()}
-                />
-              )
-            })}
-          </div>
+        ) : empty ? (
+          <p className="px-4 py-10 text-center text-[12px] text-foreground-secondary/70">{t('review:empty')}</p>
         ) : (
-          <div className="py-1.5">
-            {files.map((fc) => {
-              const open =
-                expandedMetaPath === fc.path ||
-                (!!focusGitPath &&
-                  (fc.path.replace(/\\/g, '/') === focusGitPath ||
-                    fc.path.replace(/\\/g, '/').endsWith(`/${focusGitPath}`)))
-              return (
-                <div key={`${fc.path}-${fc.runId || ''}`} className="group">
-                  <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--bg-hover)]">
-                    <ChangeIcon type={fc.changeType} />
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 truncate text-left font-mono text-[11px]"
-                      onClick={() => setExpandedMetaPath(open ? null : fc.path)}
-                    >
-                      {fc.path}
-                    </button>
-                    <span className="text-[9px] text-foreground-secondary/50">{fc.source}</span>
-                    <button type="button" onClick={() => handleCopy(fc.path)} className="opacity-0 group-hover:opacity-100">
-                      {copiedPath === fc.path ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                    </button>
-                  </div>
-                  {open && (
-                    <div className="border-t border-border/20 bg-[var(--bg-2)]/50 px-3 py-2 text-[10px] text-foreground-secondary">
-                      {fc.changeType} · {fc.source}
-                      {fc.runId && <span className="ml-2 font-mono">run {fc.runId.slice(0, 8)}</span>}
-                    </div>
-                  )}
+          <div className="py-1">
+            {renderGroup(t('review:staged'), groups.staged, 'staged')}
+            {renderGroup(t('review:unstaged'), groups.unstaged, 'unstaged')}
+            {groups.cleanTouched.length > 0 ? (
+              <section>
+                <div className="px-3 py-1.5 text-[10px] font-medium tracking-wide text-foreground-secondary/70">
+                  {t('review:cleanTouched')} · {groups.cleanTouched.length}
                 </div>
-              )
-            })}
+                {groups.cleanTouched.map((path) => (
+                  <div key={path} className="px-3 py-1.5 font-mono text-[11px] text-foreground-secondary/70">
+                    {path}
+                  </div>
+                ))}
+              </section>
+            ) : null}
           </div>
         )}
       </div>
-      {scope === 'git' && gitData?.isRepo !== false && files.length > 0 && (
+      {gitData?.isRepo !== false && groups.staged.length > 0 ? (
         <ReviewCommitBar cwd={cwd} onCommitted={loadGit} />
-      )}
+      ) : null}
     </div>
   )
 }

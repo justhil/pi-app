@@ -17,6 +17,7 @@ export function registerReviewHandlers(): void {
       return {
         diff: {
           raw: snap.raw,
+          stagedRaw: snap.stagedRaw,
           status: snap.status,
           scope: 'git',
           branch: snap.branch,

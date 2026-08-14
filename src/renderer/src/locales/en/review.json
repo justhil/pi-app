@@ -5,6 +5,9 @@
     "git": "Git workspace"
   },
   "empty": "No changes",
+  "staged": "Staged",
+  "unstaged": "Unstaged",
+  "cleanTouched": "Not in working tree",
   "copyPath": "Copy path",
   "openFile": "Open file",
   "title": "Code Changes",
