@@ -4,6 +4,7 @@ const invoke = vi.fn()
 const getState = vi.fn()
 const setStateCb = vi.fn()
 const setExternalSyncPhase = vi.fn()
+const clearSessionHistoryCache = vi.fn()
 // 模拟 zustand 的三态指示器：set 后 getState 应反映新 phase
 let currentPhase: 'idle' | 'active' | 'error' = 'idle'
 
@@ -25,6 +26,10 @@ vi.mock('@renderer/stores/ui-store', () => ({
 
 vi.mock('@renderer/lib/session-worker-sync', () => ({
   composerTurnActive: () => false,
+}))
+
+vi.mock('@renderer/lib/session-history', () => ({
+  clearSessionHistoryCache: (...args: unknown[]) => clearSessionHistoryCache(...args),
 }))
 
 import {
@@ -85,6 +90,8 @@ describe('session external update merge', () => {
       offset: 0,
       limit: 500,
     })
+    // 外部写入必须使历史切片缓存失效（否则切换回来的 hydrate 会拿到旧尾部）
+    expect(clearSessionHistoryCache).toHaveBeenCalledWith('/proj/sessions/a.jsonl')
     const updaterResult = setStateCb.mock.calls[0][0]
     expect(updaterResult).toMatchObject({ historyTotalCount: 4, historyLoadedCount: 4 })
     const items = (updaterResult as { timelineItems: Array<{ id: string }> }).timelineItems

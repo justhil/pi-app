@@ -2,6 +2,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { clearSessionHistoryCache } from '@renderer/lib/session-history'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 /**
@@ -230,6 +231,9 @@ export async function handleSessionExternalUpdate(sessionFile: string): Promise<
   const store = useUIStore.getState()
   const viewFile = store.historySessionFile
   if (!viewFile || !sessionFilesEqual(viewFile, sessionFile)) return
+
+  // 外部写入使历史切片缓存失效：后续 hydrate/分页必须读盘，不能拿 120s 内的旧尾部
+  clearSessionHistoryCache(sessionFile)
 
   // app worker 正在跑本会话时，文件写入者是 app 自己，跳过
   if (
