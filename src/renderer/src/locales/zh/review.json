@@ -5,6 +5,9 @@
     "git": "Git 工作区"
   },
   "empty": "暂无改动",
+  "staged": "已暂存",
+  "unstaged": "未暂存",
+  "cleanTouched": "已不在工作区",
   "copyPath": "复制路径",
   "openFile": "打开文件",
   "title": "代码变更",

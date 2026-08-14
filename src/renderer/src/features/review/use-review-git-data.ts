@@ -3,8 +3,10 @@ import { ipcClient, onGitWorkspaceChanged } from '@renderer/lib/ipc-client'
 import { parseGitStatus } from './review-git-utils'
 
 export type ReviewGitData = {
-  files: { path: string; changeType: string; staged: boolean }[]
+  files: { path: string; changeType: string; staged: boolean; unstaged: boolean }[]
   raw: string
+  stagedRaw: string
+  status: string
   branch?: string
   log?: string
   error?: string
@@ -15,6 +17,7 @@ export type ReviewGitData = {
 
 type RawGitDiff = {
   raw?: string
+  stagedRaw?: string
   status?: string
   branch?: string
   log?: string
@@ -26,6 +29,7 @@ type RawGitDiff = {
 function normalizeGitData(diff: RawGitDiff): ReviewGitData {
   const isRepo = diff.isRepo !== false
   const raw = diff.raw || ''
+  const stagedRaw = diff.stagedRaw || ''
   const status = diff.status || ''
   const branch = diff.branch
   const log = diff.log
@@ -34,12 +38,14 @@ function normalizeGitData(diff: RawGitDiff): ReviewGitData {
   return {
     files: parseGitStatus(status),
     raw,
+    stagedRaw,
+    status,
     branch,
     log,
     isRepo,
     message,
     error,
-    snapshotKey: JSON.stringify([raw, status, branch, log, isRepo, message, error]),
+    snapshotKey: JSON.stringify([raw, stagedRaw, status, branch, log, isRepo, message, error]),
   }
 }
 
