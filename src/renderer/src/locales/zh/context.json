@@ -13,6 +13,7 @@
   "refresh": "刷新",
   "openProjectHint": "请先打开项目，Worker 会话就绪后可查看送入模型的上下文拼接。",
   "workerNotReady": "Worker 未就绪或尚无活动会话",
+  "listSummary": "{{count}} 条 · ~{{tokens}} tok",
   "messageCount": "消息条数",
   "approxTokens": "约 Token",
   "charsCount": "{{count}} 字符",

@@ -7,7 +7,6 @@ import {
 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useComposerMetrics } from '@renderer/features/composer/use-composer-metrics'
-import { formatTokens } from '@renderer/lib/format-tokens'
 import {
   ContextDonutChart,
   ContextRoleLegend,
@@ -210,9 +209,6 @@ export function RunPanel() {
       <div className="space-y-3 p-3">
         {/* Context donut */}
         <section>
-          <div className="mb-1.5 text-[11px] font-medium text-foreground-secondary/70">
-            {t('run:contextBreakdown')}
-          </div>
           {metrics.contextPreview && metrics.contextPreview.estimatedChars > 0 ? (
             <div className="flex items-center gap-3">
               <ContextDonutChart
@@ -237,93 +233,35 @@ export function RunPanel() {
               {t('run:contextEmpty')}
             </p>
           )}
-          {metrics.contextWindow != null && metrics.estContextTokens != null && (
-            <p className="mt-1.5 text-[10px] tabular-nums text-foreground-secondary/50">
-              {t('run:contextWindow', {
-                window: formatTokens(metrics.contextWindow),
-                pct: metrics.ctxPct?.toFixed(1) ?? '0',
-              })}
-              {' · '}
-              {formatTokens(metrics.estContextTokens)} tok
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-md border border-border/35 p-2.5">
-          <div className="mb-1 text-[11px] font-medium text-foreground-secondary/70">
-            {t('run:realtimeMetrics')}
-          </div>
-          <MetricRow label={t('run:elapsed')} value={elapsedLabel} />
-          <MetricRow
-            label={t('run:genSpeed')}
-            value={
-              tokPerSec != null
+          {tokPerSec != null || isRunning || runState.toolCount > 0 ? (
+            <p className="mt-1.5 text-[11px] tabular-nums text-foreground-secondary/70">
+              {tokPerSec != null
                 ? `${tokPerSec} tok/s`
                 : isRunning
                   ? t('run:waitingOutput')
-                  : '—'
-            }
-            sub={
-              metrics.tps != null && metrics.tps > 0
-                ? t('run:approxCharsPerSec', { count: Math.round(metrics.tps) })
-                : undefined
-            }
-          />
-          {metrics.cacheHitPct != null && runState.usage && runState.usage.cacheRead > 0 && (
-            <MetricRow
-              label={t('run:metrics.cache')}
-              value={`${metrics.cacheHitPct.toFixed(0)}%`}
-              sub={t('run:cacheRead', { value: formatTokens(runState.usage.cacheRead) })}
-            />
-          )}
-        </section>
-
-        <section className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border border-border/35 px-2.5 py-2">
-            <div className="text-[10px] font-medium text-foreground-secondary/70">
-              {t('run:toolCalls')}
-            </div>
-            <div className="mt-1 text-[16px] font-semibold tabular-nums text-foreground">
-              {runState.toolCount}
-            </div>
-            {runState.errorCount > 0 && (
-              <div className="text-[10px] text-amber-700/75 dark:text-amber-300/70">
-                {t('run:errors', { count: runState.errorCount })}
-              </div>
-            )}
-          </div>
-          <div className="rounded-md border border-border/35 px-2.5 py-2">
-            <div className="text-[10px] font-medium text-foreground-secondary/70">
-              {t('run:messageCount')}
-            </div>
-            <div className="mt-1 text-[16px] font-semibold tabular-nums text-foreground">
-              {metrics.contextPreview?.messageCount ?? '—'}
-            </div>
-          </div>
+                  : null}
+              {runState.toolCount > 0
+                ? `${tokPerSec != null || isRunning ? ' · ' : ''}${t('run:toolCount', { count: runState.toolCount })}`
+                : null}
+            </p>
+          ) : null}
         </section>
 
         {runState.usage && (
-          <section className="rounded-md border border-border/35 p-2.5">
-            <div className="mb-1 text-[11px] font-medium text-foreground-secondary/70">
-              Token
-            </div>
-            <div className="space-y-0.5 font-mono text-[12px]">
-              <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
-              <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
-              <MetricRow
-                label={t('run:cacheReadLabel')}
-                value={runState.usage.cacheRead.toLocaleString()}
-              />
-              <MetricRow
-                label={t('run:cacheWriteLabel')}
-                value={runState.usage.cacheWrite.toLocaleString()}
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-between border-t border-border/30 pt-2">
-              <span className="text-[12px] text-foreground-secondary">{t('run:cost')}</span>
-              <span className="font-mono text-[13px] tabular-nums text-foreground">
-                ${runState.usage.cost.toFixed(4)}
-              </span>
+          <section className="space-y-0.5 font-mono text-[12px]">
+            <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
+            <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
+            <MetricRow
+              label={t('run:cacheReadLabel')}
+              value={runState.usage.cacheRead.toLocaleString()}
+            />
+            <MetricRow
+              label={t('run:cacheWriteLabel')}
+              value={runState.usage.cacheWrite.toLocaleString()}
+            />
+            <div className="flex items-center justify-between pt-1">
+              <span className="font-sans text-[12px] text-foreground-secondary">{t('run:cost')}</span>
+              <span className="tabular-nums text-foreground">${runState.usage.cost.toFixed(4)}</span>
             </div>
           </section>
         )}

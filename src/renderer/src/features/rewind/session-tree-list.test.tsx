@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   SessionTreeList,
   resolveViewTargetId,
+  sessionTreeLineTitle,
   type SessionTreeNode,
 } from './session-tree-list'
 
@@ -173,5 +174,28 @@ describe('resolveViewTargetId', () => {
     // 无更早消息时回退到下一条可见消息
     const nodes2 = [toolResultNode('r1'), assistant('a2')]
     expect(resolveViewTargetId(nodes2, 0)).toBe('a2')
+  })
+})
+
+describe('sessionTreeLineTitle', () => {
+  it('should_show_message_preview_without_role_prefix', () => {
+    expect(
+      sessionTreeLineTitle({
+        id: 'u1',
+        depth: 0,
+        entryType: 'message',
+        role: 'user',
+        preview: 'hello world',
+        isLeaf: false,
+      }),
+    ).toBe('hello world')
+    expect(
+      sessionTreeLineTitle({
+        id: 'c1',
+        depth: 0,
+        entryType: 'compaction',
+        isLeaf: false,
+      }),
+    ).toBe('压缩')
   })
 })
