@@ -122,6 +122,8 @@ export const useUIStore = create<UIState>()(
       timelineItems: cleaned,
       streamingAssistantId: keepRunning ? streamingAssistantId : null,
       fileChanges: [],
+      // 完整历史重载 = 视图已同步：外部同步指示随之消除（避免跨会话残留）
+      externalSyncPhase: 'idle',
       runState: {
         ...runState,
         status: keepRunning ? 'running' : 'idle',
@@ -148,9 +150,12 @@ export const useUIStore = create<UIState>()(
   historyLoadedCount: 0,
   historySessionFile: null,
   historyLoading: false,
+  /** 外部（如 CLI）会话同步状态 */
+  externalSyncPhase: 'idle' as 'idle' | 'active' | 'error',
   setHistoryMeta: (total, loaded, sessionFile) =>
     set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile }),
   setHistoryLoading: (v) => set({ historyLoading: v }),
+  setExternalSyncPhase: (phase) => set({ externalSyncPhase: phase }),
   subagentSessionGroup: null,
   setSubagentSessionGroup: (group) => set({ subagentSessionGroup: group }),
 

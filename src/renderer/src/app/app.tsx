@@ -198,10 +198,26 @@ export default function App() {
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)
     })
+    const unsubExternal = window.piDesktop?.onSessionExternalUpdate
+      ? window.piDesktop.onSessionExternalUpdate(({ sessionFile }) => {
+          void import('@renderer/lib/session-external-update').then((m) =>
+            m.handleSessionExternalUpdate(sessionFile),
+          )
+        })
+      : undefined
+    const unsubSessionsChanged = window.piDesktop?.onWorkspaceSessionsChanged
+      ? window.piDesktop.onWorkspaceSessionsChanged(() => {
+          void import('@renderer/lib/refresh-workspace-session-lists').then((m) =>
+            m.refreshWorkspaceSessionLists(),
+          )
+        })
+      : undefined
     return () => {
       unsubEvents()
       unsubExit()
       unsubNotify()
+      unsubExternal?.()
+      unsubSessionsChanged?.()
     }
   }, [setWorkspace])
 

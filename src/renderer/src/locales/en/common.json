@@ -46,7 +46,11 @@
     "placeholder": "Message or / command",
     "send": "Send",
     "stop": "Stop",
-    "selectProjectFirst": "Open a project first"
+    "selectProjectFirst": "Open a project first",
+    "externalSyncActive": "Syncing external conversation",
+    "externalSyncActiveInfo": "An external process (e.g. CLI) is writing to this session; content is auto-synced into this view. Hides after ~5s without external writes",
+    "externalSyncError": "External sync failed",
+    "externalSyncErrorRetry": "Sync failed — click to reload session data"
   },
   "panel": {
     "review": "Review",

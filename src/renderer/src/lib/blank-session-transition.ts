@@ -3,11 +3,13 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { resetExternalSessionSync } from '@renderer/lib/session-external-update'
 
 export type BlankSessionKind = 'pending-project' | 'ephemeral-sandbox'
 
 function clearBlankSessionProjection(): void {
   captureVisibleLiveSessionTimeline()
+  resetExternalSessionSync()
 
   const state = useUIStore.getState()
   state.clearTimeline()

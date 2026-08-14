@@ -23,6 +23,7 @@ import {
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
+import { resetExternalSessionSync } from '@renderer/lib/session-external-update'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -365,6 +366,8 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
   captureFocusFromUiStore()
 
   const sessionKey = sessionKeyFromFile(sessionFile)
+  // 切换会话：外部同步状态与在飞读取立即作废（不跨会话继承 active/error）
+  if (focusKey && !sessionFilesEqual(focusKey, sessionKey)) resetExternalSessionSync()
   focusKey = sessionKey
 
   let view = views.get(sessionKey)
@@ -486,8 +489,10 @@ export async function hydrateSessionView(
 
   try {
     // Prefer single tail fetch for speed; bypass slice cache only when empty view.
+    // 外部 CLI 写入不会失效切片缓存（TTL 120s），切换回来必须绕过缓存读盘，
+    // 否则旧尾部会把 CLI 的新消息遮掉（首屏仍用已挂载视图即时渲染，无闪烁代价）。
     // Disk-first IPC — must not spawn worker (see session.getMessages).
-    const bypass = !existing?.items.length
+    const bypass = true
     const hist = await fetchSessionHistoryTail(sessionKey, 80, { bypassCache: bypass })
     if (navToken != null && !assertSessionNavigation(navToken)) {
       restorePhaseIfUnfocused()

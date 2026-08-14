@@ -12,6 +12,7 @@ import { focusSessionSync } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { enterBlankSession, resetBlankSessionProjection } from '@renderer/lib/blank-session-transition'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
+import { resetExternalSessionSync } from '@renderer/lib/session-external-update'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -45,6 +46,8 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
 
   store.setWorkspace(path)
   store.clearFileChanges()
+  // 工作区/会话上下文切换：外部同步指示与在飞读取全部作废
+  resetExternalSessionSync()
   useExtensionUIStore.getState().resetForSessionContext()
 
   const openingSession = !!(options?.sessionId && options?.sessionFile)

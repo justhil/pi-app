@@ -46,7 +46,11 @@
     "placeholder": "消息或 / 命令",
     "send": "发送",
     "stop": "停止",
-    "selectProjectFirst": "请先打开项目"
+    "selectProjectFirst": "请先打开项目",
+    "externalSyncActive": "正在同步外部对话",
+    "externalSyncActiveInfo": "检测到外部（如命令行）正在写入本会话，内容已自动同步到视图；约 5 秒无外部写入后此指示自动隐藏",
+    "externalSyncError": "外部同步异常",
+    "externalSyncErrorRetry": "同步失败，点击重新加载会话数据"
   },
   "panel": {
     "review": "Review",
