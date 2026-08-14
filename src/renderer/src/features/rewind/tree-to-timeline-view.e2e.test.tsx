@@ -69,7 +69,7 @@ describe('tree click → view event → timeline reveal (end to end)', () => {
       render(<Timeline />)
       render(<TreePanel />)
 
-      fireEvent.click(screenTreeRow('user: message-5'))
+      fireEvent.click(screenTreeRow('message-5'))
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalled(), { timeout: 2000 })
 
       const target = scrollIntoView.mock.contexts[0] as HTMLElement
