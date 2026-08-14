@@ -10,19 +10,12 @@ import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-v
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import {
   SessionTreeList,
+  TREE_FILTER_OPTS,
   filterSessionTreeNodes,
   resolveViewTargetId,
   type SessionTreeNode,
   type TreeFilterMode,
 } from '@renderer/features/rewind/session-tree-list'
-
-const FILTER_OPTS: { key: TreeFilterMode; label: string }[] = [
-  { key: 'default', label: '默认' },
-  { key: 'no-tools', label: '无工具' },
-  { key: 'user-only', label: '仅用户' },
-  { key: 'labeled-only', label: '有标签' },
-  { key: 'all', label: '全部' },
-]
 
 export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
@@ -51,7 +44,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
     () => capSessionTreeForDisplay(filtered),
     [filtered],
   )
-  const showGuides = visible.length <= 400
+  const showGuides = filter !== 'user-only' && visible.length <= 400
 
   useEffect(() => {
     if (!open) return
@@ -156,7 +149,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
         </div>
 
         <div className="flex flex-wrap gap-1 border-b border-border/40 px-4 py-2">
-          {FILTER_OPTS.map((o) => (
+          {TREE_FILTER_OPTS.map((o) => (
             <button
               key={o.key}
               type="button"

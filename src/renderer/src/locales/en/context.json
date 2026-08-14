@@ -13,6 +13,7 @@
   "refresh": "Refresh",
   "openProjectHint": "Open a project first. Once the Worker session is ready, you can view the context sent to the model.",
   "workerNotReady": "Worker not ready or no active session",
+  "listSummary": "{{count}} · ~{{tokens}} tok",
   "messageCount": "Messages",
   "approxTokens": "Est. tokens",
   "charsCount": "{{count}} chars",

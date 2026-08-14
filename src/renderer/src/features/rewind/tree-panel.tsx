@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GitFork, Loader2, RefreshCw, Undo2 } from '@renderer/components/icons'
+import { GitFork, Loader2, RefreshCw } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
@@ -8,23 +8,14 @@ import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { capSessionTreeForDisplay } from '@renderer/features/rewind/session-tree-display-cap'
 import {
   SessionTreeList,
+  TREE_FILTER_OPTS,
   filterSessionTreeNodes,
   type SessionTreeNode,
   type TreeFilterMode,
 } from '@renderer/features/rewind/session-tree-list'
 import { cn } from '@renderer/lib/utils'
-import { useTranslation } from 'react-i18next'
-
-const FILTER_OPTS: { key: TreeFilterMode; label: string }[] = [
-  { key: 'default', label: '默认' },
-  { key: 'no-tools', label: '无工具' },
-  { key: 'user-only', label: '仅用户' },
-  { key: 'labeled-only', label: '有标签' },
-  { key: 'all', label: '全部' },
-]
 
 export function TreePanel() {
-  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const sessionFile = useUIStore((s) => s.historySessionFile)
   const rawTree = useUIStore((s) => s.rewindTreeNodes) as SessionTreeNode[]
@@ -52,7 +43,7 @@ export function TreePanel() {
     [filtered],
   )
   // Same heuristic as double-Esc overlay: guides off only for very large trees
-  const showGuides = display.length > 0 && display.length <= 400
+  const showGuides = filter !== 'user-only' && display.length > 0 && display.length <= 400
 
   useEffect(() => {
     if (selectedId && display.some((node) => node.id === selectedId)) return
@@ -71,10 +62,24 @@ export function TreePanel() {
 
   return (
     <div className="flex h-full flex-col text-[12px]">
-      <div className="flex items-center justify-between gap-2 border-b border-border/40 px-2 py-1.5">
-        <p className="min-w-0 truncate text-[12px] text-foreground-secondary">
-          {t('timeline:treePanelHint')}
-        </p>
+      <div className="flex items-center gap-1 border-b border-border/40 px-2 py-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {TREE_FILTER_OPTS.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => setFilter(option.key)}
+              className={cn(
+                'h-7 shrink-0 rounded-md px-2.5 text-[12px] font-medium transition-colors',
+                filter === option.key
+                  ? 'bg-[var(--bg-active)] text-foreground'
+                  : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className="chrome-icon-btn rounded-md p-1.5"
@@ -84,24 +89,6 @@ export function TreePanel() {
         >
           <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
         </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1 border-b border-border/40 px-2 py-1.5">
-        {FILTER_OPTS.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => setFilter(option.key)}
-            className={cn(
-              'h-7 rounded-md px-2.5 text-[12px] font-medium transition-colors',
-              filter === option.key
-                ? 'bg-[var(--bg-active)] text-foreground'
-                : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
-            )}
-          >
-            {option.label}
-          </button>
-        ))}
       </div>
 
       <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">
@@ -137,36 +124,21 @@ export function TreePanel() {
               viewOnSingleClick
               showGuides={showGuides}
               rowClassName="text-[11px]"
-              renderTrailing={(node) => (
-                <>
-                  {!node.isLeaf && (
-                    <button
-                      type="button"
-                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
-                      title={t('timeline:jumpToNode')}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void navigateSessionToEntry(node.id)
-                      }}
-                    >
-                      <Undo2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {node.entryType === 'message' && node.role === 'user' && (
-                    <button
-                      type="button"
-                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
-                      title="Fork 到新会话"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void forkSessionFromEntry(node.id)
-                      }}
-                    >
-                      <GitFork className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </>
-              )}
+              renderTrailing={(node) =>
+                node.entryType === 'message' && node.role === 'user' ? (
+                  <button
+                    type="button"
+                    className="rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-primary group-hover/tree-row:opacity-100"
+                    title="Fork 到新会话"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      void forkSessionFromEntry(node.id)
+                    }}
+                  >
+                    <GitFork className="h-3.5 w-3.5" />
+                  </button>
+                ) : null
+              }
             />
           </>
         )}
