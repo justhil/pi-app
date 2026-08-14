@@ -10,7 +10,7 @@ import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-th
 import { RuntimeSettingsPanel } from '@renderer/features/settings/runtime-settings-panel'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
-import { btnOutline, numberInputCls } from '@renderer/features/settings/settings-controls'
+import { btnOutline, numberInputCls, selectCls } from '@renderer/features/settings/settings-controls'
 import { Switch } from '@renderer/components/ui/switch'
 import {
   Folder,
@@ -43,6 +43,7 @@ export function GeneralSettings() {
     setCompletionNotificationDelivery,
     setMaxSessionWorkers,
     setSessionWorkerIdleTimeoutMinutes,
+    setTurnDiffSnapshotMaxBytes,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [fixedOrder, setFixedOrder] = useState(false)
@@ -374,6 +375,24 @@ export function GeneralSettings() {
                 }}
                 className={numberInputCls}
               />
+            </SettingRow>
+            <SettingRow
+              label={t('settings:general.turnDiffSnapshot')}
+              description={t('settings:general.turnDiffSnapshotDesc')}
+            >
+              <select
+                className={cn(selectCls, 'min-w-[min(220px,60vw)]')}
+                value={draft.turnDiffSnapshotMaxBytes}
+                onChange={(e) => setTurnDiffSnapshotMaxBytes(Number(e.target.value))}
+              >
+                <option value={0}>{t('settings:general.turnDiffOff')}</option>
+                <option value={512 * 1024}>{t('settings:general.turnDiff512k')}</option>
+                <option value={1024 * 1024}>{t('settings:general.turnDiff1m')}</option>
+                <option value={2 * 1024 * 1024}>{t('settings:general.turnDiff2m')}</option>
+                <option value={4 * 1024 * 1024}>{t('settings:general.turnDiff4m')}</option>
+                <option value={8 * 1024 * 1024}>{t('settings:general.turnDiff8m')}</option>
+                <option value={16 * 1024 * 1024}>{t('settings:general.turnDiff16m')}</option>
+              </select>
             </SettingRow>
           </>
         ) : null}

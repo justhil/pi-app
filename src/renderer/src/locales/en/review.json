@@ -5,6 +5,7 @@
     "git": "Git workspace"
   },
   "empty": "No changes",
+  "emptyGitHint": "The working tree has no uncommitted changes (everything may already be committed). A turn's changes can be expanded from its file card in the timeline.",
   "staged": "Staged",
   "unstaged": "Unstaged",
   "cleanTouched": "Not in working tree",

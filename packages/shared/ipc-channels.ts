@@ -80,6 +80,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:session.fork',
   'ipc:session.forkCandidates',
   'ipc:session.getMessages',
+  'ipc:session.getTurnDiffs',
   'ipc:session.list',
   'ipc:session.navigateTree',
   'ipc:session.new',

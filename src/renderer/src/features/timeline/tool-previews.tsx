@@ -21,7 +21,7 @@ import { resolveAdapterToolCardTemplate } from './tool-card-registry'
 import type { ToolTimelineItem } from './tool-preview-shell'
 import type { ToolCallDetail } from '@shared/tool-call-detail'
 
-function DiffBody({ rows }: { rows: DiffRow[] }) {
+export function DiffBody({ rows }: { rows: DiffRow[] }) {
   let del = 0
   let add = 0
   for (const r of rows) {

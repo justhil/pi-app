@@ -50,7 +50,11 @@ function changeTypeFromCode(code: string): string {
 export function parseGitStatus(status: string): ReviewStatusEntry[] {
   if (!status) return []
   const out: ReviewStatusEntry[] = []
-  for (const line of status.trim().split('\n').filter(Boolean)) {
+  // 注意：不能对整串 trim()——porcelain v1 第一行的行首状态空格会被吃掉，
+  // 导致第一个未暂存文件（' M path'）的路径残缺（'rc/...' 样式）永远匹配不上焦点路径。
+  for (const rawLine of status.split('\n')) {
+    const line = rawLine.replace(/\r$/, '')
+    if (!line.trim()) continue
     if (line.startsWith('##')) continue
     if (line.length < 4) continue
     const x = line[0]

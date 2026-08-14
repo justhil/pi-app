@@ -49,6 +49,9 @@ function normalizeGitData(diff: RawGitDiff): ReviewGitData {
   }
 }
 
+/** 模块级缓存（按工作区 identity）：面板重挂载/切 tab 时立即渲染上次快照，避免 loading 闪烁 */
+const dataCache = new Map<string, ReviewGitData>()
+
 export function useReviewGitData(options: {
   enabled: boolean
   workspace: string | null
@@ -80,7 +83,10 @@ export function useReviewGitData(options: {
       return inFlightRef.current
     }
 
-    const currentData = dataRef.current.identity === requestIdentity ? dataRef.current.data : null
+    const currentData =
+      dataRef.current.identity === requestIdentity
+        ? dataRef.current.data
+        : (dataCache.get(requestIdentity) ?? null)
     setState({
       identity: requestIdentity,
       data: currentData,
@@ -95,6 +101,7 @@ export function useReviewGitData(options: {
         const previous = dataRef.current.identity === requestIdentity ? dataRef.current.data : null
         const data = previous?.snapshotKey === next.snapshotKey ? previous : next
         dataRef.current = { identity: requestIdentity, data }
+        dataCache.set(requestIdentity, data)
         setState({ identity: requestIdentity, data, loading: false, refreshing: false })
       } catch {
         if (identityRef.current !== requestIdentity) return
@@ -128,7 +135,12 @@ export function useReviewGitData(options: {
     })
   }, [identity, refresh])
 
-  const visible = state.identity === identity ? state : null
+  const visible =
+    state.identity === identity
+      ? state
+      : identity && dataCache.has(identity)
+        ? { identity, data: dataCache.get(identity)!, loading: false, refreshing: true }
+        : null
   return {
     gitData: visible?.data || null,
     loading: visible?.loading || false,

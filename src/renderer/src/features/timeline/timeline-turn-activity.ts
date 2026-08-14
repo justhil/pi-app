@@ -1,7 +1,13 @@
 import type { FileChange, ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import type { TimelineDisplayItem } from './timeline-display-items'
-import { resolveEditWriteDiffRows } from '@extension-compat/renderer/native-diff'
+import {
+  resolveEditWriteDiffRows,
+  type DiffRow,
+} from '@extension-compat/renderer/native-diff'
 import { fullPathFromArgs, normalizeToolArgs } from '@extension-compat/renderer/tool-output'
+import type { TurnDiffFile } from '@shared/app-events'
+
+export type TurnFileOpDiff = { label: string; rows: DiffRow[] }
 
 export type TurnFileStat = {
   path: string
@@ -11,7 +17,17 @@ export type TurnFileStat = {
   additions: number
   deletions: number
   runId?: string
-  source: 'file-event' | 'tool'
+  source: 'file-event' | 'tool' | 'turn-diff'
+  /** 回合最终净 diff（Worker 结算） */
+  diffText?: string
+  diffTruncated?: boolean
+  diffBinary?: boolean
+  diffStatus?: TurnDiffFile['status']
+  skipReason?: TurnDiffFile['skipReason']
+  sizeBefore?: number
+  sizeAfter?: number
+  /** 无净 diff 时的回退：本回合工具记录中的逐操作 diff（磁盘 JSONL 自带） */
+  opDiffs?: TurnFileOpDiff[]
 }
 
 export type TurnActivitySummary = {
@@ -156,10 +172,16 @@ export function buildTurnActivitySummary(
     if (!path) continue
     const key = path.replace(/\\/g, '/')
     const stats = countDiffRows(tool)
+    // 工具记录中的逐操作 diff（净 diff 缺失时的回退展示）
+    const opDiff = resolveEditWriteDiffRows(tool)
+    const opDiffs: TurnFileOpDiff[] = opDiff
+      ? [{ label: opDiff.label || name, rows: opDiff.rows }]
+      : []
     const existing = fileMap.get(key)
     if (existing) {
       existing.additions += stats.additions
       existing.deletions += stats.deletions
+      if (opDiffs.length > 0) existing.opDiffs = [...(existing.opDiffs ?? []), ...opDiffs]
       if (!existing.changeType || existing.changeType === 'modified') {
         existing.changeType = name === 'write' ? 'created' : 'modified'
       }
@@ -173,6 +195,7 @@ export function buildTurnActivitySummary(
       deletions: stats.deletions,
       runId: tool.runId,
       source: 'tool',
+      ...(opDiffs.length > 0 ? { opDiffs } : {}),
     })
   }
 
@@ -192,6 +215,72 @@ export function buildTurnActivitySummary(
   }
 }
 
+function diffKey(path: string): string {
+  return path.replace(/\\/g, '/').toLowerCase()
+}
+
+/**
+ * 把 Worker 结算的回合最终净 diff 合并进汇总：
+ * - 命中已有文件行：用净 diff 覆盖 +/− 与类型，附加 diff 文本/原因。
+ * - 未命中的文件（如未进入工具推导的路径）：追加一行。
+ */
+export function applyTurnDiffToSummary(
+  summary: TurnActivitySummary,
+  diffFiles: TurnDiffFile[] | undefined | null,
+  workspaceRoot?: string | null,
+): TurnActivitySummary {
+  if (!diffFiles || diffFiles.length === 0) return summary
+  const files = summary.files.map((f) => ({ ...f }))
+  const byKey = new Map(files.map((f) => [diffKey(f.path), f]))
+  for (const d of diffFiles) {
+    const key = diffKey(d.path)
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.source = 'turn-diff'
+      existing.changeType = d.status
+      existing.additions = d.additions
+      existing.deletions = d.deletions
+      existing.diffStatus = d.status
+      existing.sizeBefore = d.sizeBefore
+      existing.sizeAfter = d.sizeAfter
+      if (d.diffText != null) {
+        existing.diffText = d.diffText
+        existing.diffTruncated = d.truncated === true
+        // 净 diff 可用：不再需要逐操作回退
+        existing.opDiffs = undefined
+      }
+      if (d.binary) existing.diffBinary = true
+      if (d.skipReason) existing.skipReason = d.skipReason
+      if (d.skipReason || d.diffText == null || d.binary) {
+        existing.additions = 0
+        existing.deletions = 0
+      }
+      continue
+    }
+    files.push({
+      path: d.path,
+      displayName: toDisplayPath(d.path, workspaceRoot),
+      changeType: d.status,
+      additions: d.skipReason || d.binary ? 0 : d.additions,
+      deletions: d.skipReason || d.binary ? 0 : d.deletions,
+      source: 'turn-diff',
+      ...(d.diffText != null ? { diffText: d.diffText, diffTruncated: d.truncated === true } : {}),
+      ...(d.binary ? { diffBinary: true } : {}),
+      ...(d.skipReason ? { skipReason: d.skipReason } : {}),
+      ...(d.status ? { diffStatus: d.status } : {}),
+      ...(d.sizeBefore != null ? { sizeBefore: d.sizeBefore } : {}),
+      ...(d.sizeAfter != null ? { sizeAfter: d.sizeAfter } : {}),
+    })
+  }
+  files.sort((a, b) => a.displayName.localeCompare(b.displayName))
+  return {
+    ...summary,
+    files,
+    additions: files.reduce((sum, file) => sum + file.additions, 0),
+    deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+  }
+}
+
 export function collectRunIdsFromBlocks(blocks: TimelineDisplayItem[]): Set<string> {
   const runIds = new Set<string>()
   for (const block of blocks) {
@@ -206,6 +295,23 @@ export function collectRunIdsFromBlocks(blocks: TimelineDisplayItem[]): Set<stri
     }
   }
   return runIds
+}
+
+/** 收集回合块的 turnId（用于回合净 diff 精确匹配；多轮排队共享 runId 时按 turnId 区分）。 */
+export function collectTurnIdsFromBlocks(blocks: TimelineDisplayItem[]): string[] {
+  const turnIds = new Set<string>()
+  for (const block of blocks) {
+    if (block.kind === 'tool-group') {
+      for (const tool of block.tools) {
+        const turnId = (tool as { turnId?: string }).turnId
+        if (turnId) turnIds.add(turnId)
+      }
+    } else if (block.item.type === 'tool-call') {
+      const turnId = (block.item as { turnId?: string }).turnId
+      if (turnId) turnIds.add(turnId)
+    }
+  }
+  return [...turnIds]
 }
 
 export function formatToolVerbList(names: string[], max = 4): string {

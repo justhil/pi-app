@@ -3,6 +3,7 @@ import { normalizeUserMessageDisplayText } from '@shared/worker-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { ExtensionUIResponse } from '../desktop-ui-bridge.js'
 import type { WorkerReply } from '../worker-handler-types.js'
+import { configureTurnDiffSnapshotBytes } from '../turn-file-diff.js'
 import {
   st,
   initSession,
@@ -15,6 +16,7 @@ import {
 export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           console.log('[Worker] Initializing st.session for:', msg.cwd)
+          configureTurnDiffSnapshotBytes(msg.turnDiffSnapshotMaxBytes)
           st.activeSdkPath = typeof msg.sdkPath === 'string' && msg.sdkPath ? msg.sdkPath : null
           let sdkFallback = false
           try {

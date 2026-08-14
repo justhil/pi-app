@@ -47,9 +47,12 @@ type ShellSlice = Pick<
   | 'toggleRightPanel'
   | 'revealRightPanel'
   | 'filesPreviewChatExpand'
+  | 'panelOpenIntent'
+  | 'requestPanelOpen'
 >
 
 export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
+  let intentSeq = 0
   return {
     activePanel: 'review',
     rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],
@@ -129,5 +132,23 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       }),
     revealRightPanel: () => set(revealRightPanelPatch()),
     filesPreviewChatExpand: false,
+    panelOpenIntent: null,
+    requestPanelOpen: (intent) =>
+      set((state) => {
+        const panel = intent.panel
+        const activePanel = state.rightPanelPrefs[panel]
+          ? panel
+          : coerceActivePanel(
+              panel,
+              state.rightPanelPrefs,
+              state.rightPanelCatalog,
+              state.rightPanelOrder,
+            )
+        return {
+          panelOpenIntent: { ...intent, seq: ++intentSeq },
+          activePanel,
+          ...(state.rightPanelCollapsed ? { rightPanelCollapsed: false } : {}),
+        }
+      }),
   }
 }

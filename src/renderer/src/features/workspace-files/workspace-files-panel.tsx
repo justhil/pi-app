@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronLeft, ChevronRight, Maximize2, Search } from '@renderer/components/icons'
@@ -18,10 +18,14 @@ import { useFilePreviewTabs } from './use-file-preview-tabs'
 
 type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
+/** 已消费的打开意图 seq（模块级：面板卸载重挂不会重复消费） */
+let consumedFilesIntentSeq = 0
+
 export function WorkspaceFilesPanel() {
   const { t } = useTranslation('files')
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
   const activePanel = useUIStore((s) => s.activePanel)
+  const panelOpenIntent = useUIStore((s) => s.panelOpenIntent)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const rightPanelCollapsed = useRightPanelHidden()
   const revealRightPanel = useUIStore((s) => s.revealRightPanel)
@@ -47,6 +51,9 @@ export function WorkspaceFilesPanel() {
 
   const selectedPath = activeTab?.rel ?? null
   const previewPath = activeTab?.rel ?? null
+  /** 挂载后的工作区变更才需要 resetTabs；首次挂载（含 StrictMode 双跑）必须跳过，
+   * 否则意图 effect 刚打开的文件会被第二次 resetTabs 清掉。 */
+  const mountedWorkspaceRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
     if (activePanel !== 'files') {
@@ -61,7 +68,14 @@ export function WorkspaceFilesPanel() {
   }, [])
 
   useEffect(() => {
-    resetTabs()
+    if (mountedWorkspaceRef.current === undefined) {
+      mountedWorkspaceRef.current = workspaceRoot
+      return // 首次挂载：tabs 初始即空，无需 reset（StrictMode 双跑安全）
+    }
+    if (mountedWorkspaceRef.current !== workspaceRoot) {
+      mountedWorkspaceRef.current = workspaceRoot
+      resetTabs()
+    }
   }, [workspaceRoot, resetTabs])
 
   useEffect(() => {
@@ -102,6 +116,15 @@ export function WorkspaceFilesPanel() {
   )
 
   useEffect(() => {
+    // 打开意图在 store 中持久，懒加载挂载后消费一次（模块级 seq 防重入）
+    if (!panelOpenIntent || panelOpenIntent.panel !== 'files') return
+    if (panelOpenIntent.seq === consumedFilesIntentSeq) return
+    consumedFilesIntentSeq = panelOpenIntent.seq
+    if (panelOpenIntent.path) onSelectPath(panelOpenIntent.path, false)
+  }, [panelOpenIntent, onSelectPath])
+
+  useEffect(() => {
+    // 已挂载时的即时投递通道（store 意图的补充；同 rel 重复打开幂等）
     const onOpen = (e: Event) => {
       const d = (e as CustomEvent<{ rel?: string; name?: string }>).detail
       if (!d?.rel) return

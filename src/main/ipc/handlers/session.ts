@@ -22,6 +22,7 @@ import { sessionPreviewProcess } from '../../session-preview-process'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import type { SessionOnDiskRow } from '../sdk-session'
+import { loadTurnDiffs, removeTurnDiffs } from '../../turn-diff-persist'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -552,9 +553,16 @@ export function registerSessionHandlers(): void {
     const r = await workerManager.deleteSessionFile(authorized.sessionFile)
     if (r.ok) {
       clearSessionDisplayName(authorized.sessionFile)
+      removeTurnDiffs(authorized.sessionFile)
       await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
     }
     return { ok: !!r.ok, error: r.error }
+  })
+
+  registerHandler('ipc:session.getTurnDiffs', async (req) => {
+    const authorized = authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
+    if (!authorized.ok) return { records: [] }
+    return { records: loadTurnDiffs(authorized.sessionFile) }
   })
 
   registerHandler('ipc:session.reloadFromDisk', async (req) => {

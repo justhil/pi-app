@@ -4,6 +4,8 @@ export type WorkerIncomingMessage = {
   requestId?: string
   cwd?: string
   sdkPath?: string | null
+  /** 回合文件最终净 diff 的单文件快照上限（字节；0 = 关闭） */
+  turnDiffSnapshotMaxBytes?: number
   text?: string
   options?: unknown
   sessionFile?: string

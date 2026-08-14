@@ -15,6 +15,7 @@ import { applyExtensionWidgetEvent, getSessionComposerWidget } from '@renderer/l
 import { markLiveSessionTurnEnded } from '@renderer/lib/live-session-timeline-cache'
 import { isAbortQueueIgnoreActive, shouldIgnoreAppEventAfterAbort } from '@renderer/lib/abort-ui-hold'
 import { reduceSubagentSessionGroupToolEvent } from '@renderer/lib/subagent-session-activity'
+import { useTurnDiffStore } from '@renderer/stores/turn-diff-store'
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
 export type { StoreApi } from '@renderer/stores/apply-app-event-types'
@@ -22,6 +23,18 @@ export type { StoreApi } from '@renderer/stores/apply-app-event-types'
 export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (!isSessionScopedAppEvent(event)) return
   if (shouldIgnoreAppEventAfterAbort(event)) return
+  // 回合文件净 diff：与可见性无关，直接入进程内缓存（可见/后台会话都能结算）
+  if (event.type === 'turn_diff') {
+    useTurnDiffStore.getState().addRecord({
+      sessionFile: eventSessionFile(event) || '',
+      turnId: event.turnId,
+      runId: event.runId,
+      turnOrdinal: event.turnOrdinal,
+      files: event.files,
+      updatedAt: event.timestamp,
+    })
+    return
+  }
   const state = api.get()
   if (event.type === 'tool' && state.subagentSessionGroup) {
     const nextGroup = reduceSubagentSessionGroupToolEvent(state.subagentSessionGroup, event)

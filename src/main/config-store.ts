@@ -3,6 +3,7 @@ import type { AsrConfig } from '@shared/asr-types'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
+import { TURN_DIFF_SNAPSHOT_DEFAULT_BYTES } from '@shared/turn-diff-config'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects } from './recent-projects'
 
@@ -60,6 +61,9 @@ export interface StoreSchema {
   sessionWorkerIdleTimeoutMinutes: number
   /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
   timelineMaxAutoExpandedTools: number
+  /** 时间线是否展示元事件条目（model_change / thinking_level_change）；默认隐藏 */
+  /** 回合文件最终净 diff 的单文件快照上限（字节；0 = 关闭）。Worker 初始化时读取 */
+  turnDiffSnapshotMaxBytes: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 语音输入 ASR 配置 */
@@ -111,6 +115,7 @@ const store = new Store<StoreSchema>({
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+    turnDiffSnapshotMaxBytes: TURN_DIFF_SNAPSHOT_DEFAULT_BYTES,
     sessionDisplayNames: {},
     asrConfig: {
       provider: 'codex-asr-builtin',
