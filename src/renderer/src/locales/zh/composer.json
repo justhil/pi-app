@@ -52,7 +52,8 @@
     "review": "打开 Review 面板",
     "run": "打开 Run 面板",
     "skills": "管理技能",
-    "prompts": "管理提示词"
+    "prompts": "管理提示词",
+    "reload": "重载扩展、技能、提示词与上下文文件"
   },
   "toast": {
     "sendFailed": "发送失败",

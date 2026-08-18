@@ -20,6 +20,7 @@ export const BUILTIN_CMD_I18N: Record<string, string> = {
   run: 'composer:commands.run',
   skills: 'composer:commands.skills',
   prompts: 'composer:commands.prompts',
+  reload: 'composer:commands.reload',
 }
 
 /**
@@ -42,6 +43,7 @@ export const DESKTOP_NATIVE_COMMANDS: SlashCommand[] = [
   { id: 'run', name: '/run', category: 'builtin' },
   { id: 'skills', name: '/skills', category: 'builtin' },
   { id: 'prompts', name: '/prompts', category: 'builtin' },
+  { id: 'reload', name: '/reload', category: 'builtin' },
 ]
 
 export const CATEGORY_COLORS: Record<string, string> = {

@@ -52,7 +52,8 @@
     "review": "Open review panel",
     "run": "Open run panel",
     "skills": "Manage skills",
-    "prompts": "Manage prompts"
+    "prompts": "Manage prompts",
+    "reload": "Reload extensions, skills, prompts and context files"
   },
   "toast": {
     "sendFailed": "Send failed",
