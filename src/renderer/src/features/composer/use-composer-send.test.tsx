@@ -48,6 +48,8 @@ vi.mock('@renderer/lib/slash-desktop-router', () => ({
   routeDesktopSlashBeforeSend: vi.fn(async () => ({ handled: false })),
 }))
 
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
+
 vi.mock('@renderer/lib/composer-abort', () => ({
   abortAgentTurn: vi.fn(async () => {}),
   isComposerAbortCooldown: () => false,
@@ -122,5 +124,44 @@ describe('useComposerSend submission arbitration', () => {
       mocks.invoke.mock.calls.filter((call) => call[0] === 'prompt.send'),
     ).toHaveLength(1)
     expect(inputHistory.recordSent).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sendCurrent blocks pi builtins on the direct queue path', () => {
+  it('never forwards an unimplemented pi builtin via prompt.followUp (Alt+Enter while running)', async () => {
+    const editor = createEditor('/login anthropic')
+    const inputHistory = {
+      recordSent: vi.fn(),
+      tryArrowUp: vi.fn(),
+      tryArrowDown: vi.fn(),
+      onUserEdit: vi.fn(),
+      onComposerBlur: vi.fn(),
+      resetNav: vi.fn(),
+    }
+    const { result } = renderHook(() =>
+      useComposerSend({
+        editorRef: { current: editor },
+        text: '/login anthropic',
+        attachments: [],
+        updateFromEditor: vi.fn(),
+        clearEditor: vi.fn(),
+        setContent: vi.fn(),
+        inputHistory,
+        refreshCommands: vi.fn(async () => {}),
+        showComposerStop: true,
+        isRunning: true,
+      }),
+    )
+
+    await act(async () => {
+      await result.current.sendCurrent({ queue: 'followUp' })
+    })
+
+    expect(
+      mocks.invoke.mock.calls.filter((call) => call[0] === 'prompt.followUp'),
+    ).toHaveLength(0)
+    expect(
+      mocks.invoke.mock.calls.filter((call) => call[0] === 'prompt.steer'),
+    ).toHaveLength(0)
   })
 })

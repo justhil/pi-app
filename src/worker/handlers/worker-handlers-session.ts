@@ -404,6 +404,24 @@ export async function handleGetforkmessages(_msg: WorkerIncomingMessage, reply: 
   }
 }
 
+/** 手动压缩（等价 TUI 的 /compact：调 pi SDK 的 session.compact，而非把文本发给模型）。 */
+export async function handleCompact(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    if (!st.session) {
+      reply({ type: 'error', error: 'No st.session' })
+      return
+    }
+    const customInstructions =
+      typeof msg.customInstructions === 'string' && msg.customInstructions.trim()
+        ? msg.customInstructions.trim()
+        : undefined
+    await st.session.compact(customInstructions)
+    reply({ type: 'compact-done', ok: true })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `compact failed: ${errorMessage(e)}` })
+  }
+}
+
 
 export async function handleRunextensioncommand(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         if (!st.session) { reply({ type: 'error', error: 'No st.session' }); return }

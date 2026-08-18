@@ -16,6 +16,18 @@ export function registerCommandsSlashHandlers(): void {
     }
   })
 
+  /** 生效 SDK 的内置斜杠命令清单（renderer 拦截 + popover 使用；跟随 SDK 版本自动同步）。 */
+  registerHandler('ipc:commands.builtins', async () => {
+    if (!workerManager.isRunning) return { builtins: [], source: 'none' }
+    try {
+      const builtins = await workerManager.getBuiltins()
+      return { builtins, source: 'worker' }
+    } catch (e) {
+      console.error('[IPC] commands.builtins failed:', e)
+      return { builtins: [], source: 'none' }
+    }
+  })
+
   registerHandler('ipc:commands.list', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const overrides = getDesktopSkillOverrides()

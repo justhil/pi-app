@@ -46,7 +46,13 @@
     "new": "新建会话",
     "fork": "从某条用户消息 Fork 新会话",
     "clone": "Clone 当前分支到新会话",
-    "tree": "打开会话树面板"
+    "tree": "打开会话树面板",
+    "help": "帮助",
+    "settings": "打开设置",
+    "review": "打开 Review 面板",
+    "run": "打开 Run 面板",
+    "skills": "管理技能",
+    "prompts": "管理提示词"
   },
   "toast": {
     "sendFailed": "发送失败",
@@ -73,7 +79,17 @@
     "cloneCancelled": "已取消 Clone",
     "cloneFailed": "Clone 失败",
     "cloned": "已 Clone 到新会话",
-    "nothingToClone": "当前没有可 Clone 的内容"
+    "nothingToClone": "当前没有可 Clone 的内容",
+    "reloaded": "扩展、技能与提示词已重载",
+    "reloadFailed": "重载失败",
+    "builtinNotSupported": "{{cmd}} — 桌面端暂未实现{{hint}}"
+  },
+  "builtinHints": {
+    "name": "。右键侧栏会话 → 重命名",
+    "login": "。请到 设置 → 模型/认证 登录",
+    "logout": "。请到 设置 → 模型/认证 登出",
+    "quit": "。请使用窗口关闭按钮",
+    "resume": "。从侧栏会话列表切换会话"
   },
   "voice": {
     "start": "开始录音",

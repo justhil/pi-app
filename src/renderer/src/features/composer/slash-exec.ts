@@ -1,7 +1,10 @@
 // Slash command execution semantics (A-layer, tui-replacement-and-adapters.md §2.4)
 // - builtin (app-native) -> route to dedicated IPC (NOT sent as prompt text) + toast feedback
+// - pi builtin (synced from active SDK, slash-catalog.ts) -> native execution if routed,
+//   otherwise block with toast (never sent to the model; parity with pi TUI)
 // - /skill:, /prompt: -> expand then send (sent as prompt text; pi handles slash in message)
 // - extension commands -> resolved via slash.resolve, notify/send to pi
+// - unknown /xxx -> passthrough to the model (same as pi TUI fallthrough)
 
 import { toast } from 'sonner'
 import i18n from '@renderer/lib/i18n'
@@ -10,16 +13,27 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { ensureAvailableModels } from '@renderer/lib/available-models-cache'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
+import { isPiBuiltin } from './slash-catalog'
 
 /** App-native builtins handled directly in the renderer (not forwarded as plain prompt text). */
-const APP_BUILTIN = new Set([
+const APP_NATIVE = new Set([
   'model', 'thinking', 'clear', 'compact', 'new', 'fork', 'clone',
-  'help', 'settings', 'review', 'run', 'tree', 'skills', 'prompts',
+  'help', 'settings', 'review', 'run', 'tree', 'skills', 'prompts', 'reload',
 ])
+
+/** 未原生实现的 pi 内置命令：拦截时附带指向等效 UI 的提示（i18n key）。 */
+const BLOCK_HINT_I18N: Record<string, string> = {
+  name: 'composer:builtinHints.name',
+  login: 'composer:builtinHints.login',
+  logout: 'composer:builtinHints.logout',
+  quit: 'composer:builtinHints.quit',
+  resume: 'composer:builtinHints.resume',
+}
 
 export function isExecutableBuiltin(input: string): boolean {
   const m = input.match(/^\/(\w+)/)
-  return !!m && APP_BUILTIN.has(m[1])
+  if (!m) return false
+  return APP_NATIVE.has(m[1]) || isPiBuiltin(m[1])
 }
 
 export interface SlashExecContext {
@@ -178,7 +192,24 @@ export async function executeSlashCommand(
       toast.info(i18n.t('composer:toast.continueTyping', { cmd }))
       return true
     }
-    default:
+    case 'reload': {
+      try {
+        await ipcClient.invoke('session.reload')
+        toast.success(i18n.t('composer:toast.reloaded'))
+      } catch (e) {
+        console.error('/reload failed:', e)
+        toast.error(i18n.t('composer:toast.reloadFailed'))
+      }
+      return true
+    }
+    default: {
+      if (isPiBuiltin(cmd)) {
+        const hintKey = BLOCK_HINT_I18N[cmd]
+        const hint = hintKey ? i18n.t(hintKey) : ''
+        toast.info(i18n.t('composer:toast.builtinNotSupported', { cmd, hint }))
+        return true
+      }
       return false
+    }
   }
 }

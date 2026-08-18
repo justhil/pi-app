@@ -1,6 +1,7 @@
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import { errorMessage } from '@shared/error-message'
 import type { SkillCatalogResponse } from '@shared/skill-catalog'
+import type { WorkerBuiltinSlashCommand } from '@shared/worker-rpc-types'
 import { projectModelCatalog } from '@shared/model-auth-projection'
 import type { WorkerCommandRow, WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -232,6 +233,67 @@ export async function handleReloadresources(msg: WorkerIncomingMessage, reply: W
           reply({ type: 'error', error: `reloadResources failed: ${errorMessage(e)}` })
         }
         return
+}
+
+/**
+ * 读取生效 SDK 的内置斜杠命令清单（BUILTIN_SLASH_COMMANDS）。
+ * 优先从当前 activeSdkPath 同目录的 core/slash-commands.js 导入，
+ * 失败时回退到本包内置 SDK —— 保证与 worker 实际加载的 pi 版本一致。
+ */
+async function loadBuiltinSlashCommands(): Promise<{
+  builtins: WorkerBuiltinSlashCommand[]
+  source: string
+}> {
+  const candidates: string[] = []
+  // 主路径：当前生效 SDK（含全局/用户 SDK）；文件 URL 导入可绕过 exports map。
+  if (st.activeSdkPath) {
+    try {
+      const { dirname, join } = await import('node:path')
+      const { pathToFileURL } = await import('node:url')
+      const coreDir = dirname(st.activeSdkPath)
+      candidates.push(pathToFileURL(join(coreDir, 'core/slash-commands.js')).href)
+    } catch (e: unknown) {
+      console.error('[Worker] resolve builtin slash commands path failed:', errorMessage(e))
+    }
+  }
+  // 回退：内置 SDK（activeSdkPath 为空时 worker 用裸导入加载内置包）。
+  // 注意：不能直接 import 包子路径——exports map 会拦（ERR_PACKAGE_PATH_NOT_EXPORTED），
+  // 必须经 import.meta.resolve 拿到入口文件再拼 core/slash-commands.js。
+  try {
+    const { dirname, join } = await import('node:path')
+    const { fileURLToPath, pathToFileURL } = await import('node:url')
+    const entry = import.meta.resolve('@earendil-works/pi-coding-agent')
+    const entryPath = fileURLToPath(entry)
+    candidates.push(pathToFileURL(join(dirname(entryPath), 'core/slash-commands.js')).href)
+  } catch (e: unknown) {
+    console.error('[Worker] resolve builtin package entry failed:', errorMessage(e))
+  }
+  for (const c of candidates) {
+    try {
+      const mod = (await import(c)) as { BUILTIN_SLASH_COMMANDS?: WorkerBuiltinSlashCommand[] }
+      if (Array.isArray(mod?.BUILTIN_SLASH_COMMANDS)) {
+        const builtins = mod.BUILTIN_SLASH_COMMANDS.map((b) => ({
+          name: b.name,
+          description: b.description,
+          ...(b.argumentHint ? { argumentHint: b.argumentHint } : {}),
+        }))
+        return { builtins, source: c }
+      }
+    } catch (e: unknown) {
+      console.error('[Worker] import builtin slash commands failed:', c, errorMessage(e))
+    }
+  }
+  return { builtins: [], source: 'none' }
+}
+
+export async function handleGetbuiltins(_msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    const { builtins, source } = await loadBuiltinSlashCommands()
+    reply({ type: 'getBuiltins-done', builtins, source })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `getBuiltins failed: ${errorMessage(e)}` })
+  }
+  return
 }
 
 

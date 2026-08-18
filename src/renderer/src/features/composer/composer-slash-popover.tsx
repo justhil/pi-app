@@ -134,7 +134,7 @@ export function ComposerSlashPopover({
               <span className="shrink-0 font-mono text-[12px] text-foreground">{cmd.name}</span>
               {(cmd.description || (cmd.category === 'builtin' && BUILTIN_CMD_I18N[cmd.id])) && (
                 <span className="ml-auto truncate text-[11px] text-muted-foreground">
-                  {cmd.category === 'builtin' ? t(BUILTIN_CMD_I18N[cmd.id] || '') : cmd.description}
+                  {cmd.description || t(BUILTIN_CMD_I18N[cmd.id] || '')}
                 </span>
               )}
             </button>

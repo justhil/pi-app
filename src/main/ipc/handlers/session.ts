@@ -585,15 +585,31 @@ export function registerSessionHandlers(): void {
     return { ok: true, currentProject: configStore.get('currentProject') }
   })
 
-  registerHandler('ipc:session.compact', async () => {
+  registerHandler('ipc:session.compact', async (req) => {
     try {
       if (!workerManager.isRunning) {
         return { sessionId: '', compacted: false, tokensSaved: 0, error: 'worker_not_ready' }
       }
-      await workerManager.runExtensionCommand('/compact')
+      const customInstructions =
+        typeof req.customInstructions === 'string' && req.customInstructions.trim()
+          ? req.customInstructions.trim()
+          : undefined
+      // 真·压缩（worker 内 session.compact），不再把 "/compact" 文本发给模型。
+      await workerManager.compact(customInstructions)
       return { sessionId: '', compacted: true, tokensSaved: 0 }
     } catch (e: unknown) {
       return { sessionId: '', compacted: false, tokensSaved: 0, error: errorMessage(e) }
+    }
+  })
+
+  /** 重载扩展/技能/提示词（等价 TUI /reload；worker 内 session.reload）。 */
+  registerHandler('ipc:session.reload', async () => {
+    try {
+      if (!workerManager.isRunning) return { ok: false, error: 'worker_not_ready' }
+      await workerManager.reloadResources()
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: errorMessage(e) || 'reload failed' }
     }
   })
 

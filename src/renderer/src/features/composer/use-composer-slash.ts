@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { BUILTIN_COMMANDS, type SlashCommand } from './composer-constants'
+import { DESKTOP_NATIVE_COMMANDS, type SlashCommand } from './composer-constants'
+import { getSyncedBuiltins, setSyncedBuiltins, type SyncedBuiltin } from './slash-catalog'
 import {
   type Segment,
   replaceTrailingTokenInSegments,
@@ -22,29 +23,52 @@ export function useComposerSlash(
   const [argIdx, setArgIdx] = useState(0)
 
   const refreshCommands = useCallback(async () => {
-    try {
-      const res = await ipcClient.invoke('commands.list')
-      const cmds = (res?.commands || []) as SlashCommand[]
-      const names = new Set(cmds.map((c) => c.name))
-      const merged = [...BUILTIN_COMMANDS.filter((b) => !names.has(b.name)), ...cmds]
-      setCommands(merged)
-      setCommandsSource(res?.source || 'worker')
-    } catch (e) {
-      console.error('commands.list failed:', e)
-      setCommands(BUILTIN_COMMANDS)
-    }
+    const [res, builtinsRes] = await Promise.all([
+      ipcClient.invoke('commands.list'),
+      ipcClient.invoke('commands.builtins').catch(() => ({ builtins: [], source: 'none' })),
+    ])
+    const cmds = (res?.commands || []) as SlashCommand[]
+    const synced = (builtinsRes?.builtins || []) as SyncedBuiltin[]
+    setSyncedBuiltins(synced)
+    // 桌面原生（含 i18n 描述）优先；pi 内置补足；扩展/skill/模板去重后合并。
+    const piCmds: SlashCommand[] = synced.map((b) => ({
+      id: b.name,
+      name: `/${b.name}`,
+      description: b.description,
+      category: 'builtin',
+    }))
+    const names = new Set(DESKTOP_NATIVE_COMMANDS.map((c) => c.name))
+    const builtinCmds = [
+      ...DESKTOP_NATIVE_COMMANDS,
+      ...piCmds.filter((c) => !names.has(c.name)),
+    ]
+    const builtinNames = new Set(builtinCmds.map((c) => c.name))
+    const merged = [...builtinCmds, ...cmds.filter((c) => !builtinNames.has(c.name))]
+    setCommands(merged)
+    setCommandsSource(res?.source || 'worker')
   }, [])
 
   useEffect(() => {
-    if (canCompose) refreshCommands()
+    if (canCompose) {
+      void refreshCommands().catch(() => {
+        // 降级：桌面原生 + 上次同步缓存（若无缓存则为空列表）。
+        const cached = getSyncedBuiltins().map((b) => ({
+          id: b.name,
+          name: `/${b.name}`,
+          description: b.description,
+          category: 'builtin' as const,
+        }))
+        setCommands([...DESKTOP_NATIVE_COMMANDS, ...cached])
+      })
+    }
   }, [canCompose, refreshCommands])
 
   useEffect(() => {
-    if (canCompose && currentWorkspace) refreshCommands()
+    if (canCompose && currentWorkspace) void refreshCommands().catch(() => {})
   }, [canCompose, currentWorkspace, refreshCommands])
 
   useEffect(() => {
-    if (currentSessionId) refreshCommands()
+    if (currentSessionId) void refreshCommands().catch(() => {})
   }, [currentSessionId, refreshCommands])
 
   const slashQuery = useMemo(() => {

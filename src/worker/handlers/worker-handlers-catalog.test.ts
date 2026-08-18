@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { ModelAuthProjectionRuntime } from '@shared/model-auth-projection'
 import {
+  handleGetbuiltins,
   handleGetmodels,
   handleGetmodelsettingssnapshot,
   handleGetsessioncontextpreview,
@@ -140,5 +143,51 @@ describe('worker context preview handler', () => {
         roleBreakdown: [{ role: 'user', chars: 5 }],
       }),
     })
+  })
+})
+
+describe('handleGetbuiltins (内置命令完整同步)', () => {
+  const originalActiveSdkPath = st.activeSdkPath
+  const pkgRoot = join(process.cwd(), 'node_modules', '@earendil-works', 'pi-coding-agent')
+  const entryPath = join(pkgRoot, 'dist/index.js')
+  const slashJsPath = join(pkgRoot, 'dist/core/slash-commands.js')
+
+  async function realBuiltinNames(): Promise<string[]> {
+    const mod = await import(pathToFileURL(slashJsPath).href)
+    return mod.BUILTIN_SLASH_COMMANDS.map((b: { name: string }) => b.name)
+  }
+
+  function collectBuiltins(): Promise<{ builtins: Array<{ name: string }>; source: string }> {
+    return new Promise((resolve, reject) => {
+      handleGetbuiltins({ type: 'getBuiltins' }, (payload) => {
+        if (payload.type === 'error') reject(new Error(String(payload.error)))
+        else resolve(payload as { builtins: Array<{ name: string }>; source: string })
+      })
+    })
+  }
+
+  beforeEach(() => {
+    st.activeSdkPath = originalActiveSdkPath
+  })
+  afterEach(() => {
+    st.activeSdkPath = originalActiveSdkPath
+  })
+
+  it('returns the full builtin list from the active SDK path', async () => {
+    st.activeSdkPath = entryPath
+    const real = (await realBuiltinNames()).sort()
+    const { builtins } = await collectBuiltins()
+
+    expect(builtins.map((b) => b.name).sort()).toEqual(real)
+    expect(builtins).toContainEqual(expect.objectContaining({ name: 'reload' }))
+    expect(builtins).toContainEqual(expect.objectContaining({ name: 'quit' }))
+  })
+
+  it('falls back to the builtin package when activeSdkPath is null', async () => {
+    st.activeSdkPath = null
+    const real = (await realBuiltinNames()).sort()
+    const { builtins } = await collectBuiltins()
+
+    expect(builtins.map((b) => b.name).sort()).toEqual(real)
   })
 })

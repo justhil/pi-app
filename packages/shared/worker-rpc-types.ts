@@ -53,6 +53,13 @@ export type WorkerSessionTreeNode = {
 
 export type WorkerCompletionItem = Record<string, unknown>
 
+/** pi SDK 内置斜杠命令条目（BUILTIN_SLASH_COMMANDS 的投影，跟随生效 SDK 版本）。 */
+export type WorkerBuiltinSlashCommand = {
+  name: string
+  description: string
+  argumentHint?: string
+}
+
 export type WorkerMessagesPage = {
   items: PiSessionMessage[]
   sourceCount: number

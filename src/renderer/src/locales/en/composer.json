@@ -46,7 +46,13 @@
     "new": "New session",
     "fork": "Fork a new session from a user message",
     "clone": "Clone current branch into a new session",
-    "tree": "Open session tree panel"
+    "tree": "Open session tree panel",
+    "help": "Help",
+    "settings": "Open settings",
+    "review": "Open review panel",
+    "run": "Open run panel",
+    "skills": "Manage skills",
+    "prompts": "Manage prompts"
   },
   "toast": {
     "sendFailed": "Send failed",
@@ -73,7 +79,17 @@
     "cloneCancelled": "Clone cancelled",
     "cloneFailed": "Clone failed",
     "cloned": "Cloned into a new session",
-    "nothingToClone": "Nothing to clone yet"
+    "nothingToClone": "Nothing to clone yet",
+    "reloaded": "Extensions, skills and prompts reloaded",
+    "reloadFailed": "Reload failed",
+    "builtinNotSupported": "{{cmd}} — not available in this desktop app yet{{hint}}"
+  },
+  "builtinHints": {
+    "name": ". Right-click the session in the sidebar → Rename",
+    "login": ". Open Settings → Models/Auth to sign in",
+    "logout": ". Open Settings → Models/Auth to sign out",
+    "quit": ". Use the window close button",
+    "resume": ". Switch sessions from the sidebar list"
   },
   "voice": {
     "start": "Start recording",

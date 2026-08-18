@@ -61,3 +61,14 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 | ipc **36**；ui-store **329**；apply-app-event **71**；worker/index **≤1100** 行；`as any` **≤22** | `worker-session-events` / `worker-timeline` / `worker-compaction-patch` 已拆 |
 
 Trellis：`07-01-fmsm-remediate-a` 已归档 `archive/2026-07/`。威胁模型：`doc/THREAT-MODEL.md`（含 safeStorage）。
+
+## 斜杠命令拦截术语（glossary，2026-08-18 访谈确认）
+
+- **内置命令泄漏（builtin leak）**：pi 内置斜杠命令（如 `/reload`、`/export`、`/login`）被桌面端当作普通聊天文本发给模型——命令既不执行也无任何提示。根因：pi 内置命令只在 TUI 层拦截（`interactive-mode.js` 的 submit 链），SDK 层 `session.prompt()` 只处理扩展命令/skill/模板，内置命令会原样落到 LLM；桌面端不用 TUI，必须自己拦截。曾误以为 `/compact` 按钮已生效——它此前走 `runExtensionCommand('/compact')`，同样把文本发给了模型，属于同一种泄漏。
+- **生效 SDK 内置清单（active-SDK builtin catalog）**：pi 内置命令清单的唯一事实源 = 生效 SDK 的 `dist/core/slash-commands.js`（`BUILTIN_SLASH_COMMANDS`，纯数据模块）。worker 新增 `getBuiltins` RPC 从当前 `activeSdkPath` 同目录导入（失败回退内置包），经 `ipc:commands.builtins` 同步到 renderer（`slash-catalog.ts` 缓存）——跟随用户装的 pi 版本（内置/全局/用户 SDK）自动更新，不维护硬编码行为表。
+- **路由表 + 安全默认（routing table + safe default）**：内置命令行为按名字查路由表：有原生实现 → 执行；未实现 → 默认 toast 拦截（可带指向等效 UI 的提示，如 `/login`→设置、`/name`→右键重命名、`/quit`→窗口关闭按钮）；未知 `/xxx` → 透传模型（与 pi TUI 兜底行为一致）。效果：新 pi 内置出现时**自动落入默认拦截**（有 toast），永远不会再静默泄漏；后续想原生实现某个命令 = 路由表加一个 case。
+- **桌面原生命令（desktop-native command）**：桌面端自己实现的斜杠命令（含 pi 没有的 `thinking/clear/help/review/run/skills/prompts`），与 pi 内置重叠时（`model/compact/new/fork/clone/tree/settings`）以桌面实现优先。
+
+### 决策记录：内置命令统一走生效 SDK 清单 + 路由表 + 安全默认（2026）
+
+`/reload` 在 pi-app 里被当作普通文本发给模型并得到 AI 回复——暴露一类系统性问题：pi 内置命令在 SDK 层不拦截，桌面端不维护硬编码清单就会漏。定案：**拦截集合 = 生效 SDK 的 `BUILTIN_SLASH_COMMANDS`（worker `getBuiltins` 动态导入，renderer `slash-catalog.ts` 缓存 + 兜底名集）∪ 桌面原生命令**；行为走 `slash-exec.ts` 路由表，未实现命令 toast 拦截（`composer:toast.builtinNotSupported` + 可选 `builtinHints.*` 提示），未知斜杠透传。本次实装：`/reload` → worker `reloadResources()`（`session.reload`）；`/compact` 修正为 worker `compact` RPC → `session.compact()`（真压缩，不再发文本给模型）。popover 列表由 `commands.list` + `commands.builtins` 合并生成（`use-composer-slash.ts`），`composer-constants.ts` 的 `BUILTIN_COMMANDS` 退役为 `DESKTOP_NATIVE_COMMANDS`。新增 IPC 均已在 `packages/shared/ipc-channels.ts` 登记（有同步门禁）。
