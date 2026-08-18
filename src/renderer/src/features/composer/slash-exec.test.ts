@@ -3,6 +3,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
+import { toast } from 'sonner'
 import { clearAvailableModelsCacheForTests } from '@renderer/lib/available-models-cache'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
@@ -161,5 +162,46 @@ describe('isExecutableBuiltin', () => {
     expect(isExecutableBuiltin('/reload')).toBe(true)
     expect(isExecutableBuiltin('/login')).toBe(true)
     expect(isExecutableBuiltin('/zzz-not-a-command')).toBe(false)
+  })
+})
+
+describe('/reload and /compact only report success on worker confirmation', () => {
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear()
+    vi.mocked(toast.error).mockClear()
+  })
+
+  it('/reload with ok:false shows an error toast, not success', async () => {
+    invoke.mockResolvedValue({ ok: false, error: 'worker_not_ready' })
+
+    await executeSlashCommand('/reload')
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('worker_not_ready')
+  })
+
+  it('/reload with ok:true shows the success toast', async () => {
+    invoke.mockResolvedValue({ ok: true })
+
+    await executeSlashCommand('/reload')
+
+    expect(toast.success).toHaveBeenCalled()
+  })
+
+  it('/compact with compacted:false shows an error toast, not success', async () => {
+    invoke.mockResolvedValue({ compacted: false, error: 'Nothing to compact (session too small)' })
+
+    await executeSlashCommand('/compact')
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('Nothing to compact (session too small)')
+  })
+
+  it('/compact with compacted:true shows the success toast', async () => {
+    invoke.mockResolvedValue({ compacted: true })
+
+    await executeSlashCommand('/compact')
+
+    expect(toast.success).toHaveBeenCalled()
   })
 })

@@ -135,8 +135,12 @@ export async function executeSlashCommand(
     }
     case 'compact': {
       try {
-        await ipcClient.invoke('session.compact', { sessionId: '' })
-        toast.success(i18n.t('composer:compactedHistory'))
+        const res = await ipcClient.invoke('session.compact', { sessionId: '' })
+        if (res?.compacted) {
+          toast.success(i18n.t('composer:compactedHistory'))
+        } else {
+          toast.error(res?.error ? String(res.error) : '压缩失败')
+        }
       } catch (e) {
         console.error('/compact failed:', e)
         toast.error('压缩失败')
@@ -194,8 +198,12 @@ export async function executeSlashCommand(
     }
     case 'reload': {
       try {
-        await ipcClient.invoke('session.reload')
-        toast.success(i18n.t('composer:toast.reloaded'))
+        const res = await ipcClient.invoke('session.reload')
+        if (res?.ok) {
+          toast.success(i18n.t('composer:toast.reloaded'))
+        } else {
+          toast.error(res?.error ? String(res.error) : i18n.t('composer:toast.reloadFailed'))
+        }
       } catch (e) {
         console.error('/reload failed:', e)
         toast.error(i18n.t('composer:toast.reloadFailed'))
