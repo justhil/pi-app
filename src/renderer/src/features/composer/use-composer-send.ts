@@ -80,6 +80,11 @@ export function useComposerSend(opts: {
         const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
         const pendMsg = displayText.trim()
         if (pendMsg.startsWith('/')) {
+          // 单一拦截点：所有发送路径（含 Alt+Enter 直接 queue 路径）都先拦 pi 内置命令。
+          if (isExecutableBuiltin(pendMsg)) {
+            const handled = await executeSlashCommand(pendMsg, { refreshCommands })
+            if (handled) return
+          }
           const routed = await routeDesktopSlashBeforeSend(pendMsg)
           if (routed.handled) return
         }

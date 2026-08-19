@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
-import { executeSlashCommand } from './slash-exec'
+import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
+import { toast } from 'sonner'
 import { clearAvailableModelsCacheForTests } from '@renderer/lib/available-models-cache'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
@@ -10,7 +11,7 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 }))
 vi.mock('@renderer/lib/extension-ui-channel', () => ({ clearExtensionDialogDedupe: vi.fn() }))
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
 const invoke = vi.mocked(ipcClient.invoke)
 
@@ -109,5 +110,98 @@ describe('/model runtime confirmation', () => {
     await executeSlashCommand('/model openai/org/model/v2')
 
     expect(useUIStore.getState().runState.model).toBe('anthropic/old')
+  })
+})
+
+describe('/reload native execution', () => {
+  it('invokes session.reload via IPC and marks handled', async () => {
+    invoke.mockResolvedValue({ ok: true })
+
+    const handled = await executeSlashCommand('/reload')
+
+    expect(handled).toBe(true)
+    expect(invoke).toHaveBeenCalledWith('session.reload')
+  })
+
+  it('stays handled (toast error) when reload fails — never falls through to prompt', async () => {
+    invoke.mockRejectedValue(new Error('worker not ready'))
+
+    const handled = await executeSlashCommand('/reload')
+
+    expect(handled).toBe(true)
+  })
+})
+
+describe('unimplemented pi builtins are blocked (never sent to the model)', () => {
+  it('blocks /login with toast feedback', async () => {
+    const handled = await executeSlashCommand('/login anthropic')
+
+    expect(handled).toBe(true)
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('blocks /quit', async () => {
+    const handled = await executeSlashCommand('/quit')
+
+    expect(handled).toBe(true)
+    expect(invoke).not.toHaveBeenCalled()
+  })
+})
+
+describe('unknown slash commands pass through (pi TUI parity)', () => {
+  it('returns false for /not-a-command', async () => {
+    const handled = await executeSlashCommand('/not-a-command')
+
+    expect(handled).toBe(false)
+  })
+})
+
+describe('isExecutableBuiltin', () => {
+  it('accepts app-native and pi builtins, rejects unknown /xxx', () => {
+    expect(isExecutableBuiltin('/model')).toBe(true)
+    expect(isExecutableBuiltin('/reload')).toBe(true)
+    expect(isExecutableBuiltin('/login')).toBe(true)
+    expect(isExecutableBuiltin('/zzz-not-a-command')).toBe(false)
+  })
+})
+
+describe('/reload and /compact only report success on worker confirmation', () => {
+  beforeEach(() => {
+    vi.mocked(toast.success).mockClear()
+    vi.mocked(toast.error).mockClear()
+  })
+
+  it('/reload with ok:false shows an error toast, not success', async () => {
+    invoke.mockResolvedValue({ ok: false, error: 'worker_not_ready' })
+
+    await executeSlashCommand('/reload')
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('worker_not_ready')
+  })
+
+  it('/reload with ok:true shows the success toast', async () => {
+    invoke.mockResolvedValue({ ok: true })
+
+    await executeSlashCommand('/reload')
+
+    expect(toast.success).toHaveBeenCalled()
+  })
+
+  it('/compact with compacted:false shows an error toast, not success', async () => {
+    invoke.mockResolvedValue({ compacted: false, error: 'Nothing to compact (session too small)' })
+
+    await executeSlashCommand('/compact')
+
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('Nothing to compact (session too small)')
+  })
+
+  it('/compact with compacted:true shows the success toast', async () => {
+    invoke.mockResolvedValue({ compacted: true })
+
+    await executeSlashCommand('/compact')
+
+    expect(toast.success).toHaveBeenCalled()
   })
 })

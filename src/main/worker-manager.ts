@@ -5,6 +5,7 @@ import type { AppEvent } from '@shared/app-events'
 import type {
   WorkerCommandInfo,
   WorkerCompletionItem,
+  WorkerBuiltinSlashCommand,
   WorkerContextPreview,
   WorkerMessagesPage,
   WorkerModelRow,
@@ -764,6 +765,15 @@ export class WorkerManager {
         .filter((slot) => !slot.stopping && this.slotMatchesCurrentRuntime(slot))
         .map((slot) => this.requestOnSlot(slot, 'reloadResources')),
     )
+  }
+  /** 生效 SDK 的内置斜杠命令清单（renderer 拦截/提示用，跟随 SDK 版本自动同步）。 */
+  async getBuiltins(): Promise<WorkerBuiltinSlashCommand[]> {
+    const r = await this.request('getBuiltins')
+    return (r.builtins as WorkerBuiltinSlashCommand[] | undefined) || []
+  }
+  /** 手动压缩会话（真·压缩，等价 TUI /compact）。 */
+  async compact(customInstructions?: string): Promise<void> {
+    await this.request('compact', customInstructions ? { customInstructions } : {})
   }
   async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<WorkerCompletionItem[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })
