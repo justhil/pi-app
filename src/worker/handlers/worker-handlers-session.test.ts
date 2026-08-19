@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { WorkerModelRuntime } from '../worker-runtime'
-import { handleSetmodel } from './worker-handlers-session'
+import { handleSetmodel, handleSetthinkinglevel } from './worker-handlers-session'
 import { st } from '../worker-runtime'
 
 function modelRuntimeWith(getModel: (provider: string, modelId: string) => unknown): WorkerModelRuntime {
@@ -15,10 +15,13 @@ function modelRuntimeWith(getModel: (provider: string, modelId: string) => unkno
 function sessionWith(options: {
   current?: { provider: string; id: string }
   setModel?: (model: { provider: string; id: string }) => Promise<void>
+  setThinkingLevel?: (level: string) => void
   settingsManager?: {
     getDefaultProvider: () => string | undefined
     getDefaultModel: () => string | undefined
     setDefaultModelAndProvider: (provider: string, modelId: string) => void
+    getDefaultThinkingLevel: () => string | undefined
+    setDefaultThinkingLevel: (level: string) => void
   }
 }): AgentSession {
   const current = options.current ?? { provider: 'anthropic', id: 'old' }
@@ -27,6 +30,7 @@ function sessionWith(options: {
     thinkingLevel: 'medium',
     settingsManager: options.settingsManager,
     setModel: options.setModel ?? (async (model) => Object.assign(current, model)),
+    setThinkingLevel: options.setThinkingLevel ?? (() => undefined),
   } as unknown as AgentSession
 }
 
@@ -122,6 +126,8 @@ describe('handleSetmodel', () => {
         getDefaultProvider: () => defaultProvider,
         getDefaultModel: () => defaultModel,
         setDefaultModelAndProvider: setDefault,
+        getDefaultThinkingLevel: () => undefined,
+        setDefaultThinkingLevel: vi.fn(),
       },
     })
     const reply = vi.fn()
@@ -152,6 +158,8 @@ describe('handleSetmodel', () => {
         getDefaultProvider: () => defaultProvider,
         getDefaultModel: () => defaultModel,
         setDefaultModelAndProvider: setDefault,
+        getDefaultThinkingLevel: () => undefined,
+        setDefaultThinkingLevel: vi.fn(),
       },
     })
     const reply = vi.fn()
@@ -173,6 +181,8 @@ describe('handleSetmodel', () => {
         getDefaultProvider: () => undefined,
         getDefaultModel: () => undefined,
         setDefaultModelAndProvider: setDefault,
+        getDefaultThinkingLevel: () => undefined,
+        setDefaultThinkingLevel: vi.fn(),
       },
     })
     const reply = vi.fn()
@@ -195,5 +205,58 @@ describe('handleSetmodel', () => {
     await handleSetmodel({ provider: 'openai', modelId: 'gpt/new' }, reply)
 
     expect(reply).toHaveBeenCalledWith({ type: 'setModel-done', modelId: 'openai/gpt/new' })
+  })
+})
+
+describe('handleSetthinkinglevel', () => {
+  it('restores the global default thinking level after a session-scoped change', () => {
+    let defaultLevel = 'off'
+    const setDefault = vi.fn((level: string) => { defaultLevel = level })
+    st.session = sessionWith({
+      setThinkingLevel: () => { defaultLevel = 'high' }, // 模拟 SDK 双写
+      settingsManager: {
+        getDefaultProvider: () => 'anthropic',
+        getDefaultModel: () => 'old',
+        setDefaultModelAndProvider: vi.fn(),
+        getDefaultThinkingLevel: () => defaultLevel,
+        setDefaultThinkingLevel: setDefault,
+      },
+    })
+    const reply = vi.fn()
+
+    handleSetthinkinglevel({ level: 'high' }, reply)
+
+    // 会话思考级别已由 setThinkingLevel 更新，但全局默认被还原为切前的值。
+    expect(setDefault).toHaveBeenCalledWith('off')
+    expect(reply).toHaveBeenCalledWith({ type: 'setThinkingLevel-done' })
+  })
+
+  it('does not write a default thinking level when none was configured before', () => {
+    const setDefault = vi.fn()
+    st.session = sessionWith({
+      setThinkingLevel: () => undefined,
+      settingsManager: {
+        getDefaultProvider: () => 'anthropic',
+        getDefaultModel: () => 'old',
+        setDefaultModelAndProvider: vi.fn(),
+        getDefaultThinkingLevel: () => undefined,
+        setDefaultThinkingLevel: setDefault,
+      },
+    })
+    const reply = vi.fn()
+
+    handleSetthinkinglevel({ level: 'high' }, reply)
+
+    expect(setDefault).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith({ type: 'setThinkingLevel-done' })
+  })
+
+  it('leaves the default untouched when the session has no settings manager', () => {
+    st.session = sessionWith({})
+    const reply = vi.fn()
+
+    handleSetthinkinglevel({ level: 'high' }, reply)
+
+    expect(reply).toHaveBeenCalledWith({ type: 'setThinkingLevel-done' })
   })
 })

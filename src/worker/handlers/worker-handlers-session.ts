@@ -74,7 +74,21 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
 
 
 export async function handleSetthinkinglevel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+        // 与 handleSetmodel 同理：SDK 的 setThinkingLevel 会同时改写全局默认思考级别
+        // （setDefaultThinkingLevel），会话 JSONL 已按会话持久化——只还原全局默认。
+        const settingsManager: SettingsManager | null = st.session?.settingsManager ?? null
+        const prevLevel =
+          settingsManager && typeof settingsManager.getDefaultThinkingLevel === 'function'
+            ? settingsManager.getDefaultThinkingLevel()
+            : undefined
         st.session?.setThinkingLevel(msg.level as Parameters<NonNullable<typeof st.session>['setThinkingLevel']>[0])
+        if (
+          settingsManager &&
+          prevLevel !== undefined &&
+          settingsManager.getDefaultThinkingLevel() !== prevLevel
+        ) {
+          settingsManager.setDefaultThinkingLevel(prevLevel)
+        }
         if (st.session) {
           const modelStr = currentSessionModelKey()
           emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel })
