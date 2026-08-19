@@ -1,5 +1,6 @@
 import { forwardRef, useRef, useImperativeHandle, useLayoutEffect } from 'react'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
+import { anchorLineBreakCaret } from './composer-editor-caret'
 import { cn } from '@renderer/lib/utils'
 
 /** Max editor height (kept in sync with the max-height in globals.css; content scrolls beyond it). */
@@ -151,7 +152,13 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
   }
 
   const handleInput = () => {
-    if (!innerRef.current) return
+    const el = innerRef.current
+    if (el) {
+      // 原生 Shift+Enter / 原生多行粘贴由浏览器插入孤立 <br>，← 键会在行首卡住：
+      // 每次输入后给 <br> 补 ZWSP 光标锚点（已带锚点的行跳过）。
+      anchorLineBreakCaret(el)
+    }
+    if (!el) return
     scheduleRefreshLayoutAndEmpty()
     onInput?.()
   }

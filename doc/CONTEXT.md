@@ -61,3 +61,16 @@ Renderer `piDesktop.onEvent` ← Main `sendEvent(win, AppEvent)` ← Worker。
 | ipc **36**；ui-store **329**；apply-app-event **71**；worker/index **≤1100** 行；`as any` **≤22** | `worker-session-events` / `worker-timeline` / `worker-compaction-patch` 已拆 |
 
 Trellis：`07-01-fmsm-remediate-a` 已归档 `archive/2026-07/`。威胁模型：`doc/THREAT-MODEL.md`（含 safeStorage）。
+## composer 撤销 / 光标术语（glossary，2026 访谈确认）
+
+- **原生编辑（native edit）**：浏览器自己执行的输入（输入法组合、原生 Shift+Enter、原生粘贴），参与 Chromium 的 contenteditable 撤销栈。
+- **程序化插入（programmatic insert）**：JS 手动改 DOM（`insertTextAtCursor`、直接 `insertNode`、JS 调 `execCommand('insertText')`）——**会污染原生撤销栈**：之后按 Ctrl+Z 会把整个输入（含粘贴前输入的内容）整段清空。只有浏览器自己执行的插入可正常撤销/重做。
+- **行首光标卡住（line-start caret stick）**：孤立 `<br>`（或 `<div>` 边界）之后的文本行开头，按 ← 键会把光标弹回本行末尾并卡住，永远到不了上一行。`<br>` 后紧跟一个 ZWSP（零宽字符）即可正常跨行——ZWSP 不显示、`serializeRichInput` 会剥掉。
+
+### 决策记录：纯文本粘贴走浏览器原生插入（2026）
+
+composer 曾对纯文本粘贴 `preventDefault` 后手动插 DOM——实测（真实 Chromium 回归脚本 `scripts/regression/composer-undo.mjs`）这会污染撤销栈：输入 "abc" 后粘贴 "hello world"，再 Ctrl+Z 会**清空整个输入**而非回到 "abc"。定案：**纯文本/富文本粘贴一律不拦截**（`useComposerAttachments.handlePaste` 只对文件/图片类 `preventDefault`），让浏览器原生插入保住撤销栈；富文本（Word/网页）来源的块级包装标签（div/p/li 等）由 `serializeRichInput` 按换行处理，不动 DOM 就不破坏撤销。**附件 chip 用 `execCommand('insertHTML')` 插入**（原生命令，可单独 Ctrl+Z 撤掉；jsdom 无 execCommand 时走手动兜底）。**Shift+Enter 同样改走原生**（不再手动插 br）。已知代价：图片+文字组合粘贴（chip+文本）仍为程序化插入，该组合的撤销不完美，属低频。
+
+### 决策记录：所有 `<br>` 统一补 ZWSP 光标锚点（2026）
+
+行首光标卡住的根因是孤立 `<br>`（来源：`renderRichTextFromPlain`/`renderRichFromSegments` 重建 DOM、原生 Shift+Enter、原生多行粘贴——原生多行纯文本粘贴实测插入单个含 `\n` 的文本节点，无 br）。定案：**新增 `anchorLineBreakCaret`（composer-editor-caret.ts），在两个 DOM 重建函数末尾 + rich-input 每次 input 事件后调用**（已带锚点的行跳过）。实测：粘贴后补锚点**不破坏**原生撤销（Ctrl+Z 仍只撤掉粘贴内容）。

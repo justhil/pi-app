@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/icons'
 import { createElement } from 'react'
 import { wireDelayedTooltip } from './delayed-tooltip'
+import { anchorLineBreakCaret } from './composer-editor-caret'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { segmentsToPromptPayload } from './attachment-text'
 
@@ -127,6 +128,13 @@ function buildIconSvgs() {
 }
 buildIconSvgs()
 
+/** 附件 chip 的 tooltip 文案（插入后经 insertHTML 克隆的节点需重新绑定）。 */
+export function attachmentTooltipText(meta: AttachmentMeta): string {
+  return meta.kind === 'line-ref'
+    ? `${meta.path}:${meta.line ?? ''}${meta.snippet ? `\n${meta.snippet}` : ''}`
+    : meta.path
+}
+
 /** 为富文本编辑器构建一个不可编辑的内联 chip DOM 节点。 */
 export function createAttachmentChip(meta: AttachmentMeta): HTMLSpanElement {
   const chipId = meta.chipId || newAttachmentChipId()
@@ -141,11 +149,7 @@ export function createAttachmentChip(meta: AttachmentMeta): HTMLSpanElement {
   if (meta.snippet) span.dataset.attachmentSnippet = meta.snippet
   span.className =
     meta.kind === 'line-ref' ? 'rich-attachment-chip rich-attachment-chip--line-ref' : 'rich-attachment-chip'
-  const tooltip =
-    meta.kind === 'line-ref'
-      ? `${meta.path}:${meta.line ?? ''}${meta.snippet ? `\n${meta.snippet}` : ''}`
-      : meta.path
-  wireDelayedTooltip(span, tooltip)
+  wireDelayedTooltip(span, attachmentTooltipText(meta))
   const displayName = escapeHtml(meta.name)
   span.innerHTML =
     '<span class="rich-attachment-icon">' +
@@ -168,6 +172,8 @@ export function renderRichTextFromPlain(el: HTMLElement, text: string) {
     el.appendChild(document.createTextNode(line))
   })
   el.normalize()
+  // 孤立 <br> 会让 ← 键在行首卡住：统一补 ZWSP 光标锚点。
+  anchorLineBreakCaret(el)
 }
 
 /** 在光标处插入一个附件 chip（前后附加 ZWSP 让光标可停留）。 */
@@ -177,41 +183,65 @@ export function insertAttachmentAtCursor(el: HTMLElement, meta: AttachmentMeta) 
   let range: Range
   if (sel && sel.rangeCount && el.contains(sel.anchorNode)) {
     range = sel.getRangeAt(0)
-    range.deleteContents()
   } else {
     range = document.createRange()
     range.selectNodeContents(el)
     range.collapse(false)
   }
-  const before = document.createTextNode('\u200B')
   const chip = createAttachmentChip(meta)
-  const after = document.createTextNode('\u200B')
-  const frag = document.createDocumentFragment()
-  frag.appendChild(before)
-  frag.appendChild(chip)
-  frag.appendChild(after)
-  range.insertNode(frag)
-  // Normalize before placing the caret: normalize may merge the ZWSP with adjacent text
-  // (e.g. "\u200Bcd"); a selection referencing the merged ZWSP node would lose the caret.
-  // The chip is an element, so normalize never removes it.
-  el.normalize()
-  const chipNext = chip.nextSibling
+  const chipId = chip.dataset.attachmentChipId
+  // 优先走原生编辑命令 insertHTML：插入参与 Chromium 撤销栈，Ctrl+Z 可单独撤掉 chip；
+  // 直接插 DOM 会污染 contenteditable 的原生撤销栈（此后 Ctrl+Z 会整段清空输入）。
+  let insertedViaCommand = false
+  if (typeof document.execCommand === 'function') {
+    try {
+      insertedViaCommand = document.execCommand('insertHTML', false, `\u200B${chip.outerHTML}\u200B`)
+    } catch {
+      insertedViaCommand = false
+    }
+  }
+  if (!insertedViaCommand) {
+    // 兜底（非 Chromium / execCommand 不可用）：手动 DOM 插入。
+    range.deleteContents()
+    const frag = document.createDocumentFragment()
+    frag.appendChild(document.createTextNode('\u200B'))
+    frag.appendChild(chip)
+    frag.appendChild(document.createTextNode('\u200B'))
+    range.insertNode(frag)
+    el.normalize()
+  }
+  // insertHTML 会克隆 HTML：在真实插入的节点上重新绑定 tooltip。
+  let liveChip: HTMLElement | null = null
+  if (chipId) {
+    liveChip = el.querySelector(`[data-attachment-chip-id="${CSS.escape(chipId)}"]`)
+  }
+  if (liveChip) wireDelayedTooltip(liveChip, attachmentTooltipText(meta))
   if (sel) {
     const caretRange = document.createRange()
+    const chipNext = liveChip?.nextSibling ?? null
     if (chipNext && chipNext.nodeType === Node.TEXT_NODE) {
-      // Place the caret after the chip: offset 1 into the following text node (after the ZWSP,
-      // which may already be merged with the following text).
+      // 光标放在 chip 后（offset 1 = ZWSP 之后，ZWSP 可能已与后续文本合并）。
       caretRange.setStart(chipNext, 1)
       caretRange.setEnd(chipNext, 1)
+    } else if (liveChip) {
+      caretRange.setStartAfter(liveChip)
+      caretRange.setEndAfter(liveChip)
     } else {
-      caretRange.setStartAfter(chip)
-      caretRange.setEndAfter(chip)
+      caretRange.selectNodeContents(el)
+      caretRange.collapse(false)
     }
     sel.removeAllRanges()
     sel.addRange(caretRange)
   }
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
+
+/** 粘贴富文本（Word/网页）时浏览器插入的块级包装标签：序列化时按换行处理。 */
+const BLOCK_BREAK_TAGS = new Set([
+  'DIV', 'P', 'SECTION', 'ARTICLE', 'ASIDE', 'HEADER', 'FOOTER', 'MAIN', 'NAV',
+  'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE', 'PRE', 'UL', 'OL', 'LI',
+  'DL', 'DT', 'DD', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'TH', 'TD', 'FIGCAPTION',
+])
 
 /** 序列化富文本编辑器为文本段，chip 处为文件段。 */
 export function serializeRichInput(el: HTMLElement): {
@@ -255,6 +285,16 @@ export function serializeRichInput(el: HTMLElement): {
         } else if (e.tagName === 'BR') {
           textBuf += '\n'
         } else {
+          // 富文本粘贴的块级包装标签：块与块之间补换行（与 <br> 语义一致）。
+          // ZWSP 锚点（chip 前后的光标停留符）不算内容，不应触发分隔。
+          const meaningfulBuf = textBuf.replace(/\u200B/g, '')
+          if (
+            BLOCK_BREAK_TAGS.has(e.tagName) &&
+            meaningfulBuf.length > 0 &&
+            !meaningfulBuf.endsWith('\n')
+          ) {
+            textBuf += '\n'
+          }
           walk(e)
         }
       }
@@ -305,6 +345,8 @@ export function renderRichFromSegments(el: HTMLElement, segments: Segment[]) {
   }
   el.appendChild(frag)
   el.normalize()
+  // 孤立 <br> 会让 ← 键在行首卡住：统一补 ZWSP 光标锚点。
+  anchorLineBreakCaret(el)
 }
 
 /** 替换最后一段文本的尾随 slash/参数 token；未命中返回原 segments。 */
