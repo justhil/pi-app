@@ -61,3 +61,5 @@ export function plainTextFromClipboardHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   return (doc.body.textContent || '').replace(/\u00a0/g, ' ')
 }
+// 注：纯文本粘贴已改为浏览器原生插入（保持撤销栈），此工具不再被 app 代码引用；
+// 保留导出供未来需要从 HTML 提取纯文本的场景复用。

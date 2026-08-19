@@ -28,7 +28,8 @@
     "test:e2e:install": "playwright install chromium",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
     "postinstall": "node scripts/sync-geist-mono-font.mjs && electron-builder install-app-deps && electron-vite build",
-    "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3"
+    "rebuild:native": "npx @electron/rebuild -f -w better-sqlite3",
+    "regress:composer-undo": "node scripts/regression/composer-undo.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.83.0",

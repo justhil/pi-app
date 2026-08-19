@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { insertBrAtCursor, insertTextAtCursor } from './composer-editor-caret'
+import { anchorLineBreakCaret, insertTextAtCursor } from './composer-editor-caret'
 
 function setupEditor(html: string): HTMLElement {
   const el = document.createElement('div')
@@ -39,47 +39,41 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges()
 })
 
-describe('insertBrAtCursor', () => {
-  it('appends a line break at the end and keeps the caret after it', () => {
-    const el = setupEditor('hello')
-    placeCaretAtEnd(el)
+describe('anchorLineBreakCaret', () => {
+  it('adds a ZWSP anchor after every lone <br>', () => {
+    const el = setupEditor('ab<br>cd<br>ef')
 
-    insertBrAtCursor(el)
+    anchorLineBreakCaret(el)
 
-    expect(el.textContent).toBe('hello\u200B')
-    expect(el.querySelectorAll('br').length).toBe(1)
-    const range = caret()
-    expect(range.startContainer.nodeType).toBe(Node.TEXT_NODE)
-    expect((range.startContainer as Text).textContent).toBe('\u200B')
-    expect(range.startOffset).toBe(1)
+    const brs = el.querySelectorAll('br')
+    expect(brs.length).toBe(2)
+    for (const br of brs) {
+      const next = br.nextSibling
+      expect(next?.nodeType).toBe(Node.TEXT_NODE)
+      expect((next as Text).nodeValue?.startsWith('\u200B')).toBe(true)
+    }
   })
 
-  it('inserts a line break in the middle of text and keeps the caret after the break', () => {
-    const el = setupEditor('abcd')
-    placeCaretAtOffset(el, 2)
+  it('skips <br>s that already carry a ZWSP anchor', () => {
+    const el = setupEditor('ab<br>\u200Bcd')
 
-    insertBrAtCursor(el)
+    anchorLineBreakCaret(el)
 
-    // The ZWSP merges with the following text into "\u200Bcd"; the caret must land at offset 1
-    // (right after the ZWSP) instead of being lost.
-    expect(el.textContent).toBe('ab\u200Bcd')
     expect(el.querySelectorAll('br').length).toBe(1)
-    const range = caret()
-    expect(range.startContainer.nodeType).toBe(Node.TEXT_NODE)
-    expect((range.startContainer as Text).textContent).toBe('\u200Bcd')
-    expect(range.startOffset).toBe(1)
+    // 不重复插入：br 后仍只有一个文本节点。
+    const next = el.querySelector('br')?.nextSibling
+    expect(next?.nodeType).toBe(Node.TEXT_NODE)
+    expect((next as Text).nodeValue).toBe('\u200Bcd')
   })
 
-  it('handles an empty editor', () => {
-    const el = setupEditor('')
-    placeCaretAtEnd(el)
+  it('handles a trailing <br> (empty last line)', () => {
+    const el = setupEditor('ab<br>')
 
-    insertBrAtCursor(el)
+    anchorLineBreakCaret(el)
 
-    expect(el.textContent).toBe('\u200B')
-    const range = caret()
-    expect(range.startContainer).toBe(el.lastChild)
-    expect(range.startOffset).toBe(1)
+    const next = el.querySelector('br')?.nextSibling
+    expect(next?.nodeType).toBe(Node.TEXT_NODE)
+    expect((next as Text).nodeValue).toBe('\u200B')
   })
 })
 
