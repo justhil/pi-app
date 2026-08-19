@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
 import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
-import { insertBrAtCursor } from './composer-editor-caret'
 import type { WorkspaceFsSearchEntry } from '@shared/ipc-contract'
 import type { SlashCommand } from './composer-constants'
 import type { EditorCursorAdapter, useComposerInputHistory } from './use-composer-input-history'
@@ -150,11 +149,8 @@ export function useComposerKeyDown(opts: {
           return
         }
       }
-      if (e.key === 'Enter' && e.shiftKey && editorRef.current) {
-        e.preventDefault()
-        insertBrAtCursor(editorRef.current)
-        return
-      }
+      // Shift+Enter：不再 preventDefault + 手动插 <br>——手动 DOM 插入会污染 contenteditable 的
+      // 原生撤销栈（此后 Ctrl+Z 会整段清空）。让浏览器原生插入 <br>，撤销/重做保持可用。
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (text.trim() || attachments.length > 0) void handleSend()
