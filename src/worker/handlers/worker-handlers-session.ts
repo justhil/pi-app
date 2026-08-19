@@ -3,6 +3,7 @@ import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/
 import { projectTimelineItems } from '@shared/timeline-projection'
 import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { errorMessage } from '@shared/error-message'
+import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { sessionFilePathsEqual } from '@shared/session-file-path'
 import { timelineItemsFromBranchPath } from '../worker-timeline.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
@@ -32,6 +33,21 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
     reply({ type: 'error', error: 'Worker session not started' })
     return
   }
+  // 会话内切模型只影响当前会话：SDK 的 session.setModel 会同时改写全局默认模型
+  // （settingsManager.setDefaultModelAndProvider），会话 JSONL 已按会话持久化模型，
+  // 全局默认应只由设置页修改——切完立刻还原。
+  const settingsManager: SettingsManager | null = st.session.settingsManager ?? null
+  const prevDefault =
+    settingsManager && typeof settingsManager.getDefaultProvider === 'function'
+      ? { provider: settingsManager.getDefaultProvider(), model: settingsManager.getDefaultModel() }
+      : null
+  const restoreGlobalDefault = () => {
+    if (!settingsManager || !prevDefault?.model) return
+    const current = { provider: settingsManager.getDefaultProvider(), model: settingsManager.getDefaultModel() }
+    if (current.model !== prevDefault.model || current.provider !== prevDefault.provider) {
+      settingsManager.setDefaultModelAndProvider(prevDefault.provider ?? '', prevDefault.model)
+    }
+  }
   try {
     const model = st.modelRuntime?.getModel(provider, modelId)
     if (!model) {
@@ -39,6 +55,7 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
       return
     }
     await st.session.setModel(model as Parameters<typeof st.session.setModel>[0])
+    restoreGlobalDefault()
     const actualModel = currentSessionModelKey()
     if (actualModel !== `${provider}/${modelId}`) {
       reply({ type: 'error', error: `MODEL_NOT_CONFIRMED: ${actualModel || 'unknown'}` })
@@ -47,6 +64,8 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
     emit({ ...baseEvent(), type: 'run', phase: 'state', model: actualModel, thinkingLevel: st.session.thinkingLevel })
     reply({ type: 'setModel-done', modelId: actualModel })
   } catch (e: unknown) {
+    // setModel 在写默认之后才可能抛错（如 setThinkingLevel 重钳制）：同样还原默认。
+    restoreGlobalDefault()
     const message = errorMessage(e)
     console.error('[Worker] setModel failed:', e)
     reply({ type: 'error', error: message })
