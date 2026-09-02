@@ -35,6 +35,8 @@ export interface StoreSchema {
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */
   autoCheckRegistryUpdates: boolean
+  /** 上次自动更新检查时间戳（毫秒）；0 = 从未检查。用于避免每次启动都打 GitHub */
+  lastUpdateCheckAt: number
   /** 用户选择「忽略本版本」的 semver（无 v 前缀）；空字符串 = 未忽略 */
   ignoredUpdateVersion: string
   /** 全局：用户提醒是否播放提示音 */
@@ -96,6 +98,7 @@ const store = new Store<StoreSchema>({
     language: 'zh',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
+    lastUpdateCheckAt: 0,
     ignoredUpdateVersion: '',
     alertSoundEnabled: true,
     alertNotificationEnabled: true,
