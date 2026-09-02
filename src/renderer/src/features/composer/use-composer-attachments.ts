@@ -17,7 +17,6 @@ import {
   firstClipboardImageFile,
   isMeaningfulPlainPaste,
   normalizeClipboardImageMime,
-  plainTextFromClipboardHtml,
 } from './clipboard-paste-image'
 
 export function useComposerAttachments(opts: {
@@ -138,11 +137,18 @@ export function useComposerAttachments(opts: {
       const htmlImage = extractDataUrlImageFromHtml(html)
       const plain = cd.getData('text/plain')
       const meaningfulPlain = isMeaningfulPlainPaste(plain)
+      const hasFilesOrImages = metas.length > 0 || !!pendingScreenshot || !!htmlImage
       const stripHtmlOnly =
-        !!html.trim() && !meaningfulPlain && !htmlImage && !metas.length && !pendingScreenshot
-      const hasImagePaste = !!pendingScreenshot || !!htmlImage
+        !!html.trim() && !meaningfulPlain && !hasFilesOrImages
 
-      if (metas.length > 0 || hasImagePaste || meaningfulPlain || stripHtmlOnly) {
+      // 纯文本粘贴（含富文本来源）：不拦截、不 preventDefault，让浏览器原生插入——
+      // 手动 DOM 插入 / JS execCommand 会污染 contenteditable 的原生撤销栈，
+      // 此后 Ctrl+Z 会把整个输入清空（含粘贴前输入的内容）。原生插入可正常撤销/重做；
+      // 富文本来源的包装标签由 serializeRichInput 的块级换行处理兜底。
+      if (!hasFilesOrImages && (meaningfulPlain || stripHtmlOnly)) {
+        return
+      }
+      if (hasFilesOrImages) {
         e.preventDefault()
       }
 
@@ -184,14 +190,6 @@ export function useComposerAttachments(opts: {
       if (meaningfulPlain) {
         insertPlainAfter()
         return
-      }
-
-      if (stripHtmlOnly) {
-        const text = plainTextFromClipboardHtml(html)
-        if (!text.trim()) return
-        const el = editorRef.current
-        if (el) insertTextAtCursor(el, text)
-        updateFromEditor()
       }
     },
     [editorRef, insertMetas, insertPastedScreenshot, updateFromEditor],
