@@ -3,7 +3,7 @@ import type { SessionMenuTarget } from './session-context-menu-types'
 
 type MenuState = { x: number; y: number; target: SessionMenuTarget } | null
 
-export function useSessionContextMenu(onSessionsChange: () => void) {
+export function useSessionContextMenu(onSessionsChange: (workspacePath?: string) => void) {
   const [menu, setMenu] = useState<MenuState>(null)
 
   const open = (e: React.MouseEvent, target: SessionMenuTarget) => {
