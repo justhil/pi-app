@@ -13,6 +13,7 @@ import { ProjectContextMenuPortal } from './project-context-menu'
 import { useProjectContextMenu } from './use-project-context-menu'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
   diskProjectName,
   isSandboxPath,
@@ -77,6 +78,65 @@ export function ProjectSidebar({
       void refreshWorkspaceSessionLists()
     },
     [currentWorkspace, loadWorkspaceSessions],
+  )
+
+  /**
+   * 重命名只改标题，列表顺序不变：本地原地更新，避免整列表重拉引起的重渲染闪烁。
+   * 主进程已把新标题写入 JSONL，后续任意一次刷新都会读到一致的值。
+   */
+  const applySessionRenamed = useCallback(
+    (payload: { sessionFile: string; title: string; workspacePath: string }) => {
+      const { sessionFile, title, workspacePath } = payload
+      const applyTitle = (items: SessionItem[]) => {
+        let changed = false
+        const next = items.map((s) => {
+          if (s.sessionFile && sessionFilesEqual(s.sessionFile, sessionFile)) {
+            changed = true
+            return { ...s, title }
+          }
+          return s
+        })
+        return changed ? next : items
+      }
+      setSessionsByWorkspace((previous) => {
+        const current = previous[workspacePath]
+        if (!current) return previous
+        const next = applyTitle(current)
+        return next === current ? previous : { ...previous, [workspacePath]: next }
+      })
+      if (workspacePath === useUIStore.getState().currentWorkspace) {
+        useUIStore.setState((state) => {
+          const next = applyTitle(state.sessions)
+          return next === state.sessions ? {} : { sessions: next }
+        })
+      }
+    },
+    [],
+  )
+
+  /**
+   * 删除确认后立即从侧栏移除条目：删除 IPC 要等 worker 重建 runtime，先给用户即时反馈，
+   * 删除完成或失败后再以整列表刷新校准。
+   */
+  const applySessionRemoved = useCallback(
+    (payload: { sessionFile: string; workspacePath: string }) => {
+      const { sessionFile, workspacePath } = payload
+      const removeByFile = (items: SessionItem[]) =>
+        items.filter((s) => !(s.sessionFile && sessionFilesEqual(s.sessionFile, sessionFile)))
+      setSessionsByWorkspace((previous) => {
+        const current = previous[workspacePath]
+        if (!current) return previous
+        const next = removeByFile(current)
+        return next.length === current.length ? previous : { ...previous, [workspacePath]: next }
+      })
+      if (workspacePath === useUIStore.getState().currentWorkspace) {
+        useUIStore.setState((state) => {
+          const next = removeByFile(state.sessions)
+          return next.length === state.sessions.length ? {} : { sessions: next }
+        })
+      }
+    },
+    [],
   )
 
   const sessionMenu = useSessionContextMenu(refreshSessionsAfterMutation)
@@ -329,6 +389,8 @@ export function ProjectSidebar({
         menu={sessionMenu.menu}
         onClose={sessionMenu.close}
         onSessionsChange={refreshSessionsAfterMutation}
+        onSessionRenamed={applySessionRenamed}
+        onSessionRemoved={applySessionRemoved}
       />
       <ProjectContextMenuPortal
         menu={projectMenu.menu}
