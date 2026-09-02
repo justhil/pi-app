@@ -23,6 +23,7 @@ import {
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
+import { loadTurnDiffsForSession } from '@renderer/stores/turn-diff-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { RunState, TimelineItem } from '@renderer/stores/ui-store-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -366,6 +367,8 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
 
   const sessionKey = sessionKeyFromFile(sessionFile)
   focusKey = sessionKey
+  // 恢复本会话持久化的回合最终净 diff（turn-diffs 目录；失败静默降级）
+  void loadTurnDiffsForSession(sessionFile)
 
   let view = views.get(sessionKey)
   if (!view) {

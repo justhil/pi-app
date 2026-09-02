@@ -35,7 +35,10 @@ async function handleIncomingMessage(
 ): Promise<void> {
   if (!msg || typeof msg !== 'object' || !msg.type) return
   // Avoid per-RPC production logging; retain errors via uncaught handlers below.
-  if (process.env.NODE_ENV !== 'production' || process.env.PI_WORKER_TRACE === '1') {
+  // 高频轮询类 RPC（getState / getSessionContextPreview）在开发模式也静音，避免刷屏。
+  if (msg.type === 'getState' || msg.type === 'getSessionContextPreview') {
+    // 静音：跳过下方 dev 跟踪
+  } else if (process.env.NODE_ENV !== 'production' || process.env.PI_WORKER_TRACE === '1') {
     console.log('[Worker] Received:', msg.type)
   }
   const translated = translateIncomingPaths(msg)

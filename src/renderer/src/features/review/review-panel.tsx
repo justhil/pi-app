@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -15,6 +15,9 @@ import {
 const SCOPES = ['turn', 'session', 'git'] as const
 type Scope = (typeof SCOPES)[number]
 
+/** 已消费的打开意图 seq（模块级：面板卸载重挂不会重复消费） */
+let consumedReviewIntentSeq = 0
+
 export function ReviewPanel() {
   const { t } = useTranslation()
   const [scope, setScope] = useState<Scope>('session')
@@ -27,6 +30,11 @@ export function ReviewPanel() {
   const [expandedPath, setExpandedPath] = useState<string | null>(null)
   const [focusPath, setFocusPath] = useState<string | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('inline')
+  /** 焦点请求令牌：每次「在 Git Review 中查看」+1，已挂载的 FileDiffView 据此重新展开 */
+  const [focusToken, setFocusToken] = useState(0)
+  /** 文件列表滚动容器：焦点跳转时把目标滚动到中上位置 */
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  const panelOpenIntent = useUIStore((s) => s.panelOpenIntent)
   const { gitData, loading, refreshing, refresh: loadGit } = useReviewGitData({
     enabled: true,
     workspace,
@@ -40,6 +48,22 @@ export function ReviewPanel() {
     const saved = localStorage.getItem('reviewDiffMode')
     if (saved === 'split' || saved === 'inline') setDiffMode(saved)
   }, [])
+
+  useEffect(() => {
+    // 打开意图在 store 中持久，懒加载挂载后消费一次（模块级 seq 防重入）
+    if (!panelOpenIntent || panelOpenIntent.panel !== 'review') return
+    if (panelOpenIntent.seq === consumedReviewIntentSeq) return
+    consumedReviewIntentSeq = panelOpenIntent.seq
+    if (panelOpenIntent.scope && SCOPES.includes(panelOpenIntent.scope)) {
+      setScope(panelOpenIntent.scope)
+    }
+    if (panelOpenIntent.path) {
+      const normalized = panelOpenIntent.path.replace(/\\/g, '/')
+      setFocusPath(normalized)
+      setExpandedPath(normalized)
+      setFocusToken((prev) => prev + 1)
+    }
+  }, [panelOpenIntent])
 
   useEffect(() => {
     const onScope = (e: Event) => {
@@ -57,6 +81,7 @@ export function ReviewPanel() {
       const normalized = path.replace(/\\/g, '/')
       setFocusPath(normalized)
       setExpandedPath(normalized)
+      setFocusToken((prev) => prev + 1)
     }
     window.addEventListener('pi-desktop:review-focus-file', onFocus)
     return () => window.removeEventListener('pi-desktop:review-focus-file', onFocus)
@@ -117,6 +142,8 @@ export function ReviewPanel() {
             mode={diffMode}
             cwd={cwd}
             defaultOpen={isFocused(row.path)}
+            focusToken={focusToken}
+            focusScrollRef={listScrollRef}
             onMutated={loadGit}
           />
         ))}
@@ -167,7 +194,7 @@ export function ReviewPanel() {
           </button>
         </div>
       </div>
-      <div className="scrollbar-overlay flex-1 overflow-y-auto">
+      <div className="scrollbar-overlay flex-1 overflow-y-auto" ref={listScrollRef}>
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
@@ -180,7 +207,12 @@ export function ReviewPanel() {
         ) : gitData?.error ? (
           <p className="px-3 py-4 text-[11px] text-destructive/80">{gitData.error}</p>
         ) : empty ? (
-          <p className="px-4 py-10 text-center text-[12px] text-foreground-secondary/70">{t('review:empty')}</p>
+          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+            <p className="text-[12px] text-foreground-secondary/70">{t('review:empty')}</p>
+            {scope === 'git' && (
+              <p className="max-w-[240px] text-[11px] text-muted-foreground/60">{t('review:emptyGitHint')}</p>
+            )}
+          </div>
         ) : (
           <div className="py-1">
             {renderGroup(t('review:staged'), groups.staged, 'staged')}

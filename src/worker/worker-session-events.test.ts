@@ -54,6 +54,7 @@ function createSessionEventHarness(): SessionEventHarness {
           getLeafId: () => leafId,
         },
       }) as never,
+    getCwd: () => '/workspace',
     getSessionModelKey: () => 'provider/model',
     getUiBridge: () => null,
     isAgentTurnActive: () => agentTurnActive,

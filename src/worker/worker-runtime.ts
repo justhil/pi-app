@@ -436,6 +436,7 @@ function sessionEventDeps() {
     baseEvent,
     emit,
     getSession: () => st.session,
+    getCwd: () => st.currentCwd,
     getSessionModelKey: currentSessionModelKey,
     getUiBridge: () => st.uiBridge,
     captureAdapterTool: (toolName: string, payload: unknown) => st.widgetHost?.captureTool(toolName, payload),

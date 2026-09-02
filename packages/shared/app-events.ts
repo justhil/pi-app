@@ -43,6 +43,30 @@ export interface FileEvent extends AppEventBase {
   changeType: 'added' | 'modified' | 'deleted' | 'renamed'
 }
 
+/** 回合结束后由 Worker 计算的文件最终净 diff（基线 → 回合结束状态）。 */
+export interface TurnDiffFile {
+  path: string
+  status: 'added' | 'modified' | 'deleted'
+  additions: number
+  deletions: number
+  /** unified diff 文本（截断时以标记行结尾） */
+  diffText?: string
+  truncated?: boolean
+  /** 二进制文件：无文本 diff，仅大小/状态 */
+  binary?: boolean
+  /** 未建立基线的原因（不缓存基线的文件） */
+  skipReason?: 'oversize' | 'binary' | 'outside_workspace' | 'unreadable' | 'budget'
+  sizeBefore?: number
+  sizeAfter?: number
+}
+
+export interface TurnDiffEvent extends AppEventBase {
+  type: 'turn_diff'
+  /** 本 worker 会话生命周期内的回合序号（从 1 起），用于 turnId/runId 不可用时的降级匹配 */
+  turnOrdinal?: number
+  files: TurnDiffFile[]
+}
+
 export interface RunEvent extends AppEventBase {
   type: 'run'
   phase: 'started' | 'running' | 'idle' | 'failed' | 'cancelled' | 'state'
@@ -137,6 +161,7 @@ export type AppEvent =
   | MessageEvent
   | ToolEvent
   | FileEvent
+  | TurnDiffEvent
   | RunEvent
   | CompactionEvent
   | SlashEvent

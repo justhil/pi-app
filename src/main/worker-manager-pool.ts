@@ -3,6 +3,7 @@ import type { AppEvent } from '@shared/app-events'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { windowsPathToWsl } from '@shared/wsl-path'
 import { resolveActiveSdk } from './sdk-loader'
+import { configStore } from './config-store'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
@@ -380,7 +381,12 @@ export async function forkWorkerForCwd(
     }
   })
   slot.initPromise = initPromise
-  transport.postMessage({ type: 'init', cwd: workerCwd, sdkPath })
+  transport.postMessage({
+    type: 'init',
+    cwd: workerCwd,
+    sdkPath,
+    turnDiffSnapshotMaxBytes: configStore.get('turnDiffSnapshotMaxBytes'),
+  })
   return { slot, init: initPromise }
 }
 

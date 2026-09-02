@@ -15,12 +15,18 @@ import { extractJsonPath, extractStatusFromOutput } from '../extension-compat/js
 import { enrichToolChildSessionFiles } from '../extension-compat/tool-child-session.js'
 import type { DesktopUIBridge } from './desktop-ui-bridge.js'
 import { lastAssistantFromMessages } from './session-event-helpers.js'
+import {
+  captureTurnFileBaseline,
+  finalizeTurnDiff,
+  markTurnStarted,
+} from './turn-file-diff.js'
 import { sendToMain } from './worker-transport.js'
 
 export type SessionEventDeps = {
   baseEvent: () => Record<string, unknown>
   emit: (event: AppEvent) => void
   getSession: () => AgentSession | null
+  getCwd: () => string
   getSessionModelKey: () => string | undefined
   getUiBridge: () => DesktopUIBridge | null
   captureAdapterTool?: (toolName: string, payload: unknown) => void
@@ -74,6 +80,8 @@ function terminalErrorFromAssistant(
 }
 
 function emitSettledRun(deps: SessionEventDeps): void {
+  // 回合结算（成功 / 失败 / 中止）：先结算文件最终净 diff，再发 settled 事件
+  void finalizeTurnDiff()
   const terminalError = pendingTerminalError
   const base = deps.baseEvent()
   const promptPreview = sanitizeCompletionPreview(lastUserPreview, COMPLETION_TITLE_MAX)
@@ -154,10 +162,15 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'turn_start': {
+      // 新回合占号（无修改工具的回合也占号，保持与视图回合序号对齐）
+      markTurnStarted(typeof base.sessionFile === 'string' ? base.sessionFile : null)
+      // 上一回合若未走 turn_end（异常路径）在这里兜底结算
+      void finalizeTurnDiff()
       deps.setCurrentTurnId(`turn-${deps.nextSeq()}`)
       break
     }
     case 'turn_end': {
+      void finalizeTurnDiff()
       const msg = event.message as PiSessionMessage
       const totals = piUsageTotals(msg?.usage)
       if (totals) {
@@ -277,6 +290,16 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         phase: 'start',
         input: event.args,
       } as AppEvent)
+      // 修改工具执行前建立本回合文件基线（edit/write/insert；首次修改为准）
+      if (event.toolName === 'edit' || event.toolName === 'write' || event.toolName === 'insert') {
+        void captureTurnFileBaseline(event.toolName, event.args, {
+          turnId: String(base.turnId || ''),
+          runId: String(base.runId || ''),
+          cwd: deps.getCwd(),
+          base,
+          emit: deps.emit,
+        })
+      }
       break
     }
     case 'tool_execution_update': {

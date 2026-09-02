@@ -102,5 +102,13 @@ export function translateEventPaths<T extends object>(event: T): T {
   const out: Record<string, unknown> = { ...(event as Record<string, unknown>) }
   if (typeof out.workspaceId === 'string') out.workspaceId = toMainPath(out.workspaceId)
   if (typeof out.sessionFile === 'string') out.sessionFile = toMainPath(out.sessionFile)
+  // turn_diff 事件的文件路径同样需要转换到 Windows 视图
+  if (Array.isArray(out.files)) {
+    out.files = (out.files as Record<string, unknown>[]).map((f) => {
+      const row: Record<string, unknown> = { ...f }
+      if (typeof row.path === 'string') row.path = toMainPath(row.path)
+      return row
+    })
+  }
   return out as T
 }

@@ -27,6 +27,7 @@ import type { CompletionDeliveryMode, CompletionPreviewMode } from '@shared/comp
 import type { IconTheme } from '@shared/icon-theme'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
+import { normalizeTurnDiffSnapshotBytes as normalizeTurnDiffSnapshotBytesUi } from '@shared/turn-diff-config'
 import { setAsrConfigPreview } from '@renderer/lib/asr-config-effective'
 import {
   defaultRightPanelPrefsForCatalog,
@@ -71,6 +72,7 @@ type SettingsDraftContextValue = {
   setMaxSessionWorkers: (n: number) => void
   setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
+  setTurnDiffSnapshotMaxBytes: (n: number) => void
   setAgentRuntime: (r: AgentRuntimeChoice) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
@@ -287,6 +289,11 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
         patch((d) => ({
           ...d,
           timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n),
+        })),
+      setTurnDiffSnapshotMaxBytes: (n) =>
+        patch((d) => ({
+          ...d,
+          turnDiffSnapshotMaxBytes: normalizeTurnDiffSnapshotBytesUi(n),
         })),
       setAgentRuntime: (r) => patch((d) => ({ ...d, agentRuntime: r })),
       setExtensionOverride: (id, enabled) =>
