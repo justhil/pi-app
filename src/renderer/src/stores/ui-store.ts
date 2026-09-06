@@ -156,7 +156,6 @@ export const useUIStore = create<UIState>()(
   historyLoading: false,
   setHistoryMeta: (total, loaded, sessionFile) => {
     set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile })
-    if (sessionFile) get().markSessionViewed(sessionFile)
   },
   setHistoryLoading: (v) => set({ historyLoading: v }),
   subagentSessionGroup: null,

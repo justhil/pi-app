@@ -24,7 +24,7 @@
     "title": "General",
     "description": "After changes, use \"Save\" at the bottom to write to local config.",
     "startup": "Startup",
-    "openLastProject": "Reopen last project on launch"
+    "openLastProject": "Reopen last project on launch",
     "openLastProjectDesc": "Automatically restore the last opened project directory",
     "autoCheckUpdate": "Check for updates automatically",
     "autoCheckUpdateDesc": "Background check of GitHub Releases after launch; shows notes and one-click install when available",
@@ -237,7 +237,7 @@
     "sectionToolShell": "Tools & Shell",
     "sectionSkillStartup": "Skills & Startup",
     "sdkManagement": "SDK Version Management",
-    "pathTitle": "Local pi directory",
+    "agentDirTitle": "Local pi directory",
     "copyPath": "Copy path",
     "openDir": "Open folder",
     "builtinVersion": "Built-in version",

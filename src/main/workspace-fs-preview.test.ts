@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { workspaceFsListDir, workspaceFsReadText } from './workspace-fs'
+import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText } from './workspace-fs'
 
 const roots: string[] = []
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })))
@@ -50,5 +50,22 @@ describe('workspace text preview', () => {
     const root = fixture('abc\0def')
     expect(workspaceFsReadText({ workspaceRoot: root, path: '中文 动画.html' })).toMatchObject({ ok: false, error: 'binary' })
     expect(workspaceFsReadText({ workspaceRoot: root, path: '../secret' })).toMatchObject({ ok: false, error: 'outside_workspace' })
+  })
+  it('should_reject_create_through_symlink_escape', () => {
+    const root = mkdtempSync(join(tmpdir(), 'pi-preview-'))
+    roots.push(root)
+    const outside = mkdtempSync(join(tmpdir(), 'pi-outside-'))
+    roots.push(outside)
+    mkdirSync(join(root, 'link-parent'))
+    try {
+      symlinkSync(outside, join(root, 'link-parent', 'link'), 'dir')
+    } catch {
+      return
+    }
+    expect(workspaceFsCreate({
+      workspaceRoot: root,
+      relativePath: 'link-parent/link/missing/escape.txt',
+      isDirectory: false,
+    })).toMatchObject({ ok: false, error: 'outside_workspace' })
   })
 })

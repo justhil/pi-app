@@ -6,22 +6,28 @@ const invokeMock = vi.fn(async (_method: unknown, _req?: unknown): Promise<unkno
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: (method: unknown, req?: unknown) => invokeMock(method, req) },
 }))
-vi.mock('@renderer/lib/activate-workspace', () => ({ switchSessionInPlace: vi.fn() }))
+const workspaceMocks = vi.hoisted(() => ({
+  switchSessionInPlace: vi.fn(),
+  activateWorkspace: vi.fn(),
+}))
+const uiState = vi.hoisted(() => ({
+  currentSessionId: null as string | null,
+  currentWorkspace: '/proj/current',
+  sessionAttention: {} as Record<string, string>,
+  setCurrentSession: () => {},
+  clearTimeline: () => {},
+  loadHistoryItems: () => {},
+  setHistoryMeta: () => {},
+}))
+vi.mock('@renderer/lib/activate-workspace', () => workspaceMocks)
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 vi.mock('@renderer/stores/ui-store', () => ({
-  useUIStore: {
-    getState: () => ({
-      currentSessionId: null,
-      sessionAttention: {},
-      setCurrentSession: () => {},
-      clearTimeline: () => {},
-      loadHistoryItems: () => {},
-      setHistoryMeta: () => {},
-    }),
+  useUIStore: Object.assign((selector?: (state: typeof uiState) => unknown) => (selector ? selector(uiState) : uiState), {
+    getState: () => uiState,
     setState: () => {},
-  },
+  }),
 }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
@@ -41,6 +47,22 @@ const MENU = {
 describe('SessionContextMenuPortal mutations refresh the owning workspace', () => {
   afterEach(() => {
     invokeMock.mockClear()
+    workspaceMocks.switchSessionInPlace.mockClear()
+    workspaceMocks.activateWorkspace.mockClear()
+  })
+
+  it('should_activate_owning_workspace_when_continuing_a_foreign_session', async () => {
+    render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={() => {}} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.continue'))
+    })
+
+    expect(workspaceMocks.activateWorkspace).toHaveBeenCalledWith('/proj/a', {
+      sessionId: 's1',
+      sessionFile: '/proj/a/s1.jsonl',
+    })
+    expect(workspaceMocks.switchSessionInPlace).not.toHaveBeenCalled()
   })
 
   it('delete refreshes the owning workspace', async () => {

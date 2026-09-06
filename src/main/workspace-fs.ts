@@ -25,10 +25,14 @@ export function resolvePathUnderWorkspace(root: string, inputPath: string): { ok
   try {
     if (existsSync(abs)) absReal = realpathSync(abs)
     else {
-      const parent = dirname(abs)
-      if (existsSync(parent)) {
-        const parentReal = realpathSync(parent)
-        absReal = join(parentReal, abs.slice(parent.length))
+      let walk = dirname(abs)
+      while (walk && walk !== dirname(walk)) {
+        if (existsSync(walk)) {
+          const parentReal = realpathSync(walk)
+          absReal = join(parentReal, abs.slice(walk.length))
+          break
+        }
+        walk = dirname(walk)
       }
     }
   } catch (e) {

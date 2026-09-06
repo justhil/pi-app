@@ -2252,7 +2252,7 @@
 .workbench-scope[aria-pressed='true'] { background: var(--bg-active); color: hsl(var(--foreground)); font-weight: 500; }
 .workbench-icon[aria-pressed='true'] { background: var(--bg-active); color: hsl(var(--foreground)); }
 .settings-main { container-type: inline-size; }
-.settings-section:has(.settings-section-rows:empty) { display: none; }
+.settings-section:has(.settings-section-rows:empty):not(:has(button[aria-expanded])) { display: none; }
 .settings-row-control { max-width: 56%; }
 .settings-row-control > div { max-width: 100%; }
 .settings-row-control .settings-chip { min-height: 34px; }

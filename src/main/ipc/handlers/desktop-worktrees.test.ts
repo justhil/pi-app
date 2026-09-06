@@ -15,7 +15,6 @@ vi.mock('../../worker-manager', () => ({ workerManager: { cwd: '/repo/A' } }))
 vi.mock('../../trusted-workspace', () => ({ getTrustedWorkspaceRoot: () => '/repo/A' }))
 vi.mock('../../config-store', () => ({ configStore: { get: (key: string) => key === 'recentProjects' ? ['/repo/A', '/repo/B'] : '/repo/B' } }))
 vi.mock('../../completion-notification', () => ({ listCompletionInbox: vi.fn(), markCompletionInboxRead: vi.fn(), markCompletionInboxUnread: vi.fn() }))
-vi.mock('../../workspace-fs', () => ({ workspaceFsCreate: vi.fn() }))
 vi.mock('../../git-workspace', () => ({ runGitReadOnly: mocks.runGit }))
 vi.mock('fs/promises', () => {
   const stat = vi.fn(async (path: string) => ({ isDirectory: () => path !== '/gone' }))

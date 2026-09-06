@@ -176,10 +176,7 @@ export function attachWorkerHandlers(
       win &&
       !win.isDestroyed()
     ) {
-      const fg = opts.getForegroundPoolKey?.() ?? null
-      if (fg && fg !== slot.poolKey) {
-        // X1: only foreground session dismiss noise
-      } else if (data.type === 'extension-ui-dismiss-all') {
+      if (data.type === 'extension-ui-dismiss-all') {
         dismissExtensionUiRequestsForSlot(
           slot,
           (payload) => win.webContents.send('ipc:extension-ui-dismiss', payload),

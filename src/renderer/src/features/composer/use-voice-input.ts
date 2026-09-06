@@ -52,6 +52,9 @@ export function useVoiceInput(
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
+  const startingRef = useRef(false)
+  const voiceStateRef = useRef<VoiceState>('idle')
+  voiceStateRef.current = voiceState
 
   const refreshReady = useCallback(async () => {
     try {
@@ -100,7 +103,9 @@ export function useVoiceInput(
   }, [])
 
   const start = useCallback(async () => {
-    if (!canCompose) return
+    if (!canCompose || startingRef.current || recorderRef.current) return
+    startingRef.current = true
+    try {
     await refreshReady()
     const cfg = effectiveCfgRef.current
     if (!cfg || !isAsrVoiceReady(cfg)) {
@@ -189,20 +194,23 @@ export function useVoiceInput(
     }
     recorder.start()
     setVoiceState('recording')
+    } finally {
+      startingRef.current = false
+    }
   }, [canCompose, onResult, tr, refreshReady])
 
   const toggle = useCallback(() => {
-    if (voiceState === 'recording') stop()
-    else if (voiceState === 'idle' || voiceState === 'error') void start()
-  }, [voiceState, start, stop])
+    if (voiceStateRef.current === 'recording' || startingRef.current) stop()
+    else if (voiceStateRef.current === 'idle' || voiceStateRef.current === 'error') void start()
+  }, [start, stop])
 
   const holdStart = useCallback(() => {
-    if (voiceState === 'idle' || voiceState === 'error') void start()
-  }, [voiceState, start])
+    if (voiceStateRef.current === 'idle' || voiceStateRef.current === 'error') void start()
+  }, [start])
 
   const holdEnd = useCallback(() => {
-    if (voiceState === 'recording') stop()
-  }, [voiceState, stop])
+    if (voiceStateRef.current === 'recording' || startingRef.current) stop()
+  }, [stop])
 
   useEffect(() => () => stop(), [stop])
 

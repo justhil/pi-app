@@ -18,6 +18,7 @@ export type ExtensionUISuspended = {
   toolCallId?: string
   toolName?: string
   timelineItemId?: string
+  background?: boolean
   suspendedAt: number
 }
 
@@ -25,9 +26,11 @@ type ExtensionUIState = {
   activePending: ExtensionUIPending | null
   suspended: ExtensionUISuspended | null
   setActivePending: (p: ExtensionUIPending | null) => void
-  suspendActive: (meta: { toolCallId?: string; toolName?: string; timelineItemId?: string }) => void
+  suspendActive: (meta: { toolCallId?: string; toolName?: string; timelineItemId?: string; background?: boolean }) => void
   resumeSuspended: () => void
   clearAfterRespond: () => void
+  clearAllDialogs: () => void
+  dismissById: (id: string) => void
   parkForSessionSwitch: () => void
   restoreForSession: (sessionFile: string) => void
   resetForSessionContext: () => void
@@ -43,6 +46,7 @@ function pruneStaleSuspension(): void {
   const { activePending, suspended } = useExtensionUIStore.getState()
   if (activePending) return
   if (!suspended) return
+  if (suspended.background) return
   const items = useUIStore.getState().timelineItems
   const tid = suspended.timelineItemId
   if (!tid) {
@@ -84,16 +88,21 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
     const active = get().activePending
     if (!active) return
     syncWaitingUi(pendingSessionFile(active), true)
+    const parked = get().suspended
+    const next: ExtensionUISuspended = {
+      requestId: active.id,
+      pending: active,
+      toolCallId: meta.toolCallId,
+      toolName: meta.toolName,
+      timelineItemId: meta.timelineItemId,
+      background: meta.background === true || (!meta.timelineItemId && !!active.sessionFile),
+      suspendedAt: Date.now(),
+    }
+    const keepParked =
+      parked && parked.requestId !== next.requestId && parked.background === true ? parked : null
     set({
       activePending: null,
-      suspended: {
-        requestId: active.id,
-        pending: active,
-        toolCallId: meta.toolCallId,
-        toolName: meta.toolName,
-        timelineItemId: meta.timelineItemId,
-        suspendedAt: Date.now(),
-      },
+      suspended: next.background || !keepParked ? next : keepParked,
     })
   },
 
@@ -106,11 +115,37 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
 
   clearAfterRespond: () => {
     const { activePending, suspended } = get()
+    syncWaitingUi(pendingSessionFile(activePending), false)
+    const keep =
+      suspended &&
+      suspended.background &&
+      (!activePending || suspended.requestId !== activePending.id)
+        ? suspended
+        : null
+    if (!keep) syncWaitingUi(pendingSessionFile(suspended?.pending), false)
+    set({ activePending: null, suspended: keep })
+  },
+
+  pruneStaleSuspension: () => pruneStaleSuspension(),
+
+  clearAllDialogs: () => {
+    const { activePending, suspended } = get()
     syncWaitingUi(pendingSessionFile(activePending || suspended?.pending), false)
     set({ activePending: null, suspended: null })
   },
 
-  pruneStaleSuspension: () => pruneStaleSuspension(),
+  dismissById: (id) => {
+    const { activePending, suspended } = get()
+    if (activePending?.id === id) {
+      syncWaitingUi(pendingSessionFile(activePending), false)
+      set({ activePending: null })
+      return
+    }
+    if (suspended?.requestId === id) {
+      syncWaitingUi(pendingSessionFile(suspended.pending), false)
+      set({ suspended: null })
+    }
+  },
 
   parkForSessionSwitch: () => {
     const active = get().activePending

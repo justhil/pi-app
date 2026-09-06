@@ -15,6 +15,7 @@ import { FileTree } from './file-tree'
 import { FilesContextMenuPortal, type FilesCtxTarget } from './files-context-menu-portal'
 import { FilePreviewTabBar } from './file-preview-tab-bar'
 import { useFilePreviewTabs } from './use-file-preview-tabs'
+import { RenamePromptDialog } from '@renderer/features/workspace/rename-prompt-dialog'
 
 type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
@@ -48,6 +49,7 @@ export function WorkspaceFilesPanel() {
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [createTarget, setCreateTarget] = useState<{ rel: string; isDirectory: boolean } | null>(null)
 
   const selectedPath = activeTab?.rel ?? null
   const previewPath = activeTab?.rel ?? null
@@ -336,23 +338,11 @@ export function WorkspaceFilesPanel() {
         }}
         onNewFile={() => {
           if (!menu) return
-          const name = window.prompt(t('menu.newFile'))
-          if (!name) return
-          void ipcClient.invoke('workspace.fs.create', {
-            workspaceRoot,
-            relativePath: `${menu.rel}/${name}`,
-            isDirectory: false,
-          }).then(() => bumpTree())
+          setCreateTarget({ rel: menu.rel, isDirectory: false })
         }}
         onNewFolder={() => {
           if (!menu) return
-          const name = window.prompt(t('menu.newFolder'))
-          if (!name) return
-          void ipcClient.invoke('workspace.fs.create', {
-            workspaceRoot,
-            relativePath: `${menu.rel}/${name}`,
-            isDirectory: true,
-          }).then(() => bumpTree())
+          setCreateTarget({ rel: menu.rel, isDirectory: true })
         }}
         onSearchInFolder={() => {
           if (!menu) return
@@ -370,6 +360,23 @@ export function WorkspaceFilesPanel() {
         }}
       />
 
+      <RenamePromptDialog
+        open={!!createTarget}
+        title={createTarget?.isDirectory ? t('menu.newFolder') : t('menu.newFile')}
+        defaultValue=""
+        onConfirm={async (name) => {
+          if (!createTarget || !workspaceRoot) return
+          const relativePath = `${createTarget.rel.replace(/\\/g, '/')}/${name}`
+          await ipcClient.invoke('workspace.fs.create', {
+            workspaceRoot,
+            relativePath,
+            isDirectory: createTarget.isDirectory,
+          })
+          setCreateTarget(null)
+          bumpTree()
+        }}
+        onCancel={() => setCreateTarget(null)}
+      />
       {renameOpen && renameTarget
         ? createPortal(
             <>

@@ -24,7 +24,7 @@
     "title": "常规",
     "description": "修改后请使用页面底部「保存」写入本机配置。",
     "startup": "启动",
-    "openLastProject": "启动时打开上次项目"
+    "openLastProject": "启动时打开上次项目",
     "openLastProjectDesc": "自动恢复上次打开的项目目录",
     "autoCheckUpdate": "自动检查更新",
     "autoCheckUpdateDesc": "启动后后台查询 GitHub Releases；有更新时弹窗展示说明，可一键下载安装",
@@ -237,7 +237,7 @@
     "sectionToolShell": "工具与 Shell",
     "sectionSkillStartup": "技能与启动",
     "sdkManagement": "SDK 版本管理",
-    "pathTitle": "本机 pi 目录",
+    "agentDirTitle": "本机 pi 目录",
     "copyPath": "复制路径",
     "openDir": "打开目录",
     "builtinVersion": "内置版本",

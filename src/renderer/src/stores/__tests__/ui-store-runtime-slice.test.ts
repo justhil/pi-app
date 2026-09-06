@@ -40,4 +40,14 @@ describe('UI runtime state isolation', () => {
     expect(state.optimisticPendingUserText).toBe('stale prompt')
   })
 
+  it('should_clear_done_when_focusing_a_settled_session', async () => {
+    const { focusSessionSync, clearSessionShellForTests } = await import('@renderer/lib/session-shell')
+    clearSessionShellForTests()
+    useUIStore.getState().markSessionSettled('/sessions/background.jsonl')
+    expect(useUIStore.getState().sessionSettledUnseen['/sessions/background.jsonl']).toBe(true)
+
+    focusSessionSync('background', '/sessions/background.jsonl')
+
+    expect(useUIStore.getState().sessionSettledUnseen['/sessions/background.jsonl']).toBeUndefined()
+  })
 })

@@ -161,7 +161,7 @@ export function PiSettingsSdkSection({
         </pre>
       )}
       <div className="mt-4 rounded-md border border-border/50 p-3 text-[12px]">
-        <div className="mb-1 font-medium">{t('settings:pi.pathTitle')}</div>
+        <div className="mb-1 font-medium">{t('settings:pi.agentDirTitle')}</div>
         <p className="text-muted-foreground">{info?.agentDir || t('settings:pi.notDetected')}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button

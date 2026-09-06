@@ -11,8 +11,6 @@ import {
   markCompletionInboxUnread,
 } from '../../completion-notification'
 import { execFileSync } from 'child_process'
-import { workspaceFsCreate } from '../../workspace-fs'
-
 let sleepBlocker: number | null = null
 
 export function registerDesktopChromeHandlers(): void {
@@ -68,14 +66,6 @@ export function registerDesktopChromeHandlers(): void {
   registerHandler('ipc:desktop.pairingCode', async () => {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
     return { ok: true, code, url: `pi-desktop://pair/${code}` }
-  })
-
-  registerHandler('ipc:workspace.fs.create', async (req) => {
-    return workspaceFsCreate({
-      workspaceRoot: String(req.workspaceRoot || ''),
-      relativePath: String(req.relativePath || ''),
-      isDirectory: req.isDirectory === true,
-    })
   })
 
   registerHandler('ipc:desktop.crashCopy', async (req) => {

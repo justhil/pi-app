@@ -19,4 +19,17 @@ describe('Settings search presentation', () => {
     expect(screen.getByText('Sound')).toBeInTheDocument()
     expect(screen.getByText('Delivery')).toBeInTheDocument()
   })
+
+  it('should_keep_collapsed_advanced_section_visible', () => {
+    render(
+      <SettingsSection
+        title="Workers"
+        action={<button type="button">Show advanced</button>}
+      >
+        {false ? <SettingRow label="Max workers"><input /></SettingRow> : null}
+      </SettingsSection>,
+    )
+    expect(screen.getByText('Workers')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show advanced' })).toBeInTheDocument()
+  })
 })

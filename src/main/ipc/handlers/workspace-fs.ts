@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'fs'
 import { extname } from 'path'
 import { shell } from 'electron'
-import { workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
+import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
 import { workspaceFsSearch } from '../../workspace-file-search'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -12,6 +12,7 @@ import {
   workspaceFsSearchSchema,
   workspaceFsReadTextSchema,
   workspaceFsRenameSchema,
+  workspaceFsCreateSchema,
 } from '../schemas'
 
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
@@ -71,6 +72,14 @@ export function registerWorkspaceFsHandlers(): void {
       workspaceRoot: req.workspaceRoot,
       relativePath: req.relativePath,
       newName: req.newName,
+    })
+  })
+
+  registerHandlerWithSchema('ipc:workspace.fs.create', workspaceFsCreateSchema, async (req) => {
+    return workspaceFsCreate({
+      workspaceRoot: req.workspaceRoot,
+      relativePath: req.relativePath,
+      isDirectory: req.isDirectory === true,
     })
   })
 

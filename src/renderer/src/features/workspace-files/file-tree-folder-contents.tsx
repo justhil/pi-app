@@ -36,12 +36,18 @@ type LevelProps = {
   gitByPath?: Record<string, string>
 }
 
-function filterBySearch(entries: FsEntry[], q: string) {
+export function filterBySearch(entries: FsEntry[], q: string) {
   if (!q) return entries
+  const needle = q.replace(/\\/g, '/').replace(/\/+$/, '')
   return entries.filter((e) => {
     const name = e.name.toLowerCase()
     const path = e.path.replace(/\\/g, '/').toLowerCase()
-    return name.includes(q) || path.includes(q) || path.startsWith(q.replace(/\\/g, '/'))
+    return (
+      name.includes(needle) ||
+      path.includes(needle) ||
+      path.startsWith(`${needle}/`) ||
+      `${needle}/`.startsWith(`${path}/`)
+    )
   })
 }
 

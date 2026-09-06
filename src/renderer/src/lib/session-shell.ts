@@ -443,6 +443,7 @@ export function focusSessionSync(sessionId: string, sessionFile: string): {
   // Set loading BEFORE bind so empty cold targets never paint one frame of "empty chat".
   useUIStore.getState().setHistoryLoading(!instant)
   bindViewToUiStore(view)
+  useUIStore.getState().markSessionViewed(sessionFile)
   useUIStore.getState().clearFileChanges()
   useUIStore.getState().setComposerWidget(getSessionComposerWidget(sessionFile))
   evictSessionViewsIfNeeded()

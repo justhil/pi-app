@@ -19,7 +19,7 @@ vi.mock('@renderer/lib/extension-ui-channel', () => ({
   clearExtensionDialogDedupe: vi.fn(),
 }))
 vi.mock('@renderer/stores/extension-ui-store', () => ({
-  useExtensionUIStore: { getState: () => ({ clearAfterRespond: vi.fn() }) },
+  useExtensionUIStore: { getState: () => ({ clearAfterRespond: vi.fn(), clearAllDialogs: vi.fn(), dismissById: vi.fn() }) },
 }))
 
 import { handleCompaction } from '../apply-app-event-compaction'

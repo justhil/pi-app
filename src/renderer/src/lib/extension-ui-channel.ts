@@ -95,7 +95,11 @@ export function dismissExtensionDialogState(id?: string): void {
   const suspendedId = st.suspended?.requestId
   if (id && activeId !== id && suspendedId !== id) return
   if (id) seenDialogIds.delete(id)
-  st.clearAfterRespond()
+  if (!id) {
+    st.clearAllDialogs()
+    return
+  }
+  st.dismissById(id)
 }
 
 /** 只注册一次 IPC 监听，避免 StrictMode 双挂载导致重复 toast / 双提示音 */
@@ -106,7 +110,7 @@ export function ensureExtensionUIChannel(): void {
   onExtensionUIDismiss((payload) => {
     if (payload.type === 'extension-ui-dismiss-all') {
       seenDialogIds.clear()
-      useExtensionUIStore.getState().clearAfterRespond()
+      useExtensionUIStore.getState().clearAllDialogs()
       reconcileAllStaleInteractiveToolRows()
       return
     }
@@ -155,7 +159,7 @@ export function ensureExtensionUIChannel(): void {
     const isBackground = !!p.sessionFile && !!viewFile && !sessionFilesEqual(p.sessionFile, viewFile)
     if (isBackground) {
       useExtensionUIStore.getState().setActivePending(p)
-      useExtensionUIStore.getState().suspendActive({})
+      useExtensionUIStore.getState().suspendActive({ background: true })
     } else {
       useExtensionUIStore.getState().setActivePending(p)
     }

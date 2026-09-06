@@ -34,6 +34,12 @@ export const workspaceFsRenameSchema = z.object({
   newName: z.string(),
 })
 
+export const workspaceFsCreateSchema = z.object({
+  workspaceRoot: z.string().min(1),
+  relativePath: z.string().min(1),
+  isDirectory: z.boolean().optional(),
+})
+
 export const sessionExportSchema = z.object({
   format: z.enum(['json', 'markdown', 'html']).optional(),
   sessionFile: z.string().optional(),

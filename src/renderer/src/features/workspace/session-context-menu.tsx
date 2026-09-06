@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Copy, FolderOpen, Pencil, Play, Trash2 } from '@renderer/components/icons'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
-import { switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { workspacePathsEqual } from '@shared/workspace-path'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -138,7 +139,15 @@ export function SessionContextMenuPortal({
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
-                    void switchSessionInPlace(menu.target.sessionId, menu.target.sessionFile)
+                    const currentWorkspace = useUIStore.getState().currentWorkspace
+                    if (workspacePathsEqual(menu.target.workspacePath, currentWorkspace)) {
+                      void switchSessionInPlace(menu.target.sessionId, menu.target.sessionFile)
+                    } else {
+                      void activateWorkspace(menu.target.workspacePath, {
+                        sessionId: menu.target.sessionId,
+                        sessionFile: menu.target.sessionFile,
+                      })
+                    }
                     onClose()
                   }}
                 >
