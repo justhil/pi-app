@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MainLayoutShell } from './main-layout-shell'
+import { applyUiZoom } from '@renderer/lib/ui-zoom'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 const DEFAULTS = {
@@ -17,6 +18,8 @@ beforeEach(() => {
 
 afterEach(() => {
   useUIStore.setState(DEFAULTS)
+  document.documentElement.style.zoom = '1'
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 })
 })
 
 function resizeWindow(width: number) {
@@ -32,6 +35,22 @@ function gridColumns(): string {
 }
 
 describe('MainLayoutShell window-resize adaptation', () => {
+  it('keeps the Files toolbar within a 375px viewport with the sidebar open', () => {
+    render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+    resizeWindow(375)
+    expect(gridColumns()).toBe('200px minmax(0, 1fr) 175px')
+    expect(useUIStore.getState().rightPanelWidth).toBe(DEFAULTS.rightPanelWidth)
+  })
+
+  it('recalculates available layout width when UI zoom changes without window resizing', () => {
+    render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
+    resizeWindow(375)
+    act(() => applyUiZoom(1.1))
+    const right = Number(gridColumns().match(/ ([\d.]+)px$/)?.[1])
+    expect((200 + right) * 1.1).toBeCloseTo(375)
+    expect(useUIStore.getState().sidebarWidth).toBe(DEFAULTS.sidebarWidth)
+  })
+
   it('clamps both panels in the rendered grid when the window shrinks, without overwriting persisted widths', () => {
     render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
     useUIStore.setState({ sidebarWidth: 360, rightPanelWidth: 500 })

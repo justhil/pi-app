@@ -23,12 +23,20 @@
     "revealInExplorer": "在资源管理器中显示",
     "revealFailed": "无法打开路径",
     "noSessions": "无会话",
-    "toggleSubagents": "展开或收起 {{title}} 的子 Agent",
+    "childSessionCount": "{{count}} 个子会话",
+    "toggleSubagents": "展开或收起 {{title}} 的子会话",
     "openSubagentSession": "打开 {{agent}} 子 Agent 会话",
     "subagentSessionUnavailable": "{{agent}} 子 Agent 会话暂不可查看",
     "conversations": "对话",
     "firstMsgIsTitle": "首条消息即标题",
     "projects": "项目",
+    "mainWorktree": "主目录",
+    "detachedWorktree": "未绑定分支",
+    "worktreeCount": "{{count}} 个工作目录",
+    "toggleProject": "展开或收起 {{name}} 的会话",
+    "refreshProjects": "刷新项目与会话",
+    "worktreeReadFailed": "部分工作副本读取失败，可点击刷新重试。",
+    "sessionReadFailed": "会话读取失败，请重试。",
     "rename": "重命名",
     "delete": "删除",
     "renamed": "已重命名",
@@ -40,7 +48,22 @@
     "deleteFailed": "删除失败",
     "deleteMissingFile": "无法删除：缺少会话文件路径",
     "deleteSessionConfirm": "删除会话「{{name}}」？对应的 pi 会话文件将永久删除。",
-    "deleteConfirm": "删除「{{name}}」？目录与 pi 会话将一并移除。"
+    "deleteConfirm": "删除「{{name}}」？目录与 pi 会话将一并移除。",
+    "searchSessions": "搜索会话或首条消息",
+    "thisProject": "这个项目",
+    "allProjects": "全部项目",
+    "searchScope": "搜索范围",
+    "scopeProject": "项目",
+    "scopeAll": "全部",
+    "noResults": "没有匹配的会话",
+    "clearSearch": "清除搜索",
+    "continue": "继续",
+    "copySessionPath": "复制会话路径",
+    "openLog": "打开日志"
+  },
+  "attention": {
+    "needsYou": "等你",
+    "done": "刚做完"
   },
   "composer": {
     "placeholder": "消息或 / 命令",
@@ -134,8 +157,10 @@
   "loadingSettings": "加载设置…",
   "resetToDefault": "恢复默认",
   "errorBoundary": {
-    "renderFailed": "渲染失败",
-    "unknown": "未知错误"
+    "renderFailed": "这块界面出错了，可以重试或复制详情",
+    "unknown": "未知错误",
+    "human": "不是你的操作问题。把详情复制给开发者即可。",
+    "copy": "复制详情"
   },
   "window": {
     "minimize": "最小化",
@@ -152,7 +177,31 @@
   },
   "notification": {
     "sessionGone": "会话已删除或不可用",
-    "openFailed": "无法打开该会话"
+    "openFailed": "无法打开该会话",
+    "inbox": "通知",
+    "empty": "没有通知",
+    "markUnread": "标为未读",
+    "markRead": "标为已读",
+    "unreadCount": "{{count}} 条待查看",
+    "continueAnswer": "打开会话，继续作答",
+    "history": "最近完成",
+    "emptyHint": "完成的任务和需要回答的会话会显示在这里。",
+    "loadFailed": "暂时无法读取通知，稍后重试。"
+  },
+  "statusBar": {
+    "title": "工作状态",
+    "resources": "运行与资源",
+    "memory": "主进程内存",
+    "memoryHint": "当前仅统计应用主进程，不包含界面和会话进程。",
+    "loadFailed": "资源信息暂时不可用；已有数据可能已过时。",
+    "workers": "会话进程",
+    "update": "查看可用更新",
+    "done": "{{count}} 条完成",
+    "running": "{{count}} 条运行中",
+    "needsYou": "{{count}} 条等你",
+    "noWorkers": "暂无运行中的会话进程",
+    "kill": "停止运行",
+    "stopConfirm": "停止这条会话当前的运行？已保存的聊天记录不会删除。"
   },
   "sessionReload": {
     "success": "已刷新会话数据",
@@ -169,7 +218,9 @@
     "focusComposer": "聚焦输入框",
     "openPanel": "打开 {{panel}} 面板",
     "sessionTree": "打开会话树",
-    "shortcuts": "键盘快捷键"
+    "shortcuts": "键盘快捷键",
+    "waitingSection": "等你的会话",
+    "doneSection": "刚做完的会话"
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -179,6 +230,13 @@
     "sessionTree": "打开会话树浮层",
     "restoreQueue": "将排队消息拉回输入框",
     "stopOrDismiss": "停止运行 / 关闭浮层",
-    "navOnly": "仅导航 — 不新增 Agent 能力。"
+    "navOnly": "仅导航 — 不新增 Agent 能力。",
+    "listen": "按下新快捷键…"
+  },
+  "board": {
+    "open": "看板",
+    "title": "会话动态",
+    "empty": "当前没有待处理的会话",
+    "emptyHint": "开始对话后，可在这里查看运行进度和完成状态。"
   }
 }

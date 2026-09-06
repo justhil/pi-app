@@ -1,3 +1,4 @@
+import { unquoteGitPath } from '@shared/git-path'
 import { parseGitDiff, type DiffFile } from '@shared/diff-model'
 
 export type ReviewStatusEntry = {
@@ -21,21 +22,8 @@ export type ReviewFileGroups = {
   cleanTouched: string[]
 }
 
-function unquoteGitPath(value: string): string {
-  const raw = value.trim()
-  if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
-    return raw
-      .slice(1, -1)
-      .replace(/\\"/g, '"')
-      .replace(/\\n/g, '\n')
-      .replace(/\\t/g, '\t')
-      .replace(/\\\\/g, '\\')
-  }
-  return raw
-}
-
 function splitRenamePath(pathPart: string): { path: string; oldPath?: string } {
-  const match = pathPart.match(/^(.*) -> (.*)$/)
+  const match = pathPart.match(/^("(?:[^"\\]|\\.)*"|.*?) -> ("(?:[^"\\]|\\.)*"|.*)$/)
   if (!match) return { path: unquoteGitPath(pathPart) }
   return { oldPath: unquoteGitPath(match[1]), path: unquoteGitPath(match[2]) }
 }
@@ -47,10 +35,22 @@ function changeTypeFromCode(code: string): string {
   return 'modified'
 }
 
+export function listConflictPaths(status: string): string[] {
+  const out: string[] = []
+  for (const line of status.split('\n').filter(Boolean)) {
+    if (line.length < 4 || line.startsWith('##')) continue
+    const xy = line.slice(0, 2)
+    if (!['UU', 'AA', 'DD', 'AU', 'UA', 'DU', 'UD'].includes(xy)) continue
+    const { path } = splitRenamePath(line.slice(3).trim())
+    if (path) out.push(path)
+  }
+  return out
+}
+
 export function parseGitStatus(status: string): ReviewStatusEntry[] {
   if (!status) return []
   const out: ReviewStatusEntry[] = []
-  for (const line of status.trim().split('\n').filter(Boolean)) {
+  for (const line of status.split('\n').filter(Boolean)) {
     if (line.startsWith('##')) continue
     if (line.length < 4) continue
     const x = line[0]

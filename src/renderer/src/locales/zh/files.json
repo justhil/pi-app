@@ -20,7 +20,10 @@
     "loading": "加载中…",
     "loadMore": "再显示 {{count}} 项…",
     "dirTruncated": "目录项过多，仅列出前 {{shown}} / {{total}} 项",
-    "searchCapped": "匹配过多，仅显示前 {{shown}} / {{total}} 项"
+    "searchCapped": "匹配过多，仅显示前 {{shown}} / {{total}} 项",
+    "dotfiles": "显示隐藏文件",
+    "git": { "modified": "已修改", "added": "新增", "deleted": "已删除" },
+    "collapseAll": "折叠全部"
   },
   "preview": {
     "pickFile": "在右侧选择文件以预览",
@@ -31,19 +34,24 @@
     "openInSystem": "在系统中打开",
     "error": "无法读取文件",
     "truncated": "内容过长，仅显示前段",
+    "previewLimit": "已显示前 8MB；剩余内容请在系统中打开",
     "truncatedNoHighlight": "文件较大，已省略语法高亮",
     "expandAll": "展开全部（{{count}} 行）",
     "collapse": "收起",
-    "tryExpandRead": "尝试读取完整文件",
+    "tryExpandRead": "加载更多（最多 8MB）",
     "deleted": "文件已删除或已移走"
   },
   "menu": {
     "preview": "预览",
     "attach": "添加到聊天",
     "copyPath": "复制路径",
+    "copyRel": "复制相对路径",
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
     "reveal": "在文件夹中显示",
     "rename": "重命名",
-    "openInNewTab": "在新窗口打开"
+    "openInNewTab": "在新窗口打开",
+    "searchInFolder": "在此文件夹搜索"
   },
   "rename": {
     "title": "重命名",

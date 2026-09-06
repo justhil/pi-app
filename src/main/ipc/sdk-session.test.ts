@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toSessionOnDiskRows as toWslSessionRows } from '../../preview/wsl-session-list'
 import {
   invalidateListSessionsCache,
   listSessionsOnDisk,
@@ -127,6 +128,11 @@ describe('listSessionsOnDisk preview inputs', () => {
     expect(result[0]).toMatchObject({ id: 's1', path: rows[0].sessionFile })
     expect(result[0].created).toBeInstanceOf(Date)
     expect(sdkList).not.toHaveBeenCalled()
+  })
+
+  it.each([['host', toSessionOnDiskRows], ['WSL', toWslSessionRows]] as const)('preserves the SDK parent relationship in %s rows', (_mode, normalize) => {
+    expect(normalize([{ id: 'child', path: '/sessions/child.jsonl', parentSessionPath: '/sessions/parent.jsonl' }]))
+      .toMatchObject([{ parentSessionPath: '/sessions/parent.jsonl' }])
   })
 
   it('normalizes invalid and sparse rows consistently', () => {

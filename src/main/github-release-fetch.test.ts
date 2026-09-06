@@ -168,6 +168,24 @@ describe('fetchLatestGitHubRelease', () => {
     })
   })
 
+  it('should_use_release_list_when_prerelease_is_requested', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      jsonResponse([
+        { tag_name: 'v0.5.0-beta.1', prerelease: true, draft: false },
+        { tag_name: 'v0.4.21', prerelease: false, draft: false },
+      ]),
+    )
+
+    const result = await fetchLatestGitHubRelease('justhil/pi-app', fetch, true)
+
+    expect(result).toEqual({
+      ok: true,
+      release: { tag_name: 'v0.5.0-beta.1', prerelease: true, draft: false },
+    })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch.mock.calls[0][0]).toMatch(/\/releases\?per_page=10$/)
+  })
+
   it.each([
     ['network', new TypeError('fetch failed'), 'fetch failed'],
     ['abort', new DOMException('The operation was aborted', 'AbortError'), 'The operation was aborted'],

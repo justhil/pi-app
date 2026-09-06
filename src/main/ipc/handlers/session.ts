@@ -35,6 +35,9 @@ import {
 } from '../schemas'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { errorMessage } from '@shared/error-message'
+import { workspacePathsEqual } from '@shared/workspace-path'
+import { wslPathToWindows } from '@shared/wsl-path'
+import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
@@ -43,15 +46,23 @@ export function registerSessionHandlers(): void {
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
     }
     const sessions = workspaceId ? await sessionPreviewProcess.listSessions(workspaceId) : []
-    const formatted = sessions.map((s: SessionOnDiskRow) => ({
+    const runtime = getAgentRuntimeConfig()
+    const ownedSessions = sessions.filter((s) => {
+      if (!s.cwd || workspacePathsEqual(s.cwd, workspaceId)) return true
+      return runtime.mode === 'wsl' && !!runtime.distro
+        && workspacePathsEqual(wslPathToWindows(runtime.distro, s.cwd), workspaceId)
+    })
+    const formatted = ownedSessions.map((s: SessionOnDiskRow) => ({
       sessionId: s.id,
       sessionFile: s.path,
-      workspaceId: s.cwd || workspaceId,
+      parentSessionFile: s.parentSessionPath,
+      workspaceId,
       title: resolveSessionListTitle(
         s.path,
         s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
         s.name,
       ),
+      firstMessage: s.firstMessage?.slice(0, 120) || '',
       createdAt: s.created?.getTime() || 0,
       updatedAt: s.modified?.getTime() || 0,
       messageCount: s.messageCount || 0,

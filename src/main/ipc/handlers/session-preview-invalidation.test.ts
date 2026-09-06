@@ -111,6 +111,36 @@ describe('session list preview invalidation', () => {
     registerSessionHandlers()
   })
 
+  it('includes parent file identity in the session.list response', async () => {
+    mocks.listSessions.mockReset()
+    mocks.listSessions.mockResolvedValue([{ id: 'child', path: '/sessions/child.jsonl', cwd: '/workspace', parentSessionPath: '/sessions/parent.jsonl' }])
+    expect(await mocks.handlers.get('ipc:session.list')!({ workspaceId: '/workspace' }))
+      .toMatchObject({ sessions: [{ sessionId: 'child', parentSessionFile: '/sessions/parent.jsonl' }] })
+  })
+
+  it('filters sessions from a different cwd even when Pi encoded directory names collide', async () => {
+    mocks.listSessions.mockReset()
+    mocks.listSessions.mockResolvedValue([
+      { id: 'own', path: '/sessions/own.jsonl', cwd: '/repo/a-b', firstMessage: 'own prompt' },
+      { id: 'foreign', path: '/sessions/foreign.jsonl', cwd: '/repo/a/b', firstMessage: 'foreign prompt' },
+    ])
+    const result = await mocks.handlers.get('ipc:session.list')!({ workspaceId: '/repo/a-b' })
+    expect(result).toMatchObject({ sessions: [{ sessionId: 'own', workspaceId: '/repo/a-b', firstMessage: 'own prompt' }] })
+  })
+
+  it('accepts Windows path variants without treating Linux cwd case as equivalent', async () => {
+    mocks.listSessions.mockReset()
+    mocks.listSessions.mockResolvedValue([
+      { id: 'own', path: '/sessions/own.jsonl', cwd: 'd:\\Repo\\Feature\\' },
+      { id: 'foreign', path: '/sessions/foreign.jsonl', cwd: 'D:/Repo/Main' },
+    ])
+    expect(await mocks.handlers.get('ipc:session.list')!({ workspaceId: 'D:/repo/feature' }))
+      .toMatchObject({ sessions: [{ sessionId: 'own', workspaceId: 'D:/repo/feature' }] })
+    mocks.listSessions.mockResolvedValue([{ id: 'wrong', path: '/s.jsonl', cwd: '/repo/Feature' }])
+    expect(await mocks.handlers.get('ipc:session.list')!({ workspaceId: '/repo/feature' }))
+      .toEqual({ sessions: [] })
+  })
+
   it.each([
     ['ipc:session.new', { workspaceId: '/workspace' }],
     ['ipc:session.fork', { workspaceId: '/workspace', sessionFile: '/sessions/source.jsonl', entryId: 'entry' }],

@@ -28,6 +28,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText(/test error/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /retry|重试/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reload|重新加载/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /copy|复制/i })).toBeInTheDocument()
     spy.mockRestore()
   })
 

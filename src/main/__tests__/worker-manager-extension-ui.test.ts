@@ -139,7 +139,7 @@ describe('extension UI source routing', () => {
     expect(extensionUiDialogSource.has('dialog-source')).toBe(false)
   })
 
-  it('should_cancel_background_dialogs_and_only_forward_foreground_dialogs', () => {
+  it('should_forward_background_dialogs_with_session_file', () => {
     const foregroundTransport = makeTransport()
     const foreground = slot('/s/foreground', foregroundTransport)
     const backgroundTransport = makeTransport()
@@ -163,12 +163,11 @@ describe('extension UI source routing', () => {
       request: { id: 'dialog-a', method: 'confirm', title: 'Confirm', message: 'Continue?' },
     })
 
-    expect(backgroundTransport.postMessage).toHaveBeenCalledWith({
-      type: 'extension-ui-cancel',
-      cancel: { id: 'dialog-b', reason: 'background-session' },
-    })
-    expect(mainWindow.webContents.send).toHaveBeenCalledTimes(1)
+    expect(backgroundTransport.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'extension-ui-cancel' }),
+    )
+    expect(mainWindow.webContents.send).toHaveBeenCalledTimes(2)
     expect(extensionUiDialogSource.get('dialog-a')).toBe(foreground)
-    expect(extensionUiDialogSource.has('dialog-b')).toBe(false)
+    expect(extensionUiDialogSource.get('dialog-b')).toBe(background)
   })
 })

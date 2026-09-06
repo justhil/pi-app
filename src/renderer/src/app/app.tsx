@@ -41,11 +41,15 @@ import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/com
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
 import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
+import { StatusBar } from '@renderer/features/shell/status-bar'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
 import { handleSdkRuntimeChanged } from '@renderer/lib/sdk-runtime-changed'
 import { prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
+import { useReviewGitData } from '@renderer/features/review/use-review-git-data'
+import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
+import { matchShortcut, readShortcutBindings } from '@renderer/lib/shortcut-bindings'
 
 type View = 'main' | 'settings'
 
@@ -87,7 +91,6 @@ export default function App() {
   const applyRightPanelRuntime = useUIStore((s) => s.applyRightPanelRuntime)
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
-  const setSessions = useUIStore((s) => s.setSessions)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
@@ -128,14 +131,13 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
-      const mod = event.metaKey || event.ctrlKey
-      if (mod && key === 'k') {
+      const bindings = readShortcutBindings()
+      if (matchShortcut(event, bindings.commandPalette)) {
         event.preventDefault()
         setCommandPaletteOpen(true)
         return
       }
-      if (mod && key === '/') {
+      if (matchShortcut(event, bindings.shortcuts)) {
         event.preventDefault()
         setShortcutsOpen(true)
       }
@@ -151,6 +153,7 @@ export default function App() {
     void hydrateThemeFromSettings().catch(() => {})
     void hydrateCustomThemeFromSettings().catch(() => {})
     void hydrateCustomCssOverrideFromSettings().catch(() => {})
+    applyUiZoom(readUiZoom())
   }, [])
 
   useEffect(() => watchSystemTheme(), [])
@@ -215,16 +218,6 @@ export default function App() {
   const timelineItemCount = useUIStore((s) => s.timelineItems.length)
   const historyLoading = useUIStore((s) => s.historyLoading)
 
-  useEffect(() => {
-    if (!currentWorkspace) return
-    ipcClient
-      .invoke('session.list', { workspaceId: currentWorkspace })
-      .then((res) => {
-        if (res?.sessions) setSessions(res.sessions)
-      })
-      .catch(() => {})
-  }, [currentWorkspace, setSessions])
-
   const handleOpenProject = async () => {
     if (!window.piDesktop) {
       console.error('piDesktop not available')
@@ -241,7 +234,15 @@ export default function App() {
   }
 
   const recentProjects = useUIStore((s) => s.recentProjects)
-  const PANELS = buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder)
+  const fileChanges = useUIStore((s) => s.fileChanges)
+  const { gitData } = useReviewGitData({
+    enabled: !!currentWorkspace,
+    workspace: currentWorkspace,
+    worktreeChangeSignal: fileChanges,
+  })
+  const panelPrefs =
+    gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
+  const PANELS = buildRightPanelTabs(rightPanelCatalog, panelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
   const isHomeMode =
@@ -269,7 +270,7 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div
-          className="flex h-screen flex-col overflow-hidden text-foreground"
+          className="app-viewport flex flex-col overflow-hidden text-foreground"
           style={{ background: 'var(--surface-sidebar)' }}
         >
           <TopBar
@@ -298,7 +299,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div
-        className="flex h-screen flex-col overflow-hidden text-foreground"
+        className="app-viewport flex flex-col overflow-hidden text-foreground"
         style={{ background: 'var(--surface-sidebar)' }}
       >
         <ImmersiveChrome projectName={projectName} />
@@ -367,6 +368,7 @@ export default function App() {
             </RightPanel>
           }
         />
+        <StatusBar />
       </div>
       <AppToaster />
       <ExtensionUIHost />

@@ -23,12 +23,20 @@
     "revealInExplorer": "Reveal in File Explorer",
     "revealFailed": "Could not open path",
     "noSessions": "No sessions",
+    "childSessionCount": "{{count}} child sessions",
     "toggleSubagents": "Toggle subagents for {{title}}",
     "openSubagentSession": "Open {{agent}} subagent session",
     "subagentSessionUnavailable": "{{agent}} subagent session is not available yet",
     "conversations": "Conversations",
     "firstMsgIsTitle": "First message is the title",
     "projects": "Projects",
+    "mainWorktree": "Main checkout",
+    "detachedWorktree": "Detached HEAD",
+    "worktreeCount": "{{count}} working directories",
+    "toggleProject": "Expand or collapse sessions in {{name}}",
+    "refreshProjects": "Refresh projects and sessions",
+    "worktreeReadFailed": "Some worktrees could not be loaded. Refresh to try again.",
+    "sessionReadFailed": "Sessions could not be loaded. Please try again.",
     "rename": "Rename",
     "delete": "Delete",
     "renamed": "Renamed",
@@ -40,7 +48,22 @@
     "deleteFailed": "Delete failed",
     "deleteMissingFile": "Cannot delete: session file path is missing",
     "deleteSessionConfirm": "Delete session \"{{name}}\"? Its pi session file will be permanently removed.",
-    "deleteConfirm": "Delete \"{{name}}\"? Directory and pi sessions will be removed."
+    "deleteConfirm": "Delete \"{{name}}\"? Directory and pi sessions will be removed.",
+    "searchSessions": "Search sessions or first message",
+    "thisProject": "This project",
+    "allProjects": "All projects",
+    "searchScope": "Search scope",
+    "scopeProject": "Project",
+    "scopeAll": "All",
+    "noResults": "No matching conversations",
+    "clearSearch": "Clear search",
+    "continue": "Continue",
+    "copySessionPath": "Copy session path",
+    "openLog": "Open log"
+  },
+  "attention": {
+    "needsYou": "Needs you",
+    "done": "Just finished"
   },
   "composer": {
     "placeholder": "Message or / command",
@@ -134,8 +157,10 @@
   "loadingSettings": "Loading settings…",
   "resetToDefault": "Reset to default",
   "errorBoundary": {
-    "renderFailed": "Render failed",
-    "unknown": "Unknown error"
+    "renderFailed": "This view hit an error. Retry or copy details.",
+    "unknown": "Unknown error",
+    "human": "This is not your fault. Copy the details for a developer.",
+    "copy": "Copy details"
   },
   "window": {
     "minimize": "Minimize",
@@ -152,7 +177,31 @@
   },
   "notification": {
     "sessionGone": "This session was deleted or is unavailable",
-    "openFailed": "Could not open that session"
+    "openFailed": "Could not open that session",
+    "inbox": "Notifications",
+    "empty": "No notifications",
+    "markUnread": "Mark unread",
+    "markRead": "Mark read",
+    "unreadCount": "{{count}} to review",
+    "continueAnswer": "Open conversation to respond",
+    "history": "Recently completed",
+    "emptyHint": "Completed tasks and conversations waiting for you will appear here.",
+    "loadFailed": "Notifications are unavailable. Please try again."
+  },
+  "statusBar": {
+    "title": "Workspace status",
+    "resources": "Runtime & resources",
+    "memory": "Main process memory",
+    "memoryHint": "Currently measures the main process only, excluding the interface and session processes.",
+    "loadFailed": "Resource information is unavailable. Previous readings may be out of date.",
+    "workers": "Session processes",
+    "update": "View available update",
+    "done": "{{count}} finished",
+    "running": "{{count}} running",
+    "needsYou": "{{count}} need you",
+    "noWorkers": "No active session processes",
+    "kill": "Stop run",
+    "stopConfirm": "Stop this conversation's current run? Saved conversation history will not be deleted."
   },
   "sessionReload": {
     "success": "Session data refreshed",
@@ -169,7 +218,9 @@
     "focusComposer": "Focus composer",
     "openPanel": "Open {{panel}} panel",
     "sessionTree": "Open session tree",
-    "shortcuts": "Keyboard shortcuts"
+    "shortcuts": "Keyboard shortcuts",
+    "waitingSection": "Waiting on you",
+    "doneSection": "Just finished"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -179,6 +230,13 @@
     "sessionTree": "Open session tree overlay",
     "restoreQueue": "Restore queued message into composer",
     "stopOrDismiss": "Stop run / dismiss overlay",
-    "navOnly": "Navigation only — no new agent capabilities."
+    "navOnly": "Navigation only — no new agent capabilities.",
+    "listen": "Press a new shortcut…"
+  },
+  "board": {
+    "open": "Board",
+    "title": "Session activity",
+    "empty": "No conversations need your attention",
+    "emptyHint": "Start a conversation to see progress and completed tasks here."
   }
 }

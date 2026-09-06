@@ -7,10 +7,12 @@ type ComposerVoiceMicButtonProps = {
   voiceState: VoiceState
   disabled: boolean
   onClick: () => void
+  onHoldStart?: () => void
+  onHoldEnd?: () => void
 }
 
 /** 工具栏发送位：空闲麦 / 录音涟漪 / 转写细条（对齐 ChatGPT 网页 dictation 克制态） */
-export function ComposerVoiceMicButton({ voiceState, disabled, onClick }: ComposerVoiceMicButtonProps) {
+export function ComposerVoiceMicButton({ voiceState, disabled, onClick, onHoldStart, onHoldEnd }: ComposerVoiceMicButtonProps) {
   const { t } = useTranslation()
   const recording = voiceState === 'recording'
   const transcribing = voiceState === 'transcribing'
@@ -42,6 +44,14 @@ export function ComposerVoiceMicButton({ voiceState, disabled, onClick }: Compos
       <button
         type="button"
         onClick={onClick}
+        onPointerDown={(e) => {
+          if (disabled || !onHoldStart) return
+          e.preventDefault()
+          onHoldStart()
+        }}
+        onPointerUp={() => onHoldEnd?.()}
+        onPointerCancel={() => onHoldEnd?.()}
+        onPointerLeave={() => onHoldEnd?.()}
         disabled={disabled}
         title={
           disabled

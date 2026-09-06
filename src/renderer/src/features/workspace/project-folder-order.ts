@@ -1,3 +1,5 @@
+import { workspacePathsEqual } from '@shared/workspace-path'
+
 /** 侧栏项目文件夹的显示顺序。 */
 export function projectFolderOrder(
   recentProjects: string[],
@@ -6,7 +8,7 @@ export function projectFolderOrder(
 ): string[] {
   const out: string[] = []
   const add = (p: string) => {
-    if (p && !out.includes(p)) out.push(p)
+    if (p && !out.some((existing) => workspacePathsEqual(existing, p))) out.push(p)
   }
   if (fixedOrder) {
     // 固定顺序：完全按存储顺序展示，当前项目不置顶，仅保证在列表中

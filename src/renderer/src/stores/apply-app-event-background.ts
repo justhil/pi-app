@@ -22,7 +22,10 @@ export function eventSessionFile(event: AppEvent): string | null {
 export function applyBackgroundAppEvent(event: AppEvent): void {
   const cacheFile = eventSessionFile(event)
   if (!cacheFile) return
-  if (event.type === 'completion') return
+  if (event.type === 'completion') {
+    if (event.settled === true) useUIStore.getState().markSessionSettled(cacheFile)
+    return
+  }
   if (event.type === 'extension_widget') {
     applyExtensionWidgetEvent(event)
     return

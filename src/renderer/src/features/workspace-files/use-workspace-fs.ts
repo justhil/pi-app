@@ -4,7 +4,7 @@ import type { FsEntry } from './workspace-files-types'
 import { PREVIEW_READ_MAX_BYTES } from './file-preview-limits'
 import { LIST_DIR_MAX_ENTRIES } from './file-tree-limits'
 
-export function useWorkspaceFs(workspaceRoot: string | null) {
+export function useWorkspaceFs(workspaceRoot: string | null, includeDotfiles = false) {
   const listDir = useCallback(
     async (relativePath: string) => {
       if (!workspaceRoot) return { ok: false as const, entries: [] as FsEntry[], error: 'missing_root' as const }
@@ -12,10 +12,11 @@ export function useWorkspaceFs(workspaceRoot: string | null) {
         workspaceRoot,
         path: relativePath || '.',
         maxEntries: LIST_DIR_MAX_ENTRIES,
+        includeDotfiles,
       })
       return res as { ok: boolean; entries?: FsEntry[]; error?: string }
     },
-    [workspaceRoot],
+    [workspaceRoot, includeDotfiles],
   )
 
   const readText = useCallback(
@@ -26,7 +27,7 @@ export function useWorkspaceFs(workspaceRoot: string | null) {
         path: relativePath,
         maxBytes: opts?.maxBytes ?? PREVIEW_READ_MAX_BYTES,
       })
-      return res as { ok: boolean; content?: string; error?: string; size?: number }
+      return res as { ok: boolean; content?: string; error?: string; size?: number; truncated?: boolean }
     },
     [workspaceRoot],
   )

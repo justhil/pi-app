@@ -22,6 +22,10 @@ type Props = {
   onPreview: () => void
   onAttach: () => void
   onCopyPath: () => void
+  onCopyRel?: () => void
+  onNewFile?: () => void
+  onNewFolder?: () => void
+  onSearchInFolder?: () => void
   onRename: () => void
   onReveal: () => void
   onOpenInNewTab?: () => void
@@ -45,6 +49,10 @@ export function FilesContextMenuPortal({
   onPreview,
   onAttach,
   onCopyPath,
+  onCopyRel,
+  onNewFile,
+  onNewFolder,
+  onSearchInFolder,
   onRename,
   onReveal,
   onOpenInNewTab,
@@ -124,6 +132,26 @@ export function FilesContextMenuPortal({
       >
         {t('menu.copyPath')}
       </button>
+      {onCopyRel ? (
+        <button type="button" className={item} onPointerDown={stop} onClick={() => { onCopyRel(); onClose() }}>
+          {t('menu.copyRel')}
+        </button>
+      ) : null}
+      {menu.isDirectory && onNewFile ? (
+        <button type="button" className={item} onPointerDown={stop} onClick={() => { onNewFile(); onClose() }}>
+          {t('menu.newFile')}
+        </button>
+      ) : null}
+      {menu.isDirectory && onNewFolder ? (
+        <button type="button" className={item} onPointerDown={stop} onClick={() => { onNewFolder(); onClose() }}>
+          {t('menu.newFolder')}
+        </button>
+      ) : null}
+      {menu.isDirectory && onSearchInFolder ? (
+        <button type="button" className={item} onPointerDown={stop} onClick={() => { onSearchInFolder(); onClose() }}>
+          {t('menu.searchInFolder')}
+        </button>
+      ) : null}
       <button
         type="button"
         className={item}

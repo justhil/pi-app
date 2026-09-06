@@ -1,3 +1,4 @@
+import { unquoteGitPath } from '../../packages/shared/git-path'
 import { execFile, execFileSync } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
@@ -105,7 +106,7 @@ async function gitExec(
   })
 }
 
-async function runGitReadOnly(
+export async function runGitReadOnly(
   cwd: string,
   args: string[],
   options?: { timeout?: number; maxBuffer?: number },
@@ -161,10 +162,7 @@ function untrackedPathsFromStatus(status: string): string[] {
   const out: string[] = []
   for (const line of status.split('\n')) {
     if (!line.startsWith('?? ')) continue
-    let path = line.slice(3).trim()
-    if (path.startsWith('"') && path.endsWith('"')) {
-      path = path.slice(1, -1).replace(/\\"/g, '"')
-    }
+    const path = unquoteGitPath(line.slice(3))
     if (path && !path.endsWith('/')) out.push(path)
   }
   return out

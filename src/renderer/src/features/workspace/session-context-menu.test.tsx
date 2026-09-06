@@ -6,6 +6,7 @@ const invokeMock = vi.fn(async (_method: unknown, _req?: unknown): Promise<unkno
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: (method: unknown, req?: unknown) => invokeMock(method, req) },
 }))
+vi.mock('@renderer/lib/activate-workspace', () => ({ switchSessionInPlace: vi.fn() }))
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
@@ -13,6 +14,7 @@ vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
     getState: () => ({
       currentSessionId: null,
+      sessionAttention: {},
       setCurrentSession: () => {},
       clearTimeline: () => {},
       loadHistoryItems: () => {},

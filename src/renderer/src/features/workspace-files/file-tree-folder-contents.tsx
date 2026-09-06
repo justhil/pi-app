@@ -33,11 +33,27 @@ type LevelProps = {
     isDirectory: boolean,
   ) => void
   joinAbs: (rel: string) => string
+  gitByPath?: Record<string, string>
 }
 
 function filterBySearch(entries: FsEntry[], q: string) {
   if (!q) return entries
-  return entries.filter((e) => e.name.toLowerCase().includes(q))
+  return entries.filter((e) => {
+    const name = e.name.toLowerCase()
+    const path = e.path.replace(/\\/g, '/').toLowerCase()
+    return name.includes(q) || path.includes(q) || path.startsWith(q.replace(/\\/g, '/'))
+  })
+}
+
+function gitKindForPath(
+  gitByPath: Record<string, string> | undefined,
+  path: string,
+): 'modified' | 'added' | 'deleted' | undefined {
+  const kind = gitByPath?.[path.replace(/\\/g, '/')]
+  if (kind === 'modified' || kind === 'added' || kind === 'deleted' || kind === 'renamed') {
+    return kind === 'renamed' ? 'modified' : kind
+  }
+  return undefined
 }
 
 function FileTreeLevelInner(props: LevelProps) {
@@ -107,6 +123,7 @@ function FileTreeLevelInner(props: LevelProps) {
               depth={depth}
               open={open}
               selected={selectedPath === e.path}
+              gitKind={gitKindForPath(props.gitByPath, e.path)}
               onToggle={() => onToggleFolder(e.path)}
               onSelect={(ev) =>
                 onSelectPath(e.path, e.isDirectory, { openInNewTab: ev.ctrlKey || ev.metaKey })

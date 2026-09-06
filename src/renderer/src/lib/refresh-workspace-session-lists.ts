@@ -1,4 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { uniqueWorkspacePaths, workspacePathKey } from '@shared/workspace-path'
+import type { SessionItem } from '@renderer/features/workspace/project-sidebar-types'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 function isSandboxPath(path: string) {
@@ -14,11 +16,11 @@ export type RefreshWorkspaceSessionListsOptions = {
 }
 
 /** In-flight session.list promises, one per workspace (single-flight). */
-const inFlightByWorkspace = new Map<string, Promise<void>>()
+const inFlightByWorkspace = new Map<string, Promise<SessionItem[] | null>>()
 
 function resolveWorkspaceIds(options?: RefreshWorkspaceSessionListsOptions): string[] {
   if (options?.workspaceIds) {
-    return [...new Set(options.workspaceIds.filter((path) => path && !isSandboxPath(path)))]
+    return uniqueWorkspacePaths(options.workspaceIds.filter((path) => path && !isSandboxPath(path)))
   }
   const currentWorkspace = useUIStore.getState().currentWorkspace
   if (currentWorkspace && !isSandboxPath(currentWorkspace)) {
@@ -27,8 +29,9 @@ function resolveWorkspaceIds(options?: RefreshWorkspaceSessionListsOptions): str
   return []
 }
 
-async function listSessionsForWorkspace(workspaceId: string): Promise<void> {
-  const existingInFlight = inFlightByWorkspace.get(workspaceId)
+export async function loadWorkspaceSessionList(workspaceId: string): Promise<SessionItem[] | null> {
+  const key = workspacePathKey(workspaceId)
+  const existingInFlight = inFlightByWorkspace.get(key)
   if (existingInFlight) {
     return existingInFlight
   }
@@ -36,26 +39,29 @@ async function listSessionsForWorkspace(workspaceId: string): Promise<void> {
   const listPromise = (async () => {
     try {
       const listRes = await ipcClient.invoke('session.list', { workspaceId, refresh: true })
-      const list = listRes?.sessions || []
-      if (useUIStore.getState().currentWorkspace === workspaceId) {
-        useUIStore.getState().setSessions(list)
-      }
+      const list: SessionItem[] = listRes?.sessions || []
+      useUIStore.getState().setSessions(list, workspaceId)
       // Result publication only — never a refresh trigger.
       window.dispatchEvent(
         new CustomEvent('pi-desktop:workspace-sessions', {
           detail: { workspaceId, sessions: list },
         }),
       )
+      return list
     } catch (error) {
       console.error('[refreshWorkspaceSessionLists]', workspaceId, error)
+      window.dispatchEvent(new CustomEvent('pi-desktop:workspace-sessions', {
+        detail: { workspaceId, error: error instanceof Error ? error.message : String(error) },
+      }))
+      return null
     }
   })().finally(() => {
-    if (inFlightByWorkspace.get(workspaceId) === listPromise) {
-      inFlightByWorkspace.delete(workspaceId)
+    if (inFlightByWorkspace.get(key) === listPromise) {
+      inFlightByWorkspace.delete(key)
     }
   })
 
-  inFlightByWorkspace.set(workspaceId, listPromise)
+  inFlightByWorkspace.set(key, listPromise)
   return listPromise
 }
 
@@ -68,7 +74,7 @@ export async function refreshWorkspaceSessionLists(
 ): Promise<void> {
   const workspaceIds = resolveWorkspaceIds(options)
   if (workspaceIds.length === 0) return
-  await Promise.all(workspaceIds.map((workspaceId) => listSessionsForWorkspace(workspaceId)))
+  for (const workspaceId of workspaceIds) await loadWorkspaceSessionList(workspaceId)
 }
 
 /** Test-only: clear single-flight bookkeeping between cases. */

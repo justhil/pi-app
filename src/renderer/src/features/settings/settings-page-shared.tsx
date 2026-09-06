@@ -1,8 +1,11 @@
-import type { ReactNode } from 'react'
+import { Children, createContext, isValidElement, useContext, useId, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { Switch } from '@renderer/components/ui/switch'
 
-/** 分组：uppercase 小标题 + 行列表分隔线，不套卡片 */
+export const SettingsSearchContext = createContext('')
+const SettingsSectionSearchContext = createContext(false)
+
+/** Section titles can match every row in that section. */
 export function SettingsSection({
   title,
   description,
@@ -14,16 +17,27 @@ export function SettingsSection({
   action?: ReactNode
   children: ReactNode
 }) {
+  const query = useContext(SettingsSearchContext).trim().toLocaleLowerCase()
+  const sectionMatches = !!query && `${title} ${description || ''}`.toLocaleLowerCase().includes(query)
   return (
-    <section>
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">{title}</h3>
+    <SettingsSectionSearchContext.Provider value={sectionMatches}>
+    <section className="settings-section">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
         {action}
       </div>
-      {description && <p className="mb-1 text-xs text-muted-foreground/70">{description}</p>}
-      <div className="divide-y divide-border/40">{children}</div>
+      {description && <p className="mb-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">{description}</p>}
+      <div className="settings-section-rows divide-y divide-border/40">{children}</div>
     </section>
+    </SettingsSectionSearchContext.Provider>
   )
+}
+
+function optionText(children: ReactNode): string {
+  return Children.toArray(children).map(child => {
+    if (typeof child === 'string' || typeof child === 'number') return String(child)
+    return isValidElement<{ children?: ReactNode }>(child) ? optionText(child.props.children) : ''
+  }).join(' ')
 }
 
 export function SettingRow({
@@ -37,13 +51,18 @@ export function SettingRow({
   className?: string
   children: ReactNode
 }) {
+  const query = useContext(SettingsSearchContext).trim().toLocaleLowerCase()
+  const sectionMatches = useContext(SettingsSectionSearchContext)
+  const labelId = useId()
+  const matches = !query || sectionMatches || `${label} ${description || ''} ${optionText(children)}`.toLocaleLowerCase().includes(query)
+  if (!matches) return null
   return (
-    <div className={cn('flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between', className)}>
+    <div className={cn('settings-row flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between', className)}>
       <div className="min-w-0 flex-1">
-        <div className="text-base font-medium text-foreground">{label}</div>
-        {description && <div className="mt-0.5 text-xs text-muted-foreground/70">{description}</div>}
+        <div id={labelId} className="text-[13px] font-medium text-foreground">{label}</div>
+        {description && <div className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">{description}</div>}
       </div>
-      <div className="shrink-0 sm:ml-4">{children}</div>
+      <div role="group" aria-labelledby={labelId} className="settings-row-control min-w-0 shrink-0 sm:ml-6">{children}</div>
     </div>
   )
 }

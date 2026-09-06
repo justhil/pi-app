@@ -3,12 +3,16 @@ import type { AppEvent } from '@shared/app-events'
 import type { ToolCallDetail } from '@shared/tool-call-detail'
 import type { RightPanelCatalogItem, RightPanelPrefs } from '@shared/right-panels'
 import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
+import type { SessionAttention } from '@renderer/lib/session-attention'
 import type { SubagentSessionGroup } from '@renderer/lib/subagent-session-types'
 
 export interface SessionItem {
   sessionId: string
   sessionFile?: string
+  parentSessionFile?: string
   title: string
+  firstMessage?: string
+  workspaceId?: string
   updatedAt: number
   messageCount?: number
   modelId: string
@@ -132,8 +136,10 @@ export interface UIState {
   clearEphemeralSandboxDraft: () => void
   clearPendingNewSessionPlaceholder: () => void
   sessions: SessionItem[]
+  /** The directory whose list has loaded, including a successful empty result. */
+  sessionsWorkspace: string | null
   currentSessionId: string | null
-  setSessions: (s: SessionItem[]) => void
+  setSessions: (s: SessionItem[], workspaceId?: string | null) => void
   setCurrentSession: (id: string | null) => void
   loadHistoryItems: (items: TimelineItem[]) => void
   prependHistoryItems: (items: TimelineItem[]) => void
@@ -197,7 +203,13 @@ export interface UIState {
   setTheme: (t: 'light' | 'dark' | 'system') => void
   /** sessionFile → running (sidebar spinner) */
   sessionRuntimeRunning: Record<string, boolean>
+  sessionWaitingUi: Record<string, boolean>
+  sessionSettledUnseen: Record<string, boolean>
+  sessionAttention: Record<string, SessionAttention>
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
+  setSessionWaitingUi: (sessionFile: string, waiting: boolean) => void
+  markSessionSettled: (sessionFile: string) => void
+  markSessionViewed: (sessionFile: string) => void
   reconcileSessionRuntimeIdle: (sessionFile: string) => void
   /**
    * Session-scoped tool row expand memory (toolCallId → expanded).

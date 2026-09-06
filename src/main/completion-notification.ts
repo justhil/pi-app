@@ -83,6 +83,18 @@ export function deliverTestCompletionNotification(): void {
   getController().deliverTest()
 }
 
+export function listCompletionInbox() {
+  return getController().listInbox()
+}
+
+export function markCompletionInboxUnread(notificationId: string, unread: boolean): void {
+  getController().markInboxUnread(notificationId, unread)
+}
+
+export function markCompletionInboxRead(notificationId: string): void {
+  getController().markInboxRead(notificationId)
+}
+
 export function disposeCompletionNotifications(): void {
   unbindEvents?.()
   unbindEvents = null

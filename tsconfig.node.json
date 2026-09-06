@@ -10,6 +10,7 @@
   "include": [
     "src/main/**/*",
     "src/preload/**/*",
+    "src/preview/wsl-session-list.ts",
     "src/worker/**/*",
     "src/extension-compat/*.ts",
     "packages/shared/**/*",

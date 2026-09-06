@@ -22,6 +22,62 @@ import {
   type AppIconComponent,
 } from '@renderer/components/icons'
 import { ICON_THEMES, type IconTheme } from '@shared/icon-theme'
+import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
+import {
+  formatShortcut,
+  readShortcutBindings,
+  writeShortcutBindings,
+  type ShortcutId,
+} from '@renderer/lib/shortcut-bindings'
+
+function ShortcutBindingsRow() {
+  const { t } = useTranslation()
+  const [bindings, setBindings] = useState(readShortcutBindings)
+  const [listen, setListen] = useState<ShortcutId | null>(null)
+  const ids: ShortcutId[] = ['commandPalette', 'shortcuts', 'completionNotification']
+  return (
+    <div className="space-y-2">
+      {ids.map((id) => (
+        <SettingRow
+          key={id}
+          label={t(`common:shortcuts.${id === 'shortcuts' ? 'thisSheet' : id}`)}
+          description={t('common:shortcuts.navOnly')}
+        >
+          <button
+            type="button"
+            aria-label={t(`common:shortcuts.${id === 'shortcuts' ? 'thisSheet' : id}`)}
+            aria-pressed={listen === id}
+            className={`${btnOutline} min-w-[120px] font-mono text-xs`}
+            onClick={() => setListen(id)}
+            onBlur={() => setListen(null)}
+            onKeyDown={(e) => {
+              if (listen !== id) return
+              e.preventDefault()
+              e.stopPropagation()
+              if (e.key === 'Escape') { setListen(null); return }
+              if (['Control', 'Meta', 'Shift', 'Alt'].includes(e.key) || e.repeat) return
+              const next = {
+                ...bindings,
+                [id]: {
+                  key: e.key.toLowerCase(),
+                  ctrl: e.ctrlKey || e.metaKey,
+                  meta: e.ctrlKey || e.metaKey,
+                  shift: e.shiftKey,
+                  alt: e.altKey,
+                },
+              }
+              setBindings(next)
+              writeShortcutBindings(next)
+              setListen(null)
+            }}
+          >
+            {listen === id ? t('common:shortcuts.listen') : <kbd>{formatShortcut(bindings[id])}</kbd>}
+          </button>
+        </SettingRow>
+      ))}
+    </div>
+  )
+}
 
 export function GeneralSettings() {
   const { t } = useTranslation()
@@ -29,6 +85,7 @@ export function GeneralSettings() {
     draft,
     setAutoOpenLastProject,
     setAutoCheckRegistryUpdates,
+    setIncludePrereleaseUpdates,
     setLanguage,
     setAlertSoundEnabled,
     setAlertNotificationEnabled,
@@ -138,6 +195,12 @@ export function GeneralSettings() {
         >
           <Switch checked={draft.autoCheckRegistryUpdates} onCheckedChange={setAutoCheckRegistryUpdates} />
         </SettingRow>
+        <SettingRow
+          label={t('settings:general.prerelease')}
+          description={t('settings:general.prereleaseDesc')}
+        >
+          <Switch checked={draft.includePrereleaseUpdates} onCheckedChange={setIncludePrereleaseUpdates} />
+        </SettingRow>
         <SettingRow label={t('settings:general.appVersion')} description={t('settings:general.appVersionDesc')}>
           <div className="flex flex-col items-start gap-1 sm:items-end">
             <div className="flex items-center gap-2">
@@ -177,6 +240,9 @@ export function GeneralSettings() {
         <SettingRow label={t('settings:general.alertNotification')} description={t('settings:general.alertNotificationDesc')}>
           <Switch checked={draft.alertNotificationEnabled} onCheckedChange={setAlertNotificationEnabled} />
         </SettingRow>
+        {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? (
+          <p className="px-1 pb-2 text-[11px] text-muted-foreground">{t('settings:general.macNotifyHint')}</p>
+        ) : null}
         <SettingRow
           label={t('settings:general.alertOnExtensionUi')}
           description={t('settings:general.alertOnExtensionUiDesc')}
@@ -404,6 +470,10 @@ export function GeneralSettings() {
         </SettingRow>
       </SettingsSection>
 
+      <SettingsSection title={t('common:shortcuts.title')}>
+        <ShortcutBindingsRow />
+      </SettingsSection>
+
       <RuntimeSettingsPanel />
 
       <SettingsSection title={t('settings:general.recentProjects')}>
@@ -434,6 +504,7 @@ export function GeneralSettings() {
 export function AppearanceSettings() {
   const { t } = useTranslation()
   const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools } = useSettingsDraft()
+  const [zoom, setZoom] = useState(readUiZoom)
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
     { key: 'light', icon: Sun },
@@ -452,6 +523,7 @@ export function AppearanceSettings() {
               <button
                 key={key}
                 type="button"
+                aria-pressed={draft.theme === key}
                 onClick={() => setTheme(key)}
                 className={cn(
                   'settings-chip flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-all duration-motion-fast ease-motion-ease',
@@ -493,6 +565,30 @@ export function AppearanceSettings() {
                   <ThemedIcon theme={theme} name="search" className="h-3 w-3" />
                 </span>
                 {t(`settings:appearance.iconTheme${theme.charAt(0).toUpperCase() + theme.slice(1)}`)}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings:appearance.density')}>
+        <SettingRow label={t('settings:appearance.zoom')} description={t('settings:appearance.zoomDesc')}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings:appearance.zoom')}>
+            {([0.9, 1, 1.1] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={zoom === n}
+                className={cn(
+                  'settings-chip rounded-md border px-2.5 py-1.5 text-sm',
+                  zoom === n ? 'border-primary bg-primary/5' : 'border-border text-muted-foreground',
+                )}
+                onClick={() => {
+                  setZoom(n)
+                  applyUiZoom(n)
+                }}
+              >
+                {Math.round(n * 100)}%
               </button>
             ))}
           </div>
