@@ -13,6 +13,8 @@ export type GhRelease = {
   tag_name?: string
   html_url?: string
   body?: string | null
+  prerelease?: boolean
+  draft?: boolean
   assets?: GhAsset[]
 }
 
@@ -35,11 +37,22 @@ function githubHeaders(): Record<string, string> {
 export async function fetchLatestGitHubRelease(
   slug: string,
   fetch: ReleaseFetch,
+  includePrerelease = false,
 ): Promise<GitHubReleaseFetchResult> {
   const headers = githubHeaders()
   const signal = AbortSignal.timeout(25_000)
 
   try {
+    if (includePrerelease) {
+      const list = await fetch(`${API}/repos/${slug}/releases?per_page=10`, { headers, signal })
+      if (!list.ok) {
+        return { ok: false, error: RELEASE_ERROR, detail: `list_http_${list.status}` }
+      }
+      const releases = (await list.json()) as GhRelease[]
+      const release = releases.find((row) => row?.tag_name && !row.draft)
+      if (!release?.tag_name) return { ok: false, error: RELEASE_ERROR, detail: 'no_release' }
+      return { ok: true, release: release as GhRelease & { tag_name: string } }
+    }
     const response = await fetch(`${API}/repos/${slug}/releases/latest`, { headers, signal })
     if (response.status === 404) {
       const list = await fetch(`${API}/repos/${slug}/releases?per_page=5`, { headers, signal })
@@ -48,7 +61,7 @@ export async function fetchLatestGitHubRelease(
       }
       const releases = (await list.json()) as GhRelease[]
       const release = releases.find(
-        (row) => row?.tag_name && !String(row.tag_name).includes('draft'),
+        (row) => row?.tag_name && !row.draft && !row.prerelease && !String(row.tag_name).includes('draft'),
       )
       if (!release?.tag_name) return { ok: false, error: RELEASE_ERROR, detail: 'no_release' }
       return { ok: true, release: release as GhRelease & { tag_name: string } }

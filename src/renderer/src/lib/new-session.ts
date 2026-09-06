@@ -89,5 +89,5 @@ export async function materializePendingNewSession(
       s.sessionId === sessionId ? { ...s, sessionFile: sessionFile ?? s.sessionFile, title } : s,
     )
   }
-  store.setSessions(sessions as SessionItem[])
+  store.setSessions(sessions as SessionItem[], workspaceId)
 }

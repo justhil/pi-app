@@ -115,6 +115,36 @@ describe('refreshWorkspaceSessionLists', () => {
     window.removeEventListener('pi-desktop:sessions-changed', recursiveListener)
   })
 
+  it('coalesces Windows directory variants and updates the matching current project', async () => {
+    useUIStore.setState({ currentWorkspace: 'd:\\PROJECTS\\alpha\\', sessions: [] })
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.mocked(ipcClient.invoke).mockImplementation(async () => {
+      await gate
+      return { sessions: [{ sessionId: 'own', title: 'own', updatedAt: 1 }] }
+    })
+    const first = refreshWorkspaceSessionLists({ workspaceIds: ['D:/projects/alpha'] })
+    const second = refreshWorkspaceSessionLists({ workspaceIds: ['d:\\projects\\alpha\\'] })
+    release()
+    await Promise.all([first, second])
+    expect(ipcClient.invoke).toHaveBeenCalledTimes(1)
+    expect(useUIStore.getState().sessions[0]?.sessionId).toBe('own')
+  })
+
+  it('does not publish an old workspace response into the new current list', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.mocked(ipcClient.invoke).mockImplementation(async () => {
+      await gate
+      return { sessions: [{ sessionId: 'old', title: 'old', updatedAt: 1 }] }
+    })
+    const pending = refreshWorkspaceSessionLists()
+    useUIStore.getState().setWorkspace('D:/projects/beta')
+    release()
+    await pending
+    expect(useUIStore.getState().sessions).toEqual([])
+  })
+
   it('skips sandbox workspace paths', async () => {
     await refreshWorkspaceSessionLists({
       workspaceIds: ['C:/Users/me/.pi/sandbox-workspaces/tmp-1', 'D:/projects/alpha'],

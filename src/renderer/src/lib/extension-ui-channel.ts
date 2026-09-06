@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import { onExtensionUIRequest, onExtensionUIDismiss } from '@renderer/lib/ipc-client'
 import { useExtensionUIStore, type ExtensionUIPending } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { shouldShowExtensionNotify } from '@renderer/lib/extension-notify-policy'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import type { AskQuestionPayload } from '@renderer/features/extension-ui/questionnaire-dialog'
@@ -22,11 +23,21 @@ function pruneSeenIds(): void {
   if (seenDialogIds.size > 120) seenDialogIds.clear()
 }
 
+function sessionFileFromRaw(raw: Record<string, unknown>): string | undefined {
+  return typeof raw.sessionFile === 'string' && raw.sessionFile ? raw.sessionFile : undefined
+}
+
 function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
   const id = raw.id as string
   const method = raw.method as string
+  const sessionFile = sessionFileFromRaw(raw)
   if (method === 'custom' && raw.kind === 'ask_user_question') {
-    return { id, method: 'ask_user_question', questions: (raw.questions as AskQuestionPayload[]) || [] }
+    return {
+      id,
+      method: 'ask_user_question',
+      questions: (raw.questions as AskQuestionPayload[]) || [],
+      sessionFile,
+    }
   }
   if (method === 'custom' && raw.kind === 'image_review') {
     return {
@@ -40,13 +51,26 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
         options: (raw.options as string[]) || ['通过', '需要修改', '重做', '取消'],
         allowFeedback: raw.allowFeedback !== false,
       },
+      sessionFile,
     }
   }
   if (method === 'select') {
-    return { id, method: 'select', title: raw.title as string, options: (raw.options as string[]) || [] }
+    return {
+      id,
+      method: 'select',
+      title: raw.title as string,
+      options: (raw.options as string[]) || [],
+      sessionFile,
+    }
   }
   if (method === 'confirm') {
-    return { id, method: 'confirm', title: raw.title as string, message: raw.message as string }
+    return {
+      id,
+      method: 'confirm',
+      title: raw.title as string,
+      message: raw.message as string,
+      sessionFile,
+    }
   }
   if (method === 'input') {
     return {
@@ -54,6 +78,7 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
       method: 'input',
       title: raw.title as string,
       placeholder: raw.placeholder as string | undefined,
+      sessionFile,
     }
   }
   return null
@@ -126,7 +151,14 @@ export function ensureExtensionUIChannel(): void {
     pruneSeenIds()
 
     traceAudioRenderer('extension-ui.dialog', { method: p.method, id: p.id })
-    useExtensionUIStore.getState().setActivePending(p)
+    const viewFile = useUIStore.getState().historySessionFile
+    const isBackground = !!p.sessionFile && !!viewFile && !sessionFilesEqual(p.sessionFile, viewFile)
+    if (isBackground) {
+      useExtensionUIStore.getState().setActivePending(p)
+      useExtensionUIStore.getState().suspendActive({})
+    } else {
+      useExtensionUIStore.getState().setActivePending(p)
+    }
     if (INTERACTIVE_TOOL_NAMES.has(p.method)) {
       linkExtensionDialogToToolRow(p.id, p.method)
     }

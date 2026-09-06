@@ -18,6 +18,7 @@ import {
 } from '@renderer/stores/ui-store-stream'
 import { createShellSlice } from '@renderer/stores/ui-store-shell-slice'
 import { createRuntimeSlice } from '@renderer/stores/ui-store-runtime-slice'
+import { workspacePathKey } from '@shared/workspace-path'
 import { isAbortQueueIgnoreActive } from '@renderer/lib/abort-ui-hold'
 
 export type { TimelineItem, UIState } from '@renderer/stores/ui-store-types'
@@ -45,7 +46,7 @@ export const useUIStore = create<UIState>()(
   },
   setWorkspace: (path) =>
     set((s) => {
-      const changed = path !== s.currentWorkspace
+      const changed = workspacePathKey(path) !== workspacePathKey(s.currentWorkspace)
       return {
         currentWorkspace: path,
         ephemeralSandboxDraft: false,
@@ -55,6 +56,7 @@ export const useUIStore = create<UIState>()(
         ...(changed
           ? {
             sessions: [],
+            sessionsWorkspace: null,
             currentSessionId: null,
             subagentSessionGroup: null,
           }
@@ -63,8 +65,12 @@ export const useUIStore = create<UIState>()(
     }),
 
   sessions: [],
+  sessionsWorkspace: null,
   currentSessionId: null,
-  setSessions: (s) => set({ sessions: s }),
+  setSessions: (s, workspaceId) => set((state) => {
+    if (workspaceId !== undefined && workspacePathKey(workspaceId) !== workspacePathKey(state.currentWorkspace)) return state
+    return { sessions: s, sessionsWorkspace: state.currentWorkspace }
+  }),
   setCurrentSession: (id) => {
     if (id === null) {
       set({
@@ -148,8 +154,10 @@ export const useUIStore = create<UIState>()(
   historyLoadedCount: 0,
   historySessionFile: null,
   historyLoading: false,
-  setHistoryMeta: (total, loaded, sessionFile) =>
-    set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile }),
+  setHistoryMeta: (total, loaded, sessionFile) => {
+    set({ historyTotalCount: total, historyLoadedCount: loaded, historySessionFile: sessionFile })
+    if (sessionFile) get().markSessionViewed(sessionFile)
+  },
   setHistoryLoading: (v) => set({ historyLoading: v }),
   subagentSessionGroup: null,
   setSubagentSessionGroup: (group) => set({ subagentSessionGroup: group }),

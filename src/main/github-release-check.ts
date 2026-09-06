@@ -163,7 +163,9 @@ export async function checkGitHubReleaseUpdate(): Promise<GitHubReleaseCheckResu
   const fallbackUrl = `https://github.com/${slug}/releases`
   const started = Date.now()
   emitOperationEvent({ operation: 'release.checkGitHub', status: 'start' })
-  const fetched = await fetchLatestGitHubRelease(slug, net.fetch)
+  const { configStore } = await import('./config-store')
+  const includePrerelease = configStore.get('includePrereleaseUpdates') === true
+  const fetched = await fetchLatestGitHubRelease(slug, net.fetch, includePrerelease)
   if (!fetched.ok) {
     const timeout = fetched.detail.toLowerCase().includes('timeout')
     emitOperationEvent({

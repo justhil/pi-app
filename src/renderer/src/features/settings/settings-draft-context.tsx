@@ -57,6 +57,7 @@ type SettingsDraftContextValue = {
   setLanguage: (l: LanguageChoice) => void
   setAutoOpenLastProject: (v: boolean) => void
   setAutoCheckRegistryUpdates: (v: boolean) => void
+  setIncludePrereleaseUpdates: (v: boolean) => void
   setAlertSoundEnabled: (v: boolean) => void
   setAlertNotificationEnabled: (v: boolean) => void
   setAlertOnExtensionUi: (v: boolean) => void
@@ -252,6 +253,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setLanguage: (l) => patch((d) => ({ ...d, language: l })),
       setAutoOpenLastProject: (v) => patch((d) => ({ ...d, autoOpenLastProject: v })),
       setAutoCheckRegistryUpdates: (v) => patch((d) => ({ ...d, autoCheckRegistryUpdates: v })),
+      setIncludePrereleaseUpdates: (v) => patch((d) => ({ ...d, includePrereleaseUpdates: v })),
       setAlertSoundEnabled: (v) => patch((d) => ({ ...d, alertSoundEnabled: v })),
       setAlertNotificationEnabled: (v) => patch((d) => ({ ...d, alertNotificationEnabled: v })),
       setAlertOnExtensionUi: (v) => patch((d) => ({ ...d, alertOnExtensionUi: v })),

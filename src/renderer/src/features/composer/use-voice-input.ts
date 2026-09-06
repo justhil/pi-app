@@ -41,6 +41,8 @@ export function useVoiceInput(
 ): {
   voiceState: VoiceState
   toggle: () => void
+  holdStart: () => void
+  holdEnd: () => void
   disabled: boolean
 } {
   const { t: tr } = useTranslation()
@@ -194,11 +196,21 @@ export function useVoiceInput(
     else if (voiceState === 'idle' || voiceState === 'error') void start()
   }, [voiceState, start, stop])
 
+  const holdStart = useCallback(() => {
+    if (voiceState === 'idle' || voiceState === 'error') void start()
+  }, [voiceState, start])
+
+  const holdEnd = useCallback(() => {
+    if (voiceState === 'recording') stop()
+  }, [voiceState, stop])
+
   useEffect(() => () => stop(), [stop])
 
   return {
     voiceState,
     toggle,
+    holdStart,
+    holdEnd,
     disabled: !canCompose || !ready || voiceState === 'transcribing',
   }
 }

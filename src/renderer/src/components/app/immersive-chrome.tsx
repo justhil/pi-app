@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { PanelLeft } from '@renderer/components/icons'
 import { PiMark } from '@renderer/components/brand/pi-mark'
 import { WindowControls } from '@renderer/components/app/window-controls'
+import { NotificationInbox } from '@renderer/features/shell/notification-inbox'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
@@ -51,6 +52,7 @@ export function ImmersiveChrome({
         </div>
       </div>
       <div className="electron-no-drag flex h-9 items-center gap-2">
+        <NotificationInbox />
         <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />
       </div>
     </div>

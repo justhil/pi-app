@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, Maximize2, Search } from '@renderer/components/icons'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Maximize2, Minus, Search } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
@@ -20,12 +20,15 @@ type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
 export function WorkspaceFilesPanel() {
   const { t } = useTranslation('files')
+  const panelRef = useRef<HTMLDivElement>(null)
+  const expandButtonRef = useRef<HTMLButtonElement>(null)
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const rightPanelCollapsed = useRightPanelHidden()
   const revealRightPanel = useUIStore((s) => s.revealRightPanel)
-  const { listDir, readText } = useWorkspaceFs(workspaceRoot)
+  const [showDotfiles, setShowDotfiles] = useState(false)
+  const { listDir, readText } = useWorkspaceFs(workspaceRoot, showDotfiles)
   const {
     tabs,
     activeTab,
@@ -39,6 +42,7 @@ export function WorkspaceFilesPanel() {
   const [explorerCollapsed, setExplorerCollapsed] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [treeEpoch, setTreeEpoch] = useState(0)
+  const [collapseEpoch, setCollapseEpoch] = useState(0)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
   const [menu, setMenu] = useState<FilesCtxTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
@@ -47,12 +51,31 @@ export function WorkspaceFilesPanel() {
 
   const selectedPath = activeTab?.rel ?? null
   const previewPath = activeTab?.rel ?? null
+  const explorerHidden = explorerCollapsed && !!activeTab
 
   useEffect(() => {
-    if (activePanel !== 'files') {
+    if (activePanel !== 'files' || !previewPath) {
       useUIStore.setState({ filesPreviewChatExpand: false })
     }
-  }, [activePanel])
+  }, [activePanel, previewPath])
+
+  const exitExpandedPreview = useCallback(() => {
+    useUIStore.setState({ filesPreviewChatExpand: false })
+    expandButtonRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (!filesPreviewChatExpand || rightPanelCollapsed) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"]')) return
+      event.preventDefault()
+      event.stopPropagation()
+      exitExpandedPreview()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [filesPreviewChatExpand, rightPanelCollapsed, exitExpandedPreview])
 
   useEffect(() => {
     return () => {
@@ -97,8 +120,11 @@ export function WorkspaceFilesPanel() {
       if (isDirectory) return
       const name = rel.split('/').pop() || rel
       openFile(rel, name, opts?.openInNewTab ? 'new-tab' : 'replace')
+      if (panelRef.current && panelRef.current.clientWidth <= 480 && !filesPreviewChatExpand) {
+        setExplorerCollapsed(true)
+      }
     },
-    [openFile],
+    [openFile, filesPreviewChatExpand],
   )
 
   useEffect(() => {
@@ -114,24 +140,29 @@ export function WorkspaceFilesPanel() {
   const chromeTrailing = (
     <>
       <button
+        ref={expandButtonRef}
         type="button"
         className={cn(
-          'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
-          filesPreviewChatExpand && 'bg-[var(--bg-active)] text-foreground',
+          'chrome-icon-btn flex h-7 shrink-0 items-center justify-center gap-1 rounded-md',
+          filesPreviewChatExpand ? 'bg-[var(--bg-active)] px-2 text-[11px] text-foreground' : 'w-7',
         )}
         title={filesPreviewChatExpand ? t('chrome.collapsePreview') : t('chrome.expandPreview')}
-        disabled={!previewPath}
+        aria-label={filesPreviewChatExpand ? t('chrome.collapsePreview') : t('chrome.expandPreview')}
+        aria-expanded={filesPreviewChatExpand}
+        disabled={!previewPath && !filesPreviewChatExpand}
         onClick={toggleChatPreviewExpand}
       >
-        <Maximize2 className="h-3.5 w-3.5" />
+        {filesPreviewChatExpand ? <><ChevronRight className="h-3.5 w-3.5" /><span>{t('chrome.collapsePreview')}</span></> : <Maximize2 className="h-3.5 w-3.5" />}
       </button>
       <button
         type="button"
         className="chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-        title={explorerCollapsed ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
-        onClick={() => setExplorerCollapsed((v) => !v)}
+        title={explorerHidden ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
+        aria-label={explorerHidden ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
+        disabled={!previewPath}
+        onClick={() => setExplorerCollapsed(!explorerHidden)}
       >
-        {explorerCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        {explorerHidden ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
       </button>
     </>
   )
@@ -190,7 +221,7 @@ export function WorkspaceFilesPanel() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div ref={panelRef} className="workspace-files-panel flex h-full min-h-0 flex-col">
       <FilePreviewTabBar
         workspaceRoot={workspaceRoot}
         tabs={tabs}
@@ -202,13 +233,14 @@ export function WorkspaceFilesPanel() {
       />
 
       <div
-        className={cn('files-split-grid min-h-0 flex-1', explorerCollapsed && 'files-split-grid--collapsed')}
+        className={cn('files-split-grid min-h-0 flex-1', explorerHidden && 'files-split-grid--collapsed')}
+        data-has-file={!!activeTab || undefined}
         style={{
-          // Tree rail adapts to the panel width instead of a fixed 220px: it grows with wider
-          // panels (up to 240px) and yields space to the preview on narrow ones (min 150px).
-          gridTemplateColumns: explorerCollapsed
+          gridTemplateColumns: explorerHidden
             ? 'minmax(0, 1fr) 0px'
-            : 'minmax(0, 1fr) minmax(150px, min(240px, 38%))',
+            : !activeTab
+              ? '0px minmax(0, 1fr)'
+              : 'minmax(0, 1fr) minmax(150px, min(240px, 38%))',
         }}
       >
         <div className="files-preview-scroll flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--bg-base)]">
@@ -220,6 +252,7 @@ export function WorkspaceFilesPanel() {
               readText={readText}
               fill
               refreshKey={previewRefreshKey}
+              onExitExpandedPreview={exitExpandedPreview}
             />
           ) : (
             <p className="flex flex-1 items-center justify-center px-3 py-8 text-center text-[12px] text-foreground-secondary/80">
@@ -229,17 +262,37 @@ export function WorkspaceFilesPanel() {
         </div>
 
         <div className="files-explorer-rail flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <div className="shrink-0 px-2 py-2">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground-secondary/70" />
+          <div className="files-explorer-toolbar flex shrink-0 flex-wrap items-center gap-1 border-b border-border/40 px-2 py-2">
+            <div className="workbench-search files-search min-w-0 flex-1">
+              <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('search.placeholder')}
-                className="w-full rounded-lg border border-border/60 bg-[var(--bg-1)] py-1.5 pl-8 pr-2 text-[12px] outline-none transition-[border-color,box-shadow] duration-[var(--motion-normal)] focus:border-[var(--focus-border)] focus:shadow-[var(--focus-shadow)]"
+                aria-label={t('search.placeholder')}
+                className="w-full"
               />
             </div>
+            <button
+              type="button"
+              title={t('tree.dotfiles')}
+              aria-label={t('tree.dotfiles')}
+              aria-pressed={showDotfiles}
+              className="workbench-icon"
+              onClick={() => setShowDotfiles((v) => !v)}
+            >
+              {showDotfiles ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            </button>
+            <button
+              type="button"
+              title={t('tree.collapseAll')}
+              aria-label={t('tree.collapseAll')}
+              className="workbench-icon"
+              onClick={() => setCollapseEpoch((n) => n + 1)}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
           </div>
           <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-1.5 pb-2">
             <FileTree
@@ -249,6 +302,7 @@ export function WorkspaceFilesPanel() {
               selectedPath={selectedPath}
               onSelectPath={onSelectPath}
               searchQuery={searchQuery}
+              collapseEpoch={collapseEpoch}
               onContextMenuEntry={onContextMenuEntry}
             />
           </OverlayScrollHost>
@@ -274,6 +328,35 @@ export function WorkspaceFilesPanel() {
           if (!menu) return
           void navigator.clipboard.writeText(menu.abs)
           toast.message(t('toast.copied'))
+        }}
+        onCopyRel={() => {
+          if (!menu) return
+          void navigator.clipboard.writeText(menu.rel)
+          toast.message(t('toast.copied'))
+        }}
+        onNewFile={() => {
+          if (!menu) return
+          const name = window.prompt(t('menu.newFile'))
+          if (!name) return
+          void ipcClient.invoke('workspace.fs.create', {
+            workspaceRoot,
+            relativePath: `${menu.rel}/${name}`,
+            isDirectory: false,
+          }).then(() => bumpTree())
+        }}
+        onNewFolder={() => {
+          if (!menu) return
+          const name = window.prompt(t('menu.newFolder'))
+          if (!name) return
+          void ipcClient.invoke('workspace.fs.create', {
+            workspaceRoot,
+            relativePath: `${menu.rel}/${name}`,
+            isDirectory: true,
+          }).then(() => bumpTree())
+        }}
+        onSearchInFolder={() => {
+          if (!menu) return
+          setSearchQuery(`${menu.rel.replace(/\\/g, '/')}/`)
         }}
         onRename={() => {
           if (!menu) return

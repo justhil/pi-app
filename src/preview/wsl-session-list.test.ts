@@ -30,6 +30,12 @@ describe('WSL preview session list cache', () => {
     mocks.sessionList.mockReset()
   })
 
+  it('preserves parent session paths for WSL preview results', async () => {
+    mocks.sessionList.mockResolvedValue([{ id: 'child', path: '/sessions/child.jsonl', parentSessionPath: '/sessions/parent.jsonl' }])
+    await expect(listSessionsOnDisk('/project', '/opt/pi/dist/index.js'))
+      .resolves.toMatchObject([{ parentSessionPath: '/sessions/parent.jsonl' }])
+  })
+
   it('does not let an in-flight list repopulate an invalidated workspace cache', async () => {
     const firstList = deferred<unknown[]>()
     mocks.sessionList

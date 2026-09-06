@@ -124,6 +124,20 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:workspace.sandbox.list',
   'ipc:workspace.sandbox.rename',
   'ipc:workspace.switch',
+  'ipc:notifications.inbox',
+  'ipc:notifications.markUnread',
+  'ipc:notifications.markRead',
+  'ipc:desktop.status',
+  'ipc:desktop.killWorker',
+  'ipc:desktop.setSleepBlock',
+  'ipc:desktop.gitWorktrees',
+  'ipc:desktop.pairingCode',
+  'ipc:workspace.fs.create',
+  'ipc:desktop.crashCopy',
+  'ipc:desktop.pickFolder',
+  'ipc:desktop.appName',
+  'ipc:desktop.setBadge',
+  'ipc:desktop.whichPi',
 ] as const
 
 export type IpcInvokeChannel = (typeof IPC_INVOKE_CHANNELS)[number]

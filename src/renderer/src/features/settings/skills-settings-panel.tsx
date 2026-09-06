@@ -354,16 +354,25 @@ export function SkillsSettingsPanel() {
         title={t('settings:skills.title')}
         description={t('settings:skills.hint')}
         action={
-          <button
-            type="button"
-            className="chrome-icon-btn flex h-11 w-11 items-center justify-center rounded-md"
-            aria-label={t('common:refresh')}
-            title={t('common:refresh')}
-            disabled={loading}
-            onClick={() => void load(false, true)}
-          >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.5} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="chrome-icon-btn flex h-11 w-11 items-center justify-center rounded-md"
+              aria-label={t('common:refresh')}
+              title={t('common:refresh')}
+              disabled={loading}
+              onClick={() => void load(false, true)}
+            >
+              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-border/50 px-2 py-1 text-[11px]"
+              onClick={() => void load(false, true)}
+            >
+              {t('settings:skills.recheck')}
+            </button>
+          </div>
         }
       />
 

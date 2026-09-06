@@ -1,3 +1,5 @@
+import { unquoteGitPath } from './git-path'
+
 // DiffModel - Unified diff representation for Review panel
 
 export type DiffLineType = 'added' | 'removed' | 'context' | 'hunk-header'
@@ -71,19 +73,6 @@ export function isGeneratedFile(path: string): boolean {
 
 export function isLargeDiff(file: DiffFile, threshold = 500): boolean {
   return file.additions + file.deletions > threshold
-}
-
-function unquoteGitPath(value: string): string {
-  const raw = value.trim()
-  if (raw.startsWith('"') && raw.endsWith('"') && raw.length >= 2) {
-    return raw
-      .slice(1, -1)
-      .replace(/\\"/g, '"')
-      .replace(/\\n/g, '\n')
-      .replace(/\\t/g, '\t')
-      .replace(/\\\\/g, '\\')
-  }
-  return raw.replace(/^[ab]\//, '')
 }
 
 function stripDiffPath(value: string | undefined): string | undefined {

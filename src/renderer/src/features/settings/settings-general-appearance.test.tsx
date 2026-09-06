@@ -34,6 +34,7 @@ vi.mock('@renderer/features/settings/settings-draft-context', () => ({
     draft: {
       autoOpenLastProject: false,
       autoCheckRegistryUpdates: true,
+      includePrereleaseUpdates: false,
       alertSoundEnabled: false,
       alertNotificationEnabled: false,
       alertOnExtensionUi: false,
@@ -51,6 +52,7 @@ vi.mock('@renderer/features/settings/settings-draft-context', () => ({
     },
     setAutoOpenLastProject: vi.fn(),
     setAutoCheckRegistryUpdates: vi.fn(),
+    setIncludePrereleaseUpdates: vi.fn(),
     setLanguage: vi.fn(),
     setAlertSoundEnabled: vi.fn(),
     setAlertNotificationEnabled: vi.fn(),

@@ -40,7 +40,21 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="text-xs text-destructive">
             {i18n.t('common:errorBoundary.renderFailed')}: {message}
           </p>
+          <p className="max-w-md text-[11px] text-foreground-secondary">
+            {i18n.t('common:errorBoundary.human')}
+          </p>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard.writeText(
+                  `${this.state.error?.stack || this.state.error?.message || ''}`,
+                )
+              }}
+              className="rounded-md border border-border/60 px-3 py-1.5 text-[11px] text-foreground-secondary hover:bg-[var(--bg-hover)]"
+            >
+              {i18n.t('common:errorBoundary.copy')}
+            </button>
             <button
               type="button"
               onClick={this.handleRetry}

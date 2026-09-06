@@ -33,6 +33,9 @@ export type CompletionCard = {
   timeoutMs: number
   sound: boolean
   isTest?: boolean
+  kind?: 'done' | 'needs-you'
+  unread?: boolean
+  createdAt?: number
 }
 
 export type CompletionDeliverer = (card: CompletionCard) => void
@@ -58,6 +61,7 @@ const MAX_SEEN = 200
 export function createCompletionNotificationController(deps: CompletionControllerDeps) {
   const pending = new Map<string, Pending>()
   const seen = new Set<string>()
+  const inbox: CompletionCard[] = []
   const settledSinceRun = new Set<string>()
   const exitNotified = new Set<string>()
   let seq = 0
@@ -127,11 +131,18 @@ export function createCompletionNotificationController(deps: CompletionControlle
     }
   }
 
+  function rememberInbox(card: CompletionCard): void {
+    inbox.unshift({ ...card, kind: card.kind || 'done', unread: true, createdAt: deps.now() })
+    if (inbox.length > MAX_SEEN) inbox.length = MAX_SEEN
+  }
+
   function flush(item: Pending): void {
     pending.delete(item.notificationId)
     const settings = deps.getSettings()
+    const card = cardFromEvent(item.event, settings, item.notificationId)
+    rememberInbox(card)
     if (!shouldDeliver(item.event, settings)) return
-    deps.deliver(cardFromEvent(item.event, settings, item.notificationId))
+    deps.deliver(card)
   }
 
   function handleCompletion(event: CompletionEvent): void {
@@ -206,6 +217,19 @@ export function createCompletionNotificationController(deps: CompletionControlle
     })
   }
 
+  function listInbox(): CompletionCard[] {
+    return inbox.map((card) => ({ ...card }))
+  }
+
+  function markInboxUnread(notificationId: string, unread: boolean): void {
+    const card = inbox.find((row) => row.notificationId === notificationId)
+    if (card) card.unread = unread
+  }
+
+  function markInboxRead(notificationId: string): void {
+    markInboxUnread(notificationId, false)
+  }
+
   function dispose(): void {
     for (const item of pending.values()) clearTimeout(item.timer)
     pending.clear()
@@ -217,6 +241,10 @@ export function createCompletionNotificationController(deps: CompletionControlle
     notifyVisibleSessionChanged,
     handleWorkerExitFailure,
     deliverTest,
+    listInbox,
+    markInboxUnread,
+    markInboxRead,
+    rememberInbox,
     dispose,
   }
 }

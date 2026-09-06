@@ -21,7 +21,8 @@ async function openExistingSessionView(
   bindWorker: boolean,
 ): Promise<void> {
   captureVisibleLiveSessionTimeline()
-  useExtensionUIStore.getState().resetForSessionContext()
+  useExtensionUIStore.getState().parkForSessionSwitch()
+  useExtensionUIStore.getState().restoreForSession(sessionFile)
 
   // switchSessionInPlace / activateWorkspace / previewSessionInPlace 已在同一同步流程里
   // capture + focus 过本会话；这里跳过冗余的再次 capture + 重绑定，减少每次切换的合并开销。
@@ -119,7 +120,8 @@ export async function openSessionViaShell(
   navToken?: number,
 ): Promise<{ instant: boolean }> {
   captureVisibleLiveSessionTimeline()
-  useExtensionUIStore.getState().resetForSessionContext()
+  useExtensionUIStore.getState().parkForSessionSwitch()
+  useExtensionUIStore.getState().restoreForSession(sessionFile)
   return focusSession(sessionId, sessionFile, navToken)
 }
 

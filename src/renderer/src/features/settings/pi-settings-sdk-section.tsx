@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { btnOutline, btnPrimary, selectCls } from './settings-controls'
 import { type PiInfo, type SdkStatus } from './pi-settings-shared'
 
@@ -159,6 +160,30 @@ export function PiSettingsSdkSection({
           {installing ? '\n…' : ''}
         </pre>
       )}
+      <div className="mt-4 rounded-md border border-border/50 p-3 text-[12px]">
+        <div className="mb-1 font-medium">{t('settings:pi.pathTitle')}</div>
+        <p className="text-muted-foreground">{info?.agentDir || t('settings:pi.notDetected')}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={btnOutline}
+            onClick={() => {
+              if (info?.agentDir) void navigator.clipboard.writeText(info.agentDir)
+            }}
+          >
+            {t('settings:pi.copyPath')}
+          </button>
+          <button
+            type="button"
+            className={btnOutline}
+            onClick={() => {
+              if (info?.agentDir) void ipcClient.invoke('shell.showItemInFolder', { path: info.agentDir })
+            }}
+          >
+            {t('settings:pi.openDir')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

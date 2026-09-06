@@ -196,25 +196,25 @@ export function attachWorkerHandlers(
     }
 
     if (data.type === 'extension-ui-request' && win && !win.isDestroyed()) {
-      const req = data.request as { id?: string; method?: string; notifyType?: string; message?: string }
+      const req = data.request as {
+        id?: string
+        method?: string
+        notifyType?: string
+        message?: string
+      }
       const method = req?.method || ''
       const fg = opts.getForegroundPoolKey?.() ?? null
       const isForeground = !fg || fg === slot.poolKey
-      if (!isForeground && method !== 'notify') {
-        if (req.id) {
-          slot.worker?.postMessage({
-            type: 'extension-ui-cancel',
-            cancel: { id: req.id, reason: 'background-session' },
-          })
-        }
-        return
-      }
       const allow =
         method !== 'notify' || slot.agentTurnActive || req.notifyType === 'error'
       if (!allow) return
-      if (!isForeground && req.notifyType !== 'error') return
+      if (method === 'notify' && !isForeground && req.notifyType !== 'error') return
       if (req.id && method !== 'notify') extensionUiDialogSource.set(req.id, slot)
-      win.webContents.send('ipc:extension-ui-request', data.request)
+      const request =
+        method === 'notify' || !data.request || typeof data.request !== 'object'
+          ? data.request
+          : { ...(data.request as Record<string, unknown>), sessionFile: slot.sessionFile || slot.poolKey }
+      win.webContents.send('ipc:extension-ui-request', request)
     }
 
     if (data.type === 'init-done' && slot.initResolver) {

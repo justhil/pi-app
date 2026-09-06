@@ -426,7 +426,7 @@ describe('session worker re-key collisions', () => {
 })
 
 describe('extension UI foreground isolation', () => {
-  it('should_suppress_background_dialogs_and_dismiss_all', () => {
+  it('should_forward_background_dialogs_and_dismiss_all', () => {
     const transport = makeFakeTransport()
     const slot = fakeSlot('/s/background', '/w', true)
     slot.worker = transport
@@ -448,7 +448,16 @@ describe('extension UI foreground isolation', () => {
     } as WorkerResponsePayload)
     transport.emitMessage({ type: 'extension-ui-dismiss-all', reason: 'compaction' } as WorkerResponsePayload)
 
-    expect(mainWindow.webContents.send).not.toHaveBeenCalled()
+    expect(mainWindow.webContents.send).toHaveBeenNthCalledWith(
+      1,
+      'ipc:extension-ui-request',
+      expect.objectContaining({ id: 'background-dialog', sessionFile: '/s/background' }),
+    )
+    expect(mainWindow.webContents.send).toHaveBeenNthCalledWith(
+      2,
+      'ipc:extension-ui-dismiss',
+      expect.objectContaining({ type: 'extension-ui-dismiss', id: 'background-dialog' }),
+    )
   })
 
   it('should_show_foreground_dialogs_and_dismiss_all', () => {

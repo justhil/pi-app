@@ -9,6 +9,12 @@ describe('UI runtime state isolation', () => {
         '/sessions/current.jsonl': true,
         '/sessions/background.jsonl': true,
       },
+      sessionWaitingUi: {},
+      sessionSettledUnseen: {},
+      sessionAttention: {
+        '/sessions/current.jsonl': 'working',
+        '/sessions/background.jsonl': 'working',
+      },
       streamingAssistantId: 'stale-assistant',
       optimisticPendingUserText: 'stale prompt',
       agentTurnBootstrapping: false,

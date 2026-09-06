@@ -13,6 +13,7 @@ export const shellShowItemSchema = z.object({
 export const workspaceFsListDirSchema = z.object({
   workspaceRoot: z.string(),
   path: z.string().optional(),
+  includeDotfiles: z.boolean().optional(),
 })
 
 export const workspaceFsSearchSchema = z.object({
@@ -175,6 +176,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   recentProjectsFixedOrder: z.boolean(),
   autoOpenLastProject: z.boolean(),
   autoCheckRegistryUpdates: z.boolean(),
+  includePrereleaseUpdates: z.boolean(),
   ignoredUpdateVersion: z.string(),
   alertSoundEnabled: z.boolean(),
   alertNotificationEnabled: z.boolean(),

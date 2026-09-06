@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -21,21 +21,20 @@ async function loadResolvePathUnderWorkspace() {
 
   // Source-level fallback: always available in CI without relying on chunk names.
   const sourcePath = join(process.cwd(), 'src/main/workspace-fs.ts')
-  const source = readFileSync(sourcePath, 'utf8')
-  const js = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-      esModuleInterop: true,
-    },
-  }).outputText
-  // Evaluate CJS in isolation via Function + createRequire for node:fs/path.
-  const require = createRequire(import.meta.url)
-  const module = { exports: {} }
-  const filename = join(tmpdir(), 'workspace-fs-contract.cjs')
-  const evaluate = new Function('exports', 'require', 'module', '__filename', '__dirname', js)
-  evaluate(module.exports, require, module, filename, dirname(filename))
-  const resolvePathUnderWorkspace = module.exports.resolvePathUnderWorkspace
+  function evaluateSource(filename) {
+    const js = ts.transpileModule(readFileSync(filename, 'utf8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+    }).outputText
+    const nativeRequire = createRequire(pathToFileURL(filename))
+    const require = (id) => id.startsWith('.')
+      ? evaluateSource(resolve(dirname(filename), `${id}.ts`))
+      : nativeRequire(id)
+    const module = { exports: {} }
+    const evaluate = new Function('exports', 'require', 'module', '__filename', '__dirname', js)
+    evaluate(module.exports, require, module, filename, dirname(filename))
+    return module.exports
+  }
+  const resolvePathUnderWorkspace = evaluateSource(sourcePath).resolvePathUnderWorkspace
   if (typeof resolvePathUnderWorkspace !== 'function') {
     throw new Error('resolvePathUnderWorkspace export missing after transpile')
   }

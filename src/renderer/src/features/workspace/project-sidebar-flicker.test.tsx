@@ -62,6 +62,7 @@ describe('ProjectSidebar folder list stability', () => {
       currentWorkspace: '/proj/A',
       recentProjects: [],
       sessions: [],
+      sessionsWorkspace: null,
       currentSessionId: null,
       historySessionFile: null,
       timelineItems: [],
@@ -166,6 +167,19 @@ describe('ProjectSidebar folder list stability', () => {
     const after = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
     expect(after.join('')).not.toContain('加载中')
     expect(after.join('')).toContain('B的会话')
+  })
+
+  it('removes the last cached row after a successful empty current list', async () => {
+    const { container } = render(<ProjectSidebar onOpenProject={() => {}} openProjectLabel="打开" />)
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)) })
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('pi-desktop:workspace-sessions', {
+        detail: { workspaceId: '/proj/A', sessions: [{ sessionId: 'gone', title: '已删除的最后一条', updatedAt: 1, modelId: '' }] },
+      }))
+    })
+    expect(container.textContent).toContain('已删除的最后一条')
+    await act(async () => { useUIStore.getState().setSessions([]) })
+    expect(container.textContent).not.toContain('已删除的最后一条')
   })
 
   it('prefers the live session list over a stale cache so a new session is not hidden', async () => {

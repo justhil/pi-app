@@ -84,6 +84,24 @@ describe('session fork renderer actions', () => {
     expect(useUIStore.getState().composerPrefill).toBeNull()
   })
 
+  it('keeps a late fork in its original workspace without opening it over another project', async () => {
+    let finish!: (result: { sessionFile: string; sessionId: string; editorText: string }) => void
+    mocks.invoke.mockImplementation((channel: string) => channel === 'session.fork'
+      ? new Promise((resolve) => { finish = resolve })
+      : Promise.resolve({ sessions: [] }))
+    const pending = forkSessionFromEntry('user-entry')
+    useUIStore.getState().setWorkspace('/other')
+    const otherSessions = [{ sessionId: 'other', title: 'other', updatedAt: 1, modelId: '' }]
+    useUIStore.getState().setSessions(otherSessions)
+    finish({ sessionFile: '/sessions/fork.jsonl', sessionId: 'fork', editorText: 'old prompt' })
+
+    await expect(pending).resolves.toBe(true)
+    expect(mocks.invoke).toHaveBeenCalledWith('session.list', { workspaceId: '/workspace' })
+    expect(mocks.openSessionIntoWorker).not.toHaveBeenCalled()
+    expect(useUIStore.getState().sessions).toEqual(otherSessions)
+    expect(useUIStore.getState().composerPrefill).toBe('existing draft')
+  })
+
   it('should_block_branch_mutations_in_read_only_subagent_preview', async () => {
     useUIStore.setState({
       currentSessionId: 'child-session',

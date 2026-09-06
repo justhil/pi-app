@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import type { DiffFile, DiffHunk, DiffLine } from '@shared/diff-model'
 import { buildSplitDiffRows } from '@shared/diff-split'
 import { ReviewHunkComments } from './review-hunk-comments'
@@ -117,7 +119,7 @@ function DiffHunkView({
         </button>
       </div>
       {mode === 'inline' ? (
-        <div className="min-w-0 font-mono text-[10px] leading-[1.5]">
+        <div className="min-w-0 font-mono text-[12px] leading-[1.65]">
           {hunk.lines.map((l, i) => {
             const lineNo =
               l.type === 'removed'
@@ -161,7 +163,7 @@ function SplitHunk({ hunk, filePath }: { hunk: DiffHunk; filePath: string }) {
   }
   const rows = buildSplitDiffRows(pseudoFile).slice(1)
   return (
-    <div className="grid min-w-0 grid-cols-2 font-mono text-[10px] leading-[1.5]">
+    <div className="grid min-w-0 grid-cols-2 font-mono text-[12px] leading-[1.65]">
       {rows.map((row, i) => {
         const leftNo = row.left.oldLine ?? row.left.newLine
         const rightNo = row.right.newLine ?? row.right.oldLine
@@ -246,16 +248,21 @@ export function FileDiffView({
         role="button"
         tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => e.key === 'Enter' && setOpen((o) => !o)}
-        className="group flex w-full cursor-pointer items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)]"
+        aria-expanded={open}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
+          e.preventDefault()
+          setOpen((o) => !o)
+        }}
+        className="group flex min-h-10 w-full cursor-pointer items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)]"
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         <ChangeIcon type={file?.status ?? fallbackChangeType} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{filePath}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[12px]" title={filePath}>{filePath}</span>
         {file && (
           <>
-            <span className="shrink-0 text-[9px] text-[var(--diff-added)]">+{file.additions}</span>
-            <span className="shrink-0 text-[9px] text-[var(--diff-removed)]">-{file.deletions}</span>
+            <span className="shrink-0 text-[11px] tabular-nums text-[var(--diff-added)]">+{file.additions}</span>
+            <span className="shrink-0 text-[11px] tabular-nums text-[var(--diff-removed)]">-{file.deletions}</span>
           </>
         )}
         <button
@@ -317,6 +324,7 @@ export function FileDiffView({
 }
 
 export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted: () => void }) {
+  const { t } = useTranslation('review')
   const [message, setMessage] = useState('')
   const [committing, setCommitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -334,7 +342,11 @@ export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted
           setMessage('')
           onCommitted()
         } else {
-          setError(res?.error || '提交失败')
+          const err = res?.error || '提交失败'
+          setError(err)
+          void import('@renderer/lib/send-composer-prompt').then((m) =>
+            m.sendComposerPrompt(`git commit 失败：\n${err}\n请帮我修。`),
+          )
         }
       })
       .catch((e) => setError(String(e)))
@@ -342,28 +354,25 @@ export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted
   }
 
   return (
-    <div className="space-y-2 border-t border-border/40 px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] text-foreground-secondary">
-        <GitCommitHorizontal className="h-3.5 w-3.5" />
-        提交已暂存
-      </div>
+    <div className="space-y-2">
       <textarea
-        className="settings-field-focus w-full resize-y rounded-md border border-border bg-background px-2.5 py-1.5 text-[12px]"
+        aria-label={t('commitMessage')}
+        className="settings-field-focus min-h-20 w-full resize-y rounded-md border border-border bg-[var(--bg-1)] px-3 py-2 text-[13px] leading-relaxed"
         rows={3}
-        placeholder="commit message…"
+        placeholder={t('commitPlaceholder')}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
       />
-      {error && <div className="text-[10px] text-destructive">{error}</div>}
-      {hash && <div className="text-[10px] text-[var(--diff-added)]">已提交 {hash.slice(0, 8)}</div>}
+      {error && <div role="alert" className="text-xs text-destructive">{error}</div>}
+      {hash && <div role="status" className="text-xs text-[var(--diff-added)]">{t('committed', { hash: hash.slice(0, 8) })}</div>}
       <div className="flex justify-end">
         <button
           type="button"
-          className="settings-chip rounded-md bg-primary px-2.5 py-1 text-[11px] text-primary-foreground disabled:opacity-40"
+          className="settings-chip min-h-8 rounded-md bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground disabled:opacity-40"
           disabled={!message.trim() || committing}
           onClick={handleCommit}
         >
-          {committing ? '提交中…' : '提交'}
+          {committing ? t('committing') : t('commit')}
         </button>
       </div>
     </div>

@@ -13,6 +13,10 @@ import {
 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { listAttentionSessions } from '@renderer/lib/session-attention'
+import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { formatShortcut, readShortcutBindings } from '@renderer/lib/shortcut-bindings'
 
 export type CommandPaletteAction = {
   id: string
@@ -58,9 +62,48 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sessionAttention = useUIStore((s) => s.sessionAttention)
+  const sessions = useUIStore((s) => s.sessions)
+  const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+
+  const openAttentionSession = useCallback(
+    (sessionFile: string) => {
+      const match = sessions.find((s) => sessionFilesEqual(s.sessionFile, sessionFile))
+      if (match?.sessionFile && currentWorkspace) {
+        void switchSessionInPlace(match.sessionId, match.sessionFile)
+        onClose()
+        return
+      }
+      if (match?.workspaceId && match.sessionFile) {
+        void activateWorkspace(match.workspaceId, {
+          sessionId: match.sessionId,
+          sessionFile: match.sessionFile,
+        })
+        onClose()
+        return
+      }
+      onClose()
+    },
+    [sessions, currentWorkspace, onClose],
+  )
 
   const actions = useMemo<CommandPaletteAction[]>(() => {
-    const list: CommandPaletteAction[] = [
+    const list: CommandPaletteAction[] = []
+    const waiting = listAttentionSessions(sessionAttention, 'needs-you')
+    const done = listAttentionSessions(sessionAttention, 'done')
+    ;[...waiting, ...done].slice(0, 6).forEach((file, i) => {
+      const match = sessions.find((s) => sessionFilesEqual(s.sessionFile, file))
+      const waitingHere = waiting.includes(file)
+      list.push({
+        id: `attention-${file}`,
+        label: match?.title || file.split(/[\\/]/).pop() || file,
+        hint: waitingHere ? t('common:attention.needsYou') : t('common:attention.done'),
+        icon: MessageSquare,
+        keywords: `${match?.firstMessage || ''} ${i + 1}`,
+        run: () => openAttentionSession(file),
+      })
+    })
+    list.push(
       {
         id: 'settings',
         label: t('common:commandPalette.settings'),
@@ -132,7 +175,7 @@ export function CommandPalette({
           onClose()
         },
       },
-    ]
+    )
     if (onOpenSessionTree) {
       list.push({
         id: 'session-tree',
@@ -160,7 +203,7 @@ export function CommandPalette({
       })
     }
     return list
-  }, [t, onOpenSettings, onOpenSessionTree, onOpenShortcuts, onClose])
+  }, [t, onOpenSettings, onOpenSessionTree, onOpenShortcuts, onClose, sessionAttention, sessions, openAttentionSession])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -210,6 +253,14 @@ export function CommandPalette({
       if (event.key === 'Enter') {
         event.preventDefault()
         runSelected()
+        return
+      }
+      if (!query && /^[1-6]$/.test(event.key)) {
+        const action = filtered[Number(event.key) - 1]
+        if (action) {
+          event.preventDefault()
+          action.run()
+        }
       }
     }
     window.addEventListener('keydown', onKey, true)
@@ -305,10 +356,11 @@ export function ShortcutsHelpSheet({
 
   if (!open) return null
 
+  const bindings = readShortcutBindings()
   const rows: { keys: string; label: string }[] = [
-    { keys: 'Ctrl/⌘ K', label: t('common:shortcuts.commandPalette') },
-    { keys: 'Ctrl/⌘ /', label: t('common:shortcuts.thisSheet') },
-    { keys: 'Ctrl/⌘ ⇧ N', label: t('common:shortcuts.completionNotification') },
+    { keys: formatShortcut(bindings.commandPalette), label: t('common:shortcuts.commandPalette') },
+    { keys: formatShortcut(bindings.shortcuts), label: t('common:shortcuts.thisSheet') },
+    { keys: formatShortcut(bindings.completionNotification), label: t('common:shortcuts.completionNotification') },
     { keys: 'Esc Esc', label: t('common:shortcuts.sessionTree') },
     { keys: 'Alt ↑', label: t('common:shortcuts.restoreQueue') },
     { keys: 'Esc', label: t('common:shortcuts.stopOrDismiss') },

@@ -41,6 +41,7 @@ export type SettingsDraft = {
   language: LanguageChoice
   autoOpenLastProject: boolean
   autoCheckRegistryUpdates: boolean
+  includePrereleaseUpdates: boolean
   alertSoundEnabled: boolean
   alertNotificationEnabled: boolean
   alertOnExtensionUi: boolean
@@ -112,6 +113,7 @@ export function draftSignature(d: SettingsDraft): string {
     language: d.language,
     autoOpenLastProject: d.autoOpenLastProject,
     autoCheckRegistryUpdates: d.autoCheckRegistryUpdates,
+    includePrereleaseUpdates: d.includePrereleaseUpdates,
     alertSoundEnabled: d.alertSoundEnabled,
     alertNotificationEnabled: d.alertNotificationEnabled,
     alertOnExtensionUi: d.alertOnExtensionUi,
@@ -152,6 +154,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     language: normalizeLanguage(s.language, normalizeLanguage(i18nLanguage, 'zh')),
     autoOpenLastProject: s.autoOpenLastProject !== false,
     autoCheckRegistryUpdates: s.autoCheckRegistryUpdates !== false,
+    includePrereleaseUpdates: s.includePrereleaseUpdates === true,
     alertSoundEnabled: s.alertSoundEnabled !== false,
     alertNotificationEnabled: s.alertNotificationEnabled !== false,
     alertOnExtensionUi: s.alertOnExtensionUi !== false,
@@ -267,6 +270,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   await ipcClient.invoke('settings.set', { key: 'language', value: draft.language })
   await ipcClient.invoke('settings.set', { key: 'autoOpenLastProject', value: draft.autoOpenLastProject })
   await ipcClient.invoke('settings.set', { key: 'autoCheckRegistryUpdates', value: draft.autoCheckRegistryUpdates })
+  await ipcClient.invoke('settings.set', { key: 'includePrereleaseUpdates', value: draft.includePrereleaseUpdates })
   await ipcClient.invoke('settings.set', { key: 'alertSoundEnabled', value: draft.alertSoundEnabled })
   await ipcClient.invoke('settings.set', { key: 'alertNotificationEnabled', value: draft.alertNotificationEnabled })
   await ipcClient.invoke('settings.set', { key: 'alertOnExtensionUi', value: draft.alertOnExtensionUi })

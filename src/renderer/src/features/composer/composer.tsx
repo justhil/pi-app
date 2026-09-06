@@ -115,7 +115,7 @@ export function Composer() {
   const composerPrefillMode = useUIStore((s) => s.composerPrefillMode)
   const setComposerPrefill = useUIStore((s) => s.setComposerPrefill)
   const metrics = useComposerMetrics()
-  const { voiceState, toggle: toggleVoice, disabled: voiceDisabled } = useVoiceInput(canSendMessages, (spoken) => {
+  const { voiceState, toggle: toggleVoice, holdStart, holdEnd, disabled: voiceDisabled } = useVoiceInput(canSendMessages, (spoken) => {
     const el = editorRef.current
     if (el) insertTextAtCursor(el, spoken)
   })
@@ -514,6 +514,8 @@ export function Composer() {
                       voiceState={voiceState}
                       disabled={voiceDisabled}
                       onClick={toggleVoice}
+                      onHoldStart={holdStart}
+                      onHoldEnd={holdEnd}
                     />
                   )
                 }

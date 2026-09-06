@@ -3,7 +3,7 @@ import { activateWorkspace } from './activate-workspace'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 const invokeMock = vi.hoisted(() =>
-  vi.fn(async (method: string) => {
+  vi.fn(async (method: string): Promise<Record<string, unknown>> => {
     if (method === 'workspace.open') return { ok: true }
     if (method === 'session.list') return { sessions: [] }
     if (method === 'settings.set') return { ok: true }
@@ -55,6 +55,16 @@ describe('activateWorkspace clears the stale session list on a real workspace sw
       sessionId: null,
       sessionFile: null,
       status: 'idle',
+    })
+  })
+
+  it('preserves the session owner and first prompt after activating a project', async () => {
+    invokeMock.mockImplementation(async (method) => method === 'session.list'
+      ? { sessions: [{ sessionId: 'b1', sessionFile: '/sessions/b1.jsonl', workspaceId: '/proj/B', title: 'B', firstMessage: 'Read my first prompt', updatedAt: 1, modelId: 'm' }] }
+      : { ok: true })
+    await activateWorkspace('/proj/B')
+    expect(useUIStore.getState().sessions[0]).toMatchObject({
+      sessionId: 'b1', workspaceId: '/proj/B', firstMessage: 'Read my first prompt',
     })
   })
 

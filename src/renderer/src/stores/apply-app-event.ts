@@ -89,8 +89,13 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
       }
       break
     }
-    case 'completion':
+    case 'completion': {
+      if (event.settled === true) {
+        const sessionKey = eventSessionFile(event) || api.get().historySessionFile
+        if (sessionKey) useUIStore.getState().markSessionSettled(sessionKey)
+      }
       break
+    }
     case 'extension_widget': {
       applyExtensionWidgetEvent(event)
       const viewFile = api.get().historySessionFile

@@ -20,7 +20,10 @@
     "loading": "Loading…",
     "loadMore": "Show {{count}} more…",
     "dirTruncated": "Large folder — showing {{shown}} of {{total}}",
-    "searchCapped": "Too many matches — showing {{shown}} of {{total}}"
+    "searchCapped": "Too many matches — showing {{shown}} of {{total}}",
+    "dotfiles": "Show hidden files",
+    "git": { "modified": "Modified", "added": "Added", "deleted": "Deleted" },
+    "collapseAll": "Collapse all"
   },
   "preview": {
     "pickFile": "Select a file in the tree to preview",
@@ -31,19 +34,24 @@
     "openInSystem": "Open in system",
     "error": "Could not read file",
     "truncated": "Showing an excerpt only",
+    "previewLimit": "Showing the first 8MB. Open in the system app to view the remainder.",
     "truncatedNoHighlight": "Large file — plain text, no highlighting",
     "expandAll": "Show all ({{count}} lines)",
     "collapse": "Collapse",
-    "tryExpandRead": "Try loading full file",
+    "tryExpandRead": "Load more (up to 8MB)",
     "deleted": "File was deleted or moved"
   },
   "menu": {
     "preview": "Preview",
     "attach": "Add to chat",
     "copyPath": "Copy path",
+    "copyRel": "Copy relative path",
+    "newFile": "New file",
+    "newFolder": "New folder",
     "reveal": "Reveal in folder",
     "rename": "Rename",
-    "openInNewTab": "Open in new tab"
+    "openInNewTab": "Open in new tab",
+    "searchInFolder": "Search in this folder"
   },
   "rename": {
     "title": "Rename",

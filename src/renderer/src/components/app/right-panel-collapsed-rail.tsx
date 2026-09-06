@@ -18,6 +18,10 @@ export function RightPanelCollapsedRail() {
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
+  const attention = useUIStore((s) => s.sessionAttention)
+  const attentionAlert = Object.values(attention).some(
+    (value) => value === 'needs-you' || value === 'done',
+  )
 
   const panels = useMemo(
     () => buildRightPanelTabs(rightPanelCatalog, rightPanelPrefs, t, rightPanelOrder),
@@ -48,13 +52,16 @@ export function RightPanelCollapsedRail() {
               title={panel.label}
               onClick={() => openPanel(panel.key)}
               className={cn(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
                 active
                   ? 'bg-[var(--bg-active)] text-foreground'
                   : 'text-foreground-secondary/70 hover:bg-[var(--bg-hover)] hover:text-foreground',
               )}
             >
               <Icon className="h-3.5 w-3.5" />
+              {attentionAlert && panel.key === 'run' ? (
+                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[color-mix(in_srgb,#c9a227_88%,white)]" />
+              ) : null}
             </button>
           )
         })}

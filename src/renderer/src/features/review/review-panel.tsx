@@ -1,16 +1,24 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { Columns2, Rows2, Loader2, RefreshCw } from '@renderer/components/icons'
+import { Columns2, Rows2, Loader2, RefreshCw, GitBranch, GitCommitHorizontal, Sparkles } from '@renderer/components/icons'
 import { FileDiffView, ReviewCommitBar, type DiffMode } from './review-diff-views'
 import { useReviewGitData } from './use-review-git-data'
 import {
   collectTouchedPaths,
   filterReviewGroups,
   groupReviewFiles,
+  listConflictPaths,
   type ReviewFileRow,
 } from './review-git-utils'
+import {
+  clearReviewComments,
+  formatReviewCommentsForPrompt,
+  listAllReviewComments,
+  subscribeReviewComments,
+} from './review-inline-comments'
+import { sendComposerPrompt } from '@renderer/lib/send-composer-prompt'
 
 const SCOPES = ['turn', 'session', 'git'] as const
 type Scope = (typeof SCOPES)[number]
@@ -35,6 +43,22 @@ export function ReviewPanel() {
 
   const turnRunId = running ? activeRunId : lastRunId
   const cwd = workspace || ''
+  const commentCount = useSyncExternalStore(subscribeReviewComments, () => listAllReviewComments(cwd).length)
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState(false)
+  const sendPrompt = async (text: string, clearComments = false) => {
+    const sent = clearComments ? listAllReviewComments(cwd) : undefined
+    setSending(true)
+    setSendError(false)
+    try {
+      if (!await sendComposerPrompt(text)) { setSendError(true); return }
+      if (sent) clearReviewComments(cwd, sent)
+    } catch {
+      setSendError(true)
+    } finally {
+      setSending(false)
+    }
+  }
 
   useEffect(() => {
     const saved = localStorage.getItem('reviewDiffMode')
@@ -61,6 +85,8 @@ export function ReviewPanel() {
     window.addEventListener('pi-desktop:review-focus-file', onFocus)
     return () => window.removeEventListener('pi-desktop:review-focus-file', onFocus)
   }, [])
+
+  const conflicts = useMemo(() => listConflictPaths(gitData?.status || ''), [gitData?.status])
 
   const groups = useMemo(() => {
     const all = groupReviewFiles({
@@ -128,26 +154,21 @@ export function ReviewPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-1 border-b border-border/40 px-2 py-1.5">
+      <div className="review-toolbar flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2">
+        <div className="flex min-w-0 flex-1 gap-1" role="group" aria-label={t('review:title')}>
         {SCOPES.map((item) => (
           <button
             key={item}
             type="button"
             onClick={() => setScope(item)}
-            className={cn(
-              'h-7 rounded-md px-2.5 text-[12px] font-medium transition-colors',
-              scope === item
-                ? 'bg-[var(--bg-active)] text-foreground'
-                : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
-            )}
+            aria-pressed={scope === item}
+            className="workbench-scope whitespace-nowrap"
           >
-            {t(`review.scope.${item}`)}
+            {t(`review:scope.${item}`)}
           </button>
         ))}
-      </div>
-      <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-1.5">
-        <span className="truncate text-[10px] text-foreground-secondary/80">{scopeHint}</span>
-        <div className="flex items-center gap-1">
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           {groups.staged.length + groups.unstaged.length > 0 && (
             <button
               type="button"
@@ -156,18 +177,21 @@ export function ReviewPanel() {
                 setDiffMode(next)
                 localStorage.setItem('reviewDiffMode', next)
               }}
-              className="chrome-icon-btn rounded p-1"
+              className="workbench-icon"
+              aria-label={diffMode === 'inline' ? t('review:toggleSplit') : t('review:toggleInline')}
+              aria-pressed={diffMode === 'split'}
               title={diffMode === 'inline' ? t('review:toggleSplit') : t('review:toggleInline')}
             >
               {diffMode === 'inline' ? <Columns2 className="h-3 w-3" /> : <Rows2 className="h-3 w-3" />}
             </button>
           )}
-          <button type="button" onClick={loadGit} className="chrome-icon-btn rounded p-1" title={t('review:refresh')}>
+          <button type="button" onClick={loadGit} className="workbench-icon" title={t('review:refresh')} aria-label={t('review:refresh')} disabled={loading || refreshing}>
             <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
           </button>
         </div>
       </div>
-      <div className="scrollbar-overlay flex-1 overflow-y-auto">
+      <div className="flex min-h-8 items-center gap-2 px-4 text-xs text-foreground-secondary"><GitBranch className="h-3.5 w-3.5 shrink-0" /><span className="truncate" title={scopeHint}>{scopeHint}</span></div>
+      <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
@@ -183,6 +207,16 @@ export function ReviewPanel() {
           <p className="px-4 py-10 text-center text-[12px] text-foreground-secondary/70">{t('review:empty')}</p>
         ) : (
           <div className="py-1">
+            {conflicts.length > 0 ? (
+              <section>
+                <div className="px-3 py-1.5 text-[10px] font-medium tracking-wide text-destructive/80">
+                  {t('review:conflicts')} · {conflicts.length}
+                </div>
+                {conflicts.map((path) => (
+                  <div key={path} className="px-3 py-1.5 font-mono text-[11px] text-destructive/80">{path}</div>
+                ))}
+              </section>
+            ) : null}
             {renderGroup(t('review:staged'), groups.staged, 'staged')}
             {renderGroup(t('review:unstaged'), groups.unstaged, 'unstaged')}
             {groups.cleanTouched.length > 0 ? (
@@ -200,8 +234,22 @@ export function ReviewPanel() {
           </div>
         )}
       </div>
-      {gitData?.isRepo !== false && groups.staged.length > 0 ? (
-        <ReviewCommitBar cwd={cwd} onCommitted={loadGit} />
+      {gitData?.isRepo === true && !gitData.error ? (
+        <div className="review-actions shrink-0 space-y-3 border-t border-border/60 bg-[var(--bg-base)] px-4 py-3">
+          {sendError && <p role="alert" className="text-xs text-destructive">{t('review:sendFailed')}</p>}
+          {(commentCount > 0 || conflicts.length > 0) && <section className="space-y-2 border-b border-border/40 pb-3">
+            <div className="text-xs font-medium text-foreground-secondary">{t('review:collaboration')}</div>
+            <div className="flex flex-wrap gap-2">
+              {commentCount > 0 && <button type="button" className="workbench-button bg-primary/10 text-primary" disabled={sending} onClick={() => void sendPrompt(t('review:commentsPrompt', { comments: formatReviewCommentsForPrompt(cwd) }), true)}>{t('review:sendComments')} <span className="tabular-nums opacity-70">{commentCount}</span></button>}
+              {conflicts.length > 0 && <button type="button" className="workbench-button text-destructive" disabled={sending} onClick={() => void sendPrompt(t('review:conflictsPrompt', { files: conflicts.map((p) => `- ${p}`).join('\n') }))}>{t('review:sendConflicts')}</button>}
+            </div>
+          </section>}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-xs font-medium text-foreground-secondary"><GitCommitHorizontal className="h-3.5 w-3.5" />{t('review:commitTitle')}</span>
+            <button type="button" className="workbench-button" disabled={sending || !gitData.stagedRaw} title={!gitData.stagedRaw ? t('review:stageFirst') : t('review:generateMessage')} onClick={() => void sendPrompt(t('review:generatePrompt', { diff: (gitData.stagedRaw || '').slice(0, 8000) }))}><Sparkles className="h-3.5 w-3.5" />{t('review:generateShort')}</button>
+          </div>
+          {groups.staged.length > 0 ? <ReviewCommitBar cwd={cwd} onCommitted={loadGit} /> : <p className="text-xs leading-relaxed text-foreground-secondary">{t('review:stageFirst')}</p>}
+        </div>
       ) : null}
     </div>
   )

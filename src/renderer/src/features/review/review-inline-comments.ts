@@ -10,6 +10,12 @@ export type ReviewInlineComment = {
 }
 
 type Store = Record<string, ReviewInlineComment[]>
+const listeners = new Set<() => void>()
+
+export function subscribeReviewComments(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
 
 function scopeKey(cwd: string): string {
   return cwd.replace(/\\/g, '/')
@@ -27,6 +33,7 @@ function loadAll(): Store {
 
 function saveAll(store: Store): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+  for (const listener of listeners) listener()
 }
 
 export function listReviewComments(cwd: string, filePath: string): ReviewInlineComment[] {
@@ -66,4 +73,26 @@ export function deleteReviewComment(cwd: string, id: string): void {
   const store = loadAll()
   store[key] = (store[key] || []).filter((c) => c.id !== id)
   saveAll(store)
+}
+
+export function clearReviewComments(cwd: string, sent?: ReviewInlineComment[]): void {
+  const store = loadAll()
+  const key = scopeKey(cwd)
+  if (sent) {
+    store[key] = (store[key] || []).filter(row => !sent.some(previous =>
+      previous.id === row.id && previous.text === row.text && previous.createdAt === row.createdAt &&
+      previous.filePath === row.filePath && previous.hunkIndex === row.hunkIndex && previous.lineIndex === row.lineIndex,
+    ))
+  } else {
+    delete store[key]
+  }
+  saveAll(store)
+}
+
+export function formatReviewCommentsForPrompt(cwd: string): string {
+  const rows = listAllReviewComments(cwd)
+  if (rows.length === 0) return ''
+  return rows
+    .map((c) => `- ${c.filePath}:${c.lineIndex + 1} hunk ${c.hunkIndex + 1}: ${c.text}`)
+    .join('\n')
 }

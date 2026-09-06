@@ -38,7 +38,10 @@ export function useDoubleEscapeTree(enabled: boolean) {
       if (e.key !== 'Escape') return
       if (actionRef.current === 'none') return
       const t = e.target as HTMLElement | null
-      if (t?.closest('[data-tree-overlay]') || t?.closest('[data-fork-overlay]')) return
+      if (t?.closest('[role="dialog"], [data-tree-overlay], [data-fork-overlay]')) {
+        lastEscRef.current = 0
+        return
+      }
 
       const now = Date.now()
       const gap = now - lastEscRef.current

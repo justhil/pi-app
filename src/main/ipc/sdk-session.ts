@@ -4,6 +4,7 @@ import { resolveActiveSdk, type SdkKind } from '../sdk-loader'
 export type SessionOnDiskRow = {
   id: string
   path: string
+  parentSessionPath?: string
   cwd?: string
   name?: string
   firstMessage?: string
@@ -28,6 +29,7 @@ export function toSessionOnDiskRows(rows: unknown[]): SessionOnDiskRow[] {
     .map((row) => ({
       id: String(row.id ?? ''),
       path: String(row.path ?? row.sessionFile ?? ''),
+      parentSessionPath: typeof row.parentSessionPath === 'string' ? row.parentSessionPath : undefined,
       cwd: typeof row.cwd === 'string' ? row.cwd : undefined,
       name: typeof row.name === 'string' ? row.name : undefined,
       firstMessage: typeof row.firstMessage === 'string' ? row.firstMessage : undefined,

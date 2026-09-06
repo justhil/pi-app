@@ -5,6 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { composerTurnActive } from '@renderer/lib/session-worker-sync'
+import { workspacePathsEqual } from '@shared/workspace-path'
 import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 
 function resolveSourceSessionFile(): string | null {
@@ -36,12 +37,12 @@ function assertIdleForBranchAction(): boolean {
 }
 
 async function refreshSidebarAndOpen(
+  workspaceId: string,
   sessionId: string,
   sessionFile: string | undefined,
   opts?: { editorText?: string | null },
 ): Promise<void> {
   const store = useUIStore.getState()
-  const workspaceId = store.currentWorkspace || ''
   if (workspaceId) {
     try {
       const listRes = await ipcClient.invoke('session.list', { workspaceId })
@@ -59,12 +60,13 @@ async function refreshSidebarAndOpen(
           ...sessions,
         ]
       }
-      store.setSessions(sessions)
+      store.setSessions(sessions, workspaceId)
     } catch {
       /* list is best-effort */
     }
   }
 
+  if (!workspacePathsEqual(useUIStore.getState().currentWorkspace, workspaceId)) return
   await openSessionIntoWorker(sessionId, sessionFile)
   if (opts?.editorText != null && opts.editorText.length > 0) {
     useUIStore.getState().setComposerPrefill(opts.editorText)
@@ -89,12 +91,13 @@ export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
     return false
   }
 
+  const workspaceId = useUIStore.getState().currentWorkspace || ''
   try {
     const res = (await ipcClient.invoke('session.fork', {
       sessionFile,
       entryId: entryId.trim(),
       position: 'before',
-      workspaceId: useUIStore.getState().currentWorkspace || undefined,
+      workspaceId: workspaceId || undefined,
     })) as {
       cancelled?: boolean
       error?: string
@@ -127,7 +130,7 @@ export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
       return false
     }
 
-    await refreshSidebarAndOpen(newId || newFile || '', newFile, {
+    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, {
       editorText: typeof res.editorText === 'string' ? res.editorText : '',
     })
     toast.success(
@@ -154,10 +157,11 @@ export async function cloneCurrentSession(): Promise<boolean> {
     return false
   }
 
+  const workspaceId = useUIStore.getState().currentWorkspace || ''
   try {
     const res = (await ipcClient.invoke('session.clone', {
       sessionFile,
-      workspaceId: useUIStore.getState().currentWorkspace || undefined,
+      workspaceId: workspaceId || undefined,
     })) as {
       cancelled?: boolean
       error?: string
@@ -193,7 +197,7 @@ export async function cloneCurrentSession(): Promise<boolean> {
       return false
     }
 
-    await refreshSidebarAndOpen(newId || newFile || '', newFile, { editorText: null })
+    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null })
     toast.success(i18n.t('composer:toast.cloned', { defaultValue: '已 Clone 到新会话' }))
     return true
   } catch (e: unknown) {

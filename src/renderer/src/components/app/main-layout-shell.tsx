@@ -45,11 +45,12 @@ export function MainLayoutShell({
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (leftDragRef.current) setLeftWidth(e.clientX)
+      const zoom = Number(document.documentElement.style.zoom) || 1
+      if (leftDragRef.current) setLeftWidth(e.clientX / zoom)
       if (rightDragRef.current) {
         const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth
-        const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth - leftColW - MIN_CENTER_GAP)
-        setRightWidth(Math.min(window.innerWidth - e.clientX, maxRight))
+        const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth / zoom - leftColW - MIN_CENTER_GAP)
+        setRightWidth(Math.min((window.innerWidth - e.clientX) / zoom, maxRight))
       }
     }
     const onUp = () => {
@@ -75,27 +76,33 @@ export function MainLayoutShell({
   // windows or stay disproportionately small on larger ones.
   // 注意：窗口缩小只是“临时生效的展示值”，不得写回持久化首选宽度——否则缩小一次就永久
   // 丢失用户设置（放大后无法恢复）。resize 只触发重渲染，实际 clamp 在渲染时实时计算。
-  const [windowWidth, setWindowWidth] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth : 0,
-  )
+  const [{ width: windowWidth, zoom }, setWindowMetrics] = useState(() => ({
+    width: window.innerWidth,
+    zoom: Number(document.documentElement.style.zoom) || 1,
+  }))
   useEffect(() => {
-    const onWindowResize = () => setWindowWidth(window.innerWidth)
+    const onWindowResize = () => setWindowMetrics({
+      width: window.innerWidth,
+      zoom: Number(document.documentElement.style.zoom) || 1,
+    })
     window.addEventListener('resize', onWindowResize)
-    // 挂载时也触发一次，让超大的持久化宽度适配当前窗口
     return () => window.removeEventListener('resize', onWindowResize)
   }, [])
+  const layoutWidth = windowWidth / zoom
 
   const maxLeftFor = (w: number): number => Math.max(MIN_SIDEBAR_PX, Math.round(w * 0.4))
-  const effectiveLeft = leftCollapsed ? 0 : Math.min(leftWidth, maxLeftFor(windowWidth))
+  const effectiveLeft = leftCollapsed ? 0 : Math.min(leftWidth, maxLeftFor(layoutWidth))
   const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : effectiveLeft
-  const maxRight = Math.max(MIN_RIGHT_PANEL_PX, windowWidth - leftColW - MIN_CENTER_GAP)
+  const maxRight = Math.max(MIN_RIGHT_PANEL_PX, layoutWidth - leftColW - MIN_CENTER_GAP)
   const rightCollapsed = isRightPanelHidden({
     collapsed: rightCollapsedPref,
     expandedOnNarrow: rightExpandedOnNarrow,
     windowWidth,
   })
   const filesChatPreview = activePanel === 'files' && filesPreviewChatExpand && !rightCollapsed
-  const effectiveRight = rightCollapsed ? RIGHT_COLLAPSED_RAIL_PX : Math.min(rightWidth, maxRight)
+  const effectiveRight = rightCollapsed
+    ? RIGHT_COLLAPSED_RAIL_PX
+    : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))
 
   const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
   const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${effectiveRight}px`

@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Trash2 } from '@renderer/components/icons'
+import { Copy, FolderOpen, Pencil, Play, Trash2 } from '@renderer/components/icons'
+import { selectSessionAttention } from '@renderer/lib/session-attention'
+import { switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -127,6 +129,54 @@ export function SessionContextMenuPortal({
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
             >
+              {menu.target.sessionFile &&
+              selectSessionAttention(menu.target.sessionFile, useUIStore.getState().sessionAttention) !==
+                'working' ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void switchSessionInPlace(menu.target.sessionId, menu.target.sessionFile)
+                    onClose()
+                  }}
+                >
+                  <Play className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  {t('common:sidebar.continue')}
+                </button>
+              ) : null}
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void navigator.clipboard.writeText(menu.target.sessionFile || '')
+                    toast.success(t('files:toast.copied'))
+                    onClose()
+                  }}
+                >
+                  <Copy className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  {t('common:sidebar.copySessionPath')}
+                </button>
+              ) : null}
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    void ipcClient.invoke('shell.showItemInFolder', { path: menu.target.sessionFile })
+                    onClose()
+                  }}
+                >
+                  <FolderOpen className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  {t('common:sidebar.openLog')}
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={itemClass}

@@ -44,6 +44,7 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
       )).map((row) => ({
         ...row,
         path: wslPathToWindows(distro, row.path),
+        parentSessionPath: row.parentSessionPath ? wslPathToWindows(distro, row.parentSessionPath) : undefined,
         cwd: row.cwd ? wslPathToWindows(distro, row.cwd) : row.cwd,
       }))
     } else if (message.type === 'session.invalidateList') {

@@ -10,10 +10,8 @@ type Props = {
   code: string
   lang?: string
   fill?: boolean
-  readComplete: boolean
   /** Workspace-relative path for line refs into the composer */
   path?: string
-  onRequestFullContent?: () => Promise<string | null>
 }
 
 /**
@@ -23,34 +21,17 @@ export function FileSourcePreview({
   code,
   lang,
   fill,
-  readComplete,
   path,
-  onRequestFullContent,
 }: Props) {
-  const [fullCode, setFullCode] = useState<string | null>(null)
   const [html, setHtml] = useState<string | null>(null)
 
-  const displayCode = fullCode ?? code
-  const lines = useMemo(() => displayCode.split('\n'), [displayCode])
+  const displayCode = code
   const useShiki = displayCode.length <= PREVIEW_SHIKI_MAX_CHARS
+  const lines = useMemo(() => useShiki ? displayCode.split('\n') : [], [displayCode, useShiki])
 
-  // New file content: drop any previous full-load cache.
   useEffect(() => {
-    setFullCode(null)
     setHtml(null)
   }, [code])
-
-  // Truncated first read: fetch full file once (still no fold UI).
-  useEffect(() => {
-    if (readComplete || !onRequestFullContent || fullCode != null) return
-    let cancelled = false
-    void onRequestFullContent().then((next) => {
-      if (!cancelled && next != null) setFullCode(next)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [readComplete, onRequestFullContent, fullCode, code])
 
   useEffect(() => {
     if (!useShiki) {
@@ -83,7 +64,7 @@ export function FileSourcePreview({
       >
         <div className="inline-block min-h-min min-w-full align-top">
           <div className="flex min-w-max font-mono text-[11px] leading-[1.5]">
-            <div
+            {useShiki && <div
               className="sticky left-0 z-[2] shrink-0 select-none border-r border-border/50 bg-[var(--bg-2)] py-2 pl-1 pr-2 text-right text-foreground-secondary/70"
               style={{ minWidth: `${gutterCh + 2}ch` }}
               aria-hidden
@@ -101,7 +82,7 @@ export function FileSourcePreview({
                   <span className="w-[2.5ch] text-right">{lineIndex + 1}</span>
                 </div>
               ))}
-            </div>
+            </div>}
             <div className="min-w-0 shrink-0 py-2 pl-5 pr-4">
               {useShiki && html != null ? (
                 <div

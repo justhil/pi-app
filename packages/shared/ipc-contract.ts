@@ -31,6 +31,7 @@ export interface WorkspaceFsSearchResponse {
 // ── Session ──
 export interface SessionInfo {
   sessionId: string
+  parentSessionFile?: string
   workspaceId: string
   title: string
   createdAt: number

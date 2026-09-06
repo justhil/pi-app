@@ -1,7 +1,7 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, renameSync, statSync } from 'fs'
+import { closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, realpathSync, renameSync, statSync, writeFileSync } from 'fs'
+import { StringDecoder } from 'node:string_decoder'
+import { WORKSPACE_TEXT_MAX_BYTES } from '../../packages/shared/workspace-preview'
 import { dirname, join, normalize, relative, resolve, sep } from 'path'
-
-const READ_TEXT_MAX_BYTES = 1024 * 1024
 
 export type WorkspaceFsError = 'missing_root' | 'outside_workspace' | 'not_found' | 'not_a_file' | 'too_large' | 'read_failed'
 
@@ -43,7 +43,7 @@ export function resolvePathUnderWorkspace(root: string, inputPath: string): { ok
 
 const LIST_DIR_DEFAULT_MAX = 2500
 
-export function workspaceFsListDir(req: { workspaceRoot: string; path?: string; maxEntries?: number }) {
+export function workspaceFsListDir(req: { workspaceRoot: string; path?: string; maxEntries?: number; includeDotfiles?: boolean }) {
   const root = String(req.workspaceRoot || '')
   const rel = String(req.path ?? '.')
   const resolved = resolvePathUnderWorkspace(root, rel)
@@ -55,7 +55,7 @@ export function workspaceFsListDir(req: { workspaceRoot: string; path?: string; 
   const rootAbs = normalizeRoot(root)
   const names = readdirSync(abs, { withFileTypes: true })
   const entries = names
-    .filter((d) => !d.name.startsWith('.'))
+    .filter((d) => req.includeDotfiles === true || !d.name.startsWith('.'))
     .map((d) => {
       const childAbs = join(abs, d.name)
       let size: number | undefined
@@ -92,20 +92,51 @@ export function workspaceFsListDir(req: { workspaceRoot: string; path?: string; 
 
 export function workspaceFsReadText(req: { workspaceRoot: string; path: string; maxBytes?: number }) {
   const root = String(req.workspaceRoot || '')
-  const maxBytes = Math.min(req.maxBytes ?? READ_TEXT_MAX_BYTES, READ_TEXT_MAX_BYTES)
+  const requested = req.maxBytes ?? WORKSPACE_TEXT_MAX_BYTES
+  if (!Number.isSafeInteger(requested) || requested < 1) return { ok: false as const, error: 'read_failed' as const }
+  const maxBytes = Math.min(requested, WORKSPACE_TEXT_MAX_BYTES)
   const resolved = resolvePathUnderWorkspace(root, String(req.path || ''))
   if (!resolved.ok) return { ok: false as const, error: resolved.error }
   const { abs } = resolved
   if (!existsSync(abs)) return { ok: false as const, error: 'not_found' as const }
   const st = statSync(abs)
   if (!st.isFile()) return { ok: false as const, error: 'not_a_file' as const }
-  if (st.size > maxBytes) return { ok: false as const, error: 'too_large' as const }
   try {
-    const buf = readFileSync(abs)
-    if (buf.length > maxBytes) return { ok: false as const, error: 'too_large' as const }
-    return { ok: true as const, content: buf.toString('utf-8'), size: st.size }
+    const fd = openSync(abs, 'r')
+    try {
+      const buf = Buffer.alloc(Math.min(st.size, maxBytes))
+      const bytesRead = readSync(fd, buf, 0, buf.length, 0)
+      const chunk = buf.subarray(0, bytesRead)
+      if (chunk.includes(0)) return { ok: false as const, error: 'binary' as const }
+      const truncated = bytesRead < st.size
+      const decoder = new StringDecoder('utf8')
+      const content = decoder.write(chunk) + (truncated ? '' : decoder.end())
+      return { ok: true as const, content, size: st.size, truncated }
+    } finally {
+      closeSync(fd)
+    }
   } catch (e) {
     return { ok: false as const, error: 'read_failed' as const }
+  }
+}
+
+export function workspaceFsCreate(req: { workspaceRoot: string; relativePath: string; isDirectory?: boolean }) {
+  const root = String(req.workspaceRoot || '')
+  const rel = String(req.relativePath || '').trim()
+  if (!rel) return { ok: false as const, error: 'invalid_name' as const }
+  const resolved = resolvePathUnderWorkspace(root, rel)
+  if (!resolved.ok) return { ok: false as const, error: resolved.error }
+  const { abs } = resolved
+  if (existsSync(abs)) return { ok: false as const, error: 'target_exists' as const }
+  try {
+    if (req.isDirectory) mkdirSync(abs, { recursive: true })
+    else {
+      mkdirSync(dirname(abs), { recursive: true })
+      writeFileSync(abs, '')
+    }
+    return { ok: true as const }
+  } catch {
+    return { ok: false as const, error: 'rename_failed' as const }
   }
 }
 

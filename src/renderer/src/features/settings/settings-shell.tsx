@@ -16,7 +16,7 @@ export function SettingsMain({
   footer?: ReactNode
 }) {
   return (
-    <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
+    <main className={cn('settings-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
       <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="w-full px-5 py-6 sm:px-8 lg:px-10">
         <div className={cn('w-full', wide ? 'max-w-none' : 'mx-auto max-w-3xl')}>{children}</div>
       </OverlayScrollHost>
@@ -56,11 +56,11 @@ export function SettingsNav({
 }) {
   return (
     <nav
-      className="flex h-full min-h-0 w-[220px] shrink-0 flex-col overflow-hidden border-r border-border/50 bg-surface-sidebar sm:w-56"
+      className="settings-nav flex h-full min-h-0 w-[200px] shrink-0 flex-col overflow-hidden border-r border-border/50 bg-surface-sidebar lg:w-[220px]"
       aria-label={title}
     >
       <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-2 pb-4 pt-5">
-        <div className="flex flex-col gap-4">{children}</div>
+        <div className="settings-nav-content flex flex-col gap-5">{children}</div>
       </OverlayScrollHost>
     </nav>
   )
@@ -68,7 +68,7 @@ export function SettingsNav({
 
 export function SettingsNavGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="settings-nav-group flex flex-col gap-1">
       <div className="px-3 pb-1 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/50">{label}</div>
       {children}
     </div>
@@ -90,8 +90,9 @@ export function SettingsNavItem({
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={cn(
-        'flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-base transition-colors duration-motion-fast ease-motion-ease',
+        'settings-nav-item flex min-h-9 w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px]',
         active
           ? 'bg-[var(--bg-active)] font-medium text-foreground'
           : 'text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground',

@@ -8,7 +8,12 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 
 vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
-    getState: () => ({ timelineItems: [], runState: { status: 'running' } }),
+    getState: () => ({
+      timelineItems: [],
+      runState: { status: 'running' },
+      historySessionFile: '/sessions/current.jsonl',
+      setSessionWaitingUi: () => {},
+    }),
   },
 }))
 

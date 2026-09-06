@@ -42,6 +42,7 @@ function baseDraft(): SettingsDraft {
     language: 'en',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
+    includePrereleaseUpdates: false,
     alertSoundEnabled: true,
     alertNotificationEnabled: true,
     alertOnExtensionUi: true,

@@ -11,14 +11,17 @@ export type SandboxEntry = {
 export type SessionItem = {
   sessionId: string
   sessionFile?: string
+  parentSessionFile?: string
   title: string
+  firstMessage?: string
+  workspaceId?: string
   updatedAt: number
   messageCount?: number
   modelId: string
 }
 
 export function diskProjectName(path: string) {
-  return path.split(/[\\/]/).pop() || path
+  return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
 }
 
 export function isSandboxPath(path: string) {

@@ -12,6 +12,8 @@ import { focusSessionSync } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { enterBlankSession, resetBlankSessionProjection } from '@renderer/lib/blank-session-transition'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
+import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-session-lists'
+import { workspacePathsEqual } from '@shared/workspace-path'
 
 export type ActivateWorkspaceOptions = {
   preferHome?: boolean
@@ -38,14 +40,14 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   store.clearTimeline()
   store.setHistoryLoading(true)
 
-  const sameProject = store.currentWorkspace === path
+  const sameProject = workspacePathsEqual(store.currentWorkspace, path)
   if (!sameProject) {
     console.log('[activateWorkspace] workspace change', store.currentWorkspace, '->', path)
   }
 
   store.setWorkspace(path)
   store.clearFileChanges()
-  useExtensionUIStore.getState().resetForSessionContext()
+  useExtensionUIStore.getState().parkForSessionSwitch()
 
   const openingSession = !!(options?.sessionId && options?.sessionFile)
 
@@ -71,23 +73,7 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   }
 
   const refreshSessionList = () => {
-    void ipcClient
-      .invoke('session.list', { workspaceId: path })
-      .then((listRes) => {
-        if (!assertSessionNavigation(navToken)) return
-        const rows = listRes?.sessions || []
-        store.setSessions(
-          rows.map((s: WorkspaceSessionChoice & { messageCount?: number; modelId?: string }) => ({
-            sessionId: s.sessionId,
-            sessionFile: s.sessionFile,
-            title: s.title ?? s.sessionId.slice(0, 8),
-            updatedAt: s.updatedAt ?? 0,
-            messageCount: s.messageCount,
-            modelId: s.modelId ?? '',
-          })),
-        )
-      })
-      .catch((e) => console.error('[activateWorkspace] session.list failed:', e))
+    void loadWorkspaceSessionList(path)
   }
 
   // Register project + recent list without forking a Worker (awaitWorker false).
@@ -145,19 +131,9 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
   try {
     await openPromise
     if (!assertSessionNavigation(navToken)) return
-    const listRes = await ipcClient.invoke('session.list', { workspaceId: path })
+    const rows = await loadWorkspaceSessionList(path)
     if (!assertSessionNavigation(navToken)) return
-    sessions = listRes?.sessions || []
-    store.setSessions(
-      sessions.map((s) => ({
-        sessionId: s.sessionId,
-        sessionFile: s.sessionFile,
-        title: s.title ?? s.sessionId.slice(0, 8),
-        updatedAt: s.updatedAt ?? 0,
-        messageCount: (s as { messageCount?: number }).messageCount,
-        modelId: (s as { modelId?: string }).modelId ?? '',
-      })),
-    )
+    sessions = rows || []
   } catch (error) {
     console.error('[activateWorkspace] session.list failed:', error)
     if (!assertSessionNavigation(navToken)) return

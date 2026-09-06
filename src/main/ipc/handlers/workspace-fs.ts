@@ -50,6 +50,7 @@ export function registerWorkspaceFsHandlers(): void {
     return workspaceFsListDir({
       workspaceRoot: req.workspaceRoot,
       path: req.path != null ? req.path : '.',
+      includeDotfiles: req.includeDotfiles === true,
     })
   })
 
