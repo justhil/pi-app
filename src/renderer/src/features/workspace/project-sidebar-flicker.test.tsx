@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectSidebar } from './project-sidebar'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -48,6 +48,10 @@ vi.mock('@renderer/lib/activate-workspace', () => ({
 vi.mock('@renderer/features/timeline/tool-card-registry', () => ({
   useToolCardCatalogReady: () => true,
 }))
+
+function projectOpen(container: HTMLElement, path: string): string | null | undefined {
+  return container.querySelector(`[data-workspace="${path}"] .sidebar-collapse`)?.getAttribute('data-open')
+}
 
 const ROWS_ABC = [expect.stringContaining('A'), expect.stringContaining('B'), expect.stringContaining('C')]
 
@@ -152,6 +156,8 @@ describe('ProjectSidebar folder list stability', () => {
       // 等 rAF：currentWorkspace effect 展开 B 并开始重新拉取
       await new Promise((resolve) => setTimeout(resolve, 30))
     })
+    // Collapsed project trees are not mounted; wait for B to expand before reading its rows.
+    await waitFor(() => expect(projectOpen(container, '/proj/B')).toBe('true'))
 
     const treeText = [...container.querySelectorAll('.sidebar-session-tree')].map((t) => t.textContent)
     expect(treeText.join('')).not.toContain('加载中')
@@ -204,6 +210,7 @@ describe('ProjectSidebar folder list stability', () => {
       useUIStore.getState().setWorkspace('/proj/B')
       await new Promise((resolve) => setTimeout(resolve, 30))
     })
+    await waitFor(() => expect(projectOpen(container, '/proj/B')).toBe('true'))
 
     // 新建会话只更新 store.sessions、不发布 workspace-sessions 事件：
     // 实时列表必须优先于旧缓存，否则新会话被旧缓存遮蔽

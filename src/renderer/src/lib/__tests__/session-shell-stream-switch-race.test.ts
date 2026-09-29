@@ -25,7 +25,6 @@ import {
   focusSessionSync,
   hydrateSessionView,
 } from '@renderer/lib/session-shell'
-import { clearSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { clearStreamPending } from '@renderer/stores/ui-store-stream'
 import { useUIStore } from '@renderer/stores/ui-store'
 
@@ -52,7 +51,6 @@ describe('session shell stream switch race', () => {
     historyMock.fetch.mockReset()
     clearStreamPending()
     clearLiveSessionTimeline()
-    clearSessionTimelineView()
     clearSessionShellForTests()
     useUIStore.setState({
       currentWorkspace: '/workspace',

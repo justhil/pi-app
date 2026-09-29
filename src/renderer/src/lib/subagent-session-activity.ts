@@ -51,6 +51,35 @@ export function collectActiveSubagentSessionChildren(items: TimelineItem[]): Sub
   return children
 }
 
+const EMPTY_CHILDREN: SubagentSessionChild[] = []
+let memoItems: TimelineItem[] | null = null
+let memoVersion = -1
+let memoSignature = ''
+let memoChildren: SubagentSessionChild[] = EMPTY_CHILDREN
+
+/**
+ * Store selector for the sidebar: the same array instance comes back until the active children
+ * actually change, so a streaming token (new `timelineItems` every frame) does not re-render
+ * every project's session tree. `version` busts the memo when tool-card templates load.
+ */
+export function selectActiveSubagentSessionChildren(
+  items: TimelineItem[],
+  version = 0,
+): SubagentSessionChild[] {
+  if (items === memoItems && version === memoVersion) return memoChildren
+  memoItems = items
+  memoVersion = version
+  const next = collectActiveSubagentSessionChildren(items)
+  const signature = next
+    .map((child) => `${child.key}\u0001${child.state}\u0001${child.sessionFile ?? ''}\u0001${child.agent}\u0001${child.task ?? ''}`)
+    .join('\u0002')
+  if (signature !== memoSignature) {
+    memoSignature = signature
+    memoChildren = next.length ? next : EMPTY_CHILDREN
+  }
+  return memoChildren
+}
+
 export function reduceSubagentSessionGroupToolEvent(
   group: SubagentSessionGroup,
   event: ToolEvent,

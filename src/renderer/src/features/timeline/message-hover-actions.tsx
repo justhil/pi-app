@@ -1,4 +1,4 @@
-import { memo, useState, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Copy, Check, Undo2, GitFork } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
@@ -79,31 +79,48 @@ function MessageHoverActionsImpl({
 export const MessageHoverActions = memo(MessageHoverActionsImpl)
 
 /**
- * Message chrome: actions live in normal document flow (not absolute overlay).
- * Collapsed by default (0 height) so timeline stays dense; expands on hover/focus.
+ * Message chrome: actions live in a fixed-height row (not an absolute overlay).
+ * Hidden until hover/focus, but the row stays reserved so the next card cannot cover it.
  */
 export function MessageHoverShell({
   align,
   children,
   actions,
+  reserve = false,
 }: {
   align: 'left' | 'right'
   children: ReactNode
   actions: ReactNode
+  /** Keep a row in the document flow for the actions (user messages) instead of floating them. */
+  reserve?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasActions = actions != null && actions !== false
+  const clearHide = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    hideTimer.current = null
+  }
+  useEffect(() => clearHide, [])
   return (
     <div
       className={cn('message-hover-shell', align === 'right' && 'items-end')}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => {
+        clearHide()
+        setHovered(true)
+      }}
+      // Short grace period so moving the pointer down onto the actions never drops them.
+      onMouseLeave={() => {
+        clearHide()
+        hideTimer.current = setTimeout(() => setHovered(false), 160)
+      }}
     >
       {children}
       {hasActions ? (
         <div
           className={cn(
             'message-actions-slot',
+            reserve && 'message-actions-slot--reserved',
             align === 'right' && 'message-actions-slot--end',
             hovered && 'message-actions-slot-visible',
           )}

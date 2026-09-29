@@ -222,16 +222,19 @@ export function ContextRoleLegend({
       {rows.map((row) => {
         const pct = (row.chars / totalChars) * 100
         return (
-          <li key={row.key} className="flex items-center gap-2 text-[11px] leading-tight">
+          <li
+            key={row.key}
+            className="grid grid-cols-[8px_minmax(0,1fr)_auto_3.5ch] items-center gap-x-2 text-[12px] leading-5"
+          >
             <span
               className="h-2 w-2 shrink-0 rounded-full"
               style={{ background: row.color, opacity: row.key === 'free' ? 0.55 : 1 }}
             />
-            <span className="min-w-0 flex-1 truncate text-foreground-secondary">{row.label}</span>
-            <span className="shrink-0 tabular-nums text-foreground-secondary/80">
+            <span className="min-w-0 truncate text-foreground-secondary">{row.label}</span>
+            <span className="text-right tabular-nums text-foreground">
               {formatTokens(estTokensFromChars(row.chars))}
-              <span className="ml-1 text-foreground-secondary/50">{pct.toFixed(0)}%</span>
             </span>
+            <span className="text-right tabular-nums text-foreground-secondary">{pct.toFixed(0)}%</span>
           </li>
         )
       })}

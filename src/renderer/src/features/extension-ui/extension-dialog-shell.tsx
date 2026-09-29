@@ -29,14 +29,14 @@ export function ExtensionDialogShell({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      className="overlay-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) suspend()
       }}
     >
       <div
-        className={`relative w-full rounded-xl border border-border bg-background p-5 shadow-xl ${wide ? 'max-w-lg' : 'max-w-md'}`}
+        className={`overlay-panel relative w-full rounded-xl border border-border bg-background p-5 shadow-xl ${wide ? 'max-w-lg' : 'max-w-md'}`}
         role="dialog"
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}

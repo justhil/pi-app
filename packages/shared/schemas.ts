@@ -42,6 +42,7 @@ export const runEventSchema = appEventBaseSchema.extend({
   phase: z.enum(['started', 'running', 'idle', 'failed', 'cancelled', 'state']),
   model: z.string().optional(),
   thinkingLevel: z.string().optional(),
+  availableThinkingLevels: z.array(z.string()).optional(),
   usage: z.object({
     input: z.number(),
     output: z.number(),
@@ -153,4 +154,4 @@ export const modelInfoSchema = z.object({
   available: z.boolean(),
 })
 
-export const thinkingLevelSchema = z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh'])
+export const thinkingLevelSchema = z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])

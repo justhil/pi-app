@@ -140,7 +140,6 @@ export const reviewMutationSchema = z.object({
       }),
     )
     .optional(),
-  message: z.string().optional(),
 })
 
 export const sdkInstallSchema = z.object({

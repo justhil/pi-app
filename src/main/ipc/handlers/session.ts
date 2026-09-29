@@ -39,6 +39,14 @@ import { workspacePathsEqual } from '@shared/workspace-path'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 
+/** Rows from the WSL preview arrive over JSON stdio, so dates may be ISO strings (or numbers). */
+function timeMs(value: unknown): number {
+  if (value instanceof Date) return value.getTime() || 0
+  if (typeof value === 'number') return value
+  if (typeof value === 'string') return Date.parse(value) || 0
+  return 0
+}
+
 export function registerSessionHandlers(): void {
   registerHandler('ipc:session.list', async (req) => {
     const workspaceId = req.workspaceId || workerManager.cwd || configStore.get('currentProject') || ''
@@ -63,8 +71,8 @@ export function registerSessionHandlers(): void {
         s.name,
       ),
       firstMessage: s.firstMessage?.slice(0, 120) || '',
-      createdAt: s.created?.getTime() || 0,
-      updatedAt: s.modified?.getTime() || 0,
+      createdAt: timeMs(s.created),
+      updatedAt: timeMs(s.modified),
       messageCount: s.messageCount || 0,
       modelId: '',
       status: 'idle' as const,

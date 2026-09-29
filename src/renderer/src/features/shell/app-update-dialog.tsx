@@ -101,14 +101,14 @@ export function AppUpdateDialog({
 
   return createPortal(
     <div
-      className="electron-no-drag fixed inset-0 z-[700] flex items-center justify-center bg-black/45 p-4"
+      className="overlay-backdrop electron-no-drag fixed inset-0 z-[700] flex items-center justify-center bg-black/45 p-4"
       role="presentation"
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-update-title"
-        className="flex max-h-[min(88vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl"
+        className="overlay-panel flex max-h-[min(88vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl"
       >
         <div className="border-b border-border/60 px-5 py-4">
           <h2 id="app-update-title" className="text-[16px] font-semibold tracking-tight">

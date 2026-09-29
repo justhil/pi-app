@@ -1,8 +1,9 @@
 import { registerHandler } from '../registry'
+import { awaitWslVm } from '../../wsl/wsl-env'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { resolveSidePanelState } from '../../side-panel-registry'
-import { probeExtensions } from '../../../extension-compat/extension-probe'
+import { probeExtensionsShared } from '../../extension-probe-cache'
 import { loadAdapterCatalog, invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { readAdapterConfig, writeAdapterConfig, runAdapterAction, fetchFieldOptions } from '../../../extension-compat/adapter-backend'
 import { listAdapterSidePanelMetas } from '../../../extension-compat/side-panel-catalog'
@@ -29,6 +30,7 @@ export function registerAdapterPanelHandlers(): void {
   registerHandler('ipc:adapter.field.options', async (req) => fetchFieldOptions(req.adapterId, req.fieldKey))
 
   registerHandler('ipc:adapters.json.catalog', async (req) => {
+    await awaitWslVm() // startup: let the WSL VM boot off-thread before sync \\wsl.localhost reads
     if (req?.refresh) invalidateAdapterCatalog()
     const cwd = workerManager.cwd || configStore.get('currentProject') || ''
     return loadAdapterCatalog(cwd)
@@ -36,7 +38,7 @@ export function registerAdapterPanelHandlers(): void {
 
   registerHandler('ipc:rightPanels.catalog', async () => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const probed = probeExtensions(cwd)
+    const probed = await probeExtensionsShared(cwd)
     const installedNames = new Set(probed.flatMap((p) => [p.name, p.packageName].filter(Boolean) as string[]))
     const adapterPanels = listAdapterSidePanelMetas(cwd, installedNames)
     const catalog = mergeRightPanelCatalog(adapterPanels)
@@ -54,7 +56,7 @@ export function registerAdapterPanelHandlers(): void {
 
   registerHandler('ipc:rightPanels.saveLayout', async (req) => {
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
-    const probed = probeExtensions(cwd)
+    const probed = await probeExtensionsShared(cwd)
     const installedNames = new Set(probed.flatMap((p) => [p.name, p.packageName].filter(Boolean) as string[]))
     const adapterPanels = listAdapterSidePanelMetas(cwd, installedNames)
     const catalog = mergeRightPanelCatalog(adapterPanels)

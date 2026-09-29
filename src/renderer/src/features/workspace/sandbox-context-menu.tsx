@@ -12,6 +12,7 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 
 type MenuState = { x: number; y: number; path: string; label: string } | null
 type RenameState = { path: string; label: string } | null
@@ -28,6 +29,8 @@ export function SandboxContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameState, setRenameState] = useState<RenameState>(null)
+  // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
+  const [deleteState, setDeleteState] = useState<RenameState>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -49,11 +52,7 @@ export function SandboxContextMenuPortal({
     }
   }
 
-  const runDelete = async (path: string, label: string) => {
-    if (!window.confirm(t('common:sidebar.deleteConfirm', { name: label }))) {
-      onClose()
-      return
-    }
+  const runDelete = async (path: string) => {
     try {
       const r = await ipcClient.invoke('workspace.sandbox.delete', { path })
       if (r?.ok) {
@@ -71,7 +70,6 @@ export function SandboxContextMenuPortal({
     } catch (e) {
       toast.error(t('common:sidebar.deleteFailed'))
     }
-    onClose()
   }
 
   const itemClass = contextMenuItemClass
@@ -106,7 +104,8 @@ export function SandboxContextMenuPortal({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
-                  void runDelete(menu.path, menu.label)
+                  setDeleteState({ path: menu.path, label: menu.label })
+                  onClose()
                 }}
               >
                 <Trash2 className="h-3 w-3 shrink-0" strokeWidth={2} />
@@ -122,6 +121,18 @@ export function SandboxContextMenuPortal({
         defaultValue={renameState?.label ?? ''}
         onConfirm={submitRename}
         onCancel={() => setRenameState(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteState}
+        title={t('common:sidebar.delete')}
+        message={t('common:sidebar.deleteConfirm', { name: deleteState?.label ?? '' })}
+        destructive
+        onConfirm={() => {
+          const target = deleteState
+          setDeleteState(null)
+          if (target) void runDelete(target.path)
+        }}
+        onCancel={() => setDeleteState(null)}
       />
     </>
   )

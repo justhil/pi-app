@@ -95,3 +95,20 @@ describe('worker timeline tool-result projection', () => {
     })
   })
 })
+
+describe('worker timeline row ids', () => {
+  it('stay unique when another process (or a restarted counter) builds the same rows', () => {
+    const messages = [
+      { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'hello' }] },
+    ]
+    resetTimelineSeq()
+    const first = normalizeMessages(messages).map((row) => String(row.id))
+    resetTimelineSeq()
+    const second = normalizeMessages(messages).map((row) => String(row.id))
+    // Same process restarting its counter repeats ids; the process tag is what separates
+    // rows built in Main vs. each Worker, so ids must carry more than the bare counter.
+    expect(first).toEqual(second)
+    expect(first.every((id) => /^hist-[a-z0-9]+-\d+$/.test(id))).toBe(true)
+  })
+})

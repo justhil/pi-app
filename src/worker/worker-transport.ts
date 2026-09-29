@@ -8,7 +8,9 @@
 
 import { encodeWorkerFrame } from '@shared/worker-frame'
 import { WORKER_STDIO_ENV } from '@shared/worker-frame'
+import type { AppEvent } from '@shared/app-events'
 import type { WorkerIncomingMessage } from './worker-port-types.js'
+import { createStreamDeltaCoalescer } from './stream-delta-coalescer.js'
 
 export const workerStdioMode = process.env[WORKER_STDIO_ENV] === '1'
 
@@ -16,12 +18,25 @@ export const workerStdioMode = process.env[WORKER_STDIO_ENV] === '1'
  * Post a payload to main. In stdio mode the frame is written to stdout with a
  * magic prefix so stray log lines on stdout never corrupt the channel.
  */
-export function sendToMain(payload: Record<string, unknown>): void {
+function postToMain(payload: Record<string, unknown>): void {
   if (workerStdioMode) {
     process.stdout.write(encodeWorkerFrame(payload) + '\n')
     return
   }
   process.parentPort?.postMessage(payload)
+}
+
+// Token deltas are merged for up to one frame; every other message flushes them first, so the
+// order of everything Main receives from this worker is unchanged.
+const streamDeltas = createStreamDeltaCoalescer((event) => postToMain({ type: 'app-event', event }))
+
+export function sendToMain(payload: Record<string, unknown>): void {
+  if (payload.type === 'app-event' && payload.event && typeof payload.event === 'object') {
+    streamDeltas.emit(payload.event as AppEvent)
+    return
+  }
+  streamDeltas.flush()
+  postToMain(payload)
 }
 
 /**

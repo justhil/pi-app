@@ -1,5 +1,6 @@
 import { pathToFileURL } from 'node:url'
 import { resolveActiveSdk, type SdkKind } from '../sdk-loader'
+import { listSessionsIncremental } from '../session-list-incremental'
 
 export type SessionOnDiskRow = {
   id: string
@@ -138,7 +139,9 @@ export async function listSessionsOnDisk(
   const value = rowsFromWorker
     ? toSessionOnDiskRows(rowsFromWorker)
     : toSessionOnDiskRows(
-        await (await getActiveSdkModule(userDataDir, activeSdkPath)).SessionManager.list(workspaceId),
+        // Incremental per-file cache (no SDK import, no full re-read); SDK when the dir is unknown.
+        (await listSessionsIncremental(workspaceId, { userDataDir }).catch(() => null)) ??
+          (await (await getActiveSdkModule(userDataDir, activeSdkPath)).SessionManager.list(workspaceId)),
       )
   if (
     listSessionsGeneration === generation &&

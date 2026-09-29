@@ -1,5 +1,6 @@
 import { BrowserWindow, app } from 'electron'
 import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
+import { awaitWslVm } from '../../wsl/wsl-env'
 import { piSettingsSetSchema, sdkInstallSchema } from '../schemas'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
@@ -23,6 +24,7 @@ import { probeSelectedSdk } from '../sdk-session'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
 import { sessionPreviewProcess } from '../../session-preview-process'
+import { flattenRawPiSettings } from '../../../worker/pi-settings-snapshot'
 
 function sendSdkRuntimeChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -181,6 +183,7 @@ export function registerPiSdkHandlers(): void {
   })
 
   registerHandler('ipc:pi.settings.get', async () => {
+    await awaitWslVm() // startup: let the WSL VM boot off-thread before sync \\wsl.localhost reads
     if (workerManager.isRunning) {
       try {
         return { settings: await workerManager.getPiSettings() }
@@ -188,10 +191,18 @@ export function registerPiSdkHandlers(): void {
         return { settings: null, error: errorMessage(e) }
       }
     }
+    // No worker yet (e.g. launched into a temp-chat draft): read settings.json directly — instant,
+    // unlike a cold preview process — flattened to the worker's shape (raw nests compaction/retry/
+    // images, which would otherwise surface as UI defaults). The preview SDK is the fallback.
     const { readPiAgentGlobalSettingsFromDisk } = await import('../../pi-agent-settings-read')
     const disk = readPiAgentGlobalSettingsFromDisk()
-    if (disk) return { settings: disk, source: 'agent-settings-json' as const }
-    return { settings: null, error: 'Worker not started' }
+    if (disk) return { settings: flattenRawPiSettings(disk), source: 'agent-settings-json' as const }
+    try {
+      const cwd = configStore.get('currentProject') || process.cwd()
+      return { settings: await sessionPreviewProcess.getPiSettings(cwd), source: 'preview' as const }
+    } catch (e: unknown) {
+      return { settings: null, error: errorMessage(e) || 'Worker not started' }
+    }
   })
 
   registerHandlerWithSchema('ipc:pi.settings.set', piSettingsSetSchema, async (req) => {

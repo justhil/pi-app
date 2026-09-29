@@ -76,7 +76,14 @@ function ShellSuspenseFallback({ label }: { label: string }) {
   return <EmptyState compact title={label} className="min-h-[12rem]" />
 }
 
+if ((window as unknown as { piDesktop?: { e2e?: boolean } }).piDesktop?.e2e) {
+  ;(window as unknown as { __piE2E?: unknown }).__piE2E = { useUIStore, ipcClient }
+}
+
+performance.mark('pi:app-module')
+
 export default function App() {
+  if (!performance.getEntriesByName('pi:app-render').length) performance.mark('pi:app-render')
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)

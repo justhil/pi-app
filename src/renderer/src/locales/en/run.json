@@ -45,6 +45,7 @@
   "userLabel": "User",
   "assistantLabel": "Assistant",
   "noModel": "No model",
+  "usage": "Usage",
   "contextBreakdown": "Context",
   "contextEmpty": "Share appears after you send a message",
   "role": {

@@ -1,11 +1,9 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { clearAbortQueueIgnore, clearAbortUiHold } from '@renderer/lib/abort-ui-hold'
 import {
-  getLiveSessionTimeline,
   saveLiveSessionTimeline,
   updateLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
-import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { getSessionView, patchSessionView } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
@@ -73,6 +71,8 @@ export function appendOptimisticOutgoingMessage(
     optimisticPendingUserText: trimmed,
     // Always show optimistic thinking wait chrome until first token / tool / idle.
     agentTurnBootstrapping: true,
+    // First-message flows switch this to 'starting' while they create the session.
+    pendingTurnStage: 'sending',
     streamingAssistantId: assistantId,
   })
   // Mark this session running immediately so switch-away/back keeps chrome/sidebar alive
@@ -127,17 +127,6 @@ function clearOptimisticSessionCache(token: OptimisticSendToken): void {
     optimisticPendingUserText: null,
     agentTurnBootstrapping: false,
   }))
-  const live = getLiveSessionTimeline(token.sessionFile)
-  if (live) {
-    patchSessionTimelineView(token.sessionFile, {
-      tail: removeOptimisticTurn(live.timelineItems, token.assistantId),
-      streamingAssistantId:
-        live.streamingAssistantId === token.assistantId ? null : live.streamingAssistantId,
-      runState: { ...live.runState, status: 'idle' },
-      optimisticPendingUserText: null,
-      agentTurnBootstrapping: false,
-    })
-  }
   const view = getSessionView(token.sessionFile)
   if (view) {
     patchSessionView(token.sessionFile, {

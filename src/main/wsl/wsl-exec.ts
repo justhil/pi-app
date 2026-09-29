@@ -5,6 +5,7 @@
 
 import { execFileSync, spawn } from 'child_process'
 import { errorMessage } from '@shared/error-message'
+import { getCachedWslEnv, refreshWslEnvInBackground, resolveWslEnv } from './wsl-env.js'
 
 export const WSL_EXE = 'wsl.exe'
 
@@ -141,13 +142,15 @@ export function runWslDistroCdSync(
 /** Async variant used for probes that may run in parallel. */
 export function runWslAsync(
   args: string[],
-  opts: { timeout?: number; maxBuffer?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): Promise<WslExecResult> {
   return new Promise((resolve) => {
     const child = spawn(WSL_EXE, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [opts.input != null ? 'pipe' : 'ignore', 'pipe', 'pipe'],
       windowsHide: true,
     })
+    // Scripts go through stdin (`sh -s`): wsl.exe mangles quoted multi-line command lines.
+    if (opts.input != null) child.stdin?.end(opts.input)
     const stdoutChunks: Buffer[] = []
     const stderrChunks: Buffer[] = []
     const maxBuffer = opts.maxBuffer ?? 16 * 1024 * 1024
@@ -240,6 +243,8 @@ export function invalidateWslEnvCaches(distro?: string): void {
 }
 
 export async function wslHomeDir(distro: string): Promise<string | null> {
+  const env = await resolveWslEnv(distro)
+  if (env?.home) return env.home
   const cached = wslHomeCache.get(distro)
   if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
   const r = await runWslDistroAsync(distro, ['bash', '-lc', 'printf %s "$HOME"'])
@@ -250,6 +255,11 @@ export async function wslHomeDir(distro: string): Promise<string | null> {
 }
 
 export function wslHomeDirSync(distro: string): string | null {
+  // Resolved environment first: this runs on main-process hot paths (agent/desktop dir lookups),
+  // where a synchronous wsl.exe call freezes the UI — for seconds if the distro VM is stopped.
+  const env = getCachedWslEnv(distro)
+  if (env?.home) return env.home
+  refreshWslEnvInBackground(distro)
   const cached = wslHomeCache.get(distro)
   if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
   const r = runWslDistroSync(distro, ['bash', '-lc', 'printf %s "$HOME"'])
@@ -269,6 +279,8 @@ export function wslHomeDirSync(distro: string): string | null {
  * corrupted by `wsl.exe`'s Windows command-line arg handling.
  */
 export async function wslDefaultShell(distro: string): Promise<string> {
+  const env = await resolveWslEnv(distro)
+  if (env?.shell) return normalizeWslShell(env.shell)
   const cached = wslShellCache.get(distro)
   if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
   const r = await runWslDistroAsync(distro, ['bash', '-lc', 'printf %s "$SHELL"'])
@@ -286,6 +298,8 @@ function normalizeWslShell(stdout: string): string {
 }
 
 export function wslDefaultShellSync(distro: string): string {
+  const env = getCachedWslEnv(distro)
+  if (env?.shell) return normalizeWslShell(env.shell)
   const cached = wslShellCache.get(distro)
   if (cached && Date.now() - cached.at < WSL_ENV_CACHE_TTL_MS) return cached.value
   const r = runWslDistroSync(distro, ['bash', '-lc', 'printf %s "$SHELL"'])

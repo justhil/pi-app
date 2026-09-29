@@ -7,6 +7,8 @@ import { workerManager } from './worker-manager'
 import { sessionPreviewProcess } from './session-preview-process'
 import { guardAppQuit } from './window-close-guard'
 import { configStore } from './config-store'
+import { scheduleStartupWarmupFallback } from './startup-warmup'
+import { bindWslPersistence } from './wsl/wsl-env'
 import { is } from '@electron-toolkit/utils'
 import { destroyAppTray, ensureAppTray } from './tray'
 import {
@@ -101,6 +103,24 @@ app.whenReady().then(() => {
     })
   }
 
+  bindWslPersistence({
+    get: (key) => configStore.get(key),
+    set: (key, value) => configStore.set(key, value as never),
+  })
+  // WSL mode without a captured environment (first run after an upgrade): start capturing now so
+  // it usually lands before the first WSL-aware dir lookup would have to block on wsl.exe.
+  // Also boot the distro VM right away (async) so startup reads over \\wsl.localhost don't
+  // have to boot it inside a synchronous fs call.
+  {
+    const runtime = configStore.get('agentRuntime')
+    if (runtime?.mode === 'wsl' && runtime.distro) {
+      const distro = runtime.distro
+      void import('./wsl/wsl-env').then((m) => {
+        void m.startWslVm(distro)
+        if (!configStore.get('wslEnvCache')?.[distro]) void m.resolveWslEnv(distro)
+      })
+    }
+  }
   registerAllHandlers()
   void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
     try {
@@ -115,11 +135,9 @@ app.whenReady().then(() => {
   win.on('focus', () => notifyForegroundChanged())
   win.on('restore', () => notifyForegroundChanged())
   refreshGitWorkspaceWatch(win)
-  // Warm the SDK module graph off the user's critical path: the first folder
-  // click / session open pays a cold dynamic import (~1s+ with a global SDK).
-  setImmediate(() => {
-    void import('./ipc/sdk-session').then(({ warmSdkModules }) => warmSdkModules(app.getPath('userData')))
-  })
+  // SDK / extension warm-up starts when the renderer reports its shell painted (app.shellReady);
+  // the fallback covers a renderer that never gets there. See startup-warmup.ts.
+  win.webContents.once('did-finish-load', () => scheduleStartupWarmupFallback())
   if (process.env.PI_E2E !== '1' && process.env.PI_E2E !== 'true') {
     win.once('show', () => {
       setTimeout(() => {

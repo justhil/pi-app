@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { lookupContextWindow } from '@renderer/lib/model-context-window'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
 import type { ContextRoleSlice } from '@renderer/features/run/context-donut'
@@ -14,8 +14,12 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
   const streamingId = useUIStore((s) => s.streamingAssistantId)
   const streamLen = useUIStore((s) => {
     if (!s.streamingAssistantId) return 0
-    const item = s.timelineItems.find((i) => i.id === s.streamingAssistantId)
-    return item?.text?.length ?? 0
+    // Runs on every store update while streaming; the streaming row sits at the tail.
+    for (let index = s.timelineItems.length - 1; index >= 0; index--) {
+      const item = s.timelineItems[index]
+      if (item.id === s.streamingAssistantId) return item.text?.length ?? 0
+    }
+    return 0
   })
 
   const { preview: rawContextPreview } = useSessionContextPreview({ enabled: metricsEnabled })
@@ -36,20 +40,18 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
       setContextWindow(null)
       return
     }
-    ipcClient
-      .invoke('model.list', { scope: 'catalog' })
-      .then((r) => {
-        const models = (r?.models || []) as { id: string; name: string; contextWindow?: number }[]
-        const matchedModel =
-          models.find((entry) => entry.id === model || entry.name === model) ||
-          models.find((entry) => model.includes(entry.id) || entry.name?.includes(model))
-        setContextWindow(
-          matchedModel?.contextWindow && matchedModel.contextWindow > 0
-            ? matchedModel.contextWindow
-            : null,
-        )
+    // Shared model caches: no full catalog round-trip per model change / per consumer.
+    let cancelled = false
+    void lookupContextWindow(model)
+      .then((window) => {
+        if (!cancelled) setContextWindow(window)
       })
-      .catch(() => setContextWindow(null))
+      .catch(() => {
+        if (!cancelled) setContextWindow(null)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [metricsEnabled, workspace, model])
 
   useEffect(() => {

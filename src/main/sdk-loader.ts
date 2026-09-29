@@ -36,13 +36,22 @@ export function clearGlobalSdkPathCache(): void {
 }
 
 export function readBuiltinSdkVersion(): string {
-  try {
-    const pkgPath = join(__dirname, '..', '..', 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json')
-    if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
-      return pkg.version || ''
-    }
-  } catch (e) { void e }
+  // The bundler may place this code in out/main or out/main/chunks, so walk up to the first
+  // node_modules that holds the SDK instead of assuming a fixed depth (the fixed '../..' read
+  // out/node_modules from a chunk and the UI showed "–" for the built-in version).
+  let dir = __dirname
+  for (let depth = 0; depth < 5; depth++) {
+    const pkgPath = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'package.json')
+    try {
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
+        return pkg.version || ''
+      }
+    } catch (e) { void e }
+    const parent = join(dir, '..')
+    if (parent === dir) break
+    dir = parent
+  }
   return ''
 }
 

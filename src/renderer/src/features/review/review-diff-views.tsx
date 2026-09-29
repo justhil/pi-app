@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { useUIStore } from '@renderer/stores/ui-store'
 import type { DiffFile, DiffHunk, DiffLine } from '@shared/diff-model'
 import { buildSplitDiffRows } from '@shared/diff-split'
 import { ReviewHunkComments } from './review-hunk-comments'
@@ -11,12 +10,10 @@ import {
   FilePlus,
   FileEdit,
   FileMinus,
-  ChevronDown,
   ChevronRight,
   ExternalLink,
   FolderOpen,
   CheckCheck,
-  GitCommitHorizontal,
 } from '@renderer/components/icons'
 
 export type DiffMode = 'inline' | 'split'
@@ -39,6 +36,13 @@ function linePrefix(type: DiffLine['type']): string {
   if (type === 'removed') return '-'
   if (type === 'hunk-header') return '@'
   return ' '
+}
+
+/** "src/app/foo.ts" → { name: "foo.ts", dir: "src/app" } for a name-first row layout. */
+export function splitReviewPath(path: string): { name: string; dir: string } {
+  const normalized = path.replace(/\\/g, '/')
+  const index = normalized.lastIndexOf('/')
+  return index < 0 ? { name: normalized, dir: '' } : { name: normalized.slice(index + 1), dir: normalized.slice(0, index) }
 }
 
 function DiffCodeLine({
@@ -74,6 +78,10 @@ function DiffCodeLine({
   )
 }
 
+function openInEditor(cwd: string, filePath: string): void {
+  void ipcClient.invoke('shell.openPath', { path: `${cwd}/${filePath}` })
+}
+
 function DiffHunkView({
   hunk,
   hunkIndex,
@@ -91,9 +99,10 @@ function DiffHunkView({
   filePath: string
   cwd: string
 }) {
+  const { t } = useTranslation()
   return (
-    <div className="border-b border-border/20 last:border-0">
-      <div className="flex items-center gap-1.5 bg-[var(--bg-1)] px-2 py-1">
+    <div className="review-hunk border-b border-border/20 last:border-0">
+      <div className="group/hunk flex items-center gap-1.5 bg-[var(--bg-1)] px-2 py-1">
         <button
           type="button"
           onClick={onToggleStage}
@@ -101,7 +110,8 @@ function DiffHunkView({
             'chrome-icon-btn rounded p-0.5 transition-colors',
             staged ? 'text-[var(--diff-added)]' : 'text-muted-foreground/50 hover:text-foreground',
           )}
-          title={staged ? '撤销暂存此 hunk' : '暂存此 hunk'}
+          title={staged ? t('review:unstageHunk') : t('review:stageHunk')}
+          aria-label={staged ? t('review:unstageHunk') : t('review:stageHunk')}
         >
           <CheckCheck className="h-3 w-3" />
         </button>
@@ -111,9 +121,10 @@ function DiffHunkView({
         <ReviewHunkComments cwd={cwd} filePath={filePath} hunkIndex={hunkIndex} />
         <button
           type="button"
-          onClick={() => void ipcClient.invoke('shell.openPath', { path: `${cwd}/${filePath}` })}
-          className="ml-auto opacity-0 hover:opacity-100 chrome-icon-btn rounded p-0.5"
-          title="在编辑器打开"
+          onClick={() => openInEditor(cwd, filePath)}
+          className="chrome-icon-btn ml-auto rounded p-0.5 opacity-0 transition-opacity group-hover/hunk:opacity-100 focus-visible:opacity-100"
+          title={t('review:openInEditor')}
+          aria-label={t('review:openInEditor')}
         >
           <ExternalLink className="h-3 w-3" />
         </button>
@@ -202,7 +213,21 @@ function SplitHunk({ hunk, filePath }: { hunk: DiffHunk; filePath: string }) {
   )
 }
 
-export function FileDiffView({
+/** Proportional +/- bar (five cells), like a PR file list. */
+function ChangeBar({ additions, deletions }: { additions: number; deletions: number }) {
+  const total = additions + deletions
+  if (total === 0) return null
+  const added = Math.round((additions / total) * 5)
+  return (
+    <span className="review-change-bar" aria-hidden>
+      {Array.from({ length: 5 }, (_, i) => (
+        <i key={i} data-kind={i < added ? 'add' : 'del'} />
+      ))}
+    </span>
+  )
+}
+
+export const FileDiffView = memo(function FileDiffView({
   file,
   fallbackPath,
   fallbackChangeType,
@@ -210,6 +235,7 @@ export function FileDiffView({
   mode,
   cwd,
   defaultOpen,
+  bulk,
   onMutated,
 }: {
   file: DiffFile | undefined
@@ -219,14 +245,25 @@ export function FileDiffView({
   mode: DiffMode
   cwd: string
   defaultOpen: boolean
+  /** Expand-all / collapse-all from the toolbar; a new object re-applies it. */
+  bulk: { open: boolean } | null
   onMutated: () => void
 }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
   const filePath = file?.path ?? fallbackPath
   const staged = group === 'staged'
+  const { name, dir } = splitReviewPath(filePath)
+
+  useEffect(() => {
+    if (bulk) setOpen(bulk.open)
+  }, [bulk])
+  useEffect(() => {
+    if (defaultOpen) setOpen(true)
+  }, [defaultOpen])
 
   const toggleStage = useCallback(
-    (_hunkIdx: number, hunk: DiffHunk) => {
+    (hunk: DiffHunk) => {
       const patch = hunk.patch || ''
       if (!patch) return
       ipcClient
@@ -243,7 +280,7 @@ export function FileDiffView({
   )
 
   return (
-    <div className="min-w-0 border-b border-border/30">
+    <div className="review-file min-w-0" data-open={open || undefined}>
       <div
         role="button"
         tabIndex={0}
@@ -254,55 +291,64 @@ export function FileDiffView({
           e.preventDefault()
           setOpen((o) => !o)
         }}
-        className="group flex min-h-10 w-full cursor-pointer items-center gap-2 px-3 py-2 hover:bg-[var(--bg-hover)]"
+        className="review-file-row group relative flex min-h-9 w-full cursor-pointer items-center gap-2 px-3 py-1.5"
+        title={filePath}
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <ChevronRight className="review-file-chevron h-3 w-3 shrink-0 text-foreground-secondary/70" />
         <ChangeIcon type={file?.status ?? fallbackChangeType} />
-        <span className="min-w-0 flex-1 truncate font-mono text-[12px]" title={filePath}>{filePath}</span>
-        {file && (
-          <>
-            <span className="shrink-0 text-[11px] tabular-nums text-[var(--diff-added)]">+{file.additions}</span>
-            <span className="shrink-0 text-[11px] tabular-nums text-[var(--diff-removed)]">-{file.deletions}</span>
-          </>
-        )}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            void ipcClient.invoke('shell.openPath', { path: `${cwd}/${filePath}` })
-          }}
-          className="opacity-0 group-hover:opacity-100 chrome-icon-btn rounded p-0.5"
-          title="在编辑器打开"
-        >
-          <ExternalLink className="h-3 w-3" />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            void ipcClient.invoke('shell.showItemInFolder', { path: filePath })
-          }}
-          className="opacity-0 group-hover:opacity-100 chrome-icon-btn rounded p-0.5"
-          title="在文件夹显示"
-        >
-          <FolderOpen className="h-3 w-3" />
-        </button>
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 shrink truncate text-[12.5px] font-medium text-foreground">{name}</span>
+          {dir ? <span className="review-file-dir min-w-0 flex-[1_1_0] truncate text-[11px] text-foreground-secondary/70">{dir}</span> : null}
+        </span>
+        {file ? (
+          <span className="flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums">
+            {file.additions > 0 ? <span className="text-[var(--diff-added)]">+{file.additions}</span> : null}
+            {file.deletions > 0 ? <span className="text-[var(--diff-removed)]">−{file.deletions}</span> : null}
+            <ChangeBar additions={file.additions} deletions={file.deletions} />
+          </span>
+        ) : null}
+        <span className="review-file-actions flex shrink-0 items-center">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              openInEditor(cwd, filePath)
+            }}
+            className="chrome-icon-btn rounded p-0.5"
+            title={t('review:openInEditor')}
+            aria-label={t('review:openInEditor')}
+          >
+            <ExternalLink className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              void ipcClient.invoke('shell.showItemInFolder', { path: filePath })
+            }}
+            className="chrome-icon-btn rounded p-0.5"
+            title={t('review:revealInFolder')}
+            aria-label={t('review:revealInFolder')}
+          >
+            <FolderOpen className="h-3 w-3" />
+          </button>
+        </span>
       </div>
       {open && (
-        <div className="min-w-0 overflow-hidden border-t border-border/30 bg-[var(--bg-2)]">
+        <div className="review-file-body min-w-0 overflow-hidden border-y border-border/30 bg-[var(--bg-2)]">
           {file?.large && (
-            <div className="px-3 py-1.5 text-[10px] text-amber-600/80">
-              大变更（{file.additions + file.deletions} 行）
+            <div className="px-3 py-1.5 text-[10.5px] text-amber-600/80">
+              {t('review:largeChange', { count: file.additions + file.deletions })}
             </div>
           )}
-          {file?.generated && <div className="px-3 py-1.5 text-[10px] text-muted-foreground/60">生成文件</div>}
+          {file?.generated && <div className="px-3 py-1.5 text-[10.5px] text-muted-foreground/60">{t('review:generatedFile')}</div>}
           {(!file || file.hunks.length === 0) && (
-            <div className="px-3 py-3 text-[10px] text-muted-foreground/60">
+            <div className="px-3 py-3 text-[11px] text-muted-foreground/70">
               {file?.binary
-                ? '二进制文件'
+                ? t('review:binaryFile')
                 : file?.status === 'renamed'
-                  ? `重命名自 ${file.oldPath || fallbackPath}`
-                  : '无可显示文本差异'}
+                  ? t('review:renamedFrom', { path: file.oldPath || fallbackPath })
+                  : t('review:noTextDiff')}
             </div>
           )}
           {file?.hunks.map((hunk, hi) => (
@@ -312,7 +358,7 @@ export function FileDiffView({
               hunkIndex={hi}
               mode={mode}
               staged={staged}
-              onToggleStage={() => toggleStage(hi, hunk)}
+              onToggleStage={() => toggleStage(hunk)}
               filePath={filePath}
               cwd={cwd}
             />
@@ -321,60 +367,4 @@ export function FileDiffView({
       )}
     </div>
   )
-}
-
-export function ReviewCommitBar({ cwd, onCommitted }: { cwd: string; onCommitted: () => void }) {
-  const { t } = useTranslation('review')
-  const [message, setMessage] = useState('')
-  const [committing, setCommitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [hash, setHash] = useState<string | null>(null)
-
-  const handleCommit = () => {
-    if (!message.trim()) return
-    setCommitting(true)
-    setError(null)
-    ipcClient
-      .invoke('review.commit', { cwd, message })
-      .then((res) => {
-        if (res?.ok) {
-          setHash(res.commitHash || null)
-          setMessage('')
-          onCommitted()
-        } else {
-          const err = res?.error || '提交失败'
-          setError(err)
-          void import('@renderer/lib/send-composer-prompt').then((m) =>
-            m.sendComposerPrompt(`git commit 失败：\n${err}\n请帮我修。`),
-          )
-        }
-      })
-      .catch((e) => setError(String(e)))
-      .finally(() => setCommitting(false))
-  }
-
-  return (
-    <div className="space-y-2">
-      <textarea
-        aria-label={t('commitMessage')}
-        className="settings-field-focus min-h-20 w-full resize-y rounded-md border border-border bg-[var(--bg-1)] px-3 py-2 text-[13px] leading-relaxed"
-        rows={3}
-        placeholder={t('commitPlaceholder')}
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-      />
-      {error && <div role="alert" className="text-xs text-destructive">{error}</div>}
-      {hash && <div role="status" className="text-xs text-[var(--diff-added)]">{t('committed', { hash: hash.slice(0, 8) })}</div>}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="settings-chip min-h-8 rounded-md bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground disabled:opacity-40"
-          disabled={!message.trim() || committing}
-          onClick={handleCommit}
-        >
-          {committing ? t('committing') : t('commit')}
-        </button>
-      </div>
-    </div>
-  )
-}
+})

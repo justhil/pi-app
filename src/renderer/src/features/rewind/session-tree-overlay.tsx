@@ -121,14 +121,14 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
   return (
     <div
       data-tree-overlay
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
+      className="overlay-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
       role="dialog"
       aria-modal
       aria-label="会话树"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="flex max-h-[min(82vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
+        className="overlay-panel flex max-h-[min(82vh,720px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border/80 bg-background shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">

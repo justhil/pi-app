@@ -92,7 +92,7 @@ export function createWindow(): BrowserWindow {
     icon: resolveAppIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
-      additionalArguments: [customThemeRendererArgument()],
+      additionalArguments: [customThemeRendererArgument(), ...(isE2eTestMode() ? ['--pi-e2e'] : [])],
       sandbox: readRendererSandboxEnabled(),
       contextIsolation: true,
       nodeIntegration: false,

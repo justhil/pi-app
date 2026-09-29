@@ -91,6 +91,34 @@ function historyTurnMatchesUnanchoredLiveTail(
   )
 }
 
+function entryBlockLength(items: TimelineItem[], start: number, entryId: string): number {
+  let end = start
+  while (end < items.length && items[end].sessionEntryId === entryId) end++
+  return end - start
+}
+
+/**
+ * 回合已结束后用新读的磁盘尾页校正已加载的时间线（#99）。
+ * 磁盘对尾部是权威：锚定尾页首个持久化 entry，保留本地更早的已加载前缀，其后全部取磁盘。
+ * 分页按行截断，尾页可能从某 entry 的中间行（如 tool 行）开始，此时保留本地该 entry 被截掉的前几行。
+ * 锚点不在本地时退回纯磁盘尾页（与手动刷新一致）。
+ */
+export function spliceFreshDiskTail(
+  loaded: TimelineItem[],
+  diskTail: TimelineItem[],
+): { items: TimelineItem[]; prefixCount: number } {
+  const anchorId = diskTail[0]?.sessionEntryId
+  if (!anchorId) return { items: diskTail, prefixCount: 0 }
+  const loadedIdx = loaded.findIndex((item) => item.sessionEntryId === anchorId)
+  if (loadedIdx < 0) return { items: diskTail, prefixCount: 0 }
+  const cutRows = Math.max(
+    0,
+    entryBlockLength(loaded, loadedIdx, anchorId) - entryBlockLength(diskTail, 0, anchorId),
+  )
+  const prefix = loaded.slice(0, loadedIdx + cutRows)
+  return { items: [...prefix, ...diskTail], prefixCount: prefix.length }
+}
+
 /**
  * JSONL tail + 内存 live cache。
  * 切出时 capture 常是「整段可见时间线」；后台只继续追加流式尾部。

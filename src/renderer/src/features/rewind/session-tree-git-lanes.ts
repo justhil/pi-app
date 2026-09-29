@@ -5,6 +5,12 @@ export const MAX_GRAPH_LANES = 6
 export const LANE_COL_PX = 11
 export const GRAPH_RAIL_WIDTH = MAX_GRAPH_LANES * LANE_COL_PX + 6
 
+/** Rail sized to the lanes a tree actually uses: a linear conversation needs one lane, not six. */
+export function graphRailWidth(lanes: readonly number[]): number {
+  const used = lanes.reduce((max, lane) => Math.max(max, lane), 0) + 1
+  return Math.min(MAX_GRAPH_LANES, used) * LANE_COL_PX + 6
+}
+
 export type GitLaneLayout = {
   lane: number[]
   parent: Array<number | null>

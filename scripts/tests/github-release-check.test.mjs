@@ -100,7 +100,7 @@ describe('github release update helpers', () => {
   it('uses Electron Chromium networking instead of Node global fetch', () => {
     const src = readFileSync(srcPath, 'utf8')
     assert.match(src, /import \{ app, net \} from 'electron'/)
-    assert.match(src, /fetchLatestGitHubRelease\(slug, net\.fetch\)/)
+    assert.match(src, /fetchLatestGitHubRelease\(slug, net\.fetch[,)]/)
     assert.doesNotMatch(src, /await fetch\(/)
   })
 

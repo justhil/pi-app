@@ -138,11 +138,38 @@ describe('spawnWorkerInWsl', () => {
       '--',
       'bash',
       '-lc',
-      'cd -- "$1" && exec node "$2"',
+      'cd -- "$1" && shift && exec "$@"',
       'bash',
       '/home/u/项目 with spaces',
+      'node',
       '/root/.pi-desktop/worker.mjs',
     ])
+  })
+
+  it('runs the worker with the node and PATH of the user login shell once resolved', async () => {
+    const { bindWslPersistence, forgetWslEnv } = await import('../wsl/wsl-env')
+    bindWslPersistence({
+      get: (key) =>
+        key === 'wslEnvCache'
+          ? {
+              Nix: {
+                distro: 'Nix', home: '/home/u', shell: '/usr/bin/zsh', path: '/home/u/.nvm/bin:/usr/bin',
+                node: '/home/u/.nvm/bin/node', nodeVersion: '24.0.0', npm: null, pi: null, git: null,
+                mode: 'interactive-login', cdSupported: true, resolvedAt: 1,
+              },
+            }
+          : undefined,
+      set: () => {},
+    })
+    mocks.spawn.mockReturnValue({})
+    spawnWorkerInWsl({ distro: 'Nix', wslCwd: '/work', workerWslPath: '/home/u/.pi-desktop/worker.mjs' })
+    const [, args] = mocks.spawn.mock.calls.at(-1)!
+    expect(args).toEqual([
+      '-d', 'Nix', '--cd', '/work', '--',
+      'env', 'PATH=/home/u/.nvm/bin:/usr/bin', '/home/u/.nvm/bin/node', '/home/u/.pi-desktop/worker.mjs',
+    ])
+    bindWslPersistence(null)
+    forgetWslEnv()
   })
 
   it('caches the --cd support probe per distro', () => {

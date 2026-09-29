@@ -1,12 +1,24 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { StatusBar } from './status-bar'
 import { NotificationInbox } from './notification-inbox'
 
-const mocks = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({}), switchSession: vi.fn(), activateWorkspace: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  invoke: vi.fn().mockResolvedValue({}),
+  switchSession: vi.fn(),
+  activateWorkspace: vi.fn(),
+  appEventListeners: new Set<(event: { type: string }) => void>(),
+}))
 vi.mock('react-i18next', async (importOriginal) => ({ ...await importOriginal<typeof import('react-i18next')>(), useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }) }))
-vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: mocks.invoke }, onAppUpdateAvailable: () => () => {} }))
+vi.mock('@renderer/lib/ipc-client', () => ({
+  ipcClient: { invoke: mocks.invoke },
+  onAppUpdateAvailable: () => () => {},
+  onAppEvent: (listener: (event: { type: string }) => void) => {
+    mocks.appEventListeners.add(listener)
+    return () => mocks.appEventListeners.delete(listener)
+  },
+}))
 vi.mock('@renderer/lib/activate-workspace', () => ({ switchSessionInPlace: mocks.switchSession, activateWorkspace: mocks.activateWorkspace }))
 vi.mock('@renderer/lib/app-update-notify', () => ({ showAppUpdateDialog: vi.fn() }))
 
@@ -22,6 +34,48 @@ beforeEach(() => {
     if (method === 'desktop.status') return { rss: 256 * 1024 ** 2, total: 16 * 1024 ** 3, workers: [worker] }
     if (method === 'notifications.inbox') return { items: [] }
     return { ok: true }
+  })
+})
+
+function callsTo(method: string): number {
+  return mocks.invoke.mock.calls.filter(([name]) => name === method).length
+}
+
+function setHidden(hidden: boolean): void {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+
+describe('Workbench polling', () => {
+  it('does not poll status or inbox while the window is hidden', async () => {
+    vi.useFakeTimers()
+    try {
+      setHidden(true)
+      render(<><StatusBar /><NotificationInbox /></>)
+      await act(async () => {
+        vi.advanceTimersByTime(20_000)
+      })
+      expect(callsTo('desktop.status')).toBe(0)
+      expect(callsTo('notifications.inbox')).toBe(0)
+
+      await act(async () => setHidden(false))
+      expect(callsTo('desktop.status')).toBe(1)
+      expect(callsTo('notifications.inbox')).toBe(1)
+    } finally {
+      setHidden(false)
+      vi.useRealTimers()
+    }
+  })
+
+  it('refreshes the inbox as soon as a turn completes', async () => {
+    render(<NotificationInbox />)
+    await waitFor(() => expect(callsTo('notifications.inbox')).toBe(1))
+
+    act(() => {
+      for (const listener of mocks.appEventListeners) listener({ type: 'completion' })
+    })
+
+    await waitFor(() => expect(callsTo('notifications.inbox')).toBe(2))
   })
 })
 

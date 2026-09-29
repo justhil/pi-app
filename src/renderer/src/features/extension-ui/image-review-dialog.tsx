@@ -80,13 +80,13 @@ export function ImageReviewDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      className="overlay-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onSuspend()
       }}
     >
       <div
-        className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-xl"
+        className="overlay-panel w-full max-w-2xl rounded-xl border border-border bg-background shadow-xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5">

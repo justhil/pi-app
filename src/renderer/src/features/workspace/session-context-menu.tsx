@@ -15,6 +15,7 @@ import {
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
+import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import type { SessionMenuTarget } from './session-context-menu-types'
 
 export type { SessionMenuTarget } from './session-context-menu-types'
@@ -39,6 +40,8 @@ export function SessionContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
+  // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
+  const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -73,17 +76,14 @@ export function SessionContextMenuPortal({
     }
   }
 
+  const requestDelete = (target: SessionMenuTarget) => {
+    if (!target.sessionFile) toast.error(t('common:sidebar.deleteMissingFile'))
+    else setDeleteTarget(target)
+    onClose()
+  }
+
   const runDelete = async (target: SessionMenuTarget) => {
-    const defaultTitle = target.title || target.sessionId.slice(0, 8)
-    if (!target.sessionFile) {
-      toast.error(t('common:sidebar.deleteMissingFile'))
-      onClose()
-      return
-    }
-    if (!window.confirm(t('common:sidebar.deleteSessionConfirm', { name: defaultTitle }))) {
-      onClose()
-      return
-    }
+    if (!target.sessionFile) return
     // 确认后立即乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等；
     // 完成或失败后再以整列表刷新校准。
     onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
@@ -112,7 +112,6 @@ export function SessionContextMenuPortal({
       toast.error(t('common:sidebar.deleteFailed'))
       refreshList(target.workspacePath)
     }
-    onClose()
   }
 
   const itemClass = contextMenuItemClass
@@ -205,7 +204,7 @@ export function SessionContextMenuPortal({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
-                  void runDelete(menu.target)
+                  requestDelete(menu.target)
                 }}
               >
                 <Trash2 className="h-3 w-3 shrink-0" strokeWidth={2} />
@@ -221,6 +220,20 @@ export function SessionContextMenuPortal({
         defaultValue={renameDefault}
         onConfirm={submitRename}
         onCancel={() => setRenameTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={t('common:sidebar.delete')}
+        message={t('common:sidebar.deleteSessionConfirm', {
+          name: deleteTarget?.title || deleteTarget?.sessionId.slice(0, 8) || '',
+        })}
+        destructive
+        onConfirm={() => {
+          const target = deleteTarget
+          setDeleteTarget(null)
+          if (target) void runDelete(target)
+        }}
+        onCancel={() => setDeleteTarget(null)}
       />
     </>
   )

@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   listCatalogModelsWithSdk: vi.fn<() => Promise<unknown[]>>(async () => []),
   resolveAvailableModels: vi.fn<() => Promise<unknown[]>>(async () => []),
   resolveCatalogModels: vi.fn(async (input: { sdk: () => Promise<unknown[]> }) => input.sdk()),
+  previewGetContextPreview: vi.fn<(file: string, leaf: unknown) => Promise<unknown>>(async () => {
+    throw new Error('preview unavailable')
+  }),
 }))
 
 vi.mock('electron', () => ({
@@ -73,6 +76,10 @@ vi.mock('../../session-leaf-override', () => ({
 
 vi.mock('../../session-context-preview', () => ({
   getSessionContextPreviewFromDisk: mocks.getSessionContextPreviewFromDisk,
+}))
+
+vi.mock('../../session-preview-process', () => ({
+  sessionPreviewProcess: { getContextPreview: mocks.previewGetContextPreview, listModels: vi.fn(async () => []) },
 }))
 
 vi.mock('../../wsl/runtime-config', () => ({
@@ -308,6 +315,18 @@ describe('context.preview session isolation', () => {
     })
 
     expect(result).toEqual({ preview: null })
+    expect(mocks.getSessionContextPreviewFromDisk).not.toHaveBeenCalled()
+  })
+
+  it('serves an idle WSL session from the WSL preview process', async () => {
+    const sessionFile = '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\idle.jsonl'
+    mocks.isWslRuntimeActive.mockReturnValue(true)
+    mocks.getSessionContextPreview.mockResolvedValue(null)
+    mocks.previewGetContextPreview.mockResolvedValueOnce({ sessionId: 's', sessionFile, messageCount: 2 })
+
+    const result = await mocks.handlers.get('ipc:context.preview')!({ sessionFile, workspaceId: 'C:\\workspace' })
+
+    expect(result).toEqual({ preview: { sessionId: 's', sessionFile, messageCount: 2 } })
     expect(mocks.getSessionContextPreviewFromDisk).not.toHaveBeenCalled()
   })
 })

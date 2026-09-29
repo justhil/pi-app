@@ -19,8 +19,11 @@ import type { StoreApi } from '../apply-app-event-types'
 import type { RunState, TimelineItem, UIState } from '../ui-store-types'
 
 const notifyModelFallback = vi.fn()
+const commitSessionDisplayMeta = vi.hoisted(() => vi.fn())
+
 vi.mock('@renderer/lib/session-display-meta', () => ({
   notifyModelFallback: (...args: unknown[]) => notifyModelFallback(...args),
+  commitSessionDisplayMeta: (...args: unknown[]) => commitSessionDisplayMeta(...args),
 }))
 
 function makeApi(): {
@@ -170,6 +173,10 @@ describe('handleRun idle (agent completion)', () => {
     expect((state.runState as RunState).thinkingLevel).toBe('high')
     await vi.waitFor(() => {
       expect(notifyModelFallback).toHaveBeenCalled()
+    })
+    expect(commitSessionDisplayMeta).toHaveBeenCalledWith(expect.anything(), {
+      model: 'anthropic/claude-opus-4-8',
+      thinkingLevel: 'high',
     })
   })
 })

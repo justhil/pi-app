@@ -2,7 +2,7 @@ import { ArrowLeft, Bot, GitBranch, MessageSquare, Sparkles, Wrench } from '@ren
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { buildGitLaneLayout } from './session-tree-git-lanes'
+import { buildGitLaneLayout, graphRailWidth } from './session-tree-git-lanes'
 import { SessionTreeGraphColumn } from './session-tree-graph-column'
 
 export type SessionTreeNode = {
@@ -145,6 +145,7 @@ export function SessionTreeList({
     () => (showGuides && nodes.length ? buildGitLaneLayout(nodes) : null),
     [nodes, showGuides],
   )
+  const railWidth = useMemo(() => (layout ? graphRailWidth(layout.lane) : 0), [layout])
 
   // Debounces single-click view jumps so the second click of a double-click
   // cancels the pending jump instead of firing a view before the rewind.
@@ -166,9 +167,7 @@ export function SessionTreeList({
             <div
               className={cn(
                 'flex w-full min-w-0 max-w-full items-stretch gap-0 rounded-md transition-colors',
-                selected && 'bg-primary/12 ring-1 ring-inset ring-primary/30',
-                !selected && 'hover:bg-muted/70',
-                n.isLeaf && !selected && 'bg-primary/6',
+                selected ? 'bg-[var(--list-row-selected)]' : 'hover:bg-[var(--bg-hover)]',
               )}
             >
               <button
@@ -203,7 +202,9 @@ export function SessionTreeList({
                   rowClassName,
                 )}
               >
-                {layout && <SessionTreeGraphColumn index={index} nodes={nodes} layout={layout} />}
+                {layout && (
+                  <SessionTreeGraphColumn index={index} nodes={nodes} layout={layout} width={railWidth} />
+                )}
                 <span
                   className={cn(
                     'flex min-w-0 flex-1 items-center gap-1.5 pl-1.5',
@@ -224,7 +225,7 @@ export function SessionTreeList({
                   >
                     {sessionTreeLineTitle(n)}
                     {n.isLeaf && (
-                      <span className="ml-1.5 inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] text-primary">
+                      <span className="panel-tag ml-1.5 gap-0.5 align-middle">
                         <ArrowLeft className="h-3 w-3" strokeWidth={2} />
                         当前
                       </span>

@@ -143,16 +143,14 @@ export function SettingsPage() {
               </button>
               <span className="text-base font-medium">{t('settings:adapters.configTitle', { id: configExt })}</span>
             </div>
-            <SettingsMain wide>
-              <div className="animate-in fade-in slide-in-from-right duration-motion-normal">
-                <ExtensionConfigSubpage extensionId={configExt} />
-              </div>
+            <SettingsMain wide pageKey={`ext:${configExt}`}>
+              <ExtensionConfigSubpage extensionId={configExt} />
             </SettingsMain>
           </div>
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {settingsQuery.trim() && <div className="settings-search-summary flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-5 py-2 text-xs text-foreground-secondary"><span role="status">{t('settings:searchResults', { count: pages.length })}</span><button type="button" className="workbench-button" onClick={() => setSettingsQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
-          <SettingsMain wide={wide} footer={<SettingsSaveBar wide={wide} />}>
+          <SettingsMain wide={wide} pageKey={page} footer={<SettingsSaveBar wide={wide} />}>
             {pages.length === 0 ? <div className="workbench-empty"><Search className="h-6 w-6 opacity-50" /><p>{t('settings:noSearchResults')}</p><span>{t('settings:searchHint')}</span></div> : <>
             {page === 'general' && <GeneralSettings />}
             {page === 'appearance' && <AppearanceSettings />}

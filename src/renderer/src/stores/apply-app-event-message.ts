@@ -1,6 +1,53 @@
 import { isReusableOptimisticUserMessage } from '@renderer/lib/timeline-dedupe'
 import type { MessageEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
+import type { TimelineItem } from '@renderer/stores/ui-store-types'
+
+/**
+ * The empty optimistic assistant bubble may only absorb a new assistant message while it is still
+ * the live tail of the turn. Once a tool row (or a newer user message) follows it, or it already
+ * belongs to a persisted message (a tool-only step), a later answer must be appended instead —
+ * reusing it would render the final reply above the tools it came after.
+ */
+function reusableOptimisticAssistant(items: TimelineItem[]): TimelineItem | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+    if (item.type === 'tool-call' || item.type === 'user-message') return undefined
+    if (
+      item.type === 'assistant-message' &&
+      item.id.startsWith('opt-asst-') &&
+      !item.sessionEntryId &&
+      !item.text?.trim() &&
+      !item.thinkingText?.trim()
+    ) {
+      return item
+    }
+  }
+  return undefined
+}
+
+function ensureStreamingAssistant(event: MessageEvent, api: StoreApi): string {
+  const state = api.get()
+  const current = state.timelineItems.find(
+    (item) => item.id === state.streamingAssistantId && item.type === 'assistant-message',
+  )
+  if (current) return current.id
+  const persisted = event.sessionEntryId
+    ? state.timelineItems.find(
+        (item) => item.type === 'assistant-message' && item.sessionEntryId === event.sessionEntryId,
+      )
+    : undefined
+  const reusable = persisted ?? reusableOptimisticAssistant(state.timelineItems)
+  const id = reusable?.id ?? api.nextItemId()
+  if (!reusable) {
+    state.appendTimeline({
+      id, type: 'assistant-message', text: '', thinkingText: '',
+      runId: event.runId, turnId: event.turnId, timestamp: event.timestamp,
+    })
+  }
+  api.set({ streamingAssistantId: id })
+  return id
+}
 
 export function handleMessage(event: MessageEvent, api: StoreApi): void {
   const state = api.get()
@@ -76,15 +123,7 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
       state.updateTimelineItem(last.id, { runId: event.runId, turnId: event.turnId })
       return
     }
-    const emptyOpt = [...items]
-      .reverse()
-      .find(
-        (i) =>
-          i.type === 'assistant-message' &&
-          i.id.startsWith('opt-asst-') &&
-          !i.text?.trim() &&
-          !i.thinkingText?.trim(),
-      )
+    const emptyOpt = reusableOptimisticAssistant(items)
     if (emptyOpt) {
       state.updateTimelineItem(emptyOpt.id, { runId: event.runId, turnId: event.turnId })
       api.set({ streamingAssistantId: emptyOpt.id })
@@ -103,27 +142,17 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
     api.set({ streamingAssistantId: id })
   } else if (event.phase === 'delta' && event.text) {
     clearAgentTurnBootstrappingIfNeeded()
-    if (!api.get().streamingAssistantId) {
-      const id = api.nextItemId()
-      state.appendTimeline({
-        id,
-        type: 'assistant-message',
-        text: '',
-        thinkingText: '',
-        runId: event.runId,
-        turnId: event.turnId,
-        timestamp: event.timestamp,
-      })
-      api.set({ streamingAssistantId: id })
-    }
+    ensureStreamingAssistant(event, api)
     // Route thinking vs prose by contentKind only — never put body into thinking.
     if (event.contentKind === 'thinking') state.appendThinkingDelta(event.text)
     else state.appendDeltaToStreamingAssistant(event.text)
   } else if (event.phase === 'end') {
     flushStreamPendingSync(api.get, api.set)
     clearAgentTurnBootstrappingIfNeeded()
-    const sid = api.get().streamingAssistantId
     const hasFinalText = event.text !== undefined && String(event.text).trim().length > 0
+    const sid = hasFinalText
+      ? ensureStreamingAssistant(event, api)
+      : api.get().streamingAssistantId
     if (hasFinalText) {
       // Final text is always assistant prose, never thinking.
       if (event.contentKind === 'thinking') state.appendThinkingDelta(String(event.text))

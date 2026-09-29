@@ -2,12 +2,19 @@ import { unquoteGitPath } from '../../packages/shared/git-path'
 import { execFile, execFileSync } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
+import { isWslWindowsPath } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 import { runGitInWsl, runGitInWslAsync } from './wsl/git-delegate'
 
-function activeWslDistro(): string | null {
+/**
+ * Distro whose git should serve `cwd`, or null for the host git. Only workspaces that live on the
+ * WSL filesystem (\wsl.localhost\… / \wsl$\…) need Linux git. A Windows-drive workspace is the
+ * same repository either way, and host git reads it natively — WSL git would go through the
+ * /mnt 9p bridge (a `git status` on a large repo took ~10s) and every call spawns wsl.exe.
+ */
+function activeWslDistro(cwd: string): string | null {
   const { mode, distro } = getAgentRuntimeConfig()
-  return mode === 'wsl' && distro ? distro : null
+  return mode === 'wsl' && distro && isWslWindowsPath(cwd) ? distro : null
 }
 
 function gitExecSync(
@@ -15,7 +22,7 @@ function gitExecSync(
   args: string[],
   opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): { status: number; stdout: string; stderr: string } {
-  const distro = activeWslDistro()
+  const distro = activeWslDistro(cwd)
   if (distro) {
     const r = runGitInWsl(distro, cwd, args, { timeout: opts.timeout, input: opts.input })
     return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr }
@@ -80,7 +87,7 @@ async function gitExec(
   args: string[],
   opts: { timeout?: number; maxBuffer?: number } = {},
 ): Promise<{ status: number; stdout: string; stderr: string }> {
-  const distro = activeWslDistro()
+  const distro = activeWslDistro(cwd)
   if (distro) {
     const r = await runGitInWslAsync(distro, cwd, args, {
       timeout: opts.timeout,
@@ -238,16 +245,4 @@ export function unstageHunks(
     }
   }
   return { ok: true }
-}
-
-/** 提交：message 经 stdin（-F -）传入，避免临时文件与 shell 注入问题 */
-export function commitChanges(
-  cwd: string,
-  message: string,
-): { ok: boolean; error?: string; commitHash?: string } {
-  if (!message.trim()) return { ok: false, error: 'commit message 为空' }
-  const r = runGit(cwd, ['commit', '-F', '-'], { timeout: 15000, input: message })
-  if (!r.ok) return { ok: false, error: r.message }
-  const hashR = runGit(cwd, ['rev-parse', 'HEAD'], { timeout: 3000 })
-  return { ok: true, commitHash: hashR.ok ? hashR.stdout.trim() : undefined }
 }

@@ -2,7 +2,7 @@
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
 import { memo, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components, type ExtraProps } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
@@ -12,11 +12,26 @@ import 'katex/dist/katex.min.css'
 import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
 import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
-import { splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
+import { splitOpenUIFence, splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
+import {
+  advanceMarkdownBlocks,
+  EMPTY_MARKDOWN_BLOCK_CACHE,
+  type MarkdownBlockCache,
+} from '@renderer/features/timeline/markdown-blocks'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
 import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
+import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
+import { UIBlockHost } from '@renderer/features/ui-blocks/host'
+
+/** `<pre>` whose code child is a pi-ui fence. */
+function isUIBlockPre(node: ExtraProps['node']): boolean {
+  const code = node?.children?.find((child) => child.type === 'element')
+  if (!code || code.type !== 'element' || code.tagName !== 'code') return false
+  const className = code.properties?.className
+  return !!uiBlockLanguageFromClassName(Array.isArray(className) ? className.join(' ') : String(className ?? ''))
+}
 
 function CodeBlock({
   className,
@@ -30,7 +45,7 @@ function CodeBlock({
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(!!defaultExpanded)
   const [copied, setCopied] = useState(false)
-  const lang = /language-(\w+)/.exec(className || '')?.[1] || ''
+  const lang = /language-([\w-]+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
   const PREVIEW_LINES = 3
   const lineCount = code.split('\n').length
@@ -103,7 +118,8 @@ const REHYPE_PLUGINS: Pluggable[] = [
     rehypeKatex,
     {
       trust: false,
-      strict: 'warn',
+      // 'warn' 只会刷控制台（中文进公式等），渲染结果不变
+      strict: 'ignore',
       macros: KATEX_MACROS,
       output: 'htmlAndMathml',
     },
@@ -111,6 +127,42 @@ const REHYPE_PLUGINS: Pluggable[] = [
 ]
 
 const STREAM_PLAIN_ONLY_MAX = 96
+
+const SETTLED_REMARK_PLUGINS = buildRemarkPlugins(false)
+
+/** One top-level block of a streaming answer; unchanged blocks skip Markdown/KaTeX re-parsing. */
+const MarkdownBlock = memo(function MarkdownBlock({
+  source,
+  components,
+}: {
+  source: string
+  components: Components
+}) {
+  const markdown = useMemo(() => preprocessMarkdownMath(source, { streaming: false }), [source])
+  return (
+    <ReactMarkdown remarkPlugins={SETTLED_REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={components}>
+      {markdown}
+    </ReactMarkdown>
+  )
+})
+
+/**
+ * Committed streaming prefix rendered block by block: each frame re-parses only the growing tail
+ * blocks instead of the whole answer (streaming cost no longer grows with answer length).
+ */
+function StreamingMarkdownBlocks({ source, components }: { source: string; components: Components }) {
+  const cacheRef = useRef<MarkdownBlockCache>(EMPTY_MARKDOWN_BLOCK_CACHE)
+  if (cacheRef.current.source !== source) {
+    cacheRef.current = advanceMarkdownBlocks(cacheRef.current, source)
+  }
+  return (
+    <>
+      {cacheRef.current.blocks.map((block, index) => (
+        <MarkdownBlock key={index} source={block} components={components} />
+      ))}
+    </>
+  )
+}
 
 /**
  * 流式尾部是否含块级语法（表格/标题/列表/引用/代码块）。
@@ -177,11 +229,14 @@ const MarkdownView = memo(function MarkdownView({
   const components = useMemo(
     () => ({
       code: ({ className: cn2, children: ch, ...rest }: ComponentPropsWithoutRef<'code'>) => {
-        const lang = /language-(\w+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
+        const lang = /language-([\w-]+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
         const raw = String(ch ?? '').replace(/\n$/, '')
         const isInline = !cn2 && !raw.includes('\n')
         if (lang === 'math' || lang === 'latex' || lang === 'tex') {
           return <FencedMathBlock code={raw} />
+        }
+        if (uiBlockLanguageFromClassName(cn2)) {
+          return <UIBlockHost raw={raw} streaming={!!streaming} />
         }
         if (isInline) {
           return (
@@ -200,6 +255,9 @@ const MarkdownView = memo(function MarkdownView({
           </CodeBlock>
         )
       },
+      // pi-ui blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
+      pre: ({ node, children: ch, ...rest }: ComponentPropsWithoutRef<'pre'> & ExtraProps) =>
+        isUIBlockPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
       a: ({ children: ch, ...rest }: ComponentPropsWithoutRef<'a'>) => (
         <a {...rest} target="_blank" rel="noreferrer" className="text-primary hover:underline">
           {ch}
@@ -266,29 +324,28 @@ const MarkdownView = memo(function MarkdownView({
   }
 
   if (streaming && (committedPrefix || liveTail)) {
-    const committedMd = committedPrefix
-      ? preprocessMarkdownMath(committedPrefix, { streaming: false })
-      : ''
+    // An unclosed pi-ui fence bypasses Markdown: its body feeds the block host directly.
+    const openUIFence = liveTail ? splitOpenUIFence(liveTail) : null
+    const tailMarkdown = openUIFence ? openUIFence.before : liveTail
     return (
       <div className={cn('prose-chat prose-chat-streaming prose-chat-streaming-split', className)}>
-        {committedMd ? (
-          <ReactMarkdown remarkPlugins={buildRemarkPlugins(false)} rehypePlugins={REHYPE_PLUGINS} components={components}>
-            {committedMd}
-          </ReactMarkdown>
+        {committedPrefix ? (
+          <StreamingMarkdownBlocks source={committedPrefix} components={components as Components} />
         ) : null}
-        {liveTail ? (
-          tailHasBlockSyntax(liveTail) ? (
+        {tailMarkdown ? (
+          tailHasBlockSyntax(tailMarkdown) ? (
             <ReactMarkdown
-              remarkPlugins={buildRemarkPlugins(false)}
+              remarkPlugins={SETTLED_REMARK_PLUGINS}
               rehypePlugins={REHYPE_PLUGINS}
               components={components}
             >
-              {preprocessMarkdownMath(liveTail, { streaming: false })}
+              {preprocessMarkdownMath(tailMarkdown, { streaming: false })}
             </ReactMarkdown>
           ) : (
-            <StreamLiveTailBlock text={liveTail} streaming />
+            <StreamLiveTailBlock text={tailMarkdown} streaming />
           )
         ) : null}
+        {openUIFence ? <UIBlockHost raw={openUIFence.raw} streaming /> : null}
       </div>
     )
   }

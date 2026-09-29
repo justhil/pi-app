@@ -2,7 +2,6 @@ import {
   getLiveSessionTimeline,
   saveLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
-import { patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -75,16 +74,6 @@ export function captureVisibleLiveSessionTimeline(): void {
         agentTurnBootstrapping: latest.agentTurnBootstrapping,
       }
       saveLiveSessionTimeline(snap)
-      patchSessionTimelineView(viewFile, {
-        sessionId: snap.sessionId,
-        tail: snap.timelineItems,
-        streamingAssistantId: snap.streamingAssistantId,
-        runState: snap.runState,
-        pendingSteering: snap.pendingSteering,
-        pendingFollowUp: snap.pendingFollowUp,
-        optimisticPendingUserText: snap.optimisticPendingUserText,
-        agentTurnBootstrapping: snap.agentTurnBootstrapping,
-      })
       return
     }
   }

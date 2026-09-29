@@ -7,6 +7,8 @@ import {
   sanitizeHistoryTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import { projectTimelineItems } from '@shared/timeline-projection'
+import { mergeLiveTimelineWithHistoryTail } from '@renderer/lib/merge-live-history-timeline'
+import { resolveMergedStreamingAssistantId } from '@renderer/lib/streaming-timeline-preserve'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import type { FileChange, RunState, TimelineItem, UIState } from '@renderer/stores/ui-store-types'
@@ -90,7 +92,9 @@ export const useUIStore = create<UIState>()(
     })
   },
   loadHistoryItems: (items: TimelineItem[]) => {
+    flushStreamPendingSync(get, set)
     const {
+      timelineItems,
       lastModel,
       lastThinking,
       runState,
@@ -123,20 +127,26 @@ export const useUIStore = create<UIState>()(
       runtimeHere ||
       localTurn ||
       (viewingWorkerSession && workerLiveSnapshot.status === 'running')
-    const cleaned = projectTimelineItems(sanitizeHistoryTimeline(items))
+    const history = sanitizeHistoryTimeline(items)
+    const cleaned = projectTimelineItems(
+      keepRunning ? mergeLiveTimelineWithHistoryTail(history, timelineItems) : history,
+    )
     set({
       timelineItems: cleaned,
-      streamingAssistantId: keepRunning ? streamingAssistantId : null,
+      streamingAssistantId: keepRunning
+        ? resolveMergedStreamingAssistantId(cleaned, timelineItems, streamingAssistantId)
+        : null,
       fileChanges: [],
       runState: {
         ...runState,
         status: keepRunning ? 'running' : 'idle',
-        activeTool: undefined,
-        activeToolStatus: undefined,
-        // Drop activeRunId when forcing idle so chrome/composer cannot re-attach.
-        ...(keepRunning ? {} : { activeRunId: undefined }),
-        toolCount: 0,
-        errorCount: 0,
+        ...(keepRunning ? {} : {
+          activeTool: undefined,
+          activeToolStatus: undefined,
+          activeRunId: undefined,
+          toolCount: 0,
+          errorCount: 0,
+        }),
         model: runState.model ?? lastModel ?? undefined,
         thinkingLevel: runState.thinkingLevel ?? lastThinking ?? undefined,
       },
@@ -304,6 +314,8 @@ export const useUIStore = create<UIState>()(
 
   optimisticPendingUserText: null,
   agentTurnBootstrapping: false,
+  pendingTurnStage: null,
+  setPendingTurnStage: (stage) => set({ pendingTurnStage: stage }),
   pendingSteering: [],
   pendingFollowUp: [],
   composerWidget: null,

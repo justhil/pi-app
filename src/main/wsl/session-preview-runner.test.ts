@@ -289,36 +289,38 @@ describe('WSL session preview runner', () => {
     }))
   })
 
-  it('rejects a pending request before replacing the process for another cwd', async () => {
-    const childA = fakeChild()
-    const childB = fakeChild()
-    mocks.spawnPreviewInWsl.mockReturnValueOnce(childA).mockReturnValueOnce(childB)
-    childB.stdin.on('data', (chunk) => {
-      const request = JSON.parse(chunk.toString()) as { requestId: string; type: string }
-      childB.stdout.write(encodeWorkerFrame({
-        requestId: request.requestId,
-        type: `${request.type}-done`,
-        result: [],
-      }) + '\n')
+  it('keeps one process per distro across cwd changes (no respawn, no dropped requests)', async () => {
+    const child = fakeChild()
+    mocks.spawnPreviewInWsl.mockReturnValue(child)
+    const seenCwds: string[] = []
+    let pending = ''
+    child.stdin.on('data', (chunk) => {
+      pending += chunk.toString()
+      let newline = pending.indexOf('\n')
+      while (newline >= 0) {
+        const request = JSON.parse(pending.slice(0, newline)) as { requestId: string; type: string; cwd: string }
+        pending = pending.slice(newline + 1)
+        seenCwds.push(request.cwd)
+        child.stdout.write(encodeWorkerFrame({ requestId: request.requestId, type: `${request.type}-done`, result: [] }) + '\n')
+        newline = pending.indexOf('\n')
+      }
     })
     const runner = new WslSessionPreviewRunner()
-    const pendingA = runner.request({
+    const requestA = runner.request({
       type: 'session.list',
       payload: { cwd: 'C:\\ProjectA', workspaceId: 'C:\\ProjectA' },
       userDataDir: 'C:\\data',
     })
-    const pendingARejection = expect(pendingA).rejects.toThrow('WSL preview cwd changed')
-    await vi.waitFor(() => expect(childA.stdin.readableLength).toBeGreaterThan(0))
-
     const requestB = runner.request({
       type: 'session.list',
       payload: { cwd: 'C:\\ProjectB', workspaceId: 'C:\\ProjectB' },
       userDataDir: 'C:\\data',
     })
 
-    await pendingARejection
+    await expect(requestA).resolves.toEqual([])
     await expect(requestB).resolves.toEqual([])
-    expect(childA.kill).toHaveBeenCalledOnce()
-    expect(mocks.spawnPreviewInWsl).toHaveBeenCalledTimes(2)
+    expect(mocks.spawnPreviewInWsl).toHaveBeenCalledTimes(1)
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(seenCwds).toEqual(['/mnt/c/ProjectA', '/mnt/c/ProjectB'])
   })
 })

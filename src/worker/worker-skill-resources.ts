@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
-import { canonicalSkillPath } from '@shared/skill-catalog'
+import { canonicalSkillPath, isSkillPathEnabled } from '@shared/skill-catalog'
 import { replaceSkillDescription } from '@shared/skill-description-edit'
 import { buildWorkerSkillCatalog, type RuntimeSkill, type WorkerSkillCatalog } from './skill-catalog-runtime.js'
 import { getSkillBaseSnapshot } from './skill-override.js'
@@ -54,12 +54,44 @@ function loadSkill(path: string): RuntimeSkill | null {
   return { ...skill, sourceInfo: sourceInfoForPath(skill.filePath, skill.sourceInfo) }
 }
 
+/**
+ * No live session yet (worker still initialising or mid-switch): list user and project skills
+ * straight from disk so the page is never blank. Package skills and collision winners need the
+ * session's resource loader, so the catalog stays `complete: false` and edits remain blocked.
+ */
+function diskFallbackCatalog(): WorkerSkillCatalog {
+  const sdk = st.sdk
+  if (!sdk) return { complete: false, projectTrusted: false, effectiveSkills: [], candidates: [] }
+  let skills: RuntimeSkill[] = []
+  let diagnostics: Array<Record<string, unknown>> = []
+  try {
+    const result = sdk.loadSkills({
+      cwd: st.currentCwd || process.cwd(),
+      agentDir: sdk.getAgentDir(),
+      skillPaths: [],
+      includeDefaults: true,
+    })
+    skills = result.skills as RuntimeSkill[]
+    diagnostics = (result.diagnostics || []) as unknown as Array<Record<string, unknown>>
+  } catch {
+    /* unreadable skill dirs: fall through with an empty list */
+  }
+  const overrides = readWorkerSkillOverrides()
+  const catalog = buildWorkerSkillCatalog({
+    runtimeId: runtimeId(),
+    currentSkills: skills.filter((skill) => isSkillPathEnabled(skill.filePath, overrides)),
+    baseSkills: skills,
+    diagnostics: diagnostics as never,
+    overrides,
+    loadSkill: () => null,
+  })
+  return { ...catalog, complete: false }
+}
+
 export function getLiveWorkerSkillCatalog(): WorkerSkillCatalog {
   const snapshot = getSkillBaseSnapshot()
   const current = loader()?.getSkills?.()
-  if (!snapshot || !current) {
-    return { complete: false, projectTrusted: false, effectiveSkills: [], candidates: [] }
-  }
+  if (!snapshot || !current) return diskFallbackCatalog()
   const baseSkills = snapshot.skills
     .map((row) => {
       const filePath = String(row.filePath || row.path || '')

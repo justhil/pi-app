@@ -1,9 +1,14 @@
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { ipcClient } from '@renderer/lib/ipc-client'
 import { btnOutline, btnPrimary, selectCls } from './settings-controls'
 import { type PiInfo, type SdkStatus } from './pi-settings-shared'
 
+type EnvKind = 'builtin' | 'global' | 'user'
+
+/**
+ * pi runtime versions: one tile per environment (built-in / global npm / standalone), the active
+ * one highlighted. Pick a tile, then switch; upgrading installs into the standalone environment.
+ */
 export function PiSettingsSdkSection({
   info,
   sdkStatus,
@@ -22,59 +27,84 @@ export function PiSettingsSdkSection({
   info: PiInfo | null
   sdkStatus: SdkStatus | null
   registry: { versions: string[]; latest: string | null } | null
-  envTarget: 'builtin' | 'global' | 'user'
-  setEnvTarget: (v: 'builtin' | 'global' | 'user') => void
+  envTarget: EnvKind
+  setEnvTarget: (v: EnvKind) => void
   selectedVersion: string
   setSelectedVersion: (v: string) => void
   installing: boolean
   switching: boolean
   installOutput: string[]
-  onSwitchEnv: (target: 'builtin' | 'global' | 'user') => void
+  onSwitchEnv: (target: EnvKind) => void
   onInstall: () => void
   isWslRuntime?: boolean
 }) {
   const { t } = useTranslation()
+  const active = sdkStatus?.active?.kind ?? 'builtin'
+  const tiles: Array<{ kind: EnvKind; label: string; version?: string; missing: string; disabled: boolean }> = [
+    {
+      kind: 'builtin',
+      label: t('settings:pi.kindBuiltin'),
+      version: sdkStatus?.builtinVersion || info?.sdkVersion,
+      missing: '—',
+      disabled: isWslRuntime,
+    },
+    {
+      kind: 'global',
+      label: t('settings:pi.kindGlobal'),
+      version: sdkStatus?.globalVersion,
+      missing: t('settings:pi.notDetected'),
+      disabled: !sdkStatus?.globalVersion,
+    },
+    {
+      kind: 'user',
+      label: t('settings:pi.kindUser'),
+      version: sdkStatus?.userVersion,
+      missing: t('settings:pi.notInstalled'),
+      disabled: !sdkStatus?.userVersion,
+    },
+  ]
+  const canSwitch = !switching && !installing && envTarget !== active && !tiles.find((tile) => tile.kind === envTarget)?.disabled
+
   return (
-    <div className="py-3">
-      <div className="mb-2 text-base font-medium text-foreground">{t('settings:pi.sdkManagement')}</div>
-      <div className="grid grid-cols-1 gap-1.5 text-sm">
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">{t('settings:pi.builtinVersion')}</span>
-          <span className="font-mono text-muted-foreground">{sdkStatus?.builtinVersion || info?.sdkVersion || '—'}</span>
+    <div className="pi-runtime">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <div className="text-[13.5px] font-medium text-foreground">{t('settings:pi.runtimeVersions')}</div>
+          <p className="mt-0.5 text-[12px] leading-[1.55] text-foreground-secondary">{t('settings:pi.runtimeVersionsDesc')}</p>
         </div>
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">{t('settings:pi.globalVersion')}</span>
-          <span className="font-mono text-muted-foreground">{sdkStatus?.globalVersion || t('settings:pi.notDetected')}</span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">{t('settings:pi.userVersion')}</span>
-          <span className="font-mono text-muted-foreground">{sdkStatus?.userVersion || t('settings:pi.notInstalled')}</span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">{t('settings:pi.activeVersion')}</span>
-          <span className="font-mono text-foreground">
-            {sdkStatus?.active?.version || '—'} (
-            {sdkStatus?.active?.kind === 'global'
-              ? t('settings:pi.kindGlobal')
-              : sdkStatus?.active?.kind === 'user'
-                ? t('settings:pi.kindUser')
-                : t('settings:pi.kindBuiltin')}
-            )
-          </span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">{t('settings:pi.registryLatest')}</span>
-          <span className="font-mono text-muted-foreground">
-            {registry?.latest || (registry ? '—' : t('settings:pi.loadingShort'))}
-          </span>
-        </div>
-        <div className="flex justify-between gap-2">
-          <span className="text-muted-foreground">npm</span>
-          <span className="font-mono text-muted-foreground">
-            {sdkStatus?.npmAvailable ? t('settings:pi.npmAvailable') : t('settings:pi.npmNotDetected')}
-          </span>
-        </div>
+        <span className="text-[11.5px] text-foreground-secondary">
+          {registry?.latest
+            ? t('settings:pi.registryLatestValue', { version: registry.latest })
+            : registry
+              ? null
+              : t('settings:pi.loadingShort')}
+        </span>
       </div>
+
+      <div className="pi-runtime-tiles mt-3" role="radiogroup" aria-label={t('settings:pi.switchEnv')}>
+        {tiles.map((tile) => (
+          <button
+            key={tile.kind}
+            type="button"
+            role="radio"
+            aria-checked={envTarget === tile.kind}
+            disabled={tile.disabled || switching || installing}
+            data-active={active === tile.kind || undefined}
+            data-selected={envTarget === tile.kind || undefined}
+            className="pi-runtime-tile"
+            onClick={() => setEnvTarget(tile.kind)}
+          >
+            <span className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-foreground-secondary">{tile.label}</span>
+              {active === tile.kind ? <span className="settings-badge">{t('settings:pi.activeBadge')}</span> : null}
+            </span>
+            <span className={cn('mt-1 block font-mono text-[15px] tabular-nums', tile.version ? 'text-foreground' : 'text-foreground-secondary/70')}>
+              {tile.version || tile.missing}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {sdkStatus?.active?.fallbackReason && (
         <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
           {sdkStatus.active.kind === 'user' ? t('settings:pi.fallbackUser') : t('settings:pi.fallbackGlobal')}
@@ -83,107 +113,56 @@ export function PiSettingsSdkSection({
       {sdkStatus?.workerFallback && (
         <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">{t('settings:pi.fallbackWorker')}</div>
       )}
-      {isWslRuntime && (
-        <div className="mt-2 text-xs text-sky-600 dark:text-sky-400">{t('settings:pi.wslModeHint')}</div>
-      )}
+      {isWslRuntime && <div className="mt-2 text-xs text-sky-600 dark:text-sky-400">{t('settings:pi.wslModeHint')}</div>}
       {isWslRuntime && sdkStatus && !sdkStatus.globalVersion && (
         <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">{t('settings:pi.wslGlobalNotDetected')}</div>
       )}
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground/70">{t('settings:pi.switchEnv')}</span>
-        <select
-          className={cn(selectCls, 'min-w-[8rem]')}
-          value={envTarget}
-          disabled={switching || installing}
-          onChange={(e) => setEnvTarget(e.target.value as 'builtin' | 'global' | 'user')}
-        >
-          <option value="builtin" disabled={isWslRuntime}>
-            {t('settings:pi.switchEnvBuiltin')}
-          </option>
-          <option value="global" disabled={!sdkStatus?.globalVersion}>
-            {t('settings:pi.switchEnvGlobal')}
-            {!sdkStatus?.globalVersion ? t('settings:pi.switchEnvGlobalNotDetected') : ''}
-          </option>
-          <option value="user" disabled={!sdkStatus?.userVersion}>
-            {t('settings:pi.switchEnvUser')}
-            {!sdkStatus?.userVersion ? t('settings:pi.switchEnvUserNotInstalled') : ''}
-          </option>
-        </select>
-        <button
-          type="button"
-          className={btnOutline}
-          disabled={
-            switching ||
-            installing ||
-            envTarget === sdkStatus?.active?.kind ||
-            (envTarget === 'global' && !sdkStatus?.globalVersion) ||
-            (envTarget === 'user' && !sdkStatus?.userVersion)
-          }
-          onClick={() => onSwitchEnv(envTarget)}
-        >
-          {switching ? t('settings:pi.switching') : t('settings:pi.switch')}
+        <button type="button" className={btnOutline} disabled={!canSwitch} onClick={() => onSwitchEnv(envTarget)}>
+          {switching ? t('settings:pi.switching') : t('settings:pi.switchTo')}
         </button>
+        {!isWslRuntime && (
+          <>
+            <span className="mx-1 h-4 w-px bg-border/70" aria-hidden />
+            <select
+              className={cn(selectCls, 'min-w-[9rem]')}
+              aria-label={t('settings:pi.upgradeEnv')}
+              value={selectedVersion}
+              disabled={installing || !sdkStatus?.npmAvailable}
+              onChange={(e) => setSelectedVersion(e.target.value)}
+            >
+              <option value="">{t('settings:pi.selectVersion')}</option>
+              {(registry?.versions || [])
+                .slice()
+                .reverse()
+                .map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                    {v === registry?.latest ? ` ${t('settings:pi.latest')}` : ''}
+                  </option>
+                ))}
+            </select>
+            <button
+              type="button"
+              className={btnPrimary}
+              disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
+              onClick={onInstall}
+            >
+              {installing ? t('settings:pi.installing') : t('settings:pi.upgradeSwitch')}
+            </button>
+            {!sdkStatus?.npmAvailable && sdkStatus ? (
+              <span className="text-[11.5px] text-amber-600 dark:text-amber-400">{t('settings:pi.npmNotDetected')}</span>
+            ) : null}
+          </>
+        )}
       </div>
-      {!isWslRuntime && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground/70">{t('settings:pi.upgradeEnv')}</span>
-          <select
-            className={cn(selectCls, 'min-w-[8rem]')}
-            value={selectedVersion}
-            disabled={installing || !sdkStatus?.npmAvailable}
-            onChange={(e) => setSelectedVersion(e.target.value)}
-          >
-            <option value="">{t('settings:pi.selectVersion')}</option>
-            {(registry?.versions || [])
-              .slice()
-              .reverse()
-              .map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                  {v === registry?.latest ? ` ${t('settings:pi.latest')}` : ''}
-                </option>
-              ))}
-          </select>
-          <button
-            type="button"
-            className={btnPrimary}
-            disabled={installing || !selectedVersion || !sdkStatus?.npmAvailable}
-            onClick={onInstall}
-          >
-            {installing ? t('settings:pi.installing') : t('settings:pi.upgradeSwitch')}
-          </button>
-        </div>
-      )}
       {(installing || installOutput.length > 0) && (
-        <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted/50 p-2 font-mono text-2xs whitespace-pre-wrap text-muted-foreground">
+        <pre className="mt-3 max-h-40 overflow-auto rounded-lg bg-[var(--bg-2)] p-2.5 font-mono text-2xs whitespace-pre-wrap text-muted-foreground">
           {installOutput.join('\n')}
           {installing ? '\n…' : ''}
         </pre>
       )}
-      <div className="mt-4 rounded-md border border-border/50 p-3 text-[12px]">
-        <div className="mb-1 font-medium">{t('settings:pi.agentDirTitle')}</div>
-        <p className="text-muted-foreground">{info?.agentDir || t('settings:pi.notDetected')}</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={btnOutline}
-            onClick={() => {
-              if (info?.agentDir) void navigator.clipboard.writeText(info.agentDir)
-            }}
-          >
-            {t('settings:pi.copyPath')}
-          </button>
-          <button
-            type="button"
-            className={btnOutline}
-            onClick={() => {
-              if (info?.agentDir) void ipcClient.invoke('shell.showItemInFolder', { path: info.agentDir })
-            }}
-          >
-            {t('settings:pi.openDir')}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,0 +1,141 @@
+/*
+ * pi-ui base: tokens, the shared frame and the streaming skeleton. Loaded with the Markdown
+ * renderer (tiny); every component style lives in ui-blocks.css inside the lazy runtime chunk.
+ */
+:root {
+  --uib-c1: #5b6fd8;
+  --uib-c2: #14a085;
+  --uib-c3: #ec8a3a;
+  --uib-c4: #d8547b;
+  --uib-c5: #8a6bd4;
+  --uib-c6: #2f9dd6;
+  --uib-c7: #b3981f;
+  --uib-c8: #6c7a90;
+  --uib-surface: var(--bg-base);
+  --uib-raised: var(--bg-1);
+  --uib-sunken: var(--bg-2);
+  --uib-line: var(--border-base);
+  --uib-line-soft: color-mix(in srgb, var(--border-base) 62%, transparent);
+  --uib-hover: color-mix(in srgb, var(--bg-hover) 58%, transparent);
+  --uib-faint: color-mix(in srgb, var(--text-secondary) 68%, transparent);
+  --uib-accent: var(--brand);
+  --uib-accent-ink: #4f5d93;
+  --uib-up: var(--success-semantic);
+  --uib-down: var(--danger-semantic);
+  --uib-warn: var(--warning-semantic);
+  --uib-shadow: 0 1px 2px rgb(15 18 30 / 0.05), 0 8px 24px -12px rgb(15 18 30 / 0.16);
+  --uib-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --uib-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+
+.dark {
+  --uib-c1: #8b9cf4;
+  --uib-c2: #3cc9a7;
+  --uib-c3: #f3a35f;
+  --uib-c4: #ee7b9b;
+  --uib-c5: #ab93ee;
+  --uib-c6: #5cbcec;
+  --uib-c7: #d6bd4f;
+  --uib-c8: #98a6bb;
+  --uib-line: #363636;
+  --uib-line-soft: #2d2d2d;
+  --uib-accent-ink: #b3bbe0;
+  --uib-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.55);
+}
+
+.uib-frame {
+  position: relative;
+  margin-block: 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--uib-line);
+  border-radius: 12px;
+  background: var(--uib-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Markdown prose rules must not leak into blocks. */
+.prose-chat .uib-frame h4,
+.prose-chat .uib-frame p,
+.prose-chat .uib-frame ol,
+.prose-chat .uib-frame ul,
+.prose-chat .uib-frame li {
+  margin: 0;
+  padding: 0;
+}
+.prose-chat .uib-frame a,
+.prose-chat .uib-frame a:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── Skeleton (streaming placeholder, reserves the final height) ── */
+.uib-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.uib-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--uib-surface) 62%, transparent) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%);
+  animation: uib-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+.uib-sk-line,
+.uib-sk-box {
+  display: block;
+  border-radius: 6px;
+  background: var(--uib-sunken);
+}
+.uib-sk-line {
+  height: 10px;
+}
+.uib-sk-title {
+  width: 32%;
+  height: 12px;
+}
+.uib-sk-box {
+  width: 100%;
+  border-radius: 9px;
+}
+.uib-sk-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.uib-sk-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block: 4px;
+}
+
+@keyframes uib-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uib-skeleton::after {
+    animation: none;
+    opacity: 0;
+  }
+}

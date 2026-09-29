@@ -73,7 +73,7 @@ describe('SkillsSettingsPanel', () => {
     fireEvent.click(toggle)
     expect(toggle).not.toBeChecked()
 
-    fireEvent.click(screen.getByRole('button', { name: 'common:refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: /settings:skills.recheck/ }))
     await waitFor(() => expect(screen.getByRole('switch')).not.toBeChecked())
   })
 

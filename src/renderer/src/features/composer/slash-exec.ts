@@ -9,6 +9,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { ensureAvailableModels } from '@renderer/lib/available-models-cache'
+import { commitSessionDisplayMeta } from '@renderer/lib/session-display-meta'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 
 /** App-native builtins handled directly in the renderer (not forwarded as plain prompt text). */
@@ -33,7 +34,7 @@ function firstToken(input: string): string | null {
 
 export { firstToken }
 
-const THINKING_ORDER = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh']
+const THINKING_ORDER = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 
 /**
  * Execute an app-native slash command. Returns true if handled (caller clears input).
@@ -87,6 +88,7 @@ export async function executeSlashCommand(
           modelId,
         })
         store.setRunState({ model: response.modelId })
+        commitSessionDisplayMeta(sessionFile, { model: response.modelId })
         toast.success(i18n.t('composer:toast.modelSet', { model: response.modelId }))
       } catch (e) {
         console.error('/model failed:', e)
@@ -105,8 +107,15 @@ export async function executeSlashCommand(
         return true
       }
       try {
-        await ipcClient.invoke('thinkingLevel.set', { sessionId: '', level: arg })
+        // Scope to the viewed session like the thinking picker — the foreground worker may be another session.
+        const sessionFile = store.historySessionFile
+        await ipcClient.invoke('thinkingLevel.set', {
+          sessionId: '',
+          sessionFile: sessionFile ?? undefined,
+          level: arg,
+        })
         store.setRunState({ thinkingLevel: arg })
+        commitSessionDisplayMeta(sessionFile, { thinkingLevel: arg })
         toast.success(`Thinking: ${arg}`)
       } catch (e) {
         console.error('/thinking failed:', e)

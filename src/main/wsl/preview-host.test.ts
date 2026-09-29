@@ -17,6 +17,7 @@ vi.mock('./worker-host', () => ({
   wslCdFlagSupported: mocks.wslCdFlagSupported,
   wslWorkerDirWsl: vi.fn(() => '/home/u/.pi-desktop'),
 }))
+vi.mock('./wsl-env', () => ({ wslNodeCommand: (_distro: string, script: string) => ['node', script] }))
 vi.mock('../utility-entry-path', () => ({
   resolveUtilityEntry: (name: string) => join('/out/main', name),
 }))

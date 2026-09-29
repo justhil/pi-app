@@ -2,7 +2,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { reviewMutationSchema } from '../schemas'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
-import { readGitWorkspaceSnapshot, stageHunks, unstageHunks, commitChanges } from '../../git-workspace'
+import { readGitWorkspaceSnapshot, stageHunks, unstageHunks } from '../../git-workspace'
 import { authorizeTrustedCwd, getTrustedWorkspaceRoot } from '../../trusted-workspace'
 
 function reviewMutationCwd(reqCwd?: string): { ok: true; cwd: string } | { ok: false; error: string } {
@@ -44,10 +44,4 @@ export function registerReviewHandlers(): void {
     return { ok: r.ok, error: r.error }
   })
 
-  registerHandlerWithSchema('ipc:review.commit', reviewMutationSchema, async (req) => {
-    const cwd = reviewMutationCwd(req.cwd)
-    if (!cwd.ok) return { ok: false, error: cwd.error }
-    const r = commitChanges(cwd.cwd, req.message || '')
-    return { ok: r.ok, error: r.error, commitHash: r.commitHash }
-  })
 }

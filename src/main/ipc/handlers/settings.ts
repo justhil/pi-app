@@ -36,6 +36,14 @@ export function registerSettingsHandlers(): void {
       const changed = current?.mode !== next.mode || current?.distro !== next.distro
       if (changed) {
         if (workerManager.hasActiveTurns) throw new Error('AGENT_RUNTIME_BUSY')
+        // Capture the distro's environment before switching (async — the UI shows progress): the
+        // WSL-aware dir lookups that follow are then served from cache instead of a synchronous
+        // wsl.exe call (seconds while the distro VM boots) on the UI thread.
+        if (next.mode === 'wsl' && next.distro) {
+          const { resolveWslEnv } = await import('../../wsl/wsl-env')
+          const env = await resolveWslEnv(next.distro, { force: true })
+          if (!env) throw new Error('WSL_ENV_UNAVAILABLE')
+        }
         await workerManager.stop()
         sessionPreviewProcess.stop()
       }
@@ -43,6 +51,12 @@ export function registerSettingsHandlers(): void {
       if (changed) {
         invalidateAdapterCatalog()
         invalidateSdkManagerCaches()
+        // Switching into WSL: capture that distro's environment and boot its preview now, so the
+        // first project open does not wait on it.
+        if (next.mode === 'wsl' && next.distro) {
+          const distro = next.distro
+          void import('../../startup-warmup').then((m) => m.warmWslRuntime(distro))
+        }
         for (const win of BrowserWindow.getAllWindows()) {
           sendEvent(win, { type: 'sdk-runtime-changed' })
         }

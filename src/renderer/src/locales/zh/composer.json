@@ -152,5 +152,28 @@
   "invalidThinkingLevel": "无效等级: {{arg}}（可选 {{options}}）",
   "switchThinkingFailed": "切换 thinking 失败",
   "timelineCleared": "已清空时间线",
-  "compactedHistory": "已压缩会话历史"
+  "compactedHistory": "已压缩会话历史",
+  "thinkingMax": "最高",
+  "thinkingPicker": {
+    "title": "思考等级",
+    "subtitle": "等级越高推理越充分，耗时与 token 也越多",
+    "desc": {
+      "off": "不思考，直接回答",
+      "minimal": "只做最少的推理",
+      "low": "简单问题够用，响应最快",
+      "medium": "日常编码的默认平衡点",
+      "high": "复杂改动、排查问题时使用",
+      "xhigh": "大型重构与疑难问题",
+      "max": "模型能给出的最长推理，较慢且昂贵"
+    },
+    "unsupported": "当前模型不支持",
+    "current": "当前",
+    "bound": "已绑定",
+    "bindLabel": "为此模型记住思考等级",
+    "bindHint": "切换到 {{model}} 时自动使用该等级（写入 pi 设置 modelThinkingLevels）",
+    "bindNoModel": "选择模型后可为它绑定思考等级",
+    "boundToast": "已为 {{model}} 绑定 {{level}}",
+    "unboundToast": "已取消 {{model}} 的思考等级绑定",
+    "switched": "思考等级：{{level}}"
+  }
 }

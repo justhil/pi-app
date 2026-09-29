@@ -1,4 +1,4 @@
-import { probeExtensions } from '../extension-compat/extension-probe'
+import type { ExtensionProbeResult } from '../extension-compat/extension-probe'
 import { loadAdapterCatalog, v2DisplayInfo } from '../extension-compat/adapter-loader'
 import { listPromptsOnDisk, listSkillsOnDisk } from './pi-resources-editor'
 
@@ -41,7 +41,8 @@ function collectAdapterCatalogCommands(cwd: string): SlashCatalogCommand[] {
 }
 
 /** Disk + extension probe — no AgentSession; usable during timeline preview / pendingBind. */
-export function scanStaticSlashCommands(cwd: string): SlashCatalogCommand[] {
+/** `probes` comes from the shared extension probe cache (see extension-probe-cache.ts). */
+export function scanStaticSlashCommands(cwd: string, probes: ExtensionProbeResult[]): SlashCatalogCommand[] {
   const out: SlashCatalogCommand[] = []
   const seen = new Set<string>()
 
@@ -73,7 +74,7 @@ export function scanStaticSlashCommands(cwd: string): SlashCatalogCommand[] {
     })
   }
 
-  for (const ext of probeExtensions(cwd)) {
+  for (const ext of probes) {
     const cmds = new Set<string>(ext.registeredCommands)
     const v2 = v2DisplayInfo(
       ext.adapterId || ext.packageName || ext.name,

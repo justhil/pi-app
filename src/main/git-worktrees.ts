@@ -1,6 +1,6 @@
 import { stat } from 'fs/promises'
 import type { GitWorktree, GitWorktreeList } from '@shared/git-worktree'
-import { wslPathToWindows } from '@shared/wsl-path'
+import { isWslWindowsPath, wslPathToWindows } from '@shared/wsl-path'
 import { runGitReadOnly } from './git-workspace'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 
@@ -17,7 +17,9 @@ export async function listGitWorktrees(cwd: string): Promise<GitWorktreeList> {
     return { ok: result.notRepo, repositoryPath: null, trees: [], ...(!result.notRepo && { error: result.message }) }
   }
   const runtime = getAgentRuntimeConfig()
-  const toHost = (path: string) => runtime.mode === 'wsl' && runtime.distro
+  // Only a WSL-filesystem workspace is served by Linux git (see git-workspace.ts), whose paths
+  // need mapping back; host git already reports Windows paths.
+  const toHost = (path: string) => runtime.mode === 'wsl' && runtime.distro && isWslWindowsPath(cwd)
     ? wslPathToWindows(runtime.distro, path)
     : path
   const records = result.stdout.split('\0\0').filter(Boolean).map((record) => record.split('\0'))

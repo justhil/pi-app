@@ -45,6 +45,7 @@
   "userLabel": "用户",
   "assistantLabel": "助手",
   "noModel": "未选模型",
+  "usage": "用量",
   "contextBreakdown": "上下文",
   "contextEmpty": "发送消息后显示占比",
   "role": {

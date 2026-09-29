@@ -30,7 +30,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
           <button
             onClick={toggleSidebar}
             title={collapsed ? t('common:topbar.expandSidebar') : t('common:topbar.collapseSidebar')}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-[0.93]"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-motion-fast ease-motion-ease active:scale-95"
           >
             <PanelLeft className={cn('h-3.5 w-3.5 transition-transform duration-motion-normal ease-motion-ease', collapsed && 'rotate-180')} />
           </button>

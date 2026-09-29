@@ -9,11 +9,10 @@ import { join, posix } from 'path'
 import { mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { resolvePackageEntryPath } from '../global-sdk-resolve.js'
-import {
-  runWslDistroAsync,
-  wslDefaultShellSync,
-  wslHomeDirSync,
-} from './wsl-exec.js'
+import { runWslDistroAsync, wslHomeDir } from './wsl-exec.js'
+import { readWslPersisted, resolveWslEnv, writeWslPersisted } from './wsl-env.js'
+
+type SdkCacheRecord = Record<string, { at: number; value: WslSdkResolution | null }>
 
 const PKG = '@earendil-works/pi-coding-agent'
 
@@ -97,9 +96,17 @@ let wslSdkResolveCache: {
   distro: string
   value: WslSdkResolution | null
 } | null = null
+const sdkProbeInflight = new Map<string, Promise<WslSdkResolution | null>>()
 
 export function invalidateWslSdkResolveCache(): void {
   wslSdkResolveCache = null
+  sdkProbeInflight.clear()
+  writeWslPersisted('wslSdkCache', {})
+}
+
+function persistedSdk(distro: string): { at: number; value: WslSdkResolution | null } | null {
+  const hit = readWslPersisted<SdkCacheRecord>('wslSdkCache')?.[distro]
+  return hit && hit.value ? hit : null
 }
 
 /**
@@ -139,23 +146,42 @@ export async function resolveWslActiveSdk(
   opts?: { refresh?: boolean },
 ): Promise<WslSdkResolution | null> {
   const now = Date.now()
-  if (
-    !opts?.refresh &&
-    wslSdkResolveCache &&
-    wslSdkResolveCache.distro === distro &&
-    now - wslSdkResolveCache.at < WSL_SDK_RESOLVE_TTL_MS
-  ) {
-    return wslSdkResolveCache.value
+  if (!opts?.refresh) {
+    if (!wslSdkResolveCache || wslSdkResolveCache.distro !== distro) {
+      const stored = persistedSdk(distro)
+      if (stored) wslSdkResolveCache = { at: stored.at, distro, value: stored.value }
+    }
+    // Stale-while-revalidate: every worker fork asks for this, and the probe is a seconds-long
+    // wsl.exe run — serve the known install and re-check it in the background.
+    if (wslSdkResolveCache && wslSdkResolveCache.distro === distro && wslSdkResolveCache.value) {
+      if (now - wslSdkResolveCache.at >= WSL_SDK_RESOLVE_TTL_MS) void probeWslSdk(distro).catch(() => null)
+      return wslSdkResolveCache.value
+    }
   }
+  return probeWslSdk(distro)
+}
 
-  const home = wslHomeDirSync(distro)
+function probeWslSdk(distro: string): Promise<WslSdkResolution | null> {
+  const running = sdkProbeInflight.get(distro)
+  if (running) return running
+  const job = runWslSdkProbe(distro).finally(() => sdkProbeInflight.delete(distro))
+  sdkProbeInflight.set(distro, job)
+  return job
+}
+
+async function runWslSdkProbe(distro: string): Promise<WslSdkResolution | null> {
+  const now = Date.now()
+  const home = await wslHomeDir(distro)
   if (!home) return null
 
-  const shell = wslDefaultShellSync(distro)
   const scriptPath = writeProbeScriptToWsl(distro, home, resolveProbeScript())
   if (!scriptPath) return null
 
-  const result = await runWslDistroAsync(distro, [shell, scriptPath], { timeout: 30000 })
+  // Same PATH the worker runs with (user's login shell), so the npm/pi found here belong to the
+  // node that will import them.
+  const env = await resolveWslEnv(distro)
+  const command = env ? ['env', `PATH=${env.path}`, 'sh', scriptPath] : ['sh', scriptPath]
+  const result = await runWslDistroAsync(distro, command, { timeout: 30000 })
   const candidates = result.stdout
     .split('\n')
     .map((line) => line.trim())
@@ -178,5 +204,9 @@ export async function resolveWslActiveSdk(
   }
 
   wslSdkResolveCache = { at: now, distro, value: resolved }
+  writeWslPersisted('wslSdkCache', {
+    ...(readWslPersisted<SdkCacheRecord>('wslSdkCache') ?? {}),
+    [distro]: { at: now, value: resolved },
+  })
   return resolved
 }

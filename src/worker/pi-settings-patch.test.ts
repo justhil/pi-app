@@ -57,3 +57,33 @@ describe('applyPiSettingsPatch', () => {
     )).rejects.toThrow('global write failed')
   })
 })
+
+describe('applyPiSettingsPatch newer pi keys', () => {
+  it('writes per-model thinking levels and nested retry fields through the merge-only save path', async () => {
+    const sm = manager([])
+    await applyPiSettingsPatch(sm as never, {
+      modelThinkingLevels: { 'openai/gpt-6': 'MAX', 'bad-key': 'high', 'anthropic/x': 'nope' },
+      retryMaxAgentDelayMs: 30000,
+      retryMaxRetries: 5,
+      cacheWarming: 'idle',
+      websocketConnectTimeoutMs: 8000,
+    })
+    expect(sm.globalSettings).toMatchObject({
+      modelThinkingLevels: { 'openai/gpt-6': 'max' },
+      retry: { maxAgentDelayMs: 30000, maxRetries: 5 },
+      cacheWarming: 'idle',
+      websocketConnectTimeoutMs: 8000,
+    })
+    expect(sm.markModified).toHaveBeenCalledWith('modelThinkingLevels')
+    expect(sm.markModified).toHaveBeenCalledWith('retry', 'maxAgentDelayMs')
+    expect(sm.markModified).toHaveBeenCalledWith('cacheWarming')
+  })
+
+  it('removes the binding map when it becomes empty and rejects unknown cache modes', async () => {
+    const sm = manager([])
+    sm.globalSettings = { modelThinkingLevels: { 'openai/gpt-6': 'high' } }
+    await applyPiSettingsPatch(sm as never, { modelThinkingLevels: {} })
+    expect(sm.globalSettings).not.toHaveProperty('modelThinkingLevels')
+    await expect(applyPiSettingsPatch(sm as never, { cacheWarming: 'always' })).rejects.toThrow('Invalid cacheWarming')
+  })
+})

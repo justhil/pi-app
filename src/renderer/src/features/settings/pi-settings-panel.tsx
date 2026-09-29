@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
@@ -19,30 +19,32 @@ import { PiSettingsSdkSection } from './pi-settings-sdk-section'
 import { PiSettingsFormSections } from './pi-settings-form-sections'
 import { PiSettingsEnvAuthRows } from './pi-settings-env-auth-rows'
 import { savePiSettingsDraft } from './save-pi-settings'
-import {
-  ensureAvailableModels,
-  peekAvailableModels,
-  refreshAvailableModels,
-  subscribeAvailableModels,
-} from '@renderer/lib/available-models-cache'
+import { ensureAvailableModels } from '@renderer/lib/available-models-cache'
 
 export type { PiSettingsSnapshot } from './pi-settings-shared'
 
+/**
+ * Only keys the user changed on this page. The Models page edits defaults / thinking bindings
+ * through the same settings file, so re-sending the whole snapshot would overwrite them.
+ */
+export function changedPiSettings(
+  draft: PiSettingsSnapshot,
+  baseline: PiSettingsSnapshot | null,
+): PiSettingsSnapshot {
+  if (!baseline) return draft
+  const patch: PiSettingsSnapshot = {}
+  for (const key of Object.keys(draft)) {
+    if (JSON.stringify(draft[key] ?? null) !== JSON.stringify(baseline[key] ?? null)) {
+      patch[key] = draft[key] === undefined ? null : draft[key]
+    }
+  }
+  return patch
+}
+
 export function PiSettingsPanel() {
   const { t } = useTranslation()
-  const thinkingOpts = [
-    { v: 'off', l: t('settings:pi.thinkingOff') },
-    { v: 'minimal', l: t('settings:pi.thinkingMinimal') },
-    { v: 'low', l: t('settings:pi.thinkingLow') },
-    { v: 'medium', l: t('settings:pi.thinkingMedium') },
-    { v: 'high', l: t('settings:pi.thinkingHigh') },
-    { v: 'xhigh', l: t('settings:pi.thinkingXhigh') },
-  ]
   const [info, setInfo] = useState<PiInfo | null>(null)
   const [settings, setSettings] = useState<PiSettingsSnapshot | null>(null)
-  const [models, setModels] = useState<Array<{ id: string; name?: string; provider?: string; available?: boolean }>>(
-    () => peekAvailableModels(),
-  )
   const [loadError, setLoadError] = useState<string | null>(null)
   const [baseline, setBaseline] = useState<PiSettingsSnapshot | null>(null)
   const [draft, setDraft] = useState<PiSettingsSnapshot | null>(null)
@@ -58,15 +60,10 @@ export function PiSettingsPanel() {
   const { draft: settingsDraft } = useSettingsDraft()
   const isWslRuntime = settingsDraft?.agentRuntime?.mode === 'wsl' && !!settingsDraft?.agentRuntime?.distro
 
+  // Keeps the shared model cache warm (Models page / composer picker read it).
   const loadModelsForDropdown = useCallback(async () => {
-    try {
-      await ensureAvailableModels()
-    } catch {
-      setModels(peekAvailableModels())
-    }
+    await ensureAvailableModels().catch(() => {})
   }, [])
-
-  useEffect(() => subscribeAvailableModels(setModels), [])
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -214,7 +211,7 @@ export function PiSettingsPanel() {
     commit: async () => {
       if (!draft || settingsEqual(draft, baseline)) return
       try {
-        await savePiSettingsDraft(draft, {
+        await savePiSettingsDraft(changedPiSettings(draft, baseline), {
           setSettings: (patch) => ipcClient.invoke('pi.settings.set', { patch }),
           reload: reloadPiForm,
           refreshComposer: refreshComposerRunDisplay,
@@ -233,19 +230,7 @@ export function PiSettingsPanel() {
 
   const ui = draft ?? settings
 
-  const modelOptions = useMemo(
-    () => [...models].sort((a, b) => `${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`)),
-    [models],
-  )
-
-  const currentModelKey =
-    ui?.defaultProvider && ui?.defaultModel ? `${ui.defaultProvider}/${ui.defaultModel}` : ''
-
-  const onModelSelect = (key: string) => {
-    const i = key.indexOf('/')
-    if (i < 0) return
-    queuePatch({ defaultProvider: key.slice(0, i), defaultModel: key.slice(i + 1) })
-  }
+  const runtimeVersion = sdkStatus?.active?.version || sdkStatus?.builtinVersion || info?.sdkVersion
 
   if (!ui && !loadError) {
     return <p className="text-base text-muted-foreground">{t('settings:pi.loading')}</p>
@@ -284,10 +269,7 @@ export function PiSettingsPanel() {
         <PiSettingsFormSections
           ui={ui}
           formEpoch={formEpoch}
-          thinkingOpts={thinkingOpts}
-          modelOptions={modelOptions}
-          currentModelKey={currentModelKey}
-          onModelSelect={onModelSelect}
+          runtimeVersion={runtimeVersion}
           queuePatch={queuePatch}
         />
       )}

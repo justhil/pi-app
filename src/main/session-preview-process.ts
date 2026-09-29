@@ -2,6 +2,9 @@ import { app, utilityProcess, type UtilityProcess } from 'electron'
 import { resolveUtilityEntry } from './utility-entry-path'
 import { resolveActiveSdk } from './sdk-loader'
 import { isWslRuntimeActive } from './wsl/runtime-config'
+import type { ExtensionProbeResult } from '../extension-compat/extension-probe'
+import type { ModelEntry } from './active-sdk-models-core'
+import type { SessionContextPreview } from '@shared/session-context-preview'
 import { emitOperationEvent } from './operation-events'
 import type { FlatTreeNode } from './session-tree-from-file'
 import type { SessionOnDiskRow } from './ipc/sdk-session'
@@ -102,13 +105,20 @@ export class SessionPreviewProcess {
       | 'session.getMessages'
       | 'session.tree'
       | 'session.invalidateList'
+      | 'pi.settings.get'
       | 'pi.settings.set'
+      | 'extensions.probe'
+      | 'model.list'
+      | 'context.preview'
+      | 'warm'
       | 'system.prompt',
     payload: Record<string, unknown>,
+    /** Host-side work (e.g. extension probing over UNC paths) that must not go to the WSL runner. */
+    opts?: { local?: boolean },
   ): Promise<T> {
     const generation = this.lifecycleGeneration
     const userDataDir = app.getPath('userData')
-    if (isWslRuntimeActive()) {
+    if (isWslRuntimeActive() && !opts?.local) {
       const { WslSessionPreviewRunner } = await this.awaitLifecycle(
         import('./wsl/session-preview-runner'),
         generation,
@@ -158,8 +168,10 @@ export class SessionPreviewProcess {
     })
   }
 
-  listSessions(workspaceId: string): Promise<SessionOnDiskRow[]> {
-    return this.request('session.list', { workspaceId, cwd: workspaceId })
+  async listSessions(workspaceId: string): Promise<SessionOnDiskRow[]> {
+    const rows = await this.request<SessionOnDiskRow[]>('session.list', { workspaceId, cwd: workspaceId })
+    // The WSL runner speaks JSON over stdio, turning Dates into strings; restore them for callers.
+    return rows.map((row) => ({ ...row, created: asDate(row.created), modified: asDate(row.modified) }))
   }
 
   async invalidateListSessions(workspaceId?: string): Promise<void> {
@@ -193,6 +205,33 @@ export class SessionPreviewProcess {
     return this.request('system.prompt', payload)
   }
 
+  probeExtensions(payload: {
+    cwd: string
+    agentDir: string
+    desktopDir: string
+    homeDir: string
+  }): Promise<ExtensionProbeResult[]> {
+    // Always the local utility process: probing reads through the same (UNC in WSL mode) dirs the
+    // main process resolves, just off the UI thread.
+    return this.request('extensions.probe', payload, { local: true })
+  }
+
+  warm(): Promise<void> {
+    return this.request('warm', {})
+  }
+
+  listModels(scope: 'available' | 'catalog', agentDir: string): Promise<ModelEntry[]> {
+    return this.request('model.list', { scope, agentDir })
+  }
+
+  getContextPreview(sessionFile: string, leafId: string | null | undefined): Promise<SessionContextPreview> {
+    return this.request('context.preview', { sessionFile, leafId })
+  }
+
+  getPiSettings(cwd: string): Promise<Record<string, unknown>> {
+    return this.request('pi.settings.get', { cwd })
+  }
+
   setPiSettings(patch: Record<string, unknown>, cwd: string): Promise<void> {
     return this.request('pi.settings.set', { patch, cwd })
   }
@@ -213,6 +252,15 @@ export class SessionPreviewProcess {
     this.wslRunner = null
     proc?.kill()
   }
+}
+
+function asDate(value: unknown): Date | undefined {
+  if (value instanceof Date) return value
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? undefined : date
+  }
+  return undefined
 }
 
 export const sessionPreviewProcess = new SessionPreviewProcess()

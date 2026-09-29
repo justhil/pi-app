@@ -10,14 +10,37 @@ export type IpcHandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, IpcHandlerFn>()
 
+/**
+ * Dev diagnostics (PI_PERF_TRACE=1): per-channel timings — `sync` is how long the handler held the
+ * main thread before yielding, `total` includes awaited work — plus an event-loop stall monitor.
+ * A slow `sync` delays every other IPC reply, which is what makes switches feel sticky.
+ */
+const PERF_TRACE = !!process.env.PI_PERF_TRACE
+if (PERF_TRACE) {
+  let last = Date.now()
+  setInterval(() => {
+    const now = Date.now()
+    const lag = now - last - 50
+    if (lag > 80) console.log(`[perf] main event loop blocked ~${lag}ms`)
+    last = now
+  }, 50).unref?.()
+}
+
 export function registerHandler(channel: string, handler: IpcHandlerFn): void {
   if (handlers.has(channel)) {
     ipcMain.removeHandler(channel)
   }
   handlers.set(channel, handler)
   ipcMain.handle(channel, async (_event, request) => {
+    const started = PERF_TRACE ? Date.now() : 0
     try {
-      return await handler(request as IpcInvokeBody)
+      const pending = handler(request as IpcInvokeBody)
+      if (!PERF_TRACE) return await pending
+      const sync = Date.now() - started
+      const result = await pending
+      const total = Date.now() - started
+      if (total >= 40 || sync >= 15) console.log(`[perf] ipc ${channel} sync=${sync}ms total=${total}ms`)
+      return result
     } catch (error) {
       console.error(`[IPC:${channel}] Error:`, error)
       throw error

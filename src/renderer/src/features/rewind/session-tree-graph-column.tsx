@@ -18,10 +18,13 @@ export function SessionTreeGraphColumn({
   index,
   nodes,
   layout,
+  width = GRAPH_RAIL_WIDTH,
 }: {
   index: number
   nodes: SessionTreeNode[]
   layout: GitLaneLayout
+  /** Rail width for the lanes in use (see graphRailWidth). */
+  width?: number
 }) {
   const n = nodes[index]
   const L = layout.lane[index]
@@ -36,7 +39,7 @@ export function SessionTreeGraphColumn({
 
   return (
     <svg
-      width={GRAPH_RAIL_WIDTH}
+      width={width}
       height={ROW_H}
       className="shrink-0 text-border"
       aria-hidden

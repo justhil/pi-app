@@ -22,6 +22,7 @@ import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useComposerInputHistory } from './use-composer-input-history'
 import { RichInput, syncRichInputEmpty } from './rich-input'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { useVoiceInput } from './use-voice-input'
 import { ComposerVoiceMicButton, ComposerVoiceInputOverlay } from './composer-voice-ui'
 import {
@@ -50,6 +51,17 @@ import {
   readTransientComposerDraft,
   rememberTransientComposerDraft,
 } from './composer-transient-draft'
+
+const prewarmedWorkspaces = new Set<string>()
+
+/** Fire-and-forget worker start for a new chat; at most once per workspace per app run. */
+function prewarmWorkspaceWorker(workspace: string): void {
+  if (prewarmedWorkspaces.has(workspace)) return
+  prewarmedWorkspaces.add(workspace)
+  void ipcClient.invoke('workspace.ensureWorker', { path: workspace }).catch(() => {
+    prewarmedWorkspaces.delete(workspace)
+  })
+}
 
 export function Composer() {
   const { t } = useTranslation()
@@ -316,6 +328,14 @@ export function Composer() {
     if (!currentSessionId || pendingNew || ephemeralSandboxDraft) return
     void refreshComposerRunDisplay()
   }, [canCompose, currentWorkspace, currentSessionId, ephemeralSandboxDraft, pendingNew])
+
+  // First message of a new chat in a project: start the workspace worker while the user types, so
+  // sending does not also wait for the worker process + SDK boot (the slowest part of that path).
+  const hasDraftText = text.trim().length > 0
+  useEffect(() => {
+    if (!hasDraftText || !pendingNew || ephemeralSandboxDraft || !currentWorkspace) return
+    prewarmWorkspaceWorker(currentWorkspace)
+  }, [hasDraftText, pendingNew, ephemeralSandboxDraft, currentWorkspace])
 
   const handleKeyDown = useComposerKeyDown({
     editorRef,

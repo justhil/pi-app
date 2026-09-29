@@ -12,10 +12,20 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import {
+  clearSessionDiskAuthoritative,
+  isSessionDiskAuthoritative,
+} from '@renderer/lib/session-disk-authority'
 import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
 import { projectTimelineItems } from '@shared/timeline-projection'
-import { getLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
-import { mergeLiveTimelineWithHistoryTail } from '@renderer/lib/merge-live-history-timeline'
+import {
+  clearLiveSessionTimeline,
+  getLiveSessionTimeline,
+} from '@renderer/lib/live-session-timeline-cache'
+import {
+  mergeLiveTimelineWithHistoryTail,
+  spliceFreshDiskTail,
+} from '@renderer/lib/merge-live-history-timeline'
 import {
   applyLiveStreamingTextToMergedTimeline,
   resolveMergedStreamingAssistantId,
@@ -56,6 +66,23 @@ let focusKey: string | null = null
 
 export function sessionKeyFromFile(sessionFile: string | null | undefined): string {
   return normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
+}
+
+function sessionTurnActive(sessionKey: string): boolean {
+  const runtime = useUIStore.getState().sessionRuntimeRunning ?? {}
+  if (
+    runtime[sessionKey] === true ||
+    Object.entries(runtime).some(([key, running]) => running && sessionFilesEqual(key, sessionKey))
+  ) {
+    return true
+  }
+  const live = getLiveSessionTimeline(sessionKey)
+  return (
+    live?.runState.status === 'running' ||
+    live?.streamingAssistantId != null ||
+    live?.optimisticPendingUserText != null ||
+    live?.agentTurnBootstrapping === true
+  )
 }
 
 export function getFocusSessionKey(): string | null {
@@ -486,23 +513,48 @@ export async function hydrateSessionView(
   }
 
   try {
-    // Prefer single tail fetch for speed; bypass slice cache only when empty view.
+    // Prefer single tail fetch for speed; bypass slice cache when the view is empty or a
+    // background turn ended since the last read (disk is then authoritative for the tail).
     // Disk-first IPC — must not spawn worker (see session.getMessages).
-    const bypass = !existing?.items.length
+    const diskAuthoritative = isSessionDiskAuthoritative(sessionKey)
+    const bypass = !existing?.items.length || diskAuthoritative
     const hist = await fetchSessionHistoryTail(sessionKey, 80, { bypassCache: bypass })
     if (navToken != null && !assertSessionNavigation(navToken)) {
       restorePhaseIfUnfocused()
       return
+    }
+    // Re-check after the await: a queued follow-up may have started a new turn meanwhile.
+    const reconcileFromDisk =
+      diskAuthoritative && !hist.error && !sessionTurnActive(sessionKey)
+    const reconcileLoadedCount = (prefixCount: number): number =>
+      prefixCount > 0
+        ? Math.min(
+            hist.totalCount,
+            Math.max(
+              hist.sourceCount,
+              (existing?.historyLoaded ?? 0) +
+                Math.max(0, hist.totalCount - (existing?.historyTotal ?? hist.totalCount)),
+            ),
+          )
+        : Math.min(hist.totalCount, hist.sourceCount)
+    const finishDiskReconcile = (): void => {
+      // Disk now covers every live row of the finished turn — drop live provenance so later
+      // switch-backs never re-merge the stale switch-away capture.
+      clearSessionDiskAuthoritative(sessionKey)
+      clearLiveSessionTimeline(sessionKey)
     }
     if (focusKey && !sessionFilesEqual(focusKey, sessionKey)) {
       // Still merge disk into cache in background so next focus is fresh, but do not bind.
       if (!hist.error && hist.items) {
         const diskItems = sanitizeHistoryTimeline(hist.items as TimelineItem[])
         const projected = projectTimelineItems(diskItems) as TimelineItem[]
-        const merged = mergeLiveIntoItems(sessionKey, projected)
+        const reconciled = reconcileFromDisk ? spliceFreshDiskTail(priorItems, projected) : null
+        const merged = reconciled ? reconciled.items : mergeLiveIntoItems(sessionKey, projected)
         // Prefer richer of disk-merge vs prior (streaming capture often longer than disk mid-turn)
         const prefer =
-          merged.length >= priorItems.length || timelineItemTextScore(merged) >= timelineItemTextScore(priorItems)
+          reconciled ||
+          merged.length >= priorItems.length ||
+          timelineItemTextScore(merged) >= timelineItemTextScore(priorItems)
             ? merged
             : priorItems
         const live = getLiveSessionTimeline(sessionKey)
@@ -529,7 +581,9 @@ export async function hydrateSessionView(
           sessionId: sessionId ?? existing?.sessionId ?? null,
           items: cloneItems(prefer),
           historyTotal: Math.max(hist.totalCount, existing?.historyTotal ?? 0),
-          historyLoaded: Math.max(hist.sourceCount, existing?.historyLoaded ?? 0),
+          historyLoaded: reconciled
+            ? reconcileLoadedCount(reconciled.prefixCount)
+            : Math.max(hist.sourceCount, existing?.historyLoaded ?? 0),
           runUI,
           streamingAssistantId,
           optimisticPendingUserText: live
@@ -552,6 +606,7 @@ export async function hydrateSessionView(
           lastFocusedAt: existing?.lastFocusedAt ?? Date.now(),
           sessionMeta: hist.sessionMeta ?? existing?.sessionMeta,
         })
+        if (reconciled) finishDiskReconcile()
       } else {
         restorePhaseIfUnfocused()
       }
@@ -581,11 +636,15 @@ export async function hydrateSessionView(
 
     const diskItems = sanitizeHistoryTimeline(hist.items as TimelineItem[])
     const projected = projectTimelineItems(diskItems) as TimelineItem[]
-    let merged = mergeLiveIntoItems(sessionKey, projected)
+    // Finished background turn: disk is authoritative for the tail — skip the richness
+    // heuristics below, they would keep the longer switch-away capture (#99).
+    const reconciled = reconcileFromDisk ? spliceFreshDiskTail(priorItems, projected) : null
+    let merged = reconciled ? reconciled.items : mergeLiveIntoItems(sessionKey, projected)
     // Mid-stream disk is often shorter than the live capture we just left —
     // never replace a richer in-memory timeline with a thinner disk snapshot.
     // Always re-merge through live (never assign raw priorItems alone — drops tools / misorders).
     if (
+      !reconciled &&
       priorItems.length > 0 &&
       (timelineItemTextScore(priorItems) > timelineItemTextScore(merged) ||
         priorItems.length > merged.length)
@@ -594,7 +653,7 @@ export async function hydrateSessionView(
       merged = pickRicherTimeline(fromPrior, merged)
     }
 
-    if (focusedState?.timelineItems.length) {
+    if (!reconciled && focusedState?.timelineItems.length) {
       const focusedItems = projectTimelineItems(focusedState.timelineItems) as TimelineItem[]
       const withFocusedTail = mergeLiveTimelineWithHistoryTail(projected, focusedItems)
       merged = pickRicherTimeline(withFocusedTail, merged)
@@ -675,7 +734,9 @@ export async function hydrateSessionView(
       sessionId: sessionId ?? existing?.sessionId ?? null,
       items: cloneItems(merged),
       historyTotal: hist.totalCount,
-      historyLoaded: Math.min(hist.totalCount, hist.sourceCount),
+      historyLoaded: reconciled
+        ? reconcileLoadedCount(reconciled.prefixCount)
+        : Math.min(hist.totalCount, hist.sourceCount),
       runUI: finalRunUI,
       streamingAssistantId,
       optimisticPendingUserText,
@@ -711,12 +772,18 @@ export async function hydrateSessionView(
           focusedNow.agentTurnBootstrapping === true ||
           (typeof focusedNow.streamingAssistantId === 'string' &&
             focusedNow.streamingAssistantId.startsWith('opt-asst-'))
+        // The focused store is the switch-back paint of a stale capture when reconciling
+        // from disk — only a new local turn (sent after switching back) outranks disk.
         const focusedRicher =
-          focusedHasLocalTurn || focusedNow.timelineItems.length >= next.items.length
+          focusedHasLocalTurn ||
+          (!reconciled && focusedNow.timelineItems.length >= next.items.length)
         next = {
           ...next,
           items: focusedRicher ? cloneItems(focusedNow.timelineItems) : next.items,
-          historyLoaded: Math.max(next.historyLoaded, focusedNow.historyLoadedCount),
+          historyLoaded:
+            reconciled && !focusedRicher
+              ? next.historyLoaded
+              : Math.max(next.historyLoaded, focusedNow.historyLoadedCount),
         }
       }
       bindViewToUiStore(next)
@@ -727,6 +794,7 @@ export async function hydrateSessionView(
       useUIStore.getState().setHistoryLoading(false)
       void applyComposerDisplayMeta(hist.sessionMeta)
     }
+    if (reconciled) finishDiskReconcile()
   } catch (error) {
     console.error('[session-shell] hydrate failed:', error)
     restorePhaseIfUnfocused()
@@ -769,4 +837,5 @@ export async function focusSession(
 export function clearSessionShellForTests(): void {
   views.clear()
   focusKey = null
+  clearSessionDiskAuthoritative()
 }

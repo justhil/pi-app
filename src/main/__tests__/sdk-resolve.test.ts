@@ -30,8 +30,21 @@ vi.mock('fs', () => ({
 
 vi.mock('../wsl/wsl-exec', () => ({
   runWslDistroAsync: mocks.runWslDistroAsync,
+  wslHomeDir: vi.fn(async () => '/root'),
   wslHomeDirSync: mocks.wslHomeDirSync,
   wslDefaultShellSync: mocks.wslDefaultShellSync,
+}))
+
+const envMocks = vi.hoisted(() => ({
+  resolveWslEnv: vi.fn(async () => null as null | { path: string }),
+  store: {} as Record<string, unknown>,
+}))
+vi.mock('../wsl/wsl-env', () => ({
+  resolveWslEnv: envMocks.resolveWslEnv,
+  readWslPersisted: (key: string) => envMocks.store[key],
+  writeWslPersisted: (key: string, value: unknown) => {
+    envMocks.store[key] = value
+  },
 }))
 
 vi.mock('../global-sdk-resolve', () => ({
@@ -48,6 +61,8 @@ beforeEach(() => {
   mocks.readFileSync.mockReset().mockReturnValue('{"version":"0.83.0"}')
   mocks.resolvePackageEntryPath.mockReset()
   invalidateWslSdkResolveCache()
+  envMocks.resolveWslEnv.mockReset().mockResolvedValue(null)
+  envMocks.store = {}
 })
 
 describe('resolveWslActiveSdk', () => {
@@ -71,6 +86,24 @@ describe('resolveWslActiveSdk', () => {
       '/root/.nvm/versions/node/v24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/index.js',
     )
     expect(result!.entryPath).not.toContain('\\')
+  })
+
+  it('probes with the login-shell PATH so npm/pi match the node that runs the worker', async () => {
+    envMocks.resolveWslEnv.mockResolvedValue({ path: '/home/u/.nvm/bin:/usr/bin' })
+    mocks.runWslDistroAsync.mockResolvedValue({ status: 0, stdout: '', stderr: '' })
+    await resolveWslActiveSdk('Debian')
+    expect(mocks.runWslDistroAsync.mock.calls[0][1]).toEqual(['env', 'PATH=/home/u/.nvm/bin:/usr/bin', 'sh', '/root/.pi-desktop/probe.sh'])
+  })
+
+  it('serves a persisted install immediately and revalidates it in the background once stale', async () => {
+    const stale = { packageRoot: '/old', entryPath: '/old/dist/index.js', version: '0.80.0' }
+    envMocks.store.wslSdkCache = { Debian: { at: Date.now() - 120_000, value: stale } }
+    let finishProbe!: (v: unknown) => void
+    mocks.runWslDistroAsync.mockReturnValue(new Promise((resolve) => (finishProbe = resolve)))
+    expect(await resolveWslActiveSdk('Debian')).toEqual(stale)
+    await vi.waitFor(() => expect(mocks.runWslDistroAsync).toHaveBeenCalledTimes(1))
+    finishProbe({ status: 0, stdout: '/root/new/node_modules/@earendil-works/pi-coding-agent\n', stderr: '' })
+    await vi.waitFor(() => expect((envMocks.store.wslSdkCache as Record<string, { value: { packageRoot: string } }>).Debian.value.packageRoot).toBe('/root/new/node_modules/@earendil-works/pi-coding-agent'))
   })
 
   it('returns null when the probe finds no candidates', async () => {

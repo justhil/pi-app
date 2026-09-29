@@ -255,7 +255,7 @@ function ThemeImportDialog({ open, currentVariant, onCancel, onConfirm }: ThemeI
 
   return createPortal(
     <div
-      className="electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]"
+      className="overlay-backdrop electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]"
       role="presentation"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onCancel()
@@ -267,7 +267,7 @@ function ThemeImportDialog({ open, currentVariant, onCancel, onConfirm }: ThemeI
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="ui-enter flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
+        className="overlay-panel flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

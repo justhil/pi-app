@@ -70,6 +70,10 @@ export interface StoreSchema {
   asrConfig: AsrConfig
   /** Agent 运行时：host = Windows 宿主，wsl = 在 WSL 发行版内运行 */
   agentRuntime: { mode: 'host' | 'wsl'; distro: string | null }
+  /** 每个 WSL 发行版解析出的用户环境（home / PATH / node …），见 wsl/wsl-env.ts */
+  wslEnvCache?: Record<string, import('./wsl/wsl-env').WslEnv>
+  /** 每个 WSL 发行版内解析到的 pi SDK（启动时先用，后台再校验） */
+  wslSdkCache?: Record<string, { at: number; value: import('./wsl/sdk-resolve').WslSdkResolution | null }>
 }
 
 const store = new Store<StoreSchema>({

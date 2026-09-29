@@ -6,6 +6,7 @@ import { errorMessage } from '@shared/error-message'
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { sessionFilePathsEqual } from '@shared/session-file-path'
 import { timelineItemsFromBranchPath } from '../worker-timeline.js'
+import { boundThinkingLevel } from '../worker-model-thinking.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
 import {
@@ -19,6 +20,7 @@ import {
   emit,
   currentSessionModelKey,
   listSessions,
+  availableThinkingLevels,
 } from '../worker-runtime.js'
 
 function currentModelFallbackMessage(): string | undefined {
@@ -61,7 +63,10 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
       reply({ type: 'error', error: `MODEL_NOT_CONFIRMED: ${actualModel || 'unknown'}` })
       return
     }
-    emit({ ...baseEvent(), type: 'run', phase: 'state', model: actualModel, thinkingLevel: st.session.thinkingLevel })
+    // Model bound to a thinking level (Settings → Models / picker "remember for this model").
+    const bound = boundThinkingLevel(provider, modelId)
+    if (bound && bound !== st.session.thinkingLevel) setSessionThinkingPreservingDefault(bound)
+    emit({ ...baseEvent(), type: 'run', phase: 'state', model: actualModel, thinkingLevel: st.session.thinkingLevel, availableThinkingLevels: availableThinkingLevels() })
     reply({ type: 'setModel-done', modelId: actualModel })
   } catch (e: unknown) {
     // setModel 在写默认之后才可能抛错（如 setThinkingLevel 重钳制）：同样还原默认。
@@ -73,25 +78,31 @@ export async function handleSetmodel(msg: WorkerIncomingMessage, reply: WorkerRe
 }
 
 
+/**
+ * 与 handleSetmodel 同理：SDK 的 setThinkingLevel 会同时改写全局默认思考级别
+ * （setDefaultThinkingLevel），会话 JSONL 已按会话持久化——只还原全局默认。
+ */
+function setSessionThinkingPreservingDefault(level: string): void {
+  const settingsManager: SettingsManager | null = st.session?.settingsManager ?? null
+  const prevLevel =
+    settingsManager && typeof settingsManager.getDefaultThinkingLevel === 'function'
+      ? settingsManager.getDefaultThinkingLevel()
+      : undefined
+  st.session?.setThinkingLevel(level as Parameters<NonNullable<typeof st.session>['setThinkingLevel']>[0])
+  if (
+    settingsManager &&
+    prevLevel !== undefined &&
+    settingsManager.getDefaultThinkingLevel() !== prevLevel
+  ) {
+    settingsManager.setDefaultThinkingLevel(prevLevel)
+  }
+}
+
 export async function handleSetthinkinglevel(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
-        // 与 handleSetmodel 同理：SDK 的 setThinkingLevel 会同时改写全局默认思考级别
-        // （setDefaultThinkingLevel），会话 JSONL 已按会话持久化——只还原全局默认。
-        const settingsManager: SettingsManager | null = st.session?.settingsManager ?? null
-        const prevLevel =
-          settingsManager && typeof settingsManager.getDefaultThinkingLevel === 'function'
-            ? settingsManager.getDefaultThinkingLevel()
-            : undefined
-        st.session?.setThinkingLevel(msg.level as Parameters<NonNullable<typeof st.session>['setThinkingLevel']>[0])
-        if (
-          settingsManager &&
-          prevLevel !== undefined &&
-          settingsManager.getDefaultThinkingLevel() !== prevLevel
-        ) {
-          settingsManager.setDefaultThinkingLevel(prevLevel)
-        }
+        setSessionThinkingPreservingDefault(String(msg.level ?? ''))
         if (st.session) {
           const modelStr = currentSessionModelKey()
-          emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel })
+          emit({ ...baseEvent(), type: 'run', phase: 'state', model: modelStr, thinkingLevel: st.session.thinkingLevel, availableThinkingLevels: availableThinkingLevels() })
         }
         reply({ type: 'setThinkingLevel-done' })
         return

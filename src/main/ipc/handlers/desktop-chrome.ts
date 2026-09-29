@@ -78,6 +78,11 @@ export function registerDesktopChromeHandlers(): void {
   })
 
   registerHandler('ipc:desktop.appName', async () => ({ name: app.getName(), version: app.getVersion() }))
+  // Renderer shell has painted: start background warm-up (kept off the first-paint path).
+  registerHandler('ipc:app.shellReady', async () => {
+    setTimeout(() => void import('../../startup-warmup').then((m) => m.runStartupWarmup()), 300)
+    return { ok: true }
+  })
 
   registerHandler('ipc:desktop.setBadge', async (req) => {
     const n = Number(req.count) || 0

@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 export interface GetMessagesResult {
@@ -27,8 +28,13 @@ function activeWorkspace(): string | undefined {
   return useUIStore.getState().currentWorkspace || undefined
 }
 
+/** Normalized so raw Windows paths and renderer keys hit (and invalidate) the same entries. */
+function sessionCacheKey(sessionFile: string): string {
+  return normalizeSessionFileKey(sessionFile) || sessionFile
+}
+
 function cacheKey(sessionFile: string, offset: number, limit: number) {
-  return `${sessionFile}|${offset}|${limit}`
+  return `${sessionCacheKey(sessionFile)}|${offset}|${limit}`
 }
 
 export async function fetchSessionHistoryTail(
@@ -105,8 +111,9 @@ export function clearSessionHistoryCache(sessionFile?: string): void {
     sliceCache.clear()
     return
   }
+  const prefix = sessionCacheKey(sessionFile) + '|'
   for (const k of sliceCache.keys()) {
-    if (k.startsWith(sessionFile + '|')) sliceCache.delete(k)
+    if (k.startsWith(prefix)) sliceCache.delete(k)
   }
 }
 

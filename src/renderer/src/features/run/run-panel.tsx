@@ -5,7 +5,6 @@ import {
   Wrench,
   AlertTriangle,
 } from '@renderer/components/icons'
-import { cn } from '@renderer/lib/utils'
 import { useComposerMetrics } from '@renderer/features/composer/use-composer-metrics'
 import {
   ContextDonutChart,
@@ -19,18 +18,6 @@ function formatDuration(ms: number): string {
   const m = Math.floor(s / 60)
   const rs = s % 60
   return `${m}m ${rs}s`
-}
-
-function MetricRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-2 py-1">
-      <span className="text-[12px] text-foreground-secondary">{label}</span>
-      <div className="text-right">
-        <span className="text-[13px] font-semibold tabular-nums text-foreground">{value}</span>
-        {sub && <div className="text-[10px] tabular-nums text-foreground-secondary/70">{sub}</div>}
-      </div>
-    </div>
-  )
 }
 
 type RunVisualStatus = 'idle' | 'running' | 'failed' | 'tool' | 'thinking'
@@ -106,172 +93,116 @@ export function RunPanel() {
     other: t('run:role.other'),
   }
 
-  const statusCopy: Record<
-    RunVisualStatus,
-    { title: string; badge: string }
-  > = {
-    idle: {
-      title: t('run:status.idle'),
-      badge: 'bg-[var(--bg-3)] text-foreground-secondary',
-    },
-    running: {
-      title: t('run:status.running'),
-      badge: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-    },
-    tool: {
-      title: t('run:status.toolRunning'),
-      badge: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-    },
-    thinking: {
-      title: t('run:status.thinking'),
-      badge: 'bg-[var(--brand)]/10 text-[var(--aou-7)] dark:text-[var(--aou-5)]',
-    },
-    failed: {
-      title: t('run:status.failed'),
-      badge: 'bg-amber-500/10 text-amber-800 dark:text-amber-200',
-    },
+  const statusTitle: Record<RunVisualStatus, string> = {
+    idle: t('run:status.idle'),
+    running: t('run:status.running'),
+    tool: t('run:status.toolRunning'),
+    thinking: t('run:status.thinking'),
+    failed: t('run:status.failed'),
   }
-
-  const statusVisual = statusCopy[visualStatus]
+  const modelSlash = model ? model.indexOf('/') : -1
+  const modelProvider = model && modelSlash > 0 ? model.slice(0, modelSlash) : ''
+  const modelName = model && modelSlash > 0 ? model.slice(modelSlash + 1) : model
+  const hasContext = !!metrics.contextPreview && metrics.contextPreview.estimatedChars > 0
 
   return (
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
-      {/* Status strip — design-forward, not a loud card */}
-      <div className="relative border-b border-border/40 px-3 pb-3 pt-3">
-        <div
-          className={cn(
-            'pointer-events-none absolute inset-x-0 top-0 h-[2px]',
-            visualStatus === 'running' && 'bg-emerald-500/50',
-            visualStatus === 'tool' && 'bg-sky-500/50',
-            visualStatus === 'thinking' && 'bg-[var(--brand)]/45',
-            visualStatus === 'failed' && 'bg-amber-500/40',
-            visualStatus === 'idle' && 'bg-transparent',
-          )}
-        />
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[13px] font-medium tracking-tight text-foreground">
-                {statusVisual.title}
-              </span>
-              <span
-                className={cn(
-                  'rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
-                  statusVisual.badge,
-                )}
-              >
-                {elapsedLabel}
-              </span>
-            </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-secondary">
-              {model ? (
-                <span className="truncate font-mono text-[11px] text-foreground/75" title={model}>
-                  {model}
-                </span>
-              ) : (
-                <span className="text-foreground-secondary/55">{t('run:noModel')}</span>
-              )}
-              {thinkingLevel && thinkingLevel !== 'off' && (
-                <span className="text-foreground-secondary/60">
-                  · {t('run:thinking', { level: thinkingLevel })}
-                </span>
-              )}
-            </div>
-            {isRunning && runState.activeTool && (
-              <div className="mt-1.5 flex items-start gap-1.5 rounded-md px-1.5 py-1" style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}>
-                <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-foreground-secondary/55" />
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-[11px] text-foreground/90">
-                    {runState.activeTool}
-                  </div>
-                  {runState.activeToolStatus && (
-                    <p className="mt-0.5 truncate text-[10px] text-foreground-secondary/70">
-                      {runState.activeToolStatus}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Status: dot + label, elapsed as quiet text, model on its own line in the UI font. */}
+      <section className="panel-section">
+        <div className="flex items-center gap-2">
+          <span className="panel-status-dot" data-status={visualStatus} aria-hidden />
+          <span className="text-[13px] font-medium text-foreground">{statusTitle[visualStatus]}</span>
+          {elapsedLabel !== '—' ? (
+            <span className="text-[11px] tabular-nums text-foreground-secondary">{elapsedLabel}</span>
+          ) : null}
         </div>
-
+        <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[12px]">
+          {model ? (
+            <span className="min-w-0 truncate" title={model}>
+              {modelProvider ? <span className="text-foreground-secondary">{modelProvider}/</span> : null}
+              <span className="text-foreground">{modelName}</span>
+            </span>
+          ) : (
+            <span className="text-foreground-secondary">{t('run:noModel')}</span>
+          )}
+          {thinkingLevel && thinkingLevel !== 'off' ? (
+            <span className="panel-tag">{t('run:thinking', { level: thinkingLevel })}</span>
+          ) : null}
+        </div>
+        {isRunning && runState.activeTool && (
+          <div className="mt-2 flex items-start gap-1.5 rounded-md px-2 py-1.5" style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}>
+            <Wrench className="mt-0.5 h-3 w-3 shrink-0 text-foreground-secondary/70" />
+            <div className="min-w-0">
+              <div className="truncate font-mono text-[11px] text-foreground/90">{runState.activeTool}</div>
+              {runState.activeToolStatus && (
+                <p className="mt-0.5 truncate text-[11px] text-foreground-secondary">{runState.activeToolStatus}</p>
+              )}
+            </div>
+          </div>
+        )}
         {/* Soft tool-error chip — muted amber, not destructive red banner */}
         {runState.errorCount > 0 && (
-          <div className="mt-2.5 flex items-center gap-1.5 rounded-md bg-amber-500/[0.08] px-2 py-1 text-[11px] text-amber-800/90 dark:text-amber-200/85">
+          <div className="mt-2 flex items-center gap-1.5 rounded-md bg-amber-500/[0.08] px-2 py-1 text-[11px] text-amber-800/90 dark:text-amber-200/85">
             <AlertTriangle className="h-3 w-3 shrink-0 opacity-70" />
-            <span className="leading-snug">
-              {t('run:tokenError', { count: runState.errorCount })}
-            </span>
+            <span className="leading-snug">{t('run:tokenError', { count: runState.errorCount })}</span>
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="space-y-3 p-3">
-        {/* Context donut */}
-        <section>
-          {metrics.contextPreview && metrics.contextPreview.estimatedChars > 0 ? (
-            <div className="flex items-center gap-3">
-              <ContextDonutChart
-                slices={roleSlices}
-                contextWindow={metrics.contextWindow}
-                estimatedChars={metrics.contextPreview.estimatedChars}
-                centerSub={
-                  metrics.ctxPct != null
-                    ? `${metrics.ctxPct.toFixed(0)}%`
-                    : t('run:metrics.budget')
-                }
-              />
-              <ContextRoleLegend
-                slices={roleSlices}
-                labels={roleLabels}
-                freeLabel={t('run:role.free')}
-                freeTokens={freeTokens}
-              />
-            </div>
-          ) : (
-            <p className="text-[11px] leading-relaxed text-foreground-secondary/55">
-              {t('run:contextEmpty')}
-            </p>
-          )}
-          {tokPerSec != null || isRunning || runState.toolCount > 0 ? (
-            <p className="mt-1.5 text-[11px] tabular-nums text-foreground-secondary/70">
-              {tokPerSec != null
-                ? `${tokPerSec} tok/s`
-                : isRunning
-                  ? t('run:waitingOutput')
-                  : null}
-              {runState.toolCount > 0
-                ? `${tokPerSec != null || isRunning ? ' · ' : ''}${t('run:toolCount', { count: runState.toolCount })}`
-                : null}
-            </p>
-          ) : null}
+      <section className="panel-section">
+        <h3 className="panel-section-title">{t('run:contextBreakdown')}</h3>
+        {hasContext ? (
+          <div className="flex items-center gap-4">
+            <ContextDonutChart
+              slices={roleSlices}
+              contextWindow={metrics.contextWindow}
+              estimatedChars={metrics.contextPreview!.estimatedChars}
+              centerSub={metrics.ctxPct != null ? `${metrics.ctxPct.toFixed(0)}%` : t('run:metrics.budget')}
+            />
+            <ContextRoleLegend
+              slices={roleSlices}
+              labels={roleLabels}
+              freeLabel={t('run:role.free')}
+              freeTokens={freeTokens}
+            />
+          </div>
+        ) : (
+          <p className="text-[12px] leading-relaxed text-foreground-secondary">{t('run:contextEmpty')}</p>
+        )}
+        {tokPerSec != null || isRunning || runState.toolCount > 0 ? (
+          <dl className="mt-2">
+            {tokPerSec != null || isRunning ? (
+              <div className="panel-kv">
+                <dt>{t('run:genSpeed')}</dt>
+                <dd>{tokPerSec != null ? `${tokPerSec} tok/s` : t('run:waitingOutput')}</dd>
+              </div>
+            ) : null}
+            {runState.toolCount > 0 ? (
+              <div className="panel-kv">
+                <dt>{t('run:toolLabel')}</dt>
+                <dd>{runState.toolCount}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : null}
+      </section>
+
+      {runState.usage ? (
+        <section className="panel-section">
+          <h3 className="panel-section-title">{t('run:usage')}</h3>
+          <dl>
+            <div className="panel-kv"><dt>{t('run:input')}</dt><dd>{runState.usage.input.toLocaleString()}</dd></div>
+            <div className="panel-kv"><dt>{t('run:output')}</dt><dd>{runState.usage.output.toLocaleString()}</dd></div>
+            <div className="panel-kv"><dt>{t('run:cacheReadLabel')}</dt><dd>{runState.usage.cacheRead.toLocaleString()}</dd></div>
+            <div className="panel-kv"><dt>{t('run:cacheWriteLabel')}</dt><dd>{runState.usage.cacheWrite.toLocaleString()}</dd></div>
+            <div className="panel-kv"><dt>{t('run:cost')}</dt><dd>${runState.usage.cost.toFixed(4)}</dd></div>
+          </dl>
         </section>
-
-        {runState.usage && (
-          <section className="space-y-0.5 font-mono text-[12px]">
-            <MetricRow label={t('run:input')} value={runState.usage.input.toLocaleString()} />
-            <MetricRow label={t('run:output')} value={runState.usage.output.toLocaleString()} />
-            <MetricRow
-              label={t('run:cacheReadLabel')}
-              value={runState.usage.cacheRead.toLocaleString()}
-            />
-            <MetricRow
-              label={t('run:cacheWriteLabel')}
-              value={runState.usage.cacheWrite.toLocaleString()}
-            />
-            <div className="flex items-center justify-between pt-1">
-              <span className="font-sans text-[12px] text-foreground-secondary">{t('run:cost')}</span>
-              <span className="tabular-nums text-foreground">${runState.usage.cost.toFixed(4)}</span>
-            </div>
-          </section>
-        )}
-
-        {!isRunning && !runState.usage && !metrics.contextPreview && (
-          <p className="px-0.5 text-[11px] leading-relaxed text-foreground-secondary/55">
-            {t('run:emptyHint')}
-          </p>
-        )}
-      </div>
+      ) : !isRunning && !metrics.contextPreview ? (
+        <section className="panel-section">
+          <p className="text-[12px] leading-relaxed text-foreground-secondary">{t('run:emptyHint')}</p>
+        </section>
+      ) : null}
     </div>
   )
 }

@@ -11,7 +11,11 @@ const mocks = vi.hoisted(() => ({
   invalidateAdapterCatalog: vi.fn(),
   invalidateSdkManagerCaches: vi.fn(),
   stopPreview: vi.fn(),
+  resolveWslEnv: vi.fn(async () => ({ distro: 'Debian', home: '/home/u' }) as unknown),
 }))
+
+vi.mock('../wsl/wsl-env', () => ({ resolveWslEnv: mocks.resolveWslEnv }))
+vi.mock('../startup-warmup', () => ({ warmWslRuntime: vi.fn(async () => {}) }))
 
 vi.mock('./registry', () => ({
   registerHandler: (channel: string, handler: (request: Record<string, unknown>) => Promise<unknown>) => {
@@ -124,6 +128,16 @@ describe('agent runtime settings transaction', () => {
       mocks.windows[0],
       { type: 'sdk-runtime-changed' },
     )
+  })
+
+  it('should_capture_the_wsl_environment_before_switching_and_abort_cleanly_when_it_is_unavailable', async () => {
+    mocks.resolveWslEnv.mockResolvedValueOnce(null)
+    await expect(
+      mocks.handlers.get('ipc:settings.set')!({ key: 'agentRuntime', value: { mode: 'wsl', distro: 'Debian' } }),
+    ).rejects.toThrow('WSL_ENV_UNAVAILABLE')
+    expect(mocks.resolveWslEnv).toHaveBeenCalledWith('Debian', { force: true })
+    expect(mocks.stop).not.toHaveBeenCalled()
+    expect(mocks.configSet).not.toHaveBeenCalled()
   })
 
   it('should_not_restart_workers_when_agent_runtime_is_unchanged', async () => {

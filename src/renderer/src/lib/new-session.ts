@@ -3,6 +3,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { titleFromFirstMessage } from '@renderer/lib/ephemeral-sandbox'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
+import { workspacePathsEqual } from '@shared/workspace-path'
 
 /** 侧栏「新会话」：仅占位，不碰 Worker */
 export function enterNewSessionPlaceholder(): void {
@@ -28,6 +29,9 @@ export async function materializePendingNewSession(
 
   store.clearPendingNewSessionPlaceholder()
   store.setCurrentSession(sessionId)
+  // Sidebar shows the new row (titled by the first message) the moment it exists — not after
+  // the session.list round-trip below.
+  insertSessionRowOptimistically(workspaceId, { sessionId, sessionFile, title })
   // 勿 loadHistoryItems([])：首条发送前 Composer 已 append 乐观气泡
   store.clearFileChanges()
   if (sessionFile) {
@@ -37,7 +41,9 @@ export async function materializePendingNewSession(
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
   }
 
-  // Apply the user's pre-selected model/thinking level to the new session.
+  // Apply the user's pre-selected model/thinking level to the new session. Sequential on purpose:
+  // the thinking level is clamped against the model's supported levels, so it must follow a
+  // confirmed model switch (and is skipped when the switch is rejected).
   const { runState } = store
   if (sessionFile) {
     if (runState.model && runState.model.includes('/')) {
@@ -66,7 +72,36 @@ export async function materializePendingNewSession(
   const { refreshComposerRunDisplay } = await import('@renderer/lib/composer-run-display')
   void refreshComposerRunDisplay()
 
-  const listRes = await ipcClient.invoke('session.list', { workspaceId })
+  // The sidebar list only needs to show the new row; never hold the first prompt for it.
+  void refreshNewSessionInList(workspaceId, { sessionId, sessionFile, title })
+}
+
+function insertSessionRowOptimistically(
+  workspaceId: string,
+  created: { sessionId: string; sessionFile?: string; title: string },
+): void {
+  const store = useUIStore.getState()
+  if (store.sessionsWorkspace && !workspacePathsEqual(store.sessionsWorkspace, workspaceId)) return
+  const current = store.sessions ?? []
+  if (current.some((s) => s.sessionId === created.sessionId)) return
+  const row = {
+    sessionId: created.sessionId,
+    sessionFile: created.sessionFile,
+    title: created.title,
+    updatedAt: Date.now(),
+    messageCount: 0,
+    modelId: '',
+  }
+  store.setSessions([row as SessionItem, ...current], workspaceId)
+}
+
+async function refreshNewSessionInList(
+  workspaceId: string,
+  created: { sessionId: string; sessionFile?: string; title: string },
+): Promise<void> {
+  const store = useUIStore.getState()
+  const { sessionId, sessionFile, title } = created
+  const listRes = await ipcClient.invoke('session.list', { workspaceId }).catch(() => null)
   let sessions = (listRes?.sessions || []) as Array<{
     sessionId: string
     sessionFile?: string

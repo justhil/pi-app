@@ -1,7 +1,8 @@
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
-import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
+import { takeLastSettingsSaveError, useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
+import { SETTINGS_COLUMN, SETTINGS_COLUMN_WIDE } from '@renderer/features/settings/settings-shell'
 export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
   const { t } = useTranslation()
   const { dirty, dirtySliceLabels, saving, discard, save } = useSettingsDraft()
@@ -12,7 +13,17 @@ export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
       toast.success(t('common:settingsSaved'))
       window.dispatchEvent(new Event('pi-desktop:asr-config-saved'))
     }
-    else toast.error(t('common:saveFailed'))
+    else {
+      // Known refusals from the main process get their own explanation.
+      const message = String((takeLastSettingsSaveError() as Error | null)?.message ?? '')
+      toast.error(
+        message.includes('AGENT_RUNTIME_BUSY')
+          ? t('settings:runtime.switchBusy')
+          : message.includes('WSL_ENV_UNAVAILABLE')
+            ? t('settings:runtime.switchEnvUnavailable')
+            : t('common:saveFailed'),
+      )
+    }
   }
 
   return (
@@ -23,7 +34,7 @@ export function SettingsSaveBar({ wide = false }: { wide?: boolean }) {
         dirty && 'shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)]',
       )}
     >
-      <div className={cn('flex flex-wrap items-center justify-between gap-3', wide ? 'w-full' : 'mx-auto max-w-3xl')}>
+      <div className={cn('flex flex-wrap items-center justify-between gap-3', wide ? SETTINGS_COLUMN_WIDE : SETTINGS_COLUMN)}>
         <div className="min-w-0 text-sm text-muted-foreground">
           {dirty ? (
             <>

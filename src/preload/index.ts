@@ -12,6 +12,8 @@ const APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL = 'ipc:app-update-download-progress'
 
 const api = {
   customThemeDisabled: process.argv.includes(CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT),
+  /** Playwright smoke runs only (PI_E2E): lets tests reach renderer state for visual checks. */
+  e2e: process.argv.includes('--pi-e2e'),
   platform: process.platform,
 
   invoke(channel: string, request?: unknown): Promise<unknown> {

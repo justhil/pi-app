@@ -97,14 +97,14 @@ export function QuestionnaireDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+      className="overlay-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onSuspend()
       }}
     >
       <div
         className={cn(
-          'relative flex max-h-[85vh] flex-col rounded-xl border border-border bg-background shadow-xl',
+          'overlay-panel relative flex max-h-[85vh] flex-col rounded-xl border border-border bg-background shadow-xl',
           hasPreviewLayout ? 'w-full max-w-4xl' : 'w-full max-w-lg',
         )}
         onMouseDown={(e) => e.stopPropagation()}

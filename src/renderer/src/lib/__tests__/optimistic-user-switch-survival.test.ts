@@ -32,7 +32,6 @@ import {
   focusSessionSync,
   hydrateSessionView,
 } from '@renderer/lib/session-shell'
-import { clearSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { clearStreamPending, flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
@@ -148,7 +147,6 @@ describe('just-sent user message survives session switch during streaming', () =
     })
     clearStreamPending()
     clearLiveSessionTimeline()
-    clearSessionTimelineView()
     clearSessionShellForTests()
     useUIStore.setState({
       currentWorkspace: '/workspace',

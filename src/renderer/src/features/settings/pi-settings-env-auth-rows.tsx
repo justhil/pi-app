@@ -57,32 +57,26 @@ export function PiSettingsEnvAuthRows({ info, ui }: { info: PiInfo | null; ui: P
           </button>
         </div>
       </SettingRow>
-      <SettingRow label={t('settings:pi.auth')} description={t('settings:pi.authDesc')}>
-        <div className="flex items-center gap-1.5">
-          {info?.authStatus === 'configured' ? (
-            <>
-              <Check className="h-3 w-3 text-green-600 dark:text-green-400" strokeWidth={2} />
-              <span className="text-sm text-green-600 dark:text-green-400">{t('settings:pi.authConfigured')}</span>
-            </>
-          ) : (
-            <>
-              <AlertCircle className="h-3 w-3 text-muted-foreground/50" strokeWidth={2} />
-              <span className="text-sm text-muted-foreground">{t('settings:pi.authNotConfigured')}</span>
-            </>
-          )}
-        </div>
-      </SettingRow>
-      {info && (info.authProviders?.length ?? 0) > 0 && (
-        <SettingRow label={t('settings:pi.provider')} description={t('settings:pi.providerDesc')}>
-          <div className="flex max-w-xs flex-wrap gap-1 sm:justify-end">
-            {(info.authProviders as Array<{ provider?: string }>).map((p) => (
-              <span key={p.provider} className="rounded border border-border/50 px-1.5 py-0.5 font-mono text-2xs">
+      <SettingRow label={t('settings:pi.auth')} description={t('settings:pi.providerDesc')}>
+        {(info?.authProviders?.length ?? 0) > 0 || info?.authStatus === 'configured' ? (
+          <div className="flex max-w-xs flex-wrap items-center gap-1.5 sm:justify-end">
+            <Check className="h-3.5 w-3.5 text-[var(--success-semantic)]" strokeWidth={2} />
+            {(info?.authProviders ?? []).map((p) => (
+              <span key={p.provider} className="rounded-md border border-border/60 bg-[var(--bg-base)] px-1.5 py-0.5 font-mono text-[11px]">
                 {p.provider}
               </span>
             ))}
+            {(info?.authProviders?.length ?? 0) === 0 ? (
+              <span className="text-[12.5px] text-[var(--success-semantic)]">{t('settings:pi.authConfigured')}</span>
+            ) : null}
           </div>
-        </SettingRow>
-      )}
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 text-muted-foreground/60" strokeWidth={2} />
+            <span className="text-[12.5px] text-muted-foreground">{t('settings:pi.authNotConfigured')}</span>
+          </div>
+        )}
+      </SettingRow>
       <SettingRow label={t('settings:pi.sessionDir')} description={t('settings:pi.sessionDirDesc')}>
         <div className="flex max-w-[280px] items-center gap-2">
           <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">

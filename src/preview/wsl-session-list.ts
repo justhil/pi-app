@@ -1,4 +1,6 @@
+import { homedir } from 'node:os'
 import { pathToFileURL } from 'node:url'
+import { listSessionsIncremental } from '../main/session-list-incremental'
 
 export type SessionOnDiskRow = {
   id: string
@@ -62,10 +64,19 @@ export async function listSessionsOnDisk(
   if (cached && Date.now() - cached.at < LIST_SESSIONS_TTL_MS) return cached.value
   const generation = listSessionsGeneration
   const revision = listSessionsRevisions.get(workspaceId) ?? 0
-  const sdk = await import(pathToFileURL(activeSdkPath).href) as {
-    SessionManager: { list: (cwd: string) => Promise<unknown[]> }
-  }
-  const value = toSessionOnDiskRows(await sdk.SessionManager.list(workspaceId))
+  // Incremental per-file cache (no SDK import, no full transcript re-read over and over); the
+  // cache lives next to the synced bundles in ~/.pi-desktop. SDK list is the fallback.
+  const incremental = await listSessionsIncremental(workspaceId, {
+    userDataDir: `${homedir()}/.pi-desktop`,
+  }).catch(() => null)
+  const value = toSessionOnDiskRows(
+    incremental ??
+      (await (
+        (await import(pathToFileURL(activeSdkPath).href)) as {
+          SessionManager: { list: (cwd: string) => Promise<unknown[]> }
+        }
+      ).SessionManager.list(workspaceId)),
+  )
   if (
     listSessionsGeneration === generation &&
     (listSessionsRevisions.get(workspaceId) ?? 0) === revision

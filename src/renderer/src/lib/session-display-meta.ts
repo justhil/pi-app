@@ -3,11 +3,58 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { normalizeModelKey, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
+import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 export type SessionDisplayMeta = {
   model?: string
   thinkingLevel?: string
   modelFallbackMessage?: string
+}
+
+/**
+ * Last authoritative model/thinking per session (JSONL meta, bound worker, explicit switch).
+ * Meta-less refreshes (return from Settings, workspace switch, remount) read it before falling
+ * back to pi defaults — otherwise an unbound session flips to the global default model (#100).
+ */
+const sessionDisplayMeta = new Map<string, SessionDisplayMeta>()
+/** Bumped by every refresh and direct write; an older refresh finishing late must not paint. */
+let displayMetaGeneration = 0
+
+function rememberSessionDisplayMeta(
+  sessionFile: string | null | undefined,
+  meta: SessionDisplayMeta,
+): void {
+  const key = normalizeSessionFileKey(sessionFile)
+  if (!key) return
+  const model = normalizeModelKey(meta.model)
+  const thinkingLevel = normalizeThinkingLevel(meta.thinkingLevel)
+  if (!model && !thinkingLevel) return
+  const prev = sessionDisplayMeta.get(key)
+  sessionDisplayMeta.set(key, {
+    model: model ?? prev?.model,
+    thinkingLevel: thinkingLevel ?? prev?.thinkingLevel,
+  })
+}
+
+/**
+ * Authoritative direct write (explicit model/thinking switch, bind result): remember it for the
+ * session and supersede refreshes still awaiting IPC so their older answer cannot overwrite it.
+ */
+export function commitSessionDisplayMeta(
+  sessionFile: string | null | undefined,
+  meta: SessionDisplayMeta,
+): void {
+  rememberSessionDisplayMeta(sessionFile, meta)
+  displayMetaGeneration += 1
+}
+
+export function forgetSessionDisplayMeta(sessionFile?: string | null): void {
+  if (sessionFile === undefined) {
+    sessionDisplayMeta.clear()
+    return
+  }
+  const key = normalizeSessionFileKey(sessionFile)
+  if (key) sessionDisplayMeta.delete(key)
 }
 
 /** 从 pi 全局 settings 读取默认模型 / thinking（Worker 未绑会话时也能显示） */
@@ -51,6 +98,7 @@ export function applyWorkerBoundModelDisplay(result: {
   if (wm) patch.model = wm
   if (wt) patch.thinkingLevel = wt
   if (Object.keys(patch).length > 0) store.setRunState(patch)
+  commitSessionDisplayMeta(store.historySessionFile, patch)
   notifyModelFallback(result.modelFallbackMessage)
 }
 
@@ -66,15 +114,30 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
   const patch: SessionDisplayMeta = {}
 
   const previewFile = store.historySessionFile
+  const generation = ++displayMetaGeneration
+  // JSONL meta belongs to this session whatever the async checks below decide; record it now so
+  // a newer meta-less refresh (which supersedes this one) can still show it.
+  rememberSessionDisplayMeta(previewFile, meta ?? {})
   let workerBoundToView = !previewFile
   let workerModel: string | undefined
   let workerThinking: string | undefined
 
   try {
-    const res = await ipcClient.invoke('ipc:runtime.getState', {})
-    const st = res?.state as { sessionFile?: string; model?: string; thinkingLevel?: string } | null
+    // Ask for the viewed session's own worker slot. The foreground worker may belong to another
+    // session (Settings / skills / SDK restarts start the workspace worker) — #100.
+    const res = await ipcClient.invoke(
+      'ipc:runtime.getState',
+      previewFile ? { sessionFile: previewFile } : {},
+    )
+    const st = res?.state as {
+      sessionFile?: string
+      model?: string
+      thinkingLevel?: string
+      bound?: boolean
+    } | null
     if (previewFile) {
-      workerBoundToView = isViewingWorkerBoundSession(previewFile, st?.sessionFile)
+      workerBoundToView =
+        st?.bound !== false && isViewingWorkerBoundSession(previewFile, st?.sessionFile)
     } else if (st?.sessionFile) {
       workerBoundToView = true
     }
@@ -90,11 +153,22 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
 
   // Bound: runtime only (plus fill missing thinking from defaults/last). Never JSONL model.
   // Unbound preview: JSONL meta is OK for display until first bind.
-  if (!workerBoundToView) {
+  if (workerBoundToView) {
+    rememberSessionDisplayMeta(previewFile, { model: workerModel, thinkingLevel: workerThinking })
+  } else {
     const fromMetaModel = normalizeModelKey(meta?.model)
     const fromMetaThink = normalizeThinkingLevel(meta?.thinkingLevel)
     if (!patch.model && fromMetaModel) patch.model = fromMetaModel
     if (!patch.thinkingLevel && fromMetaThink) patch.thinkingLevel = fromMetaThink
+
+    // Meta-less refresh: keep what this session last showed authoritatively.
+    const remembered = previewFile
+      ? sessionDisplayMeta.get(normalizeSessionFileKey(previewFile))
+      : undefined
+    if (!patch.model && remembered?.model) patch.model = remembered.model
+    if (!patch.thinkingLevel && remembered?.thinkingLevel) {
+      patch.thinkingLevel = remembered.thinkingLevel
+    }
 
     // Prefer the current session's persisted model id when no live worker is bound yet.
     const currentSession = store.sessions.find((s) => s.sessionId === store.currentSessionId)
@@ -116,7 +190,15 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
   if (!workerBoundToView && !patch.model && lm) patch.model = lm
   if (!patch.thinkingLevel && lt) patch.thinkingLevel = lt
 
-  const cur = store.runState
+  // Switching sessions fires several refreshes; only the newest may paint, and never onto a
+  // session the user already left while this one awaited IPC.
+  const latest = useUIStore.getState()
+  const sameView = previewFile
+    ? sessionFilesEqual(latest.historySessionFile, previewFile)
+    : !latest.historySessionFile
+  if (generation !== displayMetaGeneration || !sameView) return
+
+  const cur = latest.runState
   // Bound without a model key: clear stale display rather than keep JSONL/lastModel
   let finalModel = patch.model ?? (!workerBoundToView ? normalizeModelKey(cur.model) : undefined)
   if (workerBoundToView && workerModel) finalModel = workerModel

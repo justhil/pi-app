@@ -5,6 +5,13 @@ import { __resetRefreshWorkspaceSessionListsForTests } from '@renderer/lib/refre
 import { ProjectSidebar } from './project-sidebar'
 import type { GitWorktreeList } from '@shared/git-worktree'
 
+/** Collapsed subagent children stay mounted for the height transition but are hidden from AT and focus. */
+function expectCollapsedChild(text: string): void {
+  const element = screen.queryByText(text)
+  if (element) expect(element.closest('[aria-hidden="true"][inert]')).not.toBeNull()
+}
+
+
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), activate: vi.fn() }))
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: mocks.invoke } }))
 vi.mock('@renderer/lib/activate-workspace', () => ({ activateWorkspace: mocks.activate, switchSessionInPlace: vi.fn(), previewSessionInPlace: vi.fn() }))
@@ -110,13 +117,13 @@ describe('repository / checkout / session sidebar', () => {
     })
     const { container } = sidebar()
     await screen.findByText('Build sidebar')
-    expect(screen.queryByText('Review findings')).not.toBeInTheDocument()
+    expectCollapsedChild('Review findings')
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'needle' } })
     expect(screen.getByText('Build sidebar')).toBeInTheDocument()
     expect(screen.getByText('Review findings')).toBeInTheDocument()
     expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(1)
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
-    expect(screen.queryByText('Review findings')).not.toBeInTheDocument()
+    expectCollapsedChild('Review findings')
   })
 
   it('shows a retryable read error instead of claiming an unread directory has no sessions', async () => {

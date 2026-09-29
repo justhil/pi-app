@@ -48,11 +48,12 @@ describe('Review action area', () => {
     expect(listAllReviewComments('/project').map(row => row.text)).toEqual(['Edited while sending', 'New unsent comment'])
   })
 
-  it('makes scope selection explicit and disables generation without staged changes', () => {
+  it('makes scope selection explicit and no longer offers commit / message generation', () => {
     render(<ReviewPanel />)
     const git = screen.getByRole('button', { name: 'review:scope.git' })
     fireEvent.click(git)
     expect(git).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'review:generateShort' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /generate|commit/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 })

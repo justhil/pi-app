@@ -22,12 +22,14 @@ export function SettingsSection({
   return (
     <SettingsSectionSearchContext.Provider value={sectionMatches}>
     <section className="settings-section">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-[13px] font-semibold text-foreground">{title}</h3>
+      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{title}</h3>
+          {description && <p className="mt-0.5 max-w-2xl text-[12.5px] leading-[1.6] text-foreground-secondary">{description}</p>}
+        </div>
         {action}
       </div>
-      {description && <p className="mb-2 max-w-2xl text-xs leading-relaxed text-muted-foreground">{description}</p>}
-      <div className="settings-section-rows divide-y divide-border/40">{children}</div>
+      <div className="settings-section-rows settings-card">{children}</div>
     </section>
     </SettingsSectionSearchContext.Provider>
   )
@@ -43,24 +45,34 @@ function optionText(children: ReactNode): string {
 export function SettingRow({
   label,
   description,
+  settingKey,
+  badge,
   className,
   children,
 }: {
   label: string
   description?: string
+  /** Underlying settings.json key, shown small for people who edit the file directly. */
+  settingKey?: string
+  /** Small trailing tag after the label (e.g. "pi ≥ 0.86"). */
+  badge?: ReactNode
   className?: string
   children: ReactNode
 }) {
   const query = useContext(SettingsSearchContext).trim().toLocaleLowerCase()
   const sectionMatches = useContext(SettingsSectionSearchContext)
   const labelId = useId()
-  const matches = !query || sectionMatches || `${label} ${description || ''} ${optionText(children)}`.toLocaleLowerCase().includes(query)
+  const matches = !query || sectionMatches || `${label} ${description || ''} ${settingKey || ''} ${optionText(children)}`.toLocaleLowerCase().includes(query)
   if (!matches) return null
   return (
-    <div className={cn('settings-row flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between', className)}>
+    <div className={cn('settings-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}>
       <div className="min-w-0 flex-1">
-        <div id={labelId} className="text-[13px] font-medium text-foreground">{label}</div>
-        {description && <div className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">{description}</div>}
+        <div id={labelId} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] font-medium leading-5 text-foreground">
+          <span>{label}</span>
+          {badge}
+        </div>
+        {description && <div className="mt-0.5 max-w-xl text-[12px] leading-[1.55] text-foreground-secondary">{description}</div>}
+        {settingKey && <code className="settings-key mt-1 inline-block">{settingKey}</code>}
       </div>
       <div role="group" aria-labelledby={labelId} className="settings-row-control min-w-0 shrink-0 sm:ml-6">{children}</div>
     </div>

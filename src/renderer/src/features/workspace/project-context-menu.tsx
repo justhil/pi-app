@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen, ListX } from '@renderer/components/icons'
@@ -12,6 +12,7 @@ import {
   contextMenuPanelClass,
   useDismissContextMenu,
 } from './context-menu-shared'
+import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 
 type MenuState = { x: number; y: number; path: string; name: string } | null
 
@@ -26,6 +27,8 @@ export function ProjectContextMenuPortal({
 }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
+  // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
+  const [removeTarget, setRemoveTarget] = useState<{ path: string; name: string } | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
 
@@ -41,16 +44,11 @@ export function ProjectContextMenuPortal({
     onClose()
   }
 
-  const runRemove = async (path: string, name: string) => {
-    if (!window.confirm(t('common:sidebar.removeProjectConfirm', { name }))) {
-      onClose()
-      return
-    }
+  const runRemove = async (path: string) => {
     try {
       const r = await ipcClient.invoke('project.removeRecent', { path })
       if (!r?.ok) {
         toast.error(r?.error || t('common:sidebar.removeFailed'))
-        onClose()
         return
       }
       const store = useUIStore.getState()
@@ -74,44 +72,60 @@ export function ProjectContextMenuPortal({
     } catch (e) {
       toast.error(t('common:sidebar.removeFailed'))
     }
-    onClose()
   }
 
-  if (!menu) return null
-
-  return createPortal(
-    <div
-      ref={ref}
-      className={contextMenuPanelClass}
-      style={{ left: menu.x, top: menu.y }}
-      role="menu"
-      onPointerDown={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className={contextMenuItemClass}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation()
-          void runRevealInExplorer(menu.path)
+  return (
+    <>
+      {menu
+        ? createPortal(
+            <div
+              ref={ref}
+              className={contextMenuPanelClass}
+              style={{ left: menu.x, top: menu.y }}
+              role="menu"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className={contextMenuItemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void runRevealInExplorer(menu.path)
+                }}
+              >
+                <FolderOpen className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.revealInExplorer')}
+              </button>
+              <button
+                type="button"
+                className={contextMenuDangerItemClass}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setRemoveTarget({ path: menu.path, name: menu.name })
+                  onClose()
+                }}
+              >
+                <ListX className="h-3 w-3 shrink-0" strokeWidth={2} />
+                {t('common:sidebar.removeFromList')}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
+      <ConfirmDialog
+        open={!!removeTarget}
+        title={t('common:sidebar.removeFromList')}
+        message={t('common:sidebar.removeProjectConfirm', { name: removeTarget?.name ?? '' })}
+        destructive
+        onConfirm={() => {
+          const target = removeTarget
+          setRemoveTarget(null)
+          if (target) void runRemove(target.path)
         }}
-      >
-        <FolderOpen className="h-3 w-3 shrink-0" strokeWidth={2} />
-        {t('common:sidebar.revealInExplorer')}
-      </button>
-      <button
-        type="button"
-        className={contextMenuDangerItemClass}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation()
-          void runRemove(menu.path, menu.name)
-        }}
-      >
-        <ListX className="h-3 w-3 shrink-0" strokeWidth={2} />
-        {t('common:sidebar.removeFromList')}
-      </button>
-    </div>,
-    document.body,
+        onCancel={() => setRemoveTarget(null)}
+      />
+    </>
   )
 }

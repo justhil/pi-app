@@ -109,7 +109,7 @@ export function ManualModelAddDialog({
 
   return createPortal(
     <div
-      className="electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]"
+      className="overlay-backdrop electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[1px]"
       role="presentation"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
@@ -119,7 +119,7 @@ export function ManualModelAddDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="ui-enter w-full max-w-md rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
+        className="overlay-panel w-full max-w-md rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <h2 id={titleId} className="text-xl font-semibold text-foreground">

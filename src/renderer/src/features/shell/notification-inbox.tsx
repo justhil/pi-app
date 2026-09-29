@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Inbox, RefreshCw, Check, Circle } from '@renderer/components/icons'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
+import { useVisibleInterval } from '@renderer/hooks/use-visible-interval'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { listAttentionSessions } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
@@ -15,10 +16,28 @@ type InboxItem = {
   workspaceId: string
   sessionId?: string
   sessionFile?: string
-  outcome: string
+  outcome: 'success' | 'failed' | 'cancelled'
   copy?: { title?: string; body?: string }
   unread?: boolean
   createdAt?: number
+}
+
+const outcomeIcon: Record<InboxItem['outcome'], string> = {
+  success: '✓',
+  failed: '✕',
+  cancelled: '—',
+}
+
+const outcomeColor: Record<InboxItem['outcome'], string> = {
+  success: 'text-[var(--success-semantic)]',
+  failed: 'text-[var(--danger-semantic)]',
+  cancelled: 'text-[var(--text-secondary)]',
+}
+
+function sameInboxItems(previous: InboxItem[], next: InboxItem[]): boolean {
+  if (previous === next) return true
+  if (!Array.isArray(next) || previous.length !== next.length) return false
+  return previous.every((item, index) => JSON.stringify(item) === JSON.stringify(next[index]))
 }
 
 export function NotificationInbox() {
@@ -34,13 +53,16 @@ export function NotificationInbox() {
   const sessions = useUIStore((s) => s.sessions)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const waiting = listAttentionSessions(attention, 'needs-you')
-  const unread = items.filter((item) => item.unread).length + waiting.length
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+  const filteredItems = filter === 'unread' ? items.filter((i) => i.unread) : items
+  const unread = items.filter((i) => i.unread).length + waiting.length
   const close = useCallback(() => { setOpen(false); setActionError(null) }, [])
 
   const load = useCallback(async () => {
     try {
       const res = await ipcClient.invoke('notifications.inbox', {})
-      setItems(res.items)
+      // Same inbox → keep the array identity so the bar and popover do not re-render every poll.
+      setItems((previous) => (sameInboxItems(previous, res.items) ? previous : res.items))
       setLoadFailed(false)
     } catch {
       setLoadFailed(true)
@@ -49,11 +71,15 @@ export function NotificationInbox() {
     }
   }, [])
 
-  useEffect(() => {
-    void load()
-    const timer = window.setInterval(() => void load(), 4000)
-    return () => window.clearInterval(timer)
-  }, [load])
+  useVisibleInterval(() => void load(), 4000)
+  // A finished turn is what creates inbox rows — show it now instead of on the next poll.
+  useEffect(
+    () =>
+      onAppEvent((event) => {
+        if (event.type === 'completion') void load()
+      }),
+    [load],
+  )
 
   useEffect(() => {
     if (!loading && !loadFailed) void ipcClient.invoke('desktop.setBadge', { count: unread }).catch(() => {})
@@ -100,7 +126,31 @@ export function NotificationInbox() {
         {unread > 0 && <span className="notification-unread-dot" />}
       </button>
       {open && <ShellPopover title={t('common:notification.inbox')} anchorRef={anchorRef} onClose={close}>
-        <div className="flex items-center justify-between px-4 py-2 text-xs text-foreground-secondary"><span>{t('common:notification.unreadCount', { count: unread })}</span><button type="button" className="workbench-icon" aria-label={t('common:refresh')} onClick={() => void load()}><RefreshCw className="h-3.5 w-3.5" /></button></div>
+        <div className="flex items-center gap-1 border-b border-border/40 px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={cn(
+              'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+              filter === 'all' ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:text-foreground',
+            )}
+          >
+            {t('common:notification.all')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('unread')}
+            className={cn(
+              'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+              filter === 'unread' ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:text-foreground',
+            )}
+          >
+            {t('common:notification.unread')}
+            {unread > 0 && <span className="ml-1 rounded-full bg-[var(--danger-semantic)] px-1 text-[9px] text-white">{unread}</span>}
+          </button>
+          <div className="flex-1" />
+          <button type="button" className="workbench-icon" aria-label={t('common:refresh')} onClick={() => void load()}><RefreshCw className="h-3.5 w-3.5" /></button>
+        </div>
         {actionError && <p role="alert" className="workbench-error">{actionError}</p>}
         {loadFailed && <div role="alert" className="workbench-error flex items-center justify-between gap-2"><span>{t('common:notification.loadFailed')}</span><button type="button" className="workbench-button" onClick={() => void load()}>{t('common:retry')}</button></div>}
         {waiting.length > 0 && <section className="workbench-group" aria-label={t('common:attention.needsYou')}>
@@ -113,15 +163,19 @@ export function NotificationInbox() {
             </button>
           })}
         </section>}
-        {loading ? <p role="status" className="workbench-empty">{t('common:loading')}</p> : items.length === 0 && waiting.length === 0 && !loadFailed ? (
+        {loading ? <p role="status" className="workbench-empty">{t('common:loading')}</p> : filteredItems.length === 0 && waiting.length === 0 && !loadFailed ? (
           <div className="workbench-empty"><Inbox className="h-6 w-6 opacity-50" /><p>{t('common:notification.empty')}</p><span>{t('common:notification.emptyHint')}</span></div>
-        ) : items.length > 0 && <section className="workbench-group" aria-label={t('common:notification.history')}>
-          <h3 className="workbench-group-heading">{t('common:notification.history')}<span>{items.length}</span></h3>
-          {items.map((item) => (
+        ) : filteredItems.length > 0 && <section className="workbench-group" aria-label={t('common:notification.history')}>
+          <h3 className="workbench-group-heading">{t('common:notification.history')}<span>{filteredItems.length}</span></h3>
+          {filteredItems.map((item) => (
             <div key={item.notificationId} className="notification-row" data-unread={item.unread || undefined}>
               <button type="button" className="workbench-list-row min-w-0 flex-1" disabled={!item.sessionFile || pending !== null} title={!item.sessionFile ? t('common:notification.sessionGone') : undefined} onClick={() => void openSession(item.workspaceId, item.sessionId, item.sessionFile, item.notificationId)}>
-                <span className={cn('workbench-row-title', item.unread && 'font-semibold')}>{item.copy?.title || t('common:attention.done')}</span>
+                <span className={cn('workbench-row-title', item.unread && 'font-semibold')}>
+                  <span className={cn('mr-1.5 inline-block w-3 text-center', outcomeColor[item.outcome])}>{outcomeIcon[item.outcome]}</span>
+                  {item.copy?.title || t('common:attention.done')}
+                </span>
                 {item.copy?.body && <span className="notification-preview">{item.copy.body}</span>}
+                {item.outcome === 'failed' && <span className="notification-error-code">{t('common:notification.failed')}</span>}
                 {item.createdAt && <time className="workbench-row-detail" dateTime={new Date(item.createdAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(item.createdAt)}</time>}
               </button>
               <button type="button" className="workbench-icon mr-2 shrink-0" disabled={pending !== null} title={item.unread ? t('common:notification.markRead') : t('common:notification.markUnread')} aria-label={item.unread ? t('common:notification.markRead') : t('common:notification.markUnread')} onClick={() => void toggleRead(item)}>{item.unread ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}</button>

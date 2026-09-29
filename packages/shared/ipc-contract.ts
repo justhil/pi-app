@@ -190,7 +190,7 @@ export interface PiModelsFetchResponse {
 }
 
 // ── ThinkingLevel ──
-export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export interface ThinkingLevelSetRequest {
   sessionId: string
   sessionFile?: string
@@ -232,11 +232,6 @@ export interface ReviewStageHunksRequest {
 }
 export interface ReviewStageHunksResponse { ok: boolean; error?: string }
 
-export interface ReviewCommitRequest {
-  cwd: string
-  message: string
-}
-export interface ReviewCommitResponse { ok: boolean; error?: string; commitHash?: string }
 
 // ── Extensions ──
 export interface ExtensionInfo {
@@ -328,7 +323,6 @@ export interface IpcMethodMap {
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }
   'review.stageHunks': { request: ReviewStageHunksRequest; response: ReviewStageHunksResponse }
   'review.unstageHunks': { request: ReviewStageHunksRequest; response: ReviewStageHunksResponse }
-  'review.commit': { request: ReviewCommitRequest; response: ReviewCommitResponse }
   'extensions.list': { request: ExtensionsListRequest; response: ExtensionsListResponse }
   'extensions.setEnabled': { request: ExtensionsSetEnabledRequest; response: ExtensionsSetEnabledResponse }
   'registry.refresh': { request: RegistryRefreshRequest; response: RegistryRefreshResponse }

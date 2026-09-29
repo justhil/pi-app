@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, Cpu, RefreshCw, ArrowUp } from '@renderer/components/icons'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
+import { useVisibleInterval } from '@renderer/hooks/use-visible-interval'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 import { countAttention, listAttentionSessions, type SessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
@@ -12,6 +13,22 @@ import { SessionAttentionDot } from '@renderer/features/workspace/session-attent
 import { ShellPopover } from './shell-popover'
 
 type WorkerRow = { sessionFile: string; running: boolean; cwd: string }
+type DesktopStatus = { rss: number; total: number; workers: WorkerRow[] }
+
+/** Equal at display granularity (memory is shown in MB), so steady polls do not re-render. */
+function sameDesktopStatus(previous: DesktopStatus | null, next: DesktopStatus): boolean {
+  if (!previous) return false
+  const mb = (bytes: number) => Math.round(bytes / 1024 ** 2)
+  return (
+    mb(previous.rss) === mb(next.rss) &&
+    previous.total === next.total &&
+    previous.workers.length === next.workers.length &&
+    previous.workers.every((row, index) => {
+      const other = next.workers[index]
+      return row.sessionFile === other.sessionFile && row.running === other.running && row.cwd === other.cwd
+    })
+  )
+}
 type Popover = 'workers' | 'board' | null
 const GROUPS: SessionAttention[] = ['needs-you', 'working', 'done']
 
@@ -21,7 +38,7 @@ export function StatusBar() {
   const sessions = useUIStore((s) => s.sessions)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const counts = countAttention(attention)
-  const [status, setStatus] = useState<{ rss: number; total: number; workers: WorkerRow[] } | null>(null)
+  const [status, setStatus] = useState<DesktopStatus | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [openUpdate, setOpenUpdate] = useState<(() => void) | null>(null)
@@ -39,22 +56,19 @@ export function StatusBar() {
   const refresh = useCallback(async () => {
     try {
       const res = await ipcClient.invoke('desktop.status', {})
-      setStatus({ rss: res.rss, total: res.total, workers: res.workers })
+      const next = { rss: res.rss, total: res.total, workers: res.workers ?? [] }
+      setStatus((previous) => (sameDesktopStatus(previous, next) ? previous : next))
       setLoadError(false)
     } catch {
       setLoadError(true)
     }
   }, [])
 
-  useEffect(() => {
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 5000)
-    const unsub = onAppUpdateAvailable((update) => setOpenUpdate(() => () => showAppUpdateDialog(update)))
-    return () => {
-      window.clearInterval(timer)
-      unsub()
-    }
-  }, [refresh])
+  useVisibleInterval(() => void refresh(), 5000)
+  useEffect(
+    () => onAppUpdateAvailable((update) => setOpenUpdate(() => () => showAppUpdateDialog(update))),
+    [],
+  )
 
   useEffect(() => {
     const busy = counts.working + counts.needsYou > 0

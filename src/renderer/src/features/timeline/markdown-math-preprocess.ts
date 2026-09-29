@@ -13,11 +13,89 @@ export function preprocessMarkdownMath(source: string, options?: { streaming?: b
 
   // 部分作者用 ~~~math 或纯 ```math 已支持，此处仅别名
 
+  // 金额等非公式的单个 $ 转义，避免「$13.43/task，比 … $3.97」被当成行内公式
+  text = escapeNonMathDollars(text)
+
   if (options?.streaming) {
     text = closeUnfinishedMath(text)
   }
 
   return text
+}
+
+// CJK 字符与全角标点：裸写在 $…$ 里几乎总是误判（公式里的中文应写在 \text{} 中）
+const CJK_RE = /[　-〿㐀-鿿豈-﫿＀-￯]/
+const TEXT_GROUP_RE = /\\(?:text|mbox|mathrm|textrm|operatorname)\s*\{[^{}]*\}/g
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/
+
+function isSingleDollar(s: string, i: number): boolean {
+  return s[i] === '$' && s[i - 1] !== '\\' && s[i - 1] !== '$' && s[i + 1] !== '$'
+}
+
+/**
+ * Pandoc-style inline math rules (remark-math has none): the opening $ must be followed by a
+ * non-space, the closing $ preceded by a non-space and not followed by a digit, and the body may
+ * not contain bare CJK text. Any single $ that does not form such a pair is escaped as literal.
+ */
+function escapeDollarsInText(s: string): string {
+  if (!s.includes('$')) return s
+  let out = ''
+  let i = 0
+  while (i < s.length) {
+    if (!isSingleDollar(s, i)) {
+      out += s[i]
+      i++
+      continue
+    }
+    let close = -1
+    if (s[i + 1] && !/\s/.test(s[i + 1])) {
+      for (let j = i + 2; j < s.length; j++) {
+        if (!isSingleDollar(s, j)) continue
+        if (!/\s/.test(s[j - 1]) && !/\d/.test(s[j + 1] ?? '')) close = j
+        break
+      }
+    }
+    const body = close > 0 ? s.slice(i + 1, close) : ''
+    if (close > 0 && !CJK_RE.test(body.replace(TEXT_GROUP_RE, ''))) {
+      out += s.slice(i, close + 1)
+      i = close + 1
+    } else {
+      out += '\\$'
+      i++
+    }
+  }
+  return out
+}
+
+/** Escapes stray `$` outside code fences, inline code and `$$` display blocks. */
+export function escapeNonMathDollars(text: string): string {
+  if (!text.includes('$')) return text
+  let fence: string | null = null
+  let inDisplay = false
+  return text
+    .split('\n')
+    .map((line) => {
+      const fenceMatch = FENCE_RE.exec(line)
+      if (fence) {
+        if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null
+        return line
+      }
+      if (fenceMatch) {
+        fence = fenceMatch[1]
+        return line
+      }
+      if (line.includes('$$')) {
+        if ((line.match(/\$\$/g)?.length ?? 0) % 2 === 1) inDisplay = !inDisplay
+        return line
+      }
+      if (inDisplay) return line
+      // Leave inline code spans untouched: odd parts of a backtick split are code.
+      return line
+        .split(/(`+[^`]*`+)/)
+        .map((part, index) => (index % 2 === 1 ? part : escapeDollarsInText(part)))
+        .join('')
+    })
+    .join('\n')
 }
 
 function closeUnfinishedMath(text: string): string {

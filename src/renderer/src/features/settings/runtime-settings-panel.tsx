@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { AlertTriangle, Check, Copy, Loader2, RefreshCw, XCircle } from '@renderer/components/icons'
 import { SettingRow, SettingsSection } from './settings-page-shared'
 import { selectCls, btnOutline } from './settings-controls'
 import { useSettingsDraft } from './settings-draft-context'
@@ -12,18 +14,28 @@ type WslProbeResult = {
   distro: string
   node: boolean
   nodeVersion?: string
+  nodePath?: string
   npm: boolean
   git: boolean
   pi: boolean
+  sdk?: boolean
+  sdkVersion?: string
+  sdkPath?: string
+  home?: string
+  shell?: string
+  envMode?: 'interactive-login' | 'login' | 'plain'
+  pathExtras?: string[]
   supportsCd: boolean
   error?: string
 }
+
+const INSTALL_PI = 'npm i -g @earendil-works/pi-coding-agent'
 
 export function RuntimeSettingsPanel() {
   const { t } = useTranslation()
   const { draft, setAgentRuntime } = useSettingsDraft()
   const isWindows = useMemo(() => (window.piDesktop?.platform ?? '') === 'win32', [])
-  const [distros, setDistros] = useState<WslDistroInfo[]>([])
+  const [distros, setDistros] = useState<WslDistroInfo[] | null>(null)
   const [probe, setProbe] = useState<WslProbeResult | null>(null)
   const [probeState, setProbeState] = useState<'idle' | 'checking'>('idle')
 
@@ -33,12 +45,20 @@ export function RuntimeSettingsPanel() {
     if (!isWindows) return
     void ipcClient
       .invoke('wsl.listDistros', {})
-      .then((res) => {
-        const list = (res?.distros as WslDistroInfo[] | undefined) || []
-        setDistros(list)
-      })
+      .then((res) => setDistros((res?.distros as WslDistroInfo[] | undefined) || []))
       .catch(() => setDistros([]))
   }, [isWindows])
+
+  // Without `refresh` the main process answers from the captured environment (instant); the
+  // button re-captures it (runs the login shell inside the distro, a few seconds).
+  const runProbe = useCallback((distro: string, refresh: boolean) => {
+    setProbeState('checking')
+    void ipcClient
+      .invoke('wsl.probeDistro', { distro, refresh })
+      .then((res) => setProbe((res?.result as WslProbeResult | undefined) ?? null))
+      .catch(() => setProbe(null))
+      .finally(() => setProbeState('idle'))
+  }, [])
 
   useEffect(() => {
     if (runtime.mode !== 'wsl' || !runtime.distro) {
@@ -46,19 +66,10 @@ export function RuntimeSettingsPanel() {
       setProbeState('idle')
       return
     }
-    setProbeState('checking')
-    void ipcClient
-      .invoke('wsl.probeDistro', { distro: runtime.distro })
-      .then((res) => {
-        setProbe((res?.result as WslProbeResult | undefined) ?? null)
-      })
-      .catch(() => {
-        setProbe(null)
-      })
-      .finally(() => setProbeState('idle'))
-  }, [runtime.mode, runtime.distro])
+    runProbe(runtime.distro, false)
+  }, [runtime.mode, runtime.distro, runProbe])
 
-  const selectedExists = distros.some((d) => d.name === runtime.distro)
+  const selectedExists = !distros || distros.some((d) => d.name === runtime.distro)
 
   return (
     <SettingsSection title={t('settings:runtime.sectionAgentRuntime')} description={t('settings:runtime.sectionAgentRuntimeDesc')}>
@@ -68,10 +79,8 @@ export function RuntimeSettingsPanel() {
           value={runtime.mode}
           onChange={(e) => {
             const mode = e.target.value as 'host' | 'wsl'
-            setAgentRuntime({
-              mode,
-              distro: mode === 'wsl' && runtime.distro ? runtime.distro : null,
-            })
+            const fallbackDistro = distros?.find((d) => d.isDefault)?.name ?? distros?.[0]?.name ?? null
+            setAgentRuntime({ mode, distro: mode === 'wsl' ? (runtime.distro ?? fallbackDistro) : null })
           }}
         >
           <option value="host">{t('settings:runtime.modeHost')}</option>
@@ -95,8 +104,8 @@ export function RuntimeSettingsPanel() {
               value={runtime.distro ?? ''}
               onChange={(e) => setAgentRuntime({ mode: 'wsl', distro: e.target.value || null })}
             >
-              <option value="">{t('settings:runtime.distroNone')}</option>
-              {distros.map((d) => (
+              <option value="">{distros === null ? t('settings:runtime.distroLoading') : t('settings:runtime.distroNone')}</option>
+              {(distros ?? []).map((d) => (
                 <option key={d.name} value={d.name}>
                   {d.name}
                   {d.isDefault ? ` (${t('settings:runtime.distroDefault')})` : ''}
@@ -106,6 +115,12 @@ export function RuntimeSettingsPanel() {
             </select>
           </SettingRow>
 
+          {distros?.length === 0 && (
+            <SettingRow label={t('settings:runtime.noDistros')} description={t('settings:runtime.noDistrosDesc')}>
+              <CopyCommand command="wsl --install -d Ubuntu" />
+            </SettingRow>
+          )}
+
           {runtime.distro && !selectedExists && (
             <SettingRow label={t('settings:runtime.distroMissing')} description={t('settings:runtime.distroMissingDesc', { distro: runtime.distro })}>
               <span className="text-xs text-destructive/80">{t('settings:runtime.distroMissingLabel')}</span>
@@ -113,23 +128,11 @@ export function RuntimeSettingsPanel() {
           )}
 
           {runtime.distro && (
-            <SettingRow label={t('settings:runtime.probe')} description={probeStatusText(probe, probeState, t)}>
-              <button
-                type="button"
-                className={cn(btnOutline, 'text-xs')}
-                disabled={probeState === 'checking'}
-                onClick={() => {
-                  setProbeState('checking')
-                  void ipcClient
-                    .invoke('wsl.probeDistro', { distro: runtime.distro })
-                    .then((res) => setProbe((res?.result as WslProbeResult | undefined) ?? null))
-                    .catch(() => setProbe(null))
-                    .finally(() => setProbeState('idle'))
-                }}
-              >
-                {t('settings:runtime.probeButton')}
-              </button>
-            </SettingRow>
+            <WslEnvironmentCard
+              probe={probe}
+              checking={probeState === 'checking'}
+              onRefresh={() => runtime.distro && runProbe(runtime.distro, true)}
+            />
           )}
         </>
       )}
@@ -137,19 +140,134 @@ export function RuntimeSettingsPanel() {
   )
 }
 
-function probeStatusText(
-  probe: WslProbeResult | null,
-  probeState: 'idle' | 'checking',
-  t: (key: string, opts?: Record<string, unknown>) => string,
-): string {
-  if (probeState === 'checking') return t('settings:runtime.probeChecking')
-  if (!probe) return t('settings:runtime.probeIdle')
-  const parts: string[] = []
-  parts.push(probe.node ? `node ${probe.nodeVersion ?? ''}`.trim() : t('settings:runtime.missingNode'))
-  parts.push(probe.npm ? 'npm' : t('settings:runtime.missingNpm'))
-  parts.push(probe.git ? 'git' : t('settings:runtime.missingGit'))
-  parts.push(probe.pi ? 'pi' : t('settings:runtime.missingPi'))
-  if (!probe.supportsCd) parts.push(t('settings:runtime.noCdFlag'))
-  if (probe.error) return `${probe.error} · ${parts.join(' · ')}`
-  return parts.join(' · ')
+type CheckTone = 'ok' | 'warn' | 'bad'
+
+function CheckItem({ tone, label, value, children }: { tone: CheckTone; label: string; value?: ReactNode; children?: ReactNode }) {
+  const Icon = tone === 'ok' ? Check : tone === 'warn' ? AlertTriangle : XCircle
+  return (
+    <li className="wsl-check-item" data-tone={tone}>
+      <Icon className="wsl-check-icon h-3.5 w-3.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-[12.5px] font-medium text-foreground">{label}</span>
+          {value ? <span className="min-w-0 truncate font-mono text-[11.5px] text-foreground-secondary">{value}</span> : null}
+        </div>
+        {children}
+      </div>
+    </li>
+  )
+}
+
+function CopyCommand({ command }: { command: string }) {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      className="wsl-copy-command"
+      title={t('settings:runtime.copyCommand')}
+      onClick={() => {
+        void navigator.clipboard.writeText(command).then(() => toast.success(t('settings:runtime.copied')))
+      }}
+    >
+      <code>{command}</code>
+      <Copy className="h-3 w-3 shrink-0" />
+    </button>
+  )
+}
+
+/**
+ * What the worker will actually run with inside the distro — the user's login-shell environment
+ * captured by the main process — as a checklist with the fix for anything missing.
+ */
+function WslEnvironmentCard({
+  probe,
+  checking,
+  onRefresh,
+}: {
+  probe: WslProbeResult | null
+  checking: boolean
+  onRefresh: () => void
+}) {
+  const { t } = useTranslation()
+  const status: 'checking' | 'ready' | 'blocked' | 'unknown' = checking && !probe
+    ? 'checking'
+    : !probe
+      ? 'unknown'
+      : probe.ok
+        ? 'ready'
+        : 'blocked'
+  const extras = probe?.pathExtras ?? []
+
+  return (
+    <div className="wsl-env-card" data-status={status}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[13.5px] font-medium text-foreground">
+            {t('settings:runtime.envTitle')}
+            <span className="settings-badge" data-tone={status === 'blocked' ? 'warn' : undefined}>
+              {t(`settings:runtime.envStatus.${status}`)}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[12px] leading-[1.55] text-foreground-secondary">{t('settings:runtime.envDesc')}</p>
+        </div>
+        <button type="button" className={cn(btnOutline, 'shrink-0 text-xs')} disabled={checking} onClick={onRefresh}>
+          {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {checking ? t('settings:runtime.probeChecking') : t('settings:runtime.probeButton')}
+        </button>
+      </div>
+
+      {probe && probe.home ? (
+        <ul className="wsl-check-list">
+          <CheckItem
+            tone={probe.node ? 'ok' : 'bad'}
+            label="Node.js"
+            value={probe.node ? `${probe.nodeVersion ?? ''} · ${probe.nodePath ?? ''}` : t('settings:runtime.missing')}
+          />
+          <CheckItem
+            tone={probe.sdk ? 'ok' : 'bad'}
+            label={t('settings:runtime.sdkLabel')}
+            value={probe.sdk ? `${probe.sdkVersion ?? ''} · ${probe.sdkPath ?? ''}` : t('settings:runtime.missing')}
+          >
+            {!probe.sdk && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-foreground-secondary">
+                {t('settings:runtime.sdkInstallHint')}
+                <CopyCommand command={INSTALL_PI} />
+              </div>
+            )}
+          </CheckItem>
+          <CheckItem tone={probe.npm ? 'ok' : 'warn'} label="npm" value={probe.npm ? undefined : t('settings:runtime.missing')} />
+          <CheckItem
+            tone={probe.git ? 'ok' : 'warn'}
+            label="git"
+            value={probe.git ? undefined : t('settings:runtime.gitMissingHint')}
+          />
+          <CheckItem
+            tone={probe.envMode === 'plain' ? 'warn' : 'ok'}
+            label={t('settings:runtime.shellLabel')}
+            value={`${probe.shell ?? ''} · ${t(`settings:runtime.envMode.${probe.envMode ?? 'plain'}`)}`}
+          >
+            {extras.length > 0 && (
+              <div className="mt-1 text-[11.5px] leading-[1.5] text-foreground-secondary">
+                {t('settings:runtime.pathExtras', { count: extras.length })}{' '}
+                <span className="font-mono">{extras.slice(0, 4).join('  ')}{extras.length > 4 ? ' …' : ''}</span>
+              </div>
+            )}
+          </CheckItem>
+          {!probe.supportsCd && <CheckItem tone="warn" label={t('settings:runtime.noCdFlag')} />}
+        </ul>
+      ) : status === 'checking' ? (
+        <div className="wsl-env-skeleton" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </div>
+      ) : (
+        <p className="mt-3 text-[12px] text-destructive/80">{probe?.error || t('settings:runtime.probeIdle')}</p>
+      )}
+
+      <p className="mt-3 border-t border-border/40 pt-2.5 text-[11.5px] leading-[1.55] text-foreground-secondary/85">
+        {t('settings:runtime.fsHint')}
+      </p>
+    </div>
+  )
 }

@@ -152,5 +152,28 @@
   "invalidThinkingLevel": "Invalid level: {{arg}} (valid: {{options}})",
   "switchThinkingFailed": "Failed to switch thinking",
   "timelineCleared": "Timeline cleared",
-  "compactedHistory": "Session history compacted"
+  "compactedHistory": "Session history compacted",
+  "thinkingMax": "Max",
+  "thinkingPicker": {
+    "title": "Thinking level",
+    "subtitle": "Higher levels reason longer and cost more time and tokens",
+    "desc": {
+      "off": "No reasoning, answer directly",
+      "minimal": "The least reasoning possible",
+      "low": "Enough for simple asks, fastest",
+      "medium": "Balanced default for everyday coding",
+      "high": "Complex changes and debugging",
+      "xhigh": "Large refactors and hard problems",
+      "max": "The longest reasoning the model offers; slow and costly"
+    },
+    "unsupported": "Not supported by this model",
+    "current": "Current",
+    "bound": "Bound",
+    "bindLabel": "Remember this level for the model",
+    "bindHint": "Switching to {{model}} applies it automatically (pi setting modelThinkingLevels)",
+    "bindNoModel": "Pick a model to bind a thinking level to it",
+    "boundToast": "Bound {{level}} to {{model}}",
+    "unboundToast": "Removed the thinking binding for {{model}}",
+    "switched": "Thinking: {{level}}"
+  }
 }

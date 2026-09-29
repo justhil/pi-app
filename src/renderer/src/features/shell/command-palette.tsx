@@ -271,7 +271,7 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-start justify-center bg-black/35 px-4 pt-[12vh]"
+      className="overlay-backdrop fixed inset-0 z-[80] flex items-start justify-center bg-black/35 px-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
       aria-label={t('common:commandPalette.title')}
@@ -279,7 +279,7 @@ export function CommandPalette({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-lg overflow-hidden rounded-xl border border-border/60 bg-[var(--surface-elevated,var(--bg-1))] shadow-2xl">
+      <div className="overlay-panel w-full max-w-lg overflow-hidden rounded-xl border border-border/60 bg-[var(--surface-elevated,var(--bg-1))] shadow-2xl">
         <div className="border-b border-border/50 px-3 py-2">
           <input
             ref={inputRef}
@@ -368,7 +368,7 @@ export function ShortcutsHelpSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[81] flex items-center justify-center bg-black/35 px-4"
+      className="overlay-backdrop fixed inset-0 z-[81] flex items-center justify-center bg-black/35 px-4"
       role="dialog"
       aria-modal="true"
       aria-label={t('common:shortcuts.title')}
@@ -376,7 +376,7 @@ export function ShortcutsHelpSheet({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-md rounded-xl border border-border/60 bg-[var(--surface-elevated,var(--bg-1))] p-4 shadow-2xl">
+      <div className="overlay-panel w-full max-w-md rounded-xl border border-border/60 bg-[var(--surface-elevated,var(--bg-1))] p-4 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[14px] font-medium text-foreground">{t('common:shortcuts.title')}</h2>
           <button

@@ -12,6 +12,7 @@ import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { resolveUtilityEntry } from '../utility-entry-path'
 import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
+import { getCachedWslEnv, wslNodeCommand } from './wsl-env.js'
 
 const cdSupportCache = new Map<string, boolean>()
 
@@ -23,6 +24,11 @@ export function invalidateWslCdSupportCache(): void {
 export function wslCdFlagSupported(distro: string): boolean {
   const cached = cdSupportCache.get(distro)
   if (cached !== undefined) return cached
+  const env = getCachedWslEnv(distro)
+  if (env) {
+    cdSupportCache.set(distro, env.cdSupported)
+    return env.cdSupported
+  }
   const result = runWslDistroCdSync(distro, '/', ['true'], { timeout: 8000 })
   const supported = result.status === 0
   cdSupportCache.set(distro, supported)
@@ -120,17 +126,12 @@ export interface SpawnWslWorkerOptions {
 export function spawnWorkerInWsl(opts: SpawnWslWorkerOptions): ChildProcess {
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
-    args.push('--cd', opts.wslCwd, '--', 'node', opts.workerWslPath)
+    // The user's node + login PATH (see wsl-env.ts): same runtime as their terminal, and the
+    // agent's bash tool sees the same tools.
+    args.push('--cd', opts.wslCwd, '--', ...wslNodeCommand(opts.distro, opts.workerWslPath))
   } else {
-    args.push(
-      '--',
-      'bash',
-      '-lc',
-      'cd -- "$1" && exec node "$2"',
-      'bash',
-      opts.wslCwd,
-      opts.workerWslPath,
-    )
+    const [bin, ...rest] = wslNodeCommand(opts.distro, opts.workerWslPath)
+    args.push('--', 'bash', '-lc', 'cd -- "$1" && shift && exec "$@"', 'bash', opts.wslCwd, bin, ...rest)
   }
   const env: Record<string, string> = {
     ...process.env,

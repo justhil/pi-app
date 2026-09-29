@@ -19,6 +19,19 @@ const mocks = vi.hoisted(() => ({
     isRunning: false,
     cwd: '',
   },
+  currentProject: 'C:/repo' as string | null,
+  agentDirExists: true,
+}))
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  const existsSync = vi.fn((path: string) =>
+    path === 'C:/Users/u/.pi/agent' ? mocks.agentDirExists : actual.existsSync(path),
+  )
+  return { ...actual, default: { ...actual, existsSync }, existsSync }
+})
+vi.mock('../../agent-dir', () => ({
+  resolveActiveAgentDir: vi.fn(() => 'C:/Users/u/.pi/agent'),
 }))
 
 vi.mock('../registry', () => ({
@@ -36,12 +49,13 @@ vi.mock('../../worker-manager', () => ({
     writeSkillDescription: mocks.writeSkillDescription,
     transferSkill: mocks.transferSkill,
     start: mocks.start,
+    awaitReady: async () => {},
   }),
 }))
 vi.mock('../../config-store', () => ({
   configStore: {
     get: vi.fn((key: string) => {
-      if (key === 'currentProject') return 'C:/repo'
+      if (key === 'currentProject') return mocks.currentProject
       if (key === 'skillPresentation') return {}
       return undefined
     }),
@@ -104,7 +118,44 @@ describe('system prompt resource preview', () => {
     mocks.listPromptsOnDisk.mockClear()
     mocks.workerManager.isRunning = false
     mocks.workerManager.cwd = ''
+    mocks.currentProject = 'C:/repo'
+    mocks.agentDirExists = true
     registerSkillsResourceHandlers()
+  })
+
+  // #96: 0.5.8 returned an empty, incomplete catalog whenever no project was open (home draft),
+  // hiding every user-scope skill in ~/.pi/agent/skills.
+  it('lists user-scope skills from a neutral agent-dir worker when no project is open', async () => {
+    mocks.currentProject = null
+    mocks.start.mockImplementation(async (cwd: string) => {
+      mocks.workerManager.isRunning = true
+      mocks.workerManager.cwd = cwd
+      return { sessionId: 'sid' }
+    })
+    mocks.getSkillsList.mockResolvedValue({
+      complete: true,
+      projectTrusted: true,
+      effectiveSkills: [],
+      candidates: [{ key: 'k', name: 'find-skills', filePath: 'C:/Users/u/.pi/agent/skills/find-skills/SKILL.md', scope: 'user' }],
+    })
+    const handler = mocks.handlers.get('ipc:skills.list')
+
+    const result = await handler?.({}) as { complete?: boolean; skills?: Array<{ name?: string }> }
+
+    expect(mocks.start).toHaveBeenCalledWith('C:/Users/u/.pi/agent')
+    expect(result.complete).toBe(true)
+    expect(result.skills?.map((skill) => skill.name)).toEqual(['find-skills'])
+  })
+
+  it('keeps the empty catalog when no project is open and the agent dir is missing', async () => {
+    mocks.currentProject = null
+    mocks.agentDirExists = false
+    const handler = mocks.handlers.get('ipc:skills.list')
+
+    const result = await handler?.({}) as { complete?: boolean; skills?: unknown[] }
+
+    expect(mocks.start).not.toHaveBeenCalled()
+    expect(result.skills).toEqual([])
   })
 
   it('uses the isolated preview process while the session worker is idle', async () => {

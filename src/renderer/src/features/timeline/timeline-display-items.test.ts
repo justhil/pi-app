@@ -164,6 +164,32 @@ describe('buildTimelineDisplayItems — flat until prose seals', () => {
     ])
   })
 
+  // The optimistic reply slot is an empty assistant row at the very end: it must reach the
+  // renderer (ReplyPlaceholder), otherwise a sent message shows no feedback at all.
+  it('keeps the trailing empty assistant slot after a user message', () => {
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'hi'),
+      { id: 'opt-asst-1', type: 'assistant-message', text: '', thinkingText: '' },
+    ])
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
+      'u1',
+      'opt-asst-1',
+    ])
+  })
+
+  it('keeps the trailing empty assistant slot after finished tools', () => {
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'hi'),
+      tool('t1', 'read'),
+      { id: 'a-next', type: 'assistant-message', text: '', thinkingText: '' },
+    ])
+    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
+      'u1',
+      't1',
+      'a-next',
+    ])
+  })
+
   it('does not merge tools across user messages', () => {
     const blocks = buildTimelineDisplayItems([
       tool('t1', 'read'),

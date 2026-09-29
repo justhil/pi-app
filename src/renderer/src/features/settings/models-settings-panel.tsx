@@ -21,6 +21,7 @@ import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry, Pr
 import { ModelsProviderCard } from './models-provider-card'
 import { ModelsSdkProviderSection } from './models-sdk-provider-section'
 import { saveModelsConfigDraft } from './save-models-config'
+import { ModelDefaultsSection } from './model-defaults-section'
 import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 
 export function ModelsSettingsPanel() {
@@ -281,6 +282,8 @@ export function ModelsSettingsPanel() {
           </button>
         }
       />
+
+      <ModelDefaultsSection />
 
       {(parseError || schemaError || saveError) && (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 whitespace-pre-wrap px-3 py-2 text-sm text-amber-900 dark:text-amber-200">

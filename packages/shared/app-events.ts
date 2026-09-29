@@ -48,6 +48,8 @@ export interface RunEvent extends AppEventBase {
   phase: 'started' | 'running' | 'idle' | 'failed' | 'cancelled' | 'state'
   model?: string
   thinkingLevel?: string
+  /** Thinking levels the session's current model supports (pi `getAvailableThinkingLevels`). */
+  availableThinkingLevels?: string[]
   /** Internal lifecycle marker: emitted only from SDK agent_settled. */
   settled?: boolean
   /**

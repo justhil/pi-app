@@ -275,10 +275,16 @@ export async function handleGetstate(msg: WorkerIncomingMessage, reply: WorkerRe
                 sessionFile: st.session.sessionFile,
                 leafId: st.session.sessionManager.getLeafId?.() ?? null,
                 messageCount: st.session.messages.length,
-                tools: (((st.session.agent as unknown as { _state?: { tools?: Array<{ name?: string; description?: string }> } })._state?.tools) || []).map((t) => ({
-                  name: t.name,
-                  description: t.description,
-                })),
+                // Tool descriptions can be tens of KB (MCP); only the extensions page asks for them.
+                // Status polls, history reads and model refreshes stay lightweight.
+                ...(msg.includeTools === true
+                  ? {
+                      tools: (((st.session.agent as unknown as { _state?: { tools?: Array<{ name?: string; description?: string }> } })._state?.tools) || []).map((t) => ({
+                        name: t.name,
+                        description: t.description,
+                      })),
+                    }
+                  : {}),
               }
             : null,
         })

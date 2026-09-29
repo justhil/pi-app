@@ -41,7 +41,7 @@ export function ExtensionsSettings() {
     ipcClient.invoke('extensions.missingRuntimePackages').then((res) => {
       setMissingRuntime(res?.missing || [])
     })
-    ipcClient.invoke('runtime.getState').then((res) => {
+    ipcClient.invoke('runtime.getState', { includeTools: true }).then((res) => {
       setRuntimeTools(Array.isArray(res?.state?.tools) ? res.state.tools : [])
     }).catch(() => setRuntimeTools([]))
   }

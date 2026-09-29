@@ -152,10 +152,15 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
     }
     if (event.thinkingLevel !== undefined) patch.thinkingLevel = event.thinkingLevel
     if (Object.keys(patch).length > 0) state.setRunState(patch)
-    const fallback = (event as { modelFallbackMessage?: string }).modelFallbackMessage
-    if (fallback) {
-      void import('@renderer/lib/session-display-meta').then((m) => m.notifyModelFallback(fallback))
+    if (Array.isArray(event.availableThinkingLevels)) {
+      state.setRunState({ availableThinkingLevels: event.availableThinkingLevels })
     }
+    const fallback = (event as { modelFallbackMessage?: string }).modelFallbackMessage
+    void import('@renderer/lib/session-display-meta').then((m) => {
+      // Live runtime state is the freshest source: remember it and supersede slower refreshes.
+      if (Object.keys(patch).length > 0) m.commitSessionDisplayMeta(viewFile ?? evFile, patch)
+      if (fallback) m.notifyModelFallback(fallback)
+    })
   }
   if (event.usage) state.setRunState({ usage: event.usage })
   if (event.toolStats) {

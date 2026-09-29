@@ -10,7 +10,7 @@ vi.mock('../config-store', () => ({
   },
 }))
 
-import { runGit, commitChanges, stageHunks, unstageHunks, readGitWorkspaceSnapshot } from '../git-workspace'
+import { runGit, stageHunks, unstageHunks, readGitWorkspaceSnapshot } from '../git-workspace'
 
 const tempDirs: string[] = []
 
@@ -45,19 +45,6 @@ describe('git-workspace host mode', () => {
     tempDirs.push(dir)
     const r = runGit(dir, ['status'], { timeout: 3000 })
     expect(r).toEqual({ ok: false, notRepo: true, message: '当前目录不是 Git 仓库' })
-  })
-
-  it('commitChanges commits via stdin and returns the new hash', () => {
-    const dir = makeRepo()
-    writeFileSync(join(dir, 'b.txt'), 'new\n')
-    execFileSync('git', ['add', '.'], { cwd: dir, stdio: 'ignore' })
-    const before = runGit(dir, ['rev-parse', 'HEAD'], { timeout: 3000 })
-    const r = commitChanges(dir, 'second commit\n\nwith body')
-    expect(r.ok).toBe(true)
-    const after = runGit(dir, ['rev-parse', 'HEAD'], { timeout: 3000 })
-    expect(r.commitHash).toBeTruthy()
-    expect(after.ok && before.ok && after.stdout !== before.stdout).toBe(true)
-    if (after.ok) expect(after.stdout.trim()).toBe(r.commitHash)
   })
 
   it('stageHunks stages a working-tree diff and unstageHunks reverses it', () => {

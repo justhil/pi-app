@@ -75,11 +75,11 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
     <div
       data-tree-overlay
       data-fork-overlay
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+      className="overlay-backdrop fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[min(70vh,560px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl"
+        className="overlay-panel flex max-h-[min(70vh,560px)] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">

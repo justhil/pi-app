@@ -4,6 +4,7 @@ import {
   handleGetmodels,
   handleGetmodelsettingssnapshot,
   handleGetsessioncontextpreview,
+  handleGetstate,
   handleReloadmodels,
 } from './worker-handlers-catalog'
 import { st, type WorkerModelRuntime } from '../worker-runtime'
@@ -140,5 +141,36 @@ describe('worker context preview handler', () => {
         roleBreakdown: [{ role: 'user', chars: 5 }],
       }),
     })
+  })
+})
+
+describe('worker getState payload', () => {
+  function sessionWithTools() {
+    return {
+      sessionId: 's1',
+      sessionName: 'S',
+      model: { provider: 'openai', modelId: 'gpt-5.5' },
+      thinkingLevel: 'high',
+      isStreaming: false,
+      sessionFile: '/s/a.jsonl',
+      sessionManager: { getLeafId: () => 'leaf-1' },
+      messages: [1, 2, 3],
+      agent: { _state: { tools: [{ name: 'bash', description: 'x'.repeat(5000) }] } },
+    } as unknown as NonNullable<typeof st.session>
+  }
+
+  // Polled every 2s while running and on every history read: never ship tool descriptions by default.
+  it('omits the tool list unless explicitly requested', async () => {
+    st.session = sessionWithTools()
+    const lite = vi.fn()
+    const full = vi.fn()
+
+    await handleGetstate({}, lite)
+    await handleGetstate({ includeTools: true }, full)
+
+    const liteState = lite.mock.calls[0][0].state
+    expect(liteState).toMatchObject({ model: 'openai/gpt-5.5', leafId: 'leaf-1', messageCount: 3 })
+    expect(liteState).not.toHaveProperty('tools')
+    expect(full.mock.calls[0][0].state.tools).toEqual([{ name: 'bash', description: 'x'.repeat(5000) }])
   })
 })

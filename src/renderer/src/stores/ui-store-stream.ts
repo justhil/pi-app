@@ -5,6 +5,17 @@ export { mergeStreamChunk } from '@shared/stream-merge'
 type StreamFlushKind = 'text' | 'thinking'
 
 let streamFlushScheduled = false
+let streamFlushFrame: number | null = null
+let streamFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelStreamFlush(): void {
+  if (streamFlushFrame != null) cancelAnimationFrame(streamFlushFrame)
+  if (streamFlushTimer != null) clearTimeout(streamFlushTimer)
+  streamFlushFrame = null
+  streamFlushTimer = null
+  streamFlushScheduled = false
+}
+
 const streamPending = new Map<string, { text: string; thinking: string }>()
 
 type StreamStore = {
@@ -16,7 +27,7 @@ export function flushStreamPendingSync<S extends StreamStore>(
   get: () => S,
   set: (fn: (s: S) => Partial<S> | S) => void,
 ): void {
-  streamFlushScheduled = false
+  cancelStreamFlush()
   const sid = get().streamingAssistantId
   if (!sid) {
     streamPending.clear()
@@ -26,8 +37,7 @@ export function flushStreamPendingSync<S extends StreamStore>(
   if (!pending || (!pending.text && !pending.thinking)) return
   const textDelta = pending.text
   const thinkDelta = pending.thinking
-  pending.text = ''
-  pending.thinking = ''
+  streamPending.delete(sid)
   set((s) => {
     if (s.streamingAssistantId !== sid) return s
     const index = s.timelineItems.findIndex((row) => row.id === sid)
@@ -58,7 +68,9 @@ function scheduleStreamFlush<S extends StreamStore>(
 ): void {
   if (streamFlushScheduled) return
   streamFlushScheduled = true
-  requestAnimationFrame(() => flushStreamPendingSync(get, set))
+  // Hidden or occluded windows can suspend animation frames while IPC keeps arriving.
+  streamFlushTimer = setTimeout(() => flushStreamPendingSync(get, set), 100)
+  streamFlushFrame = requestAnimationFrame(() => flushStreamPendingSync(get, set))
 }
 
 export function queueStreamDelta<S extends StreamStore>(
@@ -81,7 +93,7 @@ export function queueStreamDelta<S extends StreamStore>(
 
 export function clearStreamPending(): void {
   streamPending.clear()
-  streamFlushScheduled = false
+  cancelStreamFlush()
 }
 
 export function deleteStreamPendingForId(id: string): void {

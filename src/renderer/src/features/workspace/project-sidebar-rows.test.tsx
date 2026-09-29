@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ProjectSessionTree } from './project-sidebar-rows'
 
+/** Collapsed subagent children stay mounted for the height transition but are hidden from AT and focus. */
+function expectCollapsedChild(text: string): void {
+  const element = screen.queryByText(text)
+  if (element) expect(element.closest('[aria-hidden="true"][inert]')).not.toBeNull()
+}
+
+
 const mocks = vi.hoisted(() => ({
   collectActiveSubagentSessionChildren: vi.fn(),
   openSubagentSessionPreview: vi.fn(),
@@ -12,9 +19,21 @@ vi.mock('@renderer/lib/subagent-session-navigation', () => ({
   openSubagentSessionPreview: mocks.openSubagentSessionPreview,
 }))
 
-vi.mock('@renderer/lib/subagent-session-activity', () => ({
-  collectActiveSubagentSessionChildren: mocks.collectActiveSubagentSessionChildren,
-}))
+vi.mock('@renderer/lib/subagent-session-activity', () => {
+  // Mirrors the real selector's contract: same array instance for the same timeline.
+  let lastItems: unknown = null
+  let lastChildren: unknown = null
+  return {
+    collectActiveSubagentSessionChildren: mocks.collectActiveSubagentSessionChildren,
+    selectActiveSubagentSessionChildren: (items: unknown) => {
+      if (items !== lastItems) {
+        lastItems = items
+        lastChildren = mocks.collectActiveSubagentSessionChildren(items)
+      }
+      return lastChildren
+    },
+  }
+})
 
 vi.mock('@renderer/features/timeline/tool-card-registry', () => ({
   useToolCardCatalogReady: () => true,
@@ -60,7 +79,7 @@ describe('ProjectSessionTree subagent rows', () => {
       ]}
       loading={false} currentWorkspace="/workspace" currentSessionId="parent-session" onSessionContextMenu={vi.fn()}
     />)
-    expect(screen.queryByText('Finished review')).not.toBeInTheDocument()
+    expectCollapsedChild('Finished review')
     const toggle = screen.getByRole('button', { name: 'Toggle subagents for Parent conversation' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(toggle).toHaveTextContent('1')
@@ -68,7 +87,7 @@ describe('ProjectSessionTree subagent rows', () => {
     expect(screen.getByText('Finished review')).toBeInTheDocument()
     expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(1)
     fireEvent.click(toggle)
-    expect(screen.queryByText('Finished review')).not.toBeInTheDocument()
+    expectCollapsedChild('Finished review')
   })
 
   it('preserves ancestors while searching persisted children and resets search-only expansion', () => {
@@ -87,7 +106,7 @@ describe('ProjectSessionTree subagent rows', () => {
     expect(screen.queryByText('Unrelated')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle subagents for Parent' })).toHaveAttribute('aria-expanded', 'true')
     rerender(<ProjectSessionTree {...props} searchQuery="" />)
-    expect(screen.queryByText('Child')).not.toBeInTheDocument()
+    expectCollapsedChild('Child')
     expect(screen.getByText('Unrelated')).toBeInTheDocument()
   })
 
@@ -108,7 +127,7 @@ describe('ProjectSessionTree subagent rows', () => {
     fireEvent.click(toggle)
     rerender(<ProjectSessionTree {...props} projectSessions={props.projectSessions.map(s => ({ ...s }))} />)
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Leaf')).not.toBeInTheDocument()
+    expectCollapsedChild('Leaf')
   })
 
   it('merges persisted and live children into a single expandable row', () => {

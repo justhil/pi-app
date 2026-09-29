@@ -22,6 +22,7 @@ import type { ResourceSource } from '../../pi-resources-editor'
 import { errorMessage } from '@shared/error-message'
 import { normalizeSessionKey } from '../../worker-session-key'
 import { sessionPreviewProcess } from '../../session-preview-process'
+import { resolveActiveAgentDir } from '../../agent-dir'
 import {
   readPiAgentGlobalSettingsFromDisk,
   readPiProjectSettingsFromDisk,
@@ -34,7 +35,10 @@ export function registerSkillsResourceHandlers(): void {
       migrateElectronSkillOverrides(legacy)
       configStore.set('skillOverrides', {})
     }
-    const cwd = configStore.get('currentProject')
+    // No project open (home draft): still list user-scope skills through a neutral workspace at
+    // the pi agent dir — returning an empty catalog here hid ~/.pi/agent/skills entirely (#96).
+    const agentDir = resolveActiveAgentDir()
+    const cwd = configStore.get('currentProject') || (existsSync(agentDir) ? agentDir : null)
     if (!cwd) {
       return { complete: false, projectTrusted: false, effectiveSkills: [], candidates: [], skills: [] }
     }
@@ -44,7 +48,15 @@ export function registerSkillsResourceHandlers(): void {
     ) {
       await workerManager.start(cwd)
     }
-    const catalog = await workerManager.getSkillsList()
+    // The foreground slot counts as "running" while its session is still initialising; asking
+    // then returned an empty, incomplete catalog. Wait for init, and retry once across a switch.
+    await workerManager.awaitReady()
+    let catalog = await workerManager.getSkillsList()
+    if (!catalog.complete) {
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      await workerManager.awaitReady()
+      catalog = await workerManager.getSkillsList()
+    }
     const presentation = configStore.get('skillPresentation') || {}
     const candidates = catalog.candidates.map((candidate) => ({
       ...candidate,

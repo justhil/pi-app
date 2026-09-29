@@ -226,15 +226,17 @@ export function ModelsProviderCard({
                 <div className="space-y-2">
                   {(p.models || []).map((m) => {
                     const rowKey = `${pid}\0${m.id}`
+                    const rowExpanded = expandedLocalModel[rowKey] === true
                     return (
-                      <ModelEntryEditor
-                        key={m.id}
-                        model={m}
-                        expanded={expandedLocalModel[rowKey] === true}
-                        onToggleExpand={() => onToggleLocalModel(rowKey)}
-                        onChange={(patch) => onUpdateModel(m.id, patch)}
-                        onRemove={() => onRemoveModel(m.id)}
-                      />
+                      <div key={m.id} className={rowExpanded ? undefined : 'settings-virtual-row settings-virtual-row-sm'}>
+                        <ModelEntryEditor
+                          model={m}
+                          expanded={rowExpanded}
+                          onToggleExpand={() => onToggleLocalModel(rowKey)}
+                          onChange={(patch) => onUpdateModel(m.id, patch)}
+                          onRemove={() => onRemoveModel(m.id)}
+                        />
+                      </div>
                     )
                   })}
                 </div>

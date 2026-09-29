@@ -140,6 +140,16 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   emitSessionModelState()
 }
 
+/** Thinking levels the current model supports (empty when the SDK cannot tell). */
+export function availableThinkingLevels(): string[] | undefined {
+  try {
+    const levels = st.session?.getAvailableThinkingLevels?.()
+    return Array.isArray(levels) && levels.length > 0 ? levels.map(String) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Push current session model to renderer; optionally include SDK model restore fallback. */
 export function emitSessionModelState(opts?: { modelFallbackMessage?: string | null }): void {
   if (!st.session) return
@@ -151,6 +161,7 @@ export function emitSessionModelState(opts?: { modelFallbackMessage?: string | n
     phase: 'state',
     model: modelStr,
     thinkingLevel: st.session.thinkingLevel,
+    availableThinkingLevels: availableThinkingLevels(),
     ...(fallback ? { modelFallbackMessage: fallback } : {}),
   })
 }

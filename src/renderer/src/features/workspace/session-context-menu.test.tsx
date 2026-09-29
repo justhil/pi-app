@@ -65,14 +65,32 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     expect(workspaceMocks.switchSessionInPlace).not.toHaveBeenCalled()
   })
 
+  // #94: a native window.confirm leaves Windows Electron pages untypable until alt-tab
+  // (electron/electron#19977, #31917) — delete must confirm in-app.
+  it('delete confirms in-app instead of the native window.confirm', async () => {
+    invokeMock.mockResolvedValue({ ok: true })
+    const nativeConfirm = vi.spyOn(window, 'confirm')
+    render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={() => {}} />)
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+
+    expect(nativeConfirm).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(invokeMock).not.toHaveBeenCalledWith('session.delete', expect.anything())
+  })
+
   it('delete refreshes the owning workspace', async () => {
     invokeMock.mockResolvedValue({ ok: true })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onSessionsChange = vi.fn()
     render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={onSessionsChange} />)
 
     await act(async () => {
       fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:confirm'))
     })
 
     expect(invokeMock).toHaveBeenCalledWith('session.delete', {
@@ -142,7 +160,6 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
       if (method === 'session.delete') return new Promise<unknown>((r) => (resolveDelete = r))
       return { ok: true }
     })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const onSessionRemoved = vi.fn()
     render(
       <SessionContextMenuPortal
@@ -155,6 +172,9 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
 
     await act(async () => {
       fireEvent.click(screen.getByText('common:sidebar.delete'))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:confirm'))
     })
 
     // 乐观移除在 IPC 完成前就已发生

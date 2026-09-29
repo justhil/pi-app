@@ -2,11 +2,10 @@ import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { projectTimelineItems } from '@shared/timeline-projection'
 import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
 import { fetchTimelineHistoryPage } from '@renderer/lib/session-timeline-sync'
-import { getSessionTimelineView, patchSessionTimelineView } from '@renderer/lib/session-timeline-views'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SESSION_HISTORY_PAGE } from '@renderer/lib/session-history'
 
-/** Older JSONL page → SessionTimelineView.head + ui-store (offset = historyLoadedCount). */
+/** Older JSONL page → ui-store (offset = historyLoadedCount). */
 export async function prependOlderTimelinePage(
   sessionFile: string,
   offset: number,
@@ -24,10 +23,6 @@ export async function prependOlderTimelinePage(
 
   const store = useUIStore.getState()
   if (page.items.length > 0) {
-    const view = getSessionTimelineView(sessionFile)
-    const previousHead = view?.head ?? []
-    patchSessionTimelineView(sessionFile, { head: [...page.items, ...previousHead] })
-
     const merged = sanitizeHistoryTimeline([...page.items, ...store.timelineItems])
     const displayed = projectTimelineItems(merged) as TimelineItem[]
     useUIStore.setState({ timelineItems: displayed })

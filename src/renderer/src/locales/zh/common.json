@@ -59,7 +59,8 @@
     "clearSearch": "清除搜索",
     "continue": "继续",
     "copySessionPath": "复制会话路径",
-    "openLog": "打开日志"
+    "openLog": "打开日志",
+    "newSessionDraft": "新会话"
   },
   "attention": {
     "needsYou": "等你",
@@ -183,6 +184,9 @@
     "markUnread": "标为未读",
     "markRead": "标为已读",
     "unreadCount": "{{count}} 条待查看",
+    "all": "全部",
+    "unread": "未读",
+    "failed": "运行失败",
     "continueAnswer": "打开会话，继续作答",
     "history": "最近完成",
     "emptyHint": "完成的任务和需要回答的会话会显示在这里。",

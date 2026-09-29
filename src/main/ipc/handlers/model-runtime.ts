@@ -9,6 +9,8 @@ import { getSessionContextPreviewFromDisk } from '../../session-context-preview'
 import { getSessionLeafOverride } from '../../session-leaf-override'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { isWslRuntimeActive } from '../../wsl/runtime-config'
+import { resolveActiveAgentDir } from '../../agent-dir'
+import { sessionPreviewProcess } from '../../session-preview-process'
 import { contextPreviewSchema } from '../schemas'
 import type { ModelEntry } from '../../active-sdk-models'
 import {
@@ -17,6 +19,22 @@ import {
   resolveAvailableModels,
   resolveCatalogModels,
 } from '../../active-sdk-models'
+
+/**
+ * SDK model listing runs in the preview utility process: importing the SDK on the main process
+ * blocks the browser UI thread for ~0.6s (window, IPC and renderer chunk loads all stall).
+ * WSL keeps the in-process path (its preview runner has no model runtime).
+ */
+async function listModelsOffThread(scope: 'available' | 'catalog'): Promise<readonly ModelEntry[]> {
+  try {
+    // WSL: the WSL preview resolves its own (native) agent dir.
+    return await sessionPreviewProcess.listModels(scope, isWslRuntimeActive() ? '' : resolveActiveAgentDir())
+  } catch (error) {
+    console.warn(`[IPC] model.list ${scope} via preview failed, using main:`, error)
+  }
+  const sdk = await getActiveSdkModule(app.getPath('userData'))
+  return scope === 'available' ? listAvailableModelsWithSdk(sdk) : listCatalogModelsWithSdk(sdk)
+}
 
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
@@ -56,7 +74,7 @@ export function registerModelRuntimeHandlers(): void {
     if (scope === 'catalog' || scope === 'settings') {
       const models = await resolveCatalogModels({
         sdk: async () => {
-          const catalog = await listCatalogModelsWithSdk(await getActiveSdkModule(app.getPath('userData')))
+          const catalog = await listModelsOffThread('catalog')
           return scope === 'settings'
             ? mapRegistry(catalog)
             : catalog.map((model) => ({
@@ -83,7 +101,7 @@ export function registerModelRuntimeHandlers(): void {
               ),
             )
         : undefined,
-      sdk: async () => mapRegistry(await listAvailableModelsWithSdk(await getActiveSdkModule(app.getPath('userData')))),
+      sdk: async () => mapRegistry(await listModelsOffThread('available')),
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })
@@ -136,9 +154,10 @@ export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:runtime.getState', async (req) => {
     const workspaceId = String(req?.workspaceId || '').trim()
     const sessionFile = String(req?.sessionFile || '').trim()
+    const stateOpts = { includeTools: req?.includeTools === true }
     if (sessionFile) {
       try {
-        return { state: await workerManager.getState(sessionFile) }
+        return { state: await workerManager.getState(sessionFile, stateOpts) }
       } catch {
         return { state: null }
       }
@@ -148,7 +167,7 @@ export function registerModelRuntimeHandlers(): void {
       return { state: bg }
     }
     if (!workerManager.isRunning) return { state: null }
-    return { state: await workerManager.getState() }
+    return { state: await workerManager.getState(undefined, stateOpts) }
   })
 
   registerHandlerWithSchema('ipc:context.preview', contextPreviewSchema, async (req) => {
@@ -164,15 +183,17 @@ export function registerModelRuntimeHandlers(): void {
         console.warn('[IPC] live context.preview failed, using disk:', e)
       }
     }
-    if (isWslRuntimeActive()) return { preview: null }
-
     try {
-      return {
-        preview: await getSessionContextPreviewFromDisk(
-          authorized.sessionFile,
-          getSessionLeafOverride(authorized.sessionFile),
-        ),
-      }
+      const leafId = getSessionLeafOverride(authorized.sessionFile)
+      // Off the main thread (see listModelsOffThread); in-process only as a fallback.
+      const preview = await sessionPreviewProcess
+        .getContextPreview(authorized.sessionFile, leafId)
+        .catch((error) => {
+          console.warn('[IPC] context.preview via preview failed:', error)
+          // Host SDK fallback only for host sessions: it cannot read a WSL session's runtime.
+          return isWslRuntimeActive() ? null : getSessionContextPreviewFromDisk(authorized.sessionFile, leafId)
+        })
+      return { preview }
     } catch (e) {
       console.error('[IPC] context.preview failed:', e)
       return { preview: null }

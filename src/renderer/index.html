@@ -40,7 +40,100 @@
     </script>
   </head>
   <body class="bg-background text-foreground">
+    <style>
+      /* Cold-start splash: an overlay beside #root (React's Suspense fallback would clear #root
+         early). It fades in only after 250ms — a fast boot never flashes it — and App removes it
+         with a short cross-fade once the shell has mounted. Only opacity/transform animate. */
+      .boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        background: #ffffff;
+        transition: opacity 220ms ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        opacity: 0;
+        animation: boot-in 360ms cubic-bezier(0.22, 1, 0.36, 1) 250ms forwards;
+        --px: #1a1a1a;
+        --px-dim: rgba(26, 26, 26, 0.08);
+        --bar: rgba(26, 26, 26, 0.1);
+      }
+      .boot-splash[data-leaving] {
+        opacity: 0 !important;
+        animation: none;
+      }
+      .dark .boot-splash {
+        background: #1f1f1f;
+        --px: #cccccc;
+        --px-dim: rgba(204, 204, 204, 0.07);
+        --bar: rgba(204, 204, 204, 0.1);
+      }
+      .boot-splash-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 9px);
+        grid-auto-rows: 9px;
+        gap: 3px;
+      }
+      .boot-splash-grid i {
+        border-radius: 3px;
+        background: var(--px-dim);
+      }
+      .boot-splash-grid i.on {
+        background: var(--px);
+        opacity: 0;
+        transform: scale(0.6);
+        animation: boot-px 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards,
+          boot-breathe 2.4s ease-in-out 1.6s infinite;
+        animation-delay: calc(250ms + var(--i) * 22ms), calc(1.6s + var(--i) * 30ms);
+      }
+      .boot-splash-bar {
+        position: relative;
+        width: 72px;
+        height: 2px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: var(--bar);
+      }
+      .boot-splash-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        border-radius: 2px;
+        background: var(--px);
+        opacity: 0.55;
+        transform: translateX(-100%);
+        animation: boot-bar 1.3s cubic-bezier(0.65, 0, 0.35, 1) 600ms infinite;
+      }
+      @keyframes boot-in { to { opacity: 1; } }
+      @keyframes boot-px { to { opacity: 1; transform: scale(1); } }
+      @keyframes boot-breathe { 50% { opacity: 0.55; } }
+      @keyframes boot-bar { to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-splash, .boot-splash-grid i.on, .boot-splash-bar::after { animation: none; opacity: 1; transform: none; }
+      }
+    </style>
     <div id="root"></div>
+    <div id="boot-splash" class="boot-splash" role="status" aria-label="pi Desktop"><div class="boot-splash-grid" id="boot-splash-grid"></div><div class="boot-splash-bar"></div></div>
+    <script>
+      // Pixel "PI" (same 7×12 matrix as the session loading view).
+      (function () {
+        var rows = ['11111..11111', '10001..00100', '10001..00100', '11111..00100', '10000..00100', '10000..00100', '10000..11111'];
+        var grid = document.getElementById('boot-splash-grid');
+        if (!grid) return;
+        var html = '';
+        var lit = 0;
+        for (var r = 0; r < rows.length; r++) {
+          for (var c = 0; c < rows[r].length; c++) {
+            html += rows[r][c] === '1' ? '<i class="on" style="--i:' + lit++ + '"></i>' : '<i></i>';
+          }
+        }
+        grid.innerHTML = html;
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

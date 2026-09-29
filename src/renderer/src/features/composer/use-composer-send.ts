@@ -91,6 +91,7 @@ export function useComposerSend(opts: {
               attachments: atts,
               segments,
             })
+            useUIStore.getState().setPendingTurnStage('starting')
             const { finalizeEphemeralSandboxOnFirstSend } =
               await import('@renderer/lib/ephemeral-sandbox')
             await finalizeEphemeralSandboxOnFirstSend(pendMsg)
@@ -98,6 +99,7 @@ export function useComposerSend(opts: {
               optimisticToken,
               useUIStore.getState().historySessionFile,
             )
+            useUIStore.getState().setPendingTurnStage('sending')
             const bind = await sendPrompt()
             await afterPromptSent(bind)
             return
@@ -108,10 +110,12 @@ export function useComposerSend(opts: {
               attachments: atts,
               segments,
             })
+            useUIStore.getState().setPendingTurnStage('starting')
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
             await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
               bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
             })
+            useUIStore.getState().setPendingTurnStage('sending')
             const bind = await sendPrompt()
             await afterPromptSent(bind)
             return

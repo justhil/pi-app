@@ -9,6 +9,17 @@ import {
 import { markTrailingIncompleteAssistants } from '@shared/timeline-incomplete'
 
 let msgSeq = 0
+/**
+ * History rows are built in Main *and* in every Worker process, each with its own counter (and a
+ * restarted Worker starts over). Timelines merge rows from several of those sources, so bare
+ * `hist-N` ids collided; duplicate React keys then misplaced whole turns / tool rows until a
+ * remount. A per-process tag keeps ids unique across sources.
+ */
+const PROCESS_TAG = Math.random().toString(36).slice(2, 7)
+
+function nextHistId(): string {
+  return `hist-${PROCESS_TAG}-${++msgSeq}`
+}
 
 export function resetTimelineSeq(): void {
   msgSeq = 0
@@ -38,7 +49,7 @@ function pushAssistantItem(
   // or empty leaves without tool calls (crash before first token / tool).
   const incomplete = emptyBody && (errorStop || !opts.hasToolCalls)
   items.push({
-    id: `hist-${++msgSeq}`,
+    id: nextHistId(),
     type: 'assistant-message',
     text: opts.text,
     thinkingText: opts.thinkingText || undefined,
@@ -64,7 +75,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
 
     if (pm.role === 'user') {
       const text = normalizeUserMessageDisplayText(extractText(pm))
-      if (text) items.push({ id: `hist-${++msgSeq}`, type: 'user-message', text, timestamp: ts })
+      if (text) items.push({ id: nextHistId(), type: 'user-message', text, timestamp: ts })
     } else if (pm.role === 'assistant') {
       const text = extractText(pm)
       const thinkingText = extractThinking(pm)
@@ -89,7 +100,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         const input = tc.input ?? tc.arguments ?? tc.toolCall?.input ?? tc.toolCall?.arguments
         const callId = tc.id || tc.toolCall?.id || ''
         const item: Record<string, unknown> = {
-          id: `hist-${++msgSeq}`,
+          id: nextHistId(),
           type: 'tool-call',
           ...(callId ? { toolCallId: callId } : {}),
           toolName: name,
@@ -128,7 +139,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
         items.push({
-          id: `hist-${++msgSeq}`,
+          id: nextHistId(),
           type: 'tool-call',
           ...(callId ? { toolCallId: callId } : {}),
           toolName: toolName || 'result',
@@ -141,7 +152,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
       }
     } else if (pm.role === 'compactionSummary' || pm.role === 'branchSummary') {
       const text = extractText(pm)
-      items.push({ id: `hist-${++msgSeq}`, type: 'compaction', text, timestamp: ts })
+      items.push({ id: nextHistId(), type: 'compaction', text, timestamp: ts })
     }
   }
   return markTrailingIncompleteAssistants(items)
@@ -166,7 +177,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
 
     if (e.type === 'compaction' && e.summary) {
       items.push({
-        id: `hist-${++msgSeq}`,
+        id: nextHistId(),
         type: 'compaction',
         text: String(e.summary),
         timestamp: ts,
@@ -176,7 +187,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
     }
     if (e.type === 'branch_summary' && e.summary) {
       items.push({
-        id: `hist-${++msgSeq}`,
+        id: nextHistId(),
         type: 'compaction',
         text: String(e.summary),
         timestamp: ts,
@@ -194,7 +205,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       // Keep empty user only if we have an entry id (rare); normally require text.
       if (text || sid) {
         items.push({
-          id: `hist-${++msgSeq}`,
+          id: nextHistId(),
           type: 'user-message',
           text: text || '',
           timestamp: ts,
@@ -225,7 +236,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
         const input = cc.arguments ?? cc.toolCall?.input ?? cc.toolCall?.arguments
         const callId = cc.id || cc.toolCall?.id || ''
         const item: Record<string, unknown> = {
-          id: `hist-${++msgSeq}`,
+          id: nextHistId(),
           type: 'tool-call',
           ...(callId ? { toolCallId: callId } : {}),
           toolName: name,
@@ -265,7 +276,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
         items.push({
-          id: `hist-${++msgSeq}`,
+          id: nextHistId(),
           type: 'tool-call',
           ...(callId ? { toolCallId: callId } : {}),
           toolName: toolName || 'result',

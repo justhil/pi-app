@@ -7,6 +7,7 @@ import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { resolveUtilityEntry } from '../utility-entry-path'
 import { wslCdFlagSupported, wslWorkerDirWsl } from './worker-host'
+import { wslNodeCommand } from './wsl-env'
 
 function previewBundleHash(source: string): string {
   const hash = createHash('sha256')
@@ -60,17 +61,10 @@ export function spawnPreviewInWsl(opts: {
 }): ChildProcess {
   const args = ['-d', opts.distro]
   if (wslCdFlagSupported(opts.distro)) {
-    args.push('--cd', opts.wslCwd, '--', 'node', opts.previewWslPath)
+    args.push('--cd', opts.wslCwd, '--', ...wslNodeCommand(opts.distro, opts.previewWslPath))
   } else {
-    args.push(
-      '--',
-      'bash',
-      '-lc',
-      'cd -- "$1" && exec node "$2"',
-      'bash',
-      opts.wslCwd,
-      opts.previewWslPath,
-    )
+    const [bin, ...rest] = wslNodeCommand(opts.distro, opts.previewWslPath)
+    args.push('--', 'bash', '-lc', 'cd -- "$1" && shift && exec "$@"', 'bash', opts.wslCwd, bin, ...rest)
   }
   const env: Record<string, string> = {
     ...process.env,

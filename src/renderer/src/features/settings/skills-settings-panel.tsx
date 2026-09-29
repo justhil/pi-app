@@ -354,25 +354,16 @@ export function SkillsSettingsPanel() {
         title={t('settings:skills.title')}
         description={t('settings:skills.hint')}
         action={
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="chrome-icon-btn flex h-11 w-11 items-center justify-center rounded-md"
-              aria-label={t('common:refresh')}
-              title={t('common:refresh')}
-              disabled={loading}
-              onClick={() => void load(false, true)}
-            >
-              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.5} />
-            </button>
-            <button
-              type="button"
-              className="rounded-md border border-border/50 px-2 py-1 text-[11px]"
-              onClick={() => void load(false, true)}
-            >
-              {t('settings:skills.recheck')}
-            </button>
-          </div>
+          <button
+            type="button"
+            className={cn(btnOutline, 'inline-flex items-center gap-1.5')}
+            title={t('common:refresh')}
+            disabled={loading}
+            onClick={() => void load(false, true)}
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} strokeWidth={1.8} />
+            {t('settings:skills.recheck')}
+          </button>
         }
       />
 
@@ -464,7 +455,7 @@ export function SkillsSettingsPanel() {
               : t('settings:skills.enableSkill', { name: displayName })
 
             return (
-              <li key={skill.key} className="border-b border-border/40 last:border-b-0">
+              <li key={skill.key} className={cn('border-b border-border/40 last:border-b-0', !open && 'settings-virtual-row')}>
                 <div className={cn('settings-skill-row flex items-center gap-3 px-3', !enabled && 'opacity-70')}>
                   <button
                     type="button"

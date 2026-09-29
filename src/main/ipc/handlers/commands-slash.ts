@@ -1,9 +1,11 @@
 import { registerHandler } from '../registry'
+import { awaitWslVm } from '../../wsl/wsl-env'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { getDesktopSkillOverrides, isSkillEnabled } from '../../pi-skill-overrides'
 import { mergeSlashCommandLists, scanStaticSlashCommands, type SlashCatalogCommand } from '../../commands-catalog'
 import { resolveV2SlashPrefix } from '../../../extension-compat/adapter-loader'
+import { probeExtensionsShared } from '../../extension-probe-cache'
 
 export function registerCommandsSlashHandlers(): void {
   registerHandler('ipc:commands.completions', async (req) => {
@@ -17,6 +19,7 @@ export function registerCommandsSlashHandlers(): void {
   })
 
   registerHandler('ipc:commands.list', async () => {
+    await awaitWslVm() // startup: let the WSL VM boot off-thread before sync \\wsl.localhost reads
     const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
     const overrides = getDesktopSkillOverrides()
     const filterSkills = (list: SlashCatalogCommand[]) =>
@@ -27,7 +30,7 @@ export function registerCommandsSlashHandlers(): void {
         return isSkillEnabled(id, path, overrides)
       })
 
-    const staticCmds = filterSkills(scanStaticSlashCommands(cwd))
+    const staticCmds = filterSkills(scanStaticSlashCommands(cwd, await probeExtensionsShared(cwd)))
     await workerManager.awaitReady()
     if (workerManager.isRunning) {
       try {

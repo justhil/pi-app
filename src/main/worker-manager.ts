@@ -681,7 +681,8 @@ export class WorkerManager {
    * Never fall back to another session's foreground worker (would mis-report isStreaming),
    * and never ensure/create a worker just for a status poll.
    */
-  async getState(sessionFile?: string): Promise<WorkerState> {
+  async getState(sessionFile?: string, opts?: { includeTools?: boolean }): Promise<WorkerState> {
+    const payload = opts?.includeTools ? { includeTools: true } : undefined
     if (sessionFile) {
       const sk = normalizeSessionKey(sessionFile)
       const slot = this.pool.get(sk)
@@ -693,7 +694,7 @@ export class WorkerManager {
         } as WorkerState
       }
       try {
-        const r = await this.requestOnSlot(slot, 'getState')
+        const r = await this.requestOnSlot(slot, 'getState', payload)
         const state = ((r.state as WorkerState) || {}) as WorkerState
         // Always stamp the pool identity so renderer cannot mis-attribute streaming.
         return {
@@ -710,7 +711,7 @@ export class WorkerManager {
         } as WorkerState
       }
     }
-    return ((await this.request('getState', {})).state as WorkerState) || {}
+    return ((await this.request('getState', payload ?? {})).state as WorkerState) || {}
   }
   async getCommands(): Promise<{ commands: WorkerCommandInfo[]; hasSession: boolean }> {
     const r = await this.request('getCommands')

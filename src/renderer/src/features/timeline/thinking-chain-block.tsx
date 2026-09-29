@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ChevronRight } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
@@ -36,6 +36,9 @@ export function ThinkingChainBlock({
   duration,
   labelSeed,
   placeholder = false,
+  liveLabel,
+  showElapsed = false,
+  leadingGlyph,
 }: {
   text: string
   streaming?: boolean
@@ -44,6 +47,12 @@ export function ThinkingChainBlock({
   duration?: number
   labelSeed?: string
   placeholder?: boolean
+  /** Overrides the rotating live label (e.g. reply placeholder stages). */
+  liveLabel?: string
+  /** Append the running wait time once it passes 2s, so a long wait still reads as progress. */
+  showElapsed?: boolean
+  /** Replaces the empty 12px leading slot of a placeholder (e.g. the pixel wave). */
+  leadingGlyph?: ReactNode
 }) {
   const { t } = useTranslation()
   const [userOpen, setUserOpen] = useState(false)
@@ -86,13 +95,18 @@ export function ThinkingChainBlock({
   )
 
   const label = useMemo(() => {
-    if (isLive) return t(liveKey)
+    if (isLive) {
+      const base = liveLabel ?? t(liveKey)
+      return showElapsed && elapsedMs >= 2000
+        ? t('timeline:pendingStage.elapsed', { label: base, seconds: Math.floor(elapsedMs / 1000) })
+        : base
+    }
     if (elapsedMs > 0) {
       const d = formatThoughtDuration(elapsedMs)
       return t(d.labelKey, { seconds: d.seconds })
     }
     return t('timeline:thoughtDone')
-  }, [isLive, liveKey, elapsedMs, t])
+  }, [isLive, liveKey, liveLabel, showElapsed, elapsedMs, t])
 
   if (!placeholder && !body) return null
 
@@ -109,7 +123,9 @@ export function ThinkingChainBlock({
           (placeholder || !body) && 'cursor-default hover:bg-transparent',
         )}
       >
-        {placeholder || !body ? (
+        {placeholder && leadingGlyph ? (
+          leadingGlyph
+        ) : placeholder || !body ? (
           <span className="w-3 shrink-0" aria-hidden />
         ) : (
           <ChevronRight

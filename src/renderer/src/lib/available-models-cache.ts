@@ -46,6 +46,25 @@ export function ensureAvailableModels(): Promise<ModelInfo[]> {
   return refreshAvailableModels()
 }
 
+/**
+ * Full SDK catalog, fetched at most once per model-config generation. Only needed for lookups
+ * the available list cannot answer (e.g. a session pinned to a catalog-only model).
+ */
+let catalog: { generation: number; promise: Promise<ModelInfo[]> } | null = null
+
+export function ensureCatalogModels(): Promise<ModelInfo[]> {
+  if (catalog?.generation === generation) return catalog.promise
+  const requestGeneration = generation
+  const promise: Promise<ModelInfo[]> = Promise.resolve(ipcClient.invoke('model.list', { scope: 'catalog' }))
+    .then((res) => (Array.isArray(res?.models) ? (res.models as ModelInfo[]) : []))
+    .catch(() => {
+      if (catalog?.promise === promise) catalog = null
+      return []
+    })
+  catalog = { generation: requestGeneration, promise }
+  return promise
+}
+
 export function invalidateAvailableModels(): void {
   generation += 1
   invalidated = true
@@ -60,5 +79,6 @@ export function clearAvailableModelsCacheForTests(): void {
   inFlight = null
   generation = 0
   invalidated = true
+  catalog = null
   listeners.clear()
 }

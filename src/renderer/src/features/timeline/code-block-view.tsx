@@ -29,17 +29,19 @@ function CodeBlockViewImpl({
   const [copied, setCopied] = useState(false)
   const lines = code.split('\n')
   const needsFold = lines.length > previewLines
+  // Highlight what is shown. Streaming tool output appends below a collapsed preview; keying on the
+  // visible slice (not the whole output) skips re-highlighting an unchanged preview on every update.
+  const visible = expanded || !needsFold ? code : lines.slice(0, previewLines).join('\n')
 
   useEffect(() => {
     let cancelled = false
-    const slice = expanded || !needsFold ? code : lines.slice(0, previewLines).join('\n')
-    highlightCodeToHtml(slice, lang).then((h) => {
+    highlightCodeToHtml(visible, lang).then((h) => {
       if (!cancelled) setHtml(h)
     })
     return () => {
       cancelled = true
     }
-  }, [code, lang, expanded, needsFold, previewLines])
+  }, [visible, lang])
 
   const copy = () => {
     navigator.clipboard.writeText(code).then(() => {

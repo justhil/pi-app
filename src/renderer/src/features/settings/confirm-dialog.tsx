@@ -35,7 +35,7 @@ export function ConfirmDialog({
 
   return createPortal(
     <div
-      className="electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4"
+      className="overlay-backdrop electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
@@ -45,7 +45,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-sm rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
+        className="overlay-panel w-full max-w-sm rounded-lg border border-border bg-popover p-4 text-popover-foreground shadow-xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <h2 id={titleId} className="mb-2 text-lg font-semibold text-foreground">

@@ -12,6 +12,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { StreamingCaret } from './tool-card-primitives'
 import { SessionOpenLoadingView } from './session-open-loading'
 import { ThinkingChainBlock } from './thinking-chain-block'
+import { ReplyPlaceholder } from './reply-placeholder'
 import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
 import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawItem } from './timeline-display-items'
@@ -90,6 +91,7 @@ const TimelineItemBase = memo(function TimelineItem({
       <div className="timeline-message-row timeline-user-row">
         <MessageHoverShell
           align="right"
+          reserve={showMessageActions}
           actions={
             showMessageActions ? (
               <MessageHoverActions
@@ -148,10 +150,7 @@ const TimelineItemBase = memo(function TimelineItem({
       if (streaming || agentBoot) {
         return (
           <div className="timeline-message-row timeline-activity-item">
-            <ThinkingChainBlock
-              text=""
-              streaming
-              placeholder
+            <ReplyPlaceholder
               startedAt={Number(item.timestamp ?? 0) || undefined}
               labelSeed={String(item.id)}
             />
@@ -351,9 +350,31 @@ export function Timeline() {
   const timelineMaxAutoExpandedTools = useUIStore((s) => s.timelineMaxAutoExpandedTools)
   const { t } = useTranslation()
 
-  // Virtualization: render only a window of items, grow on scroll up
+  // Virtualization: render only a window of items, grow on scroll up.
+  // The window belongs to one session (after vastsa/pi-desktop D261): a switch first commits a small
+  // tail so the destination paints fast, then grows to the steady window after paint. A budget grown
+  // by scrolling up in the previous session must never over-mount the next one.
   const PAGE = 40
-  const [renderCount, setRenderCount] = useState(PAGE)
+  const FIRST_PAINT_ROWS = 16
+  const [windowState, setWindowState] = useState<{ sessionFile: string | null; count: number }>(() => ({
+    sessionFile: historySessionFile ?? null,
+    count: PAGE,
+  }))
+  const windowSessionFile = historySessionFile ?? null
+  const renderCount =
+    windowState.sessionFile === windowSessionFile ? windowState.count : FIRST_PAINT_ROWS
+  const windowSessionRef = useRef(windowSessionFile)
+  windowSessionRef.current = windowSessionFile
+  const setRenderCount = useCallback((update: number | ((count: number) => number)) => {
+    setWindowState((previous) => {
+      const sessionFile = windowSessionRef.current
+      const base = previous.sessionFile === sessionFile ? previous.count : FIRST_PAINT_ROWS
+      const count = typeof update === 'function' ? update(base) : update
+      return previous.sessionFile === sessionFile && previous.count === count
+        ? previous
+        : { sessionFile, count }
+    })
+  }, [])
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -688,7 +709,7 @@ export function Timeline() {
   // older messages are prepended (that changes items[0].id and must not reset).
   const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
-    setRenderCount(PAGE)
+    setRenderCount(FIRST_PAINT_ROWS)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
     const prevFile = prevSessionFileRef.current
@@ -707,7 +728,17 @@ export function Timeline() {
       const el = scrollRef.current
       if (el) scheduleTimelineScrollToBottom(el)
     })
-  }, [historySessionFile, followLiveRef])
+    // Grow to the steady window once the small first commit has painted; anchor the viewport so
+    // rows added above do not move what the user is looking at.
+    let growFrame = requestAnimationFrame(() => {
+      growFrame = requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (el) scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
+        setRenderCount((count) => Math.max(count, PAGE))
+      })
+    })
+    return () => cancelAnimationFrame(growFrame)
+  }, [historySessionFile, followLiveRef, setRenderCount])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
@@ -910,6 +941,27 @@ export function Timeline() {
     )
   }
 
+  /**
+   * Sibling keys must be unique: rows merged from several sources (disk pages, live cache,
+   * worker reloads) can share an id, and duplicate React keys silently reorder/misplace rows
+   * until a remount. Suffix repeats so each sibling list stays well-keyed.
+   */
+  const createKeyClaimer = () => {
+    const used = new Set<string>()
+    return (key: string): string => {
+      if (!used.has(key)) {
+        used.add(key)
+        return key
+      }
+      let n = 1
+      while (used.has(`${key}~${n}`)) n++
+      const unique = `${key}~${n}`
+      used.add(unique)
+      return unique
+    }
+  }
+  const claimTopKey = createKeyClaimer()
+
   /** Last assistant prose block id in a turn — only that leaf gets message actions. */
   const lastProseIdInTurn = (blocks: TimelineDisplayItem[]): string | null => {
     for (let index = blocks.length - 1; index >= 0; index--) {
@@ -967,21 +1019,24 @@ export function Timeline() {
           </button>
         </div>
       )}
-      {leading.map((block, i) =>
-        renderDisplayBlock(block, `lead-${i}`, {
-          showMessageActions:
-            block.kind === 'single' &&
-            block.item.type === 'assistant-message' &&
-            block.item.id === lastProseIdInTurn(leading),
-        }),
-      )}
+      {leading.map((block, i) => (
+        <Fragment key={claimTopKey(block.kind === 'tool-group' ? block.groupId : block.item.id || `lead-${i}`)}>
+          {renderDisplayBlock(block, `lead-${i}`, {
+            showMessageActions:
+              block.kind === 'single' &&
+              block.item.type === 'assistant-message' &&
+              block.item.id === lastProseIdInTurn(leading),
+          })}
+        </Fragment>
+      ))}
       {turnGroups.map((turn, turnIndex) => {
         const isLiveTurn =
           turnIndex === turnGroups.length - 1 &&
           (!!streamingAssistantId || agentRunning || sessionChrome.phase === 'waiting_ui')
         const turnLastProseId = lastProseIdInTurn(turn.blocks)
+        const claimBlockKey = createKeyClaimer()
         return (
-          <Fragment key={turn.turnId}>
+          <Fragment key={claimTopKey(turn.turnId)}>
             {(() => {
               const userEntryId = turn.userItem.sessionEntryId as string | undefined
               const userRow = (
@@ -1009,14 +1064,16 @@ export function Timeline() {
                 block.kind === 'single' &&
                 block.item.type === 'assistant-message' &&
                 block.item.id === turnLastProseId
-              return renderDisplayBlock(
-                block,
+              const blockKey =
                 block.kind === 'tool-group'
                   ? block.groupId
                   : block.kind === 'single'
                     ? block.item.id
-                    : `${turn.turnId}-b${bi}`,
-                { showMessageActions: isLastProse },
+                    : `${turn.turnId}-b${bi}`
+              return (
+                <Fragment key={claimBlockKey(blockKey || `${turn.turnId}-b${bi}`)}>
+                  {renderDisplayBlock(block, blockKey, { showMessageActions: isLastProse })}
+                </Fragment>
               )
             })}
             {/* Cursor-style files card: only on the last completed turn.

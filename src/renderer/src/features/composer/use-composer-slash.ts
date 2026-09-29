@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { BUILTIN_COMMANDS, type SlashCommand } from './composer-constants'
 import {
@@ -21,30 +21,41 @@ export function useComposerSlash(
   const [argCompletions, setArgCompletions] = useState<{ label: string; description?: string }[]>([])
   const [argIdx, setArgIdx] = useState(0)
 
+  // One request in flight at a time; the catalog is only needed once the user types "/".
+  const inflight = useRef<Promise<void> | null>(null)
+  const fetchedAt = useRef(0)
   const refreshCommands = useCallback(async () => {
-    try {
-      const res = await ipcClient.invoke('commands.list')
-      const cmds = (res?.commands || []) as SlashCommand[]
-      const names = new Set(cmds.map((c) => c.name))
-      const merged = [...BUILTIN_COMMANDS.filter((b) => !names.has(b.name)), ...cmds]
-      setCommands(merged)
-      setCommandsSource(res?.source || 'worker')
-    } catch (e) {
-      console.error('commands.list failed:', e)
-      setCommands(BUILTIN_COMMANDS)
-    }
+    if (inflight.current) return inflight.current
+    const run = (async () => {
+      try {
+        const res = await ipcClient.invoke('commands.list')
+        const cmds = (res?.commands || []) as SlashCommand[]
+        const names = new Set(cmds.map((c) => c.name))
+        const merged = [...BUILTIN_COMMANDS.filter((b) => !names.has(b.name)), ...cmds]
+        setCommands(merged)
+        setCommandsSource(res?.source || 'worker')
+        fetchedAt.current = Date.now()
+      } catch (e) {
+        console.error('commands.list failed:', e)
+        setCommands(BUILTIN_COMMANDS)
+      } finally {
+        inflight.current = null
+      }
+    })()
+    inflight.current = run
+    return run
   }, [])
 
   useEffect(() => {
-    if (canCompose) refreshCommands()
-  }, [canCompose, refreshCommands])
-
-  useEffect(() => {
-    if (canCompose && currentWorkspace) refreshCommands()
+    if (canCompose) void refreshCommands()
   }, [canCompose, currentWorkspace, refreshCommands])
 
+  // Session switches: extension commands can differ per bound session, but nothing needs them
+  // during the switch itself — refresh once it has settled instead of competing with it.
   useEffect(() => {
-    if (currentSessionId) refreshCommands()
+    if (!currentSessionId) return
+    const timer = setTimeout(() => void refreshCommands(), 800)
+    return () => clearTimeout(timer)
   }, [currentSessionId, refreshCommands])
 
   const slashQuery = useMemo(() => {
@@ -52,6 +63,11 @@ export function useComposerSlash(
     if (!m) return null
     return m[1]
   }, [text])
+
+  const slashOpen = slashQuery !== null
+  useEffect(() => {
+    if (slashOpen && Date.now() - fetchedAt.current > 5000) void refreshCommands()
+  }, [slashOpen, refreshCommands])
 
   const filteredCommands = useMemo(() => {
     if (slashQuery === null) return []

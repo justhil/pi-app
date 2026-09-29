@@ -8,7 +8,6 @@ import {
   getLiveSessionTimeline,
   saveLiveSessionTimeline,
 } from '@renderer/lib/live-session-timeline-cache'
-import { clearSessionTimelineView, getSessionTimelineView } from '@renderer/lib/session-timeline-views'
 
 vi.mock('@renderer/features/timeline/tool-card-registry', () => ({
   resolveToolCardTemplate: (toolName: string | undefined) => toolName === 'subagent' ? 'tree' : undefined,
@@ -71,7 +70,6 @@ describe('applyAppEvent background live session routing', () => {
   beforeEach(() => {
     clearLiveSessionTimeline(liveFile)
     clearLiveSessionTimeline(previewFile)
-    clearSessionTimelineView()
     saveLiveSessionTimeline({
       sessionId: 'live-session',
       sessionFile: liveFile,
@@ -105,8 +103,7 @@ describe('applyAppEvent background live session routing', () => {
     expect(api.get().timelineItems).toEqual([])
     // Deltas are rAF-batched; getLiveSessionTimeline flushes pending text for switch-back.
     expect(getLiveSessionTimeline(liveFile)?.timelineItems.at(-1)?.text).toBe('streamed text')
-    // View patch is skipped on pure stream deltas to cut per-token work; structural
-    // events still patch. Wait a frame then re-apply a non-delta to verify path.
+    // A structural event after the delta batch must keep the streamed text in the live cache.
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
     applyAppEvent(
       {
@@ -119,7 +116,7 @@ describe('applyAppEvent background live session routing', () => {
       } as AppEvent,
       api,
     )
-    expect(getSessionTimelineView(liveFile)?.tail.at(-1)?.text).toBe('streamed text')
+    expect(getLiveSessionTimeline(liveFile)?.timelineItems.at(-1)?.text).toBe('streamed text')
   })
 
   it('coalesces multiple background deltas before switch-back read', async () => {

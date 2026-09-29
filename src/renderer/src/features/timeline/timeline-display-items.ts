@@ -184,9 +184,15 @@ export function stableToolGroupId(tools: TimelineRawItem[]): string {
 function pushFlatActivitySlice(
   out: TimelineDisplayItem[],
   slice: TimelineRawItem[],
+  keepTrailingShell: boolean,
 ): void {
-  for (const row of slice) {
+  for (let at = 0; at < slice.length; at++) {
+    const row = slice[at]
     if (isEmptyAssistantShell(row) && !isThinkingOnlyAssistant(row)) {
+      // The live reply slot waiting for the next message stays visible (placeholder).
+      if (keepTrailingShell && at === slice.length - 1) {
+        out.push({ kind: 'single', item: row, prevType: prevTypeFromOut(out) })
+      }
       continue
     }
     if (isToolCall(row) || row.type === 'assistant-message') {
@@ -218,7 +224,7 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
         const slice = items.slice(index, clusterEnd)
         const tools = slice.filter(isToolCall)
         if (tools.length === 0) {
-          if (isEmptyAssistantShell(item) && !isThinkingOnlyAssistant(item)) {
+          if (isEmptyAssistantShell(item) && !isThinkingOnlyAssistant(item) && index < items.length - 1) {
             index++
             continue
           }
@@ -236,13 +242,15 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
             })
           } else {
             // Still open: flat tools/thinking, no hierarchy (avoids flash on each new tool).
-            pushFlatActivitySlice(out, slice)
+            pushFlatActivitySlice(out, slice, clusterEnd === items.length)
           }
           index = clusterEnd
           continue
         }
       }
-      if (isEmptyAssistantShell(item) && !isThinkingOnlyAssistant(item)) {
+      // Empty shells are tool bridges — except the trailing one, which is the optimistic /
+      // live reply slot and must reach the renderer as a placeholder.
+      if (isEmptyAssistantShell(item) && !isThinkingOnlyAssistant(item) && index < items.length - 1) {
         index++
         continue
       }

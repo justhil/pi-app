@@ -83,6 +83,15 @@ type SettingsDraftContextValue = {
   save: () => Promise<boolean>
 }
 
+let lastSaveError: unknown = null
+
+/** The error behind the last failed save (consumed once), so the save bar can say why. */
+export function takeLastSettingsSaveError(): unknown {
+  const error = lastSaveError
+  lastSaveError = null
+  return error
+}
+
 const SettingsDraftContext = createContext<SettingsDraftContextValue | null>(null)
 
 export function useSettingsDraft(): SettingsDraftContextValue {
@@ -210,6 +219,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       return true
     } catch (e) {
       console.error('[settings] save failed', e)
+      lastSaveError = e
       return false
     } finally {
       setSaving(false)

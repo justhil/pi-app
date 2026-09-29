@@ -12,7 +12,12 @@ export type WslPreviewRequest = {
     | 'session.getMessages'
     | 'session.tree'
     | 'session.invalidateList'
+    | 'pi.settings.get'
     | 'pi.settings.set'
+    | 'extensions.probe'
+    | 'model.list'
+    | 'context.preview'
+    | 'warm'
     | 'system.prompt'
   payload: Record<string, unknown>
   userDataDir: string
@@ -70,10 +75,12 @@ export class WslSessionPreviewRunner {
     ])
     this.assertLifecycle(generation)
     if (!sdk) throw new Error(`[WSL] 发行版 ${runtime.distro} 内未找到 pi-coding-agent`)
-    const processKey = `${runtime.distro}\u0000${cwd}`
+    // One process per distro: every request carries its own cwd/paths, so there is no reason to
+    // respawn (wsl.exe + cold SDK import, seconds) when requests for different dirs interleave.
+    const processKey = runtime.distro
     if (this.process && this.processKey === processKey) return { process: this.process, sdkPath: sdk.entryPath }
     if (this.process) {
-      const error = new Error('WSL preview cwd changed')
+      const error = new Error('WSL preview distro changed')
       this.rejectPending(error)
       this.process.kill()
       this.process = null

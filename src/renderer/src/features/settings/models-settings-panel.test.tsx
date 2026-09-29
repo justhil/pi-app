@@ -21,6 +21,9 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() },
 }))
 
+// Defaults & thinking bindings have their own slice and test (model-defaults-section.test).
+vi.mock('./model-defaults-section', () => ({ ModelDefaultsSection: () => null }))
+
 vi.mock('./models-provider-card', () => ({
   ModelsProviderCard: ({
     onUpdateProvider,

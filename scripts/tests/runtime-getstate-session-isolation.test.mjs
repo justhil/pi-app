@@ -8,7 +8,7 @@ const root = process.cwd()
 describe('runtime getState session isolation', () => {
   it('getState(sessionFile) does not fall back to foreground worker', () => {
     const src = readFileSync(join(root, 'src/main/worker-manager.ts'), 'utf8')
-    assert.match(src, /async getState\(sessionFile\?: string\)/)
+    assert.match(src, /async getState\(sessionFile\?: string[,)]/)
     // Must look up pool by session key and return idle when missing
     assert.match(src, /const slot = this\.pool\.get\(sk\)/)
     assert.match(src, /isStreaming: false/)

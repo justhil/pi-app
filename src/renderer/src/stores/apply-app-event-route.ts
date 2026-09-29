@@ -1,4 +1,5 @@
 import type { SessionScopedAppEvent } from '@shared/app-event-session'
+import { workspacePathsEqual } from '@shared/workspace-path'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { isPlaceholderSessionId } from '@renderer/lib/session-ids'
 
@@ -14,7 +15,7 @@ type RouteState = {
 export function resolveAppEventRoute(state: RouteState, event: SessionScopedAppEvent): AppEventRoute {
   const evWs = event.workspaceId
   const viewWs = state.currentWorkspace
-  if (evWs && viewWs && evWs !== viewWs) {
+  if (evWs && viewWs && !workspacePathsEqual(evWs, viewWs)) {
     if (event.sessionFile) return 'background'
     return 'drop'
   }

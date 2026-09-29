@@ -15,6 +15,8 @@ import {
   subscribeAvailableModels,
 } from '@renderer/lib/available-models-cache'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { commitSessionDisplayMeta } from '@renderer/lib/session-display-meta'
+import { boundThinkingLevelFor, loadModelThinkingBindings } from '@renderer/lib/model-thinking-bindings'
 
 type ModelRow = { id: string; provider: string; name?: string; available?: boolean }
 
@@ -65,6 +67,7 @@ export function ModelPicker() {
     setModels(peekAvailableModels())
     setQuery('')
     setExpanded({})
+    void loadModelThinkingBindings()
     void reload()
     const unsub = onAppEvent((event) => {
       // Worker bound a session and pushed its runtime model state → the picker's
@@ -94,7 +97,9 @@ export function ModelPicker() {
   const pick = async (m: ModelRow) => {
     const requestedModel = `${m.provider}/${m.id}`
     if (!sessionFile) {
-      useUIStore.getState().setRunState({ model: requestedModel })
+      // Draft session: preview the model's bound thinking level (applied for real on creation).
+      const bound = boundThinkingLevelFor(requestedModel)
+      useUIStore.getState().setRunState({ model: requestedModel, ...(bound ? { thinkingLevel: bound } : {}) })
       setOpen(false)
       return
     }
@@ -116,6 +121,7 @@ export function ModelPicker() {
       if (!sessionFilesEqual(now.historySessionFile, targetFile)) return
       const actualModel = response.modelId || requestedModel
       now.setRunState({ model: actualModel })
+      commitSessionDisplayMeta(targetFile, { model: actualModel })
       if (pendingModelSwitch?.token === token) pendingModelSwitch = null
       setOpen(false)
       // Boot guard silences toast.success for the first 22s after launch; a

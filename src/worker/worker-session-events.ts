@@ -119,6 +119,15 @@ function emitSettledRun(deps: SessionEventDeps): void {
   })
 }
 
+function availableLevelsOf(session: unknown): string[] | undefined {
+  try {
+    const levels = (session as { getAvailableThinkingLevels?: () => unknown[] } | null)?.getAvailableThinkingLevels?.()
+    return Array.isArray(levels) && levels.length > 0 ? levels.map(String) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventDeps): void {
   const base = deps.baseEvent()
   const session = deps.getSession()
@@ -349,6 +358,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
           phase: 'state',
           model: deps.getSessionModelKey(),
           thinkingLevel: session.thinkingLevel,
+          availableThinkingLevels: availableLevelsOf(session),
         } as AppEvent)
       }
       break

@@ -6,18 +6,20 @@ import { cn } from '@renderer/lib/utils'
 import { formatTokens, estTokensFromChars } from '@renderer/lib/format-tokens'
 import { useSessionContextPreview } from './use-session-context-preview'
 import { ContextMessageBody } from './context-message-body'
+import { CONTEXT_ROLE_COLORS } from '@renderer/features/run/context-donut'
 
-const ROLE_STYLE: Record<string, { badge: string; labelKey: string }> = {
-  user: { badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', labelKey: 'context:userLabel' },
-  assistant: { badge: 'bg-brand/15 text-foreground', labelKey: 'context:assistantLabel' },
-  toolResult: { badge: 'bg-amber-500/15 text-amber-800 dark:text-amber-200', labelKey: 'context:toolResultLabel' },
-  compactionSummary: { badge: 'bg-purple-500/15 text-purple-800 dark:text-purple-200', labelKey: 'context:compactionLabel' },
-  branchSummary: { badge: 'bg-purple-500/10 text-purple-700', labelKey: 'context:branchLabel' },
-  system: { badge: 'bg-[var(--aou-6)]/15 text-[var(--aou-8)] dark:text-[var(--aou-4)]', labelKey: 'context:systemLabel' },
+// One quiet tag for every role; the dot carries the role colour shared with the Run panel donut.
+const ROLE_STYLE: Record<string, { color: string; labelKey: string }> = {
+  user: { color: CONTEXT_ROLE_COLORS.user, labelKey: 'context:userLabel' },
+  assistant: { color: CONTEXT_ROLE_COLORS.assistant, labelKey: 'context:assistantLabel' },
+  toolResult: { color: CONTEXT_ROLE_COLORS.tool, labelKey: 'context:toolResultLabel' },
+  compactionSummary: { color: CONTEXT_ROLE_COLORS.summary, labelKey: 'context:compactionLabel' },
+  branchSummary: { color: CONTEXT_ROLE_COLORS.summary, labelKey: 'context:branchLabel' },
+  system: { color: CONTEXT_ROLE_COLORS.system, labelKey: 'context:systemLabel' },
 }
 
 function roleMeta(role: string) {
-  return ROLE_STYLE[role] || { badge: 'bg-muted text-foreground-secondary', labelKey: '' }
+  return ROLE_STYLE[role] || { color: CONTEXT_ROLE_COLORS.other, labelKey: '' }
 }
 
 export function ContextPanel() {
@@ -84,7 +86,7 @@ export function ContextPanel() {
                 <button
                   type="button"
                   onClick={() => toggle(seg.index)}
-                  className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  className="context-segment-row flex w-full items-start gap-2 px-2.5 py-2 text-left"
                 >
                   {open ? (
                     <ChevronDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
@@ -92,17 +94,20 @@ export function ContextPanel() {
                     <ChevronRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', meta.badge)}>
-                        {meta.labelKey ? t(meta.labelKey) : seg.role}
-                        {seg.label ? ` · ${seg.label}` : ''}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="panel-tag min-w-0 gap-1.5">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.color }} aria-hidden />
+                        <span className="truncate">
+                          {meta.labelKey ? t(meta.labelKey) : seg.role}
+                          {seg.label ? ` · ${seg.label}` : ''}
+                        </span>
                       </span>
-                      <span className="text-[10px] tabular-nums text-foreground-secondary/70">
-                        ~{formatTokens(estTokensFromChars(seg.chars))} tok
+                      <span className="ml-auto shrink-0 text-[11px] tabular-nums text-foreground-secondary">
+                        ~{formatTokens(estTokensFromChars(seg.chars))}
                       </span>
                     </div>
                     {!open && seg.preview ? (
-                      <p className="mt-0.5 line-clamp-2 text-[12px] leading-relaxed text-foreground-secondary/85">
+                      <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-foreground-secondary">
                         {seg.preview}
                       </p>
                     ) : null}

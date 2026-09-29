@@ -1,6 +1,71 @@
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { patchPiCompactionTokens, type SettingsManagerLike } from './worker-compaction-patch'
 
+const THINKING_LEVELS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+
+/** `provider/modelId` → level, dropping unknown levels and blank keys. */
+export function normalizeModelThinkingLevels(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const level = String(value ?? '').trim().toLowerCase()
+    if (key.includes('/') && THINKING_LEVELS.has(level)) out[key] = level
+  }
+  return out
+}
+
+type RawSettingsManager = {
+  globalSettings?: Record<string, unknown>
+  markModified?: (field: string, nestedKey?: string) => void
+  save?: () => void
+}
+
+function rawInternals(sm: SettingsManager): Required<RawSettingsManager> {
+  const internals = sm as unknown as RawSettingsManager
+  if (!internals.globalSettings || typeof internals.markModified !== 'function' || typeof internals.save !== 'function') {
+    throw new Error('RAW_SETTINGS_UNSUPPORTED')
+  }
+  return internals as Required<RawSettingsManager>
+}
+
+/**
+ * Settings newer pi releases read but the bundled runtime has no setter for: patch the global
+ * object and mark the (nested) field modified — the save merges only modified fields, exactly
+ * like the SDK's own setters — so the key reaches settings.json for any pi that understands it.
+ */
+function setRawGlobalSetting(sm: SettingsManager, field: string, value: unknown, nestedKey?: string): void {
+  const internals = rawInternals(sm)
+  const settings = internals.globalSettings
+  if (nestedKey) {
+    const current = settings[field]
+    const group = current && typeof current === 'object' && !Array.isArray(current) ? { ...(current as Record<string, unknown>) } : {}
+    if (value === undefined || value === null) delete group[nestedKey]
+    else group[nestedKey] = value
+    settings[field] = group
+    internals.markModified.call(sm, field, nestedKey)
+  } else {
+    if (value === undefined || value === null) delete settings[field]
+    else settings[field] = value
+    internals.markModified.call(sm, field)
+  }
+  internals.save.call(sm)
+}
+
+function nonNegativeInt(value: unknown, name: string): number {
+  const n = Math.floor(Number(value))
+  if (!Number.isFinite(n) || n < 0) throw new Error(`Invalid ${name}`)
+  return n
+}
+
+/**
+ * pi ≥ 0.84 reads `modelThinkingLevels` (per-model thinking level, global settings only). The
+ * bundled runtime predates the typed setter, so write it the way its own setters do: patch the
+ * global object, mark the field modified (the save merges only modified fields) and save.
+ */
+function setModelThinkingLevels(sm: SettingsManager, levels: Record<string, string>): void {
+  setRawGlobalSetting(sm, 'modelThinkingLevels', Object.keys(levels).length > 0 ? levels : undefined)
+}
+
 export async function applyPiSettingsPatch(
   sm: SettingsManager,
   patch: Record<string, unknown>,
@@ -46,7 +111,12 @@ export async function applyPiSettingsPatch(
     )
   }
   if (patch.npmCommand !== undefined) {
-    sm.setNpmCommand(patch.npmCommand as Parameters<typeof sm.setNpmCommand>[0])
+    const command = Array.isArray(patch.npmCommand)
+      ? patch.npmCommand.map(String).filter(Boolean)
+      : typeof patch.npmCommand === 'string' && patch.npmCommand.trim()
+        ? patch.npmCommand.trim().split(/\s+/)
+        : undefined
+    sm.setNpmCommand(command && command.length ? command : undefined)
   }
   if (patch.treeFilterMode !== undefined) {
     sm.setTreeFilterMode(patch.treeFilterMode as Parameters<typeof sm.setTreeFilterMode>[0])
@@ -57,6 +127,27 @@ export async function applyPiSettingsPatch(
     )
   }
   if (patch.httpIdleTimeoutMs !== undefined) sm.setHttpIdleTimeoutMs(Number(patch.httpIdleTimeoutMs))
+  if (patch.modelThinkingLevels !== undefined) {
+    setModelThinkingLevels(sm, normalizeModelThinkingLevels(patch.modelThinkingLevels))
+  }
+  if (patch.showCacheMissNotices !== undefined) sm.setShowCacheMissNotices(Boolean(patch.showCacheMissNotices))
+  if (patch.websocketConnectTimeoutMs !== undefined) {
+    setRawGlobalSetting(sm, 'websocketConnectTimeoutMs', nonNegativeInt(patch.websocketConnectTimeoutMs, 'websocketConnectTimeoutMs'))
+  }
+  if (patch.retryMaxRetries !== undefined) {
+    setRawGlobalSetting(sm, 'retry', nonNegativeInt(patch.retryMaxRetries, 'retry.maxRetries'), 'maxRetries')
+  }
+  if (patch.retryBaseDelayMs !== undefined) {
+    setRawGlobalSetting(sm, 'retry', nonNegativeInt(patch.retryBaseDelayMs, 'retry.baseDelayMs'), 'baseDelayMs')
+  }
+  if (patch.retryMaxAgentDelayMs !== undefined) {
+    setRawGlobalSetting(sm, 'retry', nonNegativeInt(patch.retryMaxAgentDelayMs, 'retry.maxAgentDelayMs'), 'maxAgentDelayMs')
+  }
+  if (patch.cacheWarming !== undefined) {
+    const mode = String(patch.cacheWarming)
+    if (!['off', 'streaming', 'idle'].includes(mode)) throw new Error('Invalid cacheWarming')
+    setRawGlobalSetting(sm, 'cacheWarming', mode)
+  }
   if (patch.isProjectTrusted === true) sm.setProjectTrusted(true)
   if (patch.isProjectTrusted === false) sm.setProjectTrusted(false)
   await sm.flush()

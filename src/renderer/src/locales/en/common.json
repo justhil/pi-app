@@ -59,7 +59,8 @@
     "clearSearch": "Clear search",
     "continue": "Continue",
     "copySessionPath": "Copy session path",
-    "openLog": "Open log"
+    "openLog": "Open log",
+    "newSessionDraft": "New session"
   },
   "attention": {
     "needsYou": "Needs you",
@@ -183,6 +184,9 @@
     "markUnread": "Mark unread",
     "markRead": "Mark read",
     "unreadCount": "{{count}} to review",
+    "all": "All",
+    "unread": "Unread",
+    "failed": "Run failed",
     "continueAnswer": "Open conversation to respond",
     "history": "Recently completed",
     "emptyHint": "Completed tasks and conversations waiting for you will appear here.",

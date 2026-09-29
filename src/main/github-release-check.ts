@@ -105,11 +105,42 @@ export function sanitizeReleaseNotes(body: string | null | undefined): string {
   return raw
 }
 
-/** Pick best installer for process.platform from release assets. */
+/** electron-builder `${arch}` spellings per Node `process.arch` (deb uses amd64, AppImage x86_64). */
+const ARCH_ALIASES: Record<string, string[]> = {
+  x64: ['x64', 'x86_64', 'amd64'],
+  arm64: ['arm64', 'aarch64'],
+  ia32: ['ia32', 'i386', 'i686'],
+  armv7l: ['armv7l', 'armhf'],
+}
+
+/** Architecture labelled in an asset file name, or null when unlabelled (e.g. universal). */
+export function assetArch(name: string): string | null {
+  const lower = name.toLowerCase()
+  for (const [arch, aliases] of Object.entries(ARCH_ALIASES)) {
+    if (aliases.some((alias) => new RegExp(`(^|[^a-z0-9])${alias}([^a-z0-9]|$)`).test(lower))) {
+      return arch
+    }
+  }
+  return null
+}
+
+/**
+ * Pick best installer for process.platform / process.arch from release assets.
+ * Assets labelled for another architecture are never offered: installing them
+ * leaves an app that cannot launch (#97, Intel Mac got the arm64 dmg).
+ */
 export function pickDownloadAsset(
-  assets: AppUpdateAsset[],
+  allAssets: AppUpdateAsset[],
   platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
 ): AppUpdateAsset | null {
+  const assets = allAssets
+    .filter((asset) => {
+      const labelled = assetArch(asset.name)
+      return labelled === null || labelled === arch
+    })
+    // Exact-arch builds before unlabelled ones; stable sort keeps release order otherwise.
+    .sort((a, b) => Number(assetArch(b.name) === arch) - Number(assetArch(a.name) === arch))
   if (assets.length === 0) return null
   const preference: AppUpdateAssetKind[] =
     platform === 'win32'

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, Folder, FolderOpen, Inbox, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
+import { ChevronRight, FolderOpen, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
@@ -28,6 +28,24 @@ import { useProjectWorktrees } from './use-project-worktrees'
 import { uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import type { GitWorktree } from '@shared/git-worktree'
 
+const TEMP_CHATS_OPEN_KEY = 'pi-desktop:sidebar-temp-chats-open'
+
+function readSectionOpen(): boolean {
+  try {
+    return localStorage.getItem(TEMP_CHATS_OPEN_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeSectionOpen(open: boolean): void {
+  try {
+    localStorage.setItem(TEMP_CHATS_OPEN_KEY, open ? '1' : '0')
+  } catch {
+    /* storage unavailable: session-only state */
+  }
+}
+
 export function ProjectSidebar({
   onOpenProject,
   openProjectLabel,
@@ -52,7 +70,15 @@ export function ProjectSidebar({
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [recentProjectsFixedOrder, setRecentProjectsFixedOrder] = useState(false)
   const fixedOrderRef = useRef(false)
-  const [sectionOpen, setSectionOpen] = useState(true)
+  // Temporary chats start collapsed (remembered); they open by themselves when the active
+  // conversation lives there (new temp chat / opened sandbox) so it is never hidden.
+  const [sectionOpen, setSectionOpenState] = useState(() => readSectionOpen())
+  const autoOpenedRef = useRef(false)
+  const setSectionOpen = useCallback((next: boolean) => {
+    autoOpenedRef.current = false
+    setSectionOpenState(next)
+    writeSectionOpen(next)
+  }, [])
   const [sessionQuery, setSessionQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [sessionScope, setSessionScope] = useState<'project' | 'all'>('project')
@@ -170,6 +196,23 @@ export function ProjectSidebar({
     },
     [],
   )
+
+  const activeInTempChats =
+    !!ephemeralSandboxDraft || (!!currentWorkspace && sandboxes.some((box) => box.path === currentWorkspace))
+  // Auto-open is not remembered — only the user's own toggles are — and it folds back once the
+  // active conversation leaves temp chats (the app starts in a temp-chat draft).
+  const sectionOpenRef = useRef(sectionOpen)
+  sectionOpenRef.current = sectionOpen
+  useEffect(() => {
+    if (activeInTempChats) {
+      if (sectionOpenRef.current) return
+      autoOpenedRef.current = true
+      setSectionOpenState(true)
+    } else if (autoOpenedRef.current) {
+      autoOpenedRef.current = false
+      setSectionOpenState(false)
+    }
+  }, [activeInTempChats])
 
   const sessionMenu = useSessionContextMenu(refreshSessionsAfterMutation)
   const projectMenu = useProjectContextMenu(refreshSessionsAfterMutation)
@@ -418,7 +461,6 @@ export function ProjectSidebar({
           onClick={onOpenProject}
           className="nav-row row-hover flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] font-medium text-foreground-secondary hover:text-foreground"
         >
-          <FolderOpen className="h-4 w-4 shrink-0" />
           {openProjectLabel}
         </button>
         <div className="workbench-search sidebar-search mt-2">
@@ -452,7 +494,7 @@ export function ProjectSidebar({
       </div>
       {searchActive && !visiblePaths.length && !visibleSandboxes.length && <div className="px-4 py-6 text-center text-xs text-foreground-secondary"><p>{t('common:sidebar.noResults')}</p><button type="button" className="workbench-button mt-2" onClick={() => setSessionQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
 
-      <div className="px-1.5 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
+      <div className="px-3 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
         <div className="flex items-center gap-1 px-1 pb-1.5">
           <button
             type="button"
@@ -481,10 +523,9 @@ export function ProjectSidebar({
         <SidebarAnimatedCollapse open={searchActive || sectionOpen}>
           <div className="px-0.5">
             {ephemeralSandboxDraft && (
-              <div className="nav-row-active mb-0.5 flex min-h-[40px] items-center gap-2.5 rounded-lg px-3 py-2">
-                <Inbox className="h-4 w-4 shrink-0 text-brand" />
+              <div className="nav-row nav-row-active relative mb-0.5 flex min-h-[36px] items-center gap-2 rounded-lg px-3 py-1.5">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] text-foreground">{t('sidebar.newChat')}</div>
+                  <div className="truncate text-[13px] text-foreground">{t('sidebar.newChat')}</div>
                   <div className="text-[11px] text-foreground-secondary/80">{t('common:sidebar.firstMsgIsTitle')}</div>
                 </div>
               </div>
@@ -520,7 +561,7 @@ export function ProjectSidebar({
         onListChange={refreshSessionsAfterMutation}
       />
 
-      <div className="mt-3 px-1.5" hidden={searchActive && visiblePaths.length === 0}>
+      <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
         <div className="flex min-h-8 items-center gap-2 px-2 pb-1 text-[11px] font-medium text-foreground-secondary/75">
           <span className="flex-1">{t('common:sidebar.projects')}</span>
           <button type="button" className="workbench-icon" disabled={worktrees.loading} aria-label={t('common:sidebar.refreshProjects')} onClick={() => {
@@ -541,9 +582,8 @@ export function ProjectSidebar({
             const name = diskProjectName(group.repositoryPath)
             const open = searchActive || (repositoryOpen[group.key] ?? group.key === activeRepository)
             return <div key={group.key} className="sidebar-repository-group mb-2" role="group" aria-label={name} data-repository={group.repositoryPath}>
-              <button type="button" className="sidebar-repository-hit flex min-h-10 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left hover:bg-[var(--bg-hover)]" aria-expanded={open} title={group.repositoryPath} onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}>
-                <ChevronRight className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary" data-open={open ? 'true' : 'false'} />
-                <Folder className="h-4 w-4 shrink-0 text-foreground-secondary" />
+              <button type="button" className="sidebar-repository-hit flex min-h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left hover:bg-[var(--bg-hover)]" aria-expanded={open} title={group.repositoryPath} onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}>
+                <ChevronRight className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80" data-open={open ? 'true' : 'false'} />
                 <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{name}</span>
                 <span className="shrink-0 text-[11px] tabular-nums text-foreground-secondary" title={t('common:sidebar.worktreeCount', { count: group.projects.length })}>{group.projects.length}</span>
               </button>

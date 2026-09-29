@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Folder, GitBranch, Inbox, Plus } from '@renderer/components/icons'
+import { ChevronRight, Plus } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
@@ -10,11 +10,14 @@ import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { buildSessionTree, filterSessionTree, type SessionNode, type SessionChildGroup } from './project-session-tree'
 import { openSubagentSessionPreview } from '@renderer/lib/subagent-session-navigation'
-import { collectActiveSubagentSessionChildren } from '@renderer/lib/subagent-session-activity'
+import { selectActiveSubagentSessionChildren } from '@renderer/lib/subagent-session-activity'
+import type { SubagentSessionChild } from '@renderer/lib/subagent-session-types'
 import { useToolCardCatalogReady } from '@renderer/features/timeline/tool-card-registry'
 import { SessionAttentionDot } from './session-attention-dot'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
+
+const NO_CHILDREN: SubagentSessionChild[] = []
 
 export function ProjectSessionTree({
   workspacePath,
@@ -43,13 +46,22 @@ export function ProjectSessionTree({
   const { t } = useTranslation()
   const sessionAttention = useUIStore((st) => st.sessionAttention)
   const historySessionFile = useUIStore((st) => st.historySessionFile)
-  const timelineItems = useUIStore((st) => st.timelineItems)
   const subagentSessionGroup = useUIStore((st) => st.subagentSessionGroup)
   const catalogReady = useToolCardCatalogReady()
   const [expandedSessionFiles, setExpandedSessionFiles] = useState<Set<string>>(() => new Set())
-  const liveChildren = useMemo(
-    () => collectActiveSubagentSessionChildren(timelineItems),
-    [catalogReady, timelineItems],
+  const isCurrentProject = workspacePathsEqual(currentWorkspace, workspacePath)
+  // Only the viewed project has live subagents; the memoized selector keeps the same array
+  // across streaming tokens so this tree does not re-render on every delta.
+  const liveChildren = useUIStore((st) =>
+    isCurrentProject ? selectActiveSubagentSessionChildren(st.timelineItems, catalogReady ? 1 : 0) : NO_CHILDREN,
+  )
+  // "+" on this project (or its home view): show the new conversation where it will live.
+  const pendingNew = useUIStore(
+    (st) =>
+      isCurrentProject &&
+      !st.ephemeralSandboxDraft &&
+      (st.pendingNewSessionPlaceholder ||
+        (!st.currentSessionId && !st.historySessionFile && !st.historyLoading && st.timelineItems.length === 0)),
   )
 
   const tree = useMemo(() => {
@@ -111,8 +123,10 @@ export function ProjectSessionTree({
     })
   }
 
-  const renderSession = (node: SessionNode): ReactNode => {
+  const renderSession = (node: SessionNode, depth = 0): ReactNode => {
     const s = node.session
+    // Child sessions (subagents) render one step down: compact single line, quieter text.
+    const isChild = depth > 0
     const sessionFile = s.sessionFile
     const { children, liveChildren: transientChildren } = node
     const childCount = children.length + transientChildren.length
@@ -135,7 +149,8 @@ export function ProjectSessionTree({
             })
           }
           className={cn(
-            'nav-row sidebar-session-row flex min-h-[38px] items-center gap-0.5 rounded-lg px-1 py-0.5',
+            'nav-row sidebar-session-row flex items-center gap-0.5',
+            isChild ? 'sidebar-child-row min-h-[30px] rounded-md px-0.5' : 'min-h-[38px] rounded-lg px-1 py-0.5',
             parentActive
               ? 'nav-row-active'
               : 'text-foreground-secondary hover:text-foreground',
@@ -148,18 +163,24 @@ export function ProjectSessionTree({
               else openParentSession(s)
             }}
             aria-current={parentActive ? 'page' : undefined}
-            className="sidebar-session-hit flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+            className={cn(
+              'sidebar-session-hit flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
+              isChild ? 'min-h-[30px] py-1' : 'min-h-11 py-1.5',
+            )}
           >
             <div className="min-w-0 flex-1">
               <div
                 className={cn(
-                  'truncate text-[13px] leading-[18px] text-foreground',
+                  'truncate',
+                  isChild
+                    ? cn('text-[12px] leading-4', parentActive ? 'text-foreground' : 'text-foreground-secondary')
+                    : 'text-[13px] leading-[18px] text-foreground',
                   attention === 'done' && 'font-semibold',
                 )}
               >
                 {s.title || s.sessionId.slice(0, 8)}
               </div>
-              {s.firstMessage && s.firstMessage !== s.title && !s.firstMessage.startsWith(s.title) ? (
+              {isChild ? null : s.firstMessage && s.firstMessage !== s.title && !s.firstMessage.startsWith(s.title) ? (
                 <div className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary">
                   {s.firstMessage}
                 </div>
@@ -205,9 +226,12 @@ export function ProjectSessionTree({
                   return next
                 })
               }}
-              className="chrome-icon-btn flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md px-1.5"
+              className={cn(
+                'chrome-icon-btn flex shrink-0 items-center justify-center gap-1 rounded-md px-1.5',
+                isChild ? 'h-[30px] min-w-[30px]' : 'h-11 min-w-11',
+              )}
             >
-              <span className="text-[11px] tabular-nums text-foreground-secondary">{childCount}</span>
+              <span className="sidebar-child-count">{childCount}</span>
               <ChevronRight
                 className="chevron-expand h-3 w-3 text-foreground-secondary/75"
                 data-open={expanded ? 'true' : 'false'}
@@ -215,9 +239,22 @@ export function ProjectSessionTree({
             </button>
           )}
         </div>
-        {expanded && childCount > 0 && (
-          <div id={childrenId} className="ml-3 min-w-0 border-l border-border/35 pb-0.5 pl-1.5 pt-0.5">
-            {children.map(renderSession)}
+        {childCount > 0 && (
+          <div
+            id={childrenId}
+            className="sidebar-children-collapse"
+            data-open={expanded ? 'true' : 'false'}
+            aria-hidden={!expanded}
+            ref={(element) => {
+              // Collapsed children stay mounted for the height transition but must not take focus.
+              if (!element) return
+              if (expanded) element.removeAttribute('inert')
+              else element.setAttribute('inert', '')
+            }}
+          >
+          <div className="sidebar-children-collapse-inner">
+          <div className="sidebar-children-guide">
+            {children.map((child) => renderSession(child, depth + 1))}
             {transientChildren.map((child) => {
               const childActive = !!child.sessionFile
                         && workspacePathsEqual(workspacePath, currentWorkspace)
@@ -236,28 +273,32 @@ export function ProjectSessionTree({
                     if (file) guardSessionSwitch(() => { void openSubagentSessionPreview(file) })
                   }}
                   className={cn(
-                    'nav-row sidebar-subagent-row mb-0.5 flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left',
+                    'nav-row sidebar-subagent-row sidebar-child-row flex min-h-[30px] w-full min-w-0 items-center gap-2 rounded-md px-2 py-1 text-left',
                     childActive
                       ? 'nav-row-active'
                       : 'text-foreground-secondary hover:text-foreground',
                     !canOpen && 'cursor-default opacity-60',
                   )}
                 >
-                  <GitBranch className="h-3.5 w-3.5 shrink-0 text-foreground-secondary/70" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-mono text-[11px] leading-[16px] text-foreground">
+                    <div className="truncate text-[12px] font-medium leading-4 text-foreground">
                       {child.agent}
                     </div>
-                    <div className="truncate text-[10px] leading-[14px] text-foreground-secondary/75">
-                      {child.task || t(`timeline:tree.state.${child.state}`)}
-                    </div>
+                    {child.task ? (
+                      <div className="truncate text-[11px] leading-4 text-foreground-secondary">{child.task}</div>
+                    ) : null}
                   </div>
-                  <span className="shrink-0 text-[9px] font-medium text-foreground-secondary/65">
-                    {t(`timeline:tree.state.${child.state}`)}
-                  </span>
+                  <span
+                    className="sidebar-child-state"
+                    data-state={child.state}
+                    title={t(`timeline:tree.state.${child.state}`)}
+                    aria-label={t(`timeline:tree.state.${child.state}`)}
+                  />
                 </button>
               )
             })}
+          </div>
+          </div>
           </div>
         )}
       </div>
@@ -270,11 +311,23 @@ export function ProjectSessionTree({
         <p>{t('common:sidebar.sessionReadFailed')}</p>
         <button type="button" className="workbench-button mt-1" disabled={loading} onClick={onRetry}>{t('common:retry')}</button>
       </div>}
+      {pendingNew && !searchQuery.trim() ? (
+        <div className="mb-0.5">
+          <div className="nav-row nav-row-active sidebar-session-row sidebar-pending-row flex min-h-[38px] items-center gap-0.5 rounded-lg px-1 py-0.5" aria-current="page">
+            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] leading-[18px] text-foreground">{t('common:sidebar.newSessionDraft')}</div>
+                <div className="truncate text-[11px] leading-[16px] text-foreground-secondary/85">{t('common:sidebar.firstMsgIsTitle')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {loading ? (
         <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:loading')}</p>
       ) : visibleRoots.length === 0 ? (
-        !error && <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noSessions')}</p>
-      ) : visibleRoots.map(renderSession)}
+        !error && !pendingNew && <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noSessions')}</p>
+      ) : visibleRoots.map((node) => renderSession(node))}
     </div>
   )
 }
@@ -308,10 +361,7 @@ export function ProjectDiskRow({
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
-        className={cn(
-          'nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5',
-          active && 'nav-row-active',
-        )}
+        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5"
       >
         <button
           type="button"
@@ -328,19 +378,13 @@ export function ProjectDiskRow({
         <button
           type="button"
           onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
-          className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-2 px-1 py-1.5 text-left"
+          className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-1.5 px-1 py-1 text-left"
           title={path}
           aria-current={active ? 'location' : undefined}
         >
-          {worktree ? <GitBranch className="h-3.5 w-3.5 shrink-0 text-foreground-secondary" /> : <Folder
-            className={cn(
-              'folder-icon h-4 w-4 shrink-0',
-              active ? 'text-brand' : 'text-foreground-secondary/70',
-            )}
-          />}
           <span className="min-w-0 flex-1">
             <span className={cn('block truncate text-[13px] leading-5', active ? 'font-semibold text-foreground' : 'font-medium text-foreground-secondary')}>{name}</span>
-            {branch && branch !== name ? <span className="mt-0.5 block truncate text-[11px] text-foreground-secondary" title={branch}>{branch.replace(/^refs\/heads\//, '')}</span> : null}
+            {branch && branch !== name ? <span className="block truncate text-[11px] text-foreground-secondary" title={branch}>{branch.replace(/^refs\/heads\//, '')}</span> : null}
           </span>
         </button>
         <button
@@ -388,11 +432,10 @@ export function SandboxDialogRow({
         active ? 'nav-row-active' : 'text-foreground-secondary hover:text-foreground',
       )}
     >
-      <Inbox className={cn('h-4 w-4 shrink-0', active ? 'text-brand' : 'opacity-70')} />
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            'truncate text-[14px] leading-[20px] text-foreground',
+            'truncate text-[13px] leading-[18px] text-foreground',
             attention === 'done' && 'font-semibold',
           )}
         >

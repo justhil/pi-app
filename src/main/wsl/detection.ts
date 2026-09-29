@@ -2,14 +2,9 @@
  * Enumerating and probing WSL distros on the Windows host.
  */
 
-import {
-  isValidWslDistroName,
-  runWslAsync,
-  runWslDistroAsync,
-  runWslDistroCdAsync,
-  wslDefaultShell,
-  wslHomeDir,
-} from './wsl-exec.js'
+import { isValidWslDistroName, runWslAsync } from './wsl-exec.js'
+import { resolveWslEnv, type WslEnv } from './wsl-env.js'
+import { resolveWslActiveSdk } from './sdk-resolve.js'
 
 export interface WslDistroInfo {
   name: string
@@ -59,14 +54,35 @@ export interface WslProbeResult {
   distro: string
   node: boolean
   nodeVersion?: string
+  nodePath?: string
   npm: boolean
   git: boolean
   pi: boolean
+  /** pi-coding-agent package the worker will import (what actually matters for running). */
+  sdk: boolean
+  sdkVersion?: string
+  sdkPath?: string
+  home?: string
+  shell?: string
+  /** How the login environment was captured (interactive-login ≈ the user's terminal). */
+  envMode?: WslEnv['mode']
+  /** PATH entries the agent gains from the login shell beyond wsl.exe's default PATH. */
+  pathExtras: string[]
   supportsCd: boolean
   error?: string
 }
 
-export async function probeWslDistro(distro: string): Promise<WslProbeResult> {
+const DEFAULT_WSL_PATH = new Set([
+  '/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin',
+  '/usr/games', '/usr/local/games', '/usr/lib/wsl/lib',
+])
+
+/**
+ * One captured login environment (see wsl-env.ts) plus the SDK lookup — instead of 4–5 separate
+ * wsl.exe probes that each used a different shell/PATH than the worker does.
+ * `refresh` re-captures; otherwise the cached environment answers instantly.
+ */
+export async function probeWslDistro(distro: string, opts?: { refresh?: boolean }): Promise<WslProbeResult> {
   const result: WslProbeResult = {
     ok: false,
     distro,
@@ -74,6 +90,8 @@ export async function probeWslDistro(distro: string): Promise<WslProbeResult> {
     npm: false,
     git: false,
     pi: false,
+    sdk: false,
+    pathExtras: [],
     supportsCd: true,
   }
 
@@ -82,39 +100,32 @@ export async function probeWslDistro(distro: string): Promise<WslProbeResult> {
     return result
   }
 
-  const [home, supportsCdResult, shell] = await Promise.all([
-    wslHomeDir(distro),
-    runWslDistroCdAsync(distro, '/', ['true']),
-    wslDefaultShell(distro),
-  ])
-  if (!home) {
+  const env = await resolveWslEnv(distro, { force: opts?.refresh })
+  if (!env) {
     result.error = 'WSL 发行版不可用或尚未初始化'
     return result
   }
+  const sdk = await resolveWslActiveSdk(distro, { refresh: opts?.refresh }).catch(() => null)
 
-  result.supportsCd = supportsCdResult.status === 0
+  result.home = env.home
+  result.shell = env.shell
+  result.envMode = env.mode
+  result.supportsCd = env.cdSupported
+  result.node = !!env.node
+  result.nodePath = env.node ?? undefined
+  result.nodeVersion = env.nodeVersion ?? undefined
+  result.npm = !!env.npm
+  result.git = !!env.git
+  result.pi = !!env.pi
+  result.sdk = !!sdk
+  result.sdkVersion = sdk?.version ?? undefined
+  result.sdkPath = sdk?.packageRoot
+  result.pathExtras = env.path
+    .split(':')
+    .filter((entry) => entry && !DEFAULT_WSL_PATH.has(entry) && !entry.startsWith('/mnt/'))
 
-  const [node, deps] = await Promise.all([
-    runWslDistroAsync(distro, [shell, '-lc', 'command -v node && node --version']),
-    runWslDistroAsync(distro, [shell, '-lc', 'command -v npm; command -v git; command -v pi']),
-  ])
-  if (node.status === 0) {
-    result.node = true
-    const version = node.stdout.trim().split('\n').pop()?.trim()
-    if (version) result.nodeVersion = version.replace(/^v/, '')
-  }
-
-  const lines = deps.stdout.trim().split('\n').filter(Boolean)
-  for (const line of lines) {
-    const bin = line.split('/').pop()?.trim()
-    if (bin === 'npm') result.npm = true
-    else if (bin === 'git') result.git = true
-    else if (bin === 'pi') result.pi = true
-  }
-
-  result.ok = result.node && result.npm
-  if (!result.ok) {
-    result.error = result.node ? '检测到 Node，但未找到 npm' : 'WSL 内未检测到 Node.js'
-  }
+  result.ok = result.node && result.sdk
+  if (!result.node) result.error = 'WSL 内未检测到 Node.js'
+  else if (!result.sdk) result.error = '未检测到 pi-coding-agent'
   return result
 }

@@ -96,6 +96,8 @@ export interface RunState {
   lastRunId?: string
   model?: string
   thinkingLevel?: string
+  /** Levels the current model supports; undefined = unknown (show all). */
+  availableThinkingLevels?: string[]
   startTime?: number
   lastRunDurationMs?: number
   usage?: {
@@ -243,6 +245,13 @@ export interface UIState {
   setThinkingPickerOpen: (open: boolean) => void
   optimisticPendingUserText: string | null
   agentTurnBootstrapping: boolean
+  /**
+   * What the optimistic reply placeholder is waiting on while `agentTurnBootstrapping`:
+   * 'starting' = creating the session / worker for a first message, 'sending' = prompt dispatched,
+   * waiting for the model. Ignored once bootstrapping ends.
+   */
+  pendingTurnStage: 'starting' | 'sending' | null
+  setPendingTurnStage: (stage: 'starting' | 'sending' | null) => void
   pendingSteering: string[]
   pendingFollowUp: string[]
   setPendingQueue: (steering: string[], followUp: string[]) => void

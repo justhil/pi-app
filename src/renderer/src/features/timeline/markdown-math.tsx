@@ -6,7 +6,7 @@ import { KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preproce
 
 const KATEX_OPTS = {
   throwOnError: false,
-  strict: 'warn' as const,
+  strict: 'ignore' as const,
   trust: false,
   macros: KATEX_MACROS,
   output: 'htmlAndMathml' as const,
