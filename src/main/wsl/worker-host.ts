@@ -5,13 +5,9 @@
  */
 
 import { spawn, type ChildProcess } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'fs'
-import { join, dirname } from 'path'
-import { createHash } from 'crypto'
 import { WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
-import { wslPathToWindows } from '@shared/wsl-path'
-import { resolveUtilityEntry } from '../utility-entry-path'
 import { runWslDistroCdSync, wslHomeDirSync } from './wsl-exec.js'
+import { syncWslBundle } from './bundle-sync'
 import { getCachedWslEnv, wslNodeCommand } from './wsl-env.js'
 
 const cdSupportCache = new Map<string, boolean>()
@@ -57,64 +53,8 @@ export function wslWorkerBundleWsl(distro: string): string | null {
  * when nothing changed (session switching forks workers repeatedly, so this
  * avoids re-copying ~240KB over the UNC mount on every fork).
  */
-function computeWorkerBundleHash(): string | null {
-  const source = resolveUtilityEntry('worker.mjs')
-  if (!existsSync(source)) return null
-  const h = createHash('sha256')
-  const addFile = (path: string): void => {
-    try {
-      h.update(path)
-      h.update('\u0000')
-      h.update(readFileSync(path, 'utf-8'))
-    } catch {
-      h.update(path)
-      h.update('\u0000missing')
-    }
-  }
-  addFile(source)
-  const chunksSrc = join(dirname(source), 'chunks')
-  if (existsSync(chunksSrc)) {
-    for (const name of readdirSync(chunksSrc).sort()) addFile(join(chunksSrc, name))
-  }
-  return h.digest('hex')
-}
-
-export function syncWorkerBundleToWsl(distro: string): string | null {
-  const source = resolveUtilityEntry('worker.mjs')
-  if (!existsSync(source)) return null
-
-  const dirWsl = wslWorkerDirWsl(distro)
-  if (!dirWsl) return null
-
-  const dirUnc = wslPathToWindows(distro, dirWsl)
-  mkdirSync(dirUnc, { recursive: true })
-
-  const localHash = computeWorkerBundleHash()
-  if (localHash) {
-    const hashUnc = join(dirUnc, 'worker.hash')
-    try {
-      if (readFileSync(hashUnc, 'utf-8') === localHash) {
-        return `${dirWsl}/worker.mjs`
-      }
-    } catch {
-      /* first sync — no marker yet */
-    }
-  }
-
-  writeFileSync(join(dirUnc, 'worker.mjs'), readFileSync(source, 'utf-8'), 'utf-8')
-
-  const chunksSrc = join(dirname(source), 'chunks')
-  if (existsSync(chunksSrc)) {
-    const chunksDest = join(dirUnc, 'chunks')
-    mkdirSync(chunksDest, { recursive: true })
-    for (const name of readdirSync(chunksSrc)) {
-      writeFileSync(join(chunksDest, name), readFileSync(join(chunksSrc, name), 'utf-8'), 'utf-8')
-    }
-  }
-
-  writeFileSync(join(dirUnc, 'package.json'), JSON.stringify({ type: 'module' }), 'utf-8')
-  if (localHash) writeFileSync(join(dirUnc, 'worker.hash'), localHash, 'utf-8')
-  return `${dirWsl}/worker.mjs`
+export function syncWorkerBundleToWsl(distro: string): Promise<string | null> {
+  return syncWslBundle(distro, 'worker.mjs')
 }
 
 export interface SpawnWslWorkerOptions {

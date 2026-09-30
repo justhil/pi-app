@@ -47,9 +47,19 @@ vi.mock('../wsl/wsl-env', () => ({
   },
 }))
 
-vi.mock('../global-sdk-resolve', () => ({
-  resolvePackageEntryPath: mocks.resolvePackageEntryPath,
-}))
+vi.mock('node:fs/promises', () => {
+  const fs = {
+    mkdir: mocks.mkdirSync,
+    writeFile: mocks.writeFileSync,
+    readFile: mocks.readFileSync,
+    access: (path: string) => {
+      const root = path.slice(0, path.lastIndexOf('\\dist\\'))
+      if (!mocks.resolvePackageEntryPath(root)) return Promise.reject(new Error('ENOENT'))
+      return Promise.resolve()
+    },
+  }
+  return { ...fs, default: fs }
+})
 
 import { resolveWslActiveSdk, assertWslSdkAvailable, invalidateWslSdkResolveCache } from '../wsl/sdk-resolve'
 
@@ -58,8 +68,8 @@ beforeEach(() => {
   mocks.wslPathToWindows.mockClear()
   mocks.mkdirSync.mockReset()
   mocks.writeFileSync.mockReset()
-  mocks.readFileSync.mockReset().mockReturnValue('{"version":"0.83.0"}')
-  mocks.resolvePackageEntryPath.mockReset()
+  mocks.readFileSync.mockReset().mockResolvedValue('{"version":"0.83.0","main":"./dist/index.js"}')
+  mocks.resolvePackageEntryPath.mockReset().mockImplementation((root: string) => `${root}\\dist\\index.js`)
   invalidateWslSdkResolveCache()
   envMocks.resolveWslEnv.mockReset().mockResolvedValue(null)
   envMocks.store = {}

@@ -92,6 +92,43 @@ describe('WSL session preview runner', () => {
     expect(mocks.spawnPreviewInWsl).not.toHaveBeenCalled()
   })
 
+  it('should_share_startup_when_bundle_sync_is_pending', async () => {
+    const bundle = deferred<string | null>()
+    mocks.syncPreviewBundleToWsl.mockReturnValue(bundle.promise)
+    const child = fakeChild()
+    mocks.spawnPreviewInWsl.mockReturnValue(child)
+    child.stdin.on('data', (chunk) => {
+      const request = JSON.parse(chunk.toString()) as { requestId: string }
+      child.stdout.write(encodeWorkerFrame({ requestId: request.requestId, result: [] }) + '\n')
+    })
+    const runner = new WslSessionPreviewRunner()
+    const requests = ['C:\\A', 'C:\\B'].map((cwd) => runner.request({ type: 'session.list', payload: { cwd }, userDataDir: 'C:\\data' }))
+    await vi.waitFor(() => expect(mocks.syncPreviewBundleToWsl).toHaveBeenCalled())
+    const spawnedEarly = mocks.spawnPreviewInWsl.mock.calls.length
+    bundle.resolve('/home/u/.pi-desktop/preview-wsl.mjs')
+    await Promise.all(requests)
+    expect(spawnedEarly).toBe(0)
+    expect(mocks.spawnPreviewInWsl).toHaveBeenCalledOnce()
+  })
+
+  it('should_cancel_startup_when_stopped_during_bundle_sync', async () => {
+    const bundle = deferred<string | null>()
+    mocks.syncPreviewBundleToWsl.mockReturnValue(bundle.promise)
+    const child = fakeChild()
+    mocks.spawnPreviewInWsl.mockReturnValue(child)
+    const runner = new WslSessionPreviewRunner()
+    const request = runner.request({ type: 'session.list', payload: { cwd: 'C:\\A' }, userDataDir: 'C:\\data' })
+    const rejection = expect(request).rejects.toThrow('WSL preview stopped')
+    await vi.waitFor(() => expect(mocks.syncPreviewBundleToWsl).toHaveBeenCalled())
+    const spawnedEarly = mocks.spawnPreviewInWsl.mock.calls.length
+    runner.stop()
+    await rejection
+    bundle.resolve('/home/u/.pi-desktop/preview-wsl.mjs')
+    await Promise.resolve()
+    expect(spawnedEarly).toBe(0)
+    expect(mocks.spawnPreviewInWsl).not.toHaveBeenCalled()
+  })
+
   it('writes Pi settings through the WSL-native preview process', async () => {
     const child = fakeChild()
     mocks.spawnPreviewInWsl.mockReturnValue(child)

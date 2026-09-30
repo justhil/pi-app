@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'crypto'
 import { resolveActiveDesktopDir } from './agent-dir'
 import { isWslRuntimeActive } from './wsl/runtime-config'
@@ -78,15 +79,16 @@ export function createSandboxWorkspace(label?: string): {
   return { id, path: dir, label: meta.label, createdAt: meta.createdAt }
 }
 
-export function listSandboxWorkspaces(): Array<{
+export async function listSandboxWorkspaces(): Promise<Array<{
   id: string
   path: string
   label: string
   createdAt: number
   sessionId?: string
   sessionFile?: string
-}> {
-  const root = ensureSandboxRoot()
+}>> {
+  const root = getSandboxRoot()
+  await mkdir(root, { recursive: true })
   const out: Array<{
     id: string
     path: string
@@ -95,10 +97,10 @@ export function listSandboxWorkspaces(): Array<{
     sessionId?: string
     sessionFile?: string
   }> = []
-  for (const name of readdirSync(root, { withFileTypes: true })) {
+  for (const name of await readdir(root, { withFileTypes: true })) {
     if (!name.isDirectory()) continue
     const dir = join(root, name.name)
-    const meta = readMeta(dir)
+    const meta = await readMetaAsync(dir)
     if (meta) {
       out.push({
         id: meta.id,
@@ -112,6 +114,24 @@ export function listSandboxWorkspaces(): Array<{
   }
   out.sort((a, b) => b.createdAt - a.createdAt)
   return out
+}
+
+async function readMetaAsync(dir: string): Promise<SandboxMeta | null> {
+  try {
+    return JSON.parse(await readFile(join(dir, META_FILE), 'utf-8')) as SandboxMeta
+  } catch {
+    return null
+  }
+}
+
+export async function bindSandboxSessionAsync(path: string, sessionId: string, sessionFile?: string): Promise<boolean> {
+  if (!sessionId || !isSandboxWorkspacePath(path)) return false
+  const meta = await readMetaAsync(path)
+  if (!meta) return false
+  meta.sessionId = sessionId
+  if (sessionFile) meta.sessionFile = sessionFile
+  await writeFile(join(path, META_FILE), JSON.stringify(meta, null, 2), 'utf-8')
+  return true
 }
 
 export function renameSandboxWorkspace(path: string, label: string): boolean {

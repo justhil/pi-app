@@ -87,8 +87,10 @@ export class WslSessionPreviewRunner {
       this.processKey = null
     }
 
-    const previewWslPath = syncPreviewBundleToWsl(runtime.distro)
+    const previewWslPath = await Promise.race([syncPreviewBundleToWsl(runtime.distro), stopping])
     this.assertLifecycle(generation)
+    // Another request may have completed the same asynchronous bundle sync first.
+    if (this.process && this.processKey === processKey) return { process: this.process, sdkPath: sdk.entryPath }
     if (!previewWslPath) throw new Error('[WSL] 无法将 preview utility 同步到发行版')
     const proc = spawnPreviewInWsl({
       distro: runtime.distro,

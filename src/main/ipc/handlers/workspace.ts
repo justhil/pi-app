@@ -3,7 +3,7 @@ import { configStore } from '../../config-store'
 import { sqliteIndex } from '../../sqlite-index'
 import { workerManager } from '../../worker-manager'
 import {
-  bindSandboxSession,
+  bindSandboxSessionAsync,
   createSandboxWorkspace,
   deleteSandboxWorkspace,
   isSandboxWorkspacePath,
@@ -11,6 +11,7 @@ import {
   renameSandboxWorkspace,
 } from '../../sandbox-workspaces'
 import { sessionPreviewProcess } from '../../session-preview-process'
+import { awaitWslVm } from '../../wsl/wsl-env'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
@@ -76,15 +77,16 @@ export function registerWorkspaceHandlers(): void {
   })
 
   registerHandler('ipc:workspace.sandbox.list', async () => {
+    await awaitWslVm()
     const sandboxes = (
       await Promise.all(
-        listSandboxWorkspaces().map(async (s) => {
+        (await listSandboxWorkspaces()).map(async (s) => {
           if (!s.sessionId || !s.sessionFile) {
             const latest = (await sessionPreviewProcess.listSessions(s.path).catch(() => []))[0]
             if (latest?.id && latest.path) {
               s.sessionId = latest.id
               s.sessionFile = latest.path
-              bindSandboxSession(s.path, latest.id, latest.path)
+              await bindSandboxSessionAsync(s.path, latest.id, latest.path)
             }
           }
           return s.sessionId && s.sessionFile ? { ...s, kind: 'sandbox' as const } : null

@@ -3,6 +3,7 @@ import { join, resolve } from 'path'
 import { probeExtensions, type ExtensionProbeResult } from '../extension-compat/extension-probe'
 import { getActiveAgentDir, getActiveDesktopDir, getActiveHomeDir } from '../extension-compat/active-dirs'
 import { sessionPreviewProcess } from './session-preview-process'
+import { awaitWslVm } from './wsl/wsl-env'
 
 /**
  * Extension probing reads every installed extension's sources — ~300ms of synchronous fs. On the
@@ -70,6 +71,7 @@ const clone = (list: ExtensionProbeResult[]): ExtensionProbeResult[] => structur
 
 /** Probe results for `cwd`; `fresh` bypasses the cache (settings pages that must show edits). */
 export async function probeExtensionsShared(cwd: string, options?: { fresh?: boolean }): Promise<ExtensionProbeResult[]> {
+  await awaitWslVm()
   const key = await cacheKey(cwd)
   const now = Date.now()
   const reusable =

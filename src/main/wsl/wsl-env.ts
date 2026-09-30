@@ -181,12 +181,15 @@ let vmBoot: { distro: string; ready: Promise<void> } | null = null
  */
 export function startWslVm(distro: string): Promise<void> {
   if (vmBoot?.distro === distro) return vmBoot.ready
-  const ready = runWslAsync(['-d', distro, '--', 'true'], { timeout: 60_000 }).then(() => undefined)
+  const ready = Promise.all([
+    runWslAsync(['-d', distro, '--', 'true'], { timeout: 60_000 }),
+    resolveWslEnv(distro),
+  ]).then(() => undefined)
   vmBoot = { distro, ready }
   return ready
 }
 
-/** Resolves once the VM started by `startWslVm` is up (immediately when none was started). */
+/** Wait for VM boot and the environment cache before any synchronous UNC directory lookup. */
 export function awaitWslVm(): Promise<void> {
   return vmBoot?.ready ?? Promise.resolve()
 }

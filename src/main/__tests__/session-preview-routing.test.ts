@@ -43,6 +43,7 @@ describe('session preview process routing', () => {
     expect(config).toContain("'preview-wsl': resolve(__dirname, 'src/preview/wsl.ts')")
     expect(config).toContain("chunk.name === 'worker' || chunk.name === 'preview' || chunk.name === 'preview-wsl'")
     expect(read('src/main/worker-manager-pool.ts')).toContain("resolveUtilityEntry('worker.mjs')")
-    expect(read('src/main/wsl/worker-host.ts')).toContain("resolveUtilityEntry('worker.mjs')")
+    expect(read('src/main/wsl/worker-host.ts')).toContain("syncWslBundle(distro, 'worker.mjs')")
+    expect(read('src/main/wsl/bundle-sync.ts')).toContain('resolveUtilityEntry(entry)')
   })
 })

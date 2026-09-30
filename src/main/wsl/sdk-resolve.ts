@@ -6,9 +6,8 @@
  */
 
 import { join, posix } from 'path'
-import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { wslPathToWindows } from '@shared/wsl-path'
-import { resolvePackageEntryPath } from '../global-sdk-resolve.js'
 import { runWslDistroAsync, wslHomeDir } from './wsl-exec.js'
 import { readWslPersisted, resolveWslEnv, writeWslPersisted } from './wsl-env.js'
 
@@ -71,13 +70,13 @@ function resolveProbeScript(): string {
  * the file directly instead of passing the multi-line script (with nested
  * quotes) through its command line, which corrupts it on Windows.
  */
-function writeProbeScriptToWsl(distro: string, home: string, script: string): string | null {
+async function writeProbeScriptToWsl(distro: string, home: string, script: string): Promise<string | null> {
   try {
     const dirWsl = `${home}/.pi-desktop`
     const dirUnc = wslPathToWindows(distro, dirWsl)
-    mkdirSync(dirUnc, { recursive: true })
+    await mkdir(dirUnc, { recursive: true })
     const probeUnc = join(dirUnc, 'probe.sh')
-    writeFileSync(probeUnc, script, 'utf-8')
+    await writeFile(probeUnc, script, 'utf-8')
     return `${dirWsl}/probe.sh`
   } catch {
     return null
@@ -124,11 +123,18 @@ export async function assertWslSdkAvailable(
   return sdk
 }
 
-/** Read the version from the distro package.json via the UNC view. */
-function readWslSdkVersion(uncRoot: string): string | null {
+async function readWslSdkPackage(uncRoot: string): Promise<{ entry: string; version: string | null } | null> {
   try {
-    const pkg = JSON.parse(readFileSync(join(uncRoot, 'package.json'), 'utf-8'))
-    return typeof pkg.version === 'string' && pkg.version ? pkg.version : null
+    const pkg = JSON.parse(await readFile(join(uncRoot, 'package.json'), 'utf-8')) as {
+      main?: string
+      version?: string
+      exports?: string | Record<string, string | { import?: string }>
+    }
+    const exported = typeof pkg.exports === 'string' ? pkg.exports : pkg.exports?.['.']
+    const entry = (typeof exported === 'string' ? exported : exported?.import) || pkg.main
+    if (!entry) return null
+    await access(join(uncRoot, entry))
+    return { entry, version: typeof pkg.version === 'string' && pkg.version ? pkg.version : null }
   } catch {
     return null
   }
@@ -174,7 +180,7 @@ async function runWslSdkProbe(distro: string): Promise<WslSdkResolution | null> 
   const home = await wslHomeDir(distro)
   if (!home) return null
 
-  const scriptPath = writeProbeScriptToWsl(distro, home, resolveProbeScript())
+  const scriptPath = await writeProbeScriptToWsl(distro, home, resolveProbeScript())
   if (!scriptPath) return null
 
   // Same PATH the worker runs with (user's login shell), so the npm/pi found here belong to the
@@ -190,16 +196,13 @@ async function runWslSdkProbe(distro: string): Promise<WslSdkResolution | null> 
   let resolved: WslSdkResolution | null = null
   for (const wslRoot of candidates) {
     const uncRoot = wslPathToWindows(distro, wslRoot)
-    const entryUnc = resolvePackageEntryPath(uncRoot)
-    if (!entryUnc) continue
-    const rel = entryUnc
-      .slice(uncRoot.length)
-      .replace(/^[/\\]+/, '')
-      .replace(/\\/g, '/')
+    const pkg = await readWslSdkPackage(uncRoot)
+    if (!pkg) continue
+    const rel = pkg.entry.replace(/\\/g, '/')
     // WSL 原生路径必须用正斜杠：Windows 的 path.join 会产出 \root\...，
     // 导致 worker 端 isAbsolute 判假并被当作包名 import。
     const entryPath = posix.join(wslRoot, rel)
-    resolved = { packageRoot: wslRoot, entryPath, version: readWslSdkVersion(uncRoot) }
+    resolved = { packageRoot: wslRoot, entryPath, version: pkg.version }
     break
   }
 

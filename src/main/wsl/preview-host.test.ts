@@ -17,6 +17,17 @@ vi.mock('./worker-host', () => ({
   wslCdFlagSupported: mocks.wslCdFlagSupported,
   wslWorkerDirWsl: vi.fn(() => '/home/u/.pi-desktop'),
 }))
+vi.mock('./wsl-exec', () => ({ wslHomeDir: async () => '/home/u' }))
+vi.mock('node:fs/promises', () => {
+  const fs = {
+    access: async (path: string) => { if (!mocks.files.has(path) && !mocks.directories.has(path)) throw new Error(`ENOENT ${path}`) },
+    mkdir: async (path: string) => mocks.directories.add(path),
+    readFile: async (path: string) => { const value = mocks.files.get(path); if (value === undefined) throw new Error(`ENOENT ${path}`); return value },
+    writeFile: async (path: string, value: unknown) => mocks.files.set(path, String(value)),
+    readdir: async (path: string) => [...mocks.files.keys()].filter((file) => file.startsWith(path + '\\') || file.startsWith(path + '/')).map((file) => file.slice(path.length + 1)),
+  }
+  return { ...fs, default: fs }
+})
 vi.mock('./wsl-env', () => ({ wslNodeCommand: (_distro: string, script: string) => ['node', script] }))
 vi.mock('../utility-entry-path', () => ({
   resolveUtilityEntry: (name: string) => join('/out/main', name),
@@ -52,12 +63,12 @@ describe('WSL preview host', () => {
     mocks.wslCdFlagSupported.mockReturnValue(true)
   })
 
-  it('syncs and starts the dedicated preview entry with preview-only environment', () => {
+  it('syncs and starts the dedicated preview entry with preview-only environment', async () => {
     mocks.files.set(join('/out/main', 'preview-wsl.mjs'), 'export {}')
     mocks.files.set(join('/out/main', 'chunks', 'preview.js'), 'export const preview = true')
     mocks.spawn.mockReturnValue({})
 
-    expect(syncPreviewBundleToWsl('Ubuntu')).toBe('/home/u/.pi-desktop/preview-wsl.mjs')
+    expect(await syncPreviewBundleToWsl('Ubuntu')).toBe('/home/u/.pi-desktop/preview-wsl.mjs')
     spawnPreviewInWsl({
       distro: 'Ubuntu',
       wslCwd: '/mnt/c/Project',

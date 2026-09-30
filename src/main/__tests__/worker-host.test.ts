@@ -56,6 +56,7 @@ vi.mock('../utility-entry-path', () => ({
 vi.mock('../wsl/wsl-exec', () => ({
   runWslDistroCdSync: mocks.runWslDistroCdSync,
   wslHomeDirSync: vi.fn(() => '/root'),
+  wslHomeDir: vi.fn(async () => '/root'),
 }))
 
 vi.mock('@shared/wsl-path', () => ({
@@ -71,6 +72,17 @@ vi.mock('fs', () => {
     readdirSync: mocks.fs.readdirSync,
   }
   return { ...fns, default: fns }
+})
+
+vi.mock('node:fs/promises', () => {
+  const fs = {
+    access: async (path: string) => { if (!mocks.fs.existsSync(path)) throw new Error(`ENOENT ${path}`) },
+    mkdir: async (path: string) => mocks.fs.mkdirSync(path),
+    readFile: async (path: string) => mocks.fs.readFileSync(path),
+    writeFile: async (path: string, value: unknown) => mocks.fs.writeFileSync(path, value),
+    readdir: async (path: string) => mocks.fs.readdirSync(path),
+  }
+  return { ...fs, default: fs }
 })
 
 import { spawnWorkerInWsl, wslCdFlagSupported, syncWorkerBundleToWsl, invalidateWslCdSupportCache } from '../wsl/worker-host'
@@ -181,12 +193,12 @@ describe('spawnWorkerInWsl', () => {
 })
 
 describe('syncWorkerBundleToWsl', () => {
-  it('copies worker.mjs plus its chunks and a type:module package.json', () => {
+  it('copies worker.mjs plus its chunks and a type:module package.json', async () => {
     mocks.fs.files.set(join(WSL_DIR, 'worker.mjs'), 'export const x = 1')
     mocks.fs.files.set(join(WSL_DIR, 'chunks', 'worker-message.js'), 'export const m = 1')
     mocks.fs.files.set(join(WSL_DIR, 'chunks', 'worker-timeline.js'), 'export const t = 1')
 
-    const result = syncWorkerBundleToWsl('Debian')
+    const result = await syncWorkerBundleToWsl('Debian')
 
     expect(result).toBe('/root/.pi-desktop/worker.mjs')
     expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.mjs'))).toBe('export const x = 1')
@@ -195,33 +207,33 @@ describe('syncWorkerBundleToWsl', () => {
     expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'package.json'))).toBe(JSON.stringify({ type: 'module' }))
   })
 
-  it('returns null when out/main/worker.mjs is missing', () => {
-    expect(syncWorkerBundleToWsl('Debian')).toBeNull()
+  it('returns null when out/main/worker.mjs is missing', async () => {
+    expect(await syncWorkerBundleToWsl('Debian')).toBeNull()
   })
 
-  it('skips the UNC write storm when the bundle hash is unchanged', () => {
+  it('skips the UNC write storm when the bundle hash is unchanged', async () => {
     mocks.fs.files.set(join(WSL_DIR, 'worker.mjs'), 'export const x = 1')
     mocks.fs.files.set(join(WSL_DIR, 'chunks', 'worker-message.js'), 'export const m = 1')
 
-    syncWorkerBundleToWsl('Debian')
+    await syncWorkerBundleToWsl('Debian')
     const writesAfterFirst = mocks.fs.files.size
     expect(writesAfterFirst).toBeGreaterThan(0)
 
-    syncWorkerBundleToWsl('Debian')
+    await syncWorkerBundleToWsl('Debian')
     // 第二次调用不重写任何文件（worker.hash 命中即跳过）
     expect(mocks.fs.files.size).toBe(writesAfterFirst)
   })
 
-  it('re-syncs when the local bundle hash changes', () => {
+  it('re-syncs when the local bundle hash changes', async () => {
     mocks.fs.files.set(join(WSL_DIR, 'worker.mjs'), 'export const x = 1')
     mocks.fs.files.set(join(WSL_DIR, 'chunks', 'worker-message.js'), 'export const m = 1')
 
-    syncWorkerBundleToWsl('Debian')
+    await syncWorkerBundleToWsl('Debian')
     const staleMarker = mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.hash'))
     expect(staleMarker).toBeTruthy()
 
     mocks.fs.files.set(join(WSL_DIR, 'worker.mjs'), 'export const y = 2')
-    syncWorkerBundleToWsl('Debian')
+    await syncWorkerBundleToWsl('Debian')
     expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.mjs'))).toBe('export const y = 2')
     expect(mocks.fs.files.get(unc('root', '.pi-desktop', 'worker.hash'))).not.toBe(staleMarker)
   })
