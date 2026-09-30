@@ -79,6 +79,9 @@ export function translateOutgoingPaths(
     }
   }
   if (out.catalog) out.catalog = translateSkillCatalogPaths(out.catalog)
+  for (const key of ['extensions', 'errors']) {
+    if (Array.isArray(out[key])) out[key] = (out[key] as Record<string, unknown>[]).map((entry) => ({ ...entry, path: typeof entry.path === 'string' ? toMainPath(entry.path) : entry.path }))
+  }
   if (Array.isArray(out.sessions)) {
     out.sessions = (out.sessions as Record<string, unknown>[]).map((row) => {
       const r: Record<string, unknown> = { ...row }

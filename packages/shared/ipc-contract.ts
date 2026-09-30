@@ -3,6 +3,7 @@
 import type { AppEvent } from './app-events'
 import type { CompatibilityLevel } from './extension-types'
 import type { ModelAuthProjection } from './model-auth-projection'
+import type { AdapterCatalog } from '../../src/extension-compat/adapter-schema'
 import type { SessionContextPreview } from './session-context-preview'
 
 // ── Workspace ──
@@ -245,12 +246,14 @@ export interface ExtensionInfo {
   registeredTools: string[]
   registeredCommands: string[]
   loadError?: string
+  capabilitySource?: 'static' | 'runtime'
+  runtimeLoaded?: boolean
   piSync?: boolean
   piEnabled?: boolean
   inSettingsPackages?: boolean
   workerLoadHint?: string
 }
-export interface ExtensionsListRequest {}
+export interface ExtensionsListRequest { workspaceId?: string }
 export interface ExtensionsListResponse { extensions: ExtensionInfo[] }
 export interface ExtensionsSetEnabledRequest { extensionId: string; enabled: boolean }
 export interface ExtensionsSetEnabledResponse { ok: boolean; extensionId: string; enabled: boolean; error?: string; needsWorkerReload?: boolean }
@@ -294,6 +297,13 @@ export interface EventsSubscribeResponse { subscriptionId: string }
 
 // ── IPC Method Map ──
 export interface IpcMethodMap {
+  'adapters.json.catalog': { request: { workspaceId?: string; refresh?: boolean }; response: AdapterCatalog }
+  'adapters.catalog': { request: { workspaceId?: string; refresh?: boolean }; response: { adapters: Array<{ id: string; pluginId: string; displayName: string; adapterJson?: AdapterCatalog['adapters'][number] }>; errors?: AdapterCatalog['errors'] } }
+  'adapter.config.get': { request: { adapterId: string; workspaceId?: string }; response: { view: Record<string, unknown> } }
+  'adapter.config.set': { request: { adapterId: string; workspaceId?: string; patch: Record<string, unknown> }; response: { view: Record<string, unknown> } }
+  'adapter.action.run': { request: { adapterId: string; actionId: string; workspaceId?: string }; response: { ok: boolean; lines?: string[]; error?: string } }
+  'adapter.field.options': { request: { adapterId: string; fieldKey: string; workspaceId?: string }; response: { options: string[]; error?: string } }
+  'adapter.sidePanel.getState': { request: { adapterId: string; workspaceId: string }; response: { ok: boolean; state?: unknown; error?: string } }
   'workspace.open': { request: WorkspaceOpenRequest; response: WorkspaceOpenResponse }
   'workspace.ensureWorker': { request: WorkspaceEnsureWorkerRequest; response: WorkspaceEnsureWorkerResponse }
   'workspace.switch': { request: WorkspaceSwitchRequest; response: WorkspaceSwitchResponse }

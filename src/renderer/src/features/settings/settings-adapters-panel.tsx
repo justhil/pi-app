@@ -4,6 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { resolveAdapterText } from '@extension-compat/adapter-schema'
+import { useAdapterCatalog } from '@renderer/lib/adapter-catalog'
 import i18n from '@renderer/lib/i18n'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { btnOutline } from '@renderer/features/settings/settings-controls'
@@ -33,6 +34,8 @@ export function AdaptersSettings() {
   }
   const [adapters, setAdapters] = useState<AdapterRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const workspaceId = useUIStore((state) => state.currentWorkspace) || ''
+  const catalog = useAdapterCatalog(workspaceId)
   const requestExtensionConfig = useUIStore((s) => s.requestExtensionConfig)
 
   const TIER_LABELS: Record<string, string> = {
@@ -43,18 +46,20 @@ export function AdaptersSettings() {
   }
 
   useEffect(() => {
+    let active = true
     setError(null)
+    setAdapters(null)
     // v2-only catalog: adapters.catalog already merges probed plugins with v2 adapter.json + orphans.
     ipcClient
-      .invoke('adapters.catalog')
+      .invoke('adapters.catalog', { workspaceId })
       .then((res) => {
-        setAdapters(Array.isArray(res?.adapters) ? res.adapters : [])
+        if (active) setAdapters(Array.isArray(res?.adapters) ? res.adapters : [])
       })
       .catch((e) => {
-        setAdapters([])
-        setError(String(e))
+        if (active) { setAdapters([]); setError(String(e)) }
       })
-  }, [])
+    return () => { active = false }
+  }, [workspaceId, catalog?.revision])
 
   if (adapters === null) {
     return <div className="py-4 text-sm text-muted-foreground/70">{t('settings:adapters.loading')}</div>
@@ -67,6 +72,7 @@ export function AdaptersSettings() {
         description={t('settings:adapters.description')}
       />
       {error && <div className="mb-3 text-xs text-destructive">{error}</div>}
+      {(catalog?.errors.length ?? 0) > 0 && <div role="alert" className="mb-3 space-y-1 text-xs text-destructive">{catalog?.errors.map((item, index) => <p key={index}>{item.adapterId}: {item.message}</p>)}</div>}
       {adapters.length === 0 ? (
         <div className="py-4 text-sm text-muted-foreground/70">
           {t('settings:adapters.empty')}

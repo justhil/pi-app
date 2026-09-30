@@ -9,10 +9,11 @@ import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
 import { piSettingsSnapshot } from '../worker/pi-settings-snapshot'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { setActiveDirResolvers } from '../extension-compat/active-dirs'
-import { invalidateAdapterCatalog } from '../extension-compat/adapter-loader'
+import { prepareAdapterCatalog } from '../extension-compat/adapter-loader'
 import { listAvailableModelsWithSdk, listCatalogModelsWithSdk, type ModelEntry } from '../main/active-sdk-models-core'
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
+import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
@@ -125,8 +126,11 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         desktopDir: () => desktopDir,
         homeDir: () => homeDir,
       })
-      invalidateAdapterCatalog()
-      result = probeExtensions(String(message.payload.cwd || process.cwd()))
+      const cwd = String(message.payload.cwd || process.cwd())
+      await prepareAdapterCatalog(cwd, { refresh: true })
+      const probes = probeExtensions(cwd)
+      const sdk = message.activeSdkPath ? await import(pathToFileURL(message.activeSdkPath).href) : await import('@earendil-works/pi-coding-agent')
+      result = await annotateExtensionInventory(sdk, cwd, agentDir, probes)
     } else if (message.type === 'pi.settings.get') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)

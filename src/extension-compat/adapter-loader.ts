@@ -1,8 +1,10 @@
 // adapter.json 加载与合并 (兼容层 v2 — doc/adapter-layer-plan.md §5)
 // 优先级：项目 .pi/desktop/adapters > ~/.pi/desktop/adapters > builtin
 // 外部文件按 match.names（扩展包名）覆盖内置整份适配器，而非仅同 id 深合并
-import { existsSync, readFileSync, readdirSync } from 'fs'
-import { join } from 'path'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { join, resolve } from 'path'
+import { adapterIdentity, parseAdapterDeclaration } from './adapter-validation'
 import { getActiveDesktopDir } from './active-dirs'
 import type { AdapterCatalog, AdapterJson, AdapterLoadError, InteractDef } from './adapter-schema'
 
@@ -54,128 +56,147 @@ const BUILTIN: AdapterJson[] = [
   powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
   hashlineEditAdapter, piDeckTodoAdapter, magicContextTodoAdapter,
 ].map((a) => a as unknown as AdapterJson)
-const USER_DIR = () => join(getActiveDesktopDir(), 'adapters')
-let cachedCatalog: AdapterCatalog | null = null
-let cachedProjectDir: string | null = null
+type Cached = { catalog: AdapterCatalog; checkedAt: number; fingerprint?: string; promise?: Promise<AdapterCatalog> }
+const catalogs = new Map<string, Cached>()
+let generation = 0
+const listeners = new Set<(catalog: AdapterCatalog, projectDir: string) => void>()
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
+export function onAdapterCatalogChanged(listener: (catalog: AdapterCatalog, projectDir: string) => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
-// Minimal structural validation; unknown primitives gracefully degrade at render time.
-function looksLikeAdapter(raw: unknown): raw is AdapterJson {
-  return isPlainObject(raw) && typeof raw.id === 'string' && typeof raw.tier === 'string'
+export function installAdapterCatalog(projectDir: string, catalog: AdapterCatalog): void {
+  catalogs.set(catalogKey(projectDir), { catalog, checkedAt: Date.now() })
 }
 
-function readDir(dir: string): { name: string; text: string }[] {
-  if (!existsSync(dir)) return []
-  const out: { name: string; text: string }[] = []
-  for (const f of readdirSync(dir)) {
-    if (!f.endsWith('.adapter.json') && !f.endsWith('.json')) continue
-    try {
-      out.push({ name: f, text: readFileSync(join(dir, f), 'utf8') })
-    } catch (e) {
-      // unreadable file — skip
-    }
-  }
-  return out
+function catalogKey(projectDir = ''): string {
+  const key = `${getActiveDesktopDir()}|${projectDir ? resolve(projectDir) : ''}`
+  return process.platform === 'win32' ? key.toLowerCase() : key
 }
 
-/** 用于覆盖判定的包名键（match.names + id） */
 export function adapterPackageKeys(a: AdapterJson): string[] {
-  const names = [...(a.match?.names || []), a.id]
-  return Array.from(new Set(names.map(norm)))
+  return [...new Set([...(a.match?.names || []), a.id].map(adapterIdentity))]
 }
 
-/** 两适配器是否认领同一扩展包（与 resolveV2ByPluginName 同套模糊规则） */
 export function adaptersSharePackage(a: AdapterJson, b: AdapterJson): boolean {
-  const keysA = adapterPackageKeys(a)
-  const keysB = adapterPackageKeys(b)
-  for (const ka of keysA) {
-    for (const kb of keysB) {
-      if (ka === kb || ka.endsWith(kb) || kb.endsWith(ka) || ka.includes(kb) || kb.includes(ka)) {
-        return true
-      }
-    }
-  }
-  return false
+  const keys = new Set(adapterPackageKeys(a))
+  return adapterPackageKeys(b).some((key) => keys.has(key))
 }
 
-function parseAdapterFiles(files: { name: string; text: string }[], errors: AdapterLoadError[]): AdapterJson[] {
-  const out: AdapterJson[] = []
-  for (const f of files) {
-    try {
-      const raw = JSON.parse(f.text)
-      if (!looksLikeAdapter(raw)) {
-        errors.push({ adapterId: f.name, source: 'override', message: 'invalid shape' })
+function compileCatalog(layers: unknown[][], scope: string, errors: AdapterLoadError[] = []): AdapterCatalog {
+  let adapters: AdapterJson[] = []
+  const sources: AdapterCatalog['sources'] = {}
+  for (const [layerIndex, layer] of layers.entries()) {
+    const withinLayer: AdapterJson[] = []
+    for (const raw of layer) {
+      const parsed = parseAdapterDeclaration(raw)
+      if ('error' in parsed) {
+        errors.push({ adapterId: String((raw as { id?: unknown })?.id || 'unknown'), source: layerIndex ? 'override' : 'builtin', message: parsed.error })
         continue
       }
-      out.push(raw)
-    } catch (e: unknown) {
-      errors.push({
-        adapterId: f.name,
-        source: 'override',
-        message: e instanceof Error ? e.message : String(e),
-      })
+      const adapter = parsed.adapter
+      if (withinLayer.some((other) => adaptersSharePackage(adapter, other))) {
+        errors.push({ adapterId: adapter.id, source: 'override', message: 'conflicting adapter identity in the same layer' })
+        continue
+      }
+      withinLayer.push(adapter)
+    }
+    for (const adapter of withinLayer) {
+      adapters = adapters.filter((other) => !adaptersSharePackage(adapter, other))
+      adapters.push(adapter)
+      sources[adapter.id] = layerIndex ? 'override' : 'builtin'
+    }
+  }
+  const claimed = new Map<string, string>()
+  for (const adapter of adapters) {
+    for (const key of [...(adapter.match.tools || []).map((name) => `tool:${name}`), ...Object.keys(adapter.slash || {}).map((name) => `command:${name}`)]) {
+      const owner = claimed.get(key)
+      if (owner && owner !== adapter.id) errors.push({ adapterId: adapter.id, source: sources[adapter.id], message: `${key} also claimed by ${owner}` })
+      else claimed.set(key, adapter.id)
+    }
+  }
+  const revision = createHash('sha256').update(JSON.stringify({ adapters, errors })).digest('hex').slice(0, 16)
+  return { adapters, errors, sources: Object.fromEntries(adapters.map((a) => [a.id, sources[a.id]])), scope, revision }
+}
+
+const builtinCatalog = compileCatalog([BUILTIN], 'builtin')
+
+/** Synchronous consumers only query prepared snapshots; never perform filesystem I/O. */
+export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
+  return catalogs.get(catalogKey(projectDir))?.catalog ?? builtinCatalog
+}
+
+async function readDeclarations(dir: string, errors: AdapterLoadError[]): Promise<unknown[]> {
+  const names = await readdir(dir).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  const out: unknown[] = []
+  for (const name of names.sort()) {
+    if (!name.endsWith('.json')) continue
+    try {
+      const path = join(dir, name)
+      if ((await stat(path)).size > 256 * 1024) throw new Error('adapter file exceeds 256KB')
+      const parsed = parseAdapterDeclaration(JSON.parse(await readFile(path, 'utf8')))
+      if ('error' in parsed) throw new Error(parsed.error)
+      out.push(parsed.adapter)
+    } catch (error) {
+      errors.push({ adapterId: name, source: 'override', message: error instanceof Error ? error.message : String(error) })
     }
   }
   return out
 }
 
-/**
- * 外部层整份替换：凡 match.names 与外部适配器重合的内置/低优先级项移除，再追加外部（可更新 id）。
- */
-function applyPackageOverrides(base: AdapterJson[], overrides: AdapterJson[]): AdapterJson[] {
-  let list = [...base]
-  for (const ext of overrides) {
-    list = list.filter((b) => !adaptersSharePackage(ext, b))
-    list.push(ext)
-  }
-  return list
-}
-
-export function loadAdapterCatalog(projectDir?: string): AdapterCatalog {
-  const projectOverrideDir = projectDir ? join(projectDir, '.pi', 'desktop', 'adapters') : null
-  if (cachedCatalog && cachedProjectDir === (projectDir || null)) return cachedCatalog
-  cachedProjectDir = projectDir || null
-
-  const errors: AdapterLoadError[] = []
-  const sources: Record<string, 'builtin' | 'override' | 'probe'> = {}
-
-  let adapters: AdapterJson[] = []
-  for (const raw of BUILTIN) {
-    if (!looksLikeAdapter(raw)) {
-      errors.push({ adapterId: (raw as { id?: string })?.id || 'unknown', source: 'builtin', message: 'invalid shape' })
-      continue
+export function prepareAdapterCatalog(projectDir?: string, options?: { refresh?: boolean }): Promise<AdapterCatalog> {
+  const key = catalogKey(projectDir)
+  const previous = catalogs.get(key)
+  const previousRevision = previous?.catalog.revision
+  if (previous?.promise) return previous.promise
+  if (previous && !options?.refresh && Date.now() - previous.checkedAt < 1000) return Promise.resolve(previous.catalog)
+  const epoch = generation
+  const desktopDir = getActiveDesktopDir()
+  const entry: Cached = previous ?? { catalog: builtinCatalog, checkedAt: 0 }
+  const job = (async () => {
+    const dirs = [join(desktopDir, 'adapters'), ...(projectDir ? [join(projectDir, '.pi', 'desktop', 'adapters')] : [])]
+    const fingerprints = await Promise.all(dirs.map(async (dir) => {
+      const names = (await readdir(dir).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return []
+        throw error
+      })).filter((name) => name.endsWith('.json')).sort()
+      return Promise.all(names.map(async (name) => {
+        const info = await stat(join(dir, name))
+        return `${name}:${info.size}:${info.mtimeMs}`
+      }))
+    }))
+    const fingerprint = JSON.stringify(fingerprints)
+    if (previous?.fingerprint === fingerprint && !options?.refresh) {
+      previous.checkedAt = Date.now()
+      return previous.catalog
     }
-    adapters.push(raw)
-    sources[raw.id] = 'builtin'
-  }
-
-  const userOverrides = parseAdapterFiles(readDir(USER_DIR()), errors)
-  adapters = applyPackageOverrides(adapters, userOverrides)
-  for (const a of userOverrides) sources[a.id] = 'override'
-
-  if (projectOverrideDir) {
-    const projectOverrides = parseAdapterFiles(readDir(projectOverrideDir), errors)
-    adapters = applyPackageOverrides(adapters, projectOverrides)
-    for (const a of projectOverrides) sources[a.id] = 'override'
-  }
-
-  // 重建 sources：仍在列表中的 builtin 保留 builtin，其余 override
-  const finalSources: Record<string, 'builtin' | 'override' | 'probe'> = {}
-  const builtinIds = new Set(BUILTIN.filter(looksLikeAdapter).map((b) => b.id))
-  for (const a of adapters) {
-    finalSources[a.id] = sources[a.id] === 'override' ? 'override' : builtinIds.has(a.id) ? 'builtin' : 'override'
-  }
-
-  cachedCatalog = { adapters, errors, sources: finalSources }
-  return cachedCatalog
+    const errors: AdapterLoadError[] = []
+    const user = await readDeclarations(dirs[0], errors)
+    const project = dirs[1] ? await readDeclarations(dirs[1], errors) : []
+    const next = compileCatalog([BUILTIN, user, project], key, errors)
+    if (epoch === generation) {
+      entry.catalog = previous && previous.catalog.revision === next.revision ? previous.catalog : next
+      entry.checkedAt = Date.now()
+      entry.fingerprint = fingerprint
+      catalogs.set(key, entry)
+      if (previousRevision !== next.revision) {
+        for (const listener of listeners) listener(entry.catalog, projectDir ?? '')
+      }
+    }
+    return entry.catalog
+  })().finally(() => { if (entry.promise === job) entry.promise = undefined })
+  entry.promise = job
+  catalogs.set(key, entry)
+  return job
 }
 
 export function invalidateAdapterCatalog(): void {
-  cachedCatalog = null
-  cachedProjectDir = null
+  generation++
+  catalogs.clear()
 }
 
 export function findAdapterByTool(toolName: string, projectDir?: string): AdapterJson | undefined {
@@ -315,7 +336,7 @@ export function resolveInteractByTool(
 }
 
 function norm(s: string): string {
-  return s.toLowerCase().replace(/^package:/, '')
+  return adapterIdentity(s)
 }
 
 /** Resolve an installed plugin (by name / packageName) to its v2 adapter.
@@ -330,7 +351,7 @@ export function resolveV2ByPluginName(
   const norms = candidates.map(norm)
   for (const a of loadAdapterCatalog(projectDir).adapters) {
     const names = (a.match?.names || []).map(norm)
-    if (names.some((n) => norms.some((c) => c === n || c.endsWith(n) || c.includes(n)))) {
+    if (names.some((n) => norms.some((c) => c === n))) {
       return a
     }
   }

@@ -1,6 +1,7 @@
 // Worker Manager - multi-session utility process pool (sessionKey + workspace keys)
 
 import { type BrowserWindow } from 'electron'
+import type { AdapterCatalog } from '../extension-compat/adapter-schema'
 import type { AppEvent } from '@shared/app-events'
 import type {
   WorkerCommandInfo,
@@ -759,12 +760,26 @@ export class WorkerManager {
   async getContextPrompts(): Promise<WorkerResponsePayload> {
     return this.request('getContextPrompts')
   }
-  async reloadResources(): Promise<void> {
-    await Promise.all(
-      [...this.pool.values()]
-        .filter((slot) => !slot.stopping && this.slotMatchesCurrentRuntime(slot))
-        .map((slot) => this.requestOnSlot(slot, 'reloadResources')),
-    )
+  async getExtensionCapabilities(workspaceId: string): Promise<import('./adapter-resource-inventory').RuntimeExtensionCapabilities | null> {
+    const foreground = this.foregroundSlot()
+    const slot = foreground?.cwd === workspaceId && this.slotMatchesCurrentRuntime(foreground) ? foreground : [...this.pool.values()].find((entry) => !entry.stopping && entry.cwd === workspaceId && this.slotMatchesCurrentRuntime(entry))
+    if (!slot || slot.stopping || slot.initResolver) return null
+    const response = await this.requestOnSlot(slot, 'getExtensionCapabilities')
+    if (response.type === 'error') throw new Error(String(response.error))
+    return { extensions: response.extensions as import('./adapter-resource-inventory').RuntimeExtensionCapabilities['extensions'] || [], errors: response.errors as import('./adapter-resource-inventory').RuntimeExtensionCapabilities['errors'] || [] }
+  }
+  async refreshAdapters(workspaceId: string, catalog: AdapterCatalog): Promise<void> {
+    await Promise.all([...this.pool.values()]
+      .filter((slot) => !slot.stopping && slot.cwd === workspaceId && this.slotMatchesCurrentRuntime(slot))
+      .map((slot) => this.requestOnSlot(slot, 'refreshAdapters', { catalog })))
+  }
+  async reloadResources(workspaceId?: string): Promise<void> {
+    const slots = [...this.pool.values()].filter((slot) => !slot.stopping && this.slotMatchesCurrentRuntime(slot) && (workspaceId === undefined || slot.cwd === workspaceId))
+    if (slots.some((slot) => slot.agentTurnActive)) throw new Error('SESSION_BUSY')
+    await Promise.all(slots.map(async (slot) => {
+      const result = await this.requestOnSlot(slot, 'reloadResources')
+      if (result.type === 'error' || result.ok !== true) throw new Error(String(result.error || 'resource reload failed'))
+    }))
   }
   async getCommandCompletions(commandName: string, argumentPrefix: string): Promise<WorkerCompletionItem[]> {
     const r = await this.request('getCommandCompletions', { commandName, argumentPrefix })

@@ -73,7 +73,7 @@ export function SettingsPage() {
   // 外置 adapter.json 可能在设置外被修改；进入设置时刷新 Main 缓存与右栏目录
   useEffect(() => {
     invalidateRightPanelCatalog()
-    void ipcClient.invoke('adapters.json.catalog', { refresh: true })
+    void ipcClient.invoke('adapters.json.catalog', { refresh: true, workspaceId: useUIStore.getState().currentWorkspace || '' }).catch(() => {})
   }, [])
 
   // B-layer slash config-page routing -> open embedded config subpage

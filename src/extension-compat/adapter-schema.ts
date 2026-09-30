@@ -133,7 +133,8 @@ export interface AdapterWidgetDef {
 
 export interface AdapterSidePanel {
   /** main/side-panel-registry.ts 中的状态提供者 */
-  stateProvider: string
+  stateProvider?: string
+  source?: { type: 'json'; path: string; itemsPath?: string; fields?: Record<string, string> }
   /** 渲染器键：workspace-tasks、generic-json 等（见 side-panel-registry） */
   panelComponent: string
   /** Tab / prefs 键；默认 adapter:{id} */
@@ -153,6 +154,8 @@ export interface AdapterMatch {
 
 export interface AdapterJson {
   $schema?: string
+  schemaVersion?: 1
+  kind?: 'plugin' | 'desktop'
   id: string
   displayName?: string
   description?: string
@@ -176,6 +179,8 @@ export interface AdapterLoadError {
 }
 
 export interface AdapterCatalog {
+  revision?: string
+  scope?: string
   adapters: AdapterJson[]
   errors: AdapterLoadError[]
   sources: Record<string, 'builtin' | 'override' | 'probe'>

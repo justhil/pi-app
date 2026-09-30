@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import type { ExtensionWidgetEvent } from '@shared/app-events'
-import { invalidateAdapterCatalog } from '../extension-compat/adapter-loader'
+import { invalidateAdapterCatalog, prepareAdapterCatalog } from '../extension-compat/adapter-loader'
 import { createDesktopWidgetHost } from './desktop-widget-host'
 
 const tempDirs: string[] = []
@@ -75,7 +75,7 @@ describe('desktop widget host', () => {
     expect(events.at(-1)?.phase).toBe('clear')
   })
 
-  it('loads project-level widget adapters from the active workspace', () => {
+  it('loads project-level widget adapters from the active workspace', async () => {
     const projectDir = mkdtempSync(join(tmpdir(), 'pi-widget-adapter-'))
     tempDirs.push(projectDir)
     const adapterDir = join(projectDir, '.pi', 'desktop', 'adapters')
@@ -95,6 +95,7 @@ describe('desktop widget host', () => {
     }))
     invalidateAdapterCatalog()
 
+    await prepareAdapterCatalog(projectDir)
     const { api, events } = host(projectDir)
     api.setWidget('project-task-widget', ['From project adapter'])
 

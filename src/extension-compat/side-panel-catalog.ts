@@ -3,10 +3,11 @@
 import type { AdapterSidePanelMeta } from '../../packages/shared/right-panels'
 import { loadAdapterCatalog } from './adapter-loader'
 import type { AdapterJson } from './adapter-schema'
+import { adapterIdentity } from './adapter-validation'
 
 export function adapterSidePanelMetaFromJson(a: AdapterJson): AdapterSidePanelMeta | null {
   const sp = a.sidePanel
-  if (!sp?.stateProvider || !sp.panelComponent) return null
+  if ((!sp?.stateProvider && !sp?.source) || !sp.panelComponent) return null
   const panelId = sp.panelId || `adapter:${a.id}`
   return {
     adapterId: a.id,
@@ -31,11 +32,11 @@ export function listAdapterSidePanelMetas(
   const out: AdapterSidePanelMeta[] = []
   for (const a of catalog.adapters) {
     if (a.tier === 'none') continue
-    if (!a.alwaysVisible && installedNames) {
-      const names = (a.match?.names || []).map((n) => n.toLowerCase())
+    if (a.kind !== 'desktop' && !a.alwaysVisible && installedNames) {
+      const names = (a.match?.names || []).map(adapterIdentity)
       const installed = [...installedNames].some((n) => {
-        const nl = n.toLowerCase()
-        return names.some((m) => nl === m || nl.endsWith(m) || nl.includes(m))
+        const nl = adapterIdentity(n)
+        return names.includes(nl)
       })
       if (!installed) continue
     }

@@ -4,7 +4,7 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { getDesktopSkillOverrides, isSkillEnabled } from '../../pi-skill-overrides'
 import { mergeSlashCommandLists, scanStaticSlashCommands, type SlashCatalogCommand } from '../../commands-catalog'
-import { resolveV2SlashPrefix } from '../../../extension-compat/adapter-loader'
+import { resolveV2SlashPrefix, prepareAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { probeExtensionsShared } from '../../extension-probe-cache'
 
 export function registerCommandsSlashHandlers(): void {
@@ -53,7 +53,10 @@ export function registerCommandsSlashHandlers(): void {
   registerHandler('ipc:slash.normalize', async (req) => ({ text: String(req.text ?? '').trim() }))
 
   registerHandler('ipc:slash.resolve', async (req) => {
-    const r = resolveV2SlashPrefix(req.command || '')
+    await awaitWslVm()
+    const cwd = req.workspaceId ?? configStore.get('currentProject') ?? ''
+    await prepareAdapterCatalog(cwd)
+    const r = resolveV2SlashPrefix(req.command || '', cwd)
     if (!r) return { behavior: 'passthrough', meta: null }
     return {
       behavior: r.behavior,

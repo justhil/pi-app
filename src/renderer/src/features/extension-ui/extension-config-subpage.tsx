@@ -1,35 +1,20 @@
 // Embedded extension config subpage (v2-only). All metadata from adapter.json catalog.
 
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { AdapterConfigPanel } from './adapter-config-panel'
 import { CUSTOM_CONFIG_RENDERERS } from './custom-config-renderers'
-import type { AdapterJson } from '@extension-compat/adapter-schema'
 import { resolveAdapterText } from '@extension-compat/adapter-schema'
+import { useAdapterCatalog } from '@renderer/lib/adapter-catalog'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 
 export function ExtensionConfigSubpage({ extensionId }: { extensionId: string }) {
   const { t, i18n } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
-  const [jsonAdapter, setJsonAdapter] = useState<AdapterJson | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    ipcClient
-      .invoke('adapters.json.catalog')
-      .then((res) => {
-        const hit = (res?.adapters || []).find(
-          (a: AdapterJson) =>
-            a.id === extensionId ||
-            (a.match?.names || []).some((n) => extensionId === n || extensionId.endsWith(n) || extensionId.includes(n)),
-        )
-        setJsonAdapter(hit || null)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [extensionId])
+  const catalog = useAdapterCatalog(workspace || '')
+  const loading = !catalog
+  const jsonAdapter = catalog?.adapters.find((adapter) => adapter.id === extensionId || adapter.match.names?.includes(extensionId)) ?? null
 
   if (loading) return <div className="text-sm text-muted-foreground/70">{t('common:loading')}</div>
 
@@ -71,7 +56,7 @@ export function ExtensionConfigSubpage({ extensionId }: { extensionId: string })
         CustomRenderer ? (
           <CustomRenderer extensionId={extensionId} workspace={workspace || ''} onChange={saveAppLocal} />
         ) : (
-          <AdapterConfigPanel adapter={jsonAdapter} />
+          <AdapterConfigPanel key={`${workspace}:${jsonAdapter.id}:${catalog?.revision}`} adapter={jsonAdapter} />
         )
       ) : (
         <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4">

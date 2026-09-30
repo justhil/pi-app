@@ -23,6 +23,8 @@ export interface ExtensionProbeResult {
   tuiOnly?: boolean
   loadError?: string
   enabled: boolean
+  capabilitySource?: 'static' | 'runtime'
+  runtimeLoaded?: boolean
   /** 是否已进入 settings.packages，会被 pi Worker 加载 */
   inSettingsPackages?: boolean
   /** 未进 Worker 时的说明 */
@@ -57,9 +59,8 @@ function tierToCompatibility(tier: string): ExtensionProbeResult['compatibility'
 function applyPluginAdapterFields(result: ExtensionProbeResult): void {
   const adapter = resolveV2ByPluginName(result.name, result.packageName, CURRENT_CWD)
   if (adapter && adapter.tier !== 'none') {
-    const adapterName = result.packageName || result.name
-    result.adapterId = adapterName
-    result.adapterIds = [adapterName]
+    result.adapterId = adapter.id
+    result.adapterIds = [adapter.id]
     result.compatibility = tierToCompatibility(adapter.tier)
     return
   }
@@ -165,7 +166,7 @@ function resolvePackageDir(name: string, agentDir?: string): string | null {
 // Parse source string from settings.json package entries
 function parsePackageSource(source: unknown): { type: 'npm' | 'git' | 'local'; name: string } | null {
   if (typeof source === 'string') {
-    if (source.startsWith('npm:')) return { type: 'npm', name: source.slice(4) }
+    if (source.startsWith('npm:')) return { type: 'npm', name: source.slice(4).replace(/@[^/@]+$/, '') }
     if (source.startsWith('git:') || source.startsWith('http')) {
       // github.com/justhil/pi-image-gen -> pi-image-gen
       const m = source.match(/\/([^/]+?)(?:\.git)?$/)
@@ -244,7 +245,7 @@ function buildPackageProbeResult(
     description: pkg.description != null ? String(pkg.description) : undefined,
     version: pkg.version != null ? String(pkg.version) : undefined,
     source: 'package',
-    packageName: parsedName,
+    packageName: String(pkg.name || parsedName),
     enabled: true,
     registeredTools: [],
     registeredCommands: [],
@@ -261,12 +262,12 @@ function buildPackageProbeResult(
 
   const disabled = new Set<string>()
   for (const o of overrides || []) {
-    if (o.startsWith('-')) disabled.add(o.replace(/^[-+]/, '').replace(/^\.\//, ''))
+    if (o.startsWith('-')) disabled.add(o.replace(/\\/g, '/').replace(/^[-+]/, '').replace(/^\.\//, ''))
   }
   merged.enabled = extFiles.some((f) => !disabled.has(f.replace(/^\.\//, '')))
 
   for (const rel of extFiles) {
-    const cleanRel = rel.replace(/^\.\//, '')
+    const cleanRel = rel.replace(/\\/g, '/').replace(/^\.\//, '')
     if (disabled.has(cleanRel)) continue
     const fullPath = resolve(pkgDir, cleanRel)
     if (!existsSync(fullPath)) continue
@@ -397,14 +398,17 @@ function finalizeCompat(merged: ExtensionProbeResult): void {
 // Recursively scan a package dir for known tool/command names and UI patterns
 function scanPackageForKnownTools(pkgDir: string, merged: ExtensionProbeResult): void {
   const files: string[] = []
+  let visited = 0
   try {
-    const walk = (d: string) => {
+    const walk = (d: string, depth = 0) => {
+      if (depth > 6 || files.length >= 60 || visited >= 500) return
       for (const name of readdirSync(d)) {
+        if (files.length >= 60 || visited++ >= 500) break;
         if (name === 'node_modules' || name.startsWith('.')) continue
         const full = join(d, name)
         let st
         try { st = statSync(full) } catch (e) { continue }
-        if (st.isDirectory()) walk(full)
+        if (st.isDirectory()) walk(full, depth + 1)
         else if (/\.(ts|js|mjs)$/.test(name) && !/\.d\.ts$/.test(name) && !/\.test\./.test(name) && !/\.spec\./.test(name)) files.push(full)
       }
     }

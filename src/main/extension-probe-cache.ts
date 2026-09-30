@@ -1,15 +1,16 @@
 import { stat } from 'fs/promises'
 import { join, resolve } from 'path'
-import { probeExtensions, type ExtensionProbeResult } from '../extension-compat/extension-probe'
+import { type ExtensionProbeResult } from '../extension-compat/extension-probe'
 import { getActiveAgentDir, getActiveDesktopDir, getActiveHomeDir } from '../extension-compat/active-dirs'
 import { sessionPreviewProcess } from './session-preview-process'
 import { awaitWslVm } from './wsl/wsl-env'
+import { prepareAdapterCatalog } from '../extension-compat/adapter-loader'
 
 /**
  * Extension probing reads every installed extension's sources — ~300ms of synchronous fs. On the
  * main process that stalls every other IPC reply (session switches, settings, git), and the slash
  * catalog + right-panel catalog ask for it at startup and on each switch. So:
- *  - run it in the preview utility process (async; main stays responsive), sync only as fallback;
+ *  - run it in the preview utility process (async; main stays responsive), failure returns an empty advisory result without a main-thread rescan;
  *  - share one in-flight probe per key and reuse the result while its inputs are unchanged
  *    (settings / extension roots mtimes), with a TTL for in-place source edits.
  * Callers get a deep copy: some decorate the probes in place.
@@ -18,7 +19,7 @@ import { awaitWslVm } from './wsl/wsl-env'
 const TTL_MS = 60_000
 
 type Entry = { key: string; at: number; promise: Promise<ExtensionProbeResult[]>; settled: boolean }
-let entry: Entry | null = null
+const entries = new Map<string, Entry>()
 
 // Async: in WSL mode these are \\wsl.localhost paths, where even a stat is a 9p round trip.
 async function mtimeOf(path: string): Promise<number> {
@@ -62,9 +63,9 @@ async function probeOffThread(cwd: string): Promise<ExtensionProbeResult[]> {
       homeDir: getActiveHomeDir(),
     })
   } catch (error) {
-    console.warn('[extension-probe] preview probe failed, probing in main:', error)
+    console.warn('[extension-probe] preview probe failed:', error)
   }
-  return probeExtensions(cwd)
+  return []
 }
 
 const clone = (list: ExtensionProbeResult[]): ExtensionProbeResult[] => structuredClone(list)
@@ -72,8 +73,10 @@ const clone = (list: ExtensionProbeResult[]): ExtensionProbeResult[] => structur
 /** Probe results for `cwd`; `fresh` bypasses the cache (settings pages that must show edits). */
 export async function probeExtensionsShared(cwd: string, options?: { fresh?: boolean }): Promise<ExtensionProbeResult[]> {
   await awaitWslVm()
+  await prepareAdapterCatalog(cwd)
   const key = await cacheKey(cwd)
   const now = Date.now()
+  const entry = entries.get(key)
   const reusable =
     entry &&
     entry.key === key &&
@@ -86,17 +89,17 @@ export async function probeExtensionsShared(cwd: string, options?: { fresh?: boo
         next.at = Date.now()
       },
       () => {
-        if (entry === next) entry = null
+        if (entries.get(key) === next) entries.delete(key)
       },
     )
-    entry = next
+    entries.set(key, next)
   }
-  return clone(await entry!.promise)
+  return clone(await entries.get(key)!.promise)
 }
 
 /** Forget cached probes (after the desktop installs/toggles extensions). */
 export function invalidateExtensionProbeCache(): void {
-  entry = null
+  entries.clear()
 }
 
 /** Start probing early (e.g. right after launch) so the first catalog request finds it warm. */

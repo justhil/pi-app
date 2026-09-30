@@ -11,7 +11,7 @@
 | 层 | 含义 | 桌面表现 |
 |----|------|----------|
 | **A** | pi 内核：builtin / skill / prompt / 原生 settings 写回 | Composer 斜杠、`/model`、`SessionManager` 等专用 IPC（**不是** adapter） |
-| **B** | npm 扩展 | `adapter.json` + 通用 `adapter.*` IPC + 原语 UI |
+| **B** | Pi 扩展及独立只读贡献 | `adapter.json` + 通用 `adapter.*` IPC + 原语 UI；不新增插件运行时 |
 | **C** | 纯 TUI 装饰 | `tier: "none"` → 设置里标 TUI-only，不显示「桌面适配器」 |
 
 ---
@@ -28,18 +28,18 @@
 
 详细说明与示例见 **[adapter-authoring-guide.md](./adapter-authoring-guide.md) §1**。
 
-加载 API：`loadAdapterCatalog(cwd)`、`invalidateAdapterCatalog()`、`findAdapterById`、`findAdapterByTool`、`resolveV2ByPluginName`、`resolveV2Slash`、`resolveInteractByTool`。`adapters.json.catalog` 的 `sources[id]` 可区分 `builtin` / `override`。
+加载入口：`await prepareAdapterCatalog(cwd)`。`loadAdapterCatalog(cwd)`、`findAdapterById`、`findAdapterByTool` 等同步函数只查询已准备的快照，不读盘。`adapters.json.catalog` 返回 `revision`、`scope`、`sources` 和错误。包名规范化后精确匹配，别名必须写在 `match.names`；同层冲突报告错误，不按名称片段猜测。旧声明未写 `schemaVersion` 时按 1 处理。
 
 ### 2.1 性能与内存缓存
 
 | 层级 | 行为 |
 |------|------|
 | **内置** `builtin/*.adapter.json` | 构建时 `import` 进 Main/Worker 包，**运行时不再读盘、不再 JSON.parse** |
-| **外置** 用户目录 + 项目 `.pi/desktop/adapters/` | 仅在 **该 `projectDir` 第一次**（或缓存失效后第一次）`loadAdapterCatalog` 时：`readdir` + 少量 `readFileSync` + `parse`，通常毫秒级 |
-| **进程内缓存** | 模块级 `cachedCatalog` + `cachedProjectDir`：同一项目路径下后续 IPC / 工具卡 / 斜杠解析 **直接返回同一份对象**，不重复合并 |
-| **换项目** | `projectDir` 变化 → 自动重新合并并缓存新结果 |
+| **外置** 用户目录 + 项目 `.pi/desktop/adapters/` | `prepareAdapterCatalog` 异步读取；单个声明最多 256KB，坏文件隔离 |
+| **进程内缓存** | 按运行环境目录与项目缓存，同一作用范围的并发请求合并；1 秒内直接返回对象，其后检查文件大小和修改时间，未变不重读内容 |
+| **换项目** | 使用独立快照，不清空其他项目；Renderer 拒绝失效环境的迟到响应 |
 
-热路径查询（`findAdapterByTool`、`resolveV2Slash` 等）在已缓存的 `adapters[]` 上 **线性扫描**（规模约数十条），不重复加载 JSON。瓶颈不在 adapter 层。
+热路径查询（`findAdapterByTool`、`resolveV2Slash` 等）只查内存。插件安装信息由预览进程通过 Pi 资源解析补充；源码扫描是受限的补充提示，不决定插件是否允许运行。Worker 已运行时，插件工具、命令和加载错误以实际结果为准。
 
 ### 2.2 何时刷新缓存（`invalidateAdapterCatalog`）
 
@@ -48,11 +48,11 @@
 | 触发 | 说明 |
 |------|------|
 | **打开设置页** | Renderer 进入设置时调用 `adapters.json.catalog { refresh: true }`，并 `invalidateRightPanelCatalog()`（右栏目录依赖 adapter `sidePanel`） |
-| **切换工作区** | `workspace.open` 时 Main 自动 `invalidateAdapterCatalog()`（项目外置路径可能变化） |
-| **手动** | IPC `adapters.json.catalog` / `adapters.catalog` 传 **`refresh: true`**（下次请求前清空缓存） |
-| **未自动** | 运行中直接改外置 JSON、不打开设置、不换项目 → **不会**热更新；可切换项目或重启应用 |
+| **切换工作区** | 切换到该项目的独立快照 |
+| **手动** | IPC `adapters.json.catalog` / `adapters.catalog` 传 **`refresh: true`** |
+| **运行中修改** | 可见窗口每 5 秒及重新获得焦点时检查当前目录；版本变化广播 `adapter-catalog-changed`，更新设置、工具卡和右栏。Worker 正在执行时推迟到安全点应用 |
 
-内置 adapter 随 App 发版更新；外置覆盖无需发版，但改文件后应依赖上表刷新语义。
+内置 adapter 随 App 发版更新；外置覆盖无需发版。刷新声明不重载 Pi 插件、不新建 Worker；配置中的显式 `reload` 动作才重载请求项目的空闲 Worker，忙碌时返回 `SESSION_BUSY`。
 
 ---
 
@@ -62,7 +62,8 @@
 
 | 字段 | 用途 |
 |------|------|
-| `match.names` | 扩展包名 / 文件夹名 |
+| `schemaVersion` / `kind` | 版本 1；`plugin` 默认适配插件，`desktop` 为不绑定插件的只读面板 |
+| `match.names` | 精确扩展包名 / 显式别名 |
 | `match.tools` | 工具卡模板、probe 兼容 |
 | `match.commands` | 斜杠认领（无 `slash` 条目时默认 `notify`） |
 | `tier` | `native` / `partial` / `headless` / `none` |
@@ -70,7 +71,7 @@
 | `toolCard` | `template` + `icon` + `statusField` + `fields` |
 | `interact` | 弹窗字段映射 → 全插件复用 ExtensionUIHost（挂起/继续作答见 authoring-guide §7.3） |
 | `slash` | `notify` / `config-page` / `execute` / **`open-panel`** |
-| `sidePanel` | `stateProvider` + `panelComponent` + `panelId`（右栏 Tab；原语如 `workspace-trellis` / `workspace-tasks`） |
+| `sidePanel` | `source` 或 `stateProvider` 二选一，加 `panelComponent` 与可选 `panelId` |
 
 ---
 
@@ -117,7 +118,7 @@
 | stateProvider | panelComponent | 说明 |
 |---------------|----------------|------|
 | `workspace-trellis` | `workspace-tasks` | `.trellis/` 任务 + 日志只读面板（原 Trellis 能力） |
-| （PR 新增） | `generic-json` | `getState` 任意 JSON 树 |
+| `source: { type: "json", path: "tasks.json" }` | `list` / `tree` / `generic-json` | 当前项目内 JSON，只读，不启动 Worker |
 
 示例（Trellis 扩展）：
 

@@ -42,6 +42,8 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'getPromptTemplatesList': Catalog.handleGetprompttemplateslist,
   'getContextPrompts': Catalog.handleGetcontextprompts,
   'reloadResources': Catalog.handleReloadresources,
+  'refreshAdapters': Catalog.handleRefreshadapters,
+  'getExtensionCapabilities': Catalog.handleGetextensioncapabilities,
   'getCommandCompletions': Catalog.handleGetcommandcompletions,
   'getState': Catalog.handleGetstate,
   'getPiSettings': PiSettings.handleGetpisettings,

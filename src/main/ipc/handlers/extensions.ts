@@ -3,16 +3,19 @@ import { awaitWslVm } from '../../wsl/wsl-env'
 import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { invalidateExtensionProbeCache, probeExtensionsShared } from '../../extension-probe-cache'
+import { applyRuntimeCapabilities } from '../../adapter-resource-inventory'
 import { buildPluginAdapters } from '../../../extension-compat/plugin-adapters'
-import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
+import { invalidateAdapterCatalog, prepareAdapterCatalog, loadAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { listMissingRuntimePackages, appendMissingGitPackagesToSettings } from '../../pi-packages-sync'
 
 export function registerExtensionHandlers(): void {
-  registerHandler('ipc:extensions.list', async () => {
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+  registerHandler('ipc:extensions.list', async (req) => {
+    const cwd = req?.workspaceId ?? configStore.get('currentProject') ?? process.cwd()
     const probes = await probeExtensionsShared(cwd, { fresh: true })
     const { applyPiSyncToExtensionProbes } = await import('../../pi-extension-probe-sync.js')
     applyPiSyncToExtensionProbes(cwd, probes)
+    const live = await workerManager.getExtensionCapabilities(cwd).catch(() => null)
+    if (live) applyRuntimeCapabilities(probes, live)
     return { extensions: probes }
   })
 
@@ -79,8 +82,13 @@ export function registerExtensionHandlers(): void {
       invalidateAdapterCatalog()
       invalidateExtensionProbeCache()
     }
-    const cwd = workerManager.cwd || configStore.get('currentProject') || process.cwd()
+    const cwd = req?.workspaceId ?? configStore.get('currentProject') ?? process.cwd()
+    await prepareAdapterCatalog(cwd, { refresh: req?.refresh === true })
     const extensions = await probeExtensionsShared(cwd)
-    return { adapters: buildPluginAdapters(extensions, cwd) }
+    const adapters = buildPluginAdapters(extensions, cwd)
+    for (const adapter of loadAdapterCatalog(cwd).adapters.filter((item) => item.kind === 'desktop')) {
+      adapters.push({ id: adapter.id, pluginId: `desktop:${adapter.id}`, displayName: adapter.displayName ?? adapter.id, source: 'project', registeredTools: [], registeredCommands: [], enabled: true, tier: adapter.tier, compatibility: 'headless', desktopSupport: adapter.description ?? '', adapterJson: adapter, matchMeta: { probeId: `desktop:${adapter.id}` } })
+    }
+    return { adapters, errors: loadAdapterCatalog(cwd).errors }
   })
 }

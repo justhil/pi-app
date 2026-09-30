@@ -4,6 +4,7 @@
 import type { ExtensionProbeResult } from './extension-probe.js'
 import type { AdapterJson, AdapterTier } from './adapter-schema.js'
 import { resolveV2ByPluginName, loadAdapterCatalog } from './adapter-loader.js'
+import { adapterIdentity } from './adapter-validation.js'
 
 export interface PluginAdapterEntry {
   /** Same as plugin/package display name */
@@ -47,7 +48,7 @@ export function buildPluginAdapters(extensions: ExtensionProbeResult[], cwd?: st
       const displayName = pluginDisplayName(ext)
       const adapter = resolveV2ByPluginName(ext.name, ext.packageName, cwd)!
       return {
-        id: displayName,
+        id: adapter.id,
         displayName: adapter.displayName || displayName,
         pluginId: ext.id,
         packageName: ext.packageName,
@@ -76,6 +77,6 @@ export function orphanV2Adapters(probed: ExtensionProbeResult[], cwd?: string): 
   const probedNames = new Set(probed.flatMap((p) => [p.name, p.packageName].filter(Boolean) as string[]))
   return catalog.filter(
     (a) => a.tier !== 'none' && !(a.match?.names || []).some((n) =>
-      probedNames.has(n) || [...probedNames].some((p) => p === n || p.endsWith(n) || p.includes(n))),
+      [...probedNames].some((p) => adapterIdentity(p) === adapterIdentity(n))),
   )
 }

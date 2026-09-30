@@ -2,6 +2,7 @@
   "title": "适配器配置",
   "save": "保存",
   "saving": "保存中…",
+  "invalidConfig": "配置文件格式有误。请修复文件后再保存，原文件不会被覆盖。" ,
   "refresh": "刷新",
   "loading": "加载 {{name}} 配置…",
   "noConfig": "该扩展自管配置，桌面无可编辑项。",

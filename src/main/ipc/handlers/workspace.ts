@@ -1,4 +1,3 @@
-import { invalidateAdapterCatalog } from '../../../extension-compat/adapter-loader'
 import { configStore } from '../../config-store'
 import { sqliteIndex } from '../../sqlite-index'
 import { workerManager } from '../../worker-manager'
@@ -35,7 +34,6 @@ export function registerWorkspaceHandlers(): void {
   registerHandlerWithSchema('ipc:workspace.open', workspaceOpenSchema, async (req) => {
     const path = req.path
     const name = path.split(/[\\/]/).pop() || path
-    invalidateAdapterCatalog()
     configStore.addRecentProject(path)
     configStore.set('currentProject', path)
     try {

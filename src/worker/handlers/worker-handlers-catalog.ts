@@ -4,7 +4,8 @@ import type { SkillCatalogResponse } from '@shared/skill-catalog'
 import { projectModelCatalog } from '@shared/model-auth-projection'
 import type { WorkerCommandRow, WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
-import { st } from '../worker-runtime.js'
+import { st, isSessionBusy, applyPendingAdapterCatalog } from '../worker-runtime.js'
+import { prepareAdapterCatalog } from '../../extension-compat/adapter-loader.js'
 import {
   applySkillOverrideChanges,
   getLiveWorkerSkillCatalog,
@@ -222,11 +223,25 @@ export async function handleGetcontextprompts(msg: WorkerIncomingMessage, reply:
 }
 
 
+export async function handleGetextensioncapabilities(_msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  const result = st.session?.resourceLoader.getExtensions()
+  reply({ type: 'getExtensionCapabilities-done', extensions: (result?.extensions ?? []).map((extension) => ({ path: extension.path, source: extension.sourceInfo?.source, tools: [...extension.tools.keys()], commands: [...extension.commands.keys()] })), errors: result?.errors ?? [] })
+}
+
+export async function handleRefreshadapters(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  const catalog = msg.catalog as import('../../extension-compat/adapter-schema').AdapterCatalog
+  if (!catalog || !Array.isArray(catalog.adapters)) throw new Error('invalid adapter catalog')
+  st.pendingAdapterCatalog = catalog
+  applyPendingAdapterCatalog()
+  reply({ type: 'refreshAdapters-done', deferred: !!st.pendingAdapterCatalog, revision: catalog.revision })
+}
+
 export async function handleReloadresources(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
-          if (st.session) {
-            await (st.session as { reload?: () => Promise<void> }).reload?.()
-          }
+          if (!st.session) throw new Error('WORKER_SESSION_NOT_READY')
+          if (isSessionBusy()) throw new Error('SESSION_BUSY')
+          await prepareAdapterCatalog(st.currentCwd, { refresh: true })
+          await st.session.reload()
           reply({ type: 'reloadResources-done', ok: true })
         } catch (e: unknown) {
           reply({ type: 'error', error: `reloadResources failed: ${errorMessage(e)}` })

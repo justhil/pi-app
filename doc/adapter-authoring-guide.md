@@ -34,7 +34,7 @@ ExtensionUIContext (TUI)    →    通用弹窗 Host（§8，全插件复用）
 
 ## 1. 适配器加载与外部覆盖内置
 
-pi Desktop 在启动与切换工作区时调用 `loadAdapterCatalog(projectDir)`，合并三层来源得到最终 catalog。扩展作者可在 **不等 App 发版** 的情况下，用外置 JSON **替换** 应用内置的同名扩展适配器（例如扩展 v2 新增 tool、改 config 路径、升级 `tier`）。
+pi Desktop 在启动与切换工作区时异步调用 `prepareAdapterCatalog(projectDir)`，合并三层来源得到最终目录快照。同步 `loadAdapterCatalog` 只查内存。扩展作者可在 **不等 App 发版** 的情况下，用外置 JSON **替换** 应用内置的同名扩展适配器（例如扩展 v2 新增 tool、改 config 路径、升级 `tier`）。
 
 ### 2.1 三层来源与优先级
 
@@ -56,14 +56,14 @@ pi Desktop 在启动与切换工作区时调用 `loadAdapterCatalog(projectDir)`
 2. 从 catalog 中 **删除** 所有与此外置 adapter **包名冲突** 的既有条目（内置或其它外置均可被删）。
 3. 将 **此外置 JSON 整份** 追加进 catalog。
 
-包名是否「同一个扩展」与 `resolveV2ByPluginName` 使用 **同一套模糊规则**：键相等、或互为后缀、或一方 `includes` 另一方。例如外置写 `"names": ["pi-search"]` 会替换内置 `match.names: ["pi-search"]` 的那条，即使你把外置 `id` 改成 `pi-search-v2` 也可以。
+包名规范化后**精确相等**才匹配：去掉 npm 版本和来源前缀，保留作用域包名；Git 来源取仓库名。别名逐个写在 `match.names`。例如 `pi-search-extra` 不会匹配 `pi-search`；外置 `names: ["pi-search"]` 仍可用不同 `id` 整份替换内置声明。
 
 **因此：**
 
 | 做法 | 结果 |
 |------|------|
 | 外置 `match.names` 含 `pi-search` | 替换内置里认领 `pi-search` 的 adapter，**整文件生效** |
-| 仅外置 `id` 与内置相同，但 `names` 对不上 | **不会** 替换内置；catalog 里可能短暂存在两条（直到 names 冲突） |
+| 外置 `id` 与内置相同 | 整份替换；不会字段级合并 |
 | 外置与内置 `names` 都含 `@scope/pkg` | 替换成功；可只更新 tools / config / interact 等任意字段 |
 
 ### 2.3 整份替换的含义
@@ -84,7 +84,7 @@ builtin[]
   → apply( <project>/.pi/desktop/adapters/* )  // 项目层，最高
 ```
 
-同一包若 **用户与项目各放一份**，以 **项目目录** 为准。同一目录内多个文件认领 **同一包名** 时，按目录读取顺序依次 `apply`（后读入的文件最终胜出）。
+同一包若**用户与项目各放一份**，以项目目录为准。同一目录内多个文件认领同一身份时，按文件名排序保留第一份并报告冲突；不要依赖文件顺序实现覆盖。坏文件与不支持的声明版本只影响该文件。
 
 ### 2.5 推荐：发布「适配器更新包」
 
@@ -109,18 +109,19 @@ builtin[]
 }
 ```
 
-要点：`names` 必须包含用户机器上 probe 到的包名。改外置文件后：**切换工作区**、**打开设置页**（自动 `refresh` 缓存），或重启应用。详见 `adapter-layer-plan.md` **§2.1–§2.2**（性能与缓存刷新）。
+要点：`names` 必须包含准确包名。可见窗口每 5 秒和重新获得焦点时检查修改；也可手动刷新设置页。目录版本同步到界面和 Worker，执行中的 Worker 在安全点应用。刷新声明不会启动或重载插件。详见 `adapter-layer-plan.md` §2.1–§2.2。
 
 ### 2.6 如何确认当前生效的是哪一份
 
 - IPC `adapters.json.catalog` → 响应里的 `sources[adapterId]` 为 `builtin` 或 `override`。
-- 实现：`src/extension-compat/adapter-loader.ts`（`adapterPackageKeys`、`adaptersSharePackage`、`applyPackageOverrides`）。
+- `revision` 表示声明内容版本，`scope` 区分项目和运行环境；`errors` 包含坏文件及冲突提示。
+- 实现：`src/extension-compat/adapter-loader.ts`（异步准备、精确身份与分层合并）。
 
 ### 2.7 常见误区
 
 | 误区 | 说明 |
 |------|------|
-| 以为同 `id` 会深合并 | 已废弃；必须靠 `match.names` 包名覆盖 |
+| 以为同 `id` 会深合并 | 同 id 或包名匹配均整份替换，未写字段不会从内置补回 |
 | 外置只写增量字段 | 无效；外置必须是完整 adapter 语义（未写字段即缺失） |
 | 忘记写 `names` 只写 `tools` | 无法替换内置，扩展也可能对不上设置页 |
 | 与内置 `tier: none` 想「启用」 | 外置可写 `partial`/`native` 并覆盖，但 `names` 须匹配已安装扩展 |
@@ -216,7 +217,9 @@ builtin[]
 
 **`localKeys`**：列在其中的字段 **不** 写入 `configFile`，只进 App 本地（适合「时间线内联预览」等桌面开关）。
 
-**`secret` 字段**：展示掩码；`set` 时空字符串或含 `•`/`…` 表示「未改密钥」，不会覆盖文件。
+**`secret` 字段**：界面只收到掩码和 `keySet`；HTTP 动作在后端读取原值。保存时空字符串或掩码表示未改密钥，不覆盖文件。
+
+配置操作传 `workspaceId`，按项目和 Windows/WSL 环境查找声明。WSL 的 `~` 和环境覆盖来自发行版。共享文件异步读写，同一文件的保存串行合并、使用唯一临时文件及 `.bak`；未知字段保留，损坏 JSON 禁止覆盖。只读字段和未知表单 key 不写入。
 
 ### 6.2 表单字段 `ConfigField`
 
@@ -259,8 +262,8 @@ builtin[]
 | `type` | 行为 |
 |--------|------|
 | `httpCheck` | 用 **未掩码** 配置发 HTTP，展示状态行 |
-| `openPath` | `url` 模板解析为路径（由 UI 打开） |
-| `reload` | 占位刷新 |
+| `openPath` | 后端调用系统打开路径，失败返回错误 |
+| `reload` | 刷新声明并重载请求项目的空闲 Pi Worker；忙碌时返回 `SESSION_BUSY` |
 
 ```json
 {
@@ -508,7 +511,7 @@ Composer 输入 `/foo` 时：
 | `stateProvider` | `panelComponent` | 能力 | 典型 JSON 用法 |
 |-----------------|------------------|------|----------------|
 | `workspace-trellis` | `workspace-tasks` | 读项目根 `.trellis/`（tasks、prd、journal、`task.py current`），任务列表 + 日志 UI | Trellis 扩展 `builtin/trellis.adapter.json` |
-| （自定义，需 PR 注册） | `generic-json` | 任意 `getState` 返回 JSON，只读树 | 新扩展调试 / 简单状态 |
+| `source: { type: "json", path: "tasks.json" }` | `list` / `tree` / `generic-json` | 只读项目内 JSON，支持字段映射 | 无需插件或 Worker |
 
 **核心右栏**（Review / Run / Context / Intercom / Tree）由 App 固定，**不**在 adapter 里声明。任务类右栏一律走 **适配器栏目**（`source: adapter`），`panelId` 建议 `adapter:{id}`。
 
@@ -533,7 +536,7 @@ Composer 输入 `/foo` 时：
 
 | 字段 | 说明 |
 |------|------|
-| `stateProvider` | **必填**。Main `side-panel-registry.ts` 已注册的原语名（如 `workspace-trellis`） |
+| `stateProvider` / `source` | 二选一。已有宿主提供者，或项目内只读 JSON 来源 |
 | `panelComponent` | **必填**。Renderer `side-panel-host` 已注册的原语名（如 `workspace-tasks`、`generic-json`） |
 | `panelId` | Tab / `rightPanelPrefs` 键；省略则为 `adapter:{id}` |
 | `label` / `description` / `icon` | 设置与 Tab 文案；icon 为 lucide 名 |
@@ -551,12 +554,47 @@ Composer 输入 `/foo` 时：
 | 目标 | 做法 |
 |------|------|
 | 与 Trellis 同级任务面板 | JSON 使用 `workspace-trellis` + `workspace-tasks`（读同一 `.trellis/` 布局） |
-| 只展示自定义状态 | PR 注册新 `stateProvider` + 可选新 `panelComponent`，或先用 `generic-json` |
+| 只展示项目 JSON | 写 `sidePanel.source`，用 `list` / `tree` / `generic-json`，无需改应用 |
 | 禁止 | 在 `src/main/ipc.ts` 增加 `ipc:myPlugin.getState`；在 Host 写 `if (adapterId==='…')` |
 
 **prefs 迁移**：旧版核心栏 id `trellis` 已移除；`normalizeRightPanelPrefs` 会把旧 `trellis` 开关同步到 `adapter:trellis`。
 
 ---
+
+### 10.6 不绑定插件的只读面板
+
+将下面一份文件保存到项目 `.pi/desktop/adapters/local-tasks.json`。项目根 `tasks.json` 的内容由你或已有工具维护，桌面只读取。
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "desktop",
+  "id": "local.tasks",
+  "displayName": "项目任务",
+  "tier": "native",
+  "sidePanel": {
+    "label": "项目任务",
+    "panelComponent": "list",
+    "defaultEnabled": true,
+    "source": {
+      "type": "json",
+      "path": "tasks.json",
+      "itemsPath": "items",
+      "fields": { "title": "$.name", "description": "$.status" }
+    }
+  },
+  "slash": { "/local-tasks": "open-panel" }
+}
+```
+
+数据示例：`{"items":[{"name":"整理项目文档","status":"待办"}]}`。
+
+- `kind: desktop` 不需要 `match` 或 Pi 插件；打开面板不启动 Worker。
+- `source.path` 只能是项目内相对路径，拒绝绝对路径、`..` 和指向项目外的符号链接；文件最多 1MB。
+- `itemsPath` 选择数组，`fields` 用已有 JSONPath 映射每条记录；最多映射 500 条。
+- `list` 显示记录，`tree` 显示折叠树，`generic-json` 显示格式化 JSON。数据变化后点击面板刷新。
+- 现有任务布局可用 `stateProvider: workspace-trellis` 和 `panelComponent: workspace-tasks`，同样可声明为 `desktop`。
+- 不执行脚本或命令，不写业务文件，不加载外部 React/JavaScript。普通 Pi 扩展没有适配文件也能加载和执行；未知自定义 TUI 不模拟成问卷。
 
 ## 11. 通用 IPC（扩展作者只需知道契约）
 
@@ -566,9 +604,9 @@ Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<m
 |--------|------|----------|
 | `adapter.config.get` | `{ adapterId, workspaceId? }` | `{ view }` 掩码后表单 |
 | `adapter.config.set` | `{ adapterId, workspaceId?, patch }` | `{ view }` |
-| `adapter.action.run` | `{ adapterId, actionId }` | `{ ok, lines?, error? }` |
-| `adapter.field.options` | `{ adapterId, fieldKey }` | 动态 select 选项 |
-| `adapters.json.catalog` | — | `{ adapters, errors, sources }` |
+| `adapter.action.run` | `{ adapterId, actionId, workspaceId? }` | `{ ok, lines?, error? }` |
+| `adapter.field.options` | `{ adapterId, fieldKey, workspaceId? }` | 动态 select 选项 |
+| `adapters.json.catalog` | `{ workspaceId?, refresh? }` | `{ adapters, errors, sources, revision, scope }` |
 | `adapters.catalog` | — | probe 与 adapter 合并（设置页列表） |
 | `slash.resolve` | `{ command }` | `{ behavior, meta: { matchNames, desktopSupport, panelId, adapterId } }` |
 | `adapter.sidePanel.getState` | `{ adapterId, workspaceId? }` | `{ ok, state }` 或 `{ ok: false, error }` |
@@ -672,8 +710,8 @@ Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<m
 
 7. **右栏**（可选）  
    - 声明 `sidePanel`  
-   - 若需定制数据：在 pi-desktop 提 PR 注册 `stateProvider`  
-   - 仅展示 JSON：用 `generic-json`  
+   - 现有任务布局：用 `stateProvider: workspace-trellis`
+   - 项目内 JSON：用 `source`，选择 `list` / `tree` / `generic-json`
 
 8. **放置文件**（见 **§1**）  
    - 上游合并：放进 `builtin/`  

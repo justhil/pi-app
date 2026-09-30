@@ -211,6 +211,7 @@ export function createDesktopUIBridge(
     setTitle: () => {},
 
     async custom<T>(_factory: unknown, _options?: unknown): Promise<T> {
+      if (!interactArgs && !lastAskPayload) throw new Error('UNSUPPORTED_DESKTOP_UI: custom TUI requires an adapter interaction protocol')
       const id = randomUUID()
       // Route by interact schema (cached by Worker from adapter.json interact.fields).
       if (interactArgs?.schema === 'review') {

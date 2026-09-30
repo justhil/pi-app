@@ -211,9 +211,7 @@ export class SessionPreviewProcess {
     desktopDir: string
     homeDir: string
   }): Promise<ExtensionProbeResult[]> {
-    // Always the local utility process: probing reads through the same (UNC in WSL mode) dirs the
-    // main process resolves, just off the UI thread.
-    return this.request('extensions.probe', payload, { local: true })
+    return this.request('extensions.probe', payload)
   }
 
   warm(): Promise<void> {

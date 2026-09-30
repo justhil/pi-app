@@ -20,6 +20,7 @@ import {
 import { errorMessage } from '@shared/error-message'
 import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
+import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 
 export type WorkerModelRuntime = Pick<
   ModelRuntime,
@@ -38,6 +39,7 @@ export type WorkerMutableState = {
   runtime: AgentSessionRuntime | null
   uiBridge: DesktopUIBridge | null
   widgetHost: ReturnType<typeof createDesktopWidgetHost> | null
+  pendingAdapterCatalog: import('../extension-compat/adapter-schema').AdapterCatalog | null
   seq: number
   currentCwd: string
   currentSessionId: string
@@ -58,6 +60,7 @@ export const st: WorkerMutableState = {
   runtime: null,
   uiBridge: null,
   widgetHost: null,
+  pendingAdapterCatalog: null,
   seq: 0,
   currentCwd: '',
   currentSessionId: '',
@@ -133,6 +136,7 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   } catch {
     /* ignore */
   }
+  await prepareAdapterCatalog(st.currentCwd, { refresh: true })
   await bindDesktopExtensions(session)
   st.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     handleSessionEvent(event)
@@ -176,6 +180,7 @@ function noteModelFallbackFromRuntime(): void {
 function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
   const sdk = st.sdk!
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
+    await prepareAdapterCatalog(cwd, { refresh: true })
     const services = await sdk.createAgentSessionServices({
       cwd,
       agentDir,
@@ -242,6 +247,12 @@ async function disposeRuntimeOrSession(): Promise<void> {
     st.session = null
   }
   st.modelRuntime = null
+}
+
+export function applyPendingAdapterCatalog(): void {
+  if (!st.pendingAdapterCatalog || isSessionBusy()) return
+  installAdapterCatalog(st.currentCwd, st.pendingAdapterCatalog)
+  st.pendingAdapterCatalog = null
 }
 
 export async function initSession(cwd: string): Promise<void> {
@@ -364,6 +375,7 @@ function buildCommandContextActions(sess: AgentSession) {
     },
     switchSession: async () => ({ cancelled: true }),
     reload: async () => {
+      await prepareAdapterCatalog(st.currentCwd, { refresh: true })
       await sess.reload()
     },
   }
@@ -469,6 +481,7 @@ function sessionEventDeps() {
 
 export function handleSessionEvent(event: AgentSessionEvent): void {
   dispatchSessionEvent(event, sessionEventDeps())
+  applyPendingAdapterCatalog()
 }
 
 export async function listSessions(cwd: string): Promise<unknown[]> {

@@ -45,6 +45,8 @@ import { StatusBar } from '@renderer/features/shell/status-bar'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
 import { handleSdkRuntimeChanged } from '@renderer/lib/sdk-runtime-changed'
 import { prefetchAvailableModels } from '@renderer/lib/available-models-cache'
+import { activateAdapterWorkspace, invalidateAdapterSnapshots, revalidateActiveAdapterCatalog } from '@renderer/lib/adapter-catalog'
+import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
 
 import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 import { useReviewGitData } from '@renderer/features/review/use-review-git-data'
@@ -185,9 +187,33 @@ export default function App() {
   }, [applyRightPanelRuntime])
 
   useEffect(() => {
+    activateAdapterWorkspace(currentWorkspace)
+    invalidateRightPanelCatalog()
+    let active = true
+    void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
+      if (active) applyRightPanelRuntime(catalog, prefs, order)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [currentWorkspace, applyRightPanelRuntime])
+
+  useEffect(() => {
+    const check = () => { if (document.visibilityState === 'visible') void revalidateActiveAdapterCatalog().catch(() => {}) }
+    window.addEventListener('focus', check)
+    const timer = window.setInterval(check, 5000)
+    return () => { window.removeEventListener('focus', check); window.clearInterval(timer) }
+  }, [])
+
+  useEffect(() => {
     const unsubEvents = onAppEvent((event) => {
-      if (event.type === 'sdk-runtime-changed') {
-        void handleSdkRuntimeChanged()
+      if (event.type === 'sdk-runtime-changed' || event.type === 'adapter-catalog-changed') {
+        invalidateAdapterSnapshots()
+        invalidateRightPanelCatalog()
+        const workspace = useUIStore.getState().currentWorkspace
+        void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
+          if (useUIStore.getState().currentWorkspace === workspace) useUIStore.getState().applyRightPanelRuntime(catalog, prefs, order)
+        }).catch(() => {})
+        if (event.type === 'sdk-runtime-changed') void handleSdkRuntimeChanged()
+        return
       }
       useUIStore.getState().processEvent(event)
     })

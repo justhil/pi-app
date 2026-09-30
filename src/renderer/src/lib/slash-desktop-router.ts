@@ -16,7 +16,7 @@ export async function routeDesktopSlashBeforeSend(line: string): Promise<Desktop
     meta?: { matchNames?: string[]; adapterId?: string; panelId?: string; desktopSupport?: string }
   } | null = null
   try {
-    resolved = await ipcClient.invoke('slash.resolve', { command: token })
+    resolved = await ipcClient.invoke('slash.resolve', { command: token, workspaceId: useUIStore.getState().currentWorkspace || '' })
   } catch (e) {
     return { handled: false }
   }
@@ -30,7 +30,7 @@ export async function routeDesktopSlashBeforeSend(line: string): Promise<Desktop
   const meta = resolved?.meta
 
   if (behavior === 'config-page') {
-    const name = meta?.matchNames?.[0] || meta?.adapterId || token.replace(/^\//, '')
+    const name = meta?.adapterId || meta?.matchNames?.[0] || token.replace(/^\//, '')
     store.requestExtensionConfig(name)
     toast.info(i18n.t('composer:toast.openedConfig', { name }))
     return { handled: true }

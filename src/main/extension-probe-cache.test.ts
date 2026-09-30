@@ -47,12 +47,12 @@ describe('probeExtensionsShared', () => {
     expect(previewProbe).toHaveBeenCalledTimes(4)
   })
 
-  it('falls back to probing in-process when the preview process fails', async () => {
+  it('returns an empty advisory catalog without scanning main when preview fails', async () => {
     previewProbe.mockRejectedValue(new Error('preview down'))
     mainProbe.mockReturnValue(probe('fallback'))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect((await probeExtensionsShared('/p'))[0].name).toBe('fallback')
-    expect(mainProbe).toHaveBeenCalledWith('/p')
+    expect(await probeExtensionsShared('/p')).toEqual([])
+    expect(mainProbe).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 })

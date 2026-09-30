@@ -1,7 +1,8 @@
 // Adapter primitive registry & schema-driven config form (兼容层 v2 renderer side)
 // 见 doc/adapter-layer-plan.md §4.1
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { RefreshCw, Plug } from '@renderer/components/icons'
@@ -80,30 +81,37 @@ function FieldRow({ field, value, isSet, adapterId, onChange }: { field: ConfigF
 }
 
 function SelectField({ field, value, adapterId, onChange }: { field: ConfigField; value: unknown; adapterId: string; onChange: (v: unknown) => void }) {
+  const workspaceId = useUIStore((state) => state.currentWorkspace) || ''
   const { t } = useTranslation()
   const label = field.label || field.key
   const isDynamic = !!field.optionsFrom
   const [dynamicOpts, setDynamicOpts] = useState<string[] | null>(null)
   const [fetching, setFetching] = useState(false)
   const [hint, setHint] = useState<string | null>(null)
+  const generation = useRef(0)
 
   const fetchOpts = useCallback(async () => {
+    const request = ++generation.current
     setFetching(true)
     setHint(null)
     try {
-      const r = await ipcClient.invoke('adapter.field.options', { adapterId, fieldKey: field.key })
+      const r = await ipcClient.invoke('adapter.field.options', { adapterId, fieldKey: field.key, workspaceId })
+      if (request !== generation.current) return
       if (r?.error) setHint(r.error)
       setDynamicOpts(Array.isArray(r?.options) ? r.options : [])
     } catch (e: unknown) {
-      setHint((e instanceof Error ? e.message : String(e)) || String(e))
+      if (request === generation.current) setHint(e instanceof Error ? e.message : String(e))
     } finally {
-      setFetching(false)
+      if (request === generation.current) setFetching(false)
     }
-  }, [adapterId, field.key])
+  }, [adapterId, field.key, workspaceId])
 
   useEffect(() => {
-    if (isDynamic && dynamicOpts === null) fetchOpts()
-  }, [isDynamic, dynamicOpts, fetchOpts])
+    setDynamicOpts(null)
+    setHint(null)
+    if (isDynamic) void fetchOpts()
+    return () => { generation.current++ }
+  }, [isDynamic, fetchOpts])
 
   const options = isDynamic ? (dynamicOpts || []) : (field.options || [])
   const currentVal = String(value ?? '')
@@ -166,6 +174,9 @@ function StatusGrid({ rows, view }: { rows: DerivedRow[]; view: Record<string, u
 /** Generic schema-driven adapter config panel. Replaces per-plugin config components. */
 export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
   const { t, i18n } = useTranslation()
+  const workspaceId = useUIStore((state) => state.currentWorkspace) || ''
+  const generation = useRef(0)
+  const [error, setError] = useState<string | null>(null)
   const cfg = adapter.config
   const resolved = useMemo(() => resolveAdapterText(adapter, i18n.language), [adapter, i18n.language])
   const [view, setView] = useState<Record<string, unknown>>({})
@@ -175,40 +186,48 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
   const [actionResult, setActionResult] = useState<Record<string, { ok: boolean; lines?: string[]; error?: string }>>({})
 
   const load = useCallback(() => {
+    const request = ++generation.current
     setLoading(true)
-    ipcClient.invoke('adapter.config.get', { adapterId: adapter.id })
+    setSaving(false)
+    setActionResult({})
+    setError(null)
+    ipcClient.invoke('adapter.config.get', { adapterId: adapter.id, workspaceId })
       .then((r) => {
+        if (request !== generation.current) return
         const v = (r?.view || {}) as Record<string, unknown>
         setView(v)
         setDraft(v)
       })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [adapter.id])
+      .catch((failure: unknown) => { if (request === generation.current) setError(failure instanceof Error ? failure.message : String(failure)) })
+      .finally(() => { if (request === generation.current) setLoading(false) })
+  }, [adapter.id, workspaceId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); return () => { generation.current++ } }, [load])
 
   const save = async () => {
+    const request = generation.current
     setSaving(true)
     try {
-      const r = await ipcClient.invoke('adapter.config.set', { adapterId: adapter.id, patch: draft })
+      const r = await ipcClient.invoke('adapter.config.set', { adapterId: adapter.id, patch: Object.fromEntries(Object.entries(draft).filter(([key, value]) => value !== view[key])), workspaceId })
+      if (request !== generation.current) return
       const v = (r?.view || {}) as Record<string, unknown>
       setView(v)
       setDraft(v)
     } catch (e) {
-      console.error(e)
+      if (request === generation.current) setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setSaving(false)
+      if (request === generation.current) setSaving(false)
     }
   }
 
   const runAction = async (actionId: string) => {
+    const request = generation.current
     setActionResult((p) => ({ ...p, [actionId]: { ok: true, lines: [t('extension:executing')] } }))
     try {
-      const r = await ipcClient.invoke('adapter.action.run', { adapterId: adapter.id, actionId })
-      setActionResult((p) => ({ ...p, [actionId]: r }))
+      const r = await ipcClient.invoke('adapter.action.run', { adapterId: adapter.id, actionId, workspaceId })
+      if (request === generation.current) setActionResult((p) => ({ ...p, [actionId]: r }))
     } catch (e: unknown) {
-      setActionResult((p) => ({ ...p, [actionId]: { ok: false, error: e instanceof Error ? e.message : String(e) } }))
+      if (request === generation.current) setActionResult((p) => ({ ...p, [actionId]: { ok: false, error: e instanceof Error ? e.message : String(e) } }))
     }
   }
 
@@ -227,6 +246,8 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
 
   return (
     <div className="space-y-4">
+      {error && <p role="alert" className="text-[12px] text-destructive">{error}</p>}
+      {view.__configFileError === 'invalid_json' && <p role="alert" className="text-[12px] text-destructive">{t('extension:invalidConfig')}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={load} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[11px] hover:bg-accent">
           <RefreshCw className="h-3 w-3" /> {t('extension:refresh')}
@@ -244,7 +265,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
         <button
           type="button"
           onClick={save}
-          disabled={saving}
+          disabled={saving || !!view.__configFileError}
           className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[11px] text-primary-foreground transition-all duration-motion-fast ease-motion-ease hover:bg-primary/90 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none"
         >
           {saving ? t('extension:saving') : t('extension:save')}
@@ -275,7 +296,7 @@ export function AdapterConfigPanel({ adapter }: { adapter: AdapterJson }) {
       {resolved.note && <p className="text-[11px] text-muted-foreground/70">{resolved.note}</p>}
 
       {Object.entries(actionResult).map(([id, r]) => (
-        r.lines && r.lines.length > 0 && (
+        r.error ? <p key={id} role="alert" className="text-[12px] text-destructive">{r.error}</p> : r.lines && r.lines.length > 0 && (
           <pre key={id} className="max-h-48 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-2 text-[10px] whitespace-pre-wrap">
             {r.lines.join('\n')}
           </pre>

@@ -2,6 +2,7 @@
   "title": "Adapter Config",
   "save": "Save",
   "saving": "Saving…",
+  "invalidConfig": "The config file is invalid. Repair it before saving; the original will not be overwritten.",
   "refresh": "Refresh",
   "loading": "Loading {{name}} config…",
   "noConfig": "This extension manages its own config; no editable items on desktop.",

@@ -135,6 +135,12 @@ export interface SdkRuntimeChangedEvent {
   type: 'sdk-runtime-changed'
 }
 
+export interface AdapterCatalogChangedEvent {
+  type: 'adapter-catalog-changed'
+  workspaceId?: string
+  revision?: string
+}
+
 export type AppEvent =
   | MessageEvent
   | ToolEvent
@@ -148,5 +154,6 @@ export type AppEvent =
   | ExtensionWidgetEvent
   | SdkInstallProgressEvent
   | SdkRuntimeChangedEvent
+  | AdapterCatalogChangedEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'

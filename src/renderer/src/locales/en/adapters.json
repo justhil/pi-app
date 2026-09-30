@@ -1,5 +1,19 @@
 {
   "title": "Adapters",
+  "panel": {
+    "openProject": "Open a project first",
+    "unavailable": "Panel declaration is unavailable",
+    "refresh": "Refresh",
+    "empty": "No data yet",
+    "readFailed": "Cannot read panel data",
+    "errors": {
+      "outside_workspace": "Panels can only read files inside the current project",
+      "not_found": "The declared data file does not exist yet",
+      "too_large": "The data file exceeds 1MB. Reduce its size and retry",
+      "invalid_json": "The data file is not valid JSON",
+      "items_not_array": "The list path does not point to an array"
+    }
+  },
   "openConfig": "Open config",
   "tier": {
     "native": "Full",

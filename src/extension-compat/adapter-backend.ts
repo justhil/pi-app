@@ -1,333 +1,242 @@
-// 通用适配器配置后端 (兼容层 v2 — doc/adapter-layer-plan.md §6)
-// 按 adapter.config.persistence 分派：声明 configFile => shared-file（原子写+备份+env覆盖+fileKeyMap+secret不覆盖）；
-// 否则 app-local (configStore)。取代原先的 per-plugin config 后端。
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs'
-import { dirname, join } from 'path'
-import { getActiveAgentDir, getActiveHomeDir } from './active-dirs'
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { wslPathToWindows, wslWindowsPathDistro } from '@shared/wsl-path'
+import { net, shell } from 'electron'
+import { getActiveAgentDir, getActiveHomeDir, getActiveDesktopDir } from './active-dirs'
 import { configStore } from '../main/config-store'
-import { findAdapterById } from './adapter-loader'
-import type { AdapterJson, ConfigField } from './adapter-schema'
+import { findAdapterById, prepareAdapterCatalog } from './adapter-loader'
+import type { AdapterConfig, AdapterJson, ConfigField } from './adapter-schema'
+import { extractJsonPath } from './json-path'
+import { resolveWslEnv } from '../main/wsl/wsl-env'
+import { runWslAsync } from '../main/wsl/wsl-exec'
 
-function maskKey(key: string): string {
-  if (!key) return ''
-  if (key.length <= 8) return '••••••••'
-  return `${key.slice(0, 4)}…${key.slice(-4)}`
+const writes = new Map<string, Promise<unknown>>()
+
+function serialize<T>(path: string, work: () => Promise<T>): Promise<T> {
+  const previous = writes.get(path) ?? Promise.resolve()
+  const job = previous.catch(() => {}).then(work)
+  writes.set(path, job)
+  void job.finally(() => { if (writes.get(path) === job) writes.delete(path) }).catch(() => {})
+  return job
 }
 
-function expandPath(p: string): string {
-  if (p === '~') return getActiveHomeDir()
-  if (p.startsWith('~/') || p.startsWith('~\\')) return join(getActiveHomeDir(), p.slice(2))
-  return p
+function expandPath(path: string, workspaceId: string, home: string): string {
+  if (path === '~') return home
+  if (/^~[/\\]/.test(path)) return join(home, path.slice(2))
+  const distro = wslWindowsPathDistro(home)
+  if (distro && path.startsWith('/')) return wslPathToWindows(distro, path)
+  return isAbsolute(path) ? path : resolve(workspaceId || process.cwd(), path)
 }
 
-type SharedFileRead =
-  | { ok: true; data: Record<string, unknown> }
-  | { ok: false; error: 'invalid_json' }
-
-function readSharedFile(path: string): SharedFileRead {
-  const full = expandPath(path)
-  if (!existsSync(full)) return { ok: true, data: {} }
+async function readSharedFile(path: string): Promise<Record<string, unknown>> {
+  let text: string
   try {
-    const parsed = JSON.parse(readFileSync(full, 'utf8'))
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { ok: false, error: 'invalid_json' }
-    }
-    return { ok: true, data: parsed as Record<string, unknown> }
-  } catch (e) {
-    return { ok: false, error: 'invalid_json' }
+    text = await readFile(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
+    throw error
   }
-}
-
-/** Path to the pi global settings.json (~/.pi/agent/settings.json). */
-function piSettingsPath(): string {
-  return join(getActiveAgentDir(), 'settings.json')
-}
-
-/** Read a single top-level key from pi global settings.json. */
-function readPiSettingsKey(key: string): unknown {
-  const p = piSettingsPath()
-  if (!existsSync(p)) return undefined
   try {
-    const obj = JSON.parse(readFileSync(p, 'utf8'))
-    return obj?.[key]
-  } catch (e) {
-    return undefined
+    const data: unknown = JSON.parse(text)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('invalid shape')
+    return data as Record<string, unknown>
+  } catch {
+    throw new Error('adapter config file is invalid JSON; repair the file before saving')
   }
 }
 
-/** Atomically write a single top-level key into pi global settings.json. */
-function writePiSettingsKey(key: string, value: unknown): void {
-  const p = piSettingsPath()
-  let obj: Record<string, unknown> = {}
-  if (existsSync(p)) {
-    try { obj = JSON.parse(readFileSync(p, 'utf8')) } catch (e) { obj = {} }
+async function atomicWrite(path: string, data: Record<string, unknown>): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  const temp = `${path}.${randomUUID()}.tmp`
+  try {
+    await writeFile(temp, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+    await copyFile(path, `${path}.bak`).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error
+    })
+    await rename(temp, path)
+  } finally {
+    await rm(temp, { force: true })
   }
-  obj[key] = value
-  atomicWrite(p, JSON.stringify(obj, null, 2))
 }
 
-function atomicWrite(path: string, data: string): void {
-  const full = expandPath(path)
-  mkdirSync(dirname(full), { recursive: true })
-  const tmp = `${full}.tmp`
-  writeFileSync(tmp, data, 'utf8')
-  // backup before replace (keep one .bak)
-  if (existsSync(full)) {
-    try {
-      renameSync(full, `${full}.bak`)
-    } catch (e) {
-      // best-effort backup
-    }
-  }
-  renameSync(tmp, full)
+const environments = new Map<string, { at: number; promise: Promise<NodeJS.ProcessEnv> }>()
+
+async function configEnvironment(home: string, config: AdapterConfig): Promise<NodeJS.ProcessEnv> {
+  const distro = wslWindowsPathDistro(home)
+  const names = [...new Set(Object.values(config.envOverride ?? {}))].sort()
+  if (!distro) return { ...process.env }
+  if (!names.length) return {}
+  if (names.some((name) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))) throw new Error('invalid environment variable name')
+  const env = await resolveWslEnv(distro)
+  if (!env) throw new Error('WSL environment unavailable')
+  const key = `${distro}|${env.resolvedAt}|${names.join(',')}`
+  const cached = environments.get(key)
+  if (cached && Date.now() - cached.at < 30000) return cached.promise
+  const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`
+  const script = `printf '\\n__PI_ADAPTER_ENV__\\n'; ${names.map((name) => `if [ "\${${name}+x}" ]; then printf '${name}=%s\\0' "$${name}"; fi`).join('; ')}; printf '__PI_ADAPTER_END__'`
+  const promise = runWslAsync(['-d', distro, '--', 'sh', '-s'], { input: `exec ${quote(env.shell)} -ilc ${quote(script)}\n`, timeout: 15000, maxBuffer: 1024 * 1024 }).then((result) => {
+    const marker = '\n__PI_ADAPTER_ENV__\n'
+    const start = result.stdout.indexOf(marker), end = result.stdout.indexOf('__PI_ADAPTER_END__', start)
+    if (result.status !== 0 || start < 0 || end < 0) throw new Error('cannot read WSL configuration environment')
+    return Object.fromEntries(result.stdout.slice(start + marker.length, end).split('\0').filter(Boolean).map((line) => {
+      const separator = line.indexOf('=')
+      return [line.slice(0, separator), line.slice(separator + 1)]
+    }))
+  }).catch((error) => { environments.delete(key); throw error })
+  environments.set(key, { at: Date.now(), promise })
+  return promise
 }
 
-/** Read adapter config as a renderable view: env-override applied, secrets masked, derived flags computed.
- *  configFile fields come from the shared file; localKeys come from app-local configStore. */
-export function readAdapterConfig(adapterId: string, workspaceId: string): Record<string, unknown> {
-  const adapter = findAdapterById(adapterId)
-  const cfg = adapter?.config
-  const localKeys = new Set(cfg?.localKeys || [])
-  const local = configStore.getExtensionConfig(workspaceId, adapterId) || {}
+type Context = { adapter: AdapterJson; config: AdapterConfig; file?: string; workspaceId: string; home: string; env: NodeJS.ProcessEnv; localScope: string }
 
-  // pi flag-backed settings (e.g. fff-mode): read from ~/.pi/agent/settings.json
-  if (cfg?.piSettingsKey) {
-    const key = cfg.piSettingsKey
-    const field = (cfg.sections || []).flatMap((s) => s.fields || []).find((f) => f.key === key)
-    const val = readPiSettingsKey(key)
-    return { [key]: val ?? field?.default ?? '', __piSettings: true }
-  }
-
-  if (cfg?.configFile) {
-    const fileRead = readSharedFile(cfg.configFile)
-    if (!fileRead.ok) {
-      return { __configFile: cfg.configFile, __configFileError: fileRead.error }
-    }
-    const file = fileRead.data
-    const fileKeyMap = cfg.fileKeyMap || {}
-    const envOverride = cfg.envOverride || {}
-    const view: Record<string, unknown> = {}
-    const allKeys = new Set<string>([
-      ...Object.keys(fileKeyMap),
-      ...(cfg.sections || []).flatMap((s) => s.fields || []).map((f) => f.key),
-    ])
-    for (const formKey of allKeys) {
-      const field = (cfg.sections || []).flatMap((s) => s.fields || []).find((f) => f.key === formKey)
-      if (localKeys.has(formKey)) {
-        view[formKey] = local[formKey] ?? field?.default ?? ''
-        continue
-      }
-      const fileKey = fileKeyMap[formKey]
-      if (!fileKey) continue
-      const envName = envOverride[formKey]
-      const rawVal = envName ? process.env[envName] : undefined
-      const val = rawVal ?? file[fileKey]
-      if (field?.type === 'secret') {
-        view[formKey] = maskKey(String(val || ''))
-        view[`${formKey}Set`] = !!(val && String(val).length)
-      } else {
-        view[formKey] = val ?? field?.default ?? ''
-      }
-    }
-    view.__configFile = cfg.configFile
-    return view
-  }
-  // app-local fallback (existing configStore path)
-  return local
+async function context(adapterId: string, workspaceId: string): Promise<Context> {
+  const home = getActiveHomeDir()
+  const agentDir = getActiveAgentDir()
+  const expectedScope = getActiveDesktopDir()
+  await prepareAdapterCatalog(workspaceId)
+  if (getActiveDesktopDir() !== expectedScope) throw new Error('adapter runtime changed; retry the request')
+  const adapter = findAdapterById(adapterId, workspaceId)
+  if (!adapter) throw new Error(`unknown adapter: ${adapterId}`)
+  const config = adapter.config ?? {}
+  const file = config.piSettingsKey ? join(agentDir, 'settings.json') : config.configFile ? expandPath(config.configFile, workspaceId, home) : undefined
+  return { adapter, config, file, workspaceId, home, env: await configEnvironment(home, config), localScope: `${agentDir}|${workspaceId}` }
 }
 
-/** Read adapter config as RAW values (secrets NOT masked) for outbound HTTP requests
- *  (httpCheck / optionsFrom). Pulls env-override first, then shared file. */
-export function readRawView(adapterId: string): Record<string, unknown> {
-  const adapter = findAdapterById(adapterId)
-  const cfg = adapter?.config
-  if (cfg?.piSettingsKey) {
-    return { [cfg.piSettingsKey]: readPiSettingsKey(cfg.piSettingsKey) }
-  }
-  if (!cfg?.configFile) {
-    // app-local: no secrets masking in place, return as-is
-    return configStore.getExtensionConfig('', adapterId) || {}
-  }
-  const fileRead = readSharedFile(cfg.configFile)
-  if (!fileRead.ok) return {}
-  const file = fileRead.data
-  const fileKeyMap = cfg.fileKeyMap || {}
-  const envOverride = cfg.envOverride || {}
+function localConfig(ctx: Context): Record<string, unknown> {
+  return configStore.getExtensionConfig(ctx.localScope, ctx.adapter.id)
+    ?? configStore.getExtensionConfig(ctx.workspaceId, ctx.adapter.id)
+    ?? {}
+}
+
+async function rawView(ctx: Context): Promise<Record<string, unknown>> {
+  const cfg = ctx.config
+  const local = localConfig(ctx)
+  if (!ctx.file) return { ...local }
+  const file = await readSharedFile(ctx.file)
+  if (cfg.piSettingsKey) return { [cfg.piSettingsKey]: file[cfg.piSettingsKey] }
+  const fields = (cfg.sections ?? []).flatMap((section) => section.fields ?? [])
   const view: Record<string, unknown> = {}
-  for (const [formKey, fileKey] of Object.entries(fileKeyMap)) {
-    const envName = envOverride[formKey]
-    const val = (envName ? process.env[envName] : undefined) ?? file[fileKey]
-    if (val !== undefined) view[formKey] = val
+  for (const field of fields) view[field.key] = field.default ?? ''
+  for (const [key, fileKey] of Object.entries(cfg.fileKeyMap ?? {})) {
+    view[key] = (cfg.envOverride?.[key] ? ctx.env[cfg.envOverride[key]] : undefined) ?? file[fileKey] ?? view[key]
   }
+  for (const key of cfg.localKeys ?? []) view[key] = local[key] ?? view[key]
   return view
 }
 
-/** Apply a patch: shared-file respects fileKeyMap + secret-skip-empty;
- *  localKeys go to app-local configStore. */
-export function writeAdapterConfig(adapterId: string, workspaceId: string, patch: Record<string, unknown>): Record<string, unknown> {
-  const adapter = findAdapterById(adapterId)
-  const cfg = adapter?.config
-
-  // pi flag-backed settings: write to ~/.pi/agent/settings.json
-  if (cfg?.piSettingsKey) {
-    const key = cfg.piSettingsKey
-    if (patch[key] !== undefined) writePiSettingsKey(key, patch[key])
-    return readAdapterConfig(adapterId, workspaceId)
-  }
-
-  const localKeys = new Set(cfg?.localKeys || [])
-  // Always merge localKeys into app-local store (independent of configFile).
-  const local = configStore.getExtensionConfig(workspaceId, adapterId) || {}
-  let localDirty = false
-  for (const [k, v] of Object.entries(patch)) {
-    if (localKeys.has(k)) {
-      local[k] = v
-      localDirty = true
-    }
-  }
-  if (cfg?.configFile) {
-    const fileRead = readSharedFile(cfg.configFile)
-    if (!fileRead.ok) {
-      throw new Error('adapter config file is invalid JSON; repair the file before saving')
-    }
-    const file = { ...fileRead.data }
-    const fileKeyMap = cfg.fileKeyMap || {}
-    const fields = new Map<string, ConfigField>(
-      (cfg.sections || []).flatMap((s) => s.fields || []).map((f) => [f.key, f]),
-    )
-    for (const [formKey, val] of Object.entries(patch)) {
-      if (val === undefined) continue
-      if (localKeys.has(formKey)) continue
-      const fileKey = fileKeyMap[formKey]
-      if (!fileKey) continue
-      const field = fields.get(formKey)
-      // secret: skip empty / masked-unchanged (maskKey uses • for short keys, … for long keys)
-      if (field?.type === 'secret') {
-        const s = String(val)
-        if (!s) continue
-        if (s.includes('•') || s.includes('…')) continue
-        file[fileKey] = s
-        continue
-      }
-      if (val === '') continue
-      file[fileKey] = val
-    }
-    atomicWrite(cfg.configFile, JSON.stringify(file, null, 2))
-    if (localDirty) configStore.setExtensionConfig(workspaceId, adapterId, local)
-    return readAdapterConfig(adapterId, workspaceId)
-  }
-  const next = { ...local, ...patch }
-  configStore.setExtensionConfig(workspaceId, adapterId, next)
-  return next
-}
-
-/** Run a declared action (httpCheck/openPath/reload). Returns a serializable result. */
-export async function runAdapterAction(adapterId: string, actionId: string): Promise<{ ok: boolean; lines?: string[]; error?: string }> {
-  const adapter = findAdapterById(adapterId)
-  const action = adapter?.config?.actions?.find((a) => a.id === actionId)
-  if (!action) return { ok: false, error: 'action not found' }
-
-  if (action.type === 'reload') {
-    return { ok: true, lines: ['reloaded'] }
-  }
-  if (action.type === 'openPath') {
-    const target = action.url || ''
-    if (!target) return { ok: false, error: 'no path' }
-    return { ok: true, lines: [target] }
-  }
-  if (action.type === 'httpCheck') {
-    const view = readRawView(adapterId)
-    const url = tpl(action.url || '', view)
-    const headers = mapTpl(action.headers || {}, view)
-    const method = (action.method || 'GET').toUpperCase()
-    const lines: string[] = [`## ${action.label || actionId}\n`]
-    let ok = true
-    try {
-      const res = await fetch(url, {
-        method,
-        headers,
-        signal: AbortSignal.timeout(action.timeoutMs || 15000),
-      })
-      const elapsed = 0
-      if (res.ok) {
-        let extra = ''
-        if (action.report?.countPath) {
-          const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
-          const n = pickPath(data, action.report.countPath)
-          extra = `，${action.report.label || 'count'}: ${n}`
-        }
-        lines.push(`✅ ${method} ${url} HTTP ${res.status}${extra}`)
-      } else {
-        lines.push(`❌ ${method} ${url} HTTP ${res.status}`)
-        ok = false
-      }
-    } catch (e: unknown) {
-      lines.push(`❌ ${method} ${url}: ${e instanceof Error ? e.message : String(e)}`)
-      ok = false
-    }
-    return { ok, lines }
-  }
-  return { ok: false, error: `unknown action type ${action.type}` }
-}
-
-function tpl(s: string, view: Record<string, unknown>): string {
-  return s.replace(/\$\{(\w+)\??([^}]*)\}/g, (_m, key, rest) => {
-    const v = view[key]
-    if (rest && rest.startsWith(':')) {
-      // ${cond?true:false} ternary form
-      const [_c, _f] = rest.slice(1).split(':')
-      return v ? _c : _f
-    }
-    return v != null ? String(v) : ''
-  })
-}
-
-function mapTpl(obj: Record<string, string>, view: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(obj)) out[k] = tpl(v, view)
-  return out
-}
-
-function pickPath(data: unknown, path: string): unknown {
-  if (!data || typeof data !== 'object') return undefined
-  const parts = path.replace(/^\$\.?/, '').split('.')
-  let cur: unknown = data
-  for (const p of parts) {
-    if (cur == null || typeof cur !== 'object') return undefined
-    cur = (cur as Record<string, unknown>)[p]
-  }
-  return cur
-}
-
-/** Fetch dynamic options for a select field (e.g. pi-search model list from its API). */
-export async function fetchFieldOptions(adapterId: string, fieldKey: string): Promise<{ options: string[]; error?: string }> {
-  const adapter = findAdapterById(adapterId)
-  const field = (adapter?.config?.sections || [])
-    .flatMap((s) => s.fields || [])
-    .find((f) => f.key === fieldKey)
-  const src = field?.optionsFrom
-  if (!field || !src) return { options: [], error: 'field has no optionsFrom' }
-  // Use raw (unmasked) values for the outbound request — secrets come from env / shared file.
-  const view = readRawView(adapterId)
-  const url = tpl(src.url, view)
-  const headers = mapTpl(src.headers || {}, view)
+async function renderView(ctx: Context): Promise<Record<string, unknown>> {
+  let view: Record<string, unknown>
   try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(src.timeoutMs || 15000) })
-    if (!res.ok) return { options: [], error: `HTTP ${res.status}` }
-    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
-    const items = pickPath(data, src.itemsPath)
+    view = await rawView(ctx)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('invalid JSON')) return { __configFile: ctx.config.configFile, __configFileError: 'invalid_json' }
+    throw error
+  }
+  for (const field of (ctx.config.sections ?? []).flatMap((section) => section.fields ?? [])) {
+    if (field.type !== 'secret') continue
+    const set = !!view[field.key]
+    view[field.key] = set ? '••••••••' : ''
+    view[`${field.key}Set`] = set
+  }
+  if (ctx.config.configFile) view.__configFile = ctx.config.configFile
+  if (ctx.config.piSettingsKey) view.__piSettings = true
+  return view
+}
+
+export async function readAdapterConfig(adapterId: string, workspaceId: string): Promise<Record<string, unknown>> {
+  return renderView(await context(adapterId, workspaceId))
+}
+
+export async function readRawView(adapterId: string, workspaceId = ''): Promise<Record<string, unknown>> {
+  return rawView(await context(adapterId, workspaceId))
+}
+
+function checkedPatch(cfg: AdapterConfig, patch: Record<string, unknown>): Record<string, unknown> {
+  const fields = new Map<string, ConfigField>((cfg.sections ?? []).flatMap((section) => section.fields ?? []).map((field) => [field.key, field]))
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(patch)) {
+    const field = fields.get(key)
+    if (!field || field.readOnly || value === undefined) continue
+    if (field.type === 'secret' && (value === '' || String(value).includes('•') || String(value).includes('…'))) continue
+    if (field.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) throw new Error(`invalid number: ${key}`)
+    if (field.type === 'boolean' && typeof value !== 'boolean') throw new Error(`invalid boolean: ${key}`)
+    if (['text', 'secret', 'select'].includes(field.type) && typeof value !== 'string') throw new Error(`invalid text: ${key}`)
+    output[key] = value
+  }
+  return output
+}
+
+export async function writeAdapterConfig(adapterId: string, workspaceId: string, patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const ctx = await context(adapterId, workspaceId)
+  const updates = checkedPatch(ctx.config, patch)
+  await serialize(ctx.file ?? `${ctx.localScope}:${adapterId}`, async () => {
+    if (getActiveAgentDir() !== ctx.localScope.split('|')[0]) throw new Error('adapter runtime changed; retry the request')
+    const local = { ...localConfig(ctx) }
+    if (ctx.file) {
+      const file = await readSharedFile(ctx.file)
+      for (const [key, value] of Object.entries(updates)) {
+        if (ctx.config.localKeys?.includes(key)) local[key] = value
+        else if (ctx.config.piSettingsKey === key) file[key] = value
+        else if (ctx.config.fileKeyMap?.[key]) file[ctx.config.fileKeyMap[key]] = value
+      }
+      await atomicWrite(ctx.file, file)
+    } else Object.assign(local, updates)
+    if (!ctx.file || ctx.config.localKeys?.some((key) => key in updates)) configStore.setExtensionConfig(ctx.localScope, adapterId, local)
+  })
+  return renderView(ctx)
+}
+
+function template(text: string, view: Record<string, unknown>): string {
+  return text.replace(/\$\{(\w+)(?:\?([^:}]*):([^}]*))?\}/g, (_match, key: string, yes?: string, no?: string) => yes !== undefined ? (view[key] ? yes : no ?? '') : String(view[key] ?? ''))
+}
+
+function headersFrom(values: Record<string, string> | undefined, view: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.entries(values ?? {}).map(([key, value]) => [key, template(value, view)]))
+}
+
+export async function runAdapterAction(adapterId: string, actionId: string, workspaceId = ''): Promise<{ ok: boolean; lines?: string[]; error?: string }> {
+  try {
+    const ctx = await context(adapterId, workspaceId)
+    const action = ctx.config.actions?.find((item) => item.id === actionId)
+    if (!action) return { ok: false, error: 'action not found' }
+    if (action.type === 'reload') {
+      const { workerManager } = await import('../main/worker-manager')
+      await prepareAdapterCatalog(workspaceId, { refresh: true })
+      await workerManager.reloadResources(workspaceId)
+      return { ok: true, lines: ['reloaded'] }
+    }
+    const view = await rawView(ctx)
+    if (action.type === 'openPath') {
+      const target = template(action.url ?? '', view)
+      if (!target) return { ok: false, error: 'no path' }
+      const error = await shell.openPath(expandPath(target, workspaceId, ctx.home))
+      return error ? { ok: false, error } : { ok: true }
+    }
+    const method = (action.method ?? 'GET').toUpperCase()
+    const response = await net.fetch(template(action.url ?? '', view), { method, headers: headersFrom(action.headers, view), body: action.body === undefined ? undefined : JSON.stringify(action.body), signal: AbortSignal.timeout(action.timeoutMs ?? 15000) })
+    let detail = ''
+    if (response.ok && action.report?.countPath) detail = ` ${action.report.label ?? 'count'}: ${extractJsonPath(await response.json(), action.report.countPath)}`
+    return { ok: response.ok, lines: [`${method} HTTP ${response.status}${detail}`] }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error && error.message === 'SESSION_BUSY' ? 'SESSION_BUSY' : 'adapter action failed; check configuration and connection' }
+  }
+}
+
+export async function fetchFieldOptions(adapterId: string, fieldKey: string, workspaceId = ''): Promise<{ options: string[]; error?: string }> {
+  try {
+    const ctx = await context(adapterId, workspaceId)
+    const field = (ctx.config.sections ?? []).flatMap((section) => section.fields ?? []).find((item) => item.key === fieldKey)
+    const source = field?.optionsFrom
+    if (!source) return { options: [], error: 'field has no optionsFrom' }
+    const view = await rawView(ctx)
+    const response = await net.fetch(template(source.url, view), { headers: headersFrom(source.headers, view), signal: AbortSignal.timeout(source.timeoutMs ?? 15000) })
+    if (!response.ok) return { options: [], error: `HTTP ${response.status}` }
+    const items = extractJsonPath(await response.json(), source.itemsPath)
     if (!Array.isArray(items)) return { options: [], error: 'itemsPath not an array' }
-    const valueKey = src.valueFrom || 'id'
-    const labelKey = src.labelFrom || valueKey
-    const options = items.map((it: unknown) => {
-      if (typeof it === 'string') return it
-      const row = typeof it === 'object' && it !== null ? (it as Record<string, unknown>) : {}
-      const val = row[valueKey]
-      const lab = row[labelKey]
-      return lab && lab !== val ? `${lab} (${val})` : String(val ?? '')
-    }).filter(Boolean)
-    return { options }
-  } catch (e: unknown) {
-    return { options: [], error: e instanceof Error ? e.message : String(e) }
+    // Labels never replace the stored id.
+    return { options: items.map((item: unknown) => typeof item === 'string' ? item : item && typeof item === 'object' ? String((item as Record<string, unknown>)[source.valueFrom ?? 'id'] ?? '') : '').filter(Boolean) }
+  } catch {
+    return { options: [], error: 'cannot read adapter options' }
   }
 }

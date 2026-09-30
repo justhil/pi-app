@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { btnDanger } from '@renderer/features/settings/settings-controls'
 import { Switch } from '@renderer/components/ui/switch'
@@ -10,6 +11,8 @@ import { Check, Dot } from '@renderer/components/icons'
 
 export function ExtensionsSettings() {
   const { t } = useTranslation()
+  const workspaceId = useUIStore((state) => state.currentWorkspace) || ''
+  const generation = useRef(0)
   interface ExtRow {
     id: string
     name?: string
@@ -24,6 +27,8 @@ export function ExtensionsSettings() {
     loadError?: string
     registeredTools?: string[]
     registeredCommands?: string[]
+    capabilitySource?: 'static' | 'runtime'
+    runtimeLoaded?: boolean
     adapterId?: string
     tuiOnly?: boolean
   }
@@ -34,21 +39,23 @@ export function ExtensionsSettings() {
   const [syncing, setSyncing] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
-  const refreshExtensions = () => {
-    ipcClient.invoke('extensions.list').then((res) => {
-      setExtensions(res?.extensions || [])
-    })
+  const refreshExtensions = useCallback(() => {
+    const request = ++generation.current
+    ipcClient.invoke('extensions.list', { workspaceId }).then((res) => {
+      if (request === generation.current) setExtensions(res?.extensions || [])
+    }).catch(() => { if (request === generation.current) setExtensions([]) })
     ipcClient.invoke('extensions.missingRuntimePackages').then((res) => {
       setMissingRuntime(res?.missing || [])
     })
     ipcClient.invoke('runtime.getState', { includeTools: true }).then((res) => {
       setRuntimeTools(Array.isArray(res?.state?.tools) ? res.state.tools : [])
     }).catch(() => setRuntimeTools([]))
-  }
+  }, [workspaceId])
 
   useEffect(() => {
     refreshExtensions()
-  }, [])
+    return () => { generation.current++ }
+  }, [refreshExtensions])
 
   const handleToggle = async (ext: ExtRow) => {
     if (!ext.piSync) {
@@ -184,6 +191,9 @@ export function ExtensionsSettings() {
                     {ext.description && (
                       <div className="mt-0.5 truncate text-xs text-muted-foreground/70">{ext.description}</div>
                     )}
+                    <div className="mt-1 text-2xs text-muted-foreground">
+                      {t(`settings:extensions.${ext.capabilitySource === 'runtime' ? ext.runtimeLoaded ? 'runtimeConfirmed' : 'runtimeNotLoaded' : 'staticEstimate'}`)}
+                    </div>
                     {(ext.registeredTools?.length ?? 0) > 0 && (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(ext.registeredTools ?? []).map((t: string) => (

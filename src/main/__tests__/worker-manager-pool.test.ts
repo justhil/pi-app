@@ -200,6 +200,38 @@ describe('WorkerManager active turns', () => {
   })
 })
 
+describe('WorkerManager resource reload scope', () => {
+  it('returns runtime capabilities after the retained init promise has settled', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot> }
+    const slot = fakeSlot('ws:/w/a', '/w/a', false)
+    const transport = makeFakeTransport()
+    const extensions = [{ path: '/w/a/check.ts', tools: ['dynamic'], commands: [] }]
+    transport.postMessage = vi.fn((message: { requestId?: string }) => queueMicrotask(() => transport.emitMessage({ type: 'getExtensionCapabilities-done', requestId: message.requestId, extensions, errors: [] } as WorkerResponsePayload)))
+    slot.worker = transport
+    slot.initPromise = Promise.resolve({ sessionId: 'ready' })
+    attachWorkerHandlers(slot, transport, { mainWindow: null, onAppEvent: vi.fn(), onSlotExit: vi.fn() })
+    internals.pool.set(slot.poolKey, slot)
+    expect(await manager.getExtensionCapabilities('/w/a')).toEqual({ extensions, errors: [] })
+  })
+  it('should_not_reload_other_projects_when_a_workspace_is_requested', async () => {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot> }
+    const slots = ['/w/a', '/w/b'].map((cwd) => {
+      const slot = fakeSlot(`ws:${cwd}`, cwd, false)
+      const transport = makeFakeTransport()
+      transport.postMessage = vi.fn((message: { requestId?: string }) => queueMicrotask(() => transport.emitMessage({ type: 'reloadResources-done', requestId: message.requestId, ok: true } as WorkerResponsePayload)))
+      slot.worker = transport
+      attachWorkerHandlers(slot, transport, { mainWindow: null, onAppEvent: vi.fn(), onSlotExit: vi.fn() })
+      internals.pool.set(slot.poolKey, slot)
+      return slot
+    })
+    await manager.reloadResources('/w/a')
+    expect(slots[0].worker.postMessage).toHaveBeenCalledOnce()
+    expect(slots[1].worker.postMessage).not.toHaveBeenCalled()
+  })
+})
+
 describe('WorkerManager listSessions routing', () => {
   function respondingSlot(poolKey: string, cwd: string): WorkerSlot {
     const transport = makeFakeTransport()

@@ -9,6 +9,9 @@ import { getSessionMessagesFromDisk } from '../main/session-messages-from-disk'
 import { flattenTreeFromSessionFile } from '../main/session-tree-from-file'
 import { applyPiSettingsPatch } from '../worker/pi-settings-patch'
 import { piSettingsSnapshot } from '../worker/pi-settings-snapshot'
+import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
+import { probeExtensions } from '../extension-compat/extension-probe'
+import { prepareAdapterCatalog } from '../extension-compat/adapter-loader'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
 import { encodeWorkerFrame, WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
@@ -23,6 +26,7 @@ if (!distro) throw new Error('WSL preview requires a distro')
 
 type WslPreviewRequest = WorkerIncomingMessage & {
   type:
+    | 'extensions.probe'
     | 'session.list'
     | 'session.getMessages'
     | 'session.tree'
@@ -45,7 +49,17 @@ function reply(requestId: string | undefined, payload: Record<string, unknown>):
 async function handleRequest(message: WslPreviewRequest): Promise<void> {
   try {
     let result: unknown
-    if (message.type === 'session.list') {
+    if (message.type === 'extensions.probe') {
+      const cwd = String(message.cwd || '/')
+      await prepareAdapterCatalog(cwd, { refresh: true })
+      const sdk = await import(message.sdkPath)
+      result = (await annotateExtensionInventory(sdk, cwd, sdk.getAgentDir(), probeExtensions(cwd))).map((probe) => ({
+        ...probe,
+        mainFilePath: probe.mainFilePath ? wslPathToWindows(distro, probe.mainFilePath) : undefined,
+        packageRoot: probe.packageRoot ? wslPathToWindows(distro, probe.packageRoot) : undefined,
+        packageResourcePaths: probe.packageResourcePaths?.map((path) => wslPathToWindows(distro, path)),
+      }))
+    } else if (message.type === 'session.list') {
       result = (await listSessionsOnDisk(
         String(message.cwd || ''),
         message.sdkPath,

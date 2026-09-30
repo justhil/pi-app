@@ -1,5 +1,19 @@
 {
   "title": "适配器",
+  "panel": {
+    "openProject": "请先打开项目",
+    "unavailable": "未找到面板声明",
+    "refresh": "刷新",
+    "empty": "暂无数据",
+    "readFailed": "无法读取面板数据",
+    "errors": {
+      "outside_workspace": "面板只能读取当前项目内的文件",
+      "not_found": "声明的数据文件尚不存在",
+      "too_large": "数据文件超过 1MB，请缩小文件后重试",
+      "invalid_json": "数据文件不是有效的 JSON",
+      "items_not_array": "列表路径没有指向数组"
+    }
+  },
   "openConfig": "打开配置",
   "tier": {
     "native": "完整",
