@@ -24,7 +24,7 @@ node scripts/ci-audit.mjs
 
 ## 依赖审计策略
 
-- **critical**：`npm audit --audit-level=critical` 失败则 CI 红，必须修复或升级依赖。
+- **critical**：`npm audit --audit-level=critical` 失败则 CI 红，必须修复或升级依赖。正式发布工作流同样运行审计，审计失败时不创建 Release。
 - **high / moderate**：`ci-audit.mjs` 仅 **warn**，不阻断合并；跟踪上游修复并在发布说明中披露窗口期。见 `doc/THREAT-MODEL.md` 发布门禁。
 
 ## FMSM / 架构

@@ -13,6 +13,18 @@ permissions:
   id-token: write
 
 jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/ci-audit.mjs
+
   build-win:
     runs-on: windows-latest
     timeout-minutes: 90
@@ -211,7 +223,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-win, build-mac, build-linux]
+    needs: [dependency-audit, build-win, build-mac, build-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
