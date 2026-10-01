@@ -72,7 +72,7 @@ Each session runs in its own worker. Start a turn, open another session and star
 
 ## More panels
 
-<img src="doc/assets/readme/en/panels.png" alt="Run panel with the context breakdown ring and the Context panel listing context entries with token estimates" width="66%" />
+<img src="doc/assets/readme/en/panels.png" alt="Tree panel with the session as a tree, Run panel with the context breakdown ring, and the Context panel listing context entries with token estimates" width="100%" />
 
 | Panel | What it does |
 |---|---|

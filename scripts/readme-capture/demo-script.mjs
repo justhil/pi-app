@@ -129,7 +129,7 @@ export function text(lang) {
 export function fixTurnSteps(lang) {
   const t = TEXT[lang]
   return [
-    { thinking: t.thinkTests, tool: { name: 'bash', args: { command: 'FORCE_COLOR=0 node --test --test-reporter=spec 2>&1 | head -n 10' } } },
+    { thinking: t.thinkTests, tool: { name: 'bash', args: { command: 'node --test --test-reporter=spec 2>&1 | head -n 10' } } },
     { thinking: t.thinkRead, tool: { name: 'read', args: { path: 'src/links.mjs' } } },
     {
       thinking: t.thinkEdit,
@@ -144,7 +144,7 @@ export function fixTurnSteps(lang) {
         },
       },
     },
-    { tool: { name: 'bash', args: { command: 'FORCE_COLOR=0 node --test --test-reporter=spec 2>&1 | tail -n 9' } } },
+    { tool: { name: 'bash', args: { command: 'node --test --test-reporter=spec 2>&1 | tail -n 9' } } },
     {
       tool: {
         name: 'edit',
