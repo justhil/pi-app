@@ -15,6 +15,8 @@ type Pending = {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
+  /** Process the request was written to; its termination ends the request. */
+  owner: UtilityProcess
 }
 
 export class SessionPreviewProcess {
@@ -67,10 +69,14 @@ export class SessionPreviewProcess {
     proc.stdout?.on('data', (chunk: Buffer) => this.logProcessOutput('stdout', chunk))
     proc.stderr?.on('data', (chunk: Buffer) => this.logProcessOutput('stderr', chunk))
     proc.on('exit', (code) => {
-      if (this.process !== proc) return
+      const error = new Error(`Preview process exited with code ${code}`)
+      if (this.process !== proc) {
+        this.rejectOwnedBy(proc, error)
+        return
+      }
       this.process = null
       emitOperationEvent({ operation: 'session-preview.exit', status: code === 0 ? 'ok' : 'error', detail: String(code) })
-      this.rejectAll(new Error(`Preview process exited with code ${code}`))
+      this.rejectOwnedBy(proc, error)
     })
     this.process = proc
     return proc
@@ -89,6 +95,22 @@ export class SessionPreviewProcess {
     this.pending.delete(response.requestId)
     if (response.ok) pending.resolve(response.result)
     else pending.reject(new Error(response.error || 'Preview request failed'))
+  }
+
+  private rejectOwnedBy(proc: UtilityProcess, error: Error): void {
+    for (const [requestId, pending] of this.pending) {
+      if (pending.owner !== proc) continue
+      clearTimeout(pending.timer)
+      this.pending.delete(requestId)
+      pending.reject(error)
+    }
+  }
+
+  /** Detach, fail every request owned by `proc`, then kill it; a newer process is untouched. */
+  private terminateProcess(proc: UtilityProcess, error: Error): void {
+    if (this.process === proc) this.process = null
+    this.rejectOwnedBy(proc, error)
+    proc.kill()
   }
 
   private rejectAll(error: Error): void {
@@ -140,16 +162,14 @@ export class SessionPreviewProcess {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
-        if (this.process === proc) {
-          this.process = null
-          proc.kill()
-        }
         reject(new Error(`Preview request ${type} timed out`))
+        this.terminateProcess(proc, new Error(`Preview process terminated after ${type} timed out`))
       }, 120_000)
       this.pending.set(requestId, {
         resolve: resolve as (value: unknown) => void,
         reject,
         timer,
+        owner: proc,
       })
       const activeSdkPath = activeSdk.kind === 'builtin' ? null : activeSdk.entryPath
       try {

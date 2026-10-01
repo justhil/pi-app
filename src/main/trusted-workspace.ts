@@ -59,10 +59,10 @@ function resolveTrustedSessionCwd(reqCwd: string | undefined): { ok: true; cwd: 
 }
 
 /** Authorize a renderer-provided session path before opening it in the main process. */
-export function authorizeTrustedSessionFile(
+export async function authorizeTrustedSessionFile(
   reqCwd: string | undefined,
   requestedSessionFile: string | undefined,
-): TrustedSessionFileResult {
+): Promise<TrustedSessionFileResult> {
   const authorizedCwd = resolveTrustedSessionCwd(reqCwd)
   if (!authorizedCwd.ok) return authorizedCwd
 
@@ -71,7 +71,7 @@ export function authorizeTrustedSessionFile(
     return { ok: false, error: 'invalid_session_path' }
   }
 
-  const meta = readSessionMetaFromFile(sessionFile)
+  const meta = await readSessionMetaFromFile(sessionFile)
   if (!meta?.cwd) return { ok: false, error: 'invalid_session' }
   const fileDistro = wslWindowsPathDistro(sessionFile)
   const sessionCwd = fileDistro

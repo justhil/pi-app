@@ -199,7 +199,7 @@ export async function openNotificationTarget(notificationId: string): Promise<bo
   }
   if (!target.sessionFile) return true
   if (target.sessionFile) {
-    const meta = readSessionMetaFromFile(target.sessionFile)
+    const meta = await readSessionMetaFromFile(target.sessionFile)
     if (!meta) {
       win?.webContents.send('ipc:notification-open-session', {
         ok: false,

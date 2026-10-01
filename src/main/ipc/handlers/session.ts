@@ -153,7 +153,7 @@ export function registerSessionHandlers(): void {
   registerHandlerWithSchema('ipc:session.tree', sessionTreeSchema, async (req) => {
     const requestedSessionFile = req.sessionFile
     const authorized = requestedSessionFile
-      ? authorizeTrustedSessionFile(req.workspaceId, requestedSessionFile)
+      ? await authorizeTrustedSessionFile(req.workspaceId, requestedSessionFile)
       : null
     if (authorized && !authorized.ok) {
       return { nodes: [], leafId: null, error: authorized.error }
@@ -245,7 +245,7 @@ export function registerSessionHandlers(): void {
       const state = await workerManager.getState().catch(() => null)
       sessionId = (state as { sessionId?: string } | null)?.sessionId
     }
-    if (!sessionId && req.sessionFile) sessionId = readSessionIdFromFile(req.sessionFile) || undefined
+    if (!sessionId && req.sessionFile) sessionId = (await readSessionIdFromFile(req.sessionFile)) || undefined
     return { checkpoints: listRewindCheckpoints(cwd, sessionId || undefined) }
   })
 
@@ -255,7 +255,7 @@ export function registerSessionHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:session.getMessages', sessionGetMessagesSchema, async (req) => {
-    const authorized = authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
+    const authorized = await authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
     if (!authorized.ok) return { items: [], totalCount: 0, error: authorized.error }
     const offset = req.offset ?? 0
     const limit = req.limit ?? 0
@@ -566,7 +566,7 @@ export function registerSessionHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:session.delete', sessionDeleteSchema, async (req) => {
-    const authorized = authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
+    const authorized = await authorizeTrustedSessionFile(req.workspaceId, req.sessionFile)
     if (!authorized.ok) return { ok: false, error: authorized.error }
     const r = await workerManager.deleteSessionFile(authorized.sessionFile)
     if (r.ok) {

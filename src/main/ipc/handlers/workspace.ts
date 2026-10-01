@@ -24,7 +24,7 @@ export function registerWorkspaceHandlers(): void {
     configStore.set('currentProject', path)
     try {
       const r = await workerManager.start(path)
-      refreshGitWorkspaceWatch(getMainWindow())
+      void refreshGitWorkspaceWatch(getMainWindow())
       return { ok: true, workspaceId: path, sessionId: r.sessionId, model: r.model }
     } catch (e: unknown) {
       return { ok: false, workspaceId: path, error: errorMessage(e) || 'Worker start failed' }
@@ -47,20 +47,20 @@ export function registerWorkspaceHandlers(): void {
     if (req.awaitWorker === true) {
       try {
         await workerManager.start(path)
-        refreshGitWorkspaceWatch(getMainWindow())
+        void refreshGitWorkspaceWatch(getMainWindow())
       } catch (e) {
         console.error('[IPC] Worker start failed:', e)
         throw e
       }
     } else {
-      refreshGitWorkspaceWatch(getMainWindow())
+      void refreshGitWorkspaceWatch(getMainWindow())
     }
     return { workspaceId: path, path, name }
   })
 
   registerHandler('ipc:workspace.switch', async (req) => {
     const result = await workerManager.start(req.workspaceId)
-    refreshGitWorkspaceWatch(getMainWindow())
+    void refreshGitWorkspaceWatch(getMainWindow())
     return {
       workspaceId: req.workspaceId,
       path: req.workspaceId,

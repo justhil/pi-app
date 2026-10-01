@@ -17,16 +17,16 @@ vi.mock('./config-store', () => ({
 }))
 
 describe('workspace file search query and ranking', () => {
-  it('normalizes slash scopes and rejects traversal outside the workspace', () => {
+  it('normalizes slash scopes and rejects traversal outside the workspace', async () => {
     const root = mkdtempSync(join(tmpdir(), 'pi-file-search-'))
     mkdirSync(join(root, 'src', 'components'), { recursive: true })
 
-    expect(buildWorkspaceFileSearchQuery(root, 'src\\components\\cmp')).toMatchObject({
+    await expect(buildWorkspaceFileSearchQuery(root, 'src\\components\\cmp')).resolves.toMatchObject({
       ok: true,
       scopePrefix: 'src/components/',
       query: 'cmp',
     })
-    expect(buildWorkspaceFileSearchQuery(root, '../outside')).toEqual({
+    await expect(buildWorkspaceFileSearchQuery(root, '../outside')).resolves.toEqual({
       ok: false,
       error: 'outside_workspace',
     })

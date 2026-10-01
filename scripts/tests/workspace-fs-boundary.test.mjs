@@ -44,24 +44,24 @@ async function loadResolvePathUnderWorkspace() {
 const resolvePathUnderWorkspace = await loadResolvePathUnderWorkspace()
 
 describe('resolvePathUnderWorkspace', () => {
-  it('rejects path traversal above root', () => {
+  it('rejects path traversal above root', async () => {
     const root = mkdtempSync(join(tmpdir(), 'pi-ws-'))
-    const result = resolvePathUnderWorkspace(root, '../outside')
+    const result = await resolvePathUnderWorkspace(root, '../outside')
     assert.equal(result.ok, false)
     if (!result.ok) assert.equal(result.error, 'outside_workspace')
   })
 
-  it('allows file under root', () => {
+  it('allows file under root', async () => {
     const root = mkdtempSync(join(tmpdir(), 'pi-ws-'))
     writeFileSync(join(root, 'a.txt'), 'x')
-    const result = resolvePathUnderWorkspace(root, 'a.txt')
+    const result = await resolvePathUnderWorkspace(root, 'a.txt')
     assert.equal(result.ok, true)
   })
 
-  it('allows nested directory', () => {
+  it('allows nested directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'pi-ws-'))
     mkdirSync(join(root, 'sub'))
-    const result = resolvePathUnderWorkspace(root, 'sub')
+    const result = await resolvePathUnderWorkspace(root, 'sub')
     assert.equal(result.ok, true)
   })
 })

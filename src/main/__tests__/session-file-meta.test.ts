@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 describe('session file metadata', () => {
-  it('should_read_session_id_and_workspace_cwd_from_header', () => {
+  it('should_read_session_id_and_workspace_cwd_from_header', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
     temporaryDirectories.push(directory)
     const sessionFile = join(directory, 'session.jsonl')
@@ -29,13 +29,13 @@ describe('session file metadata', () => {
       'utf8',
     )
 
-    expect(readSessionMetaFromFile(sessionFile)).toEqual({
+    await expect(readSessionMetaFromFile(sessionFile)).resolves.toEqual({
       sessionId: 'session-1',
       cwd: join(directory, 'workspace-b'),
     })
   })
 
-  it.skipIf(process.platform !== 'win32')('should_read_a_forward_slash_unc_session_path', () => {
+  it.skipIf(process.platform !== 'win32')('should_read_a_forward_slash_unc_session_path', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
     temporaryDirectories.push(directory)
     const sessionFile = join(directory, 'session.jsonl')
@@ -46,13 +46,13 @@ describe('session file metadata', () => {
     )
     const forwardSlashUnc = sessionFile.replace(/^\\\\/, '//').replace(/\\/g, '/')
 
-    expect(readSessionMetaFromFile(forwardSlashUnc)).toEqual({
+    await expect(readSessionMetaFromFile(forwardSlashUnc)).resolves.toEqual({
       sessionId: 'session-unc',
       cwd: '/tmp/ws',
     })
   })
 
-  it('should_read_header_even_when_preceded_by_blank_lines', () => {
+  it('should_read_header_even_when_preceded_by_blank_lines', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
     temporaryDirectories.push(directory)
     const sessionFile = join(directory, 'session.jsonl')
@@ -62,10 +62,10 @@ describe('session file metadata', () => {
       'utf8',
     )
 
-    expect(readSessionMetaFromFile(sessionFile)).toEqual({ sessionId: 'session-2', cwd: '/tmp/ws' })
+    await expect(readSessionMetaFromFile(sessionFile)).resolves.toEqual({ sessionId: 'session-2', cwd: '/tmp/ws' })
   })
 
-  it('should_read_header_from_a_large_transcript_without_needing_the_tail', () => {
+  it('should_read_header_from_a_large_transcript_without_needing_the_tail', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'pi-session-meta-'))
     temporaryDirectories.push(directory)
     const sessionFile = join(directory, 'session.jsonl')
@@ -73,6 +73,6 @@ describe('session file metadata', () => {
     const bigEntry = `${JSON.stringify({ type: 'message', text: 'x'.repeat(1024) })}\n`
     writeFileSync(sessionFile, header + bigEntry.repeat(4096), 'utf8')
 
-    expect(readSessionMetaFromFile(sessionFile)).toEqual({ sessionId: 'session-3', cwd: '/tmp/ws' })
+    await expect(readSessionMetaFromFile(sessionFile)).resolves.toEqual({ sessionId: 'session-3', cwd: '/tmp/ws' })
   })
 })

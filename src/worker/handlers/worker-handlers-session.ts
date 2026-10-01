@@ -255,14 +255,22 @@ export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply:
           if (fs.existsSync(file)) await fs.promises.unlink(file)
           // 提交点：文件已删除，删除本身已成功。之后 runtime 重建是收尾动作，
           // 失败不得把已成功的删除报告为失败（否则 renderer 误报且标题缓存不清）
+          const deletedLive = !!st.session && sessionFilePathsEqual(st.session.sessionFile, file)
           try {
-            if (st.session && sessionFilePathsEqual(st.session.sessionFile, file)) {
-              await initSession(st.currentCwd)
-            }
+            if (deletedLive) await initSession(st.currentCwd)
           } catch (rebuildError: unknown) {
             console.warn('[Worker] sessionDeleteFile: rebuild after delete failed', errorMessage(rebuildError))
           }
-          reply({ type: 'sessionDeleteFile-done', ok: true })
+          // Main re-keys its pool slot from the session this worker actually holds now;
+          // a rebuild failure (still on the deleted file) or no session means unbound.
+          const liveFile = st.session?.sessionFile
+          const replacement = deletedLive && liveFile && !sessionFilePathsEqual(liveFile, file) ? liveFile : null
+          reply({
+            type: 'sessionDeleteFile-done',
+            ok: true,
+            sessionFile: replacement,
+            sessionId: replacement ? st.currentSessionId : undefined,
+          })
         } catch (e: unknown) {
           reply({ type: 'sessionDeleteFile-done', ok: false, error: errorMessage(e) })
         }
@@ -528,4 +536,3 @@ export async function handleGetmessages(msg: WorkerIncomingMessage, reply: Worke
         }
         return
 }
-

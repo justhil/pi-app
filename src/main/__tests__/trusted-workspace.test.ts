@@ -51,104 +51,104 @@ describe('authorizeTrustedSessionFile', () => {
     mkdirSync(mocks.sandboxPath, { recursive: true })
     mocks.runtime = { mode: 'host', distro: null }
     mocks.readSessionMetaFromFile.mockReset()
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/workspace' })
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: '/workspace' })
   })
 
   afterEach(() => rmSync(sandboxRoot, { recursive: true, force: true }))
 
-  it('accepts an absolute session whose header belongs to the active workspace', () => {
-    expect(authorizeTrustedSessionFile('/workspace', '/sessions/a.jsonl')).toEqual({
+  it('accepts an absolute session whose header belongs to the active workspace', async () => {
+    expect(await authorizeTrustedSessionFile('/workspace', '/sessions/a.jsonl')).toEqual({
       ok: true,
       cwd: '/workspace',
       sessionFile: '/sessions/a.jsonl',
     })
   })
 
-  it('rejects another workspace, a relative path, and a mismatched session header', () => {
-    expect(authorizeTrustedSessionFile('/other', '/sessions/a.jsonl')).toEqual({
+  it('rejects another workspace, a relative path, and a mismatched session header', async () => {
+    expect(await authorizeTrustedSessionFile('/other', '/sessions/a.jsonl')).toEqual({
       ok: false,
       error: 'cwd_not_trusted',
     })
-    expect(authorizeTrustedSessionFile('/workspace', 'session.jsonl')).toEqual({
+    expect(await authorizeTrustedSessionFile('/workspace', 'session.jsonl')).toEqual({
       ok: false,
       error: 'invalid_session_path',
     })
 
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-b', cwd: '/other' })
-    expect(authorizeTrustedSessionFile('/workspace', '/sessions/b.jsonl')).toEqual({
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-b', cwd: '/other' })
+    expect(await authorizeTrustedSessionFile('/workspace', '/sessions/b.jsonl')).toEqual({
       ok: false,
       error: 'session_workspace_mismatch',
     })
   })
 
-  it('accepts a persisted recent project and a managed sandbox but rejects arbitrary renderer cwd', () => {
+  it('accepts a persisted recent project and a managed sandbox but rejects arbitrary renderer cwd', async () => {
     mocks.recentProjects = ['/background']
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-b', cwd: '/background' })
-    expect(authorizeTrustedSessionFile('/background', '/sessions/background.jsonl')).toEqual({
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-b', cwd: '/background' })
+    expect(await authorizeTrustedSessionFile('/background', '/sessions/background.jsonl')).toEqual({
       ok: true,
       cwd: '/background',
       sessionFile: '/sessions/background.jsonl',
     })
 
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-s', cwd: mocks.sandboxPath })
-    expect(authorizeTrustedSessionFile(mocks.sandboxPath, '/sessions/sandbox.jsonl')).toEqual(
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-s', cwd: mocks.sandboxPath })
+    expect(await authorizeTrustedSessionFile(mocks.sandboxPath, '/sessions/sandbox.jsonl')).toEqual(
       expect.objectContaining({ ok: true, cwd: mocks.sandboxPath }),
     )
 
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-e', cwd: '/evil' })
-    expect(authorizeTrustedSessionFile('/evil', '/sessions/evil.jsonl')).toEqual({
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-e', cwd: '/evil' })
+    expect(await authorizeTrustedSessionFile('/evil', '/sessions/evil.jsonl')).toEqual({
       ok: false,
       error: 'cwd_not_trusted',
     })
   })
 
-  it('matches Windows workspace paths case-insensitively', () => {
+  it('matches Windows workspace paths case-insensitively', async () => {
     mocks.cwd = 'C:\\Project'
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: 'c:\\project' })
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: 'c:\\project' })
 
-    expect(authorizeTrustedSessionFile(mocks.cwd, 'C:\\sessions\\a.jsonl')).toEqual(
+    expect(await authorizeTrustedSessionFile(mocks.cwd, 'C:\\sessions\\a.jsonl')).toEqual(
       expect.objectContaining({ ok: true }),
     )
   })
 
-  it('authorizes WSL session headers against their Windows workspace view', () => {
+  it('authorizes WSL session headers against their Windows workspace view', async () => {
     mocks.cwd = 'C:\\project'
     mocks.runtime = { mode: 'wsl', distro: 'Ubuntu' }
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/mnt/c/project' })
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: '/mnt/c/project' })
 
     expect(
-      authorizeTrustedSessionFile(
+      await authorizeTrustedSessionFile(
         mocks.cwd,
         '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
       ),
     ).toEqual(expect.objectContaining({ ok: true, cwd: mocks.cwd }))
   })
 
-  it('rejects a WSL session from a distro other than the active runtime', () => {
+  it('rejects a WSL session from a distro other than the active runtime', async () => {
     mocks.cwd = 'C:\\project'
     mocks.runtime = { mode: 'wsl', distro: 'Ubuntu' }
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/mnt/c/project' })
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: '/mnt/c/project' })
 
     expect(
-      authorizeTrustedSessionFile(
+      await authorizeTrustedSessionFile(
         mocks.cwd,
         '\\\\wsl.localhost\\Debian\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
       ),
     ).toEqual({ ok: false, error: 'session_workspace_mismatch' })
   })
 
-  it('matches native WSL header paths but rejects another session-file distro', () => {
+  it('matches native WSL header paths but rejects another session-file distro', async () => {
     mocks.cwd = '\\\\wsl.localhost\\Ubuntu\\home\\u\\project'
-    mocks.readSessionMetaFromFile.mockReturnValue({ sessionId: 'session-a', cwd: '/home/u/project' })
+    mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: '/home/u/project' })
 
     expect(
-      authorizeTrustedSessionFile(
+      await authorizeTrustedSessionFile(
         mocks.cwd,
         '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
       ),
     ).toEqual(expect.objectContaining({ ok: true }))
     expect(
-      authorizeTrustedSessionFile(
+      await authorizeTrustedSessionFile(
         mocks.cwd,
         '\\\\wsl.localhost\\Debian\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
       ),

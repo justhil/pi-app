@@ -35,10 +35,12 @@ import { isWslWindowsPath } from '@shared/wsl-path'
 import { getAgentRuntimeConfig, isWslRuntimeActive } from './wsl/runtime-config'
 import { readMaxSessionWorkers } from './worker-pool-config'
 import { configStore } from './config-store'
-import { createNewSessionInPool } from './worker-manager-new-session'
-import { readSessionMetaFromFile } from './session-file-meta'
+import { unlink } from 'node:fs/promises'
+import { createNewSessionInPool, nextWorkspacePoolKey } from './worker-manager-new-session'
+import { readSessionMetaFromFile, sessionFilePathForFs } from './session-file-meta'
 import {
   applySettledRunToSessionLeafOverride,
+  clearSessionLeafOverride,
   getSessionLeafOverride,
   setSessionLeafOverride,
 } from './session-leaf-override'
@@ -100,6 +102,15 @@ export class WorkerManager {
       if (slot && !slot.stopping) this.setForeground(slot)
       return result
     })
+    this.lifecycleChain = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
+  }
+
+  private enqueueLifecycle<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.lifecycleChain.then(task)
     this.lifecycleChain = run.then(
       () => undefined,
       () => undefined,
@@ -212,7 +223,7 @@ export class WorkerManager {
       return wsSlot
     }
     for (const slot of this.pool.values()) {
-      if (slot === wsSlot || slot.stopping || slot.agentTurnActive) continue
+      if (slot === wsSlot || slot.stopping || slot.agentTurnActive || slot.identityOpsInFlight) continue
       if (!this.slotMatchesCurrentRuntime(slot)) continue
       if (slot.cwd !== cwd) continue
       return slot
@@ -226,15 +237,15 @@ export class WorkerManager {
 
     const existing = this.pool.get(sk)
     if (existing && !existing.stopping && this.slotMatchesCurrentRuntime(existing)) {
-      existing.sessionFile = sk
       evictIdleWorkers(this.pool, {
         foregroundKey: this.foregroundPoolKey,
         maxWorkers: readMaxSessionWorkers(),
         mainWindow: this.mainWindow,
       })
       if (existing.initPromise) await existing.initPromise
-      // Bind live session on worker
-      await this.requestOnSlot(existing, 'loadSession', { sessionFile: sk }).catch(() => null)
+      // Bind live session on worker; a failed/cancelled load must reach the caller.
+      await this.requestOnSlot(existing, 'loadSession', { sessionFile: sk })
+      existing.sessionFile = sk
       return this.initResultFromSlot(existing)
     }
 
@@ -242,6 +253,11 @@ export class WorkerManager {
     // slot) instead of forking — session switches then share a single worker.
     const reusable = this.findReusableSlotForSession(sessionFile, cwd)
     if (reusable) {
+      if (reusable.initPromise) await reusable.initPromise
+      // Commit point: the worker may cancel or fail the switch and keep its old
+      // session, so the pool identity only moves after loadSession succeeds.
+      await this.requestOnSlot(reusable, 'loadSession', { sessionFile: sk })
+      if (reusable.stopping) throw new Error('Worker stopped')
       const oldKey = reusable.poolKey
       const wasForeground = this.foregroundPoolKey === oldKey
       if (this.pool.get(oldKey) === reusable) this.pool.delete(oldKey)
@@ -249,8 +265,6 @@ export class WorkerManager {
       reusable.sessionFile = sk
       this.pool.set(sk, reusable)
       if (wasForeground) this.foregroundPoolKey = sk
-      if (reusable.initPromise) await reusable.initPromise
-      await this.requestOnSlot(reusable, 'loadSession', { sessionFile: sk }).catch(() => null)
       return this.initResultFromSlot(reusable)
     }
 
@@ -275,8 +289,14 @@ export class WorkerManager {
       onSlotExit: (s, code) => this.handleSlotExit(s, code),
     })
 
-    await init
-    await this.requestOnSlot(slot, 'loadSession', { sessionFile: sk })
+    try {
+      await init
+      await this.requestOnSlot(slot, 'loadSession', { sessionFile: sk })
+    } catch (error) {
+      if (this.pool.get(sk) === slot) this.pool.delete(sk)
+      await disposeWorkerSlot(slot, this.mainWindow)
+      throw error
+    }
 
     evictIdleWorkers(this.pool, {
       foregroundKey: this.foregroundPoolKey,
@@ -412,10 +432,16 @@ export class WorkerManager {
       const sk = normalizeSessionKey(sessionFile)
       const bySession = this.pool.get(sk)
       if (bySession && !bySession.stopping) return bySession
-      const sessionCwd = readSessionMetaFromFile(sessionFile)?.cwd
+      const sessionCwd = (await readSessionMetaFromFile(sessionFile))?.cwd
       const cwd = this.resolveWorkspaceCwd(sessionCwd)
       if (!cwd) throw new Error('Worker not started for session')
-      await this.ensureSessionWorkerUnlocked(sessionFile, cwd)
+      // Concurrent cold RPCs share the lifecycle queue; re-check inside it so
+      // only the first one creates the worker.
+      await this.enqueueLifecycle(async () => {
+        const live = this.pool.get(sk)
+        if (live && !live.stopping) return
+        await this.ensureSessionWorkerUnlocked(sessionFile, cwd)
+      })
       const slot = this.pool.get(sk)
       if (!slot) throw new Error('Worker not started for session')
       return slot
@@ -518,13 +544,39 @@ export class WorkerManager {
   }
 
   /**
-   * After Runtime creates a new session file (new/fork/clone), re-key the
-   * foreground pool slot so subsequent RPCs hit the correct worker identity.
+   * After the source worker switches to a new session file (fork/clone), re-key
+   * that slot. Foreground follows only when it still points at the source, so a
+   * session the user selected meanwhile keeps both its identity and focus.
    */
-  private async remapForegroundSlotToSessionFile(sessionFile: string): Promise<void> {
-    const sourceKey = this.foregroundPoolKey
-    if (!sourceKey) return
-    this.foregroundPoolKey = await remapSessionWorkerSlot(this.pool, sourceKey, sessionFile)
+  private remapSourceSlotToSessionFile(source: WorkerSlot, sessionFile: string): Promise<void> {
+    return this.enqueueLifecycle(async () => {
+      const sourceKey = source.poolKey
+      if (source.stopping || this.pool.get(sourceKey) !== source) return
+      const targetKey = await remapSessionWorkerSlot(this.pool, sourceKey, sessionFile)
+      if (this.foregroundPoolKey === sourceKey) this.foregroundPoolKey = targetKey
+    })
+  }
+
+  /** Run a session-replacing RPC on the bound source worker and re-key only that slot. */
+  private async runSourceSessionReplacement(
+    sessionFile: string,
+    cwd: string,
+    type: 'fork' | 'clone',
+    data: WorkerRequestPayload,
+  ): Promise<WorkerResponsePayload> {
+    await this.focusSessionWorker(sessionFile, cwd)
+    const source = this.pool.get(normalizeSessionKey(sessionFile))
+    if (!source || source.stopping) throw new Error('Worker not started for session')
+    source.identityOpsInFlight = (source.identityOpsInFlight ?? 0) + 1
+    try {
+      const r = await this.requestOnSlot(source, type, data)
+      if (r.type !== 'error' && r.sessionFile) {
+        await this.remapSourceSlotToSessionFile(source, String(r.sessionFile))
+      }
+      return r
+    } finally {
+      source.identityOpsInFlight = Math.max(0, (source.identityOpsInFlight ?? 1) - 1)
+    }
   }
 
   async forkSession(opts: {
@@ -540,11 +592,10 @@ export class WorkerManager {
     model?: string
     thinkingLevel?: string
   }> {
-    const sessionCwd = readSessionMetaFromFile(opts.sessionFile)?.cwd
+    const sessionCwd = (await readSessionMetaFromFile(opts.sessionFile))?.cwd
     const cwd = this.resolveWorkspaceCwd(sessionCwd)
     if (!cwd) return { error: 'worker_not_ready' }
-    await this.focusSessionWorker(opts.sessionFile, cwd)
-    const r = await this.request('fork', {
+    const r = await this.runSourceSessionReplacement(opts.sessionFile, cwd, 'fork', {
       sessionFile: opts.sessionFile,
       entryId: opts.entryId,
       position: opts.position,
@@ -553,7 +604,6 @@ export class WorkerManager {
       return { error: String((r as { error?: string }).error || 'fork failed') }
     }
     const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
-    if (sessionFile) await this.remapForegroundSlotToSessionFile(sessionFile)
     return {
       cancelled: !!r.cancelled,
       sessionId: r.sessionId ? String(r.sessionId) : undefined,
@@ -572,16 +622,16 @@ export class WorkerManager {
     model?: string
     thinkingLevel?: string
   }> {
-    const sessionCwd = readSessionMetaFromFile(opts.sessionFile)?.cwd
+    const sessionCwd = (await readSessionMetaFromFile(opts.sessionFile))?.cwd
     const cwd = this.resolveWorkspaceCwd(sessionCwd)
     if (!cwd) return { error: 'worker_not_ready' }
-    await this.focusSessionWorker(opts.sessionFile, cwd)
-    const r = await this.request('clone', { sessionFile: opts.sessionFile })
+    const r = await this.runSourceSessionReplacement(opts.sessionFile, cwd, 'clone', {
+      sessionFile: opts.sessionFile,
+    })
     if (r.type === 'error') {
       return { error: String((r as { error?: string }).error || 'clone failed') }
     }
     const sessionFile = r.sessionFile ? String(r.sessionFile) : undefined
-    if (sessionFile) await this.remapForegroundSlotToSessionFile(sessionFile)
     return {
       cancelled: !!r.cancelled,
       sessionId: r.sessionId ? String(r.sessionId) : undefined,
@@ -837,7 +887,7 @@ export class WorkerManager {
   }> {
     // A session header owns its workspace identity. Foreground/config cwd is only a
     // fallback for legacy or incomplete files without a header cwd.
-    const sessionCwd = readSessionMetaFromFile(sessionFile)?.cwd
+    const sessionCwd = (await readSessionMetaFromFile(sessionFile))?.cwd
     const cwd = this.resolveWorkspaceCwd(sessionCwd || opts?.cwd)
     if (!cwd) throw new Error('Worker not started for session')
     await this.ensureSessionWorker(sessionFile, cwd)
@@ -865,7 +915,32 @@ export class WorkerManager {
     return { ok: !!r.ok, title: r.title as string | undefined, error: r.error as string | undefined }
   }
   async deleteSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
-    const r = await this.request('sessionDeleteFile', { sessionFile })
+    return this.enqueueLifecycle(() => this.deleteSessionFileUnlocked(sessionFile))
+  }
+
+  private async deleteSessionFileUnlocked(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
+    const sk = normalizeSessionKey(sessionFile)
+    const slot = this.pool.get(sk)
+    // Offline file: no live AgentSession owns it, so never start one just to unlink.
+    if (!slot || slot.stopping) return deleteOfflineSessionFile(sessionFile)
+    const r = await this.requestOnSlot(slot, 'sessionDeleteFile', { sessionFile })
+    if (r.ok && this.pool.get(sk) === slot && !slot.stopping) {
+      const wasForeground = this.foregroundPoolKey === sk
+      const replacement = typeof r.sessionFile === 'string' ? normalizeSessionKey(r.sessionFile) : ''
+      let nextKey: string
+      if (replacement && replacement !== sk) {
+        nextKey = await remapSessionWorkerSlot(this.pool, sk, replacement)
+      } else {
+        // Worker reports no live replacement: keep the process as an unbound workspace slot.
+        this.pool.delete(sk)
+        slot.sessionFile = null
+        slot.poolKey = nextWorkspacePoolKey(this.pool, slot.cwd)
+        this.pool.set(slot.poolKey, slot)
+        nextKey = slot.poolKey
+      }
+      if (wasForeground) this.foregroundPoolKey = nextKey
+    }
+    if (r.ok) clearSessionLeafOverride(sessionFile)
     return { ok: !!r.ok, error: r.error as string | undefined }
   }
   async getSessionTree(sessionFile?: string): Promise<{ nodes: WorkerSessionTreeNode[]; leafId: string | null; error?: string }> {
@@ -962,6 +1037,18 @@ export class WorkerManager {
   get foregroundSessionFile(): string | null {
     return this.foregroundSlot()?.sessionFile ?? null
   }
+}
+
+async function deleteOfflineSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await unlink(sessionFilePathForFs(sessionFile))
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  clearSessionLeafOverride(sessionFile)
+  return { ok: true }
 }
 
 export const workerManager = new WorkerManager()

@@ -33,6 +33,8 @@ export type WorkerSlot = {
   sdkFallback: boolean
   autoRestartEnabled: boolean
   stopping: boolean
+  /** Fork/clone RPCs awaiting a session switch; such slots are not reused for other sessions. */
+  identityOpsInFlight?: number
 }
 
 export type WorkerAppEventForward = {

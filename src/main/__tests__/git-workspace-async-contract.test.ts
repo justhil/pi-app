@@ -6,15 +6,18 @@ const root = process.cwd()
 const read = (file: string) => readFileSync(join(root, file), 'utf8')
 
 describe('read-only git snapshot owner', () => {
-  it('uses async execFile while mutation paths retain the synchronous runner', () => {
+  it('uses async execFile for snapshots and ordered hunk mutations', () => {
     const source = read('src/main/git-workspace.ts')
     const handler = read('src/main/ipc/handlers/review.ts')
 
     expect(source).toContain('async function gitExec(')
     expect(source).toContain("execFile('git', args")
     expect(source).toContain('export async function readGitWorkspaceSnapshot')
-    expect(source).toContain('function gitExecSync(')
-    expect(source).toContain("gitExecSync(cwd, ['apply'")
+    expect(source).toContain("await gitExec(cwd, ['apply'")
+    expect(source).not.toContain("gitExecSync(cwd, ['apply'")
+    expect(source).toContain('withIndexWriteLock(cwd')
     expect(handler).toContain('await readGitWorkspaceSnapshot(cwd)')
+    expect(handler).toContain('await stageHunks(')
+    expect(handler).toContain('await unstageHunks(')
   })
 })

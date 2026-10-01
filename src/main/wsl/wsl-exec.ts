@@ -217,7 +217,7 @@ export function runWslDistroCdAsync(
   distro: string,
   wslCwd: string,
   args: string[],
-  opts: { timeout?: number; maxBuffer?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): Promise<WslExecResult> {
   if (!isValidWslDistroName(distro)) {
     return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })

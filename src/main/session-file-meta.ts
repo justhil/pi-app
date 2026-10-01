@@ -1,30 +1,30 @@
-import { closeSync, existsSync, openSync, readSync } from 'fs'
+import { open, type FileHandle } from 'node:fs/promises'
 
 export type SessionFileMeta = {
   sessionId: string
   cwd: string | null
 }
 
-function sessionFilePathForFs(sessionFile: string): string {
+export function sessionFilePathForFs(sessionFile: string): string {
   if (process.platform !== 'win32' || !sessionFile.startsWith('//')) return sessionFile
   return `\\\\${sessionFile.slice(2).replace(/\//g, '\\')}`
 }
 
-export function readSessionMetaFromFile(sessionFile: string): SessionFileMeta | null {
+export async function readSessionMetaFromFile(sessionFile: string): Promise<SessionFileMeta | null> {
   const filePath = sessionFilePathForFs(sessionFile)
-  if (!filePath || !existsSync(filePath)) return null
-  let fd: number | null = null
+  if (!filePath) return null
+  let handle: FileHandle | null = null
   try {
     // Session JSONL can be large. Metadata lives in its first non-empty line, so
-    // never synchronously read/split the whole transcript on an IPC hot path.
-    fd = openSync(filePath, 'r')
+    // only read a bounded prefix, asynchronously (UNC reads must not block Main).
+    handle = await open(filePath, 'r')
     const cap = 64 * 1024
     const chunks: Buffer[] = []
     const scratch = Buffer.allocUnsafe(4 * 1024)
     let total = 0
     let raw = ''
     while (total < cap) {
-      const bytesRead = readSync(fd, scratch, 0, Math.min(scratch.length, cap - total), total)
+      const { bytesRead } = await handle.read(scratch, 0, Math.min(scratch.length, cap - total), total)
       if (bytesRead === 0) break
       chunks.push(Buffer.from(scratch.subarray(0, bytesRead)))
       total += bytesRead
@@ -49,16 +49,10 @@ export function readSessionMetaFromFile(sessionFile: string): SessionFileMeta | 
   } catch {
     return null
   } finally {
-    if (fd != null) {
-      try {
-        closeSync(fd)
-      } catch {
-        /* ignore */
-      }
-    }
+    await handle?.close().catch(() => {})
   }
 }
 
-export function readSessionIdFromFile(sessionFile: string): string | null {
-  return readSessionMetaFromFile(sessionFile)?.sessionId ?? null
+export async function readSessionIdFromFile(sessionFile: string): Promise<string | null> {
+  return (await readSessionMetaFromFile(sessionFile))?.sessionId ?? null
 }

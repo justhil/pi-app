@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'fs'
+import { open, stat } from 'node:fs/promises'
 import { extname } from 'path'
 import { shell } from 'electron'
 import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
@@ -17,15 +17,35 @@ import {
 
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
 
-function resolveImagePreviewPath(req: { workspaceRoot: string; path: string }):
+async function resolveImagePreviewPath(req: { workspaceRoot: string; path: string }): Promise<
   | { ok: true; abs: string }
-  | { ok: false; error: string } {
+  | { ok: false; error: string }
+> {
   const pathInput = String(req.path || '')
   const root = String(req.workspaceRoot || '').trim()
   if (!root) return { ok: false, error: 'missing_root' }
-  const resolved = resolvePathUnderWorkspace(root, pathInput)
+  const resolved = await resolvePathUnderWorkspace(root, pathInput)
   if (!resolved.ok) return { ok: false, error: resolved.error }
   return { ok: true, abs: resolved.abs }
+}
+
+/** Read at most `maxBytes`; null when the file holds more (e.g. it grew after the size check). */
+async function readBoundedFile(path: string, maxBytes: number): Promise<Buffer | null> {
+  const handle = await open(path, 'r')
+  try {
+    const chunks: Buffer[] = []
+    let total = 0
+    while (total <= maxBytes) {
+      const chunk = Buffer.allocUnsafe(Math.min(1024 * 1024, maxBytes + 1 - total))
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, total)
+      if (bytesRead === 0) break
+      chunks.push(chunk.subarray(0, bytesRead))
+      total += bytesRead
+    }
+    return total > maxBytes ? null : Buffer.concat(chunks, total)
+  } finally {
+    await handle.close()
+  }
 }
 
 export function registerWorkspaceFsHandlers(): void {
@@ -84,12 +104,12 @@ export function registerWorkspaceFsHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:shell.readImagePreview', shellReadImagePreviewSchema, async (req) => {
-    const resolved = resolveImagePreviewPath(req)
+    const resolved = await resolveImagePreviewPath(req)
     if (!resolved.ok) return { ok: false, error: resolved.error }
     const p = resolved.abs
-    if (!existsSync(p)) return { ok: false, error: 'not_found' }
+    const st = await stat(p).catch(() => null)
+    if (!st) return { ok: false, error: 'not_found' }
     try {
-      const st = statSync(p)
       if (!st.isFile() || st.size > IMAGE_PREVIEW_MAX_BYTES) return { ok: false, error: 'too_large' }
       const ext = extname(p).toLowerCase()
       const mime =
@@ -104,7 +124,8 @@ export function registerWorkspaceFsHandlers(): void {
                 : ext === '.svg'
                   ? 'image/svg+xml'
                   : 'application/octet-stream'
-      const buf = readFileSync(p)
+      const buf = await readBoundedFile(p, IMAGE_PREVIEW_MAX_BYTES)
+      if (!buf) return { ok: false, error: 'too_large' }
       const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
       return { ok: true, dataUrl, mimeType: mime }
     } catch (e) {

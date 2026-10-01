@@ -51,7 +51,7 @@ export async function resolvePreparedSessionFile(
   candidateSessionFile: string,
   listSessions: ListSessions,
 ): Promise<PreparedSession | null> {
-  const directMeta = readSessionMetaFromFile(candidateSessionFile)
+  const directMeta = await readSessionMetaFromFile(candidateSessionFile)
   if (directMeta) {
     return {
       sessionId: directMeta.sessionId,
@@ -62,7 +62,7 @@ export async function resolvePreparedSessionFile(
   const locator = parseDerivedChildSessionLocator(candidateSessionFile)
   if (!locator) return null
 
-  const parentMeta = readSessionMetaFromFile(locator.parentSessionFile)
+  const parentMeta = await readSessionMetaFromFile(locator.parentSessionFile)
   if (!parentMeta?.cwd) return null
 
   const expectedNameSuffix = `-${locator.runId}-${locator.childNumber}`

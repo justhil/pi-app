@@ -14,7 +14,7 @@ export async function runGitInWslAsync(
   distro: string,
   winCwd: string,
   args: string[],
-  opts: { timeout?: number; maxBuffer?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): Promise<WslExecResult> {
   if (!isValidWslDistroName(distro)) {
     return { status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` }

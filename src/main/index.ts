@@ -134,7 +134,7 @@ app.whenReady().then(() => {
   attachCompletionNotificationShortcut(win)
   win.on('focus', () => notifyForegroundChanged())
   win.on('restore', () => notifyForegroundChanged())
-  refreshGitWorkspaceWatch(win)
+  void refreshGitWorkspaceWatch(win)
   // SDK / extension warm-up starts when the renderer reports its shell painted (app.shellReady);
   // the fallback covers a renderer that never gets there. See startup-warmup.ts.
   win.webContents.once('did-finish-load', () => scheduleStartupWarmupFallback())

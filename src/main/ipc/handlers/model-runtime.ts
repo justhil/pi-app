@@ -8,7 +8,7 @@ import { getActiveSdkModule } from '../sdk-session'
 import { getSessionContextPreviewFromDisk } from '../../session-context-preview'
 import { getSessionLeafOverride } from '../../session-leaf-override'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
-import { isWslRuntimeActive } from '../../wsl/runtime-config'
+import { getAgentRuntimeConfig, isWslRuntimeActive } from '../../wsl/runtime-config'
 import { resolveActiveAgentDir } from '../../agent-dir'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { contextPreviewSchema } from '../schemas'
@@ -23,16 +23,29 @@ import {
 /**
  * SDK model listing runs in the preview utility process: importing the SDK on the main process
  * blocks the browser UI thread for ~0.6s (window, IPC and renderer chunk loads all stall).
- * WSL keeps the in-process path (its preview runner has no model runtime).
+ * Only host mode may fall back to the in-process (host) SDK: under WSL that SDK would report
+ * Windows models and auth, so a failed WSL preview surfaces as an error instead.
  */
 async function listModelsOffThread(scope: 'available' | 'catalog'): Promise<readonly ModelEntry[]> {
+  const runtime = getAgentRuntimeConfig()
+  const wsl = isWslRuntimeActive()
+  const assertSameRuntime = (): void => {
+    const current = getAgentRuntimeConfig()
+    if (current.mode !== runtime.mode || current.distro !== runtime.distro) {
+      throw new Error('MODEL_RUNTIME_CHANGED')
+    }
+  }
   try {
     // WSL: the WSL preview resolves its own (native) agent dir.
-    return await sessionPreviewProcess.listModels(scope, isWslRuntimeActive() ? '' : resolveActiveAgentDir())
+    const models = await sessionPreviewProcess.listModels(scope, wsl ? '' : resolveActiveAgentDir())
+    assertSameRuntime()
+    return models
   } catch (error) {
+    if (wsl || (error instanceof Error && error.message === 'MODEL_RUNTIME_CHANGED')) throw error
     console.warn(`[IPC] model.list ${scope} via preview failed, using main:`, error)
   }
   const sdk = await getActiveSdkModule(app.getPath('userData'))
+  assertSameRuntime()
   return scope === 'available' ? listAvailableModelsWithSdk(sdk) : listCatalogModelsWithSdk(sdk)
 }
 
@@ -172,7 +185,7 @@ export function registerModelRuntimeHandlers(): void {
 
   registerHandlerWithSchema('ipc:context.preview', contextPreviewSchema, async (req) => {
     const { sessionFile, workspaceId } = req
-    const authorized = authorizeTrustedSessionFile(workspaceId, sessionFile)
+    const authorized = await authorizeTrustedSessionFile(workspaceId, sessionFile)
     if (!authorized.ok) return { preview: null }
 
     if (workerManager.isRunning) {

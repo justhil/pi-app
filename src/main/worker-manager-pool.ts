@@ -18,6 +18,10 @@ import { resolveUtilityEntry } from './utility-entry-path'
 
 export const extensionUiDialogSource = new Map<string, WorkerSlot>()
 
+const WORKER_REQUEST_TIMEOUT_MS = 120_000
+/** Stop-time abort deadline: a responsive worker answers in ms; a hung one must not hold quit/eviction for 2 minutes. */
+export const WORKER_STOP_ABORT_TIMEOUT_MS = 2_000
+
 export function dismissExtensionUiRequestsForSlot(
   slot: WorkerSlot,
   send: (payload: { type: 'extension-ui-dismiss'; id: string; reason?: string }) => void,
@@ -271,9 +275,9 @@ export async function disposeWorkerSlot(
   // behind true streaming if events were missed, and force-quit needs a terminal leaf.
   if (wasActive || slot.sessionFile) {
     try {
-      await slotRequest(slot, 'abort', slot.sessionFile ? { sessionFile: slot.sessionFile } : {}).catch(
-        () => null,
-      )
+      await slotRequest(slot, 'abort', slot.sessionFile ? { sessionFile: slot.sessionFile } : {}, {
+        timeoutMs: WORKER_STOP_ABORT_TIMEOUT_MS,
+      }).catch(() => null)
     } catch {
       /* ignore */
     }
@@ -303,6 +307,7 @@ export function slotRequest(
   slot: WorkerSlot,
   type: string,
   data?: Record<string, unknown>,
+  opts?: { timeoutMs?: number },
 ): Promise<WorkerResponsePayload> {
   const proc = slot.worker
   const requestId = `req-${++slot.requestCounter}`
@@ -312,7 +317,7 @@ export function slotRequest(
         slot.pendingRequests.delete(requestId)
         reject(new Error(`Worker request ${type} timed out`))
       }
-    }, 120000)
+    }, opts?.timeoutMs ?? WORKER_REQUEST_TIMEOUT_MS)
     slot.pendingRequests.set(requestId, { resolve, reject, timer })
     try {
       proc.postMessage({ type, requestId, ...data })

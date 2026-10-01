@@ -47,18 +47,18 @@ describe('git-workspace host mode', () => {
     expect(r).toEqual({ ok: false, notRepo: true, message: '当前目录不是 Git 仓库' })
   })
 
-  it('stageHunks stages a working-tree diff and unstageHunks reverses it', () => {
+  it('stageHunks stages a working-tree diff and unstageHunks reverses it', async () => {
     const dir = makeRepo()
     writeFileSync(join(dir, 'a.txt'), 'hello\nworld\n')
     const diff = execFileSync('git', ['diff'], { cwd: dir, encoding: 'utf-8' })
     expect(diff).toContain('@@')
 
-    const staged = stageHunks(dir, [{ path: 'a.txt', hunkPatches: [diff] }])
+    const staged = await stageHunks(dir, [{ path: 'a.txt', hunkPatches: [diff] }])
     expect(staged.ok).toBe(true)
     const cached = execFileSync('git', ['diff', '--cached'], { cwd: dir, encoding: 'utf-8' })
     expect(cached).toContain('world')
 
-    const unstaged = unstageHunks(dir, [{ path: 'a.txt', hunkPatches: [diff] }])
+    const unstaged = await unstageHunks(dir, [{ path: 'a.txt', hunkPatches: [diff] }])
     expect(unstaged.ok).toBe(true)
     const cachedAfter = execFileSync('git', ['diff', '--cached'], { cwd: dir, encoding: 'utf-8' })
     expect(cachedAfter).toBe('')

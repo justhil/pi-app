@@ -27,6 +27,8 @@ type Pending = {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
   timer: ReturnType<typeof setTimeout>
+  /** Process the request was written to; its termination ends the request. */
+  owner: ChildProcess
 }
 
 export class WslSessionPreviewRunner {
@@ -59,6 +61,25 @@ export class WslSessionPreviewRunner {
     this.pending.clear()
   }
 
+  private rejectOwnedBy(proc: ChildProcess, error: Error): void {
+    for (const [requestId, pending] of this.pending) {
+      if (pending.owner !== proc) continue
+      clearTimeout(pending.timer)
+      this.pending.delete(requestId)
+      pending.reject(error)
+    }
+  }
+
+  /** Detach, fail every request owned by `proc`, then kill it; a newer process is untouched. */
+  private terminateProcess(proc: ChildProcess, error: Error): void {
+    if (this.process === proc) {
+      this.process = null
+      this.processKey = null
+    }
+    this.rejectOwnedBy(proc, error)
+    proc.kill()
+  }
+
   private assertLifecycle(generation: number): void {
     if (generation !== this.lifecycleGeneration) {
       throw this.stoppedError || new Error('WSL preview stopped')
@@ -79,13 +100,7 @@ export class WslSessionPreviewRunner {
     // respawn (wsl.exe + cold SDK import, seconds) when requests for different dirs interleave.
     const processKey = runtime.distro
     if (this.process && this.processKey === processKey) return { process: this.process, sdkPath: sdk.entryPath }
-    if (this.process) {
-      const error = new Error('WSL preview distro changed')
-      this.rejectPending(error)
-      this.process.kill()
-      this.process = null
-      this.processKey = null
-    }
+    if (this.process) this.terminateProcess(this.process, new Error('WSL preview distro changed'))
 
     const previewWslPath = await Promise.race([syncPreviewBundleToWsl(runtime.distro), stopping])
     this.assertLifecycle(generation)
@@ -134,10 +149,11 @@ export class WslSessionPreviewRunner {
   }
 
   private onExit(proc: ChildProcess, error: Error): void {
-    if (this.process !== proc) return
-    this.process = null
-    this.processKey = null
-    this.rejectPending(error)
+    if (this.process === proc) {
+      this.process = null
+      this.processKey = null
+    }
+    this.rejectOwnedBy(proc, error)
   }
 
   async request<T>(request: WslPreviewRequest): Promise<T> {
@@ -164,17 +180,14 @@ export class WslSessionPreviewRunner {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
-        if (this.process === proc) {
-          this.process = null
-          this.processKey = null
-          proc.kill()
-        }
         reject(new Error(`WSL preview request ${request.type} timed out`))
+        this.terminateProcess(proc, new Error(`WSL preview terminated after ${request.type} timed out`))
       }, 120_000)
       this.pending.set(requestId, {
         resolve: resolve as (value: unknown) => void,
         reject,
         timer,
+        owner: proc,
       })
       try {
         stdin.write(JSON.stringify({

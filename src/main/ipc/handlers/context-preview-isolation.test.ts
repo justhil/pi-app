@@ -79,11 +79,12 @@ vi.mock('../../session-context-preview', () => ({
 }))
 
 vi.mock('../../session-preview-process', () => ({
-  sessionPreviewProcess: { getContextPreview: mocks.previewGetContextPreview, listModels: vi.fn(async () => []) },
+  sessionPreviewProcess: { getContextPreview: mocks.previewGetContextPreview, listModels: vi.fn(async () => { throw new Error('host preview unavailable') }) },
 }))
 
 vi.mock('../../wsl/runtime-config', () => ({
   isWslRuntimeActive: mocks.isWslRuntimeActive,
+  getAgentRuntimeConfig: () => (mocks.isWslRuntimeActive() ? { mode: 'wsl', distro: 'Ubuntu' } : { mode: 'host', distro: null }),
 }))
 
 vi.mock('../../trusted-workspace', () => ({

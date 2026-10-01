@@ -85,18 +85,19 @@ export function runGit(
 async function gitExec(
   cwd: string,
   args: string[],
-  opts: { timeout?: number; maxBuffer?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): Promise<{ status: number; stdout: string; stderr: string }> {
   const distro = activeWslDistro(cwd)
   if (distro) {
     const r = await runGitInWslAsync(distro, cwd, args, {
       timeout: opts.timeout,
       maxBuffer: opts.maxBuffer,
+      input: opts.input,
     })
     return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr }
   }
   return new Promise((resolve) => {
-    execFile('git', args, {
+    const child = execFile('git', args, {
       cwd,
       encoding: 'utf-8',
       timeout: opts.timeout ?? 8000,
@@ -110,7 +111,43 @@ async function gitExec(
         stderr: stderr ?? error?.message ?? '',
       })
     })
+    if (opts.input != null) child.stdin?.end(opts.input)
   })
+}
+
+export type GitMetadataPaths = { gitDir: string; commonDir: string; indexPath: string }
+
+/** Real git-dir / common-dir / index locations (a worktree's `.git` is only a pointer file). */
+export async function resolveGitMetadataPaths(cwd: string): Promise<GitMetadataPaths | null> {
+  const r = await gitExec(
+    cwd,
+    ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--git-path', 'index'],
+    { timeout: 5000 },
+  )
+  if (r.status !== 0) return null
+  const [gitDir, commonDir, indexPath] = r.stdout.split(/\r?\n/).map((line) => line.trim())
+  if (!gitDir || !commonDir || !indexPath) return null
+  return { gitDir, commonDir, indexPath }
+}
+
+/** Writes to one git index run one at a time; different indexes (worktrees) stay independent. */
+const indexWriteChains = new Map<string, Promise<unknown>>()
+
+async function withIndexWriteLock<T>(cwd: string, task: () => Promise<T>): Promise<T> {
+  const paths = await resolveGitMetadataPaths(cwd)
+  const raw = paths?.indexPath ?? cwd
+  const key = /^[a-zA-Z]:[\\/]|^\\\\/.test(raw) ? raw.replace(/\//g, '\\').toLowerCase() : raw
+  const previous = indexWriteChains.get(key) ?? Promise.resolve()
+  const run = previous.then(task, task)
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  indexWriteChains.set(key, tail)
+  void tail.then(() => {
+    if (indexWriteChains.get(key) === tail) indexWriteChains.delete(key)
+  })
+  return run
 }
 
 export async function runGitReadOnly(
@@ -217,32 +254,36 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
 export function stageHunks(
   cwd: string,
   files: { path: string; hunkPatches: string[] }[],
-): { ok: boolean; error?: string } {
-  for (const f of files) {
-    for (const patch of f.hunkPatches) {
-      if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
-      const r = gitExecSync(cwd, ['apply', '--cached', '--recount'], { timeout: 10000, input: patch })
-      if (r.status !== 0) {
-        return { ok: false, error: (r.stderr || 'git apply 失败').trim().slice(0, 500) }
+): Promise<{ ok: boolean; error?: string }> {
+  return withIndexWriteLock(cwd, async () => {
+    for (const f of files) {
+      for (const patch of f.hunkPatches) {
+        if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
+        const r = await gitExec(cwd, ['apply', '--cached', '--recount'], { timeout: 10000, input: patch })
+        if (r.status !== 0) {
+          return { ok: false, error: (r.stderr || 'git apply 失败').trim().slice(0, 500) }
+        }
       }
     }
-  }
-  return { ok: true }
+    return { ok: true }
+  })
 }
 
 /** 反向应用 patch 撤销暂存 */
 export function unstageHunks(
   cwd: string,
   files: { path: string; hunkPatches: string[] }[],
-): { ok: boolean; error?: string } {
-  for (const f of files) {
-    for (const patch of f.hunkPatches) {
-      if (!patch) continue
-      const r = gitExecSync(cwd, ['apply', '-R', '--cached'], { timeout: 10000, input: patch })
-      if (r.status !== 0) {
-        return { ok: false, error: (r.stderr || 'git apply -R 失败').trim().slice(0, 500) }
+): Promise<{ ok: boolean; error?: string }> {
+  return withIndexWriteLock(cwd, async () => {
+    for (const f of files) {
+      for (const patch of f.hunkPatches) {
+        if (!patch) continue
+        const r = await gitExec(cwd, ['apply', '-R', '--cached'], { timeout: 10000, input: patch })
+        if (r.status !== 0) {
+          return { ok: false, error: (r.stderr || 'git apply -R 失败').trim().slice(0, 500) }
+        }
       }
     }
-  }
-  return { ok: true }
+    return { ok: true }
+  })
 }

@@ -33,14 +33,14 @@ export function registerReviewHandlers(): void {
   registerHandlerWithSchema('ipc:review.stageHunks', reviewMutationSchema, async (req) => {
     const cwd = reviewMutationCwd(req.cwd)
     if (!cwd.ok) return { ok: false, error: cwd.error }
-    const r = stageHunks(cwd.cwd, req.files || [])
+    const r = await stageHunks(cwd.cwd, req.files || [])
     return { ok: r.ok, error: r.error }
   })
 
   registerHandlerWithSchema('ipc:review.unstageHunks', reviewMutationSchema, async (req) => {
     const cwd = reviewMutationCwd(req.cwd)
     if (!cwd.ok) return { ok: false, error: cwd.error }
-    const r = unstageHunks(cwd.cwd, req.files || [])
+    const r = await unstageHunks(cwd.cwd, req.files || [])
     return { ok: r.ok, error: r.error }
   })
 

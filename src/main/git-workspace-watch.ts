@@ -1,8 +1,8 @@
 import { watch, type FSWatcher } from 'fs'
-import { join } from 'path'
+import { relative, isAbsolute } from 'path'
 import type { BrowserWindow } from 'electron'
 import { getTrustedWorkspaceRoot } from './trusted-workspace'
-import { isGitRepository } from './git-workspace'
+import { isGitRepository, resolveGitMetadataPaths } from './git-workspace'
 import { isWslWindowsPath } from '@shared/wsl-path'
 import { isWslRuntimeActive } from './wsl/runtime-config'
 
@@ -14,9 +14,11 @@ function isWslPath(cwd: string): boolean {
   )
 }
 
-let watcher: FSWatcher | null = null
+let watchers: FSWatcher[] = []
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let watchedCwd: string | null = null
+/** Bumped on every refresh/stop so a slow metadata lookup cannot install a stale project's watch. */
+let watchGeneration = 0
 
 function shouldNotifyGitWorkspaceChange(filename: string | Buffer | null): boolean {
   if (filename == null) return true
@@ -35,33 +37,50 @@ function notifyGitChanged(win: BrowserWindow | null, cwd: string): void {
 }
 
 export function stopGitWorkspaceWatch(): void {
+  watchGeneration++
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = null
-  watcher?.close()
-  watcher = null
+  for (const watcher of watchers) watcher.close()
+  watchers = []
   watchedCwd = null
 }
 
-export function refreshGitWorkspaceWatch(win: BrowserWindow | null): void {
+/** Drop targets nested in another target: a recursive watch on the parent already covers them. */
+function outermostTargets(paths: string[]): string[] {
+  const unique = [...new Set(paths)]
+  return unique.filter((path) => !unique.some((other) => {
+    if (other === path) return false
+    const rel = relative(other, path)
+    return !!rel && !rel.startsWith('..') && !isAbsolute(rel)
+  }))
+}
+
+/**
+ * Watch the repository's real git-dir (index, HEAD) and common-dir (shared refs). In a worktree
+ * `<cwd>/.git` is a pointer file, so its metadata lives elsewhere and must be resolved via git.
+ */
+export async function refreshGitWorkspaceWatch(win: BrowserWindow | null): Promise<void> {
   stopGitWorkspaceWatch()
+  const generation = watchGeneration
   const cwd = getTrustedWorkspaceRoot()
-  if (!cwd || !isGitRepository(cwd)) return
+  // WSL 发行版内 git 变更由 worker 内的 git 状态读取驱动，主进程不监听 UNC 目录。
+  if (!cwd || isWslPath(cwd) || !isGitRepository(cwd)) return
+  const paths = await resolveGitMetadataPaths(cwd).catch(() => null)
+  if (generation !== watchGeneration || !paths) return
   watchedCwd = cwd
-  if (isWslPath(cwd)) {
-    // WSL 发行版内 git 变更由 worker 内的 git 状态读取驱动，主进程不监听 UNC 目录。
-    return
+  const onChange = (_eventType: string, filename: string | Buffer | null): void => {
+    if (!shouldNotifyGitWorkspaceChange(filename)) return
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      if (watchedCwd) notifyGitChanged(win, watchedCwd)
+    }, 400)
   }
-  const gitDir = join(cwd, '.git')
-  try {
-    watcher = watch(gitDir, { recursive: true }, (_eventType, filename) => {
-      if (!shouldNotifyGitWorkspaceChange(filename)) return
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null
-        if (watchedCwd) notifyGitChanged(win, watchedCwd)
-      }, 400)
-    })
-  } catch (e) {
-    console.warn('[git-watch] failed:', e)
+  for (const target of outermostTargets([paths.gitDir, paths.commonDir])) {
+    try {
+      watchers.push(watch(target, { recursive: true }, onChange))
+    } catch (e) {
+      console.warn('[git-watch] failed:', target, e)
+    }
   }
 }

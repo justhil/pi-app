@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
-import { existsSync, statSync } from 'fs'
+import { existsSync } from 'fs'
+import { stat } from 'node:fs/promises'
 import { basename, join, relative, sep } from 'path'
 import { promisify } from 'util'
 import type {
@@ -30,10 +31,10 @@ export interface WorkspaceFileSearchQuery {
   query: string
 }
 
-export function buildWorkspaceFileSearchQuery(
+export async function buildWorkspaceFileSearchQuery(
   workspaceRoot: string,
   inputQuery: string,
-): WorkspaceFileSearchQuery | { ok: false; error: 'missing_root' | 'outside_workspace' | 'search_failed' } {
+): Promise<WorkspaceFileSearchQuery | { ok: false; error: 'missing_root' | 'outside_workspace' | 'search_failed' }> {
   if (!workspaceRoot.trim()) return { ok: false, error: 'missing_root' }
   const normalized = inputQuery.replace(/\\/g, '/')
   if (normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) {
@@ -45,7 +46,7 @@ export function buildWorkspaceFileSearchQuery(
   if (scope.split('/').some((part) => part === '..')) {
     return { ok: false, error: 'outside_workspace' }
   }
-  const resolved = resolvePathUnderWorkspace(workspaceRoot, scope || '.')
+  const resolved = await resolvePathUnderWorkspace(workspaceRoot, scope || '.')
   if (!resolved.ok) {
     return {
       ok: false,
@@ -53,7 +54,7 @@ export function buildWorkspaceFileSearchQuery(
     }
   }
   try {
-    if (!statSync(resolved.abs).isDirectory()) return { ok: false, error: 'search_failed' }
+    if (!(await stat(resolved.abs)).isDirectory()) return { ok: false, error: 'search_failed' }
   } catch {
     return { ok: false, error: 'search_failed' }
   }
@@ -124,7 +125,7 @@ export async function resolveFdExecutable(): Promise<string | null> {
 export async function workspaceFsSearch(
   req: WorkspaceFsSearchRequest,
 ): Promise<WorkspaceFsSearchResponse> {
-  const scoped = buildWorkspaceFileSearchQuery(String(req.workspaceRoot || ''), String(req.query || ''))
+  const scoped = await buildWorkspaceFileSearchQuery(String(req.workspaceRoot || ''), String(req.query || ''))
   if (!scoped.ok) return { ok: false, entries: [], error: scoped.error }
   const fd = await resolveFdExecutable()
   if (!fd) return { ok: false, entries: [], error: 'fd_unavailable' }
@@ -156,7 +157,7 @@ export async function workspaceFsSearch(
       timeout: SEARCH_TIMEOUT_MS,
       maxBuffer: 1024 * 1024,
     })
-    const rootResolved = resolvePathUnderWorkspace(req.workspaceRoot, '.')
+    const rootResolved = await resolvePathUnderWorkspace(req.workspaceRoot, '.')
     if (!rootResolved.ok) {
       return {
         ok: false,
@@ -170,12 +171,12 @@ export async function workspaceFsSearch(
       if (!relativeFromScope) continue
       const relativePath = `${scoped.scopePrefix}${relativeFromScope}`.replace(/^\.\//, '')
       if (relativePath === '.git' || relativePath.startsWith('.git/')) continue
-      const resolved = resolvePathUnderWorkspace(req.workspaceRoot, relativePath)
+      const resolved = await resolvePathUnderWorkspace(req.workspaceRoot, relativePath)
       if (!resolved.ok) continue
       try {
         const pathFromRoot = relative(rootResolved.abs, resolved.abs).split(sep).join('/')
         if (!pathFromRoot || pathFromRoot.startsWith('../')) continue
-        const isDirectory = statSync(resolved.abs).isDirectory()
+        const isDirectory = (await stat(resolved.abs)).isDirectory()
         entries.push({
           path: relativePath,
           name: basename(relativePath),

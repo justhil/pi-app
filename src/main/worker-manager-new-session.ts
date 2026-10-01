@@ -50,7 +50,7 @@ function findReusableWorkspaceSlot(options: NewSessionPoolOptions): WorkerSlot |
   return null
 }
 
-function nextWorkspacePoolKey(pool: Map<string, WorkerSlot>, cwd: string): string {
+export function nextWorkspacePoolKey(pool: Map<string, WorkerSlot>, cwd: string): string {
   const base = workspacePoolKey(cwd)
   if (!pool.has(base)) return base
   for (let suffix = 1; ; suffix++) {
