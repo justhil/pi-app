@@ -9,7 +9,7 @@ import { UI_BLOCK_REGISTRY } from '../registry'
 import UIBlockRuntime from '../runtime'
 import { validate } from '../schema'
 
-const EXAMPLES_PATH = resolve(process.cwd(), 'docs/pi-ui/skill/examples.md')
+const EXAMPLES_PATH = resolve(process.cwd(), 'doc/guide/pi-ui-examples.md')
 
 /** Every ```pi-ui fence in the skill's example file, keyed by the envelope id. */
 function loadExamples(): Map<string, string> {
