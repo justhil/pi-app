@@ -24,6 +24,7 @@
     "package": "npm run icon:export && electron-vite build && electron-builder",
     "icon:export": "node scripts/export-app-icon.mjs",
     "docs:adapters": "node scripts/generate-adapter-readme-table.mjs",
+    "readme:capture": "node scripts/readme-capture/run.mjs",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
     "package:win": "npm run icon:export && electron-vite build && electron-builder --win",
