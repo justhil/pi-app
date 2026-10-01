@@ -4,7 +4,7 @@
 
 **[简体中文](./adapters.zh-CN.md)**
 
-Generated from `src/extension-compat/builtin/*.adapter.json` (34 adapters).
+Generated from `src/extension-compat/builtin/*.adapter.json` (36 adapters).
 
 1. Install in terminal pi: `pi install npm:<name>` or `pi install git:...`
 2. Enable in `~/.pi/agent/settings.json` → `packages`
@@ -15,12 +15,14 @@ Generated from `src/extension-compat/builtin/*.adapter.json` (34 adapters).
 | Aegis | [`Aegis`](https://www.npmjs.com/package/Aegis) | headless | Aegis 工作流扩展集（复用通用与 trellis 卡） |
 | Amp Themes | [`amp-themes`](https://www.npmjs.com/package/amp-themes) | none | Amp theme loader/editor package; desktop-side adapter only |
 | Context Viewer | `@agnishc/edb-context-viewer` | headless | 上下文查看器（斜杠输出只读说明） |
+| Magic Context Todo | `@cortexkit/pi-magic-context` | partial | Show the todowrite list above the composer |
 | ACE Tool | [`pi-ace-tool`](https://www.npmjs.com/package/pi-ace-tool) | headless | ACE tool capability manager; writes ~/.pi/agent/ace-tool.json + connectivity test |
 | Agents.md | [`pi-agentsmd`](https://www.npmjs.com/package/pi-agentsmd) | headless | AGENTS.md generator; list and entry included |
 | BTW | [`pi-btw`](https://www.npmjs.com/package/pi-btw) | headless | By-the-way insert model; list and status included |
 | Cache Optimizer | [`pi-cache-optimizer`](https://www.npmjs.com/package/pi-cache-optimizer) | headless | Context cache optimizer; loaded at runtime, affects new session context |
 | Continue | [`pi-continue`](https://www.npmjs.com/package/pi-continue) | headless | Mid-task continue; reads ~/.pi/agent/extensions/pi-continue.json |
 | Curated Themes | `@victor-software-house/pi-curated-themes` | none | pi 终端主题包（桌面用独立 Appearance 设置） |
+| PiDeck Todo | [`pi-deck-todo`](https://www.npmjs.com/package/pi-deck-todo) | partial | Show the current session Todo list above the composer |
 | Fast Context | [`pi-fast-context`](https://www.npmjs.com/package/pi-fast-context) | headless | Semantic context search; writes ~/.pi/agent/fast-context.json + connectivity test |
 | FFF | `@ff-labs/pi-fff` | headless | 模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag） |
 | Goal | [`pi-goal`](https://www.npmjs.com/package/pi-goal) | headless | Goal loop manager; list and status included |
@@ -32,7 +34,7 @@ Generated from `src/extension-compat/builtin/*.adapter.json` (34 adapters).
 | Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | none | TUI footer context indicator; desktop-side adapter only |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | headless | Observation memory (automatic, always-on); list and entry included |
 | Powerline Footer | [`pi-powerline-footer`](https://www.npmjs.com/package/pi-powerline-footer) | none | Powerline footer status indicator; desktop-side adapter only |
-| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git checkpoints + `/rewind` restore dialogs (files/conversation); Tree/Fork restore prompts via Extension UI |
+| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git checkpoints + /rewind: desktop dialogs for restore mode (files / conversation / both). Tree/Fork may prompt to restore files. TUI footer decoration is not replicated. |
 | Pi Search | [`pi-search`](https://www.npmjs.com/package/pi-search) | partial | pi-search web/docs/Context7 search toolkit |
 | Sequential Thinking | `@feniix/pi-sequential-thinking` | headless | 结构化思考链工具（阶段/思考链卡片） |
 | Simplify | [`pi-simplify`](https://www.npmjs.com/package/pi-simplify) | headless | Code precision review (success-tool pattern); list and entry included |

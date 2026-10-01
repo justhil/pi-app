@@ -1,151 +1,171 @@
 <div align="center">
 
-<img src="resources/icon.svg" alt="pi Desktop logo" width="80" height="80" />
+<img src="resources/icon.svg" alt="pi Desktop" width="72" height="72" />
 
 # pi Desktop
 
-The desktop app for the [pi](https://github.com/jvm/pi-mono) coding agent — same agent you run in the terminal, now with a timeline, side panels, and a real window.
+**A desktop app for the [pi](https://github.com/earendil-works/pi) coding agent.**<br/>
+The same agent and the same `~/.pi/agent` you use in the terminal — with a timeline, Git review and a clickable session tree.
 
-[![Version](https://img.shields.io/badge/version-0.5.4-blue?style=flat-square)](https://github.com/justhil/pi-app/releases/latest)
-[![Download](https://img.shields.io/github/v/release/justhil/pi-app?label=download&style=flat-square&logo=github)](https://github.com/justhil/pi-app/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](package.json)
-[![GitHub stars](https://img.shields.io/github/stars/justhil/pi-app?style=social)](https://github.com/justhil/pi-app/stargazers)
+[![Release](https://img.shields.io/github/v/release/justhil/pi-app?style=flat-square&color=7583b2&label=release)](https://github.com/justhil/pi-app/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/justhil/pi-app/total?style=flat-square&color=7583b2)](https://github.com/justhil/pi-app/releases)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-7583b2?style=flat-square)
+[![License](https://img.shields.io/github/license/justhil/pi-app?style=flat-square&color=7583b2)](LICENSE)
 
-[简体中文](./README.zh-CN.md) · [Getting started](./doc/guide/getting-started.md) · [Adapters](./doc/guide/adapters.en.md)
+**English** · [简体中文](./README.zh-CN.md) · [Download](https://github.com/justhil/pi-app/releases/latest) · [Getting started](./doc/guide/getting-started.md) · [Adapters](./doc/guide/adapters.en.md)
 
 </div>
 
-> [!NOTE]
-> pi Desktop is **not** a separate AI — it's a desktop shell around the pi SDK you already use. Your conversations, model logins, and extension settings live in the same `~/.pi/agent` files. Open a project and keep chatting from where you left off in the terminal.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/assets/readme/en/hero-dark.png" />
+  <img src="doc/assets/readme/en/hero-light.png" alt="pi Desktop: a finished turn in the timeline, with the Git diff open in the Review panel" />
+</picture>
 
-![pi Desktop main window](https://img.justhil.uk/2026/06/25/image-20260625233744183)
+pi Desktop is not another agent. It runs the pi SDK in a background worker and reads the same files as the CLI — sessions, model logins, `settings.json`, installed extensions. Open a project and the sessions you started in the terminal are already in the sidebar; continue any of them, or start a new one.
 
-## Why
+## One turn, start to finish
 
-If you use pi in the terminal, you've probably wished for: a real diff view instead of scrolling raw output, the ability to queue a follow-up while the agent is still running, and a session tree you can click through instead of typing `/tree`. pi Desktop gives you all of that, plus native windows for extension pop-ups — **without forking pi or touching your installed extensions**.
+<img src="doc/assets/readme/en/agent-turn.gif" alt="A prompt is sent; the agent runs tests, reads a file, edits it, reruns tests, and the changes appear in Review" width="100%" />
 
-## Features
+<sub>Recorded from the app itself. The model replies come from a scripted local endpoint so the demo is reproducible; the <code>bash</code>, <code>read</code> and <code>edit</code> tools ran for real on the sample repo.</sub>
 
-- **Streaming timeline** — markdown, code blocks, KaTeX math, and foldable tool steps (read, edit, bash) with line-level diffs
-- **Session tree** — branch and rewind like `pi /tree`, but clickable; with git, optionally restore files on jump
-- **Composer** — inline file attachments, image paste, model & thinking-level pills, slash command menu; **Files** panel tree supports **drag files into composer** or right-click attach
-- **Workspace file preview** — multi-tab (`Ctrl`/`⌘`+click or right-click **Open in new tab**), line-gutter source view, **expand preview** into the chat column for wide reading
-- **Queue messages** — keep typing while the agent runs; messages execute when the current turn ends
-- **Full pi package ecosystem** — every extension you installed for terminal pi works here: dialogs, tool cards, side panels, and `/commands` are translated to native UI by per-extension **adapters**, with **no changes to the npm packages** (see [Extensions](#extensions))
-- **Bilingual UI** — 中文 / English toggle in Settings
-- **Voice input** — optional mic → local transcription via [codex-asr](https://github.com/Wangnov/codex-asr) (bundled binary, ChatGPT/Codex token auth)
-- **Shared everything** — sessions, auth, `settings.json`, extensions: all in `~/.pi/agent`, shared with CLI pi
+## Timeline
 
-## Get the app
+Tool calls stream in as flat steps — thinking, commands, reads, edits — and fold into one summary line once the answer starts. Each edit shows `+N −M`; the turn ends with a **Files changed** card that opens the file in Files or Review.
 
-**Windows** — download the installer or portable build from [Releases](https://github.com/justhil/pi-app/releases/latest).
+<img src="doc/assets/readme/en/timeline.png" alt="Expanded tool steps: thinking, ran node --test, read src/links.mjs, edited src/links.mjs with 2 edits" width="100%" />
 
-> [!TIP]
-> You need pi set up once on the machine (model login, the way you already use for terminal pi). After that, just open a project folder in pi Desktop and you're in.
+Markdown, code blocks, KaTeX and long outputs render in place. Hover a message to copy it, rewind to it, or fork a new session from it.
 
-**Build from source** (developers):
+## Side panels
+
+<img src="doc/assets/readme/en/panels.png" alt="Review panel with an inline diff, Files panel previewing src/links.mjs, Run panel with a context breakdown ring" width="100%" />
+
+| Panel | What it does |
+|---|---|
+| **Review** | Changes of this turn, this session, or the whole Git working tree. Expand a file for an inline diff, stage or unstage single hunks, and send a line comment back to the conversation. |
+| **Files** | Project explorer with multi-tab preview (`Ctrl`/`⌘`+click), syntax highlighting, and a wide mode that takes over the chat column. Drag a file onto the composer to attach it. |
+| **Tree** | The session as a tree, like `pi /tree`: filter to user messages, jump back to any node and continue from there as a new branch. |
+| **Run** | Run state, model and thinking level, and how the context window splits between user, assistant and tool messages. |
+| **Context** | The messages that make up the current context, with token estimates per entry. |
+
+## Composer
+
+<img src="doc/assets/readme/en/composer-mention.gif" alt="Typing @li suggests src/links.mjs; Enter inserts it as a file chip" width="66%" />
+
+- `@` searches project files (respects `.gitignore`, uses `fd`) and inserts them as references.
+- `/` lists pi's built-in commands and the ones your extensions register.
+- Paste or drop images and files; model and thinking level sit at the right of the input.
+- While the agent is working, `Enter` steers the current turn and `Alt+Enter` queues a follow-up for when it finishes.
+
+## Also included
+
+| | |
+|---|---|
+| **Extensions, unchanged** | Extensions you installed for terminal pi load here. Their dialogs, tool cards, panels and `/commands` are mapped to native UI by declarative adapters — 36 ship built in. [List](./doc/guide/adapters.en.md) |
+| **Parallel sessions** | Each session gets its own worker. A running turn keeps going when you switch away; the pool size and idle timeout are configurable. |
+| **Notifications** | A system notification and an in-app inbox when a turn finishes or needs input; the status bar shows what is running. |
+| **WSL runtime** (Windows) | Run the worker inside a chosen WSL distribution, with sessions, Git and previews resolved on the Linux side. |
+| **Themes** | Light and dark themes with presets or your own colors, `pi-theme-v1` / `codex-theme-v1` import, optional custom CSS, five icon sets, 90–110% density. |
+| **Chinese / English UI** | Switch in Settings. |
+| **Updates** | Checks GitHub Releases in the background and can download and launch the installer. |
+
+## Install
+
+| Platform | Package |
+|---|---|
+| Windows x64 | `pi.Desktop-Setup-<version>-x64.exe` (installer) or `pi.Desktop-Portable-<version>-x64.exe` |
+| macOS | `.dmg` / `.zip` for Apple Silicon (`arm64`) and Intel (`x64`) |
+| Linux x64 | `.AppImage` or `.deb` |
+
+Get them from [Releases](https://github.com/justhil/pi-app/releases/latest). The app bundles its own pi SDK; you only need to sign in to a model provider once, the same way you do for terminal pi (the credentials live in `~/.pi/agent`). Settings → Runtime can switch to a globally installed pi version.
+
+<details>
+<summary>Build from source</summary>
+
+Requires Node.js ≥ 22.19.
 
 ```bash
 git clone https://github.com/justhil/pi-app.git
 cd pi-app
 npm install
-npm run dev
+npm run dev          # development
+npm run build        # production bundle in out/
+npm run package      # installers via electron-builder
 ```
 
-## First steps
+</details>
 
-1. **Open a folder** — your repo becomes the agent's working directory (or use a sandbox under "chat partitions" to experiment safely).
-2. **Pick a session** — old chats from terminal pi show up here; or start fresh with `+`.
-3. **Send a message** — `Enter` to send, `Shift+Enter` for a new line.
-4. **Check the right panel** — review, run, context, session tree, or **Files** (tabbed preview + explorer; expand preview across the chat column).
-5. **Jump back** — hover a message and undo, or double-tap `Esc` with an empty input to open the session tree.
+## First five minutes
 
-<img src="https://img.justhil.uk/2026/06/25/image-20260625234039591" alt="Conversation timeline" style="zoom:67%;" />
+1. **Open folder** — the folder becomes the agent's working directory. For a throwaway chat, use **+** next to *Conversations* instead.
+2. **Pick a session** — sessions from terminal pi for that folder are listed; **+** next to the project starts a new one.
+3. **Send** — `Enter` sends, `Shift+Enter` adds a line.
+4. **Look right** — Review, Run, Context, Tree and Files share the right sidebar; drag its edge to make it wider.
+5. **Go back** — hover a message to rewind or fork, or press `Esc` twice in an empty composer to open the session tree.
 
 ## Shortcuts
 
 | Action | Keys |
-|--------|------|
-| Send | `Enter` |
-| New line | `Shift+Enter` |
-| Browse sent messages | `↑` / `↓` (empty input) |
-| Pull back queued message | `Alt+↑` |
-| Stop generation | `Esc` |
-| Session tree | `Esc` `Esc` (empty input) |
-| Commands | `/` |
-| Attach file | Drag, `+`, or `Ctrl+V`; **Files** panel — drag files onto composer (files only) |
-| Multi-tab preview | **Files** → `Ctrl`/`⌘`+click a file, or right-click **Open in new tab** |
-| Wide preview | **Files** toolbar **Expand preview** (fills chat column; click again to collapse) |
+|---|---|
+| Send / new line | `Enter` / `Shift+Enter` |
+| Steer the running turn / queue a follow-up | `Enter` / `Alt+Enter` while running |
+| Pull the last queued message back | `Alt+↑` |
+| Stop | `Esc` |
+| Session tree | `Esc` `Esc` in an empty composer |
+| Previous / next sent message | `↑` / `↓` with an empty composer or the caret at the start / end |
+| File reference / command | `@` / `/` |
+| Open a file in a new tab | `Ctrl`/`⌘`+click in Files |
 
 ## Extensions
 
-pi has a growing ecosystem of npm packages — subagents, image generation, search, hash-anchored edits, MCP servers, and more. pi Desktop makes all of them work on the desktop **without forking pi or patching the packages**.
+Install and enable extensions exactly as for terminal pi:
 
-### How it works
+```bash
+pi install npm:<package>      # or: pi install git:github.com/<owner>/<repo>
+```
 
-Each extension ships a terminal TUI (select, confirm, surveys, tool cards, `/commands`). pi Desktop ships a **compatibility layer** plus per-extension **adapters** — small JSON descriptions that map that TUI onto native windows, timeline cards, and settings forms. You install and enable extensions exactly as you do for terminal pi; pi Desktop renders them.
-
-### Install & enable
-
-1. Install in terminal pi: `pi install npm:<name>` or `pi install git:github.com/...`
-2. Enable in `~/.pi/agent/settings.json` → `packages`
-3. Open **Settings → Extensions** in pi Desktop to confirm tools are loaded for the current session
-4. If something's missing, **start a fresh session** after enabling the package
-
-Extension pop-ups (questions, image approval, confirm dialogs) appear as native windows. Per-extension desktop options live under **Settings → Desktop adapters**. Advanced users can override builtin adapters with JSON in `~/.pi/desktop/adapters/`.
-
-
-![Composer with model pills](https://img.justhil.uk/2026/06/25/image-20260625233933437)
-
-Full list of 34 built-in desktop adapters: [doc/guide/adapters.en.md](./doc/guide/adapters.en.md) · Author your own: [adapter-authoring-guide.md](./doc/adapter-authoring-guide.md)
-
-## Voice input
-
-The composer mic records audio and transcribes it locally using [codex-asr](https://github.com/Wangnov/codex-asr). It's optional — typing always works without it.
-
-### Setup
-
-Open **Settings → Voice**:
-
-- **Provider** — defaults to the **bundled `codex-asr serve`** binary (shipped in `resources/codex-asr/`); falls back to `codex-asr` on your `PATH`, or an external serve URL.
-- **Auth** — paste a ChatGPT/Codex `access_token`, or click **import from `~/.codex/auth.json`** (written by the [Codex CLI](https://github.com/openai/codex) or ChatGPT desktop after sign-in). Tokens are JWTs and expire — refresh by signing in again.
-- **Connectivity test** — a one-click check reports whether the serve process started and the token is valid.
-
-> [!TIP]
-> Easiest path: install the Codex CLI, run `codex login`, then in pi Desktop use **import from auth.json**. No manual token pasting needed.
-
-Bundled binaries come from [codex-asr releases](https://github.com/Wangnov/codex-asr/releases). If absent, the app falls back to any `codex-asr` found on your system `PATH`.
-
-## FAQ
-
-| Problem | Try this |
-|---------|----------|
-| Blank or frozen window after dev changes | Delete `node_modules/.vite`, run `npm run dev` again |
-| Extension listed in settings but not in chat | Enable it in pi `packages`, then **restart the session** |
-| Switching sessions feels slow at first | Only recent messages load immediately; the rest loads when you send or use the tree |
-| Voice doesn't work | Open Settings → Voice; check the token or run `codex login` to refresh — typing still works |
-| Closed an extension popup | Use **Continue** on the timeline |
-
-## Sponsor
-
-If pi Desktop has been useful to you, you can support its continued maintenance using the QR code below.
-
-<img src="doc/assets/sponsor-qr.png" alt="Sponsor QR code" width="320" />
-
-## Community
-
-Questions and feedback: **[LinuxDo](https://linux.do/)**
-
-If pi Desktop saves you from staring at a terminal all day, a **[star on GitHub](https://github.com/justhil/pi-app/stargazers)** helps others find it.
-
----
+then make sure the package is enabled in `~/.pi/agent/settings.json` → `packages` and start a new session. **Settings → Extensions** shows what the current worker loaded; **Settings → Adapters** holds each adapter's desktop options. To override or add an adapter, put a `.json` adapter file in `~/.pi/desktop/adapters/` (or `<project>/.pi/desktop/adapters/`, which takes precedence) — see the [authoring guide](./doc/adapter-authoring-guide.md).
 
 <details>
-<summary>For developers & extension authors</summary>
+<summary>Voice input</summary>
 
-- User docs: [`doc/`](./doc/README.md) — getting started, adapter list, screenshots
-- Adapter authoring (for AI): [adapter-authoring-guide.md](./doc/adapter-authoring-guide.md)
-- Tech: Electron 35 · React 18 · TypeScript · Tailwind · shadcn · Zustand · i18next · `@earendil-works/pi-coding-agent`
-- Release: tag `v*` triggers `.github/workflows/release.yml` → Windows, macOS, Linux builds
+The mic button in the composer transcribes speech into the input. By default it uses the built-in service, which calls ChatGPT's transcription endpoint with your Codex / ChatGPT sign-in — no OpenAI API key and no local process. In **Settings → Voice**, paste an `access_token` or import it from `~/.codex/auth.json` (written by `codex login`), then **Verify login**.
+
+Under *Advanced* you can use a local [codex-asr](https://github.com/Wangnov/codex-asr) CLI or your own `codex-asr serve` URL instead. Typing always works without voice.
 
 </details>
+
+<details>
+<summary>FAQ</summary>
+
+| Problem | Try |
+|---|---|
+| An extension is listed in Settings but missing in chat | Enable it in `packages`, then start a new session. |
+| The first switch to a long session is slow | Only the latest messages load first; the rest loads on scroll or when you send. |
+| Closed an extension dialog by accident | Use **Continue** on its timeline card. |
+| Voice says the login is invalid | The token expired — run `codex login` again and re-import. |
+| Blank window after changing source | Delete `node_modules/.vite` and rerun `npm run dev`. |
+
+</details>
+
+<details>
+<summary>For developers</summary>
+
+- Stack: Electron 43 · React 18 · TypeScript · Tailwind · Zustand · i18next · `@earendil-works/pi-coding-agent`
+- Processes: Electron main (IPC, worker pool, Git, previews) → one utility-process worker per session running the pi SDK → renderer.
+- Checks: `npm run test:unit`, `npm run test:scripts`, `npm run typecheck`, `npm run lint`
+- Docs: [`doc/`](./doc/README.md) · [adapter authoring](./doc/adapter-authoring-guide.md) · [changelog](./CHANGELOG.md)
+- Releases: pushing a `v*` tag runs `.github/workflows/release.yml` and builds Windows, macOS and Linux packages.
+
+</details>
+
+## Support
+
+Questions and feedback: [LinuxDo](https://linux.do/) or [GitHub Issues](https://github.com/justhil/pi-app/issues). If the app is useful to you, a ⭐ helps other pi users find it, and you can sponsor maintenance with the QR code below.
+
+<img src="doc/assets/sponsor-qr.png" alt="Sponsor QR code" width="200" />
+
+## License
+
+[MIT](LICENSE)

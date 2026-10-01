@@ -4,7 +4,7 @@
 
 **[English](./adapters.en.md)**
 
-由 `src/extension-compat/builtin/*.adapter.json` 自动生成（34 个）。
+由 `src/extension-compat/builtin/*.adapter.json` 自动生成（36 个）。
 
 1. 终端安装：`pi install npm:<包名>` 或 `pi install git:...`
 2. 在 `~/.pi/agent/settings.json` → `packages` 启用
@@ -15,12 +15,14 @@
 | Aegis | [`Aegis`](https://www.npmjs.com/package/Aegis) | headless | Aegis 工作流扩展集（复用通用与 trellis 卡） |
 | Amp Themes | [`amp-themes`](https://www.npmjs.com/package/amp-themes) | none | Amp 风格主题/编辑器装饰（桌面无对应组件） |
 | Context Viewer | `@agnishc/edb-context-viewer` | headless | 上下文查看器（斜杠输出只读说明） |
+| Magic Context Todo | `@cortexkit/pi-magic-context` | partial | 在输入框上方显示 todowrite 列表 |
 | ACE Tool | [`pi-ace-tool`](https://www.npmjs.com/package/pi-ace-tool) | headless | ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试） |
 | Agents.md | [`pi-agentsmd`](https://www.npmjs.com/package/pi-agentsmd) | headless | AGENTS.md 生成（无斜杠入口） |
 | BTW | [`pi-btw`](https://www.npmjs.com/package/pi-btw) | headless | 并行侧聊（斜杠状态输出） |
 | Cache Optimizer | [`pi-cache-optimizer`](https://www.npmjs.com/package/pi-cache-optimizer) | headless | 缓存优化（运行时开关，影响新会话启动） |
 | Continue | [`pi-continue`](https://www.npmjs.com/package/pi-continue) | headless | 中途续跑（配置 ~/.pi/agent/extensions/pi-continue.json） |
 | Curated Themes | `@victor-software-house/pi-curated-themes` | none | pi 终端主题包（桌面用独立 Appearance 设置） |
+| PiDeck Todo | [`pi-deck-todo`](https://www.npmjs.com/package/pi-deck-todo) | partial | 在输入框上方显示当前会话 Todo |
 | Fast Context | [`pi-fast-context`](https://www.npmjs.com/package/pi-fast-context) | headless | 语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试） |
 | FFF | `@ff-labs/pi-fff` | headless | 模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag） |
 | Goal | [`pi-goal`](https://www.npmjs.com/package/pi-goal) | headless | 目标循环（斜杠状态输出） |
@@ -32,7 +34,7 @@
 | Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | none | TUI 上下文进度条（桌面无对应组件） |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | headless | 观察记忆（自动生效，无斜杠入口） |
 | Powerline Footer | [`pi-powerline-footer`](https://www.npmjs.com/package/pi-powerline-footer) | none | Powerline 页脚状态栏（桌面无对应组件） |
-| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git 检查点 + `/rewind` 恢复弹窗（文件/对话）；Tree/Fork 时可通过扩展 UI 询问是否恢复文件 |
+| pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git 检查点 + /rewind：桌面弹窗可选恢复文件、对话或两者；Tree/Fork 时也可询问是否恢复文件。页脚装饰不复刻。 |
 | Pi Search | [`pi-search`](https://www.npmjs.com/package/pi-search) | partial | pi-search 网络/文档/Context7 搜索工具集 |
 | Sequential Thinking | `@feniix/pi-sequential-thinking` | headless | 结构化思考链工具（阶段/思考链卡片） |
 | Simplify | [`pi-simplify`](https://www.npmjs.com/package/pi-simplify) | headless | 代码精简审查（由工具触发，无斜杠入口） |
