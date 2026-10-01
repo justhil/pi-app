@@ -1,0 +1,62 @@
+/* Shared look for rendered README visuals. Tokens follow the app (globals.css): brand #7583b2 / #8b93b0. */
+@font-face { font-family: 'Geist Mono'; src: url(GeistMono-Regular.woff2) format('woff2'); }
+
+:root {
+  --bg-top: #f6f7fb;
+  --bg-bottom: #e4e7f2;
+  --ink: #15161b;
+  --ink-2: #3b4050;
+  --muted: #6b7183;
+  --brand: #7583b2;
+  --brand-soft: #e9ecf6;
+  --card: #ffffff;
+  --card-2: #f7f8fb;
+  --line: #dde1ec;
+  --shadow: 0 1px 0 #ffffff inset, 0 18px 40px -18px #2a2f4a33, 0 2px 6px -2px #2a2f4a14;
+  --green: #1f9d66;
+  --red: #d64561;
+  --sans: 'Noto Sans', 'Noto Sans CJK SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+:root[data-theme='dark'] {
+  --bg-top: #1c1d23;
+  --bg-bottom: #121317;
+  --ink: #eceef4;
+  --ink-2: #c3c7d4;
+  --muted: #8a90a2;
+  --brand: #8b93b0;
+  --brand-soft: #262a38;
+  --card: #1f2027;
+  --card-2: #25262e;
+  --line: #2f313b;
+  --shadow: 0 1px 0 #ffffff0a inset, 0 18px 40px -18px #00000088, 0 2px 6px -2px #00000055;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 600px at 85% -10%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 70%),
+    linear-gradient(170deg, var(--bg-top), var(--bg-bottom));
+  -webkit-font-smoothing: antialiased;
+}
+.grid-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--brand) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--brand) 10%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse at 20% 0%, #000 0%, transparent 60%);
+}
+.eyebrow { font: 500 13px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--brand); }
+/* CJK has no glyphs in the mono font: keep it in the sans face without tracking. */
+:lang(zh) .eyebrow { font-family: var(--sans); letter-spacing: .04em; font-weight: 600; }
+.mono { font-family: var(--mono); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}

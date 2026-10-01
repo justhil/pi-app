@@ -74,6 +74,16 @@ const TEXT = {
     planReply: '计划分三步：\n\n1. **抓取层**：`fetchStatus(url)` 使用 `HEAD`，失败时回退 `GET`，超时 5 秒\n2. **并发控制**：同一域名最多 4 个请求，结果按 URL 缓存\n3. **CLI**：`lumen check --remote`，非 2xx/3xx 时退出码为 1\n\n需要我先写第 1 步的测试吗？',
     mentionBefore: '先给 ',
     mentionAfter: ' 写第 1 步的测试',
+    remotePrompt: '只读分析：`--remote` 该接在 CLI 的哪一层？先别改代码。',
+    remoteThinkLs: '先看看源码目录的结构。',
+    remoteThinkRead: '命令分发都在 cli.mjs，看它怎么处理参数。',
+    remoteFinal: `建议把 \`--remote\` 接在 **CLI 层**，解析器保持纯函数：
+
+1. \`cli.mjs\` 解析 \`--remote\`，拿到 \`parseLinks()\` 的结果后只挑出外链
+2. 新增 \`src/remote.mjs\`，导出 \`checkRemote(urls)\`，负责并发与超时
+3. 有失败链接时以退出码 1 结束，方便 CI 判断
+
+\`links.mjs\` 不需要改动。`,
   },
   en: {
     fixTitle: 'Fix Markdown links with titles',
@@ -98,6 +108,16 @@ const TEXT = {
     planReply: 'Three steps:\n\n1. **Fetch layer**: `fetchStatus(url)` uses `HEAD`, falls back to `GET`, 5s timeout\n2. **Concurrency**: at most 4 requests per host, results cached by URL\n3. **CLI**: `lumen check --remote` exits 1 on any non-2xx/3xx\n\nShall I start with tests for step 1?',
     mentionBefore: 'Write tests for ',
     mentionAfter: ' covering step 1',
+    remotePrompt: 'Read-only: where should `--remote` hook into the CLI? No edits yet.',
+    remoteThinkLs: 'Start with the layout of the source folder.',
+    remoteThinkRead: 'Command dispatch lives in cli.mjs; check how it handles arguments.',
+    remoteFinal: `Hook \`--remote\` in at the **CLI layer** and keep the parser pure:
+
+1. \`cli.mjs\` parses \`--remote\` and passes only external URLs from \`parseLinks()\` on
+2. a new \`src/remote.mjs\` exports \`checkRemote(urls)\` and owns concurrency and timeouts
+3. exit with code 1 when any link fails, so CI can gate on it
+
+\`links.mjs\` stays unchanged.`,
   },
 }
 
@@ -109,7 +129,7 @@ export function text(lang) {
 export function fixTurnSteps(lang) {
   const t = TEXT[lang]
   return [
-    { thinking: t.thinkTests, tool: { name: 'bash', args: { command: 'node --test --test-reporter=spec 2>&1 | head -n 10' } } },
+    { thinking: t.thinkTests, tool: { name: 'bash', args: { command: 'FORCE_COLOR=0 node --test --test-reporter=spec 2>&1 | head -n 10' } } },
     { thinking: t.thinkRead, tool: { name: 'read', args: { path: 'src/links.mjs' } } },
     {
       thinking: t.thinkEdit,
@@ -124,7 +144,7 @@ export function fixTurnSteps(lang) {
         },
       },
     },
-    { tool: { name: 'bash', args: { command: 'node --test --test-reporter=spec 2>&1 | tail -n 9' } } },
+    { tool: { name: 'bash', args: { command: 'FORCE_COLOR=0 node --test --test-reporter=spec 2>&1 | tail -n 9' } } },
     {
       tool: {
         name: 'edit',
@@ -132,5 +152,15 @@ export function fixTurnSteps(lang) {
       },
     },
     { thinking: t.thinkDone, text: t.final },
+  ]
+}
+
+/** A read-only turn used alongside the fix turn in the parallel-sessions recording. */
+export function remoteTurnSteps(lang) {
+  const t = TEXT[lang]
+  return [
+    { thinking: t.remoteThinkLs, tool: { name: 'bash', args: { command: 'ls -la src' } } },
+    { thinking: t.remoteThinkRead, tool: { name: 'read', args: { path: 'src/cli.mjs' } } },
+    { text: t.remoteFinal },
   ]
 }

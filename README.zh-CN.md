@@ -23,6 +23,10 @@
 
 pi Desktop 不是另一个 Agent。它在后台 Worker 里运行 pi SDK，读写的就是 CLI 用的那些文件：会话、模型登录、`settings.json`、已安装的扩展。打开项目，终端里聊过的会话已经在侧栏里，接着聊或者新开都行。
 
+## 一图看全
+
+<img src="doc/assets/readme/zh/overview.png" alt="功能总览：时间线步骤、并排 Review、多会话并行、@ 引用文件、上下文占比、内置适配器、主题，以及与 CLI 共用的 ~/.pi/agent 文件" width="100%" />
+
 ## 一轮对话的全过程
 
 <img src="doc/assets/readme/zh/agent-turn.gif" alt="发送需求后，Agent 依次运行测试、读取文件、修改代码、再次测试，改动出现在 Review 面板" width="100%" />
@@ -31,23 +35,25 @@ pi Desktop 不是另一个 Agent。它在后台 Worker 里运行 pi SDK，读写
 
 ## 时间线
 
-工具调用按步骤平铺流式出现——思考、命令、读文件、改文件——正文开始输出后折叠成一行摘要。每次编辑标出 `+N −M`，回合结束时附一张「文件已更改」卡片，点开即可在 Files 或 Review 中查看。
+工具调用按步骤平铺流式出现——思考、命令、读文件、改文件——正文开始输出后折叠成一行摘要。每次编辑标出 `+N −M`，回合结束时附一张「文件已更改」卡片，点开即可在文件面板或 Review 中查看。
 
-<img src="doc/assets/readme/zh/timeline.png" alt="展开的工具步骤：思考、运行 node --test、读取 src/links.mjs、编辑 src/links.mjs 两处" width="100%" />
+<img src="doc/assets/readme/zh/timeline.png" alt="展开的工具步骤：思考、运行 node --test、读取 src/links.mjs、编辑 src/links.mjs 与 README.md" width="100%" />
 
 Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以复制、回退到此处，或从这里 Fork 一个新会话。
 
-## 右侧面板
+## Review
 
-<img src="doc/assets/readme/zh/panels.png" alt="Review 面板的行内 diff、Files 面板预览 src/links.mjs、Tree 面板的会话树、Run 面板的上下文占比环形图" width="100%" />
+<img src="doc/assets/readme/zh/review-stage.gif" alt="把右侧栏拖宽，links.mjs 的 Git diff 切换为并排视图，并暂存其中一个片段" width="100%" />
 
-| 面板 | 用途 |
-|---|---|
-| **Review** | 按「本轮 / 本对话 / Git 工作区」查看改动。展开文件看行内 diff，可按 hunk 暂存或撤销，也能把行评发回当前对话。 |
-| **文件** | 项目文件树 + 多标签预览（`Ctrl`/`⌘`+点击），语法高亮；宽屏模式可铺满对话区。把文件拖到输入框即可作为附件。 |
-| **Tree** | 像 `pi /tree` 一样以树形查看会话：只看用户消息、跳回任意节点，从那里继续就是一条新分支。 |
-| **Run** | 运行状态、当前模型与思考等级，以及上下文窗口在用户、助手、工具消息之间的占比。 |
-| **Context** | 组成当前上下文的消息列表，每条附 token 估算。 |
+按「本轮 / 本对话 / Git 工作区」选范围，展开文件看 diff；把侧栏拖宽即可切到并排视图。可以逐个 hunk 暂存或撤销，行评直接发回当前对话。
+
+## 文件
+
+<img src="doc/assets/readme/zh/files-preview.gif" alt="在文件面板打开 links.mjs，再以新标签打开 links.test.mjs，把一行引用到输入框，最后把预览展开到聊天区" width="100%" />
+
+- 边聊边看项目文件，`Ctrl`/`⌘`+点击在新标签打开。
+- 行号旁的按钮把 `路径:行号` 作为引用插入输入框。
+- 「展开预览」让文件铺满聊天区，再点一次恢复。把文件拖到输入框即可作为附件。
 
 ## 输入框
 
@@ -58,15 +64,44 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 - 可粘贴、拖入图片和文件；模型与思考等级在输入框右侧切换。
 - Agent 运行中：`Enter` 插话引导当前回合，`Alt+Enter` 排队到本轮结束后执行。
 
+## 多会话并行
+
+<img src="doc/assets/readme/zh/parallel-sessions.gif" alt="一个会话开始修复，另一个会话开始只读分析，两者同时运行，界面在两者之间切换" width="100%" />
+
+每个会话运行在自己的 Worker 里。在一个会话里发起回合，再开一个会话发起第二个：两边都继续跑，侧栏标出正在工作的会话，底部状态栏显示运行数量。保留多少个 Worker、空闲多久回收，在「设置 → 通用」里调整；正在运行的会话不会被回收。
+
+## 更多面板
+
+<img src="doc/assets/readme/zh/panels.png" alt="Tree 面板的会话树、Run 面板的上下文占比环形图、Context 面板的上下文条目列表" width="100%" />
+
+| 面板 | 用途 |
+|---|---|
+| **Tree** | 像 `pi /tree` 一样以树形查看会话：只看用户消息、跳回任意节点，从那里继续就是一条新分支。 |
+| **Run** | 运行状态、当前模型与思考等级，以及上下文窗口在用户、助手、工具消息之间的占比。 |
+| **Context** | 组成当前上下文的消息列表，每条附 token 估算。 |
+
+## 主题
+
+<img src="doc/assets/readme/zh/theme-switch.gif" alt="同一个窗口从浅色主题扫到深色主题再扫回" width="100%" />
+
+浅色、深色各自可以用预设或自定义配色，也可以跟随系统切换。支持导入 `pi-theme-v1` / `codex-theme-v1` 主题字符串；自定义 CSS、5 套图标、90%–110% 界面缩放都在「设置 → 外观」。
+
+## 整体结构
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/assets/readme/zh/architecture-dark.png" />
+  <img src="doc/assets/readme/zh/architecture-light.png" alt="终端 pi 与 pi Desktop 都读写 ~/.pi/agent；pi Desktop 由 Renderer、Main 进程和每个会话一个的 Worker 组成" width="100%" />
+</picture>
+
+界面层不直接调用 SDK：Main 进程把每个请求转给负责该会话的 Worker，由它在本机或 WSL 发行版里运行 pi SDK。会话、登录和设置都留在 `~/.pi/agent`，CLI 和桌面端可以轮流接着同一个会话聊。
+
 ## 其他能力
 
 | | |
 |---|---|
 | **扩展照常用** | 给终端 pi 装的扩展在这里同样加载。弹窗、工具卡片、面板和 `/命令` 由声明式适配器映射成原生界面，内置 36 个。[列表](./doc/guide/adapters.zh-CN.md) |
-| **多会话并行** | 每个会话一个 Worker，切走后正在跑的回合继续执行；Worker 数量上限和空闲回收时间可配置。 |
 | **完成通知** | 回合结束或需要你作答时发系统通知，应用内有通知收件箱；底部状态栏显示正在运行的会话。 |
 | **WSL 运行时**（Windows） | 把 Worker 跑在指定的 WSL 发行版里，会话、Git 和预览都在 Linux 侧解析。 |
-| **主题** | 浅色 / 深色各自可用预设或自定义配色，支持导入 `pi-theme-v1` / `codex-theme-v1`，可选自定义 CSS；5 套图标风格，界面缩放 90%–110%。 |
 | **中英文界面** | 在设置里切换。 |
 | **更新** | 后台检查 GitHub Releases，可一键下载并启动安装包。 |
 
@@ -78,7 +113,7 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 | macOS | Apple Silicon（`arm64`）与 Intel（`x64`）的 `.dmg` / `.zip` |
 | Linux x64 | `.AppImage` 或 `.deb` |
 
-到 [Releases](https://github.com/justhil/pi-app/releases/latest) 下载。应用自带 pi SDK，只需像使用终端 pi 一样登录一次模型服务商（凭据保存在 `~/.pi/agent`）。在「设置 → 运行时」可以切换到全局安装的 pi 版本。
+到 [Releases](https://github.com/justhil/pi-app/releases/latest) 下载，每个版本附带 `SHA256SUMS.txt` 校验和。应用自带 pi SDK，只需像使用终端 pi 一样登录一次模型服务商（凭据保存在 `~/.pi/agent`）。在「设置 → 运行时」可以切换到全局安装的 pi 版本。
 
 <details>
 <summary>从源码构建</summary>

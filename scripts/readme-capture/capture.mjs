@@ -1,7 +1,7 @@
 // Static screenshots of one seeded session: hero (Review → Git diff), timeline, panels, settings.
 import { join } from 'node:path'
 import { clickText, launchApp } from './app.mjs'
-import { UI } from './config.mjs'
+import { SPLITTER, UI } from './config.mjs'
 import { text } from './demo-script.mjs'
 
 /** Screenshots land in <rawDir>/<lang>-<theme>-<name>.png. Dark theme only needs the hero. */
@@ -53,6 +53,40 @@ export async function captureScreens({ appDir, demo, lang, theme, rawDir }) {
     await step('run', () => clickText(win, 'Run', { side: 'right' }))
     await wait(1800)
     await shot('run')
+
+    await step('context', () => clickText(win, 'Context', { side: 'right' }))
+    await wait(1800)
+    await shot('context')
+
+    await step('composer', () => win.locator('[contenteditable="true"]').last().click())
+    await wait(300)
+    await win.keyboard.type(text(lang).mentionBefore)
+    await win.keyboard.type('@li')
+    await wait(1800)
+    await shot('mention')
+    await win.keyboard.press('Enter')
+    await win.keyboard.type(text(lang).mentionAfter)
+    await wait(800)
+    await shot('mention-chip')
+    await win.keyboard.press('Control+A')
+    await win.keyboard.press('Backspace')
+    await wait(300)
+
+    await step('review', () => clickText(win, 'Review', { side: 'right' }))
+    await wait(600)
+    await win.mouse.move(SPLITTER.x, SPLITTER.y)
+    await win.mouse.down()
+    await win.mouse.move(SPLITTER.wideX, SPLITTER.y, { steps: 8 })
+    await win.mouse.up()
+    await wait(800)
+    await step('git-wide', () => clickText(win, 'Git', { side: 'right' }))
+    await wait(1200)
+    const diffOpen = await win.evaluate(() => document.body.innerText.includes('@@ -1,10 +1,11 @@'))
+    if (!diffOpen) await step('diff-wide', () => clickText(win, 'links.mjs', { side: 'right' }))
+    await wait(1200)
+    await step('split', () => win.locator('button[aria-label="Switch to side-by-side"], button[aria-label="切换到并排视图"]').first().click())
+    await wait(1500)
+    await shot('review-wide')
 
     await step('settings', () => clickText(win, ui.settings))
     await wait(2000)

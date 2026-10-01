@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- Light → dark → light sweep across two real screenshots of the same window. -->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<script src="data.js"></script>
+<style>
+  body { width: 1280px; height: 840px; position: relative; overflow: hidden; }
+  .night { position: absolute; inset: 0; background: linear-gradient(170deg, #1c1d23, #101115); opacity: 0; }
+  .frame { position: absolute; left: 80px; top: 56px; width: 1120px; height: 700px; border-radius: 16px; overflow: hidden; box-shadow: 0 40px 80px -30px #1b1f3366, 0 0 0 1px #c9cee0; }
+  .frame img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .edge { position: absolute; top: -10%; width: 2px; height: 120%; background: linear-gradient(transparent, #ffffffee, transparent); transform: rotate(10.9deg); transform-origin: top; filter: drop-shadow(0 0 10px #a9b3dd); }
+  .label { position: absolute; left: 80px; bottom: 30px; font: 14px/1 var(--mono); color: var(--muted); display: flex; gap: 18px; }
+  .label b { font-weight: 500; transition: none; }
+  :lang(zh) .label { font-family: var(--sans); }
+</style>
+</head>
+<body>
+<div class="night" id="night"></div>
+<div class="frame">
+  <img id="light"><img id="dark"><div class="edge" id="edge"></div>
+</div>
+<div class="label"><b id="l1"></b><span>/</span><b id="l2"></b></div>
+<script>
+  const d = window.__DATA__
+  document.documentElement.lang = d.lang
+  document.getElementById('light').src = d.light
+  document.getElementById('dark').src = d.dark
+  document.getElementById('l1').textContent = d.lightLabel
+  document.getElementById('l2').textContent = d.darkLabel
+  const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2)
+  const reveal = (t) => {
+    if (t < 0.12) return 0
+    if (t < 0.44) return ease((t - 0.12) / 0.32)
+    if (t < 0.6) return 1
+    if (t < 0.92) return 1 - ease((t - 0.6) / 0.32)
+    return 0
+  }
+  window.renderFrame = (t) => {
+    const r = reveal(t)
+    const x = -18 + r * 136 // percent of frame width at the top edge
+    const slant = 12
+    document.getElementById('dark').style.clipPath = `polygon(0 0, ${x}% 0, ${x - slant}% 100%, 0 100%)`
+    const edge = document.getElementById('edge')
+    edge.style.left = `${x}%`
+    edge.style.opacity = r > 0.01 && r < 0.99 ? 1 : 0
+    document.getElementById('night').style.opacity = r
+    document.getElementById('l1').style.color = r < 0.5 ? 'var(--brand)' : '#6b7183'
+    document.getElementById('l2').style.color = r >= 0.5 ? '#a9b3dd' : '#6b7183'
+  }
+  window.renderFrame(0)
+</script>
+</body>
+</html>

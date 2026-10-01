@@ -24,8 +24,11 @@ export const CROPS = {
   composer: { x: 390, y: 380, width: 640, height: 500 },
 }
 
-/** Panels shown side by side in panels.png. The English Tree panel still has untranslated labels. */
-export const PANELS = { zh: ['hero', 'files', 'tree', 'run'], en: ['hero', 'files', 'run'] }
+/** Right-sidebar splitter (logical px) and the x it is dragged to for wide Review/Files demos. */
+export const SPLITTER = { x: 1152, y: 420, wideX: 700 }
+
+/** Panels shown side by side in panels.png (Review and Files have their own GIFs). The English Tree panel still has untranslated labels. */
+export const PANELS = { zh: ['tree', 'run', 'context'], en: ['run', 'context'] }
 
 export const BACKGROUND = {
   light: ['#f4f5fa', '#e3e6f1', '#3a4060'],

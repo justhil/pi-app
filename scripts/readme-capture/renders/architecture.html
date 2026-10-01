@@ -1,0 +1,72 @@
+<!doctype html>
+<!-- How pi Desktop relates to terminal pi: both drive the same SDK state in ~/.pi/agent. -->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<script src="data.js"></script>
+<style>
+  body { width: 1280px; height: 650px; position: relative; overflow: hidden; }
+  .stage { position: absolute; inset: 0; }
+  .title { position: absolute; left: 64px; top: 52px; font-size: 14px; }
+  .box { position: absolute; padding: 20px 22px 22px; }
+  .box h4 { margin: 8px 0 4px; font-size: 20px; letter-spacing: -.2px; }
+  .box p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .term { left: 64px; top: 100px; width: 300px; }
+  .term pre { margin: 14px 0 0; padding: 14px 16px; border-radius: 12px; background: #0f1015; color: #d7dbea; font: 14px/1.7 var(--mono); }
+  .term pre i { color: #8b93b0; font-style: normal; }
+  .desk { left: 452px; top: 100px; width: 764px; }
+  .layer { margin-top: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--card-2); padding: 12px 16px; display: flex; align-items: center; gap: 14px; }
+  .layer .k { font: 500 13px/1 var(--mono); color: var(--brand); width: 120px; flex: none; }
+  .layer .v { font-size: 15px; color: var(--ink-2); }
+  .workers { display: flex; gap: 8px; flex-wrap: nowrap; }
+  .worker { font: 12.5px/1 var(--mono); padding: 8px 11px; white-space: nowrap; border-radius: 10px; background: var(--card); border: 1px solid var(--line); color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+  .worker .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent); }
+  .worker .dot.idle { background: var(--muted); box-shadow: none; }
+  .store { left: 190px; top: 520px; width: 900px; display: flex; align-items: center; gap: 22px; }
+  .store .path { font: 600 22px/1 var(--mono); color: var(--ink); flex: none; }
+  .store .items { display: flex; flex-wrap: nowrap; gap: 8px; }
+  .store .items span { font: 13px/1 var(--mono); padding: 7px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--ink-2); border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent); }
+  svg { position: absolute; inset: 0; width: 1280px; height: 650px; overflow: visible; }
+  .edge { fill: none; stroke: var(--brand); stroke-width: 2; stroke-dasharray: 5 6; opacity: .8; }
+  .tip { fill: var(--brand); opacity: .8; }
+  .edge-label { font: 13px var(--mono); fill: var(--muted); }
+  :lang(zh) .worker, :lang(zh) .layer .k, :lang(zh) .edge-label { font-family: var(--sans); }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="stage">
+  <div class="title eyebrow" id="eyebrow"></div>
+  <svg id="edges"></svg>
+  <div class="card box term" id="term"><div class="eyebrow" id="termEyebrow"></div><h4 id="termTitle"></h4><pre id="termCode"></pre></div>
+  <div class="card box desk" id="desk"><div class="eyebrow" id="deskEyebrow"></div><h4 id="deskTitle"></h4><p id="deskNote"></p><div id="layers"></div></div>
+  <div class="card box store" id="store"><div class="path">~/.pi/agent</div><div class="items" id="items"></div></div>
+</div>
+<script>
+  const d = window.__DATA__
+  document.documentElement.dataset.theme = d.theme
+  document.documentElement.lang = d.lang
+  for (const id of ['eyebrow', 'termEyebrow', 'termTitle', 'deskEyebrow', 'deskTitle', 'deskNote']) document.getElementById(id).textContent = d[id]
+  document.getElementById('termCode').innerHTML = d.termCode
+  document.getElementById('items').innerHTML = d.items.map((i) => `<span>${i}</span>`).join('')
+  document.getElementById('layers').innerHTML = d.layers.map(([k, v]) => `<div class="layer"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')
+    + `<div class="layer"><div class="k">${d.workersLabel}</div><div class="workers">${d.workers.map(([name, running]) => `<span class="worker"><span class="dot ${running ? '' : 'idle'}"></span>${name}</span>`).join('')}</div></div>`
+
+  // Connectors are drawn from the laid-out boxes so copy changes never misalign them.
+  window.ready = () => {
+    const box = (id) => document.getElementById(id).getBoundingClientRect()
+    const term = box('term'), desk = box('desk'), store = box('store')
+    const edge = (from, to, label, labelX) => {
+      const midY = (from.y + to.y) / 2
+      const path = `M${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y - 8}`
+      return `<path class="edge" d="${path}"/><path class="tip" d="M${to.x - 6} ${to.y - 12} L${to.x} ${to.y - 2} L${to.x + 6} ${to.y - 12} Z"/>`
+        + `<text class="edge-label" x="${from.x + 14}" y="${from.y + 34}">${label}</text>`
+    }
+    document.getElementById('edges').innerHTML =
+      edge({ x: term.left + term.width / 2, y: term.bottom }, { x: store.left + store.width * 0.2, y: store.top }, d.cliEdge, term.left + term.width / 2 + 16)
+      + edge({ x: desk.left + desk.width / 2, y: desk.bottom }, { x: store.left + store.width * 0.8, y: store.top }, d.deskEdge, desk.left + desk.width / 2 + 16)
+  }
+</script>
+</body>
+</html>

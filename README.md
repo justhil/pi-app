@@ -23,6 +23,10 @@ The same agent and the same `~/.pi/agent` you use in the terminal — with a tim
 
 pi Desktop is not another agent. It runs the pi SDK in a background worker and reads the same files as the CLI — sessions, model logins, `settings.json`, installed extensions. Open a project and the sessions you started in the terminal are already in the sidebar; continue any of them, or start a new one.
 
+## At a glance
+
+<img src="doc/assets/readme/en/overview.png" alt="Overview: timeline steps, side-by-side review, parallel sessions, @ file references, context breakdown, built-in adapters, themes and the shared ~/.pi/agent files" width="100%" />
+
 ## One turn, start to finish
 
 <img src="doc/assets/readme/en/agent-turn.gif" alt="A prompt is sent; the agent runs tests, reads a file, edits it, reruns tests, and the changes appear in Review" width="100%" />
@@ -33,21 +37,23 @@ pi Desktop is not another agent. It runs the pi SDK in a background worker and r
 
 Tool calls stream in as flat steps — thinking, commands, reads, edits — and fold into one summary line once the answer starts. Each edit shows `+N −M`; the turn ends with a **Files changed** card that opens the file in Files or Review.
 
-<img src="doc/assets/readme/en/timeline.png" alt="Expanded tool steps: thinking, ran node --test, read src/links.mjs, edited src/links.mjs with 2 edits" width="100%" />
+<img src="doc/assets/readme/en/timeline.png" alt="Expanded tool steps: thinking, ran node --test, read src/links.mjs, edited src/links.mjs and README.md" width="100%" />
 
 Markdown, code blocks, KaTeX and long outputs render in place. Hover a message to copy it, rewind to it, or fork a new session from it.
 
-## Side panels
+## Review
 
-<img src="doc/assets/readme/en/panels.png" alt="Review panel with an inline diff, Files panel previewing src/links.mjs, Run panel with a context breakdown ring" width="100%" />
+<img src="doc/assets/readme/en/review-stage.gif" alt="The right sidebar is dragged wider, the Git diff of links.mjs switches to side by side, and one hunk is staged" width="100%" />
 
-| Panel | What it does |
-|---|---|
-| **Review** | Changes of this turn, this session, or the whole Git working tree. Expand a file for an inline diff, stage or unstage single hunks, and send a line comment back to the conversation. |
-| **Files** | Project explorer with multi-tab preview (`Ctrl`/`⌘`+click), syntax highlighting, and a wide mode that takes over the chat column. Drag a file onto the composer to attach it. |
-| **Tree** | The session as a tree, like `pi /tree`: filter to user messages, jump back to any node and continue from there as a new branch. |
-| **Run** | Run state, model and thinking level, and how the context window splits between user, assistant and tool messages. |
-| **Context** | The messages that make up the current context, with token estimates per entry. |
+Pick a scope — this turn, this session, or the whole Git working tree — and expand a file for its diff; drag the sidebar wider for a side-by-side view. Hunks can be staged or unstaged one at a time, and a line comment goes straight back into the conversation.
+
+## Files
+
+<img src="doc/assets/readme/en/files-preview.gif" alt="links.mjs opens in the Files panel, links.test.mjs opens in a second tab, a line is quoted into the composer, and the preview expands over the chat column" width="100%" />
+
+- Browse the project next to the chat; `Ctrl`/`⌘`+click opens a file in another tab.
+- The gutter button quotes `path:line` into the composer as a reference.
+- **Expand preview** gives the file the whole chat column; click again to go back. Drag a file onto the composer to attach it.
 
 ## Composer
 
@@ -58,15 +64,44 @@ Markdown, code blocks, KaTeX and long outputs render in place. Hover a message t
 - Paste or drop images and files; model and thinking level sit at the right of the input.
 - While the agent is working, `Enter` steers the current turn and `Alt+Enter` queues a follow-up for when it finishes.
 
+## Parallel sessions
+
+<img src="doc/assets/readme/en/parallel-sessions.gif" alt="A fix turn starts, a second session starts a read-only turn, both run at once while the view switches between them" width="100%" />
+
+Each session runs in its own worker. Start a turn, open another session and start a second one: both keep going, the sidebar marks the ones that are working and the status bar counts them. **Settings → General** sets how many workers stay alive and when idle ones are reclaimed; running sessions are never reclaimed.
+
+## More panels
+
+<img src="doc/assets/readme/en/panels.png" alt="Run panel with the context breakdown ring and the Context panel listing context entries with token estimates" width="66%" />
+
+| Panel | What it does |
+|---|---|
+| **Tree** | The session as a tree, like `pi /tree`: filter to user messages, jump back to any node and continue from there as a new branch. |
+| **Run** | Run state, model and thinking level, and how the context window splits between user, assistant and tool messages. |
+| **Context** | The messages that make up the current context, with token estimates per entry. |
+
+## Themes
+
+<img src="doc/assets/readme/en/theme-switch.gif" alt="The same window sweeps from the light theme to the dark theme and back" width="100%" />
+
+Light and dark each take a preset or your own colors, and follow the system when you want them to. Themes import from `pi-theme-v1` / `codex-theme-v1` strings; custom CSS, five icon sets and 90–110% density are in **Settings → Appearance**.
+
+## How it fits together
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="doc/assets/readme/en/architecture-dark.png" />
+  <img src="doc/assets/readme/en/architecture-light.png" alt="Terminal pi and pi Desktop both read and write ~/.pi/agent; pi Desktop has a renderer, a main process, and one worker per session" width="100%" />
+</picture>
+
+The renderer never talks to the SDK directly: the main process routes each request to the worker that owns the session, and that worker runs the pi SDK on your machine or inside a WSL distribution. Sessions, logins and settings stay in `~/.pi/agent`, so the CLI and the app can take turns on the same session.
+
 ## Also included
 
 | | |
 |---|---|
 | **Extensions, unchanged** | Extensions you installed for terminal pi load here. Their dialogs, tool cards, panels and `/commands` are mapped to native UI by declarative adapters — 36 ship built in. [List](./doc/guide/adapters.en.md) |
-| **Parallel sessions** | Each session gets its own worker. A running turn keeps going when you switch away; the pool size and idle timeout are configurable. |
 | **Notifications** | A system notification and an in-app inbox when a turn finishes or needs input; the status bar shows what is running. |
 | **WSL runtime** (Windows) | Run the worker inside a chosen WSL distribution, with sessions, Git and previews resolved on the Linux side. |
-| **Themes** | Light and dark themes with presets or your own colors, `pi-theme-v1` / `codex-theme-v1` import, optional custom CSS, five icon sets, 90–110% density. |
 | **Chinese / English UI** | Switch in Settings. |
 | **Updates** | Checks GitHub Releases in the background and can download and launch the installer. |
 
@@ -78,7 +113,7 @@ Markdown, code blocks, KaTeX and long outputs render in place. Hover a message t
 | macOS | `.dmg` / `.zip` for Apple Silicon (`arm64`) and Intel (`x64`) |
 | Linux x64 | `.AppImage` or `.deb` |
 
-Get them from [Releases](https://github.com/justhil/pi-app/releases/latest). The app bundles its own pi SDK; you only need to sign in to a model provider once, the same way you do for terminal pi (the credentials live in `~/.pi/agent`). Settings → Runtime can switch to a globally installed pi version.
+Get them from [Releases](https://github.com/justhil/pi-app/releases/latest); each release lists SHA-256 checksums in `SHA256SUMS.txt`. The app bundles its own pi SDK; you only need to sign in to a model provider once, the same way you do for terminal pi (the credentials live in `~/.pi/agent`). Settings → Runtime can switch to a globally installed pi version.
 
 <details>
 <summary>Build from source</summary>

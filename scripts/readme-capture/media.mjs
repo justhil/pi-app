@@ -84,7 +84,7 @@ export function panelStrip({ rawDir, lang, out, tmp }) {
     magick(join(rawDir, `${lang}-light-${name}.png`), '-crop', cropArg(CROPS.panel), '+repage', cut)
     roundCorners(cut, rounded, 20)
     magick(rounded, '(', '+clone', '-alpha', 'extract', '-morphology', 'EdgeOut', 'Diamond:2', '-background', '#d5d9e8', '-alpha', 'shape', ')',
-      '-compose', 'DstOver', '-composite', '(', '+clone', '-background', '#3a4060', '-shadow', '18x16+0+10', ')', '+swap',
+      '-compose', 'DstOver', '-composite', '-compose', 'Over', '(', '+clone', '-background', '#3a4060', '-shadow', '18x16+0+10', ')', '+swap',
       '-background', 'none', '-layers', 'merge', '+repage', finished)
     return finished
   })
@@ -92,7 +92,7 @@ export function panelStrip({ rawDir, lang, out, tmp }) {
   magick(parts, '-background', 'none', '+smush', '28', row)
   const [w, h] = execFileSync('magick', ['identify', '-format', '%w %h', row]).toString().split(' ').map(Number)
   const [top, bottom] = BACKGROUND.light
-  magick('-size', `${w + 120}x${h + 100}`, `gradient:${top}-${bottom}`, row, '-gravity', 'center', '-composite', '-resize', '1600x', PNG_OUT, out)
+  magick('-size', `${w + 120}x${h + 100}`, `gradient:${top}-${bottom}`, row, '-gravity', 'center', '-composite', '-resize', '1600x>', PNG_OUT, out)
   console.log(`  ${out} (${kb(out)})`)
 }
 

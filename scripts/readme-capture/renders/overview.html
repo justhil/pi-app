@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Feature overview bento. Images are crops of real app screenshots; text comes from window.__DATA__. -->
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="base.css">
+<script src="data.js"></script>
+<style>
+  body { width: 1280px; height: 1500px; position: relative; overflow: hidden; }
+  main { position: relative; padding: 56px 56px 0; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .logo { width: 40px; height: 40px; border-radius: 11px; background: #0b0b0d; color: #fff; display: grid; place-items: center; font: 28px/1 'Times New Roman', Georgia, serif; padding-bottom: 3px; box-shadow: 0 6px 16px #1a1d2c33; }
+  header .name { font-weight: 700; font-size: 22px; letter-spacing: -.3px; }
+  header .meta { margin-left: auto; font: 14px/1 var(--mono); color: var(--muted); }
+  .bento { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: 310px; gap: 18px; }
+  .tile { display: flex; flex-direction: column; padding: 22px 22px 0; overflow: hidden; }
+  .tile h3 { margin: 8px 0 6px; font-size: 21px; line-height: 1.25; letter-spacing: -.2px; }
+  .tile p { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--muted); }
+  .media { flex: 1; min-height: 0; border-radius: 12px 12px 0 0; border: 1px solid var(--line); border-bottom: 0; overflow: hidden; background: var(--card-2); position: relative; }
+  .media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+  .span3 { grid-column: span 3; } .span2 { grid-column: span 2; } .tall { grid-row: span 2; }
+  .media.pair { display: flex; gap: 0; background: var(--card); }
+  .media.pair .side { width: 38%; height: 100%; object-fit: cover; object-position: left top; border-right: 1px solid var(--line); }
+  .media.pair .chat { width: 62%; height: 100%; object-fit: cover; object-position: left top; }
+  .status { position: absolute; right: 14px; bottom: 12px; height: 28px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 6px 16px #2a2f4a26; }
+  .status img { height: 100%; width: auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; align-content: flex-start; padding-bottom: 20px; }
+  .media.fit { display: grid; place-items: center; padding: 14px; background: var(--card-2); }
+  .media.fit img { width: 100%; height: auto; object-fit: contain; border-radius: 10px; box-shadow: 0 8px 20px -10px #2a2f4a40; }
+  .chip { font: 12.5px/1 var(--mono); padding: 7px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--ink-2); border: 1px solid color-mix(in srgb, var(--brand) 22%, transparent); }
+  .chip.more { background: transparent; color: var(--brand); font-family: var(--sans); }
+  .split { flex: 1; position: relative; border-radius: 12px 12px 0 0; overflow: hidden; border: 1px solid var(--line); border-bottom: 0; }
+  .split img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+  .split .dark { clip-path: polygon(58% 0, 100% 0, 100% 100%, 38% 100%); }
+  .split::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 47.6%, #ffffffcc 48%, transparent 48.4%); }
+  .files { font: 14px/2 var(--mono); color: var(--ink-2); padding: 4px 4px 20px; }
+  .files b { color: var(--brand); font-weight: 500; }
+  .files span { color: var(--muted); font-family: var(--sans); }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<main>
+  <header><div class="logo">π</div><div class="name">pi Desktop</div><div class="meta" id="meta"></div></header>
+  <section class="bento" id="bento"></section>
+</main>
+<script>
+  const d = window.__DATA__
+  document.documentElement.lang = d.lang
+  document.getElementById('meta').textContent = d.meta
+  const t = d.tiles
+  const head = (x) => `<div class="eyebrow">${x.eyebrow}</div><h3>${x.title}</h3><p>${x.desc}</p>`
+  document.getElementById('bento').innerHTML = `
+    <article class="card tile span3 tall">${head(t.timeline)}<div class="media"><img src="${t.timeline.img}"></div></article>
+    <article class="card tile span3">${head(t.review)}<div class="media"><img src="${t.review.img}"></div></article>
+    <article class="card tile span3">${head(t.parallel)}<div class="media pair"><img class="side" src="${t.parallel.img}"><img class="chat" src="${t.parallel.chat}"><div class="status"><img src="${t.parallel.status}"></div></div></article>
+    <article class="card tile span3">${head(t.composer)}<div class="media fit"><img src="${t.composer.img}"></div></article>
+    <article class="card tile span3">${head(t.adapters)}<div class="chips">${t.adapters.names.map((n) => `<span class="chip">${n}</span>`).join('')}<span class="chip more">${t.adapters.more}</span></div></article>
+    <article class="card tile span2">${head(t.context)}<div class="media fit"><img src="${t.context.img}"></div></article>
+    <article class="card tile span2">${head(t.themes)}<div class="split"><img src="${t.themes.light}"><img class="dark" src="${t.themes.dark}"></div></article>
+    <article class="card tile span2">${head(t.shared)}<div class="files">${t.shared.files.map(([f, note]) => `<div><b>${f}</b> <span>${note}</span></div>`).join('')}</div></article>`
+</script>
+</body>
+</html>
