@@ -1,5 +1,5 @@
 import { existsSync } from 'fs'
-import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
+import { sessionTreePreview, type PiSessionMessage } from '@shared/worker-message'
 
 export type FlatTreeNode = {
   id: string
@@ -17,7 +17,7 @@ const MAX_TREE_NODES = 4000
 const PREVIEW_MAX = 96
 
 function previewFromMsg(msg: PiSessionMessage): string {
-  return extractTextFromPiMessage(msg).trim().slice(0, PREVIEW_MAX)
+  return sessionTreePreview(msg, PREVIEW_MAX)
 }
 
 type SessionEntry = {

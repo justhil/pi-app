@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Loader2, X } from '@renderer/components/icons'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
@@ -6,6 +7,7 @@ import { forkSessionFromEntry, loadForkCandidates } from '@renderer/lib/session-
 
 /** Selector for TUI /fork and double-Esc fork mode. */
 export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState<Array<{ entryId: string; text: string }>>([])
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -21,13 +23,13 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
       setSelectedIndex(Math.max(0, list.length - 1))
       setLoading(false)
       if (list.length === 0) {
-        toast.info('没有可 Fork 的用户消息')
+        toast.info(t('timeline:forkNoCandidates'))
       }
     })
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, t])
 
   const activate = useCallback(
     async (entryId: string) => {
@@ -84,12 +86,12 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
       >
         <div className="flex items-center justify-between border-b border-border/50 px-3 py-2">
           <div>
-            <div className="text-[13px] font-medium">Fork 会话</div>
+            <div className="text-[13px] font-medium">{t('timeline:forkTitle')}</div>
             <div className="text-[10px] text-muted-foreground">
-              同 TUI <span className="font-mono">/fork</span> · 选一条用户消息 · Enter 确认 · Esc 关闭
+              {t('timeline:forkHintBefore')} <span className="font-mono">/fork</span> {t('timeline:forkHintAfter')}
             </div>
           </div>
-          <button type="button" className="rounded p-1 hover:bg-muted" onClick={onClose} title="关闭">
+          <button type="button" className="rounded p-1 hover:bg-muted" onClick={onClose} title={t('common:close')}>
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -97,10 +99,10 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
           {loading ? (
             <div className="flex items-center gap-2 px-3 py-8 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              加载…
+              {t('timeline:treeLoading')}
             </div>
           ) : messages.length === 0 ? (
-            <p className="px-3 py-8 text-[12px] text-muted-foreground">暂无用户消息可 Fork</p>
+            <p className="px-3 py-8 text-[12px] text-muted-foreground">{t('timeline:forkNoMessages')}</p>
           ) : (
             <ul className="px-1">
               {messages.map((m, index) => {
@@ -122,7 +124,7 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {m.entryId.slice(0, 8)}
                       </span>
-                      <span className="line-clamp-2 text-foreground-secondary">{short || '(空)'}</span>
+                      <span className="line-clamp-2 text-foreground-secondary">{short || t('timeline:forkEmptyMessage')}</span>
                     </button>
                   </li>
                 )

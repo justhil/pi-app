@@ -6,6 +6,9 @@ import {
   sessionTreeLineTitle,
   type SessionTreeNode,
 } from './session-tree-list'
+import i18n from '@renderer/lib/i18n'
+
+const zh = i18n.getFixedT('zh')
 
 const userNode: SessionTreeNode = {
   id: 'user-1',
@@ -187,7 +190,7 @@ describe('sessionTreeLineTitle', () => {
         role: 'user',
         preview: 'hello world',
         isLeaf: false,
-      }),
+      }, zh),
     ).toBe('hello world')
     expect(
       sessionTreeLineTitle({
@@ -195,7 +198,7 @@ describe('sessionTreeLineTitle', () => {
         depth: 0,
         entryType: 'compaction',
         isLeaf: false,
-      }),
+      }, zh),
     ).toBe('压缩')
   })
 })

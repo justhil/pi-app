@@ -242,5 +242,7 @@
     "title": "Session activity",
     "empty": "No conversations need your attention",
     "emptyHint": "Start a conversation to see progress and completed tasks here."
-  }
+  },
+  "quoteLineTitle": "Quote {{path}}:{{line}} into the composer",
+  "quoteLineAria": "Quote line {{line}} into the composer"
 }

@@ -59,7 +59,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
       const node = rawTree.find((n) => n.id === id)
       if (!node) return
       if (node.isLeaf) {
-        toast.info('已是当前对话位置')
+        toast.info(t('timeline:treeAlreadyCurrent'))
         return
       }
       onClose()
@@ -75,7 +75,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
       const node = rawTree.find((n) => n.id === id)
       if (!node) return
       if (node.isLeaf) {
-        toast.info('已是当前对话位置')
+        toast.info(t('timeline:treeAlreadyCurrent'))
         return
       }
       onClose()
@@ -124,7 +124,7 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
       className="overlay-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]"
       role="dialog"
       aria-modal
-      aria-label="会话树"
+      aria-label={t('timeline:treeTitle')}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -133,16 +133,16 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
       >
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
           <div>
-            <h2 className="text-[15px] font-semibold">会话树</h2>
+            <h2 className="text-[15px] font-semibold">{t('timeline:treeTitle')}</h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {t('timeline:treeOverlayHint')}
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <button type="button" className="rounded-lg p-2 hover:bg-muted" title="刷新" onClick={refresh}>
+            <button type="button" className="rounded-lg p-2 hover:bg-muted" title={t('common:refresh')} onClick={refresh}>
               <RefreshCw className="h-4 w-4" />
             </button>
-            <button type="button" className="rounded-lg p-2 hover:bg-muted" title="关闭" onClick={onClose}>
+            <button type="button" className="rounded-lg p-2 hover:bg-muted" title={t('common:close')} onClick={onClose}>
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -159,28 +159,28 @@ export function SessionTreeOverlay({ open, onClose }: { open: boolean; onClose: 
                 filter === o.key ? 'bg-primary/15 text-primary font-medium' : 'text-muted-foreground hover:bg-muted',
               )}
             >
-              {o.label}
+              {t(o.labelKey)}
             </button>
           ))}
         </div>
 
         <div ref={listRef} className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2 py-2">
           {!sessionFile ? (
-            <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">未选择会话</p>
+            <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">{t('timeline:treeNoSession')}</p>
           ) : loading && rawTree.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
-              加载…
+              {t('timeline:treeLoading')}
             </div>
           ) : treeError ? (
-            <p className="px-3 py-8 text-center text-[12px] text-destructive">加载失败：{treeError}</p>
+            <p className="px-3 py-8 text-center text-[12px] text-destructive">{t('timeline:treeLoadFailed', { error: treeError })}</p>
           ) : visible.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">无匹配节点</p>
+            <p className="px-3 py-8 text-center text-[12px] text-muted-foreground">{t('timeline:treeNoMatch')}</p>
           ) : (
             <>
               {truncated && (
                 <p className="mb-2 px-2 text-center text-[11px] text-muted-foreground">
-                  仅显示最近 {visible.length} 个节点（另有 {hiddenCount} 个已省略，可在右栏会话树查看）
+                  {t('timeline:treeTruncated', { shown: visible.length, hidden: hiddenCount })}
                 </p>
               )}
               <SessionTreeList

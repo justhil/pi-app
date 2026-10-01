@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import i18n from '@renderer/lib/i18n'
 import { TreePanel } from './tree-panel'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
@@ -21,7 +22,8 @@ const nodes = [
   { id: 'a2', depth: 3, entryType: 'message', role: 'assistant', preview: '第二条回复', isLeaf: true },
 ]
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage('zh')
   vi.mocked(requestTimelineViewEntry).mockClear()
   vi.mocked(refreshSessionTree).mockClear()
   useUIStore.setState({

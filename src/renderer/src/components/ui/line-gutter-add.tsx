@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Plus } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { queueComposerLineRefAndFocus } from '@renderer/lib/composer-line-ref'
@@ -18,6 +19,7 @@ export function LineGutterAddButton({
   content?: string
   className?: string
 }) {
+  const { t } = useTranslation()
   if (!path || line < 1) return null
 
   return (
@@ -31,8 +33,8 @@ export function LineGutterAddButton({
         'group-hover/line:opacity-100 focus-visible:opacity-100',
         className,
       )}
-      title={`引用 ${path}:${line} 到输入框`}
-      aria-label={`引用第 ${line} 行到输入框`}
+      title={t('common:quoteLineTitle', { path, line })}
+      aria-label={t('common:quoteLineAria', { line })}
       onClick={(event) => {
         event.preventDefault()
         event.stopPropagation()

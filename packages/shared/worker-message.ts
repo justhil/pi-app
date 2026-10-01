@@ -1,3 +1,5 @@
+import { stripAnsi } from './ansi.ts'
+
 /** Narrow shapes for Pi SDK session messages at the Worker → AppEvent boundary. */
 
 export type PiTextBlock = { type: 'text'; text?: string }
@@ -96,4 +98,9 @@ export function piUsageTotals(usage: PiSessionMessage['usage']): {
     cacheWrite: usage.cacheWrite || 0,
     cost: usage.cost?.total || 0,
   }
+}
+
+/** One-line, escape-free preview of a message for session tree rows. */
+export function sessionTreePreview(message: PiSessionMessage, maxLength: number): string {
+  return stripAnsi(extractTextFromPiMessage(message)).trim().slice(0, maxLength)
 }

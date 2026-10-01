@@ -33,4 +33,15 @@ describe('buildSessionContextPreview', () => {
       'compactionSummary',
     ])
   })
+
+  it('should_strip_ansi_from_display_text_but_count_raw_characters', () => {
+    const colored = '\u001b[32m✔ pass\u001b[39m'
+    const preview = buildSessionContextPreview({
+      sessionFile: '/sessions/a.jsonl',
+      messages: [{ role: 'toolResult', toolName: 'bash', content: colored }],
+    })
+    expect(preview.segments[0].preview).toBe('✔ pass')
+    expect(preview.snippets[0]).toBe('[toolResult] ✔ pass')
+    expect(preview.segments[0].chars).toBe(colored.length)
+  })
 })

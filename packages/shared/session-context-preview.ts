@@ -1,3 +1,4 @@
+import { stripAnsi } from './ansi'
 import { extractTextFromPiMessage, type PiSessionMessage } from './worker-message'
 
 export type SessionContextSegment = {
@@ -65,7 +66,8 @@ export function buildSessionContextPreview(input: BuildPreviewInput): SessionCon
       index: segments.length,
       role,
       chars,
-      preview: text.slice(0, 280),
+      // chars stay raw (that is what the model receives); only the display text drops escapes
+      preview: stripAnsi(text).slice(0, 280),
       label,
     })
   }
@@ -76,7 +78,8 @@ export function buildSessionContextPreview(input: BuildPreviewInput): SessionCon
     const text = extractTextFromPiMessage(message)
     append(role, text, messageLabel(message))
     if (snippets.length < 12 && text) {
-      snippets.push(`[${role}] ${text.slice(0, 200)}${text.length > 200 ? '...' : ''}`)
+      const plain = stripAnsi(text)
+      snippets.push(`[${role}] ${plain.slice(0, 200)}${plain.length > 200 ? '...' : ''}`)
     }
   }
 

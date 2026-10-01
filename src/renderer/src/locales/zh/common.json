@@ -242,5 +242,7 @@
     "title": "会话动态",
     "empty": "当前没有待处理的会话",
     "emptyHint": "开始对话后，可在这里查看运行进度和完成状态。"
-  }
+  },
+  "quoteLineTitle": "引用 {{path}}:{{line}} 到输入框",
+  "quoteLineAria": "引用第 {{line}} 行到输入框"
 }

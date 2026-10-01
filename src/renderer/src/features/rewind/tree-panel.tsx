@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { GitFork, Loader2, RefreshCw } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
@@ -16,6 +17,7 @@ import {
 import { cn } from '@renderer/lib/utils'
 
 export function TreePanel() {
+  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const sessionFile = useUIStore((s) => s.historySessionFile)
   const rawTree = useUIStore((s) => s.rewindTreeNodes) as SessionTreeNode[]
@@ -56,7 +58,7 @@ export function TreePanel() {
 
   if (!workspace) {
     return (
-      <div className="p-4 text-[12px] leading-relaxed text-muted-foreground">请先打开工作区</div>
+      <div className="p-4 text-[12px] leading-relaxed text-muted-foreground">{t('timeline:treeOpenWorkspace')}</div>
     )
   }
 
@@ -76,14 +78,14 @@ export function TreePanel() {
                   : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
               )}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
         <button
           type="button"
           className="chrome-icon-btn rounded-md p-1.5"
-          title="刷新"
+          title={t('common:refresh')}
           onClick={refresh}
           disabled={!sessionFile}
         >
@@ -93,25 +95,25 @@ export function TreePanel() {
 
       <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-1">
         {!sessionFile ? (
-          <p className="px-3 py-6 text-[11px] text-muted-foreground/70">未选择会话</p>
+          <p className="px-3 py-6 text-[11px] text-muted-foreground/70">{t('timeline:treeNoSession')}</p>
         ) : loading && rawTree.length === 0 ? (
           <div className="flex items-center gap-2 px-3 py-6 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            加载…
+            {t('timeline:treeLoading')}
           </div>
         ) : treeError ? (
           <p className="px-3 py-6 text-[11px] text-amber-700/85 dark:text-amber-300/80">
-            加载失败：{treeError}
+            {t('timeline:treeLoadFailed', { error: treeError })}
           </p>
         ) : display.length === 0 ? (
           <p className="px-3 py-6 text-[11px] text-muted-foreground/70">
-            {rawTree.length === 0 ? '树为空' : '无匹配节点'}
+            {rawTree.length === 0 ? t('timeline:treeEmpty') : t('timeline:treeNoMatch')}
           </p>
         ) : (
           <>
             {truncated && (
               <p className="px-3 pb-1.5 text-[10px] text-muted-foreground/80">
-                显示最近 {display.length} 节点，省略 {hiddenCount} 个
+                {t('timeline:treePanelTruncated', { shown: display.length, hidden: hiddenCount })}
               </p>
             )}
             <SessionTreeList
@@ -129,7 +131,7 @@ export function TreePanel() {
                   <button
                     type="button"
                     className="rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-primary group-hover/tree-row:opacity-100"
-                    title="Fork 到新会话"
+                    title={t('timeline:treeForkNode')}
                     onClick={(event) => {
                       event.stopPropagation()
                       void forkSessionFromEntry(node.id)

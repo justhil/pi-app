@@ -1,4 +1,4 @@
-import { extractTextFromPiMessage, type PiSessionMessage } from '@shared/worker-message'
+import { sessionTreePreview, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
 import { projectTimelineItems } from '@shared/timeline-projection'
 import { toolCallDetailFromPi } from '@shared/tool-call-detail'
@@ -297,7 +297,7 @@ export async function handleGetsessiontree(msg: WorkerIncomingMessage, reply: Wo
             role?: string
             preview?: string
           }
-          const previewFromMsg = (m: PiSessionMessage): string => extractTextFromPiMessage(m).trim().slice(0, 120)
+          const previewFromMsg = (m: PiSessionMessage): string => sessionTreePreview(m, 120)
           const flat: FlatNode[] = []
           const walk = (nodes: unknown[], depth: number, parentId: string | null) => {
             for (const n of nodes) {
