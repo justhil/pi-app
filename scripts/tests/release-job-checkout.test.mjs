@@ -7,7 +7,8 @@ const root = process.cwd()
 
 describe('Release job source availability (H-01)', () => {
   it('should_block_release_when_dependency_audit_has_failed', () => {
-    const yml = readFileSync(join(root, '.github/workflows/release.yml'), 'utf8')
+    // Windows checkouts may use CRLF; the job boundaries below are matched on \n.
+    const yml = readFileSync(join(root, '.github/workflows/release.yml'), 'utf8').replace(/\r\n/g, '\n')
     assert.match(yml, /\n  dependency-audit:\n/)
     const auditJob = yml.split('\n  dependency-audit:\n')[1]?.split('\n  build-win:')[0] || ''
     assert.match(auditJob, /npm ci/)
