@@ -5,6 +5,7 @@ import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects } from './recent-projects'
+import { defaultAppLanguage } from './default-language'
 
 export interface StoreSchema {
   recentProjects: string[]
@@ -101,7 +102,7 @@ const store = new Store<StoreSchema>({
       tree: true,
     },
     rightPanelOrder: [],
-    language: 'zh',
+    language: defaultAppLanguage(),
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,
     includePrereleaseUpdates: false,
