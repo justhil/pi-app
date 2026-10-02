@@ -13,14 +13,88 @@ export function preprocessMarkdownMath(source: string, options?: { streaming?: b
 
   // 部分作者用 ~~~math 或纯 ```math 已支持，此处仅别名
 
-  // 金额等非公式的单个 $ 转义，避免「$13.43/task，比 … $3.97」被当成行内公式
-  text = escapeNonMathDollars(text)
-
   if (options?.streaming) {
     text = closeUnfinishedMath(text)
   }
 
+  // remark-math 只认 $ / $$：把 LaTeX 的 \[ \] 与 \( \) 改写过去，否则 Markdown 把 \[ 当转义只剩裸方括号
+  text = convertLatexDelimiters(text)
+
+  // 金额等非公式的单个 $ 转义，避免「$13.43/task，比 … $3.97」被当成行内公式
+  text = escapeNonMathDollars(text)
+
   return text
+}
+
+const INLINE_PAREN_MATH_RE = /\\\((.+?)\\\)/g
+
+/**
+ * Rewrites `\[ … \]` display blocks (the delimiters alone on their lines, or the whole line) to
+ * `$$` blocks and `\( … \)` to `$…$`, outside code fences, inline code and `$$` blocks. A `\[`
+ * in the middle of prose (`参考 \[1\]`) is a Markdown escape and stays as it is.
+ */
+export function convertLatexDelimiters(text: string): string {
+  if (!text.includes('\\[') && !text.includes('\\(')) return text
+  let fence: string | null = null
+  let inDollarDisplay = false
+  let bracketIndent: string | null = null
+  const out: string[] = []
+  for (const line of text.split('\n')) {
+    const fenceMatch = FENCE_RE.exec(line)
+    if (fence) {
+      if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null
+      out.push(line)
+      continue
+    }
+    if (fenceMatch && bracketIndent === null) {
+      fence = fenceMatch[1]
+      out.push(line)
+      continue
+    }
+    const indent = /^\s*/.exec(line)![0]
+    const body = line.trim()
+    if (bracketIndent !== null) {
+      if (body.endsWith('\\]')) {
+        const rest = body.slice(0, -2).trimEnd()
+        if (rest) out.push(`${bracketIndent}${rest}`)
+        out.push(`${bracketIndent}$$`)
+        bracketIndent = null
+      } else {
+        out.push(line)
+      }
+      continue
+    }
+    if (line.includes('$$')) {
+      if ((line.match(/\$\$/g)?.length ?? 0) % 2 === 1) inDollarDisplay = !inDollarDisplay
+      out.push(line)
+      continue
+    }
+    if (inDollarDisplay) {
+      out.push(line)
+      continue
+    }
+    if (body === '\\[') {
+      out.push(`${indent}$$`)
+      bracketIndent = indent
+      continue
+    }
+    if (body.startsWith('\\[') && body.endsWith('\\]') && body.length > 4) {
+      out.push(`${indent}$$`, `${indent}${body.slice(2, -2).trim()}`, `${indent}$$`)
+      continue
+    }
+    if (!line.includes('\\(')) {
+      out.push(line)
+      continue
+    }
+    // Odd parts of a backtick split are inline code.
+    out.push(
+      line
+        .split(/(`+[^`]*`+)/)
+        .map((part, index) => (index % 2 === 1 ? part : part.replace(INLINE_PAREN_MATH_RE, (_m, math: string) => `$${math.trim()}$`)))
+        .join(''),
+    )
+  }
+  return out.join('\n')
 }
 
 // CJK 字符与全角标点：裸写在 $…$ 里几乎总是误判（公式里的中文应写在 \text{} 中）
