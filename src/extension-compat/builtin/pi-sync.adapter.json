@@ -100,7 +100,7 @@
     },
     "en": {
       "displayName": "Pi Sync",
-      "description": "配置同步到 R2（配置 ~/.pi/agent/pi-sync.local.json）"
+      "description": "Sync config to R2 (configured in ~/.pi/agent/pi-sync.local.json)"
     }
   }
 }

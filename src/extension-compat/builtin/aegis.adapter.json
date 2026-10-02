@@ -23,7 +23,7 @@
     },
     "en": {
       "displayName": "Aegis",
-      "description": "Aegis 工作流扩展集（复用通用与 trellis 卡）"
+      "description": "Aegis workflow extensions (reuses the generic and Trellis cards)"
     }
   }
 }

@@ -19,7 +19,7 @@
     },
     "en": {
       "displayName": "Themes Bundle",
-      "description": "pi 终端主题 bundle（桌面用独立 Appearance 设置）"
+      "description": "pi terminal theme bundle (the desktop app uses its own Appearance settings)"
     }
   }
 }

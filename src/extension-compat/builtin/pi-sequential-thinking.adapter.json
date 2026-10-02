@@ -33,7 +33,7 @@
     },
     "en": {
       "displayName": "Sequential Thinking",
-      "description": "结构化思考链工具（阶段/思考链卡片）"
+      "description": "Structured thinking tool (stage and chain-of-thought cards)"
     }
   }
 }

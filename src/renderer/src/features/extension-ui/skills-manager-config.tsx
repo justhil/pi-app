@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
@@ -12,6 +13,7 @@ export function SkillsManagerConfig({
   extensionId: string
   onChange: (next: Record<string, unknown>) => void
 }) {
+  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const [skills, setSkills] = useState<SkillRow[]>([])
   const [disabled, setDisabled] = useState<Record<string, boolean>>({})
@@ -44,12 +46,13 @@ export function SkillsManagerConfig({
     persist(next)
   }
 
-  if (loading) return <div className="text-[12px] text-muted-foreground/50">加载技能列表…</div>
+  if (loading) return <div className="text-[12px] text-muted-foreground/50">{t('extension:skillsLoading')}</div>
 
   if (skills.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-4 text-[12px] text-muted-foreground">
-        Worker 未返回技能（请先打开项目并等待会话初始化）。列表来自 pi <code className="font-mono">resourceLoader.getSkills()</code>，与 TUI 一致。
+        {t('extension:skillsEmptyBefore')} <code className="font-mono">resourceLoader.getSkills()</code>
+        {t('extension:skillsEmptyAfter')}
       </div>
     )
   }
@@ -57,10 +60,11 @@ export function SkillsManagerConfig({
   return (
     <div className="space-y-2">
       <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/60">
-        已发现技能（{skills.length}）
+        {t('extension:skillsFound', { count: skills.length })}
       </div>
       <p className="text-[11px] text-muted-foreground/70">
-        「桌面禁用」仅影响本 App 内展示与 Composer 联想标记，<strong>不修改</strong> pi 的 settings 或扩展包。
+        {t('extension:skillsDesktopOnlyBefore')}<strong>{t('extension:skillsDesktopOnlyStrong')}</strong>
+        {t('extension:skillsDesktopOnlyAfter')}
       </p>
       <div className="max-h-80 space-y-1 overflow-y-auto rounded-lg border border-border/50 p-2">
         {skills.map((sk) => {
@@ -83,12 +87,13 @@ export function SkillsManagerConfig({
               <button
                 type="button"
                 onClick={() => toggle(sk.name)}
+                aria-pressed={!off}
                 className={cn(
                   'shrink-0 rounded px-2 py-0.5 text-[10px] font-medium',
                   off ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary',
                 )}
               >
-                {off ? '已禁用' : '启用'}
+                {off ? t('extension:skillDisabled') : t('extension:skillEnabled')}
               </button>
             </div>
           )

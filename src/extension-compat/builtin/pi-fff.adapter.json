@@ -48,7 +48,7 @@
     },
     "en": {
       "displayName": "FFF",
-      "description": "模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag）"
+      "description": "Fuzzy path search mode (reads and writes the fff-mode flag in ~/.pi/agent/settings.json)"
     }
   }
 }

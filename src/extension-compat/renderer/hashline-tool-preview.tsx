@@ -3,6 +3,7 @@
  * 由 tool-card-template-registry 注册，不绑定具体扩展包名
  */
 import { useState, type ComponentType } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FileText, Hash, Plus, Minus, Search, GitBranchPlus } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
@@ -22,9 +23,10 @@ const HASHLINE_DIFF_DEL = /^-(\d+)\s*([│|])(.*)$/
 const HASHLINE_DIFF_ADD = /^\+(\d+)#([0-9A-F]{2})([│|])(.*)$/
 
 function HashBadge({ hash }: { hash?: string }) {
+  const { t } = useTranslation()
   if (!hash) return <span className="w-7 shrink-0" />
   return (
-    <span className="w-7 shrink-0 text-center text-[10px] font-mono text-amber-600/90 dark:text-amber-400/90" title="内容哈希">
+    <span className="w-7 shrink-0 text-center text-[10px] font-mono text-amber-600/90 dark:text-amber-400/90" title={t('timeline:hashlineHash')}>
       {hash}
     </span>
   )
@@ -152,6 +154,7 @@ function HashlineDiffBody({ rows }: { rows: ReturnType<typeof parseHashlineDiff>
 }
 
 function ReadPreview({ item }: { item: ToolTimelineItem }) {
+  const { t } = useTranslation()
   const args = normalizeToolArgs(item.toolArgs)
   const path = fullPathFromArgs(args)
   const name = fileNameFromArgs(args)
@@ -167,7 +170,7 @@ function ReadPreview({ item }: { item: ToolTimelineItem }) {
       meta={
         <span className="flex items-center gap-1 text-[10px] text-foreground-secondary">
           <Hash className="h-3 w-3 text-amber-500/80" />
-          {countHashlineAnchorLines(lines) || lines.length} 行
+          {t('timeline:hashlineLines', { count: countHashlineAnchorLines(lines) || lines.length })}
         </span>
       }
       defaultOpen={false}
@@ -178,6 +181,7 @@ function ReadPreview({ item }: { item: ToolTimelineItem }) {
 }
 
 function EditPreview({ item }: { item: ToolTimelineItem }) {
+  const { t } = useTranslation()
   const args = normalizeToolArgs(item.toolArgs)
   const name = fileNameFromArgs(args)
   const text = extractToolText(item.toolOutput || '')
@@ -205,7 +209,7 @@ function EditPreview({ item }: { item: ToolTimelineItem }) {
       title={name}
       meta={
         <span className={cn('text-[10px]', item.isError ? 'text-destructive' : 'text-green-600 dark:text-green-400')}>
-          {item.isError ? '失败' : editCount ? `${editCount} 处 range` : '已保存'}
+          {item.isError ? t('timeline:hashlineFailed') : editCount ? t('timeline:hashlineRanges', { count: editCount }) : t('timeline:hashlineSaved')}
         </span>
       }
       defaultOpen={false}
@@ -213,13 +217,14 @@ function EditPreview({ item }: { item: ToolTimelineItem }) {
       {text ? (
         <div className="p-2 text-[11px] font-mono whitespace-pre-wrap text-foreground-secondary">{text}</div>
       ) : (
-        <div className="p-2 text-[11px] text-foreground-secondary/60">无输出</div>
+        <div className="p-2 text-[11px] text-foreground-secondary/60">{t('timeline:hashlineNoOutput')}</div>
       )}
     </NativePreviewPanel>
   )
 }
 
 function InsertPreview({ item }: { item: ToolTimelineItem }) {
+  const { t } = useTranslation()
   const args = normalizeToolArgs(item.toolArgs)
   const name = fileNameFromArgs(args)
   const edits = args.edits
@@ -260,7 +265,7 @@ function InsertPreview({ item }: { item: ToolTimelineItem }) {
             <div key={i} className="px-2.5 py-1.5 font-mono">
               <span className="text-teal-600 dark:text-teal-400">{e.direction}</span>
               <span className="mx-1 text-amber-600">{e.anchor}</span>
-              <span className="text-foreground-secondary">+{Array.isArray(e.lines) ? e.lines.length : 0} 行</span>
+              <span className="text-foreground-secondary">{t('timeline:hashlineAdded', { count: Array.isArray(e.lines) ? e.lines.length : 0 })}</span>
             </div>
           ))}
         </div>
@@ -272,6 +277,7 @@ function InsertPreview({ item }: { item: ToolTimelineItem }) {
 }
 
 function GrepPreview({ item }: { item: ToolTimelineItem }) {
+  const { t } = useTranslation()
   const args = normalizeToolArgs(item.toolArgs)
   const pattern = args.pattern || ''
   const text = extractToolText(item.toolOutput || '')
@@ -288,13 +294,13 @@ function GrepPreview({ item }: { item: ToolTimelineItem }) {
       meta={
         <span className="flex items-center gap-1 text-[10px] text-foreground-secondary">
           <Hash className="h-3 w-3" />
-          {lines.length} 条
+          {t('timeline:hashlineResults', { count: lines.length })}
         </span>
       }
       defaultOpen={lines.length > 0 && lines.length <= 5}
     >
       {show.length === 0 ? (
-        <div className="px-2.5 py-2 text-[11px] text-foreground-secondary">无结果</div>
+        <div className="px-2.5 py-2 text-[11px] text-foreground-secondary">{t('timeline:hashlineNoResults')}</div>
       ) : (
         <div className="max-h-64 overflow-auto border-t border-border/30">
           <HashlineCodeRows lines={show} />
@@ -306,7 +312,7 @@ function GrepPreview({ item }: { item: ToolTimelineItem }) {
           onClick={() => setExpanded(!expanded)}
           className="w-full border-t border-border/30 py-1.5 text-center text-[10px] text-foreground-secondary hover:text-foreground"
         >
-          {expanded ? '收起' : `展开全部 ${lines.length} 条`}
+          {expanded ? t('timeline:hashlineCollapse') : t('timeline:hashlineExpandAll', { count: lines.length })}
         </button>
       )}
     </NativePreviewPanel>

@@ -4,6 +4,7 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import i18n from '@renderer/lib/i18n'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -68,7 +69,7 @@ function collectAssets(details: Record<string, unknown> | null | undefined, out:
   const m = text.match(/filename="([^"]+)"/)
   if (m?.[1]) {
     const ws = useUIStore.getState().currentWorkspace
-    if (ws) push({ path: `${ws.replace(/\\/g, '/')}/${m[1]}`, name: m[1], label: '分析图' })
+    if (ws) push({ path: `${ws.replace(/\\/g, '/')}/${m[1]}`, name: m[1], label: i18n.t('timeline:toolAnalyzedImage') })
     else push({ name: m[1], label: m[1] })
   }
   let parsed: { images?: unknown; result?: { images?: unknown } } | null = null
@@ -79,6 +80,7 @@ function collectAssets(details: Record<string, unknown> | null | undefined, out:
 }
 
 function InlineImage({ path, workspaceRoot, enabled }: { path: string; workspaceRoot: string | null; enabled: boolean }) {
+  const { t } = useTranslation()
   const [src, setSrc] = useState<string | null>(null)
   const [err, setErr] = useState(false)
   useEffect(() => {
@@ -92,13 +94,14 @@ function InlineImage({ path, workspaceRoot, enabled }: { path: string; workspace
     return () => { cancelled = true }
   }, [path, workspaceRoot, enabled])
   if (!enabled) return null
-  if (err) return <div className="text-[10px] text-muted-foreground/50">无法内联预览（文件过大或格式不支持）</div>
+  if (err) return <div className="text-[10px] text-muted-foreground/50">{t('timeline:toolPreviewUnavailable')}</div>
   if (!src) return <div className="h-24 animate-pulse rounded-md bg-muted/40" />
   return <img src={src} alt="" className="max-h-48 max-w-full rounded-md border border-border/50 object-contain" />
 }
 
 // ── media template (image_gen / image_review / analyze_image / multimodal) ──
 const MediaTemplate: ToolCardComponent = ({ item }) => {
+  const { t } = useTranslation()
   const workspace = useUIStore((s) => s.currentWorkspace)
   const [showInline, setShowInline] = useState(true)
   const details = item.toolDetails as Record<string, unknown> | null | undefined
@@ -129,8 +132,8 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
           {a.path && (
             <>
               <span className="font-mono text-muted-foreground truncate max-w-[240px]" title={a.path}>{a.name || a.path}</span>
-              <button type="button" onClick={() => open(a.path!)} className="text-[10px] text-primary hover:underline">打开</button>
-              <button type="button" onClick={() => reveal(a.path!)} className="text-[10px] text-muted-foreground hover:text-foreground">文件夹</button>
+              <button type="button" onClick={() => open(a.path!)} className="text-[10px] text-primary hover:underline">{t('timeline:toolOpen')}</button>
+              <button type="button" onClick={() => reveal(a.path!)} className="text-[10px] text-muted-foreground hover:text-foreground">{t('timeline:toolRevealFolder')}</button>
             </>
           )}
           {!a.path && !a.url && a.name && <span className="font-mono text-muted-foreground">{a.name}</span>}
@@ -151,13 +154,14 @@ const TreeTemplate: ToolCardComponent = ({ item }) => <TreeToolCard item={item} 
 // ── list template (search / docs_search / web_fetch etc.) ──
 // Generic: render a list of items (sources/results) + metadata; in-progress status from toolStatusLine.
 const ListTemplate: ToolCardComponent = ({ item }) => {
+  const { t } = useTranslation()
   const details = item.toolDetails as Record<string, unknown> | null | undefined
   const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
   const statusLine = item.toolStatusLine
   const meta: { label: string; value: unknown }[] = []
   if (details?.session_id) meta.push({ label: 'session', value: details.session_id })
-  if (details?.sources_count != null) meta.push({ label: '信源', value: details.sources_count })
-  if (details?.returned_sources_count != null) meta.push({ label: '返回', value: details.returned_sources_count })
+  if (details?.sources_count != null) meta.push({ label: t('timeline:toolSources'), value: details.sources_count })
+  if (details?.returned_sources_count != null) meta.push({ label: t('timeline:toolReturned'), value: details.returned_sources_count })
   if (details?.profile) meta.push({ label: 'profile', value: details.profile })
   if (details?.mode) meta.push({ label: 'mode', value: details.mode })
   if (details?.model) meta.push({ label: 'model', value: details.model })
@@ -220,6 +224,7 @@ const KvTemplate: ToolCardComponent = ({ item }) => {
 
 // ── default template (syntax-highlighted text + artifact paths) ──
 const DefaultTemplate: ToolCardComponent = ({ item }) => {
+  const { t } = useTranslation()
   const nativePreview = renderNativeToolPreview(item, { flat: true })
   const details = item.toolDetails as { paths?: string[]; format?: string } | null | undefined
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
@@ -241,8 +246,8 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
               <div key={i} className="flex items-center gap-1 rounded-md border border-border/60 bg-background px-1.5 py-0.5">
                 <FileText className="h-3 w-3 text-blue-500" />
                 <span className="font-mono text-[10px]">{fmt && <span className="text-muted-foreground/50 mr-1">{fmt}</span>}{name}</span>
-                <button onClick={() => open(p)} className="rounded px-1 text-[10px] text-primary hover:underline">打开</button>
-                <button onClick={() => reveal(p)} className="rounded px-1 text-[10px] text-muted-foreground hover:text-foreground">文件夹</button>
+                <button onClick={() => open(p)} className="rounded px-1 text-[10px] text-primary hover:underline">{t('timeline:toolOpen')}</button>
+                <button onClick={() => reveal(p)} className="rounded px-1 text-[10px] text-muted-foreground hover:text-foreground">{t('timeline:toolRevealFolder')}</button>
               </div>
             )
           })}

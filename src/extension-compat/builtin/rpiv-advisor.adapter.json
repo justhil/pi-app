@@ -25,7 +25,7 @@
     },
     "en": {
       "displayName": "Advisor",
-      "description": "第二意见（由 advisor 工具触发）"
+      "description": "Second opinion (triggered by the advisor tool)"
     }
   }
 }

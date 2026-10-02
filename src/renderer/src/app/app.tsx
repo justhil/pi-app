@@ -79,7 +79,7 @@ function ShellSuspenseFallback({ label }: { label: string }) {
 }
 
 if ((window as unknown as { piDesktop?: { e2e?: boolean } }).piDesktop?.e2e) {
-  ;(window as unknown as { __piE2E?: unknown }).__piE2E = { useUIStore, ipcClient }
+  ;(window as unknown as { __piE2E?: unknown }).__piE2E = { useUIStore, useExtensionUIStore, ipcClient }
 }
 
 performance.mark('pi:app-module')

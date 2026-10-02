@@ -27,7 +27,7 @@
     },
     "en": {
       "displayName": "Skills Manager",
-      "description": "技能发现与桌面启停（列出 Worker 已加载技能）"
+      "description": "Skill discovery and desktop on/off (lists the skills the worker loaded)"
     }
   }
 }

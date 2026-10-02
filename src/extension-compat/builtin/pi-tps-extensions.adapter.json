@@ -18,7 +18,7 @@
     },
     "en": {
       "displayName": "TPS Extensions",
-      "description": "TUI 页脚/token 显示（桌面无对应组件）"
+      "description": "TUI footer and token display (no desktop counterpart)"
     }
   }
 }

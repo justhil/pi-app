@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { X } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +18,7 @@ export function ExtensionDialogShell({
 }) {
   const { t } = useTranslation()
   const suspend = onSuspend ?? onDismiss
+  const titleId = useId()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -39,17 +40,21 @@ export function ExtensionDialogShell({
         className={`overlay-panel relative w-full rounded-xl border border-border bg-background p-5 shadow-xl ${wide ? 'max-w-lg' : 'max-w-md'}`}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <button
           type="button"
           className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={t('extension:answerLater')}
+          title={t('extension:answerLater')}
           onClick={suspend}
         >
           <X className="h-4 w-4" />
         </button>
-        <h2 className="mb-3 pr-8 text-[15px] font-medium">{title}</h2>
+        <h2 id={titleId} className="mb-3 pr-8 text-[15px] font-medium leading-snug">
+          {title}
+        </h2>
         {children}
       </div>
     </div>

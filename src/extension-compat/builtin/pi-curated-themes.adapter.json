@@ -19,7 +19,7 @@
     },
     "en": {
       "displayName": "Curated Themes",
-      "description": "pi 终端主题包（桌面用独立 Appearance 设置）"
+      "description": "pi terminal themes (the desktop app uses its own Appearance settings)"
     }
   }
 }

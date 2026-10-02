@@ -24,7 +24,7 @@
     },
     "en": {
       "displayName": "Context Viewer",
-      "description": "上下文查看器（斜杠输出只读说明）"
+      "description": "Context viewer (read-only notes for its slash command output)"
     }
   }
 }
