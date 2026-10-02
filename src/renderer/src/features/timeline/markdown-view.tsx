@@ -20,17 +20,19 @@ import {
 } from '@renderer/features/timeline/markdown-blocks'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
+import { MermaidBlock } from '@renderer/features/timeline/mermaid-block'
 import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
 
-/** `<pre>` whose code child is a pi-ui fence. */
-function isUIBlockPre(node: ExtraProps['node']): boolean {
+/** `<pre>` whose code child is a pi-ui or mermaid fence: those render their own chrome. */
+function isSelfRenderingPre(node: ExtraProps['node']): boolean {
   const code = node?.children?.find((child) => child.type === 'element')
   if (!code || code.type !== 'element' || code.tagName !== 'code') return false
-  const className = code.properties?.className
-  return !!uiBlockLanguageFromClassName(Array.isArray(className) ? className.join(' ') : String(className ?? ''))
+  const raw = code.properties?.className
+  const className = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '')
+  return !!uiBlockLanguageFromClassName(className) || /(?:^|\s)language-mermaid(?:\s|$)/i.test(className)
 }
 
 function CodeBlock({
@@ -238,6 +240,9 @@ const MarkdownView = memo(function MarkdownView({
         if (uiBlockLanguageFromClassName(cn2)) {
           return <UIBlockHost raw={raw} streaming={!!streaming} />
         }
+        if (lang === 'mermaid') {
+          return <MermaidBlock code={raw} streaming={!!streaming} />
+        }
         if (isInline) {
           return (
             <code
@@ -255,9 +260,9 @@ const MarkdownView = memo(function MarkdownView({
           </CodeBlock>
         )
       },
-      // pi-ui blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
+      // pi-ui and mermaid blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
       pre: ({ node, children: ch, ...rest }: ComponentPropsWithoutRef<'pre'> & ExtraProps) =>
-        isUIBlockPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
+        isSelfRenderingPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
       a: ({ children: ch, ...rest }: ComponentPropsWithoutRef<'a'>) => (
         <a {...rest} target="_blank" rel="noreferrer" className="text-primary hover:underline">
           {ch}
