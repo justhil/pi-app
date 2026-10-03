@@ -2,22 +2,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
-import { formatModelChip, formatThinkingChip, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
-
-const LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
-
-/** Three-bar glyph: how much of the thinking range the level uses. */
-function ThinkingBars({ level }: { level?: string }) {
-  const index = Math.max(0, LEVELS.indexOf(normalizeThinkingLevel(level) ?? 'off'))
-  const lit = index === 0 ? 0 : index <= 2 ? 1 : index <= 4 ? 2 : 3
-  return (
-    <span className="composer-thinking-bars" aria-hidden>
-      {[0, 1, 2].map((bar) => (
-        <span key={bar} data-on={bar < lit || undefined} style={{ height: 4 + bar * 3 }} />
-      ))}
-    </span>
-  )
-}
+import { formatModelChip, formatThinkingChip } from '@renderer/lib/format-run-display'
 
 /** Bottom-right of the composer: model and thinking level, each opening its own menu upwards. */
 function ComposerModelStripImpl({
@@ -68,8 +53,9 @@ function ComposerModelStripImpl({
         title={t('composer:thinkingChip', { level: thinkLabel })}
         className={cn(chip, 'shrink-0', thinkingPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
       >
-        <ThinkingBars level={thinkingLevel} />
-        <span className="max-w-[64px] truncate">{thinkLabel}</span>
+        <span className="max-w-[88px] truncate">
+          <span className="opacity-60">{t('composer:thinkingPrefix')}</span> {thinkLabel}
+        </span>
         <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
       </button>
     </div>

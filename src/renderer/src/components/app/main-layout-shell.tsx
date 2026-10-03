@@ -33,6 +33,7 @@ export function MainLayoutShell({
   const rightCollapsedPref = useUIStore((s) => s.rightPanelCollapsed)
   const rightExpandedOnNarrow = useUIStore((s) => s.rightPanelExpandedOnNarrow)
   const rightWidth = useUIStore((s) => s.rightPanelWidth)
+  const railIcons = useUIStore((s) => s.rightPanelRailIcons)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
@@ -103,12 +104,13 @@ export function MainLayoutShell({
   const filesChatPreview =
     !rightCollapsed &&
     ((activePanel === 'files' && filesPreviewChatExpand) || (activePanel === 'browser' && browserChatExpand))
+  const railPx = railIcons ? RIGHT_COLLAPSED_RAIL_PX : 0
   const effectiveRight = rightCollapsed
-    ? RIGHT_COLLAPSED_RAIL_PX
+    ? railPx
     : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))
 
   const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
-  const rightCol = rightCollapsed ? `${RIGHT_COLLAPSED_RAIL_PX}px` : `${effectiveRight}px`
+  const rightCol = rightCollapsed ? `${railPx}px` : `${effectiveRight}px`
   const gridCols = filesChatPreview
     ? `${leftCol} 0px minmax(0, 1fr)`
     : `${leftCol} minmax(0, 1fr) ${rightCol}`
@@ -187,7 +189,7 @@ export function MainLayoutShell({
           />
         ) : null}
         {rightCollapsed && !filesChatPreview ? (
-          <RightPanelCollapsedRail />
+          railIcons ? <RightPanelCollapsedRail /> : null
         ) : (
           <div className="shell-track-inner flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {right}

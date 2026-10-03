@@ -751,7 +751,9 @@
     "description": "Drag to reorder or hide right-panel tabs; the main window updates after Save.",
     "refreshCatalog": "Refresh catalog",
     "keepOne": "Keep at least one panel",
-    "enabledCount": "{{enabled}} / {{total}} panels enabled · drag to sort"
+    "enabledCount": "{{enabled}} / {{total}} panels enabled · drag to sort",
+    "railIcons": "Keep panel icons when collapsed",
+    "railIconsDesc": "Shows a column of panel icons at the window edge while the right panel is collapsed. Applies at once."
   },
   "common_confirm": {
     "confirm": "OK",

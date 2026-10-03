@@ -81,7 +81,7 @@ async function enablePanel(window: Page) {
     .poll(async () => {
       await apply()
       await window.waitForTimeout(300)
-      return window.getByRole('textbox', { name: /Address bar|地址栏/ }).count()
+      return window.getByRole('combobox', { name: /Address bar|地址栏/ }).count()
     }, { timeout: 30_000 })
     .toBe(1)
 }
@@ -137,10 +137,10 @@ test.describe('built-in browser panel', () => {
         .poll(async () => {
           await enablePanel()
           await window.waitForTimeout(300)
-          return window.getByRole('textbox', { name: /Address bar|地址栏/ }).count()
+          return window.getByRole('combobox', { name: /Address bar|地址栏/ }).count()
         }, { timeout: 30_000 })
         .toBe(1)
-      const address = window.getByRole('textbox', { name: /Address bar|地址栏/ })
+      const address = window.getByRole('combobox', { name: /Address bar|地址栏/ })
       await expect(address).toBeVisible()
       expect(await viewState(app)).toEqual([]) // nothing created until the user navigates
 
@@ -211,7 +211,7 @@ test.describe('built-in browser panel', () => {
 
       // Expand into the chat column: the view grows with its placeholder.
       const before = (await viewState(app))[0].bounds.width
-      await window.getByRole('button', { name: /Expand into chat area|展开到聊天区/ }).click()
+      await window.getByRole('button', { name: /^(Expand|展开)$/ }).click()
       await expect.poll(async () => (await viewState(app))[0].bounds.width).toBeGreaterThan(before + 100)
       await window.keyboard.press('Escape')
       await expect.poll(async () => (await viewState(app))[0].bounds.width).toBeLessThan(before + 5)
@@ -263,7 +263,7 @@ test.describe('built-in browser panel', () => {
       const window = await app.firstWindow({ timeout: 45_000 })
       await window.waitForFunction(() => !!(window as unknown as { __piE2E?: unknown }).__piE2E, null, { timeout: 45_000 })
       await enablePanel(window)
-      const address = window.getByRole('textbox', { name: /Address bar|地址栏/ })
+      const address = window.getByRole('combobox', { name: /Address bar|地址栏/ })
       await address.fill(`${base}/form`)
       await address.press('Enter')
       await expect.poll(async () => (await viewState(app))[0]?.visible).toBe(true)
@@ -273,7 +273,7 @@ test.describe('built-in browser panel', () => {
       const before = await inPage<string>(app, domFingerprint)
 
       // Annotation mode freezes the page into a screenshot; the native view hides.
-      await window.getByRole('button', { name: /Annotate|批注模式/ }).click()
+      await window.getByRole('button', { name: /Annotate|批注/ }).click()
       const layer = window.locator('[data-annotation-layer]')
       await expect(layer).toBeVisible()
       await expect.poll(async () => (await viewState(app))[0].visible).toBe(false)

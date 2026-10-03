@@ -84,12 +84,18 @@ export class ElectronPageEngine implements PageEngine {
     return (await this.exec<T>(code, timeoutMs)) as T
   }
 
+  /** Page coordinates (CSS px) → view pixels; they differ while the fixed-viewport mode zooms. */
+  private px(v: number): number {
+    return Math.round(v * (this.wc.getZoomFactor() || 1))
+  }
+
   mouse: PageEngine['mouse'] = {
-    move: (x, y, button) => this.wc.sendInputEvent({ type: 'mouseMove', x, y, ...(button ? { button } : {}) } as Electron.MouseInputEvent),
-    down: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseDown', x, y, button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
-    up: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseUp', x, y, button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
+    move: (x, y, button) => this.wc.sendInputEvent({ type: 'mouseMove', x: this.px(x), y: this.px(y), ...(button ? { button } : {}) } as Electron.MouseInputEvent),
+    down: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseDown', x: this.px(x), y: this.px(y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
+    up: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseUp', x: this.px(x), y: this.px(y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
     // Electron's wheel deltas are the opposite sign of DOM WheelEvent deltas.
-    wheel: (x, y, deltaX, deltaY) => this.wc.sendInputEvent({ type: 'mouseWheel', x, y, deltaX: -deltaX, deltaY: -deltaY, canScroll: true, hasPreciseScrollingDeltas: true }),
+    wheel: (x, y, deltaX, deltaY) =>
+      this.wc.sendInputEvent({ type: 'mouseWheel', x: this.px(x), y: this.px(y), deltaX: -deltaX, deltaY: -deltaY, canScroll: true, hasPreciseScrollingDeltas: true }),
   }
 
   keyboard: PageEngine['keyboard'] = {
@@ -106,8 +112,9 @@ export class ElectronPageEngine implements PageEngine {
   }
 
   async screenshot(o: { clip?: { x: number; y: number; width: number; height: number }; maxWidth?: number }) {
+    const z = this.wc.getZoomFactor() || 1
     const rect = o.clip
-      ? { x: Math.max(0, Math.floor(o.clip.x)), y: Math.max(0, Math.floor(o.clip.y)), width: Math.ceil(o.clip.width), height: Math.ceil(o.clip.height) }
+      ? { x: Math.max(0, Math.floor(o.clip.x * z)), y: Math.max(0, Math.floor(o.clip.y * z)), width: Math.ceil(o.clip.width * z), height: Math.ceil(o.clip.height * z) }
       : undefined
     let image = await this.wc.capturePage(rect, { stayHidden: true, stayAwake: true })
     if (image.isEmpty()) throw new BrowserToolError('browser_timeout', 'the page has not painted yet')

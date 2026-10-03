@@ -60,7 +60,9 @@
     "continue": "继续",
     "copySessionPath": "复制会话路径",
     "openLog": "打开日志",
-    "newSessionDraft": "新会话"
+    "newSessionDraft": "新会话",
+    "openFolderHint": "选择一个文件夹作为项目",
+    "openFolderEmpty": "打开文件夹，开始一个项目"
   },
   "attention": {
     "needsYou": "等你",
@@ -197,8 +199,8 @@
   "statusBar": {
     "title": "工作状态",
     "resources": "运行与资源",
-    "memory": "主进程内存",
-    "memoryHint": "当前仅统计应用主进程，不包含界面和会话进程。",
+    "memory": "应用内存",
+    "memoryHint": "整个应用 {{count}} 个进程的常驻内存之和；在 WSL 中运行的会话不计入。",
     "loadFailed": "资源信息暂时不可用；已有数据可能已过时。",
     "workers": "会话进程",
     "update": "查看可用更新",
@@ -207,7 +209,16 @@
     "needsYou": "{{count}} 条等你",
     "noWorkers": "暂无运行中的会话进程",
     "kill": "停止运行",
-    "stopConfirm": "停止这条会话当前的运行？已保存的聊天记录不会删除。"
+    "stopConfirm": "停止这条会话当前的运行？已保存的聊天记录不会删除。",
+    "failed": "出错",
+    "memoryKinds": {
+      "sessions": "会话进程",
+      "ui": "界面",
+      "main": "主进程",
+      "browser": "内置浏览器",
+      "gpu": "GPU",
+      "other": "其他"
+    }
   },
   "sessionReload": {
     "success": "已刷新会话数据",

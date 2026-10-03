@@ -229,6 +229,9 @@ export interface UIState {
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
   rightPanelCollapsed: boolean
+  /** Keep a column of panel icons while the right panel is collapsed (default: off, nothing shows). */
+  rightPanelRailIcons: boolean
+  setRightPanelRailIcons: (on: boolean) => void
   rightPanelExpandedOnNarrow: boolean
   toggleRightPanel: () => void
   revealRightPanel: () => void

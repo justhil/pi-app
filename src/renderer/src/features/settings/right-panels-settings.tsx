@@ -9,6 +9,7 @@ import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { Toggle } from '@renderer/features/settings/settings-page-shared'
 import { btnOutline } from '@renderer/features/settings/settings-controls'
 import { BrowserSettingsSection } from '@renderer/features/browser/browser-settings-section'
+import { useUIStore } from '@renderer/stores/ui-store'
 
 export function RightPanelsSettings() {
   const { t } = useTranslation()
@@ -21,6 +22,8 @@ export function RightPanelsSettings() {
   } = useSettingsDraft()
 
   const { rightPanelCatalog: catalog, rightPanelPrefs: prefs, rightPanelOrder: order } = draft
+  const railIcons = useUIStore((s) => s.rightPanelRailIcons)
+  const setRailIcons = useUIStore((s) => s.setRightPanelRailIcons)
   const [dragId, setDragId] = useState<string | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
 
@@ -63,6 +66,14 @@ export function RightPanelsSettings() {
           </div>
         }
       />
+
+      <div className="mb-3 flex items-center gap-3 rounded-lg border border-border/40 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-foreground">{t('settings:rightPanels.railIcons')}</div>
+          <div className="text-xs text-muted-foreground">{t('settings:rightPanels.railIconsDesc')}</div>
+        </div>
+        <Toggle on={railIcons} onChange={setRailIcons} />
+      </div>
 
       <div className="mb-4 flex items-center gap-2 rounded-lg border border-border/40 bg-[var(--bg-1)]/50 px-3 py-2 text-sm text-muted-foreground">
         <LayoutPanelLeft className="h-4 w-4 shrink-0 text-muted-foreground/50" strokeWidth={1.5} />

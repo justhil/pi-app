@@ -1,6 +1,7 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { formatThinkingChip } from '@renderer/lib/format-run-display'
 import {
   Wrench,
   AlertTriangle,
@@ -126,7 +127,7 @@ export function RunPanel() {
             <span className="text-foreground-secondary">{t('run:noModel')}</span>
           )}
           {thinkingLevel && thinkingLevel !== 'off' ? (
-            <span className="panel-tag">{t('run:thinking', { level: thinkingLevel })}</span>
+            <span className="panel-tag">{t('run:thinking', { level: formatThinkingChip(thinkingLevel) })}</span>
           ) : null}
         </div>
         {isRunning && runState.activeTool && (

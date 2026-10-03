@@ -60,7 +60,9 @@
     "continue": "Continue",
     "copySessionPath": "Copy session path",
     "openLog": "Open log",
-    "newSessionDraft": "New session"
+    "newSessionDraft": "New session",
+    "openFolderHint": "Choose a folder to work in as a project",
+    "openFolderEmpty": "Open a folder to start a project"
   },
   "attention": {
     "needsYou": "Needs you",
@@ -197,8 +199,8 @@
   "statusBar": {
     "title": "Workspace status",
     "resources": "Runtime & resources",
-    "memory": "Main process memory",
-    "memoryHint": "Currently measures the main process only, excluding the interface and session processes.",
+    "memory": "App memory",
+    "memoryHint": "Resident memory summed over all {{count}} app processes; sessions running in WSL are not included.",
     "loadFailed": "Resource information is unavailable. Previous readings may be out of date.",
     "workers": "Session processes",
     "update": "View available update",
@@ -207,7 +209,16 @@
     "needsYou": "{{count}} need you",
     "noWorkers": "No active session processes",
     "kill": "Stop run",
-    "stopConfirm": "Stop this conversation's current run? Saved conversation history will not be deleted."
+    "stopConfirm": "Stop this conversation's current run? Saved conversation history will not be deleted.",
+    "failed": "Error",
+    "memoryKinds": {
+      "sessions": "Sessions",
+      "ui": "Interface",
+      "main": "Main process",
+      "browser": "Built-in browser",
+      "gpu": "GPU",
+      "other": "Other"
+    }
   },
   "sessionReload": {
     "success": "Session data refreshed",

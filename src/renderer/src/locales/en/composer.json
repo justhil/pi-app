@@ -160,19 +160,19 @@
     "title": "Thinking level",
     "subtitle": "Higher levels reason longer and cost more time and tokens",
     "desc": {
-      "off": "No reasoning, answer directly",
-      "minimal": "The least reasoning possible",
-      "low": "Enough for simple asks, fastest",
-      "medium": "Balanced default for everyday coding",
-      "high": "Complex changes and debugging",
-      "xhigh": "Large refactors and hard problems",
-      "max": "The longest reasoning the model offers; slow and costly"
+      "off": "Answer directly",
+      "minimal": "Barely reasons",
+      "low": "Simple asks",
+      "medium": "Everyday default",
+      "high": "Complex changes, debugging",
+      "xhigh": "Large refactors, hard bugs",
+      "max": "Longest reasoning, slow and costly"
     },
     "unsupported": "Not supported by this model",
     "current": "Current",
     "bound": "Bound",
-    "bindLabel": "Remember this level for the model",
-    "bindHint": "Switching to {{model}} applies it automatically (pi setting modelThinkingLevels)",
+    "bindLabel": "Remember for this model",
+    "bindHint": "Applied whenever you switch to {{model}}",
     "bindNoModel": "Pick a model to bind a thinking level to it",
     "boundToast": "Bound {{level}} to {{model}}",
     "unboundToast": "Removed the thinking binding for {{model}}",
@@ -185,25 +185,30 @@
   "contextRing": "Context {{used}} / {{total}} ({{pct}}%)",
   "tools": {
     "button": "Tools",
-    "title": "Capabilities for this chat",
+    "title": "On for this chat",
     "turnOff": "Turn off {{name}}",
     "comingSoon": "Coming soon",
     "toolCount": "+{{count}} tools",
-    "tokens": "~{{n}} tokens added to the system prompt",
-    "note": "Turned on, it joins the system prompt or tools from your next message; turned off, it is removed right away. Switching resets the prompt cache. New chats start with everything off.",
+    "tokens": "+{{n}} prompt tokens",
+    "note": "Applies from your next message; turning off removes it at once. New chats start with everything off.",
     "noteRunning": "The current turn is unaffected; changes apply from your next message.",
     "items": {
       "pi-ui": {
         "name": "pi-ui visuals",
-        "desc": "Lets the AI answer with charts, KPI cards, tables, timelines and other structured blocks"
+        "desc": "Answers with charts, KPI cards, tables and other blocks",
+        "short": "Visuals"
       },
       "browser": {
         "name": "Browser control",
-        "desc": "Lets the AI read and operate pages in the built-in browser"
+        "desc": "Reads and operates pages in the built-in browser",
+        "short": "Browser"
       }
     },
     "reasons": {
-      "browser-panel-off": "Turn on the Browser panel first (Settings → Right panels)"
-    }
-  }
+      "browser-panel-off": "Turn on the Browser panel in Settings → Right panels first"
+    },
+    "enabledTitle": "On: {{names}}"
+  },
+  "thinkingShort": "Thinking {{level}}",
+  "thinkingPrefix": "Thinking"
 }

@@ -76,6 +76,11 @@ export class BrowserHost implements AgentBrowserHost {
 
   constructor(private readonly getWindow: () => BrowserWindow | null) {}
 
+  /** OS process ids of the pages in open tabs (for the app memory breakdown). */
+  pageProcessIds(): number[] {
+    return [...this.tabs.values()].filter((t) => !t.view.webContents.isDestroyed()).map((t) => t.view.webContents.getOSProcessId())
+  }
+
   list(): { tabs: BrowserTabInfo[]; activeTabId: string | null } {
     return { tabs: [...this.tabs.values()].map((t) => t.info), activeTabId: this.activeTabId }
   }
@@ -183,6 +188,8 @@ export class BrowserHost implements AgentBrowserHost {
       return
     }
     tab.view.setBounds(rect)
+    const zoom = bounds.pageZoom ?? 1
+    if (Math.abs(tab.view.webContents.getZoomFactor() - zoom) > 0.001) tab.view.webContents.setZoomFactor(zoom)
     tab.view.setVisible(true)
   }
 
@@ -204,11 +211,16 @@ export class BrowserHost implements AgentBrowserHost {
   async inspectPoint(tabId: string, x: number, y: number, deep = false): Promise<ElementDescriptor | null> {
     const tab = this.requireTab(tabId)
     const wc = tab.view.webContents
-    const found = await tab.engine.run<ElementDescriptor | null>(`__piBrowser.inspectAtPoint(${num(x)}, ${num(y)})`)
+    // Callers use view pixels; the page works in CSS px (they differ under the fixed-viewport zoom).
+    const zoom = wc.getZoomFactor() || 1
+    const cssX = num(x / zoom)
+    const cssY = num(y / zoom)
+    const raw = await tab.engine.run<ElementDescriptor | null>(`__piBrowser.inspectAtPoint(${cssX}, ${cssY})`)
+    const found = raw && { ...raw, rect: { x: raw.rect.x * zoom, y: raw.rect.y * zoom, width: raw.rect.width * zoom, height: raw.rect.height * zoom } }
     if (!found || !deep || !isDevOrigin(wc.getURL())) return found
     try {
       // Main world, dev origins only, once per click: React fiber / Vue instance live on DOM expandos.
-      const extra = (await withTimeout(wc.executeJavaScript(`(${FRAMEWORK_SOURCE})(${num(x)}, ${num(y)})`), PAGE_SCRIPT_TIMEOUT_MS)) as
+      const extra = (await withTimeout(wc.executeJavaScript(`(${FRAMEWORK_SOURCE})(${cssX}, ${cssY})`), PAGE_SCRIPT_TIMEOUT_MS)) as
         | { components: string[]; sourceHints: string[] }
         | null
       if (extra) {

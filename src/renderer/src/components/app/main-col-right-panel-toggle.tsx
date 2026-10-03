@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PanelRight, RefreshCw } from '@renderer/components/icons'
+import { RefreshCw } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
-import { useUIStore } from '@renderer/stores/ui-store'
-import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
 import { toast } from 'sonner'
 
@@ -13,8 +11,6 @@ import { toast } from 'sonner'
  */
 export function MainColRightPanelToggle() {
   const { t } = useTranslation()
-  const collapsed = useRightPanelHidden()
-  const toggle = useUIStore((s) => s.toggleRightPanel)
   const [reloading, setReloading] = useState(false)
 
   const onReload = async () => {
@@ -37,17 +33,6 @@ export function MainColRightPanelToggle() {
       className="absolute right-3 top-2 z-20 flex flex-col gap-1"
       style={{ background: 'transparent' }}
     >
-      {!collapsed && (
-        <button
-          type="button"
-          onClick={toggle}
-          title={t('common:topbar.collapseRightPanel')}
-          className={btnBase}
-          style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
-        >
-          <PanelRight className="h-3.5 w-3.5" />
-        </button>
-      )}
       <button
         type="button"
         onClick={() => void onReload()}

@@ -13,14 +13,17 @@ import { SessionAttentionDot } from '@renderer/features/workspace/session-attent
 import { ShellPopover } from './shell-popover'
 
 type WorkerRow = { sessionFile: string; running: boolean; cwd: string }
-type DesktopStatus = { rss: number; total: number; workers: WorkerRow[] }
+type MemoryKind = 'main' | 'ui' | 'sessions' | 'browser' | 'gpu' | 'other'
+type AppMemory = { total: number; byKind: Record<MemoryKind, number>; processes: number }
+type DesktopStatus = { rss: number; total: number; app?: AppMemory; workers: WorkerRow[] }
+const MEMORY_KINDS: MemoryKind[] = ['sessions', 'ui', 'main', 'browser', 'gpu', 'other']
 
 /** Equal at display granularity (memory is shown in MB), so steady polls do not re-render. */
 function sameDesktopStatus(previous: DesktopStatus | null, next: DesktopStatus): boolean {
   if (!previous) return false
   const mb = (bytes: number) => Math.round(bytes / 1024 ** 2)
   return (
-    mb(previous.rss) === mb(next.rss) &&
+    mb(previous.app?.total ?? previous.rss) === mb(next.app?.total ?? next.rss) &&
     previous.total === next.total &&
     previous.workers.length === next.workers.length &&
     previous.workers.every((row, index) => {
@@ -56,7 +59,7 @@ export function StatusBar() {
   const refresh = useCallback(async () => {
     try {
       const res = await ipcClient.invoke('desktop.status', {})
-      const next = { rss: res.rss, total: res.total, workers: res.workers ?? [] }
+      const next = { rss: res.rss, total: res.total, app: res.app, workers: res.workers ?? [] }
       setStatus((previous) => (sameDesktopStatus(previous, next) ? previous : next))
       setLoadError(false)
     } catch {
@@ -115,9 +118,14 @@ export function StatusBar() {
   const label = (kind: SessionAttention) => kind === 'needs-you'
     ? t('common:attention.needsYou')
     : kind === 'working' ? t('common:app.status.running') : t('common:attention.done')
-  const rss = status?.rss || 0
-  const gib = rss >= 1024 ** 3
-  const memory = rss ? `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: gib ? 1 : 0 }).format(rss / 1024 ** (gib ? 3 : 2))} ${gib ? 'GB' : 'MB'}` : '—'
+  // Whole app (every Electron process); falls back to the main process if metrics are missing.
+  const rss = status?.app?.total || status?.rss || 0
+  const fmt = (bytes: number) => {
+    const gib = bytes >= 1024 ** 3
+    return `${new Intl.NumberFormat(i18n.language, { maximumFractionDigits: gib ? 1 : 0 }).format(bytes / 1024 ** (gib ? 3 : 2))} ${gib ? 'GB' : 'MB'}`
+  }
+  const memory = rss ? fmt(rss) : '—'
+  const runFailed = useUIStore((s) => s.runState.status === 'failed')
   const ratio = status?.total ? rss / status.total : 0
   const level = ratio >= 0.8 ? 'critical' : ratio >= 0.6 ? 'warning' : 'normal'
   const live = counts.working + counts.needsYou + counts.done
@@ -125,7 +133,9 @@ export function StatusBar() {
   return (
     <footer className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
       <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
-        {live === 0 ? <span className="flex items-center gap-2"><span className="status-ready-dot" />{t('common:app.status.ready')}</span> : (
+        {live === 0 ? (runFailed
+          ? <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-destructive" />{t('common:statusBar.failed')}</span>
+          : <span className="flex items-center gap-2"><span className="status-ready-dot" />{t('common:app.status.ready')}</span>) : (
           <>
             {counts.needsYou > 0 && <span className="flex items-center gap-1.5"><SessionAttentionDot attention="needs-you" />{t('common:statusBar.needsYou', { count: counts.needsYou })}</span>}
             {counts.working > 0 && <span className="flex items-center gap-1.5"><SessionAttentionDot attention="working" />{t('common:statusBar.running', { count: counts.working })}</span>}
@@ -166,7 +176,17 @@ export function StatusBar() {
           ) : (
             <>
               <div className="workbench-resource-summary"><div><span className="workbench-row-detail">{t('common:statusBar.memory')}</span><strong className="block text-xl font-medium tabular-nums">{memory}</strong></div><button type="button" className="workbench-icon" aria-label={t('common:refresh')} onClick={() => void refresh()}><RefreshCw className="h-4 w-4" /></button></div>
-              <p className="px-4 pb-3 text-xs leading-relaxed text-foreground-secondary">{t('common:statusBar.memoryHint')}</p>
+              {status?.app ? (
+                <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 px-4 pb-2 text-xs">
+                  {MEMORY_KINDS.filter((k) => (status.app?.byKind[k] ?? 0) > 0).map((k) => (
+                    <div key={k} className="contents">
+                      <dt className="text-foreground-secondary">{t(`common:statusBar.memoryKinds.${k}`)}</dt>
+                      <dd className="text-right tabular-nums">{fmt(status.app!.byKind[k])}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              <p className="px-4 pb-3 text-xs leading-relaxed text-foreground-secondary">{t('common:statusBar.memoryHint', { count: status?.app?.processes ?? 0 })}</p>
               {loadError && <p role="alert" className="workbench-error">{t('common:statusBar.loadFailed')}</p>}
               {!status && !loadError ? <p role="status" className="workbench-empty">{t('common:loading')}</p> : status?.workers.length === 0 ? <p className="workbench-empty">{t('common:statusBar.noWorkers')}</p> : (
                 <section className="workbench-group" aria-label={t('common:statusBar.workers')}>

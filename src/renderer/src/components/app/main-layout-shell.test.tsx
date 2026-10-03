@@ -95,6 +95,14 @@ describe('MainLayoutShell window-resize adaptation', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 })
     render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
 
+    // No icon rail by default: the collapsed panel takes no width.
+    expect(gridColumns()).toBe('260px minmax(0, 1fr) 0px')
+  })
+
+  it('keeps the icon rail when the setting is on', () => {
+    useUIStore.setState({ rightPanelCollapsed: true, rightPanelRailIcons: true })
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1400 })
+    render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
     expect(gridColumns()).toBe('260px minmax(0, 1fr) 40px')
   })
 

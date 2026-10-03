@@ -1,7 +1,11 @@
 {
   "address": {
     "placeholder": "输入网址或搜索",
-    "label": "地址栏"
+    "label": "地址栏",
+    "suggestions": "地址联想",
+    "open": "打开 {{url}}",
+    "search": "搜索“{{query}}”",
+    "switchTab": "切换到此标签"
   },
   "nav": {
     "back": "后退",
@@ -11,7 +15,7 @@
     "newTab": "新标签页",
     "closeTab": "关闭标签页",
     "tabs": "标签页",
-    "expand": "展开到聊天区",
+    "expand": "展开",
     "collapse": "收起"
   },
   "tab": {
@@ -19,8 +23,7 @@
     "loading": "加载中…"
   },
   "empty": {
-    "title": "打开一个网页",
-    "description": "在上方输入网址或搜索词。本地开发服务（如 localhost:5173）也可以直接打开；登录状态会保留在内置浏览器里。"
+    "title": "输入网址或搜索"
   },
   "toast": {
     "downloaded": "已下载 {{name}}",
@@ -46,8 +49,8 @@
     "saveFailed": "保存失败"
   },
   "annotate": {
-    "toggle": "批注模式（Ctrl/⌘+Shift+A）",
-    "hint": "点击元素或拖拽框选区域添加批注，滚轮可滚动页面",
+    "toggle": "批注（Ctrl/⌘+Shift+A）",
+    "hint": "点选元素或拖出区域，滚轮滚动页面",
     "placeholder": "这里需要怎么改？",
     "enterHint": "Enter 添加 · Shift+Enter 换行",
     "area": "选中区域",
@@ -84,5 +87,13 @@
   },
   "agent": {
     "acting": "AI · {{action}}"
+  },
+  "viewport": {
+    "title": "页面视口尺寸",
+    "fit": "自适应",
+    "fixed": "固定尺寸",
+    "width": "宽度",
+    "height": "高度",
+    "hint": "固定尺寸在面板较小时按比例缩小显示。"
   }
 }

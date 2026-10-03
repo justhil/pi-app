@@ -57,6 +57,7 @@ export function registerBrowserHandlers(): void {
       width: z.number().finite().nonnegative(),
       height: z.number().finite().nonnegative(),
       visible: z.boolean(),
+      pageZoom: z.number().finite().min(0.1).max(1).optional(),
     }),
     async (req) => {
       peekBrowserHost()?.setViewBounds(req)

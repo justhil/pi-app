@@ -73,7 +73,7 @@ export interface AgentApp {
 }
 
 /** Launch pi Desktop against the scripted model with the Browser panel enabled. */
-export async function launchAgentApp(modelPort: number): Promise<AgentApp> {
+export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh' } = {}): Promise<AgentApp> {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-agent-'))
   const agentDir = path.join(home, '.pi', 'agent')
   const project = path.join(home, 'code', 'demo')
@@ -96,7 +96,7 @@ export async function launchAgentApp(modelPort: number): Promise<AgentApp> {
   }))
   fs.writeFileSync(path.join(agentDir, 'settings.json'), JSON.stringify({ defaultProvider: 'mock', defaultModel: 'scripted', defaultThinkingLevel: 'off' }))
   fs.writeFileSync(path.join(configDir, 'pi-desktop.json'), JSON.stringify({
-    language: 'en',
+    language: opts.language ?? 'en',
     currentProject: project,
     recentProjects: [project],
     windowBounds: { width: 1400, height: 900 },
@@ -127,12 +127,12 @@ export async function launchAgentApp(modelPort: number): Promise<AgentApp> {
     home,
     project,
     async newSession() {
-      await win.locator('button[aria-label="New session"]').first().click()
+      await win.locator('button[aria-label="New session"], button[aria-label="新建会话"], button[aria-label="新会话"]').first().click()
       await win.waitForTimeout(1200)
     },
     async enableBrowserControl() {
       await win.locator('[data-composer-tools]').click()
-      const toggle = win.getByRole('switch', { name: 'Browser control' })
+      const toggle = win.getByRole('switch', { name: /Browser control|浏览器操控/ })
       await toggle.waitFor({ state: 'visible' })
       await toggle.click()
       await win.keyboard.press('Escape')

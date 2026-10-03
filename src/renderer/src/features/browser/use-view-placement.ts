@@ -44,7 +44,7 @@ export function useOverlayCovering(ref: RefObject<HTMLElement | null>): boolean 
  * Keeps the Main-side WebContentsView glued to the placeholder element: reports its rect on
  * mount, resize, window resize and layout transitions; hides the view on unmount.
  */
-export function useViewPlacement(ref: RefObject<HTMLElement | null>, tabId: string | null, visible: boolean): void {
+export function useViewPlacement(ref: RefObject<HTMLElement | null>, tabId: string | null, visible: boolean, pageZoom = 1): void {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || !tabId) return
@@ -54,7 +54,7 @@ export function useViewPlacement(ref: RefObject<HTMLElement | null>, tabId: stri
       frame = requestAnimationFrame(() => {
         const r = el.getBoundingClientRect()
         void ipcClient
-          .invoke('browser.viewBounds', { tabId, x: r.x, y: r.y, width: r.width, height: r.height, visible })
+          .invoke('browser.viewBounds', { tabId, x: r.x, y: r.y, width: r.width, height: r.height, visible, pageZoom })
           .catch(() => {})
       })
     }
@@ -72,5 +72,5 @@ export function useViewPlacement(ref: RefObject<HTMLElement | null>, tabId: stri
         .invoke('browser.viewBounds', { tabId, x: 0, y: 0, width: 0, height: 0, visible: false })
         .catch(() => {})
     }
-  }, [ref, tabId, visible])
+  }, [ref, tabId, visible, pageZoom])
 }

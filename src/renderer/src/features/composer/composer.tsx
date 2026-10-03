@@ -524,18 +524,31 @@ export function Composer() {
               <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
             )}
             <div className="flex shrink-0 items-center gap-1.5">
-              {showComposerStop && (
-                <button
-                  type="button"
-                  onClick={handleAbort}
-                  title={t('composer:stop')}
-                  className="composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                </button>
-              )}
               {(() => {
                 const hasContent = !!text.trim() || attachments.length > 0
+                // Running: stop is the main action until there is something to queue; then
+                // "queue" is primary and stop steps back to a quiet secondary button.
+                if (!showComposerStop) return null
+                return (
+                  <button
+                    type="button"
+                    onClick={handleAbort}
+                    title={t('composer:stop')}
+                    aria-label={t('composer:stop')}
+                    className={cn(
+                      'composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md',
+                      hasContent
+                        ? 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground'
+                        : 'bg-foreground text-background hover:bg-foreground/85',
+                    )}
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                  </button>
+                )
+              })()}
+              {(() => {
+                const hasContent = !!text.trim() || attachments.length > 0
+                if (showComposerStop && !hasContent) return null
                 const voicePrimary = !showComposerStop && !hasContent
                 if (voicePrimary) {
                   return (

@@ -219,5 +219,7 @@
   "hashlineNoResults": "No results",
   "hashlineCollapse": "Collapse",
   "hashlineExpandAll_one": "Show all {{count}}",
-  "hashlineExpandAll_other": "Show all {{count}}"
+  "hashlineExpandAll_other": "Show all {{count}}",
+  "treeClickHint": "Click to view · double-click to go back here",
+  "treeFilterLabel": "Show"
 }

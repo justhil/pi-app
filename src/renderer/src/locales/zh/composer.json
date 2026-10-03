@@ -160,19 +160,19 @@
     "title": "思考等级",
     "subtitle": "等级越高推理越充分，耗时与 token 也越多",
     "desc": {
-      "off": "不思考，直接回答",
-      "minimal": "只做最少的推理",
-      "low": "简单问题够用，响应最快",
-      "medium": "日常编码的默认平衡点",
-      "high": "复杂改动、排查问题时使用",
-      "xhigh": "大型重构与疑难问题",
-      "max": "模型能给出的最长推理，较慢且昂贵"
+      "off": "直接回答",
+      "minimal": "极少推理",
+      "low": "简单问题",
+      "medium": "日常默认",
+      "high": "复杂改动、排查",
+      "xhigh": "大型重构、疑难",
+      "max": "最长推理，慢且贵"
     },
     "unsupported": "当前模型不支持",
     "current": "当前",
     "bound": "已绑定",
-    "bindLabel": "为此模型记住思考等级",
-    "bindHint": "切换到 {{model}} 时自动使用该等级（写入 pi 设置 modelThinkingLevels）",
+    "bindLabel": "为此模型记住",
+    "bindHint": "切换到 {{model}} 时自动使用这个等级",
     "bindNoModel": "选择模型后可为它绑定思考等级",
     "boundToast": "已为 {{model}} 绑定 {{level}}",
     "unboundToast": "已取消 {{model}} 的思考等级绑定",
@@ -185,25 +185,30 @@
   "contextRing": "上下文 {{used}} / {{total}}（{{pct}}%）",
   "tools": {
     "button": "工具",
-    "title": "本会话的能力",
+    "title": "本会话启用",
     "turnOff": "关闭{{name}}",
     "comingSoon": "即将支持",
     "toolCount": "+{{count}} 个工具",
-    "tokens": "系统提示约 +{{n}} tokens",
-    "note": "开启后从下一次发送起加入系统提示或工具，关闭后立即撤销；切换会让提示缓存失效。新会话默认全部关闭。",
-    "noteRunning": "当前回合不受影响，切换从下一次发送起生效。",
+    "tokens": "提示词 +{{n}} tokens",
+    "note": "从下一条消息起生效，关闭立即撤销。新会话默认全关。",
+    "noteRunning": "当前回合不受影响，从下一条消息起生效。",
     "items": {
       "pi-ui": {
         "name": "pi-ui 可视化",
-        "desc": "允许 AI 用图表、指标卡、表格、甘特图等结构化块作答"
+        "desc": "用图表、指标卡、表格等结构化块作答",
+        "short": "可视化"
       },
       "browser": {
         "name": "浏览器操控",
-        "desc": "允许 AI 读取并操作内置浏览器的页面"
+        "desc": "读取并操作内置浏览器的页面",
+        "short": "浏览器"
       }
     },
     "reasons": {
-      "browser-panel-off": "需先在「设置 → 右侧面板」开启「浏览器」栏目"
-    }
-  }
+      "browser-panel-off": "先在「设置 → 右侧面板」打开浏览器"
+    },
+    "enabledTitle": "已启用：{{names}}"
+  },
+  "thinkingShort": "思考 {{level}}",
+  "thinkingPrefix": "思考"
 }

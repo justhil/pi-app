@@ -219,5 +219,7 @@
   "hashlineNoResults": "无结果",
   "hashlineCollapse": "收起",
   "hashlineExpandAll_one": "展开全部 {{count}} 条",
-  "hashlineExpandAll_other": "展开全部 {{count}} 条"
+  "hashlineExpandAll_other": "展开全部 {{count}} 条",
+  "treeClickHint": "单击查看 · 双击回到此处",
+  "treeFilterLabel": "显示范围"
 }

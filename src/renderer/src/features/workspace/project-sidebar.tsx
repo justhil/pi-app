@@ -456,14 +456,7 @@ export function ProjectSidebar({
   return (
     <div className="flex flex-col pb-1">
       <div className="sidebar-search-block border-b border-border/40 px-3 py-3">
-        <button
-          type="button"
-          onClick={onOpenProject}
-          className="nav-row row-hover flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] font-medium text-foreground-secondary hover:text-foreground"
-        >
-          {openProjectLabel}
-        </button>
-        <div className="workbench-search sidebar-search mt-2">
+        <div className="workbench-search sidebar-search">
           <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <input
             ref={searchInputRef}
@@ -564,6 +557,17 @@ export function ProjectSidebar({
       <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
         <div className="flex min-h-8 items-center gap-2 px-2 pb-1 text-[11px] font-medium text-foreground-secondary/75">
           <span className="flex-1">{t('common:sidebar.projects')}</span>
+          {/* Opening a folder is how projects get here, so the action sits on this header, in words. */}
+          <button
+            type="button"
+            data-open-project=""
+            onClick={onOpenProject}
+            title={t('common:sidebar.openFolderHint')}
+            className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11.5px] font-normal text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            {openProjectLabel}
+          </button>
           <button type="button" className="workbench-icon" disabled={worktrees.loading} aria-label={t('common:sidebar.refreshProjects')} onClick={() => {
             worktrees.refresh()
             reloadSidebarSettings()
@@ -573,7 +577,11 @@ export function ProjectSidebar({
         </div>
         {worktrees.failed && <div role="status" className="px-3 pb-2 text-xs text-foreground-secondary">{t('common:sidebar.worktreeReadFailed')}</div>}
         {diskPaths.length === 0 ? (
-          <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">{t('sidebar.openProject')}</p>
+          <button type="button" onClick={onOpenProject}
+            className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-border/70 px-3 py-2.5 text-left text-[12px] text-foreground-secondary hover:border-border hover:text-foreground">
+            <FolderOpen className="h-4 w-4 shrink-0" />
+            <span>{t('common:sidebar.openFolderEmpty')}</span>
+          </button>
         ) : (
           projectGroups.map((group) => {
             const projects = group.projects.filter((project) => visiblePaths.includes(project.path))

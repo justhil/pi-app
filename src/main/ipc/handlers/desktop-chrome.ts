@@ -11,6 +11,8 @@ import {
   markCompletionInboxUnread,
 } from '../../completion-notification'
 import { execFileSync } from 'child_process'
+import { summarizeAppMemory } from '../../app-memory'
+import { peekBrowserHost } from '../../browser/browser-host'
 let sleepBlocker: number | null = null
 
 export function registerDesktopChromeHandlers(): void {
@@ -31,9 +33,12 @@ export function registerDesktopChromeHandlers(): void {
       ? process.getSystemMemoryInfo().total * 1024
       : 0
     const runtime = workerManager.listSessionRuntime()
+    const browserPids = new Set(peekBrowserHost()?.pageProcessIds() ?? [])
+    const appMemory = summarizeAppMemory(app.getAppMetrics(), browserPids)
     return {
       rss,
       total,
+      app: appMemory,
       workers: runtime,
     }
   })

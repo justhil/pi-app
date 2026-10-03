@@ -2,12 +2,12 @@
 // current model cannot use are disabled, and the level can be bound to the model (pi
 // `modelThinkingLevels`, applied whenever the session switches to that model).
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { Brain, Check } from '@renderer/components/icons'
+import { Check } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ComposerPopover } from './composer-popover'
 import { formatThinkingChip, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
@@ -21,17 +21,6 @@ import {
 import { THINKING_LEVELS, applyThinkingLevel } from './thinking-level-actions'
 
 export { THINKING_LEVELS }
-const METER_STEPS = THINKING_LEVELS.length - 1
-
-function ThinkingMeter({ index, active }: { index: number; active: boolean }) {
-  return (
-    <span className="thinking-meter" data-active={active || undefined} aria-hidden>
-      {Array.from({ length: METER_STEPS }, (_, step) => (
-        <span key={step} data-on={step < index || undefined} style={{ '--step': step } as CSSProperties} />
-      ))}
-    </span>
-  )
-}
 
 export function ThinkingPicker() {
   const { t } = useTranslation()
@@ -98,18 +87,17 @@ export function ThinkingPicker() {
   return (
     <ComposerPopover
       anchorSelector="[data-composer-thinking-chip]"
-      width={272}
+      width={232}
       label={t('composer:thinkingPicker.title')}
       onClose={() => setOpen(false)}
       className="thinking-picker"
     >
-        <div className="flex items-center gap-1.5 px-3 pb-1 pt-2.5 text-[11px] font-medium text-muted-foreground/80">
-          <Brain className="h-3.5 w-3.5" />
+        <div className="flex items-center px-3 pb-0.5 pt-2 text-[11px] font-medium text-muted-foreground/80">
           <span className="min-w-0 flex-1 truncate">{t('composer:thinkingPicker.title')}</span>
           <span className="text-[10.5px] font-normal text-muted-foreground/55">Shift+Tab</span>
         </div>
         <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox" onKeyDown={onListKeyDown}>
-          {THINKING_LEVELS.map((level, index) => {
+          {THINKING_LEVELS.map((level) => {
             const active = current === level
             const usable = supported(level)
             return (
@@ -123,41 +111,30 @@ export function ThinkingPicker() {
                 onClick={() => void pick(level)}
                 title={usable ? undefined : t('composer:thinkingPicker.unsupported')}
                 className={cn(
-                  'thinking-picker-row picker-row flex w-full items-center gap-2.5 px-3 py-1.5 text-left disabled:cursor-not-allowed',
+                  'thinking-picker-row picker-row flex h-7 w-full items-center gap-2 px-3 text-left disabled:cursor-not-allowed disabled:opacity-45',
                   active && 'bg-[var(--bg-active)]',
                 )}
-                style={{ '--row': index } as CSSProperties}
               >
-                <ThinkingMeter index={index} active={active} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={cn('text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
-                      {formatThinkingChip(level)}
-                    </span>
-                    <span className="font-mono text-[10.5px] uppercase tracking-wide text-muted-foreground/55">{level}</span>
-                    {bound === level ? (
-                      <span className="rounded-sm bg-primary/10 px-1.5 py-px text-[10.5px] font-medium text-primary">
-                        {t('composer:thinkingPicker.bound')}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="truncate text-[11px] text-muted-foreground/70">
-                    {usable ? t(`composer:thinkingPicker.desc.${level}`) : t('composer:thinkingPicker.unsupported')}
-                  </div>
-                </div>
-                {active ? <Check className="thinking-picker-check h-4 w-4 shrink-0 text-primary" /> : null}
+                <span className={cn('w-9 shrink-0 text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
+                  {formatThinkingChip(level)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/70">
+                  {usable ? t(`composer:thinkingPicker.desc.${level}`) : t('composer:thinkingPicker.unsupported')}
+                </span>
+                {bound === level ? (
+                  <span className="shrink-0 text-[10.5px] text-primary">{t('composer:thinkingPicker.bound')}</span>
+                ) : null}
+                {active ? <Check className="thinking-picker-check h-3.5 w-3.5 shrink-0 text-primary" /> : <span className="w-3.5 shrink-0" />}
               </button>
             )
           })}
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border/60 bg-[color-mix(in_srgb,var(--bg-1)_60%,transparent)] px-3 py-2">
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-medium">{t('composer:thinkingPicker.bindLabel')}</div>
-            <div className="truncate text-[11px] text-muted-foreground/70" title={model}>
-              {model ? t('composer:thinkingPicker.bindHint', { model }) : t('composer:thinkingPicker.bindNoModel')}
-            </div>
-          </div>
+        <div
+          className="flex items-center gap-3 border-t border-border/60 px-3 py-1.5"
+          title={model ? t('composer:thinkingPicker.bindHint', { model }) : t('composer:thinkingPicker.bindNoModel')}
+        >
+          <div className="min-w-0 flex-1 truncate text-[11.5px] text-foreground-secondary">{t('composer:thinkingPicker.bindLabel')}</div>
           <Switch
             checked={!!bound}
             disabled={!model || bindBusy}

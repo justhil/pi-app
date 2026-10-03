@@ -65,7 +65,7 @@ export function ComposerVoiceMicButton({ voiceState, disabled, onClick, onHoldSt
           'composer-toolbar-send composer-voice-mic-btn relative z-[1] flex h-8 w-8 items-center justify-center rounded-md transition-[background-color,box-shadow,transform] duration-[var(--motion-fast)] ease-[var(--motion-ease)]',
           recording
             ? 'bg-foreground text-background shadow-sm'
-            : 'bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25',
+            : 'text-foreground-secondary/80 hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-35',
         )}
       >
         {recording ? (

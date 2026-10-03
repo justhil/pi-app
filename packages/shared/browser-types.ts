@@ -32,6 +32,11 @@ export interface BrowserViewBounds {
   width: number
   height: number
   visible: boolean
+  /**
+   * Page zoom for the fixed-viewport mode: the view keeps the placeholder's size while the page
+   * lays out at size/zoom CSS px (zoom < 1 shows a larger viewport scaled down). Default 1.
+   */
+  pageZoom?: number
 }
 
 export const BROWSER_EVENT_CHANNEL = 'ipc:browser-event'

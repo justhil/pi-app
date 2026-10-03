@@ -43,6 +43,8 @@ type ShellSlice = Pick<
   | 'rightPanelWidth'
   | 'setRightPanelWidth'
   | 'rightPanelCollapsed'
+  | 'rightPanelRailIcons'
+  | 'setRightPanelRailIcons'
   | 'rightPanelExpandedOnNarrow'
   | 'toggleRightPanel'
   | 'revealRightPanel'
@@ -116,7 +118,10 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     rightPanelWidth: 288,
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),
-    rightPanelCollapsed: false,
+    // A fresh install starts with the conversation alone; the top bar button opens the panel.
+    rightPanelCollapsed: true,
+    rightPanelRailIcons: false,
+    setRightPanelRailIcons: (on) => set({ rightPanelRailIcons: on }),
     rightPanelExpandedOnNarrow: false,
     toggleRightPanel: () =>
       set((state) => {

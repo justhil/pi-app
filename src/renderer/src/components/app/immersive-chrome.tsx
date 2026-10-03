@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { PanelLeft } from '@renderer/components/icons'
+import { PanelLeft, PanelRight } from '@renderer/components/icons'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { PiMark } from '@renderer/components/brand/pi-mark'
 import { WindowControls } from '@renderer/components/app/window-controls'
 import { NotificationInbox } from '@renderer/features/shell/notification-inbox'
@@ -20,6 +21,8 @@ export function ImmersiveChrome({
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const rightHidden = useRightPanelHidden()
+  const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
   return (
     <div
       className="electron-drag relative z-20 flex h-9 shrink-0 items-center justify-between px-2"
@@ -53,6 +56,20 @@ export function ImmersiveChrome({
       </div>
       <div className="electron-no-drag flex h-9 items-center gap-2">
         <NotificationInbox />
+        <button
+          type="button"
+          data-right-panel-toggle=""
+          onClick={toggleRightPanel}
+          aria-pressed={!rightHidden}
+          title={rightHidden ? t('common:topbar.expandRightPanel') : t('common:topbar.collapseRightPanel')}
+          aria-label={rightHidden ? t('common:topbar.expandRightPanel') : t('common:topbar.collapseRightPanel')}
+          className={cn(
+            'chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md text-foreground-secondary',
+            !rightHidden && 'bg-[var(--bg-active)] text-foreground',
+          )}
+        >
+          <PanelRight className="h-3.5 w-3.5" />
+        </button>
         <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />
       </div>
     </div>

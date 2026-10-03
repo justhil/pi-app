@@ -1,7 +1,11 @@
 {
   "address": {
     "placeholder": "Search or enter address",
-    "label": "Address bar"
+    "label": "Address bar",
+    "suggestions": "Address suggestions",
+    "open": "Open {{url}}",
+    "search": "Search “{{query}}”",
+    "switchTab": "Switch to tab"
   },
   "nav": {
     "back": "Back",
@@ -11,7 +15,7 @@
     "newTab": "New tab",
     "closeTab": "Close tab",
     "tabs": "Tabs",
-    "expand": "Expand into chat area",
+    "expand": "Expand",
     "collapse": "Collapse"
   },
   "tab": {
@@ -19,8 +23,7 @@
     "loading": "Loading…"
   },
   "empty": {
-    "title": "Open a page",
-    "description": "Type an address or search above. Local dev servers such as localhost:5173 work too; sign-ins stay in the built-in browser."
+    "title": "Type an address or search"
   },
   "toast": {
     "downloaded": "Downloaded {{name}}",
@@ -47,7 +50,7 @@
   },
   "annotate": {
     "toggle": "Annotate (Ctrl/⌘+Shift+A)",
-    "hint": "Click an element or drag an area to annotate; scroll to move the page",
+    "hint": "Click an element or drag an area; scroll with the wheel",
     "placeholder": "What should change here?",
     "enterHint": "Enter to add · Shift+Enter for a new line",
     "area": "Selected area",
@@ -84,5 +87,13 @@
   },
   "agent": {
     "acting": "AI · {{action}}"
+  },
+  "viewport": {
+    "title": "Page viewport size",
+    "fit": "Fit panel",
+    "fixed": "Fixed size",
+    "width": "Width",
+    "height": "Height",
+    "hint": "A fixed size is scaled down when the panel is smaller."
   }
 }

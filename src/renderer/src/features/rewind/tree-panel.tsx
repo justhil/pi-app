@@ -64,24 +64,28 @@ export function TreePanel() {
 
   return (
     <div className="flex h-full flex-col text-[12px]">
-      <div className="flex items-center gap-1 border-b border-border/40 px-2 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      {/* Filter as a small segmented control, so it does not read as a second row of panel tabs. */}
+      <div className="flex items-center gap-2 px-2.5 pb-1 pt-2">
+        <div className="flex min-w-0 items-center rounded-md bg-[var(--bg-hover)] p-0.5" role="radiogroup" aria-label={t('timeline:treeFilterLabel')}>
           {TREE_FILTER_OPTS.map((option) => (
             <button
               key={option.key}
               type="button"
+              role="radio"
+              aria-checked={filter === option.key}
               onClick={() => setFilter(option.key)}
               className={cn(
-                'h-7 shrink-0 rounded-md px-2.5 text-[12px] font-medium transition-colors',
+                'h-6 shrink-0 rounded px-2 text-[11.5px] transition-colors',
                 filter === option.key
-                  ? 'bg-[var(--bg-active)] text-foreground'
-                  : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-foreground-secondary hover:text-foreground',
               )}
             >
               {t(option.labelKey)}
             </button>
           ))}
         </div>
+        <span className="ml-auto truncate text-[11px] text-foreground-tertiary">{t('timeline:treeClickHint')}</span>
         <button
           type="button"
           className="chrome-icon-btn rounded-md p-1.5"

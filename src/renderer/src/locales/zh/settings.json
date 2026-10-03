@@ -751,7 +751,9 @@
     "description": "拖动调整右侧栏标签的顺序和显隐，保存后主界面立即更新。",
     "refreshCatalog": "刷新目录",
     "keepOne": "至少保留一个栏目",
-    "enabledCount": "已启用 {{enabled}} / {{total}} 个栏目 · 拖拽排序"
+    "enabledCount": "已启用 {{enabled}} / {{total}} 个栏目 · 拖拽排序",
+    "railIcons": "收起后保留面板图标",
+    "railIconsDesc": "右侧栏收起时在窗口边缘显示一列栏目图标。立即生效。"
   },
   "common_confirm": {
     "confirm": "确定",

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CapabilityId, CapabilityInfo } from '@shared/capabilities'
-import { Globe, SlidersHorizontal, Sparkles, X, type AppIconComponent } from '@renderer/components/icons'
+import { Globe, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import {
@@ -59,43 +59,33 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   }, [open])
 
   const label = (id: CapabilityId) => t(`composer:tools.items.${id}.name`)
+  const names = enabled.map(label).join('、')
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex min-w-0 items-center">
+      {/* One icon button. Enabled capabilities show as a small count (names in the tooltip
+          and the menu), so turning things on never widens the toolbar. */}
       <button
         type="button"
         data-composer-tools=""
         disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={open}
-        title={t('composer:tools.button')}
+        aria-label={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')}
+        title={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'composer-toolbar-btn flex h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11.5px] text-foreground-secondary/80 disabled:opacity-30',
+          'composer-toolbar-btn flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1.5 text-foreground-secondary/75 disabled:opacity-30',
           open && 'bg-[var(--bg-active)] text-foreground',
+          enabled.length > 0 && 'text-primary',
         )}
       >
         <SlidersHorizontal className="h-[14px] w-[14px]" />
-        {enabled.length === 0 ? <span>{t('composer:tools.button')}</span> : null}
+        {enabled.map((id) => (
+          <span key={id} className="composer-capability-chip hidden" data-capability={id} />
+        ))}
+        {enabled.length > 0 ? <span className="text-[11px] font-medium tabular-nums">{enabled.length}</span> : null}
       </button>
-      {enabled.map((id) => {
-        const Icon = ICONS[id]
-        return (
-          <span key={id} className="composer-capability-chip flex h-6 min-w-0 items-center gap-1 rounded-md pl-1.5 pr-0.5 text-[11px]">
-            <Icon className="h-3 w-3 shrink-0" />
-            <span className="truncate">{label(id)}</span>
-            <button
-              type="button"
-              aria-label={t('composer:tools.turnOff', { name: label(id) })}
-              title={t('composer:tools.turnOff', { name: label(id) })}
-              onClick={() => setSessionCapability(sessionFile, id, false)}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-60 hover:bg-[var(--bg-hover)] hover:opacity-100"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        )
-      })}
       {open ? (
         <ComposerPopover
           anchorSelector="[data-composer-tools]"

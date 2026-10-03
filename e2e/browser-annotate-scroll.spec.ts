@@ -48,10 +48,10 @@ test('annotation mode scrolls without stalling', async () => {
           useUIStore.setState({ rightPanelPrefs: { ...(useUIStore.getState().rightPanelPrefs as object), browser: true }, activePanel: 'browser', rightPanelCollapsed: false, rightPanelExpandedOnNarrow: true, rightPanelWidth: 560 })
         })
         await win.waitForTimeout(300)
-        return win.getByRole('textbox', { name: /Address bar|地址栏/ }).count()
+        return win.getByRole('combobox', { name: /Address bar|地址栏/ }).count()
       }, { timeout: 30_000 })
       .toBe(1)
-    const address = win.getByRole('textbox', { name: /Address bar|地址栏/ })
+    const address = win.getByRole('combobox', { name: /Address bar|地址栏/ })
     await address.fill(`${base}/`)
     await address.press('Enter')
     await win.waitForTimeout(1500)
@@ -107,15 +107,15 @@ test('annotation mode scrolls without stalling', async () => {
     const tabs = win.locator('[data-browser-tab]')
     await expect(tabs).toHaveCount(2)
     await tabs.nth(1).click({ button: 'middle' })
-    await expect(tabs).toHaveCount(0) // one tab left: the strip hides
-    await expect(win.getByRole('textbox', { name: /Address bar|地址栏/ })).toHaveValue(/127\.0\.0\.1/)
+    await expect(tabs).toHaveCount(1)
+    await expect(win.getByRole('combobox', { name: /Address bar|地址栏/ })).toHaveValue(/127\.0\.0\.1/)
 
     // Right panel tab strip: vertical wheel over it scrolls it sideways, not the page.
     await win.evaluate(() => {
       const { useUIStore } = (window as unknown as { __piE2E: { useUIStore: { setState: (s: object) => void } } }).__piE2E
       useUIStore.setState({ rightPanelWidth: 300 })
     })
-    const strip = win.locator('.right-panel-tabs-scroll')
+    const strip = win.locator('.right-panel-tabs-wrap .right-panel-tabs-scroll')
     const overflow = await strip.evaluate((el) => el.scrollWidth - el.clientWidth)
     if (overflow > 0) {
       await strip.hover()

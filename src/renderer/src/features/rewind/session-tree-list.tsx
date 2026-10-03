@@ -212,16 +212,17 @@ export function SessionTreeList({
                     layout && !layout.pathIds.has(n.id) && !n.isLeaf && 'opacity-[0.72]',
                   )}
                 >
-                  {(() => {
+                  {/* Messages need no icon (the graph marks the node, the text says who spoke);
+                      only non-message entries keep one so they read as events. */}
+                  {n.entryType !== 'message' ? (() => {
                     const Icon = nodeIcon(n)
-                    return (
-                      <Icon
-                        className={cn('h-3.5 w-3.5 shrink-0 opacity-80', nodeIconClass(n))}
-                      />
-                    )
-                  })()}
+                    return <Icon className={cn('h-3.5 w-3.5 shrink-0 opacity-80', nodeIconClass(n))} />
+                  })() : null}
                   <span
-                    className="min-w-0 flex-1 truncate text-[12px] leading-[26px] text-foreground-secondary"
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-[12px] leading-[26px]',
+                      n.entryType === 'message' && n.role === 'user' ? 'text-foreground' : 'text-foreground-secondary',
+                    )}
                     title={sessionTreeLineTitle(n, t)}
                   >
                     {sessionTreeLineTitle(n, t)}
