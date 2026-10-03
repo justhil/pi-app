@@ -1,5 +1,6 @@
 // Browser viewport size: "fit" follows the panel; "fixed" keeps the page's viewport at a chosen
-// size, scaled down (never up) and centred when the panel is smaller.
+// size, scaled down (never up) when the panel is smaller: centred horizontally, top-aligned
+// like a page (a vertically centred page reads as floating).
 
 export type ViewportMode = { kind: 'fit' } | { kind: 'fixed'; width: number; height: number }
 
@@ -18,7 +19,7 @@ export function fitViewport(mode: ViewportMode, area: { width: number; height: n
   const zoom = Math.min(1, area.width / mode.width, area.height / mode.height)
   const width = Math.floor(mode.width * zoom)
   const height = Math.floor(mode.height * zoom)
-  return { width, height, left: Math.floor((area.width - width) / 2), top: Math.floor((area.height - height) / 2), zoom }
+  return { width, height, left: Math.floor((area.width - width) / 2), top: 0, zoom }
 }
 
 export function loadViewportMode(): ViewportMode {

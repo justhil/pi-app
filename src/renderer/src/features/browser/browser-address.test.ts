@@ -38,9 +38,9 @@ describe('fitViewport', () => {
   it('follows the panel in fit mode', () => {
     expect(fitViewport({ kind: 'fit' }, { width: 500, height: 400 })).toEqual({ width: 500, height: 400, left: 0, top: 0, zoom: 1 })
   })
-  it('scales a larger fixed viewport down and centres it', () => {
+  it('scales a larger fixed viewport down, top-aligned', () => {
     const f = fitViewport({ kind: 'fixed', width: 1280, height: 800 }, { width: 640, height: 800 })
-    expect(f).toEqual({ width: 640, height: 400, left: 0, top: 200, zoom: 0.5 })
+    expect(f).toEqual({ width: 640, height: 400, left: 0, top: 0, zoom: 0.5 })
   })
   it('never scales up', () => {
     expect(fitViewport({ kind: 'fixed', width: 400, height: 300 }, { width: 1000, height: 1000 }).zoom).toBe(1)

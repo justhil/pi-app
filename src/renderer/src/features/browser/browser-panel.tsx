@@ -10,7 +10,7 @@ import {
   type BrowserLogEntry,
   type PageContextResult,
 } from '@shared/browser-types'
-import { ArrowLeft, ArrowRight, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
+import { ArrowLeft, ArrowRight, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, Monitor, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
@@ -311,10 +311,25 @@ export function BrowserPanel() {
 
   const addressValue = editing ? draft : pageShown ? (activeTab?.url ?? '') : ''
   const navButton = 'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md disabled:opacity-40'
+  const scaled = fitted.zoom < 0.999
   const viewportLabel =
     viewportMode.kind === 'fit'
       ? t('viewport.fit')
-      : `${viewportMode.width} × ${viewportMode.height}${fitted.zoom < 0.999 ? ` · ${Math.round(fitted.zoom * 100)}%` : ''}`
+      : `${viewportMode.width}×${viewportMode.height}${scaled ? ` · ${Math.round(fitted.zoom * 100)}%` : ''}`
+  // The tab row keeps the short form: the scale when scaled, else the size.
+  const viewportShort = viewportMode.kind === 'fit' ? '' : scaled ? `${Math.round(fitted.zoom * 100)}%` : `${viewportMode.width}×${viewportMode.height}`
+
+  // Esc closes the small menus of the toolbar.
+  useEffect(() => {
+    if (!viewportMenuOpen && !sendMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setViewportMenuOpen(false)
+      setSendMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [viewportMenuOpen, sendMenuOpen])
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col" onKeyDown={onRootKeyDown}>
@@ -339,7 +354,7 @@ export function BrowserPanel() {
                   void browserActions.close(id)
                 }}
                 className={cn(
-                  'group flex h-7 max-w-[200px] min-w-[64px] shrink-0 items-center gap-1 rounded-md pl-2 pr-0.5 text-[12px]',
+                  'group flex h-7 min-w-[56px] max-w-[180px] flex-1 basis-[160px] items-center gap-1 rounded-md pl-2 pr-0.5 text-[12px]',
                   active ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',
                 )}
               >
@@ -366,13 +381,14 @@ export function BrowserPanel() {
         <div className="relative shrink-0">
           <button
             type="button"
-            className={cn('chrome-icon-btn flex h-7 items-center rounded-md px-1.5 text-[11px] tabular-nums text-foreground-secondary', viewportMenuOpen && 'bg-[var(--bg-active)]')}
-            title={t('viewport.title')}
+            className={cn('chrome-icon-btn flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[11px] tabular-nums text-foreground-secondary', viewportMenuOpen && 'bg-[var(--bg-active)]')}
+            title={`${t('viewport.title')}：${viewportLabel}`}
+            aria-label={`${t('viewport.title')}：${viewportLabel}`}
             aria-haspopup="menu"
             aria-expanded={viewportMenuOpen}
             onClick={() => setViewportMenuOpen((o) => !o)}
           >
-            {viewportLabel}
+            {viewportMode.kind === 'fit' ? <Monitor className="h-3.5 w-3.5" /> : viewportShort}
           </button>
           {viewportMenuOpen ? (
             <>
@@ -386,7 +402,7 @@ export function BrowserPanel() {
                 </button>
                 <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fixed'}
                   className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fixed' && 'font-medium')}
-                  onClick={() => viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', ...clampViewport(area.width || 1280, area.height || 800) })}>
+                  onClick={() => viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', width: 1280, height: 800 })}>
                   {t('viewport.fixed')}
                 </button>
                 {viewportMode.kind === 'fixed' ? (
@@ -485,7 +501,7 @@ export function BrowserPanel() {
           />
           {showSuggestions ? (
             <div id="browser-address-suggestions" role="listbox" aria-label={t('address.suggestions')}
-              className="absolute inset-x-0 top-8 z-50 overflow-hidden rounded-lg border border-border/60 bg-popover py-1 text-[12px] text-popover-foreground shadow-lg">
+              className="absolute left-0 top-8 z-50 w-full min-w-[280px] overflow-hidden rounded-lg border border-border/60 bg-popover py-1 text-[12px] text-popover-foreground shadow-lg">
               {suggestions.map((s, i) => {
                 const Icon = s.kind === 'search' ? Search : s.kind === 'history' ? History : Globe
                 const primary = s.kind === 'search' ? t('address.search', { query: s.query }) : s.kind === 'open' ? t('address.open', { url: s.url }) : s.title || s.url
@@ -500,8 +516,8 @@ export function BrowserPanel() {
                       void go(s)
                     }}>
                     <Icon className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
-                    <span className="min-w-0 truncate">{primary}</span>
-                    {secondary ? <span className="ml-auto min-w-0 shrink truncate pl-2 text-[11px] text-foreground-tertiary">{secondary}</span> : null}
+                    <span className="min-w-0 flex-1 truncate">{primary}</span>
+                    {secondary ? <span className="ml-2 max-w-[45%] shrink-0 truncate text-[11px] text-foreground-tertiary">{secondary}</span> : null}
                   </div>
                 )
               })}

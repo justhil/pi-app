@@ -14,7 +14,7 @@ const mainEntry = path.join(root, 'out/main/index.js')
 
 /** One request the scripted model received. */
 export type Seen = { system: string; tools: string[]; toolResults: number; firstUser: string; toolTexts: string[] }
-export type Step = { tool?: { name: string; args: unknown }; text?: string }
+export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number }
 /** Next step given the user's first message and the tool results so far (oldest first). */
 export type Script = (firstUser: string, toolTexts: string[]) => Step
 
@@ -49,6 +49,7 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const step = script(firstUser, toolTexts)
 
     res.writeHead(200, { 'content-type': 'text/event-stream' })
+    if (step.delayMs) await new Promise((r) => setTimeout(r, step.delayMs))
     const send = (delta: unknown, finish: string | null = null) =>
       res.write(`data: ${JSON.stringify({ id: 'x', object: 'chat.completion.chunk', created: 0, model: request.model, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`)
     send({ role: 'assistant', content: '' })

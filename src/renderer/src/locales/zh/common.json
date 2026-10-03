@@ -212,7 +212,7 @@
     "stopConfirm": "停止这条会话当前的运行？已保存的聊天记录不会删除。",
     "failed": "出错",
     "memoryKinds": {
-      "sessions": "会话进程",
+      "sessions": "会话",
       "ui": "界面",
       "main": "主进程",
       "browser": "内置浏览器",
