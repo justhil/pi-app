@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { normalizeFontName } from '../../../packages/shared/custom-theme.ts'
 import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
 import { BROWSER_SEARCH_ENGINE_IDS, type BrowserSearchEngine } from '../../../packages/shared/browser-types.ts'
+import { CAPABILITY_IDS } from '../../../packages/shared/capabilities.ts'
 
 export const shellOpenPathSchema = z.object({
   path: z.string(),
@@ -106,6 +107,8 @@ export const workspaceSandboxDeleteSchema = z.object({
 export const promptTextSchema = z.object({
   text: z.string(),
   sessionFile: z.string().optional(),
+  /** Session capabilities switched on in the composer; omitted = leave the worker's set unchanged. */
+  capabilities: z.array(z.enum(CAPABILITY_IDS)).max(8).optional(),
 })
 
 const CLIPBOARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
@@ -212,6 +215,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
     .object({ width: z.number(), height: z.number(), x: z.number().optional(), y: z.number().optional() })
     .nullable(),
   asrConfig: z.record(z.unknown()),
+  sessionCapabilities: z.record(z.array(z.enum(CAPABILITY_IDS)).max(8)),
   browserSearchEngine: z.enum(BROWSER_SEARCH_ENGINE_IDS as [BrowserSearchEngine, ...BrowserSearchEngine[]]),
   agentRuntime: z
     .object({

@@ -9,6 +9,7 @@ import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
+import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
 
 export function useComposerSend(opts: {
   editorRef: React.RefObject<HTMLDivElement | null>
@@ -76,6 +77,7 @@ export function useComposerSend(opts: {
           sessionId: '',
           sessionFile: useUIStore.getState().historySessionFile ?? undefined,
           text: payload,
+          capabilities: currentSessionCapabilities(),
         })
         const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
         const pendMsg = displayText.trim()

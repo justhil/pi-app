@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
 
 export async function sendComposerPrompt(text: string): Promise<boolean> {
   const trimmed = text.trim()
@@ -14,6 +15,7 @@ export async function sendComposerPrompt(text: string): Promise<boolean> {
     sessionId: store.currentSessionId || '',
     sessionFile: store.historySessionFile ?? undefined,
     text: trimmed,
+    capabilities: currentSessionCapabilities(),
   })
   const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
   await afterPromptSent(bind)

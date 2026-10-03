@@ -182,5 +182,25 @@
   "allModels": "All models",
   "modelPickerKeys": "↑↓ select · Enter switch · Esc close",
   "thinkingChip": "Thinking: {{level}} (Shift+Tab to cycle)",
-  "contextRing": "Context {{used}} / {{total}} ({{pct}}%)"
+  "contextRing": "Context {{used}} / {{total}} ({{pct}}%)",
+  "tools": {
+    "button": "Tools",
+    "title": "Capabilities for this chat",
+    "turnOff": "Turn off {{name}}",
+    "comingSoon": "Coming soon",
+    "toolCount": "+{{count}} tools",
+    "tokens": "~{{n}} tokens added to the system prompt",
+    "note": "Turned on, it joins the system prompt or tools from your next message; turned off, it is removed right away. Switching resets the prompt cache. New chats start with everything off.",
+    "noteRunning": "The current turn is unaffected; changes apply from your next message.",
+    "items": {
+      "pi-ui": {
+        "name": "pi-ui visuals",
+        "desc": "Lets the AI answer with charts, KPI cards, tables, timelines and other structured blocks"
+      },
+      "browser": {
+        "name": "Browser control",
+        "desc": "Lets the AI read and operate pages in the built-in browser"
+      }
+    }
+  }
 }

@@ -14,6 +14,7 @@ import {
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
+import { ComposerToolsMenu } from './composer-tools-menu'
 import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { ComposerAdapterWidgetHost } from './composer-adapter-widget-host'
@@ -500,6 +501,7 @@ export function Composer() {
             >
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
+            {canSendMessages && <ComposerToolsMenu running={isRunning} />}
             <div className="min-w-0 flex-1">
               {canSendMessages && (
                 <ComposerModelStrip

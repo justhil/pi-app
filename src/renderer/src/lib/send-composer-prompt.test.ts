@@ -56,6 +56,8 @@ describe('sendComposerPrompt', () => {
       sessionId: 's1',
       sessionFile: '/tmp/a.jsonl',
       text: '请按这些行评修改',
+      // New sessions start with every capability off.
+      capabilities: [],
     })
     expect(afterPromptSent).toHaveBeenCalled()
   })
@@ -74,6 +76,7 @@ describe('sendComposerPrompt', () => {
       sessionId: 'new',
       sessionFile: '/tmp/new.jsonl',
       text: '请按这些行评修改',
+      capabilities: [],
     })
   })
 })

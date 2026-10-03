@@ -182,5 +182,25 @@
   "allModels": "全部模型",
   "modelPickerKeys": "↑↓ 选择 · Enter 切换 · Esc 关闭",
   "thinkingChip": "思考：{{level}}（Shift+Tab 切换）",
-  "contextRing": "上下文 {{used}} / {{total}}（{{pct}}%）"
+  "contextRing": "上下文 {{used}} / {{total}}（{{pct}}%）",
+  "tools": {
+    "button": "工具",
+    "title": "本会话的能力",
+    "turnOff": "关闭{{name}}",
+    "comingSoon": "即将支持",
+    "toolCount": "+{{count}} 个工具",
+    "tokens": "系统提示约 +{{n}} tokens",
+    "note": "开启后从下一次发送起加入系统提示或工具，关闭后立即撤销；切换会让提示缓存失效。新会话默认全部关闭。",
+    "noteRunning": "当前回合不受影响，切换从下一次发送起生效。",
+    "items": {
+      "pi-ui": {
+        "name": "pi-ui 可视化",
+        "desc": "允许 AI 用图表、指标卡、表格、甘特图等结构化块作答"
+      },
+      "browser": {
+        "name": "浏览器操控",
+        "desc": "允许 AI 读取并操作内置浏览器的页面"
+      }
+    }
+  }
 }

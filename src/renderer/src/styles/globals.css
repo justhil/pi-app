@@ -794,6 +794,11 @@
     from { opacity: 0; transform: translateY(4px) scale(0.985); }
     to { opacity: 1; transform: none; }
   }
+  .composer-capability-chip {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--brand) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand) 18%, transparent);
+  }
   .composer-thinking-bars {
     display: inline-flex;
     align-items: flex-end;

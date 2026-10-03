@@ -19,7 +19,7 @@ function classLiteralContaining(token) {
     .find((classes) => classes.split(/\s+/).includes(token)) ?? ''
 }
 
-test('composer shell and drag overlay share the Codex-aligned continuous radius', () => {
+test('composer shell and drag overlay share the embedded 14px radius', () => {
   const dropOverlayClasses = classLiteralContaining('composer-drop-overlay')
   const shellClasses = classLiteralContaining('composer-shell')
   const shellRule = cssRule('.composer-shell')
@@ -27,7 +27,7 @@ test('composer shell and drag overlay share the Codex-aligned continuous radius'
 
   assert.notEqual(dropOverlayClasses, '')
   assert.notEqual(shellClasses, '')
-  assert.match(css, /--composer-shell-radius:\s*20px/)
+  assert.match(css, /--composer-shell-radius:\s*14px/)
   assert.match(shellRule, /border-radius:\s*var\(--composer-shell-radius\)/)
   assert.match(overlayRule, /border-radius:\s*var\(--composer-shell-radius\)/)
   assert.doesNotMatch(dropOverlayClasses, /(?:^|\s)rounded-(?:xl|2xl)(?:\s|$)/)
@@ -54,7 +54,7 @@ test('composer overlay is the first child of the relative shell after queue and 
   assert.doesNotMatch(source, /composer-shell-wrap/)
 })
 
-test('composer default and focused states keep layered edge elevation', () => {
+test('composer states use a hairline lift, not a wide floating shadow', () => {
   const rootRule = cssRule(':root')
   const darkRule = cssRule('.dark')
   const shellRule = cssRule('.composer-shell')
@@ -69,9 +69,11 @@ test('composer default and focused states keep layered edge elevation', () => {
     assert.match(rule, /--composer-shell-shadow-recording:/)
     assert.match(rule, /--composer-shell-shadow-hero:/)
     assert.match(rule, /--composer-shell-shadow-hero-focus:/)
-    assert.match(rule, /inset\s+0\s+1px\s+0/)
     assert.match(rule, /0\s+1px\s+2px/)
-    assert.match(rule, /0\s+(?:8|10)px\s+(?:24|28)px/)
+    // Soft lift with a negative spread keeps the shadow tucked under the shell.
+    assert.match(rule, /0\s+(?:6|8|10|12)px\s+(?:16|18|20|24|26)px\s+-\d+px/)
+    // The old floating look: wide blur without negative spread.
+    assert.doesNotMatch(rule, /0\s+(?:10|12|14|18|20)px\s+(?:28|30|34|44|48)px\s+rgba/)
   }
 
   assert.match(shellRule, /border-color:\s*var\(--composer-shell-border\)/)

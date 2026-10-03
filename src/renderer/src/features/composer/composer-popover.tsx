@@ -18,9 +18,17 @@ const EDGE = 8
  * Where a menu of `width` (visual px) opens above `anchor`: right-aligned to the anchor and
  * clamped to the viewport. Returned in pre-zoom px for `position: fixed`.
  */
-export function placeAbove(anchor: DOMRect, width: number, viewport: { width: number; height: number }, zoom = 1): PopoverPlacement {
-  const right = Math.min(viewport.width - EDGE, anchor.right)
-  const left = Math.max(EDGE, right - width)
+export function placeAbove(
+  anchor: DOMRect,
+  width: number,
+  viewport: { width: number; height: number },
+  zoom = 1,
+  align: 'start' | 'end' = 'end',
+): PopoverPlacement {
+  const left =
+    align === 'start'
+      ? Math.max(EDGE, Math.min(anchor.left, viewport.width - EDGE - width))
+      : Math.max(EDGE, Math.min(viewport.width - EDGE, anchor.right) - width)
   const bottom = viewport.height - anchor.top + GAP
   const maxHeight = Math.max(160, anchor.top - GAP - EDGE)
   return { left: left / zoom, bottom: bottom / zoom, maxHeight: maxHeight / zoom }
@@ -37,10 +45,13 @@ export function ComposerPopover({
   label,
   onClose,
   className,
+  align = 'end',
   children,
 }: {
   anchorSelector: string
   width: number
+  /** Which anchor edge the menu lines up with. */
+  align?: 'start' | 'end'
   label: string
   onClose: () => void
   className?: string
@@ -54,13 +65,13 @@ export function ComposerPopover({
       const anchor = document.querySelector(anchorSelector) ?? document.querySelector('[data-composer-shell]')
       const zoom = uiZoom()
       const viewport = { width: window.innerWidth, height: window.innerHeight }
-      if (anchor) setPlacement(placeAbove(anchor.getBoundingClientRect(), width * zoom, viewport, zoom))
+      if (anchor) setPlacement(placeAbove(anchor.getBoundingClientRect(), width * zoom, viewport, zoom, align))
       else setPlacement({ left: (viewport.width - width * zoom) / 2 / zoom, bottom: 120 / zoom, maxHeight: viewport.height / zoom - 160 })
     }
     place()
     window.addEventListener('resize', place)
     return () => window.removeEventListener('resize', place)
-  }, [anchorSelector, width])
+  }, [anchorSelector, width, align])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

@@ -13,6 +13,11 @@ describe('placeAbove', () => {
     expect(placeAbove(rect(20, 700, 40, 24), 300, { width: 1200, height: 800 }).left).toBe(8)
   })
 
+  it('left-aligns for start anchors and keeps the menu on screen', () => {
+    expect(placeAbove(rect(100, 700, 60, 24), 300, { width: 1200, height: 800 }, 1, 'start').left).toBe(100)
+    expect(placeAbove(rect(1100, 700, 60, 24), 300, { width: 1200, height: 800 }, 1, 'start').left).toBe(892)
+  })
+
   it('converts visual px to pre-zoom px', () => {
     const p = placeAbove(rect(600, 700, 80, 24), 330, { width: 1200, height: 800 }, 1.1)
     expect(p.left).toBeCloseTo(350 / 1.1)

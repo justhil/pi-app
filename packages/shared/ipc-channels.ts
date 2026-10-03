@@ -36,6 +36,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:browser.tabs.list',
   'ipc:browser.tabs.open',
   'ipc:browser.viewBounds',
+  'ipc:capabilities.catalog',
   'ipc:clipboard.writeTempImage',
   'ipc:commands.completions',
   'ipc:commands.list',

@@ -3,6 +3,7 @@ import { ensureWorkerSessionBound } from '../../session-bind-state'
 import { normalizeSessionKey } from '../../worker-session-key'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { writeClipboardTempImage } from '../../clipboard-temp-images'
+import { capabilityCatalog, capabilitySections } from '../../capabilities/catalog'
 import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 
 export function registerPromptHandlers(): void {
@@ -31,8 +32,17 @@ export function registerPromptHandlers(): void {
     return got === want
   }
 
+  // Enabled capabilities travel with each message so drafts and restarted workers stay in sync.
+  const applyCapabilities = async (req: { capabilities?: string[]; sessionFile?: string }) => {
+    if (req.capabilities === undefined) return
+    await workerManager.setCapabilities(capabilitySections(req.capabilities), req.sessionFile)
+  }
+
+  registerHandler('ipc:capabilities.catalog', async () => ({ capabilities: capabilityCatalog() }))
+
   registerHandlerWithSchema('ipc:prompt.send', promptTextSchema, async (req) => {
     const bind = await bindBeforePrompt(req.sessionFile)
+    await applyCapabilities(req)
     await workerManager.sendPrompt(req.text, req.sessionFile)
     // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
     // Cleanup is TTL/startup prune + optional quit, not immediate delete-on-send.
@@ -61,6 +71,7 @@ export function registerPromptHandlers(): void {
 
   registerHandlerWithSchema('ipc:prompt.steer', promptTextSchema, async (req) => {
     const bind = await bindBeforePrompt(req.sessionFile)
+    await applyCapabilities(req)
     await workerManager.steer(req.text, req.sessionFile)
     return {
       steered: true,
@@ -72,6 +83,7 @@ export function registerPromptHandlers(): void {
 
   registerHandlerWithSchema('ipc:prompt.followUp', promptTextSchema, async (req) => {
     const bind = await bindBeforePrompt(req.sessionFile)
+    await applyCapabilities(req)
     await workerManager.followUp(req.text, req.sessionFile)
     return {
       messageId: `msg-${Date.now()}`,
