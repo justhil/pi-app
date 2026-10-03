@@ -20,6 +20,15 @@ export function writeClipboardTempImage(data: Buffer, ext: string): string {
   return filePath
 }
 
+/** Text attachment (e.g. a page captured from the built-in browser) beside clipboard images. */
+export function writeClipboardTempText(text: string, ext = 'md'): string {
+  const safeExt = (ext || 'md').replace(/[^a-z0-9]/gi, '') || 'md'
+  const filePath = join(resolveClipboardImageDir(), `pi-clipboard-${randomUUID()}.${safeExt}`)
+  writeFileSync(filePath, text, 'utf8')
+  trackClipboardTempImage(filePath)
+  return filePath
+}
+
 export function trackClipboardTempImage(path: string): void {
   const p = String(path || '').trim()
   if (!p) return

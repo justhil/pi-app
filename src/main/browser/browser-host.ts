@@ -4,18 +4,54 @@ import {
   BROWSER_EVENT_CHANNEL,
   DEFAULT_ELECTRON_PROFILE_ID,
   isAllowedBrowserUrl,
+  isDevOrigin,
   isExternalProtocolUrl,
   type BrowserEvent,
+  type BrowserLogEntry,
   type BrowserTabInfo,
   type BrowserViewBounds,
+  type ElementDescriptor,
+  type PageContextResult,
 } from '@shared/browser-types'
 import { configureBrowserSession, partitionForProfile } from './electron-session'
+import { FRAMEWORK_SOURCE, INSPECT_AT_POINT, PAGE_CONTEXT } from './page-scripts'
 import { computeViewBounds } from './view-layout'
 
 interface Tab {
   info: BrowserTabInfo
   view: WebContentsView
+  logs: BrowserLogEntry[]
 }
+
+/** Isolated world shared by all host page scripts; pages cannot see its globals. */
+const SCRIPT_WORLD = 1999
+const LOG_LIMIT = 200
+/** A page blocked by alert()/confirm() never answers; fail fast instead of hanging the UI. */
+const PAGE_SCRIPT_TIMEOUT_MS = 2000
+
+export class BrowserDialogPendingError extends Error {
+  constructor() {
+    super('browser_dialog_pending: the page is waiting on a dialog')
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new BrowserDialogPendingError()), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
+const num = (n: number) => (Number.isFinite(n) ? Math.round(n) : 0)
 
 export type BrowserNavigateOp = { url: string } | { history: 'back' | 'forward' | 'reload' | 'stop' }
 
@@ -38,7 +74,14 @@ export class BrowserHost {
     const win = this.getWindow()
     if (!win || win.isDestroyed()) throw new Error('browser: main window unavailable')
     const profileId = opts.profileId || DEFAULT_ELECTRON_PROFILE_ID
-    configureBrowserSession(profileId, (e) => this.emit(e))
+    configureBrowserSession(profileId, {
+      emit: (e) => this.emit(e),
+      onNetworkProblem: (webContentsId, entry) => {
+        for (const t of this.tabs.values()) {
+          if (!t.view.webContents.isDestroyed() && t.view.webContents.id === webContentsId) pushLog(t, entry)
+        }
+      },
+    })
 
     const view = new WebContentsView({
       webPreferences: {
@@ -64,7 +107,7 @@ export class BrowserHost {
       canGoForward: false,
       openedBy: 'user',
     }
-    const tab: Tab = { info, view }
+    const tab: Tab = { info, view, logs: [] }
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
     this.emit({ type: 'tab-updated', tab: info })
@@ -142,6 +185,43 @@ export class BrowserHost {
     return image.isEmpty() ? null : `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`
   }
 
+  /** Element under a viewport point (isolated world). `deep` adds framework source clues on dev origins. */
+  async inspectPoint(tabId: string, x: number, y: number, deep = false): Promise<ElementDescriptor | null> {
+    const wc = this.requireTab(tabId).view.webContents
+    const code = `(${INSPECT_AT_POINT})(${num(x)}, ${num(y)})`
+    const found = (await withTimeout(wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]), PAGE_SCRIPT_TIMEOUT_MS)) as ElementDescriptor | null
+    if (!found || !deep || !isDevOrigin(wc.getURL())) return found
+    try {
+      // Main world, dev origins only, once per click: React fiber / Vue instance live on DOM expandos.
+      const extra = (await withTimeout(wc.executeJavaScript(`(${FRAMEWORK_SOURCE})(${num(x)}, ${num(y)})`), PAGE_SCRIPT_TIMEOUT_MS)) as
+        | { components: string[]; sourceHints: string[] }
+        | null
+      if (extra) {
+        const sourceHints = [...extra.sourceHints, ...found.sourceHints.filter((h) => !extra.sourceHints.includes(h))].slice(0, 4)
+        return { ...found, sourceHints, ...(extra.components.length ? { components: extra.components } : {}) }
+      }
+    } catch (error) {
+      console.warn('[browser] framework source lookup failed:', (error as Error)?.message)
+    }
+    return found
+  }
+
+  async pageContext(tabId: string, maxChars = 60_000): Promise<PageContextResult> {
+    const wc = this.requireTab(tabId).view.webContents
+    const code = `(${PAGE_CONTEXT})(${num(maxChars)})`
+    return (await withTimeout(wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]), PAGE_SCRIPT_TIMEOUT_MS)) as PageContextResult
+  }
+
+  logs(tabId: string, max = 30): BrowserLogEntry[] {
+    return this.requireTab(tabId).logs.slice(-max)
+  }
+
+  /** Real wheel input at a viewport point (DOM deltaY > 0 scrolls down). */
+  scroll(tabId: string, x: number, y: number, deltaY: number): void {
+    const wc = this.requireTab(tabId).view.webContents
+    wc.sendInputEvent({ type: 'mouseWheel', x: num(x), y: num(y), deltaX: 0, deltaY: -num(deltaY), canScroll: true })
+  }
+
   shutdown(): void {
     for (const tabId of [...this.tabs.keys()]) this.closeTab(tabId)
     this.activeTabId = null
@@ -197,6 +277,14 @@ export class BrowserHost {
     wc.on('did-navigate', () => update())
     wc.on('did-navigate-in-page', () => update())
     wc.on('page-title-updated', () => update())
+    wc.on('console-message', (details) => {
+      if (details.level !== 'error' && details.level !== 'warning') return
+      const source = details.sourceId ? `${details.sourceId}:${details.lineNumber}` : undefined
+      pushLog(tab, { at: Date.now(), kind: 'console', level: details.level, message: details.message, ...(source ? { source } : {}) })
+    })
+    wc.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) tab.logs = []
+    })
     wc.on('render-process-gone', (_e, details) => {
       console.warn('[browser] page renderer gone:', details.reason)
       update({ loading: false })
@@ -208,7 +296,7 @@ export class BrowserHost {
       if (action === 'reload') wc.reload()
       else if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
       else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
-      else if (action === 'focus-address' || action === 'new-tab' || action === 'close-tab') {
+      else if (action === 'focus-address' || action === 'new-tab' || action === 'close-tab' || action === 'annotate') {
         this.emit({ type: 'shortcut', action })
       }
     })
@@ -220,13 +308,19 @@ export class BrowserHost {
   }
 }
 
-type ShortcutAction = 'focus-address' | 'new-tab' | 'close-tab' | 'reload' | 'back' | 'forward'
+function pushLog(tab: Tab, entry: BrowserLogEntry): void {
+  tab.logs.push(entry)
+  if (tab.logs.length > LOG_LIMIT) tab.logs.splice(0, tab.logs.length - LOG_LIMIT)
+}
+
+type ShortcutAction = 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'reload' | 'back' | 'forward'
 
 /** Keys the page would swallow but users expect the browser chrome to handle. */
 export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | 'meta' | 'alt' | 'shift'>): ShortcutAction | null {
   if (input.type !== 'keyDown') return null
   const mod = process.platform === 'darwin' ? input.meta : input.control
   const key = input.key.toLowerCase()
+  if (mod && !input.alt && input.shift && key === 'a') return 'annotate'
   if (mod && !input.alt && !input.shift) {
     if (key === 'l') return 'focus-address'
     if (key === 't') return 'new-tab'

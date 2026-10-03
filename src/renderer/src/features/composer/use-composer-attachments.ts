@@ -58,9 +58,16 @@ export function useComposerAttachments(opts: {
 
   useEffect(() => {
     const onAttach = (e: Event) => {
-      const detail = (e as CustomEvent<{ files?: { path: string; name: string; kind: string }[] }>).detail
-      const files = detail?.files
-      if (!files?.length) return
+      // `text` (optional) is inserted before the files, e.g. browser annotations or page logs.
+      const detail = (e as CustomEvent<{ files?: { path: string; name: string; kind: string }[]; text?: string }>).detail
+      const files = detail?.files ?? []
+      const text = typeof detail?.text === 'string' ? detail.text : ''
+      if (!files.length && !text) return
+      const el = editorRef.current
+      if (text && el) {
+        insertTextAtCursor(el, text.endsWith('\n') ? text : `${text}\n`)
+        updateFromEditor()
+      }
       const metas: AttachmentMeta[] = files.map((f) => ({
         path: f.path,
         name: f.name,
@@ -70,7 +77,7 @@ export function useComposerAttachments(opts: {
     }
     window.addEventListener('pi-desktop:composer-attach-files', onAttach)
     return () => window.removeEventListener('pi-desktop:composer-attach-files', onAttach)
-  }, [insertMetas])
+  }, [editorRef, insertMetas, updateFromEditor])
 
   const insertPastedScreenshot = useCallback(
     async (base64: string, mimeType: string) => {

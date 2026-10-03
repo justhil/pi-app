@@ -44,5 +44,42 @@
     "cleared": "已清除浏览数据",
     "clearFailed": "清除浏览数据失败",
     "saveFailed": "保存失败"
+  },
+  "annotate": {
+    "toggle": "批注模式（Ctrl/⌘+Shift+A）",
+    "hint": "点击元素或拖拽框选区域添加批注，滚轮可滚动页面",
+    "placeholder": "这里需要怎么改？",
+    "enterHint": "Enter 添加 · Shift+Enter 换行",
+    "area": "选中区域",
+    "add": "添加",
+    "cancel": "取消",
+    "count": "{{count}} 条批注",
+    "undo": "撤销上一条",
+    "exit": "退出",
+    "finish": "插入输入框",
+    "captureFailed": "无法截取页面，页面可能正在显示弹窗",
+    "exportFailed": "生成批注失败"
+  },
+  "send": {
+    "menu": "发送到对话",
+    "screenshot": "截图",
+    "screenshotDesc": "当前可视区域",
+    "page": "页面内容",
+    "pageDesc": "正文另存为 .md 附件",
+    "selection": "选中文本",
+    "selectionDesc": "以引用形式插入",
+    "logs": "控制台与网络错误",
+    "logsDesc": "最近 30 条错误和警告",
+    "noSelection": "页面上没有选中文本",
+    "failed": "无法读取页面内容",
+    "dialogPending": "页面正在显示弹窗，请先处理"
+  },
+  "composer": {
+    "annotations": "浏览器批注",
+    "logs": "浏览器日志",
+    "noLogs": "没有错误或警告",
+    "area": "区域",
+    "page": "页面",
+    "noComment": "（无评论）"
   }
 }

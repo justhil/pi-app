@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { browserSearchUrl, normalizeAddressInput, type BrowserEvent } from '@shared/browser-types'
-import { ArrowLeft, ArrowRight, ChevronRight, Globe, Maximize2, Plus, RefreshCw, X } from '@renderer/components/icons'
+import {
+  browserSearchUrl,
+  formatLogsForComposer,
+  formatSelectionForComposer,
+  normalizeAddressInput,
+  type BrowserEvent,
+  type BrowserLogEntry,
+  type PageContextResult,
+} from '@shared/browser-types'
+import { ArrowLeft, ArrowRight, ChevronRight, Globe, Maximize2, MessageSquarePlus, PencilLine, Plus, RefreshCw, X } from '@renderer/components/icons'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
@@ -10,6 +18,8 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { browserActions, ensureBrowserSubscription, onBrowserSideEvent, useBrowserStore } from './browser-store'
 import { useOverlayCovering, useViewPlacement } from './use-view-placement'
+import { AnnotationLayer } from './annotation-layer'
+import { saveImageAttachment, sendToComposer } from './browser-composer'
 
 /** Below this panel width the tab strip collapses into a select. */
 const NARROW_PANEL_PX = 360
@@ -41,6 +51,8 @@ export function BrowserPanel() {
   const [snapshot, setSnapshot] = useState<string | null>(null)
   const [hiddenForOverlay, setHiddenForOverlay] = useState(false)
   const [searchUrl, setSearchUrl] = useState(() => browserSearchUrl(undefined))
+  const [annotating, setAnnotating] = useState<{ snapshot: string; tabId: string } | null>(null)
+  const [sendMenuOpen, setSendMenuOpen] = useState(false)
   const covered = useOverlayCovering(viewportRef)
 
   useEffect(() => {
@@ -72,7 +84,7 @@ export function BrowserPanel() {
     }
   }, [covered, activeTabId, pageShown])
 
-  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay)
+  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay && !annotating)
 
   useEffect(() => {
     const el = rootRef.current
@@ -116,6 +128,64 @@ export function BrowserPanel() {
     }
   }, [draft, searchUrl, activeTabId, t])
 
+  const toggleAnnotate = useCallback(async () => {
+    if (annotating) {
+      setAnnotating(null)
+      return
+    }
+    if (!activeTabId || !pageShown) return
+    const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId }).catch(() => null)) as { dataUrl?: string | null } | null
+    if (res?.dataUrl) setAnnotating({ snapshot: res.dataUrl, tabId: activeTabId })
+    else toast.error(t('annotate.captureFailed'))
+  }, [annotating, activeTabId, pageShown, t])
+
+  // Leave annotation mode when the tab changes or navigates away.
+  useEffect(() => {
+    if (annotating && annotating.tabId !== activeTabId) setAnnotating(null)
+  }, [annotating, activeTabId])
+
+  const sendAction = useCallback(
+    async (kind: 'screenshot' | 'page' | 'selection' | 'logs') => {
+      setSendMenuOpen(false)
+      if (!activeTabId || !activeTab) return
+      try {
+        if (kind === 'screenshot') {
+          const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId })) as { dataUrl?: string | null }
+          if (!res?.dataUrl) throw new Error('capture failed')
+          sendToComposer({ files: [await saveImageAttachment(res.dataUrl, `browser-${Date.now()}.jpg`)] })
+        } else if (kind === 'page') {
+          const res = (await ipcClient.invoke('browser.pageContext', { tabId: activeTabId, saveText: true })) as PageContextResult & { path: string | null }
+          if (!res.path) throw new Error('page text unavailable')
+          const name = `${(res.title || 'page').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'page'}.md`
+          sendToComposer({ files: [{ path: res.path, name }] })
+        } else if (kind === 'selection') {
+          const res = (await ipcClient.invoke('browser.pageContext', { tabId: activeTabId })) as PageContextResult
+          if (!res.selection) {
+            toast.message(t('send.noSelection'))
+            return
+          }
+          sendToComposer({ text: formatSelectionForComposer(res.url, res.selection) })
+        } else {
+          const res = (await ipcClient.invoke('browser.logs', { tabId: activeTabId })) as { entries: BrowserLogEntry[] }
+          sendToComposer({
+            text: formatLogsForComposer(activeTab.url, res.entries ?? [], {
+              annotations: t('composer.annotations'),
+              logs: t('composer.logs'),
+              noLogs: t('composer.noLogs'),
+              area: t('composer.area'),
+              page: t('composer.page'),
+              noComment: t('composer.noComment'),
+            }),
+          })
+        }
+      } catch (error) {
+        console.warn('[browser] send to composer failed:', error)
+        toast.error(t(String(error).includes('dialog_pending') ? 'send.dialogPending' : 'send.failed'))
+      }
+    },
+    [activeTabId, activeTab, t],
+  )
+
   // Shortcuts pressed while the page had focus arrive from Main; downloads surface as toasts.
   useEffect(
     () =>
@@ -124,12 +194,13 @@ export function BrowserPanel() {
           if (event.action === 'focus-address') focusAddress()
           else if (event.action === 'new-tab') void openTab()
           else if (event.action === 'close-tab') closeActive()
+          else if (event.action === 'annotate') void toggleAnnotate()
         } else if (event.type === 'download') {
           if (event.state === 'completed') toast.success(t('toast.downloaded', { name: event.fileName }), { description: event.savePath })
           else toast.error(t('toast.downloadFailed', { name: event.fileName }))
         }
       }),
-    [focusAddress, openTab, closeActive, t],
+    [focusAddress, openTab, closeActive, toggleAnnotate, t],
   )
 
   // Expanded mode belongs to this panel only; Esc returns to the side panel.
@@ -156,8 +227,15 @@ export function BrowserPanel() {
   }
 
   const onRootKeyDown = (e: ReactKeyboardEvent) => {
-    if (!isMod(e) || e.altKey || e.shiftKey) return
+    if (!isMod(e) || e.altKey) return
     const key = e.key.toLowerCase()
+    if (e.shiftKey) {
+      if (key === 'a') {
+        e.preventDefault()
+        void toggleAnnotate()
+      }
+      return
+    }
     if (key === 'l') focusAddress()
     else if (key === 't') void openTab()
     else if (key === 'w' && activeTabId) closeActive()
@@ -212,8 +290,49 @@ export function BrowserPanel() {
               e.currentTarget.blur()
             }
           }}
-          className="h-7 min-w-0 flex-1 rounded-md border border-border/50 bg-[var(--bg-input,transparent)] px-2 text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary focus:border-[var(--accent)]"
+          className="h-7 min-w-0 flex-1 rounded-md border border-border/50 bg-background px-2 text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary focus:border-ring"
         />
+        <button
+          type="button"
+          className={cn(navButton, annotating && 'bg-[var(--bg-active)] text-foreground')}
+          title={t('annotate.toggle')}
+          aria-label={t('annotate.toggle')}
+          aria-pressed={!!annotating}
+          disabled={!pageShown}
+          onClick={() => void toggleAnnotate()}
+        >
+          <PencilLine className="h-3.5 w-3.5" />
+        </button>
+        <div className="relative">
+          <button
+            type="button"
+            className={cn(navButton, sendMenuOpen && 'bg-[var(--bg-active)]')}
+            title={t('send.menu')}
+            aria-label={t('send.menu')}
+            aria-haspopup="menu"
+            aria-expanded={sendMenuOpen}
+            disabled={!pageShown || !!annotating}
+            onClick={() => setSendMenuOpen((o) => !o)}
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+          </button>
+          {sendMenuOpen ? (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setSendMenuOpen(false)} aria-hidden />
+              <div role="menu" aria-label={t('send.menu')}
+                className="absolute right-0 top-8 z-50 min-w-[190px] rounded-lg border border-border/60 bg-popover text-popover-foreground p-1 shadow-lg">
+                {(['screenshot', 'page', 'selection', 'logs'] as const).map((kind) => (
+                  <button key={kind} type="button" role="menuitem"
+                    className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                    onClick={() => void sendAction(kind)}>
+                    <span className="text-[12px] text-foreground">{t(`send.${kind}`)}</span>
+                    <span className="text-[11px] text-foreground-tertiary">{t(`send.${kind}Desc`)}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
         <button type="button" className={navButton} title={t('nav.newTab')} aria-label={t('nav.newTab')} onClick={() => void openTab()}>
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -282,7 +401,16 @@ export function BrowserPanel() {
 
       <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden" data-browser-viewport="">
         {activeTab?.loading ? (
-          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-[var(--accent)]" aria-hidden />
+          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary" aria-hidden />
+        ) : null}
+        {annotating && activeTab ? (
+          <AnnotationLayer
+            key={annotating.tabId}
+            tabId={annotating.tabId}
+            page={{ title: activeTab.title, url: activeTab.url }}
+            initialSnapshot={annotating.snapshot}
+            onExit={() => setAnnotating(null)}
+          />
         ) : null}
         {!pageShown ? (
           <EmptyState title={t('empty.title')} description={t('empty.description')} className="h-full">

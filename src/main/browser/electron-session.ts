@@ -6,6 +6,7 @@ import {
   chromeUserAgent,
   withChromeClientHints,
   type BrowserEvent,
+  type BrowserLogEntry,
 } from '@shared/browser-types'
 import { uniqueDownloadPath } from './download-path'
 
@@ -24,7 +25,14 @@ export function browserDownloadDir(): string {
  * Chrome-shaped Accept-Language and UA client-hint headers (header level only), permissions denied,
  * downloads into ~/Downloads/pi-browser. Nothing is injected into pages.
  */
-export function configureBrowserSession(profileId: string, emit: (event: BrowserEvent) => void): Session {
+export interface BrowserSessionHooks {
+  emit: (event: BrowserEvent) => void
+  /** Failed or >= 400 requests, routed to the tab that owns `webContentsId`. */
+  onNetworkProblem: (webContentsId: number, entry: BrowserLogEntry) => void
+}
+
+export function configureBrowserSession(profileId: string, hooks: BrowserSessionHooks): Session {
+  const { emit } = hooks
   const partition = partitionForProfile(profileId)
   const ses = session.fromPartition(partition)
   if (configured.has(partition)) return ses
@@ -36,6 +44,26 @@ export function configureBrowserSession(profileId: string, emit: (event: Browser
 
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
     callback({ requestHeaders: withChromeClientHints(details.url, details.requestHeaders, chromeMajor, process.platform) })
+  })
+
+  ses.webRequest.onCompleted((details) => {
+    if (details.statusCode < 400 || details.webContentsId == null) return
+    hooks.onNetworkProblem(details.webContentsId, {
+      at: Date.now(),
+      kind: 'network',
+      level: details.statusCode >= 500 ? 'error' : 'warning',
+      message: `${details.method} ${details.statusCode} ${details.url}`,
+    })
+  })
+  ses.webRequest.onErrorOccurred((details) => {
+    // Aborted requests are routine (navigation, cancelled fetches); keep real failures only.
+    if (details.webContentsId == null || details.error === 'net::ERR_ABORTED') return
+    hooks.onNetworkProblem(details.webContentsId, {
+      at: Date.now(),
+      kind: 'network',
+      level: 'error',
+      message: `${details.method} ${details.error} ${details.url}`,
+    })
   })
 
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))

@@ -44,5 +44,42 @@
     "cleared": "Browsing data cleared",
     "clearFailed": "Could not clear browsing data",
     "saveFailed": "Could not save"
+  },
+  "annotate": {
+    "toggle": "Annotate (Ctrl/⌘+Shift+A)",
+    "hint": "Click an element or drag an area to annotate; scroll to move the page",
+    "placeholder": "What should change here?",
+    "enterHint": "Enter to add · Shift+Enter for a new line",
+    "area": "Selected area",
+    "add": "Add",
+    "cancel": "Cancel",
+    "count": "{{count}} annotations",
+    "undo": "Undo last",
+    "exit": "Exit",
+    "finish": "Insert into composer",
+    "captureFailed": "Could not capture the page; it may be showing a dialog",
+    "exportFailed": "Could not build the annotations"
+  },
+  "send": {
+    "menu": "Send to chat",
+    "screenshot": "Screenshot",
+    "screenshotDesc": "Visible area",
+    "page": "Page content",
+    "pageDesc": "Text saved as a .md attachment",
+    "selection": "Selected text",
+    "selectionDesc": "Inserted as a quote",
+    "logs": "Console & network errors",
+    "logsDesc": "Latest 30 errors and warnings",
+    "noSelection": "Nothing is selected on the page",
+    "failed": "Could not read the page",
+    "dialogPending": "The page is showing a dialog; handle it first"
+  },
+  "composer": {
+    "annotations": "Browser annotations",
+    "logs": "Browser logs",
+    "noLogs": "no errors or warnings",
+    "area": "Area",
+    "page": "Page",
+    "noComment": "(no comment)"
   }
 }

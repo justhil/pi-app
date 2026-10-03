@@ -20,7 +20,7 @@ export type BrowserEvent =
   | { type: 'tab-focused'; tabId: string | null }
   | { type: 'download'; fileName: string; savePath: string; state: 'completed' | 'cancelled' | 'interrupted' }
   /** Shortcut pressed while the page itself had focus (the Renderer never sees those keys). */
-  | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' }
+  | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' }
 
 export interface BrowserViewBounds {
   tabId: string
@@ -176,4 +176,131 @@ export function withChromeClientHints(
   if (!find('sec-ch-ua-mobile')) out['sec-ch-ua-mobile'] = '?0'
   if (!find('sec-ch-ua-platform')) out['sec-ch-ua-platform'] = chromeSecChUaPlatform(platform)
   return out
+}
+
+/** What the annotation picker knows about an element (built in the page's isolated world). */
+export interface ElementDescriptor {
+  tag: string
+  id?: string
+  classes: string[]
+  role?: string
+  name?: string
+  text?: string
+  selector: string
+  /** Viewport CSS px of the element at inspection time. */
+  rect: { x: number; y: number; width: number; height: number }
+  styles: Record<string, string>
+  /** Source location clues: DOM attributes (any page) or framework internals (dev origins only). */
+  sourceHints: string[]
+  /** Component names nearest-first, when a framework exposed them (dev origins only). */
+  components?: string[]
+}
+
+export interface BrowserLogEntry {
+  at: number
+  kind: 'console' | 'network'
+  level: 'error' | 'warning'
+  message: string
+  source?: string
+}
+
+export interface PageContextResult {
+  title: string
+  url: string
+  text: string
+  selection: string
+  truncated: boolean
+}
+
+const PRIVATE_IPV4 = [/^10\./, /^127\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./, /^0\.0\.0\.0$/]
+
+/**
+ * Local development origins. Reading framework internals (React fiber, Vue instance) needs the
+ * page's main world; we only do that here, and only when the user clicks an element.
+ */
+export function isDevOrigin(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  if (host === 'localhost' || host === '::1' || host.endsWith('.localhost') || host.endsWith('.local')) return true
+  return PRIVATE_IPV4.some((re) => re.test(host))
+}
+
+export interface BrowserAnnotation {
+  index: number
+  comment: string
+  element?: ElementDescriptor
+  /** Area selection in viewport CSS px when no single element was picked. */
+  area?: { x: number; y: number; width: number; height: number }
+}
+
+/** One-line human/agent-readable description of a picked element. */
+export function describeElement(el: ElementDescriptor): string {
+  const head = `<${el.tag}${el.id ? `#${el.id}` : ''}${el.classes.slice(0, 2).map((c) => `.${c}`).join('')}>`
+  const label = el.name || el.text
+  const where = [el.components?.[0], el.sourceHints[0]].filter(Boolean).join(' · ')
+  return [head, label ? `"${label}"` : '', where ? `(${where})` : ''].filter(Boolean).join(' ')
+}
+
+export interface ComposerLabels {
+  annotations: string
+  logs: string
+  noLogs: string
+  area: string
+  page: string
+  noComment: string
+}
+
+export const DEFAULT_COMPOSER_LABELS: ComposerLabels = {
+  annotations: 'Browser annotations',
+  logs: 'Browser logs',
+  noLogs: 'no errors or warnings',
+  area: 'Area',
+  page: 'Page',
+  noComment: '(no comment)',
+}
+
+/** Text inserted into the composer for a batch of annotations; the user edits it before sending. */
+export function formatAnnotationsForComposer(
+  page: { title: string; url: string },
+  items: BrowserAnnotation[],
+  labels: ComposerLabels = DEFAULT_COMPOSER_LABELS,
+): string {
+  const lines = [`[${labels.annotations}] ${page.title || page.url} — ${page.url}`]
+  for (const item of items) {
+    const target = item.element
+      ? describeElement(item.element)
+      : item.area
+        ? `${labels.area} ${Math.round(item.area.width)}×${Math.round(item.area.height)} @ (${Math.round(item.area.x)}, ${Math.round(item.area.y)})`
+        : labels.page
+    const selector = item.element ? ` [${item.element.selector}]` : ''
+    lines.push(`${item.index}. ${target}${selector}: ${item.comment.trim() || labels.noComment}`)
+  }
+  return lines.join('\n')
+}
+
+/** Recent console / network problems as a compact text block. */
+export function formatLogsForComposer(url: string, entries: BrowserLogEntry[], labels: ComposerLabels = DEFAULT_COMPOSER_LABELS): string {
+  if (entries.length === 0) return `[${labels.logs}] ${url}: ${labels.noLogs}`
+  const lines = [`[${labels.logs}] ${url}`]
+  for (const e of entries) {
+    const where = e.source ? ` (${e.source})` : ''
+    lines.push(`- ${e.kind === 'network' ? 'network' : e.level}: ${e.message.replace(/\s+/g, ' ').slice(0, 300)}${where}`)
+  }
+  return lines.join('\n')
+}
+
+/** Selected page text quoted for the composer. */
+export function formatSelectionForComposer(url: string, selection: string): string {
+  const quoted = selection
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => `> ${line}`)
+    .join('\n')
+  return `${quoted}\n> — ${url}\n`
 }

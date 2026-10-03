@@ -28,10 +28,16 @@ Main 在第一次 `tabs.open` 时才创建 `BrowserHost`；没有打开过标签
 | `ipc:browser.navigate` | `{ tabId; url }` 或 `{ tabId; history: 'back' \| 'forward' \| 'reload' \| 'stop' }` | `{ ok: true }`；非 http(s) 地址会被拒绝 |
 | `ipc:browser.viewBounds` | `BrowserViewBounds`（占位元素的 client rect + `visible`） | `{ ok: true }` |
 | `ipc:browser.capture` | `{ tabId }` | `{ dataUrl: string \| null }`（被弹层遮挡时用作占位图） |
+| `ipc:browser.inspectPoint` | `{ tabId; x; y; deep?: boolean }` | `{ element: ElementDescriptor \| null }`；在隔离 world 中执行，`deep` 且为开发地址时额外在主 world 读取框架源码位置 |
+| `ipc:browser.pageContext` | `{ tabId; saveText?: boolean }` | `PageContextResult`（不含 `text`）+ `path`（`saveText` 时正文写成 `.md` 临时文件） |
+| `ipc:browser.logs` | `{ tabId; max?: number }` | `{ entries: BrowserLogEntry[] }`（console 错误/警告、失败请求或状态码 ≥ 400 的请求） |
+| `ipc:browser.scroll` | `{ tabId; x; y; deltaY }` | `{ ok: true }`（真实滚轮输入） |
 | `ipc:browser.hideAll` / `ipc:browser.shutdown` | `{}` | `{ ok: true }` |
 | `ipc:browser.profile.clear` | `{ profileId?: string }` | `{ ok: true }` |
 
 Main → Renderer 的事件走 `ipc:browser-event`（`BrowserEvent`：`tab-updated` / `tab-closed` / `tab-focused` / `download` / `shortcut`）。
+
+Renderer 内部事件 `pi-desktop:composer-attach-files` 的 `detail` 为 `{ files?: {path,name,kind}[]; text?: string }`：`text` 插在附件之前，可以只带 `text`。浏览器的截图、页面正文、批注、日志都通过这个事件放进输入框，**不会自动发送**。
 
 ## 回归
 
