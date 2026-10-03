@@ -55,9 +55,9 @@ describe('worker browser tools', () => {
     const f = fakePi([])
     await (browserToolsExtension as { factory: (pi: unknown) => void }).factory(f.pi)
     const snapshot = f.tools.find((t) => t.name === 'browser_snapshot')!
-    const ok = snapshot.execute('t1', { tabId: 'x' })
+    const ok = snapshot.execute('t1', { depth: 3 })
     const req = sent.at(-1)!
-    expect(req).toMatchObject({ type: 'browser-tool-request', tool: 'browser_snapshot', args: { tabId: 'x' } })
+    expect(req).toMatchObject({ type: 'browser-tool-request', tool: 'browser_snapshot', args: { depth: 3 } })
     await handleBrowserToolResponse({ type: 'browser-tool-response', callId: req.callId, result: { content: [{ type: 'text', text: 'outline' }] } }, () => {})
     await expect(ok).resolves.toEqual({ content: [{ type: 'text', text: 'outline' }], details: {} })
 

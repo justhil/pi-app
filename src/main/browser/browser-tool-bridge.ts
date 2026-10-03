@@ -1,7 +1,7 @@
 import { configStore } from '../config-store'
 import { getMainWindow } from '../window'
 import { getBrowserHost } from './browser-host'
-import { executeBrowserTool, type ToolResult } from './browser-tool-exec'
+import { executeBrowserTool, type ToolResult } from './agent/tools'
 
 /**
  * Worker → Main `browser-tool-request` (from the browser_* tools of a session that switched the

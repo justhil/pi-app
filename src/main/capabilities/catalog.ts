@@ -1,7 +1,8 @@
 import { CAPABILITY_IDS, normalizeCapabilities, type CapabilityId, type CapabilityInfo } from '@shared/capabilities'
+import { BROWSER_TOOL_NAMES } from '@shared/browser-tools'
 import piUiPrompt from './pi-ui.md?raw'
 
-const BROWSER_TOOL_COUNT = 8
+const BROWSER_TOOL_COUNT = BROWSER_TOOL_NAMES.length
 
 /** Prompt text appended to the system prompt while a capability is on (strip the source comment). */
 const PROMPTS: Partial<Record<CapabilityId, string>> = {
@@ -9,7 +10,7 @@ const PROMPTS: Partial<Record<CapabilityId, string>> = {
   browser: [
     '# Built-in browser',
     'The user has given you the browser_* tools for this conversation. They drive the browser panel inside pi Desktop, which the user can watch and take over; tabs keep the user\'s sign-ins.',
-    '- Read pages with browser_snapshot and act with browser_act using the refs it returns; take a new snapshot after the page changes. Use browser_screenshot only for visual or layout checks.',
+    '- Read the page with browser_snapshot (or browser_find on big pages), then act with refs like e12. Action results list what changed on the page, so a new snapshot is rarely needed. Use browser_take_screenshot only for visual checks.',
     '- Stay on the task the user asked for. Before submitting forms, purchasing, posting, deleting or changing account settings, ask the user first.',
     '- If a page shows a CAPTCHA, a sign-in wall or a dialog you cannot pass, stop and ask the user to handle it in the browser panel.',
   ].join('\n'),

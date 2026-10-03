@@ -13,6 +13,7 @@ export default defineConfig({
       'src/main/**/*.test.ts',
       'src/worker/**/*.test.ts',
       'packages/shared/**/*.test.ts',
+      'src/browser-runtime/**/*.test.ts',
       'src/extension-compat/**/*.test.ts',
     ],
     exclude: ['node_modules/**', 'out/**', 'dist/**', 'e2e/**'],

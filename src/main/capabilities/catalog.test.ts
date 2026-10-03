@@ -21,7 +21,7 @@ describe('capability catalog', () => {
     prefs.browser = false
     expect(capabilitySections(['browser'])).toEqual([])
     expect(capabilityToolFamilies(['browser'])).toEqual([])
-    expect(capabilityCatalog().find((c) => c.id === 'browser')).toMatchObject({ available: false, reason: 'browser-panel-off', tools: 8 })
+    expect(capabilityCatalog().find((c) => c.id === 'browser')).toMatchObject({ available: false, reason: 'browser-panel-off', tools: 21 })
     expect(capabilityCatalog().find((c) => c.id === 'pi-ui')?.promptTokens).toBeGreaterThan(0)
   })
 

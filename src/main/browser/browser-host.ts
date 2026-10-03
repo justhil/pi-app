@@ -14,14 +14,19 @@ import {
   type PageContextResult,
 } from '@shared/browser-types'
 import { configureBrowserSession, partitionForProfile } from './electron-session'
-import { FRAMEWORK_SOURCE, INSPECT_AT_POINT, PAGE_CONTEXT } from './page-scripts'
+import { FRAMEWORK_SOURCE } from './page-scripts'
 import { computeViewBounds } from './view-layout'
-import { BrowserToolError, Pointer } from './browser-agent'
+import { BrowserToolError } from './agent/errors'
+import { Pointer } from './agent/input'
+import { forgetBrowserTab, type AgentBrowserHost } from './agent/tools'
+import { ElectronPageEngine } from './engines/electron'
+import type { PageEngine } from './engines/types'
 
 interface Tab {
   info: BrowserTabInfo
   view: WebContentsView
   logs: BrowserLogEntry[]
+  engine: PageEngine
   pointer: Pointer
   /** Serializes agent actions on this tab. */
   queue: Promise<unknown>
@@ -30,8 +35,6 @@ interface Tab {
 /** Layout size for tabs the user has not shown yet (agent-opened tabs still need a viewport). */
 const DEFAULT_VIEW_SIZE = { width: 1280, height: 800 }
 
-/** Isolated world shared by all host page scripts; pages cannot see its globals. */
-const SCRIPT_WORLD = 1999
 const LOG_LIMIT = 200
 /** A page blocked by alert()/confirm() never answers; fail fast instead of hanging the UI. */
 const PAGE_SCRIPT_TIMEOUT_MS = 2000
@@ -65,9 +68,9 @@ export type BrowserNavigateOp = { url: string } | { history: 'back' | 'forward' 
 /**
  * Built-in browser host (engine E). Tabs are WebContentsViews stacked on the main window;
  * only the tab whose placeholder the Renderer reports as visible is shown. No preload,
- * sandboxed, no debugger — the user browses; agent tools arrive in a later task.
+ * sandboxed, no debugger. Agent tools drive tabs through each tab's PageEngine.
  */
-export class BrowserHost {
+export class BrowserHost implements AgentBrowserHost {
   private readonly tabs = new Map<string, Tab>()
   private activeTabId: string | null = null
 
@@ -115,7 +118,8 @@ export class BrowserHost {
       canGoForward: false,
       openedBy: opts.openedBy ?? 'user',
     }
-    const tab: Tab = { info, view, logs: [], pointer: new Pointer(view.webContents), queue: Promise.resolve() }
+    const engine = new ElectronPageEngine(view.webContents, () => tab.logs)
+    const tab: Tab = { info, view, logs: [], engine, pointer: new Pointer(engine), queue: Promise.resolve() }
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
     this.emit({ type: 'tab-updated', tab: info })
@@ -130,6 +134,7 @@ export class BrowserHost {
     const tab = this.tabs.get(tabId)
     if (!tab) return
     this.tabs.delete(tabId)
+    forgetBrowserTab(tabId)
     const win = this.getWindow()
     if (win && !win.isDestroyed()) win.contentView.removeChildView(tab.view)
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
@@ -195,9 +200,9 @@ export class BrowserHost {
 
   /** Element under a viewport point (isolated world). `deep` adds framework source clues on dev origins. */
   async inspectPoint(tabId: string, x: number, y: number, deep = false): Promise<ElementDescriptor | null> {
-    const wc = this.requireTab(tabId).view.webContents
-    const code = `(${INSPECT_AT_POINT})(${num(x)}, ${num(y)})`
-    const found = (await withTimeout(wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]), PAGE_SCRIPT_TIMEOUT_MS)) as ElementDescriptor | null
+    const tab = this.requireTab(tabId)
+    const wc = tab.view.webContents
+    const found = await tab.engine.run<ElementDescriptor | null>(`__piBrowser.inspectAtPoint(${num(x)}, ${num(y)})`)
     if (!found || !deep || !isDevOrigin(wc.getURL())) return found
     try {
       // Main world, dev origins only, once per click: React fiber / Vue instance live on DOM expandos.
@@ -215,25 +220,13 @@ export class BrowserHost {
   }
 
   async pageContext(tabId: string, maxChars = 60_000): Promise<PageContextResult> {
-    const wc = this.requireTab(tabId).view.webContents
-    const code = `(${PAGE_CONTEXT})(${num(maxChars)})`
-    return (await withTimeout(wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]), PAGE_SCRIPT_TIMEOUT_MS)) as PageContextResult
+    return this.requireTab(tabId).engine.run<PageContextResult>(`__piBrowser.pageContext(${num(maxChars)})`)
   }
 
-  /** Tab the agent means: the given id, else the tab shown in the panel, else the newest. */
-  resolveTabId(tabId?: string): string {
-    if (tabId) {
-      if (!this.tabs.has(tabId)) throw new BrowserToolError('browser_no_tab', `no tab ${tabId}; call browser_tabs to list tabs`)
-      return tabId
-    }
-    const id = this.activeTabId ?? [...this.tabs.keys()].pop()
-    if (!id) throw new BrowserToolError('browser_no_tab', 'no tab is open; call browser_tabs with action "new"')
-    return id
-  }
-
-  agentTab(tabId: string): { info: BrowserTabInfo; wc: Electron.WebContents; pointer: Pointer } {
-    const tab = this.requireTab(tabId)
-    return { info: tab.info, wc: tab.view.webContents, pointer: tab.pointer }
+  agentTab(tabId: string): { info: BrowserTabInfo; engine: PageEngine; pointer: Pointer } {
+    const tab = this.tabs.get(tabId)
+    if (!tab) throw new BrowserToolError('browser_no_tab', 'the tab was closed; call browser_tabs action "list"')
+    return { info: tab.info, engine: tab.engine, pointer: tab.pointer }
   }
 
   /** Run agent work on a tab one at a time; tells the panel which action is running. */
@@ -249,17 +242,6 @@ export class BrowserHost {
     })
     tab.queue = run
     return run
-  }
-
-  /** PNG of the page even while the tab is hidden; scaled down to at most `maxWidth`. */
-  async screenshotPng(tabId: string, maxWidth = 1280): Promise<{ png: Buffer; width: number; height: number }> {
-    const wc = this.requireTab(tabId).view.webContents
-    let image = await wc.capturePage(undefined, { stayHidden: true, stayAwake: true })
-    if (image.isEmpty()) throw new BrowserToolError('browser_timeout', 'the page has not painted yet')
-    const size = image.getSize()
-    if (size.width > maxWidth) image = image.resize({ width: maxWidth, quality: 'good' })
-    const out = image.getSize()
-    return { png: image.toPNG(), width: out.width, height: out.height }
   }
 
   logs(tabId: string, max = 30): BrowserLogEntry[] {

@@ -7,82 +7,9 @@ import type { ExtensionAPI, InlineExtension, ToolDefinition } from '@earendil-wo
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { sendToMain } from './worker-transport.js'
+import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES } from '@shared/browser-tools'
 
-type JsonSchema = Record<string, unknown>
-const tabId: JsonSchema = { type: 'string', description: 'Tab id from browser_tabs; defaults to the tab shown in the panel.' }
-const ref: JsonSchema = { type: 'string', description: 'Element ref such as e12 from the latest browser_snapshot.' }
-const obj = (properties: Record<string, JsonSchema>, required: string[] = []): JsonSchema => ({
-  type: 'object',
-  properties,
-  required,
-  additionalProperties: false,
-})
-
-const DEFS: { name: string; label: string; description: string; parameters: JsonSchema }[] = [
-  {
-    name: 'browser_tabs',
-    label: 'Browser tabs',
-    description: 'List, open (http/https), close or focus tabs of the built-in browser that the user can see. New tabs open in the background.',
-    parameters: obj({ action: { type: 'string', enum: ['list', 'new', 'close', 'focus'] }, tabId, url: { type: 'string' } }, ['action']),
-  },
-  {
-    name: 'browser_navigate',
-    label: 'Browser navigate',
-    description: 'Go to an http(s) URL in a tab, or move back/forward/reload. Waits for the page to load.',
-    parameters: obj({ tabId, url: { type: 'string' }, history: { type: 'string', enum: ['back', 'forward', 'reload'] } }),
-  },
-  {
-    name: 'browser_snapshot',
-    label: 'Browser snapshot',
-    description: 'Read the page as an outline of roles, names and text. Interactive elements carry refs (e.g. [ref=e12]) for browser_act. Main frame only; pass scope=<ref> to read one region.',
-    parameters: obj({ tabId, scope: ref, maxChars: { type: 'integer', minimum: 2000, maximum: 120000 } }),
-  },
-  {
-    name: 'browser_screenshot',
-    label: 'Browser screenshot',
-    description: 'PNG of the visible part of the page, for layout or visual checks the outline cannot show.',
-    parameters: obj({ tabId }),
-  },
-  {
-    name: 'browser_act',
-    label: 'Browser act',
-    description:
-      'Act on the page with real input: click/dblclick/rightclick/hover/fill/type/press/select/scroll/drag/upload. fill replaces a field value; type appends; press takes key like "Enter" or "Control+A"; upload takes workspace-relative files.',
-    parameters: obj(
-      {
-        tabId,
-        action: { type: 'string', enum: ['click', 'dblclick', 'rightclick', 'hover', 'fill', 'type', 'press', 'select', 'scroll', 'drag', 'upload'] },
-        ref,
-        value: { type: 'string', description: 'Text for fill/type, option value or label for select.' },
-        key: { type: 'string' },
-        deltaY: { type: 'number', description: 'Scroll amount in px (positive = down).' },
-        targetRef: { type: 'string', description: 'Drop target ref for drag.' },
-        files: { type: 'array', items: { type: 'string' } },
-      },
-      ['action'],
-    ),
-  },
-  {
-    name: 'browser_wait',
-    label: 'Browser wait',
-    description: 'Wait until the page shows some text or its URL contains a fragment (exactly one), up to 30 s.',
-    parameters: obj({ tabId, text: { type: 'string' }, url: { type: 'string' }, timeoutMs: { type: 'integer', minimum: 100, maximum: 30000 } }),
-  },
-  {
-    name: 'browser_logs',
-    label: 'Browser logs',
-    description: 'Recent console errors/warnings and failed or >=400 network requests of a tab.',
-    parameters: obj({ tabId, max: { type: 'integer', minimum: 1, maximum: 200 } }),
-  },
-  {
-    name: 'browser_eval',
-    label: 'Browser eval',
-    description: 'Run a JS function in an isolated world (sees the DOM, not page variables). With ref, the element is its first argument. Returns JSON.',
-    parameters: obj({ tabId, function: { type: 'string', description: 'e.g. "(el) => el.textContent"' }, ref }, ['function']),
-  },
-]
-
-export const BROWSER_TOOL_NAMES = DEFS.map((d) => d.name)
+export { BROWSER_TOOL_NAMES }
 const CALL_TIMEOUT_MS = 90_000
 
 let api: ExtensionAPI | null = null
@@ -148,7 +75,7 @@ export const browserToolsExtension: InlineExtension = {
   hidden: true,
   factory: (pi: ExtensionAPI) => {
     api = pi
-    for (const def of DEFS) {
+    for (const def of BROWSER_TOOL_DEFS) {
       pi.registerTool({
         name: def.name,
         label: def.label,
