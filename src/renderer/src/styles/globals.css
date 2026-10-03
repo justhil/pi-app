@@ -1438,6 +1438,17 @@
   @keyframes thinking-row-in {
     from { opacity: 0; transform: translateY(4px); }
   }
+  .thinking-slider-thumb,
+  .thinking-slider-fill {
+    transition: left 140ms var(--motion-ease, ease), width 140ms var(--motion-ease, ease);
+  }
+  .thinking-slider:active .thinking-slider-thumb {
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .thinking-slider-thumb,
+    .thinking-slider-fill { transition: none; }
+  }
   .thinking-picker-check {
     animation: thinking-check-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }

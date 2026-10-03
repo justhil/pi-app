@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { Check } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ComposerPopover } from './composer-popover'
 import { formatThinkingChip, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
@@ -19,6 +18,7 @@ import {
 } from '@renderer/lib/model-thinking-bindings'
 
 import { THINKING_LEVELS, applyThinkingLevel } from './thinking-level-actions'
+import { nearestUsableStop, stepUsableStop } from './thinking-slider-math'
 
 export { THINKING_LEVELS }
 
@@ -31,7 +31,11 @@ export function ThinkingPicker() {
   const model = useUIStore((s) => s.runState.model) || ''
   const [bound, setBound] = useState(() => boundThinkingLevelFor(model))
   const [bindBusy, setBindBusy] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const sliderRef = useRef<HTMLDivElement>(null)
+  // Level shown while dragging; committed on release so one drag is one switch.
+  const [preview, setPreview] = useState<string | null>(null)
+  const dragging = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -42,19 +46,63 @@ export function ThinkingPicker() {
 
   useEffect(() => {
     if (!open) return
-    // Land keyboard focus on the active level so ↑/↓ + Enter work immediately.
-    const frame = requestAnimationFrame(() => listRef.current?.querySelector<HTMLButtonElement>('[data-current]')?.focus())
+    // Keyboard lands on the slider: ←/→ change the level right away.
+    const frame = requestAnimationFrame(() => sliderRef.current?.focus())
     return () => cancelAnimationFrame(frame)
-  }, [open, setOpen])
+  }, [open])
 
   if (!open) return null
 
   const supported = (level: string) => !available || available.length === 0 || available.includes(level)
+  const usable = THINKING_LEVELS.map((level) => supported(level))
+  const shown = preview ?? current
+  const shownIndex = Math.max(0, THINKING_LEVELS.indexOf(shown as (typeof THINKING_LEVELS)[number]))
+  const pct = (i: number) => `${(i / (THINKING_LEVELS.length - 1)) * 100}%`
 
-  const pick = async (level: string) => {
-    if (!supported(level)) return
-    setOpen(false)
-    await applyThinkingLevel(level)
+  const commit = (level: string) => {
+    setPreview(null)
+    if (level !== current && supported(level)) void applyThinkingLevel(level)
+  }
+
+  const levelAt = (clientX: number): string | null => {
+    const rect = trackRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return null
+    const i = nearestUsableStop((clientX - rect.left) / rect.width, THINKING_LEVELS.length, usable)
+    return i < 0 ? null : THINKING_LEVELS[i]
+  }
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    dragging.current = true
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const level = levelAt(e.clientX)
+    if (level) setPreview(level)
+  }
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return
+    const level = levelAt(e.clientX)
+    if (level && level !== preview) setPreview(level)
+  }
+  const onPointerUp = () => {
+    if (!dragging.current) return
+    dragging.current = false
+    commit(preview ?? current)
+  }
+
+  const onSliderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const i = THINKING_LEVELS.indexOf(current as (typeof THINKING_LEVELS)[number])
+    let next = -1
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = stepUsableStop(i, 1, usable)
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = stepUsableStop(i, -1, usable)
+    else if (e.key === 'Home') next = usable.indexOf(true)
+    else if (e.key === 'End') next = usable.lastIndexOf(true)
+    else if (e.key === 'Enter') {
+      e.preventDefault()
+      setOpen(false)
+      return
+    } else return
+    e.preventDefault()
+    if (next >= 0) commit(THINKING_LEVELS[next])
   }
 
   const toggleBinding = async (next: boolean) => {
@@ -75,63 +123,75 @@ export function ThinkingPicker() {
     }
   }
 
-  const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-    event.preventDefault()
-    const buttons = [...(listRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
-    const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
-    const next = buttons[(index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]
-    next?.focus()
-  }
-
   return (
     <ComposerPopover
       anchorSelector="[data-composer-thinking-chip]"
-      width={208}
+      width={232}
       label={t('composer:thinkingPicker.title')}
       onClose={() => setOpen(false)}
       className="thinking-picker"
     >
-        <div className="flex items-center px-2.5 pb-0.5 pt-1.5 text-[10.5px] text-muted-foreground/65">
-          <span className="min-w-0 flex-1 truncate">{t('composer:thinkingPicker.title')}</span>
-          <span className="text-[10px] text-muted-foreground/50">Shift+Tab</span>
-        </div>
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pb-1 pt-0.5" role="listbox" onKeyDown={onListKeyDown}>
-          {THINKING_LEVELS.map((level) => {
-            const active = current === level
-            const usable = supported(level)
-            return (
-              <button
-                key={level}
-                type="button"
-                role="option"
-                aria-selected={active}
-                disabled={!usable}
-                data-current={active || undefined}
-                onClick={() => void pick(level)}
-                title={usable ? undefined : t('composer:thinkingPicker.unsupported')}
-                className={cn(
-                  'thinking-picker-row picker-row flex h-[26px] w-full items-center gap-2 px-2.5 text-left disabled:cursor-not-allowed disabled:opacity-45',
-                  active && 'bg-[var(--bg-active)]',
-                )}
-              >
-                <span className={cn('w-[52px] shrink-0 text-[12px]', active ? 'text-foreground' : 'text-foreground/80')}>
-                  {formatThinkingChip(level)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground/60">
-                  {usable ? t(`composer:thinkingPicker.desc.${level}`) : t('composer:thinkingPicker.unsupported')}
-                </span>
-                {bound === level ? (
-                  <span className="shrink-0 text-[10px] text-primary">{t('composer:thinkingPicker.bound')}</span>
-                ) : null}
-                {active ? <Check className="thinking-picker-check h-3 w-3 shrink-0 text-primary" /> : <span className="w-3 shrink-0" />}
-              </button>
-            )
-          })}
+        <div className="px-3 pt-2.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11px] text-muted-foreground/70">{t('composer:thinkingPicker.title')}</span>
+            <span className="text-[12px] text-foreground">
+              {formatThinkingChip(shown)}
+              {bound === shown ? <span className="ml-1.5 text-[10px] text-primary">{t('composer:thinkingPicker.bound')}</span> : null}
+            </span>
+          </div>
+
+          {/* Slider: one stop per pi level; unusable levels are hollow and skipped. */}
+          <div
+            ref={sliderRef}
+            role="slider"
+            tabIndex={0}
+            aria-label={t('composer:thinkingPicker.title')}
+            aria-valuemin={0}
+            aria-valuemax={THINKING_LEVELS.length - 1}
+            aria-valuenow={shownIndex}
+            aria-valuetext={formatThinkingChip(shown)}
+            onKeyDown={onSliderKeyDown}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => {
+              dragging.current = false
+              setPreview(null)
+            }}
+            className="thinking-slider group relative mt-2 h-5 cursor-pointer touch-none outline-none"
+          >
+            <div ref={trackRef} className="absolute inset-x-1.5 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-foreground/10">
+              <div className="thinking-slider-fill absolute inset-y-0 left-0 rounded-full bg-foreground/65" style={{ width: pct(shownIndex) }} />
+              {/* Stops ahead of the value only; the filled part stays one clean line. */}
+              {THINKING_LEVELS.map((level, i) =>
+                i <= shownIndex && usable[i] ? null : (
+                  <span
+                    key={level}
+                    className={cn(
+                      'absolute top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full',
+                      usable[i] ? 'bg-foreground/30' : 'border border-foreground/30 bg-popover',
+                    )}
+                    style={{ left: pct(i) }}
+                  />
+                ),
+              )}
+              <span
+                className="thinking-slider-thumb absolute top-1/2 h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/15 bg-background shadow-[0_1px_3px_rgba(0,0,0,0.2)] group-focus-visible:ring-2 group-focus-visible:ring-ring/40"
+                style={{ left: pct(shownIndex) }}
+              />
+            </div>
+          </div>
+          <div className="mt-0.5 flex justify-between text-[10px] text-muted-foreground/50">
+            <span>{formatThinkingChip('off')}</span>
+            <span>{formatThinkingChip('max')}</span>
+          </div>
+          <div className="mb-2 mt-1.5 truncate text-[11px] text-muted-foreground/75">
+            {supported(shown) ? t(`composer:thinkingPicker.desc.${shown}`) : t('composer:thinkingPicker.unsupported')}
+          </div>
         </div>
 
         <div
-          className="flex items-center gap-2 border-t border-border/50 px-2.5 py-1"
+          className="flex items-center gap-2 border-t border-border/50 px-3 py-1"
           title={model ? t('composer:thinkingPicker.bindHint', { model }) : t('composer:thinkingPicker.bindNoModel')}
         >
           <div className="min-w-0 flex-1 truncate text-[11px] text-foreground-secondary">{t('composer:thinkingPicker.bindLabel')}</div>
