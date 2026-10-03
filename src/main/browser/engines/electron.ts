@@ -89,7 +89,7 @@ export class ElectronPageEngine implements PageEngine {
     down: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseDown', x, y, button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
     up: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseUp', x, y, button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
     // Electron's wheel deltas are the opposite sign of DOM WheelEvent deltas.
-    wheel: (x, y, deltaX, deltaY) => this.wc.sendInputEvent({ type: 'mouseWheel', x, y, deltaX: -deltaX, deltaY: -deltaY, canScroll: true }),
+    wheel: (x, y, deltaX, deltaY) => this.wc.sendInputEvent({ type: 'mouseWheel', x, y, deltaX: -deltaX, deltaY: -deltaY, canScroll: true, hasPreciseScrollingDeltas: true }),
   }
 
   keyboard: PageEngine['keyboard'] = {

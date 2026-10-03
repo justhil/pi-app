@@ -140,6 +140,12 @@ export function BrowserPanel() {
     else toast.error(t('annotate.captureFailed'))
   }, [annotating, activeTabId, pageShown, t])
 
+  // A draft typed for one tab must not carry over to another (e.g. after closing a tab).
+  useEffect(() => {
+    if (document.activeElement !== addressRef.current) setEditing(false)
+    else setDraft(pageShown ? (activeTab?.url ?? '') : '')
+  }, [activeTabId])
+
   // Leave annotation mode when the tab changes or navigates away.
   useEffect(() => {
     if (annotating && annotating.tabId !== activeTabId) setAnnotating(null)
@@ -383,6 +389,16 @@ export function BrowserPanel() {
               return (
                 <div
                   key={id}
+                  data-browser-tab={id}
+                  // Middle click closes, like every browser. Its defaults (autoscroll on mousedown,
+                  // X11 primary-selection paste on mouseup into the focused address bar) are blocked.
+                  onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+                  onMouseUp={(e) => e.button === 1 && e.preventDefault()}
+                  onAuxClick={(e) => {
+                    if (e.button !== 1) return
+                    e.preventDefault()
+                    void browserActions.close(id)
+                  }}
                   className={cn(
                     'group flex h-6 max-w-[180px] min-w-[72px] shrink-0 items-center gap-1 rounded-md pl-2 pr-0.5 text-[11.5px]',
                     active ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',

@@ -63,3 +63,15 @@ describe('pickAutoExpandedToolIds', () => {
     expect(ids.has('other')).toBe(false)
   })
 })
+
+describe('pickAutoExpandedToolIds keeps live work visible', () => {
+  it('includes running and waiting tools outside the budget', () => {
+    const slots = [
+      { id: 'ask', runId: 'run-1', toolPhase: 'start', suspended: true },
+      { id: 'long', runId: 'run-1', toolPhase: 'update' },
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, runId: 'run-1', toolPhase: 'end' })),
+    ]
+    const ids = pickAutoExpandedToolIds(slots, { agentRunning: true, activeRunId: 'run-1', maxExpanded: 2 })
+    expect([...ids].sort()).toEqual(['ask', 'long', 't3', 't4'])
+  })
+})

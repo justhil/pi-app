@@ -141,7 +141,7 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
       ))}
       {textSummary && (
         <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/30 p-2 text-[10px] text-muted-foreground" style={{ background: 'color-mix(in srgb, var(--bg-2) 45%, transparent)' }}>
-          {textSummary.slice(0, 4000)}
+          {textSummary}
         </pre>
       )}
     </div>

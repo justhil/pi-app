@@ -127,7 +127,7 @@ function EditWritePreview({ item, flat }: { item: ToolTimelineItem; flat?: boole
         <div className="p-2 text-[11px] text-foreground-secondary whitespace-pre-wrap">{output}</div>
       ) : item.toolName === 'edit' && Object.keys(args).length > 0 ? (
         <div className="p-2 text-[11px] font-mono text-foreground-secondary/80 whitespace-pre-wrap break-all">
-          {JSON.stringify(args, null, 2).slice(0, 2000)}
+          {JSON.stringify(args, null, 2)}
         </div>
       ) : (
         <div className="p-2 text-[11px] text-foreground-secondary/60">无 diff 详情</div>

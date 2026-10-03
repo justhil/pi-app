@@ -194,7 +194,9 @@ export class BrowserHost implements AgentBrowserHost {
   async capture(tabId: string): Promise<string | null> {
     const tab = this.tabs.get(tabId)
     if (!tab || tab.info.url === 'about:blank' || tab.view.webContents.isDestroyed()) return null
-    const image = await tab.view.webContents.capturePage()
+    // stayHidden: the view is hidden while overlays/annotation cover it; without this the
+    // capture waits for a paint that a hidden view does not produce (seconds).
+    const image = await tab.view.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })
     return image.isEmpty() ? null : `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`
   }
 
@@ -251,7 +253,8 @@ export class BrowserHost implements AgentBrowserHost {
   /** Real wheel input at a viewport point (DOM deltaY > 0 scrolls down). */
   scroll(tabId: string, x: number, y: number, deltaY: number): void {
     const wc = this.requireTab(tabId).view.webContents
-    wc.sendInputEvent({ type: 'mouseWheel', x: num(x), y: num(y), deltaX: 0, deltaY: -num(deltaY), canScroll: true })
+    // Precise deltas apply at once (no smooth-scroll animation that a following event would cut short).
+    wc.sendInputEvent({ type: 'mouseWheel', x: num(x), y: num(y), deltaX: 0, deltaY: -num(deltaY), canScroll: true, hasPreciseScrollingDeltas: true })
   }
 
   shutdown(): void {

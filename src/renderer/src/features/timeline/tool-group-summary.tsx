@@ -1,8 +1,9 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
+import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { ToolCallRow } from './tool-call-row'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
@@ -13,18 +14,38 @@ import {
 } from './timeline-turn-activity'
 import { DiffStatBadge } from './diff-stat-badge'
 
+const toolKey = (tool: ToolTimelineItem) => tool.toolCallId || tool.id
+
+/**
+ * Whether a sealed group is open. The user's choice for the group wins; otherwise it opens
+ * when the user had expanded one of its tools before the group formed (sealing must not
+ * close what the user opened).
+ */
+export function groupExpanded(sessionMap: Record<string, boolean> | undefined, groupId: string, tools: ToolTimelineItem[]): boolean {
+  const own = sessionMap?.[groupId]
+  if (own !== undefined) return own
+  return tools.some((tool) => sessionMap?.[toolKey(tool)] === true)
+}
+
+/** Tools that stay visible under a collapsed summary: failures and open questions. */
+export function attentionTools(tools: ToolTimelineItem[]): ToolTimelineItem[] {
+  return tools.filter((tool) => tool.isError || tool.extensionUiSuspended)
+}
+
 /**
  * Sealed activity summary (after following prose has closed the segment).
  * Default: one summary line; click expands tool details.
  * Expand uses conditional render (not grid 0fr) so nested tool rows always mount correctly.
  */
 function ToolGroupSummaryImpl({
+  groupId,
   tools,
   clusterChildren,
   autoExpandedToolIds,
   thinkingText,
   foldedAssistantTexts,
 }: {
+  groupId: string
   tools: ToolTimelineItem[]
   clusterChildren?: TimelineClusterChild[]
   autoExpandedToolIds?: Set<string>
@@ -32,7 +53,12 @@ function ToolGroupSummaryImpl({
   foldedAssistantTexts?: string[]
 }) {
   const { t } = useTranslation()
-  const [userExpanded, setUserExpanded] = useState(false)
+  const userExpanded = useUIStore((s) => {
+    const sessionKey = normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
+    return groupExpanded(s.toolExpandBySession[sessionKey], groupId, tools)
+  })
+  const setToolCallExpanded = useUIStore((s) => s.setToolCallExpanded)
+  const attention = useMemo(() => attentionTools(tools), [tools])
   const fileChanges = useUIStore((s) => s.fileChanges)
   const workspace = useUIStore((s) => s.currentWorkspace)
 
@@ -91,7 +117,7 @@ function ToolGroupSummaryImpl({
       <button
         type="button"
         aria-expanded={userExpanded}
-        onClick={() => setUserExpanded((prev) => !prev)}
+        onClick={() => setToolCallExpanded(groupId, !userExpanded)}
         className={cn(
           'group timeline-activity-row tool-group-hit w-full',
           hasError && 'tool-group-hit--error',
@@ -110,6 +136,13 @@ function ToolGroupSummaryImpl({
           className="ml-auto pl-2"
         />
       </button>
+      {!userExpanded && attention.length > 0 ? (
+        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
+          {attention.map((tool) => (
+            <ToolCallRow key={toolKey(tool)} item={tool} compact />
+          ))}
+        </div>
+      ) : null}
       {userExpanded ? (
         <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
           {orderedChildren.map((child) => {

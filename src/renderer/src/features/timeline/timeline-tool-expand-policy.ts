@@ -12,6 +12,8 @@ export type ToolExpandSlot = {
   id: string
   runId?: string
   toolPhase?: string
+  /** Waiting for the user to answer (extension UI). */
+  suspended?: boolean
 }
 
 /**
@@ -33,6 +35,11 @@ export function pickAutoExpandedToolIds(
   if (!opts.agentRunning || !opts.activeRunId) return new Set()
 
   const runSlots = slots.filter((slot) => slot.runId && slot.runId === opts.activeRunId)
-  const tail = runSlots.slice(-max)
-  return new Set(tail.map((slot) => slot.id))
+  const ids = new Set(runSlots.slice(-max).map((slot) => slot.id))
+  // The budget limits how much finished output stays open; it never hides a tool that is
+  // still running or waiting for the user.
+  for (const slot of runSlots) {
+    if (slot.suspended || slot.toolPhase === 'start' || slot.toolPhase === 'update') ids.add(slot.id)
+  }
+  return ids
 }

@@ -1562,6 +1562,9 @@
     height: 0;
     width: 0;
   }
+  .right-panel-tabs-fade-start { mask-image: linear-gradient(to right, transparent, #000 20px); }
+  .right-panel-tabs-fade-end { mask-image: linear-gradient(to left, transparent, #000 20px); }
+  .right-panel-tabs-fade-start.right-panel-tabs-fade-end { mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
   /* 滚动条样式见 scrollbar-overlay.css（独立文件、非 @layer） */
 
   /* ── Animations ── */

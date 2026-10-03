@@ -65,7 +65,14 @@ export function AnnotationLayer({
   const [finishing, setFinishing] = useState(false)
   const pressRef = useRef<{ x: number; y: number } | null>(null)
   const hoverReq = useRef(0)
-  const wheel = useRef<{ delta: number; x: number; y: number; timer: number | null }>({ delta: 0, x: 0, y: 0, timer: null })
+  const imgRef = useRef<HTMLImageElement>(null)
+  /**
+   * Wheel pipeline: the frozen image moves at once by the gesture's distance (a transform, no
+   * layout); when the gesture goes idle the page scrolls by the sum in one input event (rapid
+   * separate events get merged into smooth scrolling and lose distance) and is captured once.
+   * The transform resets in the frame the new image appears.
+   */
+  const wheel = useRef({ unsent: 0, uncaptured: 0, x: 0, y: 0, idle: 0, gen: 0, scrolling: false })
 
   const local = (e: { clientX: number; clientY: number }) => {
     const r = rootRef.current!.getBoundingClientRect()
@@ -82,7 +89,7 @@ export function AnnotationLayer({
   )
 
   const onPointerMove = (e: ReactPointerEvent) => {
-    if (pending || finishing) return
+    if (pending || finishing || wheel.current.scrolling) return
     const p = local(e)
     if (pressRef.current) {
       if (isDrag(pressRef.current.x, pressRef.current.y, p.x, p.y)) setDragRect(rectFromPoints(pressRef.current.x, pressRef.current.y, p.x, p.y))
@@ -120,34 +127,54 @@ export function AnnotationLayer({
     setComment('')
   }
 
-  const recapture = useCallback(async () => {
+  const setShift = (px: number) => {
+    if (imgRef.current) imgRef.current.style.transform = px ? `translate3d(0, ${-px / uiZoom()}px, 0)` : ''
+  }
+
+  const settleScroll = useCallback(async () => {
+    const w = wheel.current
+    const gen = ++w.gen
+    const delta = w.unsent
+    w.unsent = 0
+    w.uncaptured += delta
+    await ipcClient.invoke('browser.scroll', { tabId, x: w.x, y: w.y, deltaY: delta }).catch(() => {})
+    await new Promise((r) => setTimeout(r, 120))
+    if (gen !== w.gen) return
     const res = (await ipcClient.invoke('browser.capture', { tabId }).catch(() => null)) as { dataUrl?: string | null } | null
+    if (gen !== w.gen) return
     if (res?.dataUrl) {
+      // Decode before swapping, so the swap is one paint, not a stall.
+      const next = new Image()
+      next.src = res.dataUrl
+      await next.decode().catch(() => undefined)
+      if (gen !== w.gen) return
       setSnapshot(res.dataUrl)
       setFrame((f) => f + 1)
     }
+    w.uncaptured = 0
+    w.scrolling = false
+    requestAnimationFrame(() => setShift(w.unsent))
   }, [tabId])
 
-  // Wheel scrolls the real page, then the frame is re-frozen; earlier annotations keep their crops.
+  // Wheel scrolls the real page (coalesced per frame) while the frozen image moves at once;
+  // the frame is re-frozen once the gesture ends. Earlier annotations keep their crops.
   const onWheel = (e: React.WheelEvent) => {
     if (pending || finishing) return
     const p = local(e)
     const w = wheel.current
-    w.delta += e.deltaY
+    const delta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaMode === 2 ? e.deltaY * p.y : e.deltaY
+    // A new gesture while the previous one is still being applied: it continues from there.
+    w.gen++
+    w.unsent += delta
     w.x = p.x
     w.y = p.y
-    if (w.timer) window.clearTimeout(w.timer)
-    w.timer = window.setTimeout(() => {
-      const delta = w.delta
-      w.delta = 0
-      w.timer = null
+    if (!w.scrolling) {
+      w.scrolling = true
       setHover(null)
-      void ipcClient
-        .invoke('browser.scroll', { tabId, x: w.x, y: w.y, deltaY: delta })
-        .then(() => new Promise((r) => setTimeout(r, 180)))
-        .then(recapture)
-        .catch(() => {})
-    }, 90)
+    }
+    setShift(w.unsent + w.uncaptured)
+    window.clearTimeout(w.idle)
+    w.idle = window.setTimeout(() => void settleScroll(), 140)
   }
 
   const commit = async () => {
@@ -232,7 +259,9 @@ export function AnnotationLayer({
   }, [pending])
 
   useEffect(() => () => {
-    if (wheel.current.timer) window.clearTimeout(wheel.current.timer)
+    const w = wheel.current
+    window.clearTimeout(w.idle)
+    w.gen++
   }, [])
 
   const rootRect = rootRef.current?.getBoundingClientRect()
@@ -252,7 +281,7 @@ export function AnnotationLayer({
       onPointerLeave={() => setHover(null)}
       onWheel={onWheel}
     >
-      <img src={snapshot} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+      <img ref={imgRef} src={snapshot} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full will-change-transform" />
 
       {hover && !pending && !dragRect ? (
         <div className="pointer-events-none absolute border-2 border-[#3b82f6] bg-[#3b82f6]/10" style={px(hover.rect)}>
@@ -266,7 +295,7 @@ export function AnnotationLayer({
       {dragRect ? <div className="pointer-events-none absolute border-2 border-dashed border-[#ef4444] bg-[#ef4444]/10" style={px(dragRect)} /> : null}
 
       {items
-        .filter((item) => item.frame === frame)
+        .filter((item) => item.frame === frame && !wheel.current.scrolling)
         .map((item) => (
           <div key={item.index} className="pointer-events-none absolute border-2 border-[#ef4444]" style={px(item.rect)}>
             <span className="absolute -left-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[11px] font-semibold text-white">

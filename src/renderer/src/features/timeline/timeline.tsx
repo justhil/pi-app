@@ -772,7 +772,7 @@ export function Timeline() {
         .filter((row) => row.type === 'tool-call')
         .map((row) => {
           const toolRow = row as ToolTimelineItem
-          return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase }
+          return { id: toolRow.id, runId: toolRow.runId, toolPhase: toolRow.toolPhase, suspended: !!toolRow.extensionUiSuspended }
         }),
     [visibleItems],
   )
@@ -895,6 +895,7 @@ export function Timeline() {
         <Fragment key={stableGroupKey}>
           <div className="timeline-message-row timeline-activity-item">
             <ToolGroupSummary
+              groupId={stableGroupKey}
               tools={block.tools as unknown as ToolTimelineItem[]}
               clusterChildren={block.children}
               autoExpandedToolIds={autoExpandedToolIds}
