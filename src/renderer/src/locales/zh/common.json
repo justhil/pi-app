@@ -257,5 +257,20 @@
     "emptyHint": "开始对话后，可在这里查看运行进度和完成状态。"
   },
   "quoteLineTitle": "引用 {{path}}:{{line}} 到输入框",
-  "quoteLineAria": "引用第 {{line}} 行到输入框"
+  "quoteLineAria": "引用第 {{line}} 行到输入框",
+  "split": {
+    "label": "会话分栏",
+    "pane": "分栏 {{n}}",
+    "newPane": "新会话",
+    "untitled": "未命名会话",
+    "close": "关闭分栏",
+    "closeHint": "关闭分栏（会话保留，运行中的任务不会停止）",
+    "resize": "调整分栏宽度",
+    "resizeHint": "拖动调整宽度，双击均分",
+    "emptyPane": "点击这里开始新会话，或从左侧把会话拖进来",
+    "clickToLoad": "点击查看此会话",
+    "toolRun": "运行了 {{count}} 个工具",
+    "openInPane": "在右侧分栏打开",
+    "replying": "正在回复…"
+  }
 }

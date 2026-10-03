@@ -1,3 +1,4 @@
+import { requestOpenInPane, startSessionDrag } from '@renderer/features/split/split-dnd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, Plus } from '@renderer/components/icons'
@@ -138,7 +139,16 @@ export function ProjectSessionTree({
       && workspacePathsEqual(workspacePath, currentWorkspace)
       && workspacePathKey(historySessionFile) === node.key
     return (
-      <div key={node.key} className="mb-0.5" data-session-file={sessionFile}>
+      <div
+        key={node.key}
+        className="mb-0.5"
+        data-session-file={sessionFile}
+        draggable={!!sessionFile && !node.liveChild}
+        onDragStart={(e) => {
+          if (!sessionFile) return
+          startSessionDrag(e, { sessionId: s.sessionId, sessionFile, workspace: workspacePath, title: s.title || s.firstMessage || '' })
+        }}
+      >
         <div
           onContextMenu={(event) =>
             onSessionContextMenu(event, {
@@ -158,8 +168,10 @@ export function ProjectSessionTree({
         >
           <button
             type="button"
-            onClick={() => {
+            onClick={(e) => {
               if (node.liveChild && sessionFile) guardSessionSwitch(() => { void openSubagentSessionPreview(sessionFile) })
+              // Ctrl/⌘+click opens beside the current conversation in a new pane.
+              else if ((e.ctrlKey || e.metaKey) && sessionFile) requestOpenInPane({ sessionId: s.sessionId, sessionFile, workspace: workspacePath, title: s.title || s.firstMessage || '' })
               else openParentSession(s)
             }}
             aria-current={parentActive ? 'page' : undefined}

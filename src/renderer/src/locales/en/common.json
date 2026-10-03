@@ -257,5 +257,20 @@
     "emptyHint": "Start a conversation to see progress and completed tasks here."
   },
   "quoteLineTitle": "Quote {{path}}:{{line}} into the composer",
-  "quoteLineAria": "Quote line {{line}} into the composer"
+  "quoteLineAria": "Quote line {{line}} into the composer",
+  "split": {
+    "label": "Conversation panes",
+    "pane": "Pane {{n}}",
+    "newPane": "New session",
+    "untitled": "Untitled session",
+    "close": "Close pane",
+    "closeHint": "Close pane (the session stays, running work continues)",
+    "resize": "Resize panes",
+    "resizeHint": "Drag to resize, double-click to even out",
+    "emptyPane": "Click to start a new session, or drag one in from the sidebar",
+    "clickToLoad": "Click to view this session",
+    "toolRun": "Ran {{count}} tools",
+    "openInPane": "Open in a pane on the right",
+    "replying": "Replying…"
+  }
 }

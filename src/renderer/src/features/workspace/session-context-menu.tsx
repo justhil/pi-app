@@ -1,7 +1,8 @@
+import { requestOpenInPane } from '@renderer/features/split/split-dnd'
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Copy, FolderOpen, Pencil, Play, Trash2 } from '@renderer/components/icons'
+import { Copy, FolderOpen, Pencil, Play, Trash2, Columns2 } from '@renderer/components/icons'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { workspacePathsEqual } from '@shared/workspace-path'
@@ -152,6 +153,24 @@ export function SessionContextMenuPortal({
                 >
                   <Play className="h-3 w-3 shrink-0" strokeWidth={2} />
                   {t('common:sidebar.continue')}
+                </button>
+              ) : null}
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const target = menu.target
+                    if (target.sessionFile) {
+                      requestOpenInPane({ sessionId: target.sessionId, sessionFile: target.sessionFile, workspace: target.workspacePath, title: target.title })
+                    }
+                    onClose()
+                  }}
+                >
+                  <Columns2 className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  {t('common:split.openInPane')}
                 </button>
               ) : null}
               {menu.target.sessionFile ? (

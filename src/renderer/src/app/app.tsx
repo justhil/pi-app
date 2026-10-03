@@ -7,6 +7,7 @@ import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
 import { TimelineScrubber } from '@renderer/features/timeline/timeline-scrubber'
+import { SplitView } from '@renderer/features/split/split-view'
 import { Timeline } from '@renderer/features/timeline/timeline'
 import { Composer } from '@renderer/features/composer/composer'
 
@@ -367,6 +368,7 @@ export default function App() {
             </Sidebar>
           }
           center={
+            <SplitView>
             <MainColumnWithTimelineScroll className="h-full">
               {showHome ? (
                 <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
@@ -391,6 +393,7 @@ export default function App() {
               </ComposerDock>
               {!showHome ? <TimelineScrubber /> : null}
             </MainColumnWithTimelineScroll>
+            </SplitView>
           }
           right={
             <RightPanel>

@@ -16,7 +16,7 @@ const mainEntry = path.join(root, 'out/main/index.js')
 export type Seen = { system: string; tools: string[]; toolResults: number; firstUser: string; toolTexts: string[] }
 export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number }
 /** Next step given the user's first message and the tool results so far (oldest first). */
-export type Script = (firstUser: string, toolTexts: string[]) => Step
+export type Script = (firstUser: string, toolTexts: string[], lastUser: string) => Step
 
 export function listen(server: http.Server): Promise<number> {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port)))
@@ -46,7 +46,8 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const toolTexts = messages.filter((m) => m.role === 'tool').map(contentText)
     const tools = (request.tools ?? []).map((t: { function?: { name?: string } }) => t.function?.name ?? '')
     seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts })
-    const step = script(firstUser, toolTexts)
+    const lastUser = contentText([...messages].reverse().find((m) => m.role === 'user') ?? {})
+    const step = script(firstUser, toolTexts, lastUser)
 
     res.writeHead(200, { 'content-type': 'text/event-stream' })
     if (step.delayMs) await new Promise((r) => setTimeout(r, step.delayMs))
