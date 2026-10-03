@@ -1,8 +1,21 @@
 import { CAPABILITY_IDS, normalizeCapabilities, type CapabilityId, type CapabilityInfo } from '@shared/capabilities'
-import { BROWSER_TOOL_NAMES } from '@shared/browser-tools'
+import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES } from '@shared/browser-tools'
 import piUiPrompt from './pi-ui.md?raw'
 
 const BROWSER_TOOL_COUNT = BROWSER_TOOL_NAMES.length
+
+/** Rough token estimate (~4 characters per token for English text and JSON). */
+const estimateTokens = (chars: number) => Math.round(chars / 4)
+
+/**
+ * Tool definitions go out with every request, in the provider's function format. Count them
+ * too: they are most of a tool capability's cost, far more than its prompt text.
+ */
+const TOOL_DEF_TOKENS: Partial<Record<CapabilityId, number>> = {
+  browser: estimateTokens(
+    JSON.stringify(BROWSER_TOOL_DEFS.map((d) => ({ type: 'function', function: { name: d.name, description: d.description, parameters: d.parameters } }))).length,
+  ),
+}
 
 /** Prompt text appended to the system prompt while a capability is on (strip the source comment). */
 const PROMPTS: Partial<Record<CapabilityId, string>> = {
@@ -38,7 +51,7 @@ export function capabilityCatalog(): CapabilityInfo[] {
       id,
       available: a.ok,
       ...(a.reason ? { reason: a.reason } : {}),
-      promptTokens: Math.round((PROMPTS[id]?.length ?? 0) / 4),
+      promptTokens: estimateTokens(PROMPTS[id]?.length ?? 0) + (TOOL_DEF_TOKENS[id] ?? 0),
       tools: id === 'browser' ? BROWSER_TOOL_COUNT : 0,
     }
   })

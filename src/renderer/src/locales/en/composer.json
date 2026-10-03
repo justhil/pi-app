@@ -188,8 +188,8 @@
     "title": "On for this chat",
     "turnOff": "Turn off {{name}}",
     "comingSoon": "Coming soon",
-    "toolCount": "+{{count}} tools",
-    "tokens": "+{{n}} prompt tokens",
+    "toolCount": "{{count}} tools",
+    "tokens": "~{{n}} more tokens per request",
     "note": "Applies from your next message; turning off removes it at once. New chats start with everything off.",
     "noteRunning": "The current turn is unaffected; changes apply from your next message.",
     "items": {

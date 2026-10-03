@@ -32,3 +32,12 @@ describe('capability catalog', () => {
     expect(capabilityCatalog().find((c) => c.id === 'browser')?.available).toBe(true)
   })
 })
+
+describe('capability token estimate', () => {
+  it('counts tool definitions, not only the prompt text', async () => {
+    const { capabilityCatalog } = await import('./catalog')
+    const browser = capabilityCatalog().find((c) => c.id === 'browser')!
+    // 21 tool schemas are ~10k characters; the guidance alone is under 1k.
+    expect(browser.promptTokens).toBeGreaterThan(2000)
+  })
+})

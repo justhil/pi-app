@@ -90,11 +90,11 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
         <ComposerPopover
           anchorSelector="[data-composer-tools]"
           align="start"
-          width={312}
+          width={280}
           label={t('composer:tools.title')}
           onClose={() => setOpen(false)}
         >
-          <div className="px-3 pb-1 pt-2.5 text-[11px] text-muted-foreground/70">{t('composer:tools.title')}</div>
+          <div className="px-3 pb-0.5 pt-2 text-[10.5px] text-muted-foreground/65">{t('composer:tools.title')}</div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-1">
             {(catalog ?? []).map((cap) => {
               const Icon = ICONS[cap.id]
@@ -107,25 +107,26 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
               return (
                 <label
                   key={cap.id}
-                  className={cn('flex items-start gap-2.5 px-3 py-2', cap.available ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'opacity-55')}
+                  className={cn('flex items-start gap-2 px-3 py-1.5', cap.available ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'opacity-55')}
                 >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-foreground-secondary" />
+                  <Icon className="mt-[3px] h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] text-foreground">{label(cap.id)}</div>
-                    <div className="text-[11px] leading-4 text-muted-foreground/80">{t(`composer:tools.items.${cap.id}.desc`)}</div>
-                    {cost ? <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground/60">{cost}</div> : null}
+                    <div className="text-[12px] text-foreground">{label(cap.id)}</div>
+                    <div className="text-[10.5px] leading-4 text-muted-foreground/70">{t(`composer:tools.items.${cap.id}.desc`)}</div>
+                    {cost ? <div className="text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
                   </div>
                   <Switch
                     checked={on}
                     disabled={!cap.available}
                     aria-label={label(cap.id)}
                     onCheckedChange={(next) => setSessionCapability(sessionFile, cap.id, next)}
+                    className="mt-0.5 origin-top-right scale-75"
                   />
                 </label>
               )
             })}
           </div>
-          <div className="border-t border-border/60 px-3 py-2 text-[10.5px] leading-4 text-muted-foreground/70">
+          <div className="border-t border-border/50 px-3 py-1.5 text-[10px] leading-4 text-muted-foreground/60">
             {running ? t('composer:tools.noteRunning') : t('composer:tools.note')}
           </div>
         </ComposerPopover>

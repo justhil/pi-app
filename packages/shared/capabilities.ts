@@ -9,6 +9,7 @@ export interface CapabilityInfo {
   /** Why it is unavailable, e.g. 'browser-panel-off'. */
   reason?: string
   /** Rough size of the text added to the system prompt while on (chars / 4). */
+  /** Estimated tokens added to every request while on: prompt text plus tool definitions. */
   promptTokens: number
   /** Extra tools the model gets while on. */
   tools: number
