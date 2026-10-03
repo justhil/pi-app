@@ -829,15 +829,39 @@
   .composer-accessory-row:empty {
     display: none;
   }
+  /* Tray attached to the composer top: same border, fused with the shell below. */
+  .composer-accessory-row:not(:empty) {
+    position: relative;
+    align-items: flex-end;
+    margin: 0 12px -1px;
+    padding: 0 6px 0 10px;
+    border: 1px solid var(--composer-shell-border);
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    background: color-mix(in srgb, var(--bg-1) 82%, var(--bg-base));
+  }
   .adapter-widget-shell {
-    flex: 0 1 auto;
-    max-width: 14rem;
+    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
   }
-  .adapter-widget-shell[data-open='true'] {
-    flex: 1 1 auto;
-    max-width: calc(100% - 8.5rem);
+  .adapter-widget-ring circle {
+    fill: none;
+    stroke-width: 2;
+  }
+  .adapter-widget-ring .track {
+    stroke: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+  }
+  .adapter-widget-ring .value {
+    stroke: var(--success-semantic);
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--motion-normal, 200ms) var(--motion-ease, ease);
+  }
+  .adapter-widget-pulse {
+    animation: adapter-widget-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes adapter-widget-pulse {
+    50% { opacity: 0.45; }
   }
   .adapter-widget-trigger {
     color: var(--text-secondary);
@@ -905,7 +929,11 @@
     background: var(--bg-hover);
   }
   .adapter-widget-item-current {
-    background: color-mix(in srgb, var(--brand) 8%, transparent);
+    background: color-mix(in srgb, var(--brand) 7%, transparent);
+  }
+  .adapter-widget-list {
+    border-bottom: 1px solid color-mix(in srgb, var(--composer-shell-border) 60%, transparent);
+    margin-bottom: 2px;
   }
   .settings-skill-row {
     transition:
@@ -924,9 +952,11 @@
     .adapter-widget-expand,
     .adapter-widget-expand-inner,
     .adapter-widget-item,
+    .adapter-widget-pulse,
     .settings-skill-row {
       transition: none !important;
       transform: none !important;
+      animation: none !important;
     }
   }
   .composer-shell-upper:empty {

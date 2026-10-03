@@ -60,15 +60,36 @@ describe('ComposerAdapterWidgetHost', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger.closest('section')).toHaveClass('adapter-widget-shell', 'min-w-0')
     expect(trigger).toHaveClass('h-7')
-    expect(document.querySelector('.adapter-widget-progress')).not.toBeInTheDocument()
-    expect(screen.queryByText('Write tests')).not.toBeInTheDocument()
+    // Collapsed tray: progress ring plus the item being worked on, but no list.
+    expect(document.querySelector('.adapter-widget-ring')).toBeInTheDocument()
+    expect(trigger).toHaveTextContent('1/2')
+    expect(trigger).toHaveTextContent(/Write tests/)
+    expect(document.querySelector('.adapter-widget-list')).not.toBeInTheDocument()
 
     fireEvent.click(trigger)
     expect(state.toggleAdapterWidget).toHaveBeenCalledWith('/s.jsonl\u0000magic-context-todos')
     state.adapterWidgetExpandedBySession['/s.jsonl\u0000magic-context-todos'] = true
     rerender(<ComposerAdapterWidgetHost />)
 
-    expect(screen.getByText('Write tests')).toBeInTheDocument()
-    expect(screen.getByText('Ship')).toBeInTheDocument()
+    const list = document.querySelector('.adapter-widget-list') as HTMLElement
+    expect(list).toBeInTheDocument()
+    expect(list).toHaveTextContent('Write tests')
+    expect(list).toHaveTextContent('Ship')
+  })
+
+  it('shows a finished state when every item is done', () => {
+    state.composerWidget = {
+      protocol: 'todo-list-v1',
+      widgetKey: 'magic-context-todos',
+      adapterId: 'magic-context-todo',
+      title: 'Todo',
+      payload: { items: [{ id: '1', text: 'Ship', status: 'completed' }, { id: '2', text: 'Old plan', status: 'cancelled' }] },
+      updatedAt: 1,
+    }
+    render(<ComposerAdapterWidgetHost />)
+    const trigger = screen.getByRole('button', { name: /Todo/ })
+    expect(trigger).toHaveTextContent('1/2')
+    expect(document.querySelector('.adapter-widget-ring')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-done="true"]')).toBeInTheDocument()
   })
 })

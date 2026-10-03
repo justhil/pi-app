@@ -13,7 +13,9 @@
       "high": "高",
       "medium": "中",
       "low": "低"
-    }
+    },
+    "current": "正在：{{text}}",
+    "next": "下一项：{{text}}"
   },
   "previewReadOnly": "后台会话仍在运行，请先停止或切回该会话后再发送",
   "previewBanner": "正在预览其他会话；后台任务运行中，此处暂不可发送。",

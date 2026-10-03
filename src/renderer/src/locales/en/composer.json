@@ -13,7 +13,9 @@
       "high": "High",
       "medium": "Medium",
       "low": "Low"
-    }
+    },
+    "current": "Now: {{text}}",
+    "next": "Next: {{text}}"
   },
   "previewReadOnly": "Background chat is still running — stop it or switch back before sending here",
   "previewBanner": "Viewing another session while the background chat is running. Sending is disabled here.",

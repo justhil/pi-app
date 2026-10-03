@@ -411,7 +411,7 @@ export function Composer() {
           )}
         </div>
       )}
-      <div className="composer-accessory-row mb-0.5 flex min-w-0 items-start gap-2">
+      <div className="composer-accessory-row flex min-w-0 gap-2">
         <ComposerAdapterWidgetHost />
         <ComposerAgentActivity
           composerAnchorRef={slashPopoverAnchorRef}
