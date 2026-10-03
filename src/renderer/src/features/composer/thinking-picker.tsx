@@ -5,13 +5,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
-import { X, Brain, Check } from '@renderer/components/icons'
+import { Brain, Check } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
+import { ComposerPopover } from './composer-popover'
 import { formatThinkingChip, normalizeThinkingLevel } from '@renderer/lib/format-run-display'
-import { commitSessionDisplayMeta } from '@renderer/lib/session-display-meta'
 import {
   boundThinkingLevelFor,
   loadModelThinkingBindings,
@@ -19,7 +18,9 @@ import {
   subscribeModelThinkingBindings,
 } from '@renderer/lib/model-thinking-bindings'
 
-export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+import { THINKING_LEVELS, applyThinkingLevel } from './thinking-level-actions'
+
+export { THINKING_LEVELS }
 const METER_STEPS = THINKING_LEVELS.length - 1
 
 function ThinkingMeter({ index, active }: { index: number; active: boolean }) {
@@ -39,7 +40,6 @@ export function ThinkingPicker() {
   const current = normalizeThinkingLevel(useUIStore((s) => s.runState.thinkingLevel)) ?? 'medium'
   const available = useUIStore((s) => s.runState.availableThinkingLevels)
   const model = useUIStore((s) => s.runState.model) || ''
-  const sessionFile = useUIStore((s) => s.historySessionFile)
   const [bound, setBound] = useState(() => boundThinkingLevelFor(model))
   const [bindBusy, setBindBusy] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
@@ -53,13 +53,9 @@ export function ThinkingPicker() {
 
   useEffect(() => {
     if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
     // Land keyboard focus on the active level so ↑/↓ + Enter work immediately.
-    requestAnimationFrame(() => listRef.current?.querySelector<HTMLButtonElement>('[data-current]')?.focus())
-    return () => window.removeEventListener('keydown', onKey)
+    const frame = requestAnimationFrame(() => listRef.current?.querySelector<HTMLButtonElement>('[data-current]')?.focus())
+    return () => cancelAnimationFrame(frame)
   }, [open, setOpen])
 
   if (!open) return null
@@ -68,27 +64,8 @@ export function ThinkingPicker() {
 
   const pick = async (level: string) => {
     if (!supported(level)) return
-    const previous = useUIStore.getState().runState.thinkingLevel
-    useUIStore.getState().setRunState({ thinkingLevel: level })
     setOpen(false)
-    if (bound && model && bound !== level) {
-      void setModelThinkingBinding(model, level).catch(() => {})
-    }
-    try {
-      await ipcClient.invoke('thinkingLevel.set', {
-        sessionId: '',
-        sessionFile: sessionFile ?? undefined,
-        level,
-      })
-      commitSessionDisplayMeta(sessionFile, { thinkingLevel: level })
-      toast.success(t('composer:thinkingPicker.switched', { level: formatThinkingChip(level) }))
-    } catch (e) {
-      const isWorkerNotStarted = e instanceof Error && e.message.toLowerCase().includes('worker not started')
-      if (isWorkerNotStarted) return
-      console.error('thinkingLevel.set failed:', e)
-      useUIStore.getState().setRunState({ thinkingLevel: previous })
-      toast.error(t('composer:switchThinkingFailed'))
-    }
+    await applyThinkingLevel(level)
   }
 
   const toggleBinding = async (next: boolean) => {
@@ -119,36 +96,19 @@ export function ThinkingPicker() {
   }
 
   return (
-    <div
-      className="picker-backdrop backdrop-motion fixed inset-0 z-[110] flex items-end justify-center bg-black/40 p-4 pb-28 sm:items-start sm:pt-20"
-      onClick={() => setOpen(false)}
+    <ComposerPopover
+      anchorSelector="[data-composer-thinking-chip]"
+      width={272}
+      label={t('composer:thinkingPicker.title')}
+      onClose={() => setOpen(false)}
+      className="thinking-picker"
     >
-      <div
-        className="picker-panel thinking-picker w-full max-w-md overflow-hidden rounded-xl border border-border/80 bg-background shadow-2xl"
-        style={{ boxShadow: '0 16px 48px color-mix(in srgb, var(--foreground) 12%, transparent)' }}
-        role="dialog"
-        aria-label={t('composer:thinkingPicker.title')}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-border/60 px-4 py-3">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <Brain className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" />
-            <div className="min-w-0">
-              <div className="text-[14px] font-medium">{t('composer:thinkingPicker.title')}</div>
-              <div className="mt-0.5 text-[11.5px] text-muted-foreground/70">{t('composer:thinkingPicker.subtitle')}</div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label={t('common:close')}
-            className="row-hover rounded-lg p-1.5 text-foreground-secondary hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="flex items-center gap-1.5 px-3 pb-1 pt-2.5 text-[11px] font-medium text-muted-foreground/80">
+          <Brain className="h-3.5 w-3.5" />
+          <span className="min-w-0 flex-1 truncate">{t('composer:thinkingPicker.title')}</span>
+          <span className="text-[10.5px] font-normal text-muted-foreground/55">Shift+Tab</span>
         </div>
-
-        <div ref={listRef} className="py-1" role="listbox" onKeyDown={onListKeyDown}>
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox" onKeyDown={onListKeyDown}>
           {THINKING_LEVELS.map((level, index) => {
             const active = current === level
             const usable = supported(level)
@@ -163,7 +123,7 @@ export function ThinkingPicker() {
                 onClick={() => void pick(level)}
                 title={usable ? undefined : t('composer:thinkingPicker.unsupported')}
                 className={cn(
-                  'thinking-picker-row picker-row flex w-full items-center gap-3 px-4 py-2 text-left disabled:cursor-not-allowed',
+                  'thinking-picker-row picker-row flex w-full items-center gap-2.5 px-3 py-1.5 text-left disabled:cursor-not-allowed',
                   active && 'bg-[var(--bg-active)]',
                 )}
                 style={{ '--row': index } as CSSProperties}
@@ -171,7 +131,7 @@ export function ThinkingPicker() {
                 <ThinkingMeter index={index} active={active} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className={cn('text-[13px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
+                    <span className={cn('text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
                       {formatThinkingChip(level)}
                     </span>
                     <span className="font-mono text-[10.5px] uppercase tracking-wide text-muted-foreground/55">{level}</span>
@@ -181,7 +141,7 @@ export function ThinkingPicker() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="truncate text-[11.5px] text-muted-foreground/70">
+                  <div className="truncate text-[11px] text-muted-foreground/70">
                     {usable ? t(`composer:thinkingPicker.desc.${level}`) : t('composer:thinkingPicker.unsupported')}
                   </div>
                 </div>
@@ -191,9 +151,9 @@ export function ThinkingPicker() {
           })}
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border/60 bg-[color-mix(in_srgb,var(--bg-1)_60%,transparent)] px-4 py-2.5">
+        <div className="flex items-center gap-3 border-t border-border/60 bg-[color-mix(in_srgb,var(--bg-1)_60%,transparent)] px-3 py-2">
           <div className="min-w-0 flex-1">
-            <div className="text-[12.5px] font-medium">{t('composer:thinkingPicker.bindLabel')}</div>
+            <div className="text-[12px] font-medium">{t('composer:thinkingPicker.bindLabel')}</div>
             <div className="truncate text-[11px] text-muted-foreground/70" title={model}>
               {model ? t('composer:thinkingPicker.bindHint', { model }) : t('composer:thinkingPicker.bindNoModel')}
             </div>
@@ -205,7 +165,6 @@ export function ThinkingPicker() {
             onCheckedChange={(next) => void toggleBinding(next)}
           />
         </div>
-      </div>
-    </div>
+    </ComposerPopover>
   )
 }

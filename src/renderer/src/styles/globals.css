@@ -74,37 +74,33 @@
     --main-chat-surface-shadow:
       -3px 0 8px -4px rgba(18, 24, 40, 0.14),
       var(--main-chat-surface-shadow-top);
-    --composer-shell-radius: 20px;
-    --composer-shell-border: color-mix(in srgb, var(--border-base) 82%, #aeb4bf);
-    --composer-shell-border-hover: color-mix(in srgb, var(--brand) 20%, #c4c8d0);
-    --composer-shell-border-focus: color-mix(in srgb, var(--brand) 46%, #8b91a0);
+    --composer-shell-radius: 14px;
+    --composer-shell-border: color-mix(in srgb, var(--border-base) 88%, #b7bcc6);
+    --composer-shell-border-hover: color-mix(in srgb, var(--border-base) 70%, #9aa0ab);
+    --composer-shell-border-focus: color-mix(in srgb, var(--brand) 40%, #8b91a0);
+    /* Embedded, not floating: a hairline lift instead of a wide drop shadow. */
     --composer-shell-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.9),
-      0 1px 2px rgba(18, 24, 40, 0.09),
-      0 10px 28px rgba(18, 24, 40, 0.1);
+      0 1px 2px rgba(18, 24, 40, 0.05),
+      0 6px 16px -10px rgba(18, 24, 40, 0.12);
     --composer-shell-shadow-hover:
-      inset 0 1px 0 rgba(255, 255, 255, 0.94),
-      0 2px 4px rgba(18, 24, 40, 0.1),
-      0 12px 30px rgba(18, 24, 40, 0.12);
+      0 1px 2px rgba(18, 24, 40, 0.06),
+      0 8px 18px -10px rgba(18, 24, 40, 0.14);
     --composer-shell-shadow-focus:
-      0 0 0 1px color-mix(in srgb, var(--brand) 34%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
-      0 1px 2px rgba(18, 24, 40, 0.1),
-      0 14px 34px rgba(18, 24, 40, 0.14);
+      0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent),
+      0 1px 2px rgba(18, 24, 40, 0.06),
+      0 8px 20px -10px rgba(18, 24, 40, 0.16);
     --composer-shell-shadow-recording:
       0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
-      0 1px 2px rgba(18, 24, 40, 0.1),
-      0 14px 34px rgba(18, 24, 40, 0.14);
+      0 1px 2px rgba(18, 24, 40, 0.06),
+      0 8px 20px -10px rgba(18, 24, 40, 0.16);
     --composer-shell-shadow-hero:
-      inset 0 1px 0 rgba(255, 255, 255, 0.94),
-      0 2px 5px rgba(18, 24, 40, 0.1),
-      0 18px 44px rgba(18, 24, 40, 0.14);
+      0 1px 2px rgba(18, 24, 40, 0.06),
+      0 10px 24px -12px rgba(18, 24, 40, 0.16);
     --composer-shell-shadow-hero-focus:
-      0 0 0 1px color-mix(in srgb, var(--brand) 34%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
-      0 2px 6px rgba(18, 24, 40, 0.11),
-      0 20px 48px rgba(18, 24, 40, 0.16);
+      0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent),
+      0 1px 2px rgba(18, 24, 40, 0.07),
+      0 12px 26px -12px rgba(18, 24, 40, 0.18);
+    --composer-popover-shadow: 0 1px 2px rgba(18, 24, 40, 0.06), 0 12px 32px -8px rgba(18, 24, 40, 0.18);
 
     /* 输入框/对话：随中心列可用宽度伸缩，侧栏收起后自然扩展 */
     --chat-content-min: 560px;
@@ -236,35 +232,30 @@
       -3px 0 8px -4px rgba(0, 0, 0, 0.28),
       var(--main-chat-surface-shadow-top);
     --composer-shell-border: #3a3a3a;
-    --composer-shell-border-hover: #46464a;
-    --composer-shell-border-focus: color-mix(in srgb, var(--brand) 42%, #6a6a70);
+    --composer-shell-border-hover: #48484c;
+    --composer-shell-border-focus: color-mix(in srgb, var(--brand) 38%, #6a6a70);
     --composer-shell-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.055),
-      0 1px 2px rgba(0, 0, 0, 0.44),
-      0 10px 28px rgba(0, 0, 0, 0.22);
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 6px 16px -10px rgba(0, 0, 0, 0.4);
     --composer-shell-shadow-hover:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 2px 4px rgba(0, 0, 0, 0.48),
-      0 12px 30px rgba(0, 0, 0, 0.26);
+      0 1px 2px rgba(0, 0, 0, 0.38),
+      0 8px 18px -10px rgba(0, 0, 0, 0.45);
     --composer-shell-shadow-focus:
-      0 0 0 1px color-mix(in srgb, var(--brand) 38%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 1px 2px rgba(0, 0, 0, 0.5),
-      0 14px 34px rgba(0, 0, 0, 0.3);
+      0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 8px 20px -10px rgba(0, 0, 0, 0.5);
     --composer-shell-shadow-recording:
       0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 1px 2px rgba(0, 0, 0, 0.5),
-      0 14px 34px rgba(0, 0, 0, 0.3);
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 8px 20px -10px rgba(0, 0, 0, 0.5);
     --composer-shell-shadow-hero:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      0 2px 5px rgba(0, 0, 0, 0.5),
-      0 18px 44px rgba(0, 0, 0, 0.32);
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 10px 24px -12px rgba(0, 0, 0, 0.5);
     --composer-shell-shadow-hero-focus:
-      0 0 0 1px color-mix(in srgb, var(--brand) 38%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.08),
-      0 2px 6px rgba(0, 0, 0, 0.52),
-      0 20px 48px rgba(0, 0, 0, 0.36);
+      0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.42),
+      0 12px 26px -12px rgba(0, 0, 0, 0.55);
+    --composer-popover-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 14px 34px -8px rgba(0, 0, 0, 0.55);
 
     /* Tailwind HSL — neutral gray, low chroma (match VS Code) */
     --background: 0 0% 12%;           /* #1f1f1f */
@@ -793,6 +784,47 @@
     border-color: var(--composer-shell-border-focus) !important;
     box-shadow: var(--composer-shell-shadow-focus);
     background: var(--bg-base);
+  }
+  .composer-popover {
+    box-shadow: var(--composer-popover-shadow);
+    animation: composer-popover-in var(--motion-fast, 140ms) var(--motion-ease, ease) both;
+    transform-origin: bottom right;
+  }
+  @keyframes composer-popover-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
+  .composer-thinking-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 1.5px;
+    height: 10px;
+  }
+  .composer-thinking-bars > span {
+    width: 2.5px;
+    border-radius: 1px;
+    background: color-mix(in srgb, currentColor 28%, transparent);
+  }
+  .composer-thinking-bars > span[data-on] {
+    background: currentColor;
+  }
+  .composer-context-ring circle {
+    fill: none;
+    stroke-width: 2;
+  }
+  .composer-context-ring .track {
+    stroke: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+  }
+  .composer-context-ring .value {
+    stroke: color-mix(in srgb, var(--text-secondary) 75%, transparent);
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--motion-normal, 200ms) var(--motion-ease, ease);
+  }
+  .composer-context-ring.is-high .value {
+    stroke: #d97706;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .composer-popover { animation: none; }
   }
   .composer-accessory-row:empty {
     display: none;

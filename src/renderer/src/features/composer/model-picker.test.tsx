@@ -33,6 +33,11 @@ const onAppEventMock = vi.mocked(onAppEvent)
 let appEventSubscribers: Array<(event: AppEvent) => void> = []
 
 beforeEach(() => {
+  try {
+    localStorage.removeItem('pi-desktop:recent-models')
+  } catch {
+    /* storage unavailable in this runtime */
+  }
   invoke.mockReset()
   userActionToastMock.success.mockClear()
   for (const spy of Object.values(toastSpies)) spy.mockClear()
@@ -99,7 +104,20 @@ describe('ModelPicker runtime confirmation', () => {
     )
 
     await waitFor(() => expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(2))
+    // Collapsed providers do not render their rows; open the group to see the reloaded model.
+    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     expect(await screen.findByRole('button', { name: /gpt-4/i })).toBeTruthy()
+  })
+
+  it('lists recently used models first and picks them in one click', async () => {
+    localStorage.setItem('pi-desktop:recent-models', JSON.stringify(['openai/gpt-4']))
+    invoke.mockResolvedValue({ models: [{ provider: 'openai', id: 'gpt-4', available: true }, { provider: 'xai', id: 'grok', available: true }] })
+
+    render(<ModelPicker />)
+
+    expect(await screen.findByText(/Recent|最近使用|recentModels/)).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /gpt-4/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /grok/i })).toBeNull()
   })
 
   it('does not reload on non-run events', async () => {

@@ -189,6 +189,11 @@ export default function App() {
         })
         .catch(() => {})
       prefetchAvailableModels()
+      // The composer menus open from a chip click; load their code ahead so the first open is instant.
+      window.setTimeout(() => {
+        void import('@renderer/features/composer/model-picker')
+        void import('@renderer/features/composer/thinking-picker')
+      }, 1500)
     })
     return () => cancelAnimationFrame(frame)
   }, [applyRightPanelRuntime])

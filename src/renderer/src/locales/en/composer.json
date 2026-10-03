@@ -175,5 +175,10 @@
     "boundToast": "Bound {{level}} to {{model}}",
     "unboundToast": "Removed the thinking binding for {{model}}",
     "switched": "Thinking: {{level}}"
-  }
+  },
+  "recentModels": "Recent",
+  "allModels": "All models",
+  "modelPickerKeys": "↑↓ select · Enter switch · Esc close",
+  "thinkingChip": "Thinking: {{level}} (Shift+Tab to cycle)",
+  "contextRing": "Context {{used}} / {{total}} ({{pct}}%)"
 }

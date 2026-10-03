@@ -420,6 +420,7 @@ export function Composer() {
       </div>
       <div
         ref={slashPopoverAnchorRef}
+        data-composer-shell=""
         className={cn(
           'composer-shell relative flex flex-col border',
           sessionPreview && 'opacity-90',
@@ -499,9 +500,6 @@ export function Composer() {
             >
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
-            {canCompose && (
-              <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
-            )}
             <div className="min-w-0 flex-1">
               {canSendMessages && (
                 <ComposerModelStrip
@@ -509,11 +507,20 @@ export function Composer() {
                   thinkingLevel={thinkingLevel}
                   modelPickerOpen={modelPickerOpen}
                   thinkingPickerOpen={thinkingPickerOpen}
-                  onModelClick={() => setModelPickerOpen(true)}
-                  onThinkingClick={() => setThinkingPickerOpen(true)}
+                  onModelClick={() => {
+                    setThinkingPickerOpen(false)
+                    setModelPickerOpen(!modelPickerOpen)
+                  }}
+                  onThinkingClick={() => {
+                    setModelPickerOpen(false)
+                    setThinkingPickerOpen(!thinkingPickerOpen)
+                  }}
                 />
               )}
             </div>
+            {canCompose && (
+              <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
+            )}
             <div className="flex shrink-0 items-center gap-1.5">
               {showComposerStop && (
                 <button

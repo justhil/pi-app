@@ -175,5 +175,10 @@
     "boundToast": "已为 {{model}} 绑定 {{level}}",
     "unboundToast": "已取消 {{model}} 的思考等级绑定",
     "switched": "思考等级：{{level}}"
-  }
+  },
+  "recentModels": "最近使用",
+  "allModels": "全部模型",
+  "modelPickerKeys": "↑↓ 选择 · Enter 切换 · Esc 关闭",
+  "thinkingChip": "思考：{{level}}（Shift+Tab 切换）",
+  "contextRing": "上下文 {{used}} / {{total}}（{{pct}}%）"
 }

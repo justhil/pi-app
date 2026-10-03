@@ -3,6 +3,8 @@ import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
 import { restoreQueuedToComposer } from '@renderer/lib/composer-queue-restore'
 import type { WorkspaceFsSearchEntry } from '@shared/ipc-contract'
 import type { SlashCommand } from './composer-constants'
+import { applyThinkingLevel, nextThinkingLevel } from './thinking-level-actions'
+import { useUIStore } from '@renderer/stores/ui-store'
 import type { EditorCursorAdapter, useComposerInputHistory } from './use-composer-input-history'
 
 export function useComposerKeyDown(opts: {
@@ -62,6 +64,13 @@ export function useComposerKeyDown(opts: {
       if (e.nativeEvent.isComposing || e.keyCode === 229) return
 
       const alt = e.altKey
+      // Shift+Tab cycles the thinking level (pi TUI parity) when no completion list is open.
+      if (e.key === 'Tab' && e.shiftKey && !alt && !e.ctrlKey && !e.metaKey && !fileCompletion.show && !showPopover) {
+        e.preventDefault()
+        const { runState } = useUIStore.getState()
+        void applyThinkingLevel(nextThinkingLevel(runState.thinkingLevel, runState.availableThinkingLevels))
+        return
+      }
       if (fileCompletion.show) {
         if (e.key === 'Escape') {
           e.preventDefault()
