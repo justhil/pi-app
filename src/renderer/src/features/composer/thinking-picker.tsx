@@ -87,16 +87,16 @@ export function ThinkingPicker() {
   return (
     <ComposerPopover
       anchorSelector="[data-composer-thinking-chip]"
-      width={232}
+      width={208}
       label={t('composer:thinkingPicker.title')}
       onClose={() => setOpen(false)}
       className="thinking-picker"
     >
-        <div className="flex items-center px-3 pb-0.5 pt-2 text-[11px] text-muted-foreground/70">
+        <div className="flex items-center px-2.5 pb-0.5 pt-1.5 text-[10.5px] text-muted-foreground/65">
           <span className="min-w-0 flex-1 truncate">{t('composer:thinkingPicker.title')}</span>
-          <span className="text-[10.5px] font-normal text-muted-foreground/55">Shift+Tab</span>
+          <span className="text-[10px] text-muted-foreground/50">Shift+Tab</span>
         </div>
-        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto py-1" role="listbox" onKeyDown={onListKeyDown}>
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto pb-1 pt-0.5" role="listbox" onKeyDown={onListKeyDown}>
           {THINKING_LEVELS.map((level) => {
             const active = current === level
             const usable = supported(level)
@@ -111,35 +111,36 @@ export function ThinkingPicker() {
                 onClick={() => void pick(level)}
                 title={usable ? undefined : t('composer:thinkingPicker.unsupported')}
                 className={cn(
-                  'thinking-picker-row picker-row flex h-7 w-full items-center gap-2 px-3 text-left disabled:cursor-not-allowed disabled:opacity-45',
+                  'thinking-picker-row picker-row flex h-[26px] w-full items-center gap-2 px-2.5 text-left disabled:cursor-not-allowed disabled:opacity-45',
                   active && 'bg-[var(--bg-active)]',
                 )}
               >
-                <span className={cn('w-14 shrink-0 text-[12.5px]', active ? 'text-foreground' : 'text-foreground/80')}>
+                <span className={cn('w-[52px] shrink-0 text-[12px]', active ? 'text-foreground' : 'text-foreground/80')}>
                   {formatThinkingChip(level)}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/70">
+                <span className="min-w-0 flex-1 truncate text-[10.5px] text-muted-foreground/60">
                   {usable ? t(`composer:thinkingPicker.desc.${level}`) : t('composer:thinkingPicker.unsupported')}
                 </span>
                 {bound === level ? (
-                  <span className="shrink-0 text-[10.5px] text-primary">{t('composer:thinkingPicker.bound')}</span>
+                  <span className="shrink-0 text-[10px] text-primary">{t('composer:thinkingPicker.bound')}</span>
                 ) : null}
-                {active ? <Check className="thinking-picker-check h-3.5 w-3.5 shrink-0 text-primary" /> : <span className="w-3.5 shrink-0" />}
+                {active ? <Check className="thinking-picker-check h-3 w-3 shrink-0 text-primary" /> : <span className="w-3 shrink-0" />}
               </button>
             )
           })}
         </div>
 
         <div
-          className="flex items-center gap-3 border-t border-border/60 px-3 py-1.5"
+          className="flex items-center gap-2 border-t border-border/50 px-2.5 py-1"
           title={model ? t('composer:thinkingPicker.bindHint', { model }) : t('composer:thinkingPicker.bindNoModel')}
         >
-          <div className="min-w-0 flex-1 truncate text-[11.5px] text-foreground-secondary">{t('composer:thinkingPicker.bindLabel')}</div>
+          <div className="min-w-0 flex-1 truncate text-[11px] text-foreground-secondary">{t('composer:thinkingPicker.bindLabel')}</div>
           <Switch
             checked={!!bound}
             disabled={!model || bindBusy}
             aria-label={t('composer:thinkingPicker.bindLabel')}
             onCheckedChange={(next) => void toggleBinding(next)}
+            className="origin-right scale-75"
           />
         </div>
     </ComposerPopover>
