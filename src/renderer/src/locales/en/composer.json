@@ -90,7 +90,7 @@
     "errorNetwork": "Network error — cannot reach ASR service",
     "errorUpstream": "Transcription service returned an error",
     "errorTimeout": "Transcription timed out",
-    "errorNotConfigured": "ASR provider not configured",
+    "errorNotConfigured": "Speech recognition is not set up",
     "errorUnknown": "Transcription failed",
     "micPermissionDenied": "Microphone permission denied"
   },

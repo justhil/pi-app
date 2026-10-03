@@ -6,7 +6,7 @@ import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
 import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
-import { ChatTimelineProgressRail } from '@renderer/features/timeline/chat-timeline-progress-rail'
+import { TimelineScrubber } from '@renderer/features/timeline/timeline-scrubber'
 import { Timeline } from '@renderer/features/timeline/timeline'
 import { Composer } from '@renderer/features/composer/composer'
 
@@ -389,9 +389,7 @@ export default function App() {
               <ComposerDock heroMode={showHome}>
                 <Composer />
               </ComposerDock>
-              {rightPanelHidden && (
-                <ChatTimelineProgressRail placement="main-column-edge" />
-              )}
+              {!showHome ? <TimelineScrubber /> : null}
             </MainColumnWithTimelineScroll>
           }
           right={

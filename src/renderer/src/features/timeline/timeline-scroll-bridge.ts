@@ -25,6 +25,10 @@ export function registerTimelineScrollEl(el: HTMLDivElement | null): void {
   scrollEl = el
 }
 
+export function getTimelineScrollEl(): HTMLDivElement | null {
+  return scrollEl
+}
+
 export function getTimelineScrollMetrics(): { progress: number; scrollable: boolean } {
   if (!scrollEl) return { progress: 0, scrollable: false }
   const max = scrollEl.scrollHeight - scrollEl.clientHeight

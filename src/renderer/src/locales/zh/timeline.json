@@ -221,5 +221,9 @@
   "hashlineExpandAll_one": "展开全部 {{count}} 条",
   "hashlineExpandAll_other": "展开全部 {{count}} 条",
   "treeClickHint": "单击查看 · 双击回到此处",
-  "treeFilterLabel": "显示范围"
+  "treeFilterLabel": "显示范围",
+  "scrubber": {
+    "label": "你的消息",
+    "hint": "跳到你之前的消息：点击或拖动；↑↓ 或 Alt+↑↓ 逐条切换"
+  }
 }

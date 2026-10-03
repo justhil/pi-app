@@ -221,5 +221,9 @@
   "hashlineExpandAll_one": "Show all {{count}}",
   "hashlineExpandAll_other": "Show all {{count}}",
   "treeClickHint": "Click to view · double-click to go back here",
-  "treeFilterLabel": "Show"
+  "treeFilterLabel": "Show",
+  "scrubber": {
+    "label": "Your messages",
+    "hint": "Jump to your earlier messages: click or drag; ↑↓ or Alt+↑↓ to step"
+  }
 }

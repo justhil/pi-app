@@ -1718,6 +1718,16 @@
     bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
     z-index: 50;
   }
+  .main-chat-column .timeline-scrubber {
+    top: 3.25rem;
+    bottom: calc(var(--composer-dock-h, 11rem) + 0.75rem);
+  }
+  .timeline-scrubber-mark {
+    transition: width 120ms var(--motion-ease, ease), background-color 120ms ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-scrubber-mark { transition: none; }
+  }
   .main-chat-column .overlay-scrollbar-rail {
     bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
     z-index: 50;
