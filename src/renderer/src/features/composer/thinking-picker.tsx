@@ -115,7 +115,7 @@ export function ThinkingPicker() {
                   active && 'bg-[var(--bg-active)]',
                 )}
               >
-                <span className={cn('w-9 shrink-0 text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
+                <span className={cn('w-14 shrink-0 text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
                   {formatThinkingChip(level)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/70">
