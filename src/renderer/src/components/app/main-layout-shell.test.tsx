@@ -91,7 +91,7 @@ describe('MainLayoutShell window-resize adaptation', () => {
   })
 
   it('should_collapse_right_panel_to_rail_on_narrow_window_until_expanded', () => {
-    useUIStore.setState({ rightPanelExpandedOnNarrow: false, rightPanelWidth: 288 })
+    useUIStore.setState({ rightPanelExpandedOnNarrow: false, rightPanelWidth: 288, rightPanelRailIcons: false })
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 })
     render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
 
@@ -104,6 +104,7 @@ describe('MainLayoutShell window-resize adaptation', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1400 })
     render(<MainLayoutShell left={<div />} center={<div />} right={<div />} />)
     expect(gridColumns()).toBe('260px minmax(0, 1fr) 40px')
+    useUIStore.setState({ rightPanelRailIcons: false })
   })
 
   it('adapts persisted oversized widths on mount without writing them back', () => {

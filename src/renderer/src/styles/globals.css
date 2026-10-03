@@ -740,9 +740,7 @@
     top: 0;
     bottom: 0;
   }
-  .chat-scroll-rail {
-    pointer-events: auto;
-  }
+
   /* Composer input shell */
   .native-code-shiki .shiki {
     background: transparent !important;
@@ -1714,10 +1712,7 @@
   .composer-dock-panel {
     border-radius: var(--radius-lg);
   }
-  .main-chat-column .chat-scroll-rail--main-column {
-    bottom: calc(var(--composer-dock-h, 11rem) + 0.25rem);
-    z-index: 50;
-  }
+
   .main-chat-column .timeline-scrubber {
     top: 3.25rem;
     bottom: calc(var(--composer-dock-h, 11rem) + 0.75rem);
