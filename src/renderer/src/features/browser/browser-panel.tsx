@@ -53,6 +53,7 @@ export function BrowserPanel() {
   const [searchUrl, setSearchUrl] = useState(() => browserSearchUrl(undefined))
   const [annotating, setAnnotating] = useState<{ snapshot: string; tabId: string } | null>(null)
   const [sendMenuOpen, setSendMenuOpen] = useState(false)
+  const [agentAction, setAgentAction] = useState<{ tabId: string; action: string } | null>(null)
   const covered = useOverlayCovering(viewportRef)
 
   useEffect(() => {
@@ -190,6 +191,10 @@ export function BrowserPanel() {
   useEffect(
     () =>
       onBrowserSideEvent((event: BrowserEvent) => {
+        if (event.type === 'agent-action') {
+          setAgentAction(event.action ? { tabId: event.tabId, action: event.action } : null)
+          return
+        }
         if (event.type === 'shortcut') {
           if (event.action === 'focus-address') focusAddress()
           else if (event.action === 'new-tab') void openTab()
@@ -400,6 +405,12 @@ export function BrowserPanel() {
       ) : null}
 
       <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-hidden" data-browser-viewport="">
+        {agentAction && agentAction.tabId === activeTabId ? (
+          <div className="pointer-events-none absolute right-2 top-2 z-30 flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground shadow-md" role="status">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden />
+            {t('agent.acting', { action: agentAction.action })}
+          </div>
+        ) : null}
         {activeTab?.loading ? (
           <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary" aria-hidden />
         ) : null}

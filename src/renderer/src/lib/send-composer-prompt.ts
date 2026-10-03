@@ -5,6 +5,7 @@ import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
 export async function sendComposerPrompt(text: string): Promise<boolean> {
   const trimmed = text.trim()
   if (!trimmed) return false
+  const capabilities = currentSessionCapabilities()
   let store = useUIStore.getState()
   if (store.pendingNewSessionPlaceholder && store.currentWorkspace) {
     const { materializePendingNewSession } = await import('@renderer/lib/new-session')
@@ -15,7 +16,7 @@ export async function sendComposerPrompt(text: string): Promise<boolean> {
     sessionId: store.currentSessionId || '',
     sessionFile: store.historySessionFile ?? undefined,
     text: trimmed,
-    capabilities: currentSessionCapabilities(),
+    capabilities,
   })
   const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
   await afterPromptSent(bind)

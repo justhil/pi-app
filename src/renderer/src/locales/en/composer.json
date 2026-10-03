@@ -201,6 +201,9 @@
         "name": "Browser control",
         "desc": "Lets the AI read and operate pages in the built-in browser"
       }
+    },
+    "reasons": {
+      "browser-panel-off": "Turn on the Browser panel first (Settings → Right panels)"
     }
   }
 }

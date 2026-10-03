@@ -16,12 +16,19 @@ import {
 import { configureBrowserSession, partitionForProfile } from './electron-session'
 import { FRAMEWORK_SOURCE, INSPECT_AT_POINT, PAGE_CONTEXT } from './page-scripts'
 import { computeViewBounds } from './view-layout'
+import { BrowserToolError, Pointer } from './browser-agent'
 
 interface Tab {
   info: BrowserTabInfo
   view: WebContentsView
   logs: BrowserLogEntry[]
+  pointer: Pointer
+  /** Serializes agent actions on this tab. */
+  queue: Promise<unknown>
 }
+
+/** Layout size for tabs the user has not shown yet (agent-opened tabs still need a viewport). */
+const DEFAULT_VIEW_SIZE = { width: 1280, height: 800 }
 
 /** Isolated world shared by all host page scripts; pages cannot see its globals. */
 const SCRIPT_WORLD = 1999
@@ -70,7 +77,7 @@ export class BrowserHost {
     return { tabs: [...this.tabs.values()].map((t) => t.info), activeTabId: this.activeTabId }
   }
 
-  openTab(opts: { url?: string; profileId?: string; focus?: boolean } = {}): BrowserTabInfo {
+  openTab(opts: { url?: string; profileId?: string; focus?: boolean; openedBy?: BrowserTabInfo['openedBy'] } = {}): BrowserTabInfo {
     const win = this.getWindow()
     if (!win || win.isDestroyed()) throw new Error('browser: main window unavailable')
     const profileId = opts.profileId || DEFAULT_ELECTRON_PROFILE_ID
@@ -94,6 +101,7 @@ export class BrowserHost {
       },
     })
     view.setVisible(false)
+    view.setBounds({ x: 0, y: 0, ...DEFAULT_VIEW_SIZE })
     win.contentView.addChildView(view)
 
     const info: BrowserTabInfo = {
@@ -105,9 +113,9 @@ export class BrowserHost {
       loading: false,
       canGoBack: false,
       canGoForward: false,
-      openedBy: 'user',
+      openedBy: opts.openedBy ?? 'user',
     }
-    const tab: Tab = { info, view, logs: [] }
+    const tab: Tab = { info, view, logs: [], pointer: new Pointer(view.webContents), queue: Promise.resolve() }
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
     this.emit({ type: 'tab-updated', tab: info })
@@ -210,6 +218,48 @@ export class BrowserHost {
     const wc = this.requireTab(tabId).view.webContents
     const code = `(${PAGE_CONTEXT})(${num(maxChars)})`
     return (await withTimeout(wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]), PAGE_SCRIPT_TIMEOUT_MS)) as PageContextResult
+  }
+
+  /** Tab the agent means: the given id, else the tab shown in the panel, else the newest. */
+  resolveTabId(tabId?: string): string {
+    if (tabId) {
+      if (!this.tabs.has(tabId)) throw new BrowserToolError('browser_no_tab', `no tab ${tabId}; call browser_tabs to list tabs`)
+      return tabId
+    }
+    const id = this.activeTabId ?? [...this.tabs.keys()].pop()
+    if (!id) throw new BrowserToolError('browser_no_tab', 'no tab is open; call browser_tabs with action "new"')
+    return id
+  }
+
+  agentTab(tabId: string): { info: BrowserTabInfo; wc: Electron.WebContents; pointer: Pointer } {
+    const tab = this.requireTab(tabId)
+    return { info: tab.info, wc: tab.view.webContents, pointer: tab.pointer }
+  }
+
+  /** Run agent work on a tab one at a time; tells the panel which action is running. */
+  runOnTab<T>(tabId: string, action: string, work: () => Promise<T>): Promise<T> {
+    const tab = this.requireTab(tabId)
+    const run = tab.queue.catch(() => undefined).then(async () => {
+      this.emit({ type: 'agent-action', tabId, action })
+      try {
+        return await work()
+      } finally {
+        this.emit({ type: 'agent-action', tabId, action: null })
+      }
+    })
+    tab.queue = run
+    return run
+  }
+
+  /** PNG of the page even while the tab is hidden; scaled down to at most `maxWidth`. */
+  async screenshotPng(tabId: string, maxWidth = 1280): Promise<{ png: Buffer; width: number; height: number }> {
+    const wc = this.requireTab(tabId).view.webContents
+    let image = await wc.capturePage(undefined, { stayHidden: true, stayAwake: true })
+    if (image.isEmpty()) throw new BrowserToolError('browser_timeout', 'the page has not painted yet')
+    const size = image.getSize()
+    if (size.width > maxWidth) image = image.resize({ width: maxWidth, quality: 'good' })
+    const out = image.getSize()
+    return { png: image.toPNG(), width: out.width, height: out.height }
   }
 
   logs(tabId: string, max = 30): BrowserLogEntry[] {

@@ -4,8 +4,10 @@ export type CapabilityId = (typeof CAPABILITY_IDS)[number]
 
 export interface CapabilityInfo {
   id: CapabilityId
-  /** False while the capability is not implemented yet (shown disabled in the menu). */
+  /** False when it cannot be used right now (shown disabled in the menu). */
   available: boolean
+  /** Why it is unavailable, e.g. 'browser-panel-off'. */
+  reason?: string
   /** Rough size of the text added to the system prompt while on (chars / 4). */
   promptTokens: number
   /** Extra tools the model gets while on. */

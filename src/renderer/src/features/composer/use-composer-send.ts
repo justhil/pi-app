@@ -42,6 +42,9 @@ export function useComposerSend(opts: {
     async (queueOpts?: { queue?: 'steer' | 'followUp' }) => {
       if (sendingRef.current) return
       sendingRef.current = true
+      // Snapshot the switches the user sees now: sending a new chat creates its session file
+      // before the prompt goes out, and the draft's switches move to it.
+      const capabilities = currentSessionCapabilities()
       try {
         if (extensionUiBlocksComposer()) {
           toast.message(t('composer:toast.completeExtensionFirst'))
@@ -77,7 +80,7 @@ export function useComposerSend(opts: {
           sessionId: '',
           sessionFile: useUIStore.getState().historySessionFile ?? undefined,
           text: payload,
-          capabilities: currentSessionCapabilities(),
+          capabilities,
         })
         const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
         const pendMsg = displayText.trim()

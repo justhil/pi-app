@@ -81,5 +81,8 @@
     "area": "Area",
     "page": "Page",
     "noComment": "(no comment)"
+  },
+  "agent": {
+    "acting": "AI · {{action}}"
   }
 }

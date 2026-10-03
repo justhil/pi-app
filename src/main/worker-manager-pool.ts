@@ -218,6 +218,17 @@ export function attachWorkerHandlers(
       win.webContents.send('ipc:extension-ui-request', request)
     }
 
+    if (data.type === 'browser-tool-request') {
+      // Loaded on first use: the bridge pulls in Electron views and the config store.
+      void import('./browser/browser-tool-bridge')
+        .then(({ handleBrowserToolRequest }) =>
+          handleBrowserToolRequest(data, slot, (message) => {
+            if (slot.worker === transport) transport.postMessage(message)
+          }),
+        )
+        .catch((error) => safeWrite(`[WorkerManager] browser tool failed: ${String(error)}`))
+    }
+
     if (data.type === 'init-done' && slot.initResolver) {
       slot.sdkFallback = !!data.sdkFallback
       if (slot.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')

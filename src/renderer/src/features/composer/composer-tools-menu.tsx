@@ -47,7 +47,8 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   }, [key])
 
   useEffect(() => {
-    if (!open || catalogCache) return
+    // Availability follows settings (e.g. the Browser panel experiment): refresh on every open.
+    if (!open) return
     void ipcClient
       .invoke('capabilities.catalog')
       .then((res: { capabilities?: CapabilityInfo[] }) => {
@@ -109,7 +110,7 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
               const Icon = ICONS[cap.id]
               const on = enabled.includes(cap.id)
               const cost = !cap.available
-                ? t('composer:tools.comingSoon')
+                ? t(cap.reason ? `composer:tools.reasons.${cap.reason}` : 'composer:tools.comingSoon')
                 : [cap.tools > 0 ? t('composer:tools.toolCount', { count: cap.tools }) : '', cap.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(cap.promptTokens) }) : '']
                     .filter(Boolean)
                     .join(' · ')

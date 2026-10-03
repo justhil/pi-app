@@ -22,6 +22,7 @@ import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 import { capabilitiesExtension } from './worker-capabilities.js'
+import { browserToolsExtension } from './worker-browser-tools.js'
 
 export type WorkerModelRuntime = Pick<
   ModelRuntime,
@@ -187,7 +188,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       agentDir,
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
-        extensionFactories: [capabilitiesExtension],
+        extensionFactories: [capabilitiesExtension, browserToolsExtension],
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
         skillsOverride: applySkillsOverride as never,
       },

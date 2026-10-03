@@ -485,8 +485,8 @@ export class WorkerManager {
   }
 
   /** Prompt text of the enabled session capabilities, applied from the next agent turn on. */
-  async setCapabilities(sections: string[], sessionFile?: string): Promise<void> {
-    await this.request('setCapabilities', { sections, sessionFile })
+  async setCapabilities(sections: string[], tools: string[], sessionFile?: string): Promise<void> {
+    await this.request('setCapabilities', { sections, tools, sessionFile })
   }
 
   async sendPrompt(text: string, sessionFile?: string): Promise<void> {

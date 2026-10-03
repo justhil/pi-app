@@ -37,4 +37,12 @@ describe('session capabilities', () => {
     onCapabilityKeyChange(DRAFT_CAPABILITY_KEY, '/new.jsonl')
     expect(useSessionCapabilitiesStore.getState().byKey).toEqual({ '/new.jsonl': ['pi-ui'] })
   })
+
+  it('hands draft switches to the session file created while sending', () => {
+    useSessionCapabilitiesStore.setState({ byKey: { [DRAFT_CAPABILITY_KEY]: ['browser'] } })
+    useUIStore.setState({ historySessionFile: '/created-on-send.jsonl' })
+    expect(currentSessionCapabilities()).toEqual(['browser'])
+    expect(useSessionCapabilitiesStore.getState().byKey).toEqual({ '/created-on-send.jsonl': ['browser'] })
+    useUIStore.setState({ historySessionFile: null })
+  })
 })

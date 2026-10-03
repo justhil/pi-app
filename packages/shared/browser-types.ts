@@ -21,6 +21,8 @@ export type BrowserEvent =
   | { type: 'download'; fileName: string; savePath: string; state: 'completed' | 'cancelled' | 'interrupted' }
   /** Shortcut pressed while the page itself had focus (the Renderer never sees those keys). */
   | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' }
+  /** The agent is acting on a tab (`action` null when it finished). */
+  | { type: 'agent-action'; tabId: string; action: string | null }
 
 export interface BrowserViewBounds {
   tabId: string

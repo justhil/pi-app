@@ -82,8 +82,20 @@ const DRAFT_ADOPT_WINDOW_MS = 15_000
 /** Capabilities to send with the next message of the session currently in the composer. */
 export function currentSessionCapabilities(): CapabilityId[] {
   const key = capabilityKey(useUIStore.getState().historySessionFile)
-  if (key === DRAFT_CAPABILITY_KEY) lastDraftSendAt = Date.now()
-  return useSessionCapabilitiesStore.getState().byKey[key] ?? []
+  if (key === DRAFT_CAPABILITY_KEY) {
+    lastDraftSendAt = Date.now()
+    return useSessionCapabilitiesStore.getState().byKey[key] ?? []
+  }
+  // Sending a new chat creates its session file before the prompt goes out: the draft's switches
+  // belong to it. (Switching to another session already dropped them, so this is that draft.)
+  const { byKey } = useSessionCapabilitiesStore.getState()
+  const adopted = adoptDraftCapabilities(byKey, key)
+  if (adopted) {
+    useSessionCapabilitiesStore.setState({ byKey: adopted })
+    persist(adopted)
+    return adopted[key]
+  }
+  return byKey[key] ?? []
 }
 
 /**

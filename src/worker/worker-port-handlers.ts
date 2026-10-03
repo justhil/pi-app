@@ -5,6 +5,7 @@ import * as Session from './handlers/worker-handlers-session.js'
 import * as Catalog from './handlers/worker-handlers-catalog.js'
 import * as PiSettings from './handlers/worker-handlers-pi-settings.js'
 import { handleSetCapabilities } from './worker-capabilities.js'
+import { handleBrowserToolResponse } from './worker-browser-tools.js'
 
 const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) => Promise<void>> = {
   'init': Turn.handleInit,
@@ -20,6 +21,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'setModel': Session.handleSetmodel,
   'setThinkingLevel': Session.handleSetthinkinglevel,
   'setCapabilities': handleSetCapabilities,
+  'browser-tool-response': handleBrowserToolResponse,
   'newSession': Session.handleNewsession,
   'listSessions': Session.handleListsessions,
   'loadSession': Session.handleLoadsession,

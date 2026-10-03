@@ -6,6 +6,7 @@
 import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI, InlineExtension } from '@earendil-works/pi-coding-agent'
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
+import { setBrowserToolsEnabled } from './worker-browser-tools.js'
 
 let sections: string[] = []
 
@@ -33,5 +34,7 @@ export const capabilitiesExtension: InlineExtension = {
 
 export async function handleSetCapabilities(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
   setCapabilitySections(msg.sections)
+  const tools = Array.isArray(msg.tools) ? msg.tools : []
+  setBrowserToolsEnabled(tools.includes('browser'))
   reply({ ok: true, count: sections.length })
 }

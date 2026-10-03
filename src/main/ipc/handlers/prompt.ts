@@ -3,7 +3,7 @@ import { ensureWorkerSessionBound } from '../../session-bind-state'
 import { normalizeSessionKey } from '../../worker-session-key'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { writeClipboardTempImage } from '../../clipboard-temp-images'
-import { capabilityCatalog, capabilitySections } from '../../capabilities/catalog'
+import { capabilityCatalog, capabilitySections, capabilityToolFamilies } from '../../capabilities/catalog'
 import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 
 export function registerPromptHandlers(): void {
@@ -35,7 +35,7 @@ export function registerPromptHandlers(): void {
   // Enabled capabilities travel with each message so drafts and restarted workers stay in sync.
   const applyCapabilities = async (req: { capabilities?: string[]; sessionFile?: string }) => {
     if (req.capabilities === undefined) return
-    await workerManager.setCapabilities(capabilitySections(req.capabilities), req.sessionFile)
+    await workerManager.setCapabilities(capabilitySections(req.capabilities), capabilityToolFamilies(req.capabilities), req.sessionFile)
   }
 
   registerHandler('ipc:capabilities.catalog', async () => ({ capabilities: capabilityCatalog() }))

@@ -5,6 +5,8 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { getMainWindow } from '../../window'
 import { getBrowserHost, peekBrowserHost } from '../../browser/browser-host'
 import { partitionForProfile } from '../../browser/electron-session'
+import { configureCapabilities } from '../../capabilities/catalog'
+import { configStore } from '../../config-store'
 import { writeClipboardTempText } from '../../clipboard-temp-images'
 
 const tabId = z.string().min(1).max(64)
@@ -12,6 +14,9 @@ const profileId = z.string().regex(/^[a-z0-9-]{1,48}$/)
 const host = () => getBrowserHost(getMainWindow)
 
 export function registerBrowserHandlers(): void {
+  // Browser control is only offered while the experimental Browser panel is switched on.
+  configureCapabilities({ browserPanelEnabled: () => !!configStore.get('rightPanelPrefs')?.browser })
+
   registerHandler('ipc:browser.tabs.list', async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
 
   registerHandlerWithSchema(

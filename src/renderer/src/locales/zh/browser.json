@@ -81,5 +81,8 @@
     "area": "区域",
     "page": "页面",
     "noComment": "（无评论）"
+  },
+  "agent": {
+    "acting": "AI · {{action}}"
   }
 }
