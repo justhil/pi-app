@@ -90,7 +90,7 @@
     "errorNetwork": "网络错误，无法连接 ASR 服务",
     "errorUpstream": "转写服务返回错误",
     "errorTimeout": "转写超时",
-    "errorNotConfigured": "未配置 ASR provider",
+    "errorNotConfigured": "未配置语音识别服务",
     "errorUnknown": "转写失败",
     "micPermissionDenied": "未获得麦克风权限"
   },

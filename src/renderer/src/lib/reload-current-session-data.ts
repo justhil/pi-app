@@ -10,6 +10,9 @@ import type { TimelineItem } from '@renderer/stores/ui-store-types'
 
 let reloadGeneration = 0
 
+/** Fired by the reload button so the sidebar refreshes projects, worktrees and session lists too. */
+export const SIDEBAR_RELOAD_EVENT = 'pi-desktop:reload-sidebar'
+
 export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?: string }> {
   const store = useUIStore.getState()
   const sessionFile = store.historySessionFile
@@ -20,6 +23,7 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
 
   void refreshWorkspaceSessionLists()
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SIDEBAR_RELOAD_EVENT))
 
   if (!sessionFile || !sessionId) {
     return { ok: true }

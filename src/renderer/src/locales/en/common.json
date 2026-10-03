@@ -223,7 +223,7 @@
   "sessionReload": {
     "success": "Session data refreshed",
     "failed": "Refresh failed",
-    "title": "Refresh session data (sync with CLI)"
+    "title": "Reload session and project lists (sync with the CLI)"
   },
   "commandPalette": {
     "title": "Command palette",

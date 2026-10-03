@@ -223,7 +223,7 @@
   "sessionReload": {
     "success": "已刷新会话数据",
     "failed": "刷新失败",
-    "title": "刷新会话数据（与 CLI 同步）"
+    "title": "刷新会话和项目列表（与 CLI 同步）"
   },
   "commandPalette": {
     "title": "命令面板",

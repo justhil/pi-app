@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, FolderOpen, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
+import { ChevronRight, FolderOpen, Plus, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { SidebarAnimatedCollapse } from '@renderer/components/ui/sidebar-animated-collapse'
@@ -13,6 +13,7 @@ import { ProjectContextMenuPortal } from './project-context-menu'
 import { useProjectContextMenu } from './use-project-context-menu'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
+import { SIDEBAR_RELOAD_EVENT } from '@renderer/lib/reload-current-session-data'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
   diskProjectName,
@@ -271,6 +272,21 @@ export function ProjectSidebar({
     window.addEventListener('pi-desktop:settings-changed', onSettingsChanged)
     return () => window.removeEventListener('pi-desktop:settings-changed', onSettingsChanged)
   }, [reloadSidebarSettings])
+
+  // The top-right reload button also refreshes projects, worktrees and open session lists.
+  const refreshProjects = useRef<() => void>(() => {})
+  refreshProjects.current = () => {
+    worktrees.refresh()
+    reloadSidebarSettings()
+    refreshSandboxes()
+    const visible = diskPaths.filter((path) => expandedPaths.has(workspacePathKey(path)))
+    void refreshWorkspaceSessionLists({ workspaceIds: visible })
+  }
+  useEffect(() => {
+    const onReload = () => refreshProjects.current()
+    window.addEventListener(SIDEBAR_RELOAD_EVENT, onReload)
+    return () => window.removeEventListener(SIDEBAR_RELOAD_EVENT, onReload)
+  }, [])
 
   // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
@@ -557,23 +573,17 @@ export function ProjectSidebar({
       <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
         <div className="flex min-h-8 items-center gap-2 px-2 pb-1 text-[11px] font-medium text-foreground-secondary/75">
           <span className="flex-1">{t('common:sidebar.projects')}</span>
-          {/* Opening a folder is how projects get here, so the action sits on this header, in words. */}
+          {/* Projects come from opening a folder; refreshing lives in the top-right reload button. */}
           <button
             type="button"
             data-open-project=""
+            className="workbench-icon"
             onClick={onOpenProject}
-            title={t('common:sidebar.openFolderHint')}
-            className="flex h-6 items-center gap-1 rounded-md px-1.5 text-[11.5px] font-normal text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+            title={openProjectLabel}
+            aria-label={openProjectLabel}
           >
-            <FolderOpen className="h-3.5 w-3.5" />
-            {openProjectLabel}
+            <Plus className="h-3.5 w-3.5" />
           </button>
-          <button type="button" className="workbench-icon" disabled={worktrees.loading} aria-label={t('common:sidebar.refreshProjects')} onClick={() => {
-            worktrees.refresh()
-            reloadSidebarSettings()
-            const visible = diskPaths.filter((path) => expandedPaths.has(workspacePathKey(path)))
-            void refreshWorkspaceSessionLists({ workspaceIds: visible })
-          }}><RefreshCw className="h-3.5 w-3.5" /></button>
         </div>
         {worktrees.failed && <div role="status" className="px-3 pb-2 text-xs text-foreground-secondary">{t('common:sidebar.worktreeReadFailed')}</div>}
         {diskPaths.length === 0 ? (
