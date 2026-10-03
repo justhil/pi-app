@@ -142,7 +142,7 @@
   "switchFailed": "切换失败",
   "selectModelTitle": "选择模型",
   "current": "当前：",
-  "searchModelPlaceholder": "搜索 provider / modelId / 名称…",
+  "searchModelPlaceholder": "搜索模型",
   "noModels": "无可用模型（检查 ~/.pi/agent/auth.json）",
   "noMatch": "无匹配",
   "unavailable": "不可用",

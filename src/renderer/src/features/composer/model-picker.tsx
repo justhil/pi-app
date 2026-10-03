@@ -213,7 +213,7 @@ export function ModelPicker() {
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-[12px]">{m.id}</span>
+            <span className={cn('truncate text-[12.5px]', active ? 'text-foreground' : 'text-foreground/85')}>{m.id}</span>
             {!m.available && (
               <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">
                 {t('composer:unavailable')}
@@ -241,9 +241,9 @@ export function ModelPicker() {
       label={t('composer:selectModelTitle')}
       onClose={() => setOpen(false)}
     >
-      <div className="border-b border-border/60 px-2.5 py-2">
-        <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
-          <Search className="h-3.5 w-3.5 text-muted-foreground/50" />
+      <div className="border-b border-border/50 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
           <input
             autoFocus
             value={query}
@@ -264,10 +264,10 @@ export function ModelPicker() {
         )}
         {recentRows.length > 0 ? (
           <>
-            <div className="px-3 pb-0.5 pt-1.5 text-[10.5px] font-medium text-muted-foreground/70">{t('composer:recentModels')}</div>
+            <div className="px-3 pb-0.5 pt-1.5 text-[10.5px] text-muted-foreground/70">{t('composer:recentModels')}</div>
             {recentRows.map((m, i) => renderRow(m, i, false))}
             <div className="mx-3 my-1 border-t border-border/40" />
-            <div className="px-3 pb-0.5 pt-1 text-[10.5px] font-medium text-muted-foreground/70">{t('composer:allModels')}</div>
+            <div className="px-3 pb-0.5 pt-1 text-[10.5px] text-muted-foreground/70">{t('composer:allModels')}</div>
           </>
         ) : null}
         {groups.map(({ provider, models: rows }) => {
@@ -284,7 +284,7 @@ export function ModelPicker() {
                 aria-expanded={openGroup}
               >
                 <ChevronRight className="settings-chevron h-3.5 w-3.5 shrink-0 text-muted-foreground" data-open={openGroup} />
-                <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">{provider}</span>
+                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground-secondary">{provider}</span>
                 {activeInGroup && !openGroup && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
                 <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
                   {t('composer:providerModelCount', { count: rows.length })}
@@ -296,9 +296,8 @@ export function ModelPicker() {
         })}
       </div>
 
-      <div className="flex items-center justify-between border-t border-border/60 px-3 py-1.5 text-[10px] text-muted-foreground/60">
-        <span>{t('composer:modelCount', { total: models.length, shown: filtered.length })}</span>
-        <span>{t('composer:modelPickerKeys')}</span>
+      <div className="border-t border-border/50 px-3 py-1.5 text-right text-[10px] text-muted-foreground/55">
+        {t('composer:modelPickerKeys')}
       </div>
     </ComposerPopover>
   )

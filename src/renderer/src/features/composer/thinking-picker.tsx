@@ -92,7 +92,7 @@ export function ThinkingPicker() {
       onClose={() => setOpen(false)}
       className="thinking-picker"
     >
-        <div className="flex items-center px-3 pb-0.5 pt-2 text-[11px] font-medium text-muted-foreground/80">
+        <div className="flex items-center px-3 pb-0.5 pt-2 text-[11px] text-muted-foreground/70">
           <span className="min-w-0 flex-1 truncate">{t('composer:thinkingPicker.title')}</span>
           <span className="text-[10.5px] font-normal text-muted-foreground/55">Shift+Tab</span>
         </div>
@@ -115,7 +115,7 @@ export function ThinkingPicker() {
                   active && 'bg-[var(--bg-active)]',
                 )}
               >
-                <span className={cn('w-14 shrink-0 text-[12.5px]', active ? 'font-semibold text-foreground' : 'font-medium')}>
+                <span className={cn('w-14 shrink-0 text-[12.5px]', active ? 'text-foreground' : 'text-foreground/80')}>
                   {formatThinkingChip(level)}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground/70">

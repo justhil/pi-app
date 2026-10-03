@@ -142,7 +142,7 @@
   "switchFailed": "Switch failed",
   "selectModelTitle": "Select Model",
   "current": "Current: ",
-  "searchModelPlaceholder": "Search provider / modelId / name…",
+  "searchModelPlaceholder": "Search models",
   "noModels": "No models available (check ~/.pi/agent/auth.json)",
   "noMatch": "No match",
   "unavailable": "Unavailable",

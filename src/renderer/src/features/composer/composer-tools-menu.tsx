@@ -84,7 +84,7 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
         {enabled.map((id) => (
           <span key={id} className="composer-capability-chip hidden" data-capability={id} />
         ))}
-        {enabled.length > 0 ? <span className="text-[11px] font-medium tabular-nums">{enabled.length}</span> : null}
+        {enabled.length > 0 ? <span className="text-[11px] tabular-nums">{enabled.length}</span> : null}
       </button>
       {open ? (
         <ComposerPopover
@@ -94,7 +94,7 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
           label={t('composer:tools.title')}
           onClose={() => setOpen(false)}
         >
-          <div className="px-3 pb-1 pt-2.5 text-[11px] font-medium text-muted-foreground/80">{t('composer:tools.title')}</div>
+          <div className="px-3 pb-1 pt-2.5 text-[11px] text-muted-foreground/70">{t('composer:tools.title')}</div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-1">
             {(catalog ?? []).map((cap) => {
               const Icon = ICONS[cap.id]
@@ -111,7 +111,7 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
                 >
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-foreground-secondary" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[12.5px] font-medium text-foreground">{label(cap.id)}</div>
+                    <div className="text-[12.5px] text-foreground">{label(cap.id)}</div>
                     <div className="text-[11px] leading-4 text-muted-foreground/80">{t(`composer:tools.items.${cap.id}.desc`)}</div>
                     {cost ? <div className="mt-0.5 text-[10.5px] tabular-nums text-muted-foreground/60">{cost}</div> : null}
                   </div>
