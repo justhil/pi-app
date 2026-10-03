@@ -233,6 +233,8 @@ export interface UIState {
   toggleRightPanel: () => void
   revealRightPanel: () => void
   filesPreviewChatExpand: boolean
+  /** Built-in browser fills the chat column (mutually exclusive with filesPreviewChatExpand). */
+  browserChatExpand: boolean
   lastModel: string | null
   lastThinking: string | null
   rememberModel: (model: string) => void

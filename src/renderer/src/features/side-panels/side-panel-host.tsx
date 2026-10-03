@@ -11,6 +11,7 @@ const TreePanel = lazy(() => import('@renderer/features/rewind/tree-panel').then
 const WorkspaceFilesPanel = lazy(() =>
   import('@renderer/features/workspace-files/workspace-files-panel').then((m) => ({ default: m.WorkspaceFilesPanel })),
 )
+const BrowserPanel = lazy(() => import('@renderer/features/browser/browser-panel').then((m) => ({ default: m.BrowserPanel })))
 
 const ADAPTER_PANEL_COMPONENTS: Record<string, React.ComponentType<import('./side-panel-registry').SidePanelComponentProps>> = {
   'workspace-tasks': WorkspaceTasksSidePanel,
@@ -40,6 +41,7 @@ export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefine
   if (item.id === 'context') return wrap(<ContextPanel />)
   if (item.id === 'tree') return wrap(<TreePanel />)
   if (item.id === 'files') return wrap(<WorkspaceFilesPanel />)
+  if (item.id === 'browser') return wrap(<BrowserPanel />)
 
   return <div className="p-4 text-[12px] text-muted-foreground">{t('common:panel.unregistered', { id: item.id })}</div>
 }

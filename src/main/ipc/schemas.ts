@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { normalizeFontName } from '../../../packages/shared/custom-theme.ts'
 import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
+import { BROWSER_SEARCH_ENGINE_IDS, type BrowserSearchEngine } from '../../../packages/shared/browser-types.ts'
 
 export const shellOpenPathSchema = z.object({
   path: z.string(),
@@ -211,6 +212,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
     .object({ width: z.number(), height: z.number(), x: z.number().optional(), y: z.number().optional() })
     .nullable(),
   asrConfig: z.record(z.unknown()),
+  browserSearchEngine: z.enum(BROWSER_SEARCH_ENGINE_IDS as [BrowserSearchEngine, ...BrowserSearchEngine[]]),
   agentRuntime: z
     .object({
       mode: z.enum(['host', 'wsl']),

@@ -1,6 +1,7 @@
 import type { AppEvent } from '@shared/app-events'
 import type { AppUpdateAvailableInfo, AppUpdateDownloadProgress } from '@shared/app-update'
 import type { WorkerExitInfo } from '@renderer/lib/worker-exit-runtime'
+import type { BrowserEvent } from '@shared/browser-types'
 
 declare global {
   interface Window {
@@ -18,6 +19,7 @@ declare global {
       onAppUpdateAvailable: (callback: (info: AppUpdateAvailableInfo) => void) => () => void
       onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
+      onBrowserEvent?: (callback: (event: BrowserEvent) => void) => () => void
       onCloseRequested?: (callback: (info: { isStreaming: boolean }) => void) => () => void
       onNotificationOpenSession?: (
         callback: (payload: {
@@ -52,6 +54,11 @@ export function onAppEvent(callback: (event: AppEvent) => void): () => void {
     return () => {}
   }
   return window.piDesktop.onEvent(callback)
+}
+
+export function onBrowserEvent(callback: (event: BrowserEvent) => void): () => void {
+  if (!window.piDesktop?.onBrowserEvent) return () => {}
+  return window.piDesktop.onBrowserEvent(callback)
 }
 
 export function onWorkerExit(callback: (info: WorkerExitInfo) => void): () => void {

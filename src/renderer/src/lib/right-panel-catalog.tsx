@@ -3,6 +3,7 @@ import {
   FileSearch,
   FolderTree,
   GitBranch,
+  Globe,
   ListTree,
   Network,
   PanelRight,
@@ -20,6 +21,7 @@ const CORE_PANEL_ICONS: Record<string, AppIconComponent> = {
   context: FileSearch,
   tree: ListTree,
   files: FolderTree,
+  browser: Globe,
   intercom: Network,
 }
 

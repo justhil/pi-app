@@ -47,6 +47,7 @@ type ShellSlice = Pick<
   | 'toggleRightPanel'
   | 'revealRightPanel'
   | 'filesPreviewChatExpand'
+  | 'browserChatExpand'
 >
 
 export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
@@ -129,5 +130,6 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       }),
     revealRightPanel: () => set(revealRightPanelPatch()),
     filesPreviewChatExpand: false,
+    browserChatExpand: false,
   }
 }

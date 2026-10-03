@@ -35,6 +35,7 @@ export function MainLayoutShell({
   const rightWidth = useUIStore((s) => s.rightPanelWidth)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
+  const browserChatExpand = useUIStore((s) => s.browserChatExpand)
 
   const [leftDragging, setLeftDragging] = useState(false)
   const [rightDragging, setRightDragging] = useState(false)
@@ -99,7 +100,9 @@ export function MainLayoutShell({
     expandedOnNarrow: rightExpandedOnNarrow,
     windowWidth,
   })
-  const filesChatPreview = activePanel === 'files' && filesPreviewChatExpand && !rightCollapsed
+  const filesChatPreview =
+    !rightCollapsed &&
+    ((activePanel === 'files' && filesPreviewChatExpand) || (activePanel === 'browser' && browserChatExpand))
   const effectiveRight = rightCollapsed
     ? RIGHT_COLLAPSED_RAIL_PX
     : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))

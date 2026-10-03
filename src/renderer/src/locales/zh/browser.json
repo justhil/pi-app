@@ -1,0 +1,48 @@
+{
+  "address": {
+    "placeholder": "输入网址或搜索",
+    "label": "地址栏"
+  },
+  "nav": {
+    "back": "后退",
+    "forward": "前进",
+    "reload": "刷新",
+    "stop": "停止加载",
+    "newTab": "新标签页",
+    "closeTab": "关闭标签页",
+    "tabs": "标签页",
+    "expand": "展开到聊天区",
+    "collapse": "收起"
+  },
+  "tab": {
+    "untitled": "新标签页",
+    "loading": "加载中…"
+  },
+  "empty": {
+    "title": "打开一个网页",
+    "description": "在上方输入网址或搜索词。本地开发服务（如 localhost:5173）也可以直接打开；登录状态会保留在内置浏览器里。"
+  },
+  "toast": {
+    "downloaded": "已下载 {{name}}",
+    "downloadFailed": "下载未完成：{{name}}",
+    "navigateFailed": "无法打开该地址"
+  },
+  "settings": {
+    "title": "内置浏览器",
+    "description": "浏览器栏目的选项，修改后立即生效。",
+    "searchEngine": "地址栏搜索引擎",
+    "engines": {
+      "bing": "Bing",
+      "google": "Google",
+      "duckduckgo": "DuckDuckGo",
+      "baidu": "百度"
+    },
+    "clearData": "清除浏览数据",
+    "clearDataDesc": "删除内置浏览器保存的 Cookie、登录状态、缓存和本地存储。",
+    "clearDataAction": "清除",
+    "clearDataConfirm": "内置浏览器里的所有网站都会退出登录。确定清除吗？",
+    "cleared": "已清除浏览数据",
+    "clearFailed": "清除浏览数据失败",
+    "saveFailed": "保存失败"
+  }
+}

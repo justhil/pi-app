@@ -16,6 +16,7 @@ import { registerAsrHandlers } from './ipc/handlers/asr'
 import { registerPiSdkHandlers } from './ipc/handlers/pi-sdk'
 import { registerWslHandlers } from './ipc/handlers/wsl'
 import { registerDesktopChromeHandlers } from './ipc/handlers/desktop-chrome'
+import { registerBrowserHandlers } from './ipc/handlers/browser'
 
 export { registerHandler, sendEvent } from './ipc/registry'
 
@@ -38,4 +39,5 @@ export function registerAllHandlers(): void {
   registerPiSdkHandlers()
   registerWslHandlers()
   registerDesktopChromeHandlers()
+  registerBrowserHandlers()
 }

@@ -84,6 +84,8 @@
     "contextDesc": "Session context preview",
     "treeDesc": "Session tree / rewind (like /tree)",
     "filesDesc": "Workspace file preview & explorer",
+    "browser": "Browser",
+    "browserDesc": "Built-in browser (experimental)",
     "unregistered": "Unregistered panel: {{id}}"
   },
   "settings": {

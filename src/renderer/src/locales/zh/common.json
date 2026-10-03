@@ -84,6 +84,8 @@
     "contextDesc": "会话上下文预览",
     "treeDesc": "会话树 / 回退（同 /tree）",
     "filesDesc": "工作区文件预览与浏览",
+    "browser": "浏览器",
+    "browserDesc": "内置浏览器（实验）",
     "unregistered": "未注册面板: {{id}}"
   },
   "settings": {

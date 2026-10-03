@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
 import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
@@ -98,6 +98,13 @@ export default function App() {
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
   const applyRightPanelRuntime = useUIStore((s) => s.applyRightPanelRuntime)
+  const browserPanelEnabled = !!rightPanelPrefs.browser
+  const browserWasEnabled = useRef(browserPanelEnabled)
+  useEffect(() => {
+    // Turning the experimental browser panel off releases every tab in Main.
+    if (browserWasEnabled.current && !browserPanelEnabled) void ipcClient.invoke('browser.shutdown').catch(() => {})
+    browserWasEnabled.current = browserPanelEnabled
+  }, [browserPanelEnabled])
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)

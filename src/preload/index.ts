@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { AppEvent } from '@shared/app-events'
 import { CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT } from '@shared/custom-theme'
 import { isAllowedIpcChannel } from '@shared/ipc-channels'
+import { BROWSER_EVENT_CHANNEL, type BrowserEvent } from '@shared/browser-types'
 
 const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
@@ -81,6 +82,12 @@ const api = {
     const handler = (_event: unknown, data: unknown): void => callback(data)
     ipcRenderer.on(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
     return () => ipcRenderer.off(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
+  },
+
+  onBrowserEvent(callback: (event: BrowserEvent) => void): () => void {
+    const handler = (_event: unknown, data: BrowserEvent): void => callback(data)
+    ipcRenderer.on(BROWSER_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(BROWSER_EVENT_CHANNEL, handler)
   },
 
   onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {
