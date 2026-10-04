@@ -121,5 +121,16 @@
       "failed": "失败",
       "progressing": "下载中"
     }
+  },
+  "find": {
+    "label": "在页面中查找",
+    "placeholder": "在页面中查找",
+    "none": "无结果",
+    "prev": "上一个（Shift+Enter）",
+    "next": "下一个（Enter）",
+    "close": "关闭（Esc）"
+  },
+  "zoom": {
+    "reset": "恢复 100%（Ctrl/⌘+0）"
   }
 }

@@ -23,6 +23,8 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:asr.testConnection',
   'ipc:asr.transcribe',
   'ipc:browser.capture',
+  'ipc:browser.find',
+  'ipc:browser.find.stop',
   'ipc:browser.downloads.list',
   'ipc:browser.downloads.cancel',
   'ipc:browser.downloads.reveal',

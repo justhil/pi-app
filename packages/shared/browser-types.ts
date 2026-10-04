@@ -41,7 +41,8 @@ export type BrowserEvent =
   | { type: 'download'; fileName: string; savePath: string; state: 'completed' | 'cancelled' | 'interrupted' }
   | { type: 'download-updated'; download: BrowserDownloadInfo }
   /** Shortcut pressed while the page itself had focus (the Renderer never sees those keys). */
-  | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' }
+  | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'find' | 'zoom-in' | 'zoom-out' | 'zoom-reset' }
+  | { type: 'find-result'; tabId: string; active: number; matches: number }
   /** The agent is acting on a tab (`action` null when it finished). */
   | { type: 'agent-action'; tabId: string; action: string | null }
 
@@ -54,7 +55,7 @@ export interface BrowserViewBounds {
   height: number
   visible: boolean
   /**
-   * Page zoom for the fixed-viewport mode: the view keeps the placeholder's size while the page
+   * Page zoom: the fixed-viewport scale times the user's zoom (Ctrl +/-).: the view keeps the placeholder's size while the page
    * lays out at size/zoom CSS px (zoom < 1 shows a larger viewport scaled down). Default 1.
    */
   pageZoom?: number

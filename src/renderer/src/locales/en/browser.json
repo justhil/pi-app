@@ -121,5 +121,16 @@
       "failed": "Failed",
       "progressing": "Downloading"
     }
+  },
+  "find": {
+    "label": "Find in page",
+    "placeholder": "Find in page",
+    "none": "No results",
+    "prev": "Previous (Shift+Enter)",
+    "next": "Next (Enter)",
+    "close": "Close (Esc)"
+  },
+  "zoom": {
+    "reset": "Reset to 100% (Ctrl/⌘+0)"
   }
 }

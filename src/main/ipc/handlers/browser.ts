@@ -58,7 +58,7 @@ export function registerBrowserHandlers(): void {
       width: z.number().finite().nonnegative(),
       height: z.number().finite().nonnegative(),
       visible: z.boolean(),
-      pageZoom: z.number().finite().min(0.1).max(1).optional(),
+      pageZoom: z.number().finite().min(0.1).max(5).optional(),
     }),
     async (req) => {
       peekBrowserHost()?.setViewBounds(req)
@@ -83,6 +83,16 @@ export function registerBrowserHandlers(): void {
 
   registerHandlerWithSchema('ipc:browser.scroll', z.object({ ...point, deltaY: z.number().finite() }), async (req) => {
     host().scroll(req.tabId, req.x, req.y, req.deltaY)
+    return { ok: true }
+  })
+
+  /** Find in page (Ctrl/⌘+F): results arrive as `find-result` events. */
+  registerHandlerWithSchema('ipc:browser.find', z.object({ tabId, text: z.string().max(500), forward: z.boolean().optional(), findNext: z.boolean().optional() }), async (req) => {
+    peekBrowserHost()?.find(req.tabId, req.text, { forward: req.forward ?? true, findNext: req.findNext ?? false })
+    return { ok: true }
+  })
+  registerHandlerWithSchema('ipc:browser.find.stop', z.object({ tabId }), async (req) => {
+    peekBrowserHost()?.stopFind(req.tabId)
     return { ok: true }
   })
 

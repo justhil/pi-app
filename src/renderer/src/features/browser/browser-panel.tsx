@@ -10,7 +10,7 @@ import {
   type BrowserLogEntry,
   type PageContextResult,
 } from '@shared/browser-types'
-import { ArrowLeft, ArrowRight, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, Monitor, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, Monitor, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
@@ -55,6 +55,12 @@ export function BrowserPanel() {
   const [viewportMenuOpen, setViewportMenuOpen] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
   const [highlight, setHighlight] = useState(0)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  const [findResult, setFindResult] = useState<{ active: number; matches: number } | null>(null)
+  const findRef = useRef<HTMLInputElement>(null)
+  // Page zoom per tab (Ctrl/⌘ + / − / 0), on top of the fixed-viewport scale.
+  const [zoomByTab, setZoomByTab] = useState<Record<string, number>>({})
   const [snapshot, setSnapshot] = useState<string | null>(null)
   const [hiddenForOverlay, setHiddenForOverlay] = useState(false)
   const [searchUrl, setSearchUrl] = useState(() => browserSearchUrl(undefined))
@@ -93,7 +99,54 @@ export function BrowserPanel() {
   }, [covered, activeTabId, pageShown])
 
   const fitted = fitViewport(viewportMode, area)
-  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay && !annotating, fitted.zoom)
+  const userZoom = (activeTabId && zoomByTab[activeTabId]) || 1
+  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay && !annotating, fitted.zoom * userZoom)
+
+  const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+  const zoom = useCallback(
+    (dir: 1 | -1 | 0) => {
+      if (!activeTabId) return
+      setZoomByTab((prev) => {
+        const cur = prev[activeTabId] ?? 1
+        const next = dir === 0 ? 1 : dir > 0 ? (ZOOM_STEPS.find((z) => z > cur + 0.001) ?? cur) : ([...ZOOM_STEPS].reverse().find((z) => z < cur - 0.001) ?? cur)
+        return { ...prev, [activeTabId]: next }
+      })
+    },
+    [activeTabId],
+  )
+
+  const openFind = useCallback(() => {
+    if (!pageShown) return
+    setFindOpen(true)
+    requestAnimationFrame(() => {
+      findRef.current?.focus()
+      findRef.current?.select()
+    })
+  }, [pageShown])
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setFindResult(null)
+    if (activeTabId) void ipcClient.invoke('browser.find.stop', { tabId: activeTabId }).catch(() => {})
+  }, [activeTabId])
+  const runFind = useCallback(
+    (text: string, opts: { forward?: boolean; findNext?: boolean } = {}) => {
+      if (!activeTabId) return
+      void ipcClient.invoke('browser.find', { tabId: activeTabId, text, forward: opts.forward ?? true, findNext: opts.findNext ?? false }).catch(() => {})
+    },
+    [activeTabId],
+  )
+  useEffect(
+    () =>
+      onBrowserSideEvent((event) => {
+        if (event.type === 'find-result' && event.tabId === activeTabId) setFindResult({ active: event.active, matches: event.matches })
+      }),
+    [activeTabId],
+  )
+  // A find belongs to one tab.
+  useEffect(() => {
+    setFindOpen(false)
+    setFindResult(null)
+  }, [activeTabId])
 
   useEffect(() => {
     const el = areaRef.current
@@ -262,12 +315,16 @@ export function BrowserPanel() {
           else if (event.action === 'new-tab') void openTab()
           else if (event.action === 'close-tab') closeActive()
           else if (event.action === 'annotate') void toggleAnnotate()
+          else if (event.action === 'find') openFind()
+          else if (event.action === 'zoom-in') zoom(1)
+          else if (event.action === 'zoom-out') zoom(-1)
+          else if (event.action === 'zoom-reset') zoom(0)
         } else if (event.type === 'download') {
           if (event.state === 'completed') toast.success(t('toast.downloaded', { name: event.fileName }), { description: event.savePath })
           else toast.error(t('toast.downloadFailed', { name: event.fileName }))
         }
       }),
-    [focusAddress, openTab, closeActive, toggleAnnotate, t],
+    [focusAddress, openTab, closeActive, toggleAnnotate, openFind, zoom, t],
   )
 
   // Expanded mode belongs to this panel only; Esc returns to the side panel.
@@ -303,7 +360,11 @@ export function BrowserPanel() {
       }
       return
     }
-    if (key === 'l') focusAddress()
+    if (key === 'f') openFind()
+    else if (key === '=' || key === '+') zoom(1)
+    else if (key === '-') zoom(-1)
+    else if (key === '0') zoom(0)
+    else if (key === 'l') focusAddress()
     else if (key === 't') void openTab()
     else if (key === 'w' && activeTabId) closeActive()
     else return
@@ -525,6 +586,12 @@ export function BrowserPanel() {
             </div>
           ) : null}
         </div>
+        {userZoom !== 1 ? (
+          <button type="button" className="chrome-icon-btn h-7 shrink-0 rounded-md px-1.5 text-[11px] tabular-nums text-foreground-secondary"
+            title={t('zoom.reset')} aria-label={t('zoom.reset')} onClick={() => zoom(0)}>
+            {Math.round(userZoom * 100)}%
+          </button>
+        ) : null}
         <button
           type="button"
           className={cn(navButton, annotating && 'bg-[var(--bg-active)] text-foreground')}
@@ -568,6 +635,43 @@ export function BrowserPanel() {
         </div>
         <DownloadsMenu buttonClass={navButton} />
       </div>
+
+      {findOpen ? (
+        <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/40 px-2" role="search">
+          <input
+            ref={findRef}
+            value={findText}
+            aria-label={t('find.label')}
+            placeholder={t('find.placeholder')}
+            onChange={(e) => {
+              setFindText(e.target.value)
+              runFind(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                runFind(findText, { forward: !e.shiftKey, findNext: true })
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                closeFind()
+              }
+            }}
+            className="h-7 min-w-0 flex-1 rounded-md bg-[var(--bg-hover)] px-2.5 text-[12px] outline-none placeholder:text-foreground-tertiary focus:bg-background focus:ring-1 focus:ring-ring"
+          />
+          <span className="w-14 shrink-0 text-center text-[11px] tabular-nums text-foreground-tertiary" aria-live="polite">
+            {findText && findResult ? (findResult.matches ? `${findResult.active}/${findResult.matches}` : t('find.none')) : ''}
+          </span>
+          <button type="button" className={navButton} aria-label={t('find.prev')} title={t('find.prev')} disabled={!findResult?.matches} onClick={() => runFind(findText, { forward: false, findNext: true })}>
+            <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+          </button>
+          <button type="button" className={navButton} aria-label={t('find.next')} title={t('find.next')} disabled={!findResult?.matches} onClick={() => runFind(findText, { forward: true, findNext: true })}>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" className={navButton} aria-label={t('find.close')} title={t('find.close')} onClick={closeFind}>
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
 
       <div ref={areaRef} className={cn('relative min-h-0 flex-1 overflow-hidden', viewportMode.kind === 'fixed' && 'bg-[var(--bg-hover)]')}>
       <div ref={viewportRef} className="absolute overflow-hidden" data-browser-viewport=""

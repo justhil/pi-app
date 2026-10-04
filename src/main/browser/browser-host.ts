@@ -262,6 +262,24 @@ export class BrowserHost implements AgentBrowserHost {
     return this.requireTab(tabId).logs.slice(-max)
   }
 
+  find(tabId: string, text: string, opts: { forward: boolean; findNext: boolean }): void {
+    const wc = this.tabs.get(tabId)?.view.webContents
+    if (!wc || wc.isDestroyed()) return
+    if (!text) {
+      wc.stopFindInPage('clearSelection')
+      this.emit({ type: 'find-result', tabId, active: 0, matches: 0 })
+      return
+    }
+    // Electron's `findNext` is inverted from its name: true starts a new search session
+    // (first query or changed text), false moves within the current one.
+    wc.findInPage(text, { forward: opts.forward, findNext: !opts.findNext })
+  }
+
+  stopFind(tabId: string): void {
+    const wc = this.tabs.get(tabId)?.view.webContents
+    if (wc && !wc.isDestroyed()) wc.stopFindInPage('keepSelection')
+  }
+
   /** Real wheel input at a viewport point (DOM deltaY > 0 scrolls down). */
   scroll(tabId: string, x: number, y: number, deltaY: number): void {
     const wc = this.requireTab(tabId).view.webContents
@@ -332,6 +350,9 @@ export class BrowserHost implements AgentBrowserHost {
     wc.on('did-start-navigation', (details) => {
       if (details.isMainFrame && !details.isSameDocument) tab.logs = []
     })
+    wc.on('found-in-page', (_e, result) => {
+      this.emit({ type: 'find-result', tabId: tab.info.tabId, active: result.activeMatchOrdinal ?? 0, matches: result.matches ?? 0 })
+    })
     wc.on('render-process-gone', (_e, details) => {
       console.warn('[browser] page renderer gone:', details.reason)
       update({ loading: false })
@@ -343,9 +364,7 @@ export class BrowserHost implements AgentBrowserHost {
       if (action === 'reload') wc.reload()
       else if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
       else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
-      else if (action === 'focus-address' || action === 'new-tab' || action === 'close-tab' || action === 'annotate') {
-        this.emit({ type: 'shortcut', action })
-      }
+      else if (action !== 'back' && action !== 'forward') this.emit({ type: 'shortcut', action })
     })
   }
 
@@ -360,7 +379,7 @@ function pushLog(tab: Tab, entry: BrowserLogEntry): void {
   if (tab.logs.length > LOG_LIMIT) tab.logs.splice(0, tab.logs.length - LOG_LIMIT)
 }
 
-type ShortcutAction = 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'reload' | 'back' | 'forward'
+type ShortcutAction = 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'find' | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'reload' | 'back' | 'forward'
 
 /** Keys the page would swallow but users expect the browser chrome to handle. */
 export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | 'meta' | 'alt' | 'shift'>): ShortcutAction | null {
@@ -373,7 +392,13 @@ export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | '
     if (key === 't') return 'new-tab'
     if (key === 'w') return 'close-tab'
     if (key === 'r') return 'reload'
+    if (key === 'f') return 'find'
+    if (key === '=' || key === '+') return 'zoom-in'
+    if (key === '-') return 'zoom-out'
+    if (key === '0') return 'zoom-reset'
   }
+  // Ctrl+Shift+= on layouts where + needs Shift.
+  if (mod && !input.alt && input.shift && (key === '+' || key === '=')) return 'zoom-in'
   if (key === 'f5' && !mod) return 'reload'
   if (input.alt && !mod && key === 'arrowleft') return 'back'
   if (input.alt && !mod && key === 'arrowright') return 'forward'

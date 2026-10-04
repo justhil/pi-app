@@ -28,6 +28,8 @@ Main 在第一次 `tabs.open` 时才创建 `BrowserHost`；没有打开过标签
 | `ipc:browser.navigate` | `{ tabId; url }` 或 `{ tabId; history: 'back' \| 'forward' \| 'reload' \| 'stop' }` | `{ ok: true }`；非 http(s) 地址会被拒绝 |
 | `ipc:browser.viewBounds` | `BrowserViewBounds`（占位元素的 client rect + `visible`） | `{ ok: true }` |
 | `ipc:browser.capture` | `{ tabId }` | `{ dataUrl: string \| null }`（被弹层遮挡时用作占位图） |
+| `ipc:browser.find` | `{ tabId, text, forward?, findNext? }` | `{ ok }`；结果以 `find-result` 事件返回（`findNext=true` 表示在当前查找中移动） |
+| `ipc:browser.find.stop` | `{ tabId }` | `{ ok }` |
 | `ipc:browser.downloads.list` | — | `{ downloads: BrowserDownloadInfo[] }` |
 | `ipc:browser.downloads.cancel` | `{ id }` | `{ ok }`（aria2 下载会删除未完成文件和 .aria2 控制文件） |
 | `ipc:browser.downloads.reveal` | `{ id }` | `{ ok }` |
