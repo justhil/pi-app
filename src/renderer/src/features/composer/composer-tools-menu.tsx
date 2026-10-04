@@ -73,7 +73,7 @@ function CacheWarmingRow() {
                 onClick={() => choose(m)}
                 className={cn(
                   'flex-1 whitespace-nowrap rounded-[5px] px-1.5 py-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground',
-                  mode === m && 'bg-background text-foreground shadow-[0_0_0_0.5px_var(--border)]',
+                  mode === m && 'bg-background text-foreground shadow-[0_0_0_0.5px_var(--border)] dark:bg-[#46474d]',
                 )}
               >
                 {t(`composer:tools.cacheWarming.${m}`)}

@@ -3442,7 +3442,7 @@
   color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base);
 }
-.dark .settings-segmented-item[aria-checked='true'] { background: var(--bg-3); }
+.dark .settings-segmented-item[aria-checked='true'] { background: #46474d; box-shadow: none; }
 .settings-check { accent-color: hsl(var(--foreground)); }
 .settings-model-entry {
   border-color: var(--border-base);

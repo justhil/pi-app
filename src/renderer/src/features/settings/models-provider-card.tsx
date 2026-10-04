@@ -218,7 +218,6 @@ export function ModelsProviderCard({
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-[12px] font-medium text-foreground">{t('models.localCount', { count: modelCount })}</h4>
-                <span className="text-[11.5px] text-foreground-secondary">{t('models.expandToEdit')}</span>
               </div>
               {modelCount > 0 ? (
                 <div className="space-y-1.5">

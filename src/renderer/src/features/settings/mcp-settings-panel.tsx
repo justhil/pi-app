@@ -374,7 +374,7 @@ function ServerEditor({
     <div className="grid gap-3 px-4 py-3 sm:grid-cols-2" data-mcp-editor="">
       {field(t('settings:mcp.name'), <input className={cn(inputCls, small)} value={f.name} placeholder="github" onChange={(e) => set({ name: e.target.value })} />)}
       <div className="flex items-end gap-2">
-        <div role="radiogroup" aria-label={t('settings:mcp.transport')} className="flex gap-0.5 rounded-md bg-[var(--bg-hover)] p-0.5">
+        <div role="radiogroup" aria-label={t('settings:mcp.transport')} className="settings-segmented flex gap-0.5 rounded-md p-0.5">
           {(['stdio', 'http'] as const).map((k) => (
             <button
               key={k}
@@ -382,7 +382,7 @@ function ServerEditor({
               role="radio"
               aria-checked={f.kind === k}
               onClick={() => set({ kind: k })}
-              className={cn('rounded-[5px] px-2.5 py-0.5 text-[11.5px] text-muted-foreground', f.kind === k && 'bg-background text-foreground shadow-[0_0_0_0.5px_var(--border)]')}
+              className="settings-segmented-item rounded-[5px] px-2.5 py-0.5 text-[11.5px]"
             >
               {t(`settings:mcp.kind.${k}`)}
             </button>
