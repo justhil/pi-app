@@ -2,6 +2,7 @@ import type { WebContents } from 'electron'
 import type { BrowserLogEntry } from '@shared/browser-types'
 import { PAGE_RUNTIME_SOURCE } from '../page-runtime.generated'
 import { BrowserToolError } from '../agent/errors'
+import { pendingRequestCount } from '../electron-session'
 import type { Modifier, PageEngine } from './types'
 
 /** Isolated world shared by every host page script; pages cannot see its globals. */
@@ -148,4 +149,5 @@ export class ElectronPageEngine implements PageEngine {
   title = () => this.wc.getTitle()
   isLoading = () => this.wc.isLoading()
   logs = () => this.getLogs()
+  pendingRequests = () => (this.wc.isDestroyed() ? 0 : pendingRequestCount(this.wc.id))
 }

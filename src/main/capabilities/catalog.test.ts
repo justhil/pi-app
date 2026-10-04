@@ -38,6 +38,7 @@ describe('capability token estimate', () => {
     const { capabilityCatalog } = await import('./catalog')
     const browser = capabilityCatalog().find((c) => c.id === 'browser')!
     // 21 tool schemas are ~10k characters; the guidance alone is under 1k.
-    expect(browser.promptTokens).toBeGreaterThan(2000)
+    // Tool schemas dominate (~1.7k tokens); the guidance alone is ~300.
+    expect(browser.promptTokens).toBeGreaterThan(1500)
   })
 })

@@ -16,6 +16,10 @@ function startSite(events: string[]) {
       res.end('ok')
       return
     }
+    if (req.url === '/slow-search') {
+      setTimeout(() => res.end('3'), 600)
+      return
+    }
     if (req.url === '/missing.json') {
       res.statusCode = 404
       res.end('nope')
@@ -43,7 +47,8 @@ function startSite(events: string[]) {
         <div id="notes" contenteditable="true" role="textbox" aria-label="Notes"><p>draft</p></div>
         <label for="avatar">Avatar</label> <input id="avatar" type="file">
         <div><span id="chip">Chip</span><span id="bin">Bin</span></div>
-        <button id="submit">Submit</button> <button id="open">Open modal</button>
+        <button id="submit">Submit</button> <button id="open">Open modal</button> <button id="search">Search</button>
+        <p id="results"></p>
         <p id="out"></p>
         <a href="/next">Next page</a>
         <div style="height:2600px"></div>
@@ -63,6 +68,8 @@ function startSite(events: string[]) {
         });
         $('open').addEventListener('click', () => $('overlay').classList.add('open'));
         $('close').addEventListener('click', () => $('overlay').classList.remove('open'));
+        // A result that arrives after a slow fetch (600 ms), like a real single-page app.
+        $('search').addEventListener('click', () => fetch('/slow-search').then((r) => r.text()).then((n) => { $('results').textContent = 'Results loaded: ' + n + ' items' }));
         $('submit').addEventListener('click', () => {
           $('out').textContent = 'Saved: ' + [$('name').value, $('agree').checked, $('plan').value, $('volume').value, $('notes').innerText.trim(), $('avatar').files[0]?.name, $('bin').textContent].join('|');
           fetch('/log', { method: 'POST', body: JSON.stringify(log) });
@@ -116,6 +123,7 @@ const script =
       () => ({ name: 'browser_handle_dialog', args: { accept: true } }), // 25 unsupported on engine E
       () => ({ name: 'browser_select_option', args: { target: '#plan', values: ['Free'] } }), // 26
       () => ({ name: 'browser_click', args: { target: 'e999999' } }), // 27 stale ref
+      () => ({ name: 'browser_click', args: { target: "getByRole('button', { name: 'Search' })", element: 'Search button' } }), // 28 async result
     ]
     const step = steps[r.length]
     return step ? { tool: step() } : { text: 'lab done' }
@@ -138,7 +146,7 @@ test.describe('browser agent runtime', () => {
       await expect(agent.win.getByText('lab done')).toBeVisible({ timeout: 200_000 })
 
       const r = seen.at(-1)!.toolTexts
-      expect(r).toHaveLength(28)
+      expect(r).toHaveLength(29)
       // Tool definitions are the Playwright MCP set.
       expect(seen.at(-1)!.tools.filter((t) => t.startsWith('browser_'))).toHaveLength(21)
 
@@ -178,6 +186,8 @@ test.describe('browser agent runtime', () => {
       expect(r[25]).toMatch(/browser_unsupported/)
       expect(r[26]).toMatch(/Selected "f" in combobox "Plan"/)
       expect(r[27]).toMatch(/browser_stale_ref/)
+      // The click waits for the DOM to go quiet, so the late result is in the reported changes.
+      expect(r[28]).toMatch(/### Changes[\s\S]*Results loaded: 3 items/)
       // No unexpected errors anywhere else.
       const expectedErrors = new Set([5, 25, 27])
       expect(r.filter((t, i) => !expectedErrors.has(i) && /^browser_[a-z_]+: /m.test(t))).toEqual([])

@@ -458,6 +458,39 @@ export function pageHasText(text: string): boolean {
   return !!document.body && textOf(document.body).includes(text)
 }
 
+/**
+ * Resolve once the DOM has been quiet for `idleMs` (or after `timeoutMs`): lets an action's
+ * asynchronous result (fetch + render) land before the "what changed" snapshot. Observes
+ * only; CSS animations and our own reads cause no mutations.
+ */
+export function quiet(opts: { idleMs?: number; timeoutMs?: number } = {}): Promise<{ waitedMs: number; settled: boolean }> {
+  const idleMs = opts.idleMs ?? 250
+  const timeoutMs = opts.timeoutMs ?? 2500
+  const started = performance.now()
+  return new Promise((resolve) => {
+    let idle: ReturnType<typeof setTimeout>
+    const done = (settled: boolean) => {
+      observer.disconnect()
+      clearTimeout(idle)
+      clearTimeout(cap)
+      resolve({ waitedMs: Math.round(performance.now() - started), settled })
+    }
+    const observer = new MutationObserver(() => {
+      clearTimeout(idle)
+      idle = setTimeout(() => done(true), idleMs)
+    })
+    observer.observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['aria-busy', 'aria-expanded', 'aria-hidden', 'aria-selected', 'aria-checked', 'disabled', 'hidden', 'open', 'value', 'href', 'src'],
+    })
+    idle = setTimeout(() => done(true), idleMs)
+    const cap = setTimeout(() => done(false), timeoutMs)
+  })
+}
+
 export { inspectAtPoint, pageContext }
 
 export const version = 1

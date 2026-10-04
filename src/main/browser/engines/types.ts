@@ -47,6 +47,8 @@ export interface PageEngine {
   title(): string
   isLoading(): boolean
   logs(): BrowserLogEntry[]
+  /** Network requests the page still has in flight (long-lived streams excluded). */
+  pendingRequests(): number
   /** Engines that can see and answer JS dialogs (stealth); Electron cannot. */
   dialog?: { pending(): DialogInfo | null; handle(accept: boolean, promptText?: string): Promise<void> }
 }

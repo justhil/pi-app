@@ -12,6 +12,22 @@ import { uniqueDownloadPath } from './download-path'
 
 const configured = new Set<string>()
 
+/** Requests in flight per page (webContents id) — what "the page is still working" means after an action. */
+const inflight = new Map<number, Set<number>>()
+const LONG_LIVED = new Set(['webSocket', 'media', 'ping', 'cspReport'])
+
+export function pendingRequestCount(webContentsId: number): number {
+  return inflight.get(webContentsId)?.size ?? 0
+}
+
+function settleRequest(details: { webContentsId?: number; id: number }): void {
+  if (details.webContentsId == null) return
+  const set = inflight.get(details.webContentsId)
+  if (!set) return
+  set.delete(details.id)
+  if (set.size === 0) inflight.delete(details.webContentsId)
+}
+
 export function partitionForProfile(profileId: string): string {
   return `persist:pi-browser-${profileId}`
 }
@@ -46,7 +62,14 @@ export function configureBrowserSession(profileId: string, hooks: BrowserSession
     callback({ requestHeaders: withChromeClientHints(details.url, details.requestHeaders, chromeMajor, process.platform) })
   })
 
+  ses.webRequest.onSendHeaders((details) => {
+    if (details.webContentsId == null || LONG_LIVED.has(details.resourceType)) return
+    let set = inflight.get(details.webContentsId)
+    if (!set) inflight.set(details.webContentsId, (set = new Set()))
+    set.add(details.id)
+  })
   ses.webRequest.onCompleted((details) => {
+    settleRequest(details)
     if (details.statusCode < 400 || details.webContentsId == null) return
     hooks.onNetworkProblem(details.webContentsId, {
       at: Date.now(),
@@ -56,6 +79,7 @@ export function configureBrowserSession(profileId: string, hooks: BrowserSession
     })
   })
   ses.webRequest.onErrorOccurred((details) => {
+    settleRequest(details)
     // Aborted requests are routine (navigation, cancelled fetches); keep real failures only.
     if (details.webContentsId == null || details.error === 'net::ERR_ABORTED') return
     hooks.onNetworkProblem(details.webContentsId, {

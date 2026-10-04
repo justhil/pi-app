@@ -7,7 +7,7 @@ import type { ExtensionAPI, InlineExtension, ToolDefinition } from '@earendil-wo
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { sendToMain } from './worker-transport.js'
-import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES } from '@shared/browser-tools'
+import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
 
 export { BROWSER_TOOL_NAMES }
 const CALL_TIMEOUT_MS = 90_000
@@ -81,7 +81,7 @@ export const browserToolsExtension: InlineExtension = {
         label: def.label,
         description: def.description,
         // Plain JSON Schema: pi validates non-TypeBox schemas with its JSON Schema path.
-        parameters: def.parameters as unknown as ToolDefinition['parameters'],
+        parameters: leanSchema(def.parameters) as unknown as ToolDefinition['parameters'],
         async execute(_toolCallId, params, signal) {
           const result = await callMain(def.name, params, signal)
           if (result.isError) throw new Error(result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n'))

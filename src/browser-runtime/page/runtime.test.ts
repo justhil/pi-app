@@ -241,3 +241,21 @@ describe('find', () => {
     expect(rt.find({ regex: '/(/' })).toMatchObject({ error: 'invalid_target' })
   })
 })
+
+describe('quiet', () => {
+  it('waits until the DOM stops changing', async () => {
+    document.body.innerHTML = '<p id="out"></p>'
+    setTimeout(() => (document.getElementById('out')!.textContent = 'loaded'), 100)
+    const r = await rt.quiet({ idleMs: 150, timeoutMs: 2000 })
+    expect(r.settled).toBe(true)
+    expect(r.waitedMs).toBeGreaterThanOrEqual(240)
+    expect(document.getElementById('out')!.textContent).toBe('loaded')
+  })
+  it('gives up at the timeout on a page that never settles', async () => {
+    document.body.innerHTML = '<p id="tick"></p>'
+    const timer = setInterval(() => (document.getElementById('tick')!.textContent = String(Date.now())), 30)
+    const r = await rt.quiet({ idleMs: 100, timeoutMs: 300 })
+    clearInterval(timer)
+    expect(r.settled).toBe(false)
+  })
+})

@@ -31,12 +31,8 @@ const obj = (properties: Record<string, JsonSchema>, required: string[] = []): J
   additionalProperties: false,
 })
 
-const target: JsonSchema = {
-  type: 'string',
-  maxLength: 2000,
-  description: 'Ref from the latest snapshot (e.g. e12), or a locator: getByRole(\'button\', { name: \'Save\' }), getByText(\'…\'), getByLabel(\'…\'), CSS.',
-}
-const element: JsonSchema = { type: 'string', maxLength: 200, description: 'Short human description of the element, shown to the user.' }
+// Target syntax (refs and locators) is explained once in the capability prompt, not per tool.
+const target: JsonSchema = { type: 'string', maxLength: 2000, description: 'Ref (e12) or locator' }
 const str = (maxLength: number, description?: string): JsonSchema => ({ type: 'string', maxLength, ...(description ? { description } : {}) })
 
 export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
@@ -72,7 +68,6 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     parameters: obj(
       {
         target,
-        element,
         doubleClick: { type: 'boolean' },
         button: { type: 'string', enum: ['left', 'right', 'middle'] },
         modifiers: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift'] } },
@@ -84,19 +79,19 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     name: 'browser_hover',
     label: 'Browser hover',
     description: 'Move the mouse over an element.',
-    parameters: obj({ target, element }, ['target']),
+    parameters: obj({ target }, ['target']),
   },
   {
     name: 'browser_drag',
     label: 'Browser drag',
     description: 'Drag one element onto another.',
-    parameters: obj({ startTarget: target, endTarget: target, startElement: element, endElement: element }, ['startTarget', 'endTarget']),
+    parameters: obj({ startTarget: target, endTarget: target }, ['startTarget', 'endTarget']),
   },
   {
     name: 'browser_type',
     label: 'Browser type',
     description: 'Type into a text field or rich editor. Replaces its content unless slowly=true (appends key by key). submit presses Enter after.',
-    parameters: obj({ target, text: str(20000), element, submit: { type: 'boolean' }, slowly: { type: 'boolean' } }, ['target', 'text']),
+    parameters: obj({ target, text: str(20000), submit: { type: 'boolean' }, slowly: { type: 'boolean' } }, ['target', 'text']),
   },
   {
     name: 'browser_fill_form',
@@ -126,7 +121,7 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     name: 'browser_select_option',
     label: 'Browser select',
     description: 'Choose options in a <select> by value or label.',
-    parameters: obj({ target, element, values: { type: 'array', minItems: 1, maxItems: 50, items: str(500) } }, ['target', 'values']),
+    parameters: obj({ target, values: { type: 'array', minItems: 1, maxItems: 50, items: str(500) } }, ['target', 'values']),
   },
   {
     name: 'browser_press_key',
@@ -150,7 +145,7 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     name: 'browser_take_screenshot',
     label: 'Browser screenshot',
     description: 'PNG of the viewport, or of one element with target. For visual checks a snapshot cannot show.',
-    parameters: obj({ target, element, fullPage: { type: 'boolean' } }),
+    parameters: obj({ target, fullPage: { type: 'boolean' } }),
   },
   {
     name: 'browser_tabs',
@@ -180,7 +175,7 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     name: 'browser_evaluate',
     label: 'Browser evaluate',
     description: 'Run a JS function in an isolated world (DOM access, no page variables). With target, the element is its argument. Returns JSON.',
-    parameters: obj({ function: str(20000, 'e.g. "(el) => el.textContent"'), target, element }, ['function']),
+    parameters: obj({ function: str(20000, 'e.g. "(el) => el.textContent"'), target }, ['function']),
   },
   {
     name: 'browser_handle_dialog',
@@ -195,6 +190,20 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     parameters: obj({ filename: str(200) }),
   },
 ]
+
+/**
+ * The schema the model sees: limits that only Main enforces (lengths, item counts,
+ * additionalProperties) are dropped — they cost tokens on every request and the model
+ * never needs them. Main validates calls against the full schema.
+ */
+export function leanSchema(schema: JsonSchema): JsonSchema {
+  const { maxLength: _ml, maxItems: _mx, minItems: _mn, additionalProperties: _ap, properties, items, ...rest } = schema
+  const out: JsonSchema = { ...rest }
+  if (properties) out.properties = Object.fromEntries(Object.entries(properties).map(([k, v]) => [k, leanSchema(v)]))
+  if (items) out.items = leanSchema(items)
+  if (out.required && out.required.length === 0) delete out.required
+  return out
+}
 
 export const BROWSER_TOOL_NAMES: readonly string[] = BROWSER_TOOL_DEFS.map((d) => d.name)
 

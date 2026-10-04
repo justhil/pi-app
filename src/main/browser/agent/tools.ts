@@ -87,10 +87,23 @@ function currentTabId(host: AgentBrowserHost, sessionKey: string, required = tru
   return id
 }
 
+/**
+ * After an action: let a navigation finish, then wait until the page has no requests in
+ * flight and its DOM has gone quiet, so results rendered after a fetch are part of the
+ * reported changes. Bounded: a page that keeps polling costs at most ~3 s.
+ */
 async function settle(engine: PageEngine, maxMs = 4000): Promise<void> {
-  await sleep(250)
+  await sleep(120)
   const started = Date.now()
   while (engine.isLoading() && Date.now() - started < maxMs) await sleep(100)
+  const deadline = Date.now() + 3000
+  for (;;) {
+    while (engine.pendingRequests() > 0 && Date.now() < deadline) await sleep(50)
+    const left = deadline - Date.now()
+    await engine.run<unknown>(`__piBrowser.quiet({ idleMs: 200, timeoutMs: ${Math.max(200, left)} })`, Math.max(1500, left + 1000)).catch(() => undefined)
+    // A response that rendered and then fired another request: go around once more.
+    if (engine.pendingRequests() === 0 || Date.now() >= deadline) return
+  }
 }
 
 async function takeSnapshot(tabId: string, engine: PageEngine, opts: { target?: string; depth?: number; boxes?: boolean } = {}): Promise<Snap> {
@@ -245,6 +258,11 @@ async function tabsTool(host: AgentBrowserHost, call: BrowserToolCall, a: Args):
 async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<ToolResult> {
   const def = DEFS.get(call.tool)
   if (!def) throw new BrowserToolError('browser_denied', `unknown tool ${call.tool}`)
+  // `element` is a Playwright MCP habit (a label for permission prompts); accept and ignore it.
+  if (call.args && typeof call.args === 'object') delete (call.args as Record<string, unknown>).element
+  if (call.args && typeof call.args === 'object' && (call.args as Args).fields) {
+    for (const f of (call.args as Args).fields as Args[]) if (f && typeof f === 'object') delete f.element
+  }
   const problems = checkArgs(def.parameters, call.args ?? {})
   if (problems.length) throw new BrowserToolError('browser_denied', problems.join('; '))
   const a = (call.args ?? {}) as Args
@@ -405,7 +423,7 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
         return {
           content: [
             { type: 'image', data: shot.png.toString('base64'), mimeType: 'image/png' },
-            { type: 'text', text: `${pageSection(engine)}\nScreenshot ${shot.width}×${shot.height}${a.target ? ` of ${a.element ?? a.target}` : ''}` },
+            { type: 'text', text: `${pageSection(engine)}\nScreenshot ${shot.width}×${shot.height}${a.target ? ` of ${a.target}` : ''}` },
           ],
         }
       })
