@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeMark, markY, nearestMark, previewText, scrubberMarks } from './timeline-scrubber-model'
+import { activeMark, magnify, markY, nearestMark, previewText, scrubberMarks } from './timeline-scrubber-model'
 
 describe('scrubberMarks', () => {
   it('keeps only real user messages, with a one-line preview', () => {
@@ -21,13 +21,27 @@ describe('scrubberMarks', () => {
 })
 
 describe('rail geometry', () => {
-  it('spreads marks evenly and snaps a position back to the nearest mark', () => {
-    expect(markY(0, 3, 112)).toBe(6)
-    expect(markY(2, 3, 112)).toBe(106)
-    expect(nearestMark(50, 3, 112)).toBe(1)
-    expect(nearestMark(-20, 3, 112)).toBe(0)
-    expect(nearestMark(500, 3, 112)).toBe(2)
-    expect(nearestMark(10, 0, 112)).toBe(-1)
+  it('groups marks compactly around the middle', () => {
+    expect(markY(0, 3, 200)).toBe(93)
+    expect(markY(1, 3, 200)).toBe(100)
+    expect(markY(2, 3, 200)).toBe(107)
+    expect(markY(0, 1, 200)).toBe(100)
+  })
+  it('squeezes only when the group does not fit', () => {
+    expect(markY(0, 101, 112)).toBeCloseTo(6)
+    expect(markY(100, 101, 112)).toBeCloseTo(106)
+  })
+  it('snaps a position back to the nearest mark, clamped to the ends', () => {
+    expect(nearestMark(100, 3, 200)).toBe(1)
+    expect(nearestMark(104.5, 3, 200)).toBe(2)
+    expect(nearestMark(0, 3, 200)).toBe(0)
+    expect(nearestMark(500, 3, 200)).toBe(2)
+    expect(nearestMark(10, 0, 200)).toBe(-1)
+  })
+  it('magnifies marks near the pointer and fades with distance', () => {
+    expect(magnify(0)).toBe(1)
+    expect(magnify(11)).toBeCloseTo(0.5)
+    expect(magnify(30)).toBe(0)
   })
 })
 

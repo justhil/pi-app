@@ -13,12 +13,27 @@ type Row =
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'tools'; id: string; count: number; failed: boolean; live: boolean }
 
+/** Markdown to plain reading text for the preview (no syntax characters). */
+export function plainText(md: string): string {
+  return md
+    .replace(/^```.*$/gm, '')
+    .replace(/^[ \t]*\|?[ \t]*:?-{2,}.*$/gm, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/\*\*(.+?)\*\*|__(.+?)__/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^[ \t]*\|(.*)\|[ \t]*$/gm, (_m, row: string) => row.split('|').map((c) => c.trim()).filter(Boolean).join(' · '))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /** Compact rows for a read-only pane: messages as text, tool runs folded into one line. */
 export function previewRows(items: readonly TimelineItem[]): Row[] {
   const rows: Row[] = []
   for (const it of items) {
     if (it.type === 'user-message' || it.type === 'assistant-message') {
-      const text = String(it.text ?? '').trim()
+      const text = plainText(String(it.text ?? ''))
       if (text) rows.push(it.type === 'user-message' ? { kind: 'user', id: it.id, text } : { kind: 'assistant', id: it.id, text })
     } else if (it.type === 'tool-call') {
       const last = rows.at(-1)

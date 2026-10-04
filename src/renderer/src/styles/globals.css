@@ -1713,12 +1713,31 @@
     border-radius: var(--radius-lg);
   }
 
+  /* Split panes: each pane is the same paper card the single conversation uses; the header
+     lives inside it. Inactive cards recede slightly toward the sidebar tone. */
+  .split-view {
+    background: var(--surface-sidebar);
+  }
+  .split-pane--card {
+    border-radius: var(--main-chat-surface-radius) var(--main-chat-surface-radius) 0 0;
+    background: color-mix(in srgb, var(--bg-base) 62%, var(--surface-sidebar));
+    box-shadow: var(--main-chat-surface-shadow);
+    overflow: hidden;
+  }
+  .split-pane--card.split-pane--active {
+    background: var(--bg-base);
+  }
+  .split-view .main-chat-column {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
   .main-chat-column .timeline-scrubber {
     top: 3.25rem;
     bottom: calc(var(--composer-dock-h, 11rem) + 0.75rem);
   }
   .timeline-scrubber-mark {
-    transition: width 120ms var(--motion-ease, ease), background-color 120ms ease;
+    transition: width 110ms var(--motion-ease, ease), background-color 110ms ease;
   }
   @media (prefers-reduced-motion: reduce) {
     .timeline-scrubber-mark { transition: none; }
@@ -2460,6 +2479,38 @@
   font-size: 12px;
 }
 .workbench-icon { width: 32px; }
+/* Sidebar section headers (对话 / 项目) and their single action share one look and one column. */
+.sidebar-section-head {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 4px;
+}
+.sidebar-section-title {
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: hsl(var(--foreground) / 0.5);
+}
+.sidebar-section-action {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: hsl(var(--foreground) / 0.45);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.sidebar-section-action:hover {
+  background: var(--bg-hover);
+  color: hsl(var(--foreground) / 0.85);
+}
+.sidebar-section-action:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: -2px;
+}
 .workbench-button { padding: 4px 10px; }
 .workbench-icon:hover,
 .workbench-button:hover { background: var(--bg-hover); color: hsl(var(--foreground)); }

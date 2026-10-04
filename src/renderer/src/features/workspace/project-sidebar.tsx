@@ -504,7 +504,7 @@ export function ProjectSidebar({
       {searchActive && !visiblePaths.length && !visibleSandboxes.length && <div className="px-4 py-6 text-center text-xs text-foreground-secondary"><p>{t('common:sidebar.noResults')}</p><button type="button" className="workbench-button mt-2" onClick={() => setSessionQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
 
       <div className="px-3 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
-        <div className="flex items-center gap-1 px-1 pb-1.5">
+        <div className="sidebar-section-head">
           <button
             type="button"
             onClick={() => setSectionOpen(!sectionOpen)}
@@ -515,7 +515,7 @@ export function ProjectSidebar({
               className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80"
               data-open={sectionOpen ? 'true' : 'false'}
             />
-            <span className="text-[11px] font-medium tracking-wide text-foreground-secondary/75">
+            <span className="sidebar-section-title">
               {t('common:sidebar.conversations')}
             </span>
             <span className="text-[10px] tabular-nums text-foreground-secondary/60">{sandboxes.length}</span>
@@ -524,9 +524,10 @@ export function ProjectSidebar({
             type="button"
             onClick={() => void handleNewSandboxDialog()}
             title={t('sidebar.newTempChat')}
-            className="chrome-icon-btn shrink-0 cursor-pointer rounded-md p-1.5"
+            aria-label={t('sidebar.newTempChat')}
+            className="sidebar-section-action"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
         </div>
         <SidebarAnimatedCollapse open={searchActive || sectionOpen}>
@@ -571,18 +572,18 @@ export function ProjectSidebar({
       />
 
       <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
-        <div className="flex min-h-8 items-center gap-2 px-2 pb-1 text-[11px] font-medium text-foreground-secondary/75">
-          <span className="flex-1">{t('common:sidebar.projects')}</span>
+        <div className="sidebar-section-head">
+          <span className="sidebar-section-title flex-1 px-1">{t('common:sidebar.projects')}</span>
           {/* Projects come from opening a folder; refreshing lives in the top-right reload button. */}
           <button
             type="button"
             data-open-project=""
-            className="workbench-icon"
+            className="sidebar-section-action"
             onClick={onOpenProject}
             title={openProjectLabel}
             aria-label={openProjectLabel}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
         </div>
         {worktrees.failed && <div role="status" className="px-3 pb-2 text-xs text-foreground-secondary">{t('common:sidebar.worktreeReadFailed')}</div>}

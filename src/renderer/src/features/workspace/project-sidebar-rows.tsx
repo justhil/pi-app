@@ -406,9 +406,10 @@ export function ProjectDiskRow({
             onNewSession()
           }}
           aria-label={t('common:newSession')}
-          className="workbench-icon ml-0.5 shrink-0"
+          title={t('common:newSession')}
+          className="sidebar-section-action ml-0.5"
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>
       </div>
       <SidebarAnimatedCollapse open={open}>{sessionTree}</SidebarAnimatedCollapse>

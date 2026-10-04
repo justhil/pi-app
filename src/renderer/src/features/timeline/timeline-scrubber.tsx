@@ -1,10 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { getTimelineScrollEl } from './timeline-scroll-bridge'
 import { requestTimelineViewEntry } from './timeline-view-jump'
-import { activeMark, markY, nearestMark, scrubberMarks } from './timeline-scrubber-model'
+import { activeMark, magnify, markY, nearestMark, scrubberMarks } from './timeline-scrubber-model'
 
 /**
  * Quick navigation through the user's own messages: one mark per user message on a thin
@@ -20,6 +19,8 @@ function TimelineScrubberImpl() {
   const [height, setHeight] = useState(0)
   const [active, setActive] = useState(0)
   const [hover, setHover] = useState<number | null>(null)
+  // Pointer position on the rail: marks near it grow (hover magnet), farther ones fade back.
+  const [pointerY, setPointerY] = useState<number | null>(null)
   const dragging = useRef(false)
   const lastJump = useRef(-1)
   const marksRef = useRef(marks)
@@ -108,11 +109,16 @@ function TimelineScrubberImpl() {
       data-timeline-scrubber=""
       className="timeline-scrubber group electron-no-drag absolute right-2.5 z-[45] w-4 cursor-pointer touch-none select-none outline-none"
       onPointerMove={(e) => {
+        setPointerY(e.clientY - railRef.current!.getBoundingClientRect().top)
         const i = indexAt(e.clientY)
         if (i !== hover) setHover(i)
         if (dragging.current && i !== lastJump.current) jump(i)
       }}
-      onPointerLeave={() => !dragging.current && setHover(null)}
+      onPointerLeave={() => {
+        if (dragging.current) return
+        setHover(null)
+        setPointerY(null)
+      }}
       onPointerDown={(e) => {
         if (e.button !== 0) return
         dragging.current = true
@@ -138,17 +144,24 @@ function TimelineScrubberImpl() {
       onFocus={() => setHover(active)}
       onBlur={() => setHover(null)}
     >
-      {marks.map((m, i) => (
-        <span
-          key={m.id}
-          aria-hidden
-          className={cn(
-            'timeline-scrubber-mark absolute right-0 h-[2px] -translate-y-1/2 rounded-full',
-            i === active ? 'w-3.5 bg-foreground/70' : i === shown ? 'w-3 bg-foreground/50' : 'w-2 bg-foreground/20 group-hover:bg-foreground/30',
-          )}
-          style={{ top: markY(i, marks.length, height) }}
-        />
-      ))}
+      {marks.map((m, i) => {
+        const y = markY(i, marks.length, height)
+        // Snapped mark gets the full lift; neighbours a softer one by distance.
+        const lift = i === shown ? 1 : pointerY === null ? 0 : magnify(pointerY - y) * 0.6
+        const base = i === active ? 0.32 : 0.13
+        return (
+          <span
+            key={m.id}
+            aria-hidden
+            className="timeline-scrubber-mark absolute right-0 h-[2px] -translate-y-1/2 rounded-full"
+            style={{
+              top: y,
+              width: (i === active ? 10 : 7) + lift * 8,
+              backgroundColor: `hsl(var(--foreground) / ${Math.min(0.6, base + lift * 0.3)})`,
+            }}
+          />
+        )
+      })}
       {shown !== null && marks[shown] ? (
         <div
           className="pointer-events-none absolute right-6 w-max max-w-[260px] -translate-y-1/2 rounded-md border border-border/60 bg-popover px-2.5 py-1.5 text-popover-foreground shadow-md"

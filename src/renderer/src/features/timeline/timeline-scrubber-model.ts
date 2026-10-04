@@ -27,18 +27,34 @@ export function scrubberMarks(items: readonly ItemLike[]): ScrubberMark[] {
   return out
 }
 
-/** Y of mark `i` of `n` on a rail of height `h` (marks keep `pad` px from both ends). */
-export function markY(i: number, n: number, h: number, pad = 6): number {
-  if (n <= 1) return h / 2
-  return pad + (i * (h - pad * 2)) / (n - 1)
+/** Preferred distance between marks; they sit as a compact group in the middle of the rail. */
+export const MARK_GAP = 7
+
+/** Spacing actually used: the preferred gap, squeezed only when the group would not fit. */
+function layoutGap(n: number, h: number, pad: number): number {
+  if (n <= 1) return 0
+  return Math.min(MARK_GAP, (h - pad * 2) / (n - 1))
 }
 
-/** Mark nearest to rail position `y` — what hover and drag snap to. */
+/** Y of mark `i` of `n` on a rail of height `h`: a centred, evenly spaced group. */
+export function markY(i: number, n: number, h: number, pad = 6): number {
+  const gap = layoutGap(n, h, pad)
+  return h / 2 - ((n - 1) * gap) / 2 + i * gap
+}
+
+/** Mark nearest to rail position `y` — what hover and drag snap to (clamped to the ends). */
 export function nearestMark(y: number, n: number, h: number, pad = 6): number {
   if (n <= 0) return -1
   if (n === 1) return 0
-  const t = (y - pad) / (h - pad * 2)
-  return Math.max(0, Math.min(n - 1, Math.round(t * (n - 1))))
+  const gap = layoutGap(n, h, pad)
+  const top = h / 2 - ((n - 1) * gap) / 2
+  return Math.max(0, Math.min(n - 1, Math.round((y - top) / gap)))
+}
+
+/** Hover magnification 0..1 for a mark `dy` px from the pointer (dock-like falloff). */
+export function magnify(dy: number, radius = 22): number {
+  const d = Math.abs(dy)
+  return d >= radius ? 0 : Math.cos((d / radius) * (Math.PI / 2)) ** 2
 }
 
 /**

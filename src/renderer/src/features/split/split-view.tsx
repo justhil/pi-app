@@ -101,7 +101,10 @@ function PaneHeader({ pane, index, active }: { pane: Pane; index: number; active
         e.dataTransfer.effectAllowed = 'move'
         setDragLabel(e, title)
       }}
-      className={cn('split-pane-header group/pane flex h-8 shrink-0 cursor-grab items-center gap-1.5 border-b px-3 text-[12px] active:cursor-grabbing', active ? 'border-primary/30 text-foreground' : 'border-border/40 text-foreground-tertiary')}
+      className={cn(
+        'split-pane-header group/pane flex h-9 shrink-0 cursor-grab items-center gap-2 pl-4 pr-2 text-[12px] active:cursor-grabbing',
+        active ? 'text-foreground/85' : 'text-foreground-tertiary hover:text-foreground-secondary',
+      )}
     >
       {running ? <SessionAttentionDot attention="working" className="shrink-0" title={t('common:app.status.running')} /> : null}
       <button type="button" className="min-w-0 flex-1 truncate text-left outline-none focus-visible:underline" aria-current={active ? 'true' : undefined} onClick={() => splitActions.focus(pane.id)} title={title}>
@@ -112,7 +115,7 @@ function PaneHeader({ pane, index, active }: { pane: Pane; index: number; active
         type="button"
         aria-label={t('common:split.close')}
         title={t('common:split.closeHint')}
-        className="flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 hover:bg-[var(--bg-hover)] focus-visible:opacity-100 group-hover/pane:opacity-70"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-foreground-tertiary opacity-0 hover:bg-[var(--bg-hover)] hover:text-foreground focus-visible:opacity-100 group-hover/pane:opacity-100"
         onClick={(e) => {
           e.stopPropagation()
           splitActions.close(pane.id)
@@ -231,7 +234,7 @@ export function SplitView({ children }: { children: ReactNode }) {
               }}
               data-split-pane={pane.id}
               data-active={active || undefined}
-              className={cn('split-pane relative flex h-full min-w-0 flex-col', !active && !isCollapsed && 'bg-[var(--bg-base)]')}
+              className={cn('split-pane relative flex h-full min-w-0 flex-col', isCollapsed ? 'split-pane--strip' : 'split-pane--card', active && 'split-pane--active')}
               style={isCollapsed ? { flex: `0 0 ${STRIP_PX}px` } : { flex: `${layout.sizes[i]} 1 0`, minWidth: Math.min(MIN_PANE_PX, width) }}
             >
               {isCollapsed ? (
@@ -254,14 +257,14 @@ export function SplitView({ children }: { children: ReactNode }) {
                 aria-orientation="vertical"
                 aria-label={t('common:split.resize')}
                 title={t('common:split.resizeHint')}
-                className="split-handle group/handle relative z-10 w-px shrink-0 cursor-col-resize bg-border/60"
+                className="split-handle group/handle relative z-10 w-1.5 shrink-0 cursor-col-resize"
                 onPointerDown={startResize(i)}
                 onDoubleClick={() => splitActions.equalize()}
               >
-                <span className="absolute inset-y-0 -left-1 -right-1 group-hover/handle:bg-primary/20" />
+                <span className="absolute inset-y-8 left-1/2 w-px -translate-x-1/2 rounded-full bg-transparent transition-colors group-hover/handle:bg-foreground/20" />
               </div>
             ) : i < layout.panes.length - 1 ? (
-              <div className="w-px shrink-0 bg-border/60" />
+              <div className="w-1.5 shrink-0" />
             ) : null}
           </div>
         )
