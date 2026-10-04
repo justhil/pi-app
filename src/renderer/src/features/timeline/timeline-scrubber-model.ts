@@ -28,7 +28,7 @@ export function scrubberMarks(items: readonly ItemLike[]): ScrubberMark[] {
 }
 
 /** Preferred distance between marks; they sit as a compact group in the middle of the rail. */
-export const MARK_GAP = 7
+export const MARK_GAP = 12
 
 /** Spacing actually used: the preferred gap, squeezed only when the group would not fit. */
 function layoutGap(n: number, h: number, pad: number): number {
@@ -58,20 +58,27 @@ export function magnify(dy: number, radius = 22): number {
 }
 
 /**
- * Which mark the reader is at: the last rendered user message whose top is above the
- * reading line (40% down the viewport). `tops` holds viewport-relative tops or null
- * for messages outside the render window (they are above everything rendered).
+ * Which mark the reader is at, located by the user messages themselves:
+ * - scrolled to the bottom → the last message (a short final reply must not leave the
+ *   highlight on the one before);
+ * - scrolled to the top → the first;
+ * - otherwise the last message whose top is above the reading line.
+ * `tops` holds viewport-relative tops, or null for messages outside the render window
+ * (always above everything rendered).
  */
-export function activeMark(tops: readonly (number | null)[], readingLine: number): number {
-  let active = -1
+export function activeMark(
+  tops: readonly (number | null)[],
+  readingLine: number,
+  edge: { atTop?: boolean; atBottom?: boolean } = {},
+): number {
+  if (tops.length === 0) return 0
+  if (edge.atBottom) return tops.length - 1
+  if (edge.atTop && tops[0] !== null) return 0
+  let active = 0
   for (let i = 0; i < tops.length; i++) {
     const top = tops[i]
-    if (top === null) {
-      if (active === -1 || active < i) active = i
-      continue
-    }
-    if (top <= readingLine) active = i
+    if (top === null || top <= readingLine) active = i
     else break
   }
-  return Math.max(0, active)
+  return active
 }

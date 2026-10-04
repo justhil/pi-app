@@ -22,9 +22,9 @@ describe('scrubberMarks', () => {
 
 describe('rail geometry', () => {
   it('groups marks compactly around the middle', () => {
-    expect(markY(0, 3, 200)).toBe(93)
+    expect(markY(0, 3, 200)).toBe(88)
     expect(markY(1, 3, 200)).toBe(100)
-    expect(markY(2, 3, 200)).toBe(107)
+    expect(markY(2, 3, 200)).toBe(112)
     expect(markY(0, 1, 200)).toBe(100)
   })
   it('squeezes only when the group does not fit', () => {
@@ -33,7 +33,7 @@ describe('rail geometry', () => {
   })
   it('snaps a position back to the nearest mark, clamped to the ends', () => {
     expect(nearestMark(100, 3, 200)).toBe(1)
-    expect(nearestMark(104.5, 3, 200)).toBe(2)
+    expect(nearestMark(107, 3, 200)).toBe(2)
     expect(nearestMark(0, 3, 200)).toBe(0)
     expect(nearestMark(500, 3, 200)).toBe(2)
     expect(nearestMark(10, 0, 200)).toBe(-1)
@@ -49,6 +49,12 @@ describe('activeMark', () => {
   it('is the last message that started above the reading line', () => {
     expect(activeMark([-400, -20, 300, 900], 200)).toBe(1)
     expect(activeMark([50, 300], 200)).toBe(0)
+  })
+  it('is the last message when scrolled to the bottom, the first at the top', () => {
+    // Short final reply: the last question sits below the reading line.
+    expect(activeMark([-900, -300, 520], 200)).toBe(1)
+    expect(activeMark([-900, -300, 520], 200, { atBottom: true })).toBe(2)
+    expect(activeMark([40, 600, 1400], 200, { atTop: true })).toBe(0)
   })
   it('treats unrendered (older) messages as above the viewport', () => {
     expect(activeMark([null, null, 500], 200)).toBe(1)

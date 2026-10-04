@@ -50,15 +50,26 @@ function TimelineScrubberImpl() {
         const node = el.querySelector(`[data-item-id="${CSS.escape(m.id)}"]`)
         return node ? node.getBoundingClientRect().top - box.top : null
       })
-      setActive(activeMark(tops, el.clientHeight * 0.4))
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
+      const atTop = el.scrollTop <= 4
+      setActive(activeMark(tops, el.clientHeight * 0.4, { atTop, atBottom }))
     }
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(measure)
     }
     window.addEventListener('timeline-scroll', schedule)
+    // Content growing under a still viewport (streaming, history loads) changes the answer too.
+    const el = getTimelineScrollEl()
+    const ro = el ? new ResizeObserver(schedule) : null
+    if (el) {
+      el.addEventListener('scroll', schedule, { passive: true })
+      for (const child of Array.from(el.children)) ro!.observe(child)
+    }
     schedule()
     return () => {
       window.removeEventListener('timeline-scroll', schedule)
+      el?.removeEventListener('scroll', schedule)
+      ro?.disconnect()
       if (raf) cancelAnimationFrame(raf)
     }
   }, [marks])

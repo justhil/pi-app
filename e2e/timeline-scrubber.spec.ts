@@ -8,7 +8,8 @@ test.describe('timeline scrubber', () => {
 
   test('jumps between user messages by click, drag and keyboard', async () => {
     const seen: Seen[] = []
-    const model = startScriptedModel((first) => ({ text: `Answer to ${first.slice(0, 12)}\n\n${LONG}` }), seen)
+    // The last answer is short: at the bottom its question sits low in the viewport.
+    const model = startScriptedModel((first, _t, last) => ({ text: last.includes('QUESTION-8') ? 'Short answer.' : `Answer to ${first.slice(0, 12)}\n\n${LONG}` }), seen)
     const agent = await launchAgentApp(await listen(model))
     const { win } = agent
     try {
