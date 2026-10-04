@@ -65,6 +65,10 @@ function createMenu(): void {
   Menu.setApplicationMenu(null)
 }
 
+// Built-in browser: never advertise automation. Chromium sets navigator.webdriver whenever a
+// debugging/automation switch is present (e.g. a test harness); pages use it as a bot signal.
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled')
+
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   browserAcceptLanguages,
   chromeSecChUa,
+  greaseBrand,
   withChromeClientHints,
   chromeUserAgent,
   dedupeLanguages,
@@ -83,18 +84,17 @@ describe('user agent', () => {
     expect(ua).not.toMatch(/Electron/)
   })
 
-  it('adds the Google Chrome brand to Sec-CH-UA once', () => {
-    const original = '"Not;A=Brand";v="8", "Chromium";v="150"'
-    const out = chromeSecChUa(original, '150')
-    expect(out).toBe('"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"')
-    expect(chromeSecChUa(out, '150')).toBe(out)
-    expect(chromeSecChUa(undefined, '150')).toBe('"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"')
+  it('mirrors the brands pages see in navigator.userAgentData (no extra "Google Chrome")', () => {
+    // Engine E on Chromium 150 reports exactly this list to JS.
+    expect(chromeSecChUa(undefined, '150')).toBe('"Not;A=Brand";v="8", "Chromium";v="150"')
+    expect(chromeSecChUa('"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"', '150')).toBe('"Not;A=Brand";v="8", "Chromium";v="150"')
+    expect(greaseBrand('150')).toBe('"Not;A=Brand";v="8"')
   })
 
   it('adds client hints to https requests only, keeping existing ones', () => {
     expect(withChromeClientHints('http://localhost/', { a: '1' }, '150', 'linux')).toEqual({ a: '1' })
     const out = withChromeClientHints('https://x.test/', { 'Sec-CH-UA-Mobile': '?1' }, '150', 'win32')
-    expect(out['sec-ch-ua']).toContain('"Google Chrome";v="150"')
+    expect(out['sec-ch-ua']).toBe('"Not;A=Brand";v="8", "Chromium";v="150"')
     expect(out['Sec-CH-UA-Mobile']).toBe('?1')
     expect(out['sec-ch-ua-mobile']).toBeUndefined()
     expect(out['sec-ch-ua-platform']).toBe('"Windows"')

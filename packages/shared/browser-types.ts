@@ -145,17 +145,27 @@ export function chromeUserAgent(chromeMajor: string, platform: string): string {
 }
 
 /**
- * Sec-CH-UA value: the brands Electron reports to JS plus "Google Chrome", in the same order,
- * so the header matches what Chrome sends. JS-side navigator.userAgentData is left untouched.
+ * Chromium's GREASE brand for a major version (user_agent_utils.cc: "Not" + c1 + "A" + c2 +
+ * "Brand", version from a fixed list, both indexed by the major as seed).
+ */
+export function greaseBrand(chromeMajor: string): string {
+  const seed = Number.parseInt(chromeMajor, 10) || 0
+  const chars = [' ', '(', ':', '-', '.', '/', ')', ';', '=', '?', '_']
+  const versions = ['8', '99', '24']
+  return `"Not${chars[seed % chars.length]}A${chars[(seed + 1) % chars.length]}Brand";v="${versions[seed % versions.length]}"`
+}
+
+/**
+ * Sec-CH-UA value that matches what the page sees in navigator.userAgentData (Electron reports
+ * the Chromium brand list). Keeping header and JS identical matters more than claiming
+ * "Google Chrome": a mismatch between the two is a stronger tell than either alone.
  */
 export function chromeSecChUa(original: string | undefined, chromeMajor: string): string {
   const brands = (original ?? '')
     .split(',')
     .map((part) => part.trim())
-    .filter(Boolean)
-  if (brands.some((b) => /"Google Chrome"/.test(b))) return brands.join(', ')
-  const base = brands.length > 0 ? brands : ['"Not;A=Brand";v="8"', `"Chromium";v="${chromeMajor}"`]
-  return [...base, `"Google Chrome";v="${chromeMajor}"`].join(', ')
+    .filter((b) => b && !/"Google Chrome"/.test(b))
+  return (brands.length > 0 ? brands : [greaseBrand(chromeMajor), `"Chromium";v="${chromeMajor}"`]).join(', ')
 }
 
 /** Sec-CH-UA-Platform value for a Node platform id. */
