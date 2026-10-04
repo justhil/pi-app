@@ -20,6 +20,7 @@ import { browserActions, ensureBrowserSubscription, onBrowserSideEvent, useBrows
 import { useOverlayCovering, useViewPlacement } from './use-view-placement'
 import { AnnotationLayer } from './annotation-layer'
 import { saveImageAttachment, sendToComposer } from './browser-composer'
+import { DownloadsMenu } from './downloads-menu'
 import { buildSuggestions, type Suggestion } from './address-suggestions'
 import { loadHistory, recordVisit, saveHistory, type HistoryEntry } from './browser-history'
 import { clampViewport, fitViewport, loadViewportMode, saveViewportMode, type ViewportMode } from './viewport-mode'
@@ -565,6 +566,7 @@ export function BrowserPanel() {
             </>
           ) : null}
         </div>
+        <DownloadsMenu buttonClass={navButton} />
       </div>
 
       <div ref={areaRef} className={cn('relative min-h-0 flex-1 overflow-hidden', viewportMode.kind === 'fixed' && 'bg-[var(--bg-hover)]')}>

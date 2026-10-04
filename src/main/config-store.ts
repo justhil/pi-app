@@ -74,6 +74,9 @@ export interface StoreSchema {
   agentRuntime: { mode: 'host' | 'wsl'; distro: string | null }
   /** Built-in browser: address-bar search engine. */
   browserSearchEngine: import('@shared/browser-types').BrowserSearchEngine
+  browserDownloader: import('@shared/browser-types').BrowserDownloader
+  browserAria2Path: string
+  browserDownloadConnections: number
   /** Composer Tools menu: capabilities switched on per session file (absent = all off). */
   sessionCapabilities: Record<string, import('@shared/capabilities').CapabilityId[]>
   /** 每个 WSL 发行版解析出的用户环境（home / PATH / node …），见 wsl/wsl-env.ts */
@@ -137,6 +140,9 @@ const store = new Store<StoreSchema>({
     } as AsrConfig,
     agentRuntime: { mode: 'host', distro: null },
     browserSearchEngine: 'bing',
+    browserDownloader: 'auto',
+    browserAria2Path: '',
+    browserDownloadConnections: 16,
     sessionCapabilities: {},
   },
 })

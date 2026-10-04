@@ -46,7 +46,20 @@
     "clearDataConfirm": "内置浏览器里的所有网站都会退出登录。确定清除吗？",
     "cleared": "已清除浏览数据",
     "clearFailed": "清除浏览数据失败",
-    "saveFailed": "保存失败"
+    "saveFailed": "保存失败",
+    "downloader": "下载方式",
+    "downloaderDesc": "找到 aria2 时用它多线程下载，并带上网页的登录 Cookie；失败时自动改用内置下载。",
+    "downloaderAuto": "aria2 多线程（找到时）",
+    "downloaderElectron": "内置下载",
+    "aria2": "aria2 程序",
+    "aria2Checking": "正在检测…",
+    "aria2Found": "已找到 aria2 {{version}}：{{path}}",
+    "aria2Missing": "未找到 aria2，将使用内置下载。可安装 aria2 或手动选择 aria2c。",
+    "aria2Invalid": "所选文件不能运行，将使用内置下载。",
+    "aria2Pick": "选择 aria2c…",
+    "aria2Auto": "自动查找",
+    "connections": "每个文件的连接数",
+    "connectionsDesc": "1–16，默认 16。部分网站会限制连接数。"
   },
   "annotate": {
     "toggle": "批注（Ctrl/⌘+Shift+A）",
@@ -95,5 +108,18 @@
     "width": "宽度",
     "height": "高度",
     "hint": "固定尺寸在面板较小时按比例缩小显示。"
+  },
+  "downloads": {
+    "title": "下载",
+    "active": "{{count}} 个下载中",
+    "cancel": "取消",
+    "reveal": "在文件夹中显示",
+    "clear": "清除已完成",
+    "state": {
+      "completed": "已完成",
+      "cancelled": "已取消",
+      "failed": "失败",
+      "progressing": "下载中"
+    }
   }
 }

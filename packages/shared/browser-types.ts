@@ -14,11 +14,32 @@ export interface BrowserTabInfo {
   openedBy: 'user' | { sessionKey: string }
 }
 
+/** One download of the built-in browser (multi-connection via aria2 when available). */
+export interface BrowserDownloadInfo {
+  id: string
+  url: string
+  fileName: string
+  savePath: string
+  /** Bytes received / total (0 when unknown). */
+  received: number
+  total: number
+  /** Bytes per second, 0 when idle. */
+  speed: number
+  state: 'progressing' | 'completed' | 'cancelled' | 'failed'
+  via: 'aria2' | 'electron'
+  startedAt: number
+  /** Short reason when failed (never contains cookies or headers). */
+  error?: string
+}
+
+export type BrowserDownloader = 'auto' | 'electron'
+
 export type BrowserEvent =
   | { type: 'tab-updated'; tab: BrowserTabInfo }
   | { type: 'tab-closed'; tabId: string }
   | { type: 'tab-focused'; tabId: string | null }
   | { type: 'download'; fileName: string; savePath: string; state: 'completed' | 'cancelled' | 'interrupted' }
+  | { type: 'download-updated'; download: BrowserDownloadInfo }
   /** Shortcut pressed while the page itself had focus (the Renderer never sees those keys). */
   | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' }
   /** The agent is acting on a tab (`action` null when it finished). */

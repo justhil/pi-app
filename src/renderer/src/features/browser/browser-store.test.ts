@@ -15,7 +15,7 @@ const tab = (tabId: string, patch: Partial<BrowserTabInfo> = {}): BrowserTabInfo
   ...patch,
 })
 
-const empty: BrowserState = { tabs: {}, order: [], activeTabId: null }
+const empty: BrowserState = { tabs: {}, order: [], activeTabId: null, downloads: {} }
 
 describe('applyBrowserEvent', () => {
   it('appends new tabs and updates existing ones in place', () => {
@@ -36,5 +36,14 @@ describe('applyBrowserEvent', () => {
   it('ignores unknown closes and side events', () => {
     expect(applyBrowserEvent(empty, { type: 'tab-closed', tabId: 'x' })).toBe(empty)
     expect(applyBrowserEvent(empty, { type: 'shortcut', action: 'new-tab' })).toBe(empty)
+  })
+})
+
+describe('downloads', () => {
+  it('keeps the latest state of each download', () => {
+    const d = { id: 'd1', url: 'https://x.test/f.zip', fileName: 'f.zip', savePath: '/d/f.zip', received: 10, total: 100, speed: 5, state: 'progressing' as const, via: 'aria2' as const, startedAt: 1 }
+    let s = applyBrowserEvent(empty, { type: 'download-updated', download: d })
+    s = applyBrowserEvent(s, { type: 'download-updated', download: { ...d, received: 100, state: 'completed' } })
+    expect(Object.values(s.downloads)).toEqual([{ ...d, received: 100, state: 'completed' }])
   })
 })

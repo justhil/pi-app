@@ -28,6 +28,11 @@ Main 在第一次 `tabs.open` 时才创建 `BrowserHost`；没有打开过标签
 | `ipc:browser.navigate` | `{ tabId; url }` 或 `{ tabId; history: 'back' \| 'forward' \| 'reload' \| 'stop' }` | `{ ok: true }`；非 http(s) 地址会被拒绝 |
 | `ipc:browser.viewBounds` | `BrowserViewBounds`（占位元素的 client rect + `visible`） | `{ ok: true }` |
 | `ipc:browser.capture` | `{ tabId }` | `{ dataUrl: string \| null }`（被弹层遮挡时用作占位图） |
+| `ipc:browser.downloads.list` | — | `{ downloads: BrowserDownloadInfo[] }` |
+| `ipc:browser.downloads.cancel` | `{ id }` | `{ ok }`（aria2 下载会删除未完成文件和 .aria2 控制文件） |
+| `ipc:browser.downloads.reveal` | `{ id }` | `{ ok }` |
+| `ipc:browser.downloads.clear` | — | `{ downloads }`（清除已结束的条目） |
+| `ipc:browser.downloader.status` | `{ aria2Path? }` | `{ path: string \| null, version: string \| null }` |
 | `ipc:browser.inspectPoint` | `{ tabId; x; y; deep?: boolean }` | `{ element: ElementDescriptor \| null }`；在隔离 world 中执行，`deep` 且为开发地址时额外在主 world 读取框架源码位置 |
 | `ipc:browser.pageContext` | `{ tabId; saveText?: boolean }` | `PageContextResult`（不含 `text`）+ `path`（`saveText` 时正文写成 `.md` 临时文件） |
 | `ipc:browser.logs` | `{ tabId; max?: number }` | `{ entries: BrowserLogEntry[] }`（console 错误/警告、失败请求或状态码 ≥ 400 的请求） |

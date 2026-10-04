@@ -218,6 +218,9 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   asrConfig: z.record(z.unknown()),
   sessionCapabilities: z.record(z.array(z.enum(CAPABILITY_IDS)).max(8)),
   browserSearchEngine: z.enum(BROWSER_SEARCH_ENGINE_IDS as [BrowserSearchEngine, ...BrowserSearchEngine[]]),
+  browserDownloader: z.enum(['auto', 'electron']),
+  browserAria2Path: z.string().max(4096),
+  browserDownloadConnections: z.number().int().min(1).max(16),
   agentRuntime: z
     .object({
       mode: z.enum(['host', 'wsl']),

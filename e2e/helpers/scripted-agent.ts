@@ -75,7 +75,7 @@ export interface AgentApp {
 }
 
 /** Launch pi Desktop against the scripted model with the Browser panel enabled. */
-export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh'; home?: string; keepHome?: boolean } = {}): Promise<AgentApp> {
+export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh'; home?: string; keepHome?: boolean; config?: Record<string, unknown> } = {}): Promise<AgentApp> {
   const home = opts.home ?? fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-agent-'))
   const agentDir = path.join(home, '.pi', 'agent')
   const project = path.join(home, 'code', 'demo')
@@ -103,6 +103,7 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     recentProjects: [project],
     windowBounds: { width: 1400, height: 900 },
     rightPanelPrefs: { files: true, run: true, browser: true },
+    ...opts.config,
   }))
 
   const app = await electron.launch({

@@ -46,7 +46,20 @@
     "clearDataConfirm": "You will be signed out of every site in the built-in browser. Clear now?",
     "cleared": "Browsing data cleared",
     "clearFailed": "Could not clear browsing data",
-    "saveFailed": "Could not save"
+    "saveFailed": "Could not save",
+    "downloader": "Downloads",
+    "downloaderDesc": "With aria2 installed, files download over several connections with the page's sign-in cookies; on failure the built-in downloader takes over.",
+    "downloaderAuto": "aria2 multi-connection (when found)",
+    "downloaderElectron": "Built-in",
+    "aria2": "aria2 program",
+    "aria2Checking": "Checking…",
+    "aria2Found": "Found aria2 {{version}}: {{path}}",
+    "aria2Missing": "aria2 not found; the built-in downloader is used. Install aria2 or pick aria2c.",
+    "aria2Invalid": "The chosen file cannot run; the built-in downloader is used.",
+    "aria2Pick": "Choose aria2c…",
+    "aria2Auto": "Find automatically",
+    "connections": "Connections per file",
+    "connectionsDesc": "1–16, default 16. Some sites limit connections."
   },
   "annotate": {
     "toggle": "Annotate (Ctrl/⌘+Shift+A)",
@@ -95,5 +108,18 @@
     "width": "Width",
     "height": "Height",
     "hint": "A fixed size is scaled down when the panel is smaller."
+  },
+  "downloads": {
+    "title": "Downloads",
+    "active": "{{count}} downloading",
+    "cancel": "Cancel",
+    "reveal": "Show in folder",
+    "clear": "Clear finished",
+    "state": {
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "failed": "Failed",
+      "progressing": "Downloading"
+    }
   }
 }

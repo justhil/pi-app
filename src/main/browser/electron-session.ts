@@ -9,6 +9,27 @@ import {
   type BrowserLogEntry,
 } from '@shared/browser-types'
 import { uniqueDownloadPath } from './download-path'
+import { DownloadManager } from './downloads/download-manager'
+import { configStore } from '../config-store'
+
+let downloads: DownloadManager | null = null
+
+/** One download manager for every browser profile; settings are read per download. */
+export function getDownloadManager(emit?: (event: BrowserEvent) => void): DownloadManager {
+  if (!downloads) {
+    if (!emit) throw new Error('download manager not initialised')
+    downloads = new DownloadManager(emit, () => ({
+      downloader: configStore.get('browserDownloader') ?? 'auto',
+      aria2Path: configStore.get('browserAria2Path') ?? '',
+      connections: configStore.get('browserDownloadConnections') ?? 16,
+    }))
+  }
+  return downloads
+}
+
+export function peekDownloadManager(): DownloadManager | null {
+  return downloads
+}
 
 const configured = new Set<string>()
 
@@ -93,19 +114,18 @@ export function configureBrowserSession(profileId: string, hooks: BrowserSession
   ses.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
   ses.setPermissionCheckHandler(() => false)
 
-  ses.on('will-download', (_event, item) => {
+  ses.on('will-download', (event, item, webContents) => {
     const dir = browserDownloadDir()
+    let savePath: string
     try {
       mkdirSync(dir, { recursive: true })
-      item.setSavePath(uniqueDownloadPath(dir, item.getFilename()))
+      savePath = uniqueDownloadPath(dir, item.getFilename())
     } catch (error) {
       console.warn('[browser] download path unavailable:', error)
       item.cancel()
       return
     }
-    item.once('done', (_e, state) => {
-      emit({ type: 'download', fileName: item.getFilename(), savePath: item.getSavePath(), state })
-    })
+    getDownloadManager(emit).onWillDownload(event, ses, item, webContents, savePath)
   })
   return ses
 }

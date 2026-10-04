@@ -1,11 +1,12 @@
 import { create } from 'zustand'
-import type { BrowserEvent, BrowserTabInfo } from '@shared/browser-types'
+import type { BrowserDownloadInfo, BrowserEvent, BrowserTabInfo } from '@shared/browser-types'
 import { ipcClient, onBrowserEvent } from '@renderer/lib/ipc-client'
 
 export interface BrowserState {
   tabs: Record<string, BrowserTabInfo>
   order: string[]
   activeTabId: string | null
+  downloads: Record<string, BrowserDownloadInfo>
 }
 
 /** Pure reducer for Main → Renderer browser events (unit-tested). */
@@ -24,6 +25,7 @@ export function applyBrowserEvent(state: BrowserState, event: BrowserEvent): Bro
       const tabs = { ...state.tabs }
       delete tabs[event.tabId]
       return {
+        ...state,
         tabs,
         order: state.order.filter((id) => id !== event.tabId),
         activeTabId: state.activeTabId === event.tabId ? null : state.activeTabId,
@@ -31,12 +33,14 @@ export function applyBrowserEvent(state: BrowserState, event: BrowserEvent): Bro
     }
     case 'tab-focused':
       return { ...state, activeTabId: event.tabId }
+    case 'download-updated':
+      return { ...state, downloads: { ...state.downloads, [event.download.id]: event.download } }
     default:
       return state
   }
 }
 
-export const useBrowserStore = create<BrowserState>(() => ({ tabs: {}, order: [], activeTabId: null }))
+export const useBrowserStore = create<BrowserState>(() => ({ tabs: {}, order: [], activeTabId: null, downloads: {} }))
 
 type Listener = (event: BrowserEvent) => void
 const sideListeners = new Set<Listener>()
@@ -61,6 +65,12 @@ export function ensureBrowserSubscription(): void {
       })
     })
     .catch(() => {})
+  void ipcClient
+    .invoke('browser.downloads.list')
+    .then((res: { downloads?: BrowserDownloadInfo[] } | undefined) => {
+      useBrowserStore.setState({ downloads: Object.fromEntries((res?.downloads ?? []).map((d) => [d.id, d])) })
+    })
+    .catch(() => {})
 }
 
 /** Download / shortcut events that the panel reacts to but the store does not keep. */
@@ -76,4 +86,10 @@ export const browserActions = {
   navigate: (tabId: string, url: string) => ipcClient.invoke('browser.navigate', { tabId, url }),
   history: (tabId: string, history: 'back' | 'forward' | 'reload' | 'stop') =>
     ipcClient.invoke('browser.navigate', { tabId, history }),
+  cancelDownload: (id: string) => ipcClient.invoke('browser.downloads.cancel', { id }),
+  revealDownload: (id: string) => ipcClient.invoke('browser.downloads.reveal', { id }),
+  clearDownloads: async () => {
+    const res = (await ipcClient.invoke('browser.downloads.clear')) as { downloads?: BrowserDownloadInfo[] }
+    useBrowserStore.setState({ downloads: Object.fromEntries((res?.downloads ?? []).map((d) => [d.id, d])) })
+  },
 }

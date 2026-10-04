@@ -4,7 +4,8 @@ import { DEFAULT_ELECTRON_PROFILE_ID } from '@shared/browser-types'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { getMainWindow } from '../../window'
 import { getBrowserHost, peekBrowserHost } from '../../browser/browser-host'
-import { partitionForProfile } from '../../browser/electron-session'
+import { partitionForProfile, peekDownloadManager } from '../../browser/electron-session'
+import { aria2Version, findAria2 } from '../../browser/downloads/download-manager'
 import { configureCapabilities } from '../../capabilities/catalog'
 import { configStore } from '../../config-store'
 import { writeClipboardTempText } from '../../clipboard-temp-images'
@@ -83,6 +84,25 @@ export function registerBrowserHandlers(): void {
   registerHandlerWithSchema('ipc:browser.scroll', z.object({ ...point, deltaY: z.number().finite() }), async (req) => {
     host().scroll(req.tabId, req.x, req.y, req.deltaY)
     return { ok: true }
+  })
+
+  registerHandler('ipc:browser.downloads.list', async () => ({ downloads: peekDownloadManager()?.list() ?? [] }))
+  registerHandlerWithSchema('ipc:browser.downloads.cancel', z.object({ id: z.string().min(1).max(64) }), async (req) => {
+    peekDownloadManager()?.cancel(req.id)
+    return { ok: true }
+  })
+  registerHandlerWithSchema('ipc:browser.downloads.reveal', z.object({ id: z.string().min(1).max(64) }), async (req) => {
+    peekDownloadManager()?.reveal(req.id)
+    return { ok: true }
+  })
+  registerHandler('ipc:browser.downloads.clear', async () => {
+    peekDownloadManager()?.clearFinished()
+    return { downloads: peekDownloadManager()?.list() ?? [] }
+  })
+  /** Which aria2c would be used (configured path or PATH) and its version, for the settings page. */
+  registerHandlerWithSchema('ipc:browser.downloader.status', z.object({ aria2Path: z.string().max(4096).optional() }), async (req) => {
+    const path = findAria2(req.aria2Path ?? configStore.get('browserAria2Path') ?? '')
+    return { path, version: path ? aria2Version(path) : null }
   })
 
   registerHandlerWithSchema('ipc:browser.logs', z.object({ tabId, max: z.number().int().min(1).max(200).optional() }), async (req) => ({
