@@ -72,7 +72,6 @@ export function SettingRow({
           {badge}
         </div>
         {description && <div className="mt-0.5 max-w-xl text-[12px] leading-[1.55] text-foreground-secondary">{description}</div>}
-        {settingKey && <code className="settings-key mt-1 inline-block">{settingKey}</code>}
       </div>
       <div role="group" aria-labelledby={labelId} className="settings-row-control min-w-0 shrink-0 sm:ml-6">{children}</div>
     </div>

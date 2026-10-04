@@ -42,7 +42,7 @@ export function ThinkingBudgetsControl({ value, disabled, onChange }: { value: u
           <Count
             label={`thinkingBudgets.${level}`}
             value={budgets[level]}
-            placeholder="·"
+            placeholder="—"
             onCommit={(v) => {
               const next = { ...budgets }
               if (v === undefined) delete next[level]

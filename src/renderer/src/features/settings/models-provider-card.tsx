@@ -19,6 +19,8 @@ import {
   selectCls,
 } from './models-settings-shared'
 
+const fieldCls = 'settings-field h-[30px] py-0 text-[12.5px]'
+
 export function ModelsProviderCard({
   pid,
   cardIndex,
@@ -74,7 +76,7 @@ export function ModelsProviderCard({
   return (
     <div
       className={cn(
-        'settings-provider-card ui-enter overflow-hidden rounded-lg border border-border/60 bg-card/40 shadow-sm',
+        'settings-provider-card settings-card ui-enter',
         cardIndex < 5 && `stagger-${cardIndex + 1}`,
       )}
       style={cardIndex >= 5 ? { animationDelay: `${Math.min(cardIndex, 8) * 35}ms` } : undefined}
@@ -87,14 +89,11 @@ export function ModelsProviderCard({
         <ChevronRight className="settings-chevron h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={2} data-open={open} />
         <ProviderAvatar preset={preset} label={displayName} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-lg font-semibold">{displayName}</span>
-            <span className="rounded bg-muted/70 px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">{pid}</span>
-            {preset && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-2xs text-primary">{preset.label}</span>
-            )}
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-[14px] font-medium text-foreground">{displayName}</span>
+            {pid !== displayName ? <span className="truncate font-mono text-[11.5px] text-foreground-secondary">{pid}</span> : null}
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          <div className="mt-0.5 truncate text-[12px] text-foreground-secondary">
             {p.baseUrl || t('models.notSetBaseUrl')}
             <span className="mx-1.5 text-border">·</span>
             {API_OPTS.find((o) => o.v === p.api)?.l || p.api || t('models.apiNotSetLabel')}
@@ -102,43 +101,44 @@ export function ModelsProviderCard({
             {maskApiKey(p.apiKey)}
           </div>
         </div>
-        <div className="shrink-0 text-right">
-          <div className="font-mono text-sm text-foreground">{modelCount}</div>
-          <div className="text-2xs text-muted-foreground">{t('models.modelLabel')}</div>
-        </div>
+        <span className="shrink-0 text-[12px] tabular-nums text-foreground-secondary">{t('models.modelCount', { count: modelCount })}</span>
       </button>
 
       <div className="settings-expand-grid" data-open={open}>
         <div className="settings-expand-inner">
-          <div className="settings-expand-content space-y-4 border-t border-border/40 bg-background/30 px-4 py-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">{t('models.changeTemplate')}</span>
-              {PROVIDER_PRESETS.slice(0, 6).map((pr) => (
-                <button
-                  key={pr.id}
-                  type="button"
-                  className="settings-chip rounded-full border border-border/60 px-2 py-0.5 text-2xs"
-                  title={pr.tagline}
-                  onClick={() => onApplyPreset(pr)}
-                >
-                  {pr.label}
-                </button>
-              ))}
-            </div>
+          <div className="settings-expand-content space-y-5 px-4 py-4">
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t('models.labelName')}</label>
+                <label className="mb-1 flex items-center justify-between text-[11.5px] text-foreground-secondary">
+                  {t('models.labelName')}
+                  <select
+                    aria-label={t('models.changeTemplate')}
+                    className="max-w-[10rem] bg-transparent text-right text-[11.5px] text-foreground-secondary outline-none hover:text-foreground"
+                    value=""
+                    onChange={(e) => {
+                      const pr = PROVIDER_PRESETS.find((x) => x.id === e.target.value)
+                      if (pr) onApplyPreset(pr)
+                    }}
+                  >
+                    <option value="">{t('models.fillFromTemplate')}</option>
+                    {PROVIDER_PRESETS.map((pr) => (
+                      <option key={pr.id} value={pr.id}>
+                        {pr.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <input
-                  className={inputCls}
+                  className={cn(inputCls, fieldCls)}
                   value={p.name || ''}
                   onChange={(e) => onUpdateProvider({ name: e.target.value || undefined })}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-muted-foreground">{t('models.labelApi')}</label>
+                <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelApi')}</label>
                 <select
-                  className={cn(selectCls, 'w-full')}
+                  className={cn(selectCls, fieldCls, 'w-full')}
                   value={p.api || 'openai-completions'}
                   onChange={(e) => onUpdateProvider({ api: e.target.value as PiModelsProviderConfig['api'] })}
                 >
@@ -150,19 +150,19 @@ export function ModelsProviderCard({
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-muted-foreground">{t('models.labelBaseUrl')}</label>
+                <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelBaseUrl')}</label>
                 <input
-                  className={inputCls}
+                  className={cn(inputCls, fieldCls)}
                   value={p.baseUrl || ''}
                   placeholder="https://api.example.com/v1"
                   onChange={(e) => onUpdateProvider({ baseUrl: e.target.value || undefined })}
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-muted-foreground">{t('models.labelApiKey')}</label>
+                <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelApiKey')}</label>
                 <div className="relative">
                   <input
-                    className={cn(inputCls, 'pr-9')}
+                    className={cn(inputCls, fieldCls, 'pr-9')}
                     type={apiKeyVisible ? 'text' : 'password'}
                     value={p.apiKey || ''}
                     placeholder="$OPENAI_API_KEY"
@@ -204,7 +204,7 @@ export function ModelsProviderCard({
             </div>
 
             <div className="space-y-2">
-              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">{t('models.remoteModels')}</div>
+              <h4 className="text-[12px] font-medium text-foreground">{t('models.remoteModels')}</h4>
               <ModelCatalogPicker
                 ids={remoteIds}
                 localIds={new Set((p.models || []).map((m) => m.id))}
@@ -217,13 +217,11 @@ export function ModelsProviderCard({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                  {t('models.localCount', { count: modelCount })}
-                </span>
-                <span className="text-2xs text-muted-foreground/50">{t('models.expandToEdit')}</span>
+                <h4 className="text-[12px] font-medium text-foreground">{t('models.localCount', { count: modelCount })}</h4>
+                <span className="text-[11.5px] text-foreground-secondary">{t('models.expandToEdit')}</span>
               </div>
               {modelCount > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {(p.models || []).map((m) => {
                     const rowKey = `${pid}\0${m.id}`
                     const rowExpanded = expandedLocalModel[rowKey] === true
@@ -241,13 +239,13 @@ export function ModelsProviderCard({
                   })}
                 </div>
               ) : (
-                <p className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-xs text-muted-foreground/70">
+                <p className="rounded-lg border border-dashed border-[var(--border-base)] px-3 py-4 text-center text-[12px] text-foreground-secondary">
                   {t('models.localEmptyHint')}
                 </p>
               )}
             </div>
 
-            {hasOverrides && <p className="text-2xs text-muted-foreground">{t('models.containsOverrides')}</p>}
+            {hasOverrides && <p className="text-[11.5px] text-foreground-secondary">{t('models.containsOverrides')}</p>}
           </div>
         </div>
       </div>

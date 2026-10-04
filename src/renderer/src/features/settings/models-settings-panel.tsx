@@ -306,16 +306,11 @@ export function ModelsSettingsPanel() {
         </details>
       )}
 
-      <section className="space-y-3" data-testid="user-provider-section">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5">
-            <Boxes className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground">{t('models.userProvidersTitle')}</h3>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                {t('models.userProvidersDescription', { count: providerIds.length })}
-              </p>
-            </div>
+      <section className="space-y-2.5" data-testid="user-provider-section">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0 px-1">
+            <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{t('models.userProvidersTitle')}</h3>
+            <p className="mt-0.5 text-[12.5px] leading-[1.6] text-foreground-secondary">{t('models.userProvidersDescription', { count: providerIds.length })}</p>
           </div>
           <div className="relative">
             <button type="button" className={btnPrimary} onClick={() => setAddMenuOpen((o) => !o)}>

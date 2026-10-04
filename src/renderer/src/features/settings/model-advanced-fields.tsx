@@ -1,16 +1,23 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight } from '@renderer/components/icons'
-import { inputCls as settingsInputCls } from '@renderer/features/settings/settings-controls'
+import { inputCls as settingsInputCls, selectCls } from '@renderer/features/settings/settings-controls'
 import { cn } from '@renderer/lib/utils'
-import { IMAGE_RESIZE_KEYS, PROMPT_CACHE_KEYS, SAMPLING_KEYS, getIn, hasAdvanced, parseNumberInput, setIn } from './model-advanced'
+import { IMAGE_RESIZE_KEYS, SAMPLING_KEYS, getIn, hasAdvanced, parseNumberInput, setIn } from './model-advanced'
 import type { LocalModelEntry } from './model-entry-editor'
 
-const cellCls = cn(settingsInputCls, 'h-6 px-1.5 py-0 text-right text-[11px] tabular-nums')
-const labelCls = 'text-2xs font-medium text-muted-foreground/70'
-const hintCls = 'text-2xs leading-4 text-muted-foreground/55'
+const cellCls = cn(settingsInputCls, 'settings-field h-[28px] px-2 py-0 text-right text-[12px] tabular-nums')
+const titleCls = 'text-[12px] font-medium text-foreground'
+const hintCls = 'text-[11.5px] leading-[1.5] text-foreground-secondary'
 
 const LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+
+/** OpenAI-compatible request quirks; unset means pi detects them from the URL. */
+const COMPAT_BOOLS = ['supportsDeveloperRole', 'supportsReasoningEffort', 'supportsUsageInStreaming'] as const
+const COMPAT_CHOICES = {
+  maxTokensField: ['max_completion_tokens', 'max_tokens'],
+  thinkingFormat: ['openai', 'openrouter', 'deepseek', 'together', 'zai', 'qwen', 'qwen-chat-template', 'chat-template', 'string-thinking'],
+} as const
 
 /** Number input that commits on blur; blank clears the key, invalid text snaps back. */
 function NumCell({
@@ -52,37 +59,33 @@ function NumCell({
 }
 
 /**
- * Collapsible "Advanced" block of a model entry: sampling (base + per thinking level, OpenAI-compatible
- * APIs), image input limits and prompt cache lifetimes. Writes straight into the entry's fields.
+ * Collapsible "Advanced" block of a model entry: sampling (base + per thinking level), image input
+ * limits, and compatibility switches for OpenAI-compatible endpoints.
  */
 export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntry; onChange: (patch: Partial<LocalModelEntry>) => void }) {
   const { t } = useTranslation('settings')
   const [open, setOpen] = useState(() => hasAdvanced(model))
   const hasImage = Array.isArray(model.input) && model.input.includes('image')
   const levels = model.reasoning ? LEVELS : (['off'] as const)
+  const compatValue = (key: string) => getIn(model.compat, [key])
 
   return (
-    <div className="sm:col-span-2" data-model-advanced="">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-2xs text-muted-foreground hover:text-foreground"
-      >
+    <div data-model-advanced="" className="border-t border-[var(--settings-divider)] pt-3">
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[12px] text-foreground-secondary hover:text-foreground">
         <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} strokeWidth={2} />
         {t('models.advanced.title')}
       </button>
       {open ? (
-        <div className="mt-2 space-y-3 border-l border-border/60 pl-3">
-          <div>
-            <div className={labelCls}>{t('models.advanced.sampling')}</div>
+        <div className="mt-3 space-y-5">
+          <section>
+            <h4 className={titleCls}>{t('models.advanced.sampling')}</h4>
             <p className={hintCls}>{t('models.advanced.samplingHint')}</p>
-            <table className="mt-1 w-full max-w-[26rem] border-separate border-spacing-x-1 border-spacing-y-0.5 text-[11px]">
+            <table className="mt-2 w-full max-w-[28rem] border-separate border-spacing-x-1.5 border-spacing-y-1 text-[12px]">
               <thead>
-                <tr className="text-muted-foreground/70">
+                <tr className="text-foreground-secondary">
                   <th className="w-20 text-left font-normal" />
                   {SAMPLING_KEYS.map((k) => (
-                    <th key={k} className="text-right font-normal font-mono">
+                    <th key={k} className="text-right font-mono text-[11.5px] font-normal">
                       {k}
                     </th>
                   ))}
@@ -90,7 +93,7 @@ export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntr
               </thead>
               <tbody>
                 <tr>
-                  <td className="text-muted-foreground">{t('models.advanced.base')}</td>
+                  <td className="text-foreground-secondary">{t('models.advanced.base')}</td>
                   {SAMPLING_KEYS.map((k) => (
                     <td key={k}>
                       <NumCell
@@ -105,7 +108,7 @@ export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntr
                 </tr>
                 {levels.map((level) => (
                   <tr key={level}>
-                    <td className="font-mono text-muted-foreground">{level}</td>
+                    <td className="font-mono text-foreground-secondary">{level}</td>
                     {SAMPLING_KEYS.map((k) => (
                       <td key={k}>
                         <NumCell
@@ -113,7 +116,7 @@ export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntr
                           value={getIn(model.samplingParamsByThinkingLevel, [level, k])}
                           integer={k === 'top_k'}
                           min={0}
-                          placeholder="·"
+                          placeholder="—"
                           onCommit={(v) => onChange({ samplingParamsByThinkingLevel: setIn(model.samplingParamsByThinkingLevel, [level, k], v) })}
                         />
                       </td>
@@ -122,15 +125,15 @@ export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntr
                 ))}
               </tbody>
             </table>
-          </div>
+          </section>
 
           {hasImage ? (
-            <div>
-              <div className={labelCls}>{t('models.advanced.images')}</div>
+            <section>
+              <h4 className={titleCls}>{t('models.advanced.images')}</h4>
               <p className={hintCls}>{t('models.advanced.imagesHint')}</p>
-              <div className="mt-1 grid max-w-[26rem] grid-cols-4 gap-1">
+              <div className="mt-2 grid max-w-[28rem] grid-cols-4 gap-1.5">
                 {IMAGE_RESIZE_KEYS.map((k) => (
-                  <label key={k} className="flex flex-col gap-0.5 text-[10.5px] text-muted-foreground/70">
+                  <label key={k} className="flex flex-col gap-1 text-[11.5px] text-foreground-secondary">
                     <span className="font-mono">{k}</span>
                     <NumCell
                       label={`inputLimits.images.resize.${k}`}
@@ -144,53 +147,48 @@ export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntr
                   </label>
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
 
-          <div>
-            <div className={labelCls}>{t('models.advanced.promptCache')}</div>
-            <p className={hintCls}>{t('models.advanced.promptCacheHint')}</p>
-            <div className="mt-1 grid max-w-[13rem] grid-cols-2 gap-1">
-              {PROMPT_CACHE_KEYS.map((k) => (
-                <label key={k} className="flex flex-col gap-0.5 text-[10.5px] text-muted-foreground/70">
-                  <span>{t(`models.advanced.cache_${k}`)}</span>
-                  <NumCell
-                    label={`promptCache.${k}`}
-                    value={getIn(model.promptCache, [k])}
-                    integer
-                    min={1}
-                    placeholder={k === 'short' ? '300' : '3600'}
-                    onCommit={(v) => onChange({ promptCache: setIn(model.promptCache, [k], v) })}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className={labelCls}>{t('models.advanced.transcript')}</div>
-            <p className={hintCls}>{t('models.advanced.transcriptHint')}</p>
-            <div className="mt-1 flex flex-col gap-1">
-              {(['supportsMidConvoSystemMessages', 'supportsMidConvoToolAdditions'] as const).map((key) => (
-                <label key={key} className="flex cursor-pointer items-center gap-2 text-[11.5px] text-foreground-secondary">
-                  <input
-                    type="checkbox"
+          <section>
+            <h4 className={titleCls}>{t('models.advanced.compat')}</h4>
+            <p className={hintCls}>{t('models.advanced.compatHint')}</p>
+            <div className="mt-2 grid max-w-[40rem] gap-x-4 gap-y-2 sm:grid-cols-2">
+              {COMPAT_BOOLS.map((key) => (
+                <label key={key} className="flex items-center justify-between gap-3 text-[12px] text-foreground">
+                  <span className="min-w-0 truncate">{t(`models.advanced.${key}`)}</span>
+                  <select
                     aria-label={`compat.${key}`}
-                    className="h-3.5 w-3.5 rounded border-border [accent-color:hsl(var(--foreground))]"
-                    checked={getIn(model.compat, [key]) === true}
-                    disabled={key === 'supportsMidConvoToolAdditions' && getIn(model.compat, ['supportsMidConvoSystemMessages']) !== true}
-                    onChange={(e) => {
-                      let compat = setIn(model.compat, [key], e.target.checked ? true : undefined)
-                      if (key === 'supportsMidConvoSystemMessages' && !e.target.checked) compat = setIn(compat, ['supportsMidConvoToolAdditions'], undefined)
-                      onChange({ compat })
-                    }}
-                  />
-                  {t(`models.advanced.${key}`)}
-                  <code className="font-mono text-[10.5px] text-muted-foreground/60">{key}</code>
+                    className={cn(selectCls, 'settings-field h-[28px] min-w-[6.5rem] py-0 text-[12px]')}
+                    value={compatValue(key) === true ? 'yes' : compatValue(key) === false ? 'no' : 'auto'}
+                    onChange={(e) => onChange({ compat: setIn(model.compat, [key], e.target.value === 'auto' ? undefined : e.target.value === 'yes') })}
+                  >
+                    <option value="auto">{t('models.advanced.auto')}</option>
+                    <option value="yes">{t('models.advanced.yes')}</option>
+                    <option value="no">{t('models.advanced.no')}</option>
+                  </select>
+                </label>
+              ))}
+              {(Object.keys(COMPAT_CHOICES) as (keyof typeof COMPAT_CHOICES)[]).map((key) => (
+                <label key={key} className="flex items-center justify-between gap-3 text-[12px] text-foreground">
+                  <span className="min-w-0 truncate">{t(`models.advanced.${key}`)}</span>
+                  <select
+                    aria-label={`compat.${key}`}
+                    className={cn(selectCls, 'settings-field h-[28px] min-w-[6.5rem] py-0 font-mono text-[12px]')}
+                    value={typeof compatValue(key) === 'string' ? String(compatValue(key)) : ''}
+                    onChange={(e) => onChange({ compat: setIn(model.compat, [key], e.target.value || undefined) })}
+                  >
+                    <option value="">{t('models.advanced.auto')}</option>
+                    {COMPAT_CHOICES[key].map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               ))}
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
     </div>

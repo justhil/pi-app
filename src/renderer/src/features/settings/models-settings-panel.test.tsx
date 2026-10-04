@@ -247,7 +247,7 @@ describe('ModelsSettingsPanel save', () => {
     render(<ModelsSettingsPanel />)
 
     expect(await screen.findByText('store-only')).toBeTruthy()
-    expect(screen.getByText(/SDK-managed.*read-only/i)).toBeTruthy()
+    expect(screen.getByTestId('sdk-provider-section')).toHaveTextContent(/read-only/i)
     expect(screen.getByText(/API key.*environment/i)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'edit provider' }))
     await waitFor(() => expect(getDirtySettingsSlices().map((slice) => slice.id)).toEqual(['pi-models']))
@@ -296,7 +296,7 @@ describe('ModelsSettingsPanel save', () => {
 
     expect(await screen.findByText('custom')).toBeTruthy()
     expect(screen.getByText('store-only')).toBeTruthy()
-    expect(screen.getByText(/SDK-managed.*read-only/i)).toBeTruthy()
+    expect(screen.getByTestId('sdk-provider-section')).toHaveTextContent(/read-only/i)
     expect(screen.getByText(/OAuth.*stored/i)).toBeTruthy()
     expect(getRequest('pi.models.set')).toEqual([])
   })
@@ -324,8 +324,8 @@ describe('ModelsSettingsPanel save', () => {
 
     render(<ModelsSettingsPanel />)
 
-    expect(await screen.findByText(/SDK-managed.*auth not configured/i)).toBeTruthy()
-    expect(screen.getByText(/SDK-managed.*auth status unavailable/i)).toBeTruthy()
+    expect(await screen.findByText(/auth not configured/i)).toBeTruthy()
+    expect(screen.getByText(/auth status unavailable/i)).toBeTruthy()
   })
 
   it('displays SDK catalog models when models.json only has overrides and saves only the config draft', async () => {

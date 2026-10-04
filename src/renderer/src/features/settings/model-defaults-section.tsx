@@ -271,7 +271,7 @@ export function ModelDefaultsSection() {
             })}
           </ul>
         ) : (
-          <p className="mt-3 rounded-lg border border-dashed border-border/70 px-3 py-3 text-center text-[12px] text-foreground-secondary">
+          <p className="mt-2 text-[12px] text-foreground-secondary">
             {t('settings:modelDefaults.bindingsEmpty')}
           </p>
         )}

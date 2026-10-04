@@ -30,6 +30,8 @@ describe('model advanced fields', () => {
 
   it('detects advanced fields', () => {
     expect(hasAdvanced({ id: 'x' })).toBe(false)
-    expect(hasAdvanced({ id: 'x', promptCache: { short: 300 } })).toBe(true)
+    expect(hasAdvanced({ id: 'x', samplingParams: { top_p: 1 } })).toBe(true)
+    expect(hasAdvanced({ id: 'x', compat: { maxTokensField: 'max_tokens' } })).toBe(true)
+    expect(hasAdvanced({ id: 'x', promptCache: { short: 300 } })).toBe(false)
   })
 })

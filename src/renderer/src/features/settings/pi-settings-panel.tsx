@@ -273,7 +273,6 @@ export function PiSettingsPanel() {
           queuePatch={queuePatch}
         />
       )}
-      <p className="text-2xs text-muted-foreground/50">{t('settings:pi.treeHint')}</p>
     </div>
   )
 }

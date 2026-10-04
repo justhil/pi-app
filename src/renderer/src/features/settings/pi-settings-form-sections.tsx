@@ -252,14 +252,6 @@ export function PiSettingsFormSections({
             onChange={(next) => queuePatch({ compactionModelOverrides: next })}
           />
         </SettingRow>
-        <SettingRow label={t('settings:pi.branchSummary')} description={t('settings:pi.branchSummaryDesc')} settingKey="branchSummary">
-          <span className="text-[12px] tabular-nums text-foreground-secondary">
-            {t('settings:pi.branchSummaryValue', {
-              reserve: String(ui?.branchSummaryReserveTokens ?? 16384),
-              skip: ui?.branchSummarySkipPrompt ? t('settings:pi.yes') : t('settings:pi.no'),
-            })}
-          </span>
-        </SettingRow>
       </SettingsSection>
 
       <SettingsSection title={t('settings:pi.sectionTools')} description={t('settings:pi.sectionToolsDesc')}>
@@ -286,27 +278,31 @@ export function PiSettingsFormSections({
             onChange={(v) => queuePatch({ defaultTools: withTool(ui?.defaultTools, 'codemode', v) })}
           />
         </SettingRow>
-        <SettingRow label={t('settings:pi.codemodeMode')} description={t('settings:pi.codemodeModeDesc')} settingKey="codemode.mode">
-          <select
-            className={selectCls}
-            value={String(ui?.codemodeMode || 'on')}
-            disabled={!ui}
-            onChange={(e) => queuePatch({ codemodeMode: e.target.value })}
-          >
-            <option value="on">{t('settings:pi.codemodeModeOn')}</option>
-            <option value="only">{t('settings:pi.codemodeModeOnly')}</option>
-          </select>
-        </SettingRow>
-        <SettingRow label={t('settings:pi.codemodeBudget')} description={t('settings:pi.codemodeBudgetDesc')} settingKey="codemode.inlineBudget">
-          <NumberField
-            value={ui?.codemodeInlineBudget}
-            fallback={3000}
-            epochKey={`codemodeBudget-${formEpoch}`}
-            step={500}
-            disabled={!ui}
-            onCommit={(n) => queuePatch({ codemodeInlineBudget: n })}
-          />
-        </SettingRow>
+        {enabledTools.has('codemode') ? (
+          <>
+          <SettingRow label={t('settings:pi.codemodeMode')} description={t('settings:pi.codemodeModeDesc')} settingKey="codemode.mode">
+            <select
+              className={selectCls}
+              value={String(ui?.codemodeMode || 'on')}
+              disabled={!ui}
+              onChange={(e) => queuePatch({ codemodeMode: e.target.value })}
+            >
+              <option value="on">{t('settings:pi.codemodeModeOn')}</option>
+              <option value="only">{t('settings:pi.codemodeModeOnly')}</option>
+            </select>
+          </SettingRow>
+          <SettingRow label={t('settings:pi.codemodeBudget')} description={t('settings:pi.codemodeBudgetDesc')} settingKey="codemode.inlineBudget">
+            <NumberField
+              value={ui?.codemodeInlineBudget}
+              fallback={3000}
+              epochKey={`codemodeBudget-${formEpoch}`}
+              step={500}
+              disabled={!ui}
+              onCommit={(n) => queuePatch({ codemodeInlineBudget: n })}
+            />
+          </SettingRow>
+          </>
+        ) : null}
         <SettingRow label={t('settings:pi.toolSearch')} description={t('settings:pi.toolSearchDesc')} settingKey="defaultTools" badge={needs('0.99.0')}>
           <Toggle
             on={enabledTools.has('tool_search')}
@@ -359,9 +355,6 @@ export function PiSettingsFormSections({
         <SettingRow label={t('settings:pi.blockImages')} description={t('settings:pi.blockImagesDesc')} settingKey="images.blockImages">
           <Toggle on={!!ui?.blockImages} disabled={!ui} onChange={(v) => queuePatch({ blockImages: v })} />
         </SettingRow>
-        <SettingRow label={t('settings:pi.showImages')} description={t('settings:pi.showImagesDesc')} settingKey="terminal.showImages">
-          <Toggle on={ui?.showImages !== false} disabled={!ui} onChange={(v) => queuePatch({ showImages: v })} />
-        </SettingRow>
       </SettingsSection>
 
       <SettingsSection title={t('settings:pi.sectionTrust')} description={t('settings:pi.sectionTrustDesc')}>
@@ -383,9 +376,6 @@ export function PiSettingsFormSections({
             disabled={!ui}
             onChange={(v) => queuePatch({ enableSkillCommands: v })}
           />
-        </SettingRow>
-        <SettingRow label={t('settings:pi.quietStartup')} description={t('settings:pi.quietStartupDesc')} settingKey="quietStartup">
-          <Toggle on={!!ui?.quietStartup} disabled={!ui} onChange={(v) => queuePatch({ quietStartup: v })} />
         </SettingRow>
       </SettingsSection>
     </>

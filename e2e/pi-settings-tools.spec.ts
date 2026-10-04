@@ -114,6 +114,8 @@ test.describe('pi settings · tools', () => {
       await fill('samplingParamsByThinkingLevel.off.top_p', '0.8')
       await fill('inputLimits.images.resize.maxWidth', '1568')
       await fill('promptCache.short', '300')
+      await fill('cost.input', '3')
+      await fill('cost.output', '15')
       await win.getByLabel('compat.supportsMidConvoSystemMessages').check()
       await win.getByLabel('compat.supportsMidConvoToolAdditions').check()
       if (process.env.SHOT) {
@@ -130,6 +132,7 @@ test.describe('pi settings · tools', () => {
       expect(entry.samplingParamsByThinkingLevel).toEqual({ off: { top_p: 0.8 } })
       expect(entry.inputLimits).toEqual({ images: { resize: { maxWidth: 1568 } } })
       expect(entry.contextWindow).toBe(200000)
+      expect(entry.cost).toEqual({ input: 3, output: 15, cacheRead: 0, cacheWrite: 0 })
       expect(entry.compat).toEqual({ supportsMidConvoSystemMessages: true, supportsMidConvoToolAdditions: true })
     } finally {
       await agent.close()

@@ -61,7 +61,7 @@
     --diff-removed: #e11d48;
 
     /* Border */
-    --border-base: #e5e6eb;
+    --border-base: #dfe0e6;
     --border-light: #f2f3f5;
 
     /* Focus ring (参考桌面客户端 useInputFocusRing) */
@@ -75,13 +75,13 @@
       -3px 0 8px -4px rgba(18, 24, 40, 0.14),
       var(--main-chat-surface-shadow-top);
     --composer-shell-radius: 14px;
-    --composer-shell-border: color-mix(in srgb, var(--border-base) 88%, #b7bcc6);
+    --composer-shell-border: color-mix(in srgb, var(--border-base) 70%, #a9aeb9);
     --composer-shell-border-hover: color-mix(in srgb, var(--border-base) 70%, #9aa0ab);
     --composer-shell-border-focus: color-mix(in srgb, var(--brand) 40%, #8b91a0);
     /* Embedded, not floating: a hairline lift instead of a wide drop shadow. */
     --composer-shell-shadow:
-      0 1px 2px rgba(18, 24, 40, 0.05),
-      0 6px 16px -10px rgba(18, 24, 40, 0.12);
+      0 1px 2px rgba(18, 24, 40, 0.06),
+      0 10px 24px -14px rgba(18, 24, 40, 0.18);
     --composer-shell-shadow-hover:
       0 1px 2px rgba(18, 24, 40, 0.06),
       0 8px 18px -10px rgba(18, 24, 40, 0.14);
@@ -131,12 +131,12 @@
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
     --muted: 240 4.8% 96.1%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted-foreground: 240 4% 40%;
     --accent: 240 4.8% 94%;
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
+    --border: 240 6% 87.5%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
     --radius: 0.625rem;
@@ -160,7 +160,8 @@
     --list-row-selected: #eceef2;
 
     /* Secondary text — 与 --muted-foreground 同值，次级灰单一来源 */
-    --text-secondary-hsl: 240 3.8% 46.1%;
+    /* Secondary text is a solid step, not a faded one: descriptions must stay readable at 11–12px. */
+    --text-secondary-hsl: 240 4% 37%;
 
     /* Accent colors for tool types */
     --tool-read: 220 90% 56%;
@@ -289,7 +290,7 @@
     --sidebar-row-selected: #313137;
     --list-row-selected: #2a2b2f;
 
-    --text-secondary-hsl: 0 0% 62%;
+    --text-secondary-hsl: 0 0% 67%;
 
     --tool-read: 212 90% 68%;
     --tool-edit: 38 70% 55%;
@@ -3229,12 +3230,17 @@
 .settings-page-enter { animation: settings-page-in 260ms var(--motion-ease) both; }
 @keyframes settings-page-in { from { opacity: 0; transform: translateY(6px); } }
 .settings-section + .settings-section { margin-top: 2px; }
+/* Settings sit on a tinted page with solid cards: the page/card step gives the layout weight. */
+.settings-main { --settings-divider: color-mix(in srgb, var(--border-base) 80%, transparent); }
+:root:not(.dark) .settings-main { background: color-mix(in srgb, var(--bg-2) 55%, var(--bg-base)) !important; }
 .settings-card {
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border-base) 85%, transparent);
+  border: 1px solid var(--border-base);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-1) 55%, var(--bg-base));
+  background: var(--bg-base);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
+.dark .settings-card { background: var(--bg-1); box-shadow: none; }
 .settings-card > * + * { border-top: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent); }
 .settings-card > .settings-row {
   min-height: 60px;
@@ -3424,3 +3430,33 @@
 }
 .pi-runtime-tile[data-active] { background: color-mix(in srgb, var(--brand) 5%, var(--bg-base)); }
 @media (max-width: 560px) { .pi-runtime-tiles { grid-template-columns: 1fr; } }
+
+/* ── Settings form controls (models page and friends) ── */
+.settings-field {
+  border-color: var(--border-base);
+  background: color-mix(in srgb, var(--bg-2) 40%, var(--bg-base));
+  color: var(--text-primary);
+  transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+.settings-field:hover { border-color: color-mix(in srgb, var(--border-base) 70%, var(--text-secondary)); }
+.settings-field:focus { background: var(--bg-base); }
+.settings-field[readonly] { color: hsl(var(--text-secondary-hsl)); background: transparent; }
+.settings-segmented { background: var(--bg-2); }
+.settings-segmented-item { color: hsl(var(--text-secondary-hsl)); transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
+.settings-segmented-item:hover { color: var(--text-primary); }
+.settings-segmented-item[aria-checked='true'] {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base);
+}
+.dark .settings-segmented-item[aria-checked='true'] { background: var(--bg-3); }
+.settings-check { accent-color: hsl(var(--foreground)); }
+.settings-model-entry {
+  border-color: var(--border-base);
+  background: var(--bg-base);
+  transition: box-shadow var(--motion-fast) ease;
+}
+.settings-model-entry[data-open='true'] { box-shadow: 0 2px 8px -4px rgba(16, 24, 40, 0.12); }
+.settings-model-entry-panel { border-color: var(--settings-divider); }
+.dark .settings-model-entry { background: var(--bg-1); }
+

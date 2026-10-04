@@ -45,7 +45,7 @@ export const PROMPT_CACHE_KEYS = ['short', 'long'] as const
 export function hasAdvanced(model: Obj): boolean {
   const compat = isObj(model.compat) ? model.compat : {}
   return (
-    ['samplingParams', 'samplingParamsByThinkingLevel', 'inputLimits', 'promptCache'].some((k) => model[k] !== undefined) ||
-    compat.supportsMidConvoSystemMessages !== undefined
+    ['samplingParams', 'samplingParamsByThinkingLevel', 'inputLimits'].some((k) => model[k] !== undefined) ||
+    ['supportsDeveloperRole', 'supportsReasoningEffort', 'supportsUsageInStreaming', 'maxTokensField', 'thinkingFormat'].some((k) => compat[k] !== undefined)
   )
 }
