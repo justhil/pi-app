@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
-import { plainText, previewRows } from './pane-preview'
+import { pickPreviewSource, plainText, previewRows } from './pane-preview'
 
 const it_ = (id: string, type: TimelineItem['type'], extra: Partial<TimelineItem> = {}) => ({ id, type, ...extra }) as TimelineItem
 
@@ -26,5 +26,22 @@ describe('plainText', () => {
   it('drops markdown syntax but keeps the words', () => {
     expect(plainText('## 结论\n**没有**开源协议，见 `LICENSE` 和 [链接](http://x)')).toBe('结论\n没有开源协议，见 LICENSE 和 链接')
     expect(plainText('| 部分 | 许可 |\n|---|---|\n| src | 无 |')).toBe('部分 · 许可\n\nsrc · 无')
+  })
+})
+
+describe('pickPreviewSource', () => {
+  const u = it_('u', 'user-message', { text: 'q' })
+  const a = it_('a', 'assistant-message', { text: 'answer' })
+  it('prefers a source whose latest turn has its answer', () => {
+    expect(pickPreviewSource([u], [u, a], null)).toEqual([u, a])
+    expect(pickPreviewSource([u, a], [u], null)).toEqual([u, a])
+  })
+  it('follows a running turn that is ahead of the disk', () => {
+    const u2 = it_('u2', 'user-message', { text: 'next' })
+    expect(pickPreviewSource([u, a, u2], [u, a], null)).toEqual([u, a, u2])
+  })
+  it('falls back to whatever exists', () => {
+    expect(pickPreviewSource(null, null, [u])).toEqual([u])
+    expect(pickPreviewSource(null, null, null)).toBeNull()
   })
 })

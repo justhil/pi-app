@@ -1,3 +1,4 @@
+import { refreshAgentContext } from '../session-context-refresh.js'
 import { sessionTreePreview, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
 import { projectTimelineItems } from '@shared/timeline-projection'
@@ -22,6 +23,8 @@ import {
   listSessions,
   availableThinkingLevels,
 } from '../worker-runtime.js'
+
+
 
 function currentModelFallbackMessage(): string | undefined {
   const message = String(st.runtime?.modelFallbackMessage || '').trim()
@@ -155,9 +158,7 @@ function applyLeafOverrideToLiveSession(leafId: string | null | undefined): void
       sm.branch(leafId)
     }
     const ctx = sm.buildSessionContext?.()
-    if (ctx?.messages && st.session.agent?.state) {
-      st.session.agent.state.messages = ctx.messages
-    }
+    if (ctx?.messages) refreshAgentContext(st.session as never, ctx.messages)
   } catch (e) {
     console.error('[Worker] applyLeafOverride failed:', e)
   }

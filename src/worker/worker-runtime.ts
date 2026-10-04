@@ -1,3 +1,4 @@
+import { refreshAgentContext } from './session-context-refresh.js'
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -23,6 +24,8 @@ import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 import { capabilitiesExtension } from './worker-capabilities.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
+
+
 
 export type WorkerModelRuntime = Pick<
   ModelRuntime,
@@ -322,9 +325,7 @@ export async function switchOrLoadSession(
       if (leafOverride === null) sm.resetLeaf?.()
       else if (leafOverride.length > 0) sm.branch(leafOverride)
       const ctx = sm.buildSessionContext?.()
-      if (ctx?.messages && st.session.agent?.state) {
-        st.session.agent.state.messages = ctx.messages
-      }
+      if (ctx?.messages) refreshAgentContext(st.session as never, ctx.messages)
     } catch (e) {
       console.warn('[Worker] leaf override after switchSession failed:', e)
     }

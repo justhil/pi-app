@@ -32,7 +32,7 @@
     "regress:composer-undo": "node scripts/regression/composer-undo.mjs"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@earendil-works/pi-coding-agent": "1.0.2",
     "@fluentui/react-icons": "2.0.334",
     "@hugeicons/core-free-icons": "4.2.3",
     "@hugeicons/react": "1.1.9",

@@ -49,7 +49,7 @@ function decorateTool(registered: RegisteredTool): RegisteredTool {
         return execute(toolCallId, params, signal, onUpdate, {
           ...context,
           ui,
-        } as ExtensionContext)
+        } as typeof context)
       },
     },
   }

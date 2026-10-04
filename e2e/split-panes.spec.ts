@@ -83,8 +83,8 @@ test.describe('split panes', () => {
         })
       expect(await fill()).toBeLessThan(2)
       await agent.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(820, 760))
-      await win.waitForTimeout(600)
-      expect(await fill()).toBeLessThan(2)
+      // The shell animates its columns; wait for the layout to settle.
+      await expect.poll(fill, { timeout: 5000 }).toBeLessThan(2)
     } finally {
       await agent.close()
       model.close()

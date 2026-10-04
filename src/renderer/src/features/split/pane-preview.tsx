@@ -54,6 +54,18 @@ function readLive(sessionFile: string): TimelineItem[] | null {
   return live?.length ? live : null
 }
 
+/**
+ * Which source to show: the one that reaches the latest turn (most user messages), then the
+ * one whose latest turn already has its answer, then the longest. A background run's live
+ * stream is ahead of the disk while it answers; a stale live cache loses to a newer disk tail.
+ */
+export function pickPreviewSource(live: TimelineItem[] | null, disk: TimelineItem[] | null, view: TimelineItem[] | null): TimelineItem[] | null {
+  const candidates = [live, disk, view].filter((c): c is TimelineItem[] => !!c && c.length > 0)
+  if (!candidates.length) return disk ?? view ?? live
+  const turns = (c: TimelineItem[]) => c.reduce((n, it) => n + (it.type === 'user-message' ? 1 : 0), 0)
+  return candidates.sort((a, b) => turns(b) - turns(a) || Number(hasSettledReply(b)) - Number(hasSettledReply(a)) || b.length - a.length)[0]
+}
+
 /** Answer text is complete only once a non-empty assistant message follows the last user message. */
 function hasSettledReply(items: readonly TimelineItem[]): boolean {
   for (let i = items.length - 1; i >= 0; i--) {
@@ -101,11 +113,11 @@ function PanePreviewImpl({ sessionFile, running = false }: { sessionFile: string
     }
     const tick = () => {
       if (document.visibilityState !== 'visible') return
+      // Keep the disk tail fresh: a first read can land before the reply is saved.
+      if (Date.now() - lastDiskAt > 4000) void loadDisk().then(tick)
       const live = readLive(sessionFile)
-      if (live && (!disk || !hasSettledReply(disk) || live.length >= disk.length)) return show(live)
       const view = getSessionView(sessionFile)?.items
-      show(disk && disk.length ? disk : view?.length ? view : (disk ?? null))
-      if (!live && Date.now() - lastDiskAt > 4000) void loadDisk().then(tick)
+      show(pickPreviewSource(live, disk, view ?? null))
     }
     void loadDisk().then(tick)
     tick()
