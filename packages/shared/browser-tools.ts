@@ -207,6 +207,19 @@ export function leanSchema(schema: JsonSchema): JsonSchema {
 
 export const BROWSER_TOOL_NAMES: readonly string[] = BROWSER_TOOL_DEFS.map((d) => d.name)
 
+/**
+ * Declared to the model whenever browser control is on. The other browser_* tools are deferred:
+ * `tool_search` loads them when the model needs them, so each request carries 4 definitions
+ * instead of 21. (Runtimes without tool_search declare all of them.)
+ */
+export const BROWSER_CORE_TOOLS: readonly string[] = ['browser_navigate', 'browser_snapshot', 'browser_click', 'browser_type']
+
+/** Groups the browser tools for tool_search ranking ("browser" finds all of them). */
+export const BROWSER_NAMESPACE = {
+  name: 'browser',
+  description: 'pi Desktop built-in browser: tabs, scrolling, keys, forms, waits, screenshots, uploads, dialogs, console, network, PDF',
+}
+
 const typeOf = (v: unknown) => (Array.isArray(v) ? 'array' : v === null ? 'null' : typeof v)
 
 /**

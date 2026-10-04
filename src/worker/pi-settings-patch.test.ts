@@ -86,4 +86,30 @@ describe('applyPiSettingsPatch newer pi keys', () => {
     expect(sm.globalSettings).not.toHaveProperty('modelThinkingLevels')
     await expect(applyPiSettingsPatch(sm as never, { cacheWarming: 'always' })).rejects.toThrow('Invalid cacheWarming')
   })
+
+  it('writes defaultTools and codemode settings, clearing defaultTools with null', async () => {
+    const sm = manager([])
+    await applyPiSettingsPatch(sm as never, { defaultTools: ['-bash', '+codemode'], codemodeMode: 'only', codemodeInlineBudget: 1500 })
+    expect(sm.globalSettings).toMatchObject({ defaultTools: ['-bash', '+codemode'], codemode: { mode: 'only', inlineBudget: 1500 } })
+    expect(sm.markModified).toHaveBeenCalledWith('codemode', 'mode')
+    await applyPiSettingsPatch(sm as never, { defaultTools: null })
+    expect(sm.globalSettings).not.toHaveProperty('defaultTools')
+    await expect(applyPiSettingsPatch(sm as never, { defaultTools: ['rm -rf'] })).rejects.toThrow('Invalid defaultTools')
+    await expect(applyPiSettingsPatch(sm as never, { codemodeMode: 'off' })).rejects.toThrow('Invalid codemode.mode')
+  })
+
+  it('writes thinking budgets and per-model compaction overrides, dropping invalid values', async () => {
+    const sm = manager([])
+    sm.globalSettings = { compaction: { reserveTokens: 16384 } }
+    await applyPiSettingsPatch(sm as never, {
+      thinkingBudgets: { low: 2048, high: 32768, max: 1, medium: -1 },
+      compactionModelOverrides: { 'p/big': { reserveTokens: 400000, keepRecentTokens: 'x' }, nope: { reserveTokens: 1 }, 'p/empty': {} },
+    })
+    expect(sm.globalSettings).toEqual({
+      thinkingBudgets: { low: 2048, high: 32768 },
+      compaction: { reserveTokens: 16384, modelOverrides: { 'p/big': { reserveTokens: 400000 } } },
+    })
+    await applyPiSettingsPatch(sm as never, { thinkingBudgets: null, compactionModelOverrides: {} })
+    expect(sm.globalSettings).toEqual({ compaction: { reserveTokens: 16384 } })
+  })
 })

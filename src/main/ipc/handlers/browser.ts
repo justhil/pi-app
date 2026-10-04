@@ -1,4 +1,4 @@
-import { session } from 'electron'
+import { app, session } from 'electron'
 import { z } from 'zod'
 import { DEFAULT_ELECTRON_PROFILE_ID } from '@shared/browser-types'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
@@ -8,7 +8,14 @@ import { partitionForProfile, peekDownloadManager } from '../../browser/electron
 import { aria2Version, findAria2 } from '../../browser/downloads/download-manager'
 import { configureCapabilities } from '../../capabilities/catalog'
 import { configStore } from '../../config-store'
+import { resolveActiveSdk } from '../../sdk-loader'
 import { writeClipboardTempText } from '../../clipboard-temp-images'
+
+function sdkAtLeast(version: string, min: [number, number, number]): boolean {
+  const v = version.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((x) => Number.parseInt(x, 10) || 0)
+  for (let i = 0; i < 3; i++) if (v[i] !== min[i]) return v[i] > min[i]
+  return true
+}
 
 const tabId = z.string().min(1).max(64)
 const profileId = z.string().regex(/^[a-z0-9-]{1,48}$/)
@@ -16,7 +23,11 @@ const host = () => getBrowserHost(getMainWindow)
 
 export function registerBrowserHandlers(): void {
   // Browser control is only offered while the experimental Browser panel is switched on.
-  configureCapabilities({ browserPanelEnabled: () => !!configStore.get('rightPanelPrefs')?.browser })
+  configureCapabilities({
+    browserPanelEnabled: () => !!configStore.get('rightPanelPrefs')?.browser,
+    // tool_search arrived in pi 0.99; older runtimes get every browser tool declared.
+    deferTools: () => sdkAtLeast(resolveActiveSdk(app.getPath('userData')).version, [0, 99, 0]),
+  })
 
   registerHandler('ipc:browser.tabs.list', async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
 

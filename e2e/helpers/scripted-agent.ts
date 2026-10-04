@@ -13,7 +13,17 @@ export const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 const mainEntry = path.join(root, 'out/main/index.js')
 
 /** One request the scripted model received. */
-export type Seen = { system: string; tools: string[]; toolResults: number; firstUser: string; toolTexts: string[] }
+export type Seen = {
+  system: string
+  tools: string[]
+  toolResults: number
+  firstUser: string
+  toolTexts: string[]
+  /** Every message of the request, in order (role + text), to check where prompt sections land. */
+  messages: { role: string; text: string }[]
+  /** Model id the request was sent for. */
+  model: string
+}
 export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number }
 /** Next step given the user's first message and the tool results so far (oldest first). */
 export type Script = (firstUser: string, toolTexts: string[], lastUser: string) => Step
@@ -45,7 +55,7 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const firstUser = contentText(messages.find((m) => m.role === 'user') ?? {})
     const toolTexts = messages.filter((m) => m.role === 'tool').map(contentText)
     const tools = (request.tools ?? []).map((t: { function?: { name?: string } }) => t.function?.name ?? '')
-    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts })
+    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts, messages: messages.map((m) => ({ role: m.role, text: contentText(m) })), model: String(request.model ?? '') })
     const lastUser = contentText([...messages].reverse().find((m) => m.role === 'user') ?? {})
     const step = script(firstUser, toolTexts, lastUser)
 

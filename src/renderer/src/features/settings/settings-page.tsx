@@ -5,9 +5,11 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import { SlidersHorizontal, Palette, Cpu, Puzzle, Zap, MessageSquareText, Mic,
-  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, type AppIconComponent
+  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, type AppIconComponent
 } from '@renderer/components/icons'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
+import { McpSettingsPanel } from '@renderer/features/settings/mcp-settings-panel'
+import { ModelRoutingPanel } from '@renderer/features/settings/model-routing-panel'
 import { PromptsSettingsPanel } from '@renderer/features/settings/prompts-settings-panel'
 import {
   SettingsMain,
@@ -25,7 +27,7 @@ import { ExtensionsSettings } from '@renderer/features/settings/settings-extensi
 import { SettingsSearchContext } from './settings-page-shared'
 import { AdaptersSettings } from '@renderer/features/settings/settings-adapters-panel'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'adapters' | 'voice'
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice'
 
 type NavGroup = { key: string; labelKey: string; pages: { key: SettingsPage; icon: AppIconComponent }[] }
 
@@ -45,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
     pages: [
       { key: 'pi', icon: Cpu },
       { key: 'models', icon: Boxes },
+      { key: 'routing', icon: Network },
       { key: 'voice', icon: Mic },
     ],
   },
@@ -55,12 +58,13 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'skills', icon: Zap },
       { key: 'prompts', icon: MessageSquareText },
       { key: 'extensions', icon: Puzzle },
+      { key: 'mcp', icon: Plug },
       { key: 'adapters', icon: Cable },
     ],
   },
 ]
 
-const WIDE_PAGES: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'adapters', 'voice']
+const WIDE_PAGES: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice']
 
 export function SettingsPage() {
   const { t } = useTranslation()
@@ -160,6 +164,8 @@ export function SettingsPage() {
             {page === 'skills' && <SkillsSettingsPanel />}
             {page === 'prompts' && <PromptsSettingsPanel />}
             {page === 'extensions' && <ExtensionsSettings />}
+            {page === 'mcp' && <McpSettingsPanel />}
+            {page === 'routing' && <ModelRoutingPanel />}
             {page === 'adapters' && <AdaptersSettings />}
             {page === 'voice' && <VoiceSettingsPanel />}
             </>}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { inputCls as settingsInputCls } from '@renderer/features/settings/settings-controls'
 import { cn } from '@renderer/lib/utils'
 import type { PiModelsProviderConfig } from '@shared/ipc-contract'
+import { ModelAdvancedFields } from './model-advanced-fields'
 
 export type LocalModelEntry = NonNullable<PiModelsProviderConfig['models']>[number]
 
@@ -272,6 +273,7 @@ export function ModelEntryEditor({
                 )}
               </div>
             )}
+            <ModelAdvancedFields model={model} onChange={onChange} />
           </div>
         </div>
       </div>

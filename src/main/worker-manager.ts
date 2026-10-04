@@ -485,7 +485,7 @@ export class WorkerManager {
   }
 
   /** Prompt text of the enabled session capabilities, applied from the next agent turn on. */
-  async setCapabilities(sections: string[], tools: string[], sessionFile?: string): Promise<void> {
+  async setCapabilities(sections: Record<string, string>, tools: string[], sessionFile?: string): Promise<void> {
     await this.request('setCapabilities', { sections, tools, sessionFile })
   }
 
@@ -847,6 +847,11 @@ export class WorkerManager {
   async getModels(): Promise<WorkerModelRow[]> {
     const r = await this.request('getModels')
     return (r.models as WorkerModelRow[]) || []
+  }
+  /** Send one message to every live worker (e.g. settings that each session reads itself). */
+  async broadcast(type: string, data?: WorkerRequestPayload): Promise<void> {
+    const slots = [...this.pool.values()].filter((slot) => !slot.stopping)
+    await Promise.allSettled(slots.map((slot) => this.requestOnSlot(slot, type, data)))
   }
   async reloadModels(): Promise<void> {
     if (!this.isRunning) return

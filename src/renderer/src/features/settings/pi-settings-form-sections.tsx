@@ -4,6 +4,10 @@ import { cn } from '@renderer/lib/utils'
 import { SettingRow, SettingsSection, Toggle } from './settings-page-shared'
 import { inputCls, selectCls } from './settings-controls'
 import { type PiSettingsSnapshot } from './pi-settings-shared'
+import { CompactionOverridesControl, ThinkingBudgetsControl } from './pi-settings-model-rows'
+import { PI_BUILTIN_TOOLS, resolveDefaultTools, withTool } from './default-tools'
+
+const IS_WINDOWS = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)
 
 /** `a >= b` for dotted numeric versions (prerelease tags ignored). */
 export function versionAtLeast(version: string | undefined, minimum: string): boolean {
@@ -64,6 +68,7 @@ export function PiSettingsFormSections({
   queuePatch: (p: Record<string, unknown>) => void
 }) {
   const { t } = useTranslation()
+  const enabledTools = resolveDefaultTools(ui?.defaultTools)
   const needs = (minimum: string): ReactNode =>
     versionAtLeast(runtimeVersion, minimum) ? null : (
       <span className="settings-badge" data-tone="warn" title={t('settings:pi.needsVersionHint', { version: minimum })}>
@@ -97,6 +102,14 @@ export function PiSettingsFormSections({
         </SettingRow>
         <SettingRow label={t('settings:pi.hideThinking')} description={t('settings:pi.hideThinkingDesc')} settingKey="hideThinkingBlock">
           <Toggle on={!!ui?.hideThinkingBlock} disabled={!ui} onChange={(v) => queuePatch({ hideThinkingBlock: v })} />
+        </SettingRow>
+        <SettingRow label={t('settings:pi.thinkingBudgets')} description={t('settings:pi.thinkingBudgetsDesc')} settingKey="thinkingBudgets">
+          <ThinkingBudgetsControl
+            key={`budgets-${formEpoch}`}
+            value={ui?.thinkingBudgets}
+            disabled={!ui}
+            onChange={(next) => queuePatch({ thinkingBudgets: next })}
+          />
         </SettingRow>
         <SettingRow label={t('settings:pi.cacheNotices')} description={t('settings:pi.cacheNoticesDesc')} settingKey="showCacheMissNotices">
           <Toggle on={!!ui?.showCacheMissNotices} disabled={!ui} onChange={(v) => queuePatch({ showCacheMissNotices: v })} />
@@ -226,6 +239,19 @@ export function PiSettingsFormSections({
             onCommit={(n) => queuePatch({ compactionKeepRecentTokens: n })}
           />
         </SettingRow>
+        <SettingRow
+          label={t('settings:pi.compactionOverrides')}
+          description={t('settings:pi.compactionOverridesDesc')}
+          settingKey="compaction.modelOverrides"
+          badge={needs('0.86.0')}
+        >
+          <CompactionOverridesControl
+            key={`overrides-${formEpoch}`}
+            value={ui?.compactionModelOverrides}
+            disabled={!ui}
+            onChange={(next) => queuePatch({ compactionModelOverrides: next })}
+          />
+        </SettingRow>
         <SettingRow label={t('settings:pi.branchSummary')} description={t('settings:pi.branchSummaryDesc')} settingKey="branchSummary">
           <span className="text-[12px] tabular-nums text-foreground-secondary">
             {t('settings:pi.branchSummaryValue', {
@@ -233,6 +259,60 @@ export function PiSettingsFormSections({
               skip: ui?.branchSummarySkipPrompt ? t('settings:pi.yes') : t('settings:pi.no'),
             })}
           </span>
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings:pi.sectionTools')} description={t('settings:pi.sectionToolsDesc')}>
+        <SettingRow label={t('settings:pi.builtinTools')} description={t('settings:pi.builtinToolsDesc')} settingKey="defaultTools">
+          <div className="flex max-w-[22rem] flex-wrap justify-end gap-x-3 gap-y-1">
+            {[...PI_BUILTIN_TOOLS, ...(IS_WINDOWS ? ['powershell'] : [])].map((name) => (
+              <label key={name} className="flex cursor-pointer items-center gap-1.5 font-mono text-[12px] text-foreground-secondary">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-border [accent-color:hsl(var(--foreground))]"
+                  disabled={!ui}
+                  checked={enabledTools.has(name)}
+                  onChange={(e) => queuePatch({ defaultTools: withTool(ui?.defaultTools, name, e.target.checked) })}
+                />
+                {name}
+              </label>
+            ))}
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings:pi.codemode')} description={t('settings:pi.codemodeDesc')} settingKey="defaultTools" badge={needs('0.99.0')}>
+          <Toggle
+            on={enabledTools.has('codemode')}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ defaultTools: withTool(ui?.defaultTools, 'codemode', v) })}
+          />
+        </SettingRow>
+        <SettingRow label={t('settings:pi.codemodeMode')} description={t('settings:pi.codemodeModeDesc')} settingKey="codemode.mode">
+          <select
+            className={selectCls}
+            value={String(ui?.codemodeMode || 'on')}
+            disabled={!ui}
+            onChange={(e) => queuePatch({ codemodeMode: e.target.value })}
+          >
+            <option value="on">{t('settings:pi.codemodeModeOn')}</option>
+            <option value="only">{t('settings:pi.codemodeModeOnly')}</option>
+          </select>
+        </SettingRow>
+        <SettingRow label={t('settings:pi.codemodeBudget')} description={t('settings:pi.codemodeBudgetDesc')} settingKey="codemode.inlineBudget">
+          <NumberField
+            value={ui?.codemodeInlineBudget}
+            fallback={3000}
+            epochKey={`codemodeBudget-${formEpoch}`}
+            step={500}
+            disabled={!ui}
+            onCommit={(n) => queuePatch({ codemodeInlineBudget: n })}
+          />
+        </SettingRow>
+        <SettingRow label={t('settings:pi.toolSearch')} description={t('settings:pi.toolSearchDesc')} settingKey="defaultTools" badge={needs('0.99.0')}>
+          <Toggle
+            on={enabledTools.has('tool_search')}
+            disabled={!ui}
+            onChange={(v) => queuePatch({ defaultTools: withTool(ui?.defaultTools, 'tool_search', v) })}
+          />
         </SettingRow>
       </SettingsSection>
 

@@ -5,6 +5,8 @@ import type {
   AgentSessionRuntime,
   CreateAgentSessionRuntimeFactory,
   EventBus,
+  ExtensionFactory,
+  InlineExtension,
   ModelRuntime,
 } from '@earendil-works/pi-coding-agent'
 import type { AppEvent } from '@shared/app-events'
@@ -23,6 +25,7 @@ import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 import { capabilitiesExtension } from './worker-capabilities.js'
+import { modelRoutersExtension } from './worker-model-routers.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
 
 
@@ -182,6 +185,32 @@ function noteModelFallbackFromRuntime(): void {
   emitSessionModelState({ modelFallbackMessage: fallback })
 }
 
+/**
+ * The CLI loads codemode, tool_search and MCP as built-in extensions; SDK sessions only get them
+ * when the host adds them. They read `defaultTools`, `codemode.*` and `mcp.json` themselves, so the
+ * settings pages drive them. Older SDKs without the factories simply run without them.
+ */
+function piBuiltinExtensions(sdk: unknown): InlineExtension[] {
+  const s = sdk as Record<string, (() => ExtensionFactory) | undefined>
+  const out: InlineExtension[] = []
+  for (const [name, key] of [
+    ['codemode', 'createCodemodeExtension'],
+    ['tool-search', 'createToolSearchExtension'],
+    ['mcp', 'createMcpExtension'],
+  ] as const) {
+    const create = s[key]
+    if (typeof create !== 'function') continue
+    try {
+      // replaceable: an installed extension that registers the same tool/command (e.g. pi-mcp-adapter
+      // registering /mcp) replaces it, exactly like the CLI's built-ins.
+      out.push({ name, builtin: true, replaceable: true, hidden: true, factory: create() } as InlineExtension)
+    } catch (e) {
+      console.warn(`[Worker] ${key} failed:`, errorMessage(e))
+    }
+  }
+  return out
+}
+
 function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
   const sdk = st.sdk!
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
@@ -191,7 +220,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       agentDir,
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
-        extensionFactories: [capabilitiesExtension, browserToolsExtension],
+        extensionFactories: [...piBuiltinExtensions(sdk), capabilitiesExtension, browserToolsExtension, modelRoutersExtension(agentDir)],
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
         skillsOverride: applySkillsOverride as never,
       },

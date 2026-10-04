@@ -43,6 +43,7 @@ const script =
       { tool: { name: 'browser_snapshot', args: {} } },
       { tool: { name: 'browser_type', args: { target: refIn(results, /textbox "Name"/), text: 'Maya', element: 'Name field' } } },
       { tool: { name: 'browser_click', args: { target: refIn(results, /button "Save"/), element: 'Save button' } } },
+      { tool: { name: 'tool_search', args: { query: 'browser wait screenshot' } } },
       { tool: { name: 'browser_wait_for', args: { text: 'Saved Maya' } } },
       { tool: { name: 'browser_take_screenshot', args: {} } },
       { text: 'browser done' },
@@ -75,7 +76,9 @@ test.describe('browser control capability', () => {
       await win.screenshot({ path: path.join(shotDir, 'timeline.png') })
 
       const browserTurns = seen.filter((s) => s.firstUser.includes('BROWSER-TASK'))
-      expect(browserTurns[0].tools).toEqual(expect.arrayContaining(['browser_navigate', 'browser_snapshot', 'browser_click', 'browser_type', 'browser_take_screenshot']))
+      expect(browserTurns[0].tools).toEqual(expect.arrayContaining(['browser_navigate', 'browser_snapshot', 'browser_click', 'browser_type', 'tool_search']))
+      expect(browserTurns[0].tools).not.toContain('browser_take_screenshot')
+      expect(browserTurns.at(-1)!.tools).toEqual(expect.arrayContaining(['browser_wait_for', 'browser_take_screenshot']))
       expect(browserTurns[0].system).toContain('# Built-in browser')
       // Every tool call succeeded: no error codes came back, and the snapshot carried the refs.
       const results = browserTurns.at(-1)!.toolTexts

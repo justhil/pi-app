@@ -64,6 +64,11 @@ export function piSettingsSnapshot(sm: AnySettingsManager): Record<string, unkno
     websocketConnectTimeoutMs: sm.getWebSocketConnectTimeoutMs?.(),
     retryMaxAgentDelayMs: globalField<{ maxAgentDelayMs?: number }>(sm, 'retry')?.maxAgentDelayMs,
     cacheWarming: globalField<string>(sm, 'cacheWarming'),
+    defaultTools: globalField<string[]>(sm, 'defaultTools'),
+    thinkingBudgets: globalField<Record<string, number>>(sm, 'thinkingBudgets') ?? {},
+    compactionModelOverrides: globalField<{ modelOverrides?: Record<string, unknown> }>(sm, 'compaction')?.modelOverrides ?? {},
+    codemodeMode: globalField<{ mode?: string }>(sm, 'codemode')?.mode,
+    codemodeInlineBudget: globalField<{ inlineBudget?: number }>(sm, 'codemode')?.inlineBudget,
     modelThinkingLevels: globalField<Record<string, string>>(sm, 'modelThinkingLevels') ?? {},
     desktopSkillOverrides: globalField<Record<string, boolean>>(sm, 'desktopSkillOverrides') ?? {},
   }
@@ -82,6 +87,7 @@ export function flattenRawPiSettings(raw: Raw): Raw {
   const branchSummary = obj(raw.branchSummary)
   const images = obj(raw.images)
   const terminal = obj(raw.terminal)
+  const codemode = obj(raw.codemode)
   return {
     ...raw,
     compactionEnabled: compaction.enabled,
@@ -96,6 +102,10 @@ export function flattenRawPiSettings(raw: Raw): Raw {
     imageAutoResize: images.autoResize,
     blockImages: images.blockImages,
     showImages: terminal.showImages,
+    codemodeMode: codemode.mode,
+    thinkingBudgets: obj(raw.thinkingBudgets),
+    compactionModelOverrides: obj(compaction.modelOverrides),
+    codemodeInlineBudget: codemode.inlineBudget,
     extensionPaths: raw.extensions,
     skillPaths: raw.skills,
     modelThinkingLevels: obj(raw.modelThinkingLevels),

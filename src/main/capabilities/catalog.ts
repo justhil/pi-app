@@ -1,5 +1,5 @@
 import { CAPABILITY_IDS, normalizeCapabilities, type CapabilityId, type CapabilityInfo } from '@shared/capabilities'
-import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
+import { BROWSER_CORE_TOOLS, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
 import piUiPrompt from './pi-ui.md?raw'
 
 const BROWSER_TOOL_COUNT = BROWSER_TOOL_NAMES.length
@@ -11,11 +11,25 @@ const estimateTokens = (chars: number) => Math.round(chars / 4)
  * Tool definitions go out with every request, in the provider's function format. Count them
  * too: they are most of a tool capability's cost, far more than its prompt text.
  */
-const TOOL_DEF_TOKENS: Partial<Record<CapabilityId, number>> = {
-  browser: estimateTokens(
-    JSON.stringify(BROWSER_TOOL_DEFS.map((d) => ({ type: 'function', function: { name: d.name, description: d.description, parameters: leanSchema(d.parameters) } }))).length,
-  ),
+const toolDefTokens = (names: readonly string[]) =>
+  estimateTokens(
+    JSON.stringify(
+      BROWSER_TOOL_DEFS.filter((d) => names.includes(d.name)).map((d) => ({
+        type: 'function',
+        function: { name: d.name, description: d.description, parameters: leanSchema(d.parameters) },
+      })),
+    ).length,
+  )
+// tool_search's own definition (~110 tokens) is declared alongside the core browser tools.
+const TOOL_SEARCH_TOKENS = 110
+
+const TOOL_DEF_TOKENS = (id: CapabilityId): number => {
+  if (id !== 'browser') return 0
+  return deferTools() ? toolDefTokens(BROWSER_CORE_TOOLS) + TOOL_SEARCH_TOKENS : toolDefTokens(BROWSER_TOOL_NAMES)
 }
+
+const BROWSER_DEFERRED_NOTE =
+  "- Only browser_navigate, browser_snapshot, browser_click and browser_type are loaded. Load the others (tabs, scrolling, keys, forms, select, hover, drag, waits, screenshots, uploads, dialogs, console, network, evaluate, PDF) with tool_search, e.g. query \"browser scroll wait\"."
 
 /** Prompt text appended to the system prompt while a capability is on (strip the source comment). */
 const PROMPTS: Partial<Record<CapabilityId, string>> = {
@@ -33,13 +47,22 @@ const PROMPTS: Partial<Record<CapabilityId, string>> = {
 }
 
 /** Tool families a capability switches on in the worker (active tool set). */
+/** Prompt text for a capability, with the tool_search note when the browser tools are deferred. */
+function promptFor(id: CapabilityId): string | undefined {
+  const text = PROMPTS[id]
+  if (!text || id !== 'browser' || !deferTools()) return text
+  return `${text}\n${BROWSER_DEFERRED_NOTE}`
+}
+
 const TOOL_FAMILIES: Partial<Record<CapabilityId, string>> = { browser: 'browser' }
 
 let browserPanelEnabled: () => boolean = () => false
+let deferTools: () => boolean = () => false
 
 /** Main wires the live settings in at startup (kept out of this module so it stays importable in tests). */
-export function configureCapabilities(opts: { browserPanelEnabled: () => boolean }): void {
+export function configureCapabilities(opts: { browserPanelEnabled: () => boolean; deferTools?: () => boolean }): void {
   browserPanelEnabled = opts.browserPanelEnabled
+  if (opts.deferTools) deferTools = opts.deferTools
 }
 
 function available(id: CapabilityId): { ok: boolean; reason?: string } {
@@ -54,8 +77,9 @@ export function capabilityCatalog(): CapabilityInfo[] {
       id,
       available: a.ok,
       ...(a.reason ? { reason: a.reason } : {}),
-      promptTokens: estimateTokens(PROMPTS[id]?.length ?? 0) + (TOOL_DEF_TOKENS[id] ?? 0),
+      promptTokens: estimateTokens(promptFor(id)?.length ?? 0) + TOOL_DEF_TOKENS(id),
       tools: id === 'browser' ? BROWSER_TOOL_COUNT : 0,
+      ...(id === 'browser' && deferTools() ? { coreTools: BROWSER_CORE_TOOLS.length } : {}),
     }
   })
 }
@@ -68,8 +92,18 @@ const enabledAvailable = (raw: unknown) => {
 /** Prompt sections for the enabled, available capabilities, in catalog order. */
 export function capabilitySections(raw: unknown): string[] {
   return enabledAvailable(raw)
-    .map((id) => PROMPTS[id])
+    .map((id) => promptFor(id))
     .filter((p): p is string => !!p)
+}
+
+/** The same sections keyed by capability id, so the worker can add and remove each one on its own. */
+export function capabilitySectionMap(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const id of enabledAvailable(raw)) {
+    const text = promptFor(id)
+    if (text) out[id] = text
+  }
+  return out
 }
 
 /** Tool families to activate in the worker for the enabled, available capabilities. */

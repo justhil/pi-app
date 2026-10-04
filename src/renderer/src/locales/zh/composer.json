@@ -189,6 +189,7 @@
     "turnOff": "关闭{{name}}",
     "comingSoon": "即将支持",
     "toolCount": "{{count}} 个工具",
+    "toolCountDeferred": "{{count}} 个工具（{{core}} 个常驻，其余按需加载）",
     "tokens": "每次请求约 +{{n}} tokens",
     "note": "从下一条消息起生效，关闭立即撤销。新会话默认全关。",
     "noteRunning": "当前回合不受影响，从下一条消息起生效。",
@@ -207,7 +208,15 @@
     "reasons": {
       "browser-panel-off": "先在「设置 → 右侧面板」打开浏览器"
     },
-    "enabledTitle": "已启用：{{names}}"
+    "enabledTitle": "已启用：{{names}}",
+    "cacheWarming": {
+      "group": "全部会话",
+      "name": "缓存保活",
+      "desc": "仅对声明了缓存寿命的模型生效",
+      "off": "关闭",
+      "streaming": "运行时",
+      "idle": "空闲也保活"
+    }
   },
   "thinkingShort": "思考 {{level}}",
   "thinkingPrefix": "思考"

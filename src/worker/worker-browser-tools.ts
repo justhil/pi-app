@@ -7,7 +7,7 @@ import type { ExtensionAPI, InlineExtension, ToolDefinition } from '@earendil-wo
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { sendToMain } from './worker-transport.js'
-import { BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
+import { BROWSER_CORE_TOOLS, BROWSER_NAMESPACE, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
 
 export { BROWSER_TOOL_NAMES }
 const CALL_TIMEOUT_MS = 90_000
@@ -19,18 +19,90 @@ const pending = new Map<string, { resolve: (r: ToolResultPayload) => void; rejec
 
 type ToolResultPayload = { content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[]; isError?: boolean }
 
-/** Desired active set: current tools without browser_*, plus browser_* when enabled. */
-export function nextActiveTools(current: readonly string[], on: boolean): string[] {
+const TOOL_SEARCH = 'tool_search'
+/** tool_search was off before browser control switched it on (so switching off turns it off again). */
+let addedToolSearch = false
+
+/**
+ * Desired active set. Without deferral: every browser_* tool while on. With deferral: only the core
+ * tools plus tool_search; the rest stay registered as `deferred` and tool_search declares them on
+ * demand (pi keeps loaded tools active on that branch).
+ */
+export function nextActiveTools(current: readonly string[], on: boolean, defer = false): string[] {
   const rest = current.filter((n) => !BROWSER_TOOL_NAMES.includes(n))
-  return on ? [...rest, ...BROWSER_TOOL_NAMES] : rest
+  if (!on) return addedToolSearch ? rest.filter((n) => n !== TOOL_SEARCH) : rest
+  if (!defer) return [...rest, ...BROWSER_TOOL_NAMES]
+  const loaded = current.filter((n) => BROWSER_TOOL_NAMES.includes(n) && !BROWSER_CORE_TOOLS.includes(n))
+  return [...rest, ...(rest.includes(TOOL_SEARCH) ? [] : [TOOL_SEARCH]), ...BROWSER_CORE_TOOLS, ...loaded]
+}
+
+/** Deferral needs the tool_search tool (pi ≥ 0.99, loaded by the worker as a built-in). */
+function canDefer(pi: ExtensionAPI): boolean {
+  try {
+    return pi.getAllTools().some((t) => t.name === TOOL_SEARCH)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Non-core tools are re-registered as `deferred` while browser control is on and `hidden` while it
+ * is off, so tool_search cannot surface them in a session that has the capability off.
+ */
+function registerTools(pi: ExtensionAPI, mode: 'all-direct' | 'deferred' | 'hidden', onlyNonCore = false): void {
+  for (const def of BROWSER_TOOL_DEFS) {
+    const core = BROWSER_CORE_TOOLS.includes(def.name)
+    if (onlyNonCore && core) continue
+    pi.registerTool({
+      name: def.name,
+      label: def.label,
+      description: def.description,
+      // Plain JSON Schema: pi validates non-TypeBox schemas with its JSON Schema path.
+      parameters: leanSchema(def.parameters) as unknown as ToolDefinition['parameters'],
+      ...(mode === 'all-direct' || core ? {} : { exposure: mode, namespace: BROWSER_NAMESPACE }),
+      ...(mode === 'all-direct' || core ? { defaultActive: false } : {}),
+      async execute(_toolCallId, params, signal) {
+        if (!enabled) throw new Error('browser_off: browser control is switched off for this conversation')
+        const result = await callMain(def.name, params, signal)
+        if (result.isError) throw new Error(result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n'))
+        return { content: result.content, details: {} }
+      },
+    })
+  }
+}
+
+let registeredMode: 'all-direct' | 'deferred' | 'hidden' | null = null
+/**
+ * The current model takes tool additions as mid-conversation system messages (pi-ai compat
+ * `supportsMidConvoToolAdditions`). Removing tools is not additive and makes pi resend the whole
+ * tool list, so on such models switching browser control off keeps the declared tools (calls are
+ * refused) and only removes the prompt section; the cached prefix survives.
+ */
+let keepToolsWhenOff = false
+
+type ModelCtx = { model?: { compat?: { supportsMidConvoSystemMessages?: boolean; supportsMidConvoToolAdditions?: boolean } } }
+export function noteModel(ctx: ModelCtx | undefined): void {
+  const compat = ctx?.model?.compat
+  keepToolsWhenOff = compat?.supportsMidConvoSystemMessages === true && compat?.supportsMidConvoToolAdditions === true
 }
 
 function apply(): void {
   if (!api) return
   try {
+    const defer = canDefer(api)
     const current = api.getActiveTools()
-    const next = nextActiveTools(current, enabled)
-    // Only touch the set when it changes: every change rebuilds the system prompt (cache miss).
+    const declared = current.some((n) => BROWSER_TOOL_NAMES.includes(n))
+    if (!enabled && keepToolsWhenOff && declared) return
+    const mode = !defer ? 'all-direct' : enabled ? 'deferred' : 'hidden'
+    if (mode !== registeredMode) {
+      // Core tools keep one definition in every mode, so only the others are re-registered.
+      registerTools(api, mode, true)
+      registeredMode = mode
+    }
+    if (enabled && defer && !current.includes(TOOL_SEARCH)) addedToolSearch = true
+    const next = nextActiveTools(current, enabled, defer)
+    if (!enabled) addedToolSearch = false
+    // Only touch the set when it changes: pi records the change and declares it from the next request.
     if (next.length === current.length && next.every((n, i) => n === current[i])) return
     api.setActiveTools(next)
   } catch {
@@ -75,20 +147,15 @@ export const browserToolsExtension: InlineExtension = {
   hidden: true,
   factory: (pi: ExtensionAPI) => {
     api = pi
-    for (const def of BROWSER_TOOL_DEFS) {
-      pi.registerTool({
-        name: def.name,
-        label: def.label,
-        description: def.description,
-        // Plain JSON Schema: pi validates non-TypeBox schemas with its JSON Schema path.
-        parameters: leanSchema(def.parameters) as unknown as ToolDefinition['parameters'],
-        async execute(_toolCallId, params, signal) {
-          const result = await callMain(def.name, params, signal)
-          if (result.isError) throw new Error(result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n'))
-          return { content: result.content, details: {} }
-        },
-      })
-    }
-    pi.on('session_start', () => apply())
+    registeredMode = null
+    // Registered inactive; session_start (when tool_search is known) picks the exposure.
+    registerTools(pi, 'all-direct')
+    registeredMode = 'all-direct'
+    pi.on('session_start', (_event, ctx) => {
+      noteModel(ctx as ModelCtx)
+      apply()
+    })
+    pi.on('model_select', (_event, ctx) => noteModel(ctx as ModelCtx))
+    pi.on('before_agent_start', (_event, ctx) => noteModel(ctx as ModelCtx))
   },
 }

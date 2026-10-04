@@ -125,7 +125,9 @@ const script =
       () => ({ name: 'browser_click', args: { target: 'e999999' } }), // 27 stale ref
       () => ({ name: 'browser_click', args: { target: "getByRole('button', { name: 'Search' })", element: 'Search button' } }), // 28 async result
     ]
-    const step = steps[r.length]
+    // Only the core browser tools are declared at first; load the rest the way a model would.
+    if (r.length === 0) return { tool: { name: 'tool_search', args: { query: 'browser', limit: 30 } } }
+    const step = steps[r.length - 1]
     return step ? { tool: step() } : { text: 'lab done' }
   }
 
@@ -145,9 +147,14 @@ test.describe('browser agent runtime', () => {
       await agent.send('LAB-TASK exercise the lab page')
       await expect(agent.win.getByText('lab done')).toBeVisible({ timeout: 200_000 })
 
-      const r = seen.at(-1)!.toolTexts
+      const [search, ...r] = seen.at(-1)!.toolTexts
       expect(r).toHaveLength(29)
-      // Tool definitions are the Playwright MCP set.
+      // At first only the core tools and tool_search are declared…
+      const first = seen.find((s) => s.firstUser.includes('LAB-TASK'))!
+      expect(first.tools.filter((t) => t.startsWith('browser_')).sort()).toEqual(['browser_click', 'browser_navigate', 'browser_snapshot', 'browser_type'])
+      expect(first.tools).toContain('tool_search')
+      // …and tool_search loads the rest of the Playwright MCP set.
+      expect(search).toMatch(/browser_tabs/)
       expect(seen.at(-1)!.tools.filter((t) => t.startsWith('browser_'))).toHaveLength(21)
 
       expect(r[0]).toMatch(/URL: .*\/app/)

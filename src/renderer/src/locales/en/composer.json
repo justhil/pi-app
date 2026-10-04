@@ -189,6 +189,7 @@
     "turnOff": "Turn off {{name}}",
     "comingSoon": "Coming soon",
     "toolCount": "{{count}} tools",
+    "toolCountDeferred": "{{count}} tools ({{core}} always loaded, rest on demand)",
     "tokens": "~{{n}} more tokens per request",
     "note": "Applies from your next message; turning off removes it at once. New chats start with everything off.",
     "noteRunning": "The current turn is unaffected; changes apply from your next message.",
@@ -207,7 +208,15 @@
     "reasons": {
       "browser-panel-off": "Turn on the Browser panel in Settings → Right panels first"
     },
-    "enabledTitle": "On: {{names}}"
+    "enabledTitle": "On: {{names}}",
+    "cacheWarming": {
+      "group": "All chats",
+      "name": "Cache warming",
+      "desc": "Only for models with a cache lifetime",
+      "off": "Off",
+      "streaming": "Running",
+      "idle": "Also idle"
+    }
   },
   "thinkingShort": "Thinking {{level}}",
   "thinkingPrefix": "Thinking"

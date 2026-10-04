@@ -1,6 +1,7 @@
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { patchPiCompactionTokens, type SettingsManagerLike } from './worker-compaction-patch'
 
+const TOOL_ENTRY = /^[+-]?[A-Za-z_][A-Za-z0-9_]*$/
 const THINKING_LEVELS = new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 
 /** `provider/modelId` → level, dropping unknown levels and blank keys. */
@@ -12,6 +13,35 @@ export function normalizeModelThinkingLevels(raw: unknown): Record<string, strin
     if (key.includes('/') && THINKING_LEVELS.has(level)) out[key] = level
   }
   return out
+}
+
+const BUDGET_LEVELS = ['minimal', 'low', 'medium', 'high']
+const isSafeCount = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
+
+/** `thinkingBudgets` with only known levels and non-negative integers; undefined when empty. */
+export function normalizeThinkingBudgets(raw: unknown): Record<string, number> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: Record<string, number> = {}
+  for (const level of BUDGET_LEVELS) {
+    const v = (raw as Record<string, unknown>)[level]
+    if (isSafeCount(v)) out[level] = v
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+/** `compaction.modelOverrides` keyed by `provider/modelId`; entries without a valid value are dropped. */
+export function normalizeCompactionOverrides(raw: unknown): Record<string, { reserveTokens?: number; keepRecentTokens?: number }> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: Record<string, { reserveTokens?: number; keepRecentTokens?: number }> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!key.includes('/') || !value || typeof value !== 'object') continue
+    const entry: { reserveTokens?: number; keepRecentTokens?: number } = {}
+    const { reserveTokens, keepRecentTokens } = value as Record<string, unknown>
+    if (isSafeCount(reserveTokens)) entry.reserveTokens = reserveTokens
+    if (isSafeCount(keepRecentTokens)) entry.keepRecentTokens = keepRecentTokens
+    if (Object.keys(entry).length) out[key.trim()] = entry
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 type RawSettingsManager = {
@@ -147,6 +177,25 @@ export async function applyPiSettingsPatch(
     const mode = String(patch.cacheWarming)
     if (!['off', 'streaming', 'idle'].includes(mode)) throw new Error('Invalid cacheWarming')
     setRawGlobalSetting(sm, 'cacheWarming', mode)
+  }
+  if ('thinkingBudgets' in patch) setRawGlobalSetting(sm, 'thinkingBudgets', normalizeThinkingBudgets(patch.thinkingBudgets))
+  if ('compactionModelOverrides' in patch) {
+    setRawGlobalSetting(sm, 'compaction', normalizeCompactionOverrides(patch.compactionModelOverrides), 'modelOverrides')
+  }
+  if ('defaultTools' in patch) {
+    const tools = patch.defaultTools
+    if (tools !== undefined && tools !== null && !(Array.isArray(tools) && tools.every((t) => typeof t === 'string' && TOOL_ENTRY.test(t)))) {
+      throw new Error('Invalid defaultTools')
+    }
+    setRawGlobalSetting(sm, 'defaultTools', tools ?? undefined)
+  }
+  if (patch.codemodeMode !== undefined) {
+    const mode = String(patch.codemodeMode)
+    if (!['on', 'only'].includes(mode)) throw new Error('Invalid codemode.mode')
+    setRawGlobalSetting(sm, 'codemode', mode, 'mode')
+  }
+  if (patch.codemodeInlineBudget !== undefined) {
+    setRawGlobalSetting(sm, 'codemode', nonNegativeInt(patch.codemodeInlineBudget, 'codemode.inlineBudget'), 'inlineBudget')
   }
   if (patch.isProjectTrusted === true) sm.setProjectTrusted(true)
   if (patch.isProjectTrusted === false) sm.setProjectTrusted(false)

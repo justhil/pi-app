@@ -13,6 +13,8 @@ export interface CapabilityInfo {
   promptTokens: number
   /** Extra tools the model gets while on. */
   tools: number
+  /** Of those, how many are declared on every request; the rest load through tool_search. */
+  coreTools?: number
 }
 
 export function normalizeCapabilities(raw: unknown): CapabilityId[] {

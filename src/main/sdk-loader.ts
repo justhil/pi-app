@@ -1,7 +1,7 @@
 // SDK Loader - 解析当前生效 pi SDK 入口（内置 / 全局 / 独立环境）
 
 import { existsSync, readFileSync, statSync } from 'fs'
-import { basename, join } from 'path'
+import { basename, dirname, join } from 'path'
 import {
   discoverGlobalPiCodingAgentRoot,
   resolvePackageEntryPath,
@@ -53,6 +53,25 @@ export function readBuiltinSdkVersion(): string {
     dir = parent
   }
   return ''
+}
+
+/** Package root of the active SDK (the directory holding its package.json), or null. */
+export function resolveActiveSdkRoot(userDataDir: string): string | null {
+  const active = resolveActiveSdk(userDataDir)
+  let dir = active.kind === 'builtin' ? __dirname : dirname(active.entryPath)
+  for (let depth = 0; depth < 8; depth++) {
+    const candidates = active.kind === 'builtin' ? [join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent')] : [dir]
+    for (const root of candidates) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8')) as { name?: string }
+        if (pkg.name === PKG) return root
+      } catch (e) { void e }
+    }
+    const parent = join(dir, '..')
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
 }
 
 function resolveEntryPath(pkgRoot: string): string | null {
