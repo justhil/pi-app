@@ -503,7 +503,7 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools } = useSettingsDraft()
+  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setTimelineVisibleTurns } = useSettingsDraft()
   const [zoom, setZoom] = useState(readUiZoom)
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
@@ -598,6 +598,24 @@ export function AppearanceSettings() {
       <AppearanceThemeEditor />
 
       <SettingsSection title={t('settings:appearance.timeline')}>
+        <SettingRow
+          label={t('settings:appearance.timelineVisibleTurns')}
+          description={t('settings:appearance.timelineVisibleTurnsDesc')}
+        >
+          <input
+            type="number"
+            min={1}
+            max={200}
+            step={1}
+            value={draft.timelineVisibleTurns}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              if (!Number.isFinite(n)) return
+              setTimelineVisibleTurns(n)
+            }}
+            className={numberInputCls}
+          />
+        </SettingRow>
         <SettingRow
           label={t('settings:appearance.timelineToolAutoExpandMax')}
           description={t('settings:appearance.timelineToolAutoExpandMaxDesc')}

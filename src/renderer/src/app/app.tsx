@@ -27,7 +27,7 @@ import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
-import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
+import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
 import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { AppToaster } from '@renderer/components/app/app-toaster'
@@ -187,6 +187,12 @@ export default function App() {
           useUIStore
             .getState()
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
+        })
+        .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'timelineVisibleTurns' })
+        .then((res) => {
+          useUIStore.getState().setTimelineVisibleTurns(normalizeTimelineVisibleTurns(res?.settings?.timelineVisibleTurns))
         })
         .catch(() => {})
       prefetchAvailableModels()

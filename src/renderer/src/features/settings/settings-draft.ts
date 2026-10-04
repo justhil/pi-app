@@ -20,7 +20,7 @@ import {
   type CompletionDeliveryMode,
   type CompletionPreviewMode,
 } from '@shared/completion-preview'
-import { normalizeTimelineMaxAutoExpandedTools } from '@shared/timeline-settings'
+import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
 import {
   normalizeRightPanelOrder,
   normalizeRightPanelPrefs,
@@ -56,6 +56,7 @@ export type SettingsDraft = {
   maxSessionWorkers: number
   sessionWorkerIdleTimeoutMinutes: number
   timelineMaxAutoExpandedTools: number
+  timelineVisibleTurns: number
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
@@ -128,6 +129,7 @@ export function draftSignature(d: SettingsDraft): string {
     maxSessionWorkers: d.maxSessionWorkers,
     sessionWorkerIdleTimeoutMinutes: d.sessionWorkerIdleTimeoutMinutes,
     timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
+    timelineVisibleTurns: d.timelineVisibleTurns,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
@@ -169,6 +171,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     maxSessionWorkers: normalizeMaxSessionWorkersUi(s.maxSessionWorkers),
     sessionWorkerIdleTimeoutMinutes: normalizeIdleTimeoutMinutesUi(s.sessionWorkerIdleTimeoutMinutes),
     timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
+    timelineVisibleTurns: normalizeTimelineVisibleTurns(s.timelineVisibleTurns),
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
@@ -312,6 +315,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     key: 'timelineMaxAutoExpandedTools',
     value: draft.timelineMaxAutoExpandedTools,
   })
+  await ipcClient.invoke('settings.set', { key: 'timelineVisibleTurns', value: normalizeTimelineVisibleTurns(draft.timelineVisibleTurns) })
   await ipcClient.invoke('settings.set', { key: 'extensionOverrides', value: draft.extensionOverrides })
   await ipcClient.invoke('rightPanels.saveLayout', {
     prefs: draft.rightPanelPrefs,
@@ -327,6 +331,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   useUIStore.getState().setTheme(draft.theme)
   applyIconTheme(draft.iconTheme)
   useUIStore.getState().setTimelineMaxAutoExpandedTools(draft.timelineMaxAutoExpandedTools)
+  useUIStore.getState().setTimelineVisibleTurns(draft.timelineVisibleTurns)
   applyThemeToDocument(draft.theme)
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)

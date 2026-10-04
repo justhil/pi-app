@@ -37,12 +37,22 @@ function TimelineScrubberImpl() {
     return () => ro.disconnect()
   }, [marks.length >= 2])
 
-  // Follow the reading position: recomputed at most once per frame on scroll.
+  // Follow the reading position: recomputed at most once per frame. The timeline's scroll
+  // container can be created or replaced after this mounts (opening an older session,
+  // home → conversation), so never hold on to one element: scroll is caught at the
+  // document (capture) and the size observer follows whatever container is current.
   useEffect(() => {
     let raf = 0
+    let observed: Element | null = null
+    const ro = new ResizeObserver(() => schedule())
     const measure = () => {
       raf = 0
       const el = getTimelineScrollEl()
+      if (el !== observed) {
+        ro.disconnect()
+        observed = el
+        if (el) for (const child of Array.from(el.children)) ro.observe(child)
+      }
       const list = marksRef.current
       if (!el || list.length === 0) return
       const box = el.getBoundingClientRect()
@@ -54,22 +64,21 @@ function TimelineScrubberImpl() {
       const atTop = el.scrollTop <= 4
       setActive(activeMark(tops, el.clientHeight * 0.4, { atTop, atBottom }))
     }
-    const schedule = () => {
+    function schedule() {
       if (!raf) raf = requestAnimationFrame(measure)
     }
-    window.addEventListener('timeline-scroll', schedule)
-    // Content growing under a still viewport (streaming, history loads) changes the answer too.
-    const el = getTimelineScrollEl()
-    const ro = el ? new ResizeObserver(schedule) : null
-    if (el) {
-      el.addEventListener('scroll', schedule, { passive: true })
-      for (const child of Array.from(el.children)) ro!.observe(child)
+    const onScroll = (e: Event) => {
+      if (e.target === getTimelineScrollEl()) schedule()
     }
-    schedule()
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    window.addEventListener('timeline-scroll', schedule)
+    // A freshly opened session settles over a few frames (window growth, scroll to bottom).
+    const settle = [0, 120, 400, 1000].map((ms) => window.setTimeout(schedule, ms))
     return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true })
       window.removeEventListener('timeline-scroll', schedule)
-      el?.removeEventListener('scroll', schedule)
-      ro?.disconnect()
+      settle.forEach((t) => window.clearTimeout(t))
+      ro.disconnect()
       if (raf) cancelAnimationFrame(raf)
     }
   }, [marks])

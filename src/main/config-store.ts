@@ -2,7 +2,7 @@ import Store from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
-import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS } from '@shared/timeline-settings'
+import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
@@ -65,6 +65,7 @@ export interface StoreSchema {
   sessionWorkerIdleTimeoutMinutes: number
   /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
   timelineMaxAutoExpandedTools: number
+  timelineVisibleTurns: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 语音输入 ASR 配置 */
@@ -126,6 +127,7 @@ const store = new Store<StoreSchema>({
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+    timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
     sessionDisplayNames: {},
     asrConfig: {
       provider: 'codex-asr-builtin',

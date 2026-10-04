@@ -244,7 +244,9 @@
     "customCssEnabled": "Enable custom CSS",
     "customCssPlaceholder": ":root {\n  --brand: #007acc;\n}",
     "clearCustomCss": "Clear and disable",
-    "safeModeHint": "If CSS makes the UI unusable, launch the app with --disable-custom-theme to temporarily skip both structured and free-form custom styles."
+    "safeModeHint": "If CSS makes the UI unusable, launch the app with --disable-custom-theme to temporarily skip both structured and free-form custom styles.",
+    "timelineVisibleTurns": "Turns shown by default",
+    "timelineVisibleTurnsDesc": "The conversation shows your last this-many messages with their replies; scrolling up reveals the same number again. Default 10."
   },
   "pi": {
     "title": "Runtime",

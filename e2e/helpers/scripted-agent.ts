@@ -75,8 +75,8 @@ export interface AgentApp {
 }
 
 /** Launch pi Desktop against the scripted model with the Browser panel enabled. */
-export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh' } = {}): Promise<AgentApp> {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-agent-'))
+export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh'; home?: string; keepHome?: boolean } = {}): Promise<AgentApp> {
+  const home = opts.home ?? fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-agent-'))
   const agentDir = path.join(home, '.pi', 'agent')
   const project = path.join(home, 'code', 'demo')
   // Launched by main entry (not the app dir), Electron names userData after itself.
@@ -147,7 +147,7 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     },
     async close() {
       await app.close()
-      fs.rmSync(home, { recursive: true, force: true })
+      if (!opts.keepHome) fs.rmSync(home, { recursive: true, force: true })
     },
   }
 }

@@ -72,6 +72,50 @@ test.describe('timeline scrubber', () => {
       const last = seen.at(-1)!
       expect(last.firstUser).toContain('QUESTION-1')
       await expect(rail.locator('.timeline-scrubber-mark')).toHaveCount(9)
+
+      // Leave and re-open the session from the sidebar: at the bottom the last question is current.
+      await agent.newSession()
+      await win.locator('[data-session-file]').filter({ hasText: 'QUESTION-1' }).locator('button').first().click()
+      await expect(rail.locator('.timeline-scrubber-mark')).toHaveCount(9, { timeout: 15_000 })
+      await expect(rail).toHaveAttribute('aria-valuenow', '9', { timeout: 5000 })
+    } finally {
+      await agent.close()
+      model.close()
+    }
+  })
+
+  test('an older session opened from disk tracks the reading position', async () => {
+    const seen: Seen[] = []
+    const model = startScriptedModel((_f, _t, last) => ({ text: last.includes('OLD-12') ? 'short' : `Answer\n\n${LONG}` }), seen)
+    const port = await listen(model)
+    let agent = await launchAgentApp(port, { keepHome: true })
+    const home = agent.home
+    try {
+      await agent.newSession()
+      for (let i = 1; i <= 12; i++) {
+        await agent.send(`OLD-${i} question`)
+        await expect.poll(() => seen.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(i)
+        await agent.win.waitForTimeout(400)
+      }
+    } finally {
+      await agent.close()
+    }
+    // Restart: the session now comes from disk (loading skeleton first, no view cache).
+    agent = await launchAgentApp(port, { home })
+    const { win } = agent
+    try {
+      const row = win.locator('[data-session-file]').filter({ hasText: 'OLD-1 question' }).locator('button').first()
+      if (!(await row.isVisible().catch(() => false))) await win.getByText('demo', { exact: true }).first().click()
+      await row.click()
+      const rail = win.locator('[data-timeline-scrubber]')
+      await expect(rail.locator('.timeline-scrubber-mark')).toHaveCount(12, { timeout: 20_000 })
+      await expect(rail).toHaveAttribute('aria-valuenow', '12', { timeout: 5000 })
+      // Only the last 10 turns are mounted by default (setting: turns shown).
+      const mounted = await win.evaluate(() => {
+        const text = document.querySelector('.timeline-scroll-with-dock-pane')?.textContent ?? ''
+        return [...new Set([...text.matchAll(/OLD-(\d+) question/g)].map((m) => m[1]))].sort((a, b) => Number(a) - Number(b))
+      })
+      expect(mounted).toEqual(['3', '4', '5', '6', '7', '8', '9', '10', '11', '12'])
     } finally {
       await agent.close()
       model.close()

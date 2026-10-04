@@ -68,23 +68,44 @@ describe('timeline mounted window on session switch (D261-style)', () => {
     )
     await nextFrames()
 
-    // Scroll to the top a few times in session A: the window grows well past the steady size.
+    // The window counts user turns (default 10; every turn here is 2 rows).
+    // Scroll to the top a few times in session A: each reveals 10 more turns.
     const pane = container.querySelector('.timeline-scroll-with-dock-pane') as HTMLElement
     for (let i = 0; i < 4; i++) {
       await act(async () => {
         fireEvent.scroll(pane)
       })
     }
-    expect(mountedRows()).toBeGreaterThan(120)
+    expect(mountedRows()).toBeGreaterThanOrEqual(100)
 
     commits.length = 0
     act(() => {
       useUIStore.setState(sessionState('/tmp/proj/b.jsonl', rows('b', 300)))
     })
-    // Every commit of the switch itself stays within the first-paint window.
-    expect(Math.max(...commits)).toBeLessThanOrEqual(16)
+    // Every commit of the switch itself stays within the first-paint window (2 turns).
+    expect(Math.max(...commits)).toBeLessThanOrEqual(4)
 
     await nextFrames()
-    expect(mountedRows()).toBe(40)
+    expect(mountedRows()).toBe(20)
+  })
+
+  it('shows whole user turns, however many tool calls they hold', async () => {
+    // 15 turns, each: user message, 30 tool calls, a reply.
+    const items: TimelineItem[] = []
+    for (let turn = 0; turn < 15; turn++) {
+      items.push({ id: `u-${turn}`, type: 'user-message', text: `question ${turn}`, timestamp: turn, sessionEntryId: `eu-${turn}` } as TimelineItem)
+      for (let k = 0; k < 30; k++) items.push({ id: `t-${turn}-${k}`, type: 'tool-call', toolName: 'read', toolPhase: 'end', runId: `r${turn}`, timestamp: turn } as TimelineItem)
+      items.push({ id: `a-${turn}`, type: 'assistant-message', text: `answer ${turn}`, timestamp: turn, sessionEntryId: `ea-${turn}` } as TimelineItem)
+    }
+    useUIStore.setState({ ...sessionState('/tmp/proj/turns.jsonl', items), timelineVisibleTurns: 10 })
+    render(<Timeline />)
+    await nextFrames()
+    const text = document.body.textContent ?? ''
+    // The last 10 questions and their answers are there; older ones are not.
+    for (let turn = 5; turn < 15; turn++) {
+      expect(text).toContain(`question ${turn}`)
+      expect(text).toContain(`answer ${turn}`)
+    }
+    expect(text).not.toContain('question 4')
   })
 })

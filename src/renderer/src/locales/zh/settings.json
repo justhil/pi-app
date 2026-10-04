@@ -244,7 +244,9 @@
     "customCssEnabled": "启用自定义 CSS",
     "customCssPlaceholder": ":root {\n  --brand: #007acc;\n}",
     "clearCustomCss": "清空并禁用",
-    "safeModeHint": "如果 CSS 导致界面无法操作，请使用 --disable-custom-theme 启动应用，临时跳过结构化主题和自定义 CSS。"
+    "safeModeHint": "如果 CSS 导致界面无法操作，请使用 --disable-custom-theme 启动应用，临时跳过结构化主题和自定义 CSS。",
+    "timelineVisibleTurns": "默认显示的历史轮数",
+    "timelineVisibleTurnsDesc": "对话里默认显示最近这么多条你的消息及其回复；向上滚动时每次再展开同样多。默认 10。"
   },
   "pi": {
     "title": "运行时",

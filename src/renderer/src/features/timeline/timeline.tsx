@@ -47,7 +47,7 @@ import {
   useTimelineBottomAnchorController,
 } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
-import { splitTimelineRenderSegments, sliceHistoryForViewport } from './timeline-render-segments'
+import { rowsForTurns, splitTimelineRenderSegments, sliceHistoryForViewport, turnsForRows } from './timeline-render-segments'
 import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnActivityBlock } from './turn-activity-block'
@@ -350,31 +350,38 @@ export function Timeline() {
   const timelineMaxAutoExpandedTools = useUIStore((s) => s.timelineMaxAutoExpandedTools)
   const { t } = useTranslation()
 
-  // Virtualization: render only a window of items, grow on scroll up.
-  // The window belongs to one session (after vastsa/pi-desktop D261): a switch first commits a small
-  // tail so the destination paints fast, then grows to the steady window after paint. A budget grown
-  // by scrolling up in the previous session must never over-mount the next one.
-  const PAGE = 40
-  const FIRST_PAINT_ROWS = 16
+  // Virtualization by user turns: render everything inside the last N user turns (setting,
+  // default 10) and reveal N more on scroll up — a turn is never cut in the middle, however
+  // many tool calls it has. The window belongs to one session (after vastsa/pi-desktop D261):
+  // a switch first commits a small tail so the destination paints fast, then grows to the
+  // steady window after paint; a window grown in the previous session never carries over.
+  const PAGE_TURNS = useUIStore((s) => s.timelineVisibleTurns)
+  const FIRST_PAINT_TURNS = Math.min(2, PAGE_TURNS)
   const [windowState, setWindowState] = useState<{ sessionFile: string | null; count: number }>(() => ({
     sessionFile: historySessionFile ?? null,
-    count: PAGE,
+    count: PAGE_TURNS,
   }))
   const windowSessionFile = historySessionFile ?? null
-  const renderCount =
-    windowState.sessionFile === windowSessionFile ? windowState.count : FIRST_PAINT_ROWS
+  const windowTurns =
+    windowState.sessionFile === windowSessionFile ? windowState.count : FIRST_PAINT_TURNS
   const windowSessionRef = useRef(windowSessionFile)
   windowSessionRef.current = windowSessionFile
-  const setRenderCount = useCallback((update: number | ((count: number) => number)) => {
+  const setWindowTurns = useCallback((update: number | ((turns: number) => number)) => {
     setWindowState((previous) => {
       const sessionFile = windowSessionRef.current
-      const base = previous.sessionFile === sessionFile ? previous.count : FIRST_PAINT_ROWS
+      const base = previous.sessionFile === sessionFile ? previous.count : FIRST_PAINT_TURNS
       const count = typeof update === 'function' ? update(base) : update
       return previous.sessionFile === sessionFile && previous.count === count
         ? previous
         : { sessionFile, count }
     })
-  }, [])
+  }, [FIRST_PAINT_TURNS])
+  const segments = useMemo(
+    () => splitTimelineRenderSegments(items, { streamingAssistantId, agentRunning }),
+    [items, streamingAssistantId, agentRunning],
+  )
+  /** Rows of history the turn window covers (what the row-based reveal/jump logic works in). */
+  const renderCount = useMemo(() => rowsForTurns(segments.history, windowTurns), [segments, windowTurns])
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
 
@@ -482,7 +489,8 @@ export function Timeline() {
       return
     }
     if (plan.kind === 'scroll') {
-      setRenderCount((count) => Math.max(count, plan.requiredRenderCount))
+      const needed = turnsForRows(all, plan.requiredRenderCount)
+      setWindowTurns((turns) => Math.max(turns, needed))
       return
     }
     if (plan.kind === 'load') {
@@ -594,8 +602,16 @@ export function Timeline() {
     setViewTarget(landed.entryId)
   }, [items, viewTarget])
 
+  // The scroll container is absent while a session shows its loading skeleton and appears
+  // later without any of the deps below changing; track the node itself so registration and
+  // listeners follow it (otherwise an older session opened from disk was never registered).
+  const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    if (scrollRef.current !== scrollNode) setScrollNode(scrollRef.current)
+  })
+
   useEffect(() => {
-    const el = scrollRef.current
+    const el = scrollNode
     registerTimelineScrollEl(el)
     if (!el) return () => registerTimelineScrollEl(null)
     const notify = rafThrottle(() => window.dispatchEvent(new Event('timeline-scroll')))
@@ -619,14 +635,14 @@ export function Timeline() {
       el.removeEventListener('wheel', onWheel)
       ro.disconnect()
     }
-  }, [hasWorkspace, onUserScrollIntent, historySessionFile])
+  }, [hasWorkspace, onUserScrollIntent, historySessionFile, scrollNode])
   const scrollHeightBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
 
   const [fetchingOlder, setFetchingOlder] = useState(false)
 
-  const loadMoreHistory = useCallback(() => {
+  const loadMoreHistory = useCallback((grow = true) => {
     const el = scrollRef.current
     // Concurrent click / scroll-triggered load guard (do not use scroll-anchor as a permanent lock).
     if (!el || fetchingOlder) return
@@ -666,15 +682,9 @@ export function Timeline() {
             }
             return
           }
-          // Expand viewport window to include prepended rows (and keep prior visible tail).
-          const nextAll = useUIStore.getState().timelineItems
-          const nextSegs = splitTimelineRenderSegments(nextAll, {
-            streamingAssistantId: useUIStore.getState().streamingAssistantId,
-            agentRunning: useUIStore.getState().runState.status === 'running',
-          })
-          setRenderCount((count) =>
-            Math.min(Math.max(count + PAGE, count + older.length), nextSegs.history.length),
-          )
+          // Reveal the next N turns (they may span several disk pages; the fill effect
+          // below keeps fetching while the window wants more turns than are loaded).
+          if (grow) setWindowTurns((turns) => turns + useUIStore.getState().timelineVisibleTurns)
         })
         .catch((error) => {
           console.error('[Timeline] load older failed', error)
@@ -686,8 +696,8 @@ export function Timeline() {
 
     // In-memory reveal only (already loaded items outside the render window).
     scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
-    setRenderCount((count) => Math.min(count + PAGE, segs.history.length))
-  }, [fetchingOlder])
+    if (grow) setWindowTurns((turns) => turns + useUIStore.getState().timelineVisibleTurns)
+  }, [fetchingOlder, setWindowTurns])
 
   useLayoutEffect(() => {
     const el = scrollRef.current
@@ -709,7 +719,7 @@ export function Timeline() {
   // older messages are prepended (that changes items[0].id and must not reset).
   const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
-    setRenderCount(FIRST_PAINT_ROWS)
+    setWindowTurns(FIRST_PAINT_TURNS)
     scrollHeightBeforeLoadRef.current = null
     setFetchingOlder(false)
     const prevFile = prevSessionFileRef.current
@@ -734,11 +744,27 @@ export function Timeline() {
       growFrame = requestAnimationFrame(() => {
         const el = scrollRef.current
         if (el) scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
-        setRenderCount((count) => Math.max(count, PAGE))
+        setWindowTurns((turns) => Math.max(turns, useUIStore.getState().timelineVisibleTurns))
       })
     })
     return () => cancelAnimationFrame(growFrame)
-  }, [historySessionFile, followLiveRef, setRenderCount])
+  }, [historySessionFile, followLiveRef, setWindowTurns])
+
+  // Fill: when the window asks for more turns than the loaded history holds and the disk
+  // has more, fetch older pages without growing the window again (initial load included).
+  // Yields to view jumps and session loads (they fetch history themselves; two concurrent
+  // prepends would duplicate rows) and re-checks one frame later before fetching.
+  useEffect(() => {
+    if (fetchingOlder || historyLoading || viewTarget || !historySessionFile || historyLoadedCount >= historyTotalCount) return
+    let loadedTurns = 0
+    for (const it of items) if (it.type === 'user-message') loadedTurns++
+    if (loadedTurns >= windowTurns) return
+    const frame = requestAnimationFrame(() => {
+      if (viewLoadRef.current) return
+      loadMoreHistory(false)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [fetchingOlder, historyLoading, viewTarget, historySessionFile, historyLoadedCount, historyTotalCount, items, windowTurns, loadMoreHistory])
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current
@@ -758,10 +784,6 @@ export function Timeline() {
     }
   }, [loadMoreHistory, syncFollowFromScroll])
 
-  const segments = useMemo(
-    () => splitTimelineRenderSegments(items, { streamingAssistantId, agentRunning }),
-    [items, streamingAssistantId, agentRunning],
-  )
   const visibleItems = useMemo(() => {
     const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
     return [...historyWindow, ...segments.liveHead]
@@ -995,7 +1017,7 @@ export function Timeline() {
       {(hiddenCount > 0 || historyLoading || fetchingOlder) && (
         <button
           type="button"
-          onClick={loadMoreHistory}
+          onClick={() => loadMoreHistory()}
           disabled={historyLoading || fetchingOlder}
           className="row-hover mb-2 w-full rounded-lg py-2 text-center text-[11px] text-foreground-secondary hover:text-foreground disabled:opacity-60"
         >

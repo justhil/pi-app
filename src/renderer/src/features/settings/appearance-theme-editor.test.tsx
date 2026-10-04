@@ -57,6 +57,7 @@ function baseDraft(): SettingsDraft {
     maxSessionWorkers: 4,
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: 0,
+    timelineVisibleTurns: 10,
     extensionOverrides: {},
     rightPanelCatalog: [],
     rightPanelPrefs: {},

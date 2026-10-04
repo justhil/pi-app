@@ -222,6 +222,8 @@ export interface UIState {
   getToolCallExpanded: (toolCallId: string) => boolean | undefined
   timelineMaxAutoExpandedTools: number
   setTimelineMaxAutoExpandedTools: (n: number) => void
+  timelineVisibleTurns: number
+  setTimelineVisibleTurns: (n: number) => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean

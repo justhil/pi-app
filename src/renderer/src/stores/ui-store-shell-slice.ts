@@ -6,6 +6,8 @@ import {
 import {
   DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
   normalizeTimelineMaxAutoExpandedTools,
+  normalizeTimelineVisibleTurns,
+  DEFAULT_TIMELINE_VISIBLE_TURNS,
 } from '@shared/timeline-settings'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import {
@@ -36,6 +38,8 @@ type ShellSlice = Pick<
   | 'getToolCallExpanded'
   | 'timelineMaxAutoExpandedTools'
   | 'setTimelineMaxAutoExpandedTools'
+  | 'timelineVisibleTurns'
+  | 'setTimelineVisibleTurns'
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
@@ -111,6 +115,8 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     setTimelineMaxAutoExpandedTools: (count) =>
       set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(count) }),
+    timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
+    setTimelineVisibleTurns: (count) => set({ timelineVisibleTurns: normalizeTimelineVisibleTurns(count) }),
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,
