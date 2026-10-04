@@ -15,6 +15,8 @@ test.describe('split panes', () => {
     const panes = win.locator('[data-split-pane]')
     const activePane = win.locator('[data-split-pane][data-active]')
     try {
+      // Wide enough for two full panes (2 × 320 px + handle) beside the sidebar.
+      await agent.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1500, 900))
       await agent.newSession()
       await agent.send('FIRST hello')
       await expect(win.getByText('reply to FIRST hello').first()).toBeVisible({ timeout: 30_000 })
@@ -71,6 +73,18 @@ test.describe('split panes', () => {
       await row.dragTo(center, { targetPosition: { x: box.width - 40, y: box.height / 2 } })
       await expect(panes).toHaveCount(2)
       await expect(win.locator('[data-split-pane]').nth(1)).toContainText('FIRST hello')
+
+      // Panes always fill the split area (no unused space), also with a collapsed strip.
+      const fill = () =>
+        win.evaluate(() => {
+          const root = (document.querySelector('.split-view') as HTMLElement).getBoundingClientRect()
+          const panes = [...document.querySelectorAll('[data-split-pane]')].map((p) => p.getBoundingClientRect())
+          return Math.abs(root.right - panes[panes.length - 1].right) + Math.abs(panes[0].left - root.left)
+        })
+      expect(await fill()).toBeLessThan(2)
+      await agent.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(820, 760))
+      await win.waitForTimeout(600)
+      expect(await fill()).toBeLessThan(2)
     } finally {
       await agent.close()
       model.close()

@@ -142,10 +142,10 @@ function CollapsedStrip({ pane }: { pane: Pane }) {
       onClick={() => splitActions.focus(pane.id)}
       title={title}
       aria-label={title}
-      className="flex h-full w-full flex-col items-center gap-2 border-r border-border/40 py-3 text-[11px] text-foreground-tertiary hover:bg-[var(--bg-hover)] hover:text-foreground"
+      className="split-strip flex h-full w-full flex-col items-center gap-2 py-3 text-[11.5px] text-foreground-tertiary hover:text-foreground"
     >
       {running ? <SessionAttentionDot attention="working" title={t('common:app.status.running')} /> : null}
-      <span className="[writing-mode:vertical-rl] max-h-[60%] truncate">{title}</span>
+      <span className="max-h-[70%] overflow-hidden text-ellipsis whitespace-nowrap [writing-mode:vertical-rl]">{title}</span>
     </button>
   )
 }
@@ -197,6 +197,8 @@ export function SplitView({ children }: { children: ReactNode }) {
   }
 
   const collapsed = collapsedPanes(layout, width, STRIP_PX)
+  // flex-grow values summing below 1 leave free space unused: normalise over the visible panes.
+  const visibleTotal = layout.panes.reduce((sum, p, i) => (collapsed.has(p.id) ? sum : sum + layout.sizes[i]), 0) || 1
   const startResize = (i: number) => (e: React.PointerEvent) => {
     e.preventDefault()
     const left = paneEls.current.get(layout.panes[i].id)
@@ -235,7 +237,7 @@ export function SplitView({ children }: { children: ReactNode }) {
               data-split-pane={pane.id}
               data-active={active || undefined}
               className={cn('split-pane relative flex h-full min-w-0 flex-col', isCollapsed ? 'split-pane--strip' : 'split-pane--card', active && 'split-pane--active')}
-              style={isCollapsed ? { flex: `0 0 ${STRIP_PX}px` } : { flex: `${layout.sizes[i]} 1 0`, minWidth: Math.min(MIN_PANE_PX, width) }}
+              style={isCollapsed ? { flex: `0 0 ${STRIP_PX}px` } : { flex: `${layout.sizes[i] / visibleTotal} 1 0`, minWidth: Math.min(MIN_PANE_PX, width) }}
             >
               {isCollapsed ? (
                 <CollapsedStrip pane={pane} />

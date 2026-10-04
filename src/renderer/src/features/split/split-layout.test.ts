@@ -57,9 +57,16 @@ describe('split layout', () => {
     const l = openPane(openPane(openPane(singleLayout(s(1), 'a'), s(2), { id: 'b' }), s(3), { id: 'c' }), s(4), { id: 'd' })
     const active = { ...l, activePaneId: 'a' }
     expect([...collapsedPanes(active, 2000)]).toEqual([])
-    expect([...collapsedPanes(active, 1000)]).toEqual(['d'])
+    expect([...collapsedPanes(active, 1020)]).toEqual(['d'])
     expect([...collapsedPanes(active, 800)].sort()).toEqual(['c', 'd'])
     expect([...collapsedPanes(active, 400)].sort()).toEqual(['b', 'c', 'd'])
+  })
+
+  it('counts the handles between panes', () => {
+    const two = openPane(singleLayout(s(1), 'a'), s(2), { id: 'b' })
+    // 2 × 320 + one 6px handle = 646: a 640px centre must collapse the inactive pane.
+    expect([...collapsedPanes(two, 640)]).toEqual(['a'])
+    expect([...collapsedPanes(two, 646)]).toEqual([])
   })
 
   it('sanitises restored layouts', () => {

@@ -1727,6 +1727,15 @@
   .split-pane--card.split-pane--active {
     background: var(--bg-base);
   }
+  .split-pane--strip {
+    border-radius: var(--main-chat-surface-radius) var(--main-chat-surface-radius) 0 0;
+    background: color-mix(in srgb, var(--bg-base) 62%, var(--surface-sidebar));
+    box-shadow: var(--main-chat-surface-shadow);
+    overflow: hidden;
+  }
+  .split-pane--strip:hover {
+    background: var(--bg-base);
+  }
   .split-view .main-chat-column {
     border-radius: 0 !important;
     box-shadow: none !important;

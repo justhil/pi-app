@@ -31,7 +31,7 @@ function ComposerModelStripImpl({
   )
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-0.5">
+    <div className="flex min-w-0 items-center justify-end gap-0.5 overflow-hidden">
       <button
         type="button"
         data-composer-model-chip=""
@@ -39,7 +39,7 @@ function ComposerModelStripImpl({
         aria-haspopup="dialog"
         aria-expanded={!!modelPickerOpen}
         title={modelLabel === t('composer:selectModel') ? t('composer:selectModelHint') : t('composer:modelLabel', { name: model ?? modelLabel })}
-        className={cn(chip, 'min-w-[76px] max-w-[min(180px,34vw)]', modelPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
+        className={cn(chip, 'min-w-[3.5rem] max-w-[min(180px,34vw)]', modelPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
       >
         <span className="truncate">{modelLabel}</span>
         <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />

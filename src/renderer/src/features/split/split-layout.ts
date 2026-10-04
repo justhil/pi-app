@@ -114,9 +114,11 @@ export function equalize(layout: SplitLayout): SplitLayout {
 }
 
 /** Which panes get their full width at `centerPx`; the rest collapse to strips (active never). */
-export function collapsedPanes(layout: SplitLayout, centerPx: number, stripPx = 36): Set<string> {
+export function collapsedPanes(layout: SplitLayout, centerPx: number, stripPx = 36, gapPx = 6): Set<string> {
   const out = new Set<string>()
-  const fits = (n: number) => (layout.panes.length - n) * MIN_PANE_PX + n * stripPx <= centerPx
+  // Resize handles sit between panes and take width too.
+  const gaps = (layout.panes.length - 1) * gapPx
+  const fits = (n: number) => (layout.panes.length - n) * MIN_PANE_PX + n * stripPx + gaps <= centerPx
   // Collapse inactive panes from the far end until the rest fits.
   const order = layout.panes
     .map((p, i) => ({ p, d: Math.abs(i - layout.panes.findIndex((x) => x.id === layout.activePaneId)) }))
