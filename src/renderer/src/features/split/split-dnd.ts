@@ -4,11 +4,21 @@ import type { PaneSession } from './split-layout'
 export const SESSION_MIME = 'application/x-pi-session'
 export const PANE_MIME = 'application/x-pi-pane'
 
-export type DropZone = 'left' | 'right' | 'center'
+export type DropZone = 'left' | 'right' | 'top' | 'bottom' | 'center'
 
-/** Outer quarters split beside the pane; the middle replaces what it shows. */
-export function zoneAt(fraction: number): DropZone {
-  return fraction < 0.25 ? 'left' : fraction > 0.75 ? 'right' : 'center'
+/**
+ * Outer quarter on each side splits there (the nearest edge wins in the corners); the middle
+ * replaces (or, for a pane, swaps with) what the target shows.
+ */
+export function zoneAt(fx: number, fy = 0.5): DropZone {
+  const edges: [DropZone, number][] = [
+    ['left', fx],
+    ['right', 1 - fx],
+    ['top', fy],
+    ['bottom', 1 - fy],
+  ]
+  const [zone, d] = edges.sort((a, b) => a[1] - b[1])[0]
+  return d < 0.25 ? zone : 'center'
 }
 
 /** Lightweight drag image: a small label, never a copy of the chat UI. */

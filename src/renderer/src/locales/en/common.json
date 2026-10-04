@@ -266,11 +266,49 @@
     "close": "Close pane",
     "closeHint": "Close pane (the session stays, running work continues)",
     "resize": "Resize panes",
-    "resizeHint": "Drag to resize, double-click to even out",
-    "emptyPane": "Click to start a new session, or drag one in from the sidebar",
+    "resizeHint": "Drag to resize; snaps near 1/3, 1/2, 2/3; double-click to equalize",
+    "emptyPane": "Empty pane: drag a session in from the sidebar, or click to start a new chat",
     "clickToLoad": "Click to view this session",
     "toolRun": "Ran {{count}} tools",
     "openInPane": "Open in a pane on the right",
-    "replying": "Replying…"
+    "replying": "Replying…",
+    "dropSplit": "Split here",
+    "dropReplace": "Open in this pane",
+    "dropSwap": "Swap",
+    "splitThis": "Split",
+    "splitRight": "Split right",
+    "splitDown": "Split down",
+    "layout": "Layout",
+    "equalize": "Equal sizes",
+    "layoutMenu": "Split and layout",
+    "presets": {
+      "columns": "Side by side",
+      "rows": "Stacked",
+      "main-left": "Main left",
+      "main-top": "Main top",
+      "grid": "Grid"
+    },
+    "status": {
+      "idle": "Idle",
+      "working": "Running",
+      "needs-you": "Waiting for you",
+      "done": "Done, unseen"
+    },
+    "ago": {
+      "now": "just now",
+      "minutes_one": "{{count}} min ago",
+      "minutes_other": "{{count}} min ago",
+      "hours_one": "{{count}} hour ago",
+      "hours_other": "{{count}} hours ago",
+      "days_one": "{{count}} day ago",
+      "days_other": "{{count}} days ago"
+    },
+    "card": {
+      "usingTools_one": "Using tools · {{count}} call this turn",
+      "usingTools_other": "Using tools · {{count}} calls this turn",
+      "turns_one": "{{count}} turn",
+      "turns_other": "{{count}} turns"
+    },
+    "focusHint": "Too narrow for all panes; shown as tabs. Change the layout here"
   }
 }

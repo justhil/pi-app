@@ -5,25 +5,31 @@ import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
 import {
+  applyPreset,
   assignSession,
   closePane as closePaneIn,
+  dropPane,
   equalize,
-  movePane as movePaneIn,
+  needsFocusMode,
+  neighbour,
   openPane,
-  resizeAt,
+  resizeSplit,
   sanitizeLayout,
   setActivePane,
   singleLayout,
   type PaneSession,
+  type Preset,
+  type Side,
   type SplitLayout,
 } from './split-layout'
 import { OPEN_IN_PANE_EVENT } from './split-dnd'
 
-const KEY = 'pi-split-layout-v1'
+const KEY = 'pi-split-layout-v2'
+const OLD_KEY = 'pi-split-layout-v1'
 
 function load(): SplitLayout {
   try {
-    return sanitizeLayout(JSON.parse(localStorage.getItem(KEY) || 'null')) ?? singleLayout()
+    return sanitizeLayout(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')) ?? singleLayout()
   } catch {
     return singleLayout()
   }
@@ -61,7 +67,29 @@ async function focusSessionOf(session: PaneSession | null): Promise<void> {
   else await activateWorkspace(session.workspace, { sessionId: session.sessionId, sessionFile: session.sessionFile })
 }
 
+/** The split area's size, reported by SplitView, so new panes can be placed where they fit. */
+let viewport = { w: 0, h: 0 }
+
+/**
+ * Prefer the requested side; if the new pane would be too small there, try the other axis, then a
+ * preset that fits (grid for four, main-left for three). Falls back to the requested layout.
+ */
+function fitting(base: SplitLayout, session: PaneSession | null, opts: { anchorId?: string; side?: Side }): SplitLayout {
+  const first = openPane(base, session, opts)
+  if (first === base || !viewport.w || !needsFocusMode(first, viewport.w, viewport.h)) return first
+  const side = opts.side ?? 'right'
+  const other: Side = side === 'left' || side === 'right' ? 'bottom' : 'right'
+  const alt = openPane(base, session, { ...opts, side: other, id: first.activePaneId })
+  if (!needsFocusMode(alt, viewport.w, viewport.h)) return alt
+  const preset = first.panes.length >= 4 ? 'grid' : first.panes.length === 3 ? 'main-left' : 'columns'
+  const arranged = applyPreset(first, preset)
+  return needsFocusMode(arranged, viewport.w, viewport.h) ? first : arranged
+}
+
 export const splitActions = {
+  setViewport(w: number, h: number) {
+    viewport = { w, h }
+  },
   /** Activate a pane (click, keyboard). The only way focus moves between panes. */
   focus(paneId: string) {
     const layout = useSplitStore.getState()
@@ -72,11 +100,11 @@ export const splitActions = {
     void focusSessionOf(pane.session)
   },
   /** Open a session (or an empty pane) beside the active pane and focus it. */
-  open(session: PaneSession | null, opts: { anchorId?: string; side?: 'left' | 'right' } = {}) {
+  open(session: PaneSession | null, opts: { anchorId?: string; side?: Side } = {}) {
     const before = useSplitStore.getState()
     // Single pane showing nothing yet: the current view becomes the first pane's session.
     const base = before.panes.length === 1 && !before.panes[0].session ? assignSession(before, before.panes[0].id, focusedPaneSession()) : before
-    const next = openPane(base, session, opts)
+    const next = fitting(base, session, opts)
     if (next === base) return false
     useSplitStore.setState(next)
     void focusSessionOf(next.panes.find((p) => p.id === next.activePaneId)?.session ?? null)
@@ -98,14 +126,25 @@ export const splitActions = {
     useSplitStore.setState(next)
     if (next.activePaneId !== before.activePaneId) void focusSessionOf(next.panes.find((p) => p.id === next.activePaneId)?.session ?? null)
   },
-  move(paneId: string, toIndex: number) {
-    useSplitStore.setState(movePaneIn(useSplitStore.getState(), paneId, toIndex))
+  /** Drop a pane onto another pane: beside it, or swap with it (center). */
+  drop(paneId: string, targetId: string, where: Side | 'center') {
+    useSplitStore.setState(dropPane(useSplitStore.getState(), paneId, targetId, where))
+    // The dragged pane is what the user is working with: it becomes the active one.
+    splitActions.focus(paneId)
   },
-  resize(i: number, fraction: number, minFraction: number) {
-    useSplitStore.setState(resizeAt(useSplitStore.getState(), i, fraction, minFraction))
+  resize(splitId: string, ratio: number, minFraction: number) {
+    useSplitStore.setState(resizeSplit(useSplitStore.getState(), splitId, ratio, minFraction))
   },
   equalize() {
     useSplitStore.setState(equalize(useSplitStore.getState()))
+  },
+  preset(preset: Preset) {
+    useSplitStore.setState(applyPreset(useSplitStore.getState(), preset))
+  },
+  /** Focus the pane in a direction (keyboard), tmux's select-pane -L/-R/-U/-D. */
+  focusDir(dir: Side) {
+    const id = neighbour(useSplitStore.getState(), dir)
+    if (id) splitActions.focus(id)
   },
   /** Step focus to the previous / next pane (keyboard). */
   step(dir: -1 | 1) {

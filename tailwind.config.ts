@@ -64,6 +64,8 @@ const config: Config = {
         'surface-sidebar': 'var(--surface-sidebar)',
         // Secondary text token (桌面 Agent UI-inspired: readable but not loud)
         'foreground-secondary': 'hsl(var(--text-secondary-hsl))',
+        // Hints and metadata one step below secondary.
+        'foreground-tertiary': 'hsl(var(--text-tertiary-hsl))',
         // 桌面 Agent UI AOU brand palette
         aou: {
           1: 'var(--aou-1)',

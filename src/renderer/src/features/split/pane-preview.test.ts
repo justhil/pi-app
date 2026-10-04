@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
-import { pickPreviewSource, plainText, previewRows } from './pane-preview'
+import { paneDigest, pickPreviewSource, plainText, previewRows } from './pane-preview'
 
 const it_ = (id: string, type: TimelineItem['type'], extra: Partial<TimelineItem> = {}) => ({ id, type, ...extra }) as TimelineItem
 
@@ -43,5 +43,20 @@ describe('pickPreviewSource', () => {
   it('falls back to whatever exists', () => {
     expect(pickPreviewSource(null, null, [u])).toEqual([u])
     expect(pickPreviewSource(null, null, null)).toBeNull()
+  })
+})
+
+describe('paneDigest', () => {
+  it('summarises the latest turn: question, reply so far and tool activity', () => {
+    const items = [
+      it_('u1', 'user-message', { text: 'first' }),
+      it_('a1', 'assistant-message', { text: 'old answer' }),
+      it_('u2', 'user-message', { text: 'fix the **build**' }),
+      it_('t1', 'tool-call', { toolPhase: 'end' }),
+      it_('t2', 'tool-call', { toolPhase: 'update' }),
+    ]
+    expect(paneDigest(items)).toEqual({ lastUser: 'fix the build', lastReply: '', tools: 2, toolLive: true, turns: 2 })
+    expect(paneDigest([...items, it_('a2', 'assistant-message', { text: 'done' })]).lastReply).toBe('done')
+    expect(paneDigest(null).turns).toBe(0)
   })
 })

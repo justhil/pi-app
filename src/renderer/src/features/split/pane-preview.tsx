@@ -48,6 +48,36 @@ export function previewRows(items: readonly TimelineItem[]): Row[] {
   return rows.slice(-MAX_ROWS)
 }
 
+export interface PaneDigest {
+  lastUser: string
+  lastReply: string
+  /** Tool calls since the last user message, and whether one is running. */
+  tools: number
+  toolLive: boolean
+  turns: number
+}
+
+/** What a small pane card shows: the latest question, the reply to it so far, tool activity. */
+export function paneDigest(items: readonly TimelineItem[] | null): PaneDigest {
+  const d: PaneDigest = { lastUser: '', lastReply: '', tools: 0, toolLive: false, turns: 0 }
+  for (const it of items ?? []) {
+    if (it.type === 'user-message') {
+      d.turns++
+      d.lastUser = plainText(String(it.text ?? ''))
+      d.lastReply = ''
+      d.tools = 0
+      d.toolLive = false
+    } else if (it.type === 'assistant-message') {
+      const text = plainText(String(it.text ?? ''))
+      if (text) d.lastReply = text
+    } else if (it.type === 'tool-call') {
+      d.tools++
+      d.toolLive = it.toolPhase === 'start' || it.toolPhase === 'update'
+    }
+  }
+  return d
+}
+
 /** In-memory sources: a running background session streams into the live cache. */
 function readLive(sessionFile: string): TimelineItem[] | null {
   const live = getLiveSessionTimeline(sessionFile)?.timelineItems
@@ -76,14 +106,12 @@ function hasSettledReply(items: readonly TimelineItem[]): boolean {
 }
 
 /**
- * What an inactive pane shows: the latest part of its session, read from the live cache
- * (background runs keep streaming into it) or the session view cache. Polled only while
- * the window is visible; the full timeline mounts when the pane is activated.
+ * The latest part of a session for an inactive pane, read from the live cache (background runs
+ * keep streaming into it), the session view cache, or the disk tail. Polled only while the window
+ * is visible; the full timeline mounts when the pane is activated.
  */
-function PanePreviewImpl({ sessionFile, running = false }: { sessionFile: string | null; running?: boolean }) {
-  const { t } = useTranslation()
+export function usePaneTimeline(sessionFile: string | null): TimelineItem[] | null {
   const [items, setItems] = useState<TimelineItem[] | null>(() => (sessionFile ? readLive(sessionFile) ?? getSessionView(sessionFile)?.items ?? null : null))
-
   useEffect(() => {
     if (!sessionFile) {
       setItems(null)
@@ -127,6 +155,14 @@ function PanePreviewImpl({ sessionFile, running = false }: { sessionFile: string
       window.clearInterval(timer)
     }
   }, [sessionFile])
+
+  return items
+}
+
+/** What an inactive pane shows when it has room: the latest messages as plain text. */
+function PanePreviewImpl({ sessionFile, running = false }: { sessionFile: string | null; running?: boolean }) {
+  const { t } = useTranslation()
+  const items = usePaneTimeline(sessionFile)
 
   if (!sessionFile) {
     return <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-foreground-tertiary">{t('common:split.emptyPane')}</div>

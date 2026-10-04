@@ -162,6 +162,7 @@
     /* Secondary text — 与 --muted-foreground 同值，次级灰单一来源 */
     /* Secondary text is a solid step, not a faded one: descriptions must stay readable at 11–12px. */
     --text-secondary-hsl: 240 4% 37%;
+    --text-tertiary-hsl: 240 4% 50%;
 
     /* Accent colors for tool types */
     --tool-read: 220 90% 56%;
@@ -291,6 +292,7 @@
     --list-row-selected: #2a2b2f;
 
     --text-secondary-hsl: 0 0% 67%;
+    --text-tertiary-hsl: 0 0% 53%;
 
     --tool-read: 212 90% 68%;
     --tool-edit: 38 70% 55%;
@@ -1720,21 +1722,12 @@
     background: var(--surface-sidebar);
   }
   .split-pane--card {
-    border-radius: var(--main-chat-surface-radius) var(--main-chat-surface-radius) 0 0;
+    border-radius: 12px;
     background: color-mix(in srgb, var(--bg-base) 62%, var(--surface-sidebar));
     box-shadow: var(--main-chat-surface-shadow);
     overflow: hidden;
   }
   .split-pane--card.split-pane--active {
-    background: var(--bg-base);
-  }
-  .split-pane--strip {
-    border-radius: var(--main-chat-surface-radius) var(--main-chat-surface-radius) 0 0;
-    background: color-mix(in srgb, var(--bg-base) 62%, var(--surface-sidebar));
-    box-shadow: var(--main-chat-surface-shadow);
-    overflow: hidden;
-  }
-  .split-pane--strip:hover {
     background: var(--bg-base);
   }
   .split-view .main-chat-column {
@@ -3476,4 +3469,37 @@
 .route-node-off { border-style: dashed; background: transparent; box-shadow: none; }
 .route-node-invalid { border-color: color-mix(in srgb, var(--danger-semantic) 55%, var(--border-base)); }
 .dark .route-node { background: var(--bg-1); box-shadow: none; }
+
+/* ── Split panes (tmux-style layout) ── */
+.split-pane--animate { transition: left 160ms var(--motion-ease), top 160ms var(--motion-ease), width 160ms var(--motion-ease), height 160ms var(--motion-ease); }
+.split-pane--card:not(.split-pane--active) { outline: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent); outline-offset: -1px; }
+.split-pane--active { outline: 1px solid color-mix(in srgb, var(--text-primary) 18%, var(--border-base)); outline-offset: -1px; }
+.split-drop-preview {
+  border: 1.5px solid color-mix(in srgb, var(--primary-semantic) 55%, transparent);
+  background: color-mix(in srgb, var(--primary-semantic) 9%, transparent);
+  transition: inset 120ms var(--motion-ease);
+}
+.split-drop-label { background: var(--bg-base); color: var(--text-primary); box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12); }
+.split-menu {
+  border: 1px solid var(--border-base);
+  background: var(--bg-base);
+  box-shadow: 0 10px 28px -12px rgba(16, 24, 40, 0.28), 0 2px 6px -2px rgba(16, 24, 40, 0.08);
+  cursor: default;
+}
+.split-menu-item { color: var(--text-primary); }
+.split-menu-item:hover:not(:disabled) { background: var(--bg-hover); }
+.split-thumb-cell { fill: color-mix(in srgb, var(--text-secondary) 14%, transparent); stroke: color-mix(in srgb, var(--text-secondary) 45%, transparent); stroke-width: 1; }
+.split-thumb-main { fill: color-mix(in srgb, var(--text-primary) 22%, transparent); stroke: color-mix(in srgb, var(--text-primary) 55%, transparent); stroke-width: 1; }
+.split-icon-btn { color: hsl(var(--text-secondary-hsl)); }
+.split-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.split-handle-line { background: transparent; transition: background-color var(--motion-fast) ease; }
+.split-handle:hover .split-handle-line { background: color-mix(in srgb, var(--text-secondary) 45%, transparent); }
+.split-guide { background: color-mix(in srgb, var(--text-secondary) 50%, transparent); }
+.split-guide--snapped { background: var(--primary-semantic); }
+.split-guide-label { background: var(--bg-base); color: var(--text-primary); border: 1px solid var(--border-base); box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1); }
+.split-guide--snapped .split-guide-label { color: var(--primary-semantic); }
+.split-tabs { z-index: 5; }
+.split-tab { color: hsl(var(--text-secondary-hsl)); }
+.split-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.split-tab--active { background: var(--bg-base); color: var(--text-primary); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base); }
 

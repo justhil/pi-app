@@ -265,12 +265,45 @@
     "untitled": "未命名会话",
     "close": "关闭分栏",
     "closeHint": "关闭分栏（会话保留，运行中的任务不会停止）",
-    "resize": "调整分栏宽度",
-    "resizeHint": "拖动调整宽度，双击均分",
-    "emptyPane": "点击这里开始新会话，或从左侧把会话拖进来",
+    "resize": "调整分栏大小",
+    "resizeHint": "拖动调整大小，靠近 1/3、1/2、2/3 会吸附；双击均分",
+    "emptyPane": "空窗格：从侧栏拖入会话，或点击开始新对话",
     "clickToLoad": "点击查看此会话",
     "toolRun": "运行了 {{count}} 个工具",
     "openInPane": "在右侧分栏打开",
-    "replying": "正在回复…"
+    "replying": "正在回复…",
+    "dropSplit": "在这里拆分",
+    "dropReplace": "在此窗格打开",
+    "dropSwap": "交换位置",
+    "splitThis": "拆分",
+    "splitRight": "向右拆分",
+    "splitDown": "向下拆分",
+    "layout": "布局",
+    "equalize": "均分大小",
+    "layoutMenu": "拆分与布局",
+    "presets": {
+      "columns": "并排",
+      "rows": "上下",
+      "main-left": "主窗格在左",
+      "main-top": "主窗格在上",
+      "grid": "四宫格"
+    },
+    "status": {
+      "idle": "空闲",
+      "working": "运行中",
+      "needs-you": "等你回复",
+      "done": "已完成，未查看"
+    },
+    "ago": {
+      "now": "刚刚",
+      "minutes": "{{count}} 分钟前",
+      "hours": "{{count}} 小时前",
+      "days": "{{count}} 天前"
+    },
+    "card": {
+      "usingTools": "正在调用工具 · 本轮 {{count}} 次",
+      "turns": "{{count}} 轮"
+    },
+    "focusHint": "窗口太窄，暂以标签显示；可在此切换布局"
   }
 }
