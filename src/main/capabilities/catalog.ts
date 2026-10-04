@@ -1,5 +1,5 @@
 import { CAPABILITY_IDS, normalizeCapabilities, type CapabilityId, type CapabilityInfo } from '@shared/capabilities'
-import { BROWSER_CORE_TOOLS, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
+import { BROWSER_CORE_TOOLS, BROWSER_DEFERRED_TOOLS, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
 import piUiPrompt from './pi-ui.md?raw'
 
 const BROWSER_TOOL_COUNT = BROWSER_TOOL_NAMES.length
@@ -30,8 +30,12 @@ const TOOL_DEF_TOKENS = (id: CapabilityId): number => {
   return deferTools() ? toolDefTokens(BROWSER_CORE_TOOLS) + TOOL_SEARCH_TOKENS : toolDefTokens(BROWSER_TOOL_NAMES)
 }
 
-const BROWSER_DEFERRED_NOTE =
-  "- Only browser_navigate, browser_snapshot, browser_click and browser_type are loaded. Load the others (tabs, scrolling, keys, forms, select, hover, drag, waits, screenshots, uploads, dialogs, console, network, evaluate, PDF) with tool_search, e.g. query \"browser scroll wait\"."
+// Exact names, so the model knows every tool exists and loads it by name (an exact-name query
+// is an unambiguous BM25 match); loading them up front avoids a "Tool … not found" round trip.
+const BROWSER_DEFERRED_NOTE = [
+  `- Loaded now: ${BROWSER_CORE_TOOLS.join(', ')}.`,
+  `- Load these by name with tool_search before the first call, limit = how many you name: ${BROWSER_DEFERRED_TOOLS.join(', ')}. E.g. query "browser_wait_for browser_tabs", limit 2. Once loaded they stay available.`,
+].join('\n')
 
 /** Prompt text appended to the system prompt while a capability is on (strip the source comment). */
 const PROMPTS: Partial<Record<CapabilityId, string>> = {

@@ -151,7 +151,7 @@ test.describe('browser agent runtime', () => {
       expect(r).toHaveLength(29)
       // At first only the core tools and tool_search are declared…
       const first = seen.find((s) => s.firstUser.includes('LAB-TASK'))!
-      expect(first.tools.filter((t) => t.startsWith('browser_')).sort()).toEqual(['browser_click', 'browser_navigate', 'browser_snapshot', 'browser_type'])
+      expect(first.tools.filter((t) => t.startsWith('browser_')).sort()).toEqual(['browser_click', 'browser_mouse_wheel', 'browser_navigate', 'browser_snapshot', 'browser_take_screenshot', 'browser_type'])
       expect(first.tools).toContain('tool_search')
       // …and tool_search loads the rest of the Playwright MCP set.
       expect(search).toMatch(/browser_tabs/)

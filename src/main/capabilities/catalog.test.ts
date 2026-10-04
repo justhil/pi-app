@@ -53,11 +53,11 @@ describe('deferred browser tools', () => {
     expect(capabilitySections(['browser'])[0]).not.toContain('tool_search')
     defer = true
     const lean = capabilityCatalog().find((c) => c.id === 'browser')!
-    expect(lean.coreTools).toBe(4)
-    expect(lean.promptTokens).toBeLessThan(all.promptTokens * 0.6)
-    // Measured in a real request: ~555 tokens of tool definitions + ~392 of prompt section.
-    expect(lean.promptTokens).toBeGreaterThan(900)
-    expect(lean.promptTokens).toBeLessThan(1000)
+    expect(lean.coreTools).toBe(6)
+    expect(lean.promptTokens).toBeLessThan(all.promptTokens * 0.65)
+    // Measured in a real request: ~736 tokens of tool definitions + ~471 of prompt section.
+    expect(lean.promptTokens).toBeGreaterThan(1150)
+    expect(lean.promptTokens).toBeLessThan(1260)
     expect(capabilitySectionMap(['browser', 'pi-ui'])).toEqual({
       'pi-ui': '# pi-ui blocks\n\nUse blocks.',
       browser: expect.stringContaining('tool_search'),

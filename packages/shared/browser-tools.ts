@@ -150,7 +150,7 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
   {
     name: 'browser_tabs',
     label: 'Browser tabs',
-    description: 'List, open, close or select tabs of this conversation. Other tools act on the selected tab.',
+    description: 'List, open, close or switch to (select) tabs of this conversation. Other tools act on the selected tab.',
     parameters: obj({ action: { type: 'string', enum: ['list', 'new', 'close', 'select'] }, index: { type: 'integer', minimum: 0, maximum: 99 }, url: str(8192) }, ['action']),
   },
   {
@@ -209,10 +209,20 @@ export const BROWSER_TOOL_NAMES: readonly string[] = BROWSER_TOOL_DEFS.map((d) =
 
 /**
  * Declared to the model whenever browser control is on. The other browser_* tools are deferred:
- * `tool_search` loads them when the model needs them, so each request carries 4 definitions
+ * `tool_search` loads them when the model needs them, so each request carries 6 definitions
  * instead of 21. (Runtimes without tool_search declare all of them.)
  */
-export const BROWSER_CORE_TOOLS: readonly string[] = ['browser_navigate', 'browser_snapshot', 'browser_click', 'browser_type']
+export const BROWSER_CORE_TOOLS: readonly string[] = [
+  'browser_navigate',
+  'browser_snapshot',
+  'browser_click',
+  'browser_type',
+  'browser_mouse_wheel',
+  'browser_take_screenshot',
+]
+
+/** The browser tools that load on demand, in definition order. */
+export const BROWSER_DEFERRED_TOOLS: readonly string[] = BROWSER_TOOL_DEFS.map((d) => d.name).filter((n) => !BROWSER_CORE_TOOLS.includes(n))
 
 /** Groups the browser tools for tool_search ranking ("browser" finds all of them). */
 export const BROWSER_NAMESPACE = {
