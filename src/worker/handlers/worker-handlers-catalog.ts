@@ -51,6 +51,24 @@ export async function handleGetmodels(msg: WorkerIncomingMessage, reply: WorkerR
 }
 
 
+/** Classifier models (Jev, Clef, llama.cpp…) for the model routing page, with credential state. */
+export async function handleGetclassifiermodels(_msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  try {
+    const runtime = st.modelRuntime as unknown as {
+      getModelsOfType?: (type: 'classifier') => readonly { id: string; name?: string; provider: string }[]
+      getAvailableOfType?: (type: 'classifier') => Promise<readonly { id: string; provider: string }[]>
+    } | null
+    const all = runtime?.getModelsOfType?.('classifier') ?? []
+    const available = new Set((await runtime?.getAvailableOfType?.('classifier').catch(() => []) ?? []).map((m) => `${m.provider}/${m.id}`))
+    reply({
+      type: 'getClassifierModels-done',
+      models: all.map((m) => ({ id: m.id, name: m.name || m.id, provider: m.provider, available: available.has(`${m.provider}/${m.id}`) })),
+    })
+  } catch (e: unknown) {
+    reply({ type: 'error', error: `getClassifierModels failed: ${errorMessage(e)}` })
+  }
+}
+
 export async function handleGetmodelsettingssnapshot(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
   try {
     if (!st.modelRuntime) {

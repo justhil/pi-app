@@ -20,8 +20,10 @@ const toolDefTokens = (names: readonly string[]) =>
       })),
     ).length,
   )
-// tool_search's own definition (~110 tokens) is declared alongside the core browser tools.
-const TOOL_SEARCH_TOKENS = 110
+// tool_search's own definition (~160 tokens, measured) plus its line in the prompt's tool list.
+const TOOL_SEARCH_TOKENS = 185
+// Each capability prompt is sent as an XML-wrapped section (<desktop_id>…</desktop_id>).
+const SECTION_WRAPPER_TOKENS = 10
 
 const TOOL_DEF_TOKENS = (id: CapabilityId): number => {
   if (id !== 'browser') return 0
@@ -77,7 +79,7 @@ export function capabilityCatalog(): CapabilityInfo[] {
       id,
       available: a.ok,
       ...(a.reason ? { reason: a.reason } : {}),
-      promptTokens: estimateTokens(promptFor(id)?.length ?? 0) + TOOL_DEF_TOKENS(id),
+      promptTokens: (promptFor(id) ? estimateTokens(promptFor(id)!.length) + SECTION_WRAPPER_TOKENS : 0) + TOOL_DEF_TOKENS(id),
       tools: id === 'browser' ? BROWSER_TOOL_COUNT : 0,
       ...(id === 'browser' && deferTools() ? { coreTools: BROWSER_CORE_TOOLS.length } : {}),
     }

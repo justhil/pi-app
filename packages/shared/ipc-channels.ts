@@ -78,6 +78,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:pi.settings.get',
   'ipc:pi.settings.set',
   'ipc:project.removeRecent',
+  'ipc:routers.classifiers',
   'ipc:routers.get',
   'ipc:routers.set',
   'ipc:prompt.abort',

@@ -23,6 +23,9 @@ export type Seen = {
   messages: { role: string; text: string }[]
   /** Model id the request was sent for. */
   model: string
+  /** Characters of the request's tool definitions and of all its messages (token estimates). */
+  toolChars: number
+  messageChars: number
 }
 export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number }
 /** Next step given the user's first message and the tool results so far (oldest first). */
@@ -55,7 +58,7 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const firstUser = contentText(messages.find((m) => m.role === 'user') ?? {})
     const toolTexts = messages.filter((m) => m.role === 'tool').map(contentText)
     const tools = (request.tools ?? []).map((t: { function?: { name?: string } }) => t.function?.name ?? '')
-    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts, messages: messages.map((m) => ({ role: m.role, text: contentText(m) })), model: String(request.model ?? '') })
+    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts, messages: messages.map((m) => ({ role: m.role, text: contentText(m) })), model: String(request.model ?? ''), toolChars: JSON.stringify(request.tools ?? []).length, messageChars: JSON.stringify(messages).length })
     const lastUser = contentText([...messages].reverse().find((m) => m.role === 'user') ?? {})
     const step = script(firstUser, toolTexts, lastUser)
 

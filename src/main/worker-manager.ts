@@ -844,6 +844,10 @@ export class WorkerManager {
     const r = await this.request('getModelSettingsSnapshot')
     return (r.models as WorkerModelRow[]) || []
   }
+  async getClassifierModels(): Promise<{ id: string; name: string; provider: string; available: boolean }[]> {
+    const r = await this.request('getClassifierModels')
+    return (r.models as { id: string; name: string; provider: string; available: boolean }[]) || []
+  }
   async getModels(): Promise<WorkerModelRow[]> {
     const r = await this.request('getModels')
     return (r.models as WorkerModelRow[]) || []

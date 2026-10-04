@@ -55,6 +55,9 @@ describe('deferred browser tools', () => {
     const lean = capabilityCatalog().find((c) => c.id === 'browser')!
     expect(lean.coreTools).toBe(4)
     expect(lean.promptTokens).toBeLessThan(all.promptTokens * 0.6)
+    // Measured in a real request: ~555 tokens of tool definitions + ~392 of prompt section.
+    expect(lean.promptTokens).toBeGreaterThan(900)
+    expect(lean.promptTokens).toBeLessThan(1000)
     expect(capabilitySectionMap(['browser', 'pi-ui'])).toEqual({
       'pi-ui': '# pi-ui blocks\n\nUse blocks.',
       browser: expect.stringContaining('tool_search'),
