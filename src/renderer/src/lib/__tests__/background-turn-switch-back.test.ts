@@ -11,9 +11,14 @@ vi.mock('@renderer/lib/ipc-client', () => ({
 vi.mock('@renderer/lib/session-display-meta', () => ({
   applyComposerDisplayMeta: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('@renderer/lib/refresh-workspace-session-lists', () => ({ refreshWorkspaceSessionLists: vi.fn() }))
+vi.mock('@renderer/lib/rewind-metadata', () => ({ refreshSessionTree: vi.fn() }))
+vi.mock('@renderer/features/timeline/timeline-bottom-anchor', () => ({ requestTimelineBottomAnchor: vi.fn() }))
 
+import { isInterruptedAssistantRow } from '@shared/timeline-incomplete'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
-import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { clearLiveSessionTimeline, saveLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
 import { clearSessionHistoryCache, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import {
   clearSessionShellForTests,
@@ -164,5 +169,48 @@ describe('#99 background turn completion → switch back', () => {
     const fresh = await fetchSessionHistoryTail(sessionAKey, 80)
 
     expect(fresh.items).toHaveLength(3)
+  })
+
+  it.each([false, true])('keeps a manually refreshed reply through repeated switches (other session running: %s)', async (otherRunning) => {
+    const failedAttempt: TimelineItem = {
+      id: 'failed-attempt', type: 'assistant-message', text: '',
+      sessionEntryId: 'e-failed', incomplete: true, stopReason: 'error', timestamp: 4,
+    }
+    const stale = [...history, failedAttempt]
+    useUIStore.setState({
+      currentWorkspace: 'C:/workspace', currentSessionId: 'session-a', historySessionFile: sessionAKey,
+      timelineItems: stale, historyTotalCount: stale.length, historyLoadedCount: stale.length,
+      streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false,
+      pendingSteering: [], pendingFollowUp: [], sessionRuntimeRunning: { 'C:/sessions/b.jsonl': otherRunning },
+      runState: { status: 'idle', toolCount: 0, errorCount: 0 },
+      workerLiveSnapshot: { sessionId: 'session-a', sessionFile: sessionAKey, status: 'idle' },
+    })
+    saveLiveSessionTimeline({
+      sessionId: 'session-a', sessionFile: sessionAKey, timelineItems: stale,
+      streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false,
+      pendingSteering: [], pendingFollowUp: [], runState: useUIStore.getState().runState,
+    })
+    focusSessionSync('session-a', sessionA)
+    diskRows(sessionAKey, [
+      ...stale,
+      { id: 'final', type: 'assistant-message', text: 'complete final answer', sessionEntryId: 'e-final', stopReason: 'stop', timestamp: 5 },
+    ])
+
+    await expect(reloadCurrentSessionData()).resolves.toEqual({ ok: true })
+    const expectCompleted = () => {
+      expect(useUIStore.getState().timelineItems.some((item) => item.sessionEntryId === 'e-final')).toBe(true)
+      expect(useUIStore.getState().timelineItems.some(isInterruptedAssistantRow)).toBe(false)
+    }
+    expectCompleted()
+    expect(useUIStore.getState().sessionRuntimeRunning['C:/sessions/b.jsonl']).toBe(otherRunning)
+
+    for (let round = 0; round < 2; round++) {
+      captureVisibleLiveSessionTimeline()
+      focusSessionSync('session-b', sessionB)
+      focusSessionSync('session-a', sessionA)
+      expectCompleted()
+      await focusSession('session-a', sessionA)
+      expectCompleted()
+    }
   })
 })
