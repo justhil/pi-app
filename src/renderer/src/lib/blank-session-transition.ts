@@ -1,6 +1,8 @@
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { reportVisibleSession } from '@renderer/lib/visible-session-report'
+import { beginSessionNavigation } from '@renderer/lib/session-navigation'
+import { clearSessionFocus } from '@renderer/lib/session-shell'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 
@@ -8,6 +10,7 @@ export type BlankSessionKind = 'pending-project' | 'ephemeral-sandbox'
 
 function clearBlankSessionProjection(): void {
   captureVisibleLiveSessionTimeline()
+  clearSessionFocus()
 
   const state = useUIStore.getState()
   state.clearTimeline()
@@ -42,6 +45,7 @@ export function resetBlankSessionProjection(): void {
 }
 
 export function enterBlankSession(kind: BlankSessionKind): void {
+  beginSessionNavigation()
   clearBlankSessionProjection()
   useUIStore.setState({
     ephemeralSandboxDraft: kind === 'ephemeral-sandbox',

@@ -58,6 +58,7 @@ export function useComposerSend(opts: {
         const currentWorkspace = useUIStore.getState().currentWorkspace
         if (!currentWorkspace && !draft) return
         const store = useUIStore.getState()
+        let sessionFile = store.historySessionFile ?? undefined
         const { composerTurnActive } = await import('@renderer/lib/session-worker-sync')
         const running = composerTurnActive({
           historySessionFile: store.historySessionFile,
@@ -78,7 +79,7 @@ export function useComposerSend(opts: {
         let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
         const promptPayload = () => ({
           sessionId: '',
-          sessionFile: useUIStore.getState().historySessionFile ?? undefined,
+          sessionFile,
           text: payload,
           capabilities,
         })
@@ -99,10 +100,10 @@ export function useComposerSend(opts: {
             useUIStore.getState().setPendingTurnStage('starting')
             const { finalizeEphemeralSandboxOnFirstSend } =
               await import('@renderer/lib/ephemeral-sandbox')
-            await finalizeEphemeralSandboxOnFirstSend(pendMsg)
+            sessionFile = await finalizeEphemeralSandboxOnFirstSend(pendMsg)
             bindOptimisticOutgoingToSession(
               optimisticToken,
-              useUIStore.getState().historySessionFile,
+              sessionFile,
             )
             useUIStore.getState().setPendingTurnStage('sending')
             const bind = await sendPrompt()
@@ -117,7 +118,7 @@ export function useComposerSend(opts: {
             })
             useUIStore.getState().setPendingTurnStage('starting')
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
-            await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
+            sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
               bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
             })
             useUIStore.getState().setPendingTurnStage('sending')

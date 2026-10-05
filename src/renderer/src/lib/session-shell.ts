@@ -89,6 +89,10 @@ export function getFocusSessionKey(): string | null {
   return focusKey
 }
 
+export function clearSessionFocus(): void {
+  focusKey = null
+}
+
 export function getSessionView(sessionFile: string | null | undefined): SessionView | null {
   const key = sessionKeyFromFile(sessionFile)
   if (!key) return null
@@ -543,7 +547,7 @@ export async function hydrateSessionView(
       clearSessionDiskAuthoritative(sessionKey)
       clearLiveSessionTimeline(sessionKey)
     }
-    if (focusKey && !sessionFilesEqual(focusKey, sessionKey)) {
+    if (!sessionFilesEqual(focusKey, sessionKey)) {
       // Still merge disk into cache in background so next focus is fresh, but do not bind.
       if (!hist.error && hist.items) {
         const diskItems = sanitizeHistoryTimeline(hist.items as TimelineItem[])

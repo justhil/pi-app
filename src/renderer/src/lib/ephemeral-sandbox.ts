@@ -9,7 +9,7 @@ export function titleFromFirstMessage(text: string, maxLen = 48): string {
   return one.length > maxLen ? `${one.slice(0, maxLen)}…` : one
 }
 
-/** 临时对话首条消息：建 sandbox → 打开工作区 → 真 session（标题=首条消息） */
+/** 临时对话首条消息：建 sandbox → 打开工作区 → 返回新 sessionFile（标题=首条消息） */
 export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string): Promise<string> {
   const store = useUIStore.getState()
   if (!store.ephemeralSandboxDraft) {
@@ -29,8 +29,8 @@ export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string):
   }
   store.setWorkspace(box.path)
 
-  await materializePendingNewSession(box.path, firstMessage)
+  const sessionFile = await materializePendingNewSession(box.path, firstMessage)
 
   window.dispatchEvent(new Event('pi-desktop:sandboxes-changed'))
-  return box.path
+  return sessionFile
 }
