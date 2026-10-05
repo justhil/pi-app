@@ -40,6 +40,7 @@ describe('sendComposerPrompt', () => {
         currentWorkspace: '/proj',
       }
       onCreated?.('/tmp/new.jsonl')
+      return '/tmp/new.jsonl'
     })
     storeState = {
       currentSessionId: 's1',
@@ -73,10 +74,26 @@ describe('sendComposerPrompt', () => {
     await expect(sendComposerPrompt('请按这些行评修改')).resolves.toBe(true)
     expect(materializePendingNewSession).toHaveBeenCalledWith('/proj', '请按这些行评修改')
     expect(invoke).toHaveBeenCalledWith('prompt.send', {
-      sessionId: 'new',
+      sessionId: '',
       sessionFile: '/tmp/new.jsonl',
       text: '请按这些行评修改',
       capabilities: [],
     })
+  })
+
+  it('keeps the created session as the target when the view changes during materialization', async () => {
+    storeState.pendingNewSessionPlaceholder = true
+    storeState.historySessionFile = null
+    materializePendingNewSession.mockImplementation(async () => {
+      storeState = { ...storeState, currentSessionId: 'other', historySessionFile: '/tmp/other.jsonl' }
+      return '/tmp/new.jsonl'
+    })
+
+    const { sendComposerPrompt } = await import('./send-composer-prompt')
+    await sendComposerPrompt('first prompt')
+
+    expect(invoke).toHaveBeenCalledWith('prompt.send', expect.objectContaining({
+      sessionFile: '/tmp/new.jsonl', text: 'first prompt',
+    }))
   })
 })

@@ -21,14 +21,6 @@ describe('live session switch binding', () => {
     assert.match(openSession, /refreshSessionTree\(sessionFile\)/)
   })
 
-  it('sends the visible sessionFile with prompt and queue requests', () => {
-    const text = src('src/renderer/src/features/composer/use-composer-send.ts')
-    assert.match(text, /sessionFile:\s*useUIStore\.getState\(\)\.historySessionFile\s*\?\?\s*undefined/)
-    assert.match(text, /prompt\.send[\s\S]*promptPayload\(\)/)
-    assert.match(text, /prompt\.steer[\s\S]*promptPayload\(\)/)
-    assert.match(text, /prompt\.followUp[\s\S]*promptPayload\(\)/)
-  })
-
   it('scopes abort and queue restoration to the visible sessionFile', () => {
     const abort = src('src/renderer/src/lib/composer-abort.ts')
     assert.match(abort, /sessionFile\s*=\s*store\.historySessionFile/)

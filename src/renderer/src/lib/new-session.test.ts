@@ -53,7 +53,7 @@ describe('new session model preselection', () => {
     expect(confirmModel).toBeDefined()
 
     confirmModel?.({ modelId: 'openai/org/model/v2' })
-    await materialized
+    await expect(materialized).resolves.toBe('C:/sessions/new.jsonl')
   })
 
   it('waits for model confirmation before finishing session materialization', async () => {
@@ -127,5 +127,15 @@ describe('new session model preselection', () => {
     )
     expect(invoke).not.toHaveBeenCalledWith('thinkingLevel.set', expect.anything())
     expect(invoke).not.toHaveBeenCalledWith('session.list', expect.anything())
+  })
+
+  it('rejects creation without a session file before changing the selected session', async () => {
+    invoke.mockResolvedValue({ session: { sessionId: 'new-id' } })
+
+    await expect(materializePendingNewSession('D:/workspace', 'first prompt')).rejects.toThrow(
+      'session.new returned no sessionFile',
+    )
+    expect(store.setCurrentSession).not.toHaveBeenCalled()
+    expect(store.setHistoryMeta).not.toHaveBeenCalled()
   })
 })

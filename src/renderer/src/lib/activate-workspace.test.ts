@@ -16,7 +16,7 @@ vi.mock('@renderer/lib/open-session', () => ({
   openSessionIntoWorker: vi.fn(async () => {}),
   openSessionPreview: vi.fn(async () => {}),
 }))
-vi.mock('@renderer/lib/session-shell', () => ({ focusSessionSync: vi.fn() }))
+vi.mock('@renderer/lib/session-shell', () => ({ focusSessionSync: vi.fn(), clearSessionFocus: vi.fn() }))
 vi.mock('@renderer/lib/capture-live-session-timeline', () => ({
   captureVisibleLiveSessionTimeline: vi.fn(),
 }))

@@ -15,6 +15,9 @@ vi.mock('@renderer/lib/session-display-meta', () => ({
 }))
 
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import { beginSessionNavigation, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import {
   clearLiveSessionTimeline,
   saveLiveSessionTimeline,
@@ -23,6 +26,7 @@ import {
   bindViewToUiStore,
   clearSessionShellForTests,
   focusSessionSync,
+  getFocusSessionKey,
   hydrateSessionView,
 } from '@renderer/lib/session-shell'
 import { clearStreamPending } from '@renderer/stores/ui-store-stream'
@@ -49,12 +53,15 @@ describe('session shell stream switch race', () => {
       return animationFrames.length
     })
     historyMock.fetch.mockReset()
+    vi.mocked(ipcClient.invoke).mockClear()
     clearStreamPending()
     clearLiveSessionTimeline()
     clearSessionShellForTests()
     useUIStore.setState({
       currentWorkspace: '/workspace',
       currentSessionId: 'session-a',
+      pendingNewSessionPlaceholder: false,
+      ephemeralSandboxDraft: false,
       historySessionFile: sessionA,
       historyTotalCount: 2,
       historyLoadedCount: 2,
@@ -94,6 +101,42 @@ describe('session shell stream switch race', () => {
       },
       fileChanges: [],
     })
+  })
+
+  it.each([
+    { kind: 'pending-project' as const, tokenized: true },
+    { kind: 'pending-project' as const, tokenized: false },
+    { kind: 'ephemeral-sandbox' as const, tokenized: true },
+    { kind: 'ephemeral-sandbox' as const, tokenized: false },
+  ])('ignores old hydration after entering $kind (navigation token: $tokenized)', async ({ kind, tokenized }) => {
+    focusSessionSync('session-a', sessionA)
+    const token = beginSessionNavigation()
+    const history = deferred<{
+      items: ReturnType<typeof useUIStore.getState>['timelineItems']
+      sourceCount: number
+      totalCount: number
+    }>()
+    const items = useUIStore.getState().timelineItems
+    historyMock.fetch.mockReturnValueOnce(history.promise)
+    const hydration = hydrateSessionView(sessionA, 'session-a', tokenized ? token : undefined)
+
+    enterBlankSession(kind)
+    const draftId = kind === 'pending-project' ? '__pending_new__' : '__ephemeral_draft__'
+    expect(isSessionNavigationCurrent(token)).toBe(false)
+    expect(getFocusSessionKey()).toBeNull()
+
+    history.resolve({ items, sourceCount: items.length, totalCount: items.length })
+    await hydration
+
+    expect(useUIStore.getState().currentSessionId).toBe(draftId)
+    expect(useUIStore.getState().historySessionFile).toBeNull()
+    expect(useUIStore.getState().timelineItems).toEqual([])
+    expect(useUIStore.getState().sessionRuntimeRunning[sessionA]).toBe(true)
+    expect(ipcClient.invoke).not.toHaveBeenCalledWith('session.setPendingBind', { sessionFile: sessionA })
+
+    focusSessionSync('session-a', sessionA)
+    expect(useUIStore.getState().timelineItems.map((item) => item.id)).toEqual(items.map((item) => item.id))
+    expect(useUIStore.getState().runState.status).toBe('running')
   })
 
   it('should_bind_remapped_stream_id_that_exists_in_session_view', () => {

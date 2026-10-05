@@ -10,13 +10,13 @@ export function enterNewSessionPlaceholder(): void {
   enterBlankSession('pending-project')
 }
 
-/** 首条消息：创建真实 session，并在拿到 sessionFile 后立即回调。 */
+/** 首条消息：创建真实 session，立即回调 sessionFile，配置完成后返回发送目标。 */
 export async function materializePendingNewSession(
   workspaceId: string,
   firstMessage: string,
   onSessionCreated?: (sessionFile: string) => void,
-): Promise<void> {
-  if (!workspaceId) return
+): Promise<string> {
+  if (!workspaceId) throw new Error('A workspace is required to create a session')
   const store = useUIStore.getState()
 
   const title = titleFromFirstMessage(firstMessage, 48) || '新会话'
@@ -26,6 +26,7 @@ export async function materializePendingNewSession(
   if (!sessionId) throw new Error('session.new returned no sessionId')
 
   const sessionFile = res?.session?.sessionFile as string | undefined
+  if (!sessionFile) throw new Error('session.new returned no sessionFile')
 
   store.clearPendingNewSessionPlaceholder()
   store.setCurrentSession(sessionId)
@@ -74,6 +75,7 @@ export async function materializePendingNewSession(
 
   // The sidebar list only needs to show the new row; never hold the first prompt for it.
   void refreshNewSessionInList(workspaceId, { sessionId, sessionFile, title })
+  return sessionFile
 }
 
 function insertSessionRowOptimistically(
