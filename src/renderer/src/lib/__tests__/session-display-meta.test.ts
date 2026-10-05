@@ -55,6 +55,50 @@ describe('session-display-meta model authority', () => {
     return { promise, resolve }
   }
 
+  it.each([
+    { name: 'no worker has started', state: null },
+    { name: 'another session is running', state: {
+      sessionFile: '/proj/sessions/other.jsonl', model: 'other/session-model',
+      thinkingLevel: 'low', isStreaming: true,
+    } },
+  ])('shows saved defaults in a new chat when $name', async ({ state }) => {
+    view.historySessionFile = null
+    invoke.mockImplementation(async (method: string) => {
+      if (method === 'ipc:runtime.getState') return { state }
+      if (method === 'pi.settings.get') return {
+        settings: { defaultProvider: 'custom', defaultModel: 'default-model', defaultThinkingLevel: 'high' },
+      }
+      return {}
+    })
+
+    await applyComposerDisplayMeta()
+
+    expect(setRunState).toHaveBeenLastCalledWith({ model: 'custom/default-model', thinkingLevel: 'high' })
+    expect(invoke).not.toHaveBeenCalledWith('ipc:runtime.getState', expect.anything())
+  })
+
+  it('uses the created session runtime after leaving the draft', async () => {
+    view.historySessionFile = null
+    invoke.mockImplementation(async (method: string) => {
+      if (method === 'ipc:runtime.getState') return {
+        state: { sessionFile: '/proj/sessions/new.jsonl', model: 'custom/runtime-model', thinkingLevel: 'low' },
+      }
+      if (method === 'pi.settings.get') return {
+        settings: { defaultProvider: 'custom', defaultModel: 'default-model', defaultThinkingLevel: 'high' },
+      }
+      return {}
+    })
+
+    await applyComposerDisplayMeta()
+    expect(setRunState).toHaveBeenLastCalledWith({ model: 'custom/default-model', thinkingLevel: 'high' })
+
+    view.historySessionFile = '/proj/sessions/new.jsonl'
+    await applyComposerDisplayMeta()
+
+    expect(invoke).toHaveBeenCalledWith('ipc:runtime.getState', { sessionFile: '/proj/sessions/new.jsonl' })
+    expect(setRunState).toHaveBeenLastCalledWith({ model: 'custom/runtime-model', thinkingLevel: 'low' })
+  })
+
   // Switching sessions fires a meta-less refresh (composer effect) and then the hydrate's
   // JSONL-meta refresh; whichever IPC round-trip finished last used to win.
   it('lets the newest refresh win even when an older one resolves later', async () => {
