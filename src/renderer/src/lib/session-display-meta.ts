@@ -118,29 +118,25 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
   // JSONL meta belongs to this session whatever the async checks below decide; record it now so
   // a newer meta-less refresh (which supersedes this one) can still show it.
   rememberSessionDisplayMeta(previewFile, meta ?? {})
-  let workerBoundToView = !previewFile
+  let workerBoundToView = false
   let workerModel: string | undefined
   let workerThinking: string | undefined
 
   try {
     // Ask for the viewed session's own worker slot. The foreground worker may belong to another
     // session (Settings / skills / SDK restarts start the workspace worker) — #100.
-    const res = await ipcClient.invoke(
-      'ipc:runtime.getState',
-      previewFile ? { sessionFile: previewFile } : {},
-    )
+    // A new draft has no worker; its defaults must not come from another session.
+    const res = previewFile
+      ? await ipcClient.invoke('ipc:runtime.getState', { sessionFile: previewFile })
+      : null
     const st = res?.state as {
       sessionFile?: string
       model?: string
       thinkingLevel?: string
       bound?: boolean
     } | null
-    if (previewFile) {
-      workerBoundToView =
-        st?.bound !== false && isViewingWorkerBoundSession(previewFile, st?.sessionFile)
-    } else if (st?.sessionFile) {
-      workerBoundToView = true
-    }
+    workerBoundToView =
+      st?.bound !== false && isViewingWorkerBoundSession(previewFile, st?.sessionFile)
     if (workerBoundToView && st) {
       workerModel = normalizeModelKey(st.model)
       workerThinking = normalizeThinkingLevel(st.thinkingLevel)
