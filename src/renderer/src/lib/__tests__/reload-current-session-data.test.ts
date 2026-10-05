@@ -66,6 +66,14 @@ describe('current session reload', () => {
   it('should_not_rebind_worker_when_only_refreshing_displayed_messages', async () => {
     await reloadCurrentSessionData()
     expect(mocks.capture).toHaveBeenCalledOnce()
+    expect(mocks.clearLive).toHaveBeenCalledWith('/workspace/a.jsonl')
+  })
+
+  it('preserves live cache while the refreshed session is still running', async () => {
+    useUIStore.setState({ sessionRuntimeRunning: { '/workspace/a.jsonl': true } })
+    await reloadCurrentSessionData()
+    expect(useUIStore.getState().runState.status).toBe('running')
+    expect(mocks.clearLive).not.toHaveBeenCalled()
   })
 
   it('should_not_overwrite_new_session_when_old_reload_finishes', async () => {
@@ -85,6 +93,7 @@ describe('current session reload', () => {
     expect(useUIStore.getState().historyLoading).toBe(true)
     expect(mocks.meta).not.toHaveBeenCalled()
     expect(mocks.anchor).not.toHaveBeenCalled()
+    expect(mocks.clearLive).not.toHaveBeenCalled()
   })
 
   it('should_keep_newer_reload_when_older_request_finishes_last', async () => {
@@ -106,5 +115,6 @@ describe('current session reload', () => {
     expect(result).toEqual({ ok: false, error: 'read failed' })
     expect(useUIStore.getState().timelineItems[0]?.text).toBe('old history')
     expect(useUIStore.getState().historyLoading).toBe(false)
+    expect(mocks.clearLive).not.toHaveBeenCalled()
   })
 })

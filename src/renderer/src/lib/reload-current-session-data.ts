@@ -4,6 +4,7 @@ import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
+import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
@@ -38,6 +39,9 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     const { items, totalCount, sessionMeta } = hist
     store.loadHistoryItems(sanitizeHistoryTimeline(items as TimelineItem[]))
     store.setHistoryMeta(totalCount, items.length, sessionFile)
+    if (useUIStore.getState().runState.status !== 'running') {
+      clearLiveSessionTimeline(sessionFile)
+    }
     captureFocusFromUiStore()
     await applyComposerDisplayMeta(sessionMeta)
     if (!stillCurrent()) return { ok: true }
