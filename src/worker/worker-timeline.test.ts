@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { normalizeMessages, resetTimelineSeq, timelineItemsFromBranchPath } from './worker-timeline'
+import { isInterruptedAssistantRow, resolveRewindTargetEntryId } from '@shared/timeline-incomplete'
 
 const expandedSkill = `<skill name="demo-skill" location="/skills/demo-skill/SKILL.md">
 References are relative to /skills/demo-skill.
@@ -110,5 +111,32 @@ describe('worker timeline row ids', () => {
     // rows built in Main vs. each Worker, so ids must carry more than the bare counter.
     expect(first).toEqual(second)
     expect(first.every((id) => /^hist-[a-z0-9]+-\d+$/.test(id))).toBe(true)
+  })
+})
+
+describe('worker timeline retry recovery', () => {
+  const user = { role: 'user', content: [{ type: 'text', text: 'finish the task' }] }
+  const failed = {
+    role: 'assistant', content: [], stopReason: 'error', errorMessage: 'Request timed out.',
+  }
+  const success = {
+    role: 'assistant', content: [{ type: 'text', text: 'Completed summary' }], stopReason: 'stop',
+  }
+  const branch = (messages: unknown[]) =>
+    messages.map((message, index) => ({ id: `entry-${index}`, type: 'message', message }))
+
+  it('reopens a completed retry without incomplete warnings in either history path', () => {
+    const messages = [user, failed, failed, success]
+    for (const rows of [normalizeMessages(messages), timelineItemsFromBranchPath(branch(messages))]) {
+      expect(rows.filter(isInterruptedAssistantRow)).toEqual([])
+      expect(rows.at(-1)).toMatchObject({ text: 'Completed summary', stopReason: 'stop' })
+    }
+    expect(timelineItemsFromBranchPath(branch(messages)).at(-1)?.sessionEntryId).toBe('entry-3')
+  })
+
+  it('keeps a failed leaf visible and rewinds to its user entry', () => {
+    const rows = timelineItemsFromBranchPath(branch([user, failed]))
+    expect(isInterruptedAssistantRow(rows[1])).toBe(true)
+    expect(resolveRewindTargetEntryId(rows, rows[1])).toBe('entry-0')
   })
 })

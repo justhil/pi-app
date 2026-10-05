@@ -60,6 +60,60 @@ describe('markTrailingIncompleteAssistants', () => {
     expect(out[1].incomplete).toBeUndefined()
     expect(isToolBridgeEmptyAssistant(out, 1)).toBe(true)
   })
+
+  it.each(['error', 'aborted', 'interrupted'])(
+    'heals empty %s attempts after a successful reply',
+    (stopReason) => {
+      const items: IncompleteTimelineRow[] = [
+        { id: 'u1', type: 'user-message', sessionEntryId: 'user-1' },
+        { id: 'a1', type: 'assistant-message', text: '', incomplete: true, stopReason },
+        { id: 'a2', type: 'assistant-message', text: '', incomplete: true, stopReason },
+        { id: 'a3', type: 'assistant-message', text: 'done', stopReason: 'stop' },
+      ]
+      const out = markTrailingIncompleteAssistants(items)
+      expect(out.filter(isInterruptedAssistantRow)).toEqual([])
+      expect(items[1].incomplete).toBe(true)
+      expect(items[1].stopReason).toBe(stopReason)
+      expect(markTrailingIncompleteAssistants(out)).toEqual(out)
+    },
+  )
+
+  it('heals retry errors before tools while keeping a later terminal failure', () => {
+    const items: IncompleteTimelineRow[] = [
+      { id: 'u1', type: 'user-message', sessionEntryId: 'user-1' },
+      { id: 'a1', type: 'assistant-message', text: '', incomplete: true, stopReason: 'error' },
+      { id: 'a2', type: 'assistant-message', text: '', stopReason: 'toolUse' },
+      { id: 't1', type: 'tool-call' },
+      { id: 'a3', type: 'assistant-message', text: '', incomplete: true, stopReason: 'error' },
+    ]
+    const out = markTrailingIncompleteAssistants(items)
+    expect(isInterruptedAssistantRow(out[1])).toBe(false)
+    expect(isInterruptedAssistantRow(out[2])).toBe(false)
+    expect(isInterruptedAssistantRow(out[4])).toBe(true)
+    expect(resolveRewindTargetEntryId(out, out[4])).toBe('user-1')
+  })
+
+  it('does not heal failed replies across user turns or hide partial failures', () => {
+    const items: IncompleteTimelineRow[] = [
+      { id: 'u1', type: 'user-message', sessionEntryId: 'user-1' },
+      { id: 'a1', type: 'assistant-message', text: '', incomplete: true, stopReason: 'error' },
+      { id: 'u2', type: 'user-message', sessionEntryId: 'user-2' },
+      { id: 'a2', type: 'assistant-message', text: 'partial', stopReason: 'aborted' },
+      { id: 'a3', type: 'assistant-message', text: 'done', stopReason: 'stop' },
+    ]
+    const out = markTrailingIncompleteAssistants(items)
+    expect(out.filter(isInterruptedAssistantRow).map((row) => row.id)).toEqual(['a1', 'a2'])
+    expect(resolveRewindTargetEntryId(out, out[1])).toBe('user-1')
+  })
+
+  it('keeps empty failures when the following reply also failed', () => {
+    const items: IncompleteTimelineRow[] = [
+      { id: 'u1', type: 'user-message', sessionEntryId: 'user-1' },
+      { id: 'a1', type: 'assistant-message', text: '', incomplete: true, stopReason: 'error' },
+      { id: 'a2', type: 'assistant-message', text: 'partial', stopReason: 'error' },
+    ]
+    expect(markTrailingIncompleteAssistants(items).filter(isInterruptedAssistantRow)).toHaveLength(2)
+  })
 })
 
 describe('resolveRewindTargetEntryId', () => {

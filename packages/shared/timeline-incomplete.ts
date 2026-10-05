@@ -68,43 +68,33 @@ export function isToolBridgeEmptyAssistant(
 export function markTrailingIncompleteAssistants<T extends IncompleteTimelineRow>(items: T[]): T[] {
   if (!items.length) return items
 
-  // Heal false incomplete on tool-bridge empty assistants (history reloads / old data)
-  let needsBridgeClean = false
-  for (let index = 0; index < items.length; index++) {
-    const row = items[index]
-    if (
-      row.type === 'assistant-message' &&
-      row.incomplete &&
-      isToolBridgeEmptyAssistant(items, index)
-    ) {
-      needsBridgeClean = true
-      break
-    }
-  }
+  // Retries stay in JSONL. Later progress in the same user turn supersedes empty
+  // failed attempts, but a terminal failure (or partial reply) must stay visible.
   let working = items
-  if (needsBridgeClean) {
-    const cleaned = items.slice() as T[]
-    for (let index = 0; index < cleaned.length; index++) {
-      const row = cleaned[index]
-      if (
-        row.type === 'assistant-message' &&
-        row.incomplete &&
-        isToolBridgeEmptyAssistant(cleaned, index)
-      ) {
-        cleaned[index] = {
-          ...row,
-          incomplete: undefined,
-          // Drop false interrupted stopReason on healed bridge rows
-          stopReason:
-            row.stopReason === 'interrupted' || row.stopReason === 'aborted'
-              ? isTerminalStopReason(row.stopReason)
-                ? row.stopReason
-                : undefined
-              : row.stopReason,
-        }
+  let continued = false
+  for (let index = items.length - 1; index >= 0; index--) {
+    const row = items[index]
+    if (row.type === 'user-message') {
+      continued = false
+      continue
+    }
+    if (row.type === 'tool-call') {
+      continued = true
+      continue
+    }
+    if (row.type !== 'assistant-message') continue
+    if (assistantHasBody(row)) {
+      if (!row.incomplete && !isErrorStopReason(row.stopReason)) continued = true
+      continue
+    }
+    if (continued && (row.incomplete || isErrorStopReason(row.stopReason))) {
+      if (working === items) working = items.slice()
+      working[index] = {
+        ...row,
+        incomplete: undefined,
+        stopReason: isErrorStopReason(row.stopReason) ? undefined : row.stopReason,
       }
     }
-    working = cleaned
   }
 
   let lastAssistantIndex = -1
