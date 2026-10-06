@@ -14,6 +14,7 @@ vi.mock('react-i18next', async (importOriginal) => ({ ...await importOriginal<ty
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: mocks.invoke },
   onAppUpdateAvailable: () => () => {},
+  onGitWorkspaceChanged: () => () => {},
   onAppEvent: (listener: (event: { type: string }) => void) => {
     mocks.appEventListeners.add(listener)
     return () => mocks.appEventListeners.delete(listener)

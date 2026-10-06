@@ -8,6 +8,7 @@ export function ConfirmDialog({
   title,
   message,
   destructive,
+  confirmLabel,
   onConfirm,
   onCancel,
 }: {
@@ -15,6 +16,8 @@ export function ConfirmDialog({
   title: string
   message: string
   destructive?: boolean
+  /** Button text instead of "Confirm". */
+  confirmLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -70,7 +73,7 @@ export function ConfirmDialog({
             )}
             onClick={onConfirm}
           >
-            {t('common:confirm')}
+            {confirmLabel ?? t('common:confirm')}
           </button>
         </div>
       </div>

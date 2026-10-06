@@ -3508,3 +3508,11 @@
 .terminal-split-divider { transition: background-color var(--motion-fast, 120ms) ease; }
 .terminal-split-divider:hover,
 .terminal-split-divider:active { background: color-mix(in srgb, var(--brand) 45%, transparent); }
+
+/* Status bar branch picker */
+.branch-picker { padding: 8px 8px 10px; }
+.branch-row { display: flex; width: 100%; min-height: 28px; align-items: center; gap: 8px; border-radius: 6px; padding: 0 8px; text-align: left; font-size: 12.5px; color: var(--text-primary); }
+.branch-row:hover:not(:disabled) { background: var(--bg-hover); }
+.branch-row:disabled { cursor: default; }
+.branch-row:disabled:not(.branch-row--current) { opacity: 0.5; }
+.branch-row:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }

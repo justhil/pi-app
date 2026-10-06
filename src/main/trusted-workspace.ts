@@ -44,7 +44,8 @@ function workspacePathsEqual(a: string, b: string): boolean {
   return windowsPath ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
-function resolveTrustedSessionCwd(reqCwd: string | undefined): { ok: true; cwd: string } | { ok: false; error: string } {
+/** The active workspace, a recent project or a sandbox folder (renderer-chosen project paths). */
+export function authorizeProjectCwd(reqCwd: string | undefined): { ok: true; cwd: string } | { ok: false; error: string } {
   const target = String(reqCwd || '').trim()
   if (!target) return authorizeTrustedCwd(reqCwd)
   const trusted = [
@@ -63,7 +64,7 @@ export async function authorizeTrustedSessionFile(
   reqCwd: string | undefined,
   requestedSessionFile: string | undefined,
 ): Promise<TrustedSessionFileResult> {
-  const authorizedCwd = resolveTrustedSessionCwd(reqCwd)
+  const authorizedCwd = authorizeProjectCwd(reqCwd)
   if (!authorizedCwd.ok) return authorizedCwd
 
   const sessionFile = String(requestedSessionFile || '').trim()
