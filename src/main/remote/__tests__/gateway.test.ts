@@ -206,6 +206,17 @@ describe('sessions', () => {
     expect(new Set(r.commands.map((x) => x.category))).toEqual(new Set(['prompt', 'skill', 'extension']))
   })
 
+  it('browses and searches project files', async () => {
+    const c = await pairNew()
+    const root = (await c.call('file.list', { sessionKey: session, path: '.' })) as { entries: { name: string; dir: boolean }[] }
+    expect(root.entries.map((e) => e.name)).toEqual(['docs', 'src', 'package.json', 'README.md'])
+    const src = (await c.call('file.list', { sessionKey: session, path: 'src' })) as { entries: { path: string }[] }
+    expect(src.entries.map((e) => e.path)).toEqual(['src/main', 'src/auth.ts', 'src/index.ts'])
+    await expect(c.call('file.list', { sessionKey: session, path: '../etc' })).rejects.toMatchObject({ err: { code: 'not_found' } })
+    const found = (await c.call('file.search', { sessionKey: session, query: 'AUTH' })) as { entries: { path: string }[] }
+    expect(found.entries.map((e) => e.path)).toEqual(['src/auth.ts'])
+  })
+
   it('viewers cannot write', async () => {
     const c = await pairNew()
     gw.setDeviceRole(c.hello!.deviceId, 'viewer')

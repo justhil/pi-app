@@ -245,6 +245,20 @@ const methodSamples: Samples = {
       ],
     },
   },
+  'file.list': {
+    params: { sessionKey, path: 'src' },
+    result: {
+      entries: [
+        { name: 'main', path: 'src/main', dir: true, mtime: 1760000000000 },
+        { name: 'index.ts', path: 'src/index.ts', dir: false, size: 2048, mtime: 1760000000000 },
+      ],
+      truncated: false,
+    },
+  },
+  'file.search': {
+    params: { sessionKey, query: 'auth' },
+    result: { entries: [{ name: 'auth.ts', path: 'src/auth.ts', dir: false }] },
+  },
   'capability.list': {
     params: { sessionKey },
     result: { capabilities: [{ id: 'pi-ui', available: true, promptTokens: 2410, tools: 0, enabled: true }, { id: 'browser', available: false, reason: 'browser-panel-off', promptTokens: 3100, tools: 24, enabled: false }] },

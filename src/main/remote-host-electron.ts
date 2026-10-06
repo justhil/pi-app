@@ -11,6 +11,8 @@ import { findAdapterByTool } from '../extension-compat/adapter-loader'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
+import { workspaceFsListDir } from './workspace-fs'
+import { workspaceFsSearch } from './workspace-file-search'
 import { scanStaticSlashCommands } from './commands-catalog'
 import { probeExtensionsShared } from './extension-probe-cache'
 import { getDesktopSkillOverrides, isSkillEnabled } from './pi-skill-overrides'
@@ -215,6 +217,20 @@ export function createElectronRemoteHost(): RemoteHostPort {
         .filter((c) => c.category !== 'skill' || isSkillEnabled(String(c.id || c.name).replace(/^\/?skill:/, ''), c.source?.path || c.source?.filePath, overrides))
         .map((c) => ({ name: c.name, description: c.description || undefined, category: c.category }))
         .sort((a, b) => a.name.localeCompare(b.name))
+    },
+
+    async listDir(projectId: string, path: string, dotfiles: boolean) {
+      const r = await workspaceFsListDir({ workspaceRoot: projectId, path, includeDotfiles: dotfiles })
+      if (!r.ok) return null
+      return {
+        entries: r.entries.map((e) => ({ name: e.name, path: e.path, dir: e.isDirectory, size: e.size, mtime: e.mtimeMs == null ? undefined : Math.round(e.mtimeMs) })),
+        truncated: r.truncated,
+      }
+    },
+
+    async searchFiles(projectId: string, query: string) {
+      const r = await workspaceFsSearch({ workspaceRoot: projectId, query, maxResults: 60 })
+      return r.ok ? r.entries.map((e) => ({ name: e.name, path: e.path, dir: e.isDirectory })) : []
     },
 
     capabilityCatalog,

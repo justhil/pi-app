@@ -210,4 +210,11 @@
     <string name="slash_search">Search commands</string>
     <string name="slash_empty">No matching commands</string>
     <string name="slash_open">Commands</string>
+    <string name="files_open">Mention files</string>
+    <string name="files_search">Search files</string>
+    <string name="files_none">No matching files</string>
+    <string name="files_empty">Empty folder</string>
+    <string name="files_truncated">Folder truncated — search to find more</string>
+    <string name="files_failed">Couldn\'t open this folder</string>
+    <string name="files_insert">Insert %1$d</string>
 </resources>

@@ -81,6 +81,11 @@ data class OpenResult(
 @Serializable data class DequeueResult(val restored: List<String>)
 @Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
 @Serializable data class CommandListResult(val commands: List<CommandInfo>)
+@Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean, val size: Long? = null, val mtime: Long? = null)
+@Serializable data class FileListParams(val sessionKey: String, val path: String, val dotfiles: Boolean? = null)
+@Serializable data class FileListResult(val entries: List<FileEntry>, val truncated: Boolean)
+@Serializable data class FileSearchParams(val sessionKey: String, val query: String)
+@Serializable data class FileSearchResult(val entries: List<FileEntry>)
 @Serializable data class CreateParams(val projectId: String, val capabilities: List<String>? = null)
 @Serializable data class CreateResult(val sessionKey: String)
 @Serializable data class ModelInfo(val id: String, val name: String? = null, val provider: String? = null, val group: String? = null)
@@ -137,6 +142,8 @@ object RemoteMethods {
         "turn.toolDetail" to (ToolDetailParams.serializer() to ToolDetailResult.serializer()),
         "turn.send" to (SendParams.serializer() to SendResult.serializer()),
         "turn.abort" to (SessionKeyParams.serializer() to AbortResult.serializer()),
+        "file.list" to (FileListParams.serializer() to FileListResult.serializer()),
+        "file.search" to (FileSearchParams.serializer() to FileSearchResult.serializer()),
         "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),
         "turn.dequeue" to (SessionKeyParams.serializer() to DequeueResult.serializer()),
         "session.create" to (CreateParams.serializer() to CreateResult.serializer()),

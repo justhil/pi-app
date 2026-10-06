@@ -1,6 +1,8 @@
 package dev.pi.remote.app.data
 
 import dev.pi.remote.protocol.CommandInfo
+import dev.pi.remote.protocol.FileEntry
+import dev.pi.remote.protocol.FileListResult
 import dev.pi.remote.crypto.Hs2Payload
 import dev.pi.remote.net.HostConnection
 import dev.pi.remote.net.RemoteApi
@@ -361,6 +363,10 @@ class RemoteRepository(
     }
 
     fun cachedCommands(key: String): List<CommandInfo>? = commandCache[key]?.second
+
+    suspend fun listFiles(key: String, path: String): FileListResult? = runCatching { api?.listFiles(key, path) }.getOrNull()
+
+    suspend fun searchFiles(key: String, query: String): List<FileEntry>? = runCatching { api?.searchFiles(key, query) }.getOrNull()
 
     suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 
