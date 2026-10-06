@@ -14,7 +14,7 @@ describe('Release job source availability (H-01)', () => {
     assert.match(auditJob, /npm ci/)
     assert.match(auditJob, /node scripts\/ci-audit\.mjs/)
     const releaseJob = yml.split('\n  release:\n')[1] || ''
-    assert.match(releaseJob, /needs: \[dependency-audit, build-win, build-mac, build-linux\]/)
+    assert.match(releaseJob, /needs: \[dependency-audit, build-win, build-mac, build-linux, build-android\]/)
   })
 
   it('should_use_tracked_fonts_without_installing_an_unused_next_peer', () => {

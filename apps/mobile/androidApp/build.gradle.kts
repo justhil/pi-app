@@ -5,6 +5,16 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// versionName follows the desktop app (root package.json); versionCode = major·10000 + minor·100 + patch.
+val appVersion: String = Regex("\"version\"\\s*:\\s*\"([^\"]+)\"")
+    .find(rootDir.resolve("../../package.json").readText())!!.groupValues[1]
+val appVersionCode: Int = appVersion.substringBefore('-').split('.').map { it.toInt() }.let { (ma, mi, pa) -> ma * 10000 + mi * 100 + pa }
+
+// Release signing comes from the environment (CI restores the keystore from secrets).
+val releaseKeystore: String? = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+val requireReleaseSigning = System.getenv("PI_REQUIRE_RELEASE_SIGNING") == "1"
+if (requireReleaseSigning && releaseKeystore == null) error("PI_REQUIRE_RELEASE_SIGNING=1 but ANDROID_KEYSTORE_PATH is not set")
+
 android {
     namespace = "dev.pi.remote"
     compileSdk {
@@ -15,10 +25,21 @@ android {
         applicationId = "dev.pi.remote"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.7.1"
+        versionCode = appVersionCode
+        versionName = appVersion
         // Release ships arm64 only; `-Ppi.abis=x86_64` builds an emulator-testable variant.
         ndk { abiFilters += (providers.gradleProperty("pi.abis").orNull ?: "arm64-v8a").split(",") }
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -26,8 +47,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Local builds are signed with the debug key; release signing is configured in CI.
-            signingConfig = signingConfigs.getByName("debug")
+            // Without ANDROID_KEYSTORE_PATH (local builds) the release APK is signed with the debug key.
+            signingConfig = signingConfigs.getByName(if (releaseKeystore != null) "release" else "debug")
         }
     }
 
