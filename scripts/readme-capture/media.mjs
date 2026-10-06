@@ -125,3 +125,16 @@ app.whenReady().then(async () => {
   magick(join(dir, 'card.png'), '-resize', '1280x640', PNG_OUT, out)
   console.log(`  ${out} (${kb(out)})`)
 }
+
+/** Window shots side by side (rounded, small gap), e.g. the Claude theme light | dark. */
+export function sideBySide({ inputs, out, tmp }) {
+  const parts = inputs.map((input, i) => {
+    const small = join(tmp, `side-${i}.png`)
+    const rounded = join(tmp, `side-${i}-r.png`)
+    magick(input, '-resize', '1400x', small)
+    roundCorners(small, rounded, 22)
+    return rounded
+  })
+  magick('-background', 'none', ...parts, '+smush', '40', '-resize', '1800x', PNG_OUT, out)
+  console.log(`  ${out} (${kb(out)})`)
+}

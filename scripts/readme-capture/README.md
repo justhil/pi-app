@@ -16,6 +16,10 @@ Screenshots and GIFs come from the real app; the overview, architecture and them
 | `review` | `review-stage.gif` | Widening the sidebar, side-by-side diff, staging a hunk |
 | `files` | `files-preview.gif` | Preview tabs, quoting a line into the composer, expanded preview |
 | `parallel` | `parallel-sessions.gif` | Two sessions running at once while switching between them |
+| `terminal` | `terminal.gif` | Terminal drawer: two commands, a split, closing one pane |
+| `branches` | `branches.gif` | Status bar branch picker filtering and switching |
+| `usage` | `usage.png` | Settings → Usage over 90 days (seeded history), a bar hovered |
+| `themes` | `themes.png` | Claude preset in light, and dark over a generated background image |
 | `visuals` | `overview.png`, `architecture-{light,dark}.png`, `theme-switch.gif` | Rendered from `renders/*.html`; needs `screens` and `parallel` from the same run |
 | `social` | `doc/assets/readme/social-preview.png` | 1280×640 card for *Settings → Social preview* (upload manually) |
 
@@ -29,6 +33,10 @@ Screenshots and GIFs come from the real app; the overview, architecture and them
 6. **Compose** (`media.mjs`) — ImageMagick frames and crops PNGs, ffmpeg builds GIFs.
 
 The demo story (prompts, thinking, tool calls, answers) lives in `demo-script.mjs` and is shared by the seeded sessions and the mock endpoint, so stills and recordings tell the same story.
+
+## Phone screenshots (`phone.png`)
+
+Not part of `readme:capture`: they come from the Android app on an emulator, connected to the fake desktop (`node scripts/remote-dev-host.mjs` with `PI_REMOTE_DEMO_LANG=en|zh` for the demo data and `PI_REMOTE_HOST_NAME=workstation`). Inbox, a session, its diff with a line comment and the session panel, cropped below the status bar and composed into one strip with ImageMagick.
 
 ## Requirements
 

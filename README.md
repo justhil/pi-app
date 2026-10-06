@@ -5,11 +5,11 @@
 # pi Desktop
 
 **A desktop app for the [pi](https://github.com/earendil-works/pi) coding agent.**<br/>
-The same agent and the same `~/.pi/agent` you use in the terminal — with a timeline, Git review and a clickable session tree.
+The same agent and the same `~/.pi/agent` you use in the terminal — with a timeline, Git review, a built-in terminal, and an Android app to keep going from your phone.
 
 [![Release](https://img.shields.io/github/v/release/justhil/pi-app?style=flat-square&color=7583b2&label=release)](https://github.com/justhil/pi-app/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/justhil/pi-app/total?style=flat-square&color=7583b2)](https://github.com/justhil/pi-app/releases)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-7583b2?style=flat-square)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux%20%C2%B7%20Android-7583b2?style=flat-square)
 [![License](https://img.shields.io/github/license/justhil/pi-app?style=flat-square&color=7583b2)](LICENSE)
 
 **English** · [简体中文](./README.zh-CN.md) · [Download](https://github.com/justhil/pi-app/releases/latest) · [Getting started](./doc/guide/getting-started.md) · [Adapters](./doc/guide/adapters.en.md)
@@ -70,6 +70,24 @@ Pick a scope — this turn, this session, or the whole Git working tree — and 
 
 Each session runs in its own worker. Start a turn, open another session and start a second one: both keep going, the sidebar marks the ones that are working and the status bar counts them. **Settings → General** sets how many workers stay alive and when idle ones are reclaimed; running sessions are never reclaimed.
 
+## Built-in terminal
+
+<img src="doc/assets/readme/en/terminal.gif" alt="Ctrl+` opens a shell in the project under the chat; git log and the tests run, a second shell opens beside it and is closed again on its own" width="100%" />
+
+`` Ctrl+` `` pulls a terminal up from under the chat, in the current project. It starts the same shell pi runs commands in (Git Bash on Windows) with pi's tools on `PATH`; **+** also offers PowerShell 7, Windows PowerShell, cmd, each WSL distribution, zsh or fish. Tabs and up to four side-by-side panes per tab — drag the borders, close one pane with its **✕** or `Ctrl+Shift+W`. Hiding the drawer keeps the shells and their output; selected output goes into the composer with one click.
+
+## Branches
+
+<img src="doc/assets/readme/en/branches.gif" alt="The status bar shows main; the branch picker opens, filters to feat/remote-checks and switches to it" width="80%" />
+
+The status bar shows the project's branch, uncommitted changes and ahead / behind. Click it (or **Switch branch…** in the command palette) to search local and remote branches, switch, or create one from `HEAD`. Changes travel with the switch when Git allows it; when they would be overwritten you can stash them first, and they are offered back when you return to the branch. If a session is still working in the project you are asked before anything changes under it.
+
+## Usage
+
+<img src="doc/assets/readme/en/usage.png" alt="Settings → Usage for 90 days: cost, tokens, requests and cache hit rate, a stacked daily chart with one day hovered, and an activity heatmap" width="100%" />
+
+**Settings → Usage** adds up tokens and cost from every pi session on the machine — the desktop's and terminal pi's, including a custom `sessionDir` — by day, hour, model, project and session. Hover a layer of a day for its share; replies copied into a fork count once.
+
 ## More panels
 
 <img src="doc/assets/readme/en/panels.png" alt="Tree panel with the session as a tree, Run panel with the context breakdown ring, and the Context panel listing context entries with token estimates" width="100%" />
@@ -80,11 +98,17 @@ Each session runs in its own worker. Start a turn, open another session and star
 | **Run** | Run state, model and thinking level, and how the context window splits between user, assistant and tool messages. |
 | **Context** | The messages that make up the current context, with token estimates per entry. |
 
-## Themes
+## Themes and background
 
-<img src="doc/assets/readme/en/theme-switch.gif" alt="The same window sweeps from the light theme to the dark theme and back" width="100%" />
+<img src="doc/assets/readme/en/themes.png" alt="The Claude theme: warm ivory with serif replies in light mode, and warm charcoal over a soft background image in dark mode" width="100%" />
 
-Light and dark each take a preset or your own colors, and follow the system when you want them to. Themes import from `pi-theme-v1` / `codex-theme-v1` strings; custom CSS, five icon sets and 90–110% density are in **Settings → Appearance**.
+Light and dark each take a preset — **Claude**, VS Code Light+, Codex Dark — or your own: colours for the sidebar, chat, your messages, code blocks and borders, a heading / reply font (serif included), chat text size and line height, corner radius and shadow. Everything is a CSS variable, listed next to the custom CSS editor. A background image can sit behind the window — per mode or shared, with its strength, blur and the panes' opacity adjustable; text always stays on a frosted surface. Themes import from `pi-theme-v1` / `codex-theme-v1` strings; five icon sets and 90–110% density are in **Settings → Appearance** too.
+
+## pi on your phone
+
+<img src="doc/assets/readme/en/phone.png" alt="pi Remote on Android: the inbox of sessions, a session with its tool steps and changed files, a diff with a line comment, and the session panel with context, changes, branches and cost" width="100%" />
+
+**pi Remote** (Android) connects to the desktop app: turn on **Settings → Mobile**, scan the QR code, and every session is on the phone — read along while a turn runs, answer its questions, send prompts with images, pick the model and thinking level. Review a turn's changes or the working tree file by file, long-press lines to leave comments that go into your next message, switch the session's branch or fork from any message. The connection is end-to-end encrypted and stays on your network; away from home, put both devices in the same Tailscale / ZeroTier / WireGuard network (the app finds the overlay address, or add one by hand). English and Chinese follow the phone's language, with an in-app override.
 
 ## How it fits together
 
@@ -102,7 +126,7 @@ The renderer never talks to the SDK directly: the main process routes each reque
 | **Extensions, unchanged** | Extensions you installed for terminal pi load here. Their dialogs, tool cards, panels and `/commands` are mapped to native UI by declarative adapters — 36 ship built in. [List](./doc/guide/adapters.en.md) |
 | **Notifications** | A system notification and an in-app inbox when a turn finishes or needs input; the status bar shows what is running. |
 | **WSL runtime** (Windows) | Run the worker inside a chosen WSL distribution, with sessions, Git and previews resolved on the Linux side. |
-| **Chinese / English UI** | Switch in Settings. |
+| **Chinese / English UI** | Switch in Settings; the phone app follows the system language. |
 | **Updates** | Checks GitHub Releases in the background and can download and launch the installer. |
 
 ## Install
@@ -112,6 +136,7 @@ The renderer never talks to the SDK directly: the main process routes each reque
 | Windows x64 | `pi.Desktop-Setup-<version>-x64.exe` (installer) or `pi.Desktop-Portable-<version>-x64.exe` |
 | macOS | `.dmg` / `.zip` for Apple Silicon (`arm64`) and Intel (`x64`) |
 | Linux x64 | `.AppImage` or `.deb` |
+| Android 9+ (arm64) | `pi-remote-<version>-android-arm64.apk` — the phone app |
 
 Get them from [Releases](https://github.com/justhil/pi-app/releases/latest); each release lists SHA-256 checksums in `SHA256SUMS.txt`. The app bundles its own pi SDK; you only need to sign in to a model provider once, the same way you do for terminal pi (the credentials live in `~/.pi/agent`). Settings → Runtime can switch to a globally installed pi version.
 
@@ -151,6 +176,8 @@ npm run package      # installers via electron-builder
 | Previous / next sent message | `↑` / `↓` with an empty composer or the caret at the start / end |
 | File reference / command | `@` / `/` |
 | Open a file in a new tab | `Ctrl`/`⌘`+click in Files |
+| Show / hide the terminal | `` Ctrl+` `` |
+| Close the focused terminal pane / find in it | `Ctrl+Shift+W` / `Ctrl+Shift+F` (`⌘W` / `⌘F` on macOS) |
 
 ## Extensions
 
@@ -187,11 +214,12 @@ Under *Advanced* you can use a local [codex-asr](https://github.com/Wangnov/code
 <details>
 <summary>For developers</summary>
 
-- Stack: Electron 43 · React 18 · TypeScript · Tailwind · Zustand · i18next · `@earendil-works/pi-coding-agent`
+- Stack: Electron 43 · React 18 · TypeScript · Tailwind · Zustand · i18next · xterm.js · `@earendil-works/pi-coding-agent`
 - Processes: Electron main (IPC, worker pool, Git, previews) → one utility-process worker per session running the pi SDK → renderer.
 - Checks: `npm run test:unit`, `npm run test:scripts`, `npm run typecheck`, `npm run lint`
 - Docs: [`doc/`](./doc/README.md) · [adapter authoring](./doc/adapter-authoring-guide.md) · [changelog](./CHANGELOG.md)
-- Releases: pushing a `v*` tag runs `.github/workflows/release.yml` and builds Windows, macOS and Linux packages.
+- Phone app: Kotlin / Compose in [`apps/mobile`](./apps/mobile); `node scripts/remote-dev-host.mjs` runs a fake desktop to develop against.
+- Releases: pushing a `v*` tag runs `.github/workflows/release.yml` and builds Windows, macOS, Linux and Android packages.
 
 </details>
 
