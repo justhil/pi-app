@@ -109,6 +109,11 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex}${channelHex(alpha)}`
 }
 
+/** Perceived lightness below the middle: a dark variant. */
+export function isDarkSurface(hex: string): boolean {
+  return rgbToOklab(parseHex(hex)).L < 0.6
+}
+
 function fontStack(name: string | null, base: string): string | null {
   return name ? `'${name}', var(${base})` : null
 }
@@ -126,13 +131,14 @@ export function deriveThemeVariables(variant: ThemeVariant): ThemeVar[] {
   const bg1 = toInk(0.03)
   const bg2 = toInk(0.06)
   const bg3 = toInk(0.1)
+  const over = variant.colors ?? {}
   const bgHover = toInk(0.045)
   const bgActive = toInk(0.09)
-  const messageUserBg = toInk(0.035)
-  const borderLight = toInk(0.055)
-  const borderBase = toInk(0.11)
+  const messageUserBg = over.userBubble ?? toInk(0.035)
+  const borderLight = over.border ? mixColors(over.border, surface, 0.5) : toInk(0.055)
+  const borderBase = over.border ?? toInk(0.11)
   // 侧栏在明暗两侧都比主面暗一档，故朝黑混而非朝 ink 混
-  const sidebar = mixColors(surface, '#000000', 0.045)
+  const sidebar = over.sidebar ?? mixColors(surface, '#000000', 0.045)
   const textSecondary = mixColors(ink, surface, 0.38 - 0.1 * (k - 1))
   const textDisabled = mixColors(ink, surface, 0.72 - 0.1 * (k - 1))
 
@@ -177,6 +183,36 @@ export function deriveThemeVariables(variant: ThemeVariant): ThemeVar[] {
 
   if (variant.diffAdded) vars.push(hex('--diff-added', variant.diffAdded))
   if (variant.diffRemoved) vars.push(hex('--diff-removed', variant.diffRemoved))
+
+  if (over.chat) vars.push(hex('--chat-bg', over.chat))
+  if (over.codeBg) vars.push(hex('--code-bg', over.codeBg))
+
+  if (variant.fontDisplay) {
+    vars.push({ name: '--font-display', value: variant.fontDisplay === 'serif' ? 'var(--font-serif-base)' : `'${variant.fontDisplay}', var(--font-serif-base)`, format: 'raw' })
+  }
+  if (variant.proseFont === 'display') vars.push({ name: '--prose-font', value: 'var(--font-display)', format: 'raw' })
+  if (variant.chatFontSize) vars.push({ name: '--chat-font-size', value: `${variant.chatFontSize}px`, format: 'raw' })
+  if (variant.chatLineHeight) vars.push({ name: '--chat-line-height', value: String(variant.chatLineHeight), format: 'raw' })
+  if (variant.radius !== undefined) {
+    const r = variant.radius
+    vars.push(
+      { name: '--radius', value: `${r}px`, format: 'raw' },
+      { name: '--main-chat-surface-radius', value: `${Math.round(r * 1.6)}px`, format: 'raw' },
+      { name: '--composer-shell-radius', value: `${Math.round(r * 1.4)}px`, format: 'raw' },
+    )
+  }
+  if (variant.shadow !== undefined) {
+    // 50 = the stock shadows; 0 flat, 100 twice as strong. Dark surfaces need more alpha to read.
+    const k = variant.shadow / 50
+    const dark = isDarkSurface(surface)
+    const top = (dark ? 0.2 : 0.1) * k
+    const side = (dark ? 0.28 : 0.14) * k
+    const rgb = dark ? '0, 0, 0' : '18, 24, 40'
+    vars.push(
+      { name: '--main-chat-surface-shadow-top', value: `0 -2px 6px -3px rgba(${rgb}, ${top.toFixed(3)})`, format: 'raw' },
+      { name: '--main-chat-surface-shadow', value: `-3px 0 8px -4px rgba(${rgb}, ${side.toFixed(3)}), var(--main-chat-surface-shadow-top)`, format: 'raw' },
+    )
+  }
 
   const sans = fontStack(variant.fontUi, '--font-sans-base')
   const mono = fontStack(variant.fontCode, '--font-mono-base')

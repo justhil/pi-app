@@ -16,6 +16,14 @@
     --font-mono-base: 'Geist Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
     --font-sans: var(--font-sans-base);
     --font-mono: var(--font-mono-base);
+    /* Theme knobs (Settings → Appearance); the custom theme overrides these per variant */
+    --font-serif-base: 'Tiempos Text', 'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', Georgia, 'Noto Serif CJK SC', 'Noto Serif SC', 'Songti SC', STSong, serif;
+    --font-display: var(--font-sans);
+    --prose-font: inherit;
+    --chat-font-size: 15px;
+    --chat-line-height: 1.65;
+    --chat-bg: var(--bg-base);
+    --code-bg: transparent;
 
     /* ── 参考桌面客户端 AOU Purple brand palette (light) ── */
     --aou-1: #eff0f6;
@@ -455,7 +463,7 @@
     position: relative;
     z-index: 1;
     border-radius: var(--main-chat-surface-radius) 0 0 0;
-    background: var(--bg-base);
+    background: var(--chat-bg);
     overflow: hidden;
     height: 100%;
     box-shadow: var(--main-chat-surface-shadow);
@@ -1877,8 +1885,9 @@
 
   /* ── Markdown chat typography (Paper Agent) ── */
   .prose-chat {
-    font-size: 15px;
-    line-height: 1.65;
+    font-family: var(--prose-font);
+    font-size: var(--chat-font-size);
+    line-height: var(--chat-line-height);
     word-break: break-word;
     overflow-wrap: anywhere;
     color: var(--text-primary);
@@ -1889,6 +1898,7 @@
   .prose-chat > p:first-child { margin-top: 0; }
   .prose-chat > p:last-child { margin-bottom: 0; }
   .prose-chat strong { font-weight: 600; color: var(--text-primary); }
+  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 { font-family: var(--font-display); }
   .prose-chat h1 { font-size: 24px; line-height: 32px; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
   .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
     font-size: 16px; line-height: 24px; margin-top: 20px; margin-bottom: 12px; font-weight: bold;
@@ -3516,3 +3526,12 @@
 .branch-row:disabled { cursor: default; }
 .branch-row:disabled:not(.branch-row--current) { opacity: 0.5; }
 .branch-row:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+
+/* Code blocks in chat (theme: code block background) */
+.code-surface { background: var(--code-bg); }
+
+/* Settings → Appearance: preset cards */
+.theme-preset-card { border: 1px solid transparent; transition: border-color var(--motion-fast) ease, background-color var(--motion-fast) ease; }
+.theme-preset-card:hover { background: var(--bg-hover); }
+.theme-preset-card--selected { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.theme-preset-card:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }

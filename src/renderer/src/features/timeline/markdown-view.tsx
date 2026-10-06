@@ -62,7 +62,7 @@ function CodeBlock({
 
   return (
     <div
-      className="group relative my-1.5 overflow-hidden rounded-md border border-border/35"
+      className="code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/35"
       style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
     >
       <div
