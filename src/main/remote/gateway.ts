@@ -25,6 +25,7 @@ export type GatewayStatus = {
   port: number
   error?: string
   endpoints: string[]
+  endpointInfo: EndpointInfo[]
   hostId: string
   hostName: string
   hostKeyEphemeral: boolean
@@ -36,27 +37,48 @@ export type GatewayStatus = {
   projectInfo: Record<string, { label?: string; temporary?: boolean }>
 }
 
-/** LAN addresses a phone can reach, most likely first (home Wi-Fi, then office, then overlays). */
-/** Container bridges, VPN/TUN adapters (Clash/mihomo, WireGuard, ZeroTier) and VM host-only nets: never the phone's LAN. */
-const VIRTUAL_IF = /^(docker|br-|veth|virbr|vmnet|vboxnet|vethernet|tun|utun|tap|wg|zt|meta|clash|mihomo|nekoray|singbox|sing-box|lxc|lxd|podman|cni|flannel|kube)/i
+export type EndpointKind = 'lan' | 'tailscale' | 'overlay'
+export type EndpointInfo = { url: string; kind: EndpointKind }
+
+/** Container bridges, proxy TUNs (Clash/mihomo, sing-box) and VM host-only nets: never reachable from the phone. */
+const VIRTUAL_IF = /^(docker|br-|veth|virbr|vmnet|vboxnet|vethernet|tap|meta|clash|mihomo|nekoray|singbox|sing-box|lxc|lxd|podman|cni|flannel|kube)/i
+/** Generic tunnels: only overlay addresses on them count (Tailscale's macOS `utun`, OpenVPN `tun`). */
+const TUNNEL_IF = /^(tun|utun)/i
+/** Mesh VPN adapters the phone can join too: any private address on them is reachable. */
+const OVERLAY_IF = /^(tailscale|zt|zerotier|wg|wireguard|feth)/i
+
+const isCgnat = (ip: string) => {
+  const [a, b] = ip.split('.').map(Number)
+  return a === 100 && b >= 64 && b <= 127
+}
 
 /**
- * LAN IPv4 addresses for the pairing QR, best first. Virtual adapters are skipped: a phone would
- * spend a connect timeout on each of them before reaching the real Wi-Fi / Ethernet address.
+ * Addresses for the pairing QR, best first: home Wi-Fi / Ethernet, then mesh overlays (Tailscale,
+ * ZeroTier, WireGuard) for use away from the LAN. Proxy TUNs and container bridges are skipped: a
+ * phone would spend a connect timeout on each before reaching a real address.
  */
-export function lanAddresses(interfaces = networkInterfaces()): string[] {
-  const rank = (ip: string) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : ip.startsWith('172.') ? 2 : ip.startsWith('100.') ? 3 : 4)
-  const out: string[] = []
+export function hostAddresses(interfaces = networkInterfaces()): { host: string; kind: EndpointKind }[] {
+  const rank = (ip: string) => (ip.startsWith('192.168.') ? 0 : ip.startsWith('10.') ? 1 : ip.startsWith('172.') ? 2 : 3)
+  const lan: string[] = []
+  const overlay = new Map<string, EndpointKind>()
   for (const [name, list] of Object.entries(interfaces)) {
     if (VIRTUAL_IF.test(name)) continue
     for (const a of list ?? []) {
       if (a.family !== 'IPv4' || a.internal || !isPrivateHost(a.address) || a.address.startsWith('169.254.')) continue
       // 198.18.0.0/15 is the benchmark range TUN proxies hand out (Clash fake-ip).
       if (/^198\.1[89]\./.test(a.address)) continue
-      out.push(a.address)
+      const tailscale = isCgnat(a.address) || /^tailscale/i.test(name)
+      if (tailscale || OVERLAY_IF.test(name)) overlay.set(a.address, tailscale ? 'tailscale' : 'overlay')
+      else if (!TUNNEL_IF.test(name)) lan.push(a.address)
     }
   }
-  return [...new Set(out)].sort((a, b) => rank(a) - rank(b))
+  const lanSorted = [...new Set(lan)].sort((a, b) => rank(a) - rank(b))
+  return [...lanSorted.map((host) => ({ host, kind: 'lan' as const })), ...[...overlay].filter(([h]) => !lan.includes(h)).map(([host, kind]) => ({ host, kind }))]
+}
+
+/** LAN and overlay addresses for the pairing QR, best first. */
+export function lanAddresses(interfaces = networkInterfaces()): string[] {
+  return hostAddresses(interfaces).map((a) => a.host)
 }
 
 export class RemoteGateway {
@@ -247,10 +269,18 @@ export class RemoteGateway {
   }
 
   /** Overridable for tests and the dev host (loopback). */
-  endpointHosts: () => string[] = lanAddresses
+  endpointHosts: () => { host: string; kind: EndpointKind }[] = () => hostAddresses()
+  /** This machine's Tailscale MagicDNS name (`pc.tail1234.ts.net`), found once the gateway starts. */
+  tailnetName: string | null = null
+
+  endpointInfo(): EndpointInfo[] {
+    const hosts = this.endpointHosts()
+    const all = this.tailnetName ? [...hosts, { host: this.tailnetName, kind: 'tailscale' as const }] : hosts
+    return all.map(({ host, kind }) => ({ url: `ws://${host.includes(':') ? `[${host}]` : host}:${this.boundPort}`, kind }))
+  }
 
   endpoints(): string[] {
-    return this.endpointHosts().map((ip) => `ws://${ip}:${this.boundPort}`)
+    return this.endpointInfo().map((e) => e.url)
   }
 
   regeneratePairing(): { link: string; exp: number } | null {
@@ -282,6 +312,7 @@ export class RemoteGateway {
       port: this.auth.config.port,
       ...(this.listenError ? { error: this.listenError } : {}),
       endpoints: this.endpoints(),
+      endpointInfo: this.endpointInfo(),
       hostId: this.auth.config.hostId,
       hostName: this.port.hostName(),
       hostKeyEphemeral: this.listening ? this.auth.hostKeyIsEphemeral : false,

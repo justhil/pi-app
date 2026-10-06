@@ -76,6 +76,7 @@ fun HostsScreen(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: (
     var pairing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pasteOpen by remember { mutableStateOf(false) }
+    var addressesOf by remember { mutableStateOf<String?>(null) }
     val scanPrompt = stringResource(R.string.hosts_scan_prompt)
 
     fun pairWith(text: String) {
@@ -143,7 +144,10 @@ fun HostsScreen(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: (
                 HostRow(h, online = h.hostId == active?.hostId && connection is HostConnection.State.Ready, onClick = {
                     repo.select(h.hostId)
                     onOpenHost()
-                }, onForget = { repo.forget(h.hostId) })
+                }, onForget = { repo.forget(h.hostId) }, addressesOpen = addressesOf == h.hostId, onAddresses = {
+                    addressesOf = if (addressesOf == h.hostId) null else h.hostId
+                })
+                if (addressesOf == h.hostId) AddressEditor(h, onChange = { repo.setManualEndpoints(h.hostId, it) })
                 Hairline()
             }
         }
@@ -170,7 +174,7 @@ private fun PasteField(onSubmit: (String) -> Unit) {
 }
 
 @Composable
-private fun HostRow(h: SavedHost, online: Boolean, onClick: () -> Unit, onForget: () -> Unit) {
+private fun HostRow(h: SavedHost, online: Boolean, onClick: () -> Unit, onForget: () -> Unit, addressesOpen: Boolean, onAddresses: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(horizontal = 22.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         PiIcon(PiIcons.Monitor, Pi.c.fg3, 18.dp)
         Spacer(Modifier.width(12.dp))
@@ -186,7 +190,52 @@ private fun HostRow(h: SavedHost, online: Boolean, onClick: () -> Unit, onForget
                 )
             }
         }
+        QuietButton(stringResource(R.string.hosts_addresses), onClick = onAddresses, color = if (addressesOpen) Pi.c.fg else Pi.c.fg3)
         QuietButton(stringResource(R.string.hosts_forget), onClick = onForget, color = Pi.c.fg3)
         PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 16.dp)
+    }
+}
+
+/** `host:port` typed by the user → `ws://host:port`, or null when it is not a private / overlay address. */
+internal fun manualEndpoint(text: String): String? {
+    val t = text.trim().removePrefix("ws://").removeSuffix("/")
+    if (t.isEmpty()) return null
+    val ep = "ws://$t"
+    return ep.takeIf { Pairing.isAllowedEndpoint(it) }
+}
+
+/** The host's known addresses, plus the user's own (overlay VPN) ones, which can be added and removed. */
+@Composable
+private fun AddressEditor(h: SavedHost, onChange: (List<String>) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var invalid by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(10.dp)
+    Column(Modifier.fillMaxWidth().padding(start = 52.dp, end = 22.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.hosts_addresses_desc), style = Pi.t.meta.copy(color = Pi.c.fg3))
+        for (ep in h.endpoints.filter { it !in h.manualEndpoints }) AddressLine(ep, stringResource(R.string.hosts_address_auto), null)
+        for (ep in h.manualEndpoints) AddressLine(ep, stringResource(R.string.hosts_address_mine)) { onChange(h.manualEndpoints - ep) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(shape).background(Pi.c.surface).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                if (text.isEmpty()) Text(stringResource(R.string.hosts_address_hint), style = Pi.t.secondary.copy(color = Pi.c.fg3, fontFamily = FontFamily.Monospace))
+                BasicTextField(text, { text = it; invalid = false }, singleLine = true, textStyle = Pi.t.secondary.copy(color = Pi.c.fg, fontFamily = FontFamily.Monospace), cursorBrush = SolidColor(Pi.c.fg), modifier = Modifier.fillMaxWidth())
+            }
+            QuietButton(stringResource(R.string.hosts_address_add), enabled = text.isNotBlank(), color = Pi.c.fg, onClick = {
+                val ep = manualEndpoint(text)
+                if (ep == null) invalid = true else {
+                    onChange(h.manualEndpoints + ep)
+                    text = ""
+                }
+            })
+        }
+        if (invalid) Text(stringResource(R.string.hosts_address_invalid), style = Pi.t.meta.copy(color = Pi.c.bad))
+    }
+}
+
+@Composable
+private fun AddressLine(ep: String, label: String, onRemove: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(ep.removePrefix("ws://"), style = Pi.t.secondary.copy(color = Pi.c.fg2, fontFamily = FontFamily.Monospace), modifier = Modifier.weight(1f))
+        Text(label, style = Pi.t.meta.copy(color = Pi.c.fg3))
+        if (onRemove != null) QuietButton(stringResource(R.string.hosts_forget), onClick = onRemove, color = Pi.c.fg3)
     }
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { base64UrlDecode, decodePairLink, type OpenResult, type PairOffer, type TurnPatch } from '@shared/remote'
 import { HandshakeError, generateKeyPair } from '@shared/remote/crypto'
-import { RemoteGateway, lanAddresses } from '../gateway'
+import { RemoteGateway, hostAddresses, lanAddresses } from '../gateway'
 import { remoteTap } from '../tap'
 import { FakeHost } from '../testing/fake-host'
 import { NodeRemoteClient, RemoteRpcError } from '../testing/node-client'
@@ -46,7 +46,7 @@ beforeEach(async () => {
   ])
   host.addSession('/work/secret', '机密', [{ user: 'x', answer: 'y' }])
   gw = new RemoteGateway(host)
-  gw.endpointHosts = () => ['127.0.0.1']
+  gw.endpointHosts = () => [{ host: '127.0.0.1', kind: 'lan' }]
   await gw.start({ port: 0, host: '127.0.0.1' })
   host.sink = gw.sink
 })
@@ -85,7 +85,7 @@ describe('pairing and authentication', () => {
     let now = Date.now()
     await gw.stop()
     gw = new RemoteGateway(host, () => now)
-    gw.endpointHosts = () => ['127.0.0.1']
+    gw.endpointHosts = () => [{ host: '127.0.0.1', kind: 'lan' }]
     await gw.start({ port: 0, host: '127.0.0.1' })
     const o = decodePairLink(gw.regeneratePairing()!.link)!
     now += 6 * 60_000
@@ -396,5 +396,23 @@ describe('lanAddresses', () => {
       lo: [{ address: '127.0.0.1', family: 'IPv4', internal: true }] as never,
     })
     expect(out).toEqual(['192.168.1.23', '10.0.0.5'])
+  })
+  it('keeps mesh overlays after the LAN, but not proxy TUN fake-ips', () => {
+    const out = hostAddresses({
+      utun3: nic('100.101.7.8'), // Tailscale on macOS
+      utun4: nic('198.18.0.1'), // Clash TUN on macOS
+      tailscale0: nic('100.64.0.9'),
+      zt5u4y: nic('10.147.17.3'), // ZeroTier
+      wg0: nic('10.66.0.2'),
+      docker0: nic('172.17.0.1'),
+      wlan0: nic('192.168.1.23'),
+    })
+    expect(out).toEqual([
+      { host: '192.168.1.23', kind: 'lan' },
+      { host: '100.101.7.8', kind: 'tailscale' },
+      { host: '100.64.0.9', kind: 'tailscale' },
+      { host: '10.147.17.3', kind: 'overlay' },
+      { host: '10.66.0.2', kind: 'overlay' },
+    ])
   })
 })

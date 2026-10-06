@@ -25,6 +25,7 @@ type RemoteStatus = {
   port: number
   error?: string
   endpoints: string[]
+  endpointInfo?: { url: string; kind: 'lan' | 'tailscale' | 'overlay' }[]
   hostName: string
   hostKeyEphemeral: boolean
   pairing: { link: string; exp: number } | null
@@ -147,10 +148,13 @@ export function MobileSettingsPanel() {
             }}
           />
         </SettingRow>
-        <SettingRow label={t('settings:mobile.addresses')} description={status.endpoints.length ? undefined : t('settings:mobile.noAddress')}>
-          <div className="flex flex-col items-end gap-0.5 font-mono text-[12px] text-foreground-secondary">
-            {status.endpoints.map((e) => (
-              <span key={e}>{e.replace(/^ws:\/\//, '')}</span>
+        <SettingRow label={t('settings:mobile.addresses')} description={status.endpoints.length ? t('settings:mobile.addressesDesc') : t('settings:mobile.noAddress')}>
+          <div className="flex flex-col items-end gap-0.5 text-[12px] text-foreground-secondary">
+            {(status.endpointInfo ?? status.endpoints.map((url) => ({ url, kind: 'lan' as const }))).map((e) => (
+              <span key={e.url} className="flex items-baseline gap-2">
+                <span className="text-[11px] text-foreground-tertiary">{t(`settings:mobile.addressKind.${e.kind}`)}</span>
+                <span className="font-mono">{e.url.replace(/^ws:\/\//, '')}</span>
+              </span>
             ))}
           </div>
         </SettingRow>

@@ -77,7 +77,7 @@ host.addSession('/work/blog', '博客：本地优先的同步策略', [{ user: '
 
 const gw = new RemoteGateway(host)
 host.sink = gw.sink
-gw.endpointHosts = () => [...extraHosts, ...(loopbackOnly ? ['127.0.0.1'] : [...lanAddresses(), '127.0.0.1'])]
+gw.endpointHosts = () => [...extraHosts, ...(loopbackOnly ? ['127.0.0.1'] : [...lanAddresses(), '127.0.0.1'])].map((host) => ({ host, kind: 'lan' as const }))
 
 function writePairing(): void {
   const p = gw.regeneratePairing()

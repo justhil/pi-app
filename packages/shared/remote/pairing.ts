@@ -51,12 +51,16 @@ function ipv4Parts(host: string): number[] | null {
   return parts.every((p) => p <= 255) ? parts : null
 }
 
+/** Tailscale MagicDNS names (`pc.tail1234.ts.net`): resolve to the tailnet's CGNAT addresses. */
+const TAILNET_NAME = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.ts\.net\.?$/
+
 /**
- * LAN-only guard for pairing endpoints: RFC 1918, CGNAT (Tailscale-style overlays), loopback,
- * link-local and IPv6 ULA / link-local. Hostnames are rejected — the QR always carries IPs.
+ * Private-network guard for pairing endpoints: RFC 1918, CGNAT (Tailscale-style overlays), loopback,
+ * link-local, IPv6 ULA / link-local and Tailscale MagicDNS names. Other hostnames are rejected.
  */
 export function isPrivateHost(host: string): boolean {
   const h = host.replace(/^\[|\]$/g, '').toLowerCase()
+  if (TAILNET_NAME.test(h)) return true
   const v4 = ipv4Parts(h)
   if (v4) {
     const [a, b] = v4

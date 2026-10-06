@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="hosts_title">连接你的电脑</string>
-    <string name="hosts_desc">在电脑上打开 pi Desktop，进入 设置 › 手机连接，扫描二维码。手机和电脑需要在同一个局域网。</string>
+    <string name="hosts_desc">在电脑上打开 pi Desktop，进入 设置 › 手机连接，扫描二维码。手机和电脑需要在同一个局域网，或加入同一个 Tailscale / ZeroTier / WireGuard 网络。</string>
     <string name="hosts_scan">扫码连接</string>
     <string name="hosts_paste">粘贴配对链接</string>
     <string name="hosts_saved">已保存的电脑</string>
@@ -12,6 +12,13 @@
     <string name="hosts_paste_hint">pidesk://pair#…</string>
     <string name="hosts_paste_confirm">连接</string>
     <string name="hosts_forget">移除</string>
+    <string name="hosts_addresses">地址</string>
+    <string name="hosts_addresses_desc">不在同一局域网时，添加电脑的 Tailscale / ZeroTier / WireGuard 地址（或 *.ts.net 域名），会和二维码里的地址一起尝试连接。</string>
+    <string name="hosts_address_hint">100.101.1.2:47900</string>
+    <string name="hosts_address_add">添加</string>
+    <string name="hosts_address_invalid">请填写 主机:端口，主机须为局域网或组网地址（10.x、192.168.x、100.64–127.x、*.ts.net）。</string>
+    <string name="hosts_address_auto">来自电脑</string>
+    <string name="hosts_address_mine">手动添加</string>
     <string name="hosts_scan_prompt">扫描电脑上显示的二维码</string>
     <string name="pair_err_unreachable">连不上电脑。确认手机和电脑在同一个网络，并且电脑上已开启手机连接。</string>
     <string name="pair_err_pair_expired">二维码已过期，请在电脑上重新生成。</string>

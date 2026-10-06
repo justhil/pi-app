@@ -34,11 +34,11 @@ describe('pair link', () => {
 })
 
 describe('private hosts', () => {
-  it.each(['10.0.0.5', '172.16.0.1', '172.31.255.255', '192.168.1.23', '100.101.102.103', '127.0.0.1', '169.254.1.1', 'fd12:3456::1', '[fe80::1]', '::1'])(
+  it.each(['10.0.0.5', '172.16.0.1', '172.31.255.255', '192.168.1.23', '100.101.102.103', '127.0.0.1', '169.254.1.1', 'fd12:3456::1', '[fe80::1]', '::1', 'pc.tail1234.ts.net', 'my-box.tail-ab.ts.net.'])(
     'allows %s',
     (h) => expect(isPrivateHost(h)).toBe(true),
   )
-  it.each(['8.8.8.8', '172.32.0.1', '100.128.0.1', '192.169.1.1', 'example.com', '2001:db8::1', '999.1.1.1'])('rejects %s', (h) =>
+  it.each(['8.8.8.8', '172.32.0.1', '100.128.0.1', '192.169.1.1', 'example.com', '2001:db8::1', '999.1.1.1', 'ts.net', 'evil.ts.net.example.com', '-x.ts.net'])('rejects %s', (h) =>
     expect(isPrivateHost(h)).toBe(false),
   )
   it('endpoint must be ws:// with a port and private host', () => {
@@ -46,5 +46,6 @@ describe('private hosts', () => {
     expect(isAllowedEndpoint('wss://192.168.1.23:47900')).toBe(false)
     expect(isAllowedEndpoint('ws://192.168.1.23')).toBe(false)
     expect(isAllowedEndpoint('ws://8.8.8.8:47900')).toBe(false)
+    expect(isAllowedEndpoint('ws://pc.tail1234.ts.net:47900')).toBe(true)
   })
 })
