@@ -101,7 +101,7 @@ jobs:
       - name: Add the other macOS pty binary
         run: |
           set -euo pipefail
-          ver="$(node -p "require('@lydell/node-pty/package.json').version")"
+          ver="$(node -p "JSON.parse(require('fs').readFileSync('node_modules/@lydell/node-pty/package.json', 'utf8')).version")"
           npm install --no-save --force "@lydell/node-pty-darwin-x64@$ver" "@lydell/node-pty-darwin-arm64@$ver"
           ls node_modules/@lydell
 
