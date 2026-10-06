@@ -8,6 +8,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import '@xterm/xterm/css/xterm.css'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { attachWriter, resizePty, shellPath, writeToPty } from './terminal-bridge'
 import { terminalActions, useTerminalStore, type TerminalPaneState } from './terminal-store'
@@ -78,6 +79,11 @@ function createInstance(pane: TerminalPaneState): Instance {
       void navigator.clipboard.readText().then((t) => t && term.paste(t))
       return false
     }
+    // Ctrl+Shift+W (⌘W on macOS): close this pane.
+    if (mod && e.key.toLowerCase() === 'w') {
+      window.dispatchEvent(new CustomEvent('pi-desktop:terminal-close-pane', { detail: pane.ptyId }))
+      return false
+    }
     if (mod && e.key.toLowerCase() === 'f') {
       window.dispatchEvent(new CustomEvent('pi-desktop:terminal-search', { detail: pane.ptyId }))
       return false
@@ -85,7 +91,15 @@ function createInstance(pane: TerminalPaneState): Instance {
     return true
   })
 
-  const offInput = term.onData((d) => writeToPty(pane.ptyId, d))
+  const offInput = term.onData((d) => {
+    const exited = useTerminalStore.getState().tabs.some((t) => t.panes.some((p) => p.ptyId === pane.ptyId && p.exited !== undefined))
+    // An exited pane: Enter starts the same shell again in its place.
+    if (exited) {
+      if (d === '\r') window.dispatchEvent(new CustomEvent('pi-desktop:terminal-restart', { detail: pane.ptyId }))
+      return
+    }
+    writeToPty(pane.ptyId, d)
+  })
   const offResize = term.onResize(({ cols, rows }) => resizePty(pane.ptyId, cols, rows))
   const offOutput = attachWriter(pane.ptyId, (d) => term.write(d))
 
@@ -145,7 +159,7 @@ export function onTerminalSelection(ptyId: string, cb: (has: boolean) => void): 
   return () => d.dispose()
 }
 
-export function TerminalPane({ tabId, index, pane, active, visible }: { tabId: string; index: number; pane: TerminalPaneState; active: boolean; visible: boolean }) {
+export function TerminalPane({ tabId, index, pane, active, visible, split, onClose }: { tabId: string; index: number; pane: TerminalPaneState; active: boolean; visible: boolean; split: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [searching, setSearching] = useState(false)
@@ -209,44 +223,63 @@ export function TerminalPane({ tabId, index, pane, active, visible }: { tabId: s
 
   return (
     <div
-      className={cn('relative min-h-0 min-w-0 flex-1 overflow-hidden', !active && 'terminal-pane-inactive')}
+      className={cn('relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', !active && 'terminal-pane-inactive')}
       onMouseDown={() => !active && terminalActions.focusPane(tabId, index)}
     >
-      <div ref={ref} className="absolute inset-0 py-1 pl-2.5 pr-1" />
-      {searching ? (
-        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-sm">
-          <input
-            autoFocus
-            value={query}
-            placeholder={t('common:terminal.find')}
-            className="w-44 bg-transparent text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary"
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') find(!e.shiftKey)
-              if (e.key === 'Escape') {
-                setSearching(false)
-                instances.get(pane.ptyId)?.search.clearDecorations()
-                instances.get(pane.ptyId)?.term.focus()
-              }
-            }}
-          />
+      {split ? (
+        <div className="terminal-pane-header group/pane flex h-6 shrink-0 items-center gap-1.5 pl-2.5 pr-1 text-[11.5px] text-foreground-tertiary" data-active={active || undefined}>
+          <span className={cn('min-w-0 flex-1 truncate', active && 'text-foreground-secondary')} title={pane.profile.path}>{pane.profile.name}</span>
+          <button
+            type="button"
+            title={`${t('common:terminal.closePane')} (${isMac() ? '⌘W' : 'Ctrl+Shift+W'})`}
+            aria-label={t('common:terminal.closePane')}
+            className={cn('flex h-4 w-4 items-center justify-center rounded hover:bg-muted hover:text-foreground', !active && 'opacity-0 group-hover/pane:opacity-100')}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+          >
+            <X className="h-3 w-3" />
+          </button>
         </div>
       ) : null}
-      {pane.exited !== undefined ? (
-        <div className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-foreground-tertiary">
-          {t('common:terminal.exited', { code: pane.exited })}
-        </div>
-      ) : null}
+      <div className="relative min-h-0 flex-1">
+        <div ref={ref} className="absolute inset-0 py-1 pl-2.5 pr-1" />
+        {searching ? (
+          <div className="absolute right-3 top-2 z-10 flex items-center gap-1 rounded-md border border-border bg-popover px-2 py-1 shadow-sm">
+            <input
+              autoFocus
+              value={query}
+              placeholder={t('common:terminal.find')}
+              className="w-44 bg-transparent text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary"
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') find(!e.shiftKey)
+                if (e.key === 'Escape') {
+                  setSearching(false)
+                  instances.get(pane.ptyId)?.search.clearDecorations()
+                  instances.get(pane.ptyId)?.term.focus()
+                }
+              }}
+            />
+          </div>
+        ) : null}
+        {pane.exited !== undefined ? (
+          <div className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-foreground-tertiary">
+            {t('common:terminal.exited', { code: pane.exited })} · {t('common:terminal.restartHint')}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
 
 /** Kill-and-forget a pane's process and terminal (closing its tab or pane). */
-export function useClosePane() {
-  return (ptyId: string) => {
-    const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
-    terminalActions.closePane(ptyId)
-    disposeTerminalInstance(ptyId)
-    if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
-  }
+function closePaneNow(ptyId: string): void {
+  const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
+  terminalActions.closePane(ptyId)
+  disposeTerminalInstance(ptyId)
+  if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
+}
+
+export function useClosePane(): (ptyId: string) => void {
+  return closePaneNow
 }

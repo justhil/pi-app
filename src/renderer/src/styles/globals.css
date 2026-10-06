@@ -3503,3 +3503,8 @@
 .split-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
 .split-tab--active { background: var(--bg-base); color: var(--text-primary); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base); }
 
+
+/* Built-in terminal: split panes */
+.terminal-split-divider { transition: background-color var(--motion-fast, 120ms) ease; }
+.terminal-split-divider:hover,
+.terminal-split-divider:active { background: color-mix(in srgb, var(--brand) 45%, transparent); }
