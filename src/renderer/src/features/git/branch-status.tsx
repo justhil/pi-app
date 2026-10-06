@@ -149,6 +149,8 @@ export function BranchStatusTrigger() {
   const [pending, setPending] = useState<Pending>(null)
   const anchor = useRef<HTMLButtonElement>(null)
   const running = useRunningHere(cwd)
+  // Stable: ShellPopover re-focuses its close button whenever onClose changes.
+  const closePicker = useCallback(() => setOpen(false), [])
 
   const refresh = useCallback(async () => {
     if (!cwd) return setStatus(null)
@@ -239,7 +241,7 @@ export function BranchStatusTrigger() {
         {status.behind ? <span className="text-foreground-tertiary">↓{status.behind}</span> : null}
       </button>
       {open ? (
-        <ShellPopover title={t('common:branches.title')} anchorRef={anchor} onClose={() => setOpen(false)}>
+        <ShellPopover title={t('common:branches.title')} anchorRef={anchor} onClose={closePicker}>
           <BranchList
             cwd={cwd}
             status={status}
