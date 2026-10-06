@@ -221,4 +221,27 @@
     <string name="msg_rewind_hint_more">这一轮及之后 %1$d 轮会移出当前分支（可在电脑端会话树恢复）</string>
     <string name="msg_rewind_confirm">回退</string>
     <string name="msg_rewind_failed">回退失败：%1$s</string>
+    <string name="panel_title">会话信息</string>
+    <string name="panel_context">上下文</string>
+    <string name="panel_session">本会话</string>
+    <string name="panel_turns">轮次</string>
+    <string name="panel_tool_calls">工具调用</string>
+    <string name="panel_files">文件改动</string>
+    <string name="panel_files_value">%1$d 个 · +%2$d −%3$d</string>
+    <string name="panel_worked">累计用时</string>
+    <string name="panel_capabilities">已开能力</string>
+    <string name="panel_queued">排队</string>
+    <string name="panel_todo">待办</string>
+    <string name="panel_file">会话文件</string>
+    <string name="panel_context_none">暂无数据</string>
+    <string name="panel_context_of">%1$s / %2$s tokens</string>
+    <string name="panel_context_tokens">%1$s tokens</string>
+    <string name="panel_context_messages">上下文中 %1$d 条消息（估算）</string>
+    <string name="panel_context_high">接近上限，可在电脑端 /compact 压缩</string>
+    <string name="role_system">系统与工具</string>
+    <string name="role_user">用户</string>
+    <string name="role_assistant">助手</string>
+    <string name="role_tool">工具结果</string>
+    <string name="role_summary">摘要</string>
+    <string name="role_other">其他</string>
 </resources>

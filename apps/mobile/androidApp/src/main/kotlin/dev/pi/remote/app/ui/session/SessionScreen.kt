@@ -1,5 +1,14 @@
 package dev.pi.remote.app.ui.session
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.platform.LocalDensity
+import androidx.activity.compose.BackHandler
+import dev.pi.remote.protocol.ContextStats
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -203,6 +212,8 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     var commands by remember(sessionKey) { mutableStateOf(repo.cachedCommands(sessionKey)) }
     var commandSheet by remember { mutableStateOf(false) }
     var filePicker by remember { mutableStateOf(false) }
+    var stats by remember(sessionKey) { mutableStateOf<ContextStats?>(null) }
+    var statsLoading by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(sessionKey, ready) { if (ready) repo.commands(sessionKey)?.let { commands = it } }
     LaunchedEffect(commandSheet) { if (commandSheet && ready) repo.commands(sessionKey, maxAgeMs = 3_000)?.let { commands = it } }
@@ -306,6 +317,16 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onSlashPick = ::pickSlash,
         onCommands = { commandSheet = true },
         onFiles = { filePicker = true },
+        projectPath = summary?.projectId.orEmpty(),
+        stats = stats,
+        statsLoading = statsLoading,
+        onPanelOpened = {
+            statsLoading = true
+            scope.launch {
+                repo.contextStats(sessionKey)?.let { stats = it }
+                statsLoading = false
+            }
+        },
         onRewind = { anchor ->
             scope.launch {
                 repo.rewind(sessionKey, anchor)
@@ -426,6 +447,10 @@ fun SessionContent(
     onCommands: () -> Unit = {},
     onFiles: () -> Unit = {},
     onRewind: (String) -> Unit = {},
+    projectPath: String = "",
+    stats: ContextStats? = null,
+    statsLoading: Boolean = false,
+    onPanelOpened: () -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -476,7 +501,26 @@ fun SessionContent(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Pi.c.bg).imePadding()) {
+    val density = LocalDensity.current
+    val panel = remember { Animatable(0f) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val panelWidth = minOf(maxWidth * 0.86f, 340.dp)
+    val panelPx = with(density) { panelWidth.toPx() }
+    fun settlePanel(velocity: Float) {
+        val target = when {
+            velocity < -700f -> 1f
+            velocity > 700f -> 0f
+            else -> if (panel.value > 0.5f) 1f else 0f
+        }
+        scope.launch { panel.animateTo(target, spring(dampingRatio = 0.92f, stiffness = 420f), initialVelocity = -velocity / panelPx) }
+    }
+    val dragState = rememberDraggableState { delta -> scope.launch { panel.snapTo((panel.value - delta / panelPx).coerceIn(0f, 1f)) } }
+    LaunchedEffect(panel) {
+        snapshotFlow { panel.value > 0.5f }.distinctUntilChanged().collect { if (it) onPanelOpened() }
+    }
+    BackHandler(enabled = panel.targetValue > 0f || panel.value > 0f) { settlePanel(1000f) }
+    // Swipe left anywhere (not from the edges: those are system back) pulls the panel in; right closes it.
+    Column(Modifier.fillMaxSize().background(Pi.c.bg).imePadding().draggable(dragState, Orientation.Horizontal, onDragStopped = { v -> settlePanel(v) })) {
         TopBar(
             title = title,
             subtitle = {
@@ -493,7 +537,7 @@ fun SessionContent(
             },
             onBack = onBack,
             backLabel = stringResource(R.string.back),
-        ) { IconAction(PiIcons.More, stringResource(R.string.more), {}) }
+        ) { IconAction(PiIcons.More, stringResource(R.string.panel_title), { settlePanel(-1000f) }) }
         ConnectionBanner(connection, onRetry)
         notice?.let { Banner(it) }
         if (!canWrite) Banner(stringResource(R.string.readonly))
@@ -573,6 +617,23 @@ fun SessionContent(
                 onReceiveUris = onReceiveUris,
             )
         }
+    }
+
+
+    val (statusColor, statusText) = when {
+        question != null -> Pi.c.warn to stringResource(R.string.status_needs)
+        running -> Pi.c.blue to stringResource(R.string.status_running)
+        else -> Pi.c.fg3 to stringResource(R.string.status_idle)
+    }
+    SessionPanel(
+        progress = { panel.value },
+        width = panelWidth,
+        facts = sessionFacts(title, projectPath.ifEmpty { project }, statusText, statusColor, timeline, toolsOn),
+        stats = stats,
+        statsLoading = statsLoading,
+        onClose = { settlePanel(1000f) },
+        modifier = Modifier.draggable(dragState, Orientation.Horizontal, onDragStopped = { v -> settlePanel(v) }),
+    )
     }
 
     acting?.let { (id, part) ->

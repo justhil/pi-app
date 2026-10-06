@@ -1,6 +1,7 @@
 package dev.pi.remote.app.data
 
 import dev.pi.remote.protocol.CommandInfo
+import dev.pi.remote.protocol.ContextStats
 import dev.pi.remote.protocol.TimelineReset
 import dev.pi.remote.protocol.FileEntry
 import dev.pi.remote.protocol.FileListResult
@@ -383,6 +384,8 @@ class RemoteRepository(
         val a = api ?: error("offline")
         a.rewind(key, anchor).editorText.orEmpty()
     }.onSuccess { reopen(key, fresh = true) }
+
+    suspend fun contextStats(key: String): ContextStats? = runCatching { api?.stats(key) }.getOrNull()
 
     suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 

@@ -1,0 +1,28 @@
+{
+  "schema": "session.stats/result",
+  "value": {
+    "context": {
+      "tokens": 32100,
+      "window": 200000,
+      "messages": 48,
+      "breakdown": [
+        {
+          "role": "system",
+          "tokens": 4200
+        },
+        {
+          "role": "user",
+          "tokens": 2100
+        },
+        {
+          "role": "assistant",
+          "tokens": 9800
+        },
+        {
+          "role": "tool",
+          "tokens": 16000
+        }
+      ]
+    }
+  }
+}

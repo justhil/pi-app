@@ -230,6 +230,28 @@ export function createElectronRemoteHost(): RemoteHostPort {
         .sort((a, b) => a.name.localeCompare(b.name))
     },
 
+    async contextStats(sessionFile: string, projectId: string) {
+      const [r, state, list] = await Promise.all([
+        invokeHandler<{ preview?: { messageCount: number; estimatedChars: number; roleBreakdown: Array<{ role: string; chars: number }> } | null }>(
+          'ipc:context.preview',
+          { sessionFile, workspaceId: projectId },
+        ),
+        this.liveState(sessionFile),
+        invokeHandler<{ models?: Array<{ id: string; provider?: string; contextWindow?: number }> }>('ipc:model.list', { scope: 'available' }).catch(() => ({ models: [] })),
+      ])
+      const p = r.preview
+      if (!p) return null
+      const tokens = (chars: number) => Math.round(chars / 4)
+      const current = state.model
+      const model = current ? list.models?.find((m) => (m.provider ? `${m.provider}/${m.id}` : m.id) === current || m.id === current) : undefined
+      return {
+        tokens: tokens(p.estimatedChars),
+        ...(model?.contextWindow ? { window: Math.round(model.contextWindow) } : {}),
+        messages: p.messageCount,
+        breakdown: p.roleBreakdown.slice(0, 12).map((s) => ({ role: s.role, tokens: tokens(s.chars) })),
+      }
+    },
+
     async listDir(projectId: string, path: string, dotfiles: boolean) {
       const r = await workspaceFsListDir({ workspaceRoot: projectId, path, includeDotfiles: dotfiles })
       if (!r.ok) return null

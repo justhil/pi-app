@@ -104,6 +104,18 @@ export const FileEntrySchema = z
   .strict()
 export type FileEntry = z.infer<typeof FileEntrySchema>
 
+/** What the session's context holds right now (desktop composer metrics): chars / 4 like the desktop. */
+export const ContextStatsSchema = z
+  .object({
+    tokens: z.number().int().nonnegative(),
+    /** The model's context window; absent when the model is unknown. */
+    window: z.number().int().positive().optional(),
+    messages: z.number().int().nonnegative(),
+    breakdown: z.array(z.object({ role: z.string(), tokens: z.number().int().nonnegative() }).strict()).max(12),
+  })
+  .strict()
+export type ContextStats = z.infer<typeof ContextStatsSchema>
+
 function method<P extends z.ZodTypeAny, R extends z.ZodTypeAny>(params: P, result: R, role: Role) {
   return { params, result, role }
 }
@@ -192,6 +204,8 @@ export const REMOTE_METHODS = {
   ),
   'thinking.set': method(z.object({ sessionKey, level: z.string() }).strict(), z.object({ level: z.string() }).strict(), 'operator'),
   /** Slash commands available in the session's project (prompts, skills the desktop has enabled, extension commands). */
+  /** Context usage for the session panel; null when the host cannot read it. */
+  'session.stats': method(z.object({ sessionKey }).strict(), z.object({ context: ContextStatsSchema.nullable() }).strict(), 'viewer'),
   'command.list': method(z.object({ sessionKey }).strict(), z.object({ commands: z.array(CommandInfoSchema) }).strict(), 'viewer'),
   /** One folder of the session's project (folders first). Paths outside the project are refused. */
   'file.list': method(

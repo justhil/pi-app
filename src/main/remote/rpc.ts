@@ -139,6 +139,10 @@ export class RemoteRpc {
         await port.setThinking(entry.sessionFile, p.level)
         return { level: p.level }
       },
+      'session.stats': async (_c, p) => {
+        const { entry, projectId } = await hub.authorize(p.sessionKey)
+        return { context: await port.contextStats(entry.sessionFile, projectId).catch(() => null) }
+      },
       'command.list': async (_c, p) => {
         const { projectId } = await hub.authorize(p.sessionKey)
         const commands = await port.listCommands(projectId)
