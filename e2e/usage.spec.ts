@@ -21,6 +21,9 @@ function seedSessions(home: string): void {
       reply(now - 6 * 86_400_000, 'small-model', 100, 100, 0, 0.02),
     ].join('\n') + '\n',
   )
+  // Older activity for the 90-day views, and a fork that copies the first reply (counted once).
+  const older = Array.from({ length: 40 }, (_, i) => reply(now - (10 + i * 2) * 86_400_000 - i * 3_600_000, i % 3 ? 'small-model' : 'big-model', 2000 + i * 100, 400, 8000, 0.05 + (i % 5) * 0.04))
+  fs.writeFileSync(path.join(dir, '2026-08-01_old.jsonl'), [JSON.stringify({ type: 'session', version: 3, id: 'old', timestamp: new Date(now - 90 * 86_400_000).toISOString(), cwd: path.join(home, 'code', 'demo') }), ...older].join('\n') + '\n')
 }
 
 test.describe('usage settings', () => {
@@ -39,8 +42,18 @@ test.describe('usage settings', () => {
       await expect(win.getByText('mock/big-model')).toBeVisible()
       await expect(win.getByText('Seeded usage question')).toBeVisible()
       if (process.env.SHOT) await win.screenshot({ path: process.env.SHOT.replace('.png', '-usage.png'), fullPage: true })
+      // Hovering one layer of a bar names that layer.
+      const bar = win.locator('.settings-row .h-40 > div').last()
+      await bar.locator('div > div').first().hover()
+      await expect(win.getByText(/^Input 13\.8K/)).toBeVisible()
       await win.getByRole('radio', { name: 'Today' }).click()
       await expect(win.getByText('$1.76').first()).toBeVisible({ timeout: 10_000 })
+      await win.getByRole('radio', { name: '90 days' }).click()
+      await expect(win.getByText('By weekday and hour (local time)')).toBeVisible({ timeout: 10_000 })
+      if (process.env.SHOT) {
+        await win.getByText('Activity', { exact: true }).scrollIntoViewIfNeeded()
+        await win.screenshot({ path: process.env.SHOT.replace('.png', '-usage-heat.png') })
+      }
     } finally {
       await agent.close()
       model.close()

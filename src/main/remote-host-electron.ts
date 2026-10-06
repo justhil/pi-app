@@ -290,7 +290,13 @@ export function createElectronRemoteHost(): RemoteHostPort {
 
     gitDiff: (projectId: string) => readGitDiffVsHead(projectId),
 
-    sessionUsage: async (sessionFile: string) => sessionUsage(sessionFile),
+    async sessionUsage(sessionFile: string) {
+      const u = sessionUsage(sessionFile)
+      if (!u) return null
+      const { reasoning: _r, ...wire } = u
+      void _r
+      return wire
+    },
 
     async listDir(projectId: string, path: string, dotfiles: boolean) {
       const r = await workspaceFsListDir({ workspaceRoot: projectId, path, includeDotfiles: dotfiles })

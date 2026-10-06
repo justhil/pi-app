@@ -979,8 +979,31 @@
     "sumEnd": ". "
   },
   "usage": {
+    "year": "1 year",
+    "all": "All",
+    "metric": "Metric",
+    "tokensShort": "tokens",
+    "cacheHitHint": "Cache reads as a share of all input (incl. cache)",
+    "avgPerDay": "Average per day",
+    "avgPerCall": "Average per request",
+    "reasoning": "reasoning",
+    "activeDays": "Days with usage",
+    "peakDay": "Most expensive day",
+    "sessionsCount": "Sessions",
+    "since": "First record",
+    "activity": "Activity",
+    "byHour": "By weekday and hour (local time)",
+    "weekdayShort": {
+      "0": "Mon",
+      "1": "Tue",
+      "2": "Wed",
+      "3": "Thu",
+      "4": "Fri",
+      "5": "Sat",
+      "6": "Sun"
+    },
     "title": "Usage",
-    "description": "Tokens and cost of every session on this computer (pi's per-reply usage, priced by the model entries).",
+    "description": "Tokens and cost of every pi session on this computer, the pi CLI included — from the usage pi records on each reply; replies copied into forks count once.",
     "range": "Range",
     "today": "Today",
     "days_one": "{{count}} day",
@@ -1003,7 +1026,7 @@
     "empty": "No usage in this range.",
     "loading": "Counting…",
     "failed": "Could not compute usage.",
-    "note": "Cost uses the prices set on each model entry; models without prices count as $0. Subscription quotas (Claude / Codex plans) are not included."
+    "note": "Cost is what pi computed at reply time from the model entry's price; models without prices count as $0. Scans ~/.pi/agent/sessions and the sessionDir from settings.json; compaction summaries record no usage, and subscription quotas (Claude / Codex plans) are not included."
   },
   "mobile": {
     "title": "Mobile",

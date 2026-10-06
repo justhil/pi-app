@@ -976,8 +976,31 @@
     "sumEnd": "。"
   },
   "usage": {
+    "year": "一年",
+    "all": "全部",
+    "metric": "指标",
+    "tokensShort": "token",
+    "cacheHitHint": "缓存读取占全部输入（含缓存）的比例",
+    "avgPerDay": "日均费用",
+    "avgPerCall": "每次请求平均",
+    "reasoning": "推理",
+    "activeDays": "有使用的天数",
+    "peakDay": "费用最高的一天",
+    "sessionsCount": "会话数",
+    "since": "最早记录",
+    "activity": "活跃度",
+    "byHour": "按星期与时段（本地时间）",
+    "weekdayShort": {
+      "0": "一",
+      "1": "二",
+      "2": "三",
+      "3": "四",
+      "4": "五",
+      "5": "六",
+      "6": "日"
+    },
     "title": "用量",
-    "description": "本机所有会话的 token 与费用（来自 pi 记录的每条回复用量，按模型条目的价格计算）。",
+    "description": "本机所有 pi 会话的 token 与费用，包括 pi 命令行；来自 pi 在每条回复里记录的用量，分叉复制过来的回复只计一次。",
     "range": "时间范围",
     "today": "今天",
     "days": "{{count}} 天",
@@ -998,7 +1021,7 @@
     "empty": "这段时间没有用量记录。",
     "loading": "正在统计…",
     "failed": "用量统计失败。",
-    "note": "费用按模型条目里设置的价格估算；未设置价格的模型记为 $0。订阅额度（如 Claude / Codex 套餐）不在此统计。"
+    "note": "费用是 pi 回复时按当时模型条目的价格算出的；未设置价格的模型记为 $0。会扫描 ~/.pi/agent/sessions 和 settings.json 里的 sessionDir；上下文压缩的摘要请求不记录用量，订阅额度（如 Claude / Codex 套餐）也不在此统计。"
   },
   "mobile": {
     "title": "手机连接",
