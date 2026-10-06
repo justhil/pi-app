@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, UiResponse } from '@shared/remote'
 import type { ToolCardDef } from '../../../extension-compat/adapter-schema'
 import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, SendMode } from '../host-port'
 
@@ -280,6 +280,15 @@ export class FakeHost implements RemoteHostPort {
   }
   dismissDesktopUi(id: string): void {
     this.calls.dismissedDesktop.push(id)
+  }
+  commands: CommandInfo[] = [
+    { name: '/review', description: 'Review the current diff', category: 'prompt' },
+    { name: '/skill:pdf', description: 'Read and fill PDF forms', category: 'skill' },
+    { name: '/skill:frontend-design', description: 'Distinctive production-grade UI', category: 'skill' },
+    { name: '/todos', description: 'pi-todo', category: 'extension' },
+  ]
+  async listCommands(): Promise<CommandInfo[]> {
+    return this.commands
   }
   capabilityCatalog(): CapabilityInfo[] {
     return [

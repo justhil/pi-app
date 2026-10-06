@@ -68,7 +68,10 @@ fun PiRemoteNav(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: (
             }
             composable("session/{key}") { entry ->
                 val key = Uri.decode(entry.arguments?.getString("key").orEmpty())
-                SessionScreen(repo = repo, sessionKey = key, onBack = { nav.popBackStack() })
+                SessionScreen(
+                    repo = repo, sessionKey = key, onBack = { nav.popBackStack() },
+                    onOpenSession = { next -> nav.navigate("session/${Uri.encode(next)}") { popUpTo("inbox") { inclusive = false } } },
+                )
             }
         }
     }

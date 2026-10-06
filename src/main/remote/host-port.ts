@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, UiRequest, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, UiRequest, UiResponse } from '@shared/remote'
 import type { ToolCardDef } from '../../extension-compat/adapter-schema'
 
 /**
@@ -96,6 +96,8 @@ export interface RemoteHostPort {
   /** Close a dialog the desktop is showing because a remote client answered it. */
   dismissDesktopUi(id: string): void
 
+  /** Slash commands for a project folder, from disk and extension probes (never spawns or touches a worker). */
+  listCommands(projectId: string): Promise<CommandInfo[]>
   capabilityCatalog(): CapabilityInfo[]
   sessionCapabilities(sessionFile: string): string[]
   setSessionCapabilities(sessionFile: string, ids: string[]): void

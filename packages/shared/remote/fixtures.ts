@@ -235,6 +235,16 @@ const methodSamples: Samples = {
     result: { mime: 'image/jpeg', data: '/9j/4AAQSkZJRg==' },
   },
   'thinking.set': { params: { sessionKey, level: 'medium' }, result: { level: 'medium' } },
+  'command.list': {
+    params: { sessionKey },
+    result: {
+      commands: [
+        { name: '/review', description: 'Review the current diff', category: 'prompt' },
+        { name: '/skill:pdf', description: 'Read and fill PDF forms', category: 'skill' },
+        { name: '/todos', category: 'extension' },
+      ],
+    },
+  },
   'capability.list': {
     params: { sessionKey },
     result: { capabilities: [{ id: 'pi-ui', available: true, promptTokens: 2410, tools: 0, enabled: true }, { id: 'browser', available: false, reason: 'browser-panel-off', promptTokens: 3100, tools: 24, enabled: false }] },

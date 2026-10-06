@@ -198,4 +198,15 @@
     <string name="stop_failed">停止失败，未连上电脑</string>
     <string name="queue_restore">撤回</string>
     <string name="queued_more">还有 %1$d 条排队</string>
+    <string name="slash_model">切换模型</string>
+    <string name="slash_thinking">思考等级</string>
+    <string name="slash_tools">工具与能力</string>
+    <string name="slash_new">在本项目新建对话</string>
+    <string name="slash_cat_app">应用</string>
+    <string name="slash_cat_prompt">提示词</string>
+    <string name="slash_cat_skill">Skills</string>
+    <string name="slash_cat_extension">扩展命令</string>
+    <string name="slash_search">搜索命令</string>
+    <string name="slash_empty">没有匹配的命令</string>
+    <string name="slash_open">命令</string>
 </resources>
