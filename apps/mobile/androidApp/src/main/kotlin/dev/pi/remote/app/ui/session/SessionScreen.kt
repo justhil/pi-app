@@ -87,7 +87,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 @Composable
-fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit) {
+fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit, onOpenSession: (String) -> Unit = {}) {
     val timelines by repo.timelines.collectAsState()
     val connection by repo.connection.collectAsState()
     val inbox by repo.inbox.collectAsState()
@@ -199,6 +199,37 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
             cache = repo.cacheWarming()
         }
     }
+    var commands by remember(sessionKey) { mutableStateOf(repo.cachedCommands(sessionKey)) }
+    var commandSheet by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
+    LaunchedEffect(sessionKey, ready) { if (ready) repo.commands(sessionKey)?.let { commands = it } }
+    LaunchedEffect(commandSheet) { if (commandSheet && ready) repo.commands(sessionKey, maxAgeMs = 3_000)?.let { commands = it } }
+    val builtinDesc = builtinSlashDesc()
+    val slash = remember(commands, builtinDesc) { commands?.let { slashItems(it, builtinDesc) } }
+    fun runBuiltin(name: String) {
+        when (name) {
+            "/model" -> { sheet = "model"; scope.launch { models = repo.models(sessionKey) } }
+            "/thinking" -> { sheet = "thinking"; scope.launch { models = repo.models(sessionKey) } }
+            "/tools" -> sheet = "tools"
+            "/new" -> {
+                val project = summary?.projectId
+                if (project != null && !creating) {
+                    creating = true
+                    scope.launch {
+                        val key = repo.createSession(project, null)
+                        creating = false
+                        if (key != null) onOpenSession(key)
+                    }
+                }
+            }
+        }
+    }
+    fun pickSlash(item: SlashItem) {
+        if (item.category == "builtin") {
+            draft = stripSlash(draft)
+            runBuiltin(item.name)
+        } else draft = insertSlash(draft, item.name)
+    }
     androidx.compose.runtime.DisposableEffect(sessionKey) { onDispose { repo.closeSession(sessionKey) } }
 
     SessionContent(
@@ -227,7 +258,10 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onLoadOlder = { scope.launch { repo.loadOlder(sessionKey) } },
         onSend = { mode ->
             val typed = draft.text.trim()
-            if (typed.isNotEmpty() || attachments.isNotEmpty()) {
+            if (typed in BUILTIN_SLASH && attachments.isEmpty()) {
+                draft = TextFieldValue("")
+                runBuiltin(typed)
+            } else if (typed.isNotEmpty() || attachments.isNotEmpty()) {
                 askNotificationsOnce()
                 scope.launch {
                     // Uploads started when each file was added; wait only for the ones still in flight.
@@ -266,6 +300,9 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 }
             }
         },
+        slashItems = slash.orEmpty(),
+        onSlashPick = ::pickSlash,
+        onCommands = { commandSheet = true },
         onDequeue = { scope.launch { repo.dequeue(sessionKey)?.let(::restore) } },
         onModel = {
             sheet = "model"
@@ -281,6 +318,13 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onDefer = { id -> deferred = deferred + id },
         loadDetail = { step -> repo.toolDetail(sessionKey, step.toolCallId)?.output },
     )
+
+    if (commandSheet) {
+        CommandSheet(slash, onPick = { item ->
+            commandSheet = false
+            pickSlash(item)
+        }, onDismiss = { commandSheet = false })
+    }
 
     if (attachSheet) {
         AttachSheet(
@@ -353,6 +397,9 @@ fun SessionContent(
     onStop: () -> Unit,
     stopping: Boolean = false,
     onDequeue: () -> Unit = {},
+    slashItems: List<SlashItem> = emptyList(),
+    onSlashPick: (SlashItem) -> Unit = {},
+    onCommands: () -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -487,6 +534,9 @@ fun SessionContent(
                 onStop = onStop,
                 stopping = stopping,
                 onDequeue = onDequeue,
+                slashItems = slashItems,
+                onSlashPick = onSlashPick,
+                onCommands = onCommands,
                 onModel = onModel,
                 onTools = onTools,
                 attachments = attachments,

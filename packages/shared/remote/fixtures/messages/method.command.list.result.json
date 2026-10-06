@@ -1,0 +1,21 @@
+{
+  "schema": "command.list/result",
+  "value": {
+    "commands": [
+      {
+        "name": "/review",
+        "description": "Review the current diff",
+        "category": "prompt"
+      },
+      {
+        "name": "/skill:pdf",
+        "description": "Read and fill PDF forms",
+        "category": "skill"
+      },
+      {
+        "name": "/todos",
+        "category": "extension"
+      }
+    ]
+  }
+}

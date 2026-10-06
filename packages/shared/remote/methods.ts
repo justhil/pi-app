@@ -91,6 +91,13 @@ export const CapabilityRowSchema = z
   })
   .strict()
 
+export const COMMAND_CATEGORIES = ['prompt', 'skill', 'extension'] as const
+/** A slash command pi expands when it is sent as prompt text (`/name args`). */
+export const CommandInfoSchema = z
+  .object({ name: z.string(), description: z.string().max(400).optional(), category: z.enum(COMMAND_CATEGORIES) })
+  .strict()
+export type CommandInfo = z.infer<typeof CommandInfoSchema>
+
 function method<P extends z.ZodTypeAny, R extends z.ZodTypeAny>(params: P, result: R, role: Role) {
   return { params, result, role }
 }
@@ -169,6 +176,8 @@ export const REMOTE_METHODS = {
     'viewer',
   ),
   'thinking.set': method(z.object({ sessionKey, level: z.string() }).strict(), z.object({ level: z.string() }).strict(), 'operator'),
+  /** Slash commands available in the session's project (prompts, skills the desktop has enabled, extension commands). */
+  'command.list': method(z.object({ sessionKey }).strict(), z.object({ commands: z.array(CommandInfoSchema) }).strict(), 'viewer'),
   'capability.list': method(z.object({ sessionKey }).strict(), z.object({ capabilities: z.array(CapabilityRowSchema) }).strict(), 'viewer'),
   'capability.set': method(
     z.object({ sessionKey, id: z.string(), on: z.boolean() }).strict(),

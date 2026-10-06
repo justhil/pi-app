@@ -1,5 +1,6 @@
 package dev.pi.remote.app.data
 
+import dev.pi.remote.protocol.CommandInfo
 import dev.pi.remote.crypto.Hs2Payload
 import dev.pi.remote.net.HostConnection
 import dev.pi.remote.net.RemoteApi
@@ -348,6 +349,18 @@ class RemoteRepository(
 
     /** Queued texts the host pulled back, or null when the stop did not reach it. */
     suspend fun abort(key: String): List<String>? = runCatching { api?.abort(key)?.let { it.restored.orEmpty() } }.getOrNull()
+
+    private val commandCache = HashMap<String, Pair<Long, List<CommandInfo>>>()
+
+    /** Slash commands for the session's project; cached briefly so the panel opens instantly. */
+    suspend fun commands(key: String, maxAgeMs: Long = 15_000): List<CommandInfo>? {
+        commandCache[key]?.let { (at, list) -> if (System.currentTimeMillis() - at < maxAgeMs) return list }
+        val list = runCatching { api?.commands(key) }.getOrNull() ?: return commandCache[key]?.second
+        commandCache[key] = System.currentTimeMillis() to list
+        return list
+    }
+
+    fun cachedCommands(key: String): List<CommandInfo>? = commandCache[key]?.second
 
     suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 

@@ -11,6 +11,10 @@ import { findAdapterByTool } from '../extension-compat/adapter-loader'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
+import { scanStaticSlashCommands } from './commands-catalog'
+import { probeExtensionsShared } from './extension-probe-cache'
+import { getDesktopSkillOverrides, isSkillEnabled } from './pi-skill-overrides'
+import { awaitWslVm } from './wsl/wsl-env'
 import { isSandboxWorkspacePath, sandboxLabel } from './sandbox-workspaces'
 import { invokeHandler } from './ipc/registry'
 import type { HostLiveState, HostModelList, HostSessionHistory, HostSessionRow, HostTimelineItem, RemoteHostPort, SendMode } from './remote/host-port'
@@ -201,6 +205,17 @@ export function createElectronRemoteHost(): RemoteHostPort {
     respondUi: (response: UiResponse) => workerManager.respondExtensionUI(response),
     cancelUi: (id: string) => workerManager.cancelExtensionUI(id, 'remote-cancel'),
     dismissDesktopUi: (id: string) => sendToRenderer('ipc:extension-ui-dismiss', { type: 'extension-ui-dismiss', id, reason: 'remote-answered' }),
+
+    async listCommands(projectId: string) {
+      // Same catalog the desktop composer shows before a worker is bound: disk prompts, skills
+      // (minus the ones disabled in settings) and extension commands for that project.
+      await awaitWslVm()
+      const overrides = getDesktopSkillOverrides()
+      return scanStaticSlashCommands(projectId, await probeExtensionsShared(projectId))
+        .filter((c) => c.category !== 'skill' || isSkillEnabled(String(c.id || c.name).replace(/^\/?skill:/, ''), c.source?.path || c.source?.filePath, overrides))
+        .map((c) => ({ name: c.name, description: c.description || undefined, category: c.category }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
 
     capabilityCatalog,
     sessionCapabilities: (sessionFile) => normalizeCapabilities(configStore.get('sessionCapabilities')?.[normalizeSessionFileKey(sessionFile)]),

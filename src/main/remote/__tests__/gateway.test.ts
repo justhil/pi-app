@@ -199,6 +199,13 @@ describe('sessions', () => {
     expect(host.calls.aborted).toEqual([session])
   })
 
+  it('lists slash commands for the session project', async () => {
+    const c = await pairNew()
+    const r = (await c.call('command.list', { sessionKey: session })) as { commands: { name: string; category: string }[] }
+    expect(r.commands.map((x) => x.name)).toContain('/skill:pdf')
+    expect(new Set(r.commands.map((x) => x.category))).toEqual(new Set(['prompt', 'skill', 'extension']))
+  })
+
   it('viewers cannot write', async () => {
     const c = await pairNew()
     gw.setDeviceRole(c.hello!.deviceId, 'viewer')

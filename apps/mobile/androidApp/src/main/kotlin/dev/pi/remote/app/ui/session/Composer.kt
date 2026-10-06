@@ -86,6 +86,11 @@ fun Composer(
     stopping: Boolean = false,
     /** Pull queued messages back into the composer. */
     onDequeue: () -> Unit = {},
+    /** Commands for inline `/` suggestions. */
+    slashItems: List<SlashItem> = emptyList(),
+    onSlashPick: (SlashItem) -> Unit = {},
+    /** Open the full command panel. */
+    onCommands: () -> Unit = {},
     onModel: () -> Unit,
     onTools: () -> Unit,
     attachments: List<Attachment> = emptyList(),
@@ -101,6 +106,9 @@ fun Composer(
         Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val queued = queue?.let { it.steering + it.followUp }.orEmpty()
             if (queued.isNotEmpty()) QueuedRows(queued, enabled, onDequeue)
+            val token = slashToken(text)
+            val suggestions = remember(token, text.text, slashItems) { token?.let { filterSlash(slashItems, text.text.substring(it)) }.orEmpty() }
+            SlashSuggestions(editable && token != null, suggestions, onSlashPick)
             if (attachments.isNotEmpty()) AttachmentRow(attachments, onRemoveAttachment, onRetryAttachment)
             val label = stringResource(R.string.composer_label)
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp, max = 160.dp).clip(RoundedCornerShape(20.dp)).background(Pi.c.surface).padding(horizontal = 15.dp, vertical = 11.dp)) {
@@ -121,6 +129,10 @@ fun Composer(
                     Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onAttach),
                     contentAlignment = Alignment.Center,
                 ) { PiIcon(PiIcons.Plus, Pi.c.fg2, 18.dp, contentDescription = stringResource(R.string.attach)) }
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onCommands),
+                    contentAlignment = Alignment.Center,
+                ) { PiIcon(PiIcons.Slash, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.slash_open)) }
                 Row(Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onModel).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(modelLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.width(4.dp))

@@ -79,6 +79,8 @@ data class OpenResult(
 @Serializable data class SendResult(val accepted: Boolean, val duplicate: Boolean? = null)
 @Serializable data class AbortResult(val aborted: Boolean, val restored: List<String>? = null)
 @Serializable data class DequeueResult(val restored: List<String>)
+@Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
+@Serializable data class CommandListResult(val commands: List<CommandInfo>)
 @Serializable data class CreateParams(val projectId: String, val capabilities: List<String>? = null)
 @Serializable data class CreateResult(val sessionKey: String)
 @Serializable data class ModelInfo(val id: String, val name: String? = null, val provider: String? = null, val group: String? = null)
@@ -135,6 +137,7 @@ object RemoteMethods {
         "turn.toolDetail" to (ToolDetailParams.serializer() to ToolDetailResult.serializer()),
         "turn.send" to (SendParams.serializer() to SendResult.serializer()),
         "turn.abort" to (SessionKeyParams.serializer() to AbortResult.serializer()),
+        "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),
         "turn.dequeue" to (SessionKeyParams.serializer() to DequeueResult.serializer()),
         "session.create" to (CreateParams.serializer() to CreateResult.serializer()),
         "model.list" to (SessionKeyParams.serializer() to ModelListResult.serializer()),

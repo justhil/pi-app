@@ -199,4 +199,15 @@
     <string name="stop_failed">Couldn\'t reach the desktop to stop</string>
     <string name="queue_restore">Pull back</string>
     <string name="queued_more">%1$d more queued</string>
+    <string name="slash_model">Switch model</string>
+    <string name="slash_thinking">Thinking level</string>
+    <string name="slash_tools">Tools and capabilities</string>
+    <string name="slash_new">New chat in this project</string>
+    <string name="slash_cat_app">App</string>
+    <string name="slash_cat_prompt">Prompts</string>
+    <string name="slash_cat_skill">Skills</string>
+    <string name="slash_cat_extension">Extensions</string>
+    <string name="slash_search">Search commands</string>
+    <string name="slash_empty">No matching commands</string>
+    <string name="slash_open">Commands</string>
 </resources>
