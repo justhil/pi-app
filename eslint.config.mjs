@@ -18,6 +18,8 @@ export default tseslint.config(
       'tmp/**',
       '参考/**',
       'scripts/tests/fixtures/**',
+      // Android client (Kotlin); its only JS is vendored KaTeX.
+      'apps/mobile/**',
     ],
   },
   ...tseslint.configs.recommended,

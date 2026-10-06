@@ -15,8 +15,8 @@ android {
         applicationId = "dev.pi.remote"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.7.1"
         // Release ships arm64 only; `-Ppi.abis=x86_64` builds an emulator-testable variant.
         ndk { abiFilters += (providers.gradleProperty("pi.abis").orNull ?: "arm64-v8a").split(",") }
     }
