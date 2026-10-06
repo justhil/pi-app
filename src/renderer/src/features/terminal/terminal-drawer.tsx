@@ -5,8 +5,8 @@ import { sendToComposer } from '@renderer/features/browser/browser-composer'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { loadProfiles, spawnPane } from './terminal-bridge'
-import { onTerminalSelection, TerminalPane, terminalSelection, useClosePane } from './terminal-pane'
-import { MIN_TERMINAL_H, terminalActions, useTerminalStore, type ShellProfile } from './terminal-store'
+import { disposeTerminalInstance, onTerminalSelection, TerminalPane, terminalSelection, useClosePane } from './terminal-pane'
+import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, useTerminalStore, type ShellProfile, type TerminalTab } from './terminal-store'
 
 const isToggleKey = (e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
 
@@ -96,6 +96,54 @@ function IconButton({ label, onClick, children, buttonRef, active }: { label: st
   )
 }
 
+/** Side-by-side panes of one tab, with draggable borders between them. */
+function SplitPanes({ tab, active, visible, onClose }: { tab: TerminalTab; active: boolean; visible: boolean; onClose: (ptyId: string) => void }) {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDivElement>(null)
+  const split = tab.panes.length > 1
+
+  const startDrag = (index: number) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    const width = ref.current?.getBoundingClientRect().width || 1
+    let lastX = e.clientX
+    const onMove = (ev: MouseEvent) => {
+      terminalActions.resizeSplit(tab.id, index, (ev.clientX - lastX) / width)
+      lastX = ev.clientX
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <div ref={ref} className={cn('absolute inset-0 flex', !active && 'invisible')}>
+      {tab.panes.map((p, i) => (
+        <div key={p.ptyId} className="relative flex min-w-0" style={{ flex: `${tab.sizes[i] ?? 1 / tab.panes.length} 1 0` }}>
+          {i > 0 ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={t('common:terminal.resizePane')}
+              className="terminal-split-divider absolute inset-y-0 -left-[3px] z-10 w-[6px] cursor-col-resize"
+              onMouseDown={startDrag(i - 1)}
+            />
+          ) : null}
+          <div className={cn('flex min-w-0 flex-1', i > 0 && 'border-l border-border')}>
+            <TerminalPane tabId={tab.id} index={i} pane={p} active={active && tab.activePane === i} visible={visible} split={split} onClose={() => onClose(p.ptyId)} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Bottom drawer under the chat and right panel: shell tabs, each with up to two side-by-side
  * panes. Always mounted (terminals keep running and keep their scrollback while it is hidden).
@@ -116,6 +164,26 @@ export function TerminalDrawer() {
     setHasSelection(false)
     return activePty ? onTerminalSelection(activePty, setHasSelection) : undefined
   }, [activePty])
+
+  // Pane shortcuts (Ctrl+Shift+W, Enter in an exited pane) arrive from inside xterm.
+  useEffect(() => {
+    const onClose = (e: Event) => closePane(String((e as CustomEvent).detail))
+    const onRestart = async (e: Event) => {
+      const old = String((e as CustomEvent).detail)
+      const prev = useTerminalStore.getState().tabs.flatMap((x) => x.panes).find((p) => p.ptyId === old)
+      if (!prev) return
+      const pane = await spawnPane(prev.profile.id, useUIStore.getState().currentWorkspace ?? undefined)
+      if ('error' in pane) return setError(pane.error)
+      disposeTerminalInstance(old)
+      terminalActions.replacePane(old, pane)
+    }
+    window.addEventListener('pi-desktop:terminal-close-pane', onClose)
+    window.addEventListener('pi-desktop:terminal-restart', onRestart)
+    return () => {
+      window.removeEventListener('pi-desktop:terminal-close-pane', onClose)
+      window.removeEventListener('pi-desktop:terminal-restart', onRestart)
+    }
+  }, [closePane])
 
   useEffect(() => {
     const onErr = (e: Event) => setError(String((e as CustomEvent).detail ?? ''))
@@ -170,8 +238,7 @@ export function TerminalDrawer() {
               >
                 <TerminalIcon className={cn('h-3 w-3', exited && 'opacity-40')} />
                 <span className={cn('max-w-[10rem] truncate', exited && 'text-foreground-tertiary')}>
-                  {x.title}
-                  {x.panes.length > 1 ? ` · ${x.panes[1].profile.name}` : ''}
+                  {tabTitle(x)}
                 </span>
                 <button
                   type="button"
@@ -197,7 +264,7 @@ export function TerminalDrawer() {
             <MessageSquarePlus className="h-3.5 w-3.5" />
           </IconButton>
         ) : null}
-        {tab && tab.panes.length < 2 ? (
+        {tab && tab.panes.length < MAX_PANES ? (
           <IconButton label={t('common:terminal.split')} buttonRef={splitRef} active={menuFor === 'split'} onClick={() => setMenuFor(menuFor === 'split' ? null : 'split')}>
             <Columns2 className="h-3.5 w-3.5" />
           </IconButton>
@@ -208,13 +275,7 @@ export function TerminalDrawer() {
       </div>
       <div className="relative min-h-0 flex-1">
         {tabs.map((x) => (
-          <div key={x.id} className={cn('absolute inset-0 flex', x.id !== activeTab && 'invisible')}>
-            {x.panes.map((p, i) => (
-              <div key={p.ptyId} className={cn('flex min-w-0 flex-1', i > 0 && 'border-l border-border')}>
-                <TerminalPane tabId={x.id} index={i} pane={p} active={x.id === activeTab && x.activePane === i} visible={open && x.id === activeTab} />
-              </div>
-            ))}
-          </div>
+          <SplitPanes key={x.id} tab={x} active={x.id === activeTab} visible={open && x.id === activeTab} onClose={closePane} />
         ))}
         {tabs.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[12px] text-foreground-tertiary">
