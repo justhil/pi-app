@@ -205,7 +205,9 @@ export function CalendarHeatmap({ days, metric }: { days: UsageSummary['byDay'];
   })
   const CELL = 'h-[13px] w-[13px]'
   return (
-    <div ref={p.ref} className="relative overflow-x-auto" onMouseMove={p.move} onMouseLeave={() => { p.clear(); setHover(null) }}>
+    <div ref={p.ref} className="relative" onMouseMove={p.move} onMouseLeave={() => { p.clear(); setHover(null) }}>
+      {/* Scrolls sideways on narrow windows; the tooltip sits outside so it is not clipped. */}
+      <div className="overflow-x-auto overflow-y-hidden">
       <div className="flex gap-[3px] pl-[2.2rem] text-[10px] leading-[14px] text-muted-foreground">
         {months.map((m, ci) => (
           <span key={ci} className="w-[13px] shrink-0 overflow-visible whitespace-nowrap">{m}</span>
@@ -233,6 +235,7 @@ export function CalendarHeatmap({ days, metric }: { days: UsageSummary['byDay'];
             )}
           </div>
         ))}
+      </div>
       </div>
       <Tip at={h ? p.at : null}>
         {h ? (
