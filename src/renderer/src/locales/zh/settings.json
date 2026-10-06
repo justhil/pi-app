@@ -21,7 +21,8 @@
     "mcp": "MCP",
     "adapters": "适配器",
     "voice": "语音",
-    "mobile": "手机连接"
+    "mobile": "手机连接",
+    "usage": "用量"
   },
   "general": {
     "title": "常规",
@@ -973,6 +974,31 @@
     "sumTarget": "{{model}}（{{level}}）",
     "sumSep": "；",
     "sumEnd": "。"
+  },
+  "usage": {
+    "title": "用量",
+    "description": "本机所有会话的 token 与费用（来自 pi 记录的每条回复用量，按模型条目的价格计算）。",
+    "range": "时间范围",
+    "today": "今天",
+    "days": "{{count}} 天",
+    "overview": "概览",
+    "cost": "费用",
+    "tokens": "Token",
+    "calls": "请求",
+    "callsCount": "{{count}} 次请求",
+    "cacheHit": "缓存命中",
+    "input": "输入",
+    "output": "输出",
+    "cacheRead": "缓存读取",
+    "cacheWrite": "缓存写入",
+    "byModel": "按模型",
+    "byProject": "按项目",
+    "topSessions": "费用最高的会话",
+    "untitled": "未命名会话",
+    "empty": "这段时间没有用量记录。",
+    "loading": "正在统计…",
+    "failed": "用量统计失败。",
+    "note": "费用按模型条目里设置的价格估算；未设置价格的模型记为 $0。订阅额度（如 Claude / Codex 套餐）不在此统计。"
   },
   "mobile": {
     "title": "手机连接",

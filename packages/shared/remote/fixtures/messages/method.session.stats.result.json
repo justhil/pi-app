@@ -23,6 +23,14 @@
           "tokens": 16000
         }
       ]
+    },
+    "usage": {
+      "input": 14200,
+      "output": 5100,
+      "cacheRead": 210000,
+      "cacheWrite": 32000,
+      "cost": 0.4127,
+      "calls": 12
     }
   }
 }

@@ -142,6 +142,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:terminal.profiles',
   'ipc:terminal.resize',
   'ipc:thinkingLevel.set',
+  'ipc:usage.summary',
   'ipc:window:close',
   'ipc:window:close-decision',
   'ipc:window:close-decision-shown',

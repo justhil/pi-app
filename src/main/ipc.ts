@@ -6,6 +6,7 @@ import { registerPromptHandlers } from './ipc/handlers/prompt'
 import { registerSettingsHandlers } from './ipc/handlers/settings'
 import { registerWindowControlHandlers } from './ipc/handlers/window-controls'
 import { registerTerminalHandlers } from './ipc/handlers/terminal'
+import { registerUsageHandlers } from './ipc/handlers/usage'
 import { registerModelRuntimeHandlers } from './ipc/handlers/model-runtime'
 import { registerExtensionHandlers } from './ipc/handlers/extensions'
 import { registerExtensionUiHandlers } from './ipc/handlers/extension-ui'
@@ -33,6 +34,7 @@ export function registerAllHandlers(): void {
   registerSettingsHandlers()
   registerWindowControlHandlers()
   registerTerminalHandlers()
+  registerUsageHandlers()
   registerExtensionUiHandlers()
   registerModelRuntimeHandlers()
   registerExtensionHandlers()

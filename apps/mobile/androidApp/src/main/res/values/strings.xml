@@ -269,6 +269,8 @@
     <string name="panel_context">Context</string>
     <string name="panel_session">This session</string>
     <string name="panel_turns">Turns</string>
+    <string name="panel_cost">Cost</string>
+    <plurals name="panel_cost_value"><item quantity="one">%1$s · %2$d request</item><item quantity="other">%1$s · %2$d requests</item></plurals>
     <string name="panel_tool_calls">Tool calls</string>
     <string name="panel_files">Files changed</string>
     <string name="panel_files_value">%1$d · +%2$d −%3$d</string>

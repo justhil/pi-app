@@ -2,6 +2,7 @@ package dev.pi.remote.app.data
 
 import dev.pi.remote.protocol.CommandInfo
 import dev.pi.remote.protocol.ContextStats
+import dev.pi.remote.protocol.SessionStatsResult
 import dev.pi.remote.protocol.ReviewDiffResult
 import dev.pi.remote.protocol.BranchInfo
 import dev.pi.remote.protocol.ForkResult
@@ -418,7 +419,7 @@ class RemoteRepository(
     suspend fun reviewDiff(key: String, scope: String, turnId: String? = null, path: String? = null): Result<ReviewDiffResult> =
         runCatching { api?.reviewDiff(key, scope, turnId, path) ?: error("offline") }
 
-    suspend fun contextStats(key: String): ContextStats? = runCatching { api?.stats(key) }.getOrNull()
+    suspend fun sessionStats(key: String): SessionStatsResult? = runCatching { api?.stats(key) }.getOrNull()
 
     suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 

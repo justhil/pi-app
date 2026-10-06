@@ -19,6 +19,7 @@ export type WslPreviewRequest = {
     | 'context.preview'
     | 'warm'
     | 'system.prompt'
+    | 'usage.summary'
   payload: Record<string, unknown>
   userDataDir: string
 }

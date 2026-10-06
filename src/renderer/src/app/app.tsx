@@ -274,7 +274,15 @@ export default function App() {
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)
     })
+    // Settings → Usage: a session row opens that session.
+    const onOpenSession = (e: Event) => {
+      const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string }>).detail
+      setView('main')
+      void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile })
+    }
+    window.addEventListener('pi-desktop:open-session', onOpenSession)
     return () => {
+      window.removeEventListener('pi-desktop:open-session', onOpenSession)
       unsubEvents()
       unsubExit()
       unsubNotify()

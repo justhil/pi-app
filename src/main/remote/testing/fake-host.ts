@@ -341,6 +341,12 @@ export class FakeHost implements RemoteHostPort {
   }
   /** Project files by relative path (folders end with '/'). */
   files = ['README.md', 'package.json', 'src/', 'src/auth.ts', 'src/index.ts', 'src/main/', 'src/main/app.ts', 'docs/', 'docs/设计 说明.md', '.env']
+  async sessionUsage(sessionFile: string): Promise<{ input: number; output: number; cacheRead: number; cacheWrite: number; cost: number; calls: number } | null> {
+    const s = this.sessions.get(sessionFile)
+    if (!s) return null
+    const calls = s.items.filter((i) => i.type === 'assistant-message' && i.text).length
+    return { input: calls * 1200, output: calls * 300, cacheRead: calls * 18000, cacheWrite: 2000, cost: Math.round(calls * 0.0312 * 1e4) / 1e4, calls }
+  }
   async contextStats(sessionFile: string): Promise<ContextStats | null> {
     const s = this.sessions.get(sessionFile)
     if (!s) return null
