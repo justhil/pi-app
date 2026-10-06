@@ -12,6 +12,7 @@ import {
   type AppIconComponent,
 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
+import { OPEN_BRANCH_PICKER } from '@renderer/features/git/branch-status'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { listAttentionSessions } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
@@ -153,6 +154,16 @@ export function CommandPalette({
         run: () => {
           openRightPanel('review')
           onClose()
+        },
+      },
+      {
+        id: 'git-switch-branch',
+        label: t('common:branches.palette'),
+        icon: GitBranch,
+        keywords: 'git branch checkout switch 分支 切换',
+        run: () => {
+          onClose()
+          window.dispatchEvent(new Event(OPEN_BRANCH_PICKER))
         },
       },
       {

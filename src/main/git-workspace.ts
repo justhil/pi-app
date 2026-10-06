@@ -82,7 +82,8 @@ export function runGit(
   return { ok: true, stdout: r.stdout ?? '' }
 }
 
-async function gitExec(
+/** Raw git run (WSL-aware) with full stdout / stderr; callers interpret the status. */
+export async function gitExec(
   cwd: string,
   args: string[],
   opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
