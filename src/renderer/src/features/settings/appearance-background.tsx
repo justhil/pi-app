@@ -8,7 +8,7 @@ import { useSettingsDraft } from '@renderer/features/settings/settings-draft-con
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { backgroundPreviewUrl } from '@renderer/lib/theme/background-layer'
-import { BACKGROUND_DEFAULTS, type BackgroundImage, type BackgroundSettings } from '@shared/background'
+import { BACKGROUND_DEFAULTS, type BackgroundImage, type BackgroundSettings, type PaneMaterial } from '@shared/background'
 
 type Slot = 'light' | 'dark'
 
@@ -34,6 +34,18 @@ function Slider({ label, value, min, max, step, format, onChange }: { label: str
 }
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
+const MATERIALS: PaneMaterial[] = ['frosted', 'glass', 'clear']
+
+function MaterialSelect({ label, value, onChange }: { label: string; value: PaneMaterial; onChange: (m: PaneMaterial) => void }) {
+  const { t } = useTranslation()
+  return (
+    <select aria-label={label} value={value} className={selectCls} onChange={(e) => onChange(e.target.value as PaneMaterial)}>
+      {MATERIALS.map((m) => (
+        <option key={m} value={m}>{t(`settings:appearance.bgMaterialOption.${m}`)}</option>
+      ))}
+    </select>
+  )
+}
 
 /** Settings → Appearance → Background: an image behind the window, light / dark or shared. */
 export function AppearanceBackground() {
@@ -45,7 +57,10 @@ export function AppearanceBackground() {
   const update = (next: BackgroundSettings) => setBackground(next)
   const patchSlot = (slot: Slot, patch: Partial<BackgroundImage>) => {
     const cur = bg[slot]
-    if (cur) update({ ...bg, [slot]: { ...cur, ...patch } })
+    if (!cur) return
+    const next = { ...cur, ...patch }
+    if (next.content === undefined) delete next.content
+    update({ ...bg, [slot]: next })
   }
 
   const choose = async (slot: Slot) => {
@@ -90,12 +105,50 @@ export function AppearanceBackground() {
                 <SettingRow label={t('settings:appearance.bgOpacity')} description={t('settings:appearance.bgOpacityDesc')}>
                   <Slider label={t('settings:appearance.bgOpacity')} value={img.opacity} min={0.05} max={1} step={0.05} format={pct} onChange={(opacity) => patchSlot(slot, { opacity })} />
                 </SettingRow>
-                <SettingRow label={t('settings:appearance.bgUiOpacity')} description={t('settings:appearance.bgUiOpacityDesc')}>
-                  <Slider label={t('settings:appearance.bgUiOpacity')} value={img.uiOpacity} min={0.5} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { uiOpacity })} />
-                </SettingRow>
                 <SettingRow label={t('settings:appearance.bgBlur')}>
                   <Slider label={t('settings:appearance.bgBlur')} value={img.blur} min={0} max={24} step={1} format={(n) => `${n}px`} onChange={(blur) => patchSlot(slot, { blur })} />
                 </SettingRow>
+                <SettingRow label={t('settings:appearance.bgBrightness')}>
+                  <Slider label={t('settings:appearance.bgBrightness')} value={img.brightness} min={0.4} max={1.3} step={0.05} format={pct} onChange={(brightness) => patchSlot(slot, { brightness })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgSaturation')}>
+                  <Slider label={t('settings:appearance.bgSaturation')} value={img.saturation} min={0} max={1.6} step={0.05} format={pct} onChange={(saturation) => patchSlot(slot, { saturation })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgVignette')} description={t('settings:appearance.bgVignetteDesc')}>
+                  <Switch aria-label={t('settings:appearance.bgVignette')} checked={img.vignette} onCheckedChange={(vignette) => patchSlot(slot, { vignette })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgFullCover')} description={t('settings:appearance.bgFullCoverDesc')}>
+                  <Switch aria-label={t('settings:appearance.bgFullCover')} checked={img.fullCover} onCheckedChange={(fullCover) => patchSlot(slot, { fullCover })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgUiOpacity')} description={t('settings:appearance.bgUiOpacityDesc')}>
+                  <Slider label={t('settings:appearance.bgUiOpacity')} value={img.uiOpacity} min={0.5} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { uiOpacity })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgMaterial')} description={t('settings:appearance.bgMaterialDesc')}>
+                  <MaterialSelect label={t('settings:appearance.bgMaterial')} value={img.material} onChange={(material) => patchSlot(slot, { material })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgPaneBlur')}>
+                  <Slider label={t('settings:appearance.bgPaneBlur')} value={img.paneBlur} min={0} max={40} step={1} format={(n) => `${n}px`} onChange={(paneBlur) => patchSlot(slot, { paneBlur })} />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.bgSeparate')} description={t('settings:appearance.bgSeparateDesc')}>
+                  <Switch
+                    aria-label={t('settings:appearance.bgSeparate')}
+                    checked={!!img.content}
+                    onCheckedChange={(on) => patchSlot(slot, { content: on ? { uiOpacity: img.uiOpacity, paneBlur: img.paneBlur, material: img.material } : undefined })}
+                  />
+                </SettingRow>
+                {img.content ? (
+                  <>
+                    <SettingRow label={t('settings:appearance.bgContentOpacity')}>
+                      <Slider label={t('settings:appearance.bgContentOpacity')} value={img.content.uiOpacity} min={0.3} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { content: { ...img.content!, uiOpacity } })} />
+                    </SettingRow>
+                    <SettingRow label={t('settings:appearance.bgContentMaterial')}>
+                      <MaterialSelect label={t('settings:appearance.bgContentMaterial')} value={img.content.material} onChange={(material) => patchSlot(slot, { content: { ...img.content!, material } })} />
+                    </SettingRow>
+                    <SettingRow label={t('settings:appearance.bgContentBlur')}>
+                      <Slider label={t('settings:appearance.bgContentBlur')} value={img.content.paneBlur} min={0} max={40} step={1} format={(n) => `${n}px`} onChange={(paneBlur) => patchSlot(slot, { content: { ...img.content!, paneBlur } })} />
+                    </SettingRow>
+                  </>
+                ) : null}
                 <SettingRow label={t('settings:appearance.bgFit')}>
                   <div className="flex flex-wrap items-center gap-2">
                     <select aria-label={t('settings:appearance.bgFit')} value={img.fit} className={selectCls} onChange={(e) => patchSlot(slot, { fit: e.target.value as BackgroundImage['fit'] })}>

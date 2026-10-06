@@ -187,6 +187,8 @@ const themeVariantSchema = z
   })
   .strict()
 
+const paneMaterialSchema = z.enum(['frosted', 'glass', 'clear'])
+
 const backgroundImageSchema = z
   .object({
     file: z.string().regex(/^[a-f0-9]{16,64}\.(png|jpe?g|webp|gif|avif)$/),
@@ -195,6 +197,13 @@ const backgroundImageSchema = z
     uiOpacity: z.number().min(0.5).max(1),
     fit: z.enum(['cover', 'contain', 'tile', 'center']),
     position: z.enum(['center', 'top', 'bottom']),
+    brightness: z.number().min(0.4).max(1.3).optional(),
+    saturation: z.number().min(0).max(1.6).optional(),
+    vignette: z.boolean().optional(),
+    material: paneMaterialSchema.optional(),
+    paneBlur: z.number().min(0).max(40).optional(),
+    fullCover: z.boolean().optional(),
+    content: z.object({ uiOpacity: z.number().min(0.3).max(1), paneBlur: z.number().min(0).max(40), material: paneMaterialSchema }).strict().optional(),
   })
   .strict()
 

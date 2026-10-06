@@ -3537,9 +3537,14 @@
 .theme-preset-card:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
 
 /*
- * Background image (Settings → Appearance → Background). The image sits under #root; the window frame
- * takes a sidebar-coloured tint at --ui-alpha, and the content panes a second, frosted layer over it, so
- * text never sits on the raw image. Popovers, dialogs, menus and code blocks keep their opaque colours.
+ * Background image (Settings → Appearance → Background). The image sits under #root.
+ * frame cover (default): the window takes a sidebar-coloured tint at --ui-alpha and the content panes a
+ *   second layer over it, so text sits on an almost solid surface.
+ * full cover: the window frame (sidebar, title and status bars) and the content panes are separate
+ *   layers over the image — the content ones at --content-alpha / --content-blur — so the image shows
+ *   through the whole interface.
+ * Panes are frosted (blur), liquid glass (blur, saturation, light edge and sheen) or clear (tint only).
+ * Popovers, dialogs, menus, code blocks and the terminal text keep their opaque colours.
  */
 #pi-background {
   position: fixed;
@@ -3550,18 +3555,64 @@
   transition: opacity 360ms ease;
 }
 #pi-background.is-loaded { opacity: var(--bg-image-opacity, 0.6); }
+#pi-background.has-vignette::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 48%, rgba(0, 0, 0, 0.42) 100%);
+}
 html[data-bg='on'] body { background: var(--bg-base); }
 html[data-bg='on'] #root { position: relative; z-index: 1; }
-html[data-bg='on'] .app-viewport { background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important; }
-html[data-bg='on'] .app-viewport .electron-drag,
-html[data-bg='on'] .shell-track-left,
+
+/* Elements that paint the sidebar colour themselves would stack a second tint. */
 html[data-bg='on'] .shell-track-center,
-html[data-bg='on'] .workbench-statusbar { background: transparent !important; }
+html[data-bg='on'] .split-view { background: transparent !important; }
+
+html[data-bg-cover='frame'] .app-viewport { background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important; }
+html[data-bg-cover='frame'] .app-viewport .electron-drag,
+html[data-bg-cover='frame'] .shell-track-left,
+html[data-bg-cover='frame'] .workbench-statusbar { background: transparent !important; }
+
+html[data-bg-cover='full'] .app-viewport { background: transparent !important; }
+html[data-bg-cover='full'] .app-viewport > .electron-drag,
+html[data-bg-cover='full'] .shell-track-left,
+html[data-bg-cover='full'] .workbench-statusbar {
+  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--pane-blur)) saturate(1.05);
+}
+html[data-bg-cover='full'][data-bg-material='clear'] .app-viewport > .electron-drag,
+html[data-bg-cover='full'][data-bg-material='clear'] .shell-track-left,
+html[data-bg-cover='full'][data-bg-material='clear'] .workbench-statusbar { backdrop-filter: none; }
+html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left { box-shadow: inset -1px 0 0 var(--glass-edge); }
+html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport > .electron-drag,
+html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left,
+html[data-bg-cover='full'][data-bg-material='glass'] .workbench-statusbar { backdrop-filter: blur(var(--pane-blur)) saturate(1.8) brightness(1.04); }
+
+/* Content panes: chat column, right panel, terminal drawer. */
 html[data-bg='on'] .shell-track-center .main-chat-column,
 html[data-bg='on'] .shell-track-right,
 html[data-bg='on'] .terminal-drawer {
-  background: color-mix(in srgb, var(--chat-bg) calc(var(--ui-alpha) * 100%), transparent) !important;
-  backdrop-filter: blur(16px) saturate(1.05);
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.05);
 }
-html[data-bg='on'] .split-view { background: transparent !important; }
-html[data-bg='on'] .composer-dock-fade { background: linear-gradient(to top, color-mix(in srgb, var(--chat-bg) 70%, transparent), transparent) !important; }
+html[data-bg-content-material='clear'] .shell-track-center .main-chat-column,
+html[data-bg-content-material='clear'] .shell-track-right,
+html[data-bg-content-material='clear'] .terminal-drawer { backdrop-filter: none; }
+html[data-bg-content-material='glass'] .shell-track-center .main-chat-column,
+html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .terminal-drawer {
+  background:
+    linear-gradient(160deg, var(--glass-sheen), transparent 38%),
+    color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.8) brightness(1.04);
+}
+html[data-bg-content-material='glass'] .shell-track-center .main-chat-column { box-shadow: var(--main-chat-surface-shadow), inset 0 1px 0 var(--glass-highlight), inset 0 0 0 1px var(--glass-edge); }
+html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .terminal-drawer { box-shadow: inset 0 1px 0 var(--glass-highlight), inset 1px 0 0 var(--glass-edge); }
+html[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.16); --glass-highlight: rgba(255, 255, 255, 0.55); --glass-edge: rgba(255, 255, 255, 0.18); }
+html.dark[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.06); --glass-highlight: rgba(255, 255, 255, 0.14); --glass-edge: rgba(255, 255, 255, 0.07); }
+html[data-bg='on'] .composer-dock-fade { background: linear-gradient(to top, color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 85%), transparent), transparent) !important; }
+/* Full cover: the chat column is a layer of its own, so its paper corner would show the bare image. */
+html[data-bg-cover='full'] .shell-track-center .main-chat-column { border-radius: 0; }
+/* The fade's scrollbar gap would leave an untinted strip on the image. */
+html[data-bg='on'] .composer-dock-fade { right: 0; }

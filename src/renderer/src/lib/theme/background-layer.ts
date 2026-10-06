@@ -37,8 +37,8 @@ function render(): void {
   const root = document.documentElement
   const img = activeBackground(current, root.classList.contains('dark'))
   if (!img) {
-    root.removeAttribute('data-bg')
-    root.style.removeProperty('--ui-alpha')
+    for (const a of ['data-bg', 'data-bg-cover', 'data-bg-material', 'data-bg-content-material']) root.removeAttribute(a)
+    for (const v of ['--ui-alpha', '--pane-blur', '--content-alpha', '--content-blur']) root.style.removeProperty(v)
     document.getElementById(LAYER_ID)?.remove()
     shown = null
     return
@@ -47,11 +47,20 @@ function render(): void {
   el.style.backgroundSize = SIZE[img.fit]
   el.style.backgroundRepeat = img.fit === 'tile' ? 'repeat' : 'no-repeat'
   el.style.backgroundPosition = img.fit === 'cover' ? `center ${img.position}` : 'center'
-  el.style.filter = img.blur ? `blur(${img.blur}px)` : ''
+  const filters = [img.blur ? `blur(${img.blur}px)` : '', img.brightness !== 1 ? `brightness(${img.brightness})` : '', img.saturation !== 1 ? `saturate(${img.saturation})` : '']
+  el.style.filter = filters.filter(Boolean).join(' ')
+  el.classList.toggle('has-vignette', img.vignette)
   // A blurred edge would show the window colour: grow the layer past the viewport by the blur radius.
   el.style.inset = img.blur ? `-${img.blur * 2}px` : '0'
   el.style.setProperty('--bg-image-opacity', String(img.opacity))
+  const content = img.content ?? { uiOpacity: img.uiOpacity, paneBlur: img.paneBlur, material: img.material }
   root.style.setProperty('--ui-alpha', String(img.uiOpacity))
+  root.style.setProperty('--pane-blur', `${img.paneBlur}px`)
+  root.style.setProperty('--content-alpha', String(content.uiOpacity))
+  root.style.setProperty('--content-blur', `${content.paneBlur}px`)
+  root.setAttribute('data-bg-material', img.material)
+  root.setAttribute('data-bg-content-material', content.material)
+  root.setAttribute('data-bg-cover', img.fullCover ? 'full' : 'frame')
   root.setAttribute('data-bg', 'on')
   if (shown === img.file) return
   shown = img.file
