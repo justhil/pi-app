@@ -162,7 +162,7 @@ fun SlashSuggestions(visible: Boolean, items: List<SlashItem>, onPick: (SlashIte
         val shape = RoundedCornerShape(14.dp)
         Box(Modifier.fillMaxWidth().clip(shape).background(Pi.c.card).border(1.dp, Pi.c.line, shape)) {
             LazyColumn(Modifier.heightIn(max = 248.dp).padding(vertical = 4.dp)) {
-                items(items.take(40), key = { it.category + it.name }) { SlashRow(it, showCategory = true, onPick = onPick, modifier = Modifier.animateItem()) }
+                items(items.take(40), key = { it.category + it.name }) { SlashRow(it, showCategory = true, onPick = onPick) }
             }
         }
     }
