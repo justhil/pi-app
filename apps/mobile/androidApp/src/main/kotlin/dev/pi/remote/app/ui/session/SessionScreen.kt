@@ -173,6 +173,23 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         }
     }
     val ready = connection is HostConnection.State.Ready
+    val stopFailed = stringResource(R.string.stop_failed)
+    var stopping by remember(sessionKey) { mutableStateOf(false) }
+    val runningNow = timeline?.state?.running == true || timeline?.turns?.lastOrNull()?.running == true
+    LaunchedEffect(runningNow, stopping) {
+        if (!runningNow) stopping = false
+        else if (stopping) {
+            // The host settles within a moment; never leave the stop button spinning.
+            kotlinx.coroutines.delay(8_000)
+            stopping = false
+        }
+    }
+    /** Queued texts come back to the composer ahead of whatever is typed (desktop / TUI behaviour). */
+    fun restore(texts: List<String>) {
+        if (texts.isEmpty()) return
+        val merged = (texts + draft.text.trim()).filter { it.isNotBlank() }.joinToString("\n")
+        draft = TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length))
+    }
     val maybeLost = stringResource(R.string.maybe_not_sent)
 
     LaunchedEffect(sessionKey, ready) { repo.openSession(sessionKey) }
@@ -236,7 +253,20 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 }
             }
         },
-        onStop = { scope.launch { repo.abort(sessionKey) } },
+        stopping = stopping,
+        onStop = {
+            if (!stopping) {
+                stopping = true
+                scope.launch {
+                    val restored = repo.abort(sessionKey)
+                    if (restored == null) {
+                        stopping = false
+                        notice = stopFailed
+                    } else restore(restored)
+                }
+            }
+        },
+        onDequeue = { scope.launch { repo.dequeue(sessionKey)?.let(::restore) } },
         onModel = {
             sheet = "model"
             scope.launch { models = repo.models(sessionKey) }
@@ -321,6 +351,8 @@ fun SessionContent(
     onLoadOlder: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    stopping: Boolean = false,
+    onDequeue: () -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -453,6 +485,8 @@ fun SessionContent(
                 queue = state?.queue,
                 onSend = onSend,
                 onStop = onStop,
+                stopping = stopping,
+                onDequeue = onDequeue,
                 onModel = onModel,
                 onTools = onTools,
                 attachments = attachments,

@@ -79,6 +79,8 @@ export interface RemoteHostPort {
   /** `projectId` is the session's (whitelisted) workspace: the cwd fallback when its file has no header yet. */
   send(sessionFile: string, text: string, mode: SendMode, capabilities: string[], projectId: string): Promise<void>
   abort(sessionFile: string): Promise<void>
+  /** Empty the session's steer/follow-up queue and return the texts (steering first); [] without a live worker. */
+  clearQueue(sessionFile: string): Promise<string[]>
   /** New session in the background: never reuses or replaces the desktop's foreground worker. */
   createSession(projectId: string): Promise<string>
   listModels(sessionFile: string): Promise<HostModelList>

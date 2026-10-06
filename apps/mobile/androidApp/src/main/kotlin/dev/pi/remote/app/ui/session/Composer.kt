@@ -53,6 +53,12 @@ import dev.pi.remote.app.theme.Pi
 import dev.pi.remote.app.theme.PiIcon
 import dev.pi.remote.app.theme.PiIcons
 import dev.pi.remote.app.ui.Hairline
+import dev.pi.remote.app.ui.Spinner
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import dev.pi.remote.protocol.PromptQueue
 
 /**
@@ -76,6 +82,10 @@ fun Composer(
     queue: PromptQueue?,
     onSend: (mode: String) -> Unit,
     onStop: () -> Unit,
+    /** Stop sent, run not settled yet. */
+    stopping: Boolean = false,
+    /** Pull queued messages back into the composer. */
+    onDequeue: () -> Unit = {},
     onModel: () -> Unit,
     onTools: () -> Unit,
     attachments: List<Attachment> = emptyList(),
@@ -90,13 +100,7 @@ fun Composer(
         Hairline()
         Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val queued = queue?.let { it.steering + it.followUp }.orEmpty()
-            queued.takeLast(2).forEach { q ->
-                Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PiIcon(PiIcons.Queue, Pi.c.fg3, 13.dp)
-                    Spacer(Modifier.width(7.dp))
-                    Text(stringResource(R.string.queued, q), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            if (queued.isNotEmpty()) QueuedRows(queued, enabled, onDequeue)
             if (attachments.isNotEmpty()) AttachmentRow(attachments, onRemoveAttachment, onRetryAttachment)
             val label = stringResource(R.string.composer_label)
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp, max = 160.dp).clip(RoundedCornerShape(20.dp)).background(Pi.c.surface).padding(horizontal = 15.dp, vertical = 11.dp)) {
@@ -144,12 +148,20 @@ fun Composer(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                if (running) {
-                    Box(
-                        Modifier.size(36.dp).clip(CircleShape).border(1.dp, Pi.c.line, CircleShape).clickable(enabled = enabled, role = Role.Button, onClick = onStop),
-                        contentAlignment = Alignment.Center,
-                    ) { PiIcon(PiIcons.Stop, Pi.c.fg, 13.dp, contentDescription = stringResource(R.string.stop)) }
-                    Spacer(Modifier.width(8.dp))
+                AnimatedVisibility(running, enter = fadeIn() + scaleIn(initialScale = 0.7f), exit = fadeOut() + scaleOut(targetScale = 0.7f)) {
+                    Row {
+                        val stopDesc = stringResource(if (stopping) R.string.stopping else R.string.stop)
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape).border(1.dp, Pi.c.line, CircleShape)
+                                .clickable(enabled = enabled && !stopping, role = Role.Button) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onStop()
+                                }
+                                .semantics { contentDescription = stopDesc },
+                            contentAlignment = Alignment.Center,
+                        ) { if (stopping) Spinner(Pi.c.fg2, 14.dp) else PiIcon(PiIcons.Stop, Pi.c.fg, 13.dp) }
+                        Spacer(Modifier.width(8.dp))
+                    }
                 }
                 val canSend = enabled && (text.text.isNotBlank() || attachments.any { it.status == Attachment.Status.Ready }) && attachments.none { it.status == Attachment.Status.Failed }
                 val sendDesc = stringResource(if (running) R.string.send_steer else R.string.send)
@@ -173,6 +185,32 @@ fun Composer(
                 ) { PiIcon(PiIcons.ArrowUp, Pi.c.bg, 17.dp) }
             }
         }
+    }
+}
+
+/** Queued steer / follow-up messages (last two shown) with one action that pulls them all back. */
+@Composable
+private fun QueuedRows(queued: List<String>, enabled: Boolean, onDequeue: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (queued.size > 2) Text(stringResource(R.string.queued_more, queued.size - 2), style = Pi.t.small.copy(color = Pi.c.fg3))
+            queued.takeLast(2).forEach { q ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PiIcon(PiIcons.Queue, Pi.c.fg3, 13.dp)
+                    Spacer(Modifier.width(7.dp))
+                    Text(stringResource(R.string.queued, q), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+        Text(
+            stringResource(R.string.queue_restore),
+            style = Pi.t.meta.copy(color = if (enabled) Pi.c.fg2 else Pi.c.fg3),
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, role = Role.Button) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onDequeue()
+            }.padding(horizontal = 8.dp, vertical = 8.dp),
+        )
     }
 }
 

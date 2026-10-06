@@ -218,7 +218,8 @@ const methodSamples: Samples = {
     result: { node: bashNode, output: 'full output' },
   },
   'turn.send': { params: { sessionKey, text: '顺便更新 CHANGELOG', mode: 'followUp', clientMessageId: 'm_01JABCDEF' }, result: { accepted: true, duplicate: false } },
-  'turn.abort': { params: { sessionKey }, result: { aborted: true } },
+  'turn.abort': { params: { sessionKey }, result: { aborted: true, restored: ['顺便更新 CHANGELOG'] } },
+  'turn.dequeue': { params: { sessionKey }, result: { restored: ['顺便更新 CHANGELOG'] } },
   'session.create': { params: { projectId: '/work/pi-app', capabilities: ['pi-ui'] }, result: { sessionKey } },
   'model.list': {
     params: { sessionKey },

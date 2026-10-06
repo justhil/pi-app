@@ -194,4 +194,8 @@
     <string name="fullscreen">全屏查看</string>
     <string name="close">关闭</string>
     <string name="scrubber">按消息跳转</string>
+    <string name="stopping">正在停止…</string>
+    <string name="stop_failed">停止失败，未连上电脑</string>
+    <string name="queue_restore">撤回</string>
+    <string name="queued_more">还有 %1$d 条排队</string>
 </resources>

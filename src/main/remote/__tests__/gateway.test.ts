@@ -187,6 +187,18 @@ describe('sessions', () => {
     expect(host.calls.sent).toEqual([{ sessionFile: session, text: '补充', mode: 'steer', capabilities: ['pi-ui'] }])
   })
 
+  it('dequeue and abort pull queued messages back', async () => {
+    const c = await pairNew()
+    ;(host as unknown as { sessions: Map<string, { running: boolean }> }).sessions.get(session)!.running = true
+    await c.call('turn.send', { sessionKey: session, text: '先改测试', mode: 'steer', clientMessageId: 'm_queue001' })
+    await c.call('turn.send', { sessionKey: session, text: '再更新文档', mode: 'followUp', clientMessageId: 'm_queue002' })
+    expect(await c.call('turn.dequeue', { sessionKey: session })).toEqual({ restored: ['先改测试', '再更新文档'] })
+    expect(await c.call('turn.dequeue', { sessionKey: session })).toEqual({ restored: [] })
+    await c.call('turn.send', { sessionKey: session, text: '最后提交', mode: 'followUp', clientMessageId: 'm_queue003' })
+    expect(await c.call('turn.abort', { sessionKey: session })).toEqual({ aborted: true, restored: ['最后提交'] })
+    expect(host.calls.aborted).toEqual([session])
+  })
+
   it('viewers cannot write', async () => {
     const c = await pairNew()
     gw.setDeviceRole(c.hello!.deviceId, 'viewer')

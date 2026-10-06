@@ -346,7 +346,10 @@ class RemoteRepository(
         }
     }
 
-    suspend fun abort(key: String) = runCatching { api?.abort(key) }
+    /** Queued texts the host pulled back, or null when the stop did not reach it. */
+    suspend fun abort(key: String): List<String>? = runCatching { api?.abort(key)?.let { it.restored.orEmpty() } }.getOrNull()
+
+    suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 
     suspend fun respondUi(key: String, response: UiResponse): Boolean {
         val ok = runCatching { api?.respondUi(response) ?: false }.getOrDefault(false)
