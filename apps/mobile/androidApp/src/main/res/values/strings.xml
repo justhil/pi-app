@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">pi Remote</string>
     <string name="hosts_title">Connect your computer</string>
-    <string name="hosts_desc">Open pi Desktop on your computer, go to Settings › Mobile and scan the QR code. Your phone and computer need to be on the same local network.</string>
+    <string name="hosts_desc">Open pi Desktop on your computer, go to Settings › Mobile and scan the QR code. Your phone and computer need to be on the same local network, or in the same Tailscale / ZeroTier / WireGuard network.</string>
     <string name="hosts_scan">Scan to connect</string>
     <string name="hosts_paste">Paste pairing link</string>
     <string name="hosts_saved">Saved computers</string>
@@ -13,6 +13,13 @@
     <string name="hosts_paste_hint">pidesk://pair#…</string>
     <string name="hosts_paste_confirm">Connect</string>
     <string name="hosts_forget">Remove</string>
+    <string name="hosts_addresses">Addresses</string>
+    <string name="hosts_addresses_desc">Away from home, add the computer\'s Tailscale / ZeroTier / WireGuard address (or its *.ts.net name). It is tried together with the addresses from the QR code.</string>
+    <string name="hosts_address_hint">100.101.1.2:47900</string>
+    <string name="hosts_address_add">Add</string>
+    <string name="hosts_address_invalid">Use host:port with a private or overlay address (10.x, 192.168.x, 100.64–127.x, *.ts.net).</string>
+    <string name="hosts_address_auto">From the computer</string>
+    <string name="hosts_address_mine">Added by you</string>
     <string name="hosts_scan_prompt">Scan the QR code shown on your computer</string>
     <string name="pair_err_unreachable">Couldn’t reach the computer. Check that both are on the same network and Mobile is turned on in pi Desktop.</string>
     <string name="pair_err_pair_expired">This QR code has expired. Generate a new one on the computer.</string>

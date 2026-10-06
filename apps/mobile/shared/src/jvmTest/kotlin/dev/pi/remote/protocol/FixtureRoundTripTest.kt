@@ -72,8 +72,8 @@ class FixtureRoundTripTest {
         val back = Pairing.decodeLink(Pairing.encodeLink(offer))!!
         assertEquals(listOf("ws://192.168.1.23:47900"), back.endpoints)
         assertEquals(null, Pairing.decodeLink("https://example.com"))
-        for (h in listOf("10.0.0.5", "172.31.0.1", "100.101.1.1", "fd12:3456::1", "[fe80::1]")) assertTrue(Pairing.isPrivateHost(h), h)
-        for (h in listOf("8.8.8.8", "172.32.0.1", "example.com", "2001:db8::1")) assertTrue(!Pairing.isPrivateHost(h), h)
+        for (h in listOf("10.0.0.5", "172.31.0.1", "100.101.1.1", "fd12:3456::1", "[fe80::1]", "pc.tail1234.ts.net", "my-box.tail-ab.ts.net.")) assertTrue(Pairing.isPrivateHost(h), h)
+        for (h in listOf("8.8.8.8", "172.32.0.1", "example.com", "2001:db8::1", "ts.net", "evil.ts.net.example.com", "-x.ts.net")) assertTrue(!Pairing.isPrivateHost(h), h)
         for (n in 0..7) {
             val bytes = ByteArray(n) { (it * 37).toByte() }
             assertTrue(bytes.contentEquals(Base64Url.decode(Base64Url.encode(bytes))))

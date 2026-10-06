@@ -991,6 +991,8 @@
     "portDesc": "Port phones use to reach this computer.",
     "addresses": "Addresses",
     "noAddress": "No local network address found. Check that this computer is on Wi‑Fi or Ethernet.",
+    "addressesDesc": "Away from this network, the phone can connect over Tailscale, ZeroTier or WireGuard when both devices are in the same overlay network.",
+    "addressKind": {"lan": "LAN", "tailscale": "Tailscale", "overlay": "VPN"},
     "pairing": "Pairing",
     "pairingDesc": "Scan the code with the phone app to pair. On Windows, allow pi Desktop on private networks in the firewall.",
     "qrLabel": "Pairing QR code",

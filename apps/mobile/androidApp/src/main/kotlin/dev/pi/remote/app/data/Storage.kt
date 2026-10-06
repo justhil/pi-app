@@ -79,7 +79,12 @@ data class SavedHost(
     val deviceId: String,
     val role: String,
     val lastConnectedAt: Long = 0,
-)
+    /** Addresses the user typed in (overlay VPN, other networks); always tried, never pruned. */
+    val manualEndpoints: List<String> = emptyList(),
+) {
+    /** Everything to probe: what worked and what the host announced, then the user's own addresses. */
+    val allEndpoints: List<String> get() = (endpoints + manualEndpoints).distinct()
+}
 
 @Serializable
 private data class HostFile(val hosts: List<SavedHost> = emptyList(), val activeHostId: String? = null)
@@ -94,6 +99,13 @@ class HostStore(private val dir: File) {
     @Synchronized
     fun upsert(host: SavedHost, makeActive: Boolean = true) {
         data = data.copy(hosts = listOf(host) + data.hosts.filter { it.hostId != host.hostId }, activeHostId = if (makeActive) host.hostId else data.activeHostId)
+        save()
+    }
+
+    /** Replace a saved host in place (keeps list order and the active host). */
+    @Synchronized
+    fun update(host: SavedHost) {
+        data = data.copy(hosts = data.hosts.map { if (it.hostId == host.hostId) host else it })
         save()
     }
 

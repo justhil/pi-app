@@ -123,7 +123,9 @@ class RemoteRepository(
         val c = HostConnection(
             scope, offer.endpoints, Base64Url.decode(offer.hostPub), keyVault.identity(), deviceName, platform, helloParams, offer.pairToken,
             onPaired = { p: Hs2Payload ->
-                saved = SavedHost(p.hostId, p.hostName, offer.hostPub, offer.endpoints, p.deviceId, p.role, System.currentTimeMillis()).also {
+                // Re-pairing the same computer keeps the addresses the user typed in.
+                val manual = hostStore.hosts.firstOrNull { it.hostId == p.hostId }?.manualEndpoints.orEmpty()
+                saved = SavedHost(p.hostId, p.hostName, offer.hostPub, offer.endpoints, p.deviceId, p.role, System.currentTimeMillis(), manual).also {
                     hostStore.upsert(it)
                     _hosts.value = hostStore.hosts
                 }
@@ -152,6 +154,19 @@ class RemoteRepository(
         }
         _active.value = host
         if (foreground) connect()
+    }
+
+    /** Replace a host's typed-in addresses; the active connection tries them on its next attempt. */
+    fun setManualEndpoints(hostId: String, list: List<String>) {
+        val host = hostStore.hosts.firstOrNull { it.hostId == hostId } ?: return
+        val updated = host.copy(manualEndpoints = list.distinct())
+        hostStore.update(updated)
+        _hosts.value = hostStore.hosts
+        if (_active.value?.hostId == hostId) {
+            _active.value = updated
+            conn?.updateEndpoints(updated.allEndpoints)
+            if (_connection.value !is HostConnection.State.Ready) conn?.kick()
+        }
     }
 
     fun forget(hostId: String) {
@@ -191,7 +206,7 @@ class RemoteRepository(
     private fun connect() {
         val host = _active.value ?: return
         if (conn != null) return
-        val c = HostConnection(scope, host.endpoints, Base64Url.decode(host.hostPub), keyVault.identity(), deviceName, platform, helloParams)
+        val c = HostConnection(scope, host.allEndpoints, Base64Url.decode(host.hostPub), keyVault.identity(), deviceName, platform, helloParams)
         conn = c
         api = RemoteApi(c)
         jobs += scope.launch { c.state.collect { s -> _connection.value = s; if (s is HostConnection.State.Ready) onReady(s) } }
@@ -214,8 +229,8 @@ class RemoteRepository(
             // Remember what worked (first) plus the host's current addresses, so the next start
             // connects at once and a DHCP change does not need a new QR scan.
             val endpoints = (listOf(s.endpoint) + s.hello.endpoints + h.endpoints).distinct().take(8)
-            conn?.updateEndpoints(endpoints)
             val updated = h.copy(hostName = s.hello.hostName, role = s.hello.role, endpoints = endpoints, lastConnectedAt = System.currentTimeMillis())
+            conn?.updateEndpoints(updated.allEndpoints)
             hostStore.upsert(updated)
             _active.value = updated
             _hosts.value = hostStore.hosts

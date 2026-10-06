@@ -89,9 +89,13 @@ object Pairing {
         return if (nums.all { it in 0..255 }) nums else null
     }
 
-    /** RFC 1918, CGNAT (overlay VPNs), loopback, link-local, IPv6 ULA / link-local. */
+    /** Tailscale MagicDNS names (`pc.tail1234.ts.net`), mirrored from `pairing.ts`. */
+    private val tailnetName = Regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\\.ts\\.net\\.?$")
+
+    /** RFC 1918, CGNAT (overlay VPNs), loopback, link-local, IPv6 ULA / link-local, MagicDNS names. */
     fun isPrivateHost(host: String): Boolean {
         val h = host.removePrefix("[").removeSuffix("]").lowercase()
+        if (tailnetName.matches(h)) return true
         ipv4(h)?.let { (a, b) ->
             return a == 10 || a == 127 || (a == 172 && b in 16..31) || (a == 192 && b == 168) || (a == 100 && b in 64..127) || (a == 169 && b == 254)
         }

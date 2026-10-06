@@ -988,6 +988,8 @@
     "portDesc": "手机连接这台电脑时使用的端口。",
     "addresses": "本机地址",
     "noAddress": "没有检测到局域网地址，请确认电脑已连上 Wi‑Fi 或有线网络。",
+    "addressesDesc": "离开当前局域网时，只要手机和电脑加入同一个 Tailscale、ZeroTier 或 WireGuard 网络，就能通过对应地址连接。",
+    "addressKind": {"lan": "局域网", "tailscale": "Tailscale", "overlay": "组网"},
     "pairing": "配对",
     "pairingDesc": "用手机 App 扫描二维码完成配对。Windows 需要在防火墙中允许 pi Desktop 使用专用网络。",
     "qrLabel": "配对二维码",
