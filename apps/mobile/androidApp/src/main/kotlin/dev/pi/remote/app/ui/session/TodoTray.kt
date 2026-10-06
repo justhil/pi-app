@@ -3,6 +3,8 @@ package dev.pi.remote.app.ui.session
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -23,12 +25,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -52,13 +53,13 @@ import dev.pi.remote.protocol.TodoItem
 import dev.pi.remote.protocol.TodoState
 
 /**
- * Todo tray above the composer (desktop `ComposerAdapterWidgetHost`): the summary names the item
- * being worked on, with a progress ring; tap to unfold the list (it grows upward, in flow).
+ * Todo summary above the composer (desktop `ComposerAdapterWidgetHost`): names the item being worked
+ * on, with a progress ring; tap to unfold the list, which floats over the timeline ([TodoList]) so
+ * opening it does not push the conversation around.
  */
 @Composable
-fun TodoTray(sessionKey: String, todo: TodoState) {
+fun TodoTray(todo: TodoState, open: Boolean, onToggle: () -> Unit) {
     if (todo.items.isEmpty()) return
-    var open by rememberSaveable(sessionKey) { mutableStateOf(false) }
     val done = todo.items.count { it.status == "completed" }
     val allDone = todo.items.none { it.status == "in_progress" || it.status == "pending" }
     val current = todo.items.firstOrNull { it.status == "in_progress" }
@@ -73,13 +74,8 @@ fun TodoTray(sessionKey: String, todo: TodoState) {
     val desc = "${todo.title} $done/${todo.items.size} $focus"
     Column(Modifier.fillMaxWidth().background(Pi.c.bg)) {
         Hairline()
-        AnimatedVisibility(open, enter = expandVertically(expandFrom = Alignment.Bottom), exit = shrinkVertically(shrinkTowards = Alignment.Bottom)) {
-            Column(Modifier.fillMaxWidth().heightIn(max = 280.dp).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                todo.items.forEach { TodoRow(it) }
-            }
-        }
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 38.dp).clickable(role = Role.Button) { open = !open }.padding(horizontal = 16.dp).semantics { contentDescription = desc },
+            Modifier.fillMaxWidth().heightIn(min = 38.dp).clickable(role = Role.Button, onClick = onToggle).padding(horizontal = 16.dp).semantics { contentDescription = desc },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (allDone) PiIcon(PiIcons.Check, Pi.c.ok, 14.dp) else ProgressRing(done, todo.items.size)
@@ -92,6 +88,25 @@ fun TodoTray(sessionKey: String, todo: TodoState) {
                 Text(focus, style = Pi.t.meta.copy(color = if (allDone) Pi.c.fg3 else Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             } else Spacer(Modifier.weight(1f))
             PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 12.dp, Modifier.rotate(angle))
+        }
+    }
+}
+
+/** The unfolded todo list, drawn over the bottom of the timeline, right above the summary. */
+@Composable
+fun TodoList(todo: TodoState, open: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(open && todo.items.isNotEmpty(), modifier = modifier, enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(), exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut()) {
+        Column(
+            Modifier.fillMaxWidth()
+                .shadow(12.dp, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp), clip = false, ambientColor = Pi.c.fg.copy(alpha = 0.12f), spotColor = Pi.c.fg.copy(alpha = 0.12f))
+                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                .background(Pi.c.bg)
+                .heightIn(max = 300.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            todo.items.forEach { TodoRow(it) }
         }
     }
 }

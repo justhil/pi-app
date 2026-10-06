@@ -609,6 +609,8 @@ fun SessionContent(
         snapshotFlow { panel.value > 0.5f }.distinctUntilChanged().collect { if (it) onPanelOpened() }
     }
     BackHandler(enabled = panel.targetValue > 0f || panel.value > 0f) { settlePanel(1000f) }
+    var todoOpen by rememberSaveable(timeline?.sessionKey) { mutableStateOf(false) }
+    BackHandler(enabled = todoOpen) { todoOpen = false }
     // Swipe left anywhere (not from the edges: those are system back) pulls the panel in; right closes it.
     Column(Modifier.fillMaxSize().background(Pi.c.bg).imePadding().draggable(dragState, Orientation.Horizontal, onDragStopped = { v -> settlePanel(v) })) {
         TopBar(
@@ -666,7 +668,9 @@ fun SessionContent(
                 scope.launch { listState.scrollToItem(turns.size - turnIndex) }
             }, modifier = Modifier.align(Alignment.CenterEnd).padding(vertical = 12.dp))
 
-            if (!atBottom && turns.isNotEmpty()) {
+            if (question == null) state?.todo?.let { TodoList(it, todoOpen, Modifier.align(Alignment.BottomCenter)) }
+
+            if (!atBottom && turns.isNotEmpty() && !todoOpen) {
                 Box(
                     Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 14.dp).size(36.dp).clip(CircleShape).background(Pi.c.bg).border(1.dp, Pi.c.line, CircleShape)
                         .clickable(role = Role.Button) { scope.launch { listState.animateScrollToItem(0) } },
@@ -675,7 +679,7 @@ fun SessionContent(
             }
         }
 
-        if (question == null) state?.todo?.let { TodoTray(timeline?.sessionKey ?: "", it) }
+        if (question == null) state?.todo?.let { TodoTray(it, todoOpen) { todoOpen = !todoOpen } }
         if (question != null) {
             QuestionCard(question, enabled = canWrite && connection is HostConnection.State.Ready, onAnswer = onAnswer, onSkip = { onSkip(question.id) }, onDesktop = { onDefer(question.id) })
         } else {
