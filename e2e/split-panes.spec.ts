@@ -75,16 +75,19 @@ test.describe('split panes', () => {
       await expect(win.locator('[data-split-pane]').nth(1)).toContainText('FIRST hello')
 
       // Panes always fill the split area (no unused space), also with a collapsed strip.
+      // `.split-pane` also covers focus mode, where the active pane is shown alone under tabs.
       const fill = () =>
         win.evaluate(() => {
           const root = (document.querySelector('.split-view') as HTMLElement).getBoundingClientRect()
-          const panes = [...document.querySelectorAll('[data-split-pane]')].map((p) => p.getBoundingClientRect())
+          const panes = [...document.querySelectorAll('.split-view > .split-pane')].map((p) => p.getBoundingClientRect())
           return Math.abs(root.right - panes[panes.length - 1].right) + Math.abs(panes[0].left - root.left)
         })
       expect(await fill()).toBeLessThan(2)
       await agent.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(820, 760))
       // The shell animates its columns; wait for the layout to settle.
       await expect.poll(fill, { timeout: 5000 }).toBeLessThan(2)
+      // Too narrow for two panes: focus mode, with the other session as a tab.
+      await expect(win.locator('.split-tabs [role="tab"]')).toHaveCount(2)
     } finally {
       await agent.close()
       model.close()

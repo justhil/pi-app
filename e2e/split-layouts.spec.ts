@@ -75,7 +75,8 @@ test.describe('split layouts (tmux style)', () => {
       const area = (await win.locator('.split-view').boundingBox())!
       await win.mouse.move(mainHandle.x + 3, mainHandle.y + mainHandle.height / 2)
       await win.mouse.down()
-      await win.mouse.move(area.x + area.width * 0.72, mainHandle.y + mainHandle.height / 2, { steps: 6 })
+      // Side panes end up below PREVIEW_MIN_W (380 px), so they render as cards.
+      await win.mouse.move(area.x + area.width * 0.8, mainHandle.y + mainHandle.height / 2, { steps: 6 })
       await win.mouse.up()
       await win.waitForTimeout(400)
       if (process.env.SHOT) await win.screenshot({ path: process.env.SHOT.replace('.png', '-split.png') })
