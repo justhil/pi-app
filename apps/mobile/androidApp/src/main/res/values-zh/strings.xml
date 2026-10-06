@@ -160,6 +160,8 @@
     <string name="notif_needs">需要你回答：%1$s</string>
     <string name="notif_failed">失败：%1$s</string>
     <string name="notif_keepalive">正在等待 %1$d 个任务完成</string>
+    <string name="menu_language">语言</string>
+    <string name="session_untitled">新对话</string>
     <string name="menu_theme">主题</string>
     <string name="theme_system">跟随系统</string>
     <string name="theme_light">浅色</string>
