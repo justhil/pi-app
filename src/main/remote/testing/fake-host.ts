@@ -113,7 +113,7 @@ export class FakeHost implements RemoteHostPort {
           updatedAt: Date.now(),
         },
       } as unknown as AppEvent)
-    const plan = text.includes('计划')
+    const plan = text.includes('计划') || /\bplan\b/i.test(text)
     const steps: Array<() => void> = [
       ...(plan ? [todo(['in_progress', 'pending', 'pending', 'pending'])] : []),
       () => {
