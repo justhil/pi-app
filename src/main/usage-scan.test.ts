@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -45,6 +45,34 @@ describe('usage scan', () => {
     utimesSync(f, new Date(), new Date(Date.now() + 5000))
     expect(refreshUsage(dir)).toEqual({ files: 2, read: 1 })
     expect(summarizeUsage(D, D + 86_400_000, 0).total.cost).toBeCloseTo(0.52)
+  })
+
+  it('counts replies copied into a fork once, for the original session', () => {
+    const dir = agentDir()
+    const fork = join(dir, 'sessions', '--work-a--', 's1-fork.jsonl')
+    const original = join(dir, 'sessions', '--work-a--', 's1.jsonl')
+    const copied = readFileSync(original, 'utf8').split('\n').slice(2, 3) // first reply, same id + ts
+    writeFileSync(fork, [JSON.stringify({ type: 'session', id: 'f', cwd: '/work/a', timestamp: '2026-10-05T00:00:00Z' }), user('forked'), ...copied, reply(D + 9_000_000, 'sonnet-5', 1, 1, 0, 0.3)].join('\n'))
+    refreshUsage(dir)
+    const s = summarizeUsage(D, D + 86_400_000, 0)
+    expect(s.total.calls).toBe(3)
+    expect(s.topSessions.find((x) => x.title === 'fix login')!.calls).toBe(1)
+    expect(s.topSessions.find((x) => x.title === 'forked')!.calls).toBe(1)
+  })
+
+  it('also scans a custom sessionDir from settings.json and fills the weekday × hour grid', () => {
+    const dir = agentDir()
+    const custom = mkdtempSync(join(tmpdir(), 'pi-usage-custom-'))
+    writeFileSync(join(dir, 'settings.json'), JSON.stringify({ sessionDir: custom }))
+    writeFileSync(join(custom, 'cli.jsonl'), [header('/work/c'), user('from the cli'), reply(D + 3_600_000 * 5, 'opus-5', 10, 10, 0, 0.05)].join('\n'))
+    expect(refreshUsage(dir).files).toBe(3)
+    const s = summarizeUsage(0, D + 86_400_000, 0)
+    expect(s.byProject.map((p) => p.project)).toContain('/work/c')
+    expect(s.activeDays).toBe(2)
+    expect(s.from).toBe(D - 86_400_000) // all time starts at the first reply's day
+    // 2026-10-06 is a Tuesday (index 1); replies at 01:00, 02:00 and 05:00 UTC.
+    expect([s.heat.calls[24 + 1], s.heat.calls[24 + 2], s.heat.calls[24 + 5]]).toEqual([1, 1, 1])
+    expect(s.heat.calls.reduce((a, b) => a + b, 0)).toBe(s.total.calls)
   })
 
   it('buckets by local day and sums one session', () => {
