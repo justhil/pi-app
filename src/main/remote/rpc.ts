@@ -89,8 +89,14 @@ export class RemoteRpc {
       },
       'turn.abort': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
+        // The worker's abort drops its queue: take the texts first so they are not lost.
+        const restored = await port.clearQueue(entry.sessionFile).catch(() => [])
         await port.abort(entry.sessionFile)
-        return { aborted: true }
+        return { aborted: true, restored }
+      },
+      'turn.dequeue': async (_c, p) => {
+        const { entry } = await hub.authorize(p.sessionKey)
+        return { restored: await port.clearQueue(entry.sessionFile) }
       },
       'session.create': async (_c, p) => {
         if (!hub.isAllowedProject(p.projectId)) throw new RpcFail('forbidden', 'project is not allowed')

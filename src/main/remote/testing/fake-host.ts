@@ -10,7 +10,7 @@ import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, S
  * the same AppEvent sequence the real worker emits (see src/worker/worker-session-events.ts).
  */
 
-type FakeSession = { row: HostSessionRow; items: HostTimelineItem[]; running: boolean; model: string; thinking: string }
+type FakeSession = { row: HostSessionRow; items: HostTimelineItem[]; running: boolean; model: string; thinking: string; queue?: { steering: string[]; followUp: string[] }; aborted?: boolean }
 
 export type FakeCalls = {
   sent: Array<{ sessionFile: string; text: string; mode: SendMode; capabilities: string[] }>
@@ -168,6 +168,12 @@ export class FakeHost implements RemoteHostPort {
     return new Promise((resolve) => {
       let i = 0
       const next = () => {
+        if (s.aborted) {
+          s.aborted = false
+          s.running = false
+          this.emit({ ...this.base(file), type: 'run', phase: 'idle', settled: true })
+          return resolve()
+        }
         steps[i++]()
         if (i >= steps.length) return resolve()
         const t = setTimeout(() => {
@@ -211,10 +217,31 @@ export class FakeHost implements RemoteHostPort {
   }
   async send(sessionFile: string, text: string, mode: SendMode, capabilities: string[]): Promise<void> {
     this.calls.sent.push({ sessionFile, text, mode, capabilities })
+    const s = this.sessions.get(sessionFile)
+    if (mode !== 'prompt' && s?.running) {
+      const q = (s.queue ??= { steering: [], followUp: [] })
+      ;(mode === 'steer' ? q.steering : q.followUp).push(text)
+      this.emitQueue(sessionFile)
+      return
+    }
     if (mode === 'prompt') void this.playRun(sessionFile, text, { ask: text.includes('问我') })
+  }
+  private emitQueue(file: string): void {
+    const q = this.sessions.get(file)?.queue ?? { steering: [], followUp: [] }
+    this.emit({ ...this.base(file), type: 'queue', steering: [...q.steering], followUp: [...q.followUp] } as AppEvent)
   }
   async abort(sessionFile: string): Promise<void> {
     this.calls.aborted.push(sessionFile)
+    const s = this.sessions.get(sessionFile)
+    if (s?.running) s.aborted = true
+  }
+  async clearQueue(sessionFile: string): Promise<string[]> {
+    const s = this.sessions.get(sessionFile)
+    if (!s?.queue) return []
+    const out = [...s.queue.steering, ...s.queue.followUp]
+    s.queue = { steering: [], followUp: [] }
+    this.emitQueue(sessionFile)
+    return out
   }
   readonly attachments = new Map<string, Uint8Array>()
   async saveAttachment(bytes: Uint8Array, name: string): Promise<string> {

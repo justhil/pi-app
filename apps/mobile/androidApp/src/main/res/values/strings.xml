@@ -195,4 +195,8 @@
     <string name="fullscreen">Full screen</string>
     <string name="close">Close</string>
     <string name="scrubber">Jump by message</string>
+    <string name="stopping">Stopping…</string>
+    <string name="stop_failed">Couldn\'t reach the desktop to stop</string>
+    <string name="queue_restore">Pull back</string>
+    <string name="queued_more">%1$d more queued</string>
 </resources>

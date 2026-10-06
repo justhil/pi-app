@@ -1,7 +1,6 @@
 {
-  "schema": "turn.abort/result",
+  "schema": "turn.dequeue/result",
   "value": {
-    "aborted": true,
     "restored": [
       "顺便更新 CHANGELOG"
     ]

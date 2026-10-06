@@ -144,6 +144,13 @@ export function createElectronRemoteHost(): RemoteHostPort {
 
     abort: (sessionFile) => workerManager.abort(sessionFile),
 
+    async clearQueue(sessionFile: string): Promise<string[]> {
+      // Never spawn a worker just to read an empty queue.
+      if (!workerManager.hasLiveSessionWorker(sessionFile)) return []
+      const q = await workerManager.clearPromptQueue(sessionFile)
+      return [...q.steering, ...q.followUp].filter(Boolean)
+    },
+
     async createSession(projectId: string): Promise<string> {
       const result = await workerManager.newSessionInBackground(projectId)
       if (!result.sessionFile) throw new Error('session_not_created')

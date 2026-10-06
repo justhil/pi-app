@@ -2,6 +2,7 @@ package dev.pi.remote.net
 
 import dev.pi.remote.protocol.Accepted
 import dev.pi.remote.protocol.AbortResult
+import dev.pi.remote.protocol.DequeueResult
 import dev.pi.remote.protocol.CacheWarmingValue
 import dev.pi.remote.protocol.CapabilityList
 import dev.pi.remote.protocol.CapabilitySetParams
@@ -45,6 +46,7 @@ class RemoteApi(private val c: HostConnection) {
     suspend fun send(sessionKey: String, text: String, mode: String, clientMessageId: String) =
         c.typedCall("turn.send", SendParams.serializer(), SendParams(sessionKey, text, mode, clientMessageId), SendResult.serializer())
     suspend fun abort(sessionKey: String) = c.typedCall("turn.abort", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), AbortResult.serializer())
+    suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())
     suspend fun models(sessionKey: String) = c.typedCall("model.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), ModelListResult.serializer())
     suspend fun setModel(sessionKey: String, modelId: String) = c.typedCall("model.set", ModelSetParams.serializer(), ModelSetParams(sessionKey, modelId), ModelSetResult.serializer())

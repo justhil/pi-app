@@ -123,7 +123,14 @@ export const REMOTE_METHODS = {
     z.object({ accepted: z.literal(true), duplicate: z.boolean().optional() }).strict(),
     'operator',
   ),
-  'turn.abort': method(z.object({ sessionKey }).strict(), z.object({ aborted: z.boolean() }).strict(), 'operator'),
+  /** Stop the run. Queued steer/follow-up texts are pulled back (`restored`) so the phone can put them in its composer. */
+  'turn.abort': method(
+    z.object({ sessionKey }).strict(),
+    z.object({ aborted: z.boolean(), restored: z.array(z.string()).optional() }).strict(),
+    'operator',
+  ),
+  /** Pull queued steer/follow-up texts back without stopping the run. */
+  'turn.dequeue': method(z.object({ sessionKey }).strict(), z.object({ restored: z.array(z.string()) }).strict(), 'operator'),
   'session.create': method(
     z.object({ projectId: z.string(), capabilities: z.array(z.string()).optional() }).strict(),
     z.object({ sessionKey }).strict(),
