@@ -98,6 +98,16 @@ import dev.pi.remote.sync.SessionTimeline
 import dev.pi.remote.text.TimeDividers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** [block] until it returns non-null, up to 3 tries 1.2 s apart. */
+private suspend fun <T> retrying(block: suspend () -> T?): T? {
+    repeat(3) { i ->
+        block()?.let { return it }
+        if (i < 2) kotlinx.coroutines.delay(1200)
+    }
+    return null
+}
 
 @Composable
 fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit, onOpenSession: (String) -> Unit = {}) {
@@ -341,14 +351,17 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onPanelOpened = {
             statsLoading = true
             scope.launch {
-                repo.sessionStats(sessionKey)?.let { r ->
+                // Opened right after launch or a reconnect: wait for the session to be reachable first.
+                withTimeoutOrNull(10_000) { repo.connection.first { it is HostConnection.State.Ready } }
+                // The first calls after a (re)connect can race the session's own open: retry briefly.
+                launch { retrying { repo.reviewDiff(sessionKey, "git").getOrNull() }?.let { changes = it } }
+                launch { retrying { repo.branches(sessionKey).getOrNull() }?.let { branches = it; branchesFailed = false } }
+                retrying { repo.sessionStats(sessionKey)?.takeIf { it.context != null } }?.let { r ->
                     r.context?.let { stats = it }
                     usage = r.usage
                 }
                 statsLoading = false
             }
-            scope.launch { repo.reviewDiff(sessionKey, "git").onSuccess { changes = it } }
-            loadBranches()
         },
         branchCount = branches?.size,
         onBranches = {
