@@ -337,7 +337,26 @@
       "type": "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。",
       "size": "图片超过 20 MB。",
       "read": "无法读取这张图片。"
-    }
+    },
+    "bgBrightness": "图片亮度",
+    "bgSaturation": "图片饱和度",
+    "bgVignette": "暗角",
+    "bgVignetteDesc": "让图片四周逐渐变暗。",
+    "bgFullCover": "透出整个界面",
+    "bgFullCoverDesc": "关闭时聊天区和右侧栏几乎不透明；打开后每块面板都单独盖在图片上，整个界面都能透出背景。",
+    "bgMaterial": "面板材质",
+    "bgMaterialDesc": "侧栏和各面板盖在图片上的效果。",
+    "bgMaterialOption": {
+      "frosted": "磨砂",
+      "glass": "液态玻璃",
+      "clear": "通透（仅着色）"
+    },
+    "bgPaneBlur": "面板模糊",
+    "bgSeparate": "单独调整聊天区和右侧栏",
+    "bgSeparateDesc": "单独设置它们的不透明度、材质和模糊；关闭时与其余部分一致。",
+    "bgContentOpacity": "聊天区与右侧栏不透明度",
+    "bgContentMaterial": "聊天区与右侧栏材质",
+    "bgContentBlur": "聊天区与右侧栏模糊"
   },
   "pi": {
     "title": "运行时",

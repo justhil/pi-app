@@ -337,7 +337,26 @@
       "type": "Pick a PNG, JPEG, WebP, GIF or AVIF image.",
       "size": "The image is larger than 20 MB.",
       "read": "Could not read the image."
-    }
+    },
+    "bgBrightness": "Image brightness",
+    "bgSaturation": "Image saturation",
+    "bgVignette": "Vignette",
+    "bgVignetteDesc": "Darken the image towards the edges.",
+    "bgFullCover": "Show through the whole interface",
+    "bgFullCoverDesc": "Off: chat and the right panel stay nearly solid. On: every pane is its own layer over the image.",
+    "bgMaterial": "Pane material",
+    "bgMaterialDesc": "How the sidebar and panes look over the image.",
+    "bgMaterialOption": {
+      "frosted": "Frosted",
+      "glass": "Liquid glass",
+      "clear": "Clear (tint only)"
+    },
+    "bgPaneBlur": "Pane blur",
+    "bgSeparate": "Tune chat and right panel separately",
+    "bgSeparateDesc": "Their own opacity, material and blur; off = same as the rest.",
+    "bgContentOpacity": "Chat & right panel opacity",
+    "bgContentMaterial": "Chat & right panel material",
+    "bgContentBlur": "Chat & right panel blur"
   },
   "pi": {
     "title": "Runtime",
