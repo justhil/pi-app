@@ -1,0 +1,6 @@
+{
+  "schema": "model.set/result",
+  "value": {
+    "model": "anthropic/sonnet-5"
+  }
+}

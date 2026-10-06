@@ -172,6 +172,14 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:desktop.appName',
   'ipc:desktop.setBadge',
   'ipc:desktop.whichPi',
+  'ipc:remote.status',
+  'ipc:remote.setEnabled',
+  'ipc:remote.setPort',
+  'ipc:remote.regeneratePairing',
+  'ipc:remote.setProjects',
+  'ipc:remote.revokeDevice',
+  'ipc:remote.removeDevice',
+  'ipc:remote.setDeviceRole',
 ] as const
 
 export type IpcInvokeChannel = (typeof IPC_INVOKE_CHANNELS)[number]

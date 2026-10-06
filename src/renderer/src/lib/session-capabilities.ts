@@ -38,6 +38,26 @@ export function loadSessionCapabilities(): Promise<void> {
   return loading
 }
 
+/** Settings changed outside this window (a paired phone): take the stored map, keep the draft. */
+export async function reloadSessionCapabilities(): Promise<void> {
+  try {
+    const res = (await ipcClient.invoke('settings.get', { key: 'sessionCapabilities' })) as
+      | { settings?: { sessionCapabilities?: Record<string, unknown> } }
+      | undefined
+    const raw = res?.settings?.sessionCapabilities ?? {}
+    const byKey: Record<string, CapabilityId[]> = {}
+    for (const [k, v] of Object.entries(raw)) {
+      const caps = normalizeCapabilities(v)
+      if (caps.length) byKey[k] = caps
+    }
+    const draft = useSessionCapabilitiesStore.getState().byKey[DRAFT_CAPABILITY_KEY]
+    if (draft?.length) byKey[DRAFT_CAPABILITY_KEY] = draft
+    useSessionCapabilitiesStore.setState({ byKey, loaded: true })
+  } catch {
+    /* keep the current map */
+  }
+}
+
 function persist(byKey: Record<string, CapabilityId[]>): void {
   // Only saved sessions are remembered across restarts; drafts live in memory.
   const entries = Object.entries(byKey).filter(([k, v]) => k !== DRAFT_CAPABILITY_KEY && v.length > 0)

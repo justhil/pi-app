@@ -64,6 +64,16 @@ export function registerHandlerWithSchema<T>(
   })
 }
 
+/**
+ * Call a registered handler in-process (same validation and logic as the renderer path).
+ * Used by the remote gateway so phones never get a second implementation of desktop features.
+ */
+export async function invokeHandler<T = unknown>(channel: string, request?: IpcInvokeBody): Promise<T> {
+  const handler = handlers.get(channel)
+  if (!handler) throw new Error(`No IPC handler for ${channel}`)
+  return (await handler(request ?? {})) as T
+}
+
 export function sendEvent(win: BrowserWindow, event: AppEvent): void {
   if (!win.isDestroyed()) {
     win.webContents.send('ipc:events', event)

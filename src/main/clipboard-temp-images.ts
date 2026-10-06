@@ -1,6 +1,6 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'fs'
+import { basename, dirname, join } from 'path'
 import { randomUUID } from 'crypto'
 
 const tracked = new Set<string>()
@@ -18,6 +18,33 @@ export function writeClipboardTempImage(data: Buffer, ext: string): string {
   writeFileSync(filePath, data)
   trackClipboardTempImage(filePath)
   return filePath
+}
+
+/**
+ * Attachment from a phone: keeps a readable original name after the `pi-clipboard-<id>` prefix so
+ * the agent (and the desktop chip) can tell files apart; same dir, TTL and cleanup as clipboard images.
+ */
+export function writeRemoteAttachment(data: Uint8Array, name: string): string {
+  const safe = (name || 'file').normalize('NFC').replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^\.+/, '').slice(-80) || 'file'
+  const filePath = join(resolveClipboardImageDir(), `pi-clipboard-${randomUUID().slice(0, 8)}-${safe}`)
+  writeFileSync(filePath, data)
+  trackClipboardTempImage(filePath)
+  return filePath
+}
+
+const ATTACHMENT_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', md: 'text/markdown', txt: 'text/plain' }
+
+/** Read a `pi-clipboard-*` file for a phone; anything outside the attachment dir (or a symlink out of it) is refused. */
+export function readRemoteAttachment(path: string): { bytes: Buffer; mime: string } | null {
+  try {
+    const dir = realpathSync(resolveClipboardImageDir())
+    const real = realpathSync(path)
+    if (dirname(real) !== dir || !basename(real).startsWith('pi-clipboard-')) return null
+    const ext = (real.split('.').pop() || '').toLowerCase()
+    return { bytes: readFileSync(real), mime: ATTACHMENT_MIME[ext] ?? 'application/octet-stream' }
+  } catch {
+    return null
+  }
 }
 
 /** Text attachment (e.g. a page captured from the built-in browser) beside clipboard images. */

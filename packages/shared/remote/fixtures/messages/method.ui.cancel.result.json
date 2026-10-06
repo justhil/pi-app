@@ -1,0 +1,6 @@
+{
+  "schema": "ui.cancel/result",
+  "value": {
+    "accepted": false
+  }
+}

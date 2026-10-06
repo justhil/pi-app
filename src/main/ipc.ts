@@ -19,6 +19,7 @@ import { registerDesktopChromeHandlers } from './ipc/handlers/desktop-chrome'
 import { registerBrowserHandlers } from './ipc/handlers/browser'
 import { registerMcpHandlers } from './ipc/handlers/mcp'
 import { registerModelRouterHandlers } from './ipc/handlers/model-routers'
+import { registerRemoteHandlers } from './ipc/handlers/remote'
 
 export { registerHandler, sendEvent } from './ipc/registry'
 
@@ -44,4 +45,5 @@ export function registerAllHandlers(): void {
   registerWslHandlers()
   registerDesktopChromeHandlers()
   registerBrowserHandlers()
+  registerRemoteHandlers()
 }

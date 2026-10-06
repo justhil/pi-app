@@ -1,0 +1,6 @@
+{
+  "schema": "settings.cacheWarming.set/params",
+  "value": {
+    "mode": "idle"
+  }
+}

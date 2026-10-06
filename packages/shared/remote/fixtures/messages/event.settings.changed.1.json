@@ -1,0 +1,6 @@
+{
+  "schema": "settings.changed/event",
+  "value": {
+    "key": "cacheWarming"
+  }
+}

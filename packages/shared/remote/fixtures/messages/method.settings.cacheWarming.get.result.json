@@ -1,0 +1,6 @@
+{
+  "schema": "settings.cacheWarming.get/result",
+  "value": {
+    "mode": "streaming"
+  }
+}

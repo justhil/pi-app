@@ -1,0 +1,10 @@
+{
+  "schema": "ui.request/event",
+  "value": {
+    "id": "u2",
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "method": "confirm",
+    "title": "删除文件？",
+    "message": "将删除 3 个文件"
+  }
+}

@@ -1,5 +1,6 @@
 import { utilityProcess, app, type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
+import { remoteTap } from './remote/tap'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { windowsPathToWsl } from '@shared/wsl-path'
 import { resolveActiveSdk } from './sdk-loader'
@@ -41,6 +42,7 @@ function clearExtensionUiSourcesForSlot(
   dismissExtensionUiRequestsForSlot(
     slot,
     (payload) => {
+      remoteTap.uiResolved(payload.id, 'system')
       if (win && !win.isDestroyed()) win.webContents.send('ipc:extension-ui-dismiss', payload)
     },
     'worker-stopped',
@@ -175,28 +177,36 @@ export function attachWorkerHandlers(
     }
 
     const win = opts.mainWindow
-    if (
-      (data.type === 'extension-ui-dismiss' || data.type === 'extension-ui-dismiss-all') &&
-      win &&
-      !win.isDestroyed()
-    ) {
+    if (data.type === 'extension-ui-dismiss' || data.type === 'extension-ui-dismiss-all') {
+      const winAlive = !!win && !win.isDestroyed()
       if (data.type === 'extension-ui-dismiss-all') {
-        dismissExtensionUiRequestsForSlot(
-          slot,
-          (payload) => win.webContents.send('ipc:extension-ui-dismiss', payload),
-          typeof data.reason === 'string' ? data.reason : undefined,
-        )
+        // Without a window the sources are kept as before; the remote side still learns of them.
+        if (winAlive) {
+          dismissExtensionUiRequestsForSlot(
+            slot,
+            (payload) => {
+              remoteTap.uiResolved(payload.id, 'system')
+              win.webContents.send('ipc:extension-ui-dismiss', payload)
+            },
+            typeof data.reason === 'string' ? data.reason : undefined,
+          )
+        } else {
+          for (const [id, source] of extensionUiDialogSource) if (source === slot) remoteTap.uiResolved(id, 'system')
+        }
       } else {
-        if (data.id) extensionUiDialogSource.delete(String(data.id))
-        win.webContents.send('ipc:extension-ui-dismiss', {
-          type: data.type,
-          id: data.id,
-          reason: data.reason,
-        })
+        if (data.id) remoteTap.uiResolved(String(data.id), 'system')
+        if (winAlive) {
+          if (data.id) extensionUiDialogSource.delete(String(data.id))
+          win.webContents.send('ipc:extension-ui-dismiss', {
+            type: data.type,
+            id: data.id,
+            reason: data.reason,
+          })
+        }
       }
     }
 
-    if (data.type === 'extension-ui-request' && win && !win.isDestroyed()) {
+    if (data.type === 'extension-ui-request' && ((win && !win.isDestroyed()) || remoteTap.active)) {
       const req = data.request as {
         id?: string
         method?: string
@@ -215,7 +225,8 @@ export function attachWorkerHandlers(
         method === 'notify' || !data.request || typeof data.request !== 'object'
           ? data.request
           : { ...(data.request as Record<string, unknown>), sessionFile: slot.sessionFile || slot.poolKey }
-      win.webContents.send('ipc:extension-ui-request', request)
+      remoteTap.uiRequest(request)
+      if (win && !win.isDestroyed()) win.webContents.send('ipc:extension-ui-request', request)
     }
 
     if (data.type === 'browser-tool-request') {

@@ -9,6 +9,7 @@ import { invalidateSdkManagerCaches } from '../../sdk-manager'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
 import { settingsSetSchema } from '../schemas'
+import { remoteTap } from '../../remote/tap'
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -64,6 +65,7 @@ export function registerSettingsHandlers(): void {
       return { key: req.key, value: next }
     }
     configStore.set(key, req.value as StoreSchema[typeof key])
+    if (key === 'sessionCapabilities') remoteTap.settingsChanged('capabilities')
     return { key: req.key, value: req.value }
   })
 

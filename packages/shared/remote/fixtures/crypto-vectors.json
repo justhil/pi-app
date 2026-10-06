@@ -1,0 +1,76 @@
+{
+  "hostStaticPriv": "AQgPFh0kKzI5QEdOVVxjanF4f4aNlJuiqbC3vsXM09o",
+  "hostStaticPub": "yP7Kgb4ZbN8sreq_E8SQPXYy3OSVWqaLbl2a3vVOJhY",
+  "clientStaticPriv": "KC82PURLUllgZ251fIOKkZifpq20u8LJ0Nfe5ezz-gE",
+  "clientStaticPub": "DXU_rvfbp_kx7urqI72GNxjyPOYZ_QA0r_7QzJcIli8",
+  "clientEphemeralPriv": "UFdeZWxzeoGIj5adpKuyucDHztXc4-rx-P8GDRQbIik",
+  "hostEphemeralPriv": "eH-GjZSboqmwt77FzNPa4ejv9v0ECxIZICcuNTxDSlE",
+  "hs1Payload": {
+    "name": "Pixel 9",
+    "platform": "android-35",
+    "pair": "tok_0123456789abcdef"
+  },
+  "hs1": {
+    "t": "hs1",
+    "v": 1,
+    "e": "Z3yA2eZ39jNRt6KdzkxipJxx5UUaOsVQj4yD8EAyBjQ",
+    "ct": "yCmjmg5pC-Z9oTrJaB_WPQbBn1-WP9zQqwMmfyOacFt8REukbWugIdcf19VZX1RUoiYqJN5nAmgY_-35owA6W7Ueeo_5r5Vxgv0tfn_ghizKzZ7k7IjQdkQqmiX-VRkZEz_9v-JY7tvwUZ0i2Y0VLkFHXJDtQ5oVNWo3nwDZ_x0o3qeZE_FulRNM"
+  },
+  "hs2Payload": {
+    "deviceId": "d_77aa",
+    "hostId": "h_9f2c",
+    "hostName": "justhil-desktop",
+    "epoch": "e_3b1f",
+    "role": "operator"
+  },
+  "hs2": {
+    "t": "hs2",
+    "e": "Ied2vyYCTlfelkOD-n3Vf3DaX7n8CVfn45quTmuCgnU",
+    "ct": "RvCYkF455YvWQ6__XQPwKaxHc3_LHf_lBQbGpnYGoGHbyvcJOkmO_cJAlY3W9ezV9lNeKvxpfaymaV4-syoz4fnKbm_hmSd1oGI-pCg-Vd9XOViamUKKxI9tO5Ic4LE3GSR4WEx_zgR8jpi_brrfC4vNkg_-bPk"
+  },
+  "keys": {
+    "c2s": "ZBn-QiqQKmyd6U9wqcU_QiBK5dgOX26l5Z_xcyFAzig",
+    "s2c": "-JY93NF0-U0r9_MugBaXx0yKPv8qoUME9nBuPsM1qdI"
+  },
+  "c2sFrames": [
+    {
+      "plaintext": {
+        "v": 1,
+        "k": "req",
+        "id": "c1",
+        "m": "host.hello",
+        "p": {
+          "app": {
+            "name": "pi-remote",
+            "version": "0.1.0",
+            "platform": "android-35"
+          }
+        }
+      },
+      "frame": "AK6ADlGRJhklzj6EndIz_UXB4wqeoCDu2TD1WUwddNQoftFA7juHRCT3Lbr32BcW22Pbo8HXBv-pbSKyIh89zQCvoXyehP6AUobHMM-F390LqxfCoqFdSxRZynH8UvnqierV5lN0rGENMnWTuYy3Zz37p_mlHnpJZYF_JpeS3ECFASJ5eMULkA"
+    },
+    {
+      "plaintext": {
+        "v": 1,
+        "k": "evt",
+        "m": "turn.patch",
+        "p": {
+          "text": "流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 流式 markdown 输出 "
+        }
+      },
+      "frame": "AZ-Ms0ZNZMLWHeXrUxSkVsR4ZSmtQM-FxZ2-bgoaLkBFVUkkR7OWBWWQFCY04AO8la_OQQrq5ZTDUWaFh8CaY9i1C1WTPg5myDpAVd0FAjH0bH2aGgrC4MuM6d_mdkhDEG7TRHUYXl-rq21kGwzO_5wYICF0uE7FPlZS4qnBb7YtrwC9y7VaMS-3SnVN"
+    }
+  ],
+  "s2cFrames": [
+    {
+      "plaintext": {
+        "v": 1,
+        "k": "res",
+        "id": "c1",
+        "ok": true,
+        "p": {}
+      },
+      "frame": "AC6Ua19csKey9DPV_9FenEc8e4WHM5Pw2GS9KEd7GlGpvmQ1ZG1lSaZ9gPXaEjsfCfRMwcFEEyT6HhBvQQ"
+    }
+  ]
+}

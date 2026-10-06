@@ -1,0 +1,10 @@
+{
+  "schema": "ui.respond/params",
+  "value": {
+    "id": "u6",
+    "result": {
+      "cancelled": false,
+      "answers": []
+    }
+  }
+}

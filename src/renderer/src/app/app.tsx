@@ -234,6 +234,14 @@ export default function App() {
         if (event.type === 'sdk-runtime-changed') void handleSdkRuntimeChanged()
         return
       }
+      if (event.type === 'remote-settings-changed') {
+        if (event.key === 'capabilities') void import('@renderer/lib/session-capabilities').then((m) => m.reloadSessionCapabilities())
+        if (event.key === 'sessions' && event.workspaceId) {
+          const workspaceIds = [event.workspaceId]
+          void import('@renderer/lib/refresh-workspace-session-lists').then((m) => m.refreshWorkspaceSessionLists({ workspaceIds }))
+        }
+        return
+      }
       useUIStore.getState().processEvent(event)
     })
     void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {

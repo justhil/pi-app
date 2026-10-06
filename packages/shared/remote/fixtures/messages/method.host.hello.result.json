@@ -1,0 +1,26 @@
+{
+  "schema": "host.hello/result",
+  "value": {
+    "hostId": "h_9f2c",
+    "hostName": "justhil-desktop",
+    "version": "0.7.0",
+    "epoch": "e_3b1f",
+    "deviceId": "d_77aa",
+    "role": "operator",
+    "features": [
+      "capabilities",
+      "cacheWarming"
+    ],
+    "assets": [
+      {
+        "name": "mermaid.min.js",
+        "sha256": "abababababababababababababababababababababababababababababababab",
+        "size": 2900000
+      }
+    ],
+    "endpoints": [
+      "ws://192.168.1.23:47900",
+      "ws://10.0.0.5:47900"
+    ]
+  }
+}

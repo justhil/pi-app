@@ -1,0 +1,7 @@
+{
+  "schema": "host.notice/event",
+  "value": {
+    "level": "warning",
+    "text": "桌面即将退出"
+  }
+}

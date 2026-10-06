@@ -1,0 +1,7 @@
+{
+  "schema": "turn.send/result",
+  "value": {
+    "accepted": true,
+    "duplicate": false
+  }
+}
