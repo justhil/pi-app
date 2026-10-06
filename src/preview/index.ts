@@ -15,6 +15,7 @@ import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
+import { refreshUsage, summarizeUsage } from '../main/usage-scan'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
 
@@ -32,6 +33,7 @@ type PreviewRequest = {
     | 'context.preview'
     | 'warm'
     | 'system.prompt'
+    | 'usage.summary'
   payload: Record<string, unknown>
   userDataDir: string
   activeSdkPath?: string | null
@@ -151,6 +153,10 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         (message.payload.patch as Record<string, unknown>) || {},
       )
       result = null
+    } else if (message.type === 'usage.summary') {
+      // Incremental: only session files that changed since the last call are read again.
+      refreshUsage(String(message.payload.agentDir || ''))
+      result = summarizeUsage(Number(message.payload.from), Number(message.payload.to), Number(message.payload.offsetMin) || 0)
     } else if (message.type === 'system.prompt') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)

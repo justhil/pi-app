@@ -70,7 +70,7 @@ class RemoteApi(private val c: HostConnection) {
     suspend fun rewind(sessionKey: String, anchor: String) = c.typedCall("turn.rewind", RewindParams.serializer(), RewindParams(sessionKey, anchor), RewindResult.serializer())
     suspend fun reviewDiff(sessionKey: String, scope: String, turnId: String? = null, path: String? = null) =
         c.typedCall("review.diff", ReviewDiffParams.serializer(), ReviewDiffParams(sessionKey, scope, turnId, path), ReviewDiffResult.serializer())
-    suspend fun stats(sessionKey: String) = c.typedCall("session.stats", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), SessionStatsResult.serializer()).context
+    suspend fun stats(sessionKey: String) = c.typedCall("session.stats", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), SessionStatsResult.serializer())
     suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())
     suspend fun models(sessionKey: String) = c.typedCall("model.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), ModelListResult.serializer())

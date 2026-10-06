@@ -1,7 +1,7 @@
 import type { TreeRow } from './branches'
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiRequest, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiRequest, UiResponse, SessionUsage } from '@shared/remote'
 import type { ToolCardDef } from '../../extension-compat/adapter-schema'
 
 /**
@@ -112,6 +112,8 @@ export interface RemoteHostPort {
   listCommands(projectId: string): Promise<CommandInfo[]>
   /** Context usage of a session (live worker first, disk otherwise); null when unreadable. */
   contextStats(sessionFile: string, projectId: string): Promise<ContextStats | null>
+  /** Summed `usage` of the session file's replies (phone session panel). */
+  sessionUsage(sessionFile: string): Promise<SessionUsage | null>
   /** A folder under the project root, or null when `path` escapes it / is not a folder. */
   /** The project's working tree against HEAD as `git diff` text (incl. untracked text files). */
   gitDiff(projectId: string): Promise<{ isRepo: boolean; branch: string; raw: string; message?: string }>

@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.activity.compose.BackHandler
 import dev.pi.remote.protocol.ContextStats
 import dev.pi.remote.protocol.ReviewDiffResult
+import dev.pi.remote.protocol.SessionUsage
 import dev.pi.remote.app.data.SharedContent
 import dev.pi.remote.protocol.BranchInfo
 import androidx.compose.foundation.background
@@ -218,6 +219,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     var commandSheet by remember { mutableStateOf(false) }
     var filePicker by remember { mutableStateOf(false) }
     var stats by remember(sessionKey) { mutableStateOf<ContextStats?>(null) }
+    var usage by remember(sessionKey) { mutableStateOf<SessionUsage?>(null) }
     var changes by remember(sessionKey) { mutableStateOf<ReviewDiffResult?>(null) }
     var review by remember { mutableStateOf<ReviewTarget?>(null) }
     val reviewComments = remember(sessionKey) { androidx.compose.runtime.mutableStateListOf<LineComment>() }
@@ -334,11 +336,15 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onFiles = { filePicker = true },
         projectPath = summary?.projectId.orEmpty(),
         stats = stats,
+        usage = usage,
         statsLoading = statsLoading,
         onPanelOpened = {
             statsLoading = true
             scope.launch {
-                repo.contextStats(sessionKey)?.let { stats = it }
+                repo.sessionStats(sessionKey)?.let { r ->
+                    r.context?.let { stats = it }
+                    usage = r.usage
+                }
                 statsLoading = false
             }
             scope.launch { repo.reviewDiff(sessionKey, "git").onSuccess { changes = it } }
@@ -516,6 +522,7 @@ fun SessionContent(
     onRewind: (String) -> Unit = {},
     projectPath: String = "",
     stats: ContextStats? = null,
+    usage: SessionUsage? = null,
     statsLoading: Boolean = false,
     onPanelOpened: () -> Unit = {},
     changes: ReviewDiffResult? = null,
@@ -700,6 +707,7 @@ fun SessionContent(
         width = panelWidth,
         facts = sessionFacts(title, projectPath.ifEmpty { project }, statusText, statusColor, timeline, toolsOn),
         stats = stats,
+        usage = usage,
         statsLoading = statsLoading,
         onClose = { settlePanel(1000f) },
         changes = changes,

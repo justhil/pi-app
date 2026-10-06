@@ -268,6 +268,8 @@
     <string name="panel_context">上下文</string>
     <string name="panel_session">本会话</string>
     <string name="panel_turns">轮次</string>
+    <string name="panel_cost">费用</string>
+    <plurals name="panel_cost_value"><item quantity="other">%1$s · %2$d 次请求</item></plurals>
     <string name="panel_tool_calls">工具调用</string>
     <string name="panel_files">文件改动</string>
     <string name="panel_files_value">%1$d 个 · +%2$d −%3$d</string>

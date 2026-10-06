@@ -52,11 +52,20 @@ import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.piui.uibColor
 import dev.pi.remote.protocol.ContextStats
 import dev.pi.remote.protocol.ReviewDiffResult
+import dev.pi.remote.protocol.SessionUsage
 import dev.pi.remote.sync.SessionTimeline
 import dev.pi.remote.text.formatClock
 import kotlin.math.roundToInt
 
 /** 32100 → "32.1k", 1_200_000 → "1.2M" (desktop `formatTokens`). */
+/** `$0.41`, `<$0.01` for tiny amounts. */
+fun formatCost(usd: Double): String = when {
+    usd <= 0.0 -> "$0"
+    usd < 0.01 -> "<$0.01"
+    usd >= 100 -> "$" + "%.0f".format(usd)
+    else -> "$" + "%.2f".format(usd)
+}
+
 fun formatTokens(n: Long): String = when {
     n < 1000 -> "$n"
     n < 1_000_000 -> (if (n < 10_000) "%.1fk".format(n / 1000.0) else "${(n / 1000.0).roundToInt()}k").replace(".0k", "k")
@@ -127,6 +136,7 @@ fun SessionPanel(
     onChanges: (() -> Unit)? = null,
     branchCount: Int? = null,
     onBranches: (() -> Unit)? = null,
+    usage: SessionUsage? = null,
 ) {
     val p = progress()
     if (p <= 0.001f) return
@@ -207,6 +217,7 @@ fun SessionPanel(
                     Fact(stringResource(R.string.model), facts.model?.substringAfter('/') ?: "—")
                     Fact(stringResource(R.string.thinking), thinkingLabel(facts.thinking))
                     Fact(stringResource(R.string.panel_turns), "${facts.turns}")
+                    if (usage != null && usage.calls > 0) Fact(stringResource(R.string.panel_cost), pluralStringResource(R.plurals.panel_cost_value, usage.calls, formatCost(usage.cost), usage.calls))
                     Fact(stringResource(R.string.panel_tool_calls), "${facts.toolCalls}")
                     if (facts.files > 0) Fact(stringResource(R.string.panel_files), stringResource(R.string.panel_files_value, facts.files, facts.added, facts.deleted))
                     if (facts.workedMs > 0) Fact(stringResource(R.string.panel_worked), formatClock(facts.workedMs))

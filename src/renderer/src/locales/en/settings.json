@@ -21,7 +21,8 @@
     "mcp": "MCP",
     "adapters": "Adapters",
     "voice": "Voice",
-    "mobile": "Mobile"
+    "mobile": "Mobile",
+    "usage": "Usage"
   },
   "general": {
     "title": "General",
@@ -976,6 +977,33 @@
     "sumTarget": "{{model}} ({{level}})",
     "sumSep": "; ",
     "sumEnd": ". "
+  },
+  "usage": {
+    "title": "Usage",
+    "description": "Tokens and cost of every session on this computer (pi's per-reply usage, priced by the model entries).",
+    "range": "Range",
+    "today": "Today",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "overview": "Overview",
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "calls": "Requests",
+    "callsCount_one": "{{count}} request",
+    "callsCount_other": "{{count}} requests",
+    "cacheHit": "Cache hits",
+    "input": "Input",
+    "output": "Output",
+    "cacheRead": "Cache read",
+    "cacheWrite": "Cache write",
+    "byModel": "By model",
+    "byProject": "By project",
+    "topSessions": "Most expensive sessions",
+    "untitled": "Untitled session",
+    "empty": "No usage in this range.",
+    "loading": "Counting…",
+    "failed": "Could not compute usage.",
+    "note": "Cost uses the prices set on each model entry; models without prices count as $0. Subscription quotas (Claude / Codex plans) are not included."
   },
   "mobile": {
     "title": "Mobile",

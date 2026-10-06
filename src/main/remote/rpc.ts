@@ -144,7 +144,8 @@ export class RemoteRpc {
       },
       'session.stats': async (_c, p) => {
         const { entry, projectId } = await hub.authorize(p.sessionKey)
-        return { context: await port.contextStats(entry.sessionFile, projectId).catch(() => null) }
+        const [context, usage] = await Promise.all([port.contextStats(entry.sessionFile, projectId).catch(() => null), port.sessionUsage(entry.sessionFile).catch(() => null)])
+        return { context, usage }
       },
       'command.list': async (_c, p) => {
         const { projectId } = await hub.authorize(p.sessionKey)

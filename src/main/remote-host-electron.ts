@@ -25,6 +25,7 @@ import { sessionPreviewProcess } from './session-preview-process'
 import { readSessionMetaFromFile } from './session-file-meta'
 import { getTrustedWorkspaceRoot } from './trusted-workspace'
 import { readGitDiffVsHead } from './git-workspace'
+import { sessionUsage } from './usage-scan'
 import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
@@ -288,6 +289,8 @@ export function createElectronRemoteHost(): RemoteHostPort {
     },
 
     gitDiff: (projectId: string) => readGitDiffVsHead(projectId),
+
+    sessionUsage: async (sessionFile: string) => sessionUsage(sessionFile),
 
     async listDir(projectId: string, path: string, dotfiles: boolean) {
       const r = await workspaceFsListDir({ workspaceRoot: projectId, path, includeDotfiles: dotfiles })

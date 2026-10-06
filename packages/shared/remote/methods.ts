@@ -121,6 +121,14 @@ export const BranchInfoSchema = z
   .strict()
 export type BranchInfo = z.infer<typeof BranchInfoSchema>
 
+const nn = z.number().int().nonnegative()
+
+/** Tokens and cost of every reply in the session file (cost in USD from the model entries' prices). */
+export const SessionUsageSchema = z
+  .object({ input: nn, output: nn, cacheRead: nn, cacheWrite: nn, cost: z.number().nonnegative(), calls: nn })
+  .strict()
+export type SessionUsage = z.infer<typeof SessionUsageSchema>
+
 /** One rendered diff line: context, added, removed, or a gap between hunks. `o`/`n` are old/new line numbers. */
 export const DiffLineSchema = z
   .object({ k: z.enum(['ctx', 'add', 'del', 'gap']), o: z.number().int().positive().optional(), n: z.number().int().positive().optional(), s: z.string() })
@@ -246,7 +254,11 @@ export const REMOTE_METHODS = {
   'thinking.set': method(z.object({ sessionKey, level: z.string() }).strict(), z.object({ level: z.string() }).strict(), 'operator'),
   /** Slash commands available in the session's project (prompts, skills the desktop has enabled, extension commands). */
   /** Context usage for the session panel; null when the host cannot read it. */
-  'session.stats': method(z.object({ sessionKey }).strict(), z.object({ context: ContextStatsSchema.nullable() }).strict(), 'viewer'),
+  'session.stats': method(
+    z.object({ sessionKey }).strict(),
+    z.object({ context: ContextStatsSchema.nullable(), usage: SessionUsageSchema.nullable().optional() }).strict(),
+    'viewer',
+  ),
   'command.list': method(z.object({ sessionKey }).strict(), z.object({ commands: z.array(CommandInfoSchema) }).strict(), 'viewer'),
   /**
    * Changes to review: `git` = the project's working tree against HEAD (incl. untracked text files),

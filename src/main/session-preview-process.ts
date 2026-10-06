@@ -7,6 +7,7 @@ import type { ModelEntry } from './active-sdk-models-core'
 import type { SessionContextPreview } from '@shared/session-context-preview'
 import { emitOperationEvent } from './operation-events'
 import type { FlatTreeNode } from './session-tree-from-file'
+import type { UsageSummary } from '@shared/usage-summary'
 import type { SessionOnDiskRow } from './ipc/sdk-session'
 import type { DiskSessionMessages } from './session-messages-from-disk'
 
@@ -133,7 +134,8 @@ export class SessionPreviewProcess {
       | 'model.list'
       | 'context.preview'
       | 'warm'
-      | 'system.prompt',
+      | 'system.prompt'
+      | 'usage.summary',
     payload: Record<string, unknown>,
     /** Host-side work (e.g. extension probing over UNC paths) that must not go to the WSL runner. */
     opts?: { local?: boolean },
@@ -207,6 +209,11 @@ export class SessionPreviewProcess {
     leafId?: string | null
   }): Promise<DiskSessionMessages> {
     return this.request('session.getMessages', { ...payload, cwd: payload.cwd })
+  }
+
+  /** Usage across every session under `agentDir` (always in the host preview process). */
+  usageSummary(payload: { agentDir: string; from: number; to: number; offsetMin: number }): Promise<UsageSummary> {
+    return this.request('usage.summary', payload, { local: true })
   }
 
   getTree(payload: {
