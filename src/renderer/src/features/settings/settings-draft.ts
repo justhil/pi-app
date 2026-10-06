@@ -1,4 +1,6 @@
 import type { i18n as I18n } from 'i18next'
+import { normalizeBackground, type BackgroundSettings } from '@shared/background'
+import { applyBackground } from '@renderer/lib/theme/background-layer'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { applyIconTheme } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -38,6 +40,7 @@ export type SettingsDraft = {
   iconTheme: IconTheme
   customTheme: CustomTheme
   customCssOverride: CustomCssOverride
+  background: BackgroundSettings
   language: LanguageChoice
   autoOpenLastProject: boolean
   autoCheckRegistryUpdates: boolean
@@ -111,6 +114,7 @@ export function draftSignature(d: SettingsDraft): string {
     iconTheme: d.iconTheme,
     customTheme: d.customTheme,
     customCssOverride: d.customCssOverride,
+    background: d.background,
     language: d.language,
     autoOpenLastProject: d.autoOpenLastProject,
     autoCheckRegistryUpdates: d.autoCheckRegistryUpdates,
@@ -153,6 +157,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     iconTheme: normalizeIconTheme(s.iconTheme),
     customTheme: normalizeCustomTheme(s.customTheme),
     customCssOverride: normalizeCustomCssOverride(s.customCssOverride),
+    background: normalizeBackground(s.background),
     language: normalizeLanguage(s.language, normalizeLanguage(i18nLanguage, 'zh')),
     autoOpenLastProject: s.autoOpenLastProject !== false,
     autoCheckRegistryUpdates: s.autoCheckRegistryUpdates !== false,
@@ -259,6 +264,7 @@ export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
   applyIconTheme(draft.iconTheme)
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)
+  applyBackground(draft.background)
   if (i18n.language !== draft.language) void i18n.changeLanguage(draft.language)
 }
 
@@ -270,6 +276,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     value: draft.customTheme.light || draft.customTheme.dark ? draft.customTheme : null,
   })
   await ipcClient.invoke('settings.set', { key: 'customCssOverride', value: draft.customCssOverride })
+  await ipcClient.invoke('settings.set', { key: 'background', value: draft.background })
   await ipcClient.invoke('settings.set', { key: 'language', value: draft.language })
   await ipcClient.invoke('settings.set', { key: 'autoOpenLastProject', value: draft.autoOpenLastProject })
   await ipcClient.invoke('settings.set', { key: 'autoCheckRegistryUpdates', value: draft.autoCheckRegistryUpdates })
@@ -335,6 +342,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   applyThemeToDocument(draft.theme)
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)
+  applyBackground(draft.background)
   if (i18n.language !== draft.language) await i18n.changeLanguage(draft.language)
   useUIStore.getState().applyRightPanelRuntime(
     draft.rightPanelCatalog,

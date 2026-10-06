@@ -22,6 +22,8 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:asr.probeCodexAuth',
   'ipc:asr.testConnection',
   'ipc:asr.transcribe',
+  'ipc:background.choose',
+  'ipc:background.read',
   'ipc:browser.capture',
   'ipc:browser.find',
   'ipc:browser.find.stop',

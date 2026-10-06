@@ -39,6 +39,7 @@ function baseDraft(): SettingsDraft {
     iconTheme: 'phosphor',
     customTheme: {},
     customCssOverride: { enabled: false, css: '' },
+    background: { shared: true },
     language: 'en',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,

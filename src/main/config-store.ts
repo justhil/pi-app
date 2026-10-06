@@ -1,5 +1,6 @@
 import Store from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
+import type { BackgroundSettings } from '@shared/background'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
@@ -19,6 +20,8 @@ export interface StoreSchema {
   customTheme: CustomTheme | null
   /** 结构化主题之后的自由 CSS 覆盖层 */
   customCssOverride: CustomCssOverride
+  /** Background image(s) behind the window; files live in <userData>/backgrounds/ */
+  background: BackgroundSettings
   panelWidths: { sidebar: number; right: number } | null
   extensionOverrides: Record<string, boolean>
   /** Skill 启用：key 为 skillStorageKey，false=禁用，缺省=启用 */
@@ -98,6 +101,7 @@ const store = new Store<StoreSchema>({
     iconTheme: DEFAULT_ICON_THEME,
     customTheme: null,
     customCssOverride: { enabled: false, css: '' },
+    background: { shared: true },
     panelWidths: null,
     extensionOverrides: {},
     skillOverrides: {},

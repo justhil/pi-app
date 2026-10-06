@@ -3535,3 +3535,33 @@
 .theme-preset-card:hover { background: var(--bg-hover); }
 .theme-preset-card--selected { border-color: color-mix(in srgb, var(--brand) 55%, transparent); background: color-mix(in srgb, var(--brand) 6%, transparent); }
 .theme-preset-card:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
+
+/*
+ * Background image (Settings → Appearance → Background). The image sits under #root; the window frame
+ * takes a sidebar-coloured tint at --ui-alpha, and the content panes a second, frosted layer over it, so
+ * text never sits on the raw image. Popovers, dialogs, menus and code blocks keep their opaque colours.
+ */
+#pi-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 360ms ease;
+}
+#pi-background.is-loaded { opacity: var(--bg-image-opacity, 0.6); }
+html[data-bg='on'] body { background: var(--bg-base); }
+html[data-bg='on'] #root { position: relative; z-index: 1; }
+html[data-bg='on'] .app-viewport { background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important; }
+html[data-bg='on'] .app-viewport .electron-drag,
+html[data-bg='on'] .shell-track-left,
+html[data-bg='on'] .shell-track-center,
+html[data-bg='on'] .workbench-statusbar { background: transparent !important; }
+html[data-bg='on'] .shell-track-center .main-chat-column,
+html[data-bg='on'] .shell-track-right,
+html[data-bg='on'] .terminal-drawer {
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--ui-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(16px) saturate(1.05);
+}
+html[data-bg='on'] .split-view { background: transparent !important; }
+html[data-bg='on'] .composer-dock-fade { background: linear-gradient(to top, color-mix(in srgb, var(--chat-bg) 70%, transparent), transparent) !important; }

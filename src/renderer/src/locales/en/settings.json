@@ -303,7 +303,41 @@
     "varPaperRadius": "chat surface corner",
     "varPaperShadow": "chat surface shadow",
     "varDiffAdded": "added lines",
-    "varDiffRemoved": "removed lines"
+    "varDiffRemoved": "removed lines",
+    "bgTitle": "Background",
+    "bgDesc": "An image behind the window. Text stays on frosted panes; menus and code blocks stay solid.",
+    "bgShared": "Same image in light and dark",
+    "bgSharedDesc": "Turn off to pick one image per mode.",
+    "bgImage": "Image",
+    "bgImageLight": "Light mode image",
+    "bgImageDark": "Dark mode image",
+    "bgNone": "No image",
+    "bgChoose": "Choose image…",
+    "bgReplace": "Replace…",
+    "bgRemove": "Remove",
+    "bgOpacity": "Image strength",
+    "bgOpacityDesc": "How strongly the image shows through.",
+    "bgUiOpacity": "Interface opacity",
+    "bgUiOpacityDesc": "Sidebar, chat and panels over the image; higher is easier to read.",
+    "bgBlur": "Image blur",
+    "bgFit": "Fit",
+    "bgPosition": "Position",
+    "bgFitOption": {
+      "cover": "Fill",
+      "contain": "Fit",
+      "tile": "Tile",
+      "center": "Center"
+    },
+    "bgPositionOption": {
+      "center": "Center",
+      "top": "Top",
+      "bottom": "Bottom"
+    },
+    "bgError": {
+      "type": "Pick a PNG, JPEG, WebP, GIF or AVIF image.",
+      "size": "The image is larger than 20 MB.",
+      "read": "Could not read the image."
+    }
   },
   "pi": {
     "title": "Runtime",

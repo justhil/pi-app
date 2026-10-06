@@ -30,6 +30,7 @@ function draft(): SettingsDraft {
     iconTheme: 'phosphor',
     customTheme: {},
     customCssOverride: { enabled: true, css: ':root { --brand: #ff0000; }' },
+    background: { shared: true },
     language: 'en',
     autoOpenLastProject: true,
     autoCheckRegistryUpdates: true,

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { hydrateBackgroundFromSettings } from '@renderer/lib/theme/background-layer'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
 import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
@@ -175,6 +176,7 @@ export default function App() {
     void hydrateThemeFromSettings().catch(() => {})
     void hydrateCustomThemeFromSettings().catch(() => {})
     void hydrateCustomCssOverrideFromSettings().catch(() => {})
+    void hydrateBackgroundFromSettings().catch(() => {})
     applyUiZoom(readUiZoom())
   }, [])
 

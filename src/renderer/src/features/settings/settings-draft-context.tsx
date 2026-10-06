@@ -1,3 +1,4 @@
+import type { BackgroundSettings } from '@shared/background'
 import {
   createContext,
   useCallback,
@@ -54,6 +55,7 @@ type SettingsDraftContextValue = {
   setIconTheme: (theme: IconTheme) => void
   setCustomTheme: (t: CustomTheme) => void
   setCustomCssOverride: (override: CustomCssOverride) => void
+  setBackground: (background: BackgroundSettings) => void
   setLanguage: (l: LanguageChoice) => void
   setAutoOpenLastProject: (v: boolean) => void
   setAutoCheckRegistryUpdates: (v: boolean) => void
@@ -261,6 +263,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       setIconTheme: (iconTheme) => patch((d) => ({ ...d, iconTheme })),
       setCustomTheme: (t) => patch((d) => ({ ...d, customTheme: t })),
       setCustomCssOverride: (override) => patch((d) => ({ ...d, customCssOverride: override })),
+      setBackground: (background) => patch((d) => ({ ...d, background })),
       setLanguage: (l) => patch((d) => ({ ...d, language: l })),
       setAutoOpenLastProject: (v) => patch((d) => ({ ...d, autoOpenLastProject: v })),
       setAutoCheckRegistryUpdates: (v) => patch((d) => ({ ...d, autoCheckRegistryUpdates: v })),
