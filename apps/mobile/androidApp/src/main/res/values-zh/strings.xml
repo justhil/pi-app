@@ -160,7 +160,6 @@
     <string name="menu_grouping">会话分组</string>
     <string name="group_status">按状态</string>
     <string name="group_project">按项目</string>
-    <string name="quick_start_hint">发起新对话…</string>
     <string name="bucket_today">今天</string>
     <string name="bucket_yesterday">昨天</string>
     <string name="bucket_week">本周</string>

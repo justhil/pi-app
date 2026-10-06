@@ -161,7 +161,6 @@
     <string name="menu_grouping">Group sessions</string>
     <string name="group_status">By status</string>
     <string name="group_project">By project</string>
-    <string name="quick_start_hint">Start a new chat…</string>
     <string name="bucket_today">Today</string>
     <string name="bucket_yesterday">Yesterday</string>
     <string name="bucket_week">This week</string>
