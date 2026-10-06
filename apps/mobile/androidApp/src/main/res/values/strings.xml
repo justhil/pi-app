@@ -196,6 +196,28 @@
     <string name="link_copied">Copied (opens on the desktop): %1$s</string>
     <string name="readonly">Read-only device</string>
     <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="review_title">Changes</string>
+    <string name="review_scope_turn">This turn</string>
+    <string name="review_scope_git">Working tree</string>
+    <string name="review_failed">Could not load the changes.</string>
+    <string name="review_not_repo">This project is not a Git repository.</string>
+    <string name="review_clean">No changes.</string>
+    <string name="review_binary">Binary file — not shown.</string>
+    <string name="review_no_lines">No line changes to show.</string>
+    <string name="review_truncated">Long diff — the rest is not shown.</string>
+    <string name="review_lines">Lines %s</string>
+    <plurals name="review_lines_count"><item quantity="one">%d line</item><item quantity="other">%d lines</item></plurals>
+    <string name="review_extend_hint">Tap another line to extend the selection</string>
+    <string name="review_comment">Comment</string>
+    <string name="review_comment_hint">What should change here?</string>
+    <string name="review_save">Save</string>
+    <string name="review_remove_comment">Remove comment</string>
+    <string name="review_insert">Insert into message</string>
+    <plurals name="review_comment_count"><item quantity="one">%d comment</item><item quantity="other">%d comments</item></plurals>
+    <string name="panel_changes">Changes</string>
+    <string name="panel_changes_open">Review working tree</string>
+    <string name="panel_changes_none">No uncommitted changes</string>
     <string name="more">More</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>

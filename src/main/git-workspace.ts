@@ -250,6 +250,30 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
   return { isRepo: true, branch, raw, stagedRaw, status, log }
 }
 
+/** Working tree (staged + unstaged + untracked text files) against HEAD, for the phone's review view. */
+export async function readGitDiffVsHead(cwd: string): Promise<{ isRepo: boolean; branch: string; raw: string; message?: string }> {
+  if (!isGitRepository(cwd)) return { isRepo: false, branch: '', raw: '', message: '当前目录不是 Git 仓库' }
+  const [branchR, headR, statusR] = await Promise.all([
+    runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
+    runGitReadOnly(cwd, ['diff', 'HEAD', '--no-color', '--no-ext-diff'], { timeout: 10000, maxBuffer: 32 * 1024 * 1024 }),
+    runGitReadOnly(cwd, ['status', '--porcelain'], { timeout: 5000 }),
+  ])
+  let raw = headR.ok ? headR.stdout : ''
+  // A repository without commits has no HEAD: show what is staged plus the working tree.
+  if (!headR.ok) {
+    const [staged, unstaged] = await Promise.all([
+      runGitReadOnly(cwd, ['diff', '--cached', '--no-color', '--no-ext-diff'], { timeout: 10000 }),
+      runGitReadOnly(cwd, ['diff', '--no-color', '--no-ext-diff'], { timeout: 10000 }),
+    ])
+    raw = [staged.ok ? staged.stdout : '', unstaged.ok ? unstaged.stdout : ''].filter(Boolean).join('\n')
+  }
+  const extras = untrackedPathsFromStatus(statusR.ok ? statusR.stdout : '')
+    .map((path) => untrackedPatch(cwd, path))
+    .filter(Boolean)
+  if (extras.length) raw = [raw.trimEnd(), ...extras].filter(Boolean).join('\n')
+  return { isRepo: true, branch: branchR.ok ? branchR.stdout.trim() : '', raw }
+}
+
 /** 选择性暂存 hunk：patch 来自已读真实 git diff，git apply --cached --recount */
 export function stageHunks(
   cwd: string,

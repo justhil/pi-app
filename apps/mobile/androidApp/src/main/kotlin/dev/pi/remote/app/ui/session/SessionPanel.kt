@@ -50,6 +50,7 @@ import dev.pi.remote.app.ui.Hairline
 import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.piui.uibColor
 import dev.pi.remote.protocol.ContextStats
+import dev.pi.remote.protocol.ReviewDiffResult
 import dev.pi.remote.sync.SessionTimeline
 import dev.pi.remote.text.formatClock
 import kotlin.math.roundToInt
@@ -113,7 +114,17 @@ fun sessionFacts(title: String, projectPath: String, status: String, statusColor
  * and follows the finger while dragging.
  */
 @Composable
-fun SessionPanel(progress: () -> Float, width: Dp, facts: SessionFacts, stats: ContextStats?, statsLoading: Boolean, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun SessionPanel(
+    progress: () -> Float,
+    width: Dp,
+    facts: SessionFacts,
+    stats: ContextStats?,
+    statsLoading: Boolean,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    changes: ReviewDiffResult? = null,
+    onChanges: (() -> Unit)? = null,
+) {
     val p = progress()
     if (p <= 0.001f) return
     // [modifier] carries the same horizontal drag as the page, so the panel follows the finger closed too.
@@ -148,6 +159,26 @@ fun SessionPanel(progress: () -> Float, width: Dp, facts: SessionFacts, stats: C
 
                 Section(stringResource(R.string.panel_context)) {
                     ContextBlock(stats, statsLoading)
+                }
+
+                if (onChanges != null) {
+                    Section(stringResource(R.string.panel_changes)) {
+                        val files = changes?.files.orEmpty()
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onChanges),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                when {
+                                    changes == null -> stringResource(R.string.panel_changes_open)
+                                    files.isEmpty() -> stringResource(R.string.panel_changes_none)
+                                    else -> stringResource(R.string.panel_files_value, files.size, files.sumOf { it.add }, files.sumOf { it.del })
+                                },
+                                style = Pi.t.secondary.copy(color = Pi.c.fg), modifier = Modifier.weight(1f),
+                            )
+                            PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 14.dp)
+                        }
+                    }
                 }
 
                 Section(stringResource(R.string.panel_session)) {

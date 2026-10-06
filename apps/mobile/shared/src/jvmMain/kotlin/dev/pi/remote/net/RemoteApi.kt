@@ -1,6 +1,8 @@
 package dev.pi.remote.net
 
 import dev.pi.remote.protocol.Accepted
+import dev.pi.remote.protocol.ReviewDiffParams
+import dev.pi.remote.protocol.ReviewDiffResult
 import dev.pi.remote.protocol.AbortResult
 import dev.pi.remote.protocol.DequeueResult
 import dev.pi.remote.protocol.SessionStatsResult
@@ -60,6 +62,8 @@ class RemoteApi(private val c: HostConnection) {
     suspend fun searchFiles(sessionKey: String, query: String) =
         c.typedCall("file.search", FileSearchParams.serializer(), FileSearchParams(sessionKey, query), FileSearchResult.serializer()).entries
     suspend fun rewind(sessionKey: String, anchor: String) = c.typedCall("turn.rewind", RewindParams.serializer(), RewindParams(sessionKey, anchor), RewindResult.serializer())
+    suspend fun reviewDiff(sessionKey: String, scope: String, turnId: String? = null, path: String? = null) =
+        c.typedCall("review.diff", ReviewDiffParams.serializer(), ReviewDiffParams(sessionKey, scope, turnId, path), ReviewDiffResult.serializer())
     suspend fun stats(sessionKey: String) = c.typedCall("session.stats", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), SessionStatsResult.serializer()).context
     suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())

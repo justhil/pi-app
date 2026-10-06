@@ -58,7 +58,7 @@ export class FakeHost implements RemoteHostPort {
 
   // ── fixtures ──
 
-  addSession(projectId: string, title: string, turns: Array<{ user: string; answer: string; tools?: Array<{ name: string; args: unknown; output: string }> }> = []): string {
+  addSession(projectId: string, title: string, turns: Array<{ user: string; answer: string; tools?: Array<{ name: string; args: unknown; output: string; details?: unknown }> }> = []): string {
     const file = `${projectId}/.pi/sessions/${title.replace(/\W+/g, '-') || 's'}-${++this.seq}.jsonl`
     const items: HostTimelineItem[] = []
     let t = 1_791_200_000_000 + this.seq * 1_000_000
@@ -66,7 +66,7 @@ export class FakeHost implements RemoteHostPort {
       items.push({ id: `h${++this.entry}`, type: 'user-message', text: turn.user, sessionEntryId: `e${this.entry}`, timestamp: (t += 1000) })
       for (const tool of turn.tools ?? []) {
         items.push({ id: `h${++this.entry}`, type: 'assistant-message', text: '', sessionEntryId: `e${this.entry}`, timestamp: (t += 1000) })
-        items.push({ id: `h${++this.entry}`, type: 'tool-call', toolCallId: `call${this.entry}`, toolName: tool.name, toolArgs: tool.args, toolOutput: tool.output, timestamp: (t += 1000) })
+        items.push({ id: `h${++this.entry}`, type: 'tool-call', toolCallId: `call${this.entry}`, toolName: tool.name, toolArgs: tool.args, toolOutput: tool.output, ...(tool.details ? { toolDetails: tool.details } : {}), timestamp: (t += 1000) })
       }
       items.push({ id: `h${++this.entry}`, type: 'assistant-message', text: turn.answer, sessionEntryId: `e${this.entry}`, timestamp: (t += 1000) })
     }
@@ -311,6 +311,42 @@ export class FakeHost implements RemoteHostPort {
       { role: 'tool', tokens: Math.round(chars('tool-call') / 4) + 18000 },
     ]
     return { tokens: breakdown.reduce((n, b) => n + b.tokens, 0), window: 200_000, messages: s.items.length, breakdown }
+  }
+  /** `git diff HEAD` the fake project shows on the phone's review screen. */
+  gitRaw = [
+    'diff --git a/src/auth.ts b/src/auth.ts',
+    'index 1111111..2222222 100644',
+    '--- a/src/auth.ts',
+    '+++ b/src/auth.ts',
+    '@@ -10,6 +10,8 @@ export async function refresh(token: string) {',
+    '   const now = Date.now()',
+    '-  if (token.exp < now) return renew(token)',
+    '+  // Refresh 30 s early so in-flight requests never carry an expired token.',
+    '+  if (token.exp - 30_000 < now) return renew(token)',
+    '+  inflight ??= renew(token).finally(() => (inflight = null))',
+    '   return token',
+    ' }',
+    ' ',
+    '@@ -40,3 +42,3 @@ export function logout() {',
+    '-  store.clear()',
+    '+  store.clear({ keepDevice: true })',
+    '   location.assign("/login")',
+    ' }',
+    'diff --git a/docs/设计 说明.md b/docs/设计 说明.md',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/docs/设计 说明.md',
+    '@@ -0,0 +1,3 @@',
+    '+# 刷新策略',
+    '+',
+    '+单飞刷新，提前 30 秒。',
+    'diff --git a/assets/logo.png b/assets/logo.png',
+    'index 3333333..4444444 100644',
+    'Binary files a/assets/logo.png and b/assets/logo.png differ',
+    '',
+  ].join('\n')
+  async gitDiff(): Promise<{ isRepo: boolean; branch: string; raw: string }> {
+    return { isRepo: true, branch: 'main', raw: this.gitRaw }
   }
   async listDir(_projectId: string, path: string, dotfiles: boolean): Promise<{ entries: FileEntry[]; truncated: boolean } | null> {
     const dir = path === '.' || path === '' ? '' : `${path.replace(/\/+$/, '')}/`

@@ -1,0 +1,47 @@
+{
+  "schema": "review.diff/result",
+  "value": {
+    "isRepo": true,
+    "branch": "main",
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "add": 2,
+        "del": 1,
+        "status": "modified"
+      },
+      {
+        "path": "assets/logo.png",
+        "add": 0,
+        "del": 0,
+        "status": "binary"
+      }
+    ],
+    "file": {
+      "path": "src/auth.ts",
+      "lines": [
+        {
+          "k": "ctx",
+          "o": 10,
+          "n": 10,
+          "s": "  const now = Date.now()"
+        },
+        {
+          "k": "del",
+          "o": 11,
+          "s": "  if (token.exp < now) return renew(token)"
+        },
+        {
+          "k": "add",
+          "n": 11,
+          "s": "  if (token.exp - 30_000 < now) return renew(token)"
+        },
+        {
+          "k": "gap",
+          "s": "export function logout() {"
+        }
+      ],
+      "truncated": false
+    }
+  }
+}

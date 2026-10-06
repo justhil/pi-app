@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.activity.compose.BackHandler
 import dev.pi.remote.protocol.ContextStats
+import dev.pi.remote.protocol.ReviewDiffResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -213,6 +214,9 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     var commandSheet by remember { mutableStateOf(false) }
     var filePicker by remember { mutableStateOf(false) }
     var stats by remember(sessionKey) { mutableStateOf<ContextStats?>(null) }
+    var changes by remember(sessionKey) { mutableStateOf<ReviewDiffResult?>(null) }
+    var review by remember { mutableStateOf<ReviewTarget?>(null) }
+    val reviewComments = remember(sessionKey) { androidx.compose.runtime.mutableStateListOf<LineComment>() }
     var statsLoading by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(sessionKey, ready) { if (ready) repo.commands(sessionKey)?.let { commands = it } }
@@ -326,7 +330,10 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 repo.contextStats(sessionKey)?.let { stats = it }
                 statsLoading = false
             }
+            scope.launch { repo.reviewDiff(sessionKey, "git").onSuccess { changes = it } }
         },
+        changes = changes,
+        onReview = { review = it },
         onRewind = { anchor ->
             scope.launch {
                 repo.rewind(sessionKey, anchor)
@@ -353,6 +360,21 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onDefer = { id -> deferred = deferred + id },
         loadDetail = { step -> repo.toolDetail(sessionKey, step.toolCallId)?.output },
     )
+
+    review?.let { target ->
+        ReviewScreen(
+            target = target,
+            canComment = repo.canWrite,
+            comments = reviewComments,
+            load = { sc, turn, path -> repo.reviewDiff(sessionKey, sc, turn, path) },
+            onInsert = { text ->
+                val base = draft.text.trimEnd()
+                val merged = if (base.isEmpty()) text else "$base\n\n$text"
+                draft = TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length))
+            },
+            onDismiss = { review = null },
+        )
+    }
 
     if (filePicker) {
         FilePicker(
@@ -451,6 +473,8 @@ fun SessionContent(
     stats: ContextStats? = null,
     statsLoading: Boolean = false,
     onPanelOpened: () -> Unit = {},
+    changes: ReviewDiffResult? = null,
+    onReview: (ReviewTarget) -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -472,6 +496,7 @@ fun SessionContent(
     var acting by remember { mutableStateOf<Pair<String, MessagePart>?>(null) }
     val question: UiRequest? = timeline?.pendingUi?.firstOrNull { it !is UiNotify && it.id !in deferredUi }
     val offset = remember { java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()).toLong() }
+    val reviewNow by androidx.compose.runtime.rememberUpdatedState(onReview)
     // One instance for the screen's lifetime: a fresh object per recomposition would defeat skipping on every turn.
     val callbacks = remember {
         TurnCallbacks(
@@ -480,11 +505,8 @@ fun SessionContent(
                 val tools = turn.steps.filterIsInstance<ToolStep>()
                 detail = tools to tools.indexOfFirst { it.id == step.id }
             },
-            onFile = { turn, path ->
-                val tools = turn.steps.filterIsInstance<ToolStep>()
-                val idx = tools.indexOfLast { (it.node.fields["path"] as? kotlinx.serialization.json.JsonPrimitive)?.content == path }
-                if (idx >= 0) detail = tools to idx
-            },
+            // A file under the answer opens this turn's change to it (review, comment).
+            onFile = { turn, path -> reviewNow(ReviewTarget("turn", turn.id, path)) },
             onOpen = { turn, part -> viewing = turn.id to part },
             onActions = { turn, part -> acting = turn.id to part },
         )
@@ -632,6 +654,11 @@ fun SessionContent(
         stats = stats,
         statsLoading = statsLoading,
         onClose = { settlePanel(1000f) },
+        changes = changes,
+        onChanges = {
+            settlePanel(1000f)
+            onReview(ReviewTarget("git", turns.lastOrNull()?.id))
+        },
         modifier = Modifier.draggable(dragState, Orientation.Horizontal, onDragStopped = { v -> settlePanel(v) }),
     )
     }

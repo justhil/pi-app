@@ -87,6 +87,11 @@ data class OpenResult(
 @Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
 @Serializable data class CommandListResult(val commands: List<CommandInfo>)
 @Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean, val size: Long? = null, val mtime: Long? = null)
+@Serializable data class DiffLine(val k: String, val o: Int? = null, val n: Int? = null, val s: String)
+@Serializable data class DiffFile(val path: String, val add: Int, val del: Int, val status: String)
+@Serializable data class DiffFileLines(val path: String, val lines: List<DiffLine>, val truncated: Boolean)
+@Serializable data class ReviewDiffParams(val sessionKey: String, val scope: String, val turnId: String? = null, val path: String? = null)
+@Serializable data class ReviewDiffResult(val isRepo: Boolean, val branch: String? = null, val files: List<DiffFile>, val file: DiffFileLines? = null, val message: String? = null)
 @Serializable data class FileListParams(val sessionKey: String, val path: String, val dotfiles: Boolean? = null)
 @Serializable data class FileListResult(val entries: List<FileEntry>, val truncated: Boolean)
 @Serializable data class FileSearchParams(val sessionKey: String, val query: String)
@@ -148,6 +153,7 @@ object RemoteMethods {
         "turn.send" to (SendParams.serializer() to SendResult.serializer()),
         "turn.abort" to (SessionKeyParams.serializer() to AbortResult.serializer()),
         "file.list" to (FileListParams.serializer() to FileListResult.serializer()),
+        "review.diff" to (ReviewDiffParams.serializer() to ReviewDiffResult.serializer()),
         "file.search" to (FileSearchParams.serializer() to FileSearchResult.serializer()),
         "session.stats" to (SessionKeyParams.serializer() to SessionStatsResult.serializer()),
         "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),

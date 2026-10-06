@@ -217,6 +217,67 @@ describe('sessions', () => {
     expect(found.entries.map((e) => e.path)).toEqual(['src/auth.ts'])
   })
 
+  it('reviews the working tree: file list, then one file\'s lines', async () => {
+    const c = await pairNew()
+    gw.setDeviceRole(c.hello!.deviceId, 'viewer')
+    const list = await c.call('review.diff', { sessionKey: session, scope: 'git' })
+    expect(list.branch).toBe('main')
+    expect(list.file).toBeUndefined()
+    expect(list.files).toEqual([
+      { path: 'src/auth.ts', add: 4, del: 2, status: 'modified' },
+      { path: 'docs/设计 说明.md', add: 3, del: 0, status: 'added' },
+      { path: 'assets/logo.png', add: 0, del: 0, status: 'binary' },
+    ])
+    const one = await c.call('review.diff', { sessionKey: session, scope: 'git', path: 'src/auth.ts' })
+    expect(one.file!.lines.slice(0, 3)).toEqual([
+      { k: 'ctx', o: 10, n: 10, s: '  const now = Date.now()' },
+      { k: 'del', o: 11, s: '  if (token.exp < now) return renew(token)' },
+      { k: 'add', n: 11, s: '  // Refresh 30 s early so in-flight requests never carry an expired token.' },
+    ])
+    expect(one.file!.lines.filter((l) => l.k === 'gap')).toEqual([{ k: 'gap', s: 'export function logout() {' }])
+    expect(one.file!.lines.find((l) => l.s === '  store.clear({ keepDevice: true })')).toEqual({ k: 'add', n: 42, s: '  store.clear({ keepDevice: true })' })
+    await expect(c.call('review.diff', { sessionKey: session, scope: 'git', path: 'nope.ts' })).rejects.toMatchObject({ err: { code: 'not_found' } })
+  })
+
+  it('reviews what one turn changed', async () => {
+    const s2 = host.addSession('/work/pi-app', '改动', [
+      {
+        user: '改一下',
+        answer: '好了',
+        tools: [
+          { name: 'edit', args: { path: 'src/a.ts', edits: [{ oldText: 'x', newText: 'y' }] }, output: 'ok', details: { diff: '  4 keep\n-5 old line\n+5 new line\n    ...\n 20 tail' } },
+          { name: 'write', args: { path: 'src/b.ts', content: 'one\ntwo' }, output: 'ok' },
+          { name: 'edit', args: { path: 'src/c.ts', edits: [{ oldText: 'a\n', newText: 'b\nc\n' }] }, output: 'ok' },
+        ],
+      },
+    ])
+    const c = await pairNew()
+    const open = (await c.call('session.open', { sessionKey: s2 })) as OpenResult
+    const turnId = open.turns![0].id
+    const list = await c.call('review.diff', { sessionKey: s2, scope: 'turn', turnId })
+    expect(list.files).toEqual([
+      { path: 'src/a.ts', add: 1, del: 1, status: 'modified' },
+      { path: 'src/b.ts', add: 2, del: 0, status: 'added' },
+      { path: 'src/c.ts', add: 2, del: 1, status: 'modified' },
+    ])
+    // No pi diff (edit pairs only): lines are synthesized without numbers.
+    const c3 = await c.call('review.diff', { sessionKey: s2, scope: 'turn', turnId, path: 'src/c.ts' })
+    expect(c3.file!.lines).toEqual([
+      { k: 'del', s: 'a' },
+      { k: 'add', s: 'b' },
+      { k: 'add', s: 'c' },
+    ])
+    const a = await c.call('review.diff', { sessionKey: s2, scope: 'turn', turnId, path: 'src/a.ts' })
+    expect(a.file!.lines).toEqual([
+      { k: 'ctx', o: 4, s: 'keep' },
+      { k: 'del', o: 5, s: 'old line' },
+      { k: 'add', n: 5, s: 'new line' },
+      { k: 'gap', s: '' },
+      { k: 'ctx', o: 20, s: 'tail' },
+    ])
+    await expect(c.call('review.diff', { sessionKey: s2, scope: 'turn', turnId: 'nope' })).rejects.toMatchObject({ err: { code: 'not_found' } })
+  })
+
   it('rewinds to before a user message and tells viewers to re-open', async () => {
     const c = await pairNew()
     const open = (await c.call('session.open', { sessionKey: session })) as { turns: { anchor: string; user: { text: string } }[] }

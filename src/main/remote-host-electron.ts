@@ -24,6 +24,7 @@ import type { HostLiveState, HostModelList, HostSessionHistory, HostSessionRow, 
 import { sessionPreviewProcess } from './session-preview-process'
 import { readSessionMetaFromFile } from './session-file-meta'
 import { getTrustedWorkspaceRoot } from './trusted-workspace'
+import { readGitDiffVsHead } from './git-workspace'
 import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
@@ -251,6 +252,8 @@ export function createElectronRemoteHost(): RemoteHostPort {
         breakdown: p.roleBreakdown.slice(0, 12).map((s) => ({ role: s.role, tokens: tokens(s.chars) })),
       }
     },
+
+    gitDiff: (projectId: string) => readGitDiffVsHead(projectId),
 
     async listDir(projectId: string, path: string, dotfiles: boolean) {
       const r = await workspaceFsListDir({ workspaceRoot: projectId, path, includeDotfiles: dotfiles })
