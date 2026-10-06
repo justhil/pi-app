@@ -273,7 +273,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     androidx.compose.runtime.DisposableEffect(sessionKey) { onDispose { repo.closeSession(sessionKey) } }
 
     SessionContent(
-        title = timeline?.title?.ifEmpty { null } ?: summary?.title.orEmpty(),
+        title = timeline?.title?.ifEmpty { null } ?: summary?.title?.ifEmpty { null } ?: stringResource(R.string.session_untitled),
         project = summary?.projectId?.trimEnd('/', '\\')?.substringAfterLast('/')?.substringAfterLast('\\').orEmpty(),
         timeline = timeline,
         connection = connection,

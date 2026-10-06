@@ -25,6 +25,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalUriHandler
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(dev.pi.remote.app.data.AppLocale.wrap(newBase))
+    }
+
     /** A `pidesk://pair#…` link opened from the camera app or another QR scanner. */
     private val incomingLink = mutableStateOf<String?>(null)
     /** Session to open from a notification tap. */

@@ -323,7 +323,7 @@ export class SessionHub {
   announceSession(sessionFile: string, projectId: string): void {
     const key = normalizeSessionFileKey(sessionFile)
     // Provisional row right away; the file (and the real row) appears with the first reply.
-    if (!this.rows.has(key)) this.rows.set(key, { sessionFile, projectId, title: '新会话', createdAt: this.now(), updatedAt: this.now() })
+    if (!this.rows.has(key)) this.rows.set(key, { sessionFile, projectId, title: '', createdAt: this.now(), updatedAt: this.now() })
     this.unlisted.set(key, projectId)
     this.markDirty(key)
   }

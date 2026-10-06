@@ -9,6 +9,11 @@ class PiRemoteApp : Application() {
     lateinit var graph: AppGraph
         private set
 
+    // Android 12 and older: notifications and other app-context strings follow the in-app language too.
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(dev.pi.remote.app.data.AppLocale.wrap(base))
+    }
+
     override fun onCreate() {
         super.onCreate()
         graph = AppGraph(this)

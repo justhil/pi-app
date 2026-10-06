@@ -133,15 +133,20 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
     if (menu && prefs != null) InboxMenu(prefs, onHosts = { menu = false; onHosts() }, onDismiss = { menu = false })
 }
 
-/** Theme and inbox grouping. */
+/** Theme, language and inbox grouping. */
 @Composable
 private fun InboxMenu(prefs: UiPrefs, onHosts: () -> Unit, onDismiss: () -> Unit) {
     val theme by prefs.theme.collectAsState()
+    val language by prefs.language.collectAsState()
+    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
     val grouping by prefs.grouping.collectAsState()
     PiSheet(onDismiss) {
         Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.menu_theme), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(top = 6.dp))
             Segmented(listOf("system" to stringResource(R.string.theme_system), "light" to stringResource(R.string.theme_light), "dark" to stringResource(R.string.theme_dark)), theme, prefs::setTheme)
+            Text(stringResource(R.string.menu_language), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(top = 10.dp))
+            // Language names stay in their own language.
+            Segmented(listOf("system" to stringResource(R.string.theme_system), "en" to "English", "zh" to "简体中文"), language, onSelect = { if (prefs.setLanguage(it)) activity?.recreate() })
             Text(stringResource(R.string.menu_grouping), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(top = 10.dp))
             Segmented(listOf("status" to stringResource(R.string.group_status), "project" to stringResource(R.string.group_project)), grouping, prefs::setGrouping)
             Hairline(Modifier.padding(top = 10.dp))
@@ -303,7 +308,7 @@ private fun SessionRow(s: SessionSummary, now: Long, onOpen: (String) -> Unit, s
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.title, style = Pi.t.bodyMedium.copy(color = if (s.status == "idle") Pi.c.fg2 else Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(s.title.ifEmpty { stringResource(R.string.session_untitled) }, style = Pi.t.bodyMedium.copy(color = if (s.status == "idle") Pi.c.fg2 else Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(10.dp))
                 val right = if (s.status == "running" && s.startedAt != null) formatClock(now - s.startedAt!!) else formatAgo(s.updatedAt, now)
                 Text(right, style = Pi.t.meta.copy(color = Pi.c.fg3))
