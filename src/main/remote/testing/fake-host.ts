@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, CommandInfo, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, FileEntry, UiResponse } from '@shared/remote'
 import type { ToolCardDef } from '../../../extension-compat/adapter-schema'
 import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, SendMode } from '../host-port'
 
@@ -289,6 +289,25 @@ export class FakeHost implements RemoteHostPort {
   ]
   async listCommands(): Promise<CommandInfo[]> {
     return this.commands
+  }
+  /** Project files by relative path (folders end with '/'). */
+  files = ['README.md', 'package.json', 'src/', 'src/auth.ts', 'src/index.ts', 'src/main/', 'src/main/app.ts', 'docs/', 'docs/设计 说明.md', '.env']
+  async listDir(_projectId: string, path: string, dotfiles: boolean): Promise<{ entries: FileEntry[]; truncated: boolean } | null> {
+    const dir = path === '.' || path === '' ? '' : `${path.replace(/\/+$/, '')}/`
+    if (dir.split('/').includes('..')) return null
+    if (dir && !this.files.includes(dir)) return null
+    const entries = this.files
+      .filter((f) => f !== dir && f.startsWith(dir) && !f.slice(dir.length).replace(/\/$/, '').includes('/'))
+      .map((f) => ({ name: f.slice(dir.length).replace(/\/$/, ''), path: f.replace(/\/$/, ''), dir: f.endsWith('/'), ...(f.endsWith('/') ? {} : { size: 1200 }), mtime: Date.now() - 3_600_000 }))
+      .filter((e) => dotfiles || !e.name.startsWith('.'))
+      .sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name) : a.dir ? -1 : 1))
+    return { entries, truncated: false }
+  }
+  async searchFiles(_projectId: string, query: string): Promise<FileEntry[]> {
+    const q = query.toLowerCase()
+    return this.files
+      .filter((f) => f.toLowerCase().includes(q))
+      .map((f) => ({ name: f.replace(/\/$/, '').split('/').pop()!, path: f.replace(/\/$/, ''), dir: f.endsWith('/') }))
   }
   capabilityCatalog(): CapabilityInfo[] {
     return [

@@ -42,3 +42,19 @@ class SlashTest {
         assertEquals(3, filterSlash(items, "").size)
     }
 }
+
+class MentionTest {
+    private fun v(s: String, at: Int = s.length) = androidx.compose.ui.text.input.TextFieldValue(s, TextRange(at))
+
+    @Test fun quotesPathsWithSpaces() {
+        assertEquals("@src/a.ts", dev.pi.remote.app.ui.session.fileMention("src/a.ts"))
+        assertEquals("@\"docs/设计 说明.md\"", dev.pi.remote.app.ui.session.fileMention("docs/设计 说明.md"))
+    }
+
+    @Test fun insertsAtCursorWithSpacing() {
+        val r = dev.pi.remote.app.ui.session.insertMentions(v("看看这个"), listOf("src/a.ts", "b.md"))
+        assertEquals("看看这个 @src/a.ts @b.md ", r.text)
+        assertEquals(r.text.length, r.selection.end)
+        assertEquals("fix @a.ts now", dev.pi.remote.app.ui.session.insertMentions(v("fix now", 4), listOf("a.ts")).text)
+    }
+}

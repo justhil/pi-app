@@ -1,0 +1,21 @@
+{
+  "schema": "file.list/result",
+  "value": {
+    "entries": [
+      {
+        "name": "main",
+        "path": "src/main",
+        "dir": true,
+        "mtime": 1760000000000
+      },
+      {
+        "name": "index.ts",
+        "path": "src/index.ts",
+        "dir": false,
+        "size": 2048,
+        "mtime": 1760000000000
+      }
+    ],
+    "truncated": false
+  }
+}

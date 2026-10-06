@@ -98,6 +98,12 @@ export const CommandInfoSchema = z
   .strict()
 export type CommandInfo = z.infer<typeof CommandInfoSchema>
 
+/** A file or folder in the session's project; `path` is relative to the project root, `/`-separated. */
+export const FileEntrySchema = z
+  .object({ name: z.string(), path: z.string(), dir: z.boolean(), size: z.number().int().nonnegative().optional(), mtime: z.number().int().optional() })
+  .strict()
+export type FileEntry = z.infer<typeof FileEntrySchema>
+
 function method<P extends z.ZodTypeAny, R extends z.ZodTypeAny>(params: P, result: R, role: Role) {
   return { params, result, role }
 }
@@ -178,6 +184,18 @@ export const REMOTE_METHODS = {
   'thinking.set': method(z.object({ sessionKey, level: z.string() }).strict(), z.object({ level: z.string() }).strict(), 'operator'),
   /** Slash commands available in the session's project (prompts, skills the desktop has enabled, extension commands). */
   'command.list': method(z.object({ sessionKey }).strict(), z.object({ commands: z.array(CommandInfoSchema) }).strict(), 'viewer'),
+  /** One folder of the session's project (folders first). Paths outside the project are refused. */
+  'file.list': method(
+    z.object({ sessionKey, path: z.string().max(4096), dotfiles: z.boolean().optional() }).strict(),
+    z.object({ entries: z.array(FileEntrySchema), truncated: z.boolean() }).strict(),
+    'viewer',
+  ),
+  /** Fuzzy path search across the project (desktop `@` search). */
+  'file.search': method(
+    z.object({ sessionKey, query: z.string().max(512) }).strict(),
+    z.object({ entries: z.array(FileEntrySchema) }).strict(),
+    'viewer',
+  ),
   'capability.list': method(z.object({ sessionKey }).strict(), z.object({ capabilities: z.array(CapabilityRowSchema) }).strict(), 'viewer'),
   'capability.set': method(
     z.object({ sessionKey, id: z.string(), on: z.boolean() }).strict(),

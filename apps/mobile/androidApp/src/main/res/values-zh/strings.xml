@@ -209,4 +209,11 @@
     <string name="slash_search">搜索命令</string>
     <string name="slash_empty">没有匹配的命令</string>
     <string name="slash_open">命令</string>
+    <string name="files_open">引用文件</string>
+    <string name="files_search">搜索文件</string>
+    <string name="files_none">没有匹配的文件</string>
+    <string name="files_empty">空文件夹</string>
+    <string name="files_truncated">文件夹内容过多已截断，可用搜索查找</string>
+    <string name="files_failed">无法打开该文件夹</string>
+    <string name="files_insert">插入 %1$d 个</string>
 </resources>

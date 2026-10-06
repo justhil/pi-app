@@ -1,0 +1,12 @@
+{
+  "schema": "file.search/result",
+  "value": {
+    "entries": [
+      {
+        "name": "auth.ts",
+        "path": "src/auth.ts",
+        "dir": false
+      }
+    ]
+  }
+}

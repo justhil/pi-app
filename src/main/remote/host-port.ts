@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, CommandInfo, UiRequest, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, FileEntry, UiRequest, UiResponse } from '@shared/remote'
 import type { ToolCardDef } from '../../extension-compat/adapter-schema'
 
 /**
@@ -98,6 +98,9 @@ export interface RemoteHostPort {
 
   /** Slash commands for a project folder, from disk and extension probes (never spawns or touches a worker). */
   listCommands(projectId: string): Promise<CommandInfo[]>
+  /** A folder under the project root, or null when `path` escapes it / is not a folder. */
+  listDir(projectId: string, path: string, dotfiles: boolean): Promise<{ entries: FileEntry[]; truncated: boolean } | null>
+  searchFiles(projectId: string, query: string): Promise<FileEntry[]>
   capabilityCatalog(): CapabilityInfo[]
   sessionCapabilities(sessionFile: string): string[]
   setSessionCapabilities(sessionFile: string, ids: string[]): void

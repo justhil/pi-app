@@ -4,6 +4,10 @@ import dev.pi.remote.protocol.Accepted
 import dev.pi.remote.protocol.AbortResult
 import dev.pi.remote.protocol.DequeueResult
 import dev.pi.remote.protocol.CommandListResult
+import dev.pi.remote.protocol.FileListParams
+import dev.pi.remote.protocol.FileListResult
+import dev.pi.remote.protocol.FileSearchParams
+import dev.pi.remote.protocol.FileSearchResult
 import dev.pi.remote.protocol.CacheWarmingValue
 import dev.pi.remote.protocol.CapabilityList
 import dev.pi.remote.protocol.CapabilitySetParams
@@ -48,6 +52,10 @@ class RemoteApi(private val c: HostConnection) {
         c.typedCall("turn.send", SendParams.serializer(), SendParams(sessionKey, text, mode, clientMessageId), SendResult.serializer())
     suspend fun abort(sessionKey: String) = c.typedCall("turn.abort", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), AbortResult.serializer())
     suspend fun commands(sessionKey: String) = c.typedCall("command.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), CommandListResult.serializer()).commands
+    suspend fun listFiles(sessionKey: String, path: String, dotfiles: Boolean = false) =
+        c.typedCall("file.list", FileListParams.serializer(), FileListParams(sessionKey, path, dotfiles.takeIf { it }), FileListResult.serializer())
+    suspend fun searchFiles(sessionKey: String, query: String) =
+        c.typedCall("file.search", FileSearchParams.serializer(), FileSearchParams(sessionKey, query), FileSearchResult.serializer()).entries
     suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())
     suspend fun models(sessionKey: String) = c.typedCall("model.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), ModelListResult.serializer())

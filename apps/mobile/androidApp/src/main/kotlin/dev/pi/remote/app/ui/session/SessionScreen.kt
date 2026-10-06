@@ -201,6 +201,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     }
     var commands by remember(sessionKey) { mutableStateOf(repo.cachedCommands(sessionKey)) }
     var commandSheet by remember { mutableStateOf(false) }
+    var filePicker by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(sessionKey, ready) { if (ready) repo.commands(sessionKey)?.let { commands = it } }
     LaunchedEffect(commandSheet) { if (commandSheet && ready) repo.commands(sessionKey, maxAgeMs = 3_000)?.let { commands = it } }
@@ -303,6 +304,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         slashItems = slash.orEmpty(),
         onSlashPick = ::pickSlash,
         onCommands = { commandSheet = true },
+        onFiles = { filePicker = true },
         onDequeue = { scope.launch { repo.dequeue(sessionKey)?.let(::restore) } },
         onModel = {
             sheet = "model"
@@ -318,6 +320,16 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onDefer = { id -> deferred = deferred + id },
         loadDetail = { step -> repo.toolDetail(sessionKey, step.toolCallId)?.output },
     )
+
+    if (filePicker) {
+        FilePicker(
+            projectName = summary?.projectId?.trimEnd('/', '\\')?.substringAfterLast('/')?.substringAfterLast('\\').orEmpty(),
+            load = { path -> repo.listFiles(sessionKey, path) },
+            search = { q -> repo.searchFiles(sessionKey, q) },
+            onInsert = { paths -> draft = insertMentions(draft, paths) },
+            onDismiss = { filePicker = false },
+        )
+    }
 
     if (commandSheet) {
         CommandSheet(slash, onPick = { item ->
@@ -400,6 +412,7 @@ fun SessionContent(
     slashItems: List<SlashItem> = emptyList(),
     onSlashPick: (SlashItem) -> Unit = {},
     onCommands: () -> Unit = {},
+    onFiles: () -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -537,6 +550,7 @@ fun SessionContent(
                 slashItems = slashItems,
                 onSlashPick = onSlashPick,
                 onCommands = onCommands,
+                onFiles = onFiles,
                 onModel = onModel,
                 onTools = onTools,
                 attachments = attachments,

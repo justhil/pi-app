@@ -91,6 +91,8 @@ fun Composer(
     onSlashPick: (SlashItem) -> Unit = {},
     /** Open the full command panel. */
     onCommands: () -> Unit = {},
+    /** Open the project file picker (`@` mentions). */
+    onFiles: () -> Unit = {},
     onModel: () -> Unit,
     onTools: () -> Unit,
     attachments: List<Attachment> = emptyList(),
@@ -133,6 +135,10 @@ fun Composer(
                     Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onCommands),
                     contentAlignment = Alignment.Center,
                 ) { PiIcon(PiIcons.Slash, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.slash_open)) }
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onFiles),
+                    contentAlignment = Alignment.Center,
+                ) { PiIcon(PiIcons.At, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.files_open)) }
                 Row(Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onModel).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(modelLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.width(4.dp))

@@ -6,6 +6,9 @@ import type { RemoteHostPort } from './host-port'
 import type { HubClient, SessionHub } from './session-hub'
 import type { UiRouter } from './ui-router'
 
+/** Folder listings beyond this are cut (the phone shows a search hint instead). */
+const FILE_LIST_MAX = 1000
+
 /** Per-connection identity established by the handshake. */
 export type RpcCaller = HubClient & {
   deviceId: string
@@ -139,6 +142,16 @@ export class RemoteRpc {
         const { projectId } = await hub.authorize(p.sessionKey)
         const commands = await port.listCommands(projectId)
         return { commands: commands.map((c) => ({ ...c, description: c.description?.slice(0, 400) })) }
+      },
+      'file.list': async (_c, p) => {
+        const { projectId } = await hub.authorize(p.sessionKey)
+        const r = await port.listDir(projectId, p.path || '.', p.dotfiles === true)
+        if (!r) throw new RpcFail('not_found', 'folder not found in the project')
+        return { entries: r.entries.slice(0, FILE_LIST_MAX), truncated: r.truncated || r.entries.length > FILE_LIST_MAX }
+      },
+      'file.search': async (_c, p) => {
+        const { projectId } = await hub.authorize(p.sessionKey)
+        return { entries: (await port.searchFiles(projectId, p.query)).slice(0, 60) }
       },
       'capability.list': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
