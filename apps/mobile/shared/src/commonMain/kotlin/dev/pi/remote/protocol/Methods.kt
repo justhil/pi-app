@@ -79,6 +79,9 @@ data class OpenResult(
 @Serializable data class SendResult(val accepted: Boolean, val duplicate: Boolean? = null)
 @Serializable data class AbortResult(val aborted: Boolean, val restored: List<String>? = null)
 @Serializable data class DequeueResult(val restored: List<String>)
+@Serializable data class RoleTokens(val role: String, val tokens: Long)
+@Serializable data class ContextStats(val tokens: Long, val window: Long? = null, val messages: Int, val breakdown: List<RoleTokens>)
+@Serializable data class SessionStatsResult(val context: ContextStats? = null)
 @Serializable data class RewindParams(val sessionKey: String, val anchor: String)
 @Serializable data class RewindResult(val editorText: String? = null)
 @Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
@@ -146,6 +149,7 @@ object RemoteMethods {
         "turn.abort" to (SessionKeyParams.serializer() to AbortResult.serializer()),
         "file.list" to (FileListParams.serializer() to FileListResult.serializer()),
         "file.search" to (FileSearchParams.serializer() to FileSearchResult.serializer()),
+        "session.stats" to (SessionKeyParams.serializer() to SessionStatsResult.serializer()),
         "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),
         "turn.rewind" to (RewindParams.serializer() to RewindResult.serializer()),
         "turn.dequeue" to (SessionKeyParams.serializer() to DequeueResult.serializer()),

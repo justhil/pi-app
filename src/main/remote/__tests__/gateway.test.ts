@@ -237,6 +237,14 @@ describe('sessions', () => {
     await expect(c.call('turn.rewind', { sessionKey: session, anchor: 'x' })).rejects.toMatchObject({ err: { code: 'busy' } })
   })
 
+  it('reports context usage for the session panel', async () => {
+    const c = await pairNew()
+    const r = (await c.call('session.stats', { sessionKey: session })) as { context: { tokens: number; window: number; breakdown: unknown[] } }
+    expect(r.context.window).toBe(200_000)
+    expect(r.context.tokens).toBeGreaterThan(0)
+    expect(r.context.breakdown).toHaveLength(4)
+  })
+
   it('viewers cannot write', async () => {
     const c = await pairNew()
     gw.setDeviceRole(c.hello!.deviceId, 'viewer')

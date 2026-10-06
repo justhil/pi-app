@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, CommandInfo, FileEntry, UiResponse } from '@shared/remote'
+import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiResponse } from '@shared/remote'
 import type { ToolCardDef } from '../../../extension-compat/adapter-schema'
 import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, SendMode } from '../host-port'
 
@@ -300,6 +300,18 @@ export class FakeHost implements RemoteHostPort {
   }
   /** Project files by relative path (folders end with '/'). */
   files = ['README.md', 'package.json', 'src/', 'src/auth.ts', 'src/index.ts', 'src/main/', 'src/main/app.ts', 'docs/', 'docs/设计 说明.md', '.env']
+  async contextStats(sessionFile: string): Promise<ContextStats | null> {
+    const s = this.sessions.get(sessionFile)
+    if (!s) return null
+    const chars = (type: string) => s.items.filter((i) => i.type === type).reduce((n, i) => n + (i.text?.length ?? 0) + JSON.stringify(i.toolArgs ?? '').length + (i.toolOutput?.length ?? 0), 0)
+    const breakdown = [
+      { role: 'system', tokens: 4200 },
+      { role: 'user', tokens: Math.round(chars('user-message') / 4) },
+      { role: 'assistant', tokens: Math.round(chars('assistant-message') / 4) + 900 },
+      { role: 'tool', tokens: Math.round(chars('tool-call') / 4) + 18000 },
+    ]
+    return { tokens: breakdown.reduce((n, b) => n + b.tokens, 0), window: 200_000, messages: s.items.length, breakdown }
+  }
   async listDir(_projectId: string, path: string, dotfiles: boolean): Promise<{ entries: FileEntry[]; truncated: boolean } | null> {
     const dir = path === '.' || path === '' ? '' : `${path.replace(/\/+$/, '')}/`
     if (dir.split('/').includes('..')) return null

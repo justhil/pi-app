@@ -236,6 +236,10 @@ const methodSamples: Samples = {
     result: { mime: 'image/jpeg', data: '/9j/4AAQSkZJRg==' },
   },
   'thinking.set': { params: { sessionKey, level: 'medium' }, result: { level: 'medium' } },
+  'session.stats': {
+    params: { sessionKey },
+    result: { context: { tokens: 32100, window: 200000, messages: 48, breakdown: [{ role: 'system', tokens: 4200 }, { role: 'user', tokens: 2100 }, { role: 'assistant', tokens: 9800 }, { role: 'tool', tokens: 16000 }] } },
+  },
   'command.list': {
     params: { sessionKey },
     result: {

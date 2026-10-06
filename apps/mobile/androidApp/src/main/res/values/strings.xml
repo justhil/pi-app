@@ -222,4 +222,27 @@
     <string name="msg_rewind_hint_more">This turn and %1$d after it leave the branch (restorable from the desktop session tree)</string>
     <string name="msg_rewind_confirm">Rewind</string>
     <string name="msg_rewind_failed">Rewind failed: %1$s</string>
+    <string name="panel_title">Session</string>
+    <string name="panel_context">Context</string>
+    <string name="panel_session">This session</string>
+    <string name="panel_turns">Turns</string>
+    <string name="panel_tool_calls">Tool calls</string>
+    <string name="panel_files">Files changed</string>
+    <string name="panel_files_value">%1$d · +%2$d −%3$d</string>
+    <string name="panel_worked">Worked</string>
+    <string name="panel_capabilities">Capabilities on</string>
+    <string name="panel_queued">Queued</string>
+    <string name="panel_todo">Todo</string>
+    <string name="panel_file">Session file</string>
+    <string name="panel_context_none">Not available</string>
+    <string name="panel_context_of">%1$s of %2$s tokens</string>
+    <string name="panel_context_tokens">%1$s tokens</string>
+    <string name="panel_context_messages">%1$d messages in context (estimated)</string>
+    <string name="panel_context_high">Close to the limit — /compact on the desktop frees space</string>
+    <string name="role_system">System + tools</string>
+    <string name="role_user">User</string>
+    <string name="role_assistant">Assistant</string>
+    <string name="role_tool">Tool results</string>
+    <string name="role_summary">Summaries</string>
+    <string name="role_other">Other</string>
 </resources>
