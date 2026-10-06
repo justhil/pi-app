@@ -79,6 +79,8 @@ export interface StoreSchema {
   browserDownloadConnections: number
   /** Composer Tools menu: capabilities switched on per session file (absent = all off). */
   sessionCapabilities: Record<string, import('@shared/capabilities').CapabilityId[]>
+  /** Mobile remote gateway (off unless the user enables it in Settings → 手机连接). */
+  remote?: import('./remote/auth-store').RemoteStoredConfig
   /** 每个 WSL 发行版解析出的用户环境（home / PATH / node …），见 wsl/wsl-env.ts */
   wslEnvCache?: Record<string, import('./wsl/wsl-env').WslEnv>
   /** 每个 WSL 发行版内解析到的 pi SDK（启动时先用，后台再校验） */

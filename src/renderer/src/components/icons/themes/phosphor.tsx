@@ -65,6 +65,7 @@ import { ListDashesIcon as P63 } from '@phosphor-icons/react/dist/csr/ListDashes
 import { ListNumbersIcon as P64 } from '@phosphor-icons/react/dist/csr/ListNumbers'
 import { MagnifyingGlassIcon as P65 } from '@phosphor-icons/react/dist/csr/MagnifyingGlass'
 import { MicrophoneIcon as P66 } from '@phosphor-icons/react/dist/csr/Microphone'
+import { DeviceMobileIcon as PSmartphone } from '@phosphor-icons/react/dist/csr/DeviceMobile'
 import { MinusIcon as P67 } from '@phosphor-icons/react/dist/csr/Minus'
 import { MonitorIcon as P68 } from '@phosphor-icons/react/dist/csr/Monitor'
 import { MoonIcon as P69 } from '@phosphor-icons/react/dist/csr/Moon'
@@ -189,6 +190,7 @@ export const phosphorIcons = {
   'message-square-text': P19,
   'messages-square': P20,
   'mic': P66,
+  'smartphone': PSmartphone,
   'minus': P67,
   'monitor': P68,
   'moon': P69,

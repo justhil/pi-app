@@ -84,6 +84,7 @@ export const MessageSquarePlus = createAppIcon('message-square-plus', 'MessageSq
 export const MessageSquareText = createAppIcon('message-square-text', 'MessageSquareText')
 export const MessagesSquare = createAppIcon('messages-square', 'MessagesSquare')
 export const Mic = createAppIcon('mic', 'Mic')
+export const Smartphone = createAppIcon('smartphone', 'Smartphone')
 export const Minus = createAppIcon('minus', 'Minus')
 export const Monitor = createAppIcon('monitor', 'Monitor')
 export const Moon = createAppIcon('moon', 'Moon')

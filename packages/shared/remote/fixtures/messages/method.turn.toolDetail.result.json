@@ -1,0 +1,18 @@
+{
+  "schema": "turn.toolDetail/result",
+  "value": {
+    "node": {
+      "template": "bash",
+      "title": "npm test -- auth",
+      "status": "ok",
+      "fields": {
+        "command": "npm test -- auth",
+        "exitCode": 0
+      },
+      "preview": "Tests  3 passed (3)",
+      "detail": true,
+      "fallbackText": "运行 npm test -- auth"
+    },
+    "output": "full output"
+  }
+}

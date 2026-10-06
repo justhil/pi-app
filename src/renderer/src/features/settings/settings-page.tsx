@@ -5,7 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import { SlidersHorizontal, Palette, Cpu, Puzzle, Zap, MessageSquareText, Mic,
-  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, type AppIconComponent
+  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, Smartphone, type AppIconComponent
 } from '@renderer/components/icons'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { McpSettingsPanel } from '@renderer/features/settings/mcp-settings-panel'
@@ -19,6 +19,7 @@ import {
 } from '@renderer/features/settings/settings-shell'
 import { RightPanelsSettings } from '@renderer/features/settings/right-panels-settings'
 import { VoiceSettingsPanel } from '@renderer/features/settings/voice-settings-panel'
+import { MobileSettingsPanel } from '@renderer/features/settings/mobile-settings-panel'
 import { SettingsDraftProvider } from '@renderer/features/settings/settings-draft-context'
 import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
 import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
@@ -27,7 +28,7 @@ import { ExtensionsSettings } from '@renderer/features/settings/settings-extensi
 import { SettingsSearchContext } from './settings-page-shared'
 import { AdaptersSettings } from '@renderer/features/settings/settings-adapters-panel'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice'
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice' | 'mobile'
 
 type NavGroup = { key: string; labelKey: string; pages: { key: SettingsPage; icon: AppIconComponent }[] }
 
@@ -39,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'general', icon: SlidersHorizontal },
       { key: 'appearance', icon: Palette },
       { key: 'rightPanels', icon: LayoutPanelLeft },
+      { key: 'mobile', icon: Smartphone },
     ],
   },
   {
@@ -168,6 +170,7 @@ export function SettingsPage() {
             {page === 'routing' && <ModelRoutingPanel />}
             {page === 'adapters' && <AdaptersSettings />}
             {page === 'voice' && <VoiceSettingsPanel />}
+            {page === 'mobile' && <MobileSettingsPanel />}
             </>}
           </SettingsMain>
           </div>

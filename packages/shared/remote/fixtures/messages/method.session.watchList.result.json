@@ -1,0 +1,35 @@
+{
+  "schema": "session.watchList/result",
+  "value": {
+    "sessions": [
+      {
+        "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+        "projectId": "/work/pi-app",
+        "title": "修复登录页 token 刷新",
+        "status": "running",
+        "updatedAt": 1791205782000,
+        "live": "npm run lint",
+        "liveCategory": "run",
+        "startedAt": 1791205740000,
+        "counts": {
+          "read": 4,
+          "edit": 3,
+          "write": 0,
+          "run": 3,
+          "search": 0,
+          "think": 0,
+          "other": 0
+        },
+        "filesChanged": 3
+      },
+      {
+        "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl2",
+        "projectId": "/work/pi-app",
+        "title": "迁移",
+        "status": "needsInput",
+        "updatedAt": 1791205600000,
+        "preview": "旧导出要一起删掉吗？"
+      }
+    ]
+  }
+}

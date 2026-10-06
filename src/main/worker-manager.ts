@@ -45,6 +45,7 @@ import {
   setSessionLeafOverride,
 } from './session-leaf-override'
 import { observeAppEventForCompletion, observeWorkerExitForCompletion } from './completion-notification-events'
+import { remoteTap } from './remote/tap'
 
 interface InitResult extends WorkerInitResult {}
 
@@ -342,6 +343,7 @@ export class WorkerManager {
     }
     applySettledRunToSessionLeafOverride(enriched)
     observeAppEventForCompletion(enriched)
+    remoteTap.appEvent(enriched)
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
     this.mainWindow.webContents.send('ipc:events', enriched)
     void agentTurnActive
@@ -528,6 +530,28 @@ export class WorkerManager {
       setSessionLeafOverride(sessionFile, response.leafId as string | null)
     }
   }
+  /**
+   * New session for a remote client: never reuses the desktop's foreground worker, never moves
+   * the foreground, and protects it from capacity eviction.
+   */
+  async newSessionInBackground(cwd: string): Promise<{ sessionId: string; sessionFile?: string }> {
+    return this.enqueueLifecycle(() =>
+      createNewSessionInPool({
+        cwd,
+        pool: this.pool,
+        mainWindow: this.mainWindow,
+        foregroundPoolKey: () => this.foregroundPoolKey,
+        slotMatchesCurrentRuntime: (slot) => this.slotMatchesCurrentRuntime(slot),
+        setForeground: (slot) => {
+          slot.lastForegroundAt = Date.now()
+        },
+        onAppEvent: (payload) => this.forwardAppEvent(payload),
+        onSlotExit: (slot, code) => this.handleSlotExit(slot, code),
+        background: true,
+      }),
+    )
+  }
+
   async newSession(cwd: string): Promise<{ sessionId: string; sessionFile?: string }> {
     const run = this.lifecycleChain.then(() =>
       createNewSessionInPool({
@@ -1008,6 +1032,7 @@ export class WorkerManager {
   }): void {
     const slot = extensionUiDialogSource.get(response.id)
     extensionUiDialogSource.delete(response.id)
+    remoteTap.uiResolved(response.id, 'desktop')
     if (!slot) return
     const existing = this.pool.get(slot.poolKey)
     if (!existing || existing.worker !== slot.worker || existing.stopping) return
@@ -1018,6 +1043,7 @@ export class WorkerManager {
     if (!id) return
     const slot = extensionUiDialogSource.get(id)
     extensionUiDialogSource.delete(id)
+    remoteTap.uiResolved(id, 'desktop')
     if (!slot) return
     const existing = this.pool.get(slot.poolKey)
     if (!existing || existing.worker !== slot.worker || existing.stopping) return
@@ -1038,6 +1064,12 @@ export class WorkerManager {
   async awaitReady(): Promise<void> {
     const slot = this.foregroundSlot()
     if (slot?.initPromise) await slot.initPromise.catch(() => {})
+  }
+
+  /** True when a live worker is already bound to this session (e.g. one just created in the background). */
+  hasLiveSessionWorker(sessionFile: string): boolean {
+    const slot = this.pool.get(normalizeSessionKey(sessionFile))
+    return !!slot && !slot.stopping
   }
 
   get cwd(): string | null {

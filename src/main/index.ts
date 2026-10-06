@@ -135,6 +135,8 @@ app.whenReady().then(() => {
   })
   const win = createWindow()
   workerManager.setMainWindow(win)
+  // Mobile gateway: only listens when the user left it on (Settings → 手机连接).
+  void import('./remote-gateway-service').then((m) => m.startRemoteGatewayIfEnabled())
   attachCompletionNotificationShortcut(win)
   win.on('focus', () => notifyForegroundChanged())
   win.on('restore', () => notifyForegroundChanged())
@@ -177,6 +179,7 @@ async function gracefulShutdownWorkers(): Promise<void> {
   if (isQuittingGracefully) return
   isQuittingGracefully = true
   try {
+    await import('./remote-gateway-service').then((m) => m.stopRemoteGateway()).catch(() => {})
     await workerManager.stop()
   } catch (error) {
     console.error('[Main] graceful worker stop failed:', error)

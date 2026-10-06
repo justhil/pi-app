@@ -1,0 +1,10 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+# Root .gitignore ignores every `test/` dir; Android unit/screenshot tests live in one.
+!androidApp/src/test/
+dist/

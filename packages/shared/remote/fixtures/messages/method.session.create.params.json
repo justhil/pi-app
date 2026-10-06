@@ -1,0 +1,9 @@
+{
+  "schema": "session.create/params",
+  "value": {
+    "projectId": "/work/pi-app",
+    "capabilities": [
+      "pi-ui"
+    ]
+  }
+}

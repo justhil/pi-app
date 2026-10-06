@@ -1,0 +1,25 @@
+{
+  "schema": "host.hello/params",
+  "value": {
+    "app": {
+      "name": "pi-remote",
+      "version": "0.1.0",
+      "platform": "android-35"
+    },
+    "caps": {
+      "templates": [
+        "bash",
+        "edit",
+        "default"
+      ],
+      "piUi": [
+        "chart",
+        "gantt"
+      ],
+      "uiKinds": [
+        "select",
+        "ask_user_question"
+      ]
+    }
+  }
+}

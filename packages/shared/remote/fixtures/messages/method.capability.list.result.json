@@ -1,0 +1,22 @@
+{
+  "schema": "capability.list/result",
+  "value": {
+    "capabilities": [
+      {
+        "id": "pi-ui",
+        "available": true,
+        "promptTokens": 2410,
+        "tools": 0,
+        "enabled": true
+      },
+      {
+        "id": "browser",
+        "available": false,
+        "reason": "browser-panel-off",
+        "promptTokens": 3100,
+        "tools": 24,
+        "enabled": false
+      }
+    ]
+  }
+}

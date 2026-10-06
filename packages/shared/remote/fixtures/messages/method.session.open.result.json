@@ -1,0 +1,171 @@
+{
+  "schema": "session.open/result",
+  "value": {
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "title": "修复登录页 token 刷新",
+    "epoch": "e_3b1f",
+    "seq": 126,
+    "kind": "snapshot",
+    "resync": "gap",
+    "turns": [
+      {
+        "id": "t-entry-41",
+        "anchor": "entry-41",
+        "status": "done",
+        "startedAt": 1791205320000,
+        "durationMs": 134000,
+        "user": {
+          "text": "按这个方案修，顺便补个测试"
+        },
+        "activity": {
+          "counts": {
+            "read": 3,
+            "edit": 2,
+            "write": 1,
+            "run": 2,
+            "search": 0,
+            "think": 1,
+            "other": 0
+          },
+          "failed": 0,
+          "thinkingMs": 11000
+        },
+        "steps": [
+          {
+            "id": "s1",
+            "kind": "thinking",
+            "text": "Need single-flight refresh.",
+            "ms": 11000
+          },
+          {
+            "id": "s2",
+            "kind": "tool",
+            "toolCallId": "call_7",
+            "toolName": "edit",
+            "category": "edit",
+            "status": "ok",
+            "ms": 820,
+            "node": {
+              "template": "edit",
+              "title": "src/auth/refresh.ts",
+              "icon": "pencil",
+              "status": "ok",
+              "fields": {
+                "path": "src/auth/refresh.ts",
+                "add": 16,
+                "del": 4
+              },
+              "preview": "@@ -38,9 +40,18 @@\n-  const res = await client.post('/auth/refresh')\n+  if (inflight) return inflight",
+              "fallbackText": "改 src/auth/refresh.ts +16 −4"
+            }
+          },
+          {
+            "id": "s3",
+            "kind": "prose",
+            "text": "先改刷新逻辑，再补测试。"
+          },
+          {
+            "id": "s4",
+            "kind": "tool",
+            "toolCallId": "call_9",
+            "toolName": "bash",
+            "category": "run",
+            "status": "ok",
+            "node": {
+              "template": "bash",
+              "title": "npm test -- auth",
+              "status": "ok",
+              "fields": {
+                "command": "npm test -- auth",
+                "exitCode": 0
+              },
+              "preview": "Tests  3 passed (3)",
+              "detail": true,
+              "fallbackText": "运行 npm test -- auth"
+            }
+          }
+        ],
+        "answer": "修好了。刷新改成单飞：\n\n```ts\nif (inflight) return inflight\n```\n",
+        "files": [
+          {
+            "path": "src/auth/refresh.ts",
+            "add": 16,
+            "del": 4
+          },
+          {
+            "path": "test/auth/refresh.test.ts",
+            "add": 72,
+            "del": 0
+          }
+        ],
+        "meta": {
+          "model": "anthropic/sonnet-5",
+          "thinking": "high"
+        }
+      },
+      {
+        "id": "live:turn-88",
+        "anchor": "live:turn-88",
+        "status": "running",
+        "startedAt": 1791205740000,
+        "user": {
+          "text": "再跑一遍完整的 typecheck 和 lint",
+          "images": 1
+        },
+        "activity": {
+          "counts": {
+            "read": 1,
+            "edit": 0,
+            "write": 0,
+            "run": 2,
+            "search": 0,
+            "think": 0,
+            "other": 0
+          },
+          "failed": 0,
+          "live": "s9"
+        },
+        "steps": [
+          {
+            "id": "s9",
+            "kind": "tool",
+            "toolCallId": "call_21",
+            "toolName": "bash",
+            "category": "run",
+            "status": "running",
+            "node": {
+              "template": "bash",
+              "title": "npm run lint",
+              "status": "running",
+              "fields": {
+                "command": "npm run lint"
+              },
+              "fallbackText": "运行 npm run lint"
+            }
+          }
+        ],
+        "answer": "",
+        "files": []
+      }
+    ],
+    "hasOlder": true,
+    "state": {
+      "running": true,
+      "model": "anthropic/sonnet-5",
+      "thinking": "high"
+    },
+    "pendingUi": [
+      {
+        "id": "u1",
+        "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+        "method": "select",
+        "title": "选择环境",
+        "options": [
+          "dev",
+          "prod"
+        ],
+        "timeout": 60000
+      }
+    ]
+  }
+}

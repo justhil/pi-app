@@ -1,0 +1,28 @@
+{
+  "schema": "ui.request/event",
+  "value": {
+    "id": "u6",
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "method": "custom",
+    "kind": "ask_user_question",
+    "toolCallId": "call_3",
+    "questions": [
+      {
+        "question": "旧导出要一起删掉吗？",
+        "header": "迁移",
+        "multiSelect": false,
+        "options": [
+          {
+            "label": "删除",
+            "description": "统一从 shared 导入"
+          },
+          {
+            "label": "保留一个版本",
+            "hasPreview": true,
+            "preview": "export * from …"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -66,6 +66,7 @@ import { ListBarTree16Regular as F64 } from '@fluentui/react-icons/svg/list-bar-
 import { MailInbox16Regular as F65 } from '@fluentui/react-icons/svg/mail-inbox'
 import { Maximize16Regular as F66 } from '@fluentui/react-icons/svg/maximize'
 import { Mic16Regular as F67 } from '@fluentui/react-icons/svg/mic'
+import { Phone16Regular as FSmartphone } from '@fluentui/react-icons/svg/phone'
 import { MusicNote120Regular as F68 } from '@fluentui/react-icons/svg/music-note'
 import { NumberRow16Regular as F69 } from '@fluentui/react-icons/svg/number-row'
 import { Open16Regular as F70 } from '@fluentui/react-icons/svg/open'
@@ -185,6 +186,7 @@ export const fluentIcons = {
   'message-square-text': F18,
   'messages-square': F20,
   'mic': F67,
+  'smartphone': FSmartphone,
   'minus': F91,
   'monitor': F39,
   'moon': F96,

@@ -1,0 +1,143 @@
+{
+  "schema": "turn.patch/event",
+  "value": {
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "patches": [
+      {
+        "op": "turn.upsert",
+        "seq": 1,
+        "turn": {
+          "id": "live:turn-88",
+          "anchor": "live:turn-88",
+          "status": "running",
+          "startedAt": 1791205740000,
+          "user": {
+            "text": "再跑一遍完整的 typecheck 和 lint",
+            "images": 1
+          },
+          "activity": {
+            "counts": {
+              "read": 1,
+              "edit": 0,
+              "write": 0,
+              "run": 2,
+              "search": 0,
+              "think": 0,
+              "other": 0
+            },
+            "failed": 0,
+            "live": "s9"
+          },
+          "steps": [
+            {
+              "id": "s9",
+              "kind": "tool",
+              "toolCallId": "call_21",
+              "toolName": "bash",
+              "category": "run",
+              "status": "running",
+              "node": {
+                "template": "bash",
+                "title": "npm run lint",
+                "status": "running",
+                "fields": {
+                  "command": "npm run lint"
+                },
+                "fallbackText": "运行 npm run lint"
+              }
+            }
+          ],
+          "answer": "",
+          "files": []
+        }
+      },
+      {
+        "op": "step.upsert",
+        "seq": 2,
+        "turnId": "live:turn-88",
+        "step": {
+          "id": "s10",
+          "kind": "thinking",
+          "text": "lint passed"
+        },
+        "counts": {
+          "read": 1,
+          "edit": 0,
+          "write": 0,
+          "run": 2,
+          "search": 0,
+          "think": 1,
+          "other": 0
+        },
+        "failed": 0,
+        "live": "s10"
+      },
+      {
+        "op": "text.append",
+        "seq": 3,
+        "seqTo": 4,
+        "turnId": "live:turn-88",
+        "ref": "answer",
+        "delta": "全部通过。"
+      },
+      {
+        "op": "turn.promote",
+        "seq": 5,
+        "turnId": "live:turn-88",
+        "step": {
+          "id": "s11",
+          "kind": "prose",
+          "text": "全部通过。"
+        }
+      },
+      {
+        "op": "turn.settle",
+        "seq": 6,
+        "turnId": "live:turn-88",
+        "status": "failed",
+        "durationMs": 42000,
+        "files": [],
+        "error": {
+          "kind": "error",
+          "text": "lint exited with 1"
+        }
+      },
+      {
+        "op": "session.state",
+        "seq": 7,
+        "state": {
+          "running": false,
+          "model": "anthropic/sonnet-5",
+          "thinking": "high",
+          "availableThinking": [
+            "off",
+            "low",
+            "high"
+          ],
+          "queue": {
+            "steering": [],
+            "followUp": [
+              "更新 CHANGELOG"
+            ]
+          },
+          "todo": {
+            "title": "待办",
+            "items": [
+              {
+                "id": "1",
+                "text": "写测试",
+                "status": "in_progress",
+                "priority": "high"
+              },
+              {
+                "id": "2",
+                "text": "提交",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

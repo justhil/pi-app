@@ -1,0 +1,6 @@
+{
+  "schema": "turn.abort/result",
+  "value": {
+    "aborted": true
+  }
+}

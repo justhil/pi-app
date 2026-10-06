@@ -1,0 +1,7 @@
+{
+  "schema": "model.set/params",
+  "value": {
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "modelId": "anthropic/sonnet-5"
+  }
+}

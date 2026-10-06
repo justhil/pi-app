@@ -39,4 +39,11 @@ export default tseslint.config(
     },
     plugins: { 'react-hooks': reactHooks },
   },
+  {
+    // Remote gateway stays portable (tests, future headless `--serve`): Electron only via RemoteHostPort.
+    files: ['src/main/remote/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { paths: [{ name: 'electron', message: 'Use RemoteHostPort (src/main/remote-host-electron.ts).' }] }],
+    },
+  },
 )

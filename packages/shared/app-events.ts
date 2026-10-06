@@ -141,6 +141,15 @@ export interface AdapterCatalogChangedEvent {
   revision?: string
 }
 
+/** A remote (phone) client changed a setting the renderer caches; reload it. */
+export interface RemoteSettingsChangedEvent {
+  type: 'remote-settings-changed'
+  key: 'capabilities' | 'cacheWarming' | 'sessions'
+  sessionFile?: string
+  /** For `sessions`: the workspace whose session list changed. */
+  workspaceId?: string
+}
+
 export type AppEvent =
   | MessageEvent
   | ToolEvent
@@ -155,5 +164,6 @@ export type AppEvent =
   | SdkInstallProgressEvent
   | SdkRuntimeChangedEvent
   | AdapterCatalogChangedEvent
+  | RemoteSettingsChangedEvent
 
 export const APP_EVENT_CHANNEL = 'app:event'

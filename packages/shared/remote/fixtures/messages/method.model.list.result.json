@@ -1,0 +1,27 @@
+{
+  "schema": "model.list/result",
+  "value": {
+    "models": [
+      {
+        "id": "local/qwen-coder",
+        "name": "Qwen Coder",
+        "provider": "local",
+        "group": "custom"
+      },
+      {
+        "id": "anthropic/sonnet-5",
+        "name": "Sonnet 5",
+        "provider": "anthropic",
+        "group": "login"
+      }
+    ],
+    "current": "anthropic/sonnet-5",
+    "thinking": "high",
+    "availableThinking": [
+      "off",
+      "low",
+      "medium",
+      "high"
+    ]
+  }
+}

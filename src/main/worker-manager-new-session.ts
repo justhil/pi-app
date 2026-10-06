@@ -21,11 +21,13 @@ export type NewSessionPoolOptions = {
   setForeground: (slot: WorkerSlot) => void
   onAppEvent: (payload: WorkerAppEventForward) => void
   onSlotExit: (slot: WorkerSlot, code: number) => void
+  /** Remote-created session: skip the foreground slot and keep it safe from eviction. */
+  background?: boolean
 }
 
 function findReusableWorkspaceSlot(options: NewSessionPoolOptions): WorkerSlot | null {
   const foregroundKey = options.foregroundPoolKey()
-  const foreground = foregroundKey ? options.pool.get(foregroundKey) : null
+  const foreground = foregroundKey && !options.background ? options.pool.get(foregroundKey) : null
   if (
     foreground &&
     foreground.cwd === options.cwd &&
@@ -37,6 +39,7 @@ function findReusableWorkspaceSlot(options: NewSessionPoolOptions): WorkerSlot |
     return foreground
   }
   for (const slot of options.pool.values()) {
+    if (options.background && slot.poolKey === foregroundKey) continue
     if (
       slot.cwd === options.cwd &&
       options.slotMatchesCurrentRuntime(slot) &&
@@ -74,7 +77,7 @@ async function runNewSession(
   }
   options.setForeground(slot)
   await evictIdleWorkers(options.pool, {
-    foregroundKey: slot.poolKey,
+    foregroundKey: options.background ? options.foregroundPoolKey() : slot.poolKey,
     maxWorkers: readMaxSessionWorkers(),
     mainWindow: options.mainWindow,
   })
@@ -91,7 +94,7 @@ export async function createNewSessionInPool(
   if (!capacity.ok) throw new Error(capacity.reason)
   if (options.pool.size >= readMaxSessionWorkers()) {
     await evictIdleWorkers(options.pool, {
-      foregroundKey: null,
+      foregroundKey: options.background ? options.foregroundPoolKey() : null,
       maxWorkers: readMaxSessionWorkers() - 1,
       mainWindow: options.mainWindow,
     })

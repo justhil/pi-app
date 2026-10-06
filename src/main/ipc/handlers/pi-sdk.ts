@@ -6,6 +6,7 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
+import { remoteTap } from '../../remote/tap'
 import { clearGlobalSdkPathCache, readSdkSelection } from '../../sdk-loader'
 import {
   readSdkStatusCached,
@@ -213,6 +214,7 @@ export function registerPiSdkHandlers(): void {
         const { writePiAgentGlobalSettings } = await import('../../pi-agent-settings-write')
         await writePiAgentGlobalSettings(req.patch)
       }
+      if ((req.patch as { cacheWarming?: unknown }).cacheWarming !== undefined) remoteTap.settingsChanged('cacheWarming')
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: errorMessage(e) }

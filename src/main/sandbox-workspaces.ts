@@ -41,6 +41,12 @@ export function isSandboxWorkspacePath(path: string): boolean {
   return false
 }
 
+/** Title of a temporary chat's sandbox (its first message), or null for ordinary folders. */
+export function sandboxLabel(path: string): string | null {
+  if (!isSandboxWorkspacePath(path)) return null
+  return readMeta(path)?.label?.trim() || null
+}
+
 function readMeta(dir: string): SandboxMeta | null {
   const p = join(dir, META_FILE)
   if (!existsSync(p)) return null

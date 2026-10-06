@@ -1,0 +1,18 @@
+{
+  "schema": "ui.request/event",
+  "value": {
+    "id": "u7",
+    "sessionKey": "/home/u/.pi/agent/sessions/--work-pi-app--/2026-10-05T14-02-11_a1b2.jsonl",
+    "method": "custom",
+    "kind": "image_review",
+    "image": "data:image/png;base64,iVBORw0KGgo=",
+    "title": "确认截图",
+    "question": "这样可以吗？",
+    "context": "设置页",
+    "options": [
+      "可以",
+      "重做"
+    ],
+    "allowFeedback": true
+  }
+}

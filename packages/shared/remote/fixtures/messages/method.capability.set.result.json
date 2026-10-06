@@ -1,0 +1,8 @@
+{
+  "schema": "capability.set/result",
+  "value": {
+    "enabled": [
+      "pi-ui"
+    ]
+  }
+}
