@@ -97,6 +97,14 @@ jobs:
       - name: Export icon
         run: npm run icon:export
 
+      # One runner packages both arches: npm only installed this machine's pty binary.
+      - name: Add the other macOS pty binary
+        run: |
+          set -euo pipefail
+          ver="$(node -p "require('@lydell/node-pty/package.json').version")"
+          npm install --no-save --force "@lydell/node-pty-darwin-x64@$ver" "@lydell/node-pty-darwin-arm64@$ver"
+          ls node_modules/@lydell
+
       - name: Build app
         run: npm run build
 

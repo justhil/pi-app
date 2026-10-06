@@ -5,7 +5,8 @@ import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
 import { sessionPreviewProcess } from './session-preview-process'
-import { guardAppQuit } from './window-close-guard'
+import { guardAppQuit, setRunningTerminalsProbe } from './window-close-guard'
+import { runningTerminalCount, shutdownTerminals } from './terminal/terminal-service'
 import { configStore } from './config-store'
 import { scheduleStartupWarmupFallback } from './startup-warmup'
 import { bindWslPersistence } from './wsl/wsl-env'
@@ -186,6 +187,7 @@ async function gracefulShutdownWorkers(): Promise<void> {
   } finally {
     sessionPreviewProcess.stop()
     disposeCompletionNotifications()
+    shutdownTerminals()
   }
   try {
     const asr = await import('./asr/codex-asr-manager')
@@ -194,6 +196,8 @@ async function gracefulShutdownWorkers(): Promise<void> {
     /* optional */
   }
 }
+
+setRunningTerminalsProbe(runningTerminalCount)
 
 app.on('before-quit', (event) => {
   // A running turn must get the close-decision prompt first (tray Quit / Cmd+Q).

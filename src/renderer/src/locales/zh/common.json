@@ -167,6 +167,22 @@
     "human": "不是你的操作问题。把详情复制给开发者即可。",
     "copy": "复制详情"
   },
+  "terminal": {
+    "title": "终端",
+    "toggle": "终端 (Ctrl+`)",
+    "new": "新建终端",
+    "split": "左右分屏",
+    "hide": "收起",
+    "closeTab": "关闭终端",
+    "resize": "调整终端高度",
+    "find": "查找…",
+    "exited": "进程已退出（{{code}}）",
+    "default": "pi 默认",
+    "noShell": "没有找到可用的外壳",
+    "failed": "终端启动失败：{{error}}",
+    "sendSelection": "把选中的输出放进输入框",
+    "empty": "新建终端"
+  },
   "window": {
     "minimize": "最小化",
     "maximize": "最大化",
@@ -178,7 +194,11 @@
     "closeNow": "立即关闭",
     "waitingTitle": "正在等待对话结束…",
     "waitingMessage": "对话（含上下文压缩）完成后窗口将自动关闭。",
-    "cancelWait": "取消等待"
+    "cancelWait": "取消等待",
+    "terminalsTitle": "终端还在运行",
+    "terminalsMessage": "关闭窗口会结束 {{count}} 个终端里正在运行的进程。",
+    "terminalsAlso": "同时会结束 {{count}} 个终端里的进程。",
+    "closeTerminals": "关闭"
   },
   "notification": {
     "sessionGone": "会话已删除或不可用",

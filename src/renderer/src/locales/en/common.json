@@ -167,6 +167,22 @@
     "human": "This is not your fault. Copy the details for a developer.",
     "copy": "Copy details"
   },
+  "terminal": {
+    "title": "Terminal",
+    "toggle": "Terminal (Ctrl+`)",
+    "new": "New terminal",
+    "split": "Split right",
+    "hide": "Hide",
+    "closeTab": "Close terminal",
+    "resize": "Resize terminal",
+    "find": "Find…",
+    "exited": "Process exited ({{code}})",
+    "default": "pi default",
+    "noShell": "No shell found",
+    "failed": "Could not start the terminal: {{error}}",
+    "sendSelection": "Put the selected output in the composer",
+    "empty": "New terminal"
+  },
   "window": {
     "minimize": "Minimize",
     "maximize": "Maximize",
@@ -178,7 +194,13 @@
     "closeNow": "Close now",
     "waitingTitle": "Waiting for the conversation to finish…",
     "waitingMessage": "The window will close automatically once the conversation (including context compaction) completes.",
-    "cancelWait": "Cancel waiting"
+    "cancelWait": "Cancel waiting",
+    "terminalsTitle": "Terminals are still running",
+    "terminalsMessage_one": "Closing the window ends the process running in {{count}} terminal.",
+    "terminalsMessage_other": "Closing the window ends the processes running in {{count}} terminals.",
+    "terminalsAlso_one": "It also ends the process in {{count}} terminal.",
+    "terminalsAlso_other": "It also ends the processes in {{count}} terminals.",
+    "closeTerminals": "Close"
   },
   "notification": {
     "sessionGone": "This session was deleted or is unavailable",

@@ -96,8 +96,8 @@ const api = {
     return () => ipcRenderer.off('ipc:git-workspace-changed', handler)
   },
 
-  onCloseRequested(callback: (info: { isStreaming: boolean }) => void): () => void {
-    const handler = (_event: unknown, data: { isStreaming: boolean }): void => callback(data)
+  onCloseRequested(callback: (info: { isStreaming: boolean; terminals?: number }) => void): () => void {
+    const handler = (_event: unknown, data: { isStreaming: boolean; terminals?: number }): void => callback(data)
     ipcRenderer.on('ipc:close-requested', handler)
     return () => ipcRenderer.off('ipc:close-requested', handler)
   },
@@ -122,6 +122,20 @@ const api = {
     ): void => callback(data)
     ipcRenderer.on('ipc:notification-open-session', handler)
     return () => ipcRenderer.off('ipc:notification-open-session', handler)
+  },
+  /** Terminal keystrokes: fire-and-forget (no invoke round trip per key). */
+  terminalWrite(id: string, data: string): void {
+    ipcRenderer.send('ipc:terminal-write', { id, data })
+  },
+  onTerminalData(callback: (payload: { id: string; data: string }) => void): () => void {
+    const handler = (_event: unknown, data: { id: string; data: string }): void => callback(data)
+    ipcRenderer.on('ipc:terminal-data', handler)
+    return () => ipcRenderer.off('ipc:terminal-data', handler)
+  },
+  onTerminalExit(callback: (payload: { id: string; code: number }) => void): () => void {
+    const handler = (_event: unknown, data: { id: string; code: number }): void => callback(data)
+    ipcRenderer.on('ipc:terminal-exit', handler)
+    return () => ipcRenderer.off('ipc:terminal-exit', handler)
   },
   ping: (): string => 'pong',
 }

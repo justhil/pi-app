@@ -40,6 +40,7 @@ import {
   handleCloseDecision,
   handleCloseDecisionShown,
   guardAppQuit,
+  setRunningTerminalsProbe,
   __resetWindowCloseGuardForTest,
 } from './window-close-guard'
 
@@ -87,7 +88,17 @@ describe('window-close-guard', () => {
     expect(winMock.instance.close).not.toHaveBeenCalled()
     expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
       isStreaming: true,
+      terminals: 0,
     })
+  })
+
+  it('asks before ending running terminals even without a turn', () => {
+    setRunningTerminalsProbe(() => 2)
+    closeHandler?.(makeEvent())
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', { isStreaming: false, terminals: 2 })
+    handleCloseDecision('now')
+    expect(winMock.instance.close).toHaveBeenCalled()
   })
 
   it('repeated close clicks while the dialog is open do not re-ask', () => {
@@ -193,6 +204,7 @@ describe('window-close-guard', () => {
     expect(secondClose).not.toHaveBeenCalled()
     expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
       isStreaming: true,
+      terminals: 0,
     })
   })
 
@@ -210,6 +222,7 @@ describe('window-close-guard', () => {
       expect(e.preventDefault).toHaveBeenCalled()
       expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
         isStreaming: true,
+        terminals: 0,
       })
     })
 
@@ -232,6 +245,7 @@ describe('window-close-guard', () => {
       expect(winMock.instance.focus).toHaveBeenCalledOnce()
       expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', {
         isStreaming: true,
+        terminals: 0,
       })
     })
 

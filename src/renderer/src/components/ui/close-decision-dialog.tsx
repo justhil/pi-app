@@ -18,9 +18,11 @@ export function CloseDecisionDialog() {
   const titleId = useId()
   const [open, setOpen] = useState(false)
   const [waiting, setWaiting] = useState(false)
+  const [info, setInfo] = useState<{ isStreaming: boolean; terminals: number }>({ isStreaming: true, terminals: 0 })
 
   useEffect(() => {
-    return onCloseRequested(() => {
+    return onCloseRequested((next) => {
+      setInfo({ isStreaming: next?.isStreaming !== false, terminals: next?.terminals ?? 0 })
       setWaiting(false)
       setOpen(true)
     })
@@ -85,6 +87,29 @@ export function CloseDecisionDialog() {
               </button>
             </div>
           </>
+        ) : !info.isStreaming ? (
+          <>
+            <h2 id={titleId} className="mb-2 text-lg font-semibold text-foreground">
+              {t('common:window.terminalsTitle')}
+            </h2>
+            <p className="mb-4 text-base leading-relaxed text-muted-foreground">
+              {t('common:window.terminalsMessage', { count: info.terminals })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted"
+                onClick={() => decide('cancel')}
+              >
+                {t('common:cancel')}
+              </button>
+              <button
+                className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => decide('now')}
+              >
+                {t('common:window.closeTerminals')}
+              </button>
+            </div>
+          </>
         ) : (
           <>
             <h2 id={titleId} className="mb-2 text-lg font-semibold text-foreground">
@@ -92,6 +117,7 @@ export function CloseDecisionDialog() {
             </h2>
             <p className="mb-4 text-base leading-relaxed text-muted-foreground">
               {t('common:window.closeWhileRunningMessage')}
+              {info.terminals > 0 ? ` ${t('common:window.terminalsAlso', { count: info.terminals })}` : ''}
             </p>
             <div className="flex flex-col gap-2">
               <button

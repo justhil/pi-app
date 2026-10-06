@@ -23,6 +23,10 @@ files:
   - '!**/bignumber.js/doc/**'
   - '!**/readable-stream/**/doc/**'
 
+# Native pty binaries (pty.node, conpty.dll, spawn-helper) cannot load from inside the asar.
+asarUnpack:
+  - '**/node_modules/@lydell/node-pty*/**'
+
 extraFiles:
   - from: build/icon.png
     to: resources/build/icon.png
