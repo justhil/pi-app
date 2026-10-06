@@ -115,6 +115,8 @@ fun MessageActionsSheet(
     /** Turns after this one (they leave the branch too); null hides rewind. */
     rewindLater: Int? = null,
     onRewind: () -> Unit = {},
+    /** Fork into a new session before this message; null hides it. */
+    onFork: (() -> Unit)? = null,
 ) {
     var confirmRewind by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
@@ -140,6 +142,12 @@ fun MessageActionsSheet(
             if (part == MessagePart.User && canEdit) {
                 ActionRow(PiIcons.Pencil, stringResource(R.string.msg_edit)) {
                     onEdit(text)
+                    onDismiss()
+                }
+            }
+            if (onFork != null) {
+                ActionRow(PiIcons.Fork, stringResource(R.string.msg_fork)) {
+                    onFork()
                     onDismiss()
                 }
             }

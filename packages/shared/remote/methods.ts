@@ -104,6 +104,23 @@ export const FileEntrySchema = z
   .strict()
 export type FileEntry = z.infer<typeof FileEntrySchema>
 
+/** One branch of a session's tree (a tip holding user messages). */
+export const BranchInfoSchema = z
+  .object({
+    leafId: z.string(),
+    /** The branch's last user message (preview). */
+    title: z.string(),
+    turns: z.number().int().nonnegative(),
+    current: z.boolean(),
+    updatedAt: z.number().int().optional(),
+    /** Its first user message after it split from the current branch. */
+    divergedAt: z.string().optional(),
+    /** The branch's last assistant reply (preview), to tell apart branches with the same prompt. */
+    reply: z.string().optional(),
+  })
+  .strict()
+export type BranchInfo = z.infer<typeof BranchInfoSchema>
+
 /** One rendered diff line: context, added, removed, or a gap between hunks. `o`/`n` are old/new line numbers. */
 export const DiffLineSchema = z
   .object({ k: z.enum(['ctx', 'add', 'del', 'gap']), o: z.number().int().positive().optional(), n: z.number().int().positive().optional(), s: z.string() })
@@ -172,6 +189,19 @@ export const REMOTE_METHODS = {
   'turn.rewind': method(
     z.object({ sessionKey, anchor: z.string().min(1) }).strict(),
     z.object({ editorText: z.string().optional() }).strict(),
+    'operator',
+  ),
+  /** The session's branches (rewinds and edits leave the old turns on another branch). */
+  'session.branches': method(z.object({ sessionKey }).strict(), z.object({ branches: z.array(BranchInfoSchema) }).strict(), 'viewer'),
+  /** Make another branch the active one (pi `navigateTree` to its last entry). Refused while running. */
+  'session.switchBranch': method(z.object({ sessionKey, leafId: z.string().min(1) }).strict(), z.object({}).strict(), 'operator'),
+  /**
+   * New session with the history before the user message `anchor` (desktop fork); the message
+   * text comes back as `editorText`. Refused while running.
+   */
+  'session.fork': method(
+    z.object({ sessionKey, anchor: z.string().min(1) }).strict(),
+    z.object({ sessionKey, editorText: z.string().optional() }).strict(),
     'operator',
   ),
   /** Pull queued steer/follow-up texts back without stopping the run. */

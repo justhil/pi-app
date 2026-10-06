@@ -290,6 +290,40 @@ describe('sessions', () => {
     expect(again.turns).toHaveLength(open.turns.length - 1)
   })
 
+  it('lists branches after a rewind and switches back', async () => {
+    const c = await pairNew()
+    const open = (await c.call('session.open', { sessionKey: session })) as OpenResult
+    const last = open.turns![open.turns!.length - 1]
+    await c.call('turn.rewind', { sessionKey: session, anchor: last.anchor })
+    await host.playRun(session, '换个思路')
+    const { branches } = await c.call('session.branches', { sessionKey: session })
+    expect(branches).toHaveLength(2)
+    expect(branches[0]).toMatchObject({ current: true, title: '换个思路', turns: open.turns!.length })
+    const old = branches.find((b) => !b.current)!
+    expect(old).toMatchObject({ title: last.user.text, turns: open.turns!.length })
+    expect(await c.call('session.switchBranch', { sessionKey: session, leafId: old.leafId })).toEqual({})
+    await settle()
+    expect(patchesOf(c).filter((p) => p.op === 'timeline.reset').length).toBeGreaterThanOrEqual(2)
+    const again = (await c.call('session.open', { sessionKey: session })) as OpenResult
+    expect(again.turns![again.turns!.length - 1].user.text).toBe(last.user.text)
+    expect((await c.call('session.branches', { sessionKey: session })).branches.find((b) => b.current)!.leafId).toBe(old.leafId)
+    await expect(c.call('session.switchBranch', { sessionKey: session, leafId: 'nope' })).rejects.toMatchObject({ err: { code: 'not_found' } })
+  })
+
+  it('forks before a message into a new session of the same project', async () => {
+    const c = await pairNew()
+    await c.call('session.watchList', {})
+    const open = (await c.call('session.open', { sessionKey: session })) as OpenResult
+    const last = open.turns![open.turns!.length - 1]
+    const r = await c.call('session.fork', { sessionKey: session, anchor: last.anchor })
+    expect(r.editorText).toBe(last.user.text)
+    expect(r.sessionKey).not.toBe(session)
+    const forked = (await c.call('session.open', { sessionKey: r.sessionKey })) as OpenResult
+    expect(forked.turns).toHaveLength(open.turns!.length - 1)
+    gw.setDeviceRole(c.hello!.deviceId, 'viewer')
+    await expect(c.call('session.fork', { sessionKey: session, anchor: last.anchor })).rejects.toMatchObject({ err: { code: 'forbidden' } })
+  })
+
   it('refuses to rewind while running', async () => {
     const c = await pairNew()
     await c.call('session.open', { sessionKey: session })

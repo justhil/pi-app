@@ -219,6 +219,17 @@ const methodSamples: Samples = {
   },
   'turn.send': { params: { sessionKey, text: '顺便更新 CHANGELOG', mode: 'followUp', clientMessageId: 'm_01JABCDEF' }, result: { accepted: true, duplicate: false } },
   'turn.abort': { params: { sessionKey }, result: { aborted: true, restored: ['顺便更新 CHANGELOG'] } },
+  'session.branches': {
+    params: { sessionKey },
+    result: {
+      branches: [
+        { leafId: 'entry-52', title: '改成单飞刷新，补一个测试', turns: 3, current: true, updatedAt: 1791200100000, reply: '修好了，刷新改成单飞' },
+        { leafId: 'entry-47', title: '先加个重试试试', turns: 3, current: false, updatedAt: 1791200050000, divergedAt: '先加个重试试试' },
+      ],
+    },
+  },
+  'session.switchBranch': { params: { sessionKey, leafId: 'entry-47' }, result: {} },
+  'session.fork': { params: { sessionKey, anchor: 'entry-41' }, result: { sessionKey: '/work/pi-app/.pi/sessions/fork.jsonl', editorText: '登录页偶尔会报 401，帮我查一下原因' } },
   'review.diff': {
     params: { sessionKey, scope: 'git', path: 'src/auth.ts' },
     result: {

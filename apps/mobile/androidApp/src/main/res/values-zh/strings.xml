@@ -249,6 +249,20 @@
     <string name="msg_rewind_hint">这一轮会移出当前分支，消息放回输入框</string>
     <string name="msg_rewind_hint_more">这一轮及之后 %1$d 轮会移出当前分支（可在电脑端会话树恢复）</string>
     <string name="msg_rewind_confirm">回退</string>
+    <string name="msg_fork">从这里分叉</string>
+    <string name="msg_fork_failed">分叉失败：%s</string>
+    <string name="panel_branches">分支</string>
+    <string name="panel_branches_one">只有当前分支</string>
+    <plurals name="panel_branches_count"><item quantity="other">%d 个分支</item></plurals>
+    <string name="branches_title">分支</string>
+    <string name="branches_current">当前</string>
+    <plurals name="branches_turns"><item quantity="other">%d 轮</item></plurals>
+    <string name="branches_diverged">从「%s」分出</string>
+    <string name="branches_switch">切换到这个分支</string>
+    <string name="branches_switch_hint">当前分支会保留在会话树里，随时可以切回来。</string>
+    <string name="branches_running">运行中不能切换分支，请先停止。</string>
+    <string name="branches_failed">分支加载失败。</string>
+    <string name="branches_switch_failed">切换失败：%s</string>
     <string name="msg_rewind_failed">回退失败：%1$s</string>
     <string name="panel_title">会话信息</string>
     <string name="panel_context">上下文</string>

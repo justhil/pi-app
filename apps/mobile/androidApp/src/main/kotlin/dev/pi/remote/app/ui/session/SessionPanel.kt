@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -124,6 +125,8 @@ fun SessionPanel(
     modifier: Modifier = Modifier,
     changes: ReviewDiffResult? = null,
     onChanges: (() -> Unit)? = null,
+    branchCount: Int? = null,
+    onBranches: (() -> Unit)? = null,
 ) {
     val p = progress()
     if (p <= 0.001f) return
@@ -173,6 +176,25 @@ fun SessionPanel(
                                     changes == null -> stringResource(R.string.panel_changes_open)
                                     files.isEmpty() -> stringResource(R.string.panel_changes_none)
                                     else -> stringResource(R.string.panel_files_value, files.size, files.sumOf { it.add }, files.sumOf { it.del })
+                                },
+                                style = Pi.t.secondary.copy(color = Pi.c.fg), modifier = Modifier.weight(1f),
+                            )
+                            PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 14.dp)
+                        }
+                    }
+                }
+
+                if (onBranches != null) {
+                    Section(stringResource(R.string.panel_branches)) {
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onBranches),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                when {
+                                    branchCount == null -> stringResource(R.string.panel_branches)
+                                    branchCount <= 1 -> stringResource(R.string.panel_branches_one)
+                                    else -> pluralStringResource(R.plurals.panel_branches_count, branchCount, branchCount)
                                 },
                                 style = Pi.t.secondary.copy(color = Pi.c.fg), modifier = Modifier.weight(1f),
                             )

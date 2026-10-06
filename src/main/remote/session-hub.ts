@@ -2,11 +2,12 @@ import { randomBytes } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { AppEvent } from '@shared/app-events'
 import { normalizeSessionFileKey } from '@shared/session-file-key'
-import type { Cursor, DiffFile, DiffLine, OpenResult, RemoteEvent, SessionSummary, Turn, TurnPatch, UiRequest } from '@shared/remote'
+import type { BranchInfo, Cursor, DiffFile, DiffLine, OpenResult, RemoteEvent, SessionSummary, Turn, TurnPatch, UiRequest } from '@shared/remote'
 import { base64UrlEncode } from '@shared/remote'
 import { RpcFail } from './errors'
 import type { HostSessionRow, RemoteHostPort } from './host-port'
 import { LiveProjector, projectHistory, type PatchBody } from './projector'
+import { branchesFromTree } from './branches'
 import { capLines, parsePiDiff, parseUnifiedDiff, type ParsedDiffFile } from './diff-model'
 import { outputText } from './render-node'
 import type { UiRouter } from './ui-router'
@@ -426,12 +427,42 @@ export class SessionHub {
     if (entry.projector.sessionState.running) throw new RpcFail('busy', 'stop the run before rewinding')
     if (anchor.startsWith('live:')) throw new RpcFail('conflict', 'message is not saved yet')
     const r = await this.port.rewind(entry.sessionFile, anchor, projectId)
+    this.branchMoved(entry)
+    return r
+  }
+
+  /** The leaf moved (rewind, branch switch): every viewer re-opens. */
+  private branchMoved(entry: Entry): void {
     // The leaf lives outside the JSONL, so the file stamp would not invalidate the cache.
     this.history.delete(entry.key)
     entry.projector.clearLiveTurn()
     this.publish(entry, [{ op: 'timeline.reset' }])
     this.port.notifySettingsChanged('rewound', entry.sessionFile)
-    return r
+  }
+
+  async branches(sessionKey: string): Promise<{ branches: BranchInfo[] }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    const tree = await this.port.sessionTree(entry.sessionFile, projectId)
+    return { branches: branchesFromTree(tree.rows, tree.leafId) }
+  }
+
+  async switchBranch(sessionKey: string, leafId: string): Promise<Record<string, never>> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    if (entry.projector.sessionState.running) throw new RpcFail('busy', 'stop the run before switching branches')
+    const tree = await this.port.sessionTree(entry.sessionFile, projectId)
+    if (!tree.rows.some((r) => r.id === leafId)) throw new RpcFail('not_found', 'branch not found')
+    await this.port.switchBranch(entry.sessionFile, leafId, projectId)
+    this.branchMoved(entry)
+    return {}
+  }
+
+  async fork(sessionKey: string, anchor: string): Promise<{ sessionKey: string; editorText?: string }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    if (entry.projector.sessionState.running) throw new RpcFail('busy', 'stop the run before forking')
+    if (anchor.startsWith('live:')) throw new RpcFail('conflict', 'message is not saved yet')
+    const r = await this.port.fork(entry.sessionFile, anchor, projectId)
+    this.announceSession(r.sessionFile, projectId)
+    return { sessionKey: r.sessionFile, ...(r.editorText ? { editorText: r.editorText } : {}) }
   }
 
   async page(sessionKey: string, before: string, limit: number): Promise<{ turns: Turn[]; hasOlder: boolean }> {

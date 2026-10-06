@@ -1,0 +1,23 @@
+{
+  "schema": "session.branches/result",
+  "value": {
+    "branches": [
+      {
+        "leafId": "entry-52",
+        "title": "改成单飞刷新，补一个测试",
+        "turns": 3,
+        "current": true,
+        "updatedAt": 1791200100000,
+        "reply": "修好了，刷新改成单飞"
+      },
+      {
+        "leafId": "entry-47",
+        "title": "先加个重试试试",
+        "turns": 3,
+        "current": false,
+        "updatedAt": 1791200050000,
+        "divergedAt": "先加个重试试试"
+      }
+    ]
+  }
+}

@@ -84,6 +84,10 @@ data class OpenResult(
 @Serializable data class SessionStatsResult(val context: ContextStats? = null)
 @Serializable data class RewindParams(val sessionKey: String, val anchor: String)
 @Serializable data class RewindResult(val editorText: String? = null)
+@Serializable data class BranchInfo(val leafId: String, val title: String, val turns: Int, val current: Boolean, val updatedAt: Long? = null, val divergedAt: String? = null, val reply: String? = null)
+@Serializable data class BranchesResult(val branches: List<BranchInfo>)
+@Serializable data class SwitchBranchParams(val sessionKey: String, val leafId: String)
+@Serializable data class ForkResult(val sessionKey: String, val editorText: String? = null)
 @Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
 @Serializable data class CommandListResult(val commands: List<CommandInfo>)
 @Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean, val size: Long? = null, val mtime: Long? = null)
@@ -158,6 +162,9 @@ object RemoteMethods {
         "session.stats" to (SessionKeyParams.serializer() to SessionStatsResult.serializer()),
         "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),
         "turn.rewind" to (RewindParams.serializer() to RewindResult.serializer()),
+        "session.branches" to (SessionKeyParams.serializer() to BranchesResult.serializer()),
+        "session.switchBranch" to (SwitchBranchParams.serializer() to Empty.serializer()),
+        "session.fork" to (RewindParams.serializer() to ForkResult.serializer()),
         "turn.dequeue" to (SessionKeyParams.serializer() to DequeueResult.serializer()),
         "session.create" to (CreateParams.serializer() to CreateResult.serializer()),
         "model.list" to (SessionKeyParams.serializer() to ModelListResult.serializer()),

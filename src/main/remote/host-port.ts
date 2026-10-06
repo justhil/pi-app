@@ -1,3 +1,4 @@
+import type { TreeRow } from './branches'
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
 import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiRequest, UiResponse } from '@shared/remote'
@@ -87,6 +88,12 @@ export interface RemoteHostPort {
   /** Empty the session's steer/follow-up queue and return the texts (steering first); [] without a live worker. */
   clearQueue(sessionFile: string): Promise<string[]>
   /** New session in the background: never reuses or replaces the desktop's foreground worker. */
+  /** The session's entry tree and current leaf (desktop session tree). */
+  sessionTree(sessionFile: string, projectId: string): Promise<{ rows: TreeRow[]; leafId: string | null }>
+  /** Move the session's leaf to `leafId` (another branch's last entry) on its own worker. */
+  switchBranch(sessionFile: string, leafId: string, projectId: string): Promise<void>
+  /** Fork before the user entry `anchor` into a new session file of the same project. */
+  fork(sessionFile: string, anchor: string, projectId: string): Promise<{ sessionFile: string; editorText?: string }>
   createSession(projectId: string): Promise<string>
   listModels(sessionFile: string): Promise<HostModelList>
   setModel(sessionFile: string, modelId: string): Promise<string>
