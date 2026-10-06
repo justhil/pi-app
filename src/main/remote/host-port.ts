@@ -106,6 +106,8 @@ export interface RemoteHostPort {
   /** Context usage of a session (live worker first, disk otherwise); null when unreadable. */
   contextStats(sessionFile: string, projectId: string): Promise<ContextStats | null>
   /** A folder under the project root, or null when `path` escapes it / is not a folder. */
+  /** The project's working tree against HEAD as `git diff` text (incl. untracked text files). */
+  gitDiff(projectId: string): Promise<{ isRepo: boolean; branch: string; raw: string; message?: string }>
   listDir(projectId: string, path: string, dotfiles: boolean): Promise<{ entries: FileEntry[]; truncated: boolean } | null>
   searchFiles(projectId: string, query: string): Promise<FileEntry[]>
   capabilityCatalog(): CapabilityInfo[]

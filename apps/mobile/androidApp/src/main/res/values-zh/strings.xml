@@ -195,6 +195,28 @@
     <string name="link_copied">已复制（需在电脑上打开）：%1$s</string>
     <string name="readonly">只读设备</string>
     <string name="back">返回</string>
+    <string name="cancel">取消</string>
+    <string name="review_title">改动</string>
+    <string name="review_scope_turn">本轮</string>
+    <string name="review_scope_git">工作区</string>
+    <string name="review_failed">改动加载失败。</string>
+    <string name="review_not_repo">这个项目不是 Git 仓库。</string>
+    <string name="review_clean">没有改动。</string>
+    <string name="review_binary">二进制文件，不显示内容。</string>
+    <string name="review_no_lines">没有可显示的行改动。</string>
+    <string name="review_truncated">改动太长，后面的部分未显示。</string>
+    <string name="review_lines">第 %s 行</string>
+    <plurals name="review_lines_count"><item quantity="other">%d 行</item></plurals>
+    <string name="review_extend_hint">点击其他行可扩大选择范围</string>
+    <string name="review_comment">批注</string>
+    <string name="review_comment_hint">这里要怎么改？</string>
+    <string name="review_save">保存</string>
+    <string name="review_remove_comment">删除批注</string>
+    <string name="review_insert">插入输入框</string>
+    <plurals name="review_comment_count"><item quantity="other">%d 条批注</item></plurals>
+    <string name="panel_changes">改动</string>
+    <string name="panel_changes_open">查看工作区改动</string>
+    <string name="panel_changes_none">没有未提交的改动</string>
     <string name="more">更多</string>
     <string name="expand">展开</string>
     <string name="collapse">收起</string>

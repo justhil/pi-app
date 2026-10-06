@@ -219,6 +219,27 @@ const methodSamples: Samples = {
   },
   'turn.send': { params: { sessionKey, text: '顺便更新 CHANGELOG', mode: 'followUp', clientMessageId: 'm_01JABCDEF' }, result: { accepted: true, duplicate: false } },
   'turn.abort': { params: { sessionKey }, result: { aborted: true, restored: ['顺便更新 CHANGELOG'] } },
+  'review.diff': {
+    params: { sessionKey, scope: 'git', path: 'src/auth.ts' },
+    result: {
+      isRepo: true,
+      branch: 'main',
+      files: [
+        { path: 'src/auth.ts', add: 2, del: 1, status: 'modified' },
+        { path: 'assets/logo.png', add: 0, del: 0, status: 'binary' },
+      ],
+      file: {
+        path: 'src/auth.ts',
+        lines: [
+          { k: 'ctx', o: 10, n: 10, s: '  const now = Date.now()' },
+          { k: 'del', o: 11, s: '  if (token.exp < now) return renew(token)' },
+          { k: 'add', n: 11, s: '  if (token.exp - 30_000 < now) return renew(token)' },
+          { k: 'gap', s: 'export function logout() {' },
+        ],
+        truncated: false,
+      },
+    },
+  },
   'turn.rewind': { params: { sessionKey, anchor: 'entry-41' }, result: { editorText: '登录页偶尔会报 401，帮我查一下原因' } },
   'turn.dequeue': { params: { sessionKey }, result: { restored: ['顺便更新 CHANGELOG'] } },
   'session.create': { params: { projectId: '/work/pi-app', capabilities: ['pi-ui'] }, result: { sessionKey } },

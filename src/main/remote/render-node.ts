@@ -79,6 +79,15 @@ export function diffStats(toolName: string, args: unknown, details: unknown): { 
   return { add, del }
 }
 
+/** Edit pairs without pi's diff (older sessions, some adapters): `-old` / `+new` lines, ` ...` between pairs. */
+function pairsAsDiff(edits: { oldText: string; newText: string }[] | undefined): string {
+  const lines = (t: string) => (t === '' ? [] : t.replace(/\n$/, '').split('\n'))
+  return (edits ?? [])
+    .map((e) => [...lines(e.oldText).map((l) => `-${l}`), ...lines(e.newText).map((l) => `+${l}`)].join('\n'))
+    .filter(Boolean)
+    .join('\n ...\n')
+}
+
 function clip(text: string, limit: number, fromEnd = false): { text: string; clipped: boolean } {
   if (text.length <= limit) return { text, clipped: false }
   return { text: fromEnd ? text.slice(text.length - limit) : text.slice(0, limit), clipped: true }
@@ -144,7 +153,7 @@ export function buildRenderNode(input: ToolCallInput, card?: ToolCardDef): Rende
     case 'edit':
     case 'write': {
       const stats = diffStats(name, input.args, input.details) ?? { add: 0, del: 0 }
-      const source = detail.type === 'write' ? detail.preview ?? '' : stats.diff ?? ''
+      const source = detail.type === 'write' ? detail.preview ?? '' : stats.diff ?? pairsAsDiff(detail.edits)
       const out = clip(source, detail.type === 'write' ? PREVIEW_LIMITS.other : PREVIEW_LIMITS.edit)
       return {
         template: detail.type,

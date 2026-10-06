@@ -148,6 +148,7 @@ export class RemoteRpc {
         const commands = await port.listCommands(projectId)
         return { commands: commands.map((c) => ({ ...c, description: c.description?.slice(0, 400) })) }
       },
+      'review.diff': async (_c, p) => hub.reviewDiff(p.sessionKey, p.scope, p.turnId, p.path),
       'file.list': async (_c, p) => {
         const { projectId } = await hub.authorize(p.sessionKey)
         const r = await port.listDir(projectId, p.path || '.', p.dotfiles === true)

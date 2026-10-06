@@ -104,6 +104,17 @@ export const FileEntrySchema = z
   .strict()
 export type FileEntry = z.infer<typeof FileEntrySchema>
 
+/** One rendered diff line: context, added, removed, or a gap between hunks. `o`/`n` are old/new line numbers. */
+export const DiffLineSchema = z
+  .object({ k: z.enum(['ctx', 'add', 'del', 'gap']), o: z.number().int().positive().optional(), n: z.number().int().positive().optional(), s: z.string() })
+  .strict()
+export type DiffLine = z.infer<typeof DiffLineSchema>
+
+export const DiffFileSchema = z
+  .object({ path: z.string(), add: z.number().int().nonnegative(), del: z.number().int().nonnegative(), status: z.enum(['modified', 'added', 'deleted', 'renamed', 'binary']) })
+  .strict()
+export type DiffFile = z.infer<typeof DiffFileSchema>
+
 /** What the session's context holds right now (desktop composer metrics): chars / 4 like the desktop. */
 export const ContextStatsSchema = z
   .object({
@@ -207,6 +218,24 @@ export const REMOTE_METHODS = {
   /** Context usage for the session panel; null when the host cannot read it. */
   'session.stats': method(z.object({ sessionKey }).strict(), z.object({ context: ContextStatsSchema.nullable() }).strict(), 'viewer'),
   'command.list': method(z.object({ sessionKey }).strict(), z.object({ commands: z.array(CommandInfoSchema) }).strict(), 'viewer'),
+  /**
+   * Changes to review: `git` = the project's working tree against HEAD (incl. untracked text files),
+   * `turn` = what one turn's edit / write calls changed. Without `path` only the file list comes
+   * back; with it, that file's lines (capped, `truncated` when cut).
+   */
+  'review.diff': method(
+    z.object({ sessionKey, scope: z.enum(['git', 'turn']), turnId: z.string().optional(), path: z.string().max(4096).optional() }).strict(),
+    z
+      .object({
+        isRepo: z.boolean(),
+        branch: z.string().optional(),
+        files: z.array(DiffFileSchema),
+        file: z.object({ path: z.string(), lines: z.array(DiffLineSchema), truncated: z.boolean() }).strict().optional(),
+        message: z.string().optional(),
+      })
+      .strict(),
+    'viewer',
+  ),
   /** One folder of the session's project (folders first). Paths outside the project are refused. */
   'file.list': method(
     z.object({ sessionKey, path: z.string().max(4096), dotfiles: z.boolean().optional() }).strict(),

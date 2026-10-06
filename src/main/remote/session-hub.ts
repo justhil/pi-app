@@ -2,11 +2,12 @@ import { randomBytes } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { AppEvent } from '@shared/app-events'
 import { normalizeSessionFileKey } from '@shared/session-file-key'
-import type { Cursor, OpenResult, RemoteEvent, SessionSummary, Turn, TurnPatch, UiRequest } from '@shared/remote'
+import type { Cursor, DiffFile, DiffLine, OpenResult, RemoteEvent, SessionSummary, Turn, TurnPatch, UiRequest } from '@shared/remote'
 import { base64UrlEncode } from '@shared/remote'
 import { RpcFail } from './errors'
 import type { HostSessionRow, RemoteHostPort } from './host-port'
 import { LiveProjector, projectHistory, type PatchBody } from './projector'
+import { capLines, parsePiDiff, parseUnifiedDiff, type ParsedDiffFile } from './diff-model'
 import { outputText } from './render-node'
 import type { UiRouter } from './ui-router'
 
@@ -454,4 +455,55 @@ export class SessionHub {
     }
     throw new RpcFail('not_found', 'tool call not found')
   }
+
+  /** `review.diff`: the working tree (git) or one turn's edit / write calls, as display lines. */
+  async reviewDiff(
+    sessionKey: string,
+    scope: 'git' | 'turn',
+    turnId: string | undefined,
+    path: string | undefined,
+  ): Promise<{ isRepo: boolean; branch?: string; files: DiffFile[]; file?: { path: string; lines: DiffLine[]; truncated: boolean }; message?: string }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    let files: ParsedDiffFile[]
+    let head: { isRepo: boolean; branch?: string; message?: string } = { isRepo: true }
+    if (scope === 'git') {
+      const g = await this.port.gitDiff(projectId)
+      head = { isRepo: g.isRepo, ...(g.branch ? { branch: g.branch } : {}), ...(g.message ? { message: g.message } : {}) }
+      files = parseUnifiedDiff(g.raw)
+    } else {
+      const turns = this.mergedTurns(entry, await this.loadHistoryTurns(entry, projectId))
+      const turn = turnId ? turns.find((t) => t.id === turnId) : turns[turns.length - 1]
+      if (!turn) throw new RpcFail('not_found', 'turn not found')
+      files = turnChanges(turn)
+    }
+    const list = files.map(({ lines: _l, ...f }) => f)
+    if (path === undefined) return { ...head, files: list }
+    const hit = files.find((f) => f.path === path)
+    if (!hit) throw new RpcFail('not_found', 'file has no changes')
+    return { ...head, files: list, file: { path, ...capLines(hit.lines) } }
+  }
+}
+
+/** One turn's edit / write calls per file, in order (the timeline's `files` stats use the same calls). */
+function turnChanges(turn: Turn): ParsedDiffFile[] {
+  const byPath = new Map<string, ParsedDiffFile>()
+  for (const step of turn.steps) {
+    if (step.kind !== 'tool' || step.status === 'error') continue
+    const node = step.node
+    if (node.template !== 'edit' && node.template !== 'write') continue
+    const path = typeof node.fields.path === 'string' ? node.fields.path : ''
+    if (!path) continue
+    const f = byPath.get(path) ?? { path, add: 0, del: 0, status: node.template === 'write' ? ('added' as const) : ('modified' as const), lines: [] }
+    const lines =
+      node.template === 'write'
+        ? (node.preview ?? '').split('\n').map((s, i): DiffLine => ({ k: 'add', n: i + 1, s }))
+        : parsePiDiff(node.preview ?? '')
+    if (f.lines.length && lines.length) f.lines.push({ k: 'gap', s: '' })
+    f.lines.push(...lines)
+    f.add += typeof node.fields.add === 'number' ? node.fields.add : lines.filter((l) => l.k === 'add').length
+    f.del += typeof node.fields.del === 'number' ? node.fields.del : lines.filter((l) => l.k === 'del').length
+    if (node.detail) f.lines.push({ k: 'gap', s: '…' })
+    byPath.set(path, f)
+  }
+  return [...byPath.values()]
 }
