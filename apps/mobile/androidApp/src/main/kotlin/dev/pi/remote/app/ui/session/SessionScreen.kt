@@ -174,6 +174,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     }
     val ready = connection is HostConnection.State.Ready
     val stopFailed = stringResource(R.string.stop_failed)
+    val rewindFailed = stringResource(R.string.msg_rewind_failed, "%s")
     var stopping by remember(sessionKey) { mutableStateOf(false) }
     val runningNow = timeline?.state?.running == true || timeline?.turns?.lastOrNull()?.running == true
     LaunchedEffect(runningNow, stopping) {
@@ -305,6 +306,17 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onSlashPick = ::pickSlash,
         onCommands = { commandSheet = true },
         onFiles = { filePicker = true },
+        onRewind = { anchor ->
+            scope.launch {
+                repo.rewind(sessionKey, anchor)
+                    .onSuccess { text ->
+                        val body = PromptAttachments.split(text).first
+                        if (body.isNotBlank()) draft = TextFieldValue(body, androidx.compose.ui.text.TextRange(body.length))
+                        notice = null
+                    }
+                    .onFailure { notice = rewindFailed.replace("%s", it.message ?: "") }
+            }
+        },
         onDequeue = { scope.launch { repo.dequeue(sessionKey)?.let(::restore) } },
         onModel = {
             sheet = "model"
@@ -413,6 +425,7 @@ fun SessionContent(
     onSlashPick: (SlashItem) -> Unit = {},
     onCommands: () -> Unit = {},
     onFiles: () -> Unit = {},
+    onRewind: (String) -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -572,6 +585,9 @@ fun SessionContent(
                 },
                 onEdit = { text -> onDraft(TextFieldValue(PromptAttachments.split(text).first).let { it.copy(selection = androidx.compose.ui.text.TextRange(it.text.length)) }) },
                 onDismiss = { acting = null },
+                // Saved turns only, and never under a running agent.
+                rewindLater = turns.indexOf(t).takeIf { canWrite && !running && !t.anchor.startsWith("live:") }?.let { turns.size - 1 - it },
+                onRewind = { onRewind(t.anchor) },
             )
         } ?: run { acting = null }
     }

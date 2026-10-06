@@ -216,4 +216,9 @@
     <string name="files_truncated">文件夹内容过多已截断，可用搜索查找</string>
     <string name="files_failed">无法打开该文件夹</string>
     <string name="files_insert">插入 %1$d 个</string>
+    <string name="msg_rewind">回退到这条之前</string>
+    <string name="msg_rewind_hint">这一轮会移出当前分支，消息放回输入框</string>
+    <string name="msg_rewind_hint_more">这一轮及之后 %1$d 轮会移出当前分支（可在电脑端会话树恢复）</string>
+    <string name="msg_rewind_confirm">回退</string>
+    <string name="msg_rewind_failed">回退失败：%1$s</string>
 </resources>

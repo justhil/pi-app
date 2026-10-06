@@ -1,6 +1,7 @@
 package dev.pi.remote.app.data
 
 import dev.pi.remote.protocol.CommandInfo
+import dev.pi.remote.protocol.TimelineReset
 import dev.pi.remote.protocol.FileEntry
 import dev.pi.remote.protocol.FileListResult
 import dev.pi.remote.crypto.Hs2Payload
@@ -251,6 +252,10 @@ class RemoteRepository(
             "turn.patch" -> {
                 val evt = RemoteJson.decodeFromJsonElement(TurnPatchEvent.serializer(), e.payload)
                 val current = _timelines.value[evt.sessionKey] ?: return
+                if (evt.patches.any { it is TimelineReset }) {
+                    scope.launch { reopen(evt.sessionKey, fresh = true) }
+                    return
+                }
                 when (val r = TurnStore.applyAll(current, evt.patches)) {
                     is ApplyResult.Applied -> putTimeline(r.timeline)
                     is ApplyResult.Gap -> {
@@ -306,13 +311,18 @@ class RemoteRepository(
         reopen(key)
     }
 
-    private suspend fun reopen(key: String) {
+    private suspend fun reopen(key: String, fresh: Boolean = false) {
         val a = api ?: return
         if (conn?.isReady != true) return
         val prev = _timelines.value[key]
-        val cursor = prev?.cursor?.takeIf { it.epoch == hello?.epoch }
+        val cursor = if (fresh) null else prev?.cursor?.takeIf { it.epoch == hello?.epoch }
         runCatching { a.open(key, cursor) }
             .onSuccess { r ->
+                // A rewind happened while we were away: the replayed patches describe a stale branch.
+                if (r.kind == "replay" && r.patches.orEmpty().any { it is TimelineReset }) {
+                    reopen(key, fresh = true)
+                    return@onSuccess
+                }
                 putTimeline(TurnStore.fromOpen(prev?.takeIf { r.kind == "replay" }, r))
                 persistTimeline(key)
             }
@@ -367,6 +377,12 @@ class RemoteRepository(
     suspend fun listFiles(key: String, path: String): FileListResult? = runCatching { api?.listFiles(key, path) }.getOrNull()
 
     suspend fun searchFiles(key: String, query: String): List<FileEntry>? = runCatching { api?.searchFiles(key, query) }.getOrNull()
+
+    /** Rewind before the turn's user message; the message text on success, failure message otherwise. */
+    suspend fun rewind(key: String, anchor: String): Result<String> = runCatching {
+        val a = api ?: error("offline")
+        a.rewind(key, anchor).editorText.orEmpty()
+    }.onSuccess { reopen(key, fresh = true) }
 
     suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
 

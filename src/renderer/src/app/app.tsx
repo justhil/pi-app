@@ -236,6 +236,14 @@ export default function App() {
       }
       if (event.type === 'remote-settings-changed') {
         if (event.key === 'capabilities') void import('@renderer/lib/session-capabilities').then((m) => m.reloadSessionCapabilities())
+        if (event.key === 'rewound' && event.sessionFile) {
+          // A phone rewound a session: if it is on screen, rebuild it from disk on the new branch.
+          const rewound = event.sessionFile
+          void import('@renderer/lib/session-file-key').then(({ sessionFilesEqual }) => {
+            if (!sessionFilesEqual(useUIStore.getState().historySessionFile, rewound)) return
+            void import('@renderer/lib/reload-current-session-data').then((m) => m.reloadCurrentSessionData())
+          })
+        }
         if (event.key === 'sessions' && event.workspaceId) {
           const workspaceIds = [event.workspaceId]
           void import('@renderer/lib/refresh-workspace-session-lists').then((m) => m.refreshWorkspaceSessionLists({ workspaceIds }))

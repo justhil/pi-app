@@ -97,6 +97,7 @@ export class RemoteRpc {
         await port.abort(entry.sessionFile)
         return { aborted: true, restored }
       },
+      'turn.rewind': async (_c, p) => hub.rewind(p.sessionKey, p.anchor),
       'turn.dequeue': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
         return { restored: await port.clearQueue(entry.sessionFile) }

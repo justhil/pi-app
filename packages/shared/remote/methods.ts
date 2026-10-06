@@ -142,6 +142,15 @@ export const REMOTE_METHODS = {
     z.object({ aborted: z.boolean(), restored: z.array(z.string()).optional() }).strict(),
     'operator',
   ),
+  /**
+   * Rewind to just before a user message (pi `navigateTree` on its entry): later turns leave the
+   * active branch and the message text comes back as `editorText` for editing. Refused while running.
+   */
+  'turn.rewind': method(
+    z.object({ sessionKey, anchor: z.string().min(1) }).strict(),
+    z.object({ editorText: z.string().optional() }).strict(),
+    'operator',
+  ),
   /** Pull queued steer/follow-up texts back without stopping the run. */
   'turn.dequeue': method(z.object({ sessionKey }).strict(), z.object({ restored: z.array(z.string()) }).strict(), 'operator'),
   'session.create': method(

@@ -1,5 +1,15 @@
 package dev.pi.remote.app.ui.session
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
@@ -102,7 +112,11 @@ fun MessageActionsSheet(
     onFullscreen: () -> Unit,
     onEdit: (String) -> Unit,
     onDismiss: () -> Unit,
+    /** Turns after this one (they leave the branch too); null hides rewind. */
+    rewindLater: Int? = null,
+    onRewind: () -> Unit = {},
 ) {
+    var confirmRewind by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val text = turn.textOf(part)
@@ -127,6 +141,26 @@ fun MessageActionsSheet(
                 ActionRow(PiIcons.Pencil, stringResource(R.string.msg_edit)) {
                     onEdit(text)
                     onDismiss()
+                }
+            }
+            if (rewindLater != null) {
+                ActionRow(PiIcons.Undo, stringResource(R.string.msg_rewind)) { confirmRewind = !confirmRewind }
+                AnimatedVisibility(confirmRewind, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                    Row(Modifier.fillMaxWidth().padding(start = 51.dp, end = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (rewindLater > 0) stringResource(R.string.msg_rewind_hint_more, rewindLater) else stringResource(R.string.msg_rewind_hint),
+                            style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(R.string.msg_rewind_confirm),
+                            style = Pi.t.secondary.copy(color = Pi.c.bg),
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Pi.c.fg).clickable(role = Role.Button) {
+                                onRewind()
+                                onDismiss()
+                            }.padding(horizontal = 14.dp, vertical = 8.dp),
+                        )
+                    }
                 }
             }
         }

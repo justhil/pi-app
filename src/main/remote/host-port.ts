@@ -79,6 +79,11 @@ export interface RemoteHostPort {
   /** `projectId` is the session's (whitelisted) workspace: the cwd fallback when its file has no header yet. */
   send(sessionFile: string, text: string, mode: SendMode, capabilities: string[], projectId: string): Promise<void>
   abort(sessionFile: string): Promise<void>
+  /**
+   * Move the session's leaf to just before the user entry `anchor` (desktop rewind). Binds the
+   * session's own worker (cwd `projectId`) when it has none; returns the rewound message text.
+   */
+  rewind(sessionFile: string, anchor: string, projectId: string): Promise<{ editorText?: string }>
   /** Empty the session's steer/follow-up queue and return the texts (steering first); [] without a live worker. */
   clearQueue(sessionFile: string): Promise<string[]>
   /** New session in the background: never reuses or replaces the desktop's foreground worker. */
@@ -107,7 +112,7 @@ export interface RemoteHostPort {
   getCacheWarming(): Promise<CacheWarming>
   setCacheWarming(mode: CacheWarming): Promise<CacheWarming>
   /** Tell the desktop renderer a setting changed underneath it. */
-  notifySettingsChanged(key: 'cacheWarming' | 'capabilities', sessionFile?: string): void
+  notifySettingsChanged(key: 'cacheWarming' | 'capabilities' | 'rewound', sessionFile?: string): void
   /** A remotely created session now exists on disk: the desktop sidebar should re-list this project. */
   notifySessionsChanged(projectId: string): void
 

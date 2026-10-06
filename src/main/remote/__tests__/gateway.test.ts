@@ -217,6 +217,26 @@ describe('sessions', () => {
     expect(found.entries.map((e) => e.path)).toEqual(['src/auth.ts'])
   })
 
+  it('rewinds to before a user message and tells viewers to re-open', async () => {
+    const c = await pairNew()
+    const open = (await c.call('session.open', { sessionKey: session })) as { turns: { anchor: string; user: { text: string } }[] }
+    const last = open.turns[open.turns.length - 1]
+    expect(await c.call('turn.rewind', { sessionKey: session, anchor: last.anchor })).toEqual({ editorText: last.user.text })
+    await settle()
+    expect(patchesOf(c).map((p) => p.op)).toContain('timeline.reset')
+    expect(host.calls.settingsNotified).toContain('rewound')
+    const again = (await c.call('session.open', { sessionKey: session })) as { turns: unknown[] }
+    expect(again.turns).toHaveLength(open.turns.length - 1)
+  })
+
+  it('refuses to rewind while running', async () => {
+    const c = await pairNew()
+    await c.call('session.open', { sessionKey: session })
+    const h = host as unknown as { emit(e: unknown): void; base(f: string): object }
+    h.emit({ ...h.base(session), type: 'run', phase: 'running' })
+    await expect(c.call('turn.rewind', { sessionKey: session, anchor: 'x' })).rejects.toMatchObject({ err: { code: 'busy' } })
+  })
+
   it('viewers cannot write', async () => {
     const c = await pairNew()
     gw.setDeviceRole(c.hello!.deviceId, 'viewer')

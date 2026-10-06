@@ -79,6 +79,8 @@ data class OpenResult(
 @Serializable data class SendResult(val accepted: Boolean, val duplicate: Boolean? = null)
 @Serializable data class AbortResult(val aborted: Boolean, val restored: List<String>? = null)
 @Serializable data class DequeueResult(val restored: List<String>)
+@Serializable data class RewindParams(val sessionKey: String, val anchor: String)
+@Serializable data class RewindResult(val editorText: String? = null)
 @Serializable data class CommandInfo(val name: String, val description: String? = null, val category: String)
 @Serializable data class CommandListResult(val commands: List<CommandInfo>)
 @Serializable data class FileEntry(val name: String, val path: String, val dir: Boolean, val size: Long? = null, val mtime: Long? = null)
@@ -145,6 +147,7 @@ object RemoteMethods {
         "file.list" to (FileListParams.serializer() to FileListResult.serializer()),
         "file.search" to (FileSearchParams.serializer() to FileSearchResult.serializer()),
         "command.list" to (SessionKeyParams.serializer() to CommandListResult.serializer()),
+        "turn.rewind" to (RewindParams.serializer() to RewindResult.serializer()),
         "turn.dequeue" to (SessionKeyParams.serializer() to DequeueResult.serializer()),
         "session.create" to (CreateParams.serializer() to CreateResult.serializer()),
         "model.list" to (SessionKeyParams.serializer() to ModelListResult.serializer()),

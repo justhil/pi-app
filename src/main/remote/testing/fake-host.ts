@@ -235,6 +235,14 @@ export class FakeHost implements RemoteHostPort {
     const s = this.sessions.get(sessionFile)
     if (s?.running) s.aborted = true
   }
+  async rewind(sessionFile: string, anchor: string): Promise<{ editorText?: string }> {
+    const s = this.sessions.get(sessionFile)
+    const i = s?.items.findIndex((it) => it.type === 'user-message' && it.sessionEntryId === anchor) ?? -1
+    if (!s || i < 0) throw new Error('entry not found')
+    const editorText = s.items[i].text
+    s.items = s.items.slice(0, i)
+    return { editorText }
+  }
   async clearQueue(sessionFile: string): Promise<string[]> {
     const s = this.sessions.get(sessionFile)
     if (!s?.queue) return []
@@ -328,7 +336,7 @@ export class FakeHost implements RemoteHostPort {
     this.cacheWarming = mode
     return mode
   }
-  notifySettingsChanged(key: 'cacheWarming' | 'capabilities'): void {
+  notifySettingsChanged(key: 'cacheWarming' | 'capabilities' | 'rewound'): void {
     this.calls.settingsNotified.push(key)
   }
   notifySessionsChanged(projectId: string): void {

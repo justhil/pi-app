@@ -192,6 +192,10 @@ data class TurnSettle(
 @Serializable
 data class SessionStatePatch(override val op: String, override val seq: Long, val state: SessionState) : TurnPatch
 
+/** The branch changed (rewind): re-open the session for a fresh snapshot. */
+@Serializable
+data class TimelineReset(override val op: String, override val seq: Long) : TurnPatch
+
 object TurnPatchSerializer : JsonContentPolymorphicSerializer<TurnPatch>(TurnPatch::class) {
     override fun selectDeserializer(element: JsonElement): KSerializer<out TurnPatch> =
         when (element.jsonObject["op"]?.jsonPrimitive?.content) {
@@ -201,6 +205,7 @@ object TurnPatchSerializer : JsonContentPolymorphicSerializer<TurnPatch>(TurnPat
             "turn.promote" -> TurnPromote.serializer()
             "turn.settle" -> TurnSettle.serializer()
             "session.state" -> SessionStatePatch.serializer()
+            "timeline.reset" -> TimelineReset.serializer()
             else -> error("unknown patch op")
         }
 }

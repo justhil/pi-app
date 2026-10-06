@@ -144,7 +144,7 @@ export interface AdapterCatalogChangedEvent {
 /** A remote (phone) client changed a setting the renderer caches; reload it. */
 export interface RemoteSettingsChangedEvent {
   type: 'remote-settings-changed'
-  key: 'capabilities' | 'cacheWarming' | 'sessions'
+  key: 'capabilities' | 'cacheWarming' | 'sessions' | 'rewound'
   sessionFile?: string
   /** For `sessions`: the workspace whose session list changed. */
   workspaceId?: string

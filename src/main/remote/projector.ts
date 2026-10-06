@@ -262,6 +262,12 @@ export class LiveProjector {
     return structuredClone(this.state)
   }
 
+  /** Forget the in-memory turn (after a rewind the history on disk is the truth). */
+  clearLiveTurn(): void {
+    this.builder = null
+    this.pendingError = undefined
+  }
+
   /** Seed state from the desktop when a session is first watched. */
   seedState(state: SessionState): void {
     this.state = { ...this.state, ...state }
