@@ -57,10 +57,12 @@ import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.countsLine
 import dev.pi.remote.app.ui.formatAgo
 import dev.pi.remote.app.ui.useTicker
+import dev.pi.remote.app.ui.PullRefresh
 import dev.pi.remote.app.ui.verbFor
 import dev.pi.remote.net.HostConnection
 import dev.pi.remote.protocol.SessionSummary
 import dev.pi.remote.text.formatClock
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -73,6 +75,7 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
     val scope = rememberCoroutineScope()
     var picking by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var refreshing by remember { mutableStateOf(false) }
     var pendingProject by remember { mutableStateOf<String?>(null) }
     val shared by repo.pendingShare.collectAsState()
     val canCreate = repo.canWrite && connection is HostConnection.State.Ready
@@ -104,6 +107,17 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
             grouping = grouping,
             onNewIn = { create(it) },
             onMenu = { menu = true },
+            refreshing = refreshing,
+            onRefresh = {
+                if (!refreshing) scope.launch {
+                    refreshing = true
+                    val started = System.currentTimeMillis()
+                    repo.refreshInbox()
+                    // Let the ring turn at least once, so a fast reply does not read as a flicker.
+                    delay((600 - (System.currentTimeMillis() - started)).coerceAtLeast(0))
+                    refreshing = false
+                }
+            },
             modifier = Modifier.weight(1f),
         )
     }
@@ -187,6 +201,8 @@ fun InboxContent(
     grouping: String = "status",
     onNewIn: ((String) -> Unit)? = null,
     onMenu: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier.fillMaxSize(),
 ) {
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
@@ -206,14 +222,15 @@ fun InboxContent(
 
     Column(modifier.background(Pi.c.bg)) {
         Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 12.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.clickable(role = Role.Button, onClick = onHosts).padding(horizontal = 6.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Dot(if (online) Pi.c.ok else Pi.c.fg3)
-                Spacer(Modifier.width(8.dp))
-                Text(hostName.ifEmpty { "pi" }, style = Pi.t.title.copy(color = Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.width(4.dp))
-                PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 14.dp)
+            Box(Modifier.weight(1f)) {
+                Row(Modifier.clickable(role = Role.Button, onClick = onHosts).padding(horizontal = 6.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Dot(if (online) Pi.c.ok else Pi.c.fg3)
+                    Spacer(Modifier.width(8.dp))
+                    Text(hostName.ifEmpty { "pi" }, style = Pi.t.title.copy(color = Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Spacer(Modifier.width(4.dp))
+                    PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 14.dp)
+                }
             }
-            Spacer(Modifier.weight(1f))
             if (canCreate) IconAction(PiIcons.Plus, stringResource(R.string.inbox_new), onNew)
             onMenu?.let { IconAction(PiIcons.More, stringResource(R.string.more), it) }
         }
@@ -226,46 +243,53 @@ fun InboxContent(
             }
             Hairline()
         }
-        if (sessions.isEmpty() && !byProject) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (!inbox.loaded && online) Spinner(Pi.c.fg3, 18.dp) else Text(stringResource(R.string.inbox_empty), style = Pi.t.secondary.copy(color = Pi.c.fg3))
-            }
-            return
-        }
-        LazyColumn(Modifier.fillMaxSize()) {
-            if (needs.isNotEmpty()) {
-                item("h-needs") { SectionLabel("${stringResource(R.string.inbox_needs)} · ${needs.size}") }
-                items(needs, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = true) }
-            }
-            if (running.isNotEmpty()) {
-                item("h-run") { SectionLabel("${stringResource(R.string.inbox_running)} · ${running.size}") }
-                items(running, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = true) }
-            }
-            if (byProject) {
-                // One collapsible group per project, idle sessions only (attention items stay on top).
-                for (p in regular) {
-                    val list = recent.filter { it.projectId == p.id }
-                    val closed = collapsed[p.id] == true
-                    item("p-${p.id}") {
-                        ProjectHeader(p.name, list.size, closed, onToggle = { collapsed[p.id] = !closed }, onNew = if (canCreate && onNewIn != null) ({ onNewIn(p.id) }) else null)
+        PullRefresh(refreshing, onRefresh, Modifier.fillMaxSize()) {
+            if (sessions.isEmpty() && !byProject) {
+                // Scrollable so the empty state can be pulled too.
+                LazyColumn(Modifier.fillMaxSize()) {
+                    item("empty") {
+                        Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                            if (!inbox.loaded && online) Spinner(Pi.c.fg3, 18.dp) else Text(stringResource(R.string.inbox_empty), style = Pi.t.secondary.copy(color = Pi.c.fg3))
+                        }
                     }
-                    if (!closed) items(list, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = false) }
                 }
-                // All desktop temporary chats in one group, folded by default.
-                val temp = recent.filter { it.projectId in temporaryIds }
-                if (temp.isNotEmpty()) {
-                    val closed = collapsed[TEMPORARY] ?: true
-                    item("p-temp") { ProjectHeader(stringResource(R.string.temporary_chats), temp.size, closed, onToggle = { collapsed[TEMPORARY] = !closed }, onNew = null) }
-                    if (!closed) items(temp, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = false) }
-                }
-            } else {
-                val buckets = recent.groupBy { dayBucket(it.updatedAt, now) }.toSortedMap()
-                for ((b, list) in buckets) {
-                    item("d-$b") { SectionLabel(dayLabels[b]) }
-                    items(list, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = filter == null) }
-                }
+                return@PullRefresh
             }
-            item("bottom") { Spacer(Modifier.height(24.dp)) }
+            LazyColumn(Modifier.fillMaxSize()) {
+                if (needs.isNotEmpty()) {
+                    item("h-needs") { SectionLabel("${stringResource(R.string.inbox_needs)} · ${needs.size}") }
+                    items(needs, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = true) }
+                }
+                if (running.isNotEmpty()) {
+                    item("h-run") { SectionLabel("${stringResource(R.string.inbox_running)} · ${running.size}") }
+                    items(running, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = true) }
+                }
+                if (byProject) {
+                    // One collapsible group per project, idle sessions only (attention items stay on top).
+                    for (p in regular) {
+                        val list = recent.filter { it.projectId == p.id }
+                        val closed = collapsed[p.id] == true
+                        item("p-${p.id}") {
+                            ProjectHeader(p.name, list.size, closed, onToggle = { collapsed[p.id] = !closed }, onNew = if (canCreate && onNewIn != null) ({ onNewIn(p.id) }) else null)
+                        }
+                        if (!closed) items(list, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = false) }
+                    }
+                    // All desktop temporary chats in one group, folded by default.
+                    val temp = recent.filter { it.projectId in temporaryIds }
+                    if (temp.isNotEmpty()) {
+                        val closed = collapsed[TEMPORARY] ?: true
+                        item("p-temp") { ProjectHeader(stringResource(R.string.temporary_chats), temp.size, closed, onToggle = { collapsed[TEMPORARY] = !closed }, onNew = null) }
+                        if (!closed) items(temp, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = false) }
+                    }
+                } else {
+                    val buckets = recent.groupBy { dayBucket(it.updatedAt, now) }.toSortedMap()
+                    for ((b, list) in buckets) {
+                        item("d-$b") { SectionLabel(dayLabels[b]) }
+                        items(list, key = { it.sessionKey }) { SessionRow(it, now, onOpen, showProject = filter == null) }
+                    }
+                }
+                item("bottom") { Spacer(Modifier.height(24.dp)) }
+            }
         }
     }
 }
