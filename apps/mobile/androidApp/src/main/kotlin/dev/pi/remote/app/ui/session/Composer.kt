@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -23,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -127,45 +130,55 @@ fun Composer(
                 )
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onAttach),
-                    contentAlignment = Alignment.Center,
-                ) { PiIcon(PiIcons.Plus, Pi.c.fg2, 18.dp, contentDescription = stringResource(R.string.attach)) }
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onCommands),
-                    contentAlignment = Alignment.Center,
-                ) { PiIcon(PiIcons.Slash, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.slash_open)) }
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onFiles),
-                    contentAlignment = Alignment.Center,
-                ) { PiIcon(PiIcons.At, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.files_open)) }
-                Row(Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onModel).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(modelLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.width(4.dp))
-                    PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 12.dp)
-                }
-                if (thinkingLabel != null) {
-                    Row(
-                        Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onThinking).padding(horizontal = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        PiIcon(PiIcons.Bulb, Pi.c.fg3, 14.dp)
-                        Spacer(Modifier.width(4.dp))
-                        Text(thinkingLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1)
+                // Left group takes what stop / send leave. Narrow: thinking shows only its icon; the model
+                // name gives way next (ellipsis), and the group clips as a last resort.
+                BoxWithConstraints(Modifier.weight(1f)) {
+                    val compact = maxWidth < 320.dp
+                    Row(Modifier.clipToBounds(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onAttach),
+                            contentAlignment = Alignment.Center,
+                        ) { PiIcon(PiIcons.Plus, Pi.c.fg2, 18.dp, contentDescription = stringResource(R.string.attach)) }
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onCommands),
+                            contentAlignment = Alignment.Center,
+                        ) { PiIcon(PiIcons.Slash, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.slash_open)) }
+                        Box(
+                            Modifier.size(36.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button, onClick = onFiles),
+                            contentAlignment = Alignment.Center,
+                        ) { PiIcon(PiIcons.At, Pi.c.fg2, 17.dp, contentDescription = stringResource(R.string.files_open)) }
+                        Row(Modifier.weight(1f, fill = false).heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onModel).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(modelLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                            Spacer(Modifier.width(4.dp))
+                            PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 12.dp)
+                        }
+                        if (thinkingLabel != null) {
+                            Row(
+                                Modifier.widthIn(max = 96.dp).heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onThinking)
+                                    .semantics { contentDescription = thinkingLabel }.padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                PiIcon(PiIcons.Bulb, Pi.c.fg3, 14.dp)
+                                if (!compact) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(thinkingLabel, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                        val toolsDesc = stringResource(R.string.tools_count, toolsOn)
+                        Row(
+                            Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onTools).semantics { contentDescription = toolsDesc }.padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            PiIcon(PiIcons.Sparkles, Pi.c.fg2, 16.dp)
+                            if (toolsOn > 0) {
+                                Spacer(Modifier.width(3.dp))
+                                Text("$toolsOn", style = Pi.t.meta.copy(color = Pi.c.fg2), maxLines = 1)
+                            }
+                        }
                     }
                 }
-                val toolsDesc = stringResource(R.string.tools_count, toolsOn)
-                Row(
-                    Modifier.heightIn(min = 36.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onTools).semantics { contentDescription = toolsDesc }.padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    PiIcon(PiIcons.Sparkles, Pi.c.fg2, 16.dp)
-                    if (toolsOn > 0) {
-                        Spacer(Modifier.width(3.dp))
-                        Text("$toolsOn", style = Pi.t.meta.copy(color = Pi.c.fg2))
-                    }
-                }
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 AnimatedVisibility(running, enter = fadeIn() + scaleIn(initialScale = 0.7f), exit = fadeOut() + scaleOut(targetScale = 0.7f)) {
                     Row {
                         val stopDesc = stringResource(if (stopping) R.string.stopping else R.string.stop)

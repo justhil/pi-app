@@ -71,6 +71,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.pi.remote.R
 import dev.pi.remote.app.data.RemoteRepository
@@ -624,7 +625,7 @@ fun SessionContent(
                     }
                     Dot(color, 6.dp)
                     Spacer(Modifier.width(6.dp))
-                    Text(listOf(project, text).filter { it.isNotEmpty() }.joinToString(" · "), style = Pi.t.meta.copy(color = Pi.c.fg3))
+                    Text(listOf(project, text).filter { it.isNotEmpty() }.joinToString(" · "), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             onBack = onBack,

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -80,7 +81,7 @@ fun TodoTray(todo: TodoState, open: Boolean, onToggle: () -> Unit) {
         ) {
             if (allDone) PiIcon(PiIcons.Check, Pi.c.ok, 14.dp) else ProgressRing(done, todo.items.size)
             Spacer(Modifier.width(7.dp))
-            Text(todo.title, style = Pi.t.meta.copy(color = Pi.c.fg2, fontWeight = FontWeight.Medium))
+            Text(todo.title, style = Pi.t.meta.copy(color = Pi.c.fg2, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 160.dp))
             Spacer(Modifier.width(5.dp))
             Text("$done/${todo.items.size}", style = Pi.t.meta.copy(color = Pi.c.fg3))
             if (focus.isNotEmpty()) {
