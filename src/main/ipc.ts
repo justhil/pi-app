@@ -8,6 +8,7 @@ import { registerWindowControlHandlers } from './ipc/handlers/window-controls'
 import { registerTerminalHandlers } from './ipc/handlers/terminal'
 import { registerUsageHandlers } from './ipc/handlers/usage'
 import { registerGitBranchHandlers } from './ipc/handlers/git-branches'
+import { registerBackgroundHandlers } from './ipc/handlers/background'
 import { registerModelRuntimeHandlers } from './ipc/handlers/model-runtime'
 import { registerExtensionHandlers } from './ipc/handlers/extensions'
 import { registerExtensionUiHandlers } from './ipc/handlers/extension-ui'
@@ -37,6 +38,7 @@ export function registerAllHandlers(): void {
   registerTerminalHandlers()
   registerUsageHandlers()
   registerGitBranchHandlers()
+  registerBackgroundHandlers()
   registerExtensionUiHandlers()
   registerModelRuntimeHandlers()
   registerExtensionHandlers()

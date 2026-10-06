@@ -303,7 +303,41 @@
     "varPaperRadius": "聊天区圆角",
     "varPaperShadow": "聊天区阴影",
     "varDiffAdded": "新增行",
-    "varDiffRemoved": "删除行"
+    "varDiffRemoved": "删除行",
+    "bgTitle": "背景图",
+    "bgDesc": "在窗口后面放一张图片。文字始终在磨砂层上，菜单和代码块保持不透明。",
+    "bgShared": "浅色和深色使用同一张",
+    "bgSharedDesc": "关闭后可以为两种模式各选一张。",
+    "bgImage": "图片",
+    "bgImageLight": "浅色模式图片",
+    "bgImageDark": "深色模式图片",
+    "bgNone": "未设置",
+    "bgChoose": "选择图片…",
+    "bgReplace": "更换…",
+    "bgRemove": "移除",
+    "bgOpacity": "图片强度",
+    "bgOpacityDesc": "图片透出来的程度。",
+    "bgUiOpacity": "界面不透明度",
+    "bgUiOpacityDesc": "侧栏、聊天区和面板盖在图片上的不透明度，越高越易读。",
+    "bgBlur": "图片模糊",
+    "bgFit": "适配方式",
+    "bgPosition": "位置",
+    "bgFitOption": {
+      "cover": "填充",
+      "contain": "适应",
+      "tile": "平铺",
+      "center": "居中"
+    },
+    "bgPositionOption": {
+      "center": "居中",
+      "top": "顶部",
+      "bottom": "底部"
+    },
+    "bgError": {
+      "type": "请选择 PNG、JPEG、WebP、GIF 或 AVIF 图片。",
+      "size": "图片超过 20 MB。",
+      "read": "无法读取这张图片。"
+    }
   },
   "pi": {
     "title": "运行时",

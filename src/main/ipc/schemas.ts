@@ -187,6 +187,17 @@ const themeVariantSchema = z
   })
   .strict()
 
+const backgroundImageSchema = z
+  .object({
+    file: z.string().regex(/^[a-f0-9]{16,64}\.(png|jpe?g|webp|gif|avif)$/),
+    opacity: z.number().min(0.05).max(1),
+    blur: z.number().min(0).max(24),
+    uiOpacity: z.number().min(0.5).max(1),
+    fit: z.enum(['cover', 'contain', 'tile', 'center']),
+    position: z.enum(['center', 'top', 'bottom']),
+  })
+  .strict()
+
 const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   theme: z.enum(['light', 'dark', 'system']),
   iconTheme: z.enum(ICON_THEMES),
@@ -195,6 +206,13 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
     .strict()
     .nullable(),
   customCssOverride: z.object({ enabled: z.boolean(), css: z.string() }).strict(),
+  background: z
+    .object({
+      shared: z.boolean(),
+      light: backgroundImageSchema.optional(),
+      dark: backgroundImageSchema.optional(),
+    })
+    .strict(),
   language: z.enum(['zh', 'en']),
   currentProject: z.string().nullable(),
   recentProjects: z.array(z.string()),
