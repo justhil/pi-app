@@ -1,21 +1,13 @@
 package dev.pi.remote.app.ui.inbox
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.SolidColor
 import dev.pi.remote.app.data.LocalUiPrefs
 import dev.pi.remote.app.data.UiPrefs
 import dev.pi.remote.app.ui.Banner
 import dev.pi.remote.app.ui.Segmented
-import dev.pi.remote.protocol.ProjectInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -85,8 +77,7 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
     val shared by repo.pendingShare.collectAsState()
     val canCreate = repo.canWrite && connection is HostConnection.State.Ready
 
-    /** Create in [projectId]; with [firstMessage], send it right away (the session opens on the live run). */
-    fun create(projectId: String, firstMessage: String? = null) {
+    fun create(projectId: String) {
         if (pendingProject != null) return
         pendingProject = projectId
         prefs?.lastProject = projectId
@@ -95,10 +86,7 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
             val key = repo.createSession(projectId, null)
             pendingProject = null
             picking = false
-            if (key != null) {
-                if (!firstMessage.isNullOrBlank()) launch { repo.send(key, firstMessage.trim(), "prompt") }
-                onOpen(key)
-            }
+            if (key != null) onOpen(key)
         }
     }
 
@@ -118,15 +106,6 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
             onMenu = { menu = true },
             modifier = Modifier.weight(1f),
         )
-        val targets = inbox.projects.filter { !it.temporary }
-        if (canCreate && targets.isNotEmpty()) {
-            QuickStart(
-                projects = targets,
-                initial = prefs?.lastProject?.takeIf { id -> targets.any { it.id == id } } ?: targets.first().id,
-                busy = pendingProject != null,
-                onStart = { project, text -> create(project, text) },
-            )
-        }
     }
     if (picking) {
         PiSheet(onDismiss = { picking = false }) {
@@ -134,7 +113,8 @@ fun InboxScreen(repo: RemoteRepository, onOpen: (String) -> Unit, onHosts: () ->
                 Text(stringResource(R.string.new_session_title), style = Pi.t.bodyMedium.copy(color = Pi.c.fg), modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                 SectionLabel(stringResource(R.string.new_session_pick))
                 // New chats go to real projects; desktop temporary chats are one-offs.
-                for (p in inbox.projects.filter { !it.temporary }) {
+                val last = prefs?.lastProject
+                for (p in inbox.projects.filter { !it.temporary }.sortedByDescending { it.id == last }) {
                     Row(
                         Modifier.fillMaxWidth().clickable(role = Role.Button) { create(p.id) }.padding(horizontal = 20.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -169,58 +149,6 @@ private fun InboxMenu(prefs: UiPrefs, onHosts: () -> Unit, onDismiss: () -> Unit
                 PiIcon(PiIcons.Monitor, Pi.c.fg2, 16.dp)
                 Spacer(Modifier.width(12.dp))
                 Text(stringResource(R.string.inbox_hosts), style = Pi.t.body.copy(color = Pi.c.fg))
-            }
-        }
-    }
-}
-
-/** "Ask something…" bar at the bottom of the inbox: pick a project, type, send → new chat with that message. */
-@Composable
-private fun QuickStart(projects: List<ProjectInfo>, initial: String, busy: Boolean, onStart: (String, String) -> Unit) {
-    var project by rememberSaveable(initial) { mutableStateOf(initial) }
-    var text by rememberSaveable { mutableStateOf("") }
-    var choosing by remember { mutableStateOf(false) }
-    val name = projects.firstOrNull { it.id == project }?.name ?: projects.first().name
-    Column(Modifier.fillMaxWidth().background(Pi.c.bg).imePadding()) {
-        Hairline()
-        Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(
-                Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { choosing = true }.padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(name, style = Pi.t.secondary.copy(color = Pi.c.fg2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 96.dp))
-                Spacer(Modifier.width(3.dp))
-                PiIcon(PiIcons.ChevronDown, Pi.c.fg3, 12.dp)
-            }
-            Spacer(Modifier.width(6.dp))
-            Box(Modifier.weight(1f).heightIn(min = 40.dp, max = 120.dp).clip(RoundedCornerShape(20.dp)).background(Pi.c.surface).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                if (text.isEmpty()) Text(stringResource(R.string.quick_start_hint), style = Pi.t.body.copy(color = Pi.c.fg3), maxLines = 1)
-                BasicTextField(text, { text = it }, textStyle = Pi.t.body.copy(color = Pi.c.fg), cursorBrush = SolidColor(Pi.c.fg), modifier = Modifier.fillMaxWidth())
-            }
-            Spacer(Modifier.width(8.dp))
-            val can = text.isNotBlank() && !busy
-            Box(
-                Modifier.size(36.dp).clip(CircleShape).background(Pi.c.fg.copy(alpha = if (can) 1f else 0.35f)).clickable(enabled = can, role = Role.Button) {
-                    onStart(project, text)
-                    text = ""
-                },
-                contentAlignment = Alignment.Center,
-            ) { if (busy) Spinner(Pi.c.bg, 14.dp) else PiIcon(PiIcons.ArrowUp, Pi.c.bg, 17.dp, contentDescription = stringResource(R.string.send)) }
-        }
-    }
-    if (choosing) {
-        PiSheet(onDismiss = { choosing = false }) {
-            Column(Modifier.padding(bottom = 18.dp)) {
-                SectionLabel(stringResource(R.string.new_session_pick))
-                for (p in projects) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable(role = Role.RadioButton) { project = p.id; choosing = false }.padding(horizontal = 20.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(p.name, style = Pi.t.body.copy(color = Pi.c.fg), modifier = Modifier.weight(1f))
-                        if (p.id == project) PiIcon(PiIcons.Check, Pi.c.fg2, 14.dp)
-                    }
-                }
             }
         }
     }
