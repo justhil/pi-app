@@ -16,43 +16,20 @@ import { SettingRow, SettingsSection } from '@renderer/features/settings/setting
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
 import { cn } from '@renderer/lib/utils'
 import { exportThemeString, parseThemeString, type ParsedThemeString } from '@renderer/lib/theme/parse-theme-string'
+import { mixColors } from '@renderer/lib/theme/derive-theme'
+import { presetsFor, presetVariant, type ThemePreset } from '@renderer/lib/theme/presets'
 import {
   normalizeFontName,
+  THEME_COLOR_KEYS,
+  type ThemeColorOverrides,
   type CustomTheme,
   type ThemeVariant,
   type ThemeVariantKey,
 } from '@shared/custom-theme'
 
-const VSCODE_PLUS: ThemeVariant = {
-  preset: 'vscode-plus',
-  accent: '#007acc',
-  surface: '#ffffff',
-  ink: '#000000',
-  contrast: 45,
-  fontUi: null,
-  fontCode: null,
-  translucentSidebar: true,
-  diffAdded: '#008000',
-  diffRemoved: '#ee0000',
-}
-
-const CODEX_DARK: ThemeVariant = {
-  preset: 'codex-dark',
-  accent: '#339cff',
-  surface: '#181818',
-  ink: '#ffffff',
-  contrast: 60,
-  fontUi: null,
-  fontCode: null,
-  translucentSidebar: false,
-}
-
 const COLOR_RE = /^#[0-9a-f]{6}$/i
 
-type EditableThemeField = keyof Pick<
-  ThemeVariant,
-  'accent' | 'surface' | 'ink' | 'contrast' | 'fontUi' | 'fontCode' | 'translucentSidebar'
->
+type EditableThemeField = Exclude<keyof ThemeVariant, 'preset'>
 
 interface ThemeVariantSectionProps {
   variant: ThemeVariantKey
@@ -103,12 +80,6 @@ function slotWith(theme: CustomTheme, variant: ThemeVariantKey, value?: ThemeVar
   if (value) next[variant] = value
   else delete next[variant]
   return next
-}
-
-function presetFor(variant: ThemeVariantKey, value: string): ThemeVariant | undefined {
-  if (variant === 'light' && value === 'vscode-plus') return { ...VSCODE_PLUS }
-  if (variant === 'dark' && value === 'codex-dark') return { ...CODEX_DARK }
-  return undefined
 }
 
 function ColorField({ id, value, pickerLabel, textLabel, onChange }: ColorFieldProps) {
@@ -365,29 +336,126 @@ function ThemeImportDialog({ open, currentVariant, onCancel, onConfirm }: ThemeI
   )
 }
 
+/** A small mock window in the preset's colours: sidebar, paper, a reply line and the accent. */
+function PresetCard({ preset, variant, selected, onPick }: { preset: ThemePreset; variant: ThemeVariantKey; selected: boolean; onPick: () => void }) {
+  const { t } = useTranslation()
+  const v = preset[variant]
+  const surface = v?.surface ?? (variant === 'dark' ? '#1f1f1f' : '#ffffff')
+  const ink = v?.ink ?? (variant === 'dark' ? '#e6e6e6' : '#12141a')
+  const sidebar = v?.colors?.sidebar ?? mixColors(surface, '#000000', 0.06)
+  const accent = v?.accent ?? (variant === 'dark' ? '#7583b2' : '#7583b2')
+  const bubble = v?.colors?.userBubble ?? mixColors(surface, ink, 0.06)
+  const serif = v?.fontDisplay === 'serif'
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onPick}
+      className={cn('theme-preset-card group flex flex-col gap-1.5 rounded-lg p-1.5 text-left', selected && 'theme-preset-card--selected')}
+    >
+      <div className="flex h-[58px] overflow-hidden rounded-md border" style={{ background: surface, borderColor: mixColors(surface, ink, 0.12) }} aria-hidden>
+        <div className="w-[26%] shrink-0" style={{ background: sidebar }}>
+          <div className="mx-1.5 mt-2 h-1 rounded-full" style={{ background: mixColors(sidebar, ink, 0.25) }} />
+          <div className="mx-1.5 mt-1 h-1 w-2/3 rounded-full" style={{ background: mixColors(sidebar, ink, 0.18) }} />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 px-2 pt-2">
+          <div className="ml-auto h-2.5 w-1/2 rounded" style={{ background: bubble }} />
+          <div className="text-[11px] leading-none" style={{ color: ink, fontFamily: serif ? 'var(--font-serif-base)' : undefined }}>Aa 文</div>
+          <div className="h-1 w-4/5 rounded-full" style={{ background: mixColors(surface, ink, 0.22) }} />
+          <div className="mt-auto mb-1.5 h-1.5 w-6 rounded-full" style={{ background: accent }} />
+        </div>
+      </div>
+      <span className="truncate px-0.5 text-[12px] text-foreground-secondary group-aria-checked:text-foreground">{t(`settings:appearance.presets.${preset.labelKey}`)}</span>
+    </button>
+  )
+}
+
+/** Colour override that can fall back to the derived value ("Auto"). */
+function OptionalColorField({ id, label, value, fallback, onChange }: { id: string; label: string; value?: string; fallback: string; onChange: (value: string | undefined) => void }) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex items-center gap-2">
+      {value ? (
+        <ColorField id={id} value={value} pickerLabel={label} textLabel={`${label} hex`} onChange={onChange} />
+      ) : (
+        <span className="inline-flex h-9 items-center gap-2 px-1 text-[12.5px] text-foreground-secondary">
+          <span className="h-4 w-4 rounded border border-border" style={{ background: fallback }} aria-hidden />
+          {t('settings:appearance.auto')}
+        </span>
+      )}
+      <button type="button" className={btnCompact} onClick={() => onChange(value ? undefined : fallback)}>
+        {value ? t('settings:appearance.useAuto') : t('settings:appearance.customize')}
+      </button>
+    </div>
+  )
+}
+
+function RangeField({ label, value, fallback, min, max, step, format, onChange }: { label: string; value?: number; fallback: number; min: number; max: number; step: number; format: (n: number) => string; onChange: (value: number | undefined) => void }) {
+  const { t } = useTranslation()
+  const current = value ?? fallback
+  return (
+    <div className="flex w-full min-w-[14rem] items-center gap-3 sm:w-72">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        aria-label={label}
+        value={current}
+        className="settings-field-focus min-w-0 flex-1 accent-[var(--brand)]"
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+      <output className={cn('w-10 text-right font-mono text-[12px]', value === undefined ? 'text-foreground-tertiary' : 'text-foreground')}>{format(current)}</output>
+      <button type="button" className={cn('text-[11.5px] text-foreground-tertiary hover:text-foreground', value === undefined && 'invisible')} onClick={() => onChange(undefined)} aria-label={`${label}: ${t('settings:appearance.useAuto')}`}>
+        <RotateCcw className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
+      </button>
+    </div>
+  )
+}
+
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return <div className="theme-group-heading px-[var(--settings-row-px,16px)] pb-1 pt-4 text-[11.5px] text-foreground-tertiary first:pt-3">{children}</div>
+}
+
+const COLOR_LABEL: Record<(typeof THEME_COLOR_KEYS)[number], string> = {
+  sidebar: 'colorSidebar',
+  chat: 'colorChat',
+  userBubble: 'colorUserBubble',
+  codeBg: 'colorCode',
+  border: 'colorBorder',
+}
+
 function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionProps) {
   const { t } = useTranslation()
   const configured = theme[variant]
   const [importOpen, setImportOpen] = useState(false)
   const contrastRatio = configured ? themeContrastRatio(configured.ink, configured.surface) : 21
-  const presetValue =
-    configured?.preset === 'vscode-plus' || configured?.preset === 'codex-dark'
-      ? configured.preset
-      : configured
-        ? 'custom'
-        : 'default'
+  const presets = useMemo(() => presetsFor(variant), [variant])
+  const selectedPreset = configured ? configured.preset : 'default'
 
-  const changeField = <K extends EditableThemeField>(field: K, value: ThemeVariant[K]) => {
+  const changeField = <K extends EditableThemeField>(field: K, value: ThemeVariant[K] | undefined) => {
     if (!configured) return
-    onChange(slotWith(theme, variant, { ...configured, [field]: value, preset: null }))
+    const next = { ...configured, preset: null } as ThemeVariant
+    if (value === undefined) delete next[field]
+    else next[field] = value as ThemeVariant[K]
+    onChange(slotWith(theme, variant, next))
   }
 
-  const handlePreset = (value: string) => {
-    if (value === 'default') {
+  const changeColor = (key: keyof ThemeColorOverrides, value: string | undefined) => {
+    if (!configured) return
+    const colors = { ...(configured.colors ?? {}) }
+    if (value) colors[key] = value
+    else delete colors[key]
+    changeField('colors', Object.keys(colors).length ? colors : undefined)
+  }
+
+  const handlePreset = (id: string) => {
+    if (id === 'default') {
       onChange(slotWith(theme, variant))
       return
     }
-    const preset = presetFor(variant, value)
+    const preset = presetVariant(id, variant)
     if (preset) onChange(slotWith(theme, variant, preset))
   }
 
@@ -400,6 +468,18 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
       toast.error(t('settings:appearance.copyFailed'))
     }
   }
+
+  // What "Auto" resolves to, shown as the swatch next to it.
+  const derived = configured
+    ? {
+        sidebar: mixColors(configured.surface, '#000000', 0.045),
+        chat: configured.surface,
+        userBubble: mixColors(configured.surface, configured.ink, 0.035),
+        codeBg: mixColors(configured.surface, configured.ink, 0.03),
+        border: mixColors(configured.surface, configured.ink, 0.11),
+      }
+    : null
+  const displayMode = !configured?.fontDisplay ? 'ui' : configured.fontDisplay === 'serif' ? 'serif' : 'custom'
 
   return (
     <>
@@ -424,27 +504,20 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
           </div>
         }
       >
-        <SettingRow label={t('settings:appearance.preset')} description={t('settings:appearance.presetDesc')}>
-          <select
-            aria-label={t('settings:appearance.preset')}
-            value={presetValue}
-            className={selectCls}
-            onChange={(event) => handlePreset(event.target.value)}
-          >
-            <option value="default">{t('settings:appearance.presetDefault')}</option>
-            {variant === 'light' ? (
-              <option value="vscode-plus">{t('settings:appearance.presetVscodePlus')}</option>
-            ) : (
-              <option value="codex-dark">{t('settings:appearance.presetCodex')}</option>
-            )}
-            {configured && !configured.preset ? (
-              <option value="custom">{t('settings:appearance.presetCustom')}</option>
-            ) : null}
-          </select>
-        </SettingRow>
+        <div className="settings-row">
+          <div role="radiogroup" aria-label={t('settings:appearance.preset')} className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+            {presets.map((p) => (
+              <PresetCard key={p.id} preset={p} variant={variant} selected={selectedPreset === p.id} onPick={() => handlePreset(p.id)} />
+            ))}
+          </div>
+        </div>
+        {configured && !configured.preset ? (
+          <div className="settings-row text-[12px] text-foreground-secondary">{t('settings:appearance.presetCustomHint')}</div>
+        ) : null}
 
-        {configured ? (
+        {configured && derived ? (
           <>
+            <GroupHeading>{t('settings:appearance.groupColors')}</GroupHeading>
             <SettingRow label={t('settings:appearance.accent')} description={t('settings:appearance.accentDesc')}>
               <ColorField
                 id={`${variant}-theme-accent`}
@@ -472,34 +545,6 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
                 onChange={(value) => changeField('ink', value)}
               />
             </SettingRow>
-            <SettingRow label={t('settings:appearance.fontUi')} description={t('settings:appearance.fontUiDesc')}>
-              <FontField
-                id={`${variant}-theme-font-ui`}
-                value={configured.fontUi}
-                label={t('settings:appearance.fontUi')}
-                placeholder={t('settings:appearance.fontUiPlaceholder')}
-                onChange={(value) => changeField('fontUi', value)}
-              />
-            </SettingRow>
-            <SettingRow label={t('settings:appearance.fontCode')} description={t('settings:appearance.fontCodeDesc')}>
-              <FontField
-                id={`${variant}-theme-font-code`}
-                value={configured.fontCode}
-                label={t('settings:appearance.fontCode')}
-                placeholder={t('settings:appearance.fontCodePlaceholder')}
-                onChange={(value) => changeField('fontCode', value)}
-              />
-            </SettingRow>
-            <SettingRow
-              label={t('settings:appearance.translucentSidebar')}
-              description={t('settings:appearance.translucentSidebarDesc')}
-            >
-              <Switch
-                aria-label={t('settings:appearance.translucentSidebar')}
-                checked={configured.translucentSidebar}
-                onCheckedChange={(value) => changeField('translucentSidebar', value)}
-              />
-            </SettingRow>
             <SettingRow label={t('settings:appearance.contrast')} description={t('settings:appearance.contrastDesc')}>
               <div className="flex w-full min-w-[14rem] items-center gap-3 sm:w-64">
                 <input
@@ -523,6 +568,95 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
                 </span>
               </div>
             ) : null}
+            {THEME_COLOR_KEYS.map((key) => (
+              <SettingRow key={key} label={t(`settings:appearance.${COLOR_LABEL[key]}`)}>
+                <OptionalColorField
+                  id={`${variant}-theme-${key}`}
+                  label={t(`settings:appearance.${COLOR_LABEL[key]}`)}
+                  value={configured.colors?.[key]}
+                  fallback={derived[key]}
+                  onChange={(value) => changeColor(key, value)}
+                />
+              </SettingRow>
+            ))}
+
+            <GroupHeading>{t('settings:appearance.groupType')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.fontUi')} description={t('settings:appearance.fontUiDesc')}>
+              <FontField
+                id={`${variant}-theme-font-ui`}
+                value={configured.fontUi}
+                label={t('settings:appearance.fontUi')}
+                placeholder={t('settings:appearance.fontUiPlaceholder')}
+                onChange={(value) => changeField('fontUi', value)}
+              />
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.fontCode')} description={t('settings:appearance.fontCodeDesc')}>
+              <FontField
+                id={`${variant}-theme-font-code`}
+                value={configured.fontCode}
+                label={t('settings:appearance.fontCode')}
+                placeholder={t('settings:appearance.fontCodePlaceholder')}
+                onChange={(value) => changeField('fontCode', value)}
+              />
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.fontDisplay')} description={t('settings:appearance.fontDisplayDesc')}>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  aria-label={t('settings:appearance.fontDisplay')}
+                  value={displayMode}
+                  className={selectCls}
+                  onChange={(event) => {
+                    const mode = event.target.value
+                    changeField('fontDisplay', mode === 'ui' ? undefined : mode === 'serif' ? 'serif' : configured.fontUi ?? 'Georgia')
+                  }}
+                >
+                  <option value="ui">{t('settings:appearance.fontDisplayUi')}</option>
+                  <option value="serif">{t('settings:appearance.fontDisplaySerif')}</option>
+                  <option value="custom">{t('settings:appearance.fontDisplayCustom')}</option>
+                </select>
+                {displayMode === 'custom' ? (
+                  <FontField
+                    id={`${variant}-theme-font-display`}
+                    value={configured.fontDisplay ?? null}
+                    label={t('settings:appearance.fontDisplay')}
+                    placeholder="Georgia"
+                    onChange={(value) => changeField('fontDisplay', value ?? undefined)}
+                  />
+                ) : null}
+              </div>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.proseFont')} description={t('settings:appearance.proseFontDesc')}>
+              <Switch
+                aria-label={t('settings:appearance.proseFont')}
+                checked={configured.proseFont === 'display'}
+                disabled={!configured.fontDisplay}
+                onCheckedChange={(value) => changeField('proseFont', value ? 'display' : undefined)}
+              />
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.chatFontSize')}>
+              <RangeField label={t('settings:appearance.chatFontSize')} value={configured.chatFontSize} fallback={15} min={12} max={18} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('chatFontSize', v)} />
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.chatLineHeight')}>
+              <RangeField label={t('settings:appearance.chatLineHeight')} value={configured.chatLineHeight} fallback={1.65} min={1.3} max={2} step={0.05} format={(n) => n.toFixed(2)} onChange={(v) => changeField('chatLineHeight', v)} />
+            </SettingRow>
+
+            <GroupHeading>{t('settings:appearance.groupShape')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.radius')} description={t('settings:appearance.radiusDesc')}>
+              <RangeField label={t('settings:appearance.radius')} value={configured.radius} fallback={10} min={0} max={16} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('radius', v)} />
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.shadow')} description={t('settings:appearance.shadowDesc')}>
+              <RangeField label={t('settings:appearance.shadow')} value={configured.shadow} fallback={50} min={0} max={100} step={5} format={(n) => String(n)} onChange={(v) => changeField('shadow', v)} />
+            </SettingRow>
+            <SettingRow
+              label={t('settings:appearance.translucentSidebar')}
+              description={t('settings:appearance.translucentSidebarDesc')}
+            >
+              <Switch
+                aria-label={t('settings:appearance.translucentSidebar')}
+                checked={configured.translucentSidebar}
+                onCheckedChange={(value) => changeField('translucentSidebar', value)}
+              />
+            </SettingRow>
             <SettingRow
               label={t('settings:appearance.restoreDefault')}
               description={t('settings:appearance.restoreDefaultDesc')}
@@ -534,7 +668,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
             </SettingRow>
           </>
         ) : (
-          <div className="py-3 text-sm text-muted-foreground">{t('settings:appearance.defaultSlotHint')}</div>
+          <div className="settings-row text-[12.5px] text-muted-foreground">{t('settings:appearance.defaultSlotHint')}</div>
         )}
       </SettingsSection>
 
@@ -557,6 +691,30 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
     </>
   )
 }
+
+/** Variables the custom CSS can set (click to insert a declaration). */
+const CSS_VARIABLES: { name: string; key: string }[] = [
+  { name: '--bg-base', key: 'varSurface' },
+  { name: '--chat-bg', key: 'varChat' },
+  { name: '--surface-sidebar', key: 'varSidebar' },
+  { name: '--message-user-bg', key: 'varUserBubble' },
+  { name: '--code-bg', key: 'varCode' },
+  { name: '--text-primary', key: 'varText' },
+  { name: '--text-secondary', key: 'varTextSecondary' },
+  { name: '--border-base', key: 'varBorder' },
+  { name: '--brand', key: 'varAccent' },
+  { name: '--font-sans', key: 'varFontUi' },
+  { name: '--font-mono', key: 'varFontCode' },
+  { name: '--font-display', key: 'varFontDisplay' },
+  { name: '--prose-font', key: 'varProse' },
+  { name: '--chat-font-size', key: 'varChatSize' },
+  { name: '--chat-line-height', key: 'varChatLine' },
+  { name: '--radius', key: 'varRadius' },
+  { name: '--main-chat-surface-radius', key: 'varPaperRadius' },
+  { name: '--main-chat-surface-shadow', key: 'varPaperShadow' },
+  { name: '--diff-added', key: 'varDiffAdded' },
+  { name: '--diff-removed', key: 'varDiffRemoved' },
+]
 
 export function AppearanceThemeEditor() {
   const { t } = useTranslation()
@@ -626,6 +784,27 @@ export function AppearanceThemeEditor() {
                 setCustomCssOverride({ ...draft.customCssOverride, css: event.target.value })
               }
             />
+            <details className="theme-var-reference text-[12px]">
+              <summary className="cursor-pointer select-none text-foreground-secondary">{t('settings:appearance.varReference')}</summary>
+              <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2">
+                {CSS_VARIABLES.map((v) => (
+                  <button
+                    key={v.name}
+                    type="button"
+                    className="flex min-w-0 items-baseline gap-2 rounded px-1 py-0.5 text-left hover:bg-muted"
+                    title={t('settings:appearance.varInsert')}
+                    onClick={() => {
+                      const css = draft.customCssOverride.css
+                      const line = `:root { ${v.name}: ; }`
+                      setCustomCssOverride({ ...draft.customCssOverride, css: css ? `${css.replace(/\s*$/, '')}\n${line}` : line })
+                    }}
+                  >
+                    <code className="shrink-0 font-mono text-[11.5px] text-foreground">{v.name}</code>
+                    <span className="truncate text-foreground-tertiary">{t(`settings:appearance.${v.key}`)}</span>
+                  </button>
+                ))}
+              </div>
+            </details>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="max-w-[62ch] text-xs leading-relaxed text-muted-foreground">
                 {t('settings:appearance.safeModeHint')}

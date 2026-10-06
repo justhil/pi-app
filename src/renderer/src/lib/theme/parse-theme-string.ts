@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   DEFAULT_THEME_CONTRAST,
   normalizeFontName,
+  normalizeThemeExtras,
   type ThemeVariant,
   type ThemeVariantKey,
 } from '@shared/custom-theme'
@@ -159,6 +160,7 @@ export function parseThemeString(input: string, fallbackVariant?: ThemeVariantKe
         'opaqueWindows',
         'semanticColors',
         'variant',
+        'pi',
       ],
       'theme.',
     ),
@@ -181,6 +183,8 @@ export function parseThemeString(input: string, fallbackVariant?: ThemeVariantKe
     translucentSidebar: !opaqueWindows,
     ...(diffAdded ? { diffAdded } : {}),
     ...(diffRemoved ? { diffRemoved } : {}),
+    // pi-only fields (colors, typography, shape); codex ignores the key.
+    ...(theme.pi && typeof theme.pi === 'object' ? normalizeThemeExtras(theme.pi as Record<string, unknown>) : {}),
   }
 
   const uniqueIgnoredFieldNames = [...new Set(ignoredFieldNames)].sort()
@@ -191,6 +195,10 @@ export function parseThemeString(input: string, fallbackVariant?: ThemeVariantKe
     ignoredFieldNames: uniqueIgnoredFieldNames,
     sourcePrefix,
   }
+}
+
+function extrasOf(v: ThemeVariant): Partial<ThemeVariant> {
+  return normalizeThemeExtras(v as unknown as Record<string, unknown>)
 }
 
 export function exportThemeString(themeVariant: ThemeVariant, variant: ThemeVariantKey): string {
@@ -215,6 +223,7 @@ export function exportThemeString(themeVariant: ThemeVariant, variant: ThemeVari
       },
       variant,
       surface: normalizeColor(themeVariant.surface, 'surface'),
+      ...(Object.keys(extrasOf(themeVariant)).length ? { pi: extrasOf(themeVariant) } : {}),
     },
   }
   return `pi-theme-v1:${JSON.stringify(normalized)}`

@@ -52,7 +52,7 @@ function CodeBlockViewImpl({
 
   return (
     <div
-      className={cn('group overflow-hidden rounded-md border border-border/35', className)}
+      className={cn('code-surface group overflow-hidden rounded-md border border-border/35', className)}
       style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
     >
       <div

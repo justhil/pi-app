@@ -25,7 +25,30 @@ export type ThemeVariant = {
   translucentSidebar: boolean
   diffAdded?: string
   diffRemoved?: string
+  /** Surface overrides; a missing key = derived from surface / ink. */
+  colors?: ThemeColorOverrides
+  /** Headings (and prose, see `proseFont`): a local font name, or `serif` for the built-in serif stack. */
+  fontDisplay?: string | null
+  /** Assistant prose in the UI font or the display font. */
+  proseFont?: 'ui' | 'display'
+  /** Chat text size (px) and line height. */
+  chatFontSize?: number
+  chatLineHeight?: number
+  /** Corner radius base (px), 0–16. */
+  radius?: number
+  /** Shadow strength 0–100 (50 = default). */
+  shadow?: number
 }
+
+export type ThemeColorOverrides = { sidebar?: string; chat?: string; userBubble?: string; codeBg?: string; border?: string }
+export const THEME_COLOR_KEYS = ['sidebar', 'chat', 'userBubble', 'codeBg', 'border'] as const
+
+export const THEME_LIMITS = {
+  chatFontSize: [12, 18],
+  chatLineHeight: [1.3, 2],
+  radius: [0, 16],
+  shadow: [0, 100],
+} as const
 
 /** 槽位缺省 = 该变体未定制 */
 export type CustomTheme = { light?: ThemeVariant; dark?: ThemeVariant }
@@ -79,6 +102,7 @@ export function normalizeThemeVariant(raw: unknown, key: ThemeVariantKey): Theme
     : DEFAULT_THEME_CONTRAST[key]
   const diffAdded = normalizeHexColor(v.diffAdded)
   const diffRemoved = normalizeHexColor(v.diffRemoved)
+  const extras = normalizeThemeExtras(v)
 
   return {
     preset: typeof v.preset === 'string' ? v.preset : null,
@@ -91,7 +115,35 @@ export function normalizeThemeVariant(raw: unknown, key: ThemeVariantKey): Theme
     translucentSidebar: v.translucentSidebar === true,
     ...(diffAdded ? { diffAdded } : {}),
     ...(diffRemoved ? { diffRemoved } : {}),
+    ...extras,
   }
+}
+
+function clampNumber(raw: unknown, [min, max]: readonly [number, number]): number | undefined {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined
+}
+
+/** The optional fields added after v1 (colors, typography, shape); invalid values are dropped. */
+export function normalizeThemeExtras(v: Record<string, unknown>): Partial<ThemeVariant> {
+  const out: Partial<ThemeVariant> = {}
+  if (v.colors && typeof v.colors === 'object') {
+    const src = v.colors as Record<string, unknown>
+    const colors: ThemeColorOverrides = {}
+    for (const k of THEME_COLOR_KEYS) {
+      const c = normalizeHexColor(src[k])
+      if (c) colors[k] = c
+    }
+    if (Object.keys(colors).length) out.colors = colors
+  }
+  const display = v.fontDisplay === 'serif' ? 'serif' : normalizeFontName(v.fontDisplay)
+  if (display) out.fontDisplay = display
+  if (v.proseFont === 'ui' || v.proseFont === 'display') out.proseFont = v.proseFont
+  for (const k of ['chatFontSize', 'chatLineHeight', 'radius', 'shadow'] as const) {
+    const n = clampNumber(v[k], THEME_LIMITS[k])
+    if (n !== undefined) out[k] = k === 'chatLineHeight' ? Math.round(n * 100) / 100 : Math.round(n)
+  }
+  return out
 }
 
 export function normalizeCustomTheme(raw: unknown): CustomTheme {

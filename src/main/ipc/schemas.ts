@@ -168,6 +168,22 @@ const themeVariantSchema = z
     translucentSidebar: z.boolean(),
     diffAdded: hexColorSchema.optional(),
     diffRemoved: hexColorSchema.optional(),
+    colors: z
+      .object({
+        sidebar: hexColorSchema.optional(),
+        chat: hexColorSchema.optional(),
+        userBubble: hexColorSchema.optional(),
+        codeBg: hexColorSchema.optional(),
+        border: hexColorSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    fontDisplay: fontNameSchema.nullable().optional(),
+    proseFont: z.enum(['ui', 'display']).optional(),
+    chatFontSize: z.number().min(12).max(18).optional(),
+    chatLineHeight: z.number().min(1.3).max(2).optional(),
+    radius: z.number().min(0).max(16).optional(),
+    shadow: z.number().min(0).max(100).optional(),
   })
   .strict()
 

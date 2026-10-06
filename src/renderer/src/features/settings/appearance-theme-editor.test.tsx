@@ -92,8 +92,7 @@ function darkSection(): HTMLElement {
 }
 
 async function chooseLightPreset(user: ReturnType<typeof userEvent.setup>) {
-  const select = within(lightSection()).getByRole('combobox', { name: 'preset' })
-  await user.selectOptions(select, 'vscode-plus')
+  await user.click(within(lightSection()).getByRole('radio', { name: 'presets.vscodePlus' }))
 }
 
 afterEach(() => cleanup())
@@ -171,8 +170,10 @@ describe('AppearanceThemeEditor', () => {
     const user = userEvent.setup()
     render(<Harness />)
 
-    expect(within(lightSection()).queryByRole('option', { name: 'presetCodex' })).not.toBeInTheDocument()
-    expect(within(darkSection()).queryByRole('option', { name: 'presetVscodePlus' })).not.toBeInTheDocument()
+    expect(within(lightSection()).queryByRole('radio', { name: 'presets.codexDark' })).not.toBeInTheDocument()
+    expect(within(darkSection()).queryByRole('radio', { name: 'presets.vscodePlus' })).not.toBeInTheDocument()
+    expect(within(lightSection()).getByRole('radio', { name: 'presets.claude' })).toBeInTheDocument()
+    expect(within(darkSection()).getByRole('radio', { name: 'presets.claude' })).toBeInTheDocument()
 
     await chooseLightPreset(user)
     const fontInput = within(lightSection()).getByRole('textbox', { name: 'fontUi' })
@@ -197,6 +198,19 @@ describe('AppearanceThemeEditor', () => {
 
     await user.click(screen.getByRole('button', { name: 'clearCustomCss' }))
     expect(currentDraft.customCssOverride).toEqual({ enabled: false, css: '' })
+  })
+
+  it('applies the Claude preset with its extras and lets an override fall back to auto', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(within(darkSection()).getByRole('radio', { name: 'presets.claude' }))
+    expect(currentDraft.customTheme.dark).toMatchObject({ preset: 'claude', surface: '#262624', fontDisplay: 'serif', proseFont: 'display', radius: 10 })
+    const sidebar = within(darkSection()).getAllByRole('button', { name: 'useAuto' })[0]
+    await user.click(sidebar)
+    expect(currentDraft.customTheme.dark?.colors?.sidebar).toBeUndefined()
+    expect(currentDraft.customTheme.dark?.preset).toBeNull()
+    fireEvent.change(within(darkSection()).getByRole('slider', { name: 'radius' }), { target: { value: '4' } })
+    expect(currentDraft.customTheme.dark?.radius).toBe(4)
   })
 
   it('keeps the copy action disabled while a slot uses the real Pi default', () => {
