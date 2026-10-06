@@ -23,10 +23,17 @@ export function MainLayoutShell({
   left,
   center,
   right,
+  bottom,
+  bottomOpen = false,
+  bottomHeight = 0,
 }: {
   left: ReactNode
   center: ReactNode
   right: ReactNode
+  /** Drawer under the center and right columns (built-in terminal); kept mounted while closed. */
+  bottom?: ReactNode
+  bottomOpen?: boolean
+  bottomHeight?: number
 }) {
   const leftCollapsed = useUIStore((s) => s.sidebarCollapsed)
   const leftWidth = useUIStore((s) => s.sidebarWidth)
@@ -140,14 +147,17 @@ export function MainLayoutShell({
         rightDragging && 'shell-right-dragging',
         rightCollapsed && !filesChatPreview && 'shell-right-rail-only',
       )}
-      style={{ gridTemplateColumns: gridCols }}
+      style={{
+        gridTemplateColumns: gridCols,
+        ...(bottom ? { gridTemplateRows: `minmax(0, 1fr) ${bottomOpen ? Math.round(bottomHeight) : 0}px` } : {}),
+      }}
     >
       <div
         className={cn(
           'shell-track-left relative flex min-w-0 flex-row items-stretch overflow-hidden',
           leftCollapsed && 'shell-track-collapsed',
         )}
-        style={{ background: 'var(--surface-sidebar)' }}
+        style={{ background: 'var(--surface-sidebar)', ...(bottom ? { gridRow: '1 / span 2' } : {}) }}
         aria-hidden={leftCollapsed}
       >
         <div
@@ -196,6 +206,15 @@ export function MainLayoutShell({
           </div>
         )}
       </div>
+
+      {bottom ? (
+        <div
+          className={cn('shell-track-bottom min-h-0 min-w-0 overflow-hidden', !bottomOpen && 'invisible')}
+          style={{ gridColumn: '2 / span 2', gridRow: 2 }}
+        >
+          {bottom}
+        </div>
+      ) : null}
     </div>
   )
 }

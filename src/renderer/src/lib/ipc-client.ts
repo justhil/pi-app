@@ -20,7 +20,7 @@ declare global {
       onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       onBrowserEvent?: (callback: (event: BrowserEvent) => void) => () => void
-      onCloseRequested?: (callback: (info: { isStreaming: boolean }) => void) => () => void
+      onCloseRequested?: (callback: (info: { isStreaming: boolean; terminals?: number }) => void) => () => void
       onNotificationOpenSession?: (
         callback: (payload: {
           ok: boolean
@@ -30,6 +30,9 @@ declare global {
           sessionFile?: string
         }) => void,
       ) => () => void
+      terminalWrite?: (id: string, data: string) => void
+      onTerminalData?: (callback: (payload: { id: string; data: string }) => void) => () => void
+      onTerminalExit?: (callback: (payload: { id: string; code: number }) => void) => () => void
       ping: () => string
     }
   }
@@ -101,7 +104,7 @@ export function onGitWorkspaceChanged(callback: (payload: { cwd: string }) => vo
 }
 
 export function onCloseRequested(
-  callback: (info: { isStreaming: boolean }) => void,
+  callback: (info: { isStreaming: boolean; terminals?: number }) => void,
 ): () => void {
   if (!window.piDesktop?.onCloseRequested) return () => {}
   return window.piDesktop.onCloseRequested(callback)

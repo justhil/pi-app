@@ -23,6 +23,17 @@ let pendingOrigin: 'window' | 'app' | null = null
 let pendingWindow: BrowserWindow | null = null
 
 const WAIT_POLL_MS = 500
+
+/** Running built-in terminals (set by main at startup; closing ends their processes). */
+let runningTerminals: () => number = () => 0
+export function setRunningTerminalsProbe(probe: () => number): void {
+  runningTerminals = probe
+}
+
+/** Closing now would lose something: a running turn, or processes in terminals. */
+function needsDecision(): boolean {
+  return workerManager.hasActiveTurns || runningTerminals() > 0
+}
 /**
  * Fallback for a renderer that never answers: if it does not confirm the
  * decision dialog was actually displayed (crash / hang) within this window,
@@ -78,7 +89,7 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
       app.quit()
     }
   }, DECISION_ACK_TIMEOUT_MS)
-  win.webContents.send('ipc:close-requested', { isStreaming: true })
+  win.webContents.send('ipc:close-requested', { isStreaming: workerManager.hasActiveTurns, terminals: runningTerminals() })
   return true
 }
 
@@ -121,7 +132,7 @@ export function installWindowCloseGuard(win: BrowserWindow): void {
       // Already waiting or asking — repeated close clicks must not re-ask.
       return
     }
-    if (workerManager.hasActiveTurns) {
+    if (needsDecision()) {
       requestCloseDecision('window')
       return
     }
@@ -141,7 +152,7 @@ export function guardAppQuit(event: { preventDefault: () => void }): boolean {
     event.preventDefault()
     return false
   }
-  if (workerManager.hasActiveTurns) {
+  if (needsDecision()) {
     event.preventDefault()
     requestCloseDecision('app')
     return false
@@ -184,4 +195,5 @@ export function __resetWindowCloseGuardForTest(): void {
   stopWaitPoll()
   pendingOrigin = null
   pendingWindow = null
+  runningTerminals = () => 0
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Cpu, RefreshCw, ArrowUp } from '@renderer/components/icons'
+import { ChevronDown, Cpu, RefreshCw, ArrowUp, Terminal } from '@renderer/components/icons'
+import { openTerminalTab } from '@renderer/features/terminal/terminal-drawer'
+import { terminalActions, useTerminalStore } from '@renderer/features/terminal/terminal-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
 import { useVisibleInterval } from '@renderer/hooks/use-visible-interval'
@@ -36,6 +38,8 @@ type Popover = 'workers' | 'board' | null
 const GROUPS: SessionAttention[] = ['needs-you', 'working', 'done']
 
 export function StatusBar() {
+  const terminalOpen = useTerminalStore((s) => s.open)
+  const terminalTabs = useTerminalStore((s) => s.tabs.length)
   const { t, i18n } = useTranslation()
   const attention = useUIStore((s) => s.sessionAttention)
   const sessions = useUIStore((s) => s.sessions)
@@ -145,6 +149,9 @@ export function StatusBar() {
         <ChevronDown className="h-3 w-3 shrink-0 rotate-180 opacity-60" />
       </button>
       <div className="ml-auto flex shrink-0 items-center">
+        <button type="button" className="workbench-status-trigger" aria-pressed={terminalOpen} title={t('common:terminal.toggle')} aria-label={t('common:terminal.toggle')} onClick={() => (!terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle())}>
+          <Terminal className="h-3 w-3" />{terminalTabs > 0 ? <span className="tabular-nums">{terminalTabs}</span> : null}
+        </button>
         <button ref={workersAnchor} type="button" className="workbench-status-trigger tabular-nums" data-level={level} aria-haspopup="dialog" aria-expanded={popover === 'workers'} aria-label={t('common:statusBar.resources')} title={t('common:statusBar.memoryHint')} onClick={() => { setPopover((v) => v === 'workers' ? null : 'workers'); void refresh() }}>
           <Cpu className="h-3 w-3" /><span>{memory}</span>
         </button>

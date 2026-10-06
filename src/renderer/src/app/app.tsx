@@ -53,6 +53,8 @@ import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 import { useReviewGitData } from '@renderer/features/review/use-review-git-data'
 import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
 import { matchShortcut, readShortcutBindings } from '@renderer/lib/shortcut-bindings'
+import { TerminalDrawer, useTerminalShortcut } from '@renderer/features/terminal/terminal-drawer'
+import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
 
 type View = 'main' | 'settings'
 
@@ -110,6 +112,9 @@ export default function App() {
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const terminalOpen = useTerminalStore((s) => s.open)
+  const terminalHeight = useTerminalStore((s) => s.height)
+  useTerminalShortcut()
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
   const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
@@ -435,6 +440,9 @@ export default function App() {
               ) : null}
             </RightPanel>
           }
+          bottom={<TerminalDrawer />}
+          bottomOpen={terminalOpen}
+          bottomHeight={terminalHeight}
         />
         <StatusBar />
       </div>
