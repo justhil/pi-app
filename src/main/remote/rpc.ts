@@ -98,6 +98,9 @@ export class RemoteRpc {
         return { aborted: true, restored }
       },
       'turn.rewind': async (_c, p) => hub.rewind(p.sessionKey, p.anchor),
+      'session.branches': async (_c, p) => hub.branches(p.sessionKey),
+      'session.switchBranch': async (_c, p) => hub.switchBranch(p.sessionKey, p.leafId),
+      'session.fork': async (_c, p) => hub.fork(p.sessionKey, p.anchor),
       'turn.dequeue': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
         return { restored: await port.clearQueue(entry.sessionFile) }

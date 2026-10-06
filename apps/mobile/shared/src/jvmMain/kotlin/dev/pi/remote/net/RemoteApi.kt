@@ -6,7 +6,11 @@ import dev.pi.remote.protocol.ReviewDiffResult
 import dev.pi.remote.protocol.AbortResult
 import dev.pi.remote.protocol.DequeueResult
 import dev.pi.remote.protocol.SessionStatsResult
+import dev.pi.remote.protocol.BranchesResult
+import dev.pi.remote.protocol.Empty
+import dev.pi.remote.protocol.ForkResult
 import dev.pi.remote.protocol.RewindParams
+import dev.pi.remote.protocol.SwitchBranchParams
 import dev.pi.remote.protocol.RewindResult
 import dev.pi.remote.protocol.CommandListResult
 import dev.pi.remote.protocol.FileListParams
@@ -20,7 +24,6 @@ import dev.pi.remote.protocol.CapabilitySetResult
 import dev.pi.remote.protocol.CreateParams
 import dev.pi.remote.protocol.CreateResult
 import dev.pi.remote.protocol.Cursor
-import dev.pi.remote.protocol.Empty
 import dev.pi.remote.protocol.ModelListResult
 import dev.pi.remote.protocol.ModelSetParams
 import dev.pi.remote.protocol.ModelSetResult
@@ -61,6 +64,9 @@ class RemoteApi(private val c: HostConnection) {
         c.typedCall("file.list", FileListParams.serializer(), FileListParams(sessionKey, path, dotfiles.takeIf { it }), FileListResult.serializer())
     suspend fun searchFiles(sessionKey: String, query: String) =
         c.typedCall("file.search", FileSearchParams.serializer(), FileSearchParams(sessionKey, query), FileSearchResult.serializer()).entries
+    suspend fun branches(sessionKey: String) = c.typedCall("session.branches", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), BranchesResult.serializer()).branches
+    suspend fun switchBranch(sessionKey: String, leafId: String) = c.typedCall("session.switchBranch", SwitchBranchParams.serializer(), SwitchBranchParams(sessionKey, leafId), Empty.serializer())
+    suspend fun fork(sessionKey: String, anchor: String) = c.typedCall("session.fork", RewindParams.serializer(), RewindParams(sessionKey, anchor), ForkResult.serializer())
     suspend fun rewind(sessionKey: String, anchor: String) = c.typedCall("turn.rewind", RewindParams.serializer(), RewindParams(sessionKey, anchor), RewindResult.serializer())
     suspend fun reviewDiff(sessionKey: String, scope: String, turnId: String? = null, path: String? = null) =
         c.typedCall("review.diff", ReviewDiffParams.serializer(), ReviewDiffParams(sessionKey, scope, turnId, path), ReviewDiffResult.serializer())

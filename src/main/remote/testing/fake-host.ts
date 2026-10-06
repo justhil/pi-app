@@ -1,3 +1,4 @@
+import type { TreeRow } from '../branches'
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
 import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiResponse } from '@shared/remote'
@@ -10,7 +11,7 @@ import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, S
  * the same AppEvent sequence the real worker emits (see src/worker/worker-session-events.ts).
  */
 
-type FakeSession = { row: HostSessionRow; items: HostTimelineItem[]; running: boolean; model: string; thinking: string; queue?: { steering: string[]; followUp: string[] }; aborted?: boolean }
+type FakeSession = { row: HostSessionRow; items: HostTimelineItem[]; running: boolean; model: string; thinking: string; queue?: { steering: string[]; followUp: string[] }; aborted?: boolean; alts?: HostTimelineItem[][] }
 
 export type FakeCalls = {
   sent: Array<{ sessionFile: string; text: string; mode: SendMode; capabilities: string[] }>
@@ -240,8 +241,48 @@ export class FakeHost implements RemoteHostPort {
     const i = s?.items.findIndex((it) => it.type === 'user-message' && it.sessionEntryId === anchor) ?? -1
     if (!s || i < 0) throw new Error('entry not found')
     const editorText = s.items[i].text
+    // The dropped turns stay in the tree as another branch, like pi's.
+    s.alts = [...(s.alts ?? []), s.items]
     s.items = s.items.slice(0, i)
     return { editorText }
+  }
+  private static rowId = (it: HostTimelineItem) => it.sessionEntryId ?? it.id
+  /** Tree rows from the current items and the other branches (shared prefixes share ids). */
+  async sessionTree(sessionFile: string): Promise<{ rows: TreeRow[]; leafId: string | null }> {
+    const s = this.sessions.get(sessionFile)
+    if (!s) return { rows: [], leafId: null }
+    const rows = new Map<string, TreeRow>()
+    let t = 0
+    for (const branch of [...(s.alts ?? []), s.items]) {
+      let parent: string | null = null
+      for (const it of branch) {
+        const id = FakeHost.rowId(it)
+        if (!rows.has(id)) {
+          const role = it.type === 'user-message' ? 'user' : it.type === 'assistant-message' ? 'assistant' : 'toolResult'
+          rows.set(id, { id, parentId: parent, entryType: 'message', role, preview: it.text, timestamp: new Date((it.timestamp ?? 0) + t++).toISOString() })
+        }
+        parent = id
+      }
+    }
+    const last = s.items[s.items.length - 1]
+    return { rows: [...rows.values()], leafId: last ? FakeHost.rowId(last) : null }
+  }
+  async switchBranch(sessionFile: string, leafId: string): Promise<void> {
+    const s = this.sessions.get(sessionFile)
+    const alts = s?.alts ?? []
+    const idx = alts.findIndex((b) => b.some((it) => FakeHost.rowId(it) === leafId))
+    if (!s || idx < 0) throw new Error('branch not found')
+    const target = alts[idx]
+    s.alts = [...alts.filter((_, i) => i !== idx), s.items]
+    s.items = target.slice(0, target.findIndex((it) => FakeHost.rowId(it) === leafId) + 1)
+  }
+  async fork(sessionFile: string, anchor: string, projectId: string): Promise<{ sessionFile: string; editorText?: string }> {
+    const s = this.sessions.get(sessionFile)
+    const i = s?.items.findIndex((it) => it.type === 'user-message' && it.sessionEntryId === anchor) ?? -1
+    if (!s || i < 0) throw new Error('entry not found')
+    const file = this.addSession(projectId, `${s.row.title} fork`)
+    this.sessions.get(file)!.items = s.items.slice(0, i)
+    return { sessionFile: file, editorText: s.items[i].text }
   }
   async clearQueue(sessionFile: string): Promise<string[]> {
     const s = this.sessions.get(sessionFile)

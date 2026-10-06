@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.activity.compose.BackHandler
 import dev.pi.remote.protocol.ContextStats
 import dev.pi.remote.protocol.ReviewDiffResult
+import dev.pi.remote.app.data.SharedContent
+import dev.pi.remote.protocol.BranchInfo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -185,6 +187,8 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     val ready = connection is HostConnection.State.Ready
     val stopFailed = stringResource(R.string.stop_failed)
     val rewindFailed = stringResource(R.string.msg_rewind_failed, "%s")
+    val forkFailed = stringResource(R.string.msg_fork_failed, "%s")
+    val switchFailed = stringResource(R.string.branches_switch_failed, "%s")
     var stopping by remember(sessionKey) { mutableStateOf(false) }
     val runningNow = timeline?.state?.running == true || timeline?.turns?.lastOrNull()?.running == true
     LaunchedEffect(runningNow, stopping) {
@@ -217,6 +221,13 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     var changes by remember(sessionKey) { mutableStateOf<ReviewDiffResult?>(null) }
     var review by remember { mutableStateOf<ReviewTarget?>(null) }
     val reviewComments = remember(sessionKey) { androidx.compose.runtime.mutableStateListOf<LineComment>() }
+    var branches by remember(sessionKey) { mutableStateOf<List<BranchInfo>?>(null) }
+    var branchesFailed by remember(sessionKey) { mutableStateOf(false) }
+    var branchSheet by remember { mutableStateOf(false) }
+    fun loadBranches() {
+        branchesFailed = false
+        scope.launch { repo.branches(sessionKey).onSuccess { branches = it }.onFailure { branchesFailed = true } }
+    }
     var statsLoading by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     LaunchedEffect(sessionKey, ready) { if (ready) repo.commands(sessionKey)?.let { commands = it } }
@@ -331,6 +342,23 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 statsLoading = false
             }
             scope.launch { repo.reviewDiff(sessionKey, "git").onSuccess { changes = it } }
+            loadBranches()
+        },
+        branchCount = branches?.size,
+        onBranches = {
+            branchSheet = true
+            loadBranches()
+        },
+        onFork = { anchor ->
+            scope.launch {
+                repo.fork(sessionKey, anchor)
+                    .onSuccess { r ->
+                        val body = PromptAttachments.split(r.editorText.orEmpty()).first
+                        if (body.isNotBlank()) repo.share(SharedContent(body, emptyList()))
+                        onOpenSession(r.sessionKey)
+                    }
+                    .onFailure { notice = forkFailed.replace("%s", it.message ?: "") }
+            }
         },
         changes = changes,
         onReview = { review = it },
@@ -360,6 +388,23 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onDefer = { id -> deferred = deferred + id },
         loadDetail = { step -> repo.toolDetail(sessionKey, step.toolCallId)?.output },
     )
+
+    if (branchSheet) {
+        BranchSheet(
+            branches = branches,
+            failed = branchesFailed,
+            canSwitch = repo.canWrite,
+            running = timeline?.state?.running == true || timeline?.turns?.lastOrNull()?.running == true,
+            onSwitch = { leaf ->
+                scope.launch {
+                    repo.switchBranch(sessionKey, leaf)
+                        .onSuccess { notice = null; branches = null; loadBranches() }
+                        .onFailure { notice = switchFailed.replace("%s", it.message ?: "") }
+                }
+            },
+            onDismiss = { branchSheet = false },
+        )
+    }
 
     review?.let { target ->
         ReviewScreen(
@@ -475,6 +520,9 @@ fun SessionContent(
     onPanelOpened: () -> Unit = {},
     changes: ReviewDiffResult? = null,
     onReview: (ReviewTarget) -> Unit = {},
+    branchCount: Int? = null,
+    onBranches: () -> Unit = {},
+    onFork: (String) -> Unit = {},
     onModel: () -> Unit,
     onThinkingSheet: () -> Unit = {},
     onTools: () -> Unit,
@@ -655,6 +703,11 @@ fun SessionContent(
         statsLoading = statsLoading,
         onClose = { settlePanel(1000f) },
         changes = changes,
+        branchCount = branchCount,
+        onBranches = {
+            settlePanel(1000f)
+            onBranches()
+        },
         onChanges = {
             settlePanel(1000f)
             onReview(ReviewTarget("git", turns.lastOrNull()?.id))
@@ -676,6 +729,7 @@ fun SessionContent(
                 // Saved turns only, and never under a running agent.
                 rewindLater = turns.indexOf(t).takeIf { canWrite && !running && !t.anchor.startsWith("live:") }?.let { turns.size - 1 - it },
                 onRewind = { onRewind(t.anchor) },
+                onFork = if (part == MessagePart.User && canWrite && !running && !t.anchor.startsWith("live:")) ({ onFork(t.anchor) }) else null,
             )
         } ?: run { acting = null }
     }

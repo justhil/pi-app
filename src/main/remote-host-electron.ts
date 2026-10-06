@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron'
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { hostname } from 'node:os'
 import type { CacheWarming, UiResponse } from '@shared/remote'
 import { normalizeSessionFileKey } from '@shared/session-file-key'
@@ -11,7 +11,7 @@ import { findAdapterByTool } from '../extension-compat/adapter-loader'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
-import { setSessionLeafOverride } from './session-leaf-override'
+import { getSessionLeafOverride, setSessionLeafOverride } from './session-leaf-override'
 import { workspaceFsListDir } from './workspace-fs'
 import { workspaceFsSearch } from './workspace-file-search'
 import { scanStaticSlashCommands } from './commands-catalog'
@@ -160,6 +160,40 @@ export function createElectronRemoteHost(): RemoteHostPort {
       // pi keeps the leaf in memory only: persist it so history reads and later loads follow the branch.
       setSessionLeafOverride(sessionFile, r.leafId !== undefined ? r.leafId : anchor)
       return r.editorText ? { editorText: r.editorText } : {}
+    },
+
+    async sessionTree(sessionFile: string, projectId: string) {
+      // Same leaf as the desktop tree: the persisted override, else the live worker's leaf.
+      let leafId = getSessionLeafOverride(sessionFile)
+      if (leafId === undefined && workerManager.hasLiveSessionWorker(sessionFile)) {
+        const st = (await workerManager.getState(sessionFile).catch(() => null)) as { leafId?: string | null } | null
+        if (st && 'leafId' in st) leafId = st.leafId ?? null
+      }
+      const r = await sessionPreviewProcess.getTree({ sessionFile, cwd: projectId, leafId })
+      return { rows: r.nodes, leafId: r.leafId }
+    },
+
+    async switchBranch(sessionFile: string, leafId: string, projectId: string) {
+      if (!workerManager.hasLiveSessionWorker(sessionFile)) await workerManager.loadSession(sessionFile, { cwd: projectId })
+      const r = await workerManager.navigateTree(leafId, { summarize: false, sessionFile })
+      if (r.cancelled) throw new Error(r.error || 'switch_cancelled')
+      setSessionLeafOverride(sessionFile, r.leafId !== undefined ? r.leafId : leafId)
+    },
+
+    async fork(sessionFile: string, anchor: string, projectId: string) {
+      // File-level branch (pi SessionManager), not the desktop fork: that one re-focuses the
+      // foreground worker onto the fork, which would pull the desktop's view away.
+      const { SessionManager } = await import('@earendil-works/pi-coding-agent')
+      const sm = SessionManager.open(sessionFile, dirname(sessionFile), projectId)
+      const entry = sm.getEntry(anchor) as { parentId?: string | null; message?: { role?: string; content?: unknown } } | undefined
+      if (!entry || entry.message?.role !== 'user') throw new Error('entry not found')
+      const content = entry.message.content
+      const editorText = typeof content === 'string' ? content : Array.isArray(content) ? content.map((c: { type?: string; text?: string }) => (c?.type === 'text' ? c.text ?? '' : '')).join('') : ''
+      // Forking before the first message is just a new session with that message to edit.
+      const forked = entry.parentId ? sm.createBranchedSession(entry.parentId) : undefined
+      const file = forked ?? (await this.createSession(projectId))
+      void sessionPreviewProcess.invalidateListSessions(projectId).catch(() => {})
+      return { sessionFile: file, ...(editorText ? { editorText } : {}) }
     },
 
     async clearQueue(sessionFile: string): Promise<string[]> {

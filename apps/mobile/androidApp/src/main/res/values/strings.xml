@@ -250,6 +250,20 @@
     <string name="msg_rewind_hint">This turn leaves the branch; its message returns to the composer</string>
     <string name="msg_rewind_hint_more">This turn and %1$d after it leave the branch (restorable from the desktop session tree)</string>
     <string name="msg_rewind_confirm">Rewind</string>
+    <string name="msg_fork">Fork from here</string>
+    <string name="msg_fork_failed">Could not fork: %s</string>
+    <string name="panel_branches">Branches</string>
+    <string name="panel_branches_one">Only this branch</string>
+    <plurals name="panel_branches_count"><item quantity="one">%d branch</item><item quantity="other">%d branches</item></plurals>
+    <string name="branches_title">Branches</string>
+    <string name="branches_current">Current</string>
+    <plurals name="branches_turns"><item quantity="one">%d turn</item><item quantity="other">%d turns</item></plurals>
+    <string name="branches_diverged">Split off at “%s”</string>
+    <string name="branches_switch">Switch to this branch</string>
+    <string name="branches_switch_hint">The current branch stays in the tree; you can come back to it.</string>
+    <string name="branches_running">Stop the run before switching branches.</string>
+    <string name="branches_failed">Could not load branches.</string>
+    <string name="branches_switch_failed">Could not switch: %s</string>
     <string name="msg_rewind_failed">Rewind failed: %1$s</string>
     <string name="panel_title">Session</string>
     <string name="panel_context">Context</string>

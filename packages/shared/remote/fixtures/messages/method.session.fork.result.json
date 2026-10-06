@@ -1,0 +1,7 @@
+{
+  "schema": "session.fork/result",
+  "value": {
+    "sessionKey": "/work/pi-app/.pi/sessions/fork.jsonl",
+    "editorText": "登录页偶尔会报 401，帮我查一下原因"
+  }
+}
