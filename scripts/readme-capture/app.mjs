@@ -65,11 +65,11 @@ await import('./out/main/index.js')
 
 /**
  * Launch the capture app against a seeded demo home.
- * @param {{ appDir: string, demo: { home: string, agentDir: string, project: string }, lang: 'zh' | 'en', theme?: 'light' | 'dark' }} options
+ * @param {{ appDir: string, demo: { home: string, agentDir: string, project: string }, lang: 'zh' | 'en', theme?: 'light' | 'dark', config?: Record<string, unknown>, keepUserData?: boolean }} options
  */
-export async function launchApp({ appDir, demo, lang, theme = 'light' }) {
+export async function launchApp({ appDir, demo, lang, theme = 'light', config = {}, keepUserData = false }) {
   const configDir = join(demo.home, 'user-data')
-  rmSync(configDir, { recursive: true, force: true })
+  if (!keepUserData) rmSync(configDir, { recursive: true, force: true })
   mkdirSync(configDir, { recursive: true })
   writeFileSync(join(configDir, 'pi-desktop.json'), JSON.stringify({
     language: lang,
@@ -77,6 +77,7 @@ export async function launchApp({ appDir, demo, lang, theme = 'light' }) {
     currentProject: demo.project,
     recentProjects: [demo.project],
     windowBounds: { width: VIEWPORT.width, height: VIEWPORT.height },
+    ...config,
   }, null, 2))
   const locale = lang === 'zh' ? 'zh_CN.UTF-8' : 'en_US.UTF-8'
   const app = await electron.launch({

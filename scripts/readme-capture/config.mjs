@@ -22,6 +22,10 @@ export const CROPS = {
   panel: { x: 1152, y: 36, width: 288, height: 560 },
   timeline: { x: 340, y: 140, width: 680, height: 480 },
   composer: { x: 390, y: 380, width: 640, height: 500 },
+  /** branches.gif: the status bar's left end with the picker above it */
+  statusbar: { x: 0, y: 420, width: 760, height: 480 },
+  /** usage.png: the settings page content */
+  usage: { x: 300, y: 36, width: 960, height: 790 },
 }
 
 /** Right-sidebar splitter (logical px) and the x it is dragged to for wide Review/Files demos. */

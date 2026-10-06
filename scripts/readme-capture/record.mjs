@@ -7,7 +7,7 @@ import { MOCK_PORT, SPLITTER, UI } from './config.mjs'
 import { text } from './demo-script.mjs'
 import { startMockLlm } from './mock-llm.mjs'
 
-function recorder(win, outDir) {
+export function recorder(win, outDir) {
   rmSync(outDir, { recursive: true, force: true })
   mkdirSync(outDir, { recursive: true })
   const times = []

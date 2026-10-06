@@ -14,6 +14,10 @@
 //   review    review-stage.gif         widen panel, side-by-side diff, stage a hunk
 //   files     files-preview.gif        tabs, line reference, expanded preview
 //   parallel  parallel-sessions.gif    two sessions running at once
+//   terminal  terminal.gif             drawer, two commands, a split, closing one pane
+//   branches  branches.gif             status bar branch picker → switch
+//   usage     usage.png                Settings → Usage, 90 days, a bar hovered
+//   themes    themes.png               Claude preset light | dark with a background image
 //   visuals   overview.png, architecture-{light,dark}.png, theme-switch.gif (frontend-rendered;
 //             needs the screens and parallel steps of the same run)
 //   social    doc/assets/readme/social-preview.png
@@ -25,13 +29,14 @@ import { parseArgs } from 'node:util'
 import { prepareApp } from './app.mjs'
 import { captureScreens } from './capture.mjs'
 import { ASSET_DIR, CROPS, LANGS, MOCK_PORT, VIEWPORT } from './config.mjs'
-import { checkTools, framedHero, framesToGif, panelStrip, socialCard, tile } from './media.mjs'
+import { checkTools, framedHero, framesToGif, panelStrip, sideBySide, socialCard, tile } from './media.mjs'
 import { recordAgentTurn, recordComposer, recordFiles, recordParallel, recordReviewStage } from './record.mjs'
+import { captureThemes, captureUsage, recordBranches, recordTerminal } from './record-features.mjs'
 import { renderPages } from './render.mjs'
 import { seedDemo } from './seed.mjs'
 import { visualJobs } from './visuals.mjs'
 
-const STEPS = ['screens', 'agent', 'composer', 'review', 'files', 'parallel', 'visuals', 'social']
+const STEPS = ['screens', 'agent', 'composer', 'review', 'files', 'parallel', 'terminal', 'branches', 'usage', 'themes', 'visuals', 'social']
 const { values } = parseArgs({
   options: {
     lang: { type: 'string', default: LANGS.join(',') },
@@ -103,6 +108,33 @@ for (const lang of langs) {
     console.log(`• ${lang}: parallel sessions`)
     await recordParallel({ appDir, demo: await liveDemo('parallel'), lang, outDir: frames('parallel'), stillPath: parallelStill })
     framesToGif({ framesDir: frames('parallel'), out: join(out, 'parallel-sessions.gif'), width: 1280 })
+  }
+
+  if (only.has('terminal')) {
+    console.log(`• ${lang}: terminal`)
+    await recordTerminal({ appDir, demo: await staticDemo(), lang, outDir: frames('terminal') })
+    framesToGif({ framesDir: frames('terminal'), out: join(out, 'terminal.gif'), width: 1280 })
+  }
+
+  if (only.has('branches')) {
+    console.log(`• ${lang}: branches`)
+    await recordBranches({ appDir, demo: await staticDemo(), lang, outDir: frames('branches') })
+    framesToGif({ framesDir: frames('branches'), out: join(out, 'branches.gif'), width: 960, crop: CROPS.statusbar })
+  }
+
+  if (only.has('usage')) {
+    console.log(`• ${lang}: usage`)
+    const raw = join(rawDir, `${lang}-usage.png`)
+    await captureUsage({ appDir, demo: await staticDemo(), lang, out: raw })
+    tile({ input: raw, out: join(out, 'usage.png'), crop: CROPS.usage, tmp })
+  }
+
+  if (only.has('themes')) {
+    console.log(`• ${lang}: themes`)
+    const image = join(tmp, 'background.jpg')
+    if (!existsSync(image)) execFileSync('magick', ['-size', '2400x1500', '-seed', '11', 'plasma:#f0b98a-#6f93c8', '-blur', '0x30', '-modulate', '100,95', '-quality', '80', image])
+    await captureThemes({ appDir, demo: await staticDemo(), lang, rawDir, image })
+    sideBySide({ inputs: [join(rawDir, `${lang}-theme-claude-light.png`), join(rawDir, `${lang}-theme-claude-dark-bg.png`)], out: join(out, 'themes.png'), tmp })
   }
 
   if (only.has('visuals')) {

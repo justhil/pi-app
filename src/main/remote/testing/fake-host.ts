@@ -189,8 +189,10 @@ export class FakeHost implements RemoteHostPort {
 
   // ── RemoteHostPort ──
 
+  /** Shown on the phone; the dev host sets a friendlier name for README captures. */
+  name = 'fake-desktop'
   hostName(): string {
-    return 'fake-desktop'
+    return this.name
   }
   appVersion(): string {
     return '0.0.0-test'

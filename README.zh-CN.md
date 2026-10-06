@@ -5,11 +5,11 @@
 # pi Desktop
 
 **[pi](https://github.com/earendil-works/pi) 编程 Agent 的桌面客户端。**<br/>
-还是终端里那个 Agent、那份 `~/.pi/agent`，多了时间线、Git Review 和可点击的会话树。
+还是终端里那个 Agent、那份 `~/.pi/agent`，多了时间线、Git Review、内置终端，还有一个能在手机上接着干活的 Android 应用。
 
 [![Release](https://img.shields.io/github/v/release/justhil/pi-app?style=flat-square&color=7583b2&label=release)](https://github.com/justhil/pi-app/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/justhil/pi-app/total?style=flat-square&color=7583b2)](https://github.com/justhil/pi-app/releases)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-7583b2?style=flat-square)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux%20%C2%B7%20Android-7583b2?style=flat-square)
 [![License](https://img.shields.io/github/license/justhil/pi-app?style=flat-square&color=7583b2)](LICENSE)
 
 [English](./README.md) · **简体中文** · [下载](https://github.com/justhil/pi-app/releases/latest) · [上手指南](./doc/guide/getting-started.md) · [适配器列表](./doc/guide/adapters.zh-CN.md)
@@ -70,6 +70,24 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 
 每个会话运行在自己的 Worker 里。在一个会话里发起回合，再开一个会话发起第二个：两边都继续跑，侧栏标出正在工作的会话，底部状态栏显示运行数量。保留多少个 Worker、空闲多久回收，在「设置 → 通用」里调整；正在运行的会话不会被回收。
 
+## 内置终端
+
+<img src="doc/assets/readme/zh/terminal.gif" alt="Ctrl+` 在聊天区下方打开项目里的终端，运行 git log 和测试；旁边再开一个终端，随后单独关掉它" width="100%" />
+
+按 `` Ctrl+` `` 从聊天区下方拉出终端，工作目录就是当前项目。默认使用 pi 执行命令时用的那个外壳（Windows 上是 Git Bash），`PATH` 里带上 pi 自带的工具；「+」里还能选 PowerShell 7、Windows PowerShell、cmd、各个 WSL 发行版、zsh 或 fish。支持多标签，每个标签最多左右并排 4 栏，分隔线可拖动，单栏用它的 **✕** 或 `Ctrl+Shift+W` 关闭。收起抽屉后进程和输出都还在；选中的输出可以一键放进输入框。
+
+## 分支
+
+<img src="doc/assets/readme/zh/branches.gif" alt="状态栏显示 main，打开分支面板，筛选出 feat/remote-checks 并切换过去" width="80%" />
+
+状态栏显示当前项目的分支、未提交改动和领先 / 落后的提交数。点它（或在命令面板里选「切换分支…」）可以搜索本地和远端分支、切换，或从 `HEAD` 新建分支。Git 允许时改动直接带到新分支；会被覆盖时可以先暂存（stash），回到原分支时会提示恢复。项目里还有会话在运行时，切换前会先确认。
+
+## 用量
+
+<img src="doc/assets/readme/zh/usage.png" alt="设置 → 用量，最近 90 天：费用、token、请求数、缓存命中率，按天堆叠的柱状图（悬停在某一天），以及活跃热力图" width="100%" />
+
+「设置 → 用量」统计本机所有 pi 会话的 token 和费用——桌面端和终端 pi 的都算，包括自定义的 `sessionDir`——可按天、小时、模型、项目和会话查看。悬停在某天的某一层可以看到占比；复制进分叉会话的回复只计一次。
+
 ## 更多面板
 
 <img src="doc/assets/readme/zh/panels.png" alt="Tree 面板的会话树、Run 面板的上下文占比环形图、Context 面板的上下文条目列表" width="100%" />
@@ -80,11 +98,17 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 | **Run** | 运行状态、当前模型与思考等级，以及上下文窗口在用户、助手、工具消息之间的占比。 |
 | **Context** | 组成当前上下文的消息列表，每条附 token 估算。 |
 
-## 主题
+## 主题与背景图
 
-<img src="doc/assets/readme/zh/theme-switch.gif" alt="同一个窗口从浅色主题扫到深色主题再扫回" width="100%" />
+<img src="doc/assets/readme/zh/themes.png" alt="Claude 主题：浅色是暖米白底、衬线体回复，深色是暖炭灰，背后衬着一张柔和的背景图" width="100%" />
 
-浅色、深色各自可以用预设或自定义配色，也可以跟随系统切换。支持导入 `pi-theme-v1` / `codex-theme-v1` 主题字符串；自定义 CSS、5 套图标、90%–110% 界面缩放都在「设置 → 外观」。
+浅色、深色各自可以选预设——**Claude**、VS Code Light+、Codex Dark——也可以自己调：侧栏、聊天区、你的消息、代码块、边框的颜色，标题 / 回复字体（含衬线体），聊天字号和行高，圆角和阴影。这些都是 CSS 变量，自定义 CSS 编辑器旁边列出了全部变量。还可以在窗口背后放一张背景图，浅色深色分开或共用，图片强度、模糊和界面不透明度都能调，文字始终在磨砂层上。支持导入 `pi-theme-v1` / `codex-theme-v1` 主题字符串；5 套图标、90%–110% 界面缩放也在「设置 → 外观」。
+
+## 手机上的 pi
+
+<img src="doc/assets/readme/zh/phone.png" alt="Android 上的 pi Remote：会话收件箱、带工具步骤和改动文件的会话、选中两行准备批注的 diff，以及显示上下文、改动、分支和费用的会话面板" width="100%" />
+
+**pi Remote**（Android）连到桌面端：打开「设置 → 手机连接」，扫码配对，所有会话就都在手机上了——回合运行时可以跟着看，回答它的提问，发带图片的消息，切换模型和思考强度。按文件查看本轮或工作区的改动，长按几行写批注，批注会进到下一条消息里；还能切换会话分支，或从任意一条消息分叉。连接端到端加密、不出你的网络；在外面时，让电脑和手机加入同一个 Tailscale / ZeroTier / WireGuard 网络即可（应用会自动发现组网地址，也可以手动添加）。界面中英文跟随手机系统语言，也可以在应用里单独设置。
 
 ## 整体结构
 
@@ -102,7 +126,7 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 | **扩展照常用** | 给终端 pi 装的扩展在这里同样加载。弹窗、工具卡片、面板和 `/命令` 由声明式适配器映射成原生界面，内置 36 个。[列表](./doc/guide/adapters.zh-CN.md) |
 | **完成通知** | 回合结束或需要你作答时发系统通知，应用内有通知收件箱；底部状态栏显示正在运行的会话。 |
 | **WSL 运行时**（Windows） | 把 Worker 跑在指定的 WSL 发行版里，会话、Git 和预览都在 Linux 侧解析。 |
-| **中英文界面** | 在设置里切换。 |
+| **中英文界面** | 在设置里切换；手机应用跟随系统语言。 |
 | **更新** | 后台检查 GitHub Releases，可一键下载并启动安装包。 |
 
 ## 安装
@@ -112,6 +136,7 @@ Markdown、代码块、KaTeX 和长输出都在原位渲染。悬停消息可以
 | Windows x64 | `pi.Desktop-Setup-<版本>-x64.exe`（安装版）或 `pi.Desktop-Portable-<版本>-x64.exe`（便携版） |
 | macOS | Apple Silicon（`arm64`）与 Intel（`x64`）的 `.dmg` / `.zip` |
 | Linux x64 | `.AppImage` 或 `.deb` |
+| Android 9+（arm64） | `pi-remote-<version>-android-arm64.apk`，即手机应用 |
 
 到 [Releases](https://github.com/justhil/pi-app/releases/latest) 下载，每个版本附带 `SHA256SUMS.txt` 校验和。应用自带 pi SDK，只需像使用终端 pi 一样登录一次模型服务商（凭据保存在 `~/.pi/agent`）。在「设置 → 运行时」可以切换到全局安装的 pi 版本。
 
@@ -151,6 +176,8 @@ npm run package      # 用 electron-builder 打安装包
 | 上一条 / 下一条已发送消息 | 输入框为空或光标在开头 / 结尾时按 `↑` / `↓` |
 | 引用文件 / 命令 | `@` / `/` |
 | 在新标签打开文件 | 文件面板中 `Ctrl`/`⌘`+点击 |
+| 显示 / 收起终端 | `` Ctrl+` `` |
+| 关闭当前终端栏 / 在终端中查找 | `Ctrl+Shift+W` / `Ctrl+Shift+F`（macOS 为 `⌘W` / `⌘F`） |
 
 ## 扩展
 
@@ -187,11 +214,12 @@ pi install npm:<包名>      # 或：pi install git:github.com/<owner>/<repo>
 <details>
 <summary>开发者</summary>
 
-- 技术栈：Electron 43 · React 18 · TypeScript · Tailwind · Zustand · i18next · `@earendil-works/pi-coding-agent`
+- 技术栈：Electron 43 · React 18 · TypeScript · Tailwind · Zustand · i18next · xterm.js · `@earendil-works/pi-coding-agent`
 - 进程结构：Electron Main（IPC、Worker 池、Git、预览）→ 每个会话一个 utilityProcess Worker 运行 pi SDK → Renderer。
 - 检查：`npm run test:unit`、`npm run test:scripts`、`npm run typecheck`、`npm run lint`
 - 文档：[`doc/`](./doc/README.md) · [适配器编写](./doc/adapter-authoring-guide.md) · [更新日志](./CHANGELOG.md)
-- 发布：推送 `v*` 标签触发 `.github/workflows/release.yml`，构建 Windows、macOS、Linux 安装包。
+- 手机应用：Kotlin / Compose，位于 [`apps/mobile`](./apps/mobile)；`node scripts/remote-dev-host.mjs` 会启动一个假桌面端供开发调试。
+- 发布：推送 `v*` 标签触发 `.github/workflows/release.yml`，构建 Windows、macOS、Linux 和 Android 安装包。
 
 </details>
 
