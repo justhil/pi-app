@@ -419,6 +419,20 @@ export class SessionHub {
     for (const e of this.entries.values()) e.subscribers.delete(client)
   }
 
+  /** Rewind the session, then have every viewer re-open it (its turns changed under them). */
+  async rewind(sessionKey: string, anchor: string): Promise<{ editorText?: string }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    if (entry.projector.sessionState.running) throw new RpcFail('busy', 'stop the run before rewinding')
+    if (anchor.startsWith('live:')) throw new RpcFail('conflict', 'message is not saved yet')
+    const r = await this.port.rewind(entry.sessionFile, anchor, projectId)
+    // The leaf lives outside the JSONL, so the file stamp would not invalidate the cache.
+    this.history.delete(entry.key)
+    entry.projector.clearLiveTurn()
+    this.publish(entry, [{ op: 'timeline.reset' }])
+    this.port.notifySettingsChanged('rewound', entry.sessionFile)
+    return r
+  }
+
   async page(sessionKey: string, before: string, limit: number): Promise<{ turns: Turn[]; hasOlder: boolean }> {
     const { entry, projectId } = await this.authorize(sessionKey)
     const turns = this.mergedTurns(entry, await this.loadHistoryTurns(entry, projectId))

@@ -3,6 +3,8 @@ package dev.pi.remote.net
 import dev.pi.remote.protocol.Accepted
 import dev.pi.remote.protocol.AbortResult
 import dev.pi.remote.protocol.DequeueResult
+import dev.pi.remote.protocol.RewindParams
+import dev.pi.remote.protocol.RewindResult
 import dev.pi.remote.protocol.CommandListResult
 import dev.pi.remote.protocol.FileListParams
 import dev.pi.remote.protocol.FileListResult
@@ -56,6 +58,7 @@ class RemoteApi(private val c: HostConnection) {
         c.typedCall("file.list", FileListParams.serializer(), FileListParams(sessionKey, path, dotfiles.takeIf { it }), FileListResult.serializer())
     suspend fun searchFiles(sessionKey: String, query: String) =
         c.typedCall("file.search", FileSearchParams.serializer(), FileSearchParams(sessionKey, query), FileSearchResult.serializer()).entries
+    suspend fun rewind(sessionKey: String, anchor: String) = c.typedCall("turn.rewind", RewindParams.serializer(), RewindParams(sessionKey, anchor), RewindResult.serializer())
     suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())
     suspend fun models(sessionKey: String) = c.typedCall("model.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), ModelListResult.serializer())

@@ -219,6 +219,7 @@ const methodSamples: Samples = {
   },
   'turn.send': { params: { sessionKey, text: '顺便更新 CHANGELOG', mode: 'followUp', clientMessageId: 'm_01JABCDEF' }, result: { accepted: true, duplicate: false } },
   'turn.abort': { params: { sessionKey }, result: { aborted: true, restored: ['顺便更新 CHANGELOG'] } },
+  'turn.rewind': { params: { sessionKey, anchor: 'entry-41' }, result: { editorText: '登录页偶尔会报 401，帮我查一下原因' } },
   'turn.dequeue': { params: { sessionKey }, result: { restored: ['顺便更新 CHANGELOG'] } },
   'session.create': { params: { projectId: '/work/pi-app', capabilities: ['pi-ui'] }, result: { sessionKey } },
   'model.list': {

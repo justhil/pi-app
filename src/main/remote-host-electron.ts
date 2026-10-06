@@ -11,6 +11,7 @@ import { findAdapterByTool } from '../extension-compat/adapter-loader'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
+import { setSessionLeafOverride } from './session-leaf-override'
 import { workspaceFsListDir } from './workspace-fs'
 import { workspaceFsSearch } from './workspace-file-search'
 import { scanStaticSlashCommands } from './commands-catalog'
@@ -149,6 +150,16 @@ export function createElectronRemoteHost(): RemoteHostPort {
     },
 
     abort: (sessionFile) => workerManager.abort(sessionFile),
+
+    async rewind(sessionFile: string, anchor: string, projectId: string) {
+      // Same as the desktop rewind, on this session's own worker (never the foreground one).
+      if (!workerManager.hasLiveSessionWorker(sessionFile)) await workerManager.loadSession(sessionFile, { cwd: projectId })
+      const r = await workerManager.navigateTree(anchor, { summarize: false, sessionFile })
+      if (r.cancelled) throw new Error(r.error || 'rewind_cancelled')
+      // pi keeps the leaf in memory only: persist it so history reads and later loads follow the branch.
+      setSessionLeafOverride(sessionFile, r.leafId !== undefined ? r.leafId : anchor)
+      return r.editorText ? { editorText: r.editorText } : {}
+    },
 
     async clearQueue(sessionFile: string): Promise<string[]> {
       // Never spawn a worker just to read an empty queue.

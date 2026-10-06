@@ -148,6 +148,8 @@ export const TurnPatchSchema = z.discriminatedUnion('op', [
     })
     .strict(),
   z.object({ op: z.literal('session.state'), seq, state: SessionStateSchema }).strict(),
+  /** The session's branch changed (rewind): drop the timeline and open it again for a fresh snapshot. */
+  z.object({ op: z.literal('timeline.reset'), seq }).strict(),
 ])
 export type TurnPatch = z.infer<typeof TurnPatchSchema>
 

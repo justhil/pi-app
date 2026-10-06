@@ -217,4 +217,9 @@
     <string name="files_truncated">Folder truncated — search to find more</string>
     <string name="files_failed">Couldn\'t open this folder</string>
     <string name="files_insert">Insert %1$d</string>
+    <string name="msg_rewind">Rewind to before this</string>
+    <string name="msg_rewind_hint">This turn leaves the branch; its message returns to the composer</string>
+    <string name="msg_rewind_hint_more">This turn and %1$d after it leave the branch (restorable from the desktop session tree)</string>
+    <string name="msg_rewind_confirm">Rewind</string>
+    <string name="msg_rewind_failed">Rewind failed: %1$s</string>
 </resources>
