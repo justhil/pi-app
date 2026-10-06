@@ -207,6 +207,25 @@ class RemoteRepository(
         conn?.kick() ?: connect()
     }
 
+    /**
+     * Pull to refresh: re-list projects and sessions (the host rescans its session files, which
+     * catches desktop changes that never reached us as `sessions.update`). Offline, it reconnects
+     * instead (the list reloads on ready) and waits briefly for the link. False on failure.
+     */
+    suspend fun refreshInbox(): Boolean {
+        if (_connection.value !is HostConnection.State.Ready) {
+            retry()
+            return withTimeoutOrNull(8_000) { _connection.first { it is HostConnection.State.Ready } } != null
+        }
+        val a = api ?: return false
+        return runCatching {
+            val projects = a.projects()
+            val sessions = a.watchList()
+            _inbox.value = InboxState(sessions, projects, loaded = true)
+            persistInbox()
+        }.onFailure { _notices.tryEmit(it.message ?: "list failed") }.isSuccess
+    }
+
     private fun connect() {
         val host = _active.value ?: return
         if (conn != null) return
