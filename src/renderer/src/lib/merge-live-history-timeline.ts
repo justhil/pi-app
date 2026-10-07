@@ -188,6 +188,15 @@ export function mergeLiveTimelineWithHistoryTail(
         return dedupeAdjacentUserMessages(hist)
       }
 
+      // A switch-away capture may predate the persisted tool steps of this turn.
+      // Keep its loaded prefix, but do not let its shorter tail erase the newer disk rows.
+      if (histAfterUser.length > liveAfterUser.length) {
+        return dedupeAdjacentUserMessages([
+          ...(liveThroughUser.length > histThroughUser.length ? liveThroughUser : histThroughUser),
+          ...histAfterUser,
+        ])
+      }
+
       // live 前缀更完整（capture 了更长历史）→ 用 live 前缀 + live 尾
       if (liveThroughUser.length >= histThroughUser.length && live.length >= hist.length) {
         return dedupeAdjacentUserMessages(live)
