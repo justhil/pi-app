@@ -1,6 +1,9 @@
 // Pi 原生工具预览：read / edit / write / grep / find / bash
 // 主流 主流 Agent 桌面与 IDE：默认折叠、可展开、diff、Shiki 语法高亮
 import { useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import { formatMcpOutput } from './mcp-tool'
 import { FileText, Search, Terminal, Plus, Minus, FolderSearch } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
@@ -280,6 +283,48 @@ function LsPreview({ item, flat }: { item: ToolTimelineItem; flat?: boolean }) {
         <CodeBlockView code={output || '(empty)'} previewLines={10} defaultExpanded={false} />
       </div>
     </NativePreviewPanel>
+  )
+}
+
+/** MCP call: arguments, then the result (pretty JSON when it is JSON), and the saved full output. */
+export function McpToolPreview({ item }: { item: ToolTimelineItem }) {
+  const { t } = useTranslation()
+  const args = normalizeToolArgs(item.toolArgs)
+  const argCode = Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : ''
+  const output = formatMcpOutput(extractToolText(item.toolOutput || '').replace(/\n$/, ''))
+  const fullOutputPath = (item.toolDetails as { fullOutputPath?: unknown } | null | undefined)?.fullOutputPath
+  const running = item.toolPhase === 'start' || item.toolPhase === 'update'
+  return (
+    <div className="space-y-1 p-1">
+      {argCode ? (
+        <CodeBlockView code={argCode} lang="json" previewLines={6} defaultExpanded={false} />
+      ) : null}
+      {output.code ? (
+        <CodeBlockView
+          code={output.code}
+          lang={output.lang}
+          previewLines={8}
+          defaultExpanded={false}
+          className={item.isError ? 'border-destructive/30' : undefined}
+        />
+      ) : running ? null : (
+        <div className="px-1.5 py-1 text-[11px] text-foreground-secondary/70">{t('timeline:mcp.noOutput')}</div>
+      )}
+      {typeof fullOutputPath === 'string' && fullOutputPath ? (
+        <div className="flex items-center gap-1.5 px-1.5 text-[10px] text-foreground-secondary/70">
+          <span className="min-w-0 truncate font-mono" title={fullOutputPath}>
+            {t('timeline:mcp.fullOutput')} {fullOutputPath}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 rounded px-1 hover:text-foreground"
+            onClick={() => ipcClient.invoke('shell.openPath', { path: fullOutputPath }).catch(() => {})}
+          >
+            {t('timeline:toolOpen')}
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

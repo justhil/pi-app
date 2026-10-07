@@ -225,5 +225,9 @@
   "scrubber": {
     "label": "Your messages",
     "hint": "Jump to your earlier messages: click or drag; ↑↓ or Alt+↑↓ to step"
+  },
+  "mcp": {
+    "noOutput": "No output",
+    "fullOutput": "Full output:"
   }
 }

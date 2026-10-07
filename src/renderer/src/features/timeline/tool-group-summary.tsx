@@ -13,6 +13,7 @@ import {
   formatCollapsedToolActivityLine,
 } from './timeline-turn-activity'
 import { DiffStatBadge } from './diff-stat-badge'
+import { displayToolName } from './mcp-tool'
 
 const toolKey = (tool: ToolTimelineItem) => tool.toolCallId || tool.id
 
@@ -72,7 +73,7 @@ function ToolGroupSummaryImpl({
   const activityLabel = useMemo(() => {
     const line = formatCollapsedToolActivityLine(summary, t)
     if (line) return line
-    const names = [...new Set(tools.map((tool) => tool.toolName || 'tool'))]
+    const names = [...new Set(tools.map((tool) => displayToolName(tool.toolName)))]
     return t('timeline:activity.usedTools', {
       count: tools.length,
       names: names.slice(0, 4).join(', '),
