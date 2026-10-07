@@ -34,6 +34,7 @@ export const useUIStore = create<UIState>()(
   persist(
     (set, get) => ({
   currentWorkspace: null,
+  workspaceFileToOpen: null,
   recentProjects: [],
   ephemeralSandboxDraft: false,
   pendingNewSessionPlaceholder: false,
@@ -57,6 +58,7 @@ export const useUIStore = create<UIState>()(
         // 此处 unshift 会让固定顺序模式下列表先跳顶再弹回（闪烁），MRU 模式也由磁盘路径列表当前置顶兜底。
         ...(changed
           ? {
+            workspaceFileToOpen: null,
             sessions: [],
             sessionsWorkspace: null,
             currentSessionId: null,

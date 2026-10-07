@@ -48,6 +48,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...fs, default: fs }
 })
 vi.mock('electron', () => ({ shell: { openPath: vi.fn(), showItemInFolder: vi.fn() } }))
+vi.mock('../wsl/runtime-config', () => ({ getAgentRuntimeConfig: () => ({ mode: 'host', distro: null }) }))
 vi.mock('../ipc/registry', () => ({
   registerHandler: (name: string, handler: (req: Record<string, unknown>) => Promise<unknown>) => mocks.handlers.set(name, handler),
   registerHandlerWithSchema: (name: string, schema: { parse: (req: unknown) => Record<string, unknown> }, handler: (req: Record<string, unknown>) => Promise<unknown>) =>

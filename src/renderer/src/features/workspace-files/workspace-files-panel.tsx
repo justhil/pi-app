@@ -24,6 +24,7 @@ export function WorkspaceFilesPanel() {
   const panelRef = useRef<HTMLDivElement>(null)
   const expandButtonRef = useRef<HTMLButtonElement>(null)
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
+  const workspaceFileToOpen = useUIStore((s) => s.workspaceFileToOpen)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const rightPanelCollapsed = useRightPanelHidden()
@@ -130,14 +131,10 @@ export function WorkspaceFilesPanel() {
   )
 
   useEffect(() => {
-    const onOpen = (e: Event) => {
-      const d = (e as CustomEvent<{ rel?: string; name?: string }>).detail
-      if (!d?.rel) return
-      onSelectPath(d.rel, false)
-    }
-    window.addEventListener('pi-desktop:open-workspace-file', onOpen)
-    return () => window.removeEventListener('pi-desktop:open-workspace-file', onOpen)
-  }, [onSelectPath])
+    if (!workspaceFileToOpen) return
+    useUIStore.setState({ workspaceFileToOpen: null })
+    if (workspaceFileToOpen.workspaceRoot === workspaceRoot) onSelectPath(workspaceFileToOpen.rel, false)
+  }, [workspaceFileToOpen, workspaceRoot, onSelectPath])
 
   const chromeTrailing = (
     <>

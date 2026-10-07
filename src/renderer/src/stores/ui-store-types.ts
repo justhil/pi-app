@@ -131,6 +131,7 @@ export interface AppEventStoreSlice {
 
 export interface UIState {
   currentWorkspace: string | null
+  workspaceFileToOpen: { workspaceRoot: string; rel: string } | null
   recentProjects: string[]
   setWorkspace: (path: string | null) => void
   ephemeralSandboxDraft: boolean
