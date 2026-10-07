@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorkspaceFilesPanel } from './workspace-files-panel'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 vi.mock('./file-tree', () => ({ FileTree: () => null }))
 vi.mock('./file-preview-router', () => ({ FilePreviewRouter: () => <div>preview</div> }))
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: vi.fn().mockResolvedValue({ ok: true, entries: [] }) } }))
@@ -9,7 +10,7 @@ afterEach(cleanup)
 function openPreview() {
   useUIStore.setState({ currentWorkspace: '/fixture', activePanel: 'files', filesPreviewChatExpand: false })
   render(<WorkspaceFilesPanel />)
-  act(() => window.dispatchEvent(new CustomEvent('pi-desktop:open-workspace-file', { detail: { rel: '中文.html' } })))
+  act(() => { openWorkspaceRelativePath('中文.html') })
   fireEvent.click(screen.getByTitle(/Expand preview|展开预览/))
   expect(useUIStore.getState().filesPreviewChatExpand).toBe(true)
 }

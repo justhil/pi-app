@@ -10,6 +10,7 @@ import { joinWorkspacePath } from './path-utils'
 import { resolveFilePreviewMode } from './file-preview-mode'
 import { PREVIEW_MD_MAX_CHARS, PREVIEW_MD_MAX_LINES, PREVIEW_READ_MAX_BYTES } from './file-preview-limits'
 import { FileSourcePreview } from './file-source-preview'
+import { toast } from 'sonner'
 
 type ReadTextFn = (
   p: string,
@@ -118,7 +119,9 @@ export function FilePreviewRouter({
     return () => { cancelled = true }
   }, [absPath, workspaceRoot, relativePath, mode, readText, maxBytes, refreshKey])
 
-  const openExternal = () => void ipcClient.invoke('shell.openPath', { path: absPath })
+  const openExternal = () => void ipcClient.invoke('shell.openPath', { path: absPath }).then((result) => {
+    if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
+  }).catch(() => toast.error(t('common:sidebar.revealFailed')))
   const wrap = (node: ReactNode) => (
     <div className={cn('flex min-h-0 min-w-0 flex-col', fill && 'flex-1')}>
       {truncated && !loading && (
@@ -144,7 +147,7 @@ export function FilePreviewRouter({
   if (mode === 'pdf' || mode === 'binary' || mode === 'sheet') return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(mode === 'pdf' ? 'preview.pdf' : 'preview.binary')}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
   if (content == null) return wrap(null)
   if (mode === 'html' && !truncated) return wrap(<iframe ref={frameRef} title="html-preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlDocument} className="min-h-0 w-full flex-1 border-0 bg-[var(--bg-base)]" />)
-  if (mode === 'markdown' && !truncated && content.length <= PREVIEW_MD_MAX_CHARS && content.split('\n').length <= PREVIEW_MD_MAX_LINES) return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView>{content}</MarkdownView></FilePreviewScroll>)
+  if (mode === 'markdown' && !truncated && content.length <= PREVIEW_MD_MAX_CHARS && content.split('\n').length <= PREVIEW_MD_MAX_LINES) return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView baseDirectory={joinWorkspacePath(workspaceRoot, relativePath.split('/').slice(0, -1).join('/'))}>{content}</MarkdownView></FilePreviewScroll>)
   if (mode === 'code') return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} />)
   return wrap(<PlainTextFill content={content} />)
 }
