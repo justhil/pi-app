@@ -7,6 +7,7 @@ type ListSessions = (workspaceId: string) => Promise<SessionOnDiskRow[]>
 type PreparedSession = {
   sessionId: string
   sessionFile: string
+  cwd: string | null
 }
 
 type DerivedChildSessionLocator = {
@@ -56,6 +57,7 @@ export async function resolvePreparedSessionFile(
     return {
       sessionId: directMeta.sessionId,
       sessionFile: candidateSessionFile,
+      cwd: directMeta.cwd,
     }
   }
 
@@ -75,5 +77,6 @@ export async function resolvePreparedSessionFile(
   return {
     sessionId: matchedSession.id,
     sessionFile: matchedSession.path,
+    cwd: matchedSession.cwd || parentMeta.cwd,
   }
 }
