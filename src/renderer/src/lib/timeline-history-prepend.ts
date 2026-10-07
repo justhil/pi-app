@@ -1,6 +1,6 @@
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { projectTimelineItems } from '@shared/timeline-projection'
-import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
+import { dedupeAdjacentUserMessages } from '@renderer/lib/timeline-dedupe'
 import { fetchTimelineHistoryPage } from '@renderer/lib/session-timeline-sync'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SESSION_HISTORY_PAGE } from '@renderer/lib/session-history'
@@ -23,7 +23,7 @@ export async function prependOlderTimelinePage(
 
   const store = useUIStore.getState()
   if (page.items.length > 0) {
-    const merged = sanitizeHistoryTimeline([...page.items, ...store.timelineItems])
+    const merged = dedupeAdjacentUserMessages([...page.items, ...store.timelineItems])
     const displayed = projectTimelineItems(merged) as TimelineItem[]
     useUIStore.setState({ timelineItems: displayed })
   }
