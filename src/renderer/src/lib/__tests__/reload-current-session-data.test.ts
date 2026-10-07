@@ -16,6 +16,7 @@ vi.mock('@renderer/lib/live-session-timeline-cache', () => ({ clearLiveSessionTi
 import { reloadCurrentSessionData } from '../reload-current-session-data'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { clearStreamPending } from '@renderer/stores/ui-store-stream'
+import { beginSessionNavigation } from '../session-navigation'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -107,6 +108,20 @@ describe('current session reload', () => {
     })
     await first
     expect(useUIStore.getState().timelineItems[0]?.text).toBe('fresh history')
+  })
+
+  it('discards a stale reload after leaving and returning to the same session', async () => {
+    const pending = deferred<GetMessagesResult>()
+    mocks.history.mockReturnValue(pending.promise)
+    const reload = reloadCurrentSessionData()
+    await vi.waitFor(() => expect(mocks.history).toHaveBeenCalled())
+    beginSessionNavigation()
+    beginSessionNavigation()
+    pending.resolve(history)
+    await reload
+    expect(useUIStore.getState().timelineItems[0]?.text).toBe('old history')
+    expect(mocks.capture).not.toHaveBeenCalled()
+    expect(mocks.meta).not.toHaveBeenCalled()
   })
 
   it('should_keep_current_messages_when_disk_read_returns_error', async () => {

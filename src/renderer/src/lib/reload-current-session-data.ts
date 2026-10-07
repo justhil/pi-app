@@ -8,6 +8,8 @@ import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-ca
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
+import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 
 let reloadGeneration = 0
 
@@ -19,8 +21,10 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
   const sessionFile = store.historySessionFile
   const sessionId = store.currentSessionId
   const generation = ++reloadGeneration
+  const navToken = getSessionNavigationToken()
   const stillCurrent = (): boolean =>
     generation === reloadGeneration &&
+    isSessionNavigationCurrent(navToken) &&
     sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
 
   void refreshWorkspaceSessionLists()
@@ -35,7 +39,6 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false, alignWorkerOnRetry: false })
     if (!stillCurrent()) return { ok: true }
     if (hist.error) return { ok: false, error: hist.error }
-    const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
     const { items, totalCount, sessionMeta } = hist
     store.loadHistoryItems(sanitizeHistoryTimeline(items as TimelineItem[]))
     store.setHistoryMeta(totalCount, items.length, sessionFile)
