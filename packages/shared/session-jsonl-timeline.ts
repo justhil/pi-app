@@ -37,14 +37,19 @@ async function loadSessionManagerModule(activeSdkPath?: string | null): Promise<
   }
 }
 
-function paginateItems<T>(
+function paginateItems<T extends { type?: unknown }>(
   all: T[],
   offset: number,
   limit: number,
 ): T[] {
   const totalCount = all.length
   if (offset === 0 && limit < totalCount) {
-    return all.slice(Math.max(0, totalCount - limit))
+    const start = Math.max(0, totalCount - limit)
+    // A tail starting inside a turn loses its prompt during live-cache reconciliation.
+    // Keep that turn intact; older pages still use the returned source row count as offset.
+    let turnStart = start
+    while (turnStart > 0 && all[turnStart].type !== 'user-message') turnStart--
+    return all.slice(all[turnStart].type === 'user-message' ? turnStart : start)
   }
   if (offset > 0) {
     const end = totalCount - offset
