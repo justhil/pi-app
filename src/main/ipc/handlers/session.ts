@@ -137,10 +137,16 @@ export function registerSessionHandlers(): void {
     if (req.bind !== false && prepared?.sessionFile && prepared.sessionFile !== sessionFile) {
       setPendingWorkerSessionFile(prepared.sessionFile)
     }
+    const runtime = getAgentRuntimeConfig()
     return {
       bound: false,
       sessionId: prepared?.sessionId ?? null,
       sessionFile: prepared?.sessionFile ?? sessionFile,
+      workspaceId: prepared?.cwd
+        ? (runtime.mode === 'wsl'
+          ? wslPathToWindows(runtime.distro, prepared.cwd)
+          : prepared.cwd)
+        : null,
     }
   })
 

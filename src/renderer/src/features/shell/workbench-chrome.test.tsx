@@ -34,6 +34,7 @@ beforeEach(() => {
   mocks.invoke.mockImplementation(async (method: string) => {
     if (method === 'desktop.status') return { rss: 256 * 1024 ** 2, total: 16 * 1024 ** 3, workers: [worker] }
     if (method === 'notifications.inbox') return { items: [] }
+    if (method === 'session.prepare') return { sessionId: session.sessionId, sessionFile: session.sessionFile, workspaceId: session.workspaceId }
     return { ok: true }
   })
 })

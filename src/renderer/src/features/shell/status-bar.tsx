@@ -10,6 +10,8 @@ import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 import { countAttention, listAttentionSessions, type SessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-session-lists'
+import { uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
 import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
@@ -47,6 +49,7 @@ export function StatusBar() {
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const counts = countAttention(attention)
   const [status, setStatus] = useState<DesktopStatus | null>(null)
+  const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionItem[]>>({})
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [openUpdate, setOpenUpdate] = useState<(() => void) | null>(null)
@@ -73,6 +76,18 @@ export function StatusBar() {
   }, [])
 
   useVisibleInterval(() => void refresh(), 5000)
+  useEffect(() => {
+    if (!popover) return
+    let cancelled = false
+    const workspaces = uniqueWorkspacePaths((status?.workers ?? []).map((row) => row.cwd))
+      .filter((workspace) => !workspacePathsEqual(workspace, currentWorkspace))
+    for (const workspace of workspaces) {
+      void loadWorkspaceSessionList(workspace).then((list) => {
+        if (!cancelled && list) setSessionsByWorkspace((previous) => ({ ...previous, [workspacePathKey(workspace)]: list }))
+      })
+    }
+    return () => { cancelled = true }
+  }, [popover, status?.workers, currentWorkspace])
   useEffect(
     () => onAppUpdateAvailable((update) => setOpenUpdate(() => () => showAppUpdateDialog(update))),
     [],
@@ -83,22 +98,28 @@ export function StatusBar() {
     void ipcClient.invoke('desktop.setSleepBlock', { on: busy }).catch(() => {})
   }, [counts.working, counts.needsYou])
 
+  const findSession = (file: string) => sessions.find((s) => sessionFilesEqual(s.sessionFile, file))
+    ?? Object.values(sessionsByWorkspace).flat().find((s) => sessionFilesEqual(s.sessionFile, file))
+
   const openSession = async (file: string) => {
     setActionError(null)
     try {
-      let match = sessions.find((s) => sessionFilesEqual(s.sessionFile, file))
+      const match = findSession(file)
       const worker = status?.workers.find((row) => sessionFilesEqual(row.sessionFile, file))
-      const workspace = match?.workspaceId || worker?.cwd || (match ? currentWorkspace : null)
-      if (!match && workspace) {
-        const result = await ipcClient.invoke('session.list', { workspaceId: workspace })
-        match = result.sessions?.find((s: SessionItem) => sessionFilesEqual(s.sessionFile, file))
-      }
-      if (!match || !workspace) {
+      // Disk identity is authoritative; a missing/stale project list does not mean deletion.
+      const prepared = await ipcClient.invoke('session.prepare', { sessionFile: file, bind: false })
+      if (!prepared?.sessionId) {
         setActionError(t('common:notification.sessionGone'))
         return
       }
-      if (workspace === currentWorkspace) await switchSessionInPlace(match.sessionId, file)
-      else await activateWorkspace(workspace, { sessionId: match.sessionId, sessionFile: file })
+      const workspace = prepared.workspaceId || match?.workspaceId || worker?.cwd || (match ? currentWorkspace : null)
+      if (!workspace) {
+        setActionError(t('common:notification.openFailed'))
+        return
+      }
+      const sessionFile = prepared.sessionFile || file
+      if (workspacePathsEqual(workspace, currentWorkspace)) await switchSessionInPlace(prepared.sessionId, sessionFile)
+      else await activateWorkspace(workspace, { sessionId: prepared.sessionId, sessionFile })
       close()
     } catch {
       setActionError(t('common:notification.openFailed'))
@@ -171,12 +192,12 @@ export function StatusBar() {
                 return <section key={kind} className="workbench-group" aria-label={label(kind)}>
                   <h3 className="workbench-group-heading"><SessionAttentionDot attention={kind} />{label(kind)}<span>{files.length}</span></h3>
                   {files.map((file) => {
-                    const match = sessions.find((s) => sessionFilesEqual(s.sessionFile, file))
+                    const match = findSession(file)
                     const worker = status?.workers.find((row) => sessionFilesEqual(row.sessionFile, file))
                     const workspace = match?.workspaceId || worker?.cwd || (match ? currentWorkspace : null)
-                    return <button key={file} type="button" className="workbench-list-row" disabled={!workspace} title={!workspace ? t('common:notification.sessionGone') : undefined} onClick={() => void openSession(file)}>
-                      <span className="workbench-row-title">{match?.title || file.split(/[\\/]/).pop()}</span>
-                      <span className="workbench-row-detail">{workspace?.split(/[\\/]/).pop() || t('common:notification.sessionGone')}{match?.firstMessage ? ` · ${match.firstMessage}` : ''}</span>
+                    return <button key={file} type="button" className="workbench-list-row" onClick={() => void openSession(file)}>
+                      <span className="workbench-row-title">{match?.title || t('common:split.untitled')}</span>
+                      <span className="workbench-row-detail">{workspace?.split(/[\\/]/).pop()}{match?.firstMessage ? ` · ${match.firstMessage}` : ''}</span>
                     </button>
                   })}
                 </section>
@@ -201,9 +222,9 @@ export function StatusBar() {
                 <section className="workbench-group" aria-label={t('common:statusBar.workers')}>
                   <h3 className="workbench-group-heading">{t('common:statusBar.workers')}<span>{status?.workers.length}</span></h3>
                   {status?.workers.map((row) => {
-                    const match = sessions.find((s) => sessionFilesEqual(s.sessionFile, row.sessionFile))
+                    const match = findSession(row.sessionFile)
                     return <div key={row.sessionFile} className="workbench-resource-row">
-                      <div className="flex min-w-0 flex-1 items-start gap-2.5"><SessionAttentionDot attention={row.running ? 'working' : 'idle'} className="mt-1" /><div className="min-w-0"><div className="workbench-row-title">{match?.title || row.sessionFile.split(/[\\/]/).pop()}</div><div className="workbench-row-detail">{row.cwd.split(/[\\/]/).pop()} · {row.running ? t('common:app.status.running') : t('common:app.status.idle')}</div></div></div>
+                      <div className="flex min-w-0 flex-1 items-start gap-2.5"><SessionAttentionDot attention={row.running ? 'working' : 'idle'} className="mt-1" /><div className="min-w-0"><div className="workbench-row-title">{match?.title || t('common:split.untitled')}</div><div className="workbench-row-detail">{row.cwd.split(/[\\/]/).pop()} · {row.running ? t('common:app.status.running') : t('common:app.status.idle')}</div></div></div>
                       {confirmStop === row.sessionFile ? <div className="basis-full rounded-md border border-border p-3"><p className="mb-2 text-xs leading-relaxed">{t('common:statusBar.stopConfirm')}</p><div className="flex justify-end gap-2"><button type="button" className="workbench-button" disabled={stopping} onClick={() => setConfirmStop(null)}>{t('common:cancel')}</button><button type="button" className="workbench-button text-destructive" disabled={stopping} onClick={() => void stopWorker(row.sessionFile)}>{stopping ? t('common:loading') : t('common:statusBar.kill')}</button></div></div> : <button type="button" className="workbench-button" disabled={!row.running} onClick={() => setConfirmStop(row.sessionFile)}>{t('common:statusBar.kill')}</button>}
                     </div>
                   })}

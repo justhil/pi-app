@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { decodeWorkerFrameLine } from '@shared/worker-frame'
-import { windowsPathToWsl } from '@shared/wsl-path'
+import { windowsPathToWsl, wslPathToWindows } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from './runtime-config'
 import { resolveWslActiveSdk } from './sdk-resolve'
 import { spawnPreviewInWsl, syncPreviewBundleToWsl } from './preview-host'
@@ -178,7 +178,7 @@ export class WslSessionPreviewRunner {
     const stdin = proc.stdin
     if (!stdin?.writable) throw new Error('WSL preview stdin is not writable')
     const requestId = `wsl-preview-${++this.sequence}`
-    return new Promise<T>((resolve, reject) => {
+    const result = await new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
         reject(new Error(`WSL preview request ${request.type} timed out`))
@@ -204,6 +204,16 @@ export class WslSessionPreviewRunner {
         reject(error)
       }
     })
+    // Match worker events: paths crossing into Main use the Windows view of WSL.
+    if (request.type === 'session.list' && Array.isArray(result)) {
+      return result.map((row) => ({
+        ...row,
+        path: wslPathToWindows(runtime.distro, row.path),
+        ...(row.cwd ? { cwd: wslPathToWindows(runtime.distro, row.cwd) } : {}),
+        ...(row.parentSessionPath ? { parentSessionPath: wslPathToWindows(runtime.distro, row.parentSessionPath) } : {}),
+      })) as T
+    }
+    return result
   }
 
   stop(): void {
