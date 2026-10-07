@@ -29,6 +29,9 @@ export async function routeDesktopSlashBeforeSend(line: string): Promise<Desktop
   const store = useUIStore.getState()
   const meta = resolved?.meta
 
+  // `/cmd args` is a real invocation (e.g. `/image-gen generate …`); only the bare command opens the page.
+  if (behavior === 'config-page' && trimmed.length > token.length) return { handled: false }
+
   if (behavior === 'config-page') {
     const name = meta?.adapterId || meta?.matchNames?.[0] || token.replace(/^\//, '')
     store.requestExtensionConfig(name)

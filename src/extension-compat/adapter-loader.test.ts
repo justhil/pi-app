@@ -40,6 +40,12 @@ describe('resolveV2SlashPrefix skill routing', () => {
     expect(resolved?.behavior).toBe('notify')
   })
 
+  it('opens a core panel for slashPanels commands', () => {
+    const resolved = resolveV2Slash('/context')
+    expect(resolved?.behavior).toBe('open-panel')
+    expect(resolved?.panelId).toBe('context')
+  })
+
   it('keeps TUI sticky prefix for /goalfoo', () => {
     const resolved = resolveV2SlashPrefix('/goalfoo')
     expect(resolved?.adapterId).toBe('pi-goal')

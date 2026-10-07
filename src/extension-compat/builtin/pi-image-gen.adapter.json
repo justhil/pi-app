@@ -1,7 +1,7 @@
 {
   "id": "pi-image-gen",
   "displayName": "Image Gen",
-  "description": "生图与审图工具（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
+  "description": "生图与改图（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
   "match": {
     "names": [
       "pi-image-gen"
@@ -40,8 +40,7 @@
       "size": "size",
       "responseFormat": "responseFormat",
       "outputDir": "outputDir",
-      "maxConcurrency": "maxConcurrency",
-      "reviewToolEnabled": "reviewToolEnabled"
+      "maxConcurrency": "maxConcurrency"
     },
     "localKeys": [
       "showInlinePreview"
@@ -84,7 +83,7 @@
             "title": "API"
           },
           "en": {
-            "title": "Image Generation API"
+            "title": "API"
           }
         }
       },
@@ -131,19 +130,13 @@
             "title": "生成"
           },
           "en": {
-            "title": "Model Settings"
+            "title": "Generation"
           }
         }
       },
       {
         "title": "桌面卡片",
         "fields": [
-          {
-            "key": "reviewToolEnabled",
-            "type": "boolean",
-            "label": "启用 image_review 审图工具",
-            "default": true
-          },
           {
             "key": "showInlinePreview",
             "type": "boolean",
@@ -156,7 +149,7 @@
             "title": "桌面卡片"
           },
           "en": {
-            "title": "Connectivity Test"
+            "title": "Desktop card"
           }
         }
       }
@@ -178,33 +171,46 @@
         }
       }
     ],
-    "note": "配置写入 ~/.pi/agent/image-gen.json（与扩展 CLI/TUI 共享）。showInlinePreview 为桌面卡片本地开关，不写入扩展配置。",
+    "note": "配置写入 ~/.pi/agent/image-gen.json（与扩展共享）。时间线内联预览是桌面本地开关。",
     "i18n": {
       "zh": {
-        "note": "配置写入 ~/.pi/agent/image-gen.json（与扩展 CLI/TUI 共享）。showInlinePreview 为桌面卡片本地开关，不写入扩展配置。"
+        "note": "配置写入 ~/.pi/agent/image-gen.json（与扩展共享）。时间线内联预览是桌面本地开关。"
       },
       "en": {
-        "note": "Writes ~/.pi/agent/image-gen.json. Connectivity test verifies the API key. Leave keys blank to keep saved values."
+        "note": "Writes ~/.pi/agent/image-gen.json, shared with the extension. Inline preview is a desktop-only switch. Leave the key blank to keep the saved one."
       }
     }
   },
   "slash": {
-    "/image-gen": "config-page",
-    "/image-gen:config": "config-page"
+    "/image-gen": "config-page"
   },
   "i18n": {
     "zh": {
       "displayName": "Image Gen",
-      "description": "生图与审图工具（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
+      "description": "生图与改图（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
       "actionLabels": {
         "test": "测试连接"
       }
     },
     "en": {
       "displayName": "Image Gen",
-      "description": "Image generation/editing tool; writes ~/.pi/agent/image-gen.json + connectivity test + model picker",
+      "description": "Image generation and editing (~/.pi/agent/image-gen.json, connectivity test, model picker)",
+      "fieldLabels": {
+        "baseUrl": "API base URL",
+        "apiKey": "API key",
+        "model": "Model",
+        "size": "Default size",
+        "responseFormat": "Response format",
+        "outputDir": "Output folder",
+        "maxConcurrency": "Max parallel requests (1-8)",
+        "showInlinePreview": "Inline preview in the timeline"
+      },
+      "fieldDescriptions": {
+        "baseUrl": "OpenAI-compatible image service (without /v1)",
+        "apiKey": "Enter - to clear the saved key"
+      },
       "actionLabels": {
-        "test": "测试连接"
+        "test": "Test connection"
       }
     }
   }

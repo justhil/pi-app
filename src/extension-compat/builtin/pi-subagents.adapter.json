@@ -1,16 +1,28 @@
 {
   "id": "pi-subagents",
   "displayName": "Subagents",
-  "description": "子代理委派与链路（subagent 工具卡片解析 mode/runId/results）",
+  "description": "子代理委派：subagent 工具卡片展开子会话进度；设置读写 ~/.pi/agent/extensions/subagent/config.json",
   "match": {
     "names": [
       "pi-subagents"
     ],
     "tools": [
       "subagent"
+    ],
+    "commands": [
+      "/run",
+      "/subagents",
+      "/subagents-stop",
+      "/subagents-steer",
+      "/subagents-detach",
+      "/subagents-doctor",
+      "/subagents-models",
+      "/subagents-profiles",
+      "/subagent-cost",
+      "/prompt-workflow"
     ]
   },
-  "tier": "headless",
+  "tier": "partial",
   "toolCard": {
     "template": "tree",
     "icon": "GitBranch",
@@ -24,16 +36,80 @@
     }
   },
   "config": {
-    "note": "子代理执行由扩展；桌面按 details（mode/runId/results/progress）渲染工具卡片。"
+    "configFile": "~/.pi/agent/extensions/subagent/config.json",
+    "fileKeyMap": {
+      "asyncByDefault": "asyncByDefault",
+      "defaultSubagentContext": "defaultSubagentContext",
+      "worktree": "worktree"
+    },
+    "sections": [
+      {
+        "title": "默认行为",
+        "fields": [
+          {
+            "key": "asyncByDefault",
+            "type": "boolean",
+            "label": "默认后台运行",
+            "default": true
+          },
+          {
+            "key": "defaultSubagentContext",
+            "type": "select",
+            "label": "子代理上下文",
+            "options": [
+              "fresh",
+              "fork"
+            ],
+            "description": "fresh 从空白开始；fork 带上当前会话。未设置时按各代理自己的默认值"
+          },
+          {
+            "key": "worktree",
+            "type": "boolean",
+            "label": "在独立 worktree 中运行",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "默认行为"
+          },
+          "en": {
+            "title": "Defaults"
+          }
+        }
+      }
+    ],
+    "note": "子代理由扩展执行；桌面按工具结果的 runId / progress 展开子会话。其余设置（forkContext、intercomBridge 等）请直接编辑配置文件。",
+    "i18n": {
+      "zh": {
+        "note": "子代理由扩展执行；桌面按工具结果的 runId / progress 展开子会话。其余设置（forkContext、intercomBridge 等）请直接编辑配置文件。"
+      },
+      "en": {
+        "note": "Subagents run in the extension; the desktop follows runId / progress to show child sessions. Edit the file for the other settings (forkContext, intercomBridge…)."
+      }
+    }
   },
   "i18n": {
     "zh": {
       "displayName": "Subagents",
-      "description": "子代理委派与链路（subagent 工具卡片解析 mode/runId/results）"
+      "description": "子代理委派：subagent 工具卡片展开子会话进度；设置读写 ~/.pi/agent/extensions/subagent/config.json",
+      "fieldLabels": {
+        "asyncByDefault": "默认后台运行",
+        "defaultSubagentContext": "子代理上下文",
+        "worktree": "在独立 worktree 中运行"
+      }
     },
     "en": {
       "displayName": "Subagents",
-      "description": "Subagent delegation and routing (subagent tool cards: mode/runId/results)"
+      "description": "Subagent delegation: subagent tool cards follow child sessions; settings in ~/.pi/agent/extensions/subagent/config.json",
+      "fieldLabels": {
+        "asyncByDefault": "Run in background by default",
+        "defaultSubagentContext": "Subagent context",
+        "worktree": "Run in a separate worktree"
+      },
+      "fieldDescriptions": {
+        "defaultSubagentContext": "fresh starts empty; fork carries the current session. Unset uses each agent's own default"
+      }
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "pi-cache-optimizer",
   "displayName": "Cache Optimizer",
-  "description": "缓存优化（运行时开关，影响新会话启动）",
+  "description": "提高提示词缓存命中：功能开关写入 ~/.pi/agent/pi-cache-optimizer-config.json",
   "match": {
     "names": [
       "pi-cache-optimizer"
@@ -12,40 +12,72 @@
   },
   "tier": "headless",
   "config": {
+    "configFile": "~/.pi/agent/pi-cache-optimizer-config.json",
+    "fileConstants": {
+      "version": 3
+    },
+    "fileKeyMap": {
+      "promptRewrite": "features.promptRewrite",
+      "skillCompression": "features.skillCompression",
+      "openAICacheKey": "features.openAICacheKey",
+      "virtualRewrite": "features.virtualRewrite",
+      "toolOrder": "features.toolOrder"
+    },
     "sections": [
       {
-        "title": "优化开关（环境变量）",
+        "title": "功能",
         "fields": [
           {
-            "key": "PI_CACHE_OPTIMIZER_NO_OPENAI_CACHE_KEY",
+            "key": "promptRewrite",
             "type": "boolean",
-            "label": "禁用 OpenAI cache key 优化",
-            "default": false
+            "label": "稳定系统提示词",
+            "default": true,
+            "description": "重排易变内容，提高前缀缓存命中"
           },
           {
-            "key": "PI_CACHE_OPTIMIZER_NO_SKILL_COMPRESSION",
+            "key": "skillCompression",
             "type": "boolean",
-            "label": "禁用技能压缩",
+            "label": "压缩技能列表",
+            "default": true
+          },
+          {
+            "key": "openAICacheKey",
+            "type": "boolean",
+            "label": "OpenAI cache key",
+            "default": true,
+            "description": "给 OpenAI 兼容请求加 prompt_cache_key"
+          },
+          {
+            "key": "virtualRewrite",
+            "type": "boolean",
+            "label": "虚拟改写",
+            "default": false,
+            "description": "实验性"
+          },
+          {
+            "key": "toolOrder",
+            "type": "boolean",
+            "label": "固定工具顺序",
             "default": false
           }
         ],
         "i18n": {
           "zh": {
-            "title": "优化开关（环境变量）"
+            "title": "功能"
           },
           "en": {
-            "title": "Cache Settings"
+            "title": "Features"
           }
         }
       }
     ],
-    "note": "这些开关对应环境变量，仅在新会话启动时生效（与扩展 /cache-optimizer disable 行为一致）。运行中切换请在终端用 /cache-optimizer。",
+    "note": "与扩展 /cache-optimizer 的功能开关是同一份文件，优先于环境变量；新会话生效。带参数的 /cache-optimizer（如 status、stats）照常交给扩展执行。",
     "i18n": {
       "zh": {
-        "note": "这些开关对应环境变量，仅在新会话启动时生效（与扩展 /cache-optimizer disable 行为一致）。运行中切换请在终端用 /cache-optimizer。"
+        "note": "与扩展 /cache-optimizer 的功能开关是同一份文件，优先于环境变量；新会话生效。带参数的 /cache-optimizer（如 status、stats）照常交给扩展执行。"
       },
       "en": {
-        "note": "Loaded at runtime; affects new session context."
+        "note": "Same file as the extension's /cache-optimizer feature switches; overrides environment variables and applies to new sessions. /cache-optimizer with arguments (status, stats…) still runs in the extension."
       }
     }
   },
@@ -55,11 +87,35 @@
   "i18n": {
     "zh": {
       "displayName": "Cache Optimizer",
-      "description": "缓存优化（运行时开关，影响新会话启动）"
+      "description": "提高提示词缓存命中：功能开关写入 ~/.pi/agent/pi-cache-optimizer-config.json",
+      "fieldLabels": {
+        "promptRewrite": "稳定系统提示词",
+        "skillCompression": "压缩技能列表",
+        "openAICacheKey": "OpenAI cache key",
+        "virtualRewrite": "虚拟改写",
+        "toolOrder": "固定工具顺序"
+      },
+      "fieldDescriptions": {
+        "promptRewrite": "重排易变内容，提高前缀缓存命中",
+        "openAICacheKey": "给 OpenAI 兼容请求加 prompt_cache_key",
+        "virtualRewrite": "实验性"
+      }
     },
     "en": {
       "displayName": "Cache Optimizer",
-      "description": "Context cache optimizer; loaded at runtime, affects new session context"
+      "description": "Better prompt cache hit rates: feature switches in ~/.pi/agent/pi-cache-optimizer-config.json",
+      "fieldLabels": {
+        "promptRewrite": "Stable system prompt",
+        "skillCompression": "Compress the skill list",
+        "openAICacheKey": "OpenAI cache key",
+        "virtualRewrite": "Virtual rewrite",
+        "toolOrder": "Stable tool order"
+      },
+      "fieldDescriptions": {
+        "promptRewrite": "Moves volatile content so the prompt prefix stays cacheable",
+        "openAICacheKey": "Adds prompt_cache_key to OpenAI-compatible requests",
+        "virtualRewrite": "Experimental"
+      }
     }
   }
 }

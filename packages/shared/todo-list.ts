@@ -41,9 +41,20 @@ function readPath(source: unknown, path: string | undefined): unknown {
   return cur
 }
 
+// Spellings other extensions use for the same states (pi-goal-x: complete / skipped).
+const STATUS_ALIASES: Record<string, TodoStatus> = {
+  complete: 'completed',
+  done: 'completed',
+  skipped: 'cancelled',
+  canceled: 'cancelled',
+  'in-progress': 'in_progress',
+  active: 'in_progress',
+}
+
 function asStatus(raw: unknown): TodoStatus | null {
   const value = String(raw || '').trim()
-  return (TODO_STATUSES as readonly string[]).includes(value) ? (value as TodoStatus) : null
+  if ((TODO_STATUSES as readonly string[]).includes(value)) return value as TodoStatus
+  return STATUS_ALIASES[value] ?? null
 }
 
 function asPriority(raw: unknown): TodoPriority | undefined {

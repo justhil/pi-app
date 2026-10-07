@@ -1,7 +1,7 @@
 {
   "id": "pi-nano-context",
   "displayName": "Nano Context",
-  "description": "TUI 上下文进度条（桌面无对应组件）",
+  "description": "TUI 上下文进度条（桌面在 Run 面板显示上下文占用）",
   "match": {
     "names": [
       "pi-nano-context"
@@ -9,16 +9,16 @@
   },
   "tier": "none",
   "config": {
-    "note": "TUI 编辑器下方的上下文进度条；桌面无对应组件。"
+    "note": "TUI 编辑器下方的上下文进度条；桌面在 Run 面板显示上下文占用。"
   },
   "i18n": {
     "zh": {
       "displayName": "Nano Context",
-      "description": "TUI 上下文进度条（桌面无对应组件）"
+      "description": "TUI 上下文进度条（桌面在 Run 面板显示上下文占用）"
     },
     "en": {
       "displayName": "Nano Context",
-      "description": "TUI footer context indicator; desktop-side adapter only"
+      "description": "TUI context bar under the editor (the desktop shows context in the Run panel)"
     }
   }
 }
