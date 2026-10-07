@@ -8,7 +8,8 @@ import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-card-registry'
 import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
-import { renderNativeToolPreview } from './tool-previews'
+import { McpToolPreview, renderNativeToolPreview } from './tool-previews'
+import { mcpArgSummary, mcpToolLabel, resolveMcpTool } from './mcp-tool'
 import { buildToolSummary } from './tool-previews'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
@@ -23,6 +24,7 @@ function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
   const adapterTpl = resolveAdapterToolCardTemplate(name)
   const adapterPreview = tryRenderAdapterToolCard(item, adapterTpl)
   if (adapterPreview) return <>{adapterPreview}</>
+  if (!adapterTpl && resolveMcpTool(name, item.toolDetails, item.toolArgs)) return <McpToolPreview item={item} />
   if (NATIVE_TOOLS.has(name)) {
     const native = renderNativeToolPreview(item, { flat: true })
     if (native) return <>{native}</>
@@ -85,7 +87,11 @@ function ToolCallRowImpl({
   const autoExpanded = autoExpandedInBudget && agentRunning && isCurrentRun && hasToolBody
   const expanded =
     localExpanded ?? rememberedExpanded ?? autoExpanded
-  const argSummary = toolArgSummary(item)
+  const mcpTool = useMemo(
+    () => (resolveAdapterToolCardTemplate(item.toolName) ? null : resolveMcpTool(item.toolName, item.toolDetails, item.toolArgs)),
+    [item.toolName, item.toolDetails, item.toolArgs],
+  )
+  const argSummary = mcpTool ? mcpArgSummary(item.toolArgs) : toolArgSummary(item)
   const skillContext = resolveSkillContextActivity(item.toolName || '', item.toolArgs, item.toolDetail)
   const liveStatus = isRunning && item.toolStatusLine ? String(item.toolStatusLine) : null
   const diffStats = useMemo(() => countToolDiffStats(item), [item])
@@ -97,6 +103,10 @@ function ToolCallRowImpl({
       })
     }
     if (liveStatus) return liveStatus
+    if (mcpTool) {
+      const label = mcpToolLabel(mcpTool)
+      return argSummary ? `${label} · ${argSummary}` : label
+    }
     if (argSummary) {
       return t(humanToolVerbKey(item.toolName || ''), {
         detail: argSummary,
@@ -106,7 +116,7 @@ function ToolCallRowImpl({
     }
     if (isRunning) return t('timeline:activity.workingTool', { name: item.toolName || 'tool' })
     return item.toolName || t('timeline:activity.usedTools', { count: 1, names: 'tool' })
-  }, [skillContext, liveStatus, argSummary, isRunning, item.toolName, t])
+  }, [skillContext, liveStatus, mcpTool, argSummary, isRunning, item.toolName, t])
 
   const toggleExpanded = () => {
     if (!hasToolBody) return

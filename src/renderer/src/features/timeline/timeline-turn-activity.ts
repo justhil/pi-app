@@ -2,6 +2,7 @@ import type { FileChange, ToolTimelineItem } from '@renderer/stores/ui-store-typ
 import type { TimelineDisplayItem } from './timeline-display-items'
 import { resolveEditWriteDiffRows } from '@extension-compat/renderer/native-diff'
 import { fullPathFromArgs, normalizeToolArgs } from '@extension-compat/renderer/tool-output'
+import { displayToolName } from './mcp-tool'
 
 export type TurnFileStat = {
   path: string
@@ -111,7 +112,7 @@ export function buildTurnActivitySummary(
   },
 ): TurnActivitySummary {
   const tools = collectToolsFromBlocks(blocks)
-  const toolNames = tools.map((tool) => tool.toolName || 'tool').filter(Boolean)
+  const toolNames = tools.map((tool) => displayToolName(tool.toolName)).filter(Boolean)
   let searchCount = 0
   let commandCount = 0
   let exploreCount = 0
