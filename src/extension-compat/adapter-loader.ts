@@ -27,6 +27,7 @@ import syncAdapter from './builtin/pi-sync.adapter.json'
 import rewindAdapter from './builtin/pi-rewind.adapter.json'
 import continueAdapter from './builtin/pi-continue.adapter.json'
 import goalAdapter from './builtin/pi-goal.adapter.json'
+import goalXAdapter from './builtin/pi-goal-x.adapter.json'
 import btwAdapter from './builtin/pi-btw.adapter.json'
 import simplifyAdapter from './builtin/pi-simplify.adapter.json'
 import advisorAdapter from './builtin/rpiv-advisor.adapter.json'
@@ -50,7 +51,7 @@ const BUILTIN: AdapterJson[] = [
   piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
   markdownPreviewAdapter, studioAdapter, fastContextAdapter, subagentsAdapter,
   cacheOptimizerAdapter, skillsManagerAdapter, mcpAdapter, contextViewerAdapter, fffAdapter,
-  syncAdapter, rewindAdapter, continueAdapter, goalAdapter, btwAdapter, simplifyAdapter,
+  syncAdapter, rewindAdapter, continueAdapter, goalAdapter, goalXAdapter, btwAdapter, simplifyAdapter,
   advisorAdapter, observationalMemoryAdapter, toolDisplayAdapter, agentsmdAdapter, aceToolAdapter,
   sequentialThinkingAdapter, aegisAdapter, tpsExtensionsAdapter, nanoContextAdapter,
   powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
@@ -234,7 +235,7 @@ function v2SlashFromAdapter(a: AdapterJson, cmd: string, behavior: V2SlashResolv
     desktopSupport: a.description,
     panelId:
       behavior === 'open-panel'
-        ? a.sidePanel?.panelId || `adapter:${a.id}`
+        ? a.slashPanels?.[cmd] || a.sidePanel?.panelId || `adapter:${a.id}`
         : undefined,
   }
 }

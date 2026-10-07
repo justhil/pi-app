@@ -1,31 +1,42 @@
 {
   "id": "@juicesharp/rpiv-advisor",
   "displayName": "Advisor",
-  "description": "第二意见（由 advisor 工具触发）",
+  "description": "第二意见：advisor 工具卡片；/advisor 选择顾问模型",
   "match": {
     "names": [
       "@juicesharp/rpiv-advisor"
     ],
     "tools": [
       "advisor"
+    ],
+    "commands": [
+      "/advisor"
     ]
   },
-  "tier": "headless",
+  "tier": "partial",
   "toolCard": {
     "template": "default",
     "icon": "Lightbulb"
   },
   "config": {
-    "note": "第二意见由扩展工具触发；桌面按工具结果渲染。"
+    "note": "顾问模型和思考等级用 /advisor 选择，保存在 ~/.config/rpiv-advisor/advisor.json。",
+    "i18n": {
+      "zh": {
+        "note": "顾问模型和思考等级用 /advisor 选择，保存在 ~/.config/rpiv-advisor/advisor.json。"
+      },
+      "en": {
+        "note": "Pick the advisor model and effort with /advisor; saved in ~/.config/rpiv-advisor/advisor.json."
+      }
+    }
   },
   "i18n": {
     "zh": {
       "displayName": "Advisor",
-      "description": "第二意见（由 advisor 工具触发）"
+      "description": "第二意见：advisor 工具卡片；/advisor 选择顾问模型"
     },
     "en": {
       "displayName": "Advisor",
-      "description": "Second opinion (triggered by the advisor tool)"
+      "description": "Second opinion: advisor tool cards; /advisor picks the advisor model"
     }
   }
 }

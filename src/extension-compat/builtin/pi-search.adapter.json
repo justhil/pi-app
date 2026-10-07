@@ -2,13 +2,14 @@
   "$schema": "pi-desktop-adapter/v1",
   "id": "pi-search",
   "displayName": "Pi Search",
-  "description": "pi-search 网络/文档/Context7 搜索工具集",
+  "description": "AI 搜索、文档检索与网页抓取（读写 ~/.config/pi-search/config.json）",
   "match": {
     "names": [
       "pi-search"
     ],
     "tools": [
       "search",
+      "search_tools",
       "search_sources",
       "search_config",
       "context7_resolve_library_id",
@@ -39,7 +40,9 @@
     "fileKeyMap": {
       "searchApiUrl": "apiUrl",
       "searchApiKey": "apiKey",
+      "searchApiProtocol": "apiProtocol",
       "searchModel": "model",
+      "thinkingLevel": "thinkingLevel",
       "searchProfile": "searchProfile",
       "fallbackMode": "fallbackMode",
       "minimumProfile": "minimumProfile",
@@ -68,7 +71,9 @@
       "context7BaseUrl": "CONTEXT7_BASE_URL",
       "context7ApiKey": "CONTEXT7_API_KEY",
       "exaBaseUrl": "EXA_BASE_URL",
-      "exaApiKey": "EXA_API_KEY"
+      "exaApiKey": "EXA_API_KEY",
+      "searchApiProtocol": "SEARCH_API_PROTOCOL",
+      "thinkingLevel": "SEARCH_THINKING_LEVEL"
     },
     "sections": [
       {
@@ -86,6 +91,16 @@
             "label": "Search API Key"
           },
           {
+            "key": "searchApiProtocol",
+            "type": "select",
+            "label": "API 协议",
+            "options": [
+              "completions",
+              "responses"
+            ],
+            "default": "completions"
+          },
+          {
             "key": "searchModel",
             "type": "select",
             "label": "搜索模型",
@@ -100,17 +115,33 @@
             }
           },
           {
+            "key": "thinkingLevel",
+            "type": "select",
+            "label": "思考等级",
+            "options": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "default": "off"
+          },
+          {
             "key": "searchProfile",
             "type": "select",
-            "label": "搜索模式 (profile)",
+            "label": "搜索模式",
             "options": [
-              "general",
-              "docs",
-              "code",
-              "news",
-              "social"
+              "auto",
+              "coding_docs",
+              "code_examples",
+              "project_research",
+              "academic",
+              "fact_check"
             ],
-            "default": "general"
+            "default": "auto"
           },
           {
             "key": "fallbackMode",
@@ -138,7 +169,7 @@
             "title": "主搜索 API"
           },
           "en": {
-            "title": "Main Search API"
+            "title": "Search API"
           }
         }
       },
@@ -188,6 +219,18 @@
             "key": "exaApiKey",
             "type": "secret",
             "label": "Exa Key"
+          },
+          {
+            "key": "context7ResolveTtlHours",
+            "type": "number",
+            "label": "Context7 库解析缓存（小时）",
+            "default": 168
+          },
+          {
+            "key": "context7DocsTtlHours",
+            "type": "number",
+            "label": "Context7 文档缓存（小时）",
+            "default": 24
           }
         ],
         "i18n": {
@@ -195,7 +238,7 @@
             "title": "补充信源"
           },
           "en": {
-            "title": "Supplementary Sources"
+            "title": "Extra sources"
           }
         }
       },
@@ -227,7 +270,7 @@
       {
         "id": "test",
         "type": "httpCheck",
-        "label": "快速连通性",
+        "label": "测试连接",
         "method": "GET",
         "url": "${searchApiUrl}/models",
         "headers": {
@@ -246,7 +289,7 @@
         "note": "写入与 pi-search 扩展相同的 ~/.config/pi-search/config.json；环境变量仍优先生效。密钥留空表示不修改已保存值。"
       },
       "en": {
-        "note": "Writes the same ~/.config/pi-search/config.json as the pi-search extension; env vars still take priority. Leave keys blank to keep saved values."
+        "note": "Writes the same ~/.config/pi-search/config.json as the extension; environment variables still win. Leave a key blank to keep the saved one."
       }
     }
   },
@@ -264,12 +307,14 @@
   "i18n": {
     "zh": {
       "displayName": "Pi Search",
-      "description": "pi-search 网络/文档/Context7 搜索工具集",
+      "description": "AI 搜索、文档检索与网页抓取（读写 ~/.config/pi-search/config.json）",
       "fieldLabels": {
         "searchApiUrl": "Search API URL",
         "searchApiKey": "Search API Key",
+        "searchApiProtocol": "API 协议",
         "searchModel": "搜索模型",
-        "searchProfile": "搜索模式 (profile)",
+        "thinkingLevel": "思考等级",
+        "searchProfile": "搜索模式",
         "fallbackMode": "Fallback",
         "minimumProfile": "Minimum profile",
         "tavilyApiUrl": "Tavily URL",
@@ -279,20 +324,22 @@
         "context7BaseUrl": "Context7 URL",
         "context7ApiKey": "Context7 Key",
         "exaBaseUrl": "Exa URL",
-        "exaApiKey": "Exa Key"
+        "exaApiKey": "Exa Key",
+        "context7ResolveTtlHours": "Context7 库解析缓存（小时）",
+        "context7DocsTtlHours": "Context7 文档缓存（小时）"
       },
       "actionLabels": {
-        "test": "快速连通性"
+        "test": "测试连接"
       }
     },
     "en": {
       "displayName": "Pi Search",
-      "description": "pi-search web/docs/Context7 search toolkit",
+      "description": "AI search, docs lookup and page fetching (reads and writes ~/.config/pi-search/config.json)",
       "fieldLabels": {
         "searchApiUrl": "Search API URL",
         "searchApiKey": "Search API Key",
-        "searchModel": "Search Model",
-        "searchProfile": "Search Profile",
+        "searchModel": "Search model",
+        "searchProfile": "Search mode",
         "fallbackMode": "Fallback",
         "minimumProfile": "Minimum profile",
         "tavilyApiUrl": "Tavily URL",
@@ -302,10 +349,14 @@
         "context7BaseUrl": "Context7 URL",
         "context7ApiKey": "Context7 Key",
         "exaBaseUrl": "Exa URL",
-        "exaApiKey": "Exa Key"
+        "exaApiKey": "Exa Key",
+        "searchApiProtocol": "API protocol",
+        "thinkingLevel": "Thinking level",
+        "context7ResolveTtlHours": "Context7 library cache (hours)",
+        "context7DocsTtlHours": "Context7 docs cache (hours)"
       },
       "actionLabels": {
-        "test": "快速连通性"
+        "test": "Test connection"
       }
     }
   }

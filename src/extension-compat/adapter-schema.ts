@@ -74,6 +74,8 @@ export interface AdapterConfig {
   /** When set, the entire config value (or a named field) reads/writes ~/.pi/agent/settings.json under this key.
    *  Used for pi flag-backed adapter settings (e.g. fff-mode). */
   piSettingsKey?: string
+  /** Top-level keys written into the shared file on every save (e.g. a format `version`). */
+  fileConstants?: Record<string, unknown>
   sections?: ConfigSection[]
   actions?: AdapterAction[]
   note?: string
@@ -165,6 +167,8 @@ export interface AdapterJson {
   toolCard?: ToolCardDef
   interact?: InteractDef
   slash?: AdapterSlash
+  /** open-panel commands that open a core panel (e.g. `{ "/context": "context" }`) instead of the adapter's own. */
+  slashPanels?: Record<string, string>
   widget?: AdapterWidgetDef
   sidePanel?: AdapterSidePanel
   /** 不依赖 npm 安装即可生效（如 trellis 靠项目 .trellis/ 目录） */

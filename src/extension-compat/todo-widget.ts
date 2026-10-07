@@ -17,9 +17,11 @@ export function resolveWidgetAdapterByKey(widgetKey: string, projectDir?: string
 export function resolveWidgetAdapterByTool(toolName: string, projectDir?: string): AdapterJson | null {
   const name = String(toolName || '').trim()
   if (!name) return null
+  // An explicit widget.tools list is authoritative: other tools of the same package must not
+  // have their results read as todo lists.
   return (
-    widgetAdapters(projectDir).find(
-      (adapter) => adapter.widget?.tools?.includes(name) || adapter.match?.tools?.includes(name),
+    widgetAdapters(projectDir).find((adapter) =>
+      adapter.widget?.tools ? adapter.widget.tools.includes(name) : adapter.match?.tools?.includes(name),
     ) ?? null
   )
 }

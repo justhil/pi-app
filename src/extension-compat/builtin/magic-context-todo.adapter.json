@@ -1,15 +1,43 @@
 {
   "id": "magic-context-todo",
-  "displayName": "Magic Context Todo",
-  "description": "todowrite list above the composer",
+  "displayName": "Magic Context",
+  "description": "跨会话记忆与上下文管理：ctx_* 工具卡片，todowrite 列表显示在输入框上方",
   "match": {
-    "names": ["@cortexkit/pi-magic-context", "pi-magic-context", "magic-context"],
-    "tools": ["todowrite"]
+    "names": [
+      "@cortexkit/pi-magic-context",
+      "pi-magic-context",
+      "magic-context"
+    ],
+    "tools": [
+      "ctx_search",
+      "ctx_memory",
+      "ctx_memory_list",
+      "ctx_note",
+      "ctx_expand",
+      "ctx_reduce"
+    ],
+    "commands": [
+      "/ctx-status",
+      "/ctx-recomp",
+      "/ctx-wrapup",
+      "/ctx-flush",
+      "/ctx-dream",
+      "/ctx-embed",
+      "/todos"
+    ]
   },
   "tier": "partial",
+  "toolCard": {
+    "template": "default",
+    "icon": "Brain"
+  },
   "widget": {
-    "keys": ["magic-context-todos"],
-    "tools": ["todowrite"],
+    "keys": [
+      "magic-context-todos"
+    ],
+    "tools": [
+      "todowrite"
+    ],
     "placement": "aboveComposer",
     "protocol": "todo-list-v1",
     "icon": "ListTodo",
@@ -22,8 +50,25 @@
       "priority": "priority"
     }
   },
+  "config": {
+    "note": "记忆与压缩由扩展自管，配置在 magic-context.jsonc；/ctx-status 查看当前状态。",
+    "i18n": {
+      "zh": {
+        "note": "记忆与压缩由扩展自管，配置在 magic-context.jsonc；/ctx-status 查看当前状态。"
+      },
+      "en": {
+        "note": "Memory and compaction are managed by the extension (magic-context.jsonc); /ctx-status shows the current state."
+      }
+    }
+  },
   "i18n": {
-    "zh": { "displayName": "Magic Context Todo", "description": "在输入框上方显示 todowrite 列表" },
-    "en": { "displayName": "Magic Context Todo", "description": "Show the todowrite list above the composer" }
+    "zh": {
+      "displayName": "Magic Context",
+      "description": "跨会话记忆与上下文管理：ctx_* 工具卡片，todowrite 列表显示在输入框上方"
+    },
+    "en": {
+      "displayName": "Magic Context",
+      "description": "Cross-session memory and context management: ctx_* tool cards, todowrite list above the composer"
+    }
   }
 }

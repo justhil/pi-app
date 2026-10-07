@@ -17,13 +17,14 @@ const schema = z.object({
   match: z.object({ names: strings.optional(), tools: strings.optional(), commands: strings.optional() }).strict().optional(),
   alwaysVisible: z.boolean().optional(),
   config: z.object({
-    configFile: text.optional(), fileKeyMap: z.record(text).optional(), envOverride: z.record(text).optional(), localKeys: strings.optional(), piSettingsKey: text.optional(), customRenderer: text.optional(),
+    configFile: text.optional(), fileKeyMap: z.record(text).optional(), envOverride: z.record(text).optional(), localKeys: strings.optional(), piSettingsKey: text.optional(), fileConstants: z.record(z.unknown()).optional(), customRenderer: text.optional(),
     sections: z.array(z.object({ title: z.string().optional(), fields: z.array(field).optional(), derived: z.array(z.object({ label: text, available: z.string().optional(), detail: z.string().optional() })).optional() }).passthrough()).optional(),
     actions: z.array(z.object({ id: text, type: z.enum(['httpCheck', 'openPath', 'reload']), url: z.string().optional(), method: z.string().optional(), headers: z.record(z.string()).optional(), timeoutMs: z.number().positive().max(60000).optional() }).passthrough()).optional(),
   }).passthrough().optional(),
   toolCard: z.object({ template: z.enum(['default', 'list', 'media', 'tree', 'kv', 'hashline']).optional(), fields: z.record(z.string()).optional(), statusField: z.string().optional(), protocol: text.optional() }).passthrough().optional(),
   interact: z.object({ trigger: z.object({ tool: text.optional(), argsMatch: z.record(z.unknown()).optional() }), schema: z.enum(['questions', 'clarify', 'review']), fields: z.record(z.string()).optional() }).strict().optional(),
   slash: z.record(z.enum(['notify', 'config-page', 'execute', 'open-panel'])).optional(),
+  slashPanels: z.record(text).optional(),
   widget: z.object({ keys: strings.optional(), tools: strings.optional(), placement: z.literal('aboveComposer'), protocol: z.literal('todo-list-v1'), fields: z.record(z.string()).optional() }).passthrough().optional(),
   sidePanel: z.object({ stateProvider: text.optional(), panelComponent: text, panelId: text.optional(), source: source.optional(), label: z.string().optional(), description: z.string().optional(), icon: text.optional(), defaultEnabled: z.boolean().optional() }).strict().refine((panel) => !!panel.source !== !!panel.stateProvider, 'declare one source or stateProvider').optional(),
 }).passthrough().superRefine((adapter, ctx) => {

@@ -1,0 +1,285 @@
+{
+  "id": "pi-goal-x",
+  "displayName": "Goal",
+  "description": "目标规划与自主推进：任务列表显示在输入框上方，设置读写 ~/.pi/agent/pi-goal-x-settings.json",
+  "match": {
+    "names": [
+      "pi-goal-x"
+    ],
+    "tools": [
+      "create_goal",
+      "get_goal",
+      "update_goal",
+      "set_goal_tasks",
+      "update_goal_task",
+      "goal_question",
+      "goal_questionnaire",
+      "propose_goal_draft"
+    ],
+    "commands": [
+      "/goal",
+      "/sisyphus",
+      "/goal-direct",
+      "/sisyphus-direct",
+      "/goal-list",
+      "/goal-status",
+      "/goal-focus",
+      "/goal-unfocus",
+      "/goal-tweak",
+      "/goal-pause",
+      "/goal-resume",
+      "/goal-clear",
+      "/goal-cancel",
+      "/goal-settings",
+      "/goal-refresh",
+      "/goal-recovery"
+    ]
+  },
+  "tier": "partial",
+  "toolCard": {
+    "template": "default",
+    "icon": "Target"
+  },
+  "widget": {
+    "keys": [
+      "pi-goal-x-tasks"
+    ],
+    "tools": [
+      "create_goal",
+      "get_goal",
+      "update_goal",
+      "set_goal_tasks",
+      "update_goal_task"
+    ],
+    "placement": "aboveComposer",
+    "protocol": "todo-list-v1",
+    "icon": "Target",
+    "title": "Goal",
+    "fields": {
+      "items": "goal.taskList.tasks",
+      "id": "id",
+      "text": "title",
+      "status": "status"
+    }
+  },
+  "config": {
+    "configFile": "~/.pi/agent/pi-goal-x-settings.json",
+    "fileKeyMap": {
+      "maxAutonomousRuns": "maxAutonomousRuns",
+      "showAutonomousRuns": "showAutonomousRuns",
+      "strictExecutionContract": "strictExecutionContract",
+      "disableTasks": "disableTasks",
+      "subtaskDepth": "subtaskDepth",
+      "disableContracts": "disableContracts",
+      "autoSelectSingleGoal": "autoSelectSingleGoal",
+      "hideUnfocusedPrompt": "hideUnfocusedPrompt",
+      "hideUnfocusedBanner": "hideUnfocusedBanner",
+      "disabled": "disabled",
+      "provider": "provider",
+      "model": "model",
+      "thinkingLevel": "thinkingLevel"
+    },
+    "sections": [
+      {
+        "title": "自主推进",
+        "fields": [
+          {
+            "key": "maxAutonomousRuns",
+            "type": "number",
+            "label": "自主续跑次数上限",
+            "description": "留空为不限；0 表示不自动续跑"
+          },
+          {
+            "key": "showAutonomousRuns",
+            "type": "boolean",
+            "label": "显示续跑计数",
+            "default": true
+          },
+          {
+            "key": "strictExecutionContract",
+            "type": "boolean",
+            "label": "显式执行约定",
+            "default": false,
+            "description": "每轮需声明就绪 / 等待，缺决定时修复一次后暂停"
+          },
+          {
+            "key": "autoSelectSingleGoal",
+            "type": "boolean",
+            "label": "只有一个目标时自动选中"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "自主推进"
+          },
+          "en": {
+            "title": "Autonomy"
+          }
+        }
+      },
+      {
+        "title": "任务",
+        "fields": [
+          {
+            "key": "disableTasks",
+            "type": "boolean",
+            "label": "关闭任务列表",
+            "default": false
+          },
+          {
+            "key": "subtaskDepth",
+            "type": "number",
+            "label": "子任务层数"
+          },
+          {
+            "key": "disableContracts",
+            "type": "boolean",
+            "label": "关闭完成条件",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "任务"
+          },
+          "en": {
+            "title": "Tasks"
+          }
+        }
+      },
+      {
+        "title": "未聚焦时",
+        "fields": [
+          {
+            "key": "hideUnfocusedPrompt",
+            "type": "boolean",
+            "label": "不发送未聚焦提醒",
+            "default": false,
+            "description": "有未聚焦的目标时，不再每次请求附带 [PI GOAL UNFOCUSED] 提醒"
+          },
+          {
+            "key": "hideUnfocusedBanner",
+            "type": "boolean",
+            "label": "隐藏未聚焦提示",
+            "default": false
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "未聚焦时"
+          },
+          "en": {
+            "title": "When unfocused"
+          }
+        }
+      },
+      {
+        "title": "完成审核",
+        "fields": [
+          {
+            "key": "disabled",
+            "type": "boolean",
+            "label": "关闭完成审核",
+            "default": false
+          },
+          {
+            "key": "provider",
+            "type": "text",
+            "label": "审核模型提供方",
+            "description": "留空使用当前会话的模型"
+          },
+          {
+            "key": "model",
+            "type": "text",
+            "label": "审核模型",
+            "description": "模型 id，如 claude-opus-5-5"
+          },
+          {
+            "key": "thinkingLevel",
+            "type": "select",
+            "label": "审核思考等级",
+            "options": [
+              "off",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ]
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "完成审核"
+          },
+          "en": {
+            "title": "Completion auditor"
+          }
+        }
+      }
+    ],
+    "note": "这里是全局设置；项目覆盖和快捷键请在对话里用 /goal-settings。改完后对正在运行的会话执行 /goal-refresh 生效。",
+    "i18n": {
+      "zh": {
+        "note": "这里是全局设置；项目覆盖和快捷键请在对话里用 /goal-settings。改完后对正在运行的会话执行 /goal-refresh 生效。"
+      },
+      "en": {
+        "note": "Global settings. Use /goal-settings in a chat for project overrides and keybindings; run /goal-refresh in a running session to pick up changes."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Goal",
+      "description": "目标规划与自主推进：任务列表显示在输入框上方，设置读写 ~/.pi/agent/pi-goal-x-settings.json",
+      "fieldLabels": {
+        "maxAutonomousRuns": "自主续跑次数上限",
+        "showAutonomousRuns": "显示续跑计数",
+        "strictExecutionContract": "显式执行约定",
+        "disableTasks": "关闭任务列表",
+        "subtaskDepth": "子任务层数",
+        "disableContracts": "关闭完成条件",
+        "autoSelectSingleGoal": "只有一个目标时自动选中",
+        "hideUnfocusedPrompt": "不发送未聚焦提醒",
+        "hideUnfocusedBanner": "隐藏未聚焦提示",
+        "disabled": "关闭完成审核",
+        "provider": "审核模型提供方",
+        "model": "审核模型",
+        "thinkingLevel": "审核思考等级"
+      },
+      "fieldDescriptions": {
+        "maxAutonomousRuns": "留空为不限；0 表示不自动续跑",
+        "strictExecutionContract": "每轮需声明就绪 / 等待，缺决定时修复一次后暂停",
+        "hideUnfocusedPrompt": "有未聚焦的目标时，不再每次请求附带 [PI GOAL UNFOCUSED] 提醒",
+        "provider": "留空使用当前会话的模型",
+        "model": "模型 id，如 claude-opus-5-5"
+      }
+    },
+    "en": {
+      "displayName": "Goal",
+      "description": "Goal planning and autonomous runs: the task list sits above the composer; settings in ~/.pi/agent/pi-goal-x-settings.json",
+      "fieldLabels": {
+        "maxAutonomousRuns": "Autonomous run allowance",
+        "showAutonomousRuns": "Show autonomous run count",
+        "strictExecutionContract": "Explicit execution contracts",
+        "disableTasks": "Disable task tracking",
+        "subtaskDepth": "Subtask depth",
+        "disableContracts": "Disable completion requirements",
+        "autoSelectSingleGoal": "Auto-select a single open goal",
+        "hideUnfocusedPrompt": "Hide the unfocused reminder",
+        "hideUnfocusedBanner": "Hide the unfocused hint",
+        "disabled": "Disable the completion auditor",
+        "provider": "Auditor provider",
+        "model": "Auditor model",
+        "thinkingLevel": "Auditor thinking level"
+      },
+      "fieldDescriptions": {
+        "maxAutonomousRuns": "Empty means unlimited; 0 disables automatic continuation",
+        "strictExecutionContract": "Ready / wait protocol with one repair, then pause",
+        "hideUnfocusedPrompt": "Stop the [PI GOAL UNFOCUSED] reminder sent with every request",
+        "provider": "Empty uses the session's model",
+        "model": "Model id"
+      }
+    }
+  }
+}

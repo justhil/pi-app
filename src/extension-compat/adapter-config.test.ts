@@ -26,6 +26,22 @@ beforeEach(async () => {
 })
 afterEach(async () => { await rm(mocks.root, { recursive: true, force: true }) })
 describe('adapter config persistence', () => {
+  it('should_write_dotted_keys_into_nested_objects_and_stamp_file_constants', async () => {
+    const file = join(cwd, '.pi', 'desktop', 'adapters', 'local.json')
+    const adapter = JSON.parse(await readFile(file, 'utf8'))
+    adapter.config.fileKeyMap = { first: 'features.first', second: 'second' }
+    adapter.config.fileConstants = { version: 3 }
+    adapter.config.sections[0].fields.push({ key: 'flag', type: 'boolean', default: true })
+    adapter.config.fileKeyMap.flag = 'features.flag'
+    await writeFile(file, JSON.stringify(adapter))
+    invalidateAdapterCatalog()
+    await writeFile(join(mocks.root, 'config.json'), JSON.stringify({ version: 2, footerMode: 'total', features: { other: true } }))
+    await writeAdapterConfig('config-test', cwd, { flag: false })
+    expect(JSON.parse(await readFile(join(mocks.root, 'config.json'), 'utf8'))).toEqual({ version: 3, footerMode: 'total', features: { other: true, flag: false } })
+    const view = await readAdapterConfig('config-test', cwd)
+    expect(view.flag).toBe(false)
+    expect(view.first).toBe('')
+  })
   it('should_preserve_concurrent_fields_when_project_adapter_writes_the_same_file', async () => {
     await writeFile(join(mocks.root, 'config.json'), JSON.stringify({ unknown: { retained: true }, secret: 'saved-secret' }))
     await Promise.all([writeAdapterConfig('config-test', cwd, { first: 'A' }), writeAdapterConfig('config-test', cwd, { second: 'B', secret: '' })])

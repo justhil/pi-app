@@ -103,6 +103,27 @@ async function context(adapterId: string, workspaceId: string): Promise<Context>
   return { adapter, config, file, workspaceId, home, env: await configEnvironment(home, config), localScope: `${agentDir}|${workspaceId}` }
 }
 
+/** fileKeyMap values may be dotted paths into nested objects (e.g. `features.toolOrder`). */
+function readFileKey(file: Record<string, unknown>, path: string): unknown {
+  let cur: unknown = file
+  for (const part of path.split('.')) {
+    if (!cur || typeof cur !== 'object' || Array.isArray(cur)) return undefined
+    cur = (cur as Record<string, unknown>)[part]
+  }
+  return cur
+}
+
+function writeFileKey(file: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('.')
+  let cur = file
+  for (const part of parts.slice(0, -1)) {
+    const next = cur[part]
+    if (!next || typeof next !== 'object' || Array.isArray(next)) cur[part] = {}
+    cur = cur[part] as Record<string, unknown>
+  }
+  cur[parts[parts.length - 1]] = value
+}
+
 function localConfig(ctx: Context): Record<string, unknown> {
   return configStore.getExtensionConfig(ctx.localScope, ctx.adapter.id)
     ?? configStore.getExtensionConfig(ctx.workspaceId, ctx.adapter.id)
@@ -119,7 +140,7 @@ async function rawView(ctx: Context): Promise<Record<string, unknown>> {
   const view: Record<string, unknown> = {}
   for (const field of fields) view[field.key] = field.default ?? ''
   for (const [key, fileKey] of Object.entries(cfg.fileKeyMap ?? {})) {
-    view[key] = (cfg.envOverride?.[key] ? ctx.env[cfg.envOverride[key]] : undefined) ?? file[fileKey] ?? view[key]
+    view[key] = (cfg.envOverride?.[key] ? ctx.env[cfg.envOverride[key]] : undefined) ?? readFileKey(file, fileKey) ?? view[key]
   }
   for (const key of cfg.localKeys ?? []) view[key] = local[key] ?? view[key]
   return view
@@ -178,8 +199,9 @@ export async function writeAdapterConfig(adapterId: string, workspaceId: string,
       for (const [key, value] of Object.entries(updates)) {
         if (ctx.config.localKeys?.includes(key)) local[key] = value
         else if (ctx.config.piSettingsKey === key) file[key] = value
-        else if (ctx.config.fileKeyMap?.[key]) file[ctx.config.fileKeyMap[key]] = value
+        else if (ctx.config.fileKeyMap?.[key]) writeFileKey(file, ctx.config.fileKeyMap[key], value)
       }
+      if (Object.keys(updates).length > 0) Object.assign(file, ctx.config.fileConstants ?? {})
       await atomicWrite(ctx.file, file)
     } else Object.assign(local, updates)
     if (!ctx.file || ctx.config.localKeys?.some((key) => key in updates)) configStore.setExtensionConfig(ctx.localScope, adapterId, local)
