@@ -1,5 +1,9 @@
 import { act, render, waitFor } from '@testing-library/react'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildTimelinePageFromSessionFile } from '@shared/session-jsonl-timeline'
 import { Timeline } from './timeline'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { requestTimelineViewEntry } from './timeline-view-jump'
@@ -304,5 +308,40 @@ describe('Timeline view-entry reveal to a far-away node (gap larger than one chu
     // [1..700] fully contiguous — no hole between entry-3 and the tail.
     expect(loadedIds()).toEqual(Array.from({ length: BIG_TOTAL }, (_, i) => i + 1))
     expect(useUIStore.getState().historyLoadedCount).toBe(BIG_TOTAL)
+  })
+
+  it.each([
+    { target: 3, users: [1, 150, 600] },
+    { target: 3, users: [1, 600] },
+    { target: 500, users: [1, 150, 600] },
+  ])('keeps expanded real pages contiguous when revealing entry-$target (users: $users)', async ({ target, users }) => {
+    const directory = mkdtempSync(join(tmpdir(), 'pi-view-jump-'))
+    const sessionFile = join(directory, 'session.jsonl')
+    writeFileSync(sessionFile, JSON.stringify({ type: 'session', version: 3, id: 'test', cwd: directory }) + '\n')
+    try {
+      const rows = Array.from({ length: BIG_TOTAL }, (_, i) => ({ ...message(i + 1, users.includes(i + 1) ? 'user' : 'assistant') }))
+      const tail = await buildTimelinePageFromSessionFile(sessionFile, { limit: 80 }, () => rows)
+      useUIStore.setState(baseState({
+        historySessionFile: sessionFile,
+        timelineItems: tail.items,
+        historyLoadedCount: tail.items.length,
+        historyTotalCount: BIG_TOTAL,
+      }))
+      vi.mocked(ipcClient.invoke).mockImplementation((async (name: string, args: { leafId?: string | null; limit?: number; offset?: number }) => {
+        if (name !== 'session.getMessages') return {}
+        const branch = typeof args.leafId === 'string' ? rows.slice(0, Number(args.leafId.split('-')[1])) : rows
+        const page = await buildTimelinePageFromSessionFile(sessionFile, { offset: args.offset, limit: args.limit }, () => branch)
+        return { ...page, sourceCount: page.items.length }
+      }) as never)
+
+      render(<Timeline />)
+      act(() => requestTimelineViewEntry(`entry-${target}`))
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+      expect(loadedIds()).toEqual(Array.from({ length: BIG_TOTAL }, (_, i) => i + 1))
+      expect(useUIStore.getState().historyLoadedCount).toBe(BIG_TOTAL)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

@@ -20,6 +20,7 @@ describe('session timeline history prepend', () => {
     mocks.invoke.mockResolvedValue({ items: [], sourceCount: 0, totalCount: 0 })
     useUIStore.setState({
       currentWorkspace: '/workspace/current',
+      historySessionFile: '/sessions/history.jsonl',
       historyLoadedCount: 0,
       historyTotalCount: 0,
       timelineItems: [],

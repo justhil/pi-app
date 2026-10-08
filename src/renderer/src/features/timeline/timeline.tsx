@@ -504,7 +504,7 @@ export function Timeline() {
         sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
       const captured = viewTailSnapshotRef.current
       const tail = all.at(-1) ?? null
-      viewLoadRef.current = (async () => {
+      const load: Promise<void> = (async () => {
         const res = await fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
           leafId: plan.entryId,
           bypassCache: true,
@@ -526,18 +526,19 @@ export function Timeline() {
         const total = pre.historyTotalCount
         if (targetPos > 0 && total > targetPos) {
           const gap = total - targetPos
-          // One leaf-anchored call reaches back at most 500 items (handler clamp).
-          const gapFetched = Math.min(gap, 500)
-          const tailRes = await fetchSessionHistoryTail(sessionFile, gapFetched, { leafId: null })
+          // Request up to 500 rows; the tail can extend to a turn's user message.
+          const tailRes = await fetchSessionHistoryTail(sessionFile, Math.min(gap, 500), { leafId: null })
           if (!stillCurrent()) return
           if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
-          allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+          const tailItems = (tailRes.items || []) as TimelineItem[]
+          allFetched = [...missingOlderItems(chunk, tailItems), ...tailItems]
           // When the target is further than 500 items below the loaded tail, the
           // gap fetch leaves a hole between the target and the tail. Close it with
           // offset-based pages (max 500 each), oldest-first, looping until the
           // hole is contiguous — a single page would still leave a gap while the
           // loadedCount below claims full coverage and blocks older-loading.
-          const holeLength = gap - gapFetched
+          // Tail pages can extend to the containing user message.
+          const holeLength = Math.max(0, gap - tailRes.sourceCount)
           if (holeLength > 0) {
             const middle: TimelineItem[] = []
             let holeStart = targetPos + 1
@@ -555,7 +556,7 @@ export function Timeline() {
               holeStart += page.length
               remaining -= page.length
             }
-            allFetched = [...chunk, ...middle, ...((tailRes.items || []) as TimelineItem[])]
+            allFetched = [...chunk, ...middle, ...tailItems]
           }
         }
         const latest = useUIStore.getState()
@@ -568,7 +569,7 @@ export function Timeline() {
           // keeps the older-loader's offset honest so it never fetches pages that
           // overlap or fall out of order.
           if (after.historyTotalCount > 0) {
-            const chunkLen = Math.min(VIEW_REVEAL_CHUNK_LIMIT, targetPos)
+            const chunkLen = res.sourceCount
             const covered = after.historyTotalCount - (targetPos - chunkLen)
             useUIStore.setState({
               historyLoadedCount: Math.min(
@@ -583,8 +584,9 @@ export function Timeline() {
           console.error('[Timeline] view-entry load failed', error)
         })
         .finally(() => {
-          if (seq === viewSeqRef.current) viewLoadRef.current = null
+          if (viewLoadRef.current === load) viewLoadRef.current = null
         })
+      viewLoadRef.current = load
     }
   }, [viewTarget, renderCount, items, historySessionFile])
 
@@ -628,6 +630,7 @@ export function Timeline() {
         // A pending view jump yields to the user's own scroll.
         viewSeqRef.current += 1
         viewLandedRef.current = null
+        setViewTarget(null)
       }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
