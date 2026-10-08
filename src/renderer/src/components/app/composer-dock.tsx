@@ -18,15 +18,19 @@ export function ComposerDock({ className, children, heroMode }: { className?: st
       const h = `${dock.offsetHeight}px`
       host.style.setProperty('--composer-dock-h', h)
       column?.style.setProperty('--composer-dock-h', h)
+      // Hero placement centers on the column, not the window (a bottom terminal shrinks the column).
+      host.style.setProperty('--main-col-h', `${(column ?? host.parentElement)?.clientHeight ?? 0}px`)
     }
     sync()
     const ro = new ResizeObserver(sync)
     ro.observe(dock)
+    if (column) ro.observe(column)
     window.addEventListener('resize', sync)
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', sync)
       host.style.removeProperty('--composer-dock-h')
+      host.style.removeProperty('--main-col-h')
       column?.style.removeProperty('--composer-dock-h')
     }
   }, [])

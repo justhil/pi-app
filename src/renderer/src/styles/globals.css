@@ -2307,9 +2307,9 @@
 
 /* ── Project Home: hero → dock 过渡动画 ── */
 
-/* Composer hero 居中位置：上移到视口中心偏上 */
+/* Composer hero 居中位置：上移到主列中心偏上（按主列高度，底部终端打开时不再顶到标题上） */
 .composer-dock-hero {
-  transform: translateY(calc(-50vh + 50% - 2rem));
+  transform: translateY(calc(var(--main-col-h, 100vh) * -0.5 + 50% - 2rem));
 }
 
 /* hero 态输入框更宽、更柔和 */
