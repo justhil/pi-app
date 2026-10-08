@@ -1,11 +1,11 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownView from '../markdown-view'
 import { WorkspaceFilesPanel } from '@renderer/features/workspace-files/workspace-files-panel'
 import { FilePreviewRouter } from '@renderer/features/workspace-files/file-preview-router'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { localFilePathFromHref } from '@renderer/lib/open-workspace-path'
+import { localFileLineFromHref, localFilePathFromHref } from '@renderer/lib/open-workspace-path'
 import { toast } from 'sonner'
 
 vi.mock('@renderer/features/workspace-files/file-tree', () => ({ FileTree: () => null }))
@@ -21,7 +21,11 @@ beforeEach(() => {
   vi.mocked(toast.error).mockClear()
   useUIStore.setState({ currentWorkspace: root, workspaceFileToOpen: null, activePanel: 'review', rightPanelCollapsed: true })
 })
-afterEach(cleanup)
+const originalScrollIntoView = Element.prototype.scrollIntoView
+afterEach(() => {
+  cleanup()
+  Element.prototype.scrollIntoView = originalScrollIntoView
+})
 
 describe('Markdown file links', () => {
   it('opens a Chinese PDF on the first click before the Files panel mounts', () => {
@@ -68,6 +72,65 @@ describe('Markdown file links', () => {
     fireEvent.click(screen.getByRole('link', { name: 'report' }))
     expect(ipcClient.invoke).toHaveBeenCalledWith('shell.openPath', { path: '/home/user/other/report.pdf' })
     expect(useUIStore.getState().workspaceFileToOpen).toBeNull()
+  })
+
+  it('previews and reveals a source citation on the first and repeated clicks without rereading', async () => {
+    const sourcePath = '/home/user/project/plugins/schedule_service.py'
+    const content = Array.from({ length: 150 }, (_, index) => `schedule_link_regression_${index + 1} = True`).join('\n')
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    vi.mocked(ipcClient.invoke).mockImplementation(async (method, req) => {
+      if (method === 'workspace.fs.readText') {
+        return req.path === 'plugins/schedule_service.py'
+          ? { ok: true, content }
+          : { ok: false, error: 'not_found' }
+      }
+      return { ok: true }
+    })
+    const view = render(<MarkdownView>{`[schedule_service.py](${sourcePath}:128)`}</MarkdownView>)
+    fireEvent.click(screen.getByRole('link', { name: 'schedule_service.py' }))
+    expect(useUIStore.getState().workspaceFileToOpen).toEqual({ workspaceRoot: root, rel: 'plugins/schedule_service.py', line: 128 })
+    view.rerender(<><MarkdownView>{`[schedule_service.py](${sourcePath}:128)`}</MarkdownView><WorkspaceFilesPanel /></>)
+    await waitFor(() => expect(view.container.querySelector('[data-source-line="128"]')).toHaveTextContent('schedule_link_regression_128 = True'))
+    expect(screen.getByRole('tab')).toHaveTextContent('schedule_service.py')
+    expect(ipcClient.invoke).toHaveBeenCalledWith('workspace.fs.readText', expect.objectContaining({ path: 'plugins/schedule_service.py' }))
+    await waitFor(() => expect(view.container.querySelector('.native-code-shiki [data-source-line="128"]')).toHaveClass('bg-accent/15'))
+    scrollIntoView.mockClear()
+    const readCount = vi.mocked(ipcClient.invoke).mock.calls.filter(([method]) => method === 'workspace.fs.readText').length
+    fireEvent.click(screen.getByRole('link', { name: 'schedule_service.py' }))
+    expect(scrollIntoView).toHaveBeenCalledOnce()
+    expect(vi.mocked(ipcClient.invoke).mock.calls.filter(([method]) => method === 'workspace.fs.readText')).toHaveLength(readCount)
+  })
+
+  it.each([
+    ['/home/user/other/storage/optimize-job-store.ts:2647', '/home/user/other/storage/optimize-job-store.ts'],
+    ['/home/user/other/solvers/schedule-result.ts:71', '/home/user/other/solvers/schedule-result.ts'],
+  ])('opens a cross-project source citation without its line number: %s', (href, expected) => {
+    render(<MarkdownView>{`[source](${href})`}</MarkdownView>)
+    fireEvent.click(screen.getByRole('link'))
+    expect(ipcClient.invoke).toHaveBeenCalledWith('shell.openPath', { path: expected })
+    expect(useUIStore.getState().workspaceFileToOpen).toBeNull()
+  })
+
+  it.each([
+    ['script.ts:12:3', 'script.ts'],
+    ['./script.py:12', './script.py'],
+    ['C:/work/script.ts:12:3', 'C:/work/script.ts'],
+    ['file:///home/user/script.py:12#section', '/home/user/script.py'],
+    ['file://wsl.localhost/Ubuntu/home/user/script.ts:12', '//wsl.localhost/Ubuntu/home/user/script.ts'],
+    ['report.ts%3A12', 'report.ts:12'],
+  ])('decodes source locations while preserving encoded filename colons: %s', (href, expected) => {
+    expect(localFilePathFromHref(href)).toBe(expected)
+  })
+
+  it.each([
+    ['script.ts:12:3', 12],
+    ['file:///home/user/script.py:128#section', 128],
+    ['script.ts:0', undefined],
+    ['script.ts:99999999999999999999', undefined],
+    ['script.ts%3A12', undefined],
+  ])('extracts valid source line numbers: %s', (href, expected) => {
+    expect(localFileLineFromHref(href)).toBe(expected)
   })
 
   it('does not preview the current distro when a file URL names another distro', () => {
@@ -124,7 +187,7 @@ describe('Markdown file links', () => {
     expect(ipcClient.invoke).not.toHaveBeenCalled()
   })
 
-  it.each(['javascript:alert(1)', 'data:text/html,example', 'https://example.com/file', '//example.com/file', 'report%ZZ.pdf', 'report%00.pdf', 'report\t.pdf', '#section'])('rejects non-file or malformed destinations: %s', (href) => {
+  it.each(['javascript:alert(1)', 'javascript:123', 'data:text/html,example', 'https://example.com/file', '//example.com/file', 'report%ZZ.pdf', 'report%00.pdf', 'report\t.pdf', '#section'])('rejects non-file or malformed destinations: %s', (href) => {
     expect(localFilePathFromHref(href, root)).toBeNull()
   })
 

@@ -25,7 +25,7 @@ import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-rev
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
-import { localFilePathFromHref, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
+import { localFileLineFromHref, localFilePathFromHref, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { toast } from 'sonner'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -277,10 +277,11 @@ const MarkdownView = memo(function MarkdownView({
         isSelfRenderingPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
       a: ({ children: ch, href, node: _node, ...rest }: ComponentPropsWithoutRef<'a'> & ExtraProps) => {
         const path = href ? localFilePathFromHref(href, baseDirectory ?? workspaceRoot) : null
+        const line = href ? localFileLineFromHref(href) : undefined
         const openFile = path ? (event: MouseEvent<HTMLAnchorElement>) => {
           if (event.type === 'auxclick' && event.button !== 1) return
           event.preventDefault()
-          if (!openWorkspaceRelativePath(path)) {
+          if (!openWorkspaceRelativePath(path, line)) {
             if (!/^[/\\]|^[a-zA-Z]:[/\\]/.test(path)) {
               toast.error(t('common:sidebar.revealFailed'))
               return

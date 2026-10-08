@@ -1,10 +1,19 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { normalizeWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
 
+const SOURCE_LOCATION_SUFFIX = /(\.[^/\\:?#]+):(\d+)(?::\d+)?(?=[?#]|$)/
+
+export function localFileLineFromHref(href: string): number | undefined {
+  const line = Number(href.trim().match(SOURCE_LOCATION_SUFFIX)?.[2])
+  return Number.isSafeInteger(line) && line > 0 ? line : undefined
+}
+
 /** Decode local Markdown destinations without treating web or executable URLs as files. */
 export function localFilePathFromHref(href: string, baseDirectory?: string | null): string | null {
   let raw = href.trim()
   if (!raw || /[\u0000-\u001f\u007f]/.test(raw) || raw.startsWith('#') || raw.startsWith('?')) return null
+  // Source citations append :line[:column]; encoded colons still belong to the filename.
+  raw = raw.replace(SOURCE_LOCATION_SUFFIX, '$1')
   if (raw.startsWith('//') && !wslWindowsPathDistro(raw)) return null
   if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !/^file:/i.test(raw) && !/^[a-zA-Z]:[/\\]/.test(raw)) return null
   if (baseDirectory && !/^file:/i.test(raw) && !/^[/\\]|^[a-zA-Z]:[/\\]/.test(raw)) {
@@ -66,12 +75,12 @@ function normalizeRelPath(input: string, workspaceRoot?: string | null): string 
 }
 
 /** Open a repo-relative (or workspace-absolute) path in Files panel. */
-export function openWorkspaceRelativePath(relPath: string): boolean {
+export function openWorkspaceRelativePath(relPath: string, line?: number): boolean {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace)
   if (!raw || !store.currentWorkspace) return false
   // Keep the request until the lazily loaded Files panel mounts.
-  useUIStore.setState({ workspaceFileToOpen: { workspaceRoot: store.currentWorkspace, rel: raw } })
+  useUIStore.setState({ workspaceFileToOpen: { workspaceRoot: store.currentWorkspace, rel: raw, ...(line ? { line } : {}) } })
   store.setActivePanel('files')
   store.revealRightPanel()
   return true
