@@ -7,6 +7,9 @@ import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
 import { getSessionMessagesFromDiskViaIpc } from '@renderer/lib/session-history'
 import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
+import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
 
 /**
  * Rewind / jump to a session tree entry (pi navigateTree semantics).
@@ -14,6 +17,7 @@ import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-
  * a full worker restart for the UI update.
  */
 export async function navigateSessionToEntry(targetId: string): Promise<boolean> {
+  let stillCurrent = () => true
   console.log('[rewind] navigateSessionToEntry start, targetId=', targetId)
   try {
     if (isCurrentSubagentSessionPreview()) {
@@ -24,6 +28,12 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     const fromHistory = st.historySessionFile
     const fromSessions = st.sessions.find((s) => s.sessionId === st.currentSessionId)?.sessionFile
     const file = fromHistory ?? fromSessions
+    const navToken = getSessionNavigationToken()
+    stillCurrent = () => {
+      const latest = useUIStore.getState()
+      return isSessionNavigationCurrent(navToken) && latest.currentSessionId === st.currentSessionId &&
+        (!latest.historySessionFile || sessionFilesEqual(latest.historySessionFile, file))
+    }
     console.log('[rewind] file resolution:', {
       fromHistory,
       fromSessions,
@@ -59,6 +69,7 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       leafId: r?.leafId,
       hasEditorText: !!(r?.editorText && r.editorText.length),
     })
+    if (!stillCurrent()) return false
     if (r?.cancelled || r?.error) {
       toast.error(r?.error || '跳转已取消')
       return false
@@ -81,6 +92,7 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       /* optional */
     }
 
+    if (!stillCurrent()) return false
     // Soft loading: keep current items visible while disk tail loads (no full skeleton flash).
     st.clearFileChanges()
     st.setRunState({
@@ -113,20 +125,20 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
         error: hist.error,
         leafId,
       })
+      if (!stillCurrent()) return false
       // Rewind to first user message may yield empty branch (leaf = parent of first = null).
       // That is a valid empty chat state — never leave historyLoading true or Timeline skeleton.
       if (hist.error) {
         const disk = await getSessionMessagesFromDiskViaIpc(file, leafId)
+        if (!stillCurrent()) return false
         if (disk.error) {
           toast.error(hist.error || '回退后刷新历史失败')
           return false
         }
-        const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
         const items = sanitizeHistoryTimeline((disk.items || []) as TimelineItem[])
         st.loadHistoryItems(items)
         st.setHistoryMeta(disk.totalCount ?? disk.sourceCount, disk.sourceCount, file)
       } else {
-        const { sanitizeHistoryTimeline } = await import('@renderer/lib/timeline-dedupe')
         const items = sanitizeHistoryTimeline((hist.items || []) as TimelineItem[])
         st.loadHistoryItems(items)
         st.setHistoryMeta(hist.totalCount ?? hist.sourceCount, hist.sourceCount, file)
@@ -140,11 +152,13 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       }
       void refreshSessionTree(file)
       const { applyComposerDisplayMeta } = await import('@renderer/lib/session-display-meta')
+      if (!stillCurrent()) return false
       await applyComposerDisplayMeta(hist.sessionMeta ?? r?.sessionMeta)
     } finally {
-      st.setHistoryLoading(false)
+      if (stillCurrent()) st.setHistoryLoading(false)
     }
 
+    if (!stillCurrent()) return false
     toast.success(
       editorText
         ? '已回退：消息已填入输入框，可修改后重新发送'
@@ -152,6 +166,7 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     )
     return true
   } catch (e: unknown) {
+    if (!stillCurrent()) return false
     console.error('[rewind] navigateSessionToEntry error:', e)
     toast.error((e instanceof Error ? e.message : String(e)) || '回退失败')
     return false

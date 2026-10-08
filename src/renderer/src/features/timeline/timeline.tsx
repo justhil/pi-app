@@ -20,6 +20,8 @@ import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
@@ -497,14 +499,17 @@ export function Timeline() {
       if (viewLoadRef.current) return
       const sessionFile = st.historySessionFile
       if (!sessionFile) return
+      const navToken = getSessionNavigationToken()
+      const stillCurrent = () => isSessionNavigationCurrent(navToken) && seq === viewSeqRef.current &&
+        sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
       const captured = viewTailSnapshotRef.current
       const tail = all.at(-1) ?? null
-      viewLoadRef.current = (async () => {
+      const load: Promise<void> = (async () => {
         const res = await fetchSessionHistoryTail(sessionFile, VIEW_REVEAL_CHUNK_LIMIT, {
           leafId: plan.entryId,
           bypassCache: true,
         })
-        if (seq !== viewSeqRef.current) return
+        if (!stillCurrent()) return
         const chunk = (res.items || []) as TimelineItem[]
         if (!chunk.length) return
         if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
@@ -521,18 +526,19 @@ export function Timeline() {
         const total = pre.historyTotalCount
         if (targetPos > 0 && total > targetPos) {
           const gap = total - targetPos
-          // One leaf-anchored call reaches back at most 500 items (handler clamp).
-          const gapFetched = Math.min(gap, 500)
-          const tailRes = await fetchSessionHistoryTail(sessionFile, gapFetched, { leafId: null })
-          if (seq !== viewSeqRef.current) return
+          // Request up to 500 rows; the tail can extend to a turn's user message.
+          const tailRes = await fetchSessionHistoryTail(sessionFile, Math.min(gap, 500), { leafId: null })
+          if (!stillCurrent()) return
           if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
-          allFetched = [...chunk, ...((tailRes.items || []) as TimelineItem[])]
+          const tailItems = (tailRes.items || []) as TimelineItem[]
+          allFetched = [...missingOlderItems(chunk, tailItems), ...tailItems]
           // When the target is further than 500 items below the loaded tail, the
           // gap fetch leaves a hole between the target and the tail. Close it with
           // offset-based pages (max 500 each), oldest-first, looping until the
           // hole is contiguous — a single page would still leave a gap while the
           // loadedCount below claims full coverage and blocks older-loading.
-          const holeLength = gap - gapFetched
+          // Tail pages can extend to the containing user message.
+          const holeLength = Math.max(0, gap - tailRes.sourceCount)
           if (holeLength > 0) {
             const middle: TimelineItem[] = []
             let holeStart = targetPos + 1
@@ -542,7 +548,7 @@ export function Timeline() {
               // offset 语义：距尾部倒数第 offset 条之后的 pageLen 条
               const offsetFromTail = total - (holeStart + pageLen - 1)
               const pageRes = await fetchSessionHistoryOlder(sessionFile, offsetFromTail, pageLen)
-              if (seq !== viewSeqRef.current) return
+              if (!stillCurrent()) return
               if (userSentSince(captured, useUIStore.getState().timelineItems.at(-1) ?? null)) return
               const page = (pageRes.items || []) as TimelineItem[]
               if (!page.length) break
@@ -550,7 +556,7 @@ export function Timeline() {
               holeStart += page.length
               remaining -= page.length
             }
-            allFetched = [...chunk, ...middle, ...((tailRes.items || []) as TimelineItem[])]
+            allFetched = [...chunk, ...middle, ...tailItems]
           }
         }
         const latest = useUIStore.getState()
@@ -563,7 +569,7 @@ export function Timeline() {
           // keeps the older-loader's offset honest so it never fetches pages that
           // overlap or fall out of order.
           if (after.historyTotalCount > 0) {
-            const chunkLen = Math.min(VIEW_REVEAL_CHUNK_LIMIT, targetPos)
+            const chunkLen = res.sourceCount
             const covered = after.historyTotalCount - (targetPos - chunkLen)
             useUIStore.setState({
               historyLoadedCount: Math.min(
@@ -578,8 +584,9 @@ export function Timeline() {
           console.error('[Timeline] view-entry load failed', error)
         })
         .finally(() => {
-          viewLoadRef.current = null
+          if (viewLoadRef.current === load) viewLoadRef.current = null
         })
+      viewLoadRef.current = load
     }
   }, [viewTarget, renderCount, items, historySessionFile])
 
@@ -623,6 +630,7 @@ export function Timeline() {
         // A pending view jump yields to the user's own scroll.
         viewSeqRef.current += 1
         viewLandedRef.current = null
+        setViewTarget(null)
       }
     }
     el.addEventListener('wheel', onWheel, { passive: true })
@@ -641,6 +649,7 @@ export function Timeline() {
   renderCountRef.current = renderCount
 
   const [fetchingOlder, setFetchingOlder] = useState(false)
+  const olderLoadSeqRef = useRef(0)
 
   const loadMoreHistory = useCallback((grow = true) => {
     const el = scrollRef.current
@@ -662,12 +671,20 @@ export function Timeline() {
     if (!canFetchDisk && !canRevealInMemory) return
 
     if (canFetchDisk) {
+      const loadSeq = ++olderLoadSeqRef.current
       setFetchingOlder(true)
       scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
       const offset = st.historyLoadedCount
       const sessionFile = st.historySessionFile!
+      const navToken = getSessionNavigationToken()
+      const stillCurrent = () => isSessionNavigationCurrent(navToken) &&
+        sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
       void prependOlderTimelinePage(sessionFile, offset)
-        .then(({ items: older, error }) => {
+        .then(({ items: older, error, cancelled }) => {
+          if (cancelled || !stillCurrent()) {
+            if (loadSeq === olderLoadSeqRef.current) scrollHeightBeforeLoadRef.current = null
+            return
+          }
           if (error) {
             console.error('[Timeline] load older failed', error)
             scrollHeightBeforeLoadRef.current = null
@@ -687,10 +704,11 @@ export function Timeline() {
           if (grow) setWindowTurns((turns) => turns + useUIStore.getState().timelineVisibleTurns)
         })
         .catch((error) => {
+          if (!stillCurrent()) return
           console.error('[Timeline] load older failed', error)
           scrollHeightBeforeLoadRef.current = null
         })
-        .finally(() => setFetchingOlder(false))
+        .finally(() => { if (loadSeq === olderLoadSeqRef.current) setFetchingOlder(false) })
       return
     }
 
@@ -721,6 +739,7 @@ export function Timeline() {
   useEffect(() => {
     setWindowTurns(FIRST_PAINT_TURNS)
     scrollHeightBeforeLoadRef.current = null
+    olderLoadSeqRef.current += 1
     setFetchingOlder(false)
     const prevFile = prevSessionFileRef.current
     prevSessionFileRef.current = historySessionFile ?? null

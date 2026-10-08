@@ -1,6 +1,10 @@
 /** 会话/工作区切换代数，快切时丢弃过期的异步结果 */
 let generation = 0
 
+export function getSessionNavigationToken(): number {
+  return generation
+}
+
 export function beginSessionNavigation(): number {
   return ++generation
 }

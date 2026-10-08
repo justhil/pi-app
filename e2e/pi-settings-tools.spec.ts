@@ -104,7 +104,7 @@ test.describe('pi settings · tools', () => {
       await agent.newSession()
       await win.locator('button:has-text("Settings")').first().click()
       await win.getByText('Models', { exact: true }).first().click()
-      await win.getByText('scripted', { exact: true }).first().click()
+      await win.locator('.settings-model-entry').getByText('scripted', { exact: true }).click()
       await win.locator('[data-model-advanced] > button').click()
       const fill = async (label: string, v: string) => {
         await win.getByLabel(label, { exact: true }).fill(v)
