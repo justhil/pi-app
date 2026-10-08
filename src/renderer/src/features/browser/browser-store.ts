@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { BrowserDownloadInfo, BrowserEvent, BrowserTabInfo } from '@shared/browser-types'
+import type { BrowserDownloadInfo, BrowserEvent, BrowserHelpRequest, BrowserTabInfo } from '@shared/browser-types'
 import { ipcClient, onBrowserEvent } from '@renderer/lib/ipc-client'
 
 export interface BrowserState {
@@ -7,6 +7,8 @@ export interface BrowserState {
   order: string[]
   activeTabId: string | null
   downloads: Record<string, BrowserDownloadInfo>
+  /** The agent waiting on the user (browser_request_help), by request id. */
+  helpRequests: Record<string, BrowserHelpRequest>
 }
 
 /** Pure reducer for Main → Renderer browser events (unit-tested). */
@@ -35,12 +37,20 @@ export function applyBrowserEvent(state: BrowserState, event: BrowserEvent): Bro
       return { ...state, activeTabId: event.tabId }
     case 'download-updated':
       return { ...state, downloads: { ...state.downloads, [event.download.id]: event.download } }
+    case 'help-request':
+      return { ...state, helpRequests: { ...state.helpRequests, [event.request.id]: event.request } }
+    case 'help-ended': {
+      if (!state.helpRequests[event.id]) return state
+      const helpRequests = { ...state.helpRequests }
+      delete helpRequests[event.id]
+      return { ...state, helpRequests }
+    }
     default:
       return state
   }
 }
 
-export const useBrowserStore = create<BrowserState>(() => ({ tabs: {}, order: [], activeTabId: null, downloads: {} }))
+export const useBrowserStore = create<BrowserState>(() => ({ tabs: {}, order: [], activeTabId: null, downloads: {}, helpRequests: {} }))
 
 type Listener = (event: BrowserEvent) => void
 const sideListeners = new Set<Listener>()
@@ -66,6 +76,12 @@ export function ensureBrowserSubscription(): void {
     })
     .catch(() => {})
   void ipcClient
+    .invoke('browser.help.list')
+    .then((res: { requests?: BrowserHelpRequest[] } | undefined) => {
+      useBrowserStore.setState({ helpRequests: Object.fromEntries((res?.requests ?? []).map((r) => [r.id, r])) })
+    })
+    .catch(() => {})
+  void ipcClient
     .invoke('browser.downloads.list')
     .then((res: { downloads?: BrowserDownloadInfo[] } | undefined) => {
       useBrowserStore.setState({ downloads: Object.fromEntries((res?.downloads ?? []).map((d) => [d.id, d])) })
@@ -86,6 +102,7 @@ export const browserActions = {
   navigate: (tabId: string, url: string) => ipcClient.invoke('browser.navigate', { tabId, url }),
   history: (tabId: string, history: 'back' | 'forward' | 'reload' | 'stop') =>
     ipcClient.invoke('browser.navigate', { tabId, history }),
+  respondHelp: (id: string, outcome: 'completed' | 'cancelled') => ipcClient.invoke('browser.help.respond', { id, outcome }),
   cancelDownload: (id: string) => ipcClient.invoke('browser.downloads.cancel', { id }),
   revealDownload: (id: string) => ipcClient.invoke('browser.downloads.reveal', { id }),
   clearDownloads: async () => {

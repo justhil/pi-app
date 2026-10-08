@@ -203,10 +203,16 @@
         "name": "Browser control",
         "desc": "Reads and operates pages in the built-in browser",
         "short": "Browser"
+      },
+      "chrome": {
+        "name": "My Chrome",
+        "desc": "Operates pages in your own Chrome (your sign-ins), in a separate window",
+        "short": "Chrome"
       }
     },
     "reasons": {
-      "browser-panel-off": "Turn on the Browser panel in Settings → Right panels first"
+      "browser-panel-off": "Turn on the Browser panel in Settings → Right panels first",
+      "chrome-off": "Turn on My Chrome in Settings → Browser and pair the extension first"
     },
     "enabledTitle": "On: {{names}}",
     "cacheWarming": {
@@ -216,6 +222,17 @@
       "off": "Off",
       "streaming": "Running",
       "idle": "Also idle"
+    },
+    "browserMode": {
+      "label": "Browser",
+      "off": "Off",
+      "builtin": "Built-in",
+      "chrome": "My Chrome",
+      "desc": {
+        "off": "The AI does not use a browser",
+        "builtin": "Reads and operates pages in the built-in browser panel",
+        "chrome": "Operates pages in your own Chrome (your sign-ins), in a separate window"
+      }
     }
   },
   "thinkingShort": "Thinking {{level}}",

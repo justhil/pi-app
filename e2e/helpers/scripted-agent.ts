@@ -121,7 +121,8 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
 
   const app = await electron.launch({
     executablePath: electronExecutable,
-    args: [mainEntry, '--ozone-platform=x11', '--lang=en-US', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
+    // --user-data-dir: Windows ignores XDG_CONFIG_HOME; this pins userData to the test config on every OS.
+    args: [mainEntry, '--ozone-platform=x11', '--lang=en-US', `--user-data-dir=${configDir}`, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
     env: {
       ...process.env,
       HOME: home,
@@ -148,7 +149,7 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     },
     async enableBrowserControl() {
       await win.locator('[data-composer-tools]').click()
-      const toggle = win.getByRole('switch', { name: /Browser control|浏览器操控/ })
+      const toggle = win.getByRole('radio', { name: /^(Built-in|内置)$/ })
       await toggle.waitFor({ state: 'visible' })
       await toggle.click()
       await win.keyboard.press('Escape')

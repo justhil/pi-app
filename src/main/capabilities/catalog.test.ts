@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { BROWSER_TOOL_NAMES } from '@shared/browser-tools'
 
 vi.mock('./pi-ui.md?raw', () => ({ default: '<!-- source note -->\n# pi-ui blocks\n\nUse blocks.' }))
 const prefs: { browser?: boolean } = {}
@@ -22,7 +23,7 @@ describe('capability catalog', () => {
     prefs.browser = false
     expect(capabilitySections(['browser'])).toEqual([])
     expect(capabilityToolFamilies(['browser'])).toEqual([])
-    expect(capabilityCatalog().find((c) => c.id === 'browser')).toMatchObject({ available: false, reason: 'browser-panel-off', tools: 21 })
+    expect(capabilityCatalog().find((c) => c.id === 'browser')).toMatchObject({ available: false, reason: 'browser-panel-off', tools: BROWSER_TOOL_NAMES.length })
     expect(capabilityCatalog().find((c) => c.id === 'pi-ui')?.promptTokens).toBeGreaterThan(0)
   })
 
@@ -56,8 +57,9 @@ describe('deferred browser tools', () => {
     expect(lean.coreTools).toBe(6)
     expect(lean.promptTokens).toBeLessThan(all.promptTokens * 0.65)
     // Measured in a real request: ~736 tokens of tool definitions + ~471 of prompt section.
-    expect(lean.promptTokens).toBeGreaterThan(1150)
-    expect(lean.promptTokens).toBeLessThan(1260)
+    expect(lean.promptTokens).toBeGreaterThan(1000)
+    // 2026-10-08 after merging tools (28 → 24) and moving situational guidance into results: ~1270.
+    expect(lean.promptTokens).toBeLessThan(1350)
     expect(capabilitySectionMap(['browser', 'pi-ui'])).toEqual({
       'pi-ui': '# pi-ui blocks\n\nUse blocks.',
       browser: expect.stringContaining('tool_search'),

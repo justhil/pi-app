@@ -29,6 +29,7 @@ import { sessionUsage } from './usage-scan'
 import { getMainWindow } from './window'
 import { workerManager } from './worker-manager'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
+import { noteBrowserTarget } from './browser/targets'
 
 /**
  * Electron implementation of the remote gateway's port. Reads go through the same registered
@@ -145,6 +146,7 @@ export function createElectronRemoteHost(): RemoteHostPort {
       // A session created from the phone has a live worker but no file until its first reply:
       // re-loading it would read a missing header, so only cold sessions go through loadSession.
       if (!workerManager.hasLiveSessionWorker(sessionFile)) await workerManager.loadSession(sessionFile, { cwd: projectId })
+      noteBrowserTarget(sessionFile, capabilities)
       await workerManager.setCapabilities(capabilitySectionMap(capabilities), capabilityToolFamilies(capabilities), sessionFile)
       if (mode === 'steer') await workerManager.steer(text, sessionFile)
       else if (mode === 'followUp') await workerManager.followUp(text, sessionFile)

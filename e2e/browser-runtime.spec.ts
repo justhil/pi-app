@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import http from 'node:http'
 import fs from 'node:fs'
+import { BROWSER_TOOL_NAMES } from '../packages/shared/browser-tools'
 import { launchAgentApp, listen, refIn, startScriptedModel, type Script, type Seen } from './helpers/scripted-agent'
 
 /**
@@ -87,7 +88,7 @@ const script =
     const steps: (() => { name: string; args: unknown })[] = [
       () => ({ name: 'browser_navigate', args: { url: `${base}/app` } }), // 0
       () => ({ name: 'browser_snapshot', args: {} }), // 1
-      () => ({ name: 'browser_find', args: { text: 'Footer' } }), // 2
+      () => ({ name: 'browser_snapshot', args: { query: 'Footer' } }), // 2
       () => ({
         name: 'browser_fill_form',
         args: {
@@ -108,14 +109,14 @@ const script =
       () => ({ name: 'browser_snapshot', args: {} }), // 10
       () => ({ name: 'browser_click', args: { target: refIn(r, /button "Close"/) } }), // 11
       () => ({ name: 'browser_mouse_wheel', args: { deltaY: 1200 } }), // 12
-      () => ({ name: 'browser_console_messages', args: {} }), // 13
-      () => ({ name: 'browser_network_requests', args: {} }), // 14
+      () => ({ name: 'browser_devtools', args: { show: 'console' } }), // 13
+      () => ({ name: 'browser_devtools', args: { show: 'requests' } }), // 14
       () => ({ name: 'browser_evaluate', args: { function: '(el) => el.textContent', target: '#out' } }), // 15
       () => ({ name: 'browser_take_screenshot', args: { target: '#bin' } }), // 16
       () => ({ name: 'browser_press_key', args: { key: 'Home' } }), // 17
       () => ({ name: 'browser_hover', args: { target: '#submit' } }), // 18
       () => ({ name: 'browser_click', args: { target: refIn(r, /link "Next page"/) } }), // 19
-      () => ({ name: 'browser_navigate_back', args: {} }), // 20
+      () => ({ name: 'browser_navigate', args: { url: 'back' } }), // 20
       () => ({ name: 'browser_tabs', args: { action: 'new', url: `${base}/next` } }), // 21
       () => ({ name: 'browser_tabs', args: { action: 'select', index: 0 } }), // 22
       () => ({ name: 'browser_pdf_save', args: { filename: 'lab' } }), // 23
@@ -155,7 +156,7 @@ test.describe('browser agent runtime', () => {
       expect(first.tools).toContain('tool_search')
       // …and tool_search loads the rest of the Playwright MCP set.
       expect(search).toMatch(/browser_tabs/)
-      expect(seen.at(-1)!.tools.filter((t) => t.startsWith('browser_'))).toHaveLength(21)
+      expect(seen.at(-1)!.tools.filter((t) => t.startsWith('browser_'))).toHaveLength(BROWSER_TOOL_NAMES.length)
 
       expect(r[0]).toMatch(/URL: .*\/app/)
       expect(r[0]).toMatch(/### Snapshot \(interactive elements\)[\s\S]*textbox "Name"/)
@@ -169,12 +170,12 @@ test.describe('browser agent runtime', () => {
       expect(r[6]).toMatch(/Set 1 file\(s\): README\.md/)
       expect(r[7]).toMatch(/Dragged/)
       expect(r[8]).toMatch(/Saved: Maya\|true\|p\|7\|Hello rich\|README\.md\|Bin: dropped/)
-      expect(r[9]).toMatch(/### Changes[\s\S]*dialog "Promo"/)
-      // Overlay covers the page: covered elements lose their refs, the dialog's button keeps one.
-      expect(r[10]).toMatch(/covered by an overlay/)
+      expect(r[9]).toMatch(/### (Changes|Dialog opened)[\s\S]*dialog "Promo"/)
+      // A dialog covers the page: only the dialog is shown (its button keeps a ref), the page behind is summarized.
+      expect(r[10]).toMatch(/Showing only the dialog dialog "Promo"; \d+ control\(s\) of the page behind it are hidden/)
       expect(r[10]).toMatch(/button "Close" \[ref=e\d+\]/)
-      expect(r[10]).toMatch(/button "Submit"(?! \[ref)/)
-      expect(r[11]).toMatch(/### Changes/)
+      expect(r[10]).not.toMatch(/button "Submit" \[ref/)
+      expect(r[11]).toMatch(/### (Changes|Dialog closed)/)
       expect(r[12]).toMatch(/Scrolled down 1200px/)
       expect(r[13]).toMatch(/\[error\] lab boom/)
       expect(r[14]).toMatch(/404.*missing\.json|missing\.json.*404/)
@@ -190,7 +191,8 @@ test.describe('browser agent runtime', () => {
       expect(pdf).toBeTruthy()
       expect(fs.readFileSync(pdf!).subarray(0, 4).toString()).toBe('%PDF')
       expect(r[24]).toMatch(/Waited for "Lab"/)
-      expect(r[25]).toMatch(/browser_unsupported/)
+      // Page dialogs are answered over CDP now (no dialog open at this point).
+      expect(r[25]).toMatch(/No dialog is open|browser_unsupported/)
       expect(r[26]).toMatch(/Selected "f" in combobox "Plan"/)
       expect(r[27]).toMatch(/browser_stale_ref/)
       // The click waits for the DOM to go quiet, so the late result is in the reported changes.

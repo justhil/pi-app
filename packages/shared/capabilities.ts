@@ -1,5 +1,5 @@
 /** Opt-in session capabilities (composer Tools menu). Off by default for every new session. */
-export const CAPABILITY_IDS = ['pi-ui', 'browser'] as const
+export const CAPABILITY_IDS = ['pi-ui', 'browser', 'chrome'] as const
 export type CapabilityId = (typeof CAPABILITY_IDS)[number]
 
 export interface CapabilityInfo {

@@ -5,6 +5,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { writeClipboardTempImage } from '../../clipboard-temp-images'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
 import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
+import { noteBrowserTarget } from '../../browser/targets'
 
 export function registerPromptHandlers(): void {
   const bindBeforePrompt = async (sessionFile?: string) => {
@@ -35,6 +36,7 @@ export function registerPromptHandlers(): void {
   // Enabled capabilities travel with each message so drafts and restarted workers stay in sync.
   const applyCapabilities = async (req: { capabilities?: string[]; sessionFile?: string }) => {
     if (req.capabilities === undefined) return
+    noteBrowserTarget(req.sessionFile, req.capabilities)
     await workerManager.setCapabilities(capabilitySectionMap(req.capabilities), capabilityToolFamilies(req.capabilities), req.sessionFile)
   }
 

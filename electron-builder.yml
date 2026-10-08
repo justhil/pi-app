@@ -39,6 +39,11 @@ extraResources:
     to: codex-asr
     filter:
       - "**/*"
+  # pi Chrome extension (loaded unpacked by the user for "My Chrome")
+  - from: resources/chrome-extension
+    to: chrome-extension
+    filter:
+      - "**/*"
 
 win:
   target:

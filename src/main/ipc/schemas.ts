@@ -263,6 +263,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   browserSearchEngine: z.enum(BROWSER_SEARCH_ENGINE_IDS as [BrowserSearchEngine, ...BrowserSearchEngine[]]),
   browserDownloader: z.enum(['auto', 'electron']),
   browserAria2Path: z.string().max(4096),
+  browserAgentCdp: z.enum(['auto', 'off']),
   browserDownloadConnections: z.number().int().min(1).max(16),
   agentRuntime: z
     .object({

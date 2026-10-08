@@ -18,7 +18,7 @@ const unique = (sel: string) => {
   }
 }
 
-function selectorFor(node: Element): string {
+export function selectorFor(node: Element): string {
   if (node.id && unique(`#${esc(node.id)}`)) return `#${esc(node.id)}`
   const parts: string[] = []
   for (let cur: Element | null = node; cur && cur !== document.documentElement; cur = cur.parentElement) {

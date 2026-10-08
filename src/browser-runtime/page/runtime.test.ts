@@ -144,6 +144,25 @@ describe('snapshot post-pass', () => {
     expect(s.covered).toBe(1)
   })
 
+  it('shows only a modal dialog when it covers the page', () => {
+    document.body.innerHTML = '<button id="under">Buy</button><div role="dialog" aria-modal="true" aria-label="Sign in"><button id="ok">OK</button></div>'
+    boxOf = (el) => (el.tagName === 'BUTTON' ? { x: 10, y: 10, width: 80, height: 30 } : { x: 0, y: 0, width: 400, height: 300 })
+    pointAt(document.getElementById('ok'))
+    const s = snap()
+    expect(s.yaml).toMatch(/button "OK" \[ref=e\d+\]/)
+    expect(s.yaml).not.toMatch(/Buy/)
+    expect(s.modal).toEqual({ description: 'dialog "Sign in"', behind: 1 })
+    expect(snap({ target: 'body' }).yaml).toMatch(/Buy/)
+  })
+
+  it('finds an unlabelled overlay by position, size and center hit', () => {
+    document.body.innerHTML = '<button>Buy</button><div id="ov" style="position: fixed"><p>Subscribe?</p><button id="no">No thanks</button></div>'
+    const ov = document.getElementById('ov')!
+    boxOf = (el) => (el === ov ? { x: 200, y: 150, width: 600, height: 400 } : { x: 10, y: 10, width: 80, height: 30 })
+    pointAt(document.getElementById('no'))
+    expect(rt.findModal()).toBe(ov)
+  })
+
   it('counts interactive elements below the fold', () => {
     document.body.innerHTML = '<a href="/1">One</a><a href="/2">Two</a><a href="/3">Three</a>'
     const links = [...document.querySelectorAll('a')]
@@ -153,6 +172,107 @@ describe('snapshot post-pass', () => {
     const s = snap()
     expect(s.belowFold).toEqual({ count: 2, screens: 3 })
     expect(s.covered).toBe(0)
+  })
+})
+
+describe('dropFiles', () => {
+  it('dispatches drag events carrying the files on the drop zone', () => {
+    if (typeof DataTransfer === 'undefined' || typeof DragEvent === 'undefined') return // jsdom lacks drag-and-drop
+    document.body.innerHTML = '<div id="zone">Drop here</div>'
+    const seen: string[] = []
+    const zone = document.getElementById('zone')!
+    for (const t of ['dragenter', 'dragover', 'drop']) zone.addEventListener(t, (e) => seen.push(`${t}:${(e as DragEvent).dataTransfer?.files.length}`))
+    expect(rt.dropFiles('#zone', [{ name: 'a.txt', type: 'text/plain', base64: btoa('hi') }])).toEqual({ count: 1 })
+    expect(seen).toEqual(['dragenter:1', 'dragover:1', 'drop:1'])
+  })
+})
+
+describe('selectorOf', () => {
+  it('gives a selector that finds the same element', () => {
+    document.body.innerHTML = '<ul><li><button>A</button></li><li><button>B</button></li></ul>'
+    const ref = refOf(snap().yaml, /button "B"/)
+    const res = rt.selectorOf(ref) as { selector: string }
+    expect(document.querySelector(res.selector)).toBe(document.querySelectorAll('button')[1])
+  })
+})
+
+describe('inferred names', () => {
+  it('names unlabelled controls from tooltips, icon classes and link paths', () => {
+    document.body.innerHTML = `
+      <button data-tooltip="Delete row"><svg></svg></button>
+      <button><i class="fa fa-magnifying-glass"></i></button>
+      <a href="/account/settings"><svg></svg></a>
+      <button>Labelled</button>`
+    const y = snap().yaml
+    expect(y).toMatch(/button "~Delete row" \[ref=e\d+\]/)
+    expect(y).toMatch(/button "~magnifying glass" \[ref=e\d+\]/)
+    expect(y).toMatch(/link "~settings" \[ref=e\d+\]/)
+    expect(y).toMatch(/button "Labelled" \[ref=e\d+\]/)
+  })
+})
+
+describe('has-submenu', () => {
+  it('marks aria-haspopup and nav entries next to a hidden block of links, not plain links', () => {
+    document.body.innerHTML = `
+      <nav><ul>
+        <li><a href="/p">Products</a><ul style="display:none"><li><a href="/p/a">A</a></li><li><a href="/p/b">B</a></li></ul></li>
+        <li><a href="/about">About</a></li>
+      </ul></nav>
+      <button aria-haspopup="menu">More</button>`
+    const s = snap()
+    expect(s.yaml).toMatch(/link "Products" \[ref=e\d+\] \[has-submenu\]/)
+    expect(s.yaml).toMatch(/button "More" \[ref=e\d+\] \[has-submenu\]/)
+    expect(s.yaml).not.toMatch(/link "About" \[ref=e\d+\] \[has-submenu\]/)
+  })
+})
+
+describe('textView', () => {
+  it('reads text with controls inline by ref, skipping hidden content', () => {
+    document.body.innerHTML = '<main><h2>Order</h2><p>Pick a size.</p><ul><li>Small</li><li>Large</li></ul><label>Email <input></label><button>Pay now</button><p hidden>secret</p></main>'
+    const t = rt.textView() as { text: string; truncated: boolean }
+    expect(t.text).toMatch(/## Order\nPick a size\.\n- Small\n- Large/)
+    expect(t.text).toMatch(/\[textbox "Email" ref=e\d+\]/)
+    expect(t.text).toMatch(/\[button "Pay now" ref=e\d+\]/)
+    expect(t.text).not.toMatch(/secret/)
+    const ref = /\[button "Pay now" ref=(e\d+)\]/.exec(t.text)![1]
+    expect(rt.resolveElement(ref)).toBe(document.querySelector('button'))
+  })
+
+  it('scopes to a target and cuts at maxChars', () => {
+    document.body.innerHTML = `<section id="a"><p>${'word '.repeat(400)}</p></section><section id="b"><p>other</p></section>`
+    const t = rt.textView({ target: '#a', maxChars: 300 }) as { text: string; truncated: boolean; chars: number }
+    expect(t.truncated).toBe(true)
+    expect(t.text.length).toBeLessThanOrEqual(300)
+    expect(t.text).not.toMatch(/other/)
+  })
+})
+
+describe('transients', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 0))
+
+  it('reports text that flashed and is gone, not text that stays or was there before', async () => {
+    document.body.innerHTML = '<main><p>Existing paragraph text</p></main>'
+    rt.transients.start()
+    const toast = document.createElement('div')
+    toast.textContent = 'Saved successfully'
+    document.body.append(toast)
+    const stays = document.createElement('p')
+    stays.textContent = 'New permanent row'
+    document.querySelector('main')!.append(stays)
+    await tick()
+    toast.remove()
+    expect(rt.transients.take()).toEqual(['Saved successfully'])
+  })
+
+  it('reports live-region announcements even while they stay', async () => {
+    document.body.innerHTML = '<div role="status"></div>'
+    rt.transients.start()
+    document.querySelector('[role=status]')!.textContent = 'Code is invalid'
+    expect(rt.transients.take()).toEqual(['Code is invalid'])
+  })
+
+  it('returns nothing without a start (new document)', () => {
+    expect(rt.transients.take()).toEqual([])
   })
 })
 

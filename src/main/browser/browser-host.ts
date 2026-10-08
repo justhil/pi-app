@@ -7,13 +7,15 @@ import {
   isDevOrigin,
   isExternalProtocolUrl,
   type BrowserEvent,
+  type BrowserDownloadInfo,
   type BrowserLogEntry,
   type BrowserTabInfo,
   type BrowserViewBounds,
   type ElementDescriptor,
   type PageContextResult,
 } from '@shared/browser-types'
-import { configureBrowserSession, partitionForProfile } from './electron-session'
+import { configStore } from '../config-store'
+import { configureBrowserSession, partitionForProfile, peekDownloadManager } from './electron-session'
 import { FRAMEWORK_SOURCE } from './page-scripts'
 import { computeViewBounds } from './view-layout'
 import { BrowserToolError } from './agent/errors'
@@ -109,7 +111,9 @@ export class BrowserHost implements AgentBrowserHost {
       },
     })
     view.setVisible(false)
-    view.setBounds({ x: 0, y: 0, ...DEFAULT_VIEW_SIZE })
+    // A real page is never wider or taller than its window (innerWidth > outerWidth gives automation away).
+    const content = win.getContentBounds()
+    view.setBounds({ x: 0, y: 0, width: Math.min(DEFAULT_VIEW_SIZE.width, Math.max(320, content.width - 16)), height: Math.min(DEFAULT_VIEW_SIZE.height, Math.max(240, content.height - 90)) })
     win.contentView.addChildView(view)
 
     const info: BrowserTabInfo = {
@@ -123,7 +127,17 @@ export class BrowserHost implements AgentBrowserHost {
       canGoForward: false,
       openedBy: opts.openedBy ?? 'user',
     }
-    const engine = new ElectronPageEngine(view.webContents, () => tab.logs)
+    const engine = new ElectronPageEngine(view.webContents, () => tab.logs, {
+      cdp: () => configStore.get('browserAgentCdp') !== 'off',
+      // Where the page sits on screen, so input events carry real screenX/screenY (not 0).
+      screenOrigin: () => {
+        const w = this.getWindow()
+        if (!w || w.isDestroyed()) return { x: 0, y: 0 }
+        const c = w.getContentBounds()
+        const v = view.getBounds()
+        return { x: c.x + v.x, y: c.y + v.y }
+      },
+    })
     const tab: Tab = { info, view, logs: [], engine, pointer: new Pointer(engine), queue: Promise.resolve() }
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
@@ -240,7 +254,19 @@ export class BrowserHost implements AgentBrowserHost {
   agentTab(tabId: string): { info: BrowserTabInfo; engine: PageEngine; pointer: Pointer } {
     const tab = this.tabs.get(tabId)
     if (!tab) throw new BrowserToolError('browser_no_tab', 'the tab was closed; call browser_tabs action "list"')
+    // First agent use attaches the protocol, so dialogs and requests from now on are seen.
+    tab.engine.cdpTab()
     return { info: tab.info, engine: tab.engine, pointer: tab.pointer }
+  }
+
+  readonly kind = 'builtin' as const
+
+  notify(event: BrowserEvent): void {
+    this.emit(event)
+  }
+
+  downloads(): BrowserDownloadInfo[] {
+    return peekDownloadManager()?.list() ?? []
   }
 
   /** Run agent work on a tab one at a time; tells the panel which action is running. */

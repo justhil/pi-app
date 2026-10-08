@@ -115,19 +115,32 @@ export function setBrowserToolsEnabled(on: boolean): void {
   apply()
 }
 
+/** How long Main may take: a help request waits for the user (its own timeout plus a margin). */
+export function callTimeoutMs(tool: string, args: unknown): number {
+  if (tool === 'browser_request_help') {
+    const sec = Number((args as { timeoutSec?: unknown } | null)?.timeoutSec) || 600
+    return sec * 1000 + 30_000
+  }
+  if (tool === 'browser_download' || tool === 'browser_batch') return 11 * 60_000
+  return CALL_TIMEOUT_MS
+}
+
 function callMain(tool: string, args: unknown, signal?: AbortSignal): Promise<ToolResultPayload> {
   const callId = `bt-${process.pid}-${++seq}`
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pending.delete(callId)
+      sendToMain({ type: 'browser-tool-cancel', callId })
       reject(new Error('browser_timeout: the browser did not answer in time'))
-    }, CALL_TIMEOUT_MS)
+    }, callTimeoutMs(tool, args))
     pending.set(callId, { resolve, reject, timer })
     signal?.addEventListener('abort', () => {
       const p = pending.get(callId)
       if (!p) return
       clearTimeout(p.timer)
       pending.delete(callId)
+      // Main may be waiting on the user (help request) or a download: let it stop too.
+      sendToMain({ type: 'browser-tool-cancel', callId })
       reject(new Error('aborted'))
     })
     sendToMain({ type: 'browser-tool-request', callId, tool, args })

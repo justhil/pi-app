@@ -6,6 +6,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { btnDanger, btnOutline, selectCls } from '@renderer/features/settings/settings-controls'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
+import { AgentBrowserSettings } from './agent-settings'
 
 /** Built-in browser options; saved immediately (not part of the settings draft). */
 export function BrowserSettingsSection() {
@@ -152,6 +153,7 @@ export function BrowserSettingsSection() {
           </SettingRow>
         </>
       ) : null}
+      <AgentBrowserSettings />
       <SettingRow label={t('settings.clearData')} description={t('settings.clearDataDesc')}>
         <button type="button" className={btnDanger} onClick={() => setConfirmClear(true)}>
           {t('settings.clearDataAction')}

@@ -10,7 +10,13 @@ describe('diffSnapshots', () => {
   it('lists removed then added lines without the list dash', () => {
     const prev = '- main:\n  - checkbox "Remember me" [ref=e3]\n  - button "Save" [ref=e4]'
     const next = '- main:\n  - checkbox "Remember me" [checked] [ref=e3]\n  - button "Save" [ref=e4]\n  - text: Saved'
-    expect(diffSnapshots(prev, next)).toBe('- checkbox "Remember me" [ref=e3]\n+ checkbox "Remember me" [checked] [ref=e3]\n+ text: Saved')
+    expect(diffSnapshots(prev, next)).toBe('in main:\n  - checkbox "Remember me" [ref=e3]\n  + checkbox "Remember me" [checked] [ref=e3]\n  + text: Saved')
+  })
+
+  it('groups changes under the nearest shared ancestor', () => {
+    const prev = '- dialog "Cart" [ref=e1]:\n  - list [ref=e2]:\n    - listitem: Apple\n- button "Pay" [ref=e9]'
+    const next = '- dialog "Cart" [ref=e1]:\n  - list [ref=e2]:\n    - listitem: Apple\n    - listitem: Pear\n- button "Pay" [disabled] [ref=e9]'
+    expect(diffSnapshots(prev, next)).toBe('- button "Pay" [ref=e9]\n+ button "Pay" [disabled] [ref=e9]\nin list [ref=e2]:\n  + listitem: Pear')
   })
 
   it('counts repeated lines', () => {
@@ -35,6 +41,6 @@ describe('compactSnapshot', () => {
     const yaml = Array.from({ length: 100 }, (_, i) => `- link "Item ${i}" [ref=e${i}]`).join('\n')
     const out = compactSnapshot(yaml, 200)
     expect(out.length).toBeLessThan(260)
-    expect(out).toMatch(/more; call browser_snapshot/)
+    expect(out).toMatch(/more; browser_snapshot target=/)
   })
 })

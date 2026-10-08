@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { font: 13px system-ui, sans-serif; width: 300px; margin: 12px; color: #222; }
+      h1 { font-size: 14px; margin: 0 0 8px; }
+      label { display: block; margin: 8px 0 4px; color: #555; }
+      input { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 6px; font: inherit; }
+      button { margin-top: 10px; padding: 6px 12px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font: inherit; cursor: pointer; }
+      #status { margin-top: 10px; color: #555; }
+      .ok { color: #15803d !important; }
+      .bad { color: #b91c1c !important; }
+      p.hint { color: #666; margin: 4px 0 0; }
+    </style>
+  </head>
+  <body>
+    <h1>pi Desktop</h1>
+    <p class="hint">Paste the pairing code from pi Desktop → Settings → Browser → My Chrome.</p>
+    <label for="code">Pairing code</label>
+    <input id="code" placeholder="pi-bridge:19825:…" autocomplete="off" />
+    <button id="save">Connect</button>
+    <div id="status"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -79,6 +79,10 @@ export interface StoreSchema {
   browserSearchEngine: import('@shared/browser-types').BrowserSearchEngine
   browserDownloader: import('@shared/browser-types').BrowserDownloader
   browserAria2Path: string
+  /** DevTools protocol for agent tabs (frames, dialogs, network bodies…); 'off' if a site minds. */
+  browserAgentCdp: 'auto' | 'off'
+  /** Bridge to the user's own Chrome (pi extension over a local WebSocket). */
+  browserChromeBridge: { enabled: boolean; port: number; token: string }
   browserDownloadConnections: number
   /** Composer Tools menu: capabilities switched on per session file (absent = all off). */
   sessionCapabilities: Record<string, import('@shared/capabilities').CapabilityId[]>
@@ -148,6 +152,8 @@ const store = new Store<StoreSchema>({
     browserSearchEngine: 'bing',
     browserDownloader: 'auto',
     browserAria2Path: '',
+    browserAgentCdp: 'auto',
+    browserChromeBridge: { enabled: false, port: 19825, token: '' },
     browserDownloadConnections: 16,
     sessionCapabilities: {},
   },

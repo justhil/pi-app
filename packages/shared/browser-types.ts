@@ -1,6 +1,6 @@
 /** Built-in browser: wire types and pure helpers shared by Renderer and Main. */
 
-export type BrowserEngineId = 'electron' | 'stealth'
+export type BrowserEngineId = 'electron' | 'stealth' | 'chrome'
 
 export interface BrowserTabInfo {
   tabId: string
@@ -26,7 +26,7 @@ export interface BrowserDownloadInfo {
   /** Bytes per second, 0 when idle. */
   speed: number
   state: 'progressing' | 'completed' | 'cancelled' | 'failed'
-  via: 'aria2' | 'electron'
+  via: 'aria2' | 'electron' | 'chrome'
   startedAt: number
   /** Short reason when failed (never contains cookies or headers). */
   error?: string
@@ -45,6 +45,27 @@ export type BrowserEvent =
   | { type: 'find-result'; tabId: string; active: number; matches: number }
   /** The agent is acting on a tab (`action` null when it finished). */
   | { type: 'agent-action'; tabId: string; action: string | null }
+  /** The agent asks the user to do a step in the browser (login, CAPTCHA…). */
+  | { type: 'help-request'; request: BrowserHelpRequest }
+  | { type: 'help-ended'; id: string; outcome: BrowserHelpOutcome }
+
+export type BrowserHelpOutcome = 'completed' | 'cancelled' | 'timed_out' | 'aborted'
+
+export interface BrowserHelpRequest {
+  id: string
+  tabId: string
+  prompt: string
+  /** Description of the element to act on, e.g. `button "Sign in"`. */
+  target?: string
+  /** Human summary of the auto-complete condition, e.g. `URL contains /dashboard`. */
+  until?: string
+  timeoutSec: number
+  startedAt: number
+  /** Where the user acts: the built-in panel or their own Chrome. */
+  where: 'builtin' | 'chrome'
+  /** A yes/no question (lend a tab) rather than a task: the bar shows Allow / Deny. */
+  confirm?: boolean
+}
 
 export interface BrowserViewBounds {
   tabId: string

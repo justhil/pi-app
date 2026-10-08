@@ -21,6 +21,8 @@ import { useOverlayCovering, useViewPlacement } from './use-view-placement'
 import { AnnotationLayer } from './annotation-layer'
 import { saveImageAttachment, sendToComposer } from './browser-composer'
 import { DownloadsMenu } from './downloads-menu'
+import { HelpBar } from './help-bar'
+import { ChromeModeBanner } from './chrome-mode-banner'
 import { buildSuggestions, type Suggestion } from './address-suggestions'
 import { loadHistory, recordVisit, saveHistory, type HistoryEntry } from './browser-history'
 import { clampViewport, fitViewport, loadViewportMode, saveViewportMode, type ViewportMode } from './viewport-mode'
@@ -672,6 +674,9 @@ export function BrowserPanel() {
           </button>
         </div>
       ) : null}
+
+      <HelpBar activeTabId={activeTabId} where="builtin" />
+      <ChromeModeBanner />
 
       <div ref={areaRef} className={cn('relative min-h-0 flex-1 overflow-hidden', viewportMode.kind === 'fixed' && 'bg-[var(--bg-hover)]')}>
       <div ref={viewportRef} className="absolute overflow-hidden" data-browser-viewport=""

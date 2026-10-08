@@ -3,6 +3,7 @@
 // supplies isolated-world evaluation, raw input, capture and navigation for one tab.
 
 import type { BrowserLogEntry } from '@shared/browser-types'
+import type { CdpTab } from '../cdp/cdp-tab'
 
 export type MouseButton = 'left' | 'right' | 'middle'
 export type Modifier = 'alt' | 'control' | 'meta' | 'shift'
@@ -19,13 +20,15 @@ export interface DialogInfo {
 }
 
 export interface PageEngine {
-  readonly id: 'electron' | 'stealth'
+  readonly id: 'electron' | 'stealth' | 'chrome'
   /**
    * Evaluate `expr` in the page's isolated world with the runtime available as `__piBrowser`
    * (installed on first use per document). Rejects with browser_dialog_pending when a modal
    * dialog blocks the page.
    */
   run<T>(expr: string, timeoutMs?: number): Promise<T>
+  /** Evaluate `expr` in the page's own world (sees page JavaScript). Same dialog rule as `run`. */
+  runMain<T>(expr: string, timeoutMs?: number): Promise<T>
   mouse: {
     move(x: number, y: number, button?: MouseButton): void
     down(x: number, y: number, o: { button: MouseButton; clickCount: number; modifiers: Modifier[] }): void
@@ -49,6 +52,8 @@ export interface PageEngine {
   logs(): BrowserLogEntry[]
   /** Network requests the page still has in flight (long-lived streams excluded). */
   pendingRequests(): number
-  /** Engines that can see and answer JS dialogs (stealth); Electron cannot. */
+  /** DevTools-protocol features for agent tabs; null when the protocol is off. */
+  cdpTab(): CdpTab | null
+  /** Page dialogs (alert/confirm/prompt), when the engine can see them. */
   dialog?: { pending(): DialogInfo | null; handle(accept: boolean, promptText?: string): Promise<void> }
 }

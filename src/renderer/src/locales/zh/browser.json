@@ -31,6 +31,30 @@
     "navigateFailed": "无法打开该地址"
   },
   "settings": {
+    "chrome": "我的 Chrome",
+    "chromeDesc": "通过 pi 扩展让 AI 在你自己的 Chrome（沿用登录状态）里工作。每个对话在输入框「工具」菜单里打开「我的 Chrome」。",
+    "chromeOn": "开启",
+    "chromeConnected": "已连接：{{browser}}",
+    "chromeWaiting": "等待扩展连接…",
+    "chromeNotListening": "未在监听（端口被占用？），请关闭后重新打开。",
+    "chromeStep1": "在 Chrome 打开 chrome://extensions，开启「开发者模式」，选择「加载已解压的扩展程序」，选中扩展文件夹。",
+    "chromeOpenFolder": "打开扩展文件夹",
+    "chromeStep2": "点击工具栏里的 pi 扩展图标，粘贴下面的配对码。",
+    "chromeStep3": "在对话里，从输入框「工具」菜单打开「我的 Chrome」。",
+    "chromeCopy": "复制",
+    "chromeCopied": "配对码已复制",
+    "chromeRegenerate": "换一个",
+    "chromeNote": "AI 工作时 Chrome 会在标签页顶部显示「正在调试」提示条。它只操作自己窗口里的标签页，或你借给它的标签页。",
+    "agentCdp": "AI 调试协议",
+    "agentCdpDesc": "让 AI 能进入 iframe、处理页面弹窗、查看请求正文、截整页长图和模拟手机。只挂在 AI 使用的标签页上。若某网站拦截自动化可关闭。",
+    "agentCdpAuto": "对 AI 标签页开启",
+    "agentCdpOff": "关闭",
+    "siteNotes": "AI 站点经验",
+    "siteNotesDesc": "AI 按网站记下的操作窍门，下次访问时自动读取。",
+    "siteNotesEmpty": "暂无",
+    "siteNotesView": "查看",
+    "siteNotesHide": "收起",
+    "siteNotesDelete": "删除",
     "title": "内置浏览器",
     "description": "浏览器栏目的选项，修改后立即生效。",
     "searchEngine": "地址栏搜索引擎",
@@ -99,7 +123,16 @@
     "noComment": "（无评论）"
   },
   "agent": {
-    "acting": "AI · {{action}}"
+    "acting": "AI · {{action}}",
+    "helpTitle": "AI 需要你操作一下",
+    "helpTarget": "位置：{{target}}",
+    "helpUntil": "满足条件后自动继续：{{until}}",
+    "helpDone": "完成",
+    "helpGiveUp": "放弃",
+    "helpAllow": "允许",
+    "helpDeny": "拒绝",
+    "helpInChrome": "请在你的 Chrome 窗口里完成",
+    "helpOtherTab": "切到该标签页"
   },
   "viewport": {
     "title": "页面视口尺寸",
@@ -132,5 +165,11 @@
   },
   "zoom": {
     "reset": "恢复 100%（Ctrl/⌘+0）"
+  },
+  "chromeMode": {
+    "title": "本对话正在使用：我的 Chrome",
+    "hint": "AI 在你自己的 Chrome（pi 窗口）里操作。它打开的标签页（点击切到 Chrome）：",
+    "disconnected": "Chrome 未连接：请打开装有 pi 扩展的 Chrome（设置 → 浏览器 → 我的 Chrome）。",
+    "noTabs": "还没有打开标签页。"
   }
 }

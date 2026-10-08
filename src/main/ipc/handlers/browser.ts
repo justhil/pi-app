@@ -1,4 +1,5 @@
-import { app, session } from 'electron'
+import { join } from 'node:path'
+import { app, session, shell } from 'electron'
 import { z } from 'zod'
 import { DEFAULT_ELECTRON_PROFILE_ID } from '@shared/browser-types'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
@@ -10,6 +11,9 @@ import { configureCapabilities } from '../../capabilities/catalog'
 import { configStore } from '../../config-store'
 import { resolveActiveSdk } from '../../sdk-loader'
 import { writeClipboardTempText } from '../../clipboard-temp-images'
+import { openHelpRequests, respondHelp } from '../../browser/agent/help'
+import { chromeBridgeEnabled, chromeBridgeStatus, extensionPath, getChromeHost, regenerateChromeToken, setChromeBridgeEnabled, startChromeBridge } from '../../browser/chrome'
+import { configureSiteNotes, deleteSiteNotes, listSiteNotes, readSiteNotes } from '../../browser/agent/site-notes'
 
 function sdkAtLeast(version: string, min: [number, number, number]): boolean {
   const v = version.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((x) => Number.parseInt(x, 10) || 0)
@@ -25,11 +29,39 @@ export function registerBrowserHandlers(): void {
   // Browser control is only offered while the experimental Browser panel is switched on.
   configureCapabilities({
     browserPanelEnabled: () => !!configStore.get('rightPanelPrefs')?.browser,
+    chromeBridgeEnabled: () => chromeBridgeEnabled(),
     // tool_search arrived in pi 0.99; older runtimes get every browser tool declared.
     deferTools: () => sdkAtLeast(resolveActiveSdk(app.getPath('userData')).version, [0, 99, 0]),
   })
 
-  registerHandler('ipc:browser.tabs.list', async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
+  configureSiteNotes(join(app.getPath('userData'), 'browser-site-notes'))
+  registerHandler('ipc:browser.siteNotes.list', async () => ({ sites: await listSiteNotes() }))
+  const siteHost = z.string().regex(/^[a-z0-9.-]{1,253}$/)
+  registerHandlerWithSchema('ipc:browser.siteNotes.read', z.object({ host: siteHost }), async (req) => ({ text: await readSiteNotes(req.host) }))
+  registerHandlerWithSchema('ipc:browser.siteNotes.delete', z.object({ host: siteHost }), async (req) => {
+    await deleteSiteNotes(req.host)
+    return { sites: await listSiteNotes() }
+  })
+  void startChromeBridge().catch((error) => console.warn('[browser] Chrome bridge failed to start:', (error as Error)?.message))
+  registerHandler('ipc:browser.chrome.status', async () => chromeBridgeStatus())
+  registerHandlerWithSchema('ipc:browser.chrome.setEnabled', z.object({ enabled: z.boolean() }), async (req) => setChromeBridgeEnabled(req.enabled))
+  registerHandlerWithSchema('ipc:browser.chrome.tabs', z.object({ sessionFile: z.string().max(4096).optional() }), async (req) => {
+    const tabs = getChromeHost()?.list().tabs ?? []
+    // Tabs of this conversation when it has any (a draft's tabs are keyed by its worker, so fall back to all).
+    const own = req.sessionFile ? tabs.filter((t) => t.openedBy !== 'user' && t.openedBy.sessionKey === req.sessionFile) : []
+    return { tabs: (own.length ? own : tabs).map((t) => ({ tabId: t.tabId, title: t.title, url: t.url })) }
+  })
+  registerHandlerWithSchema('ipc:browser.chrome.focusTab', z.object({ tabId: z.string().min(1).max(64) }), async (req) => {
+    getChromeHost()?.focusTab(req.tabId, { window: true })
+    return { ok: true }
+  })
+  registerHandler('ipc:browser.chrome.regenerate', async () => regenerateChromeToken())
+  registerHandler('ipc:browser.chrome.openExtensionFolder', async () => ({ error: await shell.openPath(extensionPath()) }))
+  registerHandler('ipc:browser.help.list', async () => ({ requests: openHelpRequests() }))
+  registerHandlerWithSchema('ipc:browser.help.respond', z.object({ id: z.string().min(1).max(64), outcome: z.enum(['completed', 'cancelled']) }), async (req) => ({
+    ok: respondHelp(req.id, req.outcome),
+  }))
+  registerHandler('ipc:browser.tabs.list',async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
 
   registerHandlerWithSchema(
     'ipc:browser.tabs.open',

@@ -24,7 +24,7 @@ describe('browser tools through tool_search', () => {
     expect(search('fill several form fields')[0]).toBe('browser_fill_form')
     expect(search('accept the confirm dialog')[0]).toBe('browser_handle_dialog')
     expect(search('save the page as pdf')[0]).toBe('browser_pdf_save')
-    expect(search('go back')[0]).toBe('browser_navigate_back')
+    expect(search('debug console errors')[0]).toBe('browser_devtools')
   })
 
   it('reaches every deferred tool from a broad query with a large limit', () => {

@@ -240,6 +240,12 @@ export function attachWorkerHandlers(
         .catch((error) => safeWrite(`[WorkerManager] browser tool failed: ${String(error)}`))
     }
 
+    if (data.type === 'browser-tool-cancel') {
+      void import('./browser/browser-tool-bridge')
+        .then(({ cancelBrowserToolRequest }) => cancelBrowserToolRequest(String(data.callId ?? '')))
+        .catch(() => undefined)
+    }
+
     if (data.type === 'init-done' && slot.initResolver) {
       slot.sdkFallback = !!data.sdkFallback
       if (slot.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')

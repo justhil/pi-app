@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CapabilityId, CapabilityInfo } from '@shared/capabilities'
-import { Clock, Globe, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
+import { Clock, Globe, Monitor, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import {
@@ -15,7 +15,7 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ComposerPopover } from './composer-popover'
 
-const ICONS: Record<CapabilityId, AppIconComponent> = { 'pi-ui': Sparkles, browser: Globe }
+const ICONS: Record<CapabilityId, AppIconComponent> = { 'pi-ui': Sparkles, browser: Globe, chrome: Monitor }
 const EMPTY: CapabilityId[] = []
 
 let catalogCache: CapabilityInfo[] | null = null
@@ -94,6 +94,61 @@ function formatTokens(n: number): string {
  * Composer "Tools" menu: per-session capability switches (all off for a new session). An enabled
  * capability adds its instructions/tools from the next message on; switching it off removes them.
  */
+type BrowserMode = 'off' | 'builtin' | 'chrome'
+
+/** Which browser the agent drives in this conversation: none, the built-in panel, or the user's Chrome. */
+function BrowserModeRow({ builtin, chrome, enabled, sessionFile }: { builtin: CapabilityInfo; chrome?: CapabilityInfo; enabled: CapabilityId[]; sessionFile: string | null }) {
+  const { t } = useTranslation()
+  const mode: BrowserMode = enabled.includes('chrome') ? 'chrome' : enabled.includes('browser') ? 'builtin' : 'off'
+  const pick = (next: BrowserMode) => {
+    setSessionCapability(sessionFile, 'browser', next === 'builtin')
+    setSessionCapability(sessionFile, 'chrome', next === 'chrome')
+  }
+  const options: { id: BrowserMode; info?: CapabilityInfo }[] = [{ id: 'off' }, { id: 'builtin', info: builtin }, { id: 'chrome', info: chrome }]
+  const active = mode === 'chrome' ? chrome : mode === 'builtin' ? builtin : undefined
+  const unavailable = options.filter((o) => o.info && !o.info.available)
+  const cost = active
+    ? [active.tools > 0 ? (active.coreTools ? t('composer:tools.toolCountDeferred', { count: active.tools, core: active.coreTools }) : t('composer:tools.toolCount', { count: active.tools })) : '', active.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(active.promptTokens) }) : '']
+        .filter(Boolean)
+        .join(' · ')
+    : ''
+  return (
+    <div className="px-3 py-1.5">
+      <div className="flex items-start gap-2">
+        <Globe className="mt-[3px] h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] text-foreground">{t('composer:tools.browserMode.label')}</div>
+          <div className="text-[10.5px] leading-4 text-muted-foreground/70">{t(`composer:tools.browserMode.desc.${mode}`)}</div>
+        </div>
+      </div>
+      <div role="radiogroup" aria-label={t('composer:tools.browserMode.label')} className="mt-1.5 flex rounded-md border border-border/60 p-0.5">
+        {options.map((o) => {
+          const disabled = !!o.info && !o.info.available
+          return (
+            <button
+              key={o.id}
+              type="button"
+              role="radio"
+              aria-checked={mode === o.id}
+              disabled={disabled}
+              title={disabled && o.info?.reason ? t(`composer:tools.reasons.${o.info.reason}`) : undefined}
+              onClick={() => pick(o.id)}
+              className={cn(
+                'flex-1 rounded px-1.5 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+                mode === o.id ? 'bg-primary text-primary-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',
+              )}
+            >
+              {t(`composer:tools.browserMode.${o.id}`)}
+            </button>
+          )
+        })}
+      </div>
+      {cost ? <div className="mt-1 text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
+      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}：{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
+    </div>
+  )
+}
+
 export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; running?: boolean }) {
   const { t } = useTranslation()
   const sessionFile = useUIStore((s) => s.historySessionFile)
@@ -163,6 +218,11 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
           <div className="px-3 pb-0.5 pt-2 text-[10.5px] text-muted-foreground/65">{t('composer:tools.title')}</div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-1">
             {(catalog ?? []).map((cap) => {
+              // One browser row: off / built-in / my Chrome (the two capabilities are exclusive).
+              if (cap.id === 'chrome') return null
+              if (cap.id === 'browser') {
+                return <BrowserModeRow key="browser" builtin={cap} chrome={(catalog ?? []).find((c) => c.id === 'chrome')} enabled={enabled} sessionFile={sessionFile} />
+              }
               const Icon = ICONS[cap.id]
               const on = enabled.includes(cap.id)
               const cost = !cap.available

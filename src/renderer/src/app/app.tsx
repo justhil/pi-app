@@ -55,6 +55,8 @@ import { useReviewGitData } from '@renderer/features/review/use-review-git-data'
 import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
 import { matchShortcut, readShortcutBindings } from '@renderer/lib/shortcut-bindings'
 import { TerminalDrawer, useTerminalShortcut } from '@renderer/features/terminal/terminal-drawer'
+import { useBrowserHelpAttention } from '@renderer/features/browser/use-help-attention'
+import { HelpBar } from '@renderer/features/browser/help-bar'
 import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
 
 type View = 'main' | 'settings'
@@ -103,6 +105,7 @@ export default function App() {
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
   const applyRightPanelRuntime = useUIStore((s) => s.applyRightPanelRuntime)
   const browserPanelEnabled = !!rightPanelPrefs.browser
+  useBrowserHelpAttention(browserPanelEnabled)
   const browserWasEnabled = useRef(browserPanelEnabled)
   useEffect(() => {
     // Turning the experimental browser panel off releases every tab in Main.
@@ -426,6 +429,8 @@ export default function App() {
               )}
               <MainColRightPanelToggle />
               <ComposerDock heroMode={showHome}>
+                {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
+                <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
                 <Composer />
               </ComposerDock>
               {!showHome ? <TimelineScrubber /> : null}

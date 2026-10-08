@@ -15,7 +15,7 @@ const tab = (tabId: string, patch: Partial<BrowserTabInfo> = {}): BrowserTabInfo
   ...patch,
 })
 
-const empty: BrowserState = { tabs: {}, order: [], activeTabId: null, downloads: {} }
+const empty: BrowserState = { tabs: {}, order: [], activeTabId: null, downloads: {}, helpRequests: {} }
 
 describe('applyBrowserEvent', () => {
   it('appends new tabs and updates existing ones in place', () => {
@@ -45,5 +45,16 @@ describe('downloads', () => {
     let s = applyBrowserEvent(empty, { type: 'download-updated', download: d })
     s = applyBrowserEvent(s, { type: 'download-updated', download: { ...d, received: 100, state: 'completed' } })
     expect(Object.values(s.downloads)).toEqual([{ ...d, received: 100, state: 'completed' }])
+  })
+})
+
+describe('help requests', () => {
+  it('adds a request and drops it when it ends', () => {
+    const request = { id: 'h1', tabId: 't1', prompt: 'Sign in', timeoutSec: 600, startedAt: 1, where: 'builtin' as const }
+    let s = applyBrowserEvent(empty, { type: 'help-request', request })
+    expect(s.helpRequests).toEqual({ h1: request })
+    s = applyBrowserEvent(s, { type: 'help-ended', id: 'h1', outcome: 'completed' })
+    expect(s.helpRequests).toEqual({})
+    expect(applyBrowserEvent(s, { type: 'help-ended', id: 'nope', outcome: 'cancelled' })).toBe(s)
   })
 })

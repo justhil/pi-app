@@ -31,6 +31,30 @@
     "navigateFailed": "Could not open that address"
   },
   "settings": {
+    "chrome": "My Chrome",
+    "chromeDesc": "Let the AI work in your own Chrome (your sign-ins) through the pi extension. Turn on \"My Chrome\" in the composer Tools menu per conversation.",
+    "chromeOn": "On",
+    "chromeConnected": "Connected: {{browser}}",
+    "chromeWaiting": "Waiting for the extension…",
+    "chromeNotListening": "Not listening (port busy?). Turn it off and on again.",
+    "chromeStep1": "In Chrome open chrome://extensions, turn on Developer mode, choose \"Load unpacked\" and pick the extension folder.",
+    "chromeOpenFolder": "Open extension folder",
+    "chromeStep2": "Click the pi extension icon and paste the pairing code below.",
+    "chromeStep3": "In a conversation, turn on \"My Chrome\" in the composer Tools menu.",
+    "chromeCopy": "Copy",
+    "chromeCopied": "Pairing code copied",
+    "chromeRegenerate": "New code",
+    "chromeNote": "While the AI works, Chrome shows a \"being debugged\" bar on its tabs. It only drives tabs in its own window or tabs you lend it.",
+    "agentCdp": "Agent DevTools protocol",
+    "agentCdpDesc": "Lets the AI reach into iframes, answer page dialogs, read request bodies, take full-page screenshots and emulate phones. Attached only to tabs the AI uses. Turn off if a site blocks automation.",
+    "agentCdpAuto": "On for AI tabs",
+    "agentCdpOff": "Off",
+    "siteNotes": "AI site notes",
+    "siteNotesDesc": "Tricks the AI wrote down per site and reads back on later visits.",
+    "siteNotesEmpty": "None yet",
+    "siteNotesView": "View",
+    "siteNotesHide": "Hide",
+    "siteNotesDelete": "Delete",
     "title": "Built-in browser",
     "description": "Options for the Browser panel. Changes apply immediately.",
     "searchEngine": "Address bar search engine",
@@ -99,7 +123,16 @@
     "noComment": "(no comment)"
   },
   "agent": {
-    "acting": "AI · {{action}}"
+    "acting": "AI · {{action}}",
+    "helpTitle": "AI needs you",
+    "helpTarget": "At: {{target}}",
+    "helpUntil": "Continues by itself when {{until}}",
+    "helpDone": "Done",
+    "helpGiveUp": "Give up",
+    "helpAllow": "Allow",
+    "helpDeny": "Deny",
+    "helpInChrome": "Do this in your Chrome window",
+    "helpOtherTab": "Show the tab"
   },
   "viewport": {
     "title": "Page viewport size",
@@ -132,5 +165,11 @@
   },
   "zoom": {
     "reset": "Reset to 100% (Ctrl/⌘+0)"
+  },
+  "chromeMode": {
+    "title": "This conversation uses My Chrome",
+    "hint": "The AI works in your own Chrome, in its pi window. Its tabs (click to bring Chrome forward):",
+    "disconnected": "Chrome is not connected: open Chrome with the pi extension (Settings → Browser → My Chrome).",
+    "noTabs": "No tabs open yet."
   }
 }

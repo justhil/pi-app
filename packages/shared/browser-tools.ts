@@ -39,41 +39,34 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
   {
     name: 'browser_navigate',
     label: 'Browser navigate',
-    description: 'Open an http(s) URL in the current tab.',
+    description: 'Open an http(s) URL in the current tab; "back" goes to the previous page.',
     parameters: obj({ url: str(8192) }, ['url']),
-  },
-  {
-    name: 'browser_navigate_back',
-    label: 'Browser back',
-    description: 'Go back to the previous page.',
-    parameters: obj({}),
   },
   {
     name: 'browser_snapshot',
     label: 'Browser snapshot',
     description:
-      'Accessibility snapshot of the current page (YAML). Interactive elements carry [ref=eN] for other tools. Elements covered by an overlay have no ref. Use target to read one region, depth to limit nesting.',
-    parameters: obj({ target, depth: { type: 'integer', minimum: 1, maximum: 50 }, boxes: { type: 'boolean', description: 'Add element boxes.' } }),
-  },
-  {
-    name: 'browser_find',
-    label: 'Browser find',
-    description: 'Find snapshot lines matching text or a regex (with their ancestors). Cheaper than a full snapshot on big pages.',
-    parameters: obj({ text: str(500), regex: str(500, 'e.g. /sign ?in/i') }),
+      'Page snapshot (YAML); [ref=eN] marks elements for other tools. Repeated lists fold to "… N more"; target reads one region in full.',
+    parameters: obj({
+      target,
+      query: str(500, 'Only lines matching this text or /regex/i, with their ancestors'),
+      mode: { type: 'string', enum: ['aria', 'text'], description: 'text: readable text, controls inline with refs' },
+      probeHover: { type: 'boolean' },
+      depth: { type: 'integer', minimum: 1, maximum: 50 },
+    }),
   },
   {
     name: 'browser_click',
     label: 'Browser click',
-    description: 'Click an element with real mouse input.',
-    parameters: obj(
-      {
-        target,
-        doubleClick: { type: 'boolean' },
-        button: { type: 'string', enum: ['left', 'right', 'middle'] },
-        modifiers: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift'] } },
-      },
-      ['target'],
-    ),
+    description: 'Click an element with real mouse input, or x/y pixels of the last screenshot.',
+    parameters: obj({
+      target,
+      x: { type: 'number' },
+      y: { type: 'number' },
+      doubleClick: { type: 'boolean' },
+      button: { type: 'string', enum: ['left', 'right', 'middle'] },
+      modifiers: { type: 'array', maxItems: 4, items: { type: 'string', enum: ['Alt', 'Control', 'ControlOrMeta', 'Meta', 'Shift'] } },
+    }),
   },
   {
     name: 'browser_hover',
@@ -138,20 +131,30 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
   {
     name: 'browser_file_upload',
     label: 'Browser upload',
-    description: 'Set files on a file input without opening a file dialog. Paths must be inside the workspace.',
-    parameters: obj({ target, paths: { type: 'array', minItems: 1, maxItems: 10, items: str(4096) } }, ['target', 'paths']),
+    description: 'Set files on a file input without opening a file dialog, or drop them on a drop zone (mode "drop"). Paths must be inside the workspace.',
+    parameters: obj({ target, paths: { type: 'array', minItems: 1, maxItems: 10, items: str(4096) }, mode: { type: 'string', enum: ['input', 'drop'] } }, ['target', 'paths']),
   },
   {
     name: 'browser_take_screenshot',
     label: 'Browser screenshot',
-    description: 'PNG of the viewport, or of one element with target. For visual checks a snapshot cannot show.',
-    parameters: obj({ target, fullPage: { type: 'boolean' } }),
+    description: 'PNG of the viewport, one element (target) or the whole page (fullPage), for what a snapshot cannot show.',
+    parameters: obj({
+      target,
+      fullPage: { type: 'boolean' },
+      scope: { type: 'string', enum: ['current', 'follow'], description: 'follow: load lazy content first' },
+    }),
+  },
+  {
+    name: 'browser_emulate',
+    label: 'Browser emulate device',
+    description: 'Make the page look like a phone or tablet (viewport, touch, user agent), or "off" to restore.',
+    parameters: obj({ device: { type: 'string', enum: ['iphone-14', 'pixel-7', 'ipad', 'desktop', 'off'] } }, ['device']),
   },
   {
     name: 'browser_tabs',
     label: 'Browser tabs',
-    description: 'List, open, close or switch to (select) tabs of this conversation. Other tools act on the selected tab.',
-    parameters: obj({ action: { type: 'string', enum: ['list', 'new', 'close', 'select'] }, index: { type: 'integer', minimum: 0, maximum: 99 }, url: str(8192) }, ['action']),
+    description: 'List, open or close tabs, or switch to another tab (select). Other tools act on the selected tab. My Chrome: borrow / return a user tab.',
+    parameters: obj({ action: { type: 'string', enum: ['list', 'new', 'close', 'select', 'borrow', 'return'] }, index: { type: 'integer', minimum: 0, maximum: 99 }, url: str(8192) }, ['action']),
   },
   {
     name: 'browser_wait_for',
@@ -160,22 +163,27 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     parameters: obj({ text: str(500), textGone: str(500), time: { type: 'number', minimum: 0, maximum: 30 } }),
   },
   {
-    name: 'browser_console_messages',
-    label: 'Browser console',
-    description: 'Console errors and warnings of the current page.',
-    parameters: obj({ onlyErrors: { type: 'boolean' } }),
-  },
-  {
-    name: 'browser_network_requests',
-    label: 'Browser network',
-    description: 'Failed requests and responses with status >= 400 on the current page.',
-    parameters: obj({}),
+    name: 'browser_devtools',
+    label: 'Browser devtools',
+    description:
+      'Debug the page: show "console" (errors and warnings), "requests" (recent, numbered #41), or "request" with id for its headers and response body. onlyFailed narrows console/requests to errors.',
+    parameters: obj({ show: { type: 'string', enum: ['console', 'requests', 'request'] }, id: { type: 'integer', minimum: 1 }, onlyFailed: { type: 'boolean' } }, ['show']),
   },
   {
     name: 'browser_evaluate',
     label: 'Browser evaluate',
-    description: 'Run a JS function in an isolated world (DOM access, no page variables). With target, the element is its argument. Returns JSON.',
-    parameters: obj({ function: str(20000, 'e.g. "(el) => el.textContent"'), target }, ['function']),
+    description:
+      'Run a JS function in the page. Default world "isolated": DOM only. world "main": the page\'s own JS too (app state, framework components via piComponent(el)). With target, the element is its argument. Returns JSON.',
+    parameters: obj(
+      {
+        function: str(20000, 'e.g. "(el) => el.textContent"'),
+        target,
+        world: { type: 'string', enum: ['isolated', 'main'] },
+        watch: { type: 'boolean', description: 'The function changes the page: report Changes like an action does.' },
+        saveTo: str(120, 'File name: write a large result to a file and return only its path.'),
+      },
+      ['function'],
+    ),
   },
   {
     name: 'browser_handle_dialog',
@@ -189,7 +197,63 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
     description: 'Save the current page as PDF and return its path.',
     parameters: obj({ filename: str(200) }),
   },
+  {
+    name: 'browser_request_help',
+    label: 'Browser ask user',
+    description:
+      'Hand one step to the user in the browser (sign-in, CAPTCHA, 2FA, payment confirmation, or after two failed attempts) and wait. Returns completed, cancelled, timed_out or aborted; do not repeat after cancelled/timed_out.',
+    parameters: obj(
+      {
+        prompt: str(500, 'What the user should do'),
+        target,
+        until: obj({ urlContains: str(500), urlMatches: str(200, 'JS regex'), textAppears: str(200) }),
+        timeoutSec: { type: 'integer', minimum: 30, maximum: 1800 },
+      },
+      ['prompt'],
+    ),
+  },
+  {
+    name: 'browser_site_notes',
+    label: 'Browser site notes',
+    description:
+      'Your notes about the current site, kept across conversations. append one line after you find a non-obvious way that works (selector, needs hover, world main…). Never store credentials or personal data.',
+    parameters: obj({ action: { type: 'string', enum: ['read', 'append'] }, text: str(600), host: str(253) }, ['action']),
+  },
+  {
+    name: 'browser_download',
+    label: 'Browser download',
+    description: 'Click a link/button that downloads a file, wait for the download, and return its path (copied into the workspace with saveAs).',
+    parameters: obj({ target, saveAs: str(500, 'Workspace-relative path') }, ['target']),
+  },
+  {
+    name: 'browser_cdp',
+    label: 'Browser DevTools command',
+    description:
+      'Last resort: send one raw Chrome DevTools Protocol command to the current page (e.g. "DOM.getDocument" with {"depth":-1,"pierce":true} to reach closed shadow roots). target (a ref like f2e5) sends it to that frame\'s process. Runtime.enable is refused.',
+    parameters: obj({ method: str(100, 'Domain.command'), params: { type: 'object' }, target }, ['method']),
+  },
+  {
+    name: 'browser_batch',
+    label: 'Browser batch',
+    description:
+      'Run several browser_* steps in order in one call (fill, click, wait…). Each step reports one line; the last step reports in full. Stops at the first failure unless stopOnError is false.',
+    parameters: obj(
+      {
+        steps: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 10,
+          items: obj({ tool: str(40, 'e.g. browser_click'), args: { type: 'object' } }, ['tool']),
+        },
+        stopOnError: { type: 'boolean' },
+      },
+      ['steps'],
+    ),
+  },
 ]
+
+/** Tools a batch step cannot be: nesting, waiting on the user, or binary results. */
+export const BROWSER_BATCH_EXCLUDED: readonly string[] = ['browser_batch', 'browser_request_help', 'browser_take_screenshot', 'browser_pdf_save']
 
 /**
  * The schema the model sees: limits that only Main enforces (lengths, item counts,

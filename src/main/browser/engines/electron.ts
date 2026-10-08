@@ -4,6 +4,8 @@ import { PAGE_RUNTIME_SOURCE } from '../page-runtime.generated'
 import { BrowserToolError } from '../agent/errors'
 import { pendingRequestCount } from '../electron-session'
 import type { Modifier, PageEngine } from './types'
+import { CdpTab } from '../cdp/cdp-tab'
+import { ElectronCdp } from '../cdp/electron-cdp'
 
 /** Isolated world shared by every host page script; pages cannot see its globals. */
 export const SCRIPT_WORLD = 1999
@@ -57,15 +59,37 @@ export function parseKey(spec: string, platform: NodeJS.Platform = process.platf
 export class ElectronPageEngine implements PageEngine {
   readonly id = 'electron' as const
 
+  private tab: CdpTab | null = null
+
   constructor(
     private readonly wc: WebContents,
     private readonly getLogs: () => BrowserLogEntry[],
+    private readonly opts: { cdp?: () => boolean; screenOrigin?: () => { x: number; y: number } } = {},
   ) {}
 
-  private exec<T>(code: string, timeoutMs: number): Promise<T> {
+  /**
+   * DevTools-protocol features (frames, dialogs, network bodies, full-page capture, emulation,
+   * highlight). Attached on the agent's first use of this tab; null when the user turned it off.
+   */
+  cdpTab(): CdpTab | null {
+    if (!this.opts.cdp?.() || this.wc.isDestroyed()) return null
+    if (!this.tab) {
+      this.tab = new CdpTab(new ElectronCdp(this.wc), PAGE_RUNTIME_SOURCE)
+      void this.tab.start().catch((error) => console.warn('[browser] CDP start failed:', (error as Error)?.message))
+    }
+    return this.tab
+  }
+
+  get dialog(): PageEngine['dialog'] {
+    const tab = this.tab
+    if (!tab) return undefined
+    return { pending: () => tab.pendingDialog(), handle: (accept, promptText) => tab.handleDialog(accept, promptText) }
+  }
+
+  private exec<T>(code: string, timeoutMs: number, world: 'isolated' | 'main' = 'isolated'): Promise<T> {
     let timer: NodeJS.Timeout | undefined
     return Promise.race([
-      this.wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }]) as Promise<T>,
+      (world === 'main' ? this.wc.executeJavaScript(code, true) : this.wc.executeJavaScriptInIsolatedWorld(SCRIPT_WORLD, [{ code }])) as Promise<T>,
       new Promise<T>((_, reject) => {
         // A page blocked by alert()/confirm() never answers.
         timer = setTimeout(
@@ -85,18 +109,30 @@ export class ElectronPageEngine implements PageEngine {
     return (await this.exec<T>(code, timeoutMs)) as T
   }
 
+  runMain<T>(expr: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+    return this.exec<T>(expr, timeoutMs, 'main')
+  }
+
   /** Page coordinates (CSS px) → view pixels; they differ while the fixed-viewport mode zooms. */
   private px(v: number): number {
     return Math.round(v * (this.wc.getZoomFactor() || 1))
   }
 
+  /** Screen position of a view point: real input has screenX/screenY; sendInputEvent leaves them 0 otherwise. */
+  private at(x: number, y: number): { x: number; y: number; globalX: number; globalY: number } {
+    const o = this.opts.screenOrigin?.() ?? { x: 0, y: 0 }
+    const px = this.px(x)
+    const py = this.px(y)
+    return { x: px, y: py, globalX: o.x + px, globalY: o.y + py }
+  }
+
   mouse: PageEngine['mouse'] = {
-    move: (x, y, button) => this.wc.sendInputEvent({ type: 'mouseMove', x: this.px(x), y: this.px(y), ...(button ? { button } : {}) } as Electron.MouseInputEvent),
-    down: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseDown', x: this.px(x), y: this.px(y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
-    up: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseUp', x: this.px(x), y: this.px(y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
+    move: (x, y, button) => this.wc.sendInputEvent({ type: 'mouseMove', ...this.at(x, y), ...(button ? { button } : {}) } as Electron.MouseInputEvent),
+    down: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseDown', ...this.at(x, y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
+    up: (x, y, o) => this.wc.sendInputEvent({ type: 'mouseUp', ...this.at(x, y), button: o.button, clickCount: o.clickCount, modifiers: o.modifiers }),
     // Electron's wheel deltas are the opposite sign of DOM WheelEvent deltas.
     wheel: (x, y, deltaX, deltaY) =>
-      this.wc.sendInputEvent({ type: 'mouseWheel', x: this.px(x), y: this.px(y), deltaX: -deltaX, deltaY: -deltaY, canScroll: true, hasPreciseScrollingDeltas: true }),
+      this.wc.sendInputEvent({ type: 'mouseWheel', ...this.at(x, y), deltaX: -deltaX, deltaY: -deltaY, canScroll: true, hasPreciseScrollingDeltas: true }),
   }
 
   keyboard: PageEngine['keyboard'] = {

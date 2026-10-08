@@ -203,10 +203,16 @@
         "name": "浏览器操控",
         "desc": "读取并操作内置浏览器的页面",
         "short": "浏览器"
+      },
+      "chrome": {
+        "name": "我的 Chrome",
+        "desc": "在你自己的 Chrome（沿用登录状态）的独立窗口里操作网页",
+        "short": "Chrome"
       }
     },
     "reasons": {
-      "browser-panel-off": "先在「设置 → 右侧面板」打开浏览器"
+      "browser-panel-off": "先在「设置 → 右侧面板」打开浏览器",
+      "chrome-off": "先在「设置 → 浏览器」打开「我的 Chrome」并配对扩展"
     },
     "enabledTitle": "已启用：{{names}}",
     "cacheWarming": {
@@ -216,6 +222,17 @@
       "off": "关闭",
       "streaming": "运行时",
       "idle": "空闲也保活"
+    },
+    "browserMode": {
+      "label": "浏览器",
+      "off": "关",
+      "builtin": "内置",
+      "chrome": "我的 Chrome",
+      "desc": {
+        "off": "AI 不使用浏览器",
+        "builtin": "在右侧内置浏览器面板里读取和操作网页",
+        "chrome": "在你自己的 Chrome（沿用登录状态）的独立窗口里操作网页"
+      }
     }
   },
   "thinkingShort": "思考 {{level}}",

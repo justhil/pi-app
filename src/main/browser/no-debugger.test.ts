@@ -1,16 +1,32 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-// Engine E must never attach the DevTools protocol: no `webContents.debugger`, no remote debugging port.
-describe('built-in browser engine E', () => {
-  it('does not use the debugger or remote debugging', () => {
-    const dir = __dirname
-    const sources = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-    expect(sources.length).toBeGreaterThan(0)
-    for (const file of sources) {
-      const text = readFileSync(join(dir, file), 'utf8')
-      expect(text, file).not.toMatch(/\.debugger\b|remote-debugging|Runtime\.enable/)
+function sources(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f)
+    if (statSync(p).isDirectory()) return sources(p)
+    return f.endsWith('.ts') && !f.endsWith('.test.ts') && !f.endsWith('.generated.ts') ? [p] : []
+  })
+}
+
+// The DevTools protocol is attached for agent tabs only, through cdp/ (2026-10-08: effect over
+// the old no-CDP rule). Pages can detect Runtime.enable, so no code may send it; no remote port.
+describe('browser DevTools protocol use', () => {
+  const files = sources(__dirname)
+
+  it('touches webContents.debugger only in cdp/ (chrome/ relays chrome.debugger of the user browser)', () => {
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) {
+      const rel = relative(__dirname, file).replace(/\\/g, '/')
+      if (rel.startsWith('cdp/') || rel.startsWith('chrome/')) continue
+      expect(readFileSync(file, 'utf8'), rel).not.toMatch(/\.debugger\b|remote-debugging/)
+    }
+  })
+
+  it('never sends Runtime.enable', () => {
+    for (const file of files) {
+      expect(readFileSync(file, 'utf8'), file).not.toMatch(/send\w*\(\s*['"]Runtime\.enable/)
     }
   })
 })

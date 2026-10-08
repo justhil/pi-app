@@ -6,7 +6,7 @@
 import { generateAriaTree, renderAriaTreeAsJSON, type AriaSnapshot } from './vendor/playwright/injected/ariaSnapshot'
 import { renderAriaSnapshotAsYaml } from './vendor/playwright/isomorphic/ariaSnapshotRenderer'
 import * as roleUtils from './vendor/playwright/injected/roleUtils'
-import { inspectAtPoint, pageContext } from './inspect'
+import { inspectAtPoint, pageContext, selectorFor } from './inspect'
 
 type Rect = { x: number; y: number; width: number; height: number }
 type RefInfo = { element: Element; role: string; name: string; nth: number }
@@ -18,6 +18,8 @@ interface SnapshotOptions {
   depth?: number
   boxes?: boolean
   maxChars?: number
+  /** Ref prefix of this frame (`f1` → `f1e3`): child frames run their own runtime. */
+  refPrefix?: string
 }
 
 interface SnapshotResult {
@@ -28,6 +30,12 @@ interface SnapshotResult {
   refCount: number
   belowFold: { count: number; screens: number }
   covered: number
+  /** Large canvases: pixels only, a screenshot shows them. */
+  visual: number
+  /** Steps a person may need to do: a visible password field, a CAPTCHA widget. */
+  gates: ('login' | 'captcha')[]
+  /** Set when only the top layer (a dialog) was captured; `behind` = covered controls. */
+  modal?: { description: string; behind: number }
 }
 
 const REF_RE = /^(?:f\d+)?e\d+$/
@@ -92,10 +100,117 @@ function scopeRoot(target?: string): Element | RuntimeError {
   return resolveElement(target)
 }
 
+const TOOLTIP_ATTRS = ['title', 'data-tooltip', 'data-title', 'data-original-title', 'data-tip', 'tooltip', 'mattooltip', 'data-balloon']
+const ICON_CLASS = /(?:^|\s)(?:fa|fas|far|bi|mdi|ri|ti|icon|ico|iconfont|glyphicon|el-icon|anticon|material-icons)[-_]([a-z][a-z0-9]*(?:-[a-z0-9]+){0,2})(?=\s|$)/i
+
+/**
+ * A name for an unlabelled control (BrowserSkill's name enrichment, statically): tooltip
+ * attributes, aria-describedby, an svg <title>, an icon class, else a link's last path segment.
+ */
+function inferName(el: Element): string {
+  for (const a of TOOLTIP_ATTRS) {
+    const v = el.getAttribute(a)?.trim()
+    if (v) return v
+  }
+  const described = el.getAttribute('aria-describedby')
+  if (described) {
+    const t = described.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() ?? '').join(' ').trim()
+    if (t) return t
+  }
+  const svgTitle = el.querySelector('svg title')?.textContent?.trim()
+  if (svgTitle) return svgTitle
+  for (const node of [el, ...el.querySelectorAll('i, svg, span, use, img')]) {
+    const cls = node.getAttribute('class') ?? ''
+    const m = ICON_CLASS.exec(cls)
+    if (m && !/^(icon|lg|sm|xs|\dx|solid|regular|light|brands|fw|outline|filled)$/i.test(m[1])) return m[1].replace(/-/g, ' ')
+    const href = node.getAttribute('href') ?? node.getAttribute('xlink:href')
+    if (node.tagName.toLowerCase() === 'use' && href?.includes('#')) return href.split('#').pop()!.replace(/^icon[-_]?/i, '').replace(/[-_]/g, ' ')
+  }
+  const href = el.tagName === 'A' ? el.getAttribute('href') : null
+  if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+    const seg = href.split(/[?#]/)[0].split('/').filter(Boolean).pop()
+    if (seg && seg.length <= 40) return decodeURIComponent(seg).replace(/\.\w+$/, '')
+  }
+  return ''
+}
+
+const MENU_SCOPE ='nav, [role="navigation"], [role="menubar"], [role="menu"], header'
+
+function hiddenNow(el: Element): boolean {
+  const r = el.getBoundingClientRect()
+  const check = (el as Element & { checkVisibility?: (o?: object) => boolean }).checkVisibility
+  return r.width * r.height === 0 || (check ? !check.call(el, { opacityProperty: true, visibilityProperty: true }) : false)
+}
+
+/**
+ * Hover-to-open menus (BrowserSkill's `[has-submenu]`): ARIA says so, or a nav/menu entry sits
+ * next to a hidden block of links that a hover would reveal.
+ */
+function hasSubmenu(el: Element, role: string): boolean {
+  const pop = el.getAttribute('aria-haspopup')
+  if (pop && pop !== 'false') return true
+  if ((role !== 'link' && role !== 'button' && role !== 'menuitem') || !el.closest(MENU_SCOPE)) return false
+  const scope = el.closest('li') ?? el.parentElement
+  if (!scope) return false
+  for (const cand of scope.querySelectorAll('ul, ol, div, [role="menu"]')) {
+    if (cand.contains(el)) continue
+    if (cand.querySelectorAll('a[href], [role="menuitem"]').length >= 2 && hiddenNow(cand)) return true
+  }
+  return false
+}
+
+const CAPTCHA = 'iframe[src*="challenges.cloudflare.com"], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="captcha"], .cf-turnstile, .g-recaptcha, .h-captcha, [data-sitekey]'
+
+/** What the agent may have to hand to the user (so the hint shows only when it applies). */
+function pageGates(): ('login' | 'captcha')[] {
+  const out: ('login' | 'captcha')[] = []
+  if ([...document.querySelectorAll('input[type="password"]')].some(visible)) out.push('login')
+  if (document.querySelector(CAPTCHA) || /just a moment|verify you are human|验证您是人类|確認您是真人/i.test(document.title)) out.push('captcha')
+  return out
+}
+
+const CONTROLS = 'button, input, select, textarea, a[href], [role="button"], [role="link"], [role="textbox"], [role="combobox"], iframe'
+
+function visible(el: Element): boolean {
+  const r = el.getBoundingClientRect()
+  return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'
+}
+
+/**
+ * The layer the user is looking at when something covers the page: a modal dialog by ARIA, or
+ * (GenericAgent's heuristic) a fixed/absolute, roughly centered box with controls that covers a
+ * good part of the viewport and receives the viewport's center point.
+ */
+export function findModal(): Element | null {
+  const semantic = [...document.querySelectorAll('dialog[open], [role="dialog"][aria-modal="true"], [role="alertdialog"]')].filter(visible)
+  if (semantic.length) return semantic[semantic.length - 1]
+  const vw = innerWidth
+  const vh = innerHeight
+  for (let el = deepElementFromPoint(vw / 2, vh / 2); el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+    const pos = getComputedStyle(el).position
+    if (pos !== 'fixed' && pos !== 'absolute') continue
+    const r = el.getBoundingClientRect()
+    const cover = (Math.min(r.right, vw) - Math.max(r.left, 0)) * (Math.min(r.bottom, vh) - Math.max(r.top, 0)) / (vw * vh)
+    const offCenter = Math.abs(r.left + r.width / 2 - vw / 2) / vw
+    if (cover > 0.15 && offCenter < 0.3 && el.querySelector(CONTROLS)) return el
+  }
+  return null
+}
+
 export function snapshot(opts: SnapshotOptions = {}): SnapshotResult | RuntimeError {
   const root = scopeRoot(opts.target)
   if (isErr(root)) return root
-  const tree: AriaSnapshot = generateAriaTree(root, { mode: 'ai', depth: opts.depth, boxes: opts.boxes })
+  const full = snapshotOf(root, opts)
+  // Something covers the page: show only the layer on top (unless the model asked for a region).
+  if (opts.target || !full.covered) return full
+  const modal = findModal()
+  if (!modal || modal === root) return full
+  const focused = snapshotOf(modal, opts)
+  return { ...focused, modal: { description: describe(modal), behind: full.covered } }
+}
+
+function snapshotOf(root: Element, opts: SnapshotOptions): SnapshotResult {
+  const tree: AriaSnapshot = generateAriaTree(root, { mode: 'ai', depth: opts.depth, boxes: opts.boxes, refPrefix: opts.refPrefix })
 
   // Post-pass (browser-use idea): an element covered by another layer (modal, sticky banner)
   // keeps its line but loses its ref, so the model does not try to click through the overlay.
@@ -104,6 +219,8 @@ export function snapshot(opts: SnapshotOptions = {}): SnapshotResult | RuntimeEr
   let lowest = 0
   const refs = new Map<string, RefInfo>()
   const seen = new Map<string, number>()
+  const submenus = new Set<string>()
+  const guessed = new Map<string, string>()
   walk(tree.root as unknown as AriaNodeLike, (n) => {
     if (!n.ref) return
     const info = tree.info.get(n.ref)
@@ -124,10 +241,22 @@ export function snapshot(opts: SnapshotOptions = {}): SnapshotResult | RuntimeEr
     const nth = seen.get(key) ?? 0
     seen.set(key, nth + 1)
     refs.set(n.ref, { element: info.element, role: n.role, name: n.name, nth })
+    if (hasSubmenu(info.element, n.role)) submenus.add(n.ref)
+    if (!n.name && interactive) {
+      const guess = inferName(info.element).replace(/\s+/g, ' ').slice(0, 60)
+      if (guess) guessed.set(n.ref, guess)
+    }
   })
 
-  const { json } = renderAriaTreeAsJSON(tree, { mode: 'ai', depth: opts.depth, boxes: opts.boxes })
+  const { json } = renderAriaTreeAsJSON(tree, { mode: 'ai', depth: opts.depth, boxes: opts.boxes, refPrefix: opts.refPrefix })
   let yaml = renderAriaSnapshotAsYaml(json)
+  // Inferred names read `"~search"`: a hint for the model, not the accessible name locators use.
+  if (guessed.size) {
+    yaml = yaml.replace(/^(\s*- [\w-]+) \[ref=((?:f\d+)?e\d+)\]/gm, (m, head: string, ref: string) =>
+      guessed.has(ref) ? `${head} ${JSON.stringify(`~${guessed.get(ref)}`)} [ref=${ref}]` : m,
+    )
+  }
+  if (submenus.size) yaml = yaml.replace(/\[ref=((?:f\d+)?e\d+)\]/g, (m, ref: string) => (submenus.has(ref) ? `${m} [has-submenu]` : m))
   const maxChars = opts.maxChars ?? 40_000
   let truncated = false
   if (yaml.length > maxChars) {
@@ -144,6 +273,8 @@ export function snapshot(opts: SnapshotOptions = {}): SnapshotResult | RuntimeEr
     refCount: refs.size,
     belowFold: { count: below, screens: below ? Math.max(1, Math.ceil((lowest - innerHeight) / innerHeight)) : 0 },
     covered,
+    gates: pageGates(),
+    visual: [...root.querySelectorAll('canvas')].filter((c) => { const r = c.getBoundingClientRect(); return r.width * r.height >= 20_000 && inViewport(r) }).length,
   }
 }
 
@@ -294,7 +425,11 @@ export async function actionable(target: string, opts: { force?: boolean; timeou
     if (isErr(el)) return el
     const r0 = el.getBoundingClientRect()
     if (!inViewport(r0) || r0.top < 0 || r0.bottom > innerHeight) el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior })
-    await new Promise((res) => requestAnimationFrame(() => res(null)))
+    // rAF stalls in a window the OS hides (the user's Chrome in the background): cap the wait.
+    await new Promise((res) => {
+      requestAnimationFrame(() => res(null))
+      setTimeout(() => res(null), 50)
+    })
     const r = el.getBoundingClientRect()
     const disabled = (el as HTMLButtonElement).disabled === true || el.getAttribute('aria-disabled') === 'true'
     const stable = !!prev && Math.abs(prev.x - r.x) < 1 && Math.abs(prev.y - r.y) < 1 && Math.abs(prev.width - r.width) < 1
@@ -398,6 +533,23 @@ export function setFiles(target: string, files: { name: string; type: string; ba
   return { count: dt.files.length }
 }
 
+/** Drop files on a drop zone (BrowserSkill's drop mode) for pages without a file input. */
+export function dropFiles(target: string, files: { name: string; type: string; base64: string }[]): { count: number } | RuntimeError {
+  const el = resolveElement(target)
+  if (isErr(el)) return el
+  const dt = new DataTransfer()
+  for (const f of files) {
+    const bin = atob(f.base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    dt.items.add(new File([bytes], f.name, { type: f.type || 'application/octet-stream' }))
+  }
+  const r = el.getBoundingClientRect()
+  const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true, composed: true, dataTransfer: dt }
+  for (const type of ['dragenter', 'dragover', 'drop']) el.dispatchEvent(new DragEvent(type, at))
+  return { count: dt.files.length }
+}
+
 /** Range inputs have no text to type; set the value like a drag would end up and notify the page. */
 export function setRangeValue(target: string, value: string): { value: string } | RuntimeError {
   const el = resolveElement(target)
@@ -454,6 +606,48 @@ export function find(query: { text?: string; regex?: string }): { matches: strin
   return { matches: out.join('\n\n'), count }
 }
 
+/** Frame elements of this document in order, with their snapshot ref when they have one. */
+export function iframes(): { ref: string | null; id: string; name: string; src: string; visible: boolean }[] {
+  const byElement = new Map<Element, string>()
+  for (const [ref, info] of last.refs) byElement.set(info.element, ref)
+  return allElements()
+    .filter((el) => el.tagName === 'IFRAME' || el.tagName === 'FRAME')
+    .map((el) => {
+      const r = el.getBoundingClientRect()
+      return {
+        ref: byElement.get(el) ?? null,
+        id: el.id,
+        name: el.getAttribute('name') ?? '',
+        src: (el as HTMLIFrameElement).src ?? '',
+        visible: r.width >= 20 && r.height >= 20 && !roleUtils.isElementHiddenForAria(el),
+      }
+    })
+}
+
+/** Where a frame's content starts in this document's viewport, and its CSS scale. */
+export function frameOffset(target: string): { x: number; y: number; scale: number } | RuntimeError {
+  const el = resolveElement(target)
+  if (isErr(el)) return el
+  const r = el.getBoundingClientRect()
+  const cs = getComputedStyle(el)
+  const width = (el as HTMLElement).offsetWidth || r.width || 1
+  const scale = r.width / width || 1
+  return {
+    x: r.left + (el.clientLeft + parseFloat(cs.paddingLeft || '0')) * scale,
+    y: r.top + (el.clientTop + parseFloat(cs.paddingTop || '0')) * scale,
+    scale,
+  }
+}
+
+/** A CSS path to the target, so code in the page's own world can find the same element. */
+export function selectorOf(target: string): { selector: string } | RuntimeError {
+  const el = resolveElement(target)
+  if (isErr(el)) return el
+  const selector = selectorFor(el)
+  if (document.querySelector(selector) !== el) return err('invalid_target', `${target} is inside a shadow root or frame; run in the isolated world instead`)
+  return { selector }
+}
+
 export function pageHasText(text: string): boolean {
   return !!document.body && textOf(document.body).includes(text)
 }
@@ -489,6 +683,118 @@ export function quiet(opts: { idleMs?: number; timeoutMs?: number } = {}): Promi
     idle = setTimeout(() => done(true), idleMs)
     const cap = setTimeout(() => done(false), timeoutMs)
   })
+}
+
+const BLOCK_TAGS = new Set(['ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DD', 'DIV', 'DL', 'DT', 'FIELDSET', 'FIGCAPTION', 'FIGURE', 'FOOTER', 'FORM', 'HEADER', 'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'TR', 'UL', 'BR', 'DETAILS', 'SUMMARY', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'])
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'svg', 'CANVAS', 'IFRAME'])
+
+/**
+ * Readable text of the page (GenericAgent's text_only): headings, paragraphs and list items as
+ * plain lines, controls inline as `[role "name" ref=eN]` so the model can act without a snapshot.
+ */
+export function textView(opts: { target?: string; maxChars?: number } = {}): { text: string; truncated: boolean; chars: number } | RuntimeError {
+  const root = scopeRoot(opts.target)
+  if (isErr(root)) return root
+  const snap = snapshot(opts.target ? { target: opts.target } : {})
+  if (isErr(snap)) return snap
+  const byElement = new Map<Element, { ref: string; role: string; name: string }>()
+  for (const [ref, info] of last.refs) if (INTERACTIVE.has(info.role)) byElement.set(info.element, { ref, role: info.role, name: info.name })
+  const out: string[] = []
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = (node.textContent ?? '').replace(/\s+/g, ' ')
+      if (t.trim()) out.push(t)
+      return
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return
+    const el = node as Element
+    if (SKIP_TAGS.has(el.tagName) || roleUtils.isElementHiddenForAria(el)) return
+    const control = byElement.get(el)
+    if (control) {
+      out.push(` [${control.role}${control.name ? ` "${control.name.slice(0, 80)}"` : ''} ref=${control.ref}] `)
+      return
+    }
+    const block = BLOCK_TAGS.has(el.tagName)
+    if (block) out.push('\n')
+    if (/^H[1-6]$/.test(el.tagName)) out.push(`${'#'.repeat(Number(el.tagName[1]))} `)
+    else if (el.tagName === 'LI') out.push('- ')
+    else if (el.tagName === 'IMG' && el.getAttribute('alt')) out.push(` [img "${el.getAttribute('alt')!.slice(0, 80)}"] `)
+    for (const c of (el.shadowRoot ?? el).childNodes) walk(c)
+    if (block) out.push('\n')
+  }
+  roleUtils.beginAriaCaches()
+  try {
+    walk(root)
+  } finally {
+    roleUtils.endAriaCaches()
+  }
+  const text = out
+    .join('')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
+  const maxChars = opts.maxChars ?? 40_000
+  if (text.length <= maxChars) return { text, truncated: false, chars: text.length }
+  const cut = text.lastIndexOf('\n', maxChars)
+  return { text: text.slice(0, cut > maxChars * 0.8 ? cut : maxChars), truncated: true, chars: text.length }
+}
+
+const LIVE_REGION ='[role="alert"], [role="status"], [aria-live]:not([aria-live="off"])'
+/** A node with more text than this is content being rendered, not a toast. */
+const TRANSIENT_NODE_MAX = 2000
+const TRANSIENT_MAX = 8
+
+let watching: { observer: MutationObserver; seen: Map<string, boolean>; handle: (records: MutationRecord[]) => void } | null = null
+
+const bodyText = () => (document.body ? textOf(document.body).replace(/\s+/g, ' ') : '')
+
+function textLines(text: string): string[] {
+  return text
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length >= 4 && l.length <= 200)
+}
+
+/**
+ * Messages that flash during an action (toasts, "Saved", inline errors that fade): GenericAgent
+ * polls for them; we observe mutations. Observe-only, like everything in this runtime.
+ */
+export const transients = {
+  start(): boolean {
+    watching?.observer.disconnect()
+    const baseline = bodyText()
+    const seen = new Map<string, boolean>()
+    const note = (node: Node) => {
+      const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
+      if (!el || !el.isConnected || (el.textContent?.length ?? 0) > TRANSIENT_NODE_MAX || seen.size > 200) return
+      const live = !!el.closest(LIVE_REGION)
+      for (const line of textLines(textOf(el))) {
+        if (baseline.includes(line)) continue
+        seen.set(line, (seen.get(line) ?? false) || live)
+      }
+    }
+    const handle = (records: MutationRecord[]) => {
+      for (const r of records) {
+        if (r.type === 'childList') r.addedNodes.forEach(note)
+        else note(r.target)
+      }
+    }
+    const observer = new MutationObserver(handle)
+    observer.observe(document, { subtree: true, childList: true, characterData: true })
+    watching = { observer, seen, handle }
+    return true
+  },
+  /** Lines that appeared and are gone again, plus live-region announcements. */
+  take(): string[] {
+    if (!watching) return []
+    const { observer, seen, handle } = watching
+    handle(observer.takeRecords())
+    observer.disconnect()
+    watching = null
+    const now = bodyText()
+    return [...seen].filter(([line, live]) => live || !now.includes(line)).map(([line]) => line).slice(0, TRANSIENT_MAX)
+  },
 }
 
 export { inspectAtPoint, pageContext }
