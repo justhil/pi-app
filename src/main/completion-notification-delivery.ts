@@ -188,20 +188,19 @@ function showSystemCard(card: CompletionCard): void {
 export async function openNotificationTarget(notificationId: string): Promise<boolean> {
   const target = takeNotificationTarget(notificationId)
   const win = getMainWindow()
-  if (win && !win.isDestroyed()) {
-    if (win.isMinimized()) win.restore()
-    win.show()
-    win.focus()
-  }
+  if (!win) return false
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
   if (!target) {
-    win?.webContents.send('ipc:notification-open-session', { ok: false, reason: 'missing' })
+    win.webContents.send('ipc:notification-open-session', { ok: false, reason: 'missing' })
     return false
   }
   if (!target.sessionFile) return true
   if (target.sessionFile) {
     const meta = await readSessionMetaFromFile(target.sessionFile)
     if (!meta) {
-      win?.webContents.send('ipc:notification-open-session', {
+      win.webContents.send('ipc:notification-open-session', {
         ok: false,
         reason: 'gone',
         workspaceId: target.workspaceId,
@@ -210,7 +209,7 @@ export async function openNotificationTarget(notificationId: string): Promise<bo
     }
     target.sessionId = target.sessionId || meta.sessionId
   }
-  win?.webContents.send('ipc:notification-open-session', {
+  win.webContents.send('ipc:notification-open-session', {
     ok: true,
     workspaceId: target.workspaceId,
     sessionId: target.sessionId,

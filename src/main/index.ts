@@ -1,6 +1,6 @@
 import './bootstrap-path'
-import { app, shell, BrowserWindow, dialog, session, Menu } from 'electron'
-import { createWindow } from './window'
+import { app, shell, type BrowserWindow, dialog, session, Menu } from 'electron'
+import { createWindow, getMainWindow } from './window'
 import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
@@ -11,13 +11,13 @@ import { configStore } from './config-store'
 import { scheduleStartupWarmupFallback } from './startup-warmup'
 import { bindWslPersistence } from './wsl/wsl-env'
 import { is } from '@electron-toolkit/utils'
-import { destroyAppTray, ensureAppTray } from './tray'
+import { destroyAppTray, ensureAppTray, focusMainWindow } from './tray'
 import {
   disposeCompletionNotifications,
   initializeCompletionNotifications,
 } from './completion-notification'
 import { notifyForegroundChanged } from './completion-notification-events'
-import { focusCompletionNotificationHost } from './completion-notification-delivery'
+import { disposeCompletionDelivery, focusCompletionNotificationHost } from './completion-notification-delivery'
 import { isCompletionNotificationShortcut } from './completion-notification-shortcut'
 // Prevent EPIPE / write errors from crashing the main process
 process.stdout?.on?.('error', () => {})
@@ -27,7 +27,7 @@ process.on('uncaughtException', (err) => {
   if (code === 'EPIPE' || code === 'ERR_STREAM_DESTROYED') return
   console.error('[Main] Uncaught exception:', err)
   try {
-    const win = BrowserWindow.getAllWindows()[0]
+    const win = getMainWindow()
     const msg = err instanceof Error ? err.message : String(err)
     const opts = {
       type: 'error' as const,
@@ -74,13 +74,7 @@ const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
-    }
-  })
+  app.on('second-instance', focusMainWindow)
 }
 
 app.whenReady().then(() => {
@@ -91,7 +85,7 @@ app.whenReady().then(() => {
     })
   }
   createMenu()
-  ensureAppTray()
+  const closeToTray = ensureAppTray() !== null
   initializeCompletionNotifications()
 
   // CSP: inject Content-Security-Policy header in production (skip dev for Vite HMR)
@@ -134,13 +128,14 @@ app.whenReady().then(() => {
       console.warn('[clipboard-images] prune failed:', e)
     }
   })
-  const win = createWindow()
+  const win = createWindow(closeToTray)
   workerManager.setMainWindow(win)
   // Mobile gateway: only listens when the user left it on (Settings → 手机连接).
   void import('./remote-gateway-service').then((m) => m.startRemoteGatewayIfEnabled())
   attachCompletionNotificationShortcut(win)
   win.on('focus', () => notifyForegroundChanged())
   win.on('restore', () => notifyForegroundChanged())
+  win.on('closed', disposeCompletionDelivery)
   void refreshGitWorkspaceWatch(win)
   // SDK / extension warm-up starts when the renderer reports its shell painted (app.shellReady);
   // the fallback covers a renderer that never gets there. See startup-warmup.ts.
@@ -158,26 +153,32 @@ app.whenReady().then(() => {
   // 不自动打开上次项目：进 app 显示空 Project Home，用户自行选择项目
 
   app.on('activate', () => {
-    const windows = BrowserWindow.getAllWindows()
-    if (windows.length === 0) {
-      const w = createWindow()
+    if (!getMainWindow()) {
+      const w = createWindow(ensureAppTray() !== null)
       workerManager.setMainWindow(w)
       attachCompletionNotificationShortcut(w)
       w.on('focus', () => notifyForegroundChanged())
       w.on('restore', () => notifyForegroundChanged())
+      w.on('closed', disposeCompletionDelivery)
+    } else {
+      focusMainWindow()
     }
   })
 })
 
 let isQuittingGracefully = false
+let gracefulShutdownPromise: Promise<void> | null = null
 
 /**
  * Force-quit mid-stream used to kill workers before abort could write a terminal
  * assistant leaf — reopen then showed empty unrewindable sessions.
  * Await abort+dispose flush on every quit path.
  */
-async function gracefulShutdownWorkers(): Promise<void> {
-  if (isQuittingGracefully) return
+function gracefulShutdownWorkers(): Promise<void> {
+  return gracefulShutdownPromise ??= performGracefulShutdown()
+}
+
+async function performGracefulShutdown(): Promise<void> {
   isQuittingGracefully = true
   try {
     await import('./remote-gateway-service').then((m) => m.stopRemoteGateway()).catch(() => {})
@@ -204,7 +205,6 @@ app.on('before-quit', (event) => {
   // Keep the tray alive while the user decides so a hidden window remains reachable.
   if (!guardAppQuit(event)) return
   destroyAppTray()
-  if (isQuittingGracefully) return
   event.preventDefault()
   void gracefulShutdownWorkers().finally(() => {
     app.exit(0)

@@ -74,7 +74,7 @@ export function isE2eTestMode(): boolean {
   return v === '1' || v === 'true' || v === 'yes'
 }
 
-export function createWindow(): BrowserWindow {
+export function createWindow(closeToTray = false): BrowserWindow {
   const saved = readSavedWindowBounds()
   mainWindow = new BrowserWindow({
     width: saved?.width ?? DEFAULT_W,
@@ -99,7 +99,7 @@ export function createWindow(): BrowserWindow {
     },
   })
 
-  installWindowCloseGuard(mainWindow)
+  installWindowCloseGuard(mainWindow, closeToTray)
 
   mainWindow.on('ready-to-show', () => {
     if (isE2eTestMode()) {
@@ -156,7 +156,7 @@ export function createWindow(): BrowserWindow {
 }
 
 export function getMainWindow(): BrowserWindow | null {
-  return mainWindow
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null
 }
 
 export function destroyWindow(): void {
