@@ -24,6 +24,7 @@ export function WorkspaceFilesPanel() {
   const panelRef = useRef<HTMLDivElement>(null)
   const expandButtonRef = useRef<HTMLButtonElement>(null)
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
+  const workspaceFileToOpen = useUIStore((s) => s.workspaceFileToOpen)
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const rightPanelCollapsed = useRightPanelHidden()
@@ -45,6 +46,7 @@ export function WorkspaceFilesPanel() {
   const [treeEpoch, setTreeEpoch] = useState(0)
   const [collapseEpoch, setCollapseEpoch] = useState(0)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
+  const [sourceLocation, setSourceLocation] = useState<{ rel: string; line: number } | null>(null)
   const [menu, setMenu] = useState<FilesCtxTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -87,6 +89,7 @@ export function WorkspaceFilesPanel() {
 
   useEffect(() => {
     resetTabs()
+    setSourceLocation(null)
   }, [workspaceRoot, resetTabs])
 
   useEffect(() => {
@@ -120,6 +123,7 @@ export function WorkspaceFilesPanel() {
   const onSelectPath = useCallback(
     (rel: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => {
       if (isDirectory) return
+      setSourceLocation(null)
       const name = rel.split('/').pop() || rel
       openFile(rel, name, opts?.openInNewTab ? 'new-tab' : 'replace')
       if (panelRef.current && panelRef.current.clientWidth <= 480 && !filesPreviewChatExpand) {
@@ -130,14 +134,13 @@ export function WorkspaceFilesPanel() {
   )
 
   useEffect(() => {
-    const onOpen = (e: Event) => {
-      const d = (e as CustomEvent<{ rel?: string; name?: string }>).detail
-      if (!d?.rel) return
-      onSelectPath(d.rel, false)
+    if (!workspaceFileToOpen) return
+    useUIStore.setState({ workspaceFileToOpen: null })
+    if (workspaceFileToOpen.workspaceRoot === workspaceRoot) {
+      onSelectPath(workspaceFileToOpen.rel, false)
+      if (workspaceFileToOpen.line) setSourceLocation({ rel: workspaceFileToOpen.rel, line: workspaceFileToOpen.line })
     }
-    window.addEventListener('pi-desktop:open-workspace-file', onOpen)
-    return () => window.removeEventListener('pi-desktop:open-workspace-file', onOpen)
-  }, [onSelectPath])
+  }, [workspaceFileToOpen, workspaceRoot, onSelectPath])
 
   const chromeTrailing = (
     <>
@@ -254,6 +257,7 @@ export function WorkspaceFilesPanel() {
               readText={readText}
               fill
               refreshKey={previewRefreshKey}
+              sourceLocation={sourceLocation?.rel === activeTab.rel ? sourceLocation : null}
               onExitExpandedPreview={exitExpandedPreview}
             />
           ) : (

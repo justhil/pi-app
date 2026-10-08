@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
@@ -12,6 +12,7 @@ type Props = {
   fill?: boolean
   /** Workspace-relative path for line refs into the composer */
   path?: string
+  sourceLocation?: { line: number } | null
 }
 
 /**
@@ -22,12 +23,17 @@ export function FileSourcePreview({
   lang,
   fill,
   path,
+  sourceLocation,
 }: Props) {
+  const previewRef = useRef<HTMLDivElement>(null)
+  const plainLineRef = useRef<HTMLSpanElement>(null)
   const [html, setHtml] = useState<string | null>(null)
 
   const displayCode = code
   const useShiki = displayCode.length <= PREVIEW_SHIKI_MAX_CHARS
-  const lines = useMemo(() => useShiki ? displayCode.split('\n') : [], [displayCode, useShiki])
+  const hasLocation = !!sourceLocation
+  const lines = useMemo(() => useShiki || hasLocation ? displayCode.split('\n') : [], [displayCode, useShiki, hasLocation])
+  const targetLine = sourceLocation && sourceLocation.line > 0 && sourceLocation.line <= lines.length ? sourceLocation.line : null
 
   useEffect(() => {
     setHtml(null)
@@ -47,11 +53,26 @@ export function FileSourcePreview({
     }
   }, [displayCode, lang, useShiki])
 
+  useEffect(() => {
+    if (!targetLine) return
+    const target = previewRef.current?.querySelectorAll('.native-code-shiki .line')[targetLine - 1]
+      ?? plainLineRef.current
+    if (!target) return
+    target.setAttribute('data-source-line', String(targetLine))
+    target.classList.add('bg-accent/15')
+    target.scrollIntoView({ block: 'center', inline: 'nearest' })
+    return () => {
+      target.removeAttribute('data-source-line')
+      target.classList.remove('bg-accent/15')
+    }
+  }, [html, displayCode, sourceLocation, targetLine])
+
   const lineCount = lines.length
   const gutterCh = Math.max(2, String(lineCount).length) + 2
 
   return (
     <div
+      ref={previewRef}
       className={cn(
         'flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--code-bg)]',
         !fill && 'border border-border/50',
@@ -84,14 +105,18 @@ export function FileSourcePreview({
               ))}
             </div>}
             <div className="min-w-0 shrink-0 py-2 pl-5 pr-4">
-              {useShiki && html != null ? (
+              {useShiki && html != null && (!targetLine || html.includes('class="line"')) ? (
                 <div
                   className="native-code-shiki font-mono text-[11px] leading-[1.5] text-foreground [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:bg-transparent [&_code]:text-[11px]"
                   dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
                 />
               ) : (
                 <pre className="m-0 whitespace-pre font-mono text-[11px] leading-[1.5] text-foreground">
-                  {displayCode}
+                  {targetLine ? <>
+                    {targetLine > 1 ? lines.slice(0, targetLine - 1).join('\n') + '\n' : ''}
+                    <span ref={plainLineRef} data-source-line={targetLine}>{lines[targetLine - 1]}</span>
+                    {targetLine < lines.length ? '\n' + lines.slice(targetLine).join('\n') : ''}
+                  </> : displayCode}
                 </pre>
               )}
             </div>

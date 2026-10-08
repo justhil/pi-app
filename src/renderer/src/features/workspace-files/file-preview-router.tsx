@@ -10,6 +10,7 @@ import { joinWorkspacePath } from './path-utils'
 import { resolveFilePreviewMode } from './file-preview-mode'
 import { PREVIEW_MD_MAX_CHARS, PREVIEW_MD_MAX_LINES, PREVIEW_READ_MAX_BYTES } from './file-preview-limits'
 import { FileSourcePreview } from './file-source-preview'
+import { toast } from 'sonner'
 
 type ReadTextFn = (
   p: string,
@@ -48,6 +49,7 @@ export function FilePreviewRouter({
   readText,
   fill = false,
   refreshKey = 0,
+  sourceLocation,
   onExitExpandedPreview,
 }: {
   workspaceRoot: string
@@ -55,6 +57,7 @@ export function FilePreviewRouter({
   readText: ReadTextFn
   fill?: boolean
   refreshKey?: number
+  sourceLocation?: { line: number } | null
   onExitExpandedPreview?: () => void
 }) {
   const { t } = useTranslation('files')
@@ -67,7 +70,7 @@ export function FilePreviewRouter({
   const frameRef = useRef<HTMLIFrameElement>(null)
   const mode = relativePath ? resolveFilePreviewMode(relativePath) : null
   const absPath = relativePath ? joinWorkspacePath(workspaceRoot, relativePath) : ''
-  const maxBytes = mode === 'html' || fullReadPath === absPath ? WORKSPACE_TEXT_MAX_BYTES : PREVIEW_READ_MAX_BYTES
+  const maxBytes = mode === 'html' || sourceLocation || fullReadPath === absPath ? WORKSPACE_TEXT_MAX_BYTES : PREVIEW_READ_MAX_BYTES
   const htmlDocument = useMemo(() => content == null ? '' :
     `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${htmlPolicy}"><script>${escapeScript}</script>${content}`, [content])
 
@@ -118,7 +121,9 @@ export function FilePreviewRouter({
     return () => { cancelled = true }
   }, [absPath, workspaceRoot, relativePath, mode, readText, maxBytes, refreshKey])
 
-  const openExternal = () => void ipcClient.invoke('shell.openPath', { path: absPath })
+  const openExternal = () => void ipcClient.invoke('shell.openPath', { path: absPath }).then((result) => {
+    if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
+  }).catch(() => toast.error(t('common:sidebar.revealFailed')))
   const wrap = (node: ReactNode) => (
     <div className={cn('flex min-h-0 min-w-0 flex-col', fill && 'flex-1')}>
       {truncated && !loading && (
@@ -143,8 +148,9 @@ export function FilePreviewRouter({
   if (mode === 'image') return wrap(imageUrl ? <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--bg-1)] p-0"><img src={imageUrl} alt={relativePath} className="max-h-full max-w-full object-contain" /></div> : null)
   if (mode === 'pdf' || mode === 'binary' || mode === 'sheet') return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(mode === 'pdf' ? 'preview.pdf' : 'preview.binary')}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
   if (content == null) return wrap(null)
+  if (sourceLocation) return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} sourceLocation={sourceLocation} />)
   if (mode === 'html' && !truncated) return wrap(<iframe ref={frameRef} title="html-preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlDocument} className="min-h-0 w-full flex-1 border-0 bg-[var(--bg-base)]" />)
-  if (mode === 'markdown' && !truncated && content.length <= PREVIEW_MD_MAX_CHARS && content.split('\n').length <= PREVIEW_MD_MAX_LINES) return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView>{content}</MarkdownView></FilePreviewScroll>)
+  if (mode === 'markdown' && !truncated && content.length <= PREVIEW_MD_MAX_CHARS && content.split('\n').length <= PREVIEW_MD_MAX_LINES) return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView baseDirectory={joinWorkspacePath(workspaceRoot, relativePath.split('/').slice(0, -1).join('/'))}>{content}</MarkdownView></FilePreviewScroll>)
   if (mode === 'code') return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} />)
   return wrap(<PlainTextFill content={content} />)
 }

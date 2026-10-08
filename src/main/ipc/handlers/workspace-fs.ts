@@ -4,6 +4,8 @@ import { shell } from 'electron'
 import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText, workspaceFsRename, resolvePathUnderWorkspace } from '../../workspace-fs'
 import { workspaceFsSearch } from '../../workspace-file-search'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { wslPathToWindows } from '@shared/wsl-path'
+import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import {
   shellOpenPathSchema,
   shellReadImagePreviewSchema,
@@ -16,6 +18,12 @@ import {
 } from '../schemas'
 
 const IMAGE_PREVIEW_MAX_BYTES = 8 * 1024 * 1024
+
+function shellPath(input: string): string {
+  if (process.platform !== 'win32' || !input.startsWith('/') || input.startsWith('//')) return input
+  const runtime = getAgentRuntimeConfig()
+  return runtime.mode === 'wsl' ? wslPathToWindows(runtime.distro, input) : input
+}
 
 async function resolveImagePreviewPath(req: { workspaceRoot: string; path: string }): Promise<
   | { ok: true; abs: string }
@@ -50,18 +58,18 @@ async function readBoundedFile(path: string, maxBytes: number): Promise<Buffer |
 
 export function registerWorkspaceFsHandlers(): void {
   registerHandlerWithSchema('ipc:shell.openPath', shellOpenPathSchema, async (req) => {
-    const p = String(req.path || '')
+    const p = shellPath(String(req.path || ''))
     if (!p) return { ok: false }
     try {
-      await shell.openPath(p)
-      return { ok: true }
+      const error = await shell.openPath(p)
+      return error ? { ok: false, error } : { ok: true }
     } catch (e) {
       return { ok: false, error: String(e) }
     }
   })
 
   registerHandlerWithSchema('ipc:shell.showItemInFolder', shellShowItemSchema, async (req) => {
-    const p = String(req.path || '')
+    const p = shellPath(String(req.path || ''))
     if (!p) return { ok: false }
     shell.showItemInFolder(p)
     return { ok: true }

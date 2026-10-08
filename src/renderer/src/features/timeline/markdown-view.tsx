@@ -1,8 +1,8 @@
 // Markdown renderer for assistant messages (参考桌面客户端-inspired).
 // react-markdown + remark-gfm + remark-math/rehype-katex + 自定义 code/img/table 组件。
-import { memo, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef } from 'react'
+import { memo, useMemo, useRef, useEffect, useState, type ComponentPropsWithoutRef, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown, { type Components, type ExtraProps } from 'react-markdown'
+import ReactMarkdown, { defaultUrlTransform, type Components, type ExtraProps, type UrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
@@ -25,6 +25,13 @@ import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-rev
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
+import { localFileLineFromHref, localFilePathFromHref, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
+import { ipcClient } from '@renderer/lib/ipc-client'
+import { toast } from 'sonner'
+import { useUIStore } from '@renderer/stores/ui-store'
+
+const markdownUrlTransform: UrlTransform = (url, key) =>
+  key === 'href' && localFilePathFromHref(url) ? url : defaultUrlTransform(url)
 
 /** `<pre>` whose code child is a pi-ui or mermaid fence: those render their own chrome. */
 function isSelfRenderingPre(node: ExtraProps['node']): boolean {
@@ -142,7 +149,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
 }) {
   const markdown = useMemo(() => preprocessMarkdownMath(source, { streaming: false }), [source])
   return (
-    <ReactMarkdown remarkPlugins={SETTLED_REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={components}>
+    <ReactMarkdown remarkPlugins={SETTLED_REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
       {markdown}
     </ReactMarkdown>
   )
@@ -185,12 +192,17 @@ const MarkdownView = memo(function MarkdownView({
   children,
   className,
   streaming,
+  baseDirectory,
 }: {
   children: string
   className?: string
   /** 流式：稳定前缀 Markdown + 尾部纯文本（减少整段重排，接近 ChatGPT） */
   streaming?: boolean
+  /** Relative links in a file preview resolve from that file's directory. */
+  baseDirectory?: string
 }) {
+  const { t } = useTranslation()
+  const workspaceRoot = useUIStore((s) => s.currentWorkspace)
   const committedStableRef = useRef('')
 
   useEffect(() => {
@@ -263,11 +275,37 @@ const MarkdownView = memo(function MarkdownView({
       // pi-ui and mermaid blocks render their own chrome; don't wrap them in <pre> (monospace, white-space: pre).
       pre: ({ node, children: ch, ...rest }: ComponentPropsWithoutRef<'pre'> & ExtraProps) =>
         isSelfRenderingPre(node) ? <>{ch}</> : <pre {...rest}>{ch}</pre>,
-      a: ({ children: ch, ...rest }: ComponentPropsWithoutRef<'a'>) => (
-        <a {...rest} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-          {ch}
-        </a>
-      ),
+      a: ({ children: ch, href, node: _node, ...rest }: ComponentPropsWithoutRef<'a'> & ExtraProps) => {
+        const path = href ? localFilePathFromHref(href, baseDirectory ?? workspaceRoot) : null
+        const line = href ? localFileLineFromHref(href) : undefined
+        const openFile = path ? (event: MouseEvent<HTMLAnchorElement>) => {
+          if (event.type === 'auxclick' && event.button !== 1) return
+          event.preventDefault()
+          if (!openWorkspaceRelativePath(path, line)) {
+            if (!/^[/\\]|^[a-zA-Z]:[/\\]/.test(path)) {
+              toast.error(t('common:sidebar.revealFailed'))
+              return
+            }
+            void ipcClient.invoke('shell.openPath', { path }).then((result) => {
+              if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
+            }).catch(() => toast.error(t('common:sidebar.revealFailed')))
+          }
+        } : undefined
+        return (
+          <a
+            {...rest}
+            href={href}
+            target={path ? undefined : '_blank'}
+            rel="noreferrer"
+            className="text-primary hover:underline"
+            title={path || rest.title}
+            onClick={openFile}
+            onAuxClick={openFile}
+          >
+            {ch}
+          </a>
+        )
+      },
       table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (
         <div className="my-2 overflow-x-auto">
           <table className="w-full border-collapse text-[13px]">{ch}</table>
@@ -317,7 +355,7 @@ const MarkdownView = memo(function MarkdownView({
       },
       hr: () => <hr className="my-3 border-border/35" />,
     }),
-    [streaming],
+    [streaming, t, baseDirectory, workspaceRoot],
   )
 
   if (usePlainStream) {
@@ -343,6 +381,7 @@ const MarkdownView = memo(function MarkdownView({
               remarkPlugins={SETTLED_REMARK_PLUGINS}
               rehypePlugins={REHYPE_PLUGINS}
               components={components}
+              urlTransform={markdownUrlTransform}
             >
               {preprocessMarkdownMath(tailMarkdown, { streaming: false })}
             </ReactMarkdown>
@@ -357,7 +396,7 @@ const MarkdownView = memo(function MarkdownView({
 
   return (
     <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components}>
+      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
         {markdown}
       </ReactMarkdown>
     </div>

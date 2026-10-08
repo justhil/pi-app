@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FilePreviewRouter } from './file-preview-router'
+import { WORKSPACE_TEXT_MAX_BYTES } from '@shared/workspace-preview'
 
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: vi.fn() } }))
 vi.mock('@renderer/features/timeline/markdown-view', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }))
-vi.mock('./file-source-preview', () => ({ FileSourcePreview: ({ code }: { code: string }) => <pre>{code}</pre> }))
+vi.mock('./file-source-preview', () => ({ FileSourcePreview: ({ code, sourceLocation }: { code: string; sourceLocation?: { line: number } }) => <pre data-line={sourceLocation?.line}>{code}</pre> }))
 afterEach(cleanup)
 describe('file preview', () => {
+  it('opens Markdown line references as source and reads beyond the usual preview prefix', async () => {
+    const readText = vi.fn().mockResolvedValue({ ok: true, content: '# heading\nsource line' })
+    const { container } = render(<FilePreviewRouter workspaceRoot="/ws" relativePath="readme.md" readText={readText} sourceLocation={{ line: 2 }} />)
+    await screen.findByText('# heading source line')
+    expect(container.querySelector('pre')).toHaveAttribute('data-line', '2')
+    expect(readText).toHaveBeenCalledWith('readme.md', { maxBytes: WORKSPACE_TEXT_MAX_BYTES })
+  })
   it('marks truncated text and lets the user load more without losing the prefix', async () => {
     const readText = vi.fn().mockResolvedValueOnce({ ok: true, content: 'partial content', size: 600000, truncated: true }).mockResolvedValue({ ok: true, content: 'complete content', size: 600000, truncated: false })
     render(<FilePreviewRouter workspaceRoot="/ws" relativePath="large.txt" readText={readText} />)
