@@ -205,7 +205,7 @@ describe('WSL session preview runner', () => {
       child.stdout.write(encodeWorkerFrame({
         requestId: request.requestId,
         type: 'session.list-done',
-        result: [{ id: 's1', path: '/home/u/.pi/agent/sessions/s1.jsonl' }],
+        result: [{ id: 's1', path: '/home/u/.pi/agent/sessions/s1.jsonl', cwd: '/mnt/c/Project', parentSessionPath: '/home/u/.pi/agent/sessions/parent.jsonl' }],
       }) + '\n')
     })
     const pool = new Map<string, unknown>([['existing', {}]])
@@ -216,7 +216,7 @@ describe('WSL session preview runner', () => {
       type: 'session.list',
       payload: { cwd: 'C:\\Project', workspaceId: 'C:\\Project' },
       userDataDir: 'C:\\Users\\u\\AppData\\Roaming\\pi-desktop',
-    })).resolves.toEqual([{ id: 's1', path: '/home/u/.pi/agent/sessions/s1.jsonl' }])
+    })).resolves.toEqual([{ id: 's1', path: '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\s1.jsonl', cwd: 'C:\\Project', parentSessionPath: '\\\\wsl.localhost\\Ubuntu\\home\\u\\.pi\\agent\\sessions\\parent.jsonl' }])
 
     expect(mocks.spawnPreviewInWsl).toHaveBeenCalledWith({
       distro: 'Ubuntu',

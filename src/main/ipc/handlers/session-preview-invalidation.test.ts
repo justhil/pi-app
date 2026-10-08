@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
     sessionFile,
   })),
   deleteSessionFile: vi.fn(),
+  prepareSession: vi.fn(),
+  runtime: { mode: 'host', distro: null as string | null },
 }))
 
 vi.mock('../registry', () => ({
@@ -58,7 +60,8 @@ vi.mock('../../session-bind-state', () => ({
   setPendingEphemeralSandboxDraft: vi.fn(),
   setPendingWorkerSessionFile: vi.fn(),
 }))
-vi.mock('../../session-prepare', () => ({ resolvePreparedSessionFile: vi.fn() }))
+vi.mock('../../session-prepare', () => ({ resolvePreparedSessionFile: mocks.prepareSession }))
+vi.mock('../../wsl/runtime-config', () => ({ getAgentRuntimeConfig: () => mocks.runtime }))
 vi.mock('../../session-display-names', () => ({
   clearSessionDisplayName: vi.fn(),
   resolveSessionListTitle: vi.fn((_file, fallback) => fallback),
@@ -85,6 +88,9 @@ import { registerSessionHandlers } from './session'
 
 describe('session list preview invalidation', () => {
   beforeEach(() => {
+    mocks.runtime.mode = 'host'
+    mocks.runtime.distro = null
+    mocks.prepareSession.mockReset()
     mocks.handlers.clear()
     mocks.listSessions.mockReset()
     mocks.listSessions
@@ -116,6 +122,18 @@ describe('session list preview invalidation', () => {
     mocks.listSessions.mockResolvedValue([{ id: 'child', path: '/sessions/child.jsonl', cwd: '/workspace', parentSessionPath: '/sessions/parent.jsonl' }])
     expect(await mocks.handlers.get('ipc:session.list')!({ workspaceId: '/workspace' }))
       .toMatchObject({ sessions: [{ sessionId: 'child', parentSessionFile: '/sessions/parent.jsonl' }] })
+  })
+
+  it.each([
+    ['host', null, '/workspace'],
+    ['wsl', 'Ubuntu', '\\\\wsl.localhost\\Ubuntu\\workspace'],
+  ])('prepares the actual session workspace without relying on project lists: %s', async (mode, distro, workspaceId) => {
+    mocks.runtime.mode = mode!
+    mocks.runtime.distro = distro
+    mocks.prepareSession.mockResolvedValue({ sessionId: 's1', sessionFile: '/sessions/s1.jsonl', cwd: '/workspace' })
+    expect(await mocks.handlers.get('ipc:session.prepare')!({ sessionFile: '/sessions/s1.jsonl', bind: false }))
+      .toEqual({ bound: false, sessionId: 's1', sessionFile: '/sessions/s1.jsonl', workspaceId })
+    expect(mocks.listSessions).not.toHaveBeenCalled()
   })
 
   it('filters sessions from a different cwd even when Pi encoded directory names collide', async () => {

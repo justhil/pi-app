@@ -27,6 +27,7 @@ describe('resolvePreparedSessionFile', () => {
     await expect(resolvePreparedSessionFile(childSessionFile, listSessions)).resolves.toEqual({
       sessionId: 'direct-child-session',
       sessionFile: childSessionFile,
+      cwd: '/workspace',
     })
     expect(listSessions).not.toHaveBeenCalled()
   })
@@ -65,6 +66,7 @@ describe('resolvePreparedSessionFile', () => {
     await expect(resolvePreparedSessionFile(candidateSessionFile, listSessions)).resolves.toEqual({
       sessionId: 'forked-child-session',
       sessionFile: resolvedSessionFile,
+      cwd: '/workspace',
     })
     expect(listSessions).toHaveBeenCalledWith('/workspace')
   })
