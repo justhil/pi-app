@@ -7,6 +7,7 @@ import type { ExtensionAPI, InlineExtension, ToolDefinition } from '@earendil-wo
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { sendToMain } from './worker-transport.js'
+import { pruneBrowserResults } from './browser-context-prune.js'
 import { BROWSER_CORE_TOOLS, BROWSER_NAMESPACE, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
 
 export { BROWSER_TOOL_NAMES }
@@ -170,5 +171,10 @@ export const browserToolsExtension: InlineExtension = {
     })
     pi.on('model_select', (_event, ctx) => noteModel(ctx as ModelCtx))
     pi.on('before_agent_start', (_event, ctx) => noteModel(ctx as ModelCtx))
+    // Old page state goes out of what is sent (the session keeps it); see browser-context-prune.ts.
+    pi.on('context', (event) => {
+      const messages = pruneBrowserResults(event.messages as unknown as { role: string }[])
+      return messages ? { messages: messages as unknown as typeof event.messages } : undefined
+    })
   },
 }

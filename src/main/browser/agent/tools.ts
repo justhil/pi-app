@@ -183,7 +183,7 @@ function snapshotNotes(snap: Snap, tabId?: string): string {
   } else if (snap.covered) notes.push(`${snap.covered} element(s) are covered by an overlay and have no ref; deal with the overlay first.`)
   if (snap.belowFold.count) notes.push(`${snap.belowFold.count} more interactive element(s) below the visible area (about ${snap.belowFold.screens} screen(s)); they keep their refs.`)
   if (snap.visual) notes.push(`${snap.visual} canvas area(s) are drawn as pixels: browser_take_screenshot shows them.`)
-  if (snap.truncated) notes.push('Snapshot truncated: use target=<ref> for one region or query="…".')
+  if (snap.truncated) notes.push('Snapshot truncated: use target=<ref> for one region, query="…", or saveTo for the whole page in a file.')
   if (tabId) notes.push(...situationHints(tabId, snap))
   return notes.join('\n')
 }
@@ -439,6 +439,15 @@ async function sessionDir(sessionKey: string): Promise<string> {
   return dir
 }
 
+/** A whole snapshot written to a file: the model reads or greps it instead of carrying it in context. */
+async function saveSnapshot(sessionKey: string, name: string, body: string): Promise<string> {
+  const file = join(await sessionDir(sessionKey), safeFileName(name))
+  await writeFile(file, body)
+  const lines = body ? body.split('\n').length : 0
+  const refs = (body.match(/\[ref=[^\]]+\]/g) ?? []).length
+  return `### Snapshot saved\n${file} (${Math.round(Buffer.byteLength(body) / 1024)} KB, ${lines} lines, ${refs} refs). Read or grep it; its refs work with the other tools until the page changes.`
+}
+
 function safeFileName(name: string): string {
   return basename(name).replace(/[^\p{L}\p{N}._ -]+/gu, '-').trim().slice(0, 100) || 'result.json'
 }
@@ -651,9 +660,10 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
     case 'browser_snapshot':
       return host.runOnTab(id, tool, async () => {
         if (a.mode === 'text') {
-          const t = unwrap(await engine.run<{ text: string; truncated: boolean; chars: number } | RuntimeError>(`__piBrowser.textView(${js({ target: a.target, maxChars: SNAPSHOT_MAX_CHARS })})`, 8000))
+          const t = unwrap(await engine.run<{ text: string; truncated: boolean; chars: number } | RuntimeError>(`__piBrowser.textView(${js({ target: a.target, maxChars: a.saveTo ? RAW_MAX_CHARS : SNAPSHOT_MAX_CHARS })})`, 8000))
           lastSnap.delete(id)
-          const note = t.truncated ? `\nText truncated (${t.chars} chars in all): use target=<ref> for one region or query="…".` : ''
+          if (a.saveTo) return text(`${pageSection(engine)}\n${await saveSnapshot(call.sessionKey, a.saveTo, t.text)}`)
+          const note = t.truncated ? `\nText truncated (${t.chars} chars in all): use target=<ref> for one region, query="…", or saveTo for all of it in a file.` : ''
           return text(`${pageSection(engine)}\n### Text\n${t.text || '(no text)'}${note}`)
         }
         if (a.query) {
@@ -663,6 +673,10 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
           return text(res.count ? `### Matches (${res.count}${res.count >= 20 ? '+' : ''})\n${res.matches}` : `No lines match ${js(q)}.`)
         }
         const raw = await takeSnapshot(id, engine, { target: a.target, depth: a.depth })
+        if (a.saveTo) {
+          const saved = await saveSnapshot(call.sessionKey, a.saveTo, shapeSnapshot(raw.yaml, { origin: originOf(raw.url), fold: false }).yaml)
+          return text([pageSection(engine), saved, snapshotNotes({ ...raw, truncated: false }, id)].filter(Boolean).join('\n'))
+        }
         const snap = shaped(raw, { target: a.target })
         const hover = a.probeHover ? await probeHover(id, engine, pointer, raw) : ''
         return text([pageSection(engine), `### Snapshot\n\`\`\`yaml\n${snap.yaml || '(empty page)'}\n\`\`\``, hover, snapshotNotes(snap, id)].filter(Boolean).join('\n'))

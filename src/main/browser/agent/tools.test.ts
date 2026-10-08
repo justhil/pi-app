@@ -126,6 +126,22 @@ describe('probeHover', () => {
   }, 15_000)
 })
 
+describe('snapshot saveTo', () => {
+  it('writes the whole unfolded page to a file and returns only its path', async () => {
+    forgetBrowserTab('t1')
+    const items = Array.from({ length: 30 }, (_, i) => `  - listitem [ref=e${i + 10}]:\n    - link "Product ${i}" [ref=e${i + 100}]`).join('\n')
+    const { host } = fakePage([{ yaml: `- list [ref=e1]:\n${items}` }])
+    const out = textOf(await executeBrowserTool(host, call('browser_snapshot', { saveTo: 'page.yml' })))
+    const m = /### Snapshot saved\n(.+page\.yml) \(\d+ KB, \d+ lines, (\d+) refs\)/.exec(out)
+    expect(m, out).toBeTruthy()
+    expect(out).not.toMatch(/Product 3/)
+    const { readFileSync } = await import('node:fs')
+    const saved = readFileSync(m![1], 'utf8')
+    expect(saved).toMatch(/link "Product 29"/)
+    expect(saved).not.toMatch(/more listitems/)
+  })
+})
+
 describe('tool coverage', () => {
   it('handles every defined browser tool', async () => {
     const { readFileSync } = await import('node:fs')

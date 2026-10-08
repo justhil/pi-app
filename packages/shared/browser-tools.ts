@@ -53,6 +53,7 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
       mode: { type: 'string', enum: ['aria', 'text'], description: 'text: readable text, controls inline with refs' },
       probeHover: { type: 'boolean' },
       depth: { type: 'integer', minimum: 1, maximum: 50 },
+      saveTo: str(120, 'File name: write the whole page (no folding or cut) to a file and return its path'),
     }),
   },
   {
