@@ -107,6 +107,7 @@
     "searches": "{{count}} 次搜索",
     "commands": "运行 {{count}} 命令",
     "usedTools": "{{count}} 工具 · {{names}}",
+    "failedTools": "{{count}} 个失败",
     "filesChanged": "{{count}} 个文件",
     "filesChangedTitle": "{{count}} 个文件已更改",
     "showMoreFiles": "展开其余 {{count}} 个",

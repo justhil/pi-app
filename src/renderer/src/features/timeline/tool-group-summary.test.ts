@@ -16,8 +16,8 @@ describe('tool group expansion', () => {
     expect(groupExpanded({ 'c-b': true, 'tg-a': false }, 'tg-a', tools)).toBe(false)
     expect(groupExpanded({ 'tg-a': true }, 'tg-a', tools)).toBe(true)
   })
-  it('keeps failures and open questions visible', () => {
+  it('keeps only open questions visible; failures fold into the summary', () => {
     const list = [tool('a'), tool('b', { isError: true }), tool('c', { extensionUiSuspended: true } as Partial<ToolTimelineItem>)]
-    expect(attentionTools(list).map((t) => t.id)).toEqual(['b', 'c'])
+    expect(attentionTools(list).map((t) => t.id)).toEqual(['c'])
   })
 })

@@ -107,6 +107,7 @@
     "searches": "{{count}} searches",
     "commands": "ran {{count}} commands",
     "usedTools": "{{count}} tools · {{names}}",
+    "failedTools": "{{count}} failed",
     "filesChanged": "{{count}} files",
     "filesChangedTitle": "{{count}} Files Changed",
     "showMoreFiles": "Show {{count}} more",

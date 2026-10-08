@@ -28,9 +28,12 @@ export function groupExpanded(sessionMap: Record<string, boolean> | undefined, g
   return tools.some((tool) => sessionMap?.[toolKey(tool)] === true)
 }
 
-/** Tools that stay visible under a collapsed summary: failures and open questions. */
+/**
+ * Tools that stay visible under a collapsed summary: only open questions, which need the
+ * user's answer. Failures are counted on the summary line instead of listed.
+ */
 export function attentionTools(tools: ToolTimelineItem[]): ToolTimelineItem[] {
-  return tools.filter((tool) => tool.isError || tool.extensionUiSuspended)
+  return tools.filter((tool) => tool.extensionUiSuspended)
 }
 
 /**
@@ -63,7 +66,8 @@ function ToolGroupSummaryImpl({
   const fileChanges = useUIStore((s) => s.fileChanges)
   const workspace = useUIStore((s) => s.currentWorkspace)
 
-  const hasError = tools.some((tool) => tool.isError)
+  const failedCount = tools.filter((tool) => tool.isError).length
+  const hasError = failedCount > 0
 
   const summary = useMemo(
     () => buildToolListActivitySummary(tools, fileChanges, workspace),
@@ -131,6 +135,11 @@ function ToolGroupSummaryImpl({
         <span className="timeline-activity-label timeline-text-quiet min-w-0 truncate group-hover:opacity-70">
           {activityLabel}
         </span>
+        {hasError ? (
+          <span className="shrink-0 pl-1.5 text-[11px] text-destructive/70">
+            {t('timeline:activity.failedTools', { count: failedCount })}
+          </span>
+        ) : null}
         <DiffStatBadge
           additions={summary.additions}
           deletions={summary.deletions}
