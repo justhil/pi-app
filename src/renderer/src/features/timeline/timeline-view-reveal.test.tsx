@@ -5,6 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { requestTimelineViewEntry } from './timeline-view-jump'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
+import { clearSessionHistoryCache } from '@renderer/lib/session-history'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: { invoke: vi.fn(async () => ({ items: [], totalCount: 0, sourceCount: 0 })) },
@@ -33,6 +34,7 @@ const TAIL_START = 40
 let scrollIntoView: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
+  clearSessionHistoryCache()
   const items: TimelineItem[] = []
   for (let i = 0; i < TOTAL; i++) items.push(message(i, i % 2 === 0 ? 'user' : 'assistant'))
   useUIStore.setState({
@@ -97,7 +99,7 @@ describe('Timeline view-entry reveal', () => {
     expect(target?.dataset?.sessionEntryId).toBe('entry-3')
   })
 
-  it('does not jump when the user scrolled during a pending load', async () => {
+  it('allows another history jump after cancelling a pending load with the wheel', async () => {
     let resolveFetch: (v: { items: TimelineItem[]; totalCount: number; sourceCount: number }) => void
     vi.mocked(ipcClient.invoke).mockImplementation(
       () =>
@@ -122,6 +124,17 @@ describe('Timeline view-entry reveal', () => {
 
     expect(scrollIntoView).not.toHaveBeenCalled()
     expect(useUIStore.getState().timelineItems.some((it) => it.sessionEntryId === 'entry-3')).toBe(false)
+
+    vi.mocked(ipcClient.invoke).mockResolvedValue({
+      items: [message(7, 'user')], totalCount: TOTAL, sourceCount: 1,
+    } as never)
+    act(() => requestTimelineViewEntry('entry-7'))
+
+    await waitFor(() => expect(ipcClient.invoke).toHaveBeenCalledWith(
+      'session.getMessages', expect.objectContaining({ leafId: 'entry-7' }),
+    ))
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect((scrollIntoView.mock.contexts[0] as HTMLElement).dataset.sessionEntryId).toBe('entry-7')
   })
 
   it('yields to a newly sent message while the fetch is pending', async () => {
