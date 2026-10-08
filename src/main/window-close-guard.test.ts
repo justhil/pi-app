@@ -6,7 +6,7 @@ const appMock = vi.hoisted(() => ({ on: vi.fn(), quit: vi.fn() }))
 
 vi.mock('electron', () => ({
   BrowserWindow: {
-    getAllWindows: () => [winMock.instance],
+    getAllWindows: () => [winMock.notification, winMock.instance],
   },
   app: appMock,
 }))
@@ -17,6 +17,10 @@ vi.mock('./worker-manager', () => ({
       return workerState.hasActiveTurns
     },
   },
+}))
+
+vi.mock('./window', () => ({
+  getMainWindow: () => winMock.instance,
 }))
 
 const winMock = vi.hoisted(() => {
@@ -30,9 +34,10 @@ const winMock = vi.hoisted(() => {
     restore: vi.fn(),
     show: vi.fn(),
     focus: vi.fn(),
+    hide: vi.fn(),
     close: vi.fn(),
   }
-  return { instance }
+  return { instance, notification: { ...instance, webContents: { send: vi.fn() } } }
 })
 
 import {
@@ -61,6 +66,7 @@ describe('window-close-guard', () => {
     winMock.instance.restore.mockReset()
     winMock.instance.show.mockReset()
     winMock.instance.focus.mockReset()
+    winMock.instance.hide.mockReset()
     winMock.instance.close.mockReset()
     closeHandler = null
     winMock.instance.on.mockImplementation((_evt: string, cb: (e: CloseEvent) => void) => {
@@ -70,7 +76,33 @@ describe('window-close-guard', () => {
   })
 
   afterEach(() => {
+    __resetWindowCloseGuardForTest()
     vi.useRealTimers()
+  })
+
+  it.each([false, true])('hides to an available tray without destroying the window (active turn: %s)', (hasActiveTurns) => {
+    installWindowCloseGuard(winMock.instance as never, true)
+    workerState.hasActiveTurns = hasActiveTurns
+    const event = makeEvent()
+
+    closeHandler?.(event)
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(winMock.instance.hide).toHaveBeenCalledOnce()
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).not.toHaveBeenCalled()
+    expect(appMock.quit).not.toHaveBeenCalled()
+  })
+
+  it('keeps running terminals alive when hiding to the tray', () => {
+    installWindowCloseGuard(winMock.instance as never, true)
+    setRunningTerminalsProbe(() => 2)
+
+    closeHandler?.(makeEvent())
+
+    expect(winMock.instance.hide).toHaveBeenCalledOnce()
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).not.toHaveBeenCalled()
   })
 
   it('closes immediately when no turn is running', () => {
@@ -209,6 +241,50 @@ describe('window-close-guard', () => {
   })
 
   describe('guardAppQuit (tray Quit / Cmd+Q)', () => {
+    it('allows an idle tray window to close during an explicit quit', () => {
+      installWindowCloseGuard(winMock.instance as never, true)
+      expect(guardAppQuit(makeEvent())).toBe(true)
+      const event = makeEvent()
+
+      closeHandler?.(event)
+
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(winMock.instance.hide).not.toHaveBeenCalled()
+    })
+
+    it('closes a tray window after waiting for a running turn on explicit quit', () => {
+      vi.useFakeTimers()
+      installWindowCloseGuard(winMock.instance as never, true)
+      workerState.hasActiveTurns = true
+      expect(guardAppQuit(makeEvent())).toBe(false)
+      expect(handleCloseDecision('wait').ok).toBe(true)
+      vi.advanceTimersByTime(600)
+      expect(winMock.instance.close).not.toHaveBeenCalled()
+
+      workerState.hasActiveTurns = false
+      vi.advanceTimersByTime(600)
+
+      expect(winMock.instance.close).toHaveBeenCalledOnce()
+      expect(appMock.quit).toHaveBeenCalledOnce()
+      const event = makeEvent()
+      closeHandler?.(event)
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(winMock.instance.hide).not.toHaveBeenCalled()
+    })
+
+    it('keeps close-to-tray available after cancelling an explicit quit', () => {
+      installWindowCloseGuard(winMock.instance as never, true)
+      workerState.hasActiveTurns = true
+      expect(guardAppQuit(makeEvent())).toBe(false)
+      expect(handleCloseDecision('cancel').ok).toBe(true)
+
+      closeHandler?.(makeEvent())
+
+      expect(winMock.instance.hide).toHaveBeenCalledOnce()
+      expect(winMock.instance.close).not.toHaveBeenCalled()
+      expect(appMock.quit).not.toHaveBeenCalled()
+    })
+
     it('allows quit when no turn is running', () => {
       const e = makeEvent()
       expect(guardAppQuit(e)).toBe(true)

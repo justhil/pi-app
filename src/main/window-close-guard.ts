@@ -1,5 +1,6 @@
-import { app, BrowserWindow } from 'electron'
+import { app, type BrowserWindow } from 'electron'
 import { workerManager } from './worker-manager'
+import { getMainWindow } from './window'
 
 /**
  * Closing the window while an agent turn is running would abort the in-flight
@@ -11,7 +12,8 @@ import { workerManager } from './worker-manager'
  * - now: close immediately, aborting the running turn (status quo behaviour).
  * - cancel: keep the window open and clear the pending decision.
  *
- * Both window close and app quit (tray Quit / Cmd+Q) are guarded. Close
+ * A usable Windows tray keeps the window and running turns alive on close.
+ * Destructive closes and app quit (tray Quit / Cmd+Q) are guarded. Close
  * bypasses are scoped to the window or quit attempt that the user approved.
  */
 let forceQuit = false
@@ -43,10 +45,6 @@ function needsDecision(): boolean {
  */
 const DECISION_ACK_TIMEOUT_MS = 60 * 1000
 
-function getWindow(): BrowserWindow | null {
-  return BrowserWindow.getAllWindows()[0] ?? null
-}
-
 function stopWaitPoll(): void {
   if (waitPollTimer) {
     clearInterval(waitPollTimer)
@@ -62,7 +60,7 @@ function clearDecisionAckTimer(): void {
 }
 
 function requestCloseDecision(origin: 'window' | 'app'): boolean {
-  const win = getWindow()
+  const win = getMainWindow()
   if (!win || win.isDestroyed()) return false
   pendingOrigin = origin
   pendingWindow = win
@@ -79,7 +77,7 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
     // blocking. The turn is already lost anyway — do not keep the app stuck.
     closeDecisionPending = false
     decisionAckTimer = null
-    const winNow = pendingWindow ?? getWindow()
+    const winNow = pendingWindow ?? getMainWindow()
     if (winNow && !winNow.isDestroyed()) {
       forceCloseWindows.add(winNow)
       winNow.close()
@@ -93,7 +91,7 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
   return true
 }
 
-function closeNow(targetWindow: BrowserWindow | null = pendingWindow ?? getWindow()): void {
+function closeNow(targetWindow: BrowserWindow | null = pendingWindow ?? getMainWindow()): void {
   stopWaitPoll()
   clearDecisionAckTimer()
   closeDecisionPending = false
@@ -124,10 +122,14 @@ function startWaitAndClose(): void {
   }, WAIT_POLL_MS)
 }
 
-export function installWindowCloseGuard(win: BrowserWindow): void {
+export function installWindowCloseGuard(win: BrowserWindow, closeToTray = false): void {
   win.on('close', (event) => {
-    if (forceCloseWindows.has(win)) return
+    if (forceQuit || forceCloseWindows.has(win)) return
     event.preventDefault()
+    if (closeToTray) {
+      win.hide()
+      return
+    }
     if (waitPollTimer || closeDecisionPending) {
       // Already waiting or asking — repeated close clicks must not re-ask.
       return
@@ -157,11 +159,12 @@ export function guardAppQuit(event: { preventDefault: () => void }): boolean {
     requestCloseDecision('app')
     return false
   }
+  forceQuit = true
   return true
 }
 
 export function handleCloseDecision(action: 'wait' | 'now' | 'cancel'): { ok: boolean; reason?: string } {
-  const win = getWindow()
+  const win = getMainWindow()
   if (!win) return { ok: false }
   if (action === 'wait') {
     closeDecisionPending = false
