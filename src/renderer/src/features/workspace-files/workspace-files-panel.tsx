@@ -46,6 +46,7 @@ export function WorkspaceFilesPanel() {
   const [treeEpoch, setTreeEpoch] = useState(0)
   const [collapseEpoch, setCollapseEpoch] = useState(0)
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
+  const [sourceLocation, setSourceLocation] = useState<{ rel: string; line: number } | null>(null)
   const [menu, setMenu] = useState<FilesCtxTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
@@ -88,6 +89,7 @@ export function WorkspaceFilesPanel() {
 
   useEffect(() => {
     resetTabs()
+    setSourceLocation(null)
   }, [workspaceRoot, resetTabs])
 
   useEffect(() => {
@@ -121,6 +123,7 @@ export function WorkspaceFilesPanel() {
   const onSelectPath = useCallback(
     (rel: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => {
       if (isDirectory) return
+      setSourceLocation(null)
       const name = rel.split('/').pop() || rel
       openFile(rel, name, opts?.openInNewTab ? 'new-tab' : 'replace')
       if (panelRef.current && panelRef.current.clientWidth <= 480 && !filesPreviewChatExpand) {
@@ -133,7 +136,10 @@ export function WorkspaceFilesPanel() {
   useEffect(() => {
     if (!workspaceFileToOpen) return
     useUIStore.setState({ workspaceFileToOpen: null })
-    if (workspaceFileToOpen.workspaceRoot === workspaceRoot) onSelectPath(workspaceFileToOpen.rel, false)
+    if (workspaceFileToOpen.workspaceRoot === workspaceRoot) {
+      onSelectPath(workspaceFileToOpen.rel, false)
+      if (workspaceFileToOpen.line) setSourceLocation({ rel: workspaceFileToOpen.rel, line: workspaceFileToOpen.line })
+    }
   }, [workspaceFileToOpen, workspaceRoot, onSelectPath])
 
   const chromeTrailing = (
@@ -251,6 +257,7 @@ export function WorkspaceFilesPanel() {
               readText={readText}
               fill
               refreshKey={previewRefreshKey}
+              sourceLocation={sourceLocation?.rel === activeTab.rel ? sourceLocation : null}
               onExitExpandedPreview={exitExpandedPreview}
             />
           ) : (
