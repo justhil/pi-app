@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- CDP / extension payloads are untyped protocol JSON, read field by field */
 // Local WebSocket the pi Chrome extension connects to (BrowserSkill: CLI + extension). Only a
 // chrome-extension:// origin with the pairing token gets in; one extension connection at a time.
 // Requests are `{id, method, params}` → `{id, result | error}`; the extension also pushes

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- CDP / extension payloads are untyped protocol JSON, read field by field */
 // Agent features that need the DevTools protocol, written once against CdpSession: frames
 // (including out-of-process iframes), page dialogs, full-page capture, device emulation, a
 // highlight box and the request log. The built-in engine and the Chrome engine both use it.

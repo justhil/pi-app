@@ -28,7 +28,7 @@ test.describe('capability switches keep the prompt cache', () => {
       await turn('one', 1)
       await agent.enableBrowserControl()
       await turn('two', 2)
-      await agent.enableBrowserControl() // toggles it off again
+      await agent.disableBrowserControl()
       await turn('three', 3)
 
       const head = (s: Seen) => s.messages[0]

@@ -15,7 +15,7 @@ afterEach(() => {
 })
 
 /** A fake pi extension: answers requests with `reply(method, params)`. */
-async function pair(token: string, origin = 'chrome-extension://abc', reply: (method: string, params: any) => unknown = () => null) {
+async function pair(token: string, origin = 'chrome-extension://abc', reply: (method: string, params: { sessionKey?: string }) => unknown = () => null) {
   bridge = new ChromeBridge({ token: () => 'secret-token-123456' })
   const port = await bridge.start(39000 + Math.floor(Math.random() * 500))
   const ws = new WebSocket(`ws://127.0.0.1:${port}/chrome?token=${token}`, { origin })

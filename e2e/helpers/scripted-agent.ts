@@ -83,6 +83,7 @@ export interface AgentApp {
   project: string
   newSession(): Promise<void>
   enableBrowserControl(): Promise<void>
+  disableBrowserControl(): Promise<void>
   send(message: string): Promise<void>
   close(): Promise<void>
 }
@@ -138,6 +139,13 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
   await win.waitForFunction(() => !!(window as unknown as { __piE2E?: unknown }).__piE2E, null, { timeout: 45_000 })
   await win.waitForTimeout(2500)
 
+  const pickBrowserMode = async (name: RegExp) => {
+    await win.locator('[data-composer-tools]').click()
+    const radio = win.getByRole('radiogroup', { name: /^(Browser|浏览器)$/ }).getByRole('radio', { name })
+    await radio.waitFor({ state: 'visible' })
+    await radio.click()
+    await win.keyboard.press('Escape')
+  }
   return {
     app,
     win,
@@ -148,11 +156,10 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
       await win.waitForTimeout(1200)
     },
     async enableBrowserControl() {
-      await win.locator('[data-composer-tools]').click()
-      const toggle = win.getByRole('radio', { name: /^(Built-in|内置)$/ })
-      await toggle.waitFor({ state: 'visible' })
-      await toggle.click()
-      await win.keyboard.press('Escape')
+      await pickBrowserMode(/^(Built-in|内置)$/)
+    },
+    async disableBrowserControl() {
+      await pickBrowserMode(/^(Off|关)$/)
     },
     async send(message: string) {
       const editor = win.locator('[contenteditable="true"]').last()

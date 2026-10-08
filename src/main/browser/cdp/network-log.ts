@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- CDP / extension payloads are untyped protocol JSON, read field by field */
 // Requests of one tab from CDP Network events, numbered so tool results can cite them (#41) and
 // browser_devtools can show one later. BrowserSkill links actions to their requests;
 // here act() reads the window [seq before, seq after].
