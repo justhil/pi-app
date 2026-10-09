@@ -11,7 +11,6 @@ import {
 } from '@renderer/components/icons'
 import { createElement } from 'react'
 import { wireDelayedTooltip } from './delayed-tooltip'
-import { anchorLineBreakCaret } from './composer-editor-caret'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { segmentsToPromptPayload } from './attachment-text'
 
@@ -165,15 +164,9 @@ export function createAttachmentChip(meta: AttachmentMeta): HTMLSpanElement {
 
 /** 将纯文本（含 \n）写进富文本编辑器。 */
 export function renderRichTextFromPlain(el: HTMLElement, text: string) {
-  el.innerHTML = ''
-  const lines = text.split('\n')
-  lines.forEach((line, i) => {
-    if (i > 0) el.appendChild(document.createElement('br'))
-    el.appendChild(document.createTextNode(line))
-  })
-  el.normalize()
-  // 孤立 <br> 会让 ← 键在行首卡住：统一补 ZWSP 光标锚点。
-  anchorLineBreakCaret(el)
+  el.textContent = text
+  // Chromium needs a trailing placeholder BR to keep the final empty line editable.
+  if (text.endsWith('\n')) el.appendChild(document.createElement('br'))
 }
 
 /** 在光标处插入一个附件 chip（前后附加 ZWSP 让光标可停留）。 */
@@ -283,7 +276,8 @@ export function serializeRichInput(el: HTMLElement): {
           // They are not on-disk uploads; prompt payload uses @path:line via segments.
           attachments.push(meta)
         } else if (e.tagName === 'BR') {
-          textBuf += '\n'
+          // A trailing editor BR is Chromium's caret placeholder, not a typed newline.
+          if (e !== el.lastChild) textBuf += '\n'
         } else {
           // 富文本粘贴的块级包装标签：块与块之间补换行（与 <br> 语义一致）。
           // ZWSP 锚点（chip 前后的光标停留符）不算内容，不应触发分隔。
@@ -327,11 +321,7 @@ export function renderRichFromSegments(el: HTMLElement, segments: Segment[]) {
   const frag = document.createDocumentFragment()
   for (const seg of segments) {
     if (seg.type === 'text') {
-      const lines = seg.text.split('\n')
-      lines.forEach((line, i) => {
-        if (i > 0) frag.appendChild(document.createElement('br'))
-        frag.appendChild(document.createTextNode(line))
-      })
+      frag.appendChild(document.createTextNode(seg.text))
     } else if (seg.type === 'file') {
       frag.appendChild(document.createTextNode('\u200B'))
       frag.appendChild(createAttachmentChip(seg.attachment))
@@ -345,8 +335,10 @@ export function renderRichFromSegments(el: HTMLElement, segments: Segment[]) {
   }
   el.appendChild(frag)
   el.normalize()
-  // 孤立 <br> 会让 ← 键在行首卡住：统一补 ZWSP 光标锚点。
-  anchorLineBreakCaret(el)
+  const last = el.lastChild
+  if (last?.nodeType === Node.TEXT_NODE && last.textContent?.endsWith('\n')) {
+    el.appendChild(document.createElement('br'))
+  }
 }
 
 /** 替换最后一段文本的尾随 slash/参数 token；未命中返回原 segments。 */

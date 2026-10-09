@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { insertAttachmentAtCursor, serializeRichInput, type Segment } from '../attachments'
+import { insertAttachmentAtCursor, renderRichFromSegments, renderRichTextFromPlain, serializeRichInput, type Segment } from '../attachments'
 
 function setupEditor(html: string): HTMLElement {
   const el = document.createElement('div')
@@ -68,6 +68,42 @@ describe('serializeRichInput block boundaries (rich-text paste)', () => {
     // chip 是分段边界：块分隔符只在前一段文本非空时补齐，chip 两侧的换行不跨段合成。
     expect(texts(result.segments)).toBe('a|[chip:x.ts]|b')
     expect(result.displayText).toBe('ab')
+  })
+})
+
+describe('restored composer newlines', () => {
+  it.each(['', '\n', '\ntext', 'line1\nline2', 'text\n', 'text\n\n'])('round-trips %j without invisible line anchors', (text) => {
+    const el = setupEditor('')
+    for (const restore of [
+      () => renderRichTextFromPlain(el, text),
+      () => renderRichFromSegments(el, [{ type: 'text', text }]),
+    ]) {
+      restore()
+      expect(serializeRichInput(el).displayText).toBe(text)
+      expect(el.textContent).toBe(text)
+      expect(el.querySelectorAll('br')).toHaveLength(text.endsWith('\n') ? 1 : 0)
+    }
+  })
+
+  it('ignores the native empty-editor placeholder but preserves actual BR line breaks', () => {
+    const el = setupEditor('<br>')
+    expect(serializeRichInput(el).displayText).toBe('')
+    el.innerHTML = '<br><br>'
+    expect(serializeRichInput(el).displayText).toBe('\n')
+    el.innerHTML = 'line1<br>line2<br>'
+    expect(serializeRichInput(el).displayText).toBe('line1\nline2')
+  })
+
+  it('preserves inline attachments between restored text lines', () => {
+    const el = setupEditor('')
+    renderRichFromSegments(el, [
+      { type: 'text', text: 'before\n' },
+      { type: 'file', attachment: { path: '/x.ts', name: 'x.ts', kind: 'code' } },
+      { type: 'text', text: '\nafter\n' },
+    ])
+    const result = serializeRichInput(el)
+    expect(texts(result.segments)).toBe('before\n|[chip:x.ts]|\nafter\n')
+    expect(result.attachments).toHaveLength(1)
   })
 })
 

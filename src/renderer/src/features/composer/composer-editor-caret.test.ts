@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { anchorLineBreakCaret, insertTextAtCursor } from './composer-editor-caret'
+import { insertTextAtCursor } from './composer-editor-caret'
 
 function setupEditor(html: string): HTMLElement {
   const el = document.createElement('div')
@@ -37,44 +37,6 @@ function caret(): Range {
 afterEach(() => {
   document.body.replaceChildren()
   window.getSelection()?.removeAllRanges()
-})
-
-describe('anchorLineBreakCaret', () => {
-  it('adds a ZWSP anchor after every lone <br>', () => {
-    const el = setupEditor('ab<br>cd<br>ef')
-
-    anchorLineBreakCaret(el)
-
-    const brs = el.querySelectorAll('br')
-    expect(brs.length).toBe(2)
-    for (const br of brs) {
-      const next = br.nextSibling
-      expect(next?.nodeType).toBe(Node.TEXT_NODE)
-      expect((next as Text).nodeValue?.startsWith('\u200B')).toBe(true)
-    }
-  })
-
-  it('skips <br>s that already carry a ZWSP anchor', () => {
-    const el = setupEditor('ab<br>\u200Bcd')
-
-    anchorLineBreakCaret(el)
-
-    expect(el.querySelectorAll('br').length).toBe(1)
-    // 不重复插入：br 后仍只有一个文本节点。
-    const next = el.querySelector('br')?.nextSibling
-    expect(next?.nodeType).toBe(Node.TEXT_NODE)
-    expect((next as Text).nodeValue).toBe('\u200Bcd')
-  })
-
-  it('handles a trailing <br> (empty last line)', () => {
-    const el = setupEditor('ab<br>')
-
-    anchorLineBreakCaret(el)
-
-    const next = el.querySelector('br')?.nextSibling
-    expect(next?.nodeType).toBe(Node.TEXT_NODE)
-    expect((next as Text).nodeValue).toBe('\u200B')
-  })
 })
 
 describe('insertTextAtCursor', () => {
