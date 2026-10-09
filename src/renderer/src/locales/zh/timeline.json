@@ -13,6 +13,17 @@
   "mermaidRendering": "正在渲染图表…",
   "mermaidError": "图表无法渲染：{{error}}",
   "copy": "复制",
+  "link": {
+    "menu": "链接操作",
+    "preview": "链接预览",
+    "open": "打开",
+    "openExternal": "在外部浏览器中打开",
+    "openFile": "打开文件",
+    "copy": "复制链接",
+    "openFailed": "无法打开链接，请重试",
+    "copyFailed": "复制失败，请重试",
+    "copyPathFailed": "无法复制路径，请重试"
+  },
   "collapse": "收起",
   "expand": "展开 {{count}} 行",
   "thinkingChain": "思考",
