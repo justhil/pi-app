@@ -19,6 +19,7 @@ import {
   type MarkdownBlockCache,
 } from '@renderer/features/timeline/markdown-blocks'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
+import { MarkdownLink } from '@renderer/features/timeline/markdown-link'
 import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
 import { MermaidBlock } from '@renderer/features/timeline/mermaid-block'
 import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
@@ -292,7 +293,7 @@ const MarkdownView = memo(function MarkdownView({
           }
         } : undefined
         return (
-          <a
+          <MarkdownLink
             {...rest}
             href={href}
             target={path ? undefined : '_blank'}
@@ -303,7 +304,7 @@ const MarkdownView = memo(function MarkdownView({
             onAuxClick={openFile}
           >
             {ch}
-          </a>
+          </MarkdownLink>
         )
       },
       table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (

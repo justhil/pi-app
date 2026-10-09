@@ -13,6 +13,15 @@
   "mermaidRendering": "Rendering diagram…",
   "mermaidError": "Couldn't render this diagram: {{error}}",
   "copy": "Copy",
+  "link": {
+    "menu": "Link actions",
+    "preview": "Link preview",
+    "open": "Open",
+    "openExternal": "Open in external browser",
+    "copy": "Copy link",
+    "openFailed": "Couldn't open the link. Try again.",
+    "copyFailed": "Couldn't copy the link. Try again."
+  },
   "collapse": "Collapse",
   "expand": "Expand {{count}} lines",
   "thinkingChain": "Thinking",
