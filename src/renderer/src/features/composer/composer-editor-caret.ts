@@ -31,26 +31,6 @@ export function caretAllSelected(el: HTMLElement): boolean {
   )
 }
 
-/**
- * 给每个 <br> 后补 ZWSP 光标锚点。
- *
- * Chromium 在 contenteditable 里，孤立 <br> 之后的文本行开头，按 ← 会把光标弹回本行末尾并卡住
- * （“部分行方向键失效”）。<br> 后紧跟一个 ZWSP（零宽字符）即可正常跨行移动；
- * ZWSP 不参与显示、serializeRichInput 会剥掉。
- *
- * 调用时机：任何可能产生 <br> 的路径——renderRichTextFromPlain / renderRichFromSegments
- * 重建 DOM 后，以及 rich-input 每次 input 事件（原生 Shift+Enter / 原生多行粘贴
- * 由浏览器直接插入 <br>）。已带 ZWSP 锚点的行跳过，避免重复插入。
- * 实测：粘贴后补锚点不破坏原生撤销（Ctrl+Z 仍只撤掉粘贴内容）。
- */
-export function anchorLineBreakCaret(el: HTMLElement): void {
-  const brs = el.querySelectorAll('br')
-  for (const br of brs) {
-    const next = br.nextSibling
-    if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '').startsWith('\u200B')) continue
-    br.parentNode?.insertBefore(document.createTextNode('\u200B'), next)
-  }
-}
 export function insertTextAtCursor(el: HTMLElement, text: string) {
   el.focus()
   const sel = window.getSelection()

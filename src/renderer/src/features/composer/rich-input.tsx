@@ -1,6 +1,5 @@
 import { forwardRef, useRef, useImperativeHandle, useLayoutEffect } from 'react'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
-import { anchorLineBreakCaret } from './composer-editor-caret'
 import { cn } from '@renderer/lib/utils'
 
 /** Max editor height (kept in sync with the max-height in globals.css; content scrolls beyond it). */
@@ -20,7 +19,7 @@ export interface RichInputProps {
 /**
  * Placeholder visibility for contenteditable.
  * - Spaces / typed newlines hide placeholder (user is typing).
- * - ZWSP caret anchors and a lone structural <br> count as empty.
+ * - ZWSP attachment anchors and a lone structural <br> count as empty.
  * - Attachment chips always hide placeholder.
  * Exported so programmatic setContent / prefill can force-refresh.
  */
@@ -29,7 +28,7 @@ export function syncRichInputEmpty(el: HTMLElement): void {
   // Text nodes only (including space). Ignore ZWSP. Do not treat lone <br> as content —
   // empty contenteditable often has a single BR while still "empty".
   const textFromNodes = collectTextNodeContent(el).replace(/\u200B/g, '')
-  const empty = !hasAttachment && textFromNodes.length === 0
+  const empty = !hasAttachment && textFromNodes.length === 0 && el.querySelectorAll('br').length <= 1
   el.classList.toggle('is-empty', empty)
 }
 
@@ -153,11 +152,6 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
 
   const handleInput = () => {
     const el = innerRef.current
-    if (el) {
-      // 原生 Shift+Enter / 原生多行粘贴由浏览器插入孤立 <br>，← 键会在行首卡住：
-      // 每次输入后给 <br> 补 ZWSP 光标锚点（已带锚点的行跳过）。
-      anchorLineBreakCaret(el)
-    }
     if (!el) return
     scheduleRefreshLayoutAndEmpty()
     onInput?.()

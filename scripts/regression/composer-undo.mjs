@@ -9,7 +9,7 @@
  * Ctrl+Z wipes the WHOLE editor content, including text typed before the
  * paste. See doc/CONTEXT.md「composer 撤销」decision record.
  *
- * This harness loads a static page that mirrors the composer paste policy:
+ * This harness loads the real RichInput and composer DOM helpers, with these paste policies:
  *   - `--policy=native` (default, the fixed app behavior): text-only pastes go
  *     through the browser untouched (undoable); file/image pastes are
  *     intercepted and inserted via `execCommand('insertHTML')` (undoable chips).
@@ -24,57 +24,44 @@
  */
 import { chromium } from 'playwright'
 import http from 'node:http'
+import { fileURLToPath } from 'node:url'
+import { build } from 'esbuild'
+
+const root = fileURLToPath(new URL('../../', import.meta.url))
+const editorBundle = await build({
+  stdin: {
+    contents: `
+      import { createElement } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import { flushSync } from 'react-dom'
+      import { RichInput } from './src/renderer/src/features/composer/rich-input'
+      import { insertTextAtCursor } from './src/renderer/src/features/composer/composer-editor-caret'
+      import { insertAttachmentAtCursor, renderRichTextFromPlain, renderRichFromSegments, serializeRichInput, placeCaretAtEnd } from './src/renderer/src/features/composer/attachments'
+      Object.assign(window, { insertTextAtCursor, insertAttachmentAtCursor, renderRichTextFromPlain, renderRichFromSegments, serializeRichInput, placeCaretAtEnd })
+      flushSync(() => createRoot(document.getElementById('root')).render(createElement(RichInput, {
+        ref: el => { if (el) el.id = 'input' },
+        placeholder: 'Message or / command',
+        onKeyDown: e => { if (e.key === 'Enter' && !e.shiftKey) e.preventDefault() },
+      })))
+    `,
+    resolveDir: root,
+    loader: 'tsx',
+  },
+  bundle: true,
+  write: false,
+  format: 'iife',
+  jsx: 'automatic',
+  alias: { '@renderer': `${root}src/renderer/src`, '@shared': `${root}packages/shared` },
+  define: { 'process.env.NODE_ENV': '"development"' },
+})
 
 const policy = process.argv.includes('--policy=manual') ? 'manual' : 'native'
 
 const INSERT_TEXT = `
-function insertTextAtCursor(el, text) {
-  el.focus()
-  const sel = window.getSelection()
-  let range
-  if (sel && sel.rangeCount && el.contains(sel.anchorNode)) range = sel.getRangeAt(0)
-  else { range = document.createRange(); range.selectNodeContents(el); range.collapse(false) }
-  range.deleteContents()
-  const node = document.createTextNode(text)
-  range.insertNode(node)
-  el.normalize()
-  if (sel) {
-    const caretRange = document.createRange()
-    caretRange.selectNodeContents(el)
-    caretRange.collapse(false)
-    sel.removeAllRanges(); sel.addRange(caretRange)
-  }
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
 function insertChipAtCursor(el) {
-  el.focus()
-  const sel = window.getSelection()
-  const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null
-  const html = '\\u200B<span contenteditable="false" class="rich-attachment-chip" data-attachment-path="/x">[chip]</span>\\u200B'
-  if (document.execCommand && range) {
-    document.execCommand('insertHTML', false, html)
-  } else {
-    range.deleteContents()
-    const frag = document.createDocumentFragment()
-    frag.appendChild(document.createTextNode('\\u200B'))
-    const tpl = document.createElement('template')
-    tpl.innerHTML = html
-    while (tpl.content.firstChild) frag.appendChild(tpl.content.firstChild)
-    range.insertNode(frag)
-  }
-}
-function anchorLineBreakCaret(el) {
-  el.querySelectorAll('br').forEach((br) => {
-    const next = br.nextSibling
-    if (next && next.nodeType === Node.TEXT_NODE && (next.nodeValue || '').startsWith('\u200B')) return
-    br.parentNode.insertBefore(document.createTextNode('\u200B'), next)
-  })
+  insertAttachmentAtCursor(el, { path: '/x', name: '[chip]', kind: 'file' })
 }
 function mirrorPolicy() {
-  // 镜像 rich-input：每次 input（含原生粘贴 / Shift+Enter）后给 <br> 补 ZWSP 锚点。
-  document.getElementById('input').addEventListener('input', () => {
-    anchorLineBreakCaret(document.getElementById('input'))
-  })
   document.addEventListener('paste', (e) => {
     const cd = e.clipboardData
     if (!cd) return
@@ -100,10 +87,12 @@ function mirrorPolicy() {
 
 const PAGE = `<!doctype html>
 <html><head><style>
-  #input { white-space: pre-wrap; word-break: break-word; min-height: 2.5rem; font-size: 14px; outline: none; }
+  #input { position: relative; white-space: pre-wrap; word-break: break-word; min-height: 2.5rem; max-height: 112px; overflow-y: auto; font-size: 14px; line-height: 1.55; outline: none; }
+  #input.is-empty::before { content: attr(data-placeholder); position: absolute; top: 0; left: 0; pointer-events: none; }
 </style></head>
 <body>
-  <div id="input" contenteditable="true"></div>
+  <div id="root"></div>
+  <script>${editorBundle.outputFiles[0].text}</script>
   <script>
     const POLICY = ${JSON.stringify(policy)}
     ${INSERT_TEXT}
@@ -140,7 +129,7 @@ async function pasteText(page, txt) {
 }
 
 async function scenario(name, fn) {
-  const browser = await chromium.launch()
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH })
   const ctx = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
   const page = await ctx.newPage()
   await page.goto('http://127.0.0.1:8415/')
@@ -236,7 +225,7 @@ await scenario('arrow keys must move across every line (paste with newlines)', a
   await sleep(300)
   await pasteText(page, 'line1\nline2\nline3')
   check('paste result', await text(page), 'abcline1\nline2\nline3')
-  // 从末尾一路 ← 到底：行首无 ZWSP 锚点时 Chromium 会在行首弹回/卡住，永远到不了开头。
+  // 从末尾一路 ← 到底，确认原生换行文本不会让光标在行首卡住。
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press('ArrowLeft')
     await sleep(40)
@@ -247,27 +236,50 @@ await scenario('arrow keys must move across every line (paste with newlines)', a
 await scenario('arrow keys must move across every line (history-restore DOM)', async (page) => {
   await page.evaluate(() => {
     const el = document.getElementById('input')
-    // 镜像 renderRichTextFromPlain + anchorLineBreakCaret。
-    el.innerHTML = ''
-    const lines = ['l1', 'l2', 'l3', 'l4']
-    lines.forEach((line, i) => {
-      if (i > 0) el.appendChild(document.createElement('br'))
-      el.appendChild(document.createTextNode(line))
-    })
-    el.normalize()
-    anchorLineBreakCaret(el)
-    const r = document.createRange()
-    r.selectNodeContents(el)
-    r.collapse(false)
-    const s = window.getSelection()
-    s.removeAllRanges()
-    s.addRange(r)
+    renderRichTextFromPlain(el, 'l1\nl2\nl3\nl4')
+    placeCaretAtEnd(el)
   })
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press('ArrowLeft')
     await sleep(40)
   }
   check('caret reaches the very start', await caretAtStart(page), true)
+})
+
+await scenario('deleting all text must not create a phantom first line', async (page) => {
+  await typeSlow(page, 'a')
+  await page.keyboard.press('Backspace')
+  await page.waitForFunction(() => document.getElementById('input').classList.contains('is-empty'))
+  check('empty editor stays one line', await page.$eval('#input', (el) => el.innerHTML), '<br>')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace')
+  await page.keyboard.type('next')
+  check('next text starts on the first line', await text(page), 'next')
+})
+
+await scenario('Backspace removes restored leading and trailing blank lines', async (page) => {
+  for (const restore of ['renderRichTextFromPlain', 'renderRichFromSegments']) {
+    await page.evaluate((name) => {
+      const el = document.getElementById('input')
+      if (name === 'renderRichTextFromPlain') renderRichTextFromPlain(el, '\n')
+      else renderRichFromSegments(el, [{ type: 'text', text: '\n' }])
+      placeCaretAtEnd(el)
+    }, restore)
+    await page.waitForFunction(() => !document.getElementById('input').classList.contains('is-empty'))
+    check(`${restore}: blank line is preserved`, await page.$eval('#input', (el) => serializeRichInput(el).displayText), '\n')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.type('first')
+    check(`${restore}: one Backspace removes the blank line`, await text(page), 'first')
+  }
+  await page.evaluate(() => {
+    const el = document.getElementById('input')
+    renderRichTextFromPlain(el, 'before\n')
+    placeCaretAtEnd(el)
+  })
+  await page.keyboard.type('after')
+  check('typing after a restored trailing newline stays on the next line', await text(page), 'before\nafter')
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Backspace')
+  check('Backspace merges the lines', await text(page), 'beforeafter')
 })
 
 server.close()

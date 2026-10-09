@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RichInput } from './rich-input'
 
@@ -155,6 +155,30 @@ describe('RichInput height reset', () => {
     flushAnimationFrames()
     expect(input.style.height).toBe('40px')
     expect(input).toHaveClass('is-empty')
+  })
+
+  it('keeps the native empty-editor BR untouched after Backspace', () => {
+    const { container } = render(<RichInput placeholder="Message or / command" />)
+    const input = container.querySelector('.rich-input') as HTMLDivElement
+    input.innerHTML = '<br>'
+
+    fireEvent.input(input, { inputType: 'deleteContentBackward' })
+    flushAnimationFrames()
+
+    expect(input.innerHTML).toBe('<br>')
+    expect(input).toHaveClass('is-empty')
+  })
+
+  it.each(['\n', '<br><br>', '\n<br>'])('hides the placeholder for intentional blank lines: %j', (html) => {
+    const { container } = render(<RichInput />)
+    const input = container.querySelector('.rich-input') as HTMLDivElement
+    input.innerHTML = html
+
+    fireEvent.input(input)
+    flushAnimationFrames()
+
+    expect(input).not.toHaveClass('is-empty')
+    expect(input.innerHTML).toBe(html)
   })
 
   it('cleans observers and a pending refresh on unmount', () => {
