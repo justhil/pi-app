@@ -4,12 +4,17 @@ import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
-import { serializeRichInput } from './attachments'
+import { renderRichFromSegments, serializeRichInput } from './attachments'
 import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
 import { extensionUiBlocksComposer } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
 import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
+import {
+  composerDraftContextKey,
+  readTransientComposerDraft,
+  rememberTransientComposerDraft,
+} from './composer-transient-draft'
 
 export function useComposerSend(opts: {
   editorRef: React.RefObject<HTMLDivElement | null>
@@ -77,13 +82,19 @@ export function useComposerSend(opts: {
         const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
           await import('@renderer/lib/optimistic-send')
         let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
+        let draftKey = composerDraftContextKey(store)
         const promptPayload = () => ({
           sessionId: '',
           sessionFile,
           text: payload,
           capabilities,
         })
-        const sendPrompt = () => ipcClient.invoke('prompt.send', promptPayload())
+        let promptAccepted = false
+        const sendPrompt = async () => {
+          const bind = await ipcClient.invoke('prompt.send', promptPayload())
+          promptAccepted = true
+          return bind
+        }
         const pendMsg = displayText.trim()
         if (pendMsg.startsWith('/')) {
           const routed = await routeDesktopSlashBeforeSend(pendMsg)
@@ -101,6 +112,12 @@ export function useComposerSend(opts: {
             const { finalizeEphemeralSandboxOnFirstSend } =
               await import('@renderer/lib/ephemeral-sandbox')
             sessionFile = await finalizeEphemeralSandboxOnFirstSend(pendMsg)
+            draftKey = composerDraftContextKey({
+              ...store,
+              historySessionFile: sessionFile,
+              ephemeralSandboxDraft: false,
+              pendingNewSessionPlaceholder: false,
+            })
             bindOptimisticOutgoingToSession(
               optimisticToken,
               sessionFile,
@@ -119,6 +136,7 @@ export function useComposerSend(opts: {
             useUIStore.getState().setPendingTurnStage('starting')
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
             sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
+              draftKey = composerDraftContextKey(useUIStore.getState())
               bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
             })
             useUIStore.getState().setPendingTurnStage('sending')
@@ -130,9 +148,11 @@ export function useComposerSend(opts: {
             const queue = queueOpts?.queue ?? 'steer'
             if (queue === 'steer') {
               const bind = await ipcClient.invoke('prompt.steer', promptPayload())
+              promptAccepted = true
               await afterPromptSent(bind)
             } else {
               const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
+              promptAccepted = true
               await afterPromptSent(bind)
             }
             return
@@ -143,8 +163,22 @@ export function useComposerSend(opts: {
         } catch (e) {
           console.error('Send failed:', e)
           const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
-          if (clearOptimisticOutgoing(optimisticToken)) {
-            useUIStore.getState().setRunState({ status: 'idle' })
+          if (!promptAccepted) {
+            if (clearOptimisticOutgoing(optimisticToken)) {
+              useUIStore.getState().setRunState({ status: 'idle' })
+            }
+            const ownsEditor = editorRef.current === el &&
+              draftKey === composerDraftContextKey(useUIStore.getState())
+            const currentDraft = ownsEditor
+              ? serializeRichInput(el).segments
+              : readTransientComposerDraft(draftKey) ?? []
+            const restored = [...segments]
+            if (currentDraft.length) restored.push({ type: 'text', text: '\n' }, ...currentDraft)
+            rememberTransientComposerDraft(draftKey, restored)
+            if (ownsEditor) {
+              renderRichFromSegments(el, restored)
+              updateFromEditor()
+            }
           }
           toast.error(t('composer:toast.sendFailed'))
         }
