@@ -18,9 +18,11 @@
     "preview": "Link preview",
     "open": "Open",
     "openExternal": "Open in external browser",
+    "openFile": "Open file",
     "copy": "Copy link",
     "openFailed": "Couldn't open the link. Try again.",
-    "copyFailed": "Couldn't copy the link. Try again."
+    "copyFailed": "Couldn't copy the link. Try again.",
+    "copyPathFailed": "Couldn't copy the path. Try again."
   },
   "collapse": "Collapse",
   "expand": "Expand {{count}} lines",

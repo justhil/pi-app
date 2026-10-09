@@ -107,12 +107,12 @@ describe('Markdown links', () => {
     expect(screen.getByRole('link')).toHaveFocus()
   })
 
-  it('copies local links without fetching or offering a browser action', async () => {
+  it('copies a source path without its line suffix or a browser action', async () => {
     render(<MarkdownView>{'[source](/home/user/project/source.ts:12)'}</MarkdownView>)
     fireEvent.keyDown(screen.getByRole('link'), { key: 'F10', shiftKey: true })
     expect(screen.queryByRole('menuitem', { name: 'Open in external browser' })).not.toBeInTheDocument()
-    await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' })) })
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/home/user/project/source.ts:12')
+    await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: 'Copy path' })) })
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('/home/user/project/source.ts')
     expect(ipcClient.invoke).not.toHaveBeenCalled()
   })
 
