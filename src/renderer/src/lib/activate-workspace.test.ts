@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { activateWorkspace } from './activate-workspace'
+import { activateWorkspace, switchSessionInPlace } from './activate-workspace'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { PENDING_NEW_SESSION_ID } from './session-ids'
+import {
+  clearTransientComposerDraft,
+  composerDraftContextKey,
+  readTransientComposerDraft,
+  rememberTransientComposerDraft,
+} from '@renderer/features/composer/composer-transient-draft'
 
 const invokeMock = vi.hoisted(() =>
   vi.fn(async (method: string): Promise<Record<string, unknown>> => {
@@ -25,16 +32,16 @@ vi.mock('@renderer/lib/composer-run-display', () => ({ refreshComposerRunDisplay
 vi.mock('@renderer/lib/workspace-session-choice', () => ({
   chooseWorkspaceSession: vi.fn(() => undefined),
 }))
-vi.mock('@renderer/lib/session-navigation', () => ({
-  beginSessionNavigation: vi.fn(() => 1),
-  assertSessionNavigation: vi.fn(() => true),
-}))
 
 describe('activateWorkspace clears the stale session list on a real workspace switch', () => {
   beforeEach(() => {
     invokeMock.mockClear()
     useUIStore.setState({
       currentWorkspace: '/proj/A',
+      currentSessionId: 'a1',
+      historySessionFile: '/proj/A/a1.jsonl',
+      ephemeralSandboxDraft: false,
+      pendingNewSessionPlaceholder: false,
       sessions: [{ sessionId: 'a1', title: 'A的会话', updatedAt: 1, modelId: 'm' }],
       workerLiveSnapshot: { sessionId: 'a1', sessionFile: '/proj/A/a1.jsonl', status: 'running' },
     })
@@ -56,6 +63,32 @@ describe('activateWorkspace clears the stale session list on a real workspace sw
       sessionFile: null,
       status: 'idle',
     })
+  })
+
+  it('restores the same new-session draft immediately when entering from another project', async () => {
+    useUIStore.setState({ currentWorkspace: '/proj/B' })
+    await switchSessionInPlace(PENDING_NEW_SESSION_ID)
+    const draftKey = composerDraftContextKey(useUIStore.getState())
+    const draft = [{ type: 'text' as const, text: 'B draft' }]
+    rememberTransientComposerDraft(draftKey, draft)
+    useUIStore.getState().setWorkspace('/proj/A')
+    invokeMock.mockClear()
+
+    try {
+      const opening = activateWorkspace('/proj/B', { preferHome: true })
+      expect(composerDraftContextKey(useUIStore.getState())).toBe(draftKey)
+      expect(readTransientComposerDraft(composerDraftContextKey(useUIStore.getState()))).toEqual(draft)
+      expect(useUIStore.getState().historyLoading).toBe(false)
+
+      await opening
+
+      expect(composerDraftContextKey(useUIStore.getState())).toBe(draftKey)
+      expect(readTransientComposerDraft(composerDraftContextKey(useUIStore.getState()))).toEqual(draft)
+      expect(invokeMock).toHaveBeenCalledWith('session.list')
+      expect(invokeMock).not.toHaveBeenCalledWith('session.new')
+    } finally {
+      clearTransientComposerDraft(draftKey)
+    }
   })
 
   it('preserves the session owner and first prompt after activating a project', async () => {

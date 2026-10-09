@@ -11,7 +11,6 @@ import { fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { focusSessionSync } from '@renderer/lib/session-shell'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { enterBlankSession, resetBlankSessionProjection } from '@renderer/lib/blank-session-transition'
-import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-session-lists'
 import { workspacePathsEqual } from '@shared/workspace-path'
 
@@ -25,7 +24,6 @@ export type ActivateWorkspaceOptions = {
  * 切换工作区：先更新 UI，workspace.open 在后台；快切用 navToken 丢弃过期结果。
  */
 export async function activateWorkspace(path: string, options?: ActivateWorkspaceOptions): Promise<void> {
-  const navToken = beginSessionNavigation()
   const leavingWorkspace = useUIStore.getState().currentWorkspace
   if (options?.preferHome) resetBlankSessionProjection()
   else captureVisibleLiveSessionTimeline()
@@ -61,17 +59,14 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     store.setCurrentSession(options!.sessionId!)
     focusSessionSync(options!.sessionId!, options!.sessionFile!)
   } else if (options?.preferHome) {
-    store.clearTimeline()
-    store.setCurrentSession(null)
-    store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
-    store.setHistoryMeta(0, 0, null)
-    store.setHistoryLoading(false)
+    enterBlankSession('pending-project')
   } else {
     store.clearTimeline()
     store.setHistoryMeta(0, 0, null)
     store.setHistoryLoading(true)
   }
 
+  const navToken = beginSessionNavigation()
   const refreshSessionList = () => {
     void loadWorkspaceSessionList(path)
   }
@@ -94,12 +89,6 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
     } catch {
       /* logged above */
     }
-    store.clearPendingNewSessionPlaceholder()
-    store.setCurrentSession(null)
-    store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
-    store.setHistoryMeta(0, 0, null)
-    store.setHistoryLoading(false)
-    reportVisibleSession(null)
     void refreshComposerRunDisplay()
     return
   }
