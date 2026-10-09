@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import type { WorkerModelRuntime } from '../worker-runtime'
-import { handleSetmodel, handleSetthinkinglevel } from './worker-handlers-session'
+import { handleNewsession, handleSetmodel, handleSetthinkinglevel } from './worker-handlers-session'
 import { st } from '../worker-runtime'
+
+const originalState = { ...st }
 
 function modelRuntimeWith(getModel: (provider: string, modelId: string) => unknown): WorkerModelRuntime {
   return {
@@ -35,8 +37,72 @@ function sessionWith(options: {
 }
 
 afterEach(() => {
-  st.session = null
-  st.modelRuntime = null
+  Object.assign(st, originalState)
+})
+
+describe('handleNewsession', () => {
+  function installSession() {
+    const newSession = vi.fn().mockResolvedValue({ cancelled: false })
+    st.runtime = { newSession } as never
+    st.session = {
+      sessionId: 'fresh',
+      sessionFile: '/sessions/fresh.jsonl',
+      isStreaming: false,
+    } as AgentSession
+    st.currentSessionId = 'fresh'
+    return newSession
+  }
+
+  it('reuses the initialized empty session without firing session-switch guards', async () => {
+    const newSession = installSession()
+    newSession.mockRejectedValue(new Error('Unexpected session_before_switch confirmation'))
+    const reply = vi.fn()
+
+    await handleNewsession({}, reply)
+
+    expect(newSession).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith({
+      type: 'newSession-done',
+      sessionId: 'fresh',
+      sessionFile: '/sessions/fresh.jsonl',
+    })
+  })
+
+  it('still replaces a used session through the runtime', async () => {
+    const newSession = installSession()
+    st.promptSent = true
+    const reply = vi.fn()
+
+    await handleNewsession({}, reply)
+
+    expect(newSession).toHaveBeenCalledOnce()
+    expect(st.promptSent).toBe(false)
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ type: 'newSession-done' }))
+  })
+
+  it('preserves a used session when an extension cancels replacement', async () => {
+    const newSession = installSession()
+    newSession.mockResolvedValue({ cancelled: true })
+    st.promptSent = true
+    const reply = vi.fn()
+
+    await handleNewsession({}, reply)
+
+    expect(reply).toHaveBeenCalledWith({ type: 'error', error: 'SESSION_NEW_CANCELLED' })
+    expect(st.promptSent).toBe(true)
+    expect(st.currentSessionId).toBe('fresh')
+  })
+
+  it('does not replace a running session', async () => {
+    const newSession = installSession()
+    st.agentTurnActive = true
+    const reply = vi.fn()
+
+    await handleNewsession({}, reply)
+
+    expect(newSession).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith({ type: 'error', error: 'SESSION_BUSY' })
+  })
 })
 
 describe('handleSetmodel', () => {

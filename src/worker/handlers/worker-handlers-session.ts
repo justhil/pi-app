@@ -118,13 +118,14 @@ export async function handleNewsession(msg: WorkerIncomingMessage, reply: Worker
             reply({ type: 'error', error: 'SESSION_BUSY' })
             return
           }
-          if (st.promptSent || st.runtime) {
+          // initSession already created a blank session; replacing it would trigger switch guards.
+          if (st.promptSent) {
             const result = await runtimeNewSession()
             if (result.cancelled) {
               reply({ type: 'error', error: 'SESSION_NEW_CANCELLED' })
               return
             }
-          } else {
+          } else if (!st.session) {
             await initSession(st.currentCwd || process.cwd())
           }
           st.promptSent = false

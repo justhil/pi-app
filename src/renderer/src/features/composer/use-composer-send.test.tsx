@@ -1,13 +1,15 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { renderRichFromSegments, serializeRichInput } from './attachments'
+import { clearTransientComposerDraft, readTransientComposerDraft } from './composer-transient-draft'
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(method: string, request?: unknown) => Promise<unknown>>(async () => ({})),
   appendOptimistic: vi.fn<(text: string, opts?: unknown) => {
     sessionFile: string
     assistantId: string
-  }>(() => ({
+  } | null>(() => ({
     sessionFile: 'C:/sessions/current.jsonl',
     assistantId: 'opt-asst-1',
   })),
@@ -61,7 +63,7 @@ vi.mock('@renderer/stores/extension-ui-store', () => ({
   extensionUiBlocksComposer: () => false,
 }))
 
-vi.mock('./delayed-tooltip', () => ({ hideAllDelayedTooltips: vi.fn() }))
+vi.mock('./delayed-tooltip', () => ({ hideAllDelayedTooltips: vi.fn(), wireDelayedTooltip: vi.fn() }))
 
 import { useComposerSend } from './use-composer-send'
 
@@ -71,8 +73,10 @@ function createEditor(text: string): HTMLDivElement {
   return editor
 }
 
-function renderSender(text: string) {
-  const editor = createEditor(text)
+function renderSender(input: string | HTMLDivElement) {
+  const editor = typeof input === 'string' ? createEditor(input) : input
+  const text = serializeRichInput(editor).displayText
+  const updateFromEditor = vi.fn()
   const inputHistory = {
     recordSent: vi.fn(),
     tryArrowUp: vi.fn(),
@@ -83,11 +87,12 @@ function renderSender(text: string) {
   }
   return {
     inputHistory,
+    updateFromEditor,
     ...renderHook(() => useComposerSend({
       editorRef: { current: editor },
       text,
       attachments: [],
-      updateFromEditor: vi.fn(),
+      updateFromEditor,
       clearEditor: vi.fn(),
       setContent: vi.fn(),
       inputHistory,
@@ -111,6 +116,11 @@ describe('useComposerSend submission arbitration', () => {
     mocks.invoke.mockResolvedValue({})
     mocks.turnActive.mockReturnValue(false)
     mocks.routeSlash.mockResolvedValue({ handled: false })
+    mocks.clearOptimistic.mockReturnValue(true)
+    mocks.afterPromptSent.mockReset().mockResolvedValue()
+    for (const key of ['pending:D:/workspace', 'file:C:/sessions/current.jsonl', 'file:C:/sessions/new.jsonl']) {
+      clearTransientComposerDraft(key)
+    }
     useUIStore.setState({
       currentWorkspace: 'D:/workspace',
       currentSessionId: 'session-1',
@@ -209,4 +219,125 @@ describe('useComposerSend submission arbitration', () => {
       }))
     },
   )
+  it('sends the first prompt to a new session while another session is running', async () => {
+    useUIStore.setState({
+      currentSessionId: '__pending_new__',
+      historySessionFile: null,
+      pendingNewSessionPlaceholder: true,
+      sessionRuntimeRunning: { 'C:/sessions/running.jsonl': true },
+      runState: { status: 'idle', toolCount: 0, errorCount: 0 },
+    })
+    mocks.invoke.mockImplementation(async (method) => {
+      if (method === 'session.new') {
+        return { session: { sessionId: 'new', sessionFile: 'C:/sessions/new.jsonl' } }
+      }
+      return {}
+    })
+    const { result } = renderSender(createEditor('first prompt'))
+
+    await act(() => result.current.sendCurrent())
+
+    expect(mocks.bindOptimistic).toHaveBeenCalledWith(expect.anything(), 'C:/sessions/new.jsonl')
+    expect(mocks.invoke).toHaveBeenCalledWith('prompt.send', expect.objectContaining({
+      sessionFile: 'C:/sessions/new.jsonl', text: 'first prompt',
+    }))
+    expect(mocks.invoke).not.toHaveBeenCalledWith('prompt.steer', expect.anything())
+    expect(useUIStore.getState().sessionRuntimeRunning['C:/sessions/running.jsonl']).toBe(true)
+    expect(useUIStore.getState().sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 'new', title: 'first prompt' }),
+    ]))
+  })
+
+  it.each([true, false])('restores a failed new-session draft with attachments (text: %s)', async (withText) => {
+    useUIStore.setState({
+      currentSessionId: '__pending_new__',
+      historySessionFile: null,
+      pendingNewSessionPlaceholder: true,
+    })
+    mocks.invoke.mockRejectedValue(new Error('SESSION_NEW_CANCELLED'))
+    if (!withText) mocks.appendOptimistic.mockReturnValueOnce(null)
+    const editor = createEditor('')
+    renderRichFromSegments(editor, [
+      { type: 'text', text: withText ? 'first prompt\nwith attachment ' : '' },
+      { type: 'file', attachment: { path: '/workspace/example.ts', name: 'example.ts', kind: 'code' } },
+    ])
+    const original = serializeRichInput(editor)
+    const { result, updateFromEditor } = renderSender(editor)
+
+    await act(() => result.current.sendCurrent())
+
+    expect(serializeRichInput(editor).payload).toBe(original.payload)
+    expect(serializeRichInput(editor).attachments).toEqual(original.attachments)
+    expect(updateFromEditor).toHaveBeenCalledTimes(2)
+    expect(readTransientComposerDraft('pending:D:/workspace')).not.toBeNull()
+    expect(mocks.invoke).not.toHaveBeenCalledWith('prompt.send', expect.anything())
+  })
+
+  it('keeps a newer draft when restoring a rejected prompt', async () => {
+    const editor = createEditor('rejected prompt')
+    mocks.invoke.mockImplementation(async () => {
+      editor.textContent = 'new draft'
+      throw new Error('Worker exited')
+    })
+    const { result } = renderSender(editor)
+
+    await act(() => result.current.sendCurrent())
+
+    expect(serializeRichInput(editor).displayText).toBe('rejected prompt\nnew draft')
+  })
+
+  it('does not restore into a different session after switching away', async () => {
+    const editor = createEditor('original prompt')
+    mocks.clearOptimistic.mockReturnValue(false)
+    mocks.invoke.mockImplementation(async () => {
+      useUIStore.setState({ currentSessionId: 'other', historySessionFile: 'C:/sessions/other.jsonl' })
+      editor.textContent = 'other session draft'
+      throw new Error('Worker exited')
+    })
+    const { result } = renderSender(editor)
+
+    await act(() => result.current.sendCurrent())
+
+    expect(serializeRichInput(editor).displayText).toBe('other session draft')
+    expect(readTransientComposerDraft('file:C:/sessions/current.jsonl')).toEqual([
+      { type: 'text', text: 'original prompt' },
+    ])
+  })
+
+  it('keeps the failed draft with its created session when model selection fails', async () => {
+    useUIStore.setState({
+      currentSessionId: '__pending_new__',
+      historySessionFile: null,
+      pendingNewSessionPlaceholder: true,
+      runState: { status: 'idle', toolCount: 0, errorCount: 0, model: 'openai/missing' },
+    })
+    mocks.invoke.mockImplementation(async (method) => {
+      if (method === 'session.new') {
+        return { session: { sessionId: 'new', sessionFile: 'C:/sessions/new.jsonl' } }
+      }
+      if (method === 'model.set') throw new Error('MODEL_NOT_FOUND')
+      return {}
+    })
+    const editor = createEditor('first prompt')
+    const { result } = renderSender(editor)
+
+    await act(() => result.current.sendCurrent())
+
+    expect(readTransientComposerDraft('file:C:/sessions/new.jsonl')).toEqual([
+      { type: 'text', text: 'first prompt' },
+    ])
+    expect(serializeRichInput(editor).displayText).toBe('first prompt')
+    expect(mocks.invoke).not.toHaveBeenCalledWith('prompt.send', expect.anything())
+  })
+
+  it('does not roll back a prompt accepted before display refresh fails', async () => {
+    mocks.afterPromptSent.mockRejectedValue(new Error('Display refresh failed'))
+    const editor = createEditor('accepted prompt')
+    const { result } = renderSender(editor)
+
+    await act(() => result.current.sendCurrent())
+
+    expect(mocks.clearOptimistic).not.toHaveBeenCalled()
+    expect(serializeRichInput(editor).displayText).toBe('')
+  })
 })
