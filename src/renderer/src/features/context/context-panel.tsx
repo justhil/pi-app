@@ -32,7 +32,9 @@ export function ContextPanel() {
     setExpanded(new Set())
   }, [preview?.sessionFile])
 
-  const estTokens = preview ? estTokensFromChars(preview.estimatedChars) : null
+  const estTokens = preview?.contextUsage
+    ? preview.contextUsage.tokens
+    : preview ? estTokensFromChars(preview.estimatedChars) : null
   const segments = preview?.segments || []
 
   const toggle = (i: number) => {
@@ -59,7 +61,7 @@ export function ContextPanel() {
           {preview
             ? t('context:listSummary', {
                 count: preview.messageCount,
-                tokens: formatTokens(estTokens ?? 0),
+                tokens: estTokens == null ? '?' : formatTokens(estTokens),
               })
             : t('context:empty')}
         </p>

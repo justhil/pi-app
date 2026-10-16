@@ -128,6 +128,7 @@ describe('worker context preview handler', () => {
       sessionFile: '/sessions/a.jsonl',
       systemPrompt: 'live-only-system-prompt',
       messages: [{ role: 'user', content: 'hello' }],
+      getContextUsage: () => undefined,
     } as never
     const reply = vi.fn()
 

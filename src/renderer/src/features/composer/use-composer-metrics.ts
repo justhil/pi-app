@@ -28,9 +28,10 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
         messageCount: rawContextPreview.messageCount,
         estimatedChars: rawContextPreview.estimatedChars,
         roleBreakdown: rawContextPreview.roleBreakdown as ContextRoleSlice[],
+        contextUsage: rawContextPreview.contextUsage,
       }
     : null
-  const [contextWindow, setContextWindow] = useState<number | null>(null)
+  const [catalogContextWindow, setContextWindow] = useState<number | null>(null)
   const [tps, setTps] = useState<number | null>(null)
 
   const streamRef = useRef({ id: null as string | null, start: 0, lastLen: 0, lastAt: 0 })
@@ -84,9 +85,14 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
     }
   }, [metricsEnabled, streamingId, streamLen, isRunning])
 
-  const estimatedContextTokens = contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
-  const contextPercent =
-    estimatedContextTokens != null && contextWindow != null && contextWindow > 0
+  const contextUsage = contextPreview?.contextUsage
+  const contextWindow = contextUsage?.contextWindow ?? catalogContextWindow
+  const estimatedContextTokens = contextUsage
+    ? contextUsage.tokens
+    : contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
+  const contextPercent = contextUsage
+    ? contextUsage.percent
+    : estimatedContextTokens != null && contextWindow != null && contextWindow > 0
       ? Math.min(100, (estimatedContextTokens / contextWindow) * 100)
       : null
 

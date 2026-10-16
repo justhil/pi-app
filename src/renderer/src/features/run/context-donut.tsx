@@ -72,23 +72,34 @@ function describeDonutArc(
 export function buildContextRoleSlices(
   breakdown: ContextRoleSlice[] | null | undefined,
   estimatedChars: number,
+  contextTokens?: number | null,
 ): ContextRoleSlice[] {
-  if (breakdown && breakdown.length > 0) {
-    return ROLE_ORDER.map((role) => {
-      const found = breakdown.find((slice) => slice.role === role)
-      return found && found.chars > 0 ? found : null
-    }).filter((slice): slice is ContextRoleSlice => slice != null)
+  const slices = breakdown && breakdown.length > 0
+    ? ROLE_ORDER.map((role) => {
+        const found = breakdown.find((slice) => slice.role === role)
+        return found && found.chars > 0 ? found : null
+      }).filter((slice): slice is ContextRoleSlice => slice != null)
+    : estimatedChars > 0 ? [{ role: 'other', chars: estimatedChars }] : []
+  if (contextTokens == null) return slices
+
+  // Role sizes remain estimates; keep the chart total aligned with SDK usage.
+  const totalChars = slices.reduce((sum, slice) => sum + slice.chars, 0)
+  const contextChars = contextTokens * 4
+  if (contextChars < totalChars) {
+    return slices.map((slice) => ({ ...slice, chars: slice.chars * contextChars / totalChars }))
   }
-  if (estimatedChars > 0) {
-    return [{ role: 'other', chars: estimatedChars }]
-  }
-  return []
+  if (contextChars === totalChars) return slices
+  return [
+    ...slices.filter((slice) => slice.role !== 'other'),
+    { role: 'other', chars: (slices.find((slice) => slice.role === 'other')?.chars ?? 0) + contextChars - totalChars },
+  ]
 }
 
 export function ContextDonutChart({
   slices,
   contextWindow,
   estimatedChars,
+  contextTokens,
   size = 88,
   className,
   centerLabel,
@@ -97,16 +108,17 @@ export function ContextDonutChart({
   slices: ContextRoleSlice[]
   contextWindow?: number | null
   estimatedChars: number
+  contextTokens?: number | null
   size?: number
   className?: string
   centerLabel?: string
   centerSub?: string
 }) {
-  const usedTokens = estTokensFromChars(estimatedChars)
+  const usedTokens = contextTokens === undefined ? estTokensFromChars(estimatedChars) : contextTokens
   const windowTokens =
     contextWindow != null && contextWindow > 0 ? contextWindow : null
   const freeTokens =
-    windowTokens != null ? Math.max(0, windowTokens - usedTokens) : 0
+    windowTokens != null && usedTokens != null ? Math.max(0, windowTokens - usedTokens) : 0
 
   const chartSlices: Array<{ key: string; tokens: number; color: string }> = slices.map((slice) => ({
     key: slice.role,
@@ -171,7 +183,7 @@ export function ContextDonutChart({
       </svg>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-1 text-center">
         <span className="text-[12px] font-semibold tabular-nums leading-none text-foreground">
-          {centerLabel ?? formatTokens(usedTokens)}
+          {centerLabel ?? (usedTokens == null ? '?' : formatTokens(usedTokens))}
         </span>
         {centerSub != null && (
           <span className="mt-0.5 text-[9px] leading-tight text-foreground-secondary/70">{centerSub}</span>
@@ -232,7 +244,7 @@ export function ContextRoleLegend({
             />
             <span className="min-w-0 truncate text-foreground-secondary">{row.label}</span>
             <span className="text-right tabular-nums text-foreground">
-              {formatTokens(estTokensFromChars(row.chars))}
+              {row.key !== 'free' && '~'}{formatTokens(estTokensFromChars(row.chars))}
             </span>
             <span className="text-right tabular-nums text-foreground-secondary">{pct.toFixed(0)}%</span>
           </li>

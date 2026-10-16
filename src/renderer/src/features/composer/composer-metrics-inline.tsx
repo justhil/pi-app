@@ -18,9 +18,9 @@ export function ComposerMetricsInline({ metrics, isRunning }: { metrics: Metrics
   if (!showCtx && !tpsLabel) return null
 
   const title = t('composer:contextRing', {
-    used: formatTokens(metrics.estContextTokens ?? 0),
+    used: metrics.estContextTokens == null ? '?' : formatTokens(metrics.estContextTokens),
     total: metrics.contextWindow != null ? formatTokens(metrics.contextWindow) : '?',
-    pct: pct.toFixed(1),
+    pct: metrics.ctxPct == null ? '?' : pct.toFixed(1),
   })
 
   return (

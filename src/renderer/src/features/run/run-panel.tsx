@@ -76,6 +76,7 @@ export function RunPanel() {
       buildContextRoleSlices(
         metrics.contextPreview?.roleBreakdown,
         metrics.contextPreview?.estimatedChars ?? 0,
+        metrics.contextPreview?.contextUsage?.tokens,
       ),
     [metrics.contextPreview],
   )
@@ -104,7 +105,7 @@ export function RunPanel() {
   const modelSlash = model ? model.indexOf('/') : -1
   const modelProvider = model && modelSlash > 0 ? model.slice(0, modelSlash) : ''
   const modelName = model && modelSlash > 0 ? model.slice(modelSlash + 1) : model
-  const hasContext = !!metrics.contextPreview && metrics.contextPreview.estimatedChars > 0
+  const hasContext = !!metrics.contextPreview && (metrics.contextPreview.estimatedChars > 0 || (metrics.estContextTokens ?? 0) > 0)
 
   return (
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto">
@@ -158,6 +159,7 @@ export function RunPanel() {
               slices={roleSlices}
               contextWindow={metrics.contextWindow}
               estimatedChars={metrics.contextPreview!.estimatedChars}
+              contextTokens={metrics.estContextTokens}
               centerSub={metrics.ctxPct != null ? `${metrics.ctxPct.toFixed(0)}%` : t('run:metrics.budget')}
             />
             <ContextRoleLegend

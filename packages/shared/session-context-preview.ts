@@ -22,12 +22,18 @@ export type SessionContextPreview = {
   snippets: string[]
   segments: SessionContextSegment[]
   roleBreakdown: SessionContextRoleSlice[]
+  contextUsage?: {
+    tokens: number | null
+    contextWindow: number
+    percent: number | null
+  }
 }
 
 type BuildPreviewInput = {
   sessionId?: string | null
   sessionFile: string
   messages?: readonly PiSessionMessage[] | null
+  contextUsage?: SessionContextPreview['contextUsage']
 }
 
 function roleBucket(role: string): string {
@@ -93,6 +99,7 @@ export function buildSessionContextPreview(input: BuildPreviewInput): SessionCon
     sessionFile: input.sessionFile,
     messageCount: messages.length,
     estimatedChars,
+    contextUsage: input.contextUsage,
     snippets,
     segments,
     roleBreakdown,

@@ -141,6 +141,7 @@ export async function handleGetsessioncontextpreview(msg: WorkerIncomingMessage,
               sessionId: st.currentSessionId,
               sessionFile: st.session?.sessionFile || String(msg.sessionFile || ''),
               messages: st.session?.messages,
+              contextUsage: st.session?.getContextUsage(),
             }),
           })
         } catch (e: unknown) {
