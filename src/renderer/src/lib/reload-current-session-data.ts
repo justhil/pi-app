@@ -3,7 +3,7 @@ import { loadSessionHistoryWithRetry } from '@renderer/lib/load-session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
-import { captureFocusFromUiStore } from '@renderer/lib/session-shell'
+import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
 import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-session-lists'
@@ -42,10 +42,9 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     const { items, totalCount, sessionMeta } = hist
     store.loadHistoryItems(sanitizeHistoryTimeline(items as TimelineItem[]))
     store.setHistoryMeta(totalCount, items.length, sessionFile)
-    if (useUIStore.getState().runState.status !== 'running') {
-      clearLiveSessionTimeline(sessionFile)
-    }
-    captureFocusFromUiStore()
+    // Rebuild from the refreshed view so a later switch cannot restore a stale prefix.
+    clearLiveSessionTimeline(sessionFile)
+    captureVisibleLiveSessionTimeline()
     await applyComposerDisplayMeta(sessionMeta)
     if (!stillCurrent()) return { ok: true }
     void refreshSessionTree(sessionFile)

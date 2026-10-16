@@ -10,6 +10,8 @@ import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-
 import { extensionUiBlocksComposer, useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
 import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
   composerDraftContextKey,
   readTransientComposerDraft,
@@ -60,6 +62,14 @@ export function useComposerSend(opts: {
         const trimmed = displayText.trim()
         if (!trimmed && atts.length === 0) return
         const store = useUIStore.getState()
+        const creationOrigin = { state: store, navigationToken: getSessionNavigationToken() }
+        const ownsSourceView = () => {
+          const current = useUIStore.getState()
+          return isSessionNavigationCurrent(creationOrigin.navigationToken) &&
+            current.currentWorkspace === store.currentWorkspace &&
+            current.currentSessionId === store.currentSessionId &&
+            current.historySessionFile === store.historySessionFile
+        }
         if (atts.length === 0 && isExecutableBuiltin(trimmed)) {
           clearEditor()
           await executeSlashCommand(trimmed, { refreshCommands })
@@ -110,16 +120,23 @@ export function useComposerSend(opts: {
         const pendMsg = trimmed
         try {
           const { afterPromptSent } = await import('@renderer/lib/after-prompt-sent')
+          const updateSentView = async (bind: Parameters<typeof afterPromptSent>[0]) => {
+            if (sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) {
+              await afterPromptSent(bind)
+            }
+          }
           if (!running && draft) {
-            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
-              bootstrap: true,
-              attachments: atts,
-              segments,
-            })
-            useUIStore.getState().setPendingTurnStage('starting')
+            if (ownsSourceView()) {
+              optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+                bootstrap: true,
+                attachments: atts,
+                segments,
+              })
+              useUIStore.getState().setPendingTurnStage('starting')
+            }
             const { finalizeEphemeralSandboxOnFirstSend } =
               await import('@renderer/lib/ephemeral-sandbox')
-            sessionFile = await finalizeEphemeralSandboxOnFirstSend(pendMsg)
+            sessionFile = await finalizeEphemeralSandboxOnFirstSend(pendMsg, creationOrigin)
             draftKey = composerDraftContextKey({
               ...store,
               historySessionFile: sessionFile,
@@ -130,26 +147,36 @@ export function useComposerSend(opts: {
               optimisticToken,
               sessionFile,
             )
-            useUIStore.getState().setPendingTurnStage('sending')
+            if (sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) {
+              useUIStore.getState().setPendingTurnStage('sending')
+            }
             const bind = await sendPrompt()
-            await afterPromptSent(bind)
+            await updateSentView(bind)
             return
           }
           if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
-            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
-              bootstrap: true,
-              attachments: atts,
-              segments,
-            })
-            useUIStore.getState().setPendingTurnStage('starting')
+            if (ownsSourceView()) {
+              optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+                bootstrap: true,
+                attachments: atts,
+                segments,
+              })
+              useUIStore.getState().setPendingTurnStage('starting')
+            }
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
             sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
-              draftKey = composerDraftContextKey(useUIStore.getState())
+              draftKey = composerDraftContextKey({
+                ...store,
+                historySessionFile: sessionFile,
+                pendingNewSessionPlaceholder: false,
+              })
               bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
-            })
-            useUIStore.getState().setPendingTurnStage('sending')
+            }, creationOrigin)
+            if (sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) {
+              useUIStore.getState().setPendingTurnStage('sending')
+            }
             const bind = await sendPrompt()
-            await afterPromptSent(bind)
+            await updateSentView(bind)
             return
           }
           if (running) {
@@ -157,17 +184,19 @@ export function useComposerSend(opts: {
             if (queue === 'steer') {
               const bind = await ipcClient.invoke('prompt.steer', promptPayload())
               promptAccepted = true
-              await afterPromptSent(bind)
+              await updateSentView(bind)
             } else {
               const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
               promptAccepted = true
-              await afterPromptSent(bind)
+              await updateSentView(bind)
             }
             return
           }
-          optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
+          if (ownsSourceView()) {
+            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
+          }
           const bind = await sendPrompt()
-          await afterPromptSent(bind)
+          await updateSentView(bind)
         } catch (e) {
           console.error('Send failed:', e)
           const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')

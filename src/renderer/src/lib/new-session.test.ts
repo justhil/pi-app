@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.fn()
 const store = {
+  currentWorkspace: 'D:/workspace',
+  currentSessionId: '__pending_new__',
+  historySessionFile: null as string | null,
   runState: { model: 'openai/org/model/v2', thinkingLevel: 'high' },
   clearPendingNewSessionPlaceholder: vi.fn(),
   setCurrentSession: vi.fn(),
@@ -23,10 +26,14 @@ vi.mock('@renderer/lib/composer-run-display', () => ({
 }))
 
 import { materializePendingNewSession } from './new-session'
+import { beginSessionNavigation } from './session-navigation'
 
 describe('new session model preselection', () => {
   beforeEach(() => {
     invoke.mockReset()
+    store.currentWorkspace = 'D:/workspace'
+    store.currentSessionId = '__pending_new__'
+    store.historySessionFile = null
     store.clearPendingNewSessionPlaceholder.mockReset()
     store.setCurrentSession.mockReset()
     store.clearFileChanges.mockReset()
@@ -54,6 +61,37 @@ describe('new session model preselection', () => {
 
     confirmModel?.({ modelId: 'openai/org/model/v2' })
     await expect(materialized).resolves.toBe('C:/sessions/new.jsonl')
+  })
+
+  it.each([false, true])('keeps navigation intact when creation returns after switching away (returned: %s)', async (returned) => {
+    let finishCreation!: (value: unknown) => void
+    const onSessionCreated = vi.fn()
+    invoke.mockImplementation(async (method: string) => {
+      if (method === 'session.new') return new Promise((resolve) => { finishCreation = resolve })
+      if (method === 'model.set') return { modelId: 'openai/org/model/v2' }
+      if (method === 'session.list') return { sessions: [] }
+      return { ok: true }
+    })
+
+    const materialized = materializePendingNewSession('D:/workspace', 'first prompt', onSessionCreated)
+    beginSessionNavigation()
+    store.currentSessionId = 'other'
+    store.historySessionFile = 'C:/sessions/other.jsonl'
+    if (returned) {
+      beginSessionNavigation()
+      store.currentSessionId = '__pending_new__'
+      store.historySessionFile = null
+    }
+    finishCreation({ session: { sessionId: 'new-id', sessionFile: 'C:/sessions/new.jsonl' } })
+
+    await expect(materialized).resolves.toBe('C:/sessions/new.jsonl')
+    expect(onSessionCreated).toHaveBeenCalledWith('C:/sessions/new.jsonl')
+    expect(store.setCurrentSession).not.toHaveBeenCalled()
+    expect(store.setHistoryMeta).not.toHaveBeenCalled()
+    expect(store.clearPendingNewSessionPlaceholder).not.toHaveBeenCalled()
+    expect(store.clearFileChanges).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalledWith('session.setPendingBind', expect.anything())
+    expect(invoke).toHaveBeenCalledWith('model.set', expect.objectContaining({ sessionFile: 'C:/sessions/new.jsonl' }))
   })
 
   it('waits for model confirmation before finishing session materialization', async () => {

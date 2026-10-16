@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { renderRichFromSegments, serializeRichInput } from './attachments'
 import { clearTransientComposerDraft, readTransientComposerDraft } from './composer-transient-draft'
+import { beginSessionNavigation } from '@renderer/lib/session-navigation'
 
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn<(method: string, request?: unknown) => Promise<unknown>>(async () => ({})),
@@ -210,6 +211,62 @@ describe('useComposerSend submission arbitration', () => {
       expect(useUIStore.getState().sessions.find((s) => s.sessionId === 'new-id')?.title).toBe('first prompt')
     },
   )
+
+  it.each([
+    ['project', 'session.new'],
+    ['home', 'session.new'],
+    ['sandbox', 'session.new'],
+    ['sandbox', 'workspace.sandbox.create'],
+  ] as const)('keeps the selected view while %s creation waits for %s', async (kind, waitingFor) => {
+    const pending = deferred<unknown>()
+    const newSession = { session: { sessionId: 'new-id', sessionFile: 'C:/sessions/new.jsonl' } }
+    const sandbox = { sandbox: { path: 'D:/sandbox', label: 'Sandbox' } }
+    useUIStore.setState({
+      currentSessionId: kind === 'home' ? null : '__pending_new__',
+      historySessionFile: null,
+      pendingNewSessionPlaceholder: kind === 'project',
+      ephemeralSandboxDraft: kind === 'sandbox',
+      ...(kind === 'sandbox' ? { currentWorkspace: null } : {}),
+    })
+    mocks.invoke.mockImplementation(async (method) => {
+      if (method === waitingFor) return pending.promise
+      if (method === 'workspace.sandbox.create') return sandbox
+      if (method === 'session.new') return newSession
+      if (method === 'model.set') return { modelId: 'openai/test-model' }
+      if (method === 'session.list') return { sessions: [] }
+      return {}
+    })
+    const { result } = renderSender('first prompt')
+    let sending!: Promise<void>
+    act(() => { sending = result.current.sendCurrent() })
+    await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith(waitingFor, expect.anything()))
+
+    const otherItems = [{ id: 'other', type: 'user-message' as const, text: 'other conversation', timestamp: 1 }]
+    await act(async () => {
+      beginSessionNavigation()
+      useUIStore.setState({
+        currentWorkspace: 'D:/workspace', currentSessionId: 'other',
+        historySessionFile: 'C:/sessions/other.jsonl', timelineItems: otherItems,
+        ephemeralSandboxDraft: false, pendingNewSessionPlaceholder: false,
+        runState: { status: 'idle', model: 'openai/other-model', toolCount: 0, errorCount: 0 },
+      })
+      pending.resolve(waitingFor === 'session.new' ? newSession : sandbox)
+      await sending
+    })
+
+    expect(useUIStore.getState().currentSessionId).toBe('other')
+    expect(useUIStore.getState().historySessionFile).toBe('C:/sessions/other.jsonl')
+    expect(useUIStore.getState().currentWorkspace).toBe('D:/workspace')
+    expect(useUIStore.getState().timelineItems).toEqual(otherItems)
+    expect(mocks.invoke).toHaveBeenCalledWith('prompt.send', expect.objectContaining({
+      sessionFile: 'C:/sessions/new.jsonl', text: 'first prompt',
+    }))
+    expect(mocks.invoke).toHaveBeenCalledWith('model.set', expect.objectContaining({ modelId: 'test-model' }))
+    expect(mocks.afterPromptSent).not.toHaveBeenCalled()
+    if (waitingFor === 'workspace.sandbox.create') {
+      expect(mocks.invoke).not.toHaveBeenCalledWith('workspace.open', expect.anything())
+    }
+  })
 
   it.each([undefined, 'steer', 'followUp'] as const)(
     'should_keep_the_original_session_as_the_target_for_%s_submission',

@@ -131,7 +131,9 @@ export const useUIStore = create<UIState>()(
       (viewingWorkerSession && workerLiveSnapshot.status === 'running')
     const history = sanitizeHistoryTimeline(items)
     const cleaned = projectTimelineItems(
-      keepRunning ? mergeLiveTimelineWithHistoryTail(history, timelineItems) : history,
+      keepRunning
+        ? mergeLiveTimelineWithHistoryTail(history, timelineItems, [], { preserveLivePrefix: false })
+        : history,
     )
     set({
       timelineItems: cleaned,

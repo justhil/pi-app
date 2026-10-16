@@ -4,6 +4,8 @@ import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { titleFromFirstMessage } from '@renderer/lib/ephemeral-sandbox'
 import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { workspacePathsEqual } from '@shared/workspace-path'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 
 /** 侧栏「新会话」：仅占位，不碰 Worker */
 export function enterNewSessionPlaceholder(): void {
@@ -15,9 +17,10 @@ export async function materializePendingNewSession(
   workspaceId: string,
   firstMessage: string,
   onSessionCreated?: (sessionFile: string) => void,
+  origin = { state: useUIStore.getState(), navigationToken: getSessionNavigationToken() },
 ): Promise<string> {
   if (!workspaceId) throw new Error('A workspace is required to create a session')
-  const store = useUIStore.getState()
+  const store = origin.state
 
   const title = titleFromFirstMessage(firstMessage, 48) || '新会话'
 
@@ -28,17 +31,22 @@ export async function materializePendingNewSession(
   const sessionFile = res?.session?.sessionFile as string | undefined
   if (!sessionFile) throw new Error('session.new returned no sessionFile')
 
-  store.clearPendingNewSessionPlaceholder()
-  store.setCurrentSession(sessionId)
-  // Sidebar shows the new row (titled by the first message) the moment it exists — not after
-  // the session.list round-trip below.
-  insertSessionRowOptimistically(workspaceId, { sessionId, sessionFile, title })
-  // 勿 loadHistoryItems([])：首条发送前 Composer 已 append 乐观气泡
-  store.clearFileChanges()
-  if (sessionFile) {
+  const current = useUIStore.getState()
+  const ownsView = isSessionNavigationCurrent(origin.navigationToken) &&
+    current.currentWorkspace === store.currentWorkspace &&
+    current.currentSessionId === store.currentSessionId &&
+    current.historySessionFile === store.historySessionFile
+  if (ownsView) {
+    store.clearPendingNewSessionPlaceholder()
+    store.setCurrentSession(sessionId)
+    // Keep the optimistic first turn only in the view that submitted it.
+    store.clearFileChanges()
     store.setHistoryMeta(0, 0, sessionFile)
-    onSessionCreated?.(sessionFile)
-    // session.new 后 Worker 已是新会话，勿 setPendingBind（否则 prompt.send 会再 loadSession 卡很久）
+  }
+  insertSessionRowOptimistically(workspaceId, { sessionId, sessionFile, title })
+  // The caller still needs the file when creation finishes in the background.
+  onSessionCreated?.(sessionFile)
+  if (ownsView) {
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
   }
 
@@ -70,8 +78,11 @@ export async function materializePendingNewSession(
     }
   }
 
-  const { refreshComposerRunDisplay } = await import('@renderer/lib/composer-run-display')
-  void refreshComposerRunDisplay()
+  if (isSessionNavigationCurrent(origin.navigationToken) &&
+      sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) {
+    const { refreshComposerRunDisplay } = await import('@renderer/lib/composer-run-display')
+    void refreshComposerRunDisplay()
+  }
 
   // The sidebar list only needs to show the new row; never hold the first prompt for it.
   void refreshNewSessionInList(workspaceId, { sessionId, sessionFile, title })

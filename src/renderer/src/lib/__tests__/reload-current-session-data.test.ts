@@ -10,13 +10,27 @@ vi.mock('@renderer/lib/refresh-workspace-session-lists', () => ({ refreshWorkspa
 vi.mock('@renderer/lib/session-display-meta', () => ({ applyComposerDisplayMeta: mocks.meta }))
 vi.mock('@renderer/lib/rewind-metadata', () => ({ refreshSessionTree: mocks.tree }))
 vi.mock('@renderer/features/timeline/timeline-bottom-anchor', () => ({ requestTimelineBottomAnchor: mocks.anchor }))
-vi.mock('@renderer/lib/session-shell', () => ({ captureFocusFromUiStore: mocks.capture }))
-vi.mock('@renderer/lib/live-session-timeline-cache', () => ({ clearLiveSessionTimeline: mocks.clearLive }))
+vi.mock('@renderer/lib/capture-live-session-timeline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../capture-live-session-timeline')>()
+  return { captureVisibleLiveSessionTimeline: () => {
+    mocks.capture()
+    actual.captureVisibleLiveSessionTimeline()
+  } }
+})
+vi.mock('@renderer/lib/live-session-timeline-cache', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../live-session-timeline-cache')>()
+  return { ...actual, clearLiveSessionTimeline: (file?: string | null) => {
+    mocks.clearLive(file)
+    actual.clearLiveSessionTimeline(file)
+  } }
+})
 
 import { reloadCurrentSessionData } from '../reload-current-session-data'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { clearStreamPending } from '@renderer/stores/ui-store-stream'
 import { beginSessionNavigation } from '../session-navigation'
+import { clearSessionShellForTests } from '../session-shell'
+import { clearLiveSessionTimeline, getLiveSessionTimeline, saveLiveSessionTimeline } from '../live-session-timeline-cache'
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -31,6 +45,8 @@ const history: GetMessagesResult = {
 
 describe('current session reload', () => {
   beforeEach(() => {
+    clearLiveSessionTimeline()
+    clearSessionShellForTests()
     vi.clearAllMocks()
     clearStreamPending()
     mocks.history.mockResolvedValue(history)
@@ -70,11 +86,47 @@ describe('current session reload', () => {
     expect(mocks.clearLive).toHaveBeenCalledWith('/workspace/a.jsonl')
   })
 
-  it('preserves live cache while the refreshed session is still running', async () => {
+  it('rebuilds live cache while the refreshed session is still running', async () => {
     useUIStore.setState({ sessionRuntimeRunning: { '/workspace/a.jsonl': true } })
     await reloadCurrentSessionData()
     expect(useUIStore.getState().runState.status).toBe('running')
-    expect(mocks.clearLive).not.toHaveBeenCalled()
+    expect(mocks.clearLive).toHaveBeenCalledWith('/workspace/a.jsonl')
+    expect(mocks.capture).toHaveBeenCalledOnce()
+    expect(mocks.clearLive.mock.invocationCallOrder[0]).toBeLessThan(mocks.capture.mock.invocationCallOrder[0])
+  })
+
+  it('removes a foreign prefix during a running refresh without losing current tool calls or streamed text', async () => {
+    const user = { id: 'disk-user', type: 'user-message' as const, text: 'current prompt', sessionEntryId: 'current-user', timestamp: 3 }
+    const tool = { id: 'current-tool', type: 'tool-call' as const, toolCallId: 'tool-1', toolName: 'bash', toolPhase: 'start' as const, timestamp: 4 }
+    const stream = { id: 'current-stream', type: 'assistant-message' as const, text: 'streamed answer', timestamp: 5 }
+    mocks.history.mockResolvedValue({
+      items: [user], sourceCount: 1, totalCount: 1,
+    })
+    useUIStore.setState({
+      sessionRuntimeRunning: { '/workspace/a.jsonl': true },
+      streamingAssistantId: stream.id,
+      timelineItems: [
+        { id: 'foreign-user', type: 'user-message', text: 'other conversation', sessionEntryId: 'foreign-user', timestamp: 1 },
+        { id: 'foreign-answer', type: 'assistant-message', text: 'other report', sessionEntryId: 'foreign-answer', timestamp: 2 },
+        { ...user, id: 'live-user' }, tool, stream,
+      ],
+    })
+
+    const state = useUIStore.getState()
+    saveLiveSessionTimeline({
+      sessionId: 'a', sessionFile: '/workspace/a.jsonl', timelineItems: state.timelineItems,
+      streamingAssistantId: stream.id, runState: { ...state.runState, status: 'running' },
+      pendingSteering: [], pendingFollowUp: [], optimisticPendingUserText: null, agentTurnBootstrapping: false,
+    })
+
+    await reloadCurrentSessionData()
+    await reloadCurrentSessionData()
+
+    expect(getLiveSessionTimeline('/workspace/a.jsonl')?.timelineItems).toEqual([user, tool, stream])
+    expect(useUIStore.getState().timelineItems).toEqual([user, tool, stream])
+    expect(useUIStore.getState().streamingAssistantId).toBe(stream.id)
+    expect(useUIStore.getState().runState.status).toBe('running')
+    expect(mocks.clearLive).toHaveBeenCalledWith('/workspace/a.jsonl')
   })
 
   it('should_not_overwrite_new_session_when_old_reload_finishes', async () => {

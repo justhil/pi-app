@@ -128,11 +128,18 @@ export function mergeLiveTimelineWithHistoryTail(
   historyItems: TimelineItem[],
   liveItems: TimelineItem[],
   persistedEntryOverlap: string[] = [],
+  options?: { preserveLivePrefix?: boolean },
 ): TimelineItem[] {
   const hist = sanitizeLiveMergeTimeline(historyItems)
-  const live = sanitizeLiveMergeTimeline(liveItems)
+  let live = sanitizeLiveMergeTimeline(liveItems)
   if (live.length === 0) return hist
   if (hist.length === 0) return live
+
+  // A refresh may start mid-turn, after its user row has left the disk tail page.
+  if (options?.preserveLivePrefix === false && hist[0].sessionEntryId) {
+    const anchor = live.findIndex((item) => item.sessionEntryId === hist[0].sessionEntryId)
+    if (anchor >= 0) live = live.slice(anchor)
+  }
 
   const histUserIdx = lastUserIndex(hist)
   const liveUserIdx = lastUserIndex(live)
@@ -192,13 +199,16 @@ export function mergeLiveTimelineWithHistoryTail(
       // Keep its loaded prefix, but do not let its shorter tail erase the newer disk rows.
       if (histAfterUser.length > liveAfterUser.length) {
         return dedupeAdjacentUserMessages([
-          ...(liveThroughUser.length > histThroughUser.length ? liveThroughUser : histThroughUser),
+          ...(options?.preserveLivePrefix !== false && liveThroughUser.length > histThroughUser.length
+            ? liveThroughUser
+            : histThroughUser),
           ...histAfterUser,
         ])
       }
 
       // live 前缀更完整（capture 了更长历史）→ 用 live 前缀 + live 尾
-      if (liveThroughUser.length >= histThroughUser.length && live.length >= hist.length) {
+      if (options?.preserveLivePrefix !== false &&
+          liveThroughUser.length >= histThroughUser.length && live.length >= hist.length) {
         return dedupeAdjacentUserMessages(live)
       }
 

@@ -48,6 +48,26 @@ describe('mergeLiveTimelineWithHistoryTail', () => {
     expect(merged.at(-1)?.text).toBe('streaming partial')
   })
 
+  it('replaces a live prefix when a refresh starts at a persisted tool entry', () => {
+    const tool: TimelineItem = {
+      id: 'tool', type: 'tool-call', toolCallId: 'tc1', toolName: 'bash',
+      toolPhase: 'end', sessionEntryId: 'tool-entry', timestamp: 3,
+    }
+    const stream: TimelineItem = {
+      id: 'stream', type: 'assistant-message', text: 'still streaming', timestamp: 4,
+    }
+    const live: TimelineItem[] = [
+      { id: 'foreign', type: 'assistant-message', text: 'other conversation', sessionEntryId: 'foreign-entry', timestamp: 1 },
+      { id: 'user', type: 'user-message', text: 'current prompt', sessionEntryId: 'user-entry', timestamp: 2 },
+      tool, stream,
+    ]
+
+    expect(mergeLiveTimelineWithHistoryTail([tool], live, [], { preserveLivePrefix: false }))
+      .toEqual([tool, stream])
+    // Switching views still retains legitimately loaded history before the disk tail.
+    expect(mergeLiveTimelineWithHistoryTail([tool], live)).toEqual(live)
+  })
+
   it('keeps tool calls from live tail instead of collapsing to assistant only', () => {
     const hist: TimelineItem[] = [
       { id: 'h1', type: 'user-message', text: 'do work', timestamp: 1, sessionEntryId: 'u1' },

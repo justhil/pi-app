@@ -1,7 +1,7 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { materializePendingNewSession } from '@renderer/lib/new-session'
-import { beginSessionNavigation } from '@renderer/lib/session-navigation'
+import { beginSessionNavigation, getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 
 export function titleFromFirstMessage(text: string, maxLen = 48): string {
   const one = text.replace(/\s+/g, ' ').trim()
@@ -10,8 +10,11 @@ export function titleFromFirstMessage(text: string, maxLen = 48): string {
 }
 
 /** 临时对话首条消息：建 sandbox → 打开工作区 → 返回新 sessionFile（标题=首条消息） */
-export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string): Promise<string> {
-  const store = useUIStore.getState()
+export async function finalizeEphemeralSandboxOnFirstSend(
+  firstMessage: string,
+  origin = { state: useUIStore.getState(), navigationToken: getSessionNavigationToken() },
+): Promise<string> {
+  const store = origin.state
   if (!store.ephemeralSandboxDraft) {
     throw new Error('Not in ephemeral sandbox draft')
   }
@@ -20,16 +23,22 @@ export async function finalizeEphemeralSandboxOnFirstSend(firstMessage: string):
   const box = res?.sandbox as { path: string; label: string } | undefined
   if (!box?.path) throw new Error('sandbox.create failed')
 
-  store.clearEphemeralSandboxDraft()
-  beginSessionNavigation()
-  // 不阻塞等 Worker init；乐观 UI 已展示，prompt.send 前 materialize 会 session.new
-  const already = useUIStore.getState().currentWorkspace === box.path
-  if (!already) {
-    void ipcClient.invoke('workspace.open', { path: box.path }).catch((e) => console.error(e))
+  const current = useUIStore.getState()
+  if (isSessionNavigationCurrent(origin.navigationToken) &&
+      current.currentWorkspace === store.currentWorkspace &&
+      current.currentSessionId === store.currentSessionId &&
+      current.historySessionFile === store.historySessionFile) {
+    store.clearEphemeralSandboxDraft()
+    const navigationToken = beginSessionNavigation()
+    // 不阻塞等 Worker init；乐观 UI 已展示，prompt.send 前 materialize 会 session.new
+    if (current.currentWorkspace !== box.path) {
+      void ipcClient.invoke('workspace.open', { path: box.path }).catch((e) => console.error(e))
+    }
+    store.setWorkspace(box.path)
+    origin = { state: useUIStore.getState(), navigationToken }
   }
-  store.setWorkspace(box.path)
 
-  const sessionFile = await materializePendingNewSession(box.path, firstMessage)
+  const sessionFile = await materializePendingNewSession(box.path, firstMessage, undefined, origin)
 
   window.dispatchEvent(new Event('pi-desktop:sandboxes-changed'))
   return sessionFile
