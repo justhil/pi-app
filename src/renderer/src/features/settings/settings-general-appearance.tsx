@@ -504,7 +504,7 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setTimelineVisibleTurns } = useSettingsDraft()
+  const { draft, setTheme, setIconTheme, setSidebarStyle, setTimelineMaxAutoExpandedTools, setTimelineVisibleTurns } = useSettingsDraft()
   const [zoom, setZoom] = useState(readUiZoom)
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
@@ -566,6 +566,29 @@ export function AppearanceSettings() {
                   <ThemedIcon theme={theme} name="search" className="h-3 w-3" />
                 </span>
                 {t(`settings:appearance.iconTheme${theme.charAt(0).toUpperCase() + theme.slice(1)}`)}
+              </button>
+            ))}
+          </div>
+        </SettingRow>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings:appearance.sidebarTitle')}>
+        <SettingRow label={t('settings:appearance.sidebarStyle')} description={t('settings:appearance.sidebarStyleDesc')}>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings:appearance.sidebarStyle')}>
+            {(['compact', 'full'] as const).map((style) => (
+              <button
+                key={style}
+                type="button"
+                aria-pressed={draft.sidebarStyle === style}
+                onClick={() => setSidebarStyle(style)}
+                className={cn(
+                  'settings-chip min-h-11 rounded-md border px-3 text-sm',
+                  draft.sidebarStyle === style
+                    ? 'border-primary bg-primary/5 text-foreground'
+                    : 'border-border text-muted-foreground hover:bg-accent/50',
+                )}
+              >
+                {t(`settings:appearance.sidebar${style === 'compact' ? 'Compact' : 'Full'}`)}
               </button>
             ))}
           </div>

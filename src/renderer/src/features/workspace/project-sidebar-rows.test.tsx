@@ -69,6 +69,56 @@ describe('ProjectSessionTree subagent rows', () => {
     })
   })
 
+  it('folds older roots, preserves the selected child and searches beyond the limit', () => {
+    useUIStore.setState({ currentSessionId: 'old-child', historySessionFile: '/sessions/old-child.jsonl', subagentSessionGroup: null })
+    const props = {
+      workspacePath: '/workspace', loading: false, currentWorkspace: '/workspace', currentSessionId: 'old-child',
+      onSessionContextMenu: vi.fn(), projectSessions: [
+        ...Array.from({ length: 8 }, (_, i) => ({
+          sessionId: `root-${i}`, sessionFile: `/sessions/root-${i}.jsonl`, title: `Conversation ${i}`, updatedAt: i + 1, modelId: '',
+        })),
+        { sessionId: 'old-child', sessionFile: '/sessions/old-child.jsonl', parentSessionFile: '/sessions/root-0.jsonl', title: 'Selected child', updatedAt: 1, modelId: '' },
+      ],
+    }
+    const { container, rerender } = render(<ProjectSessionTree {...props} />)
+    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(6)
+    expect(screen.queryByText('Conversation 1')).toBeNull()
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent('Selected child')
+    const more = screen.getByRole('button', { name: 'Show more (2)' })
+    expect(document.getElementById(more.getAttribute('aria-controls')!)).toBeTruthy()
+    fireEvent.click(more)
+    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(8)
+    fireEvent.click(screen.getByRole('button', { name: 'Show less' }))
+    expect(screen.queryByText('Conversation 1')).toBeNull()
+    rerender(<ProjectSessionTree {...props} searchQuery="Conversation" />)
+    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(8)
+    expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull()
+    rerender(<ProjectSessionTree {...props} searchQuery="" />)
+    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(6)
+    act(() => useUIStore.setState({ historySessionFile: '/sessions/root-0.jsonl' }))
+    rerender(<ProjectSessionTree {...props} projectSessions={props.projectSessions.slice(0, 6)} />)
+    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(6)
+    expect(screen.queryByRole('button', { name: /Show more/ })).toBeNull()
+  })
+
+  it('keeps compact session metadata hidden and routes context actions to the source workspace', () => {
+    useUIStore.setState({ currentSessionId: 'root', historySessionFile: '/sessions/root.jsonl', subagentSessionGroup: null })
+    const onSessionContextMenu = vi.fn()
+    const props = {
+      workspacePath: '/repo', workspacePaths: ['/repo', '/workspace'], loading: false,
+      currentWorkspace: '/workspace', currentSessionId: 'root', onSessionContextMenu,
+      projectSessions: [{ sessionId: 'root', sessionFile: '/sessions/root.jsonl', workspaceId: '/workspace', title: 'Title', firstMessage: 'Preview', updatedAt: 1, modelId: '' }],
+    }
+    const { rerender } = render(<ProjectSessionTree {...props} compact />)
+    const row = screen.getByRole('button', { current: 'page' })
+    expect(row).toHaveTextContent('Title')
+    expect(row).not.toHaveTextContent('Preview')
+    fireEvent.contextMenu(row)
+    expect(onSessionContextMenu.mock.calls[0][1]).toEqual({ sessionId: 'root', sessionFile: '/sessions/root.jsonl', title: 'Title', workspacePath: '/workspace' })
+    rerender(<ProjectSessionTree {...props} />)
+    expect(screen.getByText('Preview')).toBeInTheDocument()
+  })
+
   it('nests persisted children under their parent and keeps them collapsed by default', () => {
     useUIStore.setState({ currentSessionId: 'parent-session', historySessionFile: '/sessions/parent.jsonl', subagentSessionGroup: null })
     const { container } = render(<ProjectSessionTree

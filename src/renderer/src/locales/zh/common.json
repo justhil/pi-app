@@ -23,6 +23,8 @@
     "revealInExplorer": "在资源管理器中显示",
     "revealFailed": "无法打开路径",
     "noSessions": "无会话",
+    "showMoreSessions": "显示更多（{{count}}）",
+    "showFewerSessions": "收起",
     "childSessionCount": "{{count}} 个子会话",
     "toggleSubagents": "展开或收起 {{title}} 的子会话",
     "openSubagentSession": "打开 {{agent}} 子 Agent 会话",
@@ -118,6 +120,11 @@
     },
     "empty": "暂无文件变更",
     "copyPath": "复制路径"
+  },
+  "conversationContext": {
+    "title": "当前对话的工作区和分支",
+    "workspace": "工作区",
+    "branch": "分支"
   },
   "topbar": {
     "project": "当前项目",

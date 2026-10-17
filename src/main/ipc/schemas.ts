@@ -217,6 +217,7 @@ const backgroundImageSchema = z
 const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   theme: z.enum(['light', 'dark', 'system']),
   iconTheme: z.enum(ICON_THEMES),
+  sidebarStyle: z.enum(['compact', 'full']),
   customTheme: z
     .object({ light: themeVariantSchema.optional(), dark: themeVariantSchema.optional() })
     .strict()

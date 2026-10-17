@@ -16,6 +16,7 @@ export interface StoreSchema {
   windowBounds: { width: number; height: number; x?: number; y?: number } | null
   theme: 'light' | 'dark' | 'system'
   iconTheme: IconTheme
+  sidebarStyle: 'compact' | 'full'
   /** 自定义主题（浅/深各一槽，槽位缺省 = 未定制）；null = 完全未定制 */
   customTheme: CustomTheme | null
   /** 结构化主题之后的自由 CSS 覆盖层 */
@@ -103,6 +104,7 @@ const store = new Store<StoreSchema>({
     windowBounds: null,
     theme: 'system',
     iconTheme: DEFAULT_ICON_THEME,
+    sidebarStyle: 'full',
     customTheme: null,
     customCssOverride: { enabled: false, css: '' },
     background: { shared: true },

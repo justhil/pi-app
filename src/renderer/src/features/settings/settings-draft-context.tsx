@@ -53,6 +53,7 @@ type SettingsDraftContextValue = {
   saving: boolean
   setTheme: (t: ThemeChoice) => void
   setIconTheme: (theme: IconTheme) => void
+  setSidebarStyle: (style: SettingsDraft['sidebarStyle']) => void
   setCustomTheme: (t: CustomTheme) => void
   setCustomCssOverride: (override: CustomCssOverride) => void
   setBackground: (background: BackgroundSettings) => void
@@ -261,6 +262,7 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
       saving,
       setTheme: (t) => patch((d) => ({ ...d, theme: t })),
       setIconTheme: (iconTheme) => patch((d) => ({ ...d, iconTheme })),
+      setSidebarStyle: (sidebarStyle) => patch((d) => ({ ...d, sidebarStyle })),
       setCustomTheme: (t) => patch((d) => ({ ...d, customTheme: t })),
       setCustomCssOverride: (override) => patch((d) => ({ ...d, customCssOverride: override })),
       setBackground: (background) => patch((d) => ({ ...d, background })),
