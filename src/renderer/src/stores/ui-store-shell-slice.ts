@@ -40,6 +40,7 @@ type ShellSlice = Pick<
   | 'setTimelineMaxAutoExpandedTools'
   | 'timelineVisibleTurns'
   | 'setTimelineVisibleTurns'
+  | 'sidebarStyle'
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
@@ -117,6 +118,7 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(count) }),
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
     setTimelineVisibleTurns: (count) => set({ timelineVisibleTurns: normalizeTimelineVisibleTurns(count) }),
+    sidebarStyle: 'full',
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,

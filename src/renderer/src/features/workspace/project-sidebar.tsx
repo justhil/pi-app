@@ -56,6 +56,7 @@ export function ProjectSidebar({
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
+  const compact = useUIStore((s) => s.sidebarStyle === 'compact')
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const recentProjects = useUIStore((s) => s.recentProjects)
@@ -237,7 +238,7 @@ export function ProjectSidebar({
             if (fixedOrderRef.current) merged.push(currentWorkspace)
             else merged.unshift(currentWorkspace)
           }
-          const next = uniqueWorkspacePaths(merged).slice(0, 16)
+          const next = uniqueWorkspacePaths(merged)
           useUIStore.setState((state) => {
             // 顺序/内容无变化时保持引用稳定，避免固定顺序下每次切换工作区都触发整个侧栏重渲染
             const prev = state.recentProjects
@@ -256,6 +257,13 @@ export function ProjectSidebar({
       })
       .catch(() => {})
   }, [currentWorkspace])
+
+  useEffect(() => {
+    ipcClient
+      .invoke('settings.get', { key: 'sidebarStyle' })
+      .then((res) => useUIStore.setState({ sidebarStyle: res?.settings?.sidebarStyle === 'compact' ? 'compact' : 'full' }))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     refreshSandboxes()
@@ -279,7 +287,10 @@ export function ProjectSidebar({
     worktrees.refresh()
     reloadSidebarSettings()
     refreshSandboxes()
-    const visible = diskPaths.filter((path) => expandedPaths.has(workspacePathKey(path)))
+    const visible = compact
+      ? projectGroups.filter((group) => group.projects.some((project) => expandedPaths.has(workspacePathKey(project.path))))
+        .flatMap((group) => group.projects.map((project) => project.path))
+      : diskPaths.filter((path) => expandedPaths.has(workspacePathKey(path)))
     void refreshWorkspaceSessionLists({ workspaceIds: visible })
   }
   useEffect(() => {
@@ -287,6 +298,14 @@ export function ProjectSidebar({
     window.addEventListener(SIDEBAR_RELOAD_EVENT, onReload)
     return () => window.removeEventListener(SIDEBAR_RELOAD_EVENT, onReload)
   }, [])
+
+  useEffect(() => {
+    if (!compact) return
+    const group = projectGroups.find((item) => item.projects.some((project) => workspacePathsEqual(project.path, currentWorkspace)))
+    for (const project of group?.projects || []) {
+      if (!workspacePathsEqual(project.path, currentWorkspace)) void loadWorkspaceSessions(project.path)
+    }
+  }, [compact, projectGroups, currentWorkspace, loadWorkspaceSessions])
 
   // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
@@ -403,42 +422,61 @@ export function ProjectSidebar({
       && box.label.toLowerCase().includes(sessionQuery.trim().toLowerCase()))
     : sandboxes
 
-  const renderProject = (project: GitWorktree, grouped: boolean) => {
+  const renderProject = (project: GitWorktree, grouped: boolean, mergedProjects?: GitWorktree[]) => {
     const { path } = project
     const key = workspacePathKey(path)
-    const open = searchActive || expandedPaths.has(key)
-    const rows = mergedSessionsByWorkspace[key] || []
+    const paths = mergedProjects?.map((item) => item.path) || [path]
+    const active = paths.some((item) => workspacePathsEqual(item, currentWorkspace))
+    const targetPath = active && currentWorkspace ? currentWorkspace : path
+    const expanded = paths.some((item) => expandedPaths.has(workspacePathKey(item)))
+    const open = searchActive || expanded
+    const rows = mergedProjects
+      ? paths.flatMap((item) => (mergedSessionsByWorkspace[workspacePathKey(item)] || []).map((session) => ({ ...session, workspaceId: item })))
+      : mergedSessionsByWorkspace[key] || []
+    const loading = paths.some((item) => loadingSessionPaths.has(workspacePathKey(item)))
+    const error = paths.map((item) => sessionErrors[workspacePathKey(item)]).find(Boolean)
+    const loadSessions = () => {
+      for (const item of paths) void loadWorkspaceSessions(item)
+    }
     return <ProjectDiskRow
       key={key}
       path={path}
       name={grouped && project.isMain ? t('common:sidebar.mainWorktree') : diskProjectName(path)}
       branch={project.detached ? t('common:sidebar.detachedWorktree') : project.branch}
       worktree={grouped}
-      active={workspacePathsEqual(path, currentWorkspace)}
+      compact={compact}
+      active={active}
       open={open}
       onOpenProject={() => {
         setExpandedPaths((previous) => new Set(previous).add(key))
-        void switchDiskProject(path)
+        void switchDiskProject(targetPath)
       }}
       onToggleOpen={() => {
-        const willExpand = !expandedPaths.has(key)
         setExpandedPaths((previous) => {
           const next = new Set(previous)
-          if (next.has(key)) next.delete(key)
-          else next.add(key)
+          for (const item of paths) {
+            if (expanded) next.delete(workspacePathKey(item))
+            else next.add(workspacePathKey(item))
+          }
           return next
         })
-        if (willExpand && !(key in mergedSessionsByWorkspace)) void loadWorkspaceSessions(path)
+        if (!expanded) {
+          for (const item of paths) {
+            if (!(workspacePathKey(item) in mergedSessionsByWorkspace)) void loadWorkspaceSessions(item)
+          }
+        }
       }}
-      onNewSession={() => void handleNewSessionInProject(path)}
+      onNewSession={() => void handleNewSessionInProject(targetPath)}
       onProjectContextMenu={(event) => projectMenu.open(event, path, diskProjectName(path))}
       sessionTree={<ProjectSessionTree
         workspacePath={path}
         projectSessions={rows}
+        workspacePaths={mergedProjects ? paths : undefined}
+        compact={compact}
         searchQuery={sessionQuery}
-        loading={loadingSessionPaths.has(key) && rows.length === 0}
-        error={sessionErrors[key]}
-        onRetry={() => void loadWorkspaceSessions(path)}
+        loading={loading && rows.length === 0}
+        error={error}
+        onRetry={loadSessions}
         currentWorkspace={currentWorkspace}
         currentSessionId={currentSessionId}
         onSessionContextMenu={(event, payload) => sessionMenu.open(event, payload)}
@@ -471,7 +509,7 @@ export function ProjectSidebar({
 
   return (
     <div className="flex flex-col pb-1">
-      <div className="sidebar-search-block border-b border-border/40 px-3 py-3">
+      <div className={`sidebar-search-block border-b border-border/40 px-3 ${compact ? 'py-2' : 'py-3'}`}>
         <div className="workbench-search sidebar-search">
           <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <input
@@ -536,7 +574,7 @@ export function ProjectSidebar({
               <div className="nav-row nav-row-active relative mb-0.5 flex min-h-[36px] items-center gap-2 rounded-lg px-3 py-1.5">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] text-foreground">{t('sidebar.newChat')}</div>
-                  <div className="text-[11px] text-foreground-secondary/80">{t('common:sidebar.firstMsgIsTitle')}</div>
+                  {!compact && <div className="text-[11px] text-foreground-secondary/80">{t('common:sidebar.firstMsgIsTitle')}</div>}
                 </div>
               </div>
             )}
@@ -547,6 +585,7 @@ export function ProjectSidebar({
                 <SandboxDialogRow
                   key={box.path}
                   box={box}
+                  compact={compact}
                   active={box.path === currentWorkspace && !ephemeralSandboxDraft}
                   onOpen={() => void openSandboxDialog(box)}
                   onContextMenu={(e) => sandboxMenu.open(e, box.path, box.label)}
@@ -597,6 +636,7 @@ export function ProjectSidebar({
           projectGroups.map((group) => {
             const projects = group.projects.filter((project) => visiblePaths.includes(project.path))
             if (!projects.length) return null
+            if (compact) return renderProject(group.projects[0], false, searchActive ? projects : group.projects)
             if (!group.repositoryPath) return projects.map((project) => renderProject(project, false))
             const name = diskProjectName(group.repositoryPath)
             const open = searchActive || (repositoryOpen[group.key] ?? group.key === activeRepository)
