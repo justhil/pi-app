@@ -25,6 +25,13 @@ export type ActivateWorkspaceOptions = {
  */
 export async function activateWorkspace(path: string, options?: ActivateWorkspaceOptions): Promise<void> {
   const leavingWorkspace = useUIStore.getState().currentWorkspace
+  if (
+    !options?.preferHome &&
+    workspacePathsEqual(leavingWorkspace, path) &&
+    options?.sessionId && options.sessionFile
+  ) {
+    return switchSessionInPlace(options.sessionId, options.sessionFile)
+  }
   if (options?.preferHome) resetBlankSessionProjection()
   else captureVisibleLiveSessionTimeline()
   if (leavingWorkspace && leavingWorkspace !== path) {
@@ -155,7 +162,6 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
 
 /** 同项目内切会话 */
 export async function switchSessionInPlace(sessionId: string, sessionFile?: string): Promise<void> {
-  const navToken = beginSessionNavigation()
   const store = useUIStore.getState()
   store.clearPendingNewSessionPlaceholder()
 
@@ -173,6 +179,14 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
     return
   }
 
+  // A delayed completion notification may target the session still draining its stream.
+  // Keep its live projection and any in-flight hydration intact on repeated opens.
+  if (sessionFilesEqual(store.historySessionFile, file)) {
+    store.markSessionViewed(file)
+    return
+  }
+
+  const navToken = beginSessionNavigation()
   const group = store.subagentSessionGroup
   if (!group || !sessionFilesEqual(group.parentSessionFile, file)) {
     store.setSubagentSessionGroup(null)
