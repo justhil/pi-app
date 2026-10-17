@@ -88,6 +88,30 @@ describe('repository / checkout / session sidebar', () => {
     expect(await screen.findByText('/repo question')).toBeInTheDocument()
   })
 
+  it.each(['compact', 'full'] as const)('retains all fixed-order projects when adding a folder in %s mode', async (sidebarStyle) => {
+    let projects = Array.from({ length: 20 }, (_, i) => `/projects/project-${i}`)
+    const invoke = mocks.invoke.getMockImplementation()!
+    mocks.invoke.mockImplementation(async (method, req) => {
+      if (method === 'settings.get') return { settings: {
+        recentProjects: projects, recentProjectsFixedOrder: true, sidebarStyle,
+      } }
+      if (method === 'desktop.gitWorktrees') return { ok: true, trees: [], repositoryPath: null }
+      return invoke(method, req)
+    })
+    useUIStore.setState({ currentWorkspace: projects[0] })
+    const { container } = sidebar()
+    const displayedProjects = () => Array.from(container.querySelectorAll('.sidebar-project-row'), (row) => row.getAttribute('data-workspace'))
+    await waitFor(() => expect(displayedProjects()).toEqual(projects))
+    expect(useUIStore.getState().recentProjects).toEqual(projects)
+
+    projects = [...projects, '/projects/new-project']
+    act(() => {
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
+    })
+    await waitFor(() => expect(displayedProjects()).toEqual(projects))
+    expect(useUIStore.getState().recentProjects).toEqual(projects)
+  })
+
   it('nests valid checkouts once and reads only the active checkout on startup', async () => {
     const { container } = sidebar()
     const repository = await screen.findByRole('group', { name: 'repo' })

@@ -238,7 +238,7 @@ export function ProjectSidebar({
             if (fixedOrderRef.current) merged.push(currentWorkspace)
             else merged.unshift(currentWorkspace)
           }
-          const next = uniqueWorkspacePaths(merged).slice(0, 16)
+          const next = uniqueWorkspacePaths(merged)
           useUIStore.setState((state) => {
             // 顺序/内容无变化时保持引用稳定，避免固定顺序下每次切换工作区都触发整个侧栏重渲染
             const prev = state.recentProjects
