@@ -28,6 +28,26 @@ describe('mergeLiveTimelineWithHistoryTail', () => {
     expect(merged.at(-1)?.text).toBe('already streamed paragraph')
   })
 
+  it.each([false, true])('keeps richer disk text for an equally sized live capture (tools: %s)', (withTools) => {
+    const tool: TimelineItem = {
+      id: 'tool', type: 'tool-call', toolCallId: 'tc1', toolName: 'read', timestamp: 4,
+    }
+    const hist: TimelineItem[] = [
+      ...history.slice(0, 3),
+      ...(withTools ? [tool] : []),
+      { id: 'disk-answer', type: 'assistant-message', text: 'complete final answer', thinkingText: 'complete reasoning', timestamp: 5 },
+    ]
+    const live = hist.map((item) => item.id === 'disk-answer'
+      ? { ...item, id: 'live-answer', text: 'complete', thinkingText: 'complete' }
+      : item)
+
+    const merged = mergeLiveTimelineWithHistoryTail(hist, live)
+
+    expect(merged).toHaveLength(hist.length)
+    expect(merged.at(-1)).toMatchObject({ text: 'complete final answer', thinkingText: 'complete reasoning' })
+    expect(merged.filter((item) => item.type === 'tool-call')).toHaveLength(withTools ? 1 : 0)
+  })
+
   it('keeps older history when live cache only captured the active tail', () => {
     const merged = mergeLiveTimelineWithHistoryTail(history, liveTail)
     expect(merged.map((i) => i.id)).toEqual(['h1', 'h2', 'h3', 'l2'])
@@ -81,6 +101,18 @@ describe('mergeLiveTimelineWithHistoryTail', () => {
     const merged = mergeLiveTimelineWithHistoryTail(hist, live)
     expect(merged.some((i) => i.type === 'tool-call' && i.toolCallId === 'tc1')).toBe(true)
     expect(merged.at(-1)?.text).toBe('done')
+  })
+
+  it('does not copy older disk commentary into an answer after tools', () => {
+    const user: TimelineItem = { id: 'user', type: 'user-message', text: 'do work', sessionEntryId: 'u1', timestamp: 1 }
+    const commentary: TimelineItem = { id: 'commentary', type: 'assistant-message', text: 'I will inspect the file before making changes', sessionEntryId: 'a1', timestamp: 2 }
+    const live: TimelineItem[] = [
+      user, commentary,
+      { id: 'tool', type: 'tool-call', toolName: 'read', toolCallId: 'tc1', timestamp: 3 },
+      { id: 'answer', type: 'assistant-message', text: 'done', timestamp: 4 },
+    ]
+
+    expect(mergeLiveTimelineWithHistoryTail([user, commentary], live).at(-1)?.text).toBe('done')
   })
 
   it('does not hist+live concat when users do not align', () => {

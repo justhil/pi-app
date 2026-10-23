@@ -4,6 +4,7 @@ import {
   sanitizeLiveMergeTimeline,
 } from '@renderer/lib/timeline-dedupe'
 import {
+  applyLiveStreamingTextToMergedTimeline,
   assistantItemsShareTurn,
   lastAssistantItem,
   persistedTimelineEntryIds,
@@ -182,6 +183,10 @@ export function mergeLiveTimelineWithHistoryTail(
     // live 是切出时整页 capture（含历史），优先用更完整的一侧，避免 hist+live 双份
     const liveUser = live[liveUserIdx]
     if (usersMatch(histUser, liveUser)) {
+      // Only enrich matching tails; an older disk step must not replace a later tool reply.
+      if (hist.length - histUserIdx === live.length - liveUserIdx) {
+        live = applyLiveStreamingTextToMergedTimeline(live, hist, null)
+      }
       const histThroughUser = hist.slice(0, histUserIdx + 1)
       const liveThroughUser = live.slice(0, liveUserIdx + 1)
       const liveAfterUser = live.slice(liveUserIdx + 1)
