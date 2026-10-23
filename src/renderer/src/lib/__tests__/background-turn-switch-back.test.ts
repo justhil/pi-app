@@ -16,6 +16,7 @@ vi.mock('@renderer/lib/rewind-metadata', () => ({ refreshSessionTree: vi.fn() })
 vi.mock('@renderer/features/timeline/timeline-bottom-anchor', () => ({ requestTimelineBottomAnchor: vi.fn() }))
 
 import { isInterruptedAssistantRow } from '@shared/timeline-incomplete'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
 import { seedSessionForTest } from '@renderer/test/session-state-helpers'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
@@ -155,6 +156,42 @@ describe('#99 background turn completion → switch back', () => {
     const texts = useUIStore.getState().timelineItems.map((item) => item.text)
     expect(texts).toContain('final answer')
     expect(texts).not.toContain('working…')
+  })
+
+  it.each([false, true])('revalidates a cached tail after visiting a new chat (terminal signal: %s)', async (terminal) => {
+    const partial: TimelineItem[] = [
+      ...history,
+      { id: 'live-asst', type: 'assistant-message', text: 'partial', timestamp: 4 },
+    ]
+    useUIStore.setState({
+      currentWorkspace: 'C:/workspace', currentSessionId: 'session-a', historySessionFile: sessionAKey,
+      timelineItems: partial, historyTotalCount: partial.length, historyLoadedCount: partial.length,
+      streamingAssistantId: 'live-asst', optimisticPendingUserText: null, agentTurnBootstrapping: false,
+      pendingSteering: [], pendingFollowUp: [], sessionRuntimeRunning: { [sessionAKey]: true },
+      runState: { status: 'running', activeRunId: 'run-a', toolCount: 0, errorCount: 0 },
+      workerLiveSnapshot: { sessionId: 'session-a', sessionFile: sessionAKey, status: 'running' },
+    })
+    diskRows(sessionAKey, partial)
+    await fetchSessionHistoryTail(sessionAKey)
+    captureVisibleLiveSessionTimeline()
+    focusSessionSync('session-b', sessionB)
+    enterBlankSession('pending-project')
+    diskRows(sessionAKey, [
+      ...history,
+      { id: 'disk-asst', type: 'assistant-message', text: 'complete final answer', sessionEntryId: 'e-a2', timestamp: 4 },
+    ])
+    if (terminal) {
+      useUIStore.getState().processEvent({
+        type: 'run', phase: 'idle', settled: true, seq: 10,
+        workspaceId: 'C:/workspace', sessionFile: sessionAKey, timestamp: 10,
+      })
+    }
+
+    await focusSession('session-a', sessionA)
+
+    expect(useUIStore.getState().timelineItems.at(-1)?.text).toBe('complete final answer')
+    expect(useUIStore.getState().runState.status).toBe(terminal ? 'idle' : 'running')
+    expect(ipcMock.invoke.mock.calls.filter(([method]) => method === 'session.getMessages')).toHaveLength(2)
   })
 
   it('should_invalidate_slice_cache_for_raw_windows_path', async () => {
