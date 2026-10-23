@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const invokeMock = vi.fn()
 const setThemeMock = vi.fn()
 const applyIconThemeMock = vi.fn()
+const setStateMock = vi.fn()
 
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: {
@@ -16,6 +17,7 @@ vi.mock('@renderer/components/icons', () => ({
 
 vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
+    setState: (...args: unknown[]) => setStateMock(...args),
     getState: () => ({
       setTheme: setThemeMock,
       setTimelineMaxAutoExpandedTools: vi.fn(),
@@ -35,6 +37,7 @@ describe('hydrateThemeFromSettings', () => {
     invokeMock.mockReset()
     setThemeMock.mockReset()
     applyIconThemeMock.mockReset()
+    setStateMock.mockReset()
   })
 
   it('should_apply_dark_class_and_sync_ui_store_when_settings_theme_is_dark', async () => {
@@ -67,6 +70,7 @@ describe('hydrateThemeFromSettings', () => {
 
     expect(loaded.iconTheme).toBe('iconoir')
     expect(applyIconThemeMock).toHaveBeenCalledWith('iconoir')
+    expect(setStateMock).toHaveBeenCalledWith({ sidebarStyle: loaded.sidebarStyle })
   })
 
   it('should_rebuild_custom_theme_css_from_settings', async () => {

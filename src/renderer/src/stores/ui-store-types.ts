@@ -226,6 +226,7 @@ export interface UIState {
   setTimelineMaxAutoExpandedTools: (n: number) => void
   timelineVisibleTurns: number
   setTimelineVisibleTurns: (n: number) => void
+  sidebarStyle: 'compact' | 'full'
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean

@@ -15,6 +15,7 @@ vi.mock('@renderer/components/icons', () => ({
 
 vi.mock('@renderer/stores/ui-store', () => ({
   useUIStore: {
+    setState: vi.fn(),
     getState: () => ({
       setTheme: vi.fn(),
       setTimelineMaxAutoExpandedTools: vi.fn(),
@@ -28,6 +29,7 @@ function draft(): SettingsDraft {
   return {
     theme: 'light',
     iconTheme: 'phosphor',
+    sidebarStyle: 'full',
     customTheme: {},
     customCssOverride: { enabled: true, css: ':root { --brand: #ff0000; }' },
     background: { shared: true },

@@ -23,6 +23,8 @@
     "revealInExplorer": "Reveal in File Explorer",
     "revealFailed": "Could not open path",
     "noSessions": "No sessions",
+    "showMoreSessions": "Show more ({{count}})",
+    "showFewerSessions": "Show less",
     "childSessionCount": "{{count}} child sessions",
     "toggleSubagents": "Toggle subagents for {{title}}",
     "openSubagentSession": "Open {{agent}} subagent session",
@@ -118,6 +120,11 @@
     },
     "empty": "No file changes",
     "copyPath": "Copy path"
+  },
+  "conversationContext": {
+    "title": "Current conversation workspace and branch",
+    "workspace": "Workspace",
+    "branch": "Branch"
   },
   "topbar": {
     "project": "Current project",

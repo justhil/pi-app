@@ -30,12 +30,11 @@ describe('nextRecentProjects', () => {
       expect(nextRecentProjects(['a', 'b'], 'c', true)).toEqual(['a', 'b', 'c'])
     })
 
-    it('caps by dropping the oldest (first) entry', () => {
-      const full = Array.from({ length: RECENT_PROJECTS_CAP }, (_, i) => `p${i}`)
+    it('retains every project when adding beyond the MRU limit', () => {
+      const full = Array.from({ length: RECENT_PROJECTS_CAP * 2 }, (_, i) => `p${i}`)
       const next = nextRecentProjects(full, 'new', true)
-      expect(next).toHaveLength(RECENT_PROJECTS_CAP)
-      expect(next[next.length - 1]).toBe('new')
-      expect(next).not.toContain('p0')
+      expect(next).toEqual([...full, 'new'])
+      expect(nextRecentProjects(next, 'p0', true)).toEqual(next)
     })
   })
 })

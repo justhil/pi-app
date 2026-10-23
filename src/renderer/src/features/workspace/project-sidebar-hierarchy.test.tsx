@@ -30,7 +30,7 @@ beforeEach(() => {
   failSessions = false
   useUIStore.setState({ currentWorkspace: '/copies/feature', recentProjects: [], sessions: [], sessionsWorkspace: null,
     currentSessionId: null, historySessionFile: null, timelineItems: [], subagentSessionGroup: null,
-    sessionAttention: {}, sidebarCollapsed: false, ephemeralSandboxDraft: false,
+    sessionAttention: {}, sidebarStyle: 'full', sidebarCollapsed: false, ephemeralSandboxDraft: false,
   })
   mocks.invoke.mockImplementation(async (method: string, req?: { workspaceId?: string; key?: string }) => {
     if (method === 'settings.get') return { settings: { recentProjects: ['/repo', '/copies/feature', '/notes'], recentProjectsFixedOrder: true } }
@@ -50,6 +50,68 @@ function sidebar() {
 }
 
 describe('repository / checkout / session sidebar', () => {
+  it('merges checkouts in compact mode and opens sessions in their original directory', async () => {
+    const invoke = mocks.invoke.getMockImplementation()!
+    mocks.invoke.mockImplementation(async (method, req) => {
+      if (method === 'settings.get') return { settings: {
+        recentProjects: ['/repo', '/copies/feature', '/notes'], recentProjectsFixedOrder: true, sidebarStyle: 'compact',
+      } }
+      return invoke(method, req)
+    })
+    useUIStore.setState({ currentSessionId: '/copies/feature', historySessionFile: '/copies/feature/session.jsonl' })
+    const { container } = sidebar()
+    await screen.findByText('/repo question')
+    expect(container.querySelectorAll('.sidebar-project-row')).toHaveLength(2)
+    expect(container.querySelector('.sidebar-repository-group')).toBeNull()
+    expect(screen.queryByText('Main checkout')).toBeNull()
+    expect(screen.queryByText('feature/sidebar')).toBeNull()
+    expect(screen.queryByText('lookup this prompt')).toBeNull()
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent('/copies/feature question')
+    fireEvent.click(screen.getByRole('button', { name: '/repo question' }))
+    expect(mocks.activate).toHaveBeenCalledWith('/repo', { sessionId: '/repo', sessionFile: '/repo/session.jsonl' })
+    const toggle = screen.getByRole('button', { name: 'Expand or collapse sessions in repo' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    mocks.invoke.mockClear()
+    await act(async () => { window.dispatchEvent(new Event('pi-desktop:reload-sidebar')) })
+    await waitFor(() => expect(mocks.invoke.mock.calls.filter(([method]) => method === 'session.list')).toEqual(expect.arrayContaining([
+      ['session.list', { workspaceId: '/repo', refresh: true }],
+      ['session.list', { workspaceId: '/copies/feature', refresh: true }],
+    ])))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'lookup' } })
+    expect(screen.queryByText('/repo question')).toBeNull()
+    expect(screen.getByText('/copies/feature question')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'All projects' }))
+    expect(await screen.findByText('/repo question')).toBeInTheDocument()
+  })
+
+  it.each(['compact', 'full'] as const)('retains all fixed-order projects when adding a folder in %s mode', async (sidebarStyle) => {
+    let projects = Array.from({ length: 20 }, (_, i) => `/projects/project-${i}`)
+    const invoke = mocks.invoke.getMockImplementation()!
+    mocks.invoke.mockImplementation(async (method, req) => {
+      if (method === 'settings.get') return { settings: {
+        recentProjects: projects, recentProjectsFixedOrder: true, sidebarStyle,
+      } }
+      if (method === 'desktop.gitWorktrees') return { ok: true, trees: [], repositoryPath: null }
+      return invoke(method, req)
+    })
+    useUIStore.setState({ currentWorkspace: projects[0] })
+    const { container } = sidebar()
+    const displayedProjects = () => Array.from(container.querySelectorAll('.sidebar-project-row'), (row) => row.getAttribute('data-workspace'))
+    await waitFor(() => expect(displayedProjects()).toEqual(projects))
+    expect(useUIStore.getState().recentProjects).toEqual(projects)
+
+    projects = [...projects, '/projects/new-project']
+    act(() => {
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
+    })
+    await waitFor(() => expect(displayedProjects()).toEqual(projects))
+    expect(useUIStore.getState().recentProjects).toEqual(projects)
+  })
+
   it('nests valid checkouts once and reads only the active checkout on startup', async () => {
     const { container } = sidebar()
     const repository = await screen.findByRole('group', { name: 'repo' })
