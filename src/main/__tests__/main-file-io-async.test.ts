@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -62,7 +62,7 @@ import { registerWorkspaceFsHandlers } from '../ipc/handlers/workspace-fs'
 
 let root: string
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'pi-main-io-'))
+  root = await realpath(await mkdtemp(join(tmpdir(), 'pi-main-io-')))
   mocks.statCalls.length = 0
   mocks.afterOpen = null
 })
