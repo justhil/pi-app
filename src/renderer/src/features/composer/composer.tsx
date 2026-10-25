@@ -494,7 +494,11 @@ export function Composer() {
                 attachment={{ path: image.path, name: image.name, kind: 'image' }}
                 previewSrc={image.dataUrl}
                 onPreview={() => setPreviewImage(image)}
-                onRemove={() => removeStagedImage(image.path)}
+                // The preview's own close button sits on the same corner, so drop the remove
+                // badge while that image is open.
+                onRemove={
+                  previewImage?.path === image.path ? undefined : () => removeStagedImage(image.path)
+                }
               />
             ))}
           </div>
