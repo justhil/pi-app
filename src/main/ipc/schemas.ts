@@ -132,6 +132,10 @@ export const clipboardWriteTempImageSchema = z
     }
   })
 
+export const clipboardReadTempImageSchema = z.object({
+  path: z.string().min(1),
+})
+
 export const piSettingsSetSchema = z.object({
   patch: z.record(z.unknown()),
 })
