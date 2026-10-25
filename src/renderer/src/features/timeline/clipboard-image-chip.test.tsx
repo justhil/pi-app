@@ -1,6 +1,8 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ClipboardImageChip } from './clipboard-image-chip'
+import { ImagePreviewHost } from '@renderer/components/ui/image-preview-host'
+import { closeImagePreview } from '@renderer/components/ui/image-preview-store'
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-i18next')>()
@@ -23,6 +25,7 @@ vi.mock('@renderer/features/composer/delayed-tooltip', () => ({
 
 afterEach(() => {
   vi.clearAllMocks()
+  closeImagePreview()
 })
 
 const DATA_URL = 'data:image/png;base64,eA=='
@@ -52,14 +55,25 @@ describe('ClipboardImageChip', () => {
     mocks.invoke.mockResolvedValue({ ok: true, dataUrl: DATA_URL })
     const path = 'C:/tmp/pi-clipboard-preview.png'
 
-    const first = render(<ClipboardImageChip path={path} name="shot.png" />)
+    const first = render(
+      <>
+        <ImagePreviewHost />
+        <ClipboardImageChip path={path} name="shot.png" />
+      </>,
+    )
     await screen.findByRole('img', { name: 'shot.png' })
     fireEvent.click(screen.getByRole('button', { name: 'composer:previewImage' }))
     expect(screen.getByRole('dialog', { name: 'shot.png' })).toBeTruthy()
+    // The preview lives outside the chip: a row re-render must not close it.
     first.unmount()
-
-    render(<ClipboardImageChip path={path} name="shot.png" />)
-    await screen.findByRole('img', { name: 'shot.png' })
+    render(
+      <>
+        <ImagePreviewHost />
+        <ClipboardImageChip path={path} name="shot.png" />
+      </>,
+    )
+    expect(screen.getByRole('dialog', { name: 'shot.png' })).toBeTruthy()
+    expect(screen.getAllByRole('img', { name: 'shot.png' }).length).toBeGreaterThan(0)
     expect(mocks.invoke).toHaveBeenCalledTimes(1)
   })
 })

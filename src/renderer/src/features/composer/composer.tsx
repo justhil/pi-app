@@ -14,7 +14,8 @@ import {
   type Segment,
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
-import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
+import { openImagePreview } from '@renderer/components/ui/image-preview-store'
+import { useImagePreview } from '@renderer/components/ui/image-preview-host'
 import type { StagedImage } from './attachments'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerToolsMenu } from './composer-tools-menu'
@@ -76,7 +77,7 @@ export function Composer() {
   // 暂存图片不进入 contenteditable：粘贴图片不产生编辑器 DOM 变更，原生撤销栈保持干净。
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([])
   const stagedImagesRef = useRef<StagedImage[]>([])
-  const [previewImage, setPreviewImage] = useState<StagedImage | null>(null)
+  const previewImage = useImagePreview()
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -513,11 +514,13 @@ export function Composer() {
                 key={`staged:${image.path}`}
                 attachment={{ path: image.path, name: image.name, kind: 'image' }}
                 previewSrc={image.dataUrl}
-                onPreview={() => setPreviewImage(image)}
+                onPreview={() => {
+                  if (image.dataUrl) openImagePreview(image.dataUrl, image.name)
+                }}
                 // The preview's own close button sits on the same corner, so drop the remove
                 // badge while that image is open.
                 onRemove={
-                  previewImage?.path === image.path ? undefined : () => removeStagedImage(image.path)
+                  previewImage?.src === image.dataUrl ? undefined : () => removeStagedImage(image.path)
                 }
               />
             ))}
@@ -646,11 +649,6 @@ export function Composer() {
           </div>
         </div>
       </div>
-      <ImageLightbox
-        src={previewImage?.dataUrl ?? null}
-        alt={previewImage?.name}
-        onClose={() => setPreviewImage(null)}
-      />
     </div>
   )
 }

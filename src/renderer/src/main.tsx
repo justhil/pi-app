@@ -9,6 +9,7 @@ import './lib/startup-toast-guard'
 import { ensureExtensionUIChannel } from './lib/extension-ui-channel'
 import { ensureAppUpdateNotify } from './lib/app-update-notify'
 import { ipcClient } from './lib/ipc-client'
+import { ImagePreviewHost } from './components/ui/image-preview-host'
 
 ensureExtensionUIChannel()
 ensureAppUpdateNotify()
@@ -55,6 +56,7 @@ async function bootstrapRenderer(): Promise<void> {
     <React.StrictMode>
       <Suspense fallback={null}>
         <App />
+        <ImagePreviewHost />
         <BootSplashDismiss />
       </Suspense>
     </React.StrictMode>,
