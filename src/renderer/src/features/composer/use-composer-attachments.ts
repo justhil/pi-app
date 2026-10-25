@@ -106,22 +106,19 @@ export function useComposerAttachments(opts: {
         insertTextAtCursor(el, text.endsWith('\n') ? text : `${text}\n`)
         updateFromEditor()
       }
-      for (const f of files) {
-        const kind = (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name)
-        if (kind === 'image') stageImagePath(f.path, f.name)
-      }
-      const metas: AttachmentMeta[] = files
-        .filter((f) => ((f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name)) !== 'image')
-        .map((f) => ({
-          path: f.path,
-          name: f.name,
-          kind: (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name),
-        }))
+      // Only pasted screenshots are staged. Files handed over by another surface (browser
+      // annotations, workspace tree) keep their inline chip so the chip stays next to the text
+      // that explains it, e.g. the numbered annotation list.
+      const metas: AttachmentMeta[] = files.map((f) => ({
+        path: f.path,
+        name: f.name,
+        kind: (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name),
+      }))
       insertMetas(metas)
     }
     window.addEventListener('pi-desktop:composer-attach-files', onAttach)
     return () => window.removeEventListener('pi-desktop:composer-attach-files', onAttach)
-  }, [editorRef, insertMetas, stageImagePath, updateFromEditor])
+  }, [editorRef, insertMetas, updateFromEditor])
 
   const insertPastedScreenshot = useCallback(
     async (base64: string, mimeType: string) => {
