@@ -95,6 +95,10 @@ composer 曾对纯文本粘贴 `preventDefault` 后手动插 DOM——实测（�
 
 逐次 input 给 `<br>` 补 ZWSP 会把删光文字后浏览器留下的占位 `<br>` 变成额外空行；再次退格删除 ZWSP 后又会补回，出现退格增加空行。定案：**移除换行 ZWSP 补写，`renderRichTextFromPlain` / `renderRichFromSegments` 直接保留文本中的 `\n`**，末尾空行只附加浏览器所需的占位 `<br>`。单个占位 `<br>` 视为空输入，实际换行隐藏默认提示。`scripts/regression/composer-undo.mjs` 加载真实 `RichInput` 和 DOM 辅助函数，覆盖清空后继续输入、空行退格、草稿末尾换行、跨行方向键和原生撤销。
 
+### 决策记录：粘贴图片不进编辑器，走暂存区（2026）
+
+粘贴截图曾插入附件 chip（`execCommand('insertHTML')`），等于一次程序化插入：要参与撤销栈、维护 ZWSP 光标锚点、序列化时还原路径。定案：截图直接进输入框上方暂存区（`composer.tsx` 的 `stagedImages`），正文不动，贴图与打字、Ctrl+Z 互不干扰；发送时仍以文件路径进消息（`attachment.kind: 'image'`）。历史气泡用 `ipc:clipboard.readTempImage` 读缩略图，仅限 `userData/clipboard-images/pi-clipboard-*`、8MB 上限，不扩大 workspace 读取范围。浏览器标注等界面移交的文件仍走 chip，与其说明文字保持对应。代价：临时图片 7 天后被清理，旧消息降级为文件名 chip。
+
 ## 模型作用域术语（glossary，2026 访谈确认）
 
 - **会话模型（session model）**：当前会话使用的模型，写入会话 JSONL 的 `model_change` 条目，按会话持久化；重新打开会话时从会话文件恢复。
