@@ -42,6 +42,40 @@ export interface AttachmentMeta {
   chipId?: string
 }
 
+/**
+ * 已暂存、等待发送的图片。图片不进 contenteditable：粘贴图片不写编辑器 DOM，
+ * 原生撤销栈因此永远不会被图片粘贴污染。
+ */
+export interface StagedImage {
+  path: string
+  name: string
+  mimeType: string
+  /** 缩略图/放大预览用的 `data:` URL；无法预览时为 undefined（chip 退回图标）。 */
+  dataUrl?: string
+}
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', ico: 'image/x-icon',
+  tiff: 'image/tiff', avif: 'image/avif',
+}
+
+/** 由文件名推断图片 mime（仅用于暂存图片元数据，不做格式校验）。 */
+export function imageMimeFromName(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  return IMAGE_MIME_BY_EXT[ext] || 'image/png'
+}
+
+/** 读取 File 为 data URL（缩略图用）。 */
+export function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
 /** Unique key for React lists and remove-by-identity. */
 export function attachmentChipKey(meta: AttachmentMeta, index = 0): string {
   if (meta.chipId) return meta.chipId

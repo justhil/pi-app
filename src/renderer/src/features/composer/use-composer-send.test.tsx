@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { renderRichFromSegments, serializeRichInput } from './attachments'
+import { renderRichFromSegments, serializeRichInput, type StagedImage } from './attachments'
 import { clearTransientComposerDraft, readTransientComposerDraft } from './composer-transient-draft'
 import { beginSessionNavigation } from '@renderer/lib/session-navigation'
 
@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   turnActive: vi.fn(() => false),
   routeSlash: vi.fn(async () => ({ handled: false })),
   cancelForSession: vi.fn(),
+  setStagedImages: vi.fn(),
+  readStagedImages: () => [] as StagedImage[],
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -76,7 +78,7 @@ function createEditor(text: string): HTMLDivElement {
   return editor
 }
 
-function renderSender(input: string | HTMLDivElement) {
+function renderSender(input: string | HTMLDivElement, stagedImages: StagedImage[] = []) {
   const editor = typeof input === 'string' ? createEditor(input) : input
   const text = serializeRichInput(editor).displayText
   const updateFromEditor = vi.fn()
@@ -97,6 +99,8 @@ function renderSender(input: string | HTMLDivElement) {
       editorRef: { current: editor },
       text,
       attachments: [],
+      stagedImages,
+      setStagedImages: mocks.setStagedImages,
       updateFromEditor,
       clearEditor,
       setContent: vi.fn(),
@@ -323,6 +327,26 @@ describe('useComposerSend submission arbitration', () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith('prompt.send', expect.anything())
     expect(mocks.invoke).not.toHaveBeenCalledWith('session.compact', expect.anything())
+  })
+
+  it('sends staged images as attachments without writing them to the editor', async () => {
+    const editor = createEditor('')
+    const { result } = renderSender(editor, [
+      {
+        path: 'C:/tmp/pi-clipboard-a.png',
+        name: 'clipboard-image-1.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,eA==',
+      },
+    ])
+
+    await act(() => result.current.handleSend())
+
+    const sendCall = mocks.invoke.mock.calls.find(([method]) => method === 'prompt.send')
+    expect(sendCall).toBeTruthy()
+    expect(String((sendCall?.[1] as { text: string }).text)).toContain('C:/tmp/pi-clipboard-a.png')
+    expect(mocks.setStagedImages).toHaveBeenCalledWith([])
+    expect(editor.textContent).toBe('')
   })
 
   it('sends the first prompt to a new session while another session is running', async () => {

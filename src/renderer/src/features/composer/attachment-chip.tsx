@@ -11,16 +11,23 @@ function AttachmentChipImpl({
   onRemove,
   className,
   openable = false,
+  previewSrc,
+  onPreview,
 }: {
   attachment: AttachmentMeta
   onRemove?: () => void
   className?: string
   /** Clickable chips open files with system default app */
   openable?: boolean
+  /** 图片 chip：缩略图 data URL（暂存图片专用，不写编辑器） */
+  previewSrc?: string
+  /** 点击缩略图放大预览 */
+  onPreview?: () => void
 }) {
   const { t } = useTranslation()
   const Icon = getAttachmentIcon(attachment.kind)
   const isLineRef = attachment.kind === 'line-ref'
+  const isThumb = attachment.kind === 'image' && !!previewSrc
   const handleOpen = () => {
     if (isLineRef) {
       // Open file in Files panel when possible
@@ -35,6 +42,45 @@ function AttachmentChipImpl({
   const tooltip = isLineRef
     ? `${attachment.path}:${attachment.line ?? ''}${attachment.snippet ? `\n${attachment.snippet}` : ''}`
     : attachment.path
+
+  if (isThumb) {
+    return (
+      <DelayedTooltip content={tooltip}>
+        <span className={cn('attachment-chip attachment-chip--thumb relative inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border/50 bg-[var(--bg-2)]', className)}>
+          <button
+            type="button"
+            onClick={onPreview}
+            aria-label={t('composer:previewImage')}
+            className="attachment-thumb-open flex h-full w-full items-center justify-center"
+          >
+            <img
+              src={previewSrc}
+              alt={attachment.name}
+              draggable={false}
+              className="pointer-events-none h-full w-full object-cover"
+            />
+          </button>
+          {onRemove && (
+            <button
+              type="button"
+              onPointerDown={(e) => {
+                e.stopPropagation()
+                hideAllDelayedTooltips()
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+              }}
+              className="attachment-chip-remove attachment-chip-remove--thumb absolute right-0 top-0 rounded-bl bg-background/80 p-0.5 leading-none opacity-80"
+              aria-label={t('composer:removeFile')}
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </span>
+      </DelayedTooltip>
+    )
+  }
 
   const chip = (
     <span

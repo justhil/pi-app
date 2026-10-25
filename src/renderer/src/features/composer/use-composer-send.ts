@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { executeSlashCommand, isExecutableBuiltin } from './slash-exec'
-import { renderRichFromSegments, serializeRichInput } from './attachments'
+import { renderRichFromSegments, serializeRichInput, type AttachmentMeta, type Segment, type StagedImage } from './attachments'
+import { segmentsToPromptPayload } from './attachment-text'
 import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
 import { extensionUiBlocksComposer, useExtensionUIStore } from '@renderer/stores/extension-ui-store'
@@ -22,6 +23,9 @@ export function useComposerSend(opts: {
   editorRef: React.RefObject<HTMLDivElement | null>
   text: string
   attachments: { path: string }[]
+  /** 已暂存、未发送的图片（不在编辑器里）。 */
+  stagedImages: StagedImage[]
+  setStagedImages: React.Dispatch<React.SetStateAction<StagedImage[]>>
   updateFromEditor: () => void
   clearEditor: () => void
   setContent: (plain: string) => void
@@ -35,6 +39,8 @@ export function useComposerSend(opts: {
   const {
     editorRef,
     text,
+    stagedImages,
+    setStagedImages,
     updateFromEditor,
     clearEditor,
     setContent,
@@ -59,8 +65,19 @@ export function useComposerSend(opts: {
         const el = editorRef.current
         if (!el) return
         const { displayText, payload, attachments: atts, segments } = serializeRichInput(el)
+        // 暂存图片在发送时追加为文件段：路径照常发给 agent，但从不进入编辑器 DOM。
+        const stagedSegments: Segment[] = stagedImages.map((img) => ({
+          type: 'file',
+          attachment: { path: img.path, name: img.name, kind: 'image' },
+        }))
+        const allSegments = stagedSegments.length ? [...segments, ...stagedSegments] : segments
+        const allAtts: AttachmentMeta[] = stagedSegments.length
+          ? [...atts, ...stagedSegments.map((s) => (s as { attachment: AttachmentMeta }).attachment)]
+          : atts
+        const promptText = stagedSegments.length ? segmentsToPromptPayload(allSegments) : payload
+        const stagedSnapshot = stagedImages
         const trimmed = displayText.trim()
-        if (!trimmed && atts.length === 0) return
+        if (!trimmed && allAtts.length === 0) return
         const store = useUIStore.getState()
         const creationOrigin = { state: store, navigationToken: getSessionNavigationToken() }
         const ownsSourceView = () => {
@@ -70,7 +87,7 @@ export function useComposerSend(opts: {
             current.currentSessionId === store.currentSessionId &&
             current.historySessionFile === store.historySessionFile
         }
-        if (atts.length === 0 && isExecutableBuiltin(trimmed)) {
+        if (allAtts.length === 0 && isExecutableBuiltin(trimmed)) {
           clearEditor()
           await executeSlashCommand(trimmed, { refreshCommands })
           return
@@ -97,6 +114,7 @@ export function useComposerSend(opts: {
         hideAllDelayedTooltips()
         const { renderRichTextFromPlain } = await import('./attachments')
         renderRichTextFromPlain(el, '')
+        setStagedImages([])
         updateFromEditor()
         editorRef.current?.focus()
         const pendingNew = store.pendingNewSessionPlaceholder
@@ -108,7 +126,7 @@ export function useComposerSend(opts: {
         const promptPayload = () => ({
           sessionId: '',
           sessionFile,
-          text: payload,
+          text: promptText,
           capabilities,
         })
         let promptAccepted = false
@@ -129,8 +147,8 @@ export function useComposerSend(opts: {
             if (ownsSourceView()) {
               optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
                 bootstrap: true,
-                attachments: atts,
-                segments,
+                attachments: allAtts,
+                segments: allSegments,
               })
               useUIStore.getState().setPendingTurnStage('starting')
             }
@@ -158,8 +176,8 @@ export function useComposerSend(opts: {
             if (ownsSourceView()) {
               optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
                 bootstrap: true,
-                attachments: atts,
-                segments,
+                attachments: allAtts,
+                segments: allSegments,
               })
               useUIStore.getState().setPendingTurnStage('starting')
             }
@@ -193,7 +211,7 @@ export function useComposerSend(opts: {
             return
           }
           if (ownsSourceView()) {
-            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: atts, segments })
+            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: allAtts, segments: allSegments })
           }
           const bind = await sendPrompt()
           await updateSentView(bind)
@@ -209,9 +227,11 @@ export function useComposerSend(opts: {
             const currentDraft = ownsEditor
               ? serializeRichInput(el).segments
               : readTransientComposerDraft(draftKey) ?? []
-            const restored = [...segments]
+            const restored = [...allSegments]
             if (currentDraft.length) restored.push({ type: 'text', text: '\n' }, ...currentDraft)
             rememberTransientComposerDraft(draftKey, restored)
+            // 失败回滚：图片一起回到附件条。
+            setStagedImages((prev) => [...stagedSnapshot, ...prev])
             if (ownsEditor) {
               renderRichFromSegments(el, restored)
               updateFromEditor()
@@ -223,7 +243,7 @@ export function useComposerSend(opts: {
         sendingRef.current = false
       }
     },
-    [clearEditor, editorRef, inputHistory, refreshCommands, t, updateFromEditor],
+    [clearEditor, editorRef, inputHistory, refreshCommands, setStagedImages, stagedImages, t, updateFromEditor],
   )
 
   const handleSend = useCallback(

@@ -125,6 +125,8 @@
     "close": "Close Subagent details"
   },
   "removeFile": "Remove file",
+  "previewImage": "Preview image",
+  "closePreview": "Close preview",
   "openedConfigToast": "Opened {{name}} config",
   "openedPanelToast": "Opened {{panel}} panel",
   "pasteScreenshotNeedWorkspace": "Open a workspace before pasting screenshots",
