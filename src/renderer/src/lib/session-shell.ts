@@ -327,10 +327,12 @@ export async function hydrateSessionView(
   const focused = (): boolean => sessionFilesEqual(focusKey, sessionKey)
 
   try {
-    // Bypass the slice cache when nothing is loaded yet or a background turn ended since the
-    // last read (disk is then authoritative for the tail). Disk-first IPC — never spawns a worker.
+    // A running turn can persist a fuller reply before its terminal event reaches us.
+    // Disk-first IPC — never spawns a worker.
     const diskAuthoritative = isSessionDiskAuthoritative(sessionKey)
-    const hist = await fetchSessionHistoryTail(sessionKey, 80, { bypassCache: !hadRows || diskAuthoritative })
+    const hist = await fetchSessionHistoryTail(sessionKey, 80, {
+      bypassCache: !hadRows || diskAuthoritative || sessionTurnActive(sessionKey),
+    })
     if (navToken != null && !assertSessionNavigation(navToken)) {
       restorePhaseIfUnfinished()
       return

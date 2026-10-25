@@ -135,6 +135,33 @@ describe('session shell stream switch race', () => {
     expect(useUIStore.getState().runState.status).toBe('running')
   })
 
+  it.each([false, true])('restores a richer disk reply after visiting a new chat (terminal signal: %s)', async (terminal) => {
+    if (terminal) {
+      useUIStore.getState().processEvent({
+        type: 'run', phase: 'idle', settled: true, runId: 'run-a',
+        seq: 1, workspaceId: '/workspace', sessionId: 'session-a', sessionFile: sessionA, timestamp: 3,
+      })
+    }
+    focusSessionSync('session-b', sessionB)
+    enterBlankSession('pending-project')
+    focusSessionSync('session-a', sessionA)
+    const items = useUIStore.getState().timelineItems.map((item) =>
+      item.type === 'assistant-message'
+        ? { ...item, text: 'complete final answer', thinkingText: 'complete reasoning' }
+        : item,
+    )
+    historyMock.fetch.mockResolvedValueOnce({ items, sourceCount: items.length, totalCount: items.length })
+
+    await hydrateSessionView(sessionA, 'session-a')
+
+    expect(useUIStore.getState().timelineItems.at(-1)).toMatchObject({
+      text: 'complete final answer', thinkingText: 'complete reasoning',
+    })
+    focusSessionSync('session-b', sessionB)
+    focusSessionSync('session-a', sessionA)
+    expect(useUIStore.getState().timelineItems.at(-1)?.text).toBe('complete final answer')
+  })
+
   it.each([
     { steering: [], followUp: [] },
     { steering: ['new steering'], followUp: ['new follow-up'] },
