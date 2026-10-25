@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -64,7 +64,7 @@ const dirs: string[] = []
 const lines = (edit: (n: number) => string) => Array.from({ length: 30 }, (_, i) => edit(i + 1)).join('\n') + '\n'
 
 function repo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'pi-git-hard-'))
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'pi-git-hard-')))
   dirs.push(dir)
   git(dir, 'init', '-q')
   git(dir, 'config', 'user.email', 't@example.com')

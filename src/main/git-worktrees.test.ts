@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -18,7 +18,7 @@ function git(args: string[]) {
 }
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'pi-sidebar-git-'))
+  root = await realpath(await mkdtemp(join(tmpdir(), 'pi-sidebar-git-')))
   main = join(root, 'main repo')
   feature = join(root, '中文 工作副本')
   detached = join(root, 'detached')
