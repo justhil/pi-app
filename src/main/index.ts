@@ -123,7 +123,8 @@ app.whenReady().then(() => {
   registerAllHandlers()
   void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
     try {
-      // Sweep first: an orphaned blob is bytes the user can never see again.
+      // Sweep first: a blob the pre-shared layout orphaned is bytes the user can never see again.
+      // The shared store is left alone — another install may still reference it.
       void import('./attachment-store').then(({ sweepAttachments }) => {
         try {
           sweepAttachments()

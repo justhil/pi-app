@@ -191,6 +191,16 @@ export const sqliteIndex = {
     return d.prepare('SELECT DISTINCT path FROM attachment_index').all().map((r) => (r as { path: string }).path)
   },
 
+  /** Blob paths a single session's pastes point at. */
+  attachmentBlobPathsForSession(sessionFile: string): string[] {
+    const d = getDb()
+    if (!d) return []
+    return d
+      .prepare('SELECT DISTINCT path FROM attachment_index WHERE session_file = ?')
+      .all(sessionFile)
+      .map((r) => (r as { path: string }).path)
+  },
+
   /** Source paths this session sent, oldest first — the renderer rebuilds image segments from them. */
   attachmentsForSession(sessionFile: string): string[] {
     const d = getDb()

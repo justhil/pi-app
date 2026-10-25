@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 const userData = mkdtempSync(join(tmpdir(), 'pi-clipboard-prune-'))
 
 vi.mock('electron', () => ({ app: { getPath: () => userData } }))
+vi.mock('../agent-dir', () => ({ resolveActiveAgentDir: () => join(userData, 'agent') }))
 
 const rows = new Map<string, { path: string }>()
 vi.mock('../sqlite-index', () => ({

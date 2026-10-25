@@ -20,7 +20,7 @@ import {
 import { setVisibleSessionFile } from '../../completion-notification-events'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { sqliteIndex } from '../../sqlite-index'
-import { sweepAttachments } from '../../attachment-store'
+import { deleteSessionAttachments } from '../../attachment-store'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import type { SessionOnDiskRow } from '../sdk-session'
@@ -582,8 +582,7 @@ export function registerSessionHandlers(): void {
       clearSessionDisplayName(authorized.sessionFile)
       // The session's attachment rows are the only thing keeping its images alive; drop them, then
       // collect the blobs nothing else references.
-      sqliteIndex.deleteAttachmentsForSession(authorized.sessionFile)
-      sweepAttachments()
+      deleteSessionAttachments(authorized.sessionFile)
       await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
     }
     return { ok: !!r.ok, error: r.error }

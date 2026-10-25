@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 const userData = mkdtempSync(join(tmpdir(), 'pi-remote-att-'))
 vi.mock('electron', () => ({ app: { getPath: () => userData } }))
+vi.mock('../agent-dir', () => ({ resolveActiveAgentDir: () => join(userData, 'agent') }))
 
 const { readRemoteAttachment, writeRemoteAttachment } = await import('../clipboard-temp-images')
 
