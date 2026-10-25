@@ -123,13 +123,14 @@ app.whenReady().then(() => {
   registerAllHandlers()
   void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
     try {
-      // Sweep first: a blob the pre-shared layout orphaned is bytes the user can never see again.
-      // The shared store is left alone — another install may still reference it.
-      void import('./attachment-store').then(({ sweepAttachments }) => {
+      // Migrate first: pictures sent by an older build move into the shared store, so every install
+      // reading the same sessions can render them. Then sweep the profile-local leftovers.
+      void import('./attachment-store').then(({ migrateLegacyBlobs, sweepAttachments }) => {
         try {
+          migrateLegacyBlobs()
           sweepAttachments()
         } catch (e) {
-          console.warn('[attachments] sweep failed:', e)
+          console.warn('[attachments] migrate/sweep failed:', e)
         }
       })
       pruneStaleClipboardImages()

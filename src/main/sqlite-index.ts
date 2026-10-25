@@ -191,6 +191,16 @@ export const sqliteIndex = {
     return d.prepare('SELECT DISTINCT path FROM attachment_index').all().map((r) => (r as { path: string }).path)
   },
 
+  /** Source -> blob pairs, for one-off migrations between store layouts. */
+  attachmentPairs(): { source_path: string; path: string }[] {
+    const d = getDb()
+    if (!d) return []
+    return d.prepare('SELECT source_path, path FROM attachment_index').all() as {
+      source_path: string
+      path: string
+    }[]
+  },
+
   /** Blob paths a single session's pastes point at. */
   attachmentBlobPathsForSession(sessionFile: string): string[] {
     const d = getDb()

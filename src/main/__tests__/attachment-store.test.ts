@@ -18,6 +18,8 @@ vi.mock('../sqlite-index', () => ({
       rows.set(source, { path, session_file: session }),
     findAttachment: (source: string) => rows.get(source) ?? null,
     attachmentBlobPaths: () => [...new Set([...rows.values()].map((r) => r.path))],
+    attachmentPairs: () =>
+      [...rows.entries()].map(([source_path, row]) => ({ source_path, path: row.path })),
     attachmentBlobPathsForSession: (session: string) =>
       [...new Set([...rows.values()].filter((r) => r.session_file === session).map((r) => r.path))],
     deleteAttachmentsForSession: (session: string) => {
@@ -26,7 +28,14 @@ vi.mock('../sqlite-index', () => ({
   },
 }))
 
-const { persistAttachment, persistAttachments, resolveStoredAttachment, deleteSessionAttachments, sweepAttachments } =
+const {
+  persistAttachment,
+  persistAttachments,
+  resolveStoredAttachment,
+  deleteSessionAttachments,
+  migrateLegacyBlobs,
+  sweepAttachments,
+} =
   await import('../attachment-store')
 
 const blobDir = join(agentRoot, 'attachments')
@@ -107,6 +116,22 @@ describe('attachment store', () => {
     const resolved = resolveStoredAttachment(path)
     expect(resolved?.startsWith(blobDir)).toBe(true)
     expect(readFileSync(resolved!, 'utf8')).toBe('legacy-bytes')
+  })
+
+  it('migrates old rows at startup so another install can render them', () => {
+    rows.clear()
+    const path = tempImage('pi-clipboard-old-profile.png', 'old-profile-bytes')
+    const legacyDir = join(userData, 'attachments')
+    mkdirSync(legacyDir, { recursive: true })
+    const legacyBlob = join(legacyDir, 'cafebabe.png')
+    writeFileSync(legacyBlob, 'old-profile-bytes')
+    rows.set(path, { path: legacyBlob, session_file: 's8.jsonl' })
+
+    expect(migrateLegacyBlobs()).toBe(1)
+    rows.clear() // the other install has no row for this image
+    const resolved = resolveStoredAttachment(path)
+    expect(resolved?.startsWith(blobDir)).toBe(true)
+    expect(readFileSync(resolved!, 'utf8')).toBe('old-profile-bytes')
   })
 
   it('deletes a session\'s blobs, keeping ones another session still uses', () => {

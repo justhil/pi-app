@@ -118,6 +118,29 @@ export function deleteSessionAttachments(sessionFile: string): number {
 }
 
 /**
+ * Move every blob this profile recorded before the store was shared into the shared store, so
+ * pictures sent by an older build also render in any other install reading the same agent dir.
+ */
+export function migrateLegacyBlobs(): number {
+  let moved = 0
+  const legacy = legacyBlobDir()
+  for (const row of sqliteIndex.attachmentPairs()) {
+    if (!row.path.startsWith(legacy)) continue
+    const target = blobPathFor(row.source_path)
+    try {
+      if (existsSync(target)) continue
+      if (!existsSync(row.path)) continue
+      copyFileSync(row.path, target)
+      sqliteIndex.upsertAttachment(row.source_path, target)
+      moved++
+    } catch {
+      /* unreadable source: the row keeps the old path until the next run */
+    }
+  }
+  return moved
+}
+
+/**
  * Collect blobs the pre-shared layout left under this profile. The shared store is never swept:
  * another install may reference a blob this profile has no row for.
  */
