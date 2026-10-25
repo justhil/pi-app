@@ -1706,6 +1706,15 @@
     color: var(--text-primary);
     opacity: 0.78;
   }
+  /* Pictures sit above the bubble as their own row: the bubble is the message card, and the
+     pictures must not inherit its background and padding. */
+  .timeline-user-images {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
   .timeline-user-bubble {
     max-width: 80%;
     padding: 0.5rem 0.875rem;

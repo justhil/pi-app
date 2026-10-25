@@ -260,6 +260,8 @@ export const useUIStore = create<UIState>()(
   composerPrefill: null,
   composerPrefillMode: 'replace' as const,
   setComposerPrefill: (text) => set({ composerPrefill: text, composerPrefillMode: 'replace' }),
+  composerRestoreImages: null,
+  restoreComposerImages: (images) => set({ composerRestoreImages: images }),
   appendComposerPrefill: (text) => {
     const snippet = String(text || '').trimEnd()
     if (!snippet) return

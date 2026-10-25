@@ -20,7 +20,7 @@ vi.mock('../sqlite-index', () => ({
   },
 }))
 
-const { persistAttachment, persistPromptAttachments, resolveStoredAttachment, sweepAttachments } = await import(
+const { persistAttachment, persistAttachments, resolveStoredAttachment, sweepAttachments } = await import(
   '../attachment-store'
 )
 
@@ -54,13 +54,18 @@ describe('attachment store', () => {
     expect(readFileSync(stored!, 'utf8')).toBe('pruned-later')
   })
 
-  it('persists every clipboard path found in the prompt text', () => {
+  it('persists every path the composer attached, whatever brought it in', () => {
     rows.clear()
-    const path = tempImage('from-text')
-    const count = persistPromptAttachments(`look at @${path} and reply`, 's3.jsonl')
+    const pasted = tempImage('from-clipboard')
+    const picked = join(userData, 'Downloads', 'K DP.png')
+    mkdirSync(join(userData, 'Downloads'), { recursive: true })
+    writeFileSync(picked, 'from-picker')
 
-    expect(count).toBe(1)
-    expect(resolveStoredAttachment(path)).not.toBeNull()
+    const count = persistAttachments([pasted, picked, join(userData, 'missing.png')], 's3.jsonl')
+
+    expect(count).toBe(2)
+    expect(resolveStoredAttachment(pasted)).not.toBeNull()
+    expect(resolveStoredAttachment(picked)).not.toBeNull()
   })
 
   it('sweeps blobs no row points at', () => {

@@ -181,6 +181,9 @@ export interface UIState {
   setComposerPrefill: (text: string | null) => void
   /** Append snippet to composer (line refs, etc.) without wiping the draft */
   appendComposerPrefill: (text: string) => void
+  /** Images a rewind put back into the draft; the composer stages them and clears this. */
+  composerRestoreImages: { path: string; name: string }[] | null
+  restoreComposerImages: (images: { path: string; name: string }[] | null) => void
   activePanel: string
   setActivePanel: (p: string) => void
   rightPanelCatalog: RightPanelCatalogItem[]

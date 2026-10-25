@@ -165,6 +165,18 @@ export const sqliteIndex = {
     ).run(sourcePath, path, sessionFile ?? null, Date.now())
   },
 
+  /** Same file seen with forward/back slashes or different case (Windows). */
+  findAttachmentLike(sourcePath: string): { path: string } | null {
+    const d = getDb()
+    if (!d) return null
+    const row = d
+      .prepare(
+        "SELECT path FROM attachment_index WHERE lower(replace(source_path, char(92), '/')) = lower(replace(?, char(92), '/'))",
+      )
+      .all(sourcePath)[0]
+    return row ? (row as { path: string }) : null
+  },
+
   findAttachment(sourcePath: string): { path: string } | null {
     const d = getDb()
     if (!d) return null
@@ -177,6 +189,29 @@ export const sqliteIndex = {
     const d = getDb()
     if (!d) return []
     return d.prepare('SELECT DISTINCT path FROM attachment_index').all().map((r) => (r as { path: string }).path)
+  },
+
+  /** Source paths this session sent, oldest first — the renderer rebuilds image segments from them. */
+  attachmentsForSession(sessionFile: string): string[] {
+    const d = getDb()
+    if (!d) return []
+    return d
+      // NULL rows come from the first message of a session: the file does not exist yet at send time.
+      .prepare(
+        'SELECT source_path FROM attachment_index WHERE session_file = ? OR session_file IS NULL ORDER BY created_at',
+      )
+      .all(sessionFile)
+      .map((r) => (r as { source_path: string }).source_path)
+  },
+
+  /** Newest first, for rows written before a session file existed. */
+  recentAttachments(limit = 500): string[] {
+    const d = getDb()
+    if (!d) return []
+    return d
+      .prepare('SELECT source_path FROM attachment_index ORDER BY created_at DESC LIMIT ?')
+      .all(limit)
+      .map((r) => (r as { source_path: string }).source_path)
   },
 
   deleteAttachmentsForSession(sessionFile: string): void {

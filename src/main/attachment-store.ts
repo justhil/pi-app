@@ -47,22 +47,20 @@ export function persistAttachment(sourcePath: string, sessionFile?: string): str
 
 /** Blob path recorded for a temp path, if the file still exists. */
 export function resolveStoredAttachment(sourcePath: string): string | null {
-  const row = sqliteIndex.findAttachment(sourcePath)
+  const row = sqliteIndex.findAttachment(sourcePath) ?? sqliteIndex.findAttachmentLike(sourcePath)
   if (!row) return null
   return existsSync(row.path) ? row.path : null
 }
 
-const CLIPBOARD_PATH = /[^\s"'()<>]*pi-clipboard-[^\s"'()<>]+/g
-
 /**
- * Persist every clipboard file referenced by a prompt. Runs from the send handler so the text the
- * agent receives stays the plain path it already was — persistence is invisible to the prompt.
+ * Persist every attachment a prompt carried. Runs from the send handler, after the worker accepted
+ * the turn, so the text the agent receives is untouched — persistence is invisible to the prompt.
  */
-export function persistPromptAttachments(text: string, sessionFile?: string): number {
+export function persistAttachments(paths: readonly string[] | undefined, sessionFile?: string): number {
   let count = 0
-  for (const match of text.matchAll(CLIPBOARD_PATH)) {
-    const path = match[0].replace(/^[@(]+/, '').replace(/[.,;:]+$/, '')
-    if (!existsSync(path)) continue
+  for (const raw of paths ?? []) {
+    const path = String(raw ?? '').trim()
+    if (!path || !existsSync(path)) continue
     try {
       if (!statSync(path).isFile()) continue
     } catch {

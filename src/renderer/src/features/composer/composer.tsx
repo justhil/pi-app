@@ -10,6 +10,7 @@ import {
   renderRichFromSegments,
   placeCaretAtEnd,
   attachmentChipKey,
+  imageMimeFromName,
   type Segment,
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
@@ -280,6 +281,25 @@ export function Composer() {
     dragDepth,
     stageImage,
   })
+
+  const composerRestoreImages = useUIStore((s) => s.composerRestoreImages)
+  const restoreComposerImages = useUIStore((s) => s.restoreComposerImages)
+
+  // A rewind hands back the images the rewound message sent: stage them outside the editor again.
+  useEffect(() => {
+    if (!composerRestoreImages?.length) return
+    for (const image of composerRestoreImages) {
+      const mimeType = imageMimeFromName(image.name)
+      stageImage({ path: image.path, name: image.name, mimeType })
+      void ipcClient
+        .invoke('clipboard.readTempImage', { path: image.path })
+        .then((res) => res?.ok && stageImage({ path: image.path, name: image.name, mimeType, dataUrl: res.dataUrl }))
+        .catch(() => {
+          /* icon chip is enough */
+        })
+    }
+    restoreComposerImages(null)
+  }, [composerRestoreImages, restoreComposerImages, stageImage])
 
   useEffect(() => {
     if (composerPrefill == null) return

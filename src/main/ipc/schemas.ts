@@ -114,6 +114,8 @@ export const workspaceSandboxDeleteSchema = z.object({
 export const promptTextSchema = z.object({
   text: z.string(),
   sessionFile: z.string().optional(),
+  /** Every attachment the composer sent (pasted, picked or dropped); the text still carries the paths. */
+  attachments: z.array(z.string().min(1)).max(32).optional(),
   /** Session capabilities switched on in the composer; omitted = leave the worker's set unchanged. */
   capabilities: z.array(z.enum(CAPABILITY_IDS)).max(8).optional(),
 })

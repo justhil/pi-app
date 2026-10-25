@@ -21,14 +21,24 @@ export function ClipboardImageChip({ path, name, className }: { path: string; na
       return
     }
     let alive = true
-    void ipcClient
-      .invoke('clipboard.readTempImage', { path })
-      .then((res: ReadResponse) => {
-        const url = res?.ok ? res.dataUrl : null
-        dataUrlCache.set(path, url)
-        if (alive) setDataUrl(url)
-      })
-      .catch(() => dataUrlCache.set(path, null))
+    // The send handler stores the bytes a beat after the row appears, so a first miss is retried
+    // instead of being remembered. Only a hit is cached.
+    const read = (attempt: number) =>
+      ipcClient
+        .invoke('clipboard.readTempImage', { path })
+        .then((res: ReadResponse) => {
+          if (res?.ok) {
+            dataUrlCache.set(path, res.dataUrl)
+            if (alive) setDataUrl(res.dataUrl)
+            return
+          }
+          if (!alive || attempt >= 3) return
+          window.setTimeout(() => void read(attempt + 1), 400)
+        })
+        .catch(() => {
+          /* transient: leave the icon chip in place */
+        })
+    void read(0)
     return () => {
       alive = false
     }

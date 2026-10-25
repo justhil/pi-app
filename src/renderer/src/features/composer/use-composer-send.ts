@@ -128,6 +128,9 @@ export function useComposerSend(opts: {
           sessionFile,
           text: promptText,
           capabilities,
+          // Every attachment, whatever brought it in — pasted, picked or dropped. Main copies the
+          // bytes so the bubble survives the temp prune; the text still carries only the paths.
+          attachments: allAtts.map((a) => a.path),
         })
         let promptAccepted = false
         const sendPrompt = async () => {

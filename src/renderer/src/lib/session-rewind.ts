@@ -78,8 +78,17 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     const leafId = r?.leafId !== undefined ? r.leafId : targetId
 
     const editorText = typeof r?.editorText === 'string' ? r.editorText : ''
-    if (editorText) st.setComposerPrefill(editorText)
-    else st.setComposerPrefill(null)
+    if (editorText) {
+      // The rewound prompt carries its image paths: stage the pictures instead of leaving paths.
+      const { splitImagePathSegments } = await import('@renderer/features/timeline/image-path-segments')
+      const segments = splitImagePathSegments([{ type: 'text', text: editorText }])
+      const images = segments.flatMap((s) =>
+        s.type === 'file' && s.attachment.kind === 'image' ? [{ path: s.attachment.path, name: s.attachment.name }] : [],
+      )
+      const rest = segments.flatMap((s) => (s.type === 'text' ? [s.text] : [])).join(' ').trim()
+      st.setComposerPrefill(rest || null)
+      if (images.length) st.restoreComposerImages(images)
+    } else st.setComposerPrefill(null)
 
     const { clearSessionHistoryCache, fetchSessionHistoryTail } = await import(
       '@renderer/lib/session-history'

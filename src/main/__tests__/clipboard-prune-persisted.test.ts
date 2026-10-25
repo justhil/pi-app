@@ -12,6 +12,7 @@ vi.mock('../sqlite-index', () => ({
   sqliteIndex: {
     upsertAttachment: (source: string, path: string) => rows.set(source, { path }),
     findAttachment: (source: string) => rows.get(source) ?? null,
+    findAttachmentLike: (source: string) => rows.get(source) ?? null,
     attachmentBlobPaths: () => [...new Set([...rows.values()].map((r) => r.path))],
     deleteAttachmentsForSession: () => {},
   },
