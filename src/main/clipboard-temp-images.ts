@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import { randomUUID } from 'crypto'
+import { resolveStoredAttachment } from './attachment-store'
 
 const tracked = new Set<string>()
 
@@ -39,9 +40,19 @@ export function readRemoteAttachment(path: string): { bytes: Buffer; mime: strin
   try {
     const dir = realpathSync(resolveClipboardImageDir())
     const real = realpathSync(path)
-    if (dirname(real) !== dir || !basename(real).startsWith('pi-clipboard-')) return null
-    const ext = (real.split('.').pop() || '').toLowerCase()
-    return { bytes: readFileSync(real), mime: ATTACHMENT_MIME[ext] ?? 'application/octet-stream' }
+    if (dirname(real) === dir && basename(real).startsWith('pi-clipboard-')) {
+      const ext = (real.split('.').pop() || '').toLowerCase()
+      return { bytes: readFileSync(real), mime: ATTACHMENT_MIME[ext] ?? 'application/octet-stream' }
+    }
+  } catch {
+    /* fall through to the persisted copy */
+  }
+  // A pruned temp file: the bytes survive in the attachment store, addressed by the same path.
+  const stored = resolveStoredAttachment(path)
+  if (!stored) return null
+  try {
+    const ext = (stored.split('.').pop() || '').toLowerCase()
+    return { bytes: readFileSync(stored), mime: ATTACHMENT_MIME[ext] ?? 'application/octet-stream' }
   } catch {
     return null
   }
@@ -94,6 +105,8 @@ export function pruneStaleClipboardImages(maxAgeMs = 7 * 24 * 60 * 60 * 1000): n
       const full = join(dir, name)
       try {
         const { mtimeMs } = statSync(full)
+        // Sent attachments already have a durable copy; the temp file is only a link back to it.
+        if (resolveStoredAttachment(full)) continue
         if (now - mtimeMs > maxAgeMs) {
           unlinkSync(full)
           tracked.delete(full)

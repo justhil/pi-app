@@ -123,6 +123,14 @@ app.whenReady().then(() => {
   registerAllHandlers()
   void import('./clipboard-temp-images').then(({ pruneStaleClipboardImages }) => {
     try {
+      // Sweep first: an orphaned blob is bytes the user can never see again.
+      void import('./attachment-store').then(({ sweepAttachments }) => {
+        try {
+          sweepAttachments()
+        } catch (e) {
+          console.warn('[attachments] sweep failed:', e)
+        }
+      })
       pruneStaleClipboardImages()
     } catch (e) {
       console.warn('[clipboard-images] prune failed:', e)

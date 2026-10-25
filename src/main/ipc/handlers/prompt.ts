@@ -5,6 +5,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { readRemoteAttachment, writeClipboardTempImage } from '../../clipboard-temp-images'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
 import { clipboardReadTempImageSchema, clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
+import { persistPromptAttachments } from '../../attachment-store'
 import { noteBrowserTarget } from '../../browser/targets'
 
 /** Matches the composer's paste limit, so a re-read can never return more than was written. */
@@ -49,6 +50,9 @@ export function registerPromptHandlers(): void {
     const bind = await bindBeforePrompt(req.sessionFile)
     await applyCapabilities(req)
     await workerManager.sendPrompt(req.text, req.sessionFile)
+    // Copies every pasted image to a durable blob and records where it came from, so the bubble
+    // keeps its picture after the 7-day temp prune. The prompt text is unchanged — still a path.
+    persistPromptAttachments(req.text, req.sessionFile)
     // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
     // Cleanup is TTL/startup prune + optional quit, not immediate delete-on-send.
     return {

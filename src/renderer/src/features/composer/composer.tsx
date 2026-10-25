@@ -480,7 +480,7 @@ export function Composer() {
           </div>
         </div>
         {hasAttachments && (
-          <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
+          <div className="composer-attachments-strip flex flex-wrap gap-1.5 px-2.5 pt-2">
             {attachments.map((a, index) => (
               <AttachmentChip
                 key={attachmentChipKey(a, index)}
