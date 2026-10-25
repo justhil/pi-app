@@ -40,11 +40,12 @@ export function ImageLightbox({ src, alt, onClose }: { src: string | null; alt?:
         className="max-h-[85vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
         draggable={false}
       />
+      {/* Theme tokens, not fixed black/white: custom and imported themes set their own palette. */}
       <button
         type="button"
         onClick={onClose}
         aria-label={t('composer:closePreview')}
-        className="absolute right-4 top-4 rounded-md bg-black/50 p-2 text-white/90 hover:bg-black/70 hover:text-white"
+        className="absolute right-4 top-4 rounded-full border border-border bg-background/95 p-2 text-foreground shadow-lg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <X className="h-4 w-4" />
       </button>

@@ -84,6 +84,29 @@ describe('AttachmentChip staged image thumbnail', () => {
     expect(screen.queryByRole('img', { name: 'shot.png' })).toBeNull()
     expect(screen.getByText('shot.png')).toBeTruthy()
   })
+
+  it('uses the 64px tile with a theme-token remove badge', () => {
+    render(
+      <AttachmentChip
+        attachment={{ path: 'C:/tmp/pi-clipboard-b.png', name: 'b.png', kind: 'image' }}
+        previewSrc={DATA_URL}
+        onPreview={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    )
+
+    const tile = screen.getByRole('img', { name: 'b.png' }).closest('.attachment-chip') as HTMLElement
+    expect(tile.className).toContain('h-16')
+    expect(tile.className).toContain('w-16')
+    // Badge must stay legible over any picture, so it may not inherit the image's own colours.
+    expect(tile.className).not.toContain('overflow-hidden')
+
+    const badge = screen.getByRole('button', { name: 'composer:removeFile' })
+    expect(badge.className).toContain('bg-[var(--bg-1)]')
+    expect(badge.className).toContain('border-border')
+    expect(badge.className).not.toContain('text-white')
+    expect(badge.className).not.toContain('bg-black')
+  })
 })
 
 describe('ImageLightbox', () => {
@@ -102,6 +125,17 @@ describe('ImageLightbox', () => {
 
     fireEvent.mouseDown(dialog)
     expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it('styles the close button with theme tokens, not a fixed black/white pair', () => {
+    render(<ImageLightbox src={DATA_URL} alt="shot.png" onClose={vi.fn()} />)
+
+    const close = screen.getByRole('button', { name: 'composer:closePreview' })
+    expect(close.className).toContain('bg-background/95')
+    expect(close.className).toContain('text-foreground')
+    expect(close.className).toContain('border-border')
+    expect(close.className).not.toContain('text-white')
+    expect(close.className).not.toContain('bg-black')
   })
 })
 

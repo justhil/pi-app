@@ -1113,11 +1113,37 @@
   .attachment-chip--thumb {
     padding: 0;
   }
+  /*
+   * The shared chip hover lifts by 0.5px behind a 1px brand-tinted shadow. On a photo that reads as a
+   * hard seam, so tiles stay flat: the frame below carries the edge in every theme, and hover only
+   * shifts the border tint.
+   */
+  .attachment-chip--thumb:hover {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none;
+    transform: none;
+  }
+  .attachment-thumb-frame {
+    border: 1px solid var(--border-base);
+    background: var(--bg-2);
+  }
+  .attachment-chip--thumb:hover .attachment-thumb-frame {
+    border-color: color-mix(in srgb, var(--brand) 40%, var(--border-base));
+  }
   .attachment-chip--thumb img {
     transition: transform var(--motion-normal) var(--motion-ease);
   }
   .attachment-chip--thumb:hover img {
     transform: scale(1.04);
+  }
+  .attachment-chip-remove--thumb {
+    opacity: 0.92;
+  }
+  /* Solid fill on hover: a translucent mix would let the thumbnail show through the badge. */
+  .attachment-chip-remove--thumb:hover {
+    background: var(--bg-3) !important;
+    border-color: color-mix(in srgb, var(--danger-semantic) 45%, var(--border-base));
   }
   .composer-drop-overlay {
     opacity: 0;

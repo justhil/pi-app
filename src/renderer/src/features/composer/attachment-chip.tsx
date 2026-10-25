@@ -46,20 +46,23 @@ function AttachmentChipImpl({
   if (isThumb) {
     return (
       <DelayedTooltip content={tooltip}>
-        <span className={cn('attachment-chip attachment-chip--thumb relative inline-flex h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border/50 bg-[var(--bg-2)]', className)}>
-          <button
-            type="button"
-            onClick={onPreview}
-            aria-label={t('composer:previewImage')}
-            className="attachment-thumb-open flex h-full w-full items-center justify-center"
-          >
-            <img
-              src={previewSrc}
-              alt={attachment.name}
-              draggable={false}
-              className="pointer-events-none h-full w-full object-cover"
-            />
-          </button>
+        {/* Outer span stays unclipped so the remove badge can overhang the tile corner. */}
+        <span className={cn('attachment-chip attachment-chip--thumb relative inline-flex h-16 w-16 shrink-0', className)}>
+          <span className="attachment-thumb-frame block h-full w-full overflow-hidden rounded-md">
+            <button
+              type="button"
+              onClick={onPreview}
+              aria-label={t('composer:previewImage')}
+              className="attachment-thumb-open flex h-full w-full cursor-zoom-in items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            >
+              <img
+                src={previewSrc}
+                alt={attachment.name}
+                draggable={false}
+                className="pointer-events-none h-full w-full object-cover"
+              />
+            </button>
+          </span>
           {onRemove && (
             <button
               type="button"
@@ -71,10 +74,10 @@ function AttachmentChipImpl({
                 e.stopPropagation()
                 onRemove()
               }}
-              className="attachment-chip-remove attachment-chip-remove--thumb absolute right-0 top-0 rounded-bl bg-background/80 p-0.5 leading-none opacity-80"
+              className="attachment-chip-remove attachment-chip-remove--thumb absolute -right-1.5 -top-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border border-border bg-[var(--bg-1)] p-0 text-foreground-secondary shadow-sm"
               aria-label={t('composer:removeFile')}
             >
-              <X className="h-2.5 w-2.5" />
+              <X className="h-3 w-3" strokeWidth={2.5} />
             </button>
           )}
         </span>
