@@ -70,7 +70,9 @@ export function EditorShell({ sessionTitle, children }: { sessionTitle: string; 
   }, [activeDoc, activate])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    // Carries the chat paper surface so the strip sits on the paper instead of on a band above it;
+    // otherwise the strip pushes the chat surface down and the side panels look taller than it.
+    <div className="main-chat-column relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div role="tablist" aria-label={t('editor.tabs')} className={cn(TAB_STRIP_CLASS, 'overflow-x-auto')}>
         <button
           type="button"

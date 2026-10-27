@@ -39,6 +39,18 @@ test.describe('files panel and main-column editor', () => {
       await win.keyboard.press('Escape')
       await expect(win.locator('[data-composer-shell]')).toBeVisible()
       await expect(win.getByRole('tab', { name: 'visible.md' })).toBeVisible()
+
+      // The strip lives on the chat surface: both top strips start at the same y, so the side
+      // panels do not look taller than the main column.
+      const tops = await win.evaluate(() => {
+        const top = (sel: string) => {
+          const el = document.querySelector(sel) as HTMLElement | null
+          return el ? +el.getBoundingClientRect().top.toFixed(1) : null
+        }
+        return { strip: top('[aria-label="Open files"]'), panel: top('.right-panel-tabs-wrap'), paper: top('.main-chat-column') }
+      })
+      expect(tops.strip).toBe(tops.panel)
+      expect(tops.paper).toBe(tops.strip)
     } finally {
       await agent.close()
       fs.rmSync(home, { recursive: true, force: true })
