@@ -163,3 +163,52 @@ describe('session activity', () => {
     expect(mocks.activate).not.toHaveBeenCalled()
   })
 })
+
+describe('today usage', () => {
+  const bucket = (cost: number, calls: number, tokens = 0) => ({ input: tokens, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost, calls })
+  const summary = {
+    from: 0,
+    to: 1,
+    total: bucket(0.49, 436, 39_200_000),
+    cacheHitRate: 0.94,
+    activeDays: 1,
+    sessions: 4,
+    firstAt: null,
+    byDay: [],
+    heat: { calls: [], cost: [], tokens: [] },
+    byModel: [
+      { model: 'deepseek/deepseek-v4.1-flash', ...bucket(0.49, 436, 39_200_000) },
+      { model: 'anthropic/claude-sonnet-5', ...bucket(0.31, 12, 1_500_000) },
+    ],
+    byProject: [],
+    topSessions: [],
+  }
+
+  it('keeps the money metric visible and opens the per-model breakdown', async () => {
+    mocks.invoke.mockImplementation(async (channel) => {
+      if (channel === 'usage.summary') return summary
+      if (channel === 'desktop.status') return { rss: 0, total: 0, workers: [] }
+      return {}
+    })
+    render(<StatusBar />)
+    const chip = screen.getByRole('button', { name: "Today's usage" })
+    await waitFor(() => expect(chip).toHaveTextContent('$0.49'))
+    expect(chip).toHaveTextContent('39.2M')
+    expect(mocks.invoke).toHaveBeenCalledWith('usage.summary', { days: 1 })
+
+    fireEvent.click(chip)
+    expect(await screen.findByText('deepseek-v4.1-flash')).toBeInTheDocument()
+    expect(screen.getByText(/deepseek · 39.2M tokens/)).toBeInTheDocument()
+    expect(screen.getByText('claude-sonnet-5')).toBeInTheDocument()
+    expect(screen.getByText('94%')).toBeInTheDocument()
+  })
+
+  it('shows a placeholder until the first reading and keeps the chip usable on failure', async () => {
+    mocks.invoke.mockRejectedValue(new Error('scan failed'))
+    render(<StatusBar />)
+    const chip = screen.getByRole('button', { name: "Today's usage" })
+    expect(chip).toHaveTextContent('—')
+    fireEvent.click(chip)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Usage is unavailable right now.')
+  })
+})

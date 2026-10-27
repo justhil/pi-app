@@ -15,7 +15,10 @@ import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
 import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
+import { formatCost, formatTokens, tokensOf } from '@renderer/features/settings/usage-charts'
 import { ShellPopover } from './shell-popover'
+import { TodayUsageBody } from './usage-status-popover'
+import { useTodayUsage } from './use-today-usage'
 
 type WorkerRow = { sessionFile: string; running: boolean; cwd: string }
 type MemoryKind = 'main' | 'ui' | 'sessions' | 'browser' | 'gpu' | 'other'
@@ -37,7 +40,7 @@ function sameDesktopStatus(previous: DesktopStatus | null, next: DesktopStatus):
     })
   )
 }
-type Popover = 'workers' | 'board' | null
+type Popover = 'workers' | 'board' | 'usage' | null
 const GROUPS: SessionAttention[] = ['needs-you', 'working', 'done']
 
 export function StatusBar() {
@@ -58,6 +61,10 @@ export function StatusBar() {
   const [stopping, setStopping] = useState(false)
   const boardAnchor = useRef<HTMLButtonElement>(null)
   const workersAnchor = useRef<HTMLButtonElement>(null)
+  const usageAnchor = useRef<HTMLButtonElement>(null)
+  const { usage, failed: usageFailed, refresh: refreshUsage } = useTodayUsage()
+  // A turn ending is the moment today's total changes, so read it then instead of waiting for the poll.
+  useEffect(() => { refreshUsage() }, [attention, refreshUsage])
   const close = useCallback(() => {
     setPopover(null)
     setConfirmStop(null)
@@ -169,7 +176,7 @@ export function StatusBar() {
   const live = counts.working + counts.needsYou + counts.done
 
   return (
-    <footer className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
+    <footer className="workbench-statusbar electron-no-drag relative" aria-label={t('common:statusBar.title')}>
       <BranchStatusTrigger />
       <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
         {live === 0 ? (runFailed
@@ -183,6 +190,20 @@ export function StatusBar() {
         )}
         <ChevronDown className="h-3 w-3 shrink-0 rotate-180 opacity-60" />
       </button>
+      <button
+        ref={usageAnchor}
+        type="button"
+        className="workbench-status-trigger absolute left-1/2 -translate-x-1/2 tabular-nums"
+        aria-haspopup="dialog"
+        aria-expanded={popover === 'usage'}
+        aria-label={t('common:statusBar.usage')}
+        title={t('common:statusBar.usageHint')}
+        onClick={() => setPopover((v) => (v === 'usage' ? null : 'usage'))}
+      >
+        <span>{usage ? formatCost(usage.total.cost) : '—'}</span>
+        <span className="opacity-40">·</span>
+        <span>{usage ? formatTokens(tokensOf(usage.total)) : '—'}</span>
+      </button>
       <div className="ml-auto flex shrink-0 items-center">
         <button type="button" className="workbench-status-trigger" aria-pressed={terminalOpen} title={t('common:terminal.toggle')} aria-label={t('common:terminal.toggle')} onClick={() => (!terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle())}>
           <Terminal className="h-3 w-3" />{terminalTabs > 0 ? <span className="tabular-nums">{terminalTabs}</span> : null}
@@ -194,9 +215,15 @@ export function StatusBar() {
       </div>
 
       {popover && (
-        <ShellPopover title={popover === 'board' ? t('common:board.title') : t('common:statusBar.resources')} anchorRef={popover === 'board' ? boardAnchor : workersAnchor} onClose={close}>
+        <ShellPopover
+          title={popover === 'board' ? t('common:board.title') : popover === 'usage' ? t('common:statusBar.usage') : t('common:statusBar.resources')}
+          anchorRef={popover === 'usage' ? usageAnchor : popover === 'board' ? boardAnchor : workersAnchor}
+          onClose={close}
+        >
           {actionError && <p role="alert" className="workbench-error">{actionError}</p>}
-          {popover === 'board' ? (
+          {popover === 'usage' ? (
+            <TodayUsageBody usage={usage} failed={usageFailed} onRefresh={refreshUsage} />
+          ) : popover === 'board' ? (
             live === 0 ? <div className="workbench-empty"><SessionAttentionDot attention="done" /><p>{t('common:board.empty')}</p><span>{t('common:board.emptyHint')}</span></div> : (
               GROUPS.map((kind) => {
                 const files = listAttentionSessions(attention, kind)
