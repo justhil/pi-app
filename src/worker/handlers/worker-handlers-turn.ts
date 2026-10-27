@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+import { preparePiCliEntry } from '../worker-cli-entry.js'
 import { errorMessage } from '@shared/error-message'
 import { normalizeUserMessageDisplayText } from '@shared/worker-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
@@ -36,6 +38,12 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
             sdkFallback = true
           }
           if (!st.sdk) throw new Error('SDK load failed')
+          try {
+            const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+            await preparePiCliEntry(entry)
+          } catch (e) {
+            console.warn('[Worker] Could not resolve Pi CLI entry:', errorMessage(e))
+          }
           if (!st.sharedEventBus) st.sharedEventBus = st.sdk.createEventBus()
           await initSession(String(msg.cwd || ''))
           console.log('[Worker] Init done, sessionId:', st.currentSessionId)
