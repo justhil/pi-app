@@ -1,5 +1,8 @@
-appId: com.pi.desktop
-productName: pi Desktop
+appId: com.rabbix.pi-studio
+productName: Pi Studio
+# Own app name so the packaged build does not share userData (and the single-instance lock) with dev.
+extraMetadata:
+  name: pi-studio
 directories:
   buildResources: build
   output: dist
@@ -46,11 +49,10 @@ extraResources:
       - "**/*"
 
 win:
+  # NSIS only: the portable target re-compresses the same 190 MB payload (doubling build time)
+  # and nothing in the dev loop uses it. `npm run package:win:portable` builds it on demand.
   target:
     - target: nsis
-      arch:
-        - x64
-    - target: portable
       arch:
         - x64
   icon: build/icon.png
