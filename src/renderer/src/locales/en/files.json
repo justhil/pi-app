@@ -35,6 +35,8 @@
     "pickFile": "Select a file in the tree to preview",
     "loading": "Loading preview…",
     "tooLarge": "File is too large to preview here",
+    "markdownTooLarge": "Too large to render as Markdown",
+    "renderMarkdown": "Render anyway",
     "binary": "Open this file type in the system app",
     "pdf": "Open PDF in your system viewer",
     "openInSystem": "Open in system",

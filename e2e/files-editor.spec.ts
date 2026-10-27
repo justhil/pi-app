@@ -66,4 +66,46 @@ test.describe('files panel and main-column editor', () => {
       fs.rmSync(home, { recursive: true, force: true })
     }
   })
+  test('renders Markdown as rich text and scrolls the tab strip', async () => {
+    test.setTimeout(200_000)
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-md-'))
+    const project = path.join(home, 'code', 'demo')
+    fs.mkdirSync(project, { recursive: true })
+    fs.writeFileSync(path.join(project, 'notes.md'), '# Heading one' + String.fromCharCode(10) + 'body text')
+    // 3500 headings is past the rich-render limit, so the file opens as source with a button.
+    fs.writeFileSync(path.join(project, 'big.md'), Array.from({ length: 3500 }, (_v, i) => '## section ' + i).join(String.fromCharCode(10)))
+    for (let i = 1; i <= 10; i += 1) fs.writeFileSync(path.join(project, 'doc-' + i + '.md'), '# doc ' + i)
+    const model = startScriptedModel((_first, _tools, last) => ({ text: 'reply to ' + last.slice(0, 14) }), [])
+    const agent = await launchAgentApp(await listen(model), { home, keepHome: true })
+    const { win } = agent
+    try {
+      await agent.newSession()
+      await win.locator('[data-right-panel-toggle]').click()
+      await win.locator('[data-panel-tab="files"]').click()
+
+      // Markdown is rendered, not shown as literal '#' source.
+      await win.getByText('notes.md').click()
+      await expect(win.locator('.prose-chat h1', { hasText: 'Heading one' })).toBeVisible({ timeout: 15_000 })
+      await expect(win.getByText('# Heading one')).toHaveCount(0)
+
+      // Past the limit: source first, one click to render it anyway.
+      await win.getByText('big.md').click()
+      const render = win.getByRole('button', { name: /Render anyway|仍然渲染/ })
+      await expect(render).toBeVisible({ timeout: 10_000 })
+      await render.click()
+      await expect(win.locator('.prose-chat h2').first()).toBeVisible({ timeout: 20_000 })
+
+      // Tabs keep the strip one line high, so the wheel has to move it sideways.
+      for (let i = 1; i <= 10; i += 1) await win.getByText('doc-' + i + '.md').click()
+      const strip = win.locator('[aria-label="Open files"]')
+      const before = await strip.evaluate((el) => el.scrollLeft)
+      const box = (await strip.boundingBox())!
+      await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await win.mouse.wheel(0, 240)
+      await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(before)
+    } finally {
+      await agent.close()
+      fs.rmSync(home, { recursive: true, force: true })
+    }
+  })
 })

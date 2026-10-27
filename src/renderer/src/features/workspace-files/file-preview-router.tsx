@@ -67,6 +67,7 @@ export function FilePreviewRouter({
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [fullReadPath, setFullReadPath] = useState<string | null>(null)
+  const [renderMarkdownAnyway, setRenderMarkdownAnyway] = useState(false)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const mode = relativePath ? resolveFilePreviewMode(relativePath) : null
   const absPath = relativePath ? joinWorkspacePath(workspaceRoot, relativePath) : ''
@@ -150,7 +151,24 @@ export function FilePreviewRouter({
   if (content == null) return wrap(null)
   if (sourceLocation) return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} sourceLocation={sourceLocation} />)
   if (mode === 'html' && !truncated) return wrap(<iframe ref={frameRef} title="html-preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlDocument} className="min-h-0 w-full flex-1 border-0 bg-[var(--bg-base)]" />)
-  if (mode === 'markdown' && !truncated && content.length <= PREVIEW_MD_MAX_CHARS && content.split('\n').length <= PREVIEW_MD_MAX_LINES) return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView baseDirectory={joinWorkspacePath(workspaceRoot, relativePath.split('/').slice(0, -1).join('/'))}>{content}</MarkdownView></FilePreviewScroll>)
+  if (mode === 'markdown') {
+    const oversized =
+      truncated || content.length > PREVIEW_MD_MAX_CHARS || content.split(/\r?\n/).length > PREVIEW_MD_MAX_LINES
+    if (!oversized || renderMarkdownAnyway) {
+      return wrap(<FilePreviewScroll scrollClassName="px-4 py-3"><MarkdownView baseDirectory={joinWorkspacePath(workspaceRoot, relativePath.split('/').slice(0, -1).join('/'))}>{content}</MarkdownView></FilePreviewScroll>)
+    }
+    return wrap(
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-3 py-2 text-[11px] text-foreground-secondary">
+          <span>{t('preview.markdownTooLarge')}</span>
+          <button type="button" className="text-accent hover:underline" onClick={() => setRenderMarkdownAnyway(true)}>
+            {t('preview.renderMarkdown')}
+          </button>
+        </div>
+        <PlainTextFill content={content} />
+      </div>,
+    )
+  }
   if (mode === 'code') return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} />)
   return wrap(<PlainTextFill content={content} />)
 }

@@ -1,3 +1,20 @@
+import { useCallback } from 'react'
+import type { WheelEvent } from 'react'
+
+/**
+ * A tab strip is one line by design, so a vertical wheel has to move it sideways; a plain
+ * `overflow-x-auto` strip ignores the wheel and looks frozen once the tabs outgrow the pane.
+ */
+export function useStripWheel() {
+  return useCallback((e: WheelEvent<HTMLElement>) => {
+    const el = e.currentTarget
+    if (el.scrollWidth <= el.clientWidth) return
+    const delta = e.deltaX || e.deltaY
+    if (!delta) return
+    el.scrollLeft += delta
+  }, [])
+}
+
 /**
  * Shared tab-strip metrics: the editor strip, the right-panel tabs and the terminal tabs all sit on
  * the same top row of their column, so their heights must stay identical instead of being re-typed

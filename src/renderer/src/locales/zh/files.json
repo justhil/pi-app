@@ -35,6 +35,8 @@
     "pickFile": "在右侧选择文件以预览",
     "loading": "加载预览…",
     "tooLarge": "文件过大，无法在面板内预览",
+    "markdownTooLarge": "文件过大，未按 Markdown 渲染",
+    "renderMarkdown": "仍然渲染",
     "binary": "此类型请在系统中打开",
     "pdf": "PDF 请在系统中打开",
     "openInSystem": "在系统中打开",

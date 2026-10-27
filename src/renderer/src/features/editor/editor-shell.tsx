@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useEditorStore, type EditorDoc } from '@renderer/stores/editor-store'
-import { TAB_ITEM_ACTIVE_CLASS, TAB_ITEM_CLASS, TAB_ITEM_IDLE_CLASS, TAB_STRIP_CLASS } from '@renderer/components/ui/tab-strip'
+import { TAB_ITEM_ACTIVE_CLASS, TAB_ITEM_CLASS, TAB_ITEM_IDLE_CLASS, TAB_STRIP_CLASS, useStripWheel } from '@renderer/components/ui/tab-strip'
 import { FilePreviewRouter } from '@renderer/features/workspace-files/file-preview-router'
 import { useWorkspaceFs } from '@renderer/features/workspace-files/use-workspace-fs'
 
@@ -58,6 +58,7 @@ export function EditorShell({ sessionTitle, children }: { sessionTitle: string; 
   const activeId = useEditorStore((s) => s.activeId)
   const activate = useEditorStore((s) => s.activate)
   const activeDoc = docs.find((d) => d.id === activeId) ?? null
+  const onStripWheel = useStripWheel()
 
   useEffect(() => {
     if (!activeDoc) return
@@ -75,7 +76,12 @@ export function EditorShell({ sessionTitle, children }: { sessionTitle: string; 
     // The chat column inside is flattened by `editor-tab-shell` in globals.css: two paper layers
     // show two rounded corners and a seam where the strip border-b lands.
     <div className="main-chat-column editor-tab-shell relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
-      <div role="tablist" aria-label={t('editor.tabs')} className={cn(TAB_STRIP_CLASS, 'overflow-x-auto')}>
+      <div
+        role="tablist"
+        aria-label={t('editor.tabs')}
+        className={cn(TAB_STRIP_CLASS, 'overflow-x-auto overscroll-x-contain')}
+        onWheel={onStripWheel}
+      >
         <button
           type="button"
           role="tab"
