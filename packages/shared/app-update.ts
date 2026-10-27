@@ -19,6 +19,8 @@ export type AppUpdateAvailableInfo = {
   downloadUrl: string | null
   downloadName: string | null
   assets: AppUpdateAsset[]
+  /** Set when electron-updater already downloaded it: the restart applies it in place. */
+  readyToInstall?: boolean
 }
 
 export type AppUpdateCheckResult =

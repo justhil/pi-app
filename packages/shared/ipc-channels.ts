@@ -13,6 +13,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:app.shellReady',
   'ipc:app.dismissUpdatePrompt',
   'ipc:app.downloadUpdate',
+  'ipc:app.installUpdate',
   'ipc:app.getPendingUpdate',
   'ipc:app.ignoreUpdateVersion',
   'ipc:app.openRelease',

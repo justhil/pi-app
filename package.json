@@ -1,6 +1,10 @@
 {
   "name": "pi-desktop",
   "version": "0.8.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rabbix07/pi-app.git"
+  },
   "description": "pi Desktop - 桌面端 AI Agent GUI",
   "main": "./out/main/index.js",
   "author": "pi-desktop",
@@ -53,6 +57,7 @@
     "dompurify": "^3.4.17",
     "electron-log": "^5.2.0",
     "electron-store": "^10.0.0",
+    "electron-updater": "^6.8.11",
     "fix-path": "^4.0.0",
     "i18next": "^24.2.0",
     "iconoir-react": "7.11.1",

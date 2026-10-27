@@ -108,7 +108,7 @@ describe('checkGitHubReleaseUpdate network wiring', () => {
 
     expect(electron.fetch).toHaveBeenCalledTimes(1)
     expect(electron.fetch.mock.calls[0][0]).toBe(
-      'https://api.github.com/repos/justhil/pi-app/releases/latest',
+      'https://api.github.com/repos/rabbix07/pi-app/releases/latest',
     )
     expect(electron.fetch.mock.calls[0][1]).toMatchObject({
       headers: {

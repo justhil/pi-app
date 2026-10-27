@@ -11,5 +11,6 @@
   "downloading": "Downloading…",
   "downloadingPercent": "Downloading {{percent}}%",
   "launchingInstaller": "Launching installer…",
-  "downloadFailed": "Download failed: {{error}}"
+  "downloadFailed": "Download failed: {{error}}",
+  "restartToInstall": "Restart and install"
 }

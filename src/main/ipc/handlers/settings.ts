@@ -110,7 +110,7 @@ export function registerSettingsHandlers(): void {
   })
 
   registerHandler('ipc:app.openRelease', async (req) => {
-    const slug = (process.env.PI_DESKTOP_GITHUB_REPO || 'justhil/pi-app').trim()
+    const slug = (process.env.PI_DESKTOP_GITHUB_REPO || 'rabbix07/pi-app').trim()
     const url = (req.url && String(req.url).trim()) || `https://github.com/${slug}/releases`
     await shell.openExternal(url)
     return { ok: true }
@@ -124,6 +124,11 @@ export function registerSettingsHandlers(): void {
     const { clearPendingAppUpdate } = await import('../../updater')
     clearPendingAppUpdate()
     return { ok: true }
+  })
+
+  registerHandler('ipc:app.installUpdate', async () => {
+    const { installDownloadedUpdate } = await import('../../auto-update')
+    return { ok: installDownloadedUpdate() }
   })
 
   registerHandler('ipc:app.downloadUpdate', async (req) => {

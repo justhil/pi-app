@@ -11,5 +11,6 @@
   "downloading": "下载中…",
   "downloadingPercent": "下载中 {{percent}}%",
   "launchingInstaller": "正在启动安装程序…",
-  "downloadFailed": "下载失败：{{error}}"
+  "downloadFailed": "下载失败：{{error}}",
+  "restartToInstall": "重启并安装"
 }

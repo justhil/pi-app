@@ -4,7 +4,7 @@ import type { AppUpdateAsset, AppUpdateAssetKind } from '@shared/app-update'
 import { fetchLatestGitHubRelease, type GhAsset } from './github-release-fetch'
 import { emitOperationEvent } from './operation-events'
 
-const DEFAULT_REPO = 'justhil/pi-app'
+const DEFAULT_REPO = 'rabbix07/pi-app'
 
 export type GitHubReleaseCheckResult = {
   ok: boolean

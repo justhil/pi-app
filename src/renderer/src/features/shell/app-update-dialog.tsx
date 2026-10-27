@@ -57,6 +57,11 @@ export function AppUpdateDialog({
   }
 
   const startUpdate = async () => {
+    if (info.readyToInstall) {
+      setBusy(true)
+      await ipcClient.invoke('app.installUpdate', {})
+      return
+    }
     if (!info.downloadUrl) {
       void ipcClient.invoke('app.openRelease', { url: info.releaseUrl })
       return
@@ -174,9 +179,11 @@ export function AppUpdateDialog({
           >
             {busy
               ? t('update:updating')
-              : info.downloadUrl
-                ? t('update:updateNow')
-                : t('update:openRelease')}
+              : info.readyToInstall
+                ? t('update:restartToInstall')
+                : info.downloadUrl
+                  ? t('update:updateNow')
+                  : t('update:openRelease')}
           </button>
         </div>
       </div>

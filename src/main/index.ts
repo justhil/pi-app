@@ -156,6 +156,11 @@ app.whenReady().then(() => {
         import('./updater').then(({ initUpdater }) => initUpdater(win)).catch((e) => {
           console.warn('[Updater] Failed to initialize:', e)
         })
+        if (!is.dev) {
+          import('./auto-update').then(({ initAutoUpdate }) => initAutoUpdate(win)).catch((e) => {
+            console.warn('[AutoUpdate] Failed to initialize:', e)
+          })
+        }
       }, 3000)
     })
   }
