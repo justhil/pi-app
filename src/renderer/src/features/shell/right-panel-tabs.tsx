@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { cn } from '@renderer/lib/utils'
+import { TAB_ITEM_ACTIVE_CLASS, TAB_ITEM_CLASS, TAB_ITEM_IDLE_CLASS, TAB_STRIP_CLASS } from '@renderer/components/ui/tab-strip'
 
 /**
  * Panel tabs in one scrollable row. The mouse wheel scrolls the row sideways (only while the
@@ -48,7 +49,7 @@ export function RightPanelTabs({
   }, [activePanel])
 
   return (
-    <div className="right-panel-tabs-wrap flex h-11 shrink-0 items-center border-b border-border/40 px-2">
+    <div className={cn('right-panel-tabs-wrap', TAB_STRIP_CLASS)}>
       <div
         ref={stripRef}
         className={cn(
@@ -77,12 +78,7 @@ export function RightPanelTabs({
                 setActivePanel(next.key)
                 stripRef.current?.querySelector<HTMLElement>(`[data-panel-tab="${CSS.escape(next.key)}"]`)?.focus()
               }}
-              className={cn(
-                'h-8 min-w-11 shrink-0 rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors',
-                active
-                  ? 'bg-[var(--bg-active)] text-foreground'
-                  : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
-              )}
+              className={cn(TAB_ITEM_CLASS, 'min-w-11', active ? TAB_ITEM_ACTIVE_CLASS : TAB_ITEM_IDLE_CLASS)}
             >
               {panel.label}
             </button>

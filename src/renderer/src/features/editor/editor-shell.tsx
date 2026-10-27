@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useEditorStore, type EditorDoc } from '@renderer/stores/editor-store'
+import { TAB_ITEM_ACTIVE_CLASS, TAB_ITEM_CLASS, TAB_ITEM_IDLE_CLASS, TAB_STRIP_CLASS } from '@renderer/components/ui/tab-strip'
 import { FilePreviewRouter } from '@renderer/features/workspace-files/file-preview-router'
 import { useWorkspaceFs } from '@renderer/features/workspace-files/use-workspace-fs'
 
@@ -13,8 +14,9 @@ function EditorTab({ doc, active }: { doc: EditorDoc; active: boolean }) {
   return (
     <div
       className={cn(
-        'group/tab flex h-7 min-w-0 max-w-[220px] shrink items-center gap-1 rounded-md border px-2 text-[12px]',
-        active ? 'border-border bg-[var(--bg-active)] text-foreground' : 'border-transparent text-foreground-secondary hover:bg-[var(--bg-hover)]',
+        TAB_ITEM_CLASS,
+        'group/tab min-w-0 max-w-[220px] gap-1',
+        active ? TAB_ITEM_ACTIVE_CLASS : TAB_ITEM_IDLE_CLASS,
       )}
     >
       <button type="button" role="tab" aria-selected={active} className="min-w-0 flex-1 truncate text-left" title={doc.rel} onClick={() => activate(doc.id)}>
@@ -67,19 +69,14 @@ export function EditorShell({ sessionTitle, children }: { sessionTitle: string; 
     return () => window.removeEventListener('keydown', onKey)
   }, [activeDoc, activate])
 
-  if (!docs.length) return <>{children}</>
-
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label={t('editor.tabs')} className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/40 px-2 py-1.5">
+      <div role="tablist" aria-label={t('editor.tabs')} className={cn(TAB_STRIP_CLASS, 'overflow-x-auto')}>
         <button
           type="button"
           role="tab"
           aria-selected={!activeDoc}
-          className={cn(
-            'flex h-7 shrink-0 items-center rounded-md border px-2 text-[12px]',
-            activeDoc ? 'border-transparent text-foreground-secondary hover:bg-[var(--bg-hover)]' : 'border-border bg-[var(--bg-active)] text-foreground',
-          )}
+          className={cn(TAB_ITEM_CLASS, activeDoc ? TAB_ITEM_IDLE_CLASS : TAB_ITEM_ACTIVE_CLASS)}
           onClick={() => activate(null)}
         >
           <span className="max-w-[160px] truncate">{sessionTitle || t('editor.chatTab')}</span>
