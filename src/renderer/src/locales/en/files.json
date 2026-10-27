@@ -22,8 +22,14 @@
     "dirTruncated": "Large folder — showing {{shown}} of {{total}}",
     "searchCapped": "Too many matches — showing {{shown}} of {{total}}",
     "dotfiles": "Show hidden files",
+    "dotfilesHide": "Hide hidden files",
     "git": { "modified": "Modified", "added": "Added", "deleted": "Deleted" },
     "collapseAll": "Collapse all"
+  },
+  "editor": {
+    "tabs": "Open files",
+    "chatTab": "Chat",
+    "closeTab": "Close {{name}}"
   },
   "preview": {
     "pickFile": "Select a file in the tree to preview",

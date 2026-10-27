@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MarkdownView from '../markdown-view'
-import { WorkspaceFilesPanel } from '@renderer/features/workspace-files/workspace-files-panel'
+import { EditorShell } from '@renderer/features/editor/editor-shell'
+import { useEditorStore } from '@renderer/stores/editor-store'
 import { FilePreviewRouter } from '@renderer/features/workspace-files/file-preview-router'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -19,6 +20,7 @@ const markdown = `[下载实验报告](<${path}>)`
 
 beforeEach(async () => {
   await i18n.changeLanguage('en')
+  useEditorStore.getState().reset()
   vi.clearAllMocks()
   vi.mocked(ipcClient.invoke).mockReset().mockResolvedValue({ ok: true })
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } })
@@ -32,18 +34,18 @@ afterEach(() => {
 })
 
 describe('Markdown file links', () => {
-  it('opens a Chinese PDF on the first click before the Files panel mounts', () => {
+  it('opens a Chinese PDF on the first click in the main-column editor', () => {
+    useEditorStore.getState().reset()
     const view = render(<MarkdownView>{markdown}</MarkdownView>)
     const link = screen.getByRole('link', { name: '下载实验报告' })
     expect(link).toHaveAttribute('title', path)
     expect(fireEvent.click(link)).toBe(false)
-    expect(useUIStore.getState()).toMatchObject({ activePanel: 'files', rightPanelCollapsed: false })
-    view.rerender(<><MarkdownView>{markdown}</MarkdownView><WorkspaceFilesPanel /></>)
-    expect(screen.getByRole('tab')).toHaveTextContent('实验 报告.pdf')
-    expect(screen.getByRole('tab')).toHaveAttribute('title', 'output/pdf/实验 报告.pdf')
-    expect(useUIStore.getState().workspaceFileToOpen).toBeNull()
+    expect(useEditorStore.getState().docs.map((d) => d.rel)).toEqual(['output/pdf/实验 报告.pdf'])
+    view.rerender(<><MarkdownView>{markdown}</MarkdownView><EditorShell sessionTitle="t">{null}</EditorShell></>)
+    const fileTab = screen.getByRole('tab', { name: '实验 报告.pdf' })
+    expect(fileTab).toHaveAttribute('title', 'output/pdf/实验 报告.pdf')
     fireEvent.click(screen.getByRole('link', { name: '下载实验报告' }))
-    expect(screen.getAllByRole('tab')).toHaveLength(1)
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: /Open in system|在系统中打开/ }))
     expect(ipcClient.invoke).toHaveBeenCalledWith('shell.openPath', { path: `${root}\\output\\pdf\\实验 报告.pdf` })
   })
@@ -94,9 +96,9 @@ describe('Markdown file links', () => {
     const view = render(<MarkdownView>{`[schedule_service.py](${sourcePath}:128)`}</MarkdownView>)
     fireEvent.click(screen.getByRole('link', { name: 'schedule_service.py' }))
     expect(useUIStore.getState().workspaceFileToOpen).toEqual({ workspaceRoot: root, rel: 'plugins/schedule_service.py', line: 128 })
-    view.rerender(<><MarkdownView>{`[schedule_service.py](${sourcePath}:128)`}</MarkdownView><WorkspaceFilesPanel /></>)
+    view.rerender(<><MarkdownView>{`[schedule_service.py](${sourcePath}:128)`}</MarkdownView><EditorShell sessionTitle="t">{null}</EditorShell></>)
     await waitFor(() => expect(view.container.querySelector('[data-source-line="128"]')).toHaveTextContent('schedule_link_regression_128 = True'))
-    expect(screen.getByRole('tab')).toHaveTextContent('schedule_service.py')
+    expect(screen.getByRole('tab', { name: 'schedule_service.py' })).toBeInTheDocument()
     expect(ipcClient.invoke).toHaveBeenCalledWith('workspace.fs.readText', expect.objectContaining({ path: 'plugins/schedule_service.py' }))
     await waitFor(() => expect(view.container.querySelector('.native-code-shiki [data-source-line="128"]')).toHaveClass('bg-accent/15'))
     scrollIntoView.mockClear()

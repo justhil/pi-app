@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useEditorStore } from '@renderer/stores/editor-store'
 import { normalizeWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
 
 const SOURCE_LOCATION_SUFFIX = /(\.[^/\\:?#]+):(\d+)(?::\d+)?(?=[?#]|$)/
@@ -74,15 +75,19 @@ function normalizeRelPath(input: string, workspaceRoot?: string | null): string 
   return raw
 }
 
-/** Open a repo-relative (or workspace-absolute) path in Files panel. */
+/** Open a repo-relative (or workspace-absolute) path in the main-column editor. */
 export function openWorkspaceRelativePath(relPath: string, line?: number): boolean {
   const store = useUIStore.getState()
   const raw = normalizeRelPath(relPath, store.currentWorkspace)
   if (!raw || !store.currentWorkspace) return false
-  // Keep the request until the lazily loaded Files panel mounts.
+  // Kept for surfaces that still read the request (panel-less hosts).
   useUIStore.setState({ workspaceFileToOpen: { workspaceRoot: store.currentWorkspace, rel: raw, ...(line ? { line } : {}) } })
-  store.setActivePanel('files')
-  store.revealRightPanel()
+  useEditorStore.getState().open({
+    workspace: store.currentWorkspace,
+    rel: raw,
+    name: raw.split('/').pop() || raw,
+    ...(line ? { line } : {}),
+  })
   return true
 }
 

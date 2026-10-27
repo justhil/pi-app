@@ -51,7 +51,7 @@
 | 功能 | 位置 | 备注 |
 |------|------|------|
 | 文件树 explorer（层级、图标、行数限制） | workspace-files/file-tree* | |
-| 多标签预览（Ctrl+click）、行号 gutter、宽预览 | file-preview-tab-bar、file-source-preview | |
+| 主栏编辑器：文件标签在会话标签条里，点击文件树条目标签化打开，Esc 回会话；行号定位高亮 | editor/editor-shell、stores/editor-store、file-source-preview | 侧栏 Files 只负责树，不再内嵌预览；隐藏文件默认可见 |
 | Review 面板：Git diff（staged / unstaged 分组 + hunk 暂存 + turn/session 过滤）、行内评论 | review/review-panel、review-hunk-comments、review-inline-comments | 上游刚重构过（2026-08-14），勿与旧 parseGitStatus 逻辑混淆 |
 | 行号 gutter「+」插 `path:line` 附件 | review + workspace-files | |
 | 回合最终净 diff（turn diff 缓存、基线结算） | worker/turn-file-diff + main turn-diff-store | 见 H3 |

@@ -99,6 +99,10 @@ composer 曾对纯文本粘贴 `preventDefault` 后手动插 DOM——实测（�
 
 粘贴截图曾插入附件 chip（`execCommand('insertHTML')`），等于一次程序化插入：要参与撤销栈、维护 ZWSP 光标锚点、序列化时还原路径。定案：截图直接进输入框上方暂存区（`composer.tsx` 的 `stagedImages`），正文不动，贴图与打字、Ctrl+Z 互不干扰；发送时仍以文件路径进消息（`attachment.kind: 'image'`）。历史气泡用 `ipc:clipboard.readTempImage` 读缩略图，仅限 `userData/clipboard-images/pi-clipboard-*`、8MB 上限，不扩大 workspace 读取范围。浏览器标注等界面移交的文件仍走 chip，与其说明文字保持对应。代价：临时图片 7 天后被清理，旧消息降级为文件名 chip。
 
+### 决策记录：文件在会话区的标签里打开，右栏只做树（2026）
+
+文件预览原先内嵌在右栏 Files 面板（`use-file-preview-tabs` + `file-preview-tab-bar`），右栏宽度不足要手动展开占满聊天列。定案：文件标签与会话标签同一条标签条（`editor/editor-shell`），点开文件时聊天内容隐藏但不卸载（草稿与 Chromium 撤销栈不丢），Esc 回到会话；右栏 Files 只保留文件树，隐藏文件默认显示，眼睛按钮切换。多栏时编辑器归属聚焦的那一栏。
+
 ## 模型作用域术语（glossary，2026 访谈确认）
 
 - **会话模型（session model）**：当前会话使用的模型，写入会话 JSONL 的 `model_change` 条目，按会话持久化；重新打开会话时从会话文件恢复。

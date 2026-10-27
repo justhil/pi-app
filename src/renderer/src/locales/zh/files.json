@@ -22,8 +22,14 @@
     "dirTruncated": "目录项过多，仅列出前 {{shown}} / {{total}} 项",
     "searchCapped": "匹配过多，仅显示前 {{shown}} / {{total}} 项",
     "dotfiles": "显示隐藏文件",
+    "dotfilesHide": "隐藏隐藏文件",
     "git": { "modified": "已修改", "added": "新增", "deleted": "已删除" },
     "collapseAll": "折叠全部"
+  },
+  "editor": {
+    "tabs": "已打开文件",
+    "chatTab": "对话",
+    "closeTab": "关闭 {{name}}"
   },
   "preview": {
     "pickFile": "在右侧选择文件以预览",

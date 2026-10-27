@@ -1,27 +1,36 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { WorkspaceFilesPanel } from './workspace-files-panel'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
-vi.mock('./file-tree', () => ({ FileTree: () => null }))
-vi.mock('./file-preview-router', () => ({ FilePreviewRouter: () => <div>preview</div> }))
+import { useEditorStore } from '@renderer/stores/editor-store'
+
+vi.mock('./file-tree', () => ({
+  FileTree: ({ onSelectPath }: { onSelectPath: (rel: string, isDirectory: boolean) => void }) => (
+    <button type="button" onClick={() => onSelectPath('src/app.ts', false)}>
+      tree-row
+    </button>
+  ),
+}))
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: vi.fn().mockResolvedValue({ ok: true, entries: [] }) } }))
-afterEach(cleanup)
-function openPreview() {
-  useUIStore.setState({ currentWorkspace: '/fixture', activePanel: 'files', filesPreviewChatExpand: false })
-  render(<WorkspaceFilesPanel />)
-  act(() => { openWorkspaceRelativePath('中文.html') })
-  fireEvent.click(screen.getByTitle(/Expand preview|展开预览/))
-  expect(useUIStore.getState().filesPreviewChatExpand).toBe(true)
-}
-it('restores chat after closing the last expanded preview tab', () => {
-  openPreview()
-  fireEvent.mouseDown(screen.getByText('中文.html'), { button: 1 })
-  expect(useUIStore.getState().filesPreviewChatExpand).toBe(false)
+
+beforeEach(() => {
+  useEditorStore.getState().reset()
+  useUIStore.setState({ currentWorkspace: '/fixture', activePanel: 'files' })
 })
-it('Escape exits expansion and keeps the file open', () => {
-  openPreview()
-  fireEvent.keyDown(window, { key: 'Escape' })
-  expect(useUIStore.getState().filesPreviewChatExpand).toBe(false)
-  expect(screen.getByText('中文.html')).toBeInTheDocument()
+afterEach(cleanup)
+
+it('shows hidden files by default and hides them on demand', () => {
+  render(<WorkspaceFilesPanel />)
+  const eye = screen.getByRole('button', { name: /Hide hidden files|隐藏隐藏文件/ })
+  expect(eye).toHaveAttribute('aria-pressed', 'true')
+  fireEvent.click(eye)
+  expect(screen.getByRole('button', { name: /Show hidden files|显示隐藏文件/ })).toHaveAttribute('aria-pressed', 'false')
+})
+
+it('opens a clicked file in the main-column editor instead of a side preview', () => {
+  render(<WorkspaceFilesPanel />)
+  fireEvent.click(screen.getByText('tree-row'))
+  const state = useEditorStore.getState()
+  expect(state.docs.map((d) => d.rel)).toEqual(['src/app.ts'])
+  expect(state.activeId).toBe(state.docs[0].id)
 })

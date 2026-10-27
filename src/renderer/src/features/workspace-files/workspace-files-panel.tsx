@@ -1,175 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Maximize2, Minus, Search } from '@renderer/components/icons'
-import { cn } from '@renderer/lib/utils'
+import { Eye, EyeOff, Minus, Search } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
+import { useEditorStore } from '@renderer/stores/editor-store'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import { getAttachmentKind } from '@renderer/features/composer/attachments'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { toast } from 'sonner'
 import { useWorkspaceFs } from './use-workspace-fs'
-import { FilePreviewRouter } from './file-preview-router'
 import { FileTree } from './file-tree'
 import { FilesContextMenuPortal, type FilesCtxTarget } from './files-context-menu-portal'
-import { FilePreviewTabBar } from './file-preview-tab-bar'
-import { useFilePreviewTabs } from './use-file-preview-tabs'
 import { RenamePromptDialog } from '@renderer/features/workspace/rename-prompt-dialog'
 
 type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
+/** Files explorer. Tree only — opening a file puts a tab in the main-column editor. */
 export function WorkspaceFilesPanel() {
   const { t } = useTranslation('files')
   const panelRef = useRef<HTMLDivElement>(null)
-  const expandButtonRef = useRef<HTMLButtonElement>(null)
   const workspaceRoot = useUIStore((s) => s.currentWorkspace)
-  const workspaceFileToOpen = useUIStore((s) => s.workspaceFileToOpen)
-  const activePanel = useUIStore((s) => s.activePanel)
-  const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
-  const rightPanelCollapsed = useRightPanelHidden()
-  const revealRightPanel = useUIStore((s) => s.revealRightPanel)
-  const [showDotfiles, setShowDotfiles] = useState(false)
-  const { listDir, readText } = useWorkspaceFs(workspaceRoot, showDotfiles)
-  const {
-    tabs,
-    activeTab,
-    openFile,
-    closeTab,
-    activateTab,
-    reorderTabs,
-    renameTabRel,
-    resetTabs,
-  } = useFilePreviewTabs()
-  const [explorerCollapsed, setExplorerCollapsed] = useState(false)
+  // Hidden files are part of the tree by default; the eye button hides them.
+  const [showDotfiles, setShowDotfiles] = useState(true)
+  const { listDir } = useWorkspaceFs(workspaceRoot, showDotfiles)
+  const activeDoc = useEditorStore((s) => s.docs.find((d) => d.id === s.activeId) ?? null)
   const [searchQuery, setSearchQuery] = useState('')
   const [treeEpoch, setTreeEpoch] = useState(0)
   const [collapseEpoch, setCollapseEpoch] = useState(0)
-  const [previewRefreshKey, setPreviewRefreshKey] = useState(0)
-  const [sourceLocation, setSourceLocation] = useState<{ rel: string; line: number } | null>(null)
   const [menu, setMenu] = useState<FilesCtxTarget | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [createTarget, setCreateTarget] = useState<{ rel: string; isDirectory: boolean } | null>(null)
 
-  const selectedPath = activeTab?.rel ?? null
-  const previewPath = activeTab?.rel ?? null
-  const explorerHidden = explorerCollapsed && !!activeTab
-
-  useEffect(() => {
-    if (activePanel !== 'files' || !previewPath) {
-      useUIStore.setState({ filesPreviewChatExpand: false })
-    }
-  }, [activePanel, previewPath])
-
-  const exitExpandedPreview = useCallback(() => {
-    useUIStore.setState({ filesPreviewChatExpand: false })
-    expandButtonRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    if (!filesPreviewChatExpand || rightPanelCollapsed) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"]')) return
-      event.preventDefault()
-      event.stopPropagation()
-      exitExpandedPreview()
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [filesPreviewChatExpand, rightPanelCollapsed, exitExpandedPreview])
-
-  useEffect(() => {
-    return () => {
-      useUIStore.setState({ filesPreviewChatExpand: false })
-    }
-  }, [])
-
-  useEffect(() => {
-    resetTabs()
-    setSourceLocation(null)
-  }, [workspaceRoot, resetTabs])
-
-  useEffect(() => {
-    // Refresh preview only when the files panel is the active right-panel tab and visible.
-    // Collapsed right panel unmounts this host entirely (see app.tsx); no idle 2s reread.
-    if (!activeTab || activePanel !== 'files') return
-    if (rightPanelCollapsed) return
-    const tick = () => {
-      if (typeof document !== 'undefined' && document.hidden) return
-      setPreviewRefreshKey((previous) => previous + 1)
-    }
-    const onVisibility = () => {
-      if (!document.hidden) tick()
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [activeTab?.rel, activePanel, rightPanelCollapsed])
-
-  const toggleChatPreviewExpand = useCallback(() => {
-    if (!previewPath) return
-    if (!filesPreviewChatExpand) {
-      if (rightPanelCollapsed) revealRightPanel()
-      useUIStore.setState({ filesPreviewChatExpand: true })
-      return
-    }
-    useUIStore.setState({ filesPreviewChatExpand: false })
-  }, [previewPath, filesPreviewChatExpand, rightPanelCollapsed, revealRightPanel])
+  const selectedPath = activeDoc?.workspace === workspaceRoot ? activeDoc.rel : null
 
   const onSelectPath = useCallback(
-    (rel: string, isDirectory: boolean, opts?: { openInNewTab?: boolean }) => {
-      if (isDirectory) return
-      setSourceLocation(null)
+    (rel: string, isDirectory: boolean) => {
+      if (isDirectory || !workspaceRoot) return
       const name = rel.split('/').pop() || rel
-      openFile(rel, name, opts?.openInNewTab ? 'new-tab' : 'replace')
-      if (panelRef.current && panelRef.current.clientWidth <= 480 && !filesPreviewChatExpand) {
-        setExplorerCollapsed(true)
-      }
+      useEditorStore.getState().open({ workspace: workspaceRoot, rel, name })
     },
-    [openFile, filesPreviewChatExpand],
-  )
-
-  useEffect(() => {
-    if (!workspaceFileToOpen) return
-    useUIStore.setState({ workspaceFileToOpen: null })
-    if (workspaceFileToOpen.workspaceRoot === workspaceRoot) {
-      onSelectPath(workspaceFileToOpen.rel, false)
-      if (workspaceFileToOpen.line) setSourceLocation({ rel: workspaceFileToOpen.rel, line: workspaceFileToOpen.line })
-    }
-  }, [workspaceFileToOpen, workspaceRoot, onSelectPath])
-
-  const chromeTrailing = (
-    <>
-      <button
-        ref={expandButtonRef}
-        type="button"
-        className={cn(
-          'chrome-icon-btn flex h-7 shrink-0 items-center justify-center gap-1 rounded-md',
-          filesPreviewChatExpand ? 'bg-[var(--bg-active)] px-2 text-[11px] text-foreground' : 'w-7',
-        )}
-        title={filesPreviewChatExpand ? t('chrome.collapsePreview') : t('chrome.expandPreview')}
-        aria-label={filesPreviewChatExpand ? t('chrome.collapsePreview') : t('chrome.expandPreview')}
-        aria-expanded={filesPreviewChatExpand}
-        disabled={!previewPath && !filesPreviewChatExpand}
-        onClick={toggleChatPreviewExpand}
-      >
-        {filesPreviewChatExpand ? <><ChevronRight className="h-3.5 w-3.5" /><span>{t('chrome.collapsePreview')}</span></> : <Maximize2 className="h-3.5 w-3.5" />}
-      </button>
-      <button
-        type="button"
-        className="chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-        title={explorerHidden ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
-        aria-label={explorerHidden ? t('chrome.expandExplorer') : t('chrome.collapseExplorer')}
-        disabled={!previewPath}
-        onClick={() => setExplorerCollapsed(!explorerHidden)}
-      >
-        {explorerHidden ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
-    </>
+    [workspaceRoot],
   )
 
   const attachToComposer = useCallback(
@@ -195,7 +67,6 @@ export function WorkspaceFilesPanel() {
   )
 
   const closeMenu = useCallback(() => setMenu(null), [])
-
   const bumpTree = () => setTreeEpoch((n) => n + 1)
 
   const submitRename = async () => {
@@ -213,106 +84,67 @@ export function WorkspaceFilesPanel() {
       toast.error(t('toast.renameFailed'))
       return
     }
-    const newRel = res.newRelativePath as string
-    renameTabRel(renameTarget.rel, newRel, name)
+    useEditorStore.getState().renameRel(renameTarget.rel, res.newRelativePath as string, name)
     bumpTree()
     toast.message(t('toast.renamed'))
   }
 
+  useEffect(() => {
+    if (!workspaceRoot) return
+    setTreeEpoch((n) => n + 1)
+  }, [workspaceRoot])
+
   if (!workspaceRoot) {
-    return (
-      <p className="px-4 py-8 text-center text-[12px] text-foreground-secondary/80">{t('empty.noWorkspace')}</p>
-    )
+    return <p className="px-4 py-8 text-center text-[12px] text-foreground-secondary/80">{t('empty.noWorkspace')}</p>
   }
 
   return (
     <div ref={panelRef} className="workspace-files-panel flex h-full min-h-0 flex-col">
-      <FilePreviewTabBar
-        workspaceRoot={workspaceRoot}
-        tabs={tabs}
-        activeId={activeTab?.id ?? null}
-        onActivate={activateTab}
-        onClose={closeTab}
-        onReorder={reorderTabs}
-        trailing={chromeTrailing}
-      />
-
-      <div
-        className={cn('files-split-grid min-h-0 flex-1', explorerHidden && 'files-split-grid--collapsed')}
-        data-has-file={!!activeTab || undefined}
-        style={{
-          gridTemplateColumns: explorerHidden
-            ? 'minmax(0, 1fr) 0px'
-            : !activeTab
-              ? '0px minmax(0, 1fr)'
-              : 'minmax(0, 1fr) minmax(150px, min(240px, 38%))',
-        }}
-      >
-        <div className="files-preview-scroll flex min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--bg-base)]">
-          {activeTab ? (
-            <FilePreviewRouter
-              key={activeTab.id}
-              workspaceRoot={workspaceRoot}
-              relativePath={activeTab.rel}
-              readText={readText}
-              fill
-              refreshKey={previewRefreshKey}
-              sourceLocation={sourceLocation?.rel === activeTab.rel ? sourceLocation : null}
-              onExitExpandedPreview={exitExpandedPreview}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="files-explorer-toolbar flex shrink-0 flex-wrap items-center gap-1 border-b border-border/40 px-2 py-2">
+          <div className="workbench-search files-search min-w-0 flex-1">
+            <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('search.placeholder')}
+              aria-label={t('search.placeholder')}
+              className="w-full"
             />
-          ) : (
-            <p className="flex flex-1 items-center justify-center px-3 py-8 text-center text-[12px] text-foreground-secondary/80">
-              {t('preview.pickFile')}
-            </p>
-          )}
-        </div>
-
-        <div className="files-explorer-rail flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <div className="files-explorer-toolbar flex shrink-0 flex-wrap items-center gap-1 border-b border-border/40 px-2 py-2">
-            <div className="workbench-search files-search min-w-0 flex-1">
-              <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('search.placeholder')}
-                aria-label={t('search.placeholder')}
-                className="w-full"
-              />
-            </div>
-            <button
-              type="button"
-              title={t('tree.dotfiles')}
-              aria-label={t('tree.dotfiles')}
-              aria-pressed={showDotfiles}
-              className="workbench-icon"
-              onClick={() => setShowDotfiles((v) => !v)}
-            >
-              {showDotfiles ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              type="button"
-              title={t('tree.collapseAll')}
-              aria-label={t('tree.collapseAll')}
-              className="workbench-icon"
-              onClick={() => setCollapseEpoch((n) => n + 1)}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
           </div>
-          <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-1.5 pb-2">
-            <FileTree
-              key={treeEpoch}
-              workspaceRoot={workspaceRoot}
-              listDir={listDir}
-              selectedPath={selectedPath}
-              onSelectPath={onSelectPath}
-              searchQuery={searchQuery}
-              collapseEpoch={collapseEpoch}
-              onContextMenuEntry={onContextMenuEntry}
-            />
-          </OverlayScrollHost>
+          <button
+            type="button"
+            title={t(showDotfiles ? 'tree.dotfilesHide' : 'tree.dotfiles')}
+            aria-label={t(showDotfiles ? 'tree.dotfilesHide' : 'tree.dotfiles')}
+            aria-pressed={showDotfiles}
+            className="workbench-icon"
+            onClick={() => setShowDotfiles((v) => !v)}
+          >
+            {showDotfiles ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            title={t('tree.collapseAll')}
+            aria-label={t('tree.collapseAll')}
+            className="workbench-icon"
+            onClick={() => setCollapseEpoch((n) => n + 1)}
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
         </div>
+        <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="px-1.5 pb-2">
+          <FileTree
+            key={treeEpoch}
+            workspaceRoot={workspaceRoot}
+            listDir={listDir}
+            selectedPath={selectedPath}
+            onSelectPath={onSelectPath}
+            searchQuery={searchQuery}
+            collapseEpoch={collapseEpoch}
+            onContextMenuEntry={onContextMenuEntry}
+          />
+        </OverlayScrollHost>
       </div>
 
       <FilesContextMenuPortal
@@ -324,7 +156,7 @@ export function WorkspaceFilesPanel() {
         }}
         onOpenInNewTab={() => {
           if (!menu || menu.isDirectory) return
-          onSelectPath(menu.rel, false, { openInNewTab: true })
+          onSelectPath(menu.rel, false)
         }}
         onAttach={() => {
           if (!menu) return

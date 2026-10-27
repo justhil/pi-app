@@ -5,6 +5,7 @@ import { selectSessionAttention, type SessionAttention } from '@renderer/lib/ses
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { EditorShell } from '@renderer/features/editor/editor-shell'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
 import {
   MAX_PANES,
@@ -363,7 +364,12 @@ function PaneCard({ pane, compact }: { pane: Pane; compact: boolean }) {
 
 function PaneBody({ pane, active, rect, children }: { pane: Pane; active: boolean; rect: PaneRect; children: ReactNode }) {
   const attention = useAttention(pane.session?.sessionFile)
-  if (active) return <>{children}</>
+  if (active)
+    return (
+      <EditorShell sessionTitle={pane.session?.title ?? ''}>
+        {children}
+      </EditorShell>
+    )
   const roomy = rect.w >= PREVIEW_MIN_W && rect.h >= PREVIEW_MIN_H
   return roomy ? <PanePreview sessionFile={pane.session?.sessionFile ?? null} running={attention === 'working'} /> : <PaneCard pane={pane} compact={rect.h < 170} />
 }
@@ -525,7 +531,7 @@ export function SplitView({ children }: { children: ReactNode }) {
     <div ref={rootRef} className={cn('relative h-full min-w-0', multi && 'split-view')} role={multi ? 'group' : undefined} aria-label={multi ? t('common:split.label') : undefined}>
       {!multi ? (
         <DropTarget pane={layout.panes[0] ?? null} className="relative h-full min-w-0">
-          {children}
+          <EditorShell sessionTitle={layout.panes[0]?.session?.title ?? ''}>{children}</EditorShell>
         </DropTarget>
       ) : (
         <>
