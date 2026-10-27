@@ -184,9 +184,9 @@ describe('today usage', () => {
     topSessions: [],
   }
 
-  it('keeps the money metric visible and opens the per-model breakdown', async () => {
-    mocks.invoke.mockImplementation(async (channel) => {
-      if (channel === 'usage.summary') return summary
+  it('keeps cost, tokens and cache hits visible and opens the per-model breakdown', async () => {
+    mocks.invoke.mockImplementation(async (channel, req?: { days?: number }) => {
+      if (channel === 'usage.summary') return req?.days === 1 ? summary : week
       if (channel === 'desktop.status') return { rss: 0, total: 0, workers: [] }
       return {}
     })
@@ -194,14 +194,32 @@ describe('today usage', () => {
     const chip = screen.getByRole('button', { name: "Today's usage" })
     await waitFor(() => expect(chip).toHaveTextContent('$0.49'))
     expect(chip).toHaveTextContent('39.2M')
+    expect(chip).toHaveTextContent('94%')
     expect(mocks.invoke).toHaveBeenCalledWith('usage.summary', { days: 1 })
+    // The week is only read once the popover asks for it.
+    expect(mocks.invoke).not.toHaveBeenCalledWith('usage.summary', { days: 7 })
 
     fireEvent.click(chip)
     expect(await screen.findByText('deepseek-v4.1-flash')).toBeInTheDocument()
-    expect(screen.getByText(/deepseek · 39.2M tokens/)).toBeInTheDocument()
+    expect(screen.getByText(/deepseek · 39.2M tokens · 436 requests/)).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet-5')).toBeInTheDocument()
-    expect(screen.getByText('94%')).toBeInTheDocument()
+    expect(screen.getByText('Requests')).toBeInTheDocument()
+    // Share of today's cost, so the rows add up to the day instead of to the biggest model.
+    expect(screen.getByText('61%')).toBeInTheDocument()
+    expect(screen.getByText('39%')).toBeInTheDocument()
+    expect(mocks.invoke).toHaveBeenCalledWith('usage.summary', { days: 7 })
+    // Yesterday plus the signed change.
+    // $0.31 is both yesterday's total and the second model's cost.
+    expect(screen.getAllByText('$0.31').length).toBeGreaterThan(0)
+    expect(screen.getByText('+58%')).toBeInTheDocument()
   })
+
+  const empty = bucket(0, 0)
+  const week = { ...summary, byDay: [
+    { day: '2026-10-21', ...empty }, { day: '2026-10-22', ...empty }, { day: '2026-10-23', ...empty },
+    { day: '2026-10-24', ...empty }, { day: '2026-10-25', ...empty }, { day: '2026-10-26', ...bucket(0.31, 12, 1_500_000) },
+    { day: '2026-10-27', ...bucket(0.49, 436, 39_200_000) },
+  ] }
 
   it('shows a placeholder until the first reading and keeps the chip usable on failure', async () => {
     mocks.invoke.mockRejectedValue(new Error('scan failed'))

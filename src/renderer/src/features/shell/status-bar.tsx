@@ -62,9 +62,10 @@ export function StatusBar() {
   const boardAnchor = useRef<HTMLButtonElement>(null)
   const workersAnchor = useRef<HTMLButtonElement>(null)
   const usageAnchor = useRef<HTMLButtonElement>(null)
-  const { usage, failed: usageFailed, refresh: refreshUsage } = useTodayUsage()
+  const { usage, failed: usageFailed, history, refresh: refreshUsage, loadHistory } = useTodayUsage()
   // A turn ending is the moment today's total changes, so read it then instead of waiting for the poll.
   useEffect(() => { refreshUsage() }, [attention, refreshUsage])
+  useEffect(() => { if (popover === 'usage') loadHistory() }, [popover, loadHistory])
   const close = useCallback(() => {
     setPopover(null)
     setConfirmStop(null)
@@ -203,6 +204,12 @@ export function StatusBar() {
         <span>{usage ? formatCost(usage.total.cost) : '—'}</span>
         <span className="opacity-40">·</span>
         <span>{usage ? formatTokens(tokensOf(usage.total)) : '—'}</span>
+        {usage?.cacheHitRate != null ? (
+          <>
+            <span className="opacity-40">·</span>
+            <span className="text-foreground-secondary">{Math.round(usage.cacheHitRate * 100)}%</span>
+          </>
+        ) : null}
       </button>
       <div className="ml-auto flex shrink-0 items-center">
         <button type="button" className="workbench-status-trigger" aria-pressed={terminalOpen} title={t('common:terminal.toggle')} aria-label={t('common:terminal.toggle')} onClick={() => (!terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle())}>
@@ -222,7 +229,7 @@ export function StatusBar() {
         >
           {actionError && <p role="alert" className="workbench-error">{actionError}</p>}
           {popover === 'usage' ? (
-            <TodayUsageBody usage={usage} failed={usageFailed} onRefresh={refreshUsage} />
+            <TodayUsageBody usage={usage} history={history} failed={usageFailed} onRefresh={refreshUsage} />
           ) : popover === 'board' ? (
             live === 0 ? <div className="workbench-empty"><SessionAttentionDot attention="done" /><p>{t('common:board.empty')}</p><span>{t('common:board.emptyHint')}</span></div> : (
               GROUPS.map((kind) => {

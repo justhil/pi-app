@@ -51,8 +51,10 @@ test.describe('status bar usage', () => {
       await chip.click()
       const dialog = win.getByRole('dialog')
       await expect(dialog).toContainText('Cost today')
-      await expect(dialog).toContainText('Replies')
-      await expect(dialog).toContainText('1 reply')
+      await expect(dialog).toContainText('Requests')
+      await expect(dialog).toContainText('1 request')
+      // Cost share, not a bar scaled to the biggest model.
+      await expect(dialog).toContainText('%')
       await expect(dialog).toContainText('claude-sonnet-5')
       await expect(dialog).toContainText('anthropic')
       await expect(dialog).toContainText('deepseek-v4.1-flash')
