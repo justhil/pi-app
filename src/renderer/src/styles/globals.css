@@ -1787,6 +1787,12 @@
     box-shadow: none !important;
     background: transparent !important;
   }
+  /* The tab strip carries the paper; the chat column it wraps must not paint a second one. */
+  .editor-tab-shell .main-chat-column {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
   .main-chat-column .timeline-scrubber {
     top: 3.25rem;
     bottom: calc(var(--composer-dock-h, 11rem) + 0.75rem);

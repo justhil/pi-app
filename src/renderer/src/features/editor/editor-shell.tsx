@@ -72,7 +72,9 @@ export function EditorShell({ sessionTitle, children }: { sessionTitle: string; 
   return (
     // Carries the chat paper surface so the strip sits on the paper instead of on a band above it;
     // otherwise the strip pushes the chat surface down and the side panels look taller than it.
-    <div className="main-chat-column relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+    // The chat column inside is flattened by `editor-tab-shell` in globals.css: two paper layers
+    // show two rounded corners and a seam where the strip border-b lands.
+    <div className="main-chat-column editor-tab-shell relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <div role="tablist" aria-label={t('editor.tabs')} className={cn(TAB_STRIP_CLASS, 'overflow-x-auto')}>
         <button
           type="button"

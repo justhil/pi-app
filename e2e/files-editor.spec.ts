@@ -51,6 +51,16 @@ test.describe('files panel and main-column editor', () => {
       })
       expect(tops.strip).toBe(tops.panel)
       expect(tops.paper).toBe(tops.strip)
+
+      // One paper layer only: the chat column inside the strip must not draw a second rounded
+      // corner with its own shadow, which showed as a double corner and a seam in light mode.
+      const painted = await win.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('.main-chat-column')].filter((el) => {
+          const cs = getComputedStyle(el)
+          return cs.borderTopLeftRadius !== '0px' || cs.boxShadow !== 'none'
+        }).length,
+      )
+      expect(painted).toBe(1)
     } finally {
       await agent.close()
       fs.rmSync(home, { recursive: true, force: true })
