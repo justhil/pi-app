@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
@@ -27,7 +28,7 @@ describe('worker Pi CLI identity', () => {
     const { entry, cli } = sdk('dist/bundle/cli.js')
     const argv = ['pi Desktop.exe', 'worker.mjs']
     await preparePiCliEntry(entry, argv)
-    expect([argv[0], realpathSync(argv[1]!)]).toEqual(['pi Desktop.exe', realpathSync(cli)])
+    expect([argv[0], await realpath(argv[1]!)]).toEqual(['pi Desktop.exe', await realpath(cli)])
   })
 
   it('should_run_the_actual_sdk_cli_with_electron_when_exposed_as_worker_identity', async () => {
