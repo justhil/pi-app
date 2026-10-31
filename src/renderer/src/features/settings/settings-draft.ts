@@ -38,6 +38,7 @@ export type AgentRuntimeChoice = { mode: 'host' | 'wsl'; distro: string | null }
 export type SettingsDraft = {
   theme: ThemeChoice
   iconTheme: IconTheme
+  sidebarStyle: 'compact' | 'full'
   customTheme: CustomTheme
   customCssOverride: CustomCssOverride
   background: BackgroundSettings
@@ -112,6 +113,7 @@ export function draftSignature(d: SettingsDraft): string {
   return JSON.stringify({
     theme: d.theme,
     iconTheme: d.iconTheme,
+    sidebarStyle: d.sidebarStyle,
     customTheme: d.customTheme,
     customCssOverride: d.customCssOverride,
     background: d.background,
@@ -155,6 +157,7 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
   return {
     theme: normalizeThemeChoice(s.theme),
     iconTheme: normalizeIconTheme(s.iconTheme),
+    sidebarStyle: s.sidebarStyle === 'compact' ? 'compact' : 'full',
     customTheme: normalizeCustomTheme(s.customTheme),
     customCssOverride: normalizeCustomCssOverride(s.customCssOverride),
     background: normalizeBackground(s.background),
@@ -262,6 +265,7 @@ export function watchSystemTheme(): () => void {
 export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
   applyThemeToDocument(draft.theme)
   applyIconTheme(draft.iconTheme)
+  useUIStore.setState({ sidebarStyle: draft.sidebarStyle })
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)
   applyBackground(draft.background)
@@ -271,6 +275,7 @@ export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
 export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Promise<AsrConfig> {
   await ipcClient.invoke('settings.set', { key: 'theme', value: draft.theme })
   await ipcClient.invoke('settings.set', { key: 'iconTheme', value: draft.iconTheme })
+  await ipcClient.invoke('settings.set', { key: 'sidebarStyle', value: draft.sidebarStyle })
   await ipcClient.invoke('settings.set', {
     key: 'customTheme',
     value: draft.customTheme.light || draft.customTheme.dark ? draft.customTheme : null,
@@ -337,6 +342,7 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
 
   useUIStore.getState().setTheme(draft.theme)
   applyIconTheme(draft.iconTheme)
+  useUIStore.setState({ sidebarStyle: draft.sidebarStyle })
   useUIStore.getState().setTimelineMaxAutoExpandedTools(draft.timelineMaxAutoExpandedTools)
   useUIStore.getState().setTimelineVisibleTurns(draft.timelineVisibleTurns)
   applyThemeToDocument(draft.theme)

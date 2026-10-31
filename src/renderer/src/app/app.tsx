@@ -6,6 +6,7 @@ import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/comp
 import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
 import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
+import { ConversationContextHeader } from '@renderer/components/app/conversation-context-header'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
 import { TimelineScrubber } from '@renderer/features/timeline/timeline-scrubber'
 import { SplitView } from '@renderer/features/split/split-view'
@@ -410,6 +411,10 @@ export default function App() {
           center={
             <SplitView>
             <MainColumnWithTimelineScroll className="h-full">
+              <ConversationContextHeader
+                workspacePath={ephemeralSandboxDraft ? null : currentWorkspace}
+                branch={gitData?.isRepo === false ? undefined : gitData?.branch}
+              />
               {showHome ? (
                 <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
                   <ProjectHomeView

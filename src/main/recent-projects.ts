@@ -3,13 +3,13 @@ export const RECENT_PROJECTS_CAP = 10
 
 /**
  * 计算 addRecentProject 之后的新列表。
- * fixedOrder=true：顺序固定，已有项目保持不变，新项目追加到末尾（超出上限时丢弃最旧的）；
+ * fixedOrder=true：顺序固定，已有项目保持不变，新项目追加到末尾，不自动移除旧项目；
  * fixedOrder=false（默认）：最近使用优先，项目移到最前（超出上限时丢弃最旧的）。
  */
 export function nextRecentProjects(recent: string[], path: string, fixedOrder: boolean): string[] {
   if (fixedOrder) {
     if (recent.includes(path)) return recent
-    return [...recent, path].slice(-RECENT_PROJECTS_CAP)
+    return [...recent, path]
   }
   const next = recent.filter((p) => p !== path)
   next.unshift(path)

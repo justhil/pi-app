@@ -37,6 +37,7 @@ function baseDraft(): SettingsDraft {
   return {
     theme: 'system',
     iconTheme: 'phosphor',
+    sidebarStyle: 'full',
     customTheme: {},
     customCssOverride: { enabled: false, css: '' },
     background: { shared: true },
