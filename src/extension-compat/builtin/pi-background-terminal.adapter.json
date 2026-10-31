@@ -1,0 +1,48 @@
+{
+  "id": "@bytetrue/pi-background-terminal",
+  "displayName": "Background Terminal",
+  "description": "后台命令管理：background_run / status / kill 工具卡片，任务结束自动唤醒下一轮",
+  "match": {
+    "names": [
+      "@bytetrue/pi-background-terminal",
+      "pi-background-terminal"
+    ],
+    "tools": [
+      "background_run",
+      "background_status",
+      "background_kill"
+    ],
+    "commands": [
+      "/background"
+    ]
+  },
+  "tier": "partial",
+  "toolCard": {
+    "template": "default",
+    "icon": "Terminal"
+  },
+  "slash": {
+    "/background": "execute"
+  },
+  "config": {
+    "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。执行 /background 可查看运行中的后台命令或终止任务。",
+    "i18n": {
+      "zh": {
+        "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。执行 /background 可查看运行中的后台命令或终止任务。"
+      },
+      "en": {
+        "note": "Background commands run for up to 8 hours and wake the session with a follow-up message on exit. Run /background to inspect or stop active commands."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Background Terminal",
+      "description": "后台命令管理：background_run / status / kill 工具卡片，任务结束自动唤醒下一轮"
+    },
+    "en": {
+      "displayName": "Background Terminal",
+      "description": "Background shell commands: background_run / status / kill tool cards with automatic exit notifications"
+    }
+  }
+}

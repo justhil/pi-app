@@ -4,7 +4,7 @@
 
 **[English](./adapters.en.md)**
 
-由 `src/extension-compat/builtin/*.adapter.json` 自动生成（37 个）。
+由 `src/extension-compat/builtin/*.adapter.json` 自动生成（43 个）。
 
 1. 终端安装：`pi install npm:<包名>` 或 `pi install git:...`
 2. 在 `~/.pi/agent/settings.json` → `packages` 启用
@@ -18,15 +18,17 @@
 | Magic Context | `@cortexkit/pi-magic-context` | partial | 跨会话记忆与上下文管理：ctx_* 工具卡片，todowrite 列表显示在输入框上方 |
 | ACE Tool | [`pi-ace-tool`](https://www.npmjs.com/package/pi-ace-tool) | headless | ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试） |
 | Agents.md | [`pi-agentsmd`](https://www.npmjs.com/package/pi-agentsmd) | headless | AGENTS.md 生成（无斜杠入口） |
+| Background Terminal | `@bytetrue/pi-background-terminal` | partial | 后台命令管理：background_run / status / kill 工具卡片，任务结束自动唤醒下一轮 |
 | BTW | [`pi-btw`](https://www.npmjs.com/package/pi-btw) | headless | 并行侧聊（斜杠状态输出） |
 | Cache Optimizer | [`pi-cache-optimizer`](https://www.npmjs.com/package/pi-cache-optimizer) | headless | 提高提示词缓存命中：功能开关写入 ~/.pi/agent/pi-cache-optimizer-config.json |
 | Continue | [`pi-continue`](https://www.npmjs.com/package/pi-continue) | headless | 中途续跑（配置 ~/.pi/agent/extensions/pi-continue.json） |
 | Curated Themes | `@victor-software-house/pi-curated-themes` | none | pi 终端主题包（桌面用独立 Appearance 设置） |
 | PiDeck Todo | [`pi-deck-todo`](https://www.npmjs.com/package/pi-deck-todo) | partial | 在输入框上方显示当前会话 Todo |
+| Devin Search | [`pi-devin-search`](https://www.npmjs.com/package/pi-devin-search) | headless | Devin / Windsurf 网页搜索：devin_search 工具卡片，配置读写 ~/.pi/agent/devin-search.json |
 | Fast Context | [`pi-fast-context`](https://www.npmjs.com/package/pi-fast-context) | headless | 语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试） |
 | FFF | `@ff-labs/pi-fff` | headless | 模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag） |
 | Goal | [`pi-goal-x`](https://www.npmjs.com/package/pi-goal-x) | partial | 目标规划与自主推进：任务列表显示在输入框上方，设置读写 ~/.pi/agent/pi-goal-x-settings.json |
-| Goal | [`pi-goal`](https://www.npmjs.com/package/pi-goal) | headless | 目标循环（斜杠状态输出） |
+| Goal | `@astrosheep/pi-goal-next` | partial | 持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令 |
 | Hashline Edit | `@jerryan/pi-hashline-edit` | partial | 哈希锚定 read/edit/insert/grep；时间线专用 hashline 预览 |
 | Image Gen | [`pi-image-gen`](https://www.npmjs.com/package/pi-image-gen) | partial | 生图与改图（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉） |
 | Markdown Preview | [`pi-markdown-preview`](https://www.npmjs.com/package/pi-markdown-preview) | partial | Markdown/LaTeX 预览与 PDF/HTML 导出（工具结果 + 打开产物） |
@@ -35,6 +37,9 @@
 | Nano Context | [`pi-nano-context`](https://www.npmjs.com/package/pi-nano-context) | none | TUI 上下文进度条（桌面在 Run 面板显示上下文占用） |
 | Observational Memory | [`pi-observational-memory`](https://www.npmjs.com/package/pi-observational-memory) | headless | 观察记忆（自动生效，无斜杠入口） |
 | Powerline Footer | [`pi-powerline-footer`](https://www.npmjs.com/package/pi-powerline-footer) | none | Powerline 页脚状态栏（桌面无对应组件） |
+| Prompt Enhancer | `@jmcombs/pi-prompt-enhancer` | partial | 结合代码库目录树、Git 状态与引用文件自动改写强化提示词 |
+| Quality Gate | [`pi-quality`](https://www.npmjs.com/package/pi-quality) | partial | 完成闸门、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json） |
+| Rewind Hook | [`pi-rewind-hook`](https://www.npmjs.com/package/pi-rewind-hook) | partial | 自动 Git 快照与文件/对话回滚（读写 ~/.pi/agent/settings.json 的 rewind 配置） |
 | pi-rewind | [`pi-rewind`](https://www.npmjs.com/package/pi-rewind) | partial | Git 检查点 + /rewind：桌面弹窗可选恢复文件、对话或两者；Tree/Fork 时也可询问是否恢复文件。页脚装饰不复刻。 |
 | Pi Search | [`pi-search`](https://www.npmjs.com/package/pi-search) | partial | AI 搜索、文档检索与网页抓取（读写 ~/.config/pi-search/config.json） |
 | Sequential Thinking | `@feniix/pi-sequential-thinking` | headless | 结构化思考链工具（阶段/思考链卡片） |
@@ -46,7 +51,8 @@
 | Themes Bundle | `@firstpick/pi-themes-bundle` | none | pi 终端主题 bundle（桌面用独立 Appearance 设置） |
 | Tool Display | [`pi-tool-display`](https://www.npmjs.com/package/pi-tool-display) | headless | 工具显示紧凑化（TUI 专用，桌面无等价） |
 | TPS Extensions | `@kinarajv/pi-tps-extensions` | none | TUI 页脚/token 显示（桌面无对应组件） |
-| Advisor | `@juicesharp/rpiv-advisor` | partial | 第二意见：advisor 工具卡片；/advisor 选择顾问模型 |
+| Windows Notify | [`pi-win-notify`](https://www.npmjs.com/package/pi-win-notify) | none | CLI 终端完成通知弹窗（与桌面内置完成通知重复，建议在桌面停用） |
+| Advisor | `@juicesharp/rpiv-advisor` | partial | 第二意见顾问：advisor 工具卡片，配置读写 ~/.config/rpiv-advisor/advisor.json |
 | Ask User Question | `@juicesharp/rpiv-ask-user-question` | native | 结构化问卷（桌面问卷对话框，含选项预览合并） |
 | Trellis | [`trellis`](https://www.npmjs.com/package/trellis) | native | Trellis 子代理进度与任务状态（只读面板 + 工具卡片） |
 

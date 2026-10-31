@@ -1,0 +1,119 @@
+{
+  "id": "pi-rewind-hook",
+  "displayName": "Rewind Hook",
+  "description": "自动 Git 快照与文件/对话回滚（读写 ~/.pi/agent/settings.json 的 rewind 配置）",
+  "match": {
+    "names": [
+      "pi-rewind-hook"
+    ]
+  },
+  "tier": "partial",
+  "config": {
+    "configFile": "~/.pi/agent/settings.json",
+    "fileKeyMap": {
+      "silentCheckpoints": "rewind.silentCheckpoints",
+      "maxSnapshots": "rewind.retention.maxSnapshots",
+      "maxAgeDays": "rewind.retention.maxAgeDays",
+      "pinLabeledEntries": "rewind.retention.pinLabeledEntries",
+      "scanMode": "rewind.retention.scanMode",
+      "startupBudgetMs": "rewind.retention.startupBudgetMs"
+    },
+    "sections": [
+      {
+        "title": "检查点与保留策略",
+        "fields": [
+          {
+            "key": "silentCheckpoints",
+            "type": "boolean",
+            "label": "静默创建检查点",
+            "default": false,
+            "description": "开启后隐藏创建检查点时的状态提示"
+          },
+          {
+            "key": "maxSnapshots",
+            "type": "number",
+            "label": "最大保留快照数",
+            "default": 50
+          },
+          {
+            "key": "maxAgeDays",
+            "type": "number",
+            "label": "快照最长保留天数",
+            "default": 30
+          },
+          {
+            "key": "pinLabeledEntries",
+            "type": "boolean",
+            "label": "永久保留带标签节点",
+            "default": true
+          },
+          {
+            "key": "scanMode",
+            "type": "select",
+            "label": "清理扫描范围",
+            "default": "ancestor-only",
+            "options": [
+              "ancestor-only",
+              "repo-sessions"
+            ]
+          },
+          {
+            "key": "startupBudgetMs",
+            "type": "number",
+            "label": "启动清理时间预算（毫秒）",
+            "default": 1500
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "检查点与保留策略"
+          },
+          "en": {
+            "title": "Checkpoints & Retention"
+          }
+        }
+      }
+    ],
+    "note": "每轮对话前后自动记录 Git 快照（refs/pi-rewind/store）；在会话树跳转或 Fork 时通过桌面弹窗选择恢复代码、对话或两者。",
+    "i18n": {
+      "zh": {
+        "note": "每轮对话前后自动记录 Git 快照（refs/pi-rewind/store）；在会话树跳转或 Fork 时通过桌面弹窗选择恢复代码、对话或两者。"
+      },
+      "en": {
+        "note": "Automatically records git snapshots (refs/pi-rewind/store) around turns; tree navigation and forking prompt whether to restore files, conversation, or both."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Rewind Hook",
+      "description": "自动 Git 快照与文件/对话回滚（读写 ~/.pi/agent/settings.json 的 rewind 配置）",
+      "fieldLabels": {
+        "silentCheckpoints": "静默创建检查点",
+        "maxSnapshots": "最大保留快照数",
+        "maxAgeDays": "快照最长保留天数",
+        "pinLabeledEntries": "永久保留带标签节点",
+        "scanMode": "清理扫描范围",
+        "startupBudgetMs": "启动清理时间预算（毫秒）"
+      },
+      "fieldDescriptions": {
+        "silentCheckpoints": "开启后隐藏创建检查点时的状态提示"
+      }
+    },
+    "en": {
+      "displayName": "Rewind Hook",
+      "description": "Automatic git checkpoints with file and conversation restore (settings in ~/.pi/agent/settings.json)",
+      "fieldLabels": {
+        "silentCheckpoints": "Silent checkpoints",
+        "maxSnapshots": "Max retained snapshots",
+        "maxAgeDays": "Max snapshot age (days)",
+        "pinLabeledEntries": "Pin labeled entries",
+        "scanMode": "Retention scan mode",
+        "startupBudgetMs": "Startup cleanup budget (ms)"
+      },
+      "fieldDescriptions": {
+        "silentCheckpoints": "Suppress status notifications when creating checkpoints"
+      }
+    }
+  }
+}

@@ -154,12 +154,14 @@ function resolveGitPackageDir(agentDir: string, repoName: string): string | null
   return null
 }
 
-// Find install dir: npm node_modules first, then ~/.pi/agent/git/<host>/<owner>/<repoName>
+// Find install dir: npm node_modules first, then local-packages/relative path, then ~/.pi/agent/git/<host>/<owner>/<repoName>
 function resolvePackageDir(name: string, agentDir?: string): string | null {
-  const nm = join(getActiveAgentDir(), 'npm', 'node_modules')
+  const ad = agentDir || getActiveAgentDir()
+  const nm = join(ad, 'npm', 'node_modules')
   const direct = join(nm, name)
   if (existsSync(direct) && statSync(direct).isDirectory()) return direct
-  const ad = agentDir || getActiveAgentDir()
+  const localDir = resolve(ad, name)
+  if (existsSync(localDir) && statSync(localDir).isDirectory()) return localDir
   return resolveGitPackageDir(ad, name)
 }
 
@@ -271,18 +273,26 @@ function buildPackageProbeResult(
     if (disabled.has(cleanRel)) continue
     const fullPath = resolve(pkgDir, cleanRel)
     if (!existsSync(fullPath)) continue
+    let candidateFiles = [fullPath]
     try {
-      if (statSync(fullPath).isDirectory()) continue
-    } catch (e) { continue }
-    try {
-      const src = readFileSync(fullPath, 'utf-8')
-      const tmp: ExtensionProbeResult = {
-        id: '', name: '', source: 'package', enabled: true,
-        registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
+      if (statSync(fullPath).isDirectory()) {
+        candidateFiles = readdirSync(fullPath)
+          .filter((f) => /\.(ts|js|mjs)$/.test(f) && !/\.d\.ts$/.test(f) && !/\.(test|spec)\./.test(f))
+          .map((f) => join(fullPath, f))
       }
-      parseExtensionSource(src, tmp)
-      mergeResult(merged, tmp)
-    } catch (e) { /* ignore */ }
+    } catch (e) { continue }
+    for (const file of candidateFiles) {
+      try {
+        if (!statSync(file).isFile()) continue
+        const src = readFileSync(file, 'utf-8')
+        const tmp: ExtensionProbeResult = {
+          id: '', name: '', source: 'package', enabled: true,
+          registeredTools: [], registeredCommands: [], hasUI: false, compatibility: 'blocked',
+        }
+        parseExtensionSource(src, tmp)
+        mergeResult(merged, tmp)
+      } catch (e) { /* ignore */ }
+    }
   }
   scanPackageForKnownTools(pkgDir, merged)
   finalizeCompat(merged)

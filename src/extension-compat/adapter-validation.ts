@@ -42,9 +42,16 @@ export function parseAdapterDeclaration(raw: unknown): { adapter: AdapterJson } 
 export function adapterIdentity(value: string): string {
   let name = value.trim().replace(/\\/g, '/').replace(/^package:/, '').replace(/^npm:/, '')
   const modules = name.lastIndexOf('/node_modules/')
+  const localPkg = name.lastIndexOf('/local-packages/')
   if (modules >= 0) {
     const parts = name.slice(modules + 14).split('/')
     name = parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
+  } else if (localPkg >= 0) {
+    const parts = name.slice(localPkg + 16).split('/').filter(Boolean)
+    if (parts.length > 0) name = parts[0].startsWith('@') && parts.length > 1 ? parts.slice(0, 2).join('/') : parts[0]
+  } else if (/^(?:\.?\/)?local-packages\//.test(name)) {
+    const parts = name.replace(/^(?:\.?\/)?local-packages\//, '').split('/').filter(Boolean)
+    if (parts.length > 0) name = parts[0].startsWith('@') && parts.length > 1 ? parts.slice(0, 2).join('/') : parts[0]
   } else if (/^(git:|https?:)|github\.com\//.test(name)) {
     name = name.replace(/\.git(?:@.*)?$/, '').replace(/@[^/]*$/, '').split('/').pop() || name
   }

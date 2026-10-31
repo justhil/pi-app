@@ -1,0 +1,102 @@
+{
+  "id": "pi-quality",
+  "displayName": "Quality Gate",
+  "description": "完成闸门、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
+  "match": {
+    "names": [
+      "pi-quality"
+    ],
+    "commands": [
+      "/quality",
+      "/review"
+    ]
+  },
+  "tier": "partial",
+  "slash": {
+    "/quality": "config-page",
+    "/review": "execute"
+  },
+  "config": {
+    "configFile": "~/.pi/agent/pi-quality.json",
+    "fileKeyMap": {
+      "gate": "gate",
+      "diagnostics": "diagnostics",
+      "model": "model"
+    },
+    "sections": [
+      {
+        "title": "质量门禁与审查",
+        "fields": [
+          {
+            "key": "gate",
+            "type": "boolean",
+            "label": "启用完成闸门",
+            "default": true,
+            "description": "代理准备结束回合时，先由独立模型对照需求验收"
+          },
+          {
+            "key": "diagnostics",
+            "type": "boolean",
+            "label": "启用编辑后诊断",
+            "default": true,
+            "description": "在 edit / write 后自动对修改文件执行语法、lint 与类型检查"
+          },
+          {
+            "key": "model",
+            "type": "text",
+            "label": "验收与审查模型",
+            "default": "CloseAI/gemini-3.8-flash-high",
+            "description": "格式为 provider/modelId；未找到时回退使用当前会话模型"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "质量门禁与审查"
+          },
+          "en": {
+            "title": "Quality Gate & Review"
+          }
+        }
+      }
+    ],
+    "note": "设置保存到 ~/.pi/agent/pi-quality.json。无参 /quality 打开此配置页，带参（如 /quality gate off）在会话内执行；/review 使用无历史干净上下文审查当前未提交的 Git 改动。",
+    "i18n": {
+      "zh": {
+        "note": "设置保存到 ~/.pi/agent/pi-quality.json。无参 /quality 打开此配置页，带参（如 /quality gate off）在会话内执行；/review 使用无历史干净上下文审查当前未提交的 Git 改动。"
+      },
+      "en": {
+        "note": "Saves to ~/.pi/agent/pi-quality.json. Bare /quality opens this page; /review runs a clean-context review of uncommitted git changes."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Quality Gate",
+      "description": "完成闸门、编辑后自动诊断与 /review 独立上下文代码审查（读写 ~/.pi/agent/pi-quality.json）",
+      "fieldLabels": {
+        "gate": "启用完成闸门",
+        "diagnostics": "启用编辑后诊断",
+        "model": "验收与审查模型"
+      },
+      "fieldDescriptions": {
+        "gate": "代理准备结束回合时，先由独立模型对照需求验收",
+        "diagnostics": "在 edit / write 后自动对修改文件执行语法、lint 与类型检查",
+        "model": "格式为 provider/modelId；未找到时回退使用当前会话模型"
+      }
+    },
+    "en": {
+      "displayName": "Quality Gate",
+      "description": "Completion gate, post-edit diagnostics, and /review clean-context code review (~/.pi/agent/pi-quality.json)",
+      "fieldLabels": {
+        "gate": "Completion gate",
+        "diagnostics": "Post-edit diagnostics",
+        "model": "Gate & review model"
+      },
+      "fieldDescriptions": {
+        "gate": "Verify task completion with an independent model before the agent stops",
+        "diagnostics": "Run syntax, lint, and type checks after edit / write",
+        "model": "Format: provider/modelId; falls back to the current session model"
+      }
+    }
+  }
+}

@@ -7,7 +7,9 @@
       "pi-subagents"
     ],
     "tools": [
-      "subagent"
+      "subagent",
+      "contact_supervisor",
+      "structured_output"
     ],
     "commands": [
       "/run",
@@ -16,10 +18,20 @@
       "/subagents-steer",
       "/subagents-detach",
       "/subagents-doctor",
+      "/subagents-guide",
+      "/subagents-refine",
+      "/subagents-fleet",
+      "/subagents-inspect-rpc",
       "/subagents-models",
       "/subagents-profiles",
+      "/subagents-load-profile",
+      "/subagents-refresh-provider-models",
+      "/subagents-generate-profiles",
+      "/subagents-check-profile",
+      "/subagents-watchdog",
       "/subagent-cost",
-      "/prompt-workflow"
+      "/prompt-workflow",
+      "/pi-subagents-bridge"
     ]
   },
   "tier": "partial",
@@ -39,7 +51,9 @@
     "configFile": "~/.pi/agent/extensions/subagent/config.json",
     "fileKeyMap": {
       "asyncByDefault": "asyncByDefault",
+      "forceTopLevelAsync": "forceTopLevelAsync",
       "defaultSubagentContext": "defaultSubagentContext",
+      "maxSubagentDepth": "maxSubagentDepth",
       "worktree": "worktree"
     },
     "sections": [
@@ -53,6 +67,12 @@
             "default": true
           },
           {
+            "key": "forceTopLevelAsync",
+            "type": "boolean",
+            "label": "顶层调用强制后台运行",
+            "default": true
+          },
+          {
             "key": "defaultSubagentContext",
             "type": "select",
             "label": "子代理上下文",
@@ -61,6 +81,12 @@
               "fork"
             ],
             "description": "fresh 从空白开始；fork 带上当前会话。未设置时按各代理自己的默认值"
+          },
+          {
+            "key": "maxSubagentDepth",
+            "type": "number",
+            "label": "最大子代理嵌套深度",
+            "default": 1
           },
           {
             "key": "worktree",
@@ -95,7 +121,9 @@
       "description": "子代理委派：subagent 工具卡片展开子会话进度；设置读写 ~/.pi/agent/extensions/subagent/config.json",
       "fieldLabels": {
         "asyncByDefault": "默认后台运行",
+        "forceTopLevelAsync": "顶层调用强制后台运行",
         "defaultSubagentContext": "子代理上下文",
+        "maxSubagentDepth": "最大子代理嵌套深度",
         "worktree": "在独立 worktree 中运行"
       }
     },
@@ -104,7 +132,9 @@
       "description": "Subagent delegation: subagent tool cards follow child sessions; settings in ~/.pi/agent/extensions/subagent/config.json",
       "fieldLabels": {
         "asyncByDefault": "Run in background by default",
+        "forceTopLevelAsync": "Force top-level runs async",
         "defaultSubagentContext": "Subagent context",
+        "maxSubagentDepth": "Max subagent nesting depth",
         "worktree": "Run in a separate worktree"
       },
       "fieldDescriptions": {

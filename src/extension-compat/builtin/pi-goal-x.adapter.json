@@ -7,9 +7,6 @@
       "pi-goal-x"
     ],
     "tools": [
-      "create_goal",
-      "get_goal",
-      "update_goal",
       "set_goal_tasks",
       "update_goal_task",
       "goal_question",

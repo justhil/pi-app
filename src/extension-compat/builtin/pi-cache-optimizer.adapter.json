@@ -20,8 +20,11 @@
       "promptRewrite": "features.promptRewrite",
       "skillCompression": "features.skillCompression",
       "openAICacheKey": "features.openAICacheKey",
+      "zeroPriceWarming": "features.zeroPriceWarming",
+      "statsIncremental": "features.statsIncremental",
       "virtualRewrite": "features.virtualRewrite",
-      "toolOrder": "features.toolOrder"
+      "toolOrder": "features.toolOrder",
+      "footerMode": "footerMode"
     },
     "sections": [
       {
@@ -48,6 +51,18 @@
             "description": "给 OpenAI 兼容请求加 prompt_cache_key"
           },
           {
+            "key": "zeroPriceWarming",
+            "type": "boolean",
+            "label": "零成本模型缓存预热",
+            "default": true
+          },
+          {
+            "key": "statsIncremental",
+            "type": "boolean",
+            "label": "增量刷新缓存统计",
+            "default": true
+          },
+          {
             "key": "virtualRewrite",
             "type": "boolean",
             "label": "虚拟改写",
@@ -59,6 +74,17 @@
             "type": "boolean",
             "label": "固定工具顺序",
             "default": false
+          },
+          {
+            "key": "footerMode",
+            "type": "select",
+            "label": "统计汇总维度",
+            "default": "session",
+            "options": [
+              "session",
+              "total",
+              "process"
+            ]
           }
         ],
         "i18n": {
@@ -92,8 +118,11 @@
         "promptRewrite": "稳定系统提示词",
         "skillCompression": "压缩技能列表",
         "openAICacheKey": "OpenAI cache key",
+        "zeroPriceWarming": "零成本模型缓存预热",
+        "statsIncremental": "增量刷新缓存统计",
         "virtualRewrite": "虚拟改写",
-        "toolOrder": "固定工具顺序"
+        "toolOrder": "固定工具顺序",
+        "footerMode": "统计汇总维度"
       },
       "fieldDescriptions": {
         "promptRewrite": "重排易变内容，提高前缀缓存命中",
@@ -108,8 +137,11 @@
         "promptRewrite": "Stable system prompt",
         "skillCompression": "Compress the skill list",
         "openAICacheKey": "OpenAI cache key",
+        "zeroPriceWarming": "Zero-price cache warming",
+        "statsIncremental": "Incremental stats refresh",
         "virtualRewrite": "Virtual rewrite",
-        "toolOrder": "Stable tool order"
+        "toolOrder": "Stable tool order",
+        "footerMode": "Stats aggregation scope"
       },
       "fieldDescriptions": {
         "promptRewrite": "Moves volatile content so the prompt prefix stays cacheable",

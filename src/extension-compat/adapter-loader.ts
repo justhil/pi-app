@@ -46,6 +46,12 @@ import themesBundleAdapter from './builtin/pi-themes-bundle.adapter.json'
 import hashlineEditAdapter from './builtin/pi-hashline-edit.adapter.json'
 import piDeckTodoAdapter from './builtin/pi-deck-todo.adapter.json'
 import magicContextTodoAdapter from './builtin/magic-context-todo.adapter.json'
+import devinSearchAdapter from './builtin/pi-devin-search.adapter.json'
+import backgroundTerminalAdapter from './builtin/pi-background-terminal.adapter.json'
+import rewindHookAdapter from './builtin/pi-rewind-hook.adapter.json'
+import promptEnhancerAdapter from './builtin/pi-prompt-enhancer.adapter.json'
+import qualityAdapter from './builtin/pi-quality.adapter.json'
+import winNotifyAdapter from './builtin/pi-win-notify.adapter.json'
 
 const BUILTIN: AdapterJson[] = [
   piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
@@ -56,6 +62,8 @@ const BUILTIN: AdapterJson[] = [
   sequentialThinkingAdapter, aegisAdapter, tpsExtensionsAdapter, nanoContextAdapter,
   powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
   hashlineEditAdapter, piDeckTodoAdapter, magicContextTodoAdapter,
+  devinSearchAdapter, backgroundTerminalAdapter, rewindHookAdapter, promptEnhancerAdapter,
+  qualityAdapter, winNotifyAdapter,
 ].map((a) => a as unknown as AdapterJson)
 type Cached = { catalog: AdapterCatalog; checkedAt: number; fingerprint?: string; promise?: Promise<AdapterCatalog> }
 const catalogs = new Map<string, Cached>()

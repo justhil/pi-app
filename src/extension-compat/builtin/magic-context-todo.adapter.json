@@ -61,6 +61,15 @@
       }
     }
   },
+  "slash": {
+    "/ctx-status": "notify",
+    "/ctx-recomp": "notify",
+    "/ctx-wrapup": "notify",
+    "/ctx-flush": "notify",
+    "/ctx-dream": "notify",
+    "/ctx-embed": "notify",
+    "/todos": "notify"
+  },
   "i18n": {
     "zh": {
       "displayName": "Magic Context",
