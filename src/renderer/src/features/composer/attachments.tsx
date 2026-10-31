@@ -214,6 +214,10 @@ export function insertAttachmentAtCursor(el: HTMLElement, meta: AttachmentMeta) 
     range = document.createRange()
     range.selectNodeContents(el)
     range.collapse(false)
+    if (sel) {
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
   }
   const chip = createAttachmentChip(meta)
   const chipId = chip.dataset.attachmentChipId

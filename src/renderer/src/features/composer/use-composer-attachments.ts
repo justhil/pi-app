@@ -106,19 +106,18 @@ export function useComposerAttachments(opts: {
         insertTextAtCursor(el, text.endsWith('\n') ? text : `${text}\n`)
         updateFromEditor()
       }
-      // Only pasted screenshots are staged. Files handed over by another surface (browser
-      // annotations, workspace tree) keep their inline chip so the chip stays next to the text
-      // that explains it, e.g. the numbered annotation list.
-      const metas: AttachmentMeta[] = files.map((f) => ({
-        path: f.path,
-        name: f.name,
-        kind: (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name),
-      }))
+      // Files handed over by another surface (browser annotations, workspace tree) keep their
+      // inline chip and also load image thumbnails when inside the workspace.
+      const metas: AttachmentMeta[] = files.map((f) => {
+        const kind = (f.kind as AttachmentMeta['kind']) || getAttachmentKind(f.name)
+        if (kind === 'image') stageImagePath(f.path, f.name)
+        return { path: f.path, name: f.name, kind }
+      })
       insertMetas(metas)
     }
     window.addEventListener('pi-desktop:composer-attach-files', onAttach)
     return () => window.removeEventListener('pi-desktop:composer-attach-files', onAttach)
-  }, [editorRef, insertMetas, updateFromEditor])
+  }, [editorRef, insertMetas, stageImagePath, updateFromEditor])
 
   const insertPastedScreenshot = useCallback(
     async (base64: string, mimeType: string) => {
@@ -147,14 +146,14 @@ export function useComposerAttachments(opts: {
                   ? 'bmp'
                   : 'png'
         const name = `clipboard-image-${Date.now()}.${ext}`
-        // 图片暂存到附件条：不写编辑器 DOM，原生撤销栈不受影响。
         stageImage({ path, name, mimeType: mime, dataUrl: `data:${mime};base64,${base64}` })
+        insertMetas([{ path, name, kind: 'image' }])
       } catch (err) {
         console.error('clipboard.writeTempImage failed:', err)
         toast.error(t('composer:toast.pasteScreenshotFailed'))
       }
     },
-    [currentWorkspace, ephemeralSandboxDraft, stageImage, t],
+    [currentWorkspace, ephemeralSandboxDraft, insertMetas, stageImage, t],
   )
 
   const handlePaste = useCallback(
@@ -162,7 +161,6 @@ export function useComposerAttachments(opts: {
       const cd = e.clipboardData
       if (!cd) return
       const metas: AttachmentMeta[] = []
-      let stagedAny = false
       const items = cd.items
       if (items) {
         for (const item of items) {
@@ -173,12 +171,8 @@ export function useComposerAttachments(opts: {
           if (path) {
             const name = file.name || basenameOf(path)
             const kind = getAttachmentKind(name)
-            if (kind === 'image') {
-              stageImageFile(file, path, name)
-              stagedAny = true
-            } else {
-              metas.push({ path, name, kind })
-            }
+            if (kind === 'image') stageImageFile(file, path, name)
+            metas.push({ path, name, kind })
           }
         }
       }
@@ -191,7 +185,7 @@ export function useComposerAttachments(opts: {
       const plain = cd.getData('text/plain')
       const meaningfulPlain = isMeaningfulPlainPaste(plain)
       const hasFilesOrImages =
-        metas.length > 0 || stagedAny || !!pendingScreenshot || !!htmlImage
+        metas.length > 0 || !!pendingScreenshot || !!htmlImage
       if (!hasFilesOrImages) {
         const el = editorRef.current
         if (el && html && el.contentEditable === 'true') {
@@ -264,7 +258,7 @@ export function useComposerAttachments(opts: {
         const name = f.name || basenameOf(path)
         const kind = getAttachmentKind(name)
         if (kind === 'image') stageImageFile(f, path, name)
-        else metas.push({ path, name, kind })
+        metas.push({ path, name, kind })
       }
       insertMetas(metas)
     },
@@ -307,7 +301,9 @@ export function useComposerAttachments(opts: {
         e.preventDefault()
         dragDepth.current = 0
         setIsDragActive(false)
-        insertMetas([{ path: pi.path, name: pi.name, kind: getAttachmentKind(pi.name) }])
+        const kind = getAttachmentKind(pi.name)
+        if (kind === 'image') stageImagePath(pi.path, pi.name)
+        insertMetas([{ path: pi.path, name: pi.name, kind }])
         return
       }
       if (!dt?.files?.length) return
@@ -316,7 +312,7 @@ export function useComposerAttachments(opts: {
       setIsDragActive(false)
       addDroppedFiles(dt.files)
     },
-    [addDroppedFiles, dragDepth, insertMetas, setIsDragActive],
+    [addDroppedFiles, dragDepth, insertMetas, setIsDragActive, stageImagePath],
   )
 
   const removeAttachment = useCallback(
@@ -376,7 +372,7 @@ export function useComposerAttachments(opts: {
         const name = basenameOf(path)
         const kind = getAttachmentKind(name)
         if (kind === 'image') stageImagePath(path, name)
-        else metas.push({ path, name, kind })
+        metas.push({ path, name, kind })
       }
       insertMetas(metas)
     } catch (e) {

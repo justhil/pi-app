@@ -67,8 +67,9 @@ export function useComposerSend(opts: {
         const el = editorRef.current
         if (!el) return
         const { displayText, payload, attachments: atts, segments } = serializeRichInput(el)
-        // 暂存图片在发送时追加为文件段：路径照常发给 agent，但从不进入编辑器 DOM。
-        const stagedSegments: Segment[] = stagedImages.map((img) => ({
+        const inlinePaths = new Set(atts.map((a) => a.path))
+        const extraStaged = stagedImages.filter((img) => !inlinePaths.has(img.path))
+        const stagedSegments: Segment[] = extraStaged.map((img) => ({
           type: 'file',
           attachment: { path: img.path, name: img.name, kind: 'image' },
         }))

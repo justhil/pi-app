@@ -405,7 +405,7 @@ export function Composer() {
     runComposerAbort,
   })
 
-  const hasAttachments = attachments.length > 0 || stagedImages.length > 0
+  const hasAttachments = attachments.length > 0
 
   return (
     <div
@@ -484,26 +484,27 @@ export function Composer() {
         </div>
         {hasAttachments && (
           <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
-            {attachments.map((a, index) => (
-              <AttachmentChip
-                key={attachmentChipKey(a, index)}
-                attachment={a}
-                onRemove={() => attachmentHandlers.removeAttachment(a)}
-              />
-            ))}
-            {stagedImages.map((image) => (
-              <AttachmentChip
-                key={`staged:${image.path}`}
-                attachment={{ path: image.path, name: image.name, kind: 'image' }}
-                previewSrc={image.dataUrl}
-                onPreview={() => setPreviewImage(image)}
-                // The preview's own close button sits on the same corner, so drop the remove
-                // badge while that image is open.
-                onRemove={
-                  previewImage?.path === image.path ? undefined : () => removeStagedImage(image.path)
-                }
-              />
-            ))}
+            {attachments.map((a, index) => {
+              const staged = a.kind === 'image' ? stagedImages.find((img) => img.path === a.path) : undefined
+              return (
+                <AttachmentChip
+                  key={attachmentChipKey(a, index)}
+                  attachment={a}
+                  previewSrc={staged?.dataUrl}
+                  onPreview={staged?.dataUrl ? () => setPreviewImage(staged) : undefined}
+                  onRemove={
+                    previewImage?.path === a.path
+                      ? undefined
+                      : () => {
+                          attachmentHandlers.removeAttachment(a)
+                          if (staged && !attachments.some((other, idx) => idx !== index && other.path === a.path)) {
+                            removeStagedImage(a.path)
+                          }
+                        }
+                  }
+                />
+              )
+            })}
           </div>
         )}
         <div className="relative flex flex-col gap-1 px-2.5 pb-2 pt-2">

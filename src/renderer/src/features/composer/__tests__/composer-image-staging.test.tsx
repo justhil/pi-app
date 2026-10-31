@@ -182,10 +182,15 @@ describe('useComposerAttachments image paste', () => {
         stageImage,
       }),
     )
-    return { handlePaste: result.current.handlePaste, stageImage, editor: editorRef.current }
+    return {
+      handlePaste: result.current.handlePaste,
+      handleDrop: result.current.handleDrop,
+      stageImage,
+      editor: editorRef.current,
+    }
   }
 
-  it('stages a screenshot paste with a thumbnail and never inserts a chip', async () => {
+  it('stages a screenshot paste with a thumbnail and inserts an inline placeholder chip', async () => {
     const { handlePaste, stageImage, editor } = setup()
     const html = '<img src="data:image/png;base64,iVBORw0KGgo=" />'
 
@@ -207,6 +212,37 @@ describe('useComposerAttachments image paste', () => {
         dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
       }),
     )
-    expect(editor.querySelector('.rich-attachment-chip')).toBeNull()
+    const chip = editor.querySelector('.rich-attachment-chip') as HTMLElement | null
+    expect(chip).not.toBeNull()
+    expect(chip?.dataset.attachmentPath).toBe('C:/tmp/pi-clipboard-x.png')
+  })
+
+  it('inserts an inline placeholder chip and stages a thumbnail when dropping an image file', () => {
+    const { handleDrop, stageImage, editor } = setup()
+    const file = Object.assign(new File(['img'], 'dropped.png', { type: 'image/png' }), {
+      path: 'C:/ws/dropped.png',
+    })
+
+    act(() => {
+      handleDrop({
+        dataTransfer: {
+          types: ['Files'],
+          files: [file],
+          getData: () => '',
+        },
+        preventDefault: vi.fn(),
+      } as unknown as React.DragEvent)
+    })
+
+    expect(stageImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'C:/ws/dropped.png',
+        name: 'dropped.png',
+        mimeType: 'image/png',
+      }),
+    )
+    const chip = editor.querySelector('.rich-attachment-chip') as HTMLElement | null
+    expect(chip).not.toBeNull()
+    expect(chip?.dataset.attachmentPath).toBe('C:/ws/dropped.png')
   })
 })
