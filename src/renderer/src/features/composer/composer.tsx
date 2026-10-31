@@ -13,6 +13,8 @@ import {
   type Segment,
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
+import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
+import type { StagedImage } from './attachments'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerToolsMenu } from './composer-tools-menu'
 import { ComposerMetricsInline } from './composer-metrics-inline'
@@ -51,6 +53,8 @@ import {
   composerDraftContextKey,
   readTransientComposerDraft,
   rememberTransientComposerDraft,
+  readTransientComposerImages,
+  rememberTransientComposerImages,
 } from './composer-transient-draft'
 
 const prewarmedWorkspaces = new Set<string>()
@@ -68,6 +72,10 @@ export function Composer() {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  // 暂存图片不进入 contenteditable：粘贴图片不产生编辑器 DOM 变更，原生撤销栈保持干净。
+  const [stagedImages, setStagedImages] = useState<StagedImage[]>([])
+  const stagedImagesRef = useRef<StagedImage[]>([])
+  const [previewImage, setPreviewImage] = useState<StagedImage | null>(null)
   const [isDragActive, setIsDragActive] = useState(false)
   const dragDepth = useRef(0)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -149,6 +157,25 @@ export function Composer() {
     setEditorRevision((revision) => revision + 1)
   }, [draftContextKey])
 
+  useEffect(() => {
+    stagedImagesRef.current = stagedImages
+  }, [stagedImages])
+
+  /** 同一 path 重复暂存时按 path 合并（缩略图稍后到达则补上 dataUrl）。 */
+  const stageImage = useCallback((image: StagedImage) => {
+    setStagedImages((prev) => {
+      const index = prev.findIndex((item) => item.path === image.path)
+      if (index === -1) return [...prev, image]
+      const next = [...prev]
+      next[index] = { ...prev[index], ...image }
+      return next
+    })
+  }, [])
+
+  const removeStagedImage = useCallback((path: string) => {
+    setStagedImages((prev) => prev.filter((item) => item.path !== path))
+  }, [])
+
   useLayoutEffect(() => {
     const el = editorRef.current
     if (!el) return
@@ -158,9 +185,11 @@ export function Composer() {
     const restored = serializeRichInput(el)
     setText(restored.displayText)
     setAttachments(restored.attachments)
+    setStagedImages(readTransientComposerImages(draftContextKey) ?? [])
     setEditorRevision((revision) => revision + 1)
     return () => {
       rememberTransientComposerDraft(draftContextKey, serializeRichInput(el).segments)
+      rememberTransientComposerImages(draftContextKey, stagedImagesRef.current)
     }
   }, [draftContextKey])
 
@@ -183,8 +212,10 @@ export function Composer() {
     renderRichTextFromPlain(el, '')
     syncRichInputEmpty(el)
     hideAllDelayedTooltips()
+    setStagedImages([])
+    rememberTransientComposerImages(draftContextKey, [])
     updateFromEditor()
-  }, [updateFromEditor])
+  }, [draftContextKey, updateFromEditor])
 
   const inputHistory = useComposerInputHistory(currentWorkspace, currentSessionId, setContent)
 
@@ -227,6 +258,8 @@ export function Composer() {
     editorRef,
     text,
     attachments,
+    stagedImages,
+    setStagedImages,
     updateFromEditor,
     clearEditor,
     setContent,
@@ -245,6 +278,7 @@ export function Composer() {
     ephemeralSandboxDraft,
     setIsDragActive,
     dragDepth,
+    stageImage,
   })
 
   useEffect(() => {
@@ -368,6 +402,8 @@ export function Composer() {
     runComposerAbort,
   })
 
+  const hasAttachments = attachments.length > 0 || stagedImages.length > 0
+
   return (
     <div
       data-composer-root
@@ -443,13 +479,26 @@ export function Composer() {
             <span className="text-[12px] font-medium">{t('composer:dropOverlay')}</span>
           </div>
         </div>
-        {attachments.length > 0 && (
+        {hasAttachments && (
           <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
             {attachments.map((a, index) => (
               <AttachmentChip
                 key={attachmentChipKey(a, index)}
                 attachment={a}
                 onRemove={() => attachmentHandlers.removeAttachment(a)}
+              />
+            ))}
+            {stagedImages.map((image) => (
+              <AttachmentChip
+                key={`staged:${image.path}`}
+                attachment={{ path: image.path, name: image.name, kind: 'image' }}
+                previewSrc={image.dataUrl}
+                onPreview={() => setPreviewImage(image)}
+                // The preview's own close button sits on the same corner, so drop the remove
+                // badge while that image is open.
+                onRemove={
+                  previewImage?.path === image.path ? undefined : () => removeStagedImage(image.path)
+                }
               />
             ))}
           </div>
@@ -460,7 +509,7 @@ export function Composer() {
             active={
               !showComposerStop &&
               !text.trim() &&
-              attachments.length === 0 &&
+              !hasAttachments &&
               (voiceState === 'recording' || voiceState === 'transcribing')
             }
           />
@@ -525,7 +574,7 @@ export function Composer() {
             )}
             <div className="flex shrink-0 items-center gap-1.5">
               {(() => {
-                const hasContent = !!text.trim() || attachments.length > 0
+                const hasContent = !!text.trim() || hasAttachments
                 // Running: stop is the main action until there is something to queue; then
                 // "queue" is primary and stop steps back to a quiet secondary button.
                 if (!showComposerStop) return null
@@ -547,7 +596,7 @@ export function Composer() {
                 )
               })()}
               {(() => {
-                const hasContent = !!text.trim() || attachments.length > 0
+                const hasContent = !!text.trim() || hasAttachments
                 if (showComposerStop && !hasContent) return null
                 const voicePrimary = !showComposerStop && !hasContent
                 if (voicePrimary) {
@@ -565,7 +614,7 @@ export function Composer() {
                   <button
                     type="button"
                     onClick={handleSend}
-                    disabled={(!text.trim() && attachments.length === 0) || !canSendMessages}
+                    disabled={(!text.trim() && !hasAttachments) || !canSendMessages}
                     title={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
                     className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
                   >
@@ -577,6 +626,11 @@ export function Composer() {
           </div>
         </div>
       </div>
+      <ImageLightbox
+        src={previewImage?.dataUrl ?? null}
+        alt={previewImage?.name}
+        onClose={() => setPreviewImage(null)}
+      />
     </div>
   )
 }

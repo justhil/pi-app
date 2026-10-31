@@ -125,6 +125,8 @@
     "close": "关闭 Subagent 详情"
   },
   "removeFile": "移除文件",
+  "previewImage": "预览图片",
+  "closePreview": "关闭预览",
   "openedConfigToast": "已打开 {{name}} 配置",
   "openedPanelToast": "已打开 {{panel}} 面板",
   "pasteScreenshotNeedWorkspace": "请先打开工作区再粘贴截图",

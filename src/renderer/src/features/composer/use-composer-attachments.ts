@@ -7,7 +7,10 @@ import {
   getAttachmentKind,
   resolveFilePath,
   basenameOf,
+  imageMimeFromName,
   insertAttachmentAtCursor,
+  readFileAsDataUrl,
+  type StagedImage,
 } from './attachments'
 import { readPiFilePathDrop } from '@renderer/features/workspace-files/workspace-files-types'
 import { hideAllDelayedTooltips } from './delayed-tooltip'
@@ -28,6 +31,8 @@ export function useComposerAttachments(opts: {
   ephemeralSandboxDraft: boolean
   setIsDragActive: (v: boolean) => void
   dragDepth: React.MutableRefObject<number>
+  /** 暂存一张图片（不进编辑器，见 attachments.tsx 的 StagedImage 注释）。 */
+  stageImage: (image: StagedImage) => void
 }) {
   const { t } = useTranslation()
   const {
@@ -38,7 +43,40 @@ export function useComposerAttachments(opts: {
     ephemeralSandboxDraft,
     setIsDragActive,
     dragDepth,
+    stageImage,
   } = opts
+
+  /** 图片文件：先占位（图标），读完后补上缩略图 data URL。 */
+  const stageImageFile = useCallback(
+    (file: File, path: string, name: string) => {
+      const mimeType = normalizeClipboardImageMime(file.type) ?? imageMimeFromName(name)
+      stageImage({ path, name, mimeType })
+      void readFileAsDataUrl(file)
+        .then((dataUrl) => stageImage({ path, name, mimeType, dataUrl }))
+        .catch(() => {
+          /* 缩略图失败时保留图标 chip，不影响发送 */
+        })
+    },
+    [stageImage],
+  )
+
+  /** 只有路径的图片（文件选择器/浏览器注解）：缩略图仅对工作区内文件可用，失败保留图标。 */
+  const stageImagePath = useCallback(
+    (path: string, name: string) => {
+      const mimeType = imageMimeFromName(name)
+      stageImage({ path, name, mimeType })
+      if (!currentWorkspace) return
+      void ipcClient
+        .invoke('shell.readImagePreview', { workspaceRoot: currentWorkspace, path })
+        .then((res) => {
+          if (res?.dataUrl) stageImage({ path, name, mimeType, dataUrl: res.dataUrl })
+        })
+        .catch(() => {
+          /* 保留图标 chip */
+        })
+    },
+    [currentWorkspace, stageImage],
+  )
 
   const insertMetas = useCallback(
     (metas: AttachmentMeta[]) => {
@@ -68,6 +106,9 @@ export function useComposerAttachments(opts: {
         insertTextAtCursor(el, text.endsWith('\n') ? text : `${text}\n`)
         updateFromEditor()
       }
+      // Only pasted screenshots are staged. Files handed over by another surface (browser
+      // annotations, workspace tree) keep their inline chip so the chip stays next to the text
+      // that explains it, e.g. the numbered annotation list.
       const metas: AttachmentMeta[] = files.map((f) => ({
         path: f.path,
         name: f.name,
@@ -106,16 +147,14 @@ export function useComposerAttachments(opts: {
                   ? 'bmp'
                   : 'png'
         const name = `clipboard-image-${Date.now()}.${ext}`
-        const el = editorRef.current
-        if (!el) return
-        insertAttachmentAtCursor(el, { path, name, kind: 'image' })
-        updateFromEditor()
+        // 图片暂存到附件条：不写编辑器 DOM，原生撤销栈不受影响。
+        stageImage({ path, name, mimeType: mime, dataUrl: `data:${mime};base64,${base64}` })
       } catch (err) {
         console.error('clipboard.writeTempImage failed:', err)
         toast.error(t('composer:toast.pasteScreenshotFailed'))
       }
     },
-    [currentWorkspace, editorRef, ephemeralSandboxDraft, t, updateFromEditor],
+    [currentWorkspace, ephemeralSandboxDraft, stageImage, t],
   )
 
   const handlePaste = useCallback(
@@ -123,6 +162,7 @@ export function useComposerAttachments(opts: {
       const cd = e.clipboardData
       if (!cd) return
       const metas: AttachmentMeta[] = []
+      let stagedAny = false
       const items = cd.items
       if (items) {
         for (const item of items) {
@@ -132,7 +172,13 @@ export function useComposerAttachments(opts: {
           const path = resolveFilePath(file)
           if (path) {
             const name = file.name || basenameOf(path)
-            metas.push({ path, name, kind: getAttachmentKind(name) })
+            const kind = getAttachmentKind(name)
+            if (kind === 'image') {
+              stageImageFile(file, path, name)
+              stagedAny = true
+            } else {
+              metas.push({ path, name, kind })
+            }
           }
         }
       }
@@ -144,7 +190,8 @@ export function useComposerAttachments(opts: {
       const htmlImage = extractDataUrlImageFromHtml(html)
       const plain = cd.getData('text/plain')
       const meaningfulPlain = isMeaningfulPlainPaste(plain)
-      const hasFilesOrImages = metas.length > 0 || !!pendingScreenshot || !!htmlImage
+      const hasFilesOrImages =
+        metas.length > 0 || stagedAny || !!pendingScreenshot || !!htmlImage
       if (!hasFilesOrImages) {
         const el = editorRef.current
         if (el && html && el.contentEditable === 'true') {
@@ -200,7 +247,7 @@ export function useComposerAttachments(opts: {
         return
       }
     },
-    [editorRef, insertMetas, insertPastedScreenshot, updateFromEditor],
+    [editorRef, insertMetas, insertPastedScreenshot, stageImageFile, updateFromEditor],
   )
 
   const addDroppedFiles = useCallback(
@@ -215,11 +262,13 @@ export function useComposerAttachments(opts: {
         if (seen.has(path)) continue
         seen.add(path)
         const name = f.name || basenameOf(path)
-        metas.push({ path, name, kind: getAttachmentKind(name) })
+        const kind = getAttachmentKind(name)
+        if (kind === 'image') stageImageFile(f, path, name)
+        else metas.push({ path, name, kind })
       }
       insertMetas(metas)
     },
-    [insertMetas],
+    [insertMetas, stageImageFile],
   )
 
   const handleDragEnter = useCallback(
@@ -325,13 +374,15 @@ export function useComposerAttachments(opts: {
         if (!path || seen.has(path)) continue
         seen.add(path)
         const name = basenameOf(path)
-        metas.push({ path, name, kind: getAttachmentKind(name) })
+        const kind = getAttachmentKind(name)
+        if (kind === 'image') stageImagePath(path, name)
+        else metas.push({ path, name, kind })
       }
       insertMetas(metas)
     } catch (e) {
       console.error('pick attachments failed', e)
     }
-  }, [canCompose, insertMetas])
+  }, [canCompose, insertMetas, stageImagePath])
 
   return {
     handlePaste,

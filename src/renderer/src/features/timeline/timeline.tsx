@@ -58,6 +58,7 @@ import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-d
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { enrichPlainTextWithPaths } from './markdown-inline-paths'
 import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
+import { ClipboardImageChip } from './clipboard-image-chip'
 import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
 
 const MarkdownView = lazy(() => import('./markdown-view'))
@@ -111,19 +112,16 @@ const TimelineItemBase = memo(function TimelineItem({
             {segments.map((s: Segment, i: number) => {
               if (s.type === 'text') return <span key={i}>{enrichPlainTextWithPaths(s.text)}</span>
               if (s.type === 'clipboard-image') {
-                return (
-                  <AttachmentChip
-                    key={i}
-                    attachment={{ path: s.path, name: s.name, kind: 'image' }}
-                    openable
-                    className="mx-0.5"
-                  />
-                )
+                return <ClipboardImageChip key={i} path={s.path} name={s.name} className="mx-0.5" />
+              }
+              const attachment = s.attachment as AttachmentMeta
+              if (attachment.kind === 'image') {
+                return <ClipboardImageChip key={i} path={attachment.path} name={attachment.name} className="mx-0.5" />
               }
               return (
                 <AttachmentChip
                   key={i}
-                  attachment={s.attachment as AttachmentMeta}
+                  attachment={attachment}
                   openable
                   className="mx-0.5"
                 />
