@@ -16,7 +16,9 @@ import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
   composerDraftContextKey,
   readTransientComposerDraft,
+  readTransientComposerImages,
   rememberTransientComposerDraft,
+  rememberTransientComposerImages,
 } from './composer-transient-draft'
 
 export function useComposerSend(opts: {
@@ -123,6 +125,7 @@ export function useComposerSend(opts: {
           await import('@renderer/lib/optimistic-send')
         let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
         let draftKey = composerDraftContextKey(store)
+        rememberTransientComposerImages(draftKey, [])
         const promptPayload = () => ({
           sessionId: '',
           sessionFile,
@@ -227,11 +230,28 @@ export function useComposerSend(opts: {
             const currentDraft = ownsEditor
               ? serializeRichInput(el).segments
               : readTransientComposerDraft(draftKey) ?? []
-            const restored = [...allSegments]
+            const restored = [...segments]
             if (currentDraft.length) restored.push({ type: 'text', text: '\n' }, ...currentDraft)
             rememberTransientComposerDraft(draftKey, restored)
-            // 失败回滚：图片一起回到附件条。
-            setStagedImages((prev) => [...stagedSnapshot, ...prev])
+            if (stagedSnapshot.length > 0) {
+              if (ownsEditor) {
+                setStagedImages((prev) => {
+                  const merged = [
+                    ...stagedSnapshot,
+                    ...prev.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
+                  ]
+                  rememberTransientComposerImages(draftKey, merged)
+                  return merged
+                })
+              } else {
+                const existing = readTransientComposerImages(draftKey) ?? []
+                const merged = [
+                  ...stagedSnapshot,
+                  ...existing.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
+                ]
+                rememberTransientComposerImages(draftKey, merged)
+              }
+            }
             if (ownsEditor) {
               renderRichFromSegments(el, restored)
               updateFromEditor()

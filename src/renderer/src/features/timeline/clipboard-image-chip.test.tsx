@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { ClipboardImageChip } from './clipboard-image-chip'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -61,5 +62,23 @@ describe('ClipboardImageChip', () => {
     render(<ClipboardImageChip path={path} name="shot.png" />)
     await screen.findByRole('img', { name: 'shot.png' })
     expect(mocks.invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('should_fall_back_to_workspace_image_preview_when_image_is_outside_clipboard_temp_dir', async () => {
+    useUIStore.setState({ currentWorkspace: 'C:/ws' })
+    mocks.invoke.mockImplementation(async (method: string) => {
+      if (method === 'clipboard.readTempImage') return { ok: false, error: 'not_found' }
+      if (method === 'shell.readImagePreview') return { ok: true, dataUrl: DATA_URL }
+      return { ok: false, error: 'unexpected' }
+    })
+
+    render(<ClipboardImageChip path="C:/ws/assets/diagram.png" name="diagram.png" />)
+
+    const img = await screen.findByRole('img', { name: 'diagram.png' })
+    expect(img.getAttribute('src')).toBe(DATA_URL)
+    expect(mocks.invoke).toHaveBeenCalledWith('shell.readImagePreview', {
+      workspaceRoot: 'C:/ws',
+      path: 'C:/ws/assets/diagram.png',
+    })
   })
 })

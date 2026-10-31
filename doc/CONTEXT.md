@@ -97,7 +97,7 @@ composer 曾对纯文本粘贴 `preventDefault` 后手动插 DOM——实测（�
 
 ### 决策记录：粘贴图片不进编辑器，走暂存区（2026）
 
-粘贴截图曾插入附件 chip（`execCommand('insertHTML')`），等于一次程序化插入：要参与撤销栈、维护 ZWSP 光标锚点、序列化时还原路径。定案：截图直接进输入框上方暂存区（`composer.tsx` 的 `stagedImages`），正文不动，贴图与打字、Ctrl+Z 互不干扰；发送时仍以文件路径进消息（`attachment.kind: 'image'`）。历史气泡用 `ipc:clipboard.readTempImage` 读缩略图，仅限 `userData/clipboard-images/pi-clipboard-*`、8MB 上限，不扩大 workspace 读取范围。浏览器标注等界面移交的文件仍走 chip，与其说明文字保持对应。代价：临时图片 7 天后被清理，旧消息降级为文件名 chip。
+粘贴截图曾插入附件 chip（`execCommand('insertHTML')`），等于一次程序化插入：要参与撤销栈、维护 ZWSP 光标锚点、序列化时还原路径。定案：截图直接进输入框上方暂存区（`composer.tsx` 的 `stagedImages`），正文不动，贴图与打字、Ctrl+Z 互不干扰；发送时仍以文件路径进消息（`attachment.kind: 'image'`）。历史气泡用 `ipc:clipboard.readTempImage` 读剪贴板临时图片缩略图（仅限 `userData/clipboard-images/pi-clipboard-*`、8MB 上限），工作区内图片回退走 `ipc:shell.readImagePreview`，当次会话内已暂存的图片直接复用内存缓存，不扩大主进程文件读取范围。浏览器标注等界面移交的文件仍走 chip，与其说明文字保持对应。代价：临时图片 7 天后被清理，旧消息降级为文件名 chip。
 
 ## 模型作用域术语（glossary，2026 访谈确认）
 

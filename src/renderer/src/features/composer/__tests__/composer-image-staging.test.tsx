@@ -4,6 +4,7 @@ import { AttachmentChip } from '../attachment-chip'
 import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
 import { useComposerAttachments } from '../use-composer-attachments'
 import {
+  rememberTransientComposerDraft,
   rememberTransientComposerImages,
   readTransientComposerImages,
   clearTransientComposerDraft,
@@ -151,6 +152,14 @@ describe('transient composer images', () => {
     rememberTransientComposerImages('draft-1', images)
     clearTransientComposerDraft('draft-1')
     expect(readTransientComposerImages('draft-1')).toBeNull()
+  })
+
+  it('should_preserve_staged_images_when_text_draft_is_cleared_with_empty_segments', () => {
+    const images = [{ path: 'C:/tmp/a.png', name: 'a.png', mimeType: 'image/png', dataUrl: DATA_URL }]
+    rememberTransientComposerImages('draft-1', images)
+    rememberTransientComposerDraft('draft-1', [])
+    expect(readTransientComposerImages('draft-1')).toEqual(images)
+    clearTransientComposerDraft('draft-1')
   })
 })
 

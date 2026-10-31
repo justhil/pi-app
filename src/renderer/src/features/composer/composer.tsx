@@ -14,6 +14,7 @@ import {
 } from './attachments'
 import { AttachmentChip } from './attachment-chip'
 import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
+import { rememberImagePreviewDataUrl } from '@renderer/features/timeline/clipboard-image-chip'
 import type { StagedImage } from './attachments'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerToolsMenu } from './composer-tools-menu'
@@ -163,6 +164,7 @@ export function Composer() {
 
   /** 同一 path 重复暂存时按 path 合并（缩略图稍后到达则补上 dataUrl）。 */
   const stageImage = useCallback((image: StagedImage) => {
+    if (image.dataUrl) rememberImagePreviewDataUrl(image.path, image.dataUrl)
     setStagedImages((prev) => {
       const index = prev.findIndex((item) => item.path === image.path)
       if (index === -1) return [...prev, image]
@@ -186,6 +188,7 @@ export function Composer() {
     setText(restored.displayText)
     setAttachments(restored.attachments)
     setStagedImages(readTransientComposerImages(draftContextKey) ?? [])
+    setPreviewImage(null)
     setEditorRevision((revision) => revision + 1)
     return () => {
       rememberTransientComposerDraft(draftContextKey, serializeRichInput(el).segments)

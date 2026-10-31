@@ -14,7 +14,7 @@ export function composerDraftContextKey(context: ComposerDraftContext): string {
 
 export function rememberTransientComposerDraft(contextKey: string, segments: Segment[]): void {
   if (segments.length === 0) {
-    clearTransientComposerDraft(contextKey)
+    transientDrafts.delete(contextKey)
     return
   }
   transientDrafts.set(contextKey, segments)
