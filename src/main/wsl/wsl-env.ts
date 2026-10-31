@@ -67,7 +67,7 @@ const END = '__PI_ENV_END__'
 const CAPTURE_SCRIPT = [
   'sh_bin="${SHELL:-/bin/sh}"',
   `emit='printf "\\n${BEGIN}\\n"; printf "HOME=%s\\n" "$HOME"; printf "PATH=%s\\n" "$PATH"; printf "NODE=%s\\n" "$(command -v node)"; printf "NODEV=%s\\n" "$(node --version 2>/dev/null)"; printf "NPM=%s\\n" "$(command -v npm)"; printf "PI=%s\\n" "$(command -v pi)"; printf "GIT=%s\\n" "$(command -v git)"; printf "${END}\\n"'`,
-  'run() { if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi; }',
+  'run() { if command -v timeout >/dev/null 2>&1; then timeout --foreground -k 2 10 "$@"; else "$@"; fi; }',
   `out="$(run "$sh_bin" -ilc "$emit" </dev/null 2>/dev/null)"; mode=interactive-login`,
   `case "$out" in *${END}*) ;; *) out="$(run "$sh_bin" -lc "$emit" </dev/null 2>/dev/null)"; mode=login;; esac`,
   `case "$out" in *${END}*) ;; *) out="$(sh -c "$emit" </dev/null 2>/dev/null)"; mode=plain;; esac`,
