@@ -17,11 +17,19 @@ export function ComposerMetricsInline({ metrics, isRunning }: { metrics: Metrics
 
   if (!showCtx && !tpsLabel) return null
 
-  const title = t('composer:contextRing', {
+  const contextTitle = t('composer:contextRing', {
     used: metrics.estContextTokens == null ? '?' : formatTokens(metrics.estContextTokens),
     total: metrics.contextWindow != null ? formatTokens(metrics.contextWindow) : '?',
     pct: metrics.ctxPct == null ? '?' : pct.toFixed(1),
   })
+  const cacheTitle =
+    metrics.cacheHitPct != null
+      ? `${t('composer:cacheStats', {
+          pct: metrics.cacheHitPct.toFixed(0),
+          read: formatTokens(metrics.cacheRead ?? 0),
+        })}${metrics.cacheWrite > 0 ? t('composer:cacheWrite', { write: formatTokens(metrics.cacheWrite) }) : ''}`
+      : null
+  const title = cacheTitle ? `${contextTitle} · ${cacheTitle}` : contextTitle
 
   return (
     <div className="composer-metrics-inline flex shrink-0 items-center gap-1.5 text-[10.5px] tabular-nums leading-none text-foreground-secondary/60">
