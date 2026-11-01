@@ -15,6 +15,8 @@ import { UiRouter } from './ui-router'
 
 export const REMOTE_FEATURES = ['capabilities', 'cacheWarming', 'sessionCreate', 'assets']
 const HANDSHAKE_FAILS_PER_MIN = 20
+
+const isLoopback = (ip: string): boolean => /^(::ffff:)?127\./.test(ip) || ip === '::1'
 const MAX_PAYLOAD = 16 * 1024 * 1024
 
 export type GatewayDevice = Omit<DeviceRecord, 'pub'> & { fingerprint: string; online: boolean }
@@ -187,7 +189,13 @@ export class RemoteGateway {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 
+  /**
+   * Loopback peers are exempt: a local tunnel client (frpc, `ssh -R`) relays every remote phone from
+   * 127.0.0.1, so one shared bucket would let anyone scanning the public port lock the owner out. The
+   * handshake itself stays the gate (host key + device key or a one-shot pair token).
+   */
   private rateLimited(ip: string): boolean {
+    if (isLoopback(ip)) return false
     const f = this.failures.get(ip)
     if (!f) return false
     if (this.now() - f.since > 60_000) {

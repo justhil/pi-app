@@ -49,6 +49,7 @@ import dev.pi.remote.app.theme.PiIcons
 import dev.pi.remote.app.ui.Hairline
 import dev.pi.remote.app.ui.PrimaryButton
 import dev.pi.remote.app.ui.QuietButton
+import dev.pi.remote.app.ui.QuietSwitch
 import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.formatAgo
 import dev.pi.remote.net.HostConnection
@@ -196,12 +197,15 @@ private fun HostRow(h: SavedHost, online: Boolean, onClick: () -> Unit, onForget
     }
 }
 
-/** `host:port` typed by the user → `ws://host:port`, or null when it is not a private / overlay address. */
-internal fun manualEndpoint(text: String): String? {
+/**
+ * `host:port` typed by the user → `ws://host:port`, or null when it is not a private / overlay address.
+ * With [allowPublic] (the user's explicit opt-in, for frp or port forwarding) any IP or DNS name is accepted.
+ */
+internal fun manualEndpoint(text: String, allowPublic: Boolean = false): String? {
     val t = text.trim().removePrefix("ws://").removeSuffix("/")
     if (t.isEmpty()) return null
     val ep = "ws://$t"
-    return ep.takeIf { Pairing.isAllowedEndpoint(it) }
+    return ep.takeIf { Pairing.isAllowedEndpoint(it) || (allowPublic && Pairing.isPublicEndpoint(it)) }
 }
 
 /** The host's known addresses, plus the user's own (overlay VPN) ones, which can be added and removed. */
@@ -209,25 +213,34 @@ internal fun manualEndpoint(text: String): String? {
 private fun AddressEditor(h: SavedHost, onChange: (List<String>) -> Unit) {
     var text by remember { mutableStateOf("") }
     var invalid by remember { mutableStateOf(false) }
+    var allowPublic by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
     Column(Modifier.fillMaxWidth().padding(start = 52.dp, end = 22.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.hosts_addresses_desc), style = Pi.t.meta.copy(color = Pi.c.fg3))
         for (ep in h.endpoints.filter { it !in h.manualEndpoints }) AddressLine(ep, stringResource(R.string.hosts_address_auto), null)
-        for (ep in h.manualEndpoints) AddressLine(ep, stringResource(R.string.hosts_address_mine)) { onChange(h.manualEndpoints - ep) }
+        for (ep in h.manualEndpoints) {
+            val label = if (Pairing.isAllowedEndpoint(ep)) R.string.hosts_address_mine else R.string.hosts_address_public
+            AddressLine(ep, stringResource(label)) { onChange(h.manualEndpoints - ep) }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(shape).background(Pi.c.surface).padding(horizontal = 12.dp, vertical = 10.dp)) {
                 if (text.isEmpty()) Text(stringResource(R.string.hosts_address_hint), style = Pi.t.secondary.copy(color = Pi.c.fg3, fontFamily = FontFamily.Monospace))
                 BasicTextField(text, { text = it; invalid = false }, singleLine = true, textStyle = Pi.t.secondary.copy(color = Pi.c.fg, fontFamily = FontFamily.Monospace), cursorBrush = SolidColor(Pi.c.fg), modifier = Modifier.fillMaxWidth())
             }
             QuietButton(stringResource(R.string.hosts_address_add), enabled = text.isNotBlank(), color = Pi.c.fg, onClick = {
-                val ep = manualEndpoint(text)
+                val ep = manualEndpoint(text, allowPublic)
                 if (ep == null) invalid = true else {
                     onChange(h.manualEndpoints + ep)
                     text = ""
                 }
             })
         }
-        if (invalid) Text(stringResource(R.string.hosts_address_invalid), style = Pi.t.meta.copy(color = Pi.c.bad))
+        Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.hosts_address_allow_public), style = Pi.t.secondary.copy(color = Pi.c.fg2), modifier = Modifier.weight(1f))
+            QuietSwitch(allowPublic, { allowPublic = it; invalid = false }, stringResource(R.string.hosts_address_allow_public))
+        }
+        if (allowPublic) Text(stringResource(R.string.hosts_address_public_note), style = Pi.t.meta.copy(color = Pi.c.fg3))
+        if (invalid) Text(stringResource(if (allowPublic) R.string.hosts_address_invalid_public else R.string.hosts_address_invalid), style = Pi.t.meta.copy(color = Pi.c.bad))
     }
 }
 
