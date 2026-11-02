@@ -131,8 +131,25 @@ export function createCompletionNotificationController(deps: CompletionControlle
     }
   }
 
+  /** The user is looking at this session right now: the app is in front and showing it. */
+  function sessionInView(file: string | null | undefined): boolean {
+    const win = deps.getWindowState()
+    if (!win.visible || win.minimized || !win.focused) return false
+    return !!sessionKey(file) && sessionFilePathsEqual(deps.getVisibleSessionFile(), file)
+  }
+
+  /** Opening a conversation reads its notifications, like opening a chat clears its badge. */
+  function markSessionInboxRead(file: string | null | undefined): void {
+    const key = sessionKey(file)
+    if (!key) return
+    for (const card of inbox) {
+      if (card.unread && sessionKey(card.sessionFile) === key) card.unread = false
+    }
+  }
+
   function rememberInbox(card: CompletionCard): void {
-    inbox.unshift({ ...card, kind: card.kind || 'done', unread: true, createdAt: deps.now() })
+    const unread = !sessionInView(card.sessionFile)
+    inbox.unshift({ ...card, kind: card.kind || 'done', unread, createdAt: deps.now() })
     if (inbox.length > MAX_SEEN) inbox.length = MAX_SEEN
   }
 
@@ -174,6 +191,7 @@ export function createCompletionNotificationController(deps: CompletionControlle
     const win = deps.getWindowState()
     if (!win.visible || win.minimized) return
     cancelPendingForSession(sessionFile)
+    if (sessionInView(sessionFile)) markSessionInboxRead(sessionFile)
   }
 
   function handleWorkerExitFailure(target: {
