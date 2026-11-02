@@ -373,7 +373,7 @@ export function ProjectDiskRow({
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
-        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5"
+        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg pl-0.5 pr-1"
       >
         <button
           type="button"
