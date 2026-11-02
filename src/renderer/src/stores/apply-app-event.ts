@@ -43,6 +43,17 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
 }
 
 /**
+ * The retried request is making progress (first token, a tool) or the run is over: the retry
+ * notice has done its job. pi's own auto_retry_end only lands after the whole retried message.
+ */
+export function endsRetryWait(event: SessionScopedAppEvent): boolean {
+  if (event.type === 'message') return event.role === 'assistant' && event.phase === 'delta'
+  if (event.type === 'tool') return event.phase === 'start'
+  if (event.type === 'run') return event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled'
+  return event.type === 'agent_error'
+}
+
+/**
  * Reduce one session's event into that session's state. `api` is the view store for the visible
  * session or the session's own scope for a background one — the handlers are the same.
  */
@@ -53,7 +64,25 @@ function applySessionEvent(
   visible: boolean,
 ): void {
   const state = api.get()
+  if (event.type !== 'retry' && endsRetryWait(event)) {
+    useUIStore.getState().setRetryingSession(sessionFile, null)
+  }
   switch (event.type) {
+    case 'retry': {
+      const store = useUIStore.getState()
+      if (event.phase === 'start') {
+        store.setRetryingSession(sessionFile, {
+          attempt: event.attempt ?? 1,
+          maxAttempts: event.maxAttempts ?? event.attempt ?? 1,
+          errorMessage: event.errorMessage ?? '',
+          startedAt: event.timestamp,
+          delayMs: event.delayMs ?? 0,
+        })
+      } else {
+        store.setRetryingSession(sessionFile, null)
+      }
+      break
+    }
     case 'message':
       handleMessage(event, api)
       break

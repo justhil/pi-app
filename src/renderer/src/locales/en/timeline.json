@@ -38,6 +38,7 @@
   },
   "pendingStage": {
     "starting": "Starting session",
+    "retrying": "Retrying ({{attempt}}/{{max}})",
     "sending": "Waiting for the model",
     "elapsed": "{{label}} · {{seconds}}s"
   },

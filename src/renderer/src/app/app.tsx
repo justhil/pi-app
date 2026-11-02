@@ -275,6 +275,7 @@ export default function App() {
         store.setSessionRuntimeRunning,
         store.setCompactingSession,
       )
+      if (info.sessionFile) store.setRetryingSession(info.sessionFile, null)
     })
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)

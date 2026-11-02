@@ -374,8 +374,22 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       queuedFollowUp = event.followUp?.length ?? 0
       break
     }
+    case 'auto_retry_start': {
+      const e = event as { attempt?: number; maxAttempts?: number; delayMs?: number; errorMessage?: string }
+      deps.emit({
+        ...base,
+        type: 'retry',
+        phase: 'start',
+        attempt: e.attempt,
+        maxAttempts: e.maxAttempts,
+        delayMs: e.delayMs,
+        errorMessage: e.errorMessage,
+      } as AppEvent)
+      break
+    }
     case 'auto_retry_end': {
       const e = event as { success?: boolean; finalError?: string; attempt?: number }
+      deps.emit({ ...base, type: 'retry', phase: 'end', attempt: e.attempt } as AppEvent)
       if (!e.success && e.finalError) {
         pendingTerminalError = {
           text: e.attempt

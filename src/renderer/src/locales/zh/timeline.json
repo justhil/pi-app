@@ -38,6 +38,7 @@
   },
   "pendingStage": {
     "starting": "正在启动会话",
+    "retrying": "正在重试（{{attempt}}/{{max}}）",
     "sending": "正在连接模型",
     "elapsed": "{{label}} · {{seconds}} 秒"
   },

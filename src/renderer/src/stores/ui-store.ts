@@ -235,6 +235,17 @@ export const useUIStore = create<UIState>()(
       return { compactingSessions: { ...s.compactingSessions, [key]: active } }
     }),
 
+  retryingSessions: {},
+  setRetryingSession: (sessionFile, info) =>
+    set((s) => {
+      const key = sessionFile ? normalizeSessionFileKey(sessionFile) || sessionFile : ''
+      if (!key || (!info && !(key in s.retryingSessions))) return s
+      const next = { ...s.retryingSessions }
+      if (info) next[key] = info
+      else delete next[key]
+      return { retryingSessions: next }
+    }),
+
   fileChanges: [],
   addFileChange: (fc) => set((s) => ({ fileChanges: [...s.fileChanges.filter(f => f.path !== fc.path), fc] })),
   clearFileChanges: () => set({ fileChanges: [] }),

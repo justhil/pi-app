@@ -91,6 +91,16 @@ export interface FileChange {
   runId?: string
 }
 
+/** One pi auto-retry wait: which attempt, out of how many, and what failed. */
+export interface SessionRetryInfo {
+  attempt: number
+  maxAttempts: number
+  errorMessage: string
+  /** When the retry was scheduled (ms epoch); the next request starts after delayMs. */
+  startedAt: number
+  delayMs: number
+}
+
 export interface RunState {
   status: 'idle' | 'running' | 'failed'
   activeRunId?: string
@@ -170,6 +180,9 @@ export interface UIState {
   /** 压缩进行中的会话，按规范化 sessionFile 键控（A 的压缩状态不得串到 B） */
   compactingSessions: Record<string, boolean>
   setCompactingSession: (sessionFile: string | null, active: boolean) => void
+  /** pi 正在自动重试失败请求的会话（键同 compactingSessions）；无重试时不存在该键 */
+  retryingSessions: Record<string, SessionRetryInfo>
+  setRetryingSession: (sessionFile: string | null, info: SessionRetryInfo | null) => void
   workerLiveSnapshot: WorkerLiveSnapshot
   setWorkerLiveSnapshot: (snap: WorkerLiveSnapshot) => void
   fileChanges: FileChange[]

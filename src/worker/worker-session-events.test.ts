@@ -89,6 +89,22 @@ describe('worker session event lifecycle', () => {
     resetCompletionTurnTracking()
   })
 
+  it('forwards pi auto-retry start and end as retry events', () => {
+    const harness = createSessionEventHarness()
+
+    handleSessionEvent(
+      { type: 'auto_retry_start', attempt: 1, maxAttempts: 3, delayMs: 2000, errorMessage: 'Request timed out.' } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent({ type: 'auto_retry_end', success: true, attempt: 1 } as AgentSessionEvent, harness.dependencies)
+
+    const retries = harness.emittedEvents.filter((event) => event.type === 'retry')
+    expect(retries).toMatchObject([
+      { phase: 'start', attempt: 1, maxAttempts: 3, delayMs: 2000, errorMessage: 'Request timed out.', sessionFile: '/workspace/session.jsonl' },
+      { phase: 'end', attempt: 1 },
+    ])
+  })
+
   it('should_publish_fresh_run_identity_when_agent_starts', () => {
     const harness = createSessionEventHarness()
 
