@@ -1,3 +1,4 @@
+import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { isReusableOptimisticUserMessage } from '@renderer/lib/timeline-dedupe'
 import type { MessageEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
 import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
@@ -52,7 +53,8 @@ function ensureStreamingAssistant(event: MessageEvent, api: StoreApi): string {
 export function handleMessage(event: MessageEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'start' && event.role === 'user') {
-    if (state.runState.status !== 'running') {
+    // A queued message delivered just as the user hit Stop must not re-light the run.
+    if (state.runState.status !== 'running' && !isAbortUiHoldActive(event.sessionFile)) {
       state.setRunState({ status: 'running', startTime: event.timestamp })
     }
     const opt = state.optimisticPendingUserText

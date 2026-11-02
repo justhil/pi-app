@@ -56,6 +56,8 @@ export type WorkerMutableState = {
   unsubscribe: (() => void) | null
   agentTurnActive: boolean
   promptPreflightActive: boolean
+  /** Stop arrived while prompt() was still in preflight — there was no agent run to abort yet. */
+  abortAfterPreflight: boolean
   promptSent: boolean
 }
 
@@ -77,6 +79,7 @@ export const st: WorkerMutableState = {
   unsubscribe: null,
   agentTurnActive: false,
   promptPreflightActive: false,
+  abortAfterPreflight: false,
   promptSent: false,
 }
 
@@ -138,6 +141,7 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   st.currentTurnId = ''
   st.agentTurnActive = false
   st.promptPreflightActive = false
+  st.abortAfterPreflight = false
   try {
     const cwd = session.sessionManager?.getCwd?.()
     if (typeof cwd === 'string' && cwd.length > 0) st.currentCwd = cwd
@@ -245,6 +249,7 @@ function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
     st.modelRuntime = null
     st.agentTurnActive = false
     st.promptPreflightActive = false
+    st.abortAfterPreflight = false
   })
   runtime.setRebindSession(async (session) => {
     await rebindAfterRuntimeReplace(session)
@@ -255,6 +260,7 @@ async function disposeRuntimeOrSession(): Promise<void> {
   detachSessionSubscription()
   st.agentTurnActive = false
   st.promptPreflightActive = false
+  st.abortAfterPreflight = false
   if (st.runtime) {
     try {
       st.runtime.setRebindSession(undefined)
@@ -513,6 +519,16 @@ function sessionEventDeps() {
 }
 
 export function handleSessionEvent(event: AgentSessionEvent): void {
+  if (event.type === 'agent_start' && st.abortAfterPreflight) {
+    // The run the user already stopped has just begun: abort it now instead of letting it stream.
+    st.abortAfterPreflight = false
+    const session = st.session
+    if (session) {
+      queueMicrotask(() => {
+        session.abort().catch((e: unknown) => console.error('[Worker] deferred abort failed:', e))
+      })
+    }
+  }
   dispatchSessionEvent(event, sessionEventDeps())
   applyPendingAdapterCatalog()
 }

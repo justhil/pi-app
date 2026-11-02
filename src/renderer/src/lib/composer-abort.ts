@@ -1,6 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { applyComposerAbortUi } from '@renderer/lib/composer-queue-restore'
-import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import { abortUiHoldRemainingMs, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import { applyLiveSnapshotToView, composerTurnActive, fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -70,4 +70,19 @@ export async function abortAgentTurn(opts?: {
       })
       .catch(() => {})
   }, 250)
+
+  // While the hold lasts, run.started/running events are dropped. If the turn survived the
+  // stop (e.g. it was still in prompt preflight), nothing re-lights it afterwards — ask the
+  // worker once the hold lapses so the view shows the real state and Stop works again.
+  window.setTimeout(() => {
+    if (isAbortUiHoldActive(sessionFile)) return
+    void fetchWorkerLiveSnapshot(useUIStore.getState().currentWorkspace, sessionFile)
+      .then((snap) => {
+        const s = useUIStore.getState()
+        if (!sessionFilesEqual(s.historySessionFile, sessionFile)) return
+        if (isAbortUiHoldActive(sessionFile)) return
+        applyLiveSnapshotToView(s.historySessionFile, snap, s)
+      })
+      .catch(() => {})
+  }, abortUiHoldRemainingMs(sessionFile) + 50)
 }

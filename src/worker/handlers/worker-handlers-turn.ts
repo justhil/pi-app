@@ -77,6 +77,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
           beginRunIdentity()
           st.agentTurnActive = true
           st.promptPreflightActive = true
+          st.abortAfterPreflight = false
           emit({ ...baseEvent(), type: 'run', phase: 'started' })
         }
         reply({ type: 'prompt-done' })
@@ -90,6 +91,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
             await promptSession.prompt(promptText, merged)
             if (!alreadyStreaming && st.promptPreflightActive) {
               st.promptPreflightActive = false
+              st.abortAfterPreflight = false
               st.agentTurnActive = false
               emit({ ...baseEvent(), type: 'run', phase: 'idle' })
             }
@@ -107,6 +109,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
             const errText = errorMessage(e)
             if (st.promptPreflightActive) {
               st.promptPreflightActive = false
+              st.abortAfterPreflight = false
               st.agentTurnActive = false
               emit({
                 ...baseEvent(),
@@ -140,6 +143,9 @@ export async function handleAbort(msg: WorkerIncomingMessage, reply: WorkerReply
   }
   try {
     session.clearQueue()
+    // prompt() is still in preflight (input handlers, routing): pi has no run to abort yet and
+    // would start one right after. Abort that run as soon as it starts.
+    if (st.promptPreflightActive) st.abortAfterPreflight = true
     await session.abort()
     reply({ type: 'abort-done' })
   } catch (error: unknown) {
@@ -222,6 +228,7 @@ export async function handleDispose(msg: WorkerIncomingMessage, reply: WorkerRep
         }
         st.agentTurnActive = false
         st.promptPreflightActive = false
+        st.abortAfterPreflight = false
         if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
         try {
           st.session?.dispose()
