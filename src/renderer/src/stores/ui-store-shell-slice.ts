@@ -18,6 +18,9 @@ import {
 } from '@renderer/lib/right-panel-visibility'
 import type { UIState } from '@renderer/stores/ui-store-types'
 
+/** Wide enough for the browser toolbar to keep forward / expand on one row. */
+export const DEFAULT_RIGHT_PANEL_WIDTH = 460
+
 type StoreSet = (
   patch: Partial<UIState> | ((state: UIState) => Partial<UIState> | UIState),
 ) => void
@@ -121,7 +124,7 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-    rightPanelWidth: 288,
+    rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),
     // A fresh install starts with the conversation alone; the top bar button opens the panel.

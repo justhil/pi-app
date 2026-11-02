@@ -17,7 +17,7 @@ import {
   flushStreamPendingSync,
   queueStreamDelta,
 } from '@renderer/stores/ui-store-stream'
-import { createShellSlice } from '@renderer/stores/ui-store-shell-slice'
+import { createShellSlice, DEFAULT_RIGHT_PANEL_WIDTH } from '@renderer/stores/ui-store-shell-slice'
 import { createRuntimeSlice } from '@renderer/stores/ui-store-runtime-slice'
 import { workspacePathKey } from '@shared/workspace-path'
 import { isAbortQueueIgnoreActive } from '@renderer/lib/abort-ui-hold'
@@ -336,13 +336,17 @@ export const useUIStore = create<UIState>()(
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
-      version: 3,
-      migrate: (persistedState) => {
+      version: 4,
+      migrate: (persistedState, version) => {
         const p = persistedState as Partial<UIState>
+        if (version >= 3) {
+          // v4 widened the default right panel; keep widths the user already dragged wider.
+          return { ...p, rightPanelWidth: Math.max(p.rightPanelWidth ?? 0, DEFAULT_RIGHT_PANEL_WIDTH) } as UIState
+        }
         return {
           ...p,
           currentWorkspace: null,
-          rightPanelWidth: 288,
+          rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
           rightPanelCollapsed: false,
         } as UIState
       },

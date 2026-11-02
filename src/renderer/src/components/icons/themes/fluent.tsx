@@ -1,4 +1,5 @@
 import { Add16Regular as F0 } from '@fluentui/react-icons/svg/add'
+import { MoreHorizontal16Regular as FMoreH } from '@fluentui/react-icons/svg/more-horizontal'
 import { Archive16Regular as F1 } from '@fluentui/react-icons/svg/archive'
 import { ArrowClockwise16Regular as F2 } from '@fluentui/react-icons/svg/arrow-clockwise'
 import { ArrowCounterclockwise16Regular as F3 } from '@fluentui/react-icons/svg/arrow-counterclockwise'
@@ -183,6 +184,7 @@ export const fluentIcons = {
   'message-circle-question': F80,
   'message-square': F18,
   'message-square-plus': F19,
+  'more-horizontal': FMoreH,
   'message-square-text': F18,
   'messages-square': F20,
   'mic': F67,

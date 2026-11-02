@@ -81,6 +81,7 @@ import {
   Wifi,
   Wrench as I54,
   X as I55,
+  MoreHoriz as IMoreH,
 } from 'iconoir-react/regular'
 import type { ThemeIconMap } from '../types'
 
@@ -162,6 +163,7 @@ export const iconoirIcons = {
   'message-circle-question': I26,
   'message-square': I32,
   'message-square-plus': I32,
+  'more-horizontal': IMoreH,
   'message-square-text': I32,
   'messages-square': I32,
   'mic': I33,

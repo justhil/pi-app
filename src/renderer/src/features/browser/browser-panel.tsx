@@ -10,7 +10,7 @@ import {
   type BrowserLogEntry,
   type PageContextResult,
 } from '@shared/browser-types'
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, Monitor, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, MoreHorizontal, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
@@ -54,7 +54,7 @@ export function BrowserPanel() {
   const [editing, setEditing] = useState(false)
   const [area, setArea] = useState({ width: 0, height: 0 })
   const [viewportMode, setViewportModeState] = useState<ViewportMode>(loadViewportMode)
-  const [viewportMenuOpen, setViewportMenuOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
   const [highlight, setHighlight] = useState(0)
   const [findOpen, setFindOpen] = useState(false)
@@ -190,7 +190,7 @@ export function BrowserPanel() {
     }
     strip.addEventListener('wheel', onWheel, { passive: false })
     return () => strip.removeEventListener('wheel', onWheel)
-  }, [order.length > 0])
+  }, [order.length > 1])
   useEffect(() => {
     if (!activeTabId) return
     tabStripRef.current?.querySelector<HTMLElement>(`[data-browser-tab="${CSS.escape(activeTabId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -373,7 +373,11 @@ export function BrowserPanel() {
     e.preventDefault()
   }
 
-  const addressValue = editing ? draft : pageShown ? (activeTab?.url ?? '') : ''
+  // At rest the field shows the URL without its scheme so a narrow panel keeps the host readable.
+  const addressValue = editing ? draft : pageShown ? (activeTab?.url ?? '').replace(/^https?:\/\//i, '') : ''
+  const modKeyLabel = window.piDesktop?.platform === 'darwin' ? '⌘' : 'Ctrl+'
+  // Narrow side panel: forward and expand move into "more" so the address keeps its width.
+  const compact = area.width > 0 && area.width < 440 && !browserChatExpand
   const navButton = 'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md disabled:opacity-40'
   const scaled = fitted.zoom < 0.999
   const viewportLabel =
@@ -385,20 +389,21 @@ export function BrowserPanel() {
 
   // Esc closes the small menus of the toolbar.
   useEffect(() => {
-    if (!viewportMenuOpen && !sendMenuOpen) return
+    if (!moreMenuOpen && !sendMenuOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      setViewportMenuOpen(false)
+      setMoreMenuOpen(false)
       setSendMenuOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [viewportMenuOpen, sendMenuOpen])
+  }, [moreMenuOpen, sendMenuOpen])
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col" onKeyDown={onRootKeyDown}>
-      {/* Row 1: tabs (title space first), then how the page is sized and the expand toggle. */}
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/40 pl-1.5 pr-1">
+      {/* Tab strip: only once there is a second tab — a single page needs no strip. */}
+      {order.length > 1 ? (
+      <div className="flex h-9 shrink-0 items-center border-b border-border/40 px-1.5">
         <div ref={tabStripRef} className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto" role="tablist" aria-label={t('nav.tabs')}>
           {order.map((id) => {
             const tab = tabs[id]
@@ -442,79 +447,21 @@ export function BrowserPanel() {
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            className={cn('chrome-icon-btn flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-[11px] tabular-nums text-foreground-secondary', viewportMenuOpen && 'bg-[var(--bg-active)]')}
-            title={`${t('viewport.title')}：${viewportLabel}`}
-            aria-label={`${t('viewport.title')}：${viewportLabel}`}
-            aria-haspopup="menu"
-            aria-expanded={viewportMenuOpen}
-            onClick={() => setViewportMenuOpen((o) => !o)}
-          >
-            {viewportMode.kind === 'fit' ? <Monitor className="h-3.5 w-3.5" /> : viewportShort}
-          </button>
-          {viewportMenuOpen ? (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setViewportMenuOpen(false)} aria-hidden />
-              <div role="menu" aria-label={t('viewport.title')}
-                className="absolute right-0 top-8 z-50 w-[220px] rounded-lg border border-border/60 bg-popover p-1 text-[12px] text-popover-foreground shadow-lg">
-                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fit'}
-                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fit' && 'font-medium')}
-                  onClick={() => { setViewportMode({ kind: 'fit' }); setViewportMenuOpen(false) }}>
-                  {t('viewport.fit')}
-                </button>
-                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fixed'}
-                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fixed' && 'font-medium')}
-                  onClick={() => viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', width: 1280, height: 800 })}>
-                  {t('viewport.fixed')}
-                </button>
-                {viewportMode.kind === 'fixed' ? (
-                  <div className="flex items-center gap-1 px-2 pb-1.5 pt-0.5">
-                    {(['width', 'height'] as const).map((key, i) => (
-                      <label key={key} className="flex items-center gap-1">
-                        {i > 0 ? <span className="text-foreground-tertiary">×</span> : null}
-                        <input
-                          type="number"
-                          aria-label={t(`viewport.${key}`)}
-                          defaultValue={viewportMode[key]}
-                          min={key === 'width' ? 320 : 240}
-                          className="h-6 w-[68px] rounded border border-border/50 bg-transparent px-1.5 tabular-nums outline-none focus:border-ring"
-                          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                          onBlur={(e) => setViewportMode({ kind: 'fixed', ...clampViewport(key === 'width' ? Number(e.target.value) : viewportMode.width, key === 'height' ? Number(e.target.value) : viewportMode.height) })}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="px-2 pb-1 text-[11px] leading-4 text-foreground-tertiary">{t('viewport.hint')}</div>
-              </div>
-            </>
-          ) : null}
-        </div>
-        <button
-          ref={expandButtonRef}
-          type="button"
-          className={cn('chrome-icon-btn flex h-7 shrink-0 items-center justify-center gap-1 rounded-md', browserChatExpand ? 'bg-[var(--bg-active)] px-2 text-[11px] text-foreground' : 'w-7')}
-          title={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
-          aria-label={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
-          aria-expanded={browserChatExpand}
-          onClick={toggleExpand}
-        >
-          {browserChatExpand ? <><ChevronRight className="h-3.5 w-3.5" /><span>{t('nav.collapse')}</span></> : <Maximize2 className="h-3.5 w-3.5" />}
-        </button>
       </div>
+      ) : null}
 
-      {/* Row 2: navigation, the address with suggestions, page actions. */}
+      {/* Toolbar: navigation, the address with suggestions, page actions; the rest under "more". */}
       <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border/40 px-1.5">
         <button type="button" className={navButton} title={t('nav.back')} aria-label={t('nav.back')}
           disabled={!activeTab?.canGoBack} onClick={() => activeTabId && void browserActions.history(activeTabId, 'back')}>
           <ArrowLeft className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={navButton} title={t('nav.forward')} aria-label={t('nav.forward')}
-          disabled={!activeTab?.canGoForward} onClick={() => activeTabId && void browserActions.history(activeTabId, 'forward')}>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
+        {compact ? null : (
+          <button type="button" className={navButton} title={t('nav.forward')} aria-label={t('nav.forward')}
+            disabled={!activeTab?.canGoForward} onClick={() => activeTabId && void browserActions.history(activeTabId, 'forward')}>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button type="button" className={navButton}
           title={activeTab?.loading ? t('nav.stop') : t('nav.reload')}
           aria-label={activeTab?.loading ? t('nav.stop') : t('nav.reload')}
@@ -536,6 +483,7 @@ export function BrowserPanel() {
             aria-label={t('address.label')}
             placeholder={t('address.placeholder')}
             value={addressValue}
+            title={pageShown && !editing ? activeTab?.url : undefined}
             onFocus={(e) => {
               setDraft(pageShown ? (activeTab?.url ?? '') : '')
               setEditing(true)
@@ -605,7 +553,7 @@ export function BrowserPanel() {
         >
           <PencilLine className="h-3.5 w-3.5" />
         </button>
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
             className={cn(navButton, sendMenuOpen && 'bg-[var(--bg-active)]')}
@@ -636,6 +584,94 @@ export function BrowserPanel() {
           ) : null}
         </div>
         <DownloadsMenu buttonClass={navButton} />
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            className={cn(navButton, 'w-auto min-w-7 px-1 text-[11px] tabular-nums', moreMenuOpen && 'bg-[var(--bg-active)]')}
+            title={viewportMode.kind === 'fit' ? t('nav.more') : `${t('nav.more')} · ${t('viewport.title')}：${viewportLabel}`}
+            aria-label={t('nav.more')}
+            aria-haspopup="menu"
+            aria-expanded={moreMenuOpen}
+            onClick={() => setMoreMenuOpen((o) => !o)}
+          >
+            {viewportMode.kind === 'fit' ? <MoreHorizontal className="h-3.5 w-3.5" /> : viewportShort}
+          </button>
+          {moreMenuOpen ? (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} aria-hidden />
+              <div role="menu" aria-label={t('nav.more')}
+                className="absolute right-0 top-8 z-50 w-[220px] rounded-lg border border-border/60 bg-popover p-1 text-[12px] text-popover-foreground shadow-lg">
+                <button type="button" role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => { setMoreMenuOpen(false); void openTab() }}>
+                  <Plus className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                  <span className="flex-1">{t('nav.newTab')}</span>
+                  <span className="text-[11px] text-foreground-tertiary">{modKeyLabel}T</span>
+                </button>
+                {compact ? (
+                  <>
+                    <button type="button" role="menuitem" disabled={!activeTab?.canGoForward}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)] disabled:pointer-events-none disabled:opacity-40"
+                      onClick={() => { setMoreMenuOpen(false); if (activeTabId) void browserActions.history(activeTabId, 'forward') }}>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                      <span className="flex-1">{t('nav.forward')}</span>
+                    </button>
+                    <button type="button" role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                      onClick={() => { setMoreMenuOpen(false); toggleExpand() }}>
+                      <Maximize2 className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                      <span className="flex-1">{t('nav.expand')}</span>
+                    </button>
+                  </>
+                ) : null}
+                <div className="my-1 h-px bg-border/60" role="separator" />
+                <div className="px-2 pb-0.5 pt-1 text-[11px] text-foreground-tertiary">{t('viewport.title')}</div>
+                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fit'}
+                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fit' && 'font-medium')}
+                  onClick={() => { setViewportMode({ kind: 'fit' }); setMoreMenuOpen(false) }}>
+                  {t('viewport.fit')}
+                </button>
+                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fixed'}
+                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fixed' && 'font-medium')}
+                  onClick={() => viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', width: 1280, height: 800 })}>
+                  {t('viewport.fixed')}
+                </button>
+                {viewportMode.kind === 'fixed' ? (
+                  <div className="flex items-center gap-1 px-2 pb-1.5 pt-0.5">
+                    {(['width', 'height'] as const).map((key, i) => (
+                      <label key={key} className="flex items-center gap-1">
+                        {i > 0 ? <span className="text-foreground-tertiary">×</span> : null}
+                        <input
+                          type="number"
+                          aria-label={t(`viewport.${key}`)}
+                          defaultValue={viewportMode[key]}
+                          min={key === 'width' ? 320 : 240}
+                          className="h-6 w-[68px] rounded border border-border/50 bg-transparent px-1.5 tabular-nums outline-none focus:border-ring"
+                          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+                          onBlur={(e) => setViewportMode({ kind: 'fixed', ...clampViewport(key === 'width' ? Number(e.target.value) : viewportMode.width, key === 'height' ? Number(e.target.value) : viewportMode.height) })}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="px-2 pb-1 text-[11px] leading-4 text-foreground-tertiary">{t('viewport.hint')}</div>
+              </div>
+            </>
+          ) : null}
+        </div>
+        {compact ? null : (
+        <button
+          ref={expandButtonRef}
+          type="button"
+          className={cn('chrome-icon-btn flex h-7 shrink-0 items-center justify-center gap-1 rounded-md', browserChatExpand ? 'bg-[var(--bg-active)] px-2 text-[11px] text-foreground' : 'w-7')}
+          title={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
+          aria-label={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
+          aria-expanded={browserChatExpand}
+          onClick={toggleExpand}
+        >
+          {browserChatExpand ? <><ChevronRight className="h-3.5 w-3.5" /><span>{t('nav.collapse')}</span></> : <Maximize2 className="h-3.5 w-3.5" />}
+        </button>
+        )}
       </div>
 
       {findOpen ? (
