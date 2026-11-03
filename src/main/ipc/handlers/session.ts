@@ -64,7 +64,9 @@ export function registerSessionHandlers(): void {
     const formatted = ownedSessions.map((s: SessionOnDiskRow) => ({
       sessionId: s.id,
       sessionFile: s.path,
-      parentSessionFile: s.parentSessionPath,
+      // Forks list flat with a "forked from" note; only subagent children nest under a parent.
+      parentSessionFile: s.forked ? undefined : s.parentSessionPath,
+      forkedFromSessionFile: s.forked ? s.parentSessionPath : undefined,
       workspaceId,
       title: resolveSessionListTitle(
         s.path,

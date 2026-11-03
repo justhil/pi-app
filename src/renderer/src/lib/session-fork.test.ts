@@ -4,10 +4,12 @@ import { useUIStore } from '@renderer/stores/ui-store'
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn().mockResolvedValue({}),
   openSessionIntoWorker: vi.fn().mockResolvedValue(undefined),
+  activateWorkspace: vi.fn(async (path: string) => { useUIStore.setState({ currentWorkspace: path }) }),
 }))
 
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: mocks.invoke } }))
 vi.mock('@renderer/lib/open-session', () => ({ openSessionIntoWorker: mocks.openSessionIntoWorker }))
+vi.mock('@renderer/lib/activate-workspace', () => ({ activateWorkspace: mocks.activateWorkspace }))
 vi.mock('@renderer/lib/composer-run-display', () => ({ refreshComposerRunDisplay: vi.fn() }))
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), info: vi.fn(), warning: vi.fn(), error: vi.fn() },
@@ -100,6 +102,28 @@ describe('session fork renderer actions', () => {
     expect(mocks.openSessionIntoWorker).not.toHaveBeenCalled()
     expect(useUIStore.getState().sessions).toEqual(otherSessions)
     expect(useUIStore.getState().composerPrefill).toBe('existing draft')
+  })
+
+  it('forks a sidebar session of another project and opens the result in that project', async () => {
+    mocks.invoke.mockImplementation(async (channel: string) => channel === 'session.fork'
+      ? { sessionId: 'fork-b', sessionFile: '/b/fork.jsonl', editorText: 'b prompt' }
+      : { sessions: [] })
+    const source = { sessionFile: '/b/source.jsonl', workspacePath: '/b' }
+
+    await expect(forkSessionFromEntry('entry-b', source)).resolves.toBe(true)
+
+    expect(mocks.invoke).toHaveBeenCalledWith('session.fork', expect.objectContaining({
+      sessionFile: '/b/source.jsonl', entryId: 'entry-b', workspaceId: '/b',
+    }))
+    expect(mocks.activateWorkspace).toHaveBeenCalledWith('/b', { sessionId: 'fork-b', sessionFile: '/b/fork.jsonl' })
+    expect(mocks.openSessionIntoWorker).not.toHaveBeenCalled()
+    expect(useUIStore.getState().composerPrefill).toBe('b prompt')
+  })
+
+  it('checks the right-clicked session, not the open one, before branching', async () => {
+    useUIStore.setState({ sessionAttention: { '/b/source.jsonl': 'working' } })
+    await expect(cloneCurrentSession({ sessionFile: '/b/source.jsonl', workspacePath: '/b' })).resolves.toBe(false)
+    expect(mocks.invoke).not.toHaveBeenCalledWith('session.clone', expect.anything())
   })
 
   it('should_block_branch_mutations_in_read_only_subagent_preview', async () => {

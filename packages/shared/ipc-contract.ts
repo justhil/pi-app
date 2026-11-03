@@ -33,6 +33,8 @@ export interface WorkspaceFsSearchResponse {
 export interface SessionInfo {
   sessionId: string
   parentSessionFile?: string
+  /** Source session this one was forked/cloned from (listed flat, not nested). */
+  forkedFromSessionFile?: string
   workspaceId: string
   title: string
   createdAt: number

@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Loader2, X } from '@renderer/components/icons'
 import { toast } from 'sonner'
 import { cn } from '@renderer/lib/utils'
-import { forkSessionFromEntry, loadForkCandidates } from '@renderer/lib/session-fork'
+import { forkSessionFromEntry, loadForkCandidates, type ForkSource } from '@renderer/lib/session-fork'
 
-/** Selector for TUI /fork and double-Esc fork mode. */
-export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Selector for TUI /fork, double-Esc fork mode and the sidebar menu (`source` = that session). */
+export function SessionForkOverlay({ open, onClose, source }: { open: boolean; onClose: () => void; source?: ForkSource }) {
   const { t } = useTranslation()
   const [messages, setMessages] = useState<Array<{ entryId: string; text: string }>>([])
   const [loading, setLoading] = useState(false)
@@ -17,7 +17,7 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
     if (!open) return
     let cancelled = false
     setLoading(true)
-    void loadForkCandidates().then((list) => {
+    void loadForkCandidates(source).then((list) => {
       if (cancelled) return
       setMessages(list)
       setSelectedIndex(Math.max(0, list.length - 1))
@@ -29,7 +29,7 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
     return () => {
       cancelled = true
     }
-  }, [open, t])
+  }, [open, source, t])
 
   const activate = useCallback(
     async (entryId: string) => {
@@ -38,12 +38,12 @@ export function SessionForkOverlay({ open, onClose }: { open: boolean; onClose: 
       try {
         onClose()
         await new Promise((r) => requestAnimationFrame(() => r(null)))
-        await forkSessionFromEntry(entryId)
+        await forkSessionFromEntry(entryId, source)
       } finally {
         setBusy(false)
       }
     },
-    [busy, onClose],
+    [busy, onClose, source],
   )
 
   useEffect(() => {

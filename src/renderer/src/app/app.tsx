@@ -58,6 +58,7 @@ import { TerminalDrawer, useTerminalShortcut } from '@renderer/features/terminal
 import { useBrowserHelpAttention } from '@renderer/features/browser/use-help-attention'
 import { HelpBar } from '@renderer/features/browser/help-bar'
 import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
+import type { ForkSource } from '@renderer/lib/session-fork'
 
 type View = 'main' | 'settings'
 
@@ -123,6 +124,7 @@ export default function App() {
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
   const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
   const { treeOpen, setTreeOpen, forkOpen, setForkOpen } = useDoubleEscapeTree(canUseTree)
+  const [forkSource, setForkSource] = useState<ForkSource | undefined>()
 
   useEffect(() => {
     if (ephemeralSandboxDraft) {
@@ -150,7 +152,10 @@ export default function App() {
   const projectName = workspaceTitle
 
   useEffect(() => {
-    const onOpenFork = () => setForkOpen(true)
+    const onOpenFork = (event: Event) => {
+      setForkSource((event as CustomEvent<{ source?: ForkSource } | undefined>).detail?.source)
+      setForkOpen(true)
+    }
     window.addEventListener('pi-desktop:open-fork-selector', onOpenFork)
     return () => window.removeEventListener('pi-desktop:open-fork-selector', onOpenFork)
   }, [setForkOpen])
@@ -471,7 +476,16 @@ export default function App() {
         {modelPickerOpen && <ModelPicker />}
         {thinkingPickerOpen && <ThinkingPicker />}
         {treeOpen && <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />}
-        {forkOpen && <SessionForkOverlay open={forkOpen} onClose={() => setForkOpen(false)} />}
+        {forkOpen && (
+          <SessionForkOverlay
+            open={forkOpen}
+            source={forkSource}
+            onClose={() => {
+              setForkOpen(false)
+              setForkSource(undefined)
+            }}
+          />
+        )}
       </Suspense>
     </ErrorBoundary>
   )
