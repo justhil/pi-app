@@ -22,6 +22,7 @@ import { sessionPreviewProcess } from '../../session-preview-process'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import type { SessionOnDiskRow } from '../sdk-session'
+import { sessionPreviewText } from '@shared/session-preview-text'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -61,25 +62,28 @@ export function registerSessionHandlers(): void {
       return runtime.mode === 'wsl' && !!runtime.distro
         && workspacePathsEqual(wslPathToWindows(runtime.distro, s.cwd), workspaceId)
     })
-    const formatted = ownedSessions.map((s: SessionOnDiskRow) => ({
-      sessionId: s.id,
-      sessionFile: s.path,
-      // Forks list flat with a "forked from" note; only subagent children nest under a parent.
-      parentSessionFile: s.forked ? undefined : s.parentSessionPath,
-      forkedFromSessionFile: s.forked ? s.parentSessionPath : undefined,
-      workspaceId,
-      title: resolveSessionListTitle(
-        s.path,
-        s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
-        s.name,
-      ),
-      firstMessage: s.firstMessage?.slice(0, 120) || '',
-      createdAt: timeMs(s.created),
-      updatedAt: timeMs(s.modified),
-      messageCount: s.messageCount || 0,
-      modelId: '',
-      status: 'idle' as const,
-    }))
+    const formatted = ownedSessions.map((s: SessionOnDiskRow) => {
+      const preview = sessionPreviewText(s.firstMessage || '')
+      return {
+        sessionId: s.id,
+        sessionFile: s.path,
+        // Forks list flat with a "forked from" note; only subagent children nest under a parent.
+        parentSessionFile: s.forked ? undefined : s.parentSessionPath,
+        forkedFromSessionFile: s.forked ? s.parentSessionPath : undefined,
+        workspaceId,
+        title: resolveSessionListTitle(
+          s.path,
+          preview.slice(0, 60) || s.id.slice(0, 8),
+          s.name,
+        ),
+        firstMessage: preview.slice(0, 120),
+        createdAt: timeMs(s.created),
+        updatedAt: timeMs(s.modified),
+        messageCount: s.messageCount || 0,
+        modelId: '',
+        status: 'idle' as const,
+      }
+    })
     return { sessions: formatted }
   })
 
