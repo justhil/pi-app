@@ -27,7 +27,7 @@ export type Seen = {
   toolChars: number
   messageChars: number
 }
-export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number }
+export type Step = { tool?: { name: string; args: unknown }; text?: string; /** Hold the reply this long (to observe the running state). */ delayMs?: number; /** Fail the request with this HTTP status (and `text` as the error message). */ errorStatus?: number }
 /** Next step given the user's first message and the tool results so far (oldest first). */
 export type Script = (firstUser: string, toolTexts: string[], lastUser: string) => Step
 
@@ -62,6 +62,11 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const lastUser = contentText([...messages].reverse().find((m) => m.role === 'user') ?? {})
     const step = script(firstUser, toolTexts, lastUser)
 
+    if (step.errorStatus) {
+      res.writeHead(step.errorStatus, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ error: { message: step.text || 'error', type: 'server_error' } }))
+      return
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream' })
     if (step.delayMs) await new Promise((r) => setTimeout(r, step.delayMs))
     const send = (delta: unknown, finish: string | null = null) =>

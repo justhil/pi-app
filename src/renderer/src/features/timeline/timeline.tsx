@@ -1118,6 +1118,16 @@ export function Timeline() {
                 </Fragment>
               )
             })}
+            {/* The live turn has nothing to show yet (its optimistic reply row is dropped when
+                the view is rebuilt after a switch back): keep the waiting slot visible. */}
+            {isLiveTurn && turn.blocks.length === 0 && (agentBoot || agentRunning) ? (
+              <div className="timeline-message-row timeline-activity-item">
+                <ReplyPlaceholder
+                  startedAt={Number(turn.userItem.timestamp ?? 0) || undefined}
+                  labelSeed={String(turn.turnId)}
+                />
+              </div>
+            ) : null}
             {/* Cursor-style files card: only on the last completed turn.
                 Older turns never keep a card; a new live turn hides this until done. */}
             {turnIndex === turnGroups.length - 1 && !isLiveTurn ? (
