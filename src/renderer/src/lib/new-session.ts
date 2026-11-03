@@ -6,6 +6,7 @@ import { enterBlankSession } from '@renderer/lib/blank-session-transition'
 import { workspacePathsEqual } from '@shared/workspace-path'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { reportVisibleSession } from '@renderer/lib/visible-session-report'
 
 /** 侧栏「新会话」：仅占位，不碰 Worker */
 export function enterNewSessionPlaceholder(): void {
@@ -41,6 +42,9 @@ export async function materializePendingNewSession(
     // a view that moved on keeps its own state.
     store.promoteViewSession({ sessionId, sessionFile })
     store.clearFileChanges()
+    // The draft was reported as "no session on screen"; completion alerts and inbox read state
+    // must see this conversation as the visible one.
+    reportVisibleSession(sessionFile)
   }
   insertSessionRowOptimistically(workspaceId, { sessionId, sessionFile, title })
   // The caller still needs the file when creation finishes in the background.
