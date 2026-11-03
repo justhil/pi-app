@@ -6,11 +6,12 @@ import {
   handleAgentError,
   handleCompaction,
   handleMessage,
-  handleRun,
   handleSlash,
   handleTool,
 } from '@renderer/stores/apply-app-event-handlers'
 import { applyBackgroundAppEvent } from '@renderer/stores/apply-app-event-background'
+import { applyRetryState } from '@renderer/stores/apply-app-event-retry'
+import { handleSessionRun } from '@renderer/stores/apply-app-event-session-run'
 import { markSessionTurnEnded, sessionStoreApi } from '@renderer/stores/session-scope'
 import { sessionKeyOf } from '@renderer/stores/session-state'
 import { applyExtensionWidgetEvent, getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
@@ -19,6 +20,7 @@ import { reduceSubagentSessionGroupToolEvent } from '@renderer/lib/subagent-sess
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
 
 export type { StoreApi } from '@renderer/stores/apply-app-event-types'
+export { endsRetryWait } from '@renderer/stores/apply-app-event-retry'
 
 export function applyAppEvent(event: AppEvent, api: StoreApi): void {
   if (!isSessionScopedAppEvent(event)) return
@@ -43,17 +45,6 @@ export function applyAppEvent(event: AppEvent, api: StoreApi): void {
 }
 
 /**
- * The retried request is making progress (first token, a tool) or the run is over: the retry
- * notice has done its job. pi's own auto_retry_end only lands after the whole retried message.
- */
-export function endsRetryWait(event: SessionScopedAppEvent): boolean {
-  if (event.type === 'message') return event.role === 'assistant' && event.phase === 'delta'
-  if (event.type === 'tool') return event.phase === 'start'
-  if (event.type === 'run') return event.phase === 'idle' || event.phase === 'failed' || event.phase === 'cancelled'
-  return event.type === 'agent_error'
-}
-
-/**
  * Reduce one session's event into that session's state. `api` is the view store for the visible
  * session or the session's own scope for a background one — the handlers are the same.
  */
@@ -64,31 +55,10 @@ function applySessionEvent(
   visible: boolean,
 ): void {
   const state = api.get()
-  if (event.type !== 'retry' && endsRetryWait(event)) {
-    useUIStore.getState().setRetryingSession(sessionFile, null)
-  }
+  applyRetryState(event, sessionFile)
   switch (event.type) {
-    case 'retry': {
-      const store = useUIStore.getState()
-      if (event.phase === 'start') {
-        store.setRetryingSession(sessionFile, {
-          attempt: event.attempt ?? 1,
-          maxAttempts: event.maxAttempts ?? event.attempt ?? 1,
-          errorMessage: event.errorMessage ?? '',
-          startedAt: event.timestamp,
-          delayMs: event.delayMs ?? 0,
-        })
-      } else {
-        store.setRetryingSession(sessionFile, null)
-      }
-      break
-    }
-    case 'message':
-      handleMessage(event, api)
-      break
-    case 'tool':
-      handleTool(event, api)
-      break
+    case 'message': return handleMessage(event, api)
+    case 'tool': return handleTool(event, api)
     case 'file':
       state.addFileChange({
         path: event.path,
@@ -98,48 +68,23 @@ function applySessionEvent(
         runId: event.runId,
       })
       break
-    case 'run': {
-      const accepted = handleRun(event, api)
-      if (accepted && (event.phase === 'running' || event.phase === 'started')) {
-        useUIStore.getState().setSessionRuntimeRunning(sessionFile, true)
-      } else if (event.phase === 'idle') {
-        if (api.get().runState.status === 'idle') {
-          useUIStore.getState().setSessionRuntimeRunning(sessionFile, false)
-          markSessionTurnEnded(sessionFile, 'idle')
-        }
-      } else if (event.phase === 'failed' || event.phase === 'cancelled') {
-        useUIStore.getState().setSessionRuntimeRunning(sessionFile, false)
-        // The session's own markers decide whether a switch-back shows it running.
-        markSessionTurnEnded(sessionFile, event.phase === 'failed' ? 'failed' : 'idle')
-      }
-      break
-    }
-    case 'compaction':
-      handleCompaction(event, api, { clearDialogs: visible })
-      break
-    case 'slash':
-      handleSlash(event, api)
-      break
+    case 'run': return handleSessionRun(event, api, sessionFile)
+    case 'compaction': return handleCompaction(event, api, { clearDialogs: visible })
+    case 'slash': return handleSlash(event, api)
     case 'queue':
-      if (isAbortQueueIgnoreActive(sessionFile)) {
-        const hasQueued = (event.steering?.length ?? 0) > 0 || (event.followUp?.length ?? 0) > 0
-        if (hasQueued) break
-      }
+      if (isAbortQueueIgnoreActive(sessionFile) && ((event.steering?.length ?? 0) > 0 || (event.followUp?.length ?? 0) > 0)) return
       state.setPendingQueue(event.steering, event.followUp)
       break
-    case 'agent_error': {
+    case 'agent_error':
       handleAgentError(event, api)
       if (event.kind !== 'retry') markSessionTurnEnded(sessionFile, event.kind === 'aborted' ? 'idle' : 'failed')
       break
-    }
-    case 'completion': {
+    case 'completion':
       if (event.settled === true) useUIStore.getState().markSessionSettled(sessionFile)
       break
-    }
-    case 'extension_widget': {
+    case 'extension_widget':
       applyExtensionWidgetEvent(event)
       api.get().setComposerWidget(getSessionComposerWidget(sessionFile))
       break
-    }
   }
 }
