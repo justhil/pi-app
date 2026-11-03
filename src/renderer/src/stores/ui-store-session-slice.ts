@@ -60,6 +60,9 @@ export function createSessionSlice(set: StoreSet): SessionSlice {
         // The draft's state moves to the file key; drop the draft entry so it does not linger.
         const { [s.viewSessionKey ?? '']: _promoted, ...rest } = s.sessionStates
         const states = s.viewSessionKey && isDraftSessionKey(s.viewSessionKey) && s.viewSessionKey !== key ? rest : s.sessionStates
+        // Extensions publish widgets from session_start, while the session is still being
+        // created: those events already landed in the session's own entry and must survive.
+        const composerWidget = s.sessionStates[key]?.composerWidget ?? draft.composerWidget
         return {
           pendingNewSessionPlaceholder: false,
           currentSessionId: sessionId,
@@ -76,6 +79,7 @@ export function createSessionSlice(set: StoreSet): SessionSlice {
               key,
               historyTotalCount: 0,
               historyLoadedCount: 0,
+              composerWidget,
               workerLiveSnapshot: { ...draft.workerLiveSnapshot, sessionId, sessionFile: key },
             },
           },

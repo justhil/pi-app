@@ -1,6 +1,8 @@
 // adapter.json schema types & loader (兼容层 v2 — 见 doc/adapter-layer-plan.md)
 // 声明式适配器：一个 JSON 描述插件的匹配、配置页、工具卡、交互 UI 长相。
 
+import type { TodoStatus } from '@shared/todo-list'
+
 export type AdapterTier = 'native' | 'partial' | 'headless' | 'none'
 
 export type FieldType = 'text' | 'secret' | 'select' | 'number' | 'boolean'
@@ -131,6 +133,19 @@ export interface AdapterWidgetDef {
     done?: string
     priority?: string
   }
+  /** Read a widget that only renders text lines (TUI factory / string list) as todo rows. */
+  textLines?: AdapterWidgetTextLines
+}
+
+export interface AdapterWidgetTextLines {
+  /** Regexes; a line matching one (after `strip`) is not a todo — headings, "+N more". */
+  skip?: string[]
+  /** Regex removed from the start of every line, e.g. tree branches "├─ ". */
+  strip?: string
+  /** Leading marker → status (e.g. "✓": "completed"); the marker is dropped from the text. */
+  status?: Record<string, TodoStatus>
+  /** Regex matched at the line start whose first group is the todo id; dropped from the text. */
+  id?: string
 }
 
 export interface AdapterSidePanel {

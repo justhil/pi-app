@@ -4,6 +4,7 @@ import {
   normalizeTodoWidgetItems,
   resolveWidgetAdapterByKey,
   resolveWidgetAdapterByTool,
+  todoItemsFromTextLines,
   widgetAdapters,
 } from '../extension-compat/todo-widget.js'
 
@@ -96,14 +97,7 @@ export function createDesktopWidgetHost(deps: {
     if (structured.has(key)) return
     try {
       const lines = slot.component.render(RENDER_WIDTH)
-      const textLines = Array.isArray(lines) ? lines.map((line) => String(line)) : [String(lines ?? '')]
-      const items = textLines
-        .map((line, index) => {
-          const text = line.replace(/\x1b\[[0-9;]*m/g, '').trim()
-          if (!text) return null
-          return { id: `${key}-${index}`, text, status: 'pending' as const }
-        })
-        .filter((row): row is { id: string; text: string; status: 'pending' } => row != null)
+      const items = todoItemsFromTextLines(Array.isArray(lines) ? lines : [lines], key, adapter.widget)
       publish(adapter.id, key, items, adapter.widget.title || adapter.displayName || 'Todo', adapter.widget.icon)
     } catch {
       /* ignore factory render errors; keep last good state */
@@ -146,14 +140,7 @@ export function createDesktopWidgetHost(deps: {
     }
 
     if (Array.isArray(content) || typeof content === 'string') {
-      const lines = Array.isArray(content) ? content : [content]
-      const items = lines
-        .map((line, index) => {
-          const text = String(line || '').trim()
-          if (!text) return null
-          return { id: `${key}-${index}`, text, status: 'pending' as const }
-        })
-        .filter((row): row is { id: string; text: string; status: 'pending' } => row != null)
+      const items = todoItemsFromTextLines(Array.isArray(content) ? content : [content], key, adapter.widget)
       if (!structured.has(key)) publish(adapter.id, key, items, adapter.widget.title || 'Todo', adapter.widget.icon)
       return
     }

@@ -472,11 +472,8 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
       postExtensionUiDismiss,
     )
   }
-  await sess.bindExtensions({
-    uiContext: st.uiBridge.uiContext as never,
-    mode: 'rpc',
-    commandContextActions: buildCommandContextActions(sess),
-  })
+  // The host must exist before binding: bindExtensions fires session_start, where extensions
+  // register their widgets (often once, refreshing them later only via requestRender).
   st.widgetHost?.dispose()
   st.widgetHost = createDesktopWidgetHost({
     emit,
@@ -485,6 +482,11 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
     theme: (st.uiBridge.uiContext as { theme?: unknown }).theme ?? {},
   })
   st.uiBridge.attachWidgetHost(st.widgetHost)
+  await sess.bindExtensions({
+    uiContext: st.uiBridge.uiContext as never,
+    mode: 'rpc',
+    commandContextActions: buildCommandContextActions(sess),
+  })
   try {
     const entries = sess.sessionManager?.getBranch?.() ?? sess.messages ?? []
     st.widgetHost.reconstructFromBranch(Array.isArray(entries) ? entries : [])

@@ -1,8 +1,17 @@
 import { z } from 'zod'
+import { TODO_STATUSES } from '@shared/todo-list'
 import type { AdapterJson } from './adapter-schema'
 
 const text = z.string().min(1)
 const strings = z.array(text)
+const pattern = text.refine((value) => {
+  try {
+    new RegExp(value)
+    return true
+  } catch {
+    return false
+  }
+}, 'invalid regular expression')
 const field = z.object({
   key: text, type: z.enum(['text', 'secret', 'select', 'number', 'boolean']),
   label: z.string().optional(), description: z.string().optional(), default: z.unknown().optional(),
@@ -25,7 +34,10 @@ const schema = z.object({
   interact: z.object({ trigger: z.object({ tool: text.optional(), argsMatch: z.record(z.unknown()).optional() }), schema: z.enum(['questions', 'clarify', 'review']), fields: z.record(z.string()).optional() }).strict().optional(),
   slash: z.record(z.enum(['notify', 'config-page', 'execute', 'open-panel'])).optional(),
   slashPanels: z.record(text).optional(),
-  widget: z.object({ keys: strings.optional(), tools: strings.optional(), placement: z.literal('aboveComposer'), protocol: z.literal('todo-list-v1'), fields: z.record(z.string()).optional() }).passthrough().optional(),
+  widget: z.object({
+    keys: strings.optional(), tools: strings.optional(), placement: z.literal('aboveComposer'), protocol: z.literal('todo-list-v1'), fields: z.record(z.string()).optional(),
+    textLines: z.object({ skip: z.array(pattern).optional(), strip: pattern.optional(), status: z.record(z.enum(TODO_STATUSES)).optional(), id: pattern.optional() }).strict().optional(),
+  }).passthrough().optional(),
   sidePanel: z.object({ stateProvider: text.optional(), panelComponent: text, panelId: text.optional(), source: source.optional(), label: z.string().optional(), description: z.string().optional(), icon: text.optional(), defaultEnabled: z.boolean().optional() }).strict().refine((panel) => !!panel.source !== !!panel.stateProvider, 'declare one source or stateProvider').optional(),
 }).passthrough().superRefine((adapter, ctx) => {
   if (adapter.kind !== 'desktop' && !adapter.match) ctx.addIssue({ code: 'custom', path: ['match'], message: 'plugin adapter requires match' })
