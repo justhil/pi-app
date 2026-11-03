@@ -219,16 +219,13 @@ export function ProjectSessionTree({
               {isChild ? null : s.forkedFromSessionFile ? (
                 <div
                   className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary"
-                  title={`${t('common:sidebar.forkedFrom', { title: forkSourceTitle })}
-${s.forkedFromSessionFile}`}
+                  title={`${t('common:sidebar.forkedFrom', { title: forkSourceTitle })}\n${s.forkedFromSessionFile}`}
                 >
                   {t('common:sidebar.forkedFrom', { title: forkSourceTitle })}
                 </div>
-              ) : s.firstMessage && s.firstMessage !== s.title && !s.firstMessage.startsWith(s.title) ? (
-                <div className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary">
-                  {s.firstMessage}
-                </div>
               ) : (
+                // The title says what the conversation is (its name, or its first message); the
+                // second line is only its time, so a renamed row does not repeat the first message.
                 <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
                   {new Date(s.updatedAt).toLocaleString(undefined, {
                     month: 'short',

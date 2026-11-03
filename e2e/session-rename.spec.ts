@@ -67,8 +67,10 @@ test('rows summarise the typed text, not the pasted image path, before and after
     await win.getByRole('button', { name: 'Rename', exact: true }).click()
     await win.getByRole('dialog').getByRole('textbox').fill('Report grading')
     await win.keyboard.press('Enter')
+    // A renamed row shows only its name (and time), not the first message under it.
     const renamed = rows.filter({ hasText: 'Report grading' }).first()
-    await expect(renamed).toContainText('grade the second report')
+    await expect(renamed).toBeVisible()
+    await expect(renamed).not.toContainText('grade the second report')
     await expect(rows.filter({ hasText: 'AppData' })).toHaveCount(0)
     if (process.env.SHOT) await win.screenshot({ path: process.env.SHOT.replace('.png', '-paths.png') })
   } finally {
