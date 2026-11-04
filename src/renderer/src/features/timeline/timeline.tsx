@@ -178,9 +178,12 @@ const TimelineItemBase = memo(function TimelineItem({
               }
             >
               <div className="timeline-status-line timeline-status-line--warn text-[12px]">
-                {t('timeline:interruptedEmpty', {
-                  defaultValue: '回复未完成（程序关闭或中断）。可点回退到上一条后继续。',
-                })}
+                {/* A failed request (retries exhausted) keeps its reason when read back from history. */}
+                {typeof item.errorMessage === 'string' && item.errorMessage.trim()
+                  ? t('timeline:interruptedError', { error: item.errorMessage.trim() })
+                  : t('timeline:interruptedEmpty', {
+                      defaultValue: '回复未完成（程序关闭或中断）。可点回退到上一条后继续。',
+                    })}
               </div>
             </MessageHoverShell>
           </div>

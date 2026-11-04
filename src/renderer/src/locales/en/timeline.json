@@ -77,6 +77,7 @@
   "jumpToBottom": "Jump to bottom",
   "jumpToLive": "Jump to bottom",
   "interruptedEmpty": "Incomplete reply — rewind to continue",
+  "interruptedError": "Reply failed: {{error}} — send a message to continue, or rewind",
   "interruptedPartial": "Incomplete reply",
   "chrome": {
     "aria": "Turn status",

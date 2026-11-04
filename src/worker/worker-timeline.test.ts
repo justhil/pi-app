@@ -139,4 +139,14 @@ describe('worker timeline retry recovery', () => {
     expect(isInterruptedAssistantRow(rows[1])).toBe(true)
     expect(resolveRewindTargetEntryId(rows, rows[1])).toBe('entry-0')
   })
+
+  it('keeps why a failed leaf failed, in both history paths', () => {
+    for (const rows of [normalizeMessages([user, failed]), timelineItemsFromBranchPath(branch([user, failed]))]) {
+      expect(rows[1]).toMatchObject({ incomplete: true, stopReason: 'error', errorMessage: 'Request timed out.' })
+    }
+    // A crash leaf (no provider error) stays a plain incomplete reply.
+    const crash = timelineItemsFromBranchPath(branch([user, { role: 'assistant', content: [] }]))
+    expect(crash[1]).toMatchObject({ incomplete: true })
+    expect(crash[1]).not.toHaveProperty('errorMessage')
+  })
 })
