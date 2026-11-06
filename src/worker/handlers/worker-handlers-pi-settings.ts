@@ -30,14 +30,6 @@ export async function handleSetpisettings(msg: WorkerIncomingMessage, reply: Wor
             ?? st.sdk!.SettingsManager.create(st.currentCwd || process.cwd(), st.sdk!.getAgentDir())
           const patch = msg.patch || {}
           await applyPiSettingsPatch(sm, patch)
-          if (patch.httpConnectTimeoutMs !== undefined) {
-            try {
-              const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
-              widenHttpConnectTimeout(entry, patch.httpConnectTimeoutMs)
-            } catch {
-              /* keep existing dispatcher */
-            }
-          }
           reply({ type: 'setPiSettings-done', ok: true })
         } catch (e: unknown) {
           reply({ type: 'error', error: `setPiSettings failed: ${errorMessage(e)}` })
@@ -45,3 +37,16 @@ export async function handleSetpisettings(msg: WorkerIncomingMessage, reply: Wor
         return
 }
 
+/** Apply a saved connect timeout without touching settings.json; sent to every live worker. */
+export async function handleApplyhttpconnecttimeout(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  // A worker still loading its SDK reads the saved value at the end of init.
+  if (st.sdk) {
+    try {
+      const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+      widenHttpConnectTimeout(entry, msg.timeoutMs)
+    } catch (e: unknown) {
+      console.warn('[Worker] Could not apply the HTTP connect timeout:', errorMessage(e))
+    }
+  }
+  reply({ type: 'applyHttpConnectTimeout-done', ok: true })
+}

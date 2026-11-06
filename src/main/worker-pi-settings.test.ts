@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { st } from '../worker/worker-runtime.js'
-import { handleSetpisettings } from '../worker/handlers/worker-handlers-pi-settings'
+import { handleApplyhttpconnecttimeout, handleSetpisettings } from '../worker/handlers/worker-handlers-pi-settings'
+import { widenHttpConnectTimeout } from '../worker/worker-http-connect'
+
+vi.mock('../worker/worker-http-connect', () => ({ widenHttpConnectTimeout: vi.fn(() => true) }))
 
 function settingsManager() {
   return {
@@ -39,6 +42,8 @@ function settingsManager() {
 afterEach(() => {
   st.session = null
   st.sdk = null
+  st.activeSdkPath = null
+  vi.mocked(widenHttpConnectTimeout).mockClear()
 })
 
 describe('handleSetpisettings', () => {
@@ -62,5 +67,27 @@ describe('handleSetpisettings', () => {
     expect(manager.setDefaultModelAndProvider).toHaveBeenCalledWith('openai', 'gpt-5')
     expect(setModel).not.toHaveBeenCalled()
     expect(reply).toHaveBeenCalledWith({ type: 'setPiSettings-done', ok: true })
+  })
+})
+
+describe('handleApplyhttpconnecttimeout', () => {
+  it('should_apply_the_timeout_from_the_active_sdk_when_the_worker_is_ready', async () => {
+    st.sdk = {} as never
+    st.activeSdkPath = '/sdk/index.js'
+    const reply = vi.fn()
+
+    await handleApplyhttpconnecttimeout({ type: 'applyHttpConnectTimeout', timeoutMs: 45000 } as never, reply)
+
+    expect(widenHttpConnectTimeout).toHaveBeenCalledWith('/sdk/index.js', 45000)
+    expect(reply).toHaveBeenCalledWith({ type: 'applyHttpConnectTimeout-done', ok: true })
+  })
+
+  it('should_leave_a_worker_still_loading_its_sdk_to_read_the_saved_value', async () => {
+    const reply = vi.fn()
+
+    await handleApplyhttpconnecttimeout({ type: 'applyHttpConnectTimeout', timeoutMs: 45000 } as never, reply)
+
+    expect(widenHttpConnectTimeout).not.toHaveBeenCalled()
+    expect(reply).toHaveBeenCalledWith({ type: 'applyHttpConnectTimeout-done', ok: true })
   })
 })

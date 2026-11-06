@@ -879,6 +879,11 @@ export class WorkerManager {
   }
   async setPiSettings(patch: Record<string, unknown>): Promise<void> {
     await this.request('setPiSettings', { patch })
+    // One worker wrote the file; each live worker holds its own dispatcher. Not awaited so a stuck
+    // worker cannot stall the save. Workers started later read the saved value during init.
+    if (patch.httpConnectTimeoutMs !== undefined) {
+      void this.broadcast('applyHttpConnectTimeout', { timeoutMs: patch.httpConnectTimeoutMs })
+    }
   }
   async getMessages(
     sessionFile: string,
