@@ -1,8 +1,10 @@
+import { fileURLToPath } from 'node:url'
 import { errorMessage } from '@shared/error-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
 import { applyPiSettingsPatch } from '../pi-settings-patch.js'
 import { piSettingsSnapshot, refreshSettingsManager } from '../pi-settings-snapshot.js'
+import { widenHttpConnectTimeout } from '../worker-http-connect.js'
 import { st } from '../worker-runtime.js'
 
 export async function handleGetpisettings(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
@@ -28,6 +30,14 @@ export async function handleSetpisettings(msg: WorkerIncomingMessage, reply: Wor
             ?? st.sdk!.SettingsManager.create(st.currentCwd || process.cwd(), st.sdk!.getAgentDir())
           const patch = msg.patch || {}
           await applyPiSettingsPatch(sm, patch)
+          if (patch.httpConnectTimeoutMs !== undefined) {
+            try {
+              const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+              widenHttpConnectTimeout(entry, patch.httpConnectTimeoutMs)
+            } catch {
+              /* keep existing dispatcher */
+            }
+          }
           reply({ type: 'setPiSettings-done', ok: true })
         } catch (e: unknown) {
           reply({ type: 'error', error: `setPiSettings failed: ${errorMessage(e)}` })

@@ -42,6 +42,7 @@ export function piSettingsSnapshot(sm: AnySettingsManager): Record<string, unkno
     branchSummaryReserveTokens: branchSummary.reserveTokens,
     branchSummarySkipPrompt: branchSummary.skipPrompt,
     httpIdleTimeoutMs: sm.getHttpIdleTimeoutMs(),
+    httpConnectTimeoutMs: globalField<number>(sm, 'httpConnectTimeoutMs'),
     shellPath: sm.getShellPath(),
     shellCommandPrefix: sm.getShellCommandPrefix(),
     npmCommand: sm.getNpmCommand(),

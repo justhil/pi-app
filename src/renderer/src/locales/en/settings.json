@@ -432,6 +432,8 @@
     "followUpModeDesc": "How messages queued after the current task are delivered.",
     "transport": "Transport",
     "transportDesc": "Preferred connection when a provider offers several.",
+    "httpConnectTimeout": "HTTP connect timeout",
+    "httpConnectTimeoutDesc": "Milliseconds for initial DNS and TLS handshake, default 30000.",
     "httpIdleTimeout": "Request idle timeout",
     "httpIdleTimeoutDesc": "Milliseconds, 0 for none.",
     "autoCompaction": "Automatic compaction",
