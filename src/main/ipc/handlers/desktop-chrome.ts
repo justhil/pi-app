@@ -65,8 +65,62 @@ export function registerDesktopChromeHandlers(): void {
     const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
     const cwd = known.find((path) => workspacePathsEqual(path, workspaceId))
     if (!cwd) throw new Error('Workspace must be opened before listing worktrees')
-    return listGitWorktrees(cwd)
+    const listing = await listGitWorktrees(cwd)
+    const rawHidden = configStore.get('hiddenWorktrees')
+    const hidden = Array.isArray(rawHidden) ? rawHidden : []
+    if (!hidden.length || !listing.trees.length) return listing
+    return {
+      ...listing,
+      trees: listing.trees.filter((tree) => !hidden.some((h) => workspacePathsEqual(h, tree.path))),
+    }
   })
+
+  registerHandlerWithSchema(
+    'ipc:desktop.createGitWorktree',
+    z.object({ workspaceId: z.string().min(1), branch: z.string().min(1) }),
+    async ({ workspaceId, branch }) => {
+      const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
+      const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
+      const { createGitWorktree } = await import('../../git-worktree-ops')
+      const res = await createGitWorktree(cwd, branch)
+      if (res.ok && typeof configStore.addRecentProject === 'function') {
+        configStore.addRecentProject(res.path)
+      }
+      return res
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:desktop.removeGitWorktree',
+    z.object({ workspaceId: z.string().min(1), worktreePath: z.string().min(1) }),
+    async ({ workspaceId, worktreePath }) => {
+      const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
+      const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
+      const { removeGitWorktree } = await import('../../git-worktree-ops')
+      const res = await removeGitWorktree(cwd, worktreePath)
+      if (!res.ok) return res
+      if (typeof configStore.removeRecentProject === 'function') {
+        configStore.removeRecentProject(worktreePath)
+      }
+      if (res.repositoryPath && typeof configStore.addRecentProject === 'function') {
+        const recent = configStore.get('recentProjects') || []
+        if (!recent.some((p) => workspacePathsEqual(p, res.repositoryPath))) {
+          configStore.addRecentProject(res.repositoryPath)
+        }
+      }
+      const cur = configStore.get('currentProject')
+      if (cur && workspacePathsEqual(cur, worktreePath)) {
+        const next = res.repositoryPath || (configStore.get('recentProjects') || [])[0] || null
+        configStore.set('currentProject', next)
+      }
+      return {
+        ok: true,
+        repositoryPath: res.repositoryPath,
+        currentProject: configStore.get('currentProject'),
+        recentProjects: configStore.get('recentProjects') || [],
+      }
+    },
+  )
 
   registerHandler('ipc:desktop.pairingCode', async () => {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()

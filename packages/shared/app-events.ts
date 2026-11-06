@@ -79,6 +79,16 @@ export interface CompactionEvent extends AppEventBase {
   summary?: string
 }
 
+/** pi auto-retry of a failed model request (timeout, 5xx…): start of each wait, then end. */
+export interface RetryEvent extends AppEventBase {
+  type: 'retry'
+  phase: 'start' | 'end'
+  attempt?: number
+  maxAttempts?: number
+  delayMs?: number
+  errorMessage?: string
+}
+
 // B-layer slash command dispatch (R0-1): observable slash execution
 export interface SlashEvent extends AppEventBase {
   type: 'slash'
@@ -156,6 +166,7 @@ export type AppEvent =
   | FileEvent
   | RunEvent
   | CompactionEvent
+  | RetryEvent
   | SlashEvent
   | QueueEvent
   | AgentErrorEvent

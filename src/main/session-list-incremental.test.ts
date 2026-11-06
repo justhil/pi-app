@@ -95,4 +95,20 @@ describe('listSessionsIncremental', () => {
   it('returns null when the project has no session dir (caller falls back to the SDK)', async () => {
     expect(await listSessionsIncremental('/no/such/project', { agentDir, userDataDir })).toBeNull()
   })
+  it('tells forks (copied history) apart from child sessions that share the parentSession header', async () => {
+    const dir = sessionDir()
+    const parent = join(dir, 'parent.jsonl')
+    const withParent = (id: string, ts: string) =>
+      line({ type: 'session', version: 3, id, timestamp: ts, cwd, parentSession: parent })
+    writeFileSync(parent, header('parent', '2026-01-01T00:00:00.000Z') + message('user', 'question', Date.parse('2026-01-01T00:00:01.000Z')))
+    // A fork copies the source branch with its original (older) timestamps.
+    writeFileSync(join(dir, 'fork.jsonl'), withParent('fork', '2026-01-03T00:00:00.000Z') + message('user', 'question', Date.parse('2026-01-01T00:00:01.000Z')))
+    writeFileSync(join(dir, 'child.jsonl'), withParent('child', '2026-01-02T00:00:00.000Z') + message('user', 'subtask', Date.parse('2026-01-02T00:00:01.000Z')))
+
+    const rows = (await listSessionsIncremental(cwd, { agentDir, userDataDir }))!
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]))
+    expect(byId.fork).toMatchObject({ parentSessionPath: parent, forked: true })
+    expect(byId.child).toMatchObject({ parentSessionPath: parent, forked: false })
+    expect(byId.parent.forked).toBe(false)
+  })
 })

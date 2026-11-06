@@ -20,6 +20,16 @@ const uiState = vi.hoisted(() => ({
   setHistoryMeta: () => {},
 }))
 vi.mock('@renderer/lib/activate-workspace', () => workspaceMocks)
+const forkMocks = vi.hoisted(() => ({
+  loadForkCandidates: vi.fn(async (_source?: unknown) => [
+    { entryId: 'e1', text: 'first question' },
+    { entryId: 'e2', text: 'second question' },
+  ]),
+  forkSessionFromEntry: vi.fn(async (_entryId: string, _source?: unknown) => true),
+  cloneCurrentSession: vi.fn(async (_source?: unknown) => true),
+}))
+vi.mock('@renderer/lib/session-fork', () => forkMocks)
+vi.mock('@renderer/lib/session-switch-guard', () => ({ guardSessionSwitch: (action: () => void) => action() }))
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
@@ -185,5 +195,68 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     await act(async () => {
       resolveDelete({ ok: true })
     })
+  })
+})
+
+describe('SessionContextMenuPortal fork submenu', () => {
+  const source = { sessionFile: '/proj/a/s1.jsonl', workspacePath: '/proj/a' }
+  const menu = { ...MENU, target: { ...MENU.target, forks: [{ sessionId: 'f1', sessionFile: '/proj/a/f1.jsonl', title: 'Fork A' }] } }
+
+  afterEach(() => {
+    forkMocks.forkSessionFromEntry.mockClear()
+    forkMocks.cloneCurrentSession.mockClear()
+    workspaceMocks.activateWorkspace.mockClear()
+  })
+
+  async function openSubmenu(onClose = vi.fn(), onSessionsChange = vi.fn()) {
+    render(<SessionContextMenuPortal menu={menu} onClose={onClose} onSessionsChange={onSessionsChange} />)
+    await act(async () => {
+      fireEvent.pointerEnter(screen.getByText('common:sidebar.fork'))
+    })
+    return { onClose, onSessionsChange }
+  }
+
+  it('lists the newest user messages first and forks the right-clicked session from one', async () => {
+    const { onClose, onSessionsChange } = await openSubmenu()
+    expect(forkMocks.loadForkCandidates).toHaveBeenCalledWith(source)
+    const items = screen.getAllByRole('menuitem').map((el) => el.textContent)
+    expect(items.indexOf('second question')).toBeLessThan(items.indexOf('first question'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('first question'))
+    })
+    expect(onClose).toHaveBeenCalled()
+    expect(forkMocks.forkSessionFromEntry).toHaveBeenCalledWith('e1', source)
+    expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
+  })
+
+  it('duplicates the whole conversation of the right-clicked session', async () => {
+    const opened = vi.fn()
+    window.addEventListener('pi-desktop:open-fork-selector', opened)
+    await openSubmenu()
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.forkClone'))
+    })
+    expect(forkMocks.cloneCurrentSession).toHaveBeenCalledWith(source)
+    window.removeEventListener('pi-desktop:open-fork-selector', opened)
+  })
+
+  it('opens the message picker for the right-clicked session', async () => {
+    const opened = vi.fn()
+    window.addEventListener('pi-desktop:open-fork-selector', opened)
+    await openSubmenu()
+    await act(async () => {
+      fireEvent.click(screen.getByText('common:sidebar.forkChooseMessage'))
+    })
+    expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ source })
+    window.removeEventListener('pi-desktop:open-fork-selector', opened)
+  })
+
+  it('jumps to an existing fork', async () => {
+    await openSubmenu()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Fork A'))
+    })
+    expect(workspaceMocks.activateWorkspace).toHaveBeenCalledWith('/proj/a', { sessionId: 'f1', sessionFile: '/proj/a/f1.jsonl' })
   })
 })

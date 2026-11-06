@@ -200,6 +200,47 @@ describe('WorkerManager active turns', () => {
   })
 })
 
+describe('WorkerManager connect timeout setting', () => {
+  function managerWithTwoWorkers() {
+    const manager = new WorkerManager()
+    const internals = manager as unknown as { pool: Map<string, WorkerSlot>; foregroundPoolKey: string | null }
+    const posted: Array<{ slot: string; type: string; timeoutMs?: unknown }> = []
+    for (const cwd of ['/w/a', '/w/b']) {
+      const slot = fakeSlot(`ws:${cwd}`, cwd, false)
+      const transport = makeFakeTransport()
+      transport.postMessage = vi.fn((message: { type: string; requestId?: string; timeoutMs?: unknown }) => {
+        posted.push({ slot: cwd, type: message.type, timeoutMs: message.timeoutMs })
+        queueMicrotask(() => transport.emitMessage({ type: `${message.type}-done`, requestId: message.requestId, ok: true } as WorkerResponsePayload))
+      })
+      slot.worker = transport
+      attachWorkerHandlers(slot, transport, { mainWindow: null, onAppEvent: vi.fn(), onSlotExit: vi.fn() })
+      internals.pool.set(slot.poolKey, slot)
+    }
+    internals.foregroundPoolKey = 'ws:/w/a'
+    return { manager, posted }
+  }
+
+  it('should_write_settings_once_and_tell_every_live_worker_the_new_timeout', async () => {
+    const { manager, posted } = managerWithTwoWorkers()
+
+    await manager.setPiSettings({ httpConnectTimeoutMs: 45000 })
+
+    expect(posted.filter((m) => m.type === 'setPiSettings').map((m) => m.slot)).toEqual(['/w/a'])
+    expect(posted.filter((m) => m.type === 'applyHttpConnectTimeout')).toEqual([
+      { slot: '/w/a', type: 'applyHttpConnectTimeout', timeoutMs: 45000 },
+      { slot: '/w/b', type: 'applyHttpConnectTimeout', timeoutMs: 45000 },
+    ])
+  })
+
+  it('should_not_message_other_workers_for_other_settings', async () => {
+    const { manager, posted } = managerWithTwoWorkers()
+
+    await manager.setPiSettings({ cacheWarming: 'idle' })
+
+    expect(posted.map((m) => m.type)).toEqual(['setPiSettings'])
+  })
+})
+
 describe('WorkerManager resource reload scope', () => {
   it('returns runtime capabilities after the retained init promise has settled', async () => {
     const manager = new WorkerManager()

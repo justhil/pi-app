@@ -4,6 +4,7 @@ import type { BackgroundSettings } from '@shared/background'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
+import { projectDisplayNameKey, uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
@@ -71,6 +72,10 @@ export interface StoreSchema {
   timelineVisibleTurns: number
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
+  /** 侧栏项目/目录自定义显示名，键为 projectDisplayNameKey(path, isRepositoryGroup) */
+  projectDisplayNames: Record<string, string>
+  /** 从侧栏列表中移除/隐藏的 Git worktree 路径 */
+  hiddenWorktrees: string[]
   /** 语音输入 ASR 配置 */
   asrConfig: AsrConfig
   /** Agent 运行时：host = Windows 宿主，wsl = 在 WSL 发行版内运行 */
@@ -142,6 +147,8 @@ const store = new Store<StoreSchema>({
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
     sessionDisplayNames: {},
+    projectDisplayNames: {},
+    hiddenWorktrees: [],
     asrConfig: {
       provider: 'codex-asr-builtin',
       language: 'auto',
@@ -186,11 +193,32 @@ export const configStore = {
       'recentProjects',
       nextRecentProjects(store.get('recentProjects'), path, store.get('recentProjectsFixedOrder')),
     )
+    const hidden = store.get('hiddenWorktrees') || []
+    if (hidden.some((p: string) => workspacePathsEqual(p, path))) {
+      store.set('hiddenWorktrees', hidden.filter((p: string) => !workspacePathsEqual(p, path)))
+    }
   },
 
   removeRecentProject(path: string): void {
-    const recent = store.get('recentProjects').filter((p: string) => p !== path)
+    const recent = (store.get('recentProjects') || []).filter((p: string) => !workspacePathsEqual(p, path))
     store.set('recentProjects', recent)
+  },
+
+  hideWorktree(path: string): void {
+    const hidden = store.get('hiddenWorktrees') || []
+    if (!hidden.some((p: string) => workspacePathsEqual(p, path))) {
+      store.set('hiddenWorktrees', uniqueWorkspacePaths([...hidden, path]))
+    }
+  },
+
+  setProjectDisplayName(path: string, name: string, isRepositoryGroup = false): void {
+    const key = projectDisplayNameKey(path, isRepositoryGroup)
+    if (!key) return
+    const names = { ...(store.get('projectDisplayNames') || {}) }
+    const trimmed = name.trim()
+    if (trimmed) names[key] = trimmed
+    else delete names[key]
+    store.set('projectDisplayNames', names)
   },
 
   setExtensionOverride(extensionId: string, enabled: boolean): void {

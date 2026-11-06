@@ -63,6 +63,8 @@ describe('new session model preselection', () => {
 
     confirmModel?.({ modelId: 'openai/org/model/v2' })
     await expect(materialized).resolves.toBe('C:/sessions/new.jsonl')
+    // Completion alerts and inbox read state follow the conversation now on screen.
+    expect(invoke).toHaveBeenCalledWith('session.setVisible', { sessionFile: 'C:/sessions/new.jsonl' })
   })
 
   it.each([false, true])('keeps navigation intact when creation returns after switching away (returned: %s)', async (returned) => {

@@ -1,7 +1,7 @@
 import { requestOpenInPane, startSessionDrag } from '@renderer/features/split/split-dnd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Plus } from '@renderer/components/icons'
+import { ChevronRight, GitFork, Plus } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
@@ -17,6 +17,7 @@ import { useToolCardCatalogReady } from '@renderer/features/timeline/tool-card-r
 import { SessionAttentionDot } from './session-attention-dot'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
+import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
 
 const NO_CHILDREN: SubagentSessionChild[] = []
 
@@ -39,10 +40,7 @@ export function ProjectSessionTree({
   onRetry?: () => void
   currentWorkspace: string | null
   currentSessionId: string | null
-  onSessionContextMenu: (
-    e: React.MouseEvent,
-    payload: { sessionId: string; sessionFile?: string; title: string; workspacePath: string },
-  ) => void
+  onSessionContextMenu: (e: React.MouseEvent, payload: SessionMenuTarget) => void
 }) {
   const { t } = useTranslation()
   const sessionAttention = useUIStore((st) => st.sessionAttention)
@@ -77,6 +75,20 @@ export function ProjectSessionTree({
     return buildSessionTree(projectSessions, groups)
   }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath])
   const visibleRoots = useMemo(() => filterSessionTree(tree.roots, searchQuery), [tree, searchQuery])
+  const { sessionsByFile, forksBySource } = useMemo(() => {
+    const byFile = new Map<string, SessionItem>()
+    const forks = new Map<string, SessionMenuFork[]>()
+    for (const session of projectSessions) {
+      const key = workspacePathKey(session.sessionFile)
+      if (key) byFile.set(key, session)
+      const sourceKey = workspacePathKey(session.forkedFromSessionFile)
+      if (!sourceKey || !session.sessionFile) continue
+      const list = forks.get(sourceKey) ?? []
+      list.push({ sessionId: session.sessionId, sessionFile: session.sessionFile, title: session.title || session.sessionId.slice(0, 8) })
+      forks.set(sourceKey, list)
+    }
+    return { sessionsByFile: byFile, forksBySource: forks }
+  }, [projectSessions])
   const revealedSelection = useRef('')
   const selectedKey = workspacePathsEqual(currentWorkspace, workspacePath) ? workspacePathKey(historySessionFile) : ''
 
@@ -135,6 +147,10 @@ export function ProjectSessionTree({
     const expanded = !!searchQuery.trim() || expandedSessionFiles.has(node.key)
     const ownAttention = selectSessionAttention(sessionFile, sessionAttention)
     const attention = node.liveChild?.state === 'running' && ownAttention === 'idle' ? 'working' : ownAttention
+    const forkSource = s.forkedFromSessionFile ? sessionsByFile.get(workspacePathKey(s.forkedFromSessionFile)) : undefined
+    const forkSourceTitle = s.forkedFromSessionFile
+      ? forkSource?.title || forkSource?.sessionId.slice(0, 8) || t('common:sidebar.forkSourceMissing')
+      : ''
     const parentActive = currentSessionId === s.sessionId
       && workspacePathsEqual(workspacePath, currentWorkspace)
       && workspacePathKey(historySessionFile) === node.key
@@ -156,6 +172,7 @@ export function ProjectSessionTree({
               sessionFile,
               title: s.title || s.sessionId.slice(0, 8),
               workspacePath,
+              forks: forksBySource.get(node.key),
             })
           }
           className={cn(
@@ -183,20 +200,32 @@ export function ProjectSessionTree({
             <div className="min-w-0 flex-1">
               <div
                 className={cn(
-                  'truncate',
+                  'flex min-w-0 items-center gap-1',
                   isChild
                     ? cn('text-[12px] leading-4', parentActive ? 'text-foreground' : 'text-foreground-secondary')
                     : 'text-[13px] leading-[18px] text-foreground',
                   attention === 'done' && 'font-semibold',
                 )}
               >
-                {s.title || s.sessionId.slice(0, 8)}
+                {s.forkedFromSessionFile ? (
+                  <GitFork
+                    className="h-3 w-3 shrink-0 text-foreground-secondary"
+                    strokeWidth={2}
+                    aria-label={t('common:sidebar.forkedSession')}
+                  />
+                ) : null}
+                <span className="truncate">{s.title || s.sessionId.slice(0, 8)}</span>
               </div>
-              {isChild ? null : s.firstMessage && s.firstMessage !== s.title && !s.firstMessage.startsWith(s.title) ? (
-                <div className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary">
-                  {s.firstMessage}
+              {isChild ? null : s.forkedFromSessionFile ? (
+                <div
+                  className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary"
+                  title={`${t('common:sidebar.forkedFrom', { title: forkSourceTitle })}\n${s.forkedFromSessionFile}`}
+                >
+                  {t('common:sidebar.forkedFrom', { title: forkSourceTitle })}
                 </div>
               ) : (
+                // The title says what the conversation is (its name, or its first message); the
+                // second line is only its time, so a renamed row does not repeat the first message.
                 <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
                   {new Date(s.updatedAt).toLocaleString(undefined, {
                     month: 'short',
@@ -373,7 +402,7 @@ export function ProjectDiskRow({
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
-        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg px-0.5"
+        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg pl-0.5 pr-1"
       >
         <button
           type="button"

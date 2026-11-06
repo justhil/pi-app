@@ -1,8 +1,8 @@
 import { requestOpenInPane } from '@renderer/features/split/split-dnd'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Copy, FolderOpen, Pencil, Play, Trash2, Columns2 } from '@renderer/components/icons'
+import { ChevronRight, Copy, FolderOpen, GitFork, Pencil, Play, Trash2, Columns2 } from '@renderer/components/icons'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { workspacePathsEqual } from '@shared/workspace-path'
@@ -18,6 +18,7 @@ import {
 import { RenamePromptDialog } from './rename-prompt-dialog'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import type { SessionMenuTarget } from './session-context-menu-types'
+import { SessionForkSubmenu } from './session-fork-submenu'
 
 export type { SessionMenuTarget } from './session-context-menu-types'
 
@@ -44,7 +45,11 @@ export function SessionContextMenuPortal({
   // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
   const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
 
+  // Row box of the "Fork" item while its submenu is open.
+  const [forkAnchor, setForkAnchor] = useState<DOMRect | null>(null)
+
   useDismissContextMenu(!!menu, ref, onClose)
+  useEffect(() => setForkAnchor(null), [menu])
 
   const refreshList = (path?: string) => onSessionsChange(path)
 
@@ -126,12 +131,16 @@ export function SessionContextMenuPortal({
     <>
       {menu
         ? createPortal(
+            // One wrapper so outside-click dismissal treats the fork submenu as part of the menu.
+            <div ref={ref}>
             <div
-              ref={ref}
               className={contextMenuPanelClass}
               style={{ left: menu.x, top: menu.y }}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
+              onPointerOver={(e) => {
+                if (!(e.target as HTMLElement).closest('[data-fork-item]')) setForkAnchor(null)
+              }}
             >
               {menu.target.sessionFile &&
               selectSessionAttention(menu.target.sessionFile, useUIStore.getState().sessionAttention) !==
@@ -174,6 +183,25 @@ export function SessionContextMenuPortal({
                 >
                   <Columns2 className="h-3 w-3 shrink-0" strokeWidth={2} />
                   {t('common:split.openInPane')}
+                </button>
+              ) : null}
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  data-fork-item
+                  aria-haspopup="menu"
+                  aria-expanded={!!forkAnchor}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerEnter={(e) => setForkAnchor(e.currentTarget.getBoundingClientRect())}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setForkAnchor(e.currentTarget.getBoundingClientRect())
+                  }}
+                >
+                  <GitFork className="h-3 w-3 shrink-0" strokeWidth={2} />
+                  {t('common:sidebar.fork')}
+                  <ChevronRight className="ml-auto h-3 w-3 shrink-0 text-foreground-secondary" strokeWidth={2} />
                 </button>
               ) : null}
               {menu.target.sessionFile ? (
@@ -232,6 +260,15 @@ export function SessionContextMenuPortal({
                 <Trash2 className="h-3 w-3 shrink-0" strokeWidth={2} />
                 {t('common:sidebar.delete')}
               </button>
+            </div>
+            {forkAnchor && menu.target.sessionFile ? (
+              <SessionForkSubmenu
+                anchor={forkAnchor}
+                target={{ ...menu.target, sessionFile: menu.target.sessionFile }}
+                onDone={onClose}
+                onSessionsChange={refreshList}
+              />
+            ) : null}
             </div>,
             document.body,
           )

@@ -1,8 +1,10 @@
+import { fileURLToPath } from 'node:url'
 import { errorMessage } from '@shared/error-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
 import { applyPiSettingsPatch } from '../pi-settings-patch.js'
 import { piSettingsSnapshot, refreshSettingsManager } from '../pi-settings-snapshot.js'
+import { widenHttpConnectTimeout } from '../worker-http-connect.js'
 import { st } from '../worker-runtime.js'
 
 export async function handleGetpisettings(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
@@ -35,3 +37,16 @@ export async function handleSetpisettings(msg: WorkerIncomingMessage, reply: Wor
         return
 }
 
+/** Apply a saved connect timeout without touching settings.json; sent to every live worker. */
+export async function handleApplyhttpconnecttimeout(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+  // A worker still loading its SDK reads the saved value at the end of init.
+  if (st.sdk) {
+    try {
+      const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+      widenHttpConnectTimeout(entry, msg.timeoutMs)
+    } catch (e: unknown) {
+      console.warn('[Worker] Could not apply the HTTP connect timeout:', errorMessage(e))
+    }
+  }
+  reply({ type: 'applyHttpConnectTimeout-done', ok: true })
+}

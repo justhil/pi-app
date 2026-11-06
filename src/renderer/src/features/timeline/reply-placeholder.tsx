@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useViewRetryInfo } from '@renderer/features/composer/composer-retry-banner'
 import { ThinkingChainBlock } from './thinking-chain-block'
 
 /**
@@ -26,8 +27,10 @@ export function PixelWave({ className }: { className?: string }) {
 export function ReplyPlaceholder({ startedAt, labelSeed }: { startedAt?: number; labelSeed: string }) {
   const { t } = useTranslation()
   const stage = useUIStore((state) => (state.agentTurnBootstrapping ? state.pendingTurnStage : null))
-  const liveLabel =
-    stage === 'starting'
+  const retry = useViewRetryInfo()
+  const liveLabel = retry
+    ? t('timeline:pendingStage.retrying', { attempt: retry.attempt, max: retry.maxAttempts })
+    : stage === 'starting'
       ? t('timeline:pendingStage.starting')
       : stage === 'sending'
         ? t('timeline:pendingStage.sending')

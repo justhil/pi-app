@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import { preparePiCliEntry } from '../worker-cli-entry.js'
+import { widenHttpConnectTimeout } from '../worker-http-connect.js'
 import { errorMessage } from '@shared/error-message'
 import { normalizeUserMessageDisplayText } from '@shared/worker-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
@@ -38,14 +39,20 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
             sdkFallback = true
           }
           if (!st.sdk) throw new Error('SDK load failed')
+          let resolvedEntry: string | null = null
           try {
-            const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
-            await preparePiCliEntry(entry)
+            resolvedEntry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+            await preparePiCliEntry(resolvedEntry)
+            widenHttpConnectTimeout(resolvedEntry)
           } catch (e) {
             console.warn('[Worker] Could not resolve Pi CLI entry:', errorMessage(e))
           }
           if (!st.sharedEventBus) st.sharedEventBus = st.sdk.createEventBus()
           await initSession(String(msg.cwd || ''))
+          if (resolvedEntry) {
+            const globalCfg = (st.session?.settingsManager as { getGlobalSettings?: () => Record<string, unknown> } | undefined)?.getGlobalSettings?.()
+            widenHttpConnectTimeout(resolvedEntry, globalCfg?.httpConnectTimeoutMs)
+          }
           console.log('[Worker] Init done, sessionId:', st.currentSessionId)
           reply({ type: 'init-done', sessionId: st.currentSessionId, model: currentSessionModelKey(), thinkingLevel: st.session?.thinkingLevel, sdkFallback })
         } catch (e: unknown) {
@@ -77,6 +84,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
           beginRunIdentity()
           st.agentTurnActive = true
           st.promptPreflightActive = true
+          st.abortAfterPreflight = false
           emit({ ...baseEvent(), type: 'run', phase: 'started' })
         }
         reply({ type: 'prompt-done' })
@@ -90,6 +98,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
             await promptSession.prompt(promptText, merged)
             if (!alreadyStreaming && st.promptPreflightActive) {
               st.promptPreflightActive = false
+              st.abortAfterPreflight = false
               st.agentTurnActive = false
               emit({ ...baseEvent(), type: 'run', phase: 'idle' })
             }
@@ -107,6 +116,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
             const errText = errorMessage(e)
             if (st.promptPreflightActive) {
               st.promptPreflightActive = false
+              st.abortAfterPreflight = false
               st.agentTurnActive = false
               emit({
                 ...baseEvent(),
@@ -140,6 +150,9 @@ export async function handleAbort(msg: WorkerIncomingMessage, reply: WorkerReply
   }
   try {
     session.clearQueue()
+    // prompt() is still in preflight (input handlers, routing): pi has no run to abort yet and
+    // would start one right after. Abort that run as soon as it starts.
+    if (st.promptPreflightActive) st.abortAfterPreflight = true
     await session.abort()
     reply({ type: 'abort-done' })
   } catch (error: unknown) {
@@ -222,6 +235,7 @@ export async function handleDispose(msg: WorkerIncomingMessage, reply: WorkerRep
         }
         st.agentTurnActive = false
         st.promptPreflightActive = false
+        st.abortAfterPreflight = false
         if (st.unsubscribe) { st.unsubscribe(); st.unsubscribe = null }
         try {
           st.session?.dispose()

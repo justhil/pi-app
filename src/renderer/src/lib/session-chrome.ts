@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import { useEffect, useMemo, useState } from 'react'
+import { abortUiHoldRemainingMs, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
 import {
   composerTurnActive,
   type WorkerLiveSnapshot,
@@ -201,8 +201,11 @@ export function useSessionChrome(options?: {
   const optimisticPendingUserText = useUIStore((s) => s.optimisticPendingUserText)
   const sessionRuntimeRunning = useUIStore((s) => s.sessionRuntimeRunning)
   const agentTurnBootstrapping = useUIStore((s) => s.agentTurnBootstrapping)
+  // The abort hold is a timer, not store state: re-derive once it lapses, or the chrome
+  // stays on "stopping" until some unrelated store field happens to change.
+  const [holdEpoch, setHoldEpoch] = useState(0)
 
-  return useMemo(
+  const view = useMemo(
     () =>
       selectSessionChrome({
         historySessionFile,
@@ -233,6 +236,18 @@ export function useSessionChrome(options?: {
       extensionDialogOpen,
       compacting,
       retrying,
+      holdEpoch,
     ],
   )
+
+  useEffect(() => {
+    if (view.phase !== 'stopping') return
+    const timer = window.setTimeout(
+      () => setHoldEpoch((n) => n + 1),
+      abortUiHoldRemainingMs(historySessionFile) + 20,
+    )
+    return () => window.clearTimeout(timer)
+  }, [view, historySessionFile])
+
+  return view
 }

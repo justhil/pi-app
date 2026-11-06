@@ -19,6 +19,7 @@ import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
+import { resolveProjectDisplayName } from '@shared/workspace-path'
 import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-worker'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
@@ -58,6 +59,7 @@ import { TerminalDrawer, useTerminalShortcut } from '@renderer/features/terminal
 import { useBrowserHelpAttention } from '@renderer/features/browser/use-help-attention'
 import { HelpBar } from '@renderer/features/browser/help-bar'
 import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
+import type { ForkSource } from '@renderer/lib/session-fork'
 
 type View = 'main' | 'settings'
 
@@ -116,6 +118,7 @@ export default function App() {
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const terminalOpen = useTerminalStore((s) => s.open)
   const terminalHeight = useTerminalStore((s) => s.height)
   useTerminalShortcut()
@@ -123,6 +126,7 @@ export default function App() {
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
   const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
   const { treeOpen, setTreeOpen, forkOpen, setForkOpen } = useDoubleEscapeTree(canUseTree)
+  const [forkSource, setForkSource] = useState<ForkSource | undefined>()
 
   useEffect(() => {
     if (ephemeralSandboxDraft) {
@@ -135,7 +139,8 @@ export default function App() {
     }
     const norm = currentWorkspace.replace(/\\/g, '/')
     if (!norm.includes('sandbox-workspaces/')) {
-      setWorkspaceTitle(currentWorkspace.split(/[\\/]/).pop())
+      const fallback = currentWorkspace.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || currentWorkspace
+      setWorkspaceTitle(resolveProjectDisplayName(projectDisplayNames, currentWorkspace, fallback))
       return
     }
     ipcClient
@@ -145,12 +150,15 @@ export default function App() {
         setWorkspaceTitle(box?.label || t('common:sidebar.tempChat'))
       })
       .catch(() => setWorkspaceTitle(t('common:sidebar.tempChat')))
-  }, [currentWorkspace, ephemeralSandboxDraft, t])
+  }, [currentWorkspace, ephemeralSandboxDraft, projectDisplayNames, t])
 
   const projectName = workspaceTitle
 
   useEffect(() => {
-    const onOpenFork = () => setForkOpen(true)
+    const onOpenFork = (event: Event) => {
+      setForkSource((event as CustomEvent<{ source?: ForkSource } | undefined>).detail?.source)
+      setForkOpen(true)
+    }
     window.addEventListener('pi-desktop:open-fork-selector', onOpenFork)
     return () => window.removeEventListener('pi-desktop:open-fork-selector', onOpenFork)
   }, [setForkOpen])
@@ -275,6 +283,7 @@ export default function App() {
         store.setSessionRuntimeRunning,
         store.setCompactingSession,
       )
+      if (info.sessionFile) store.setRetryingSession(info.sessionFile, null)
     })
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)
@@ -470,7 +479,16 @@ export default function App() {
         {modelPickerOpen && <ModelPicker />}
         {thinkingPickerOpen && <ThinkingPicker />}
         {treeOpen && <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />}
-        {forkOpen && <SessionForkOverlay open={forkOpen} onClose={() => setForkOpen(false)} />}
+        {forkOpen && (
+          <SessionForkOverlay
+            open={forkOpen}
+            source={forkSource}
+            onClose={() => {
+              setForkOpen(false)
+              setForkSource(undefined)
+            }}
+          />
+        )}
       </Suspense>
     </ErrorBoundary>
   )

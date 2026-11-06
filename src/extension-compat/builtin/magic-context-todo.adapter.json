@@ -48,6 +48,17 @@
       "text": "content",
       "status": "status",
       "priority": "priority"
+    },
+    "textLines": {
+      "skip": ["^\\S+\\s+Todos\\s+—", "^\\+\\d+ more$"],
+      "strip": "^[├└│]─\\s*",
+      "status": {
+        "○": "pending",
+        "◐": "in_progress",
+        "✓": "completed",
+        "✗": "cancelled"
+      },
+      "id": "^#(\\S+)\\s+"
     }
   },
   "config": {

@@ -92,6 +92,14 @@ describe('pairing and authentication', () => {
     await expect(new NodeRemoteClient(generateKeyPair()).connect(o.endpoints[0], base64UrlDecode(o.hostPub), o.pairToken)).rejects.toMatchObject({ code: 'pair_expired' })
   })
 
+  it('loopback peers (a local frpc / ssh tunnel) are not locked out by failed handshakes', async () => {
+    const o = await offer()
+    for (let i = 0; i < 25; i++) {
+      await expect(new NodeRemoteClient(generateKeyPair()).connect(o.endpoints[0], base64UrlDecode(o.hostPub))).rejects.toBeInstanceOf(HandshakeError)
+    }
+    await pairNew()
+  })
+
   it('revoked devices are disconnected and refused', async () => {
     const c = await pairNew()
     expect(gw.revokeDevice(c.hello!.deviceId)).toBe(true)

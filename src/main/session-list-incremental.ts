@@ -18,7 +18,7 @@ import { join, resolve } from 'path'
 
 const FIRST_MESSAGE_MAX = 4000
 const CONCURRENCY = 8
-const CACHE_FILE = 'session-list-cache.v1.json'
+const CACHE_FILE = 'session-list-cache.v2.json'
 
 type FileState = {
   size: number
@@ -31,6 +31,8 @@ type FileState = {
   cwd?: string
   parentSessionPath?: string
   headerTimestamp?: string
+  /** Timestamp of the first entry after the header; fork/clone copies keep the source's timestamps. */
+  firstEntryTimestamp?: string
   name?: string
   messageCount: number
   firstMessage: string
@@ -43,6 +45,8 @@ export type IncrementalSessionRow = {
   cwd: string
   name?: string
   parentSessionPath?: string
+  /** The session was forked/cloned from `parentSessionPath` (not a subagent child of it). */
+  forked?: boolean
   created: Date
   modified: Date
   messageCount: number
@@ -131,6 +135,9 @@ function applyLine(state: FileState, line: string): void {
     return
   }
   if (!state.valid) return
+  if (state.firstEntryTimestamp === undefined && typeof entry.timestamp === 'string') {
+    state.firstEntryTimestamp = entry.timestamp
+  }
   if (entry.type === 'session_info') {
     state.name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : undefined
   }
@@ -197,6 +204,18 @@ async function refreshFile(path: string, known: FileState | undefined): Promise<
   return state
 }
 
+/**
+ * pi writes the same `parentSession` header for forks/clones and for subagent children. A fork
+ * copies the source branch with its original entry timestamps, so its first entry predates the
+ * header; a child session only has entries written after its header.
+ */
+function isForkedSession(state: FileState): boolean {
+  if (!state.parentSessionPath || !state.headerTimestamp || !state.firstEntryTimestamp) return false
+  const header = Date.parse(state.headerTimestamp)
+  const first = Date.parse(state.firstEntryTimestamp)
+  return !Number.isNaN(header) && !Number.isNaN(first) && first < header
+}
+
 function toRow(path: string, state: FileState): IncrementalSessionRow | null {
   if (!state.valid || !state.headerTimestamp) return null
   const headerTime = new Date(state.headerTimestamp).getTime()
@@ -212,6 +231,7 @@ function toRow(path: string, state: FileState): IncrementalSessionRow | null {
     cwd: state.cwd ?? '',
     name: state.name,
     parentSessionPath: state.parentSessionPath,
+    forked: isForkedSession(state),
     created: new Date(state.headerTimestamp),
     modified,
     messageCount: state.messageCount,

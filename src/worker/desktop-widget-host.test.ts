@@ -59,6 +59,18 @@ describe('desktop widget host', () => {
     api.dispose()
   })
 
+  it('reads a factory widget through the adapter textLines declaration', () => {
+    const { api, events } = host()
+    api.setWidget('magic-context-todos', () => ({
+      render: () => ['○ Todos — 0/2 completed · 1 in progress · 1 pending', '├─ ◐ #a Ship it', '└─ ○ #b Tell people'],
+    }))
+    expect(events.at(-1)?.state?.payload.items).toEqual([
+      { id: 'a', text: 'Ship it', status: 'in_progress' },
+      { id: 'b', text: 'Tell people', status: 'pending' },
+    ])
+    api.dispose()
+  })
+
   it('lets structured tool state win over widget text lines', () => {
     const { api, events } = host()
     api.setWidget('pi-deck-todo', ['visible only'])

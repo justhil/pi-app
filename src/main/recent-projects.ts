@@ -1,3 +1,5 @@
+import { workspacePathsEqual } from '@shared/workspace-path'
+
 /** 项目 MRU 列表上限（与 config-store 历史行为一致）。 */
 export const RECENT_PROJECTS_CAP = 10
 
@@ -8,10 +10,10 @@ export const RECENT_PROJECTS_CAP = 10
  */
 export function nextRecentProjects(recent: string[], path: string, fixedOrder: boolean): string[] {
   if (fixedOrder) {
-    if (recent.includes(path)) return recent
+    if (recent.some((p) => workspacePathsEqual(p, path))) return recent
     return [...recent, path].slice(-RECENT_PROJECTS_CAP)
   }
-  const next = recent.filter((p) => p !== path)
+  const next = recent.filter((p) => !workspacePathsEqual(p, path))
   next.unshift(path)
   return next.slice(0, RECENT_PROJECTS_CAP)
 }

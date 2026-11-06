@@ -56,6 +56,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'getState': Catalog.handleGetstate,
   'getPiSettings': PiSettings.handleGetpisettings,
   'setPiSettings': PiSettings.handleSetpisettings,
+  'applyHttpConnectTimeout': PiSettings.handleApplyhttpconnecttimeout,
 }
 
 export async function handleWorkerPortMessage(

@@ -22,6 +22,7 @@ import { sessionPreviewProcess } from '../../session-preview-process'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import type { SessionOnDiskRow } from '../sdk-session'
+import { sessionPreviewText } from '@shared/session-preview-text'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
@@ -61,23 +62,28 @@ export function registerSessionHandlers(): void {
       return runtime.mode === 'wsl' && !!runtime.distro
         && workspacePathsEqual(wslPathToWindows(runtime.distro, s.cwd), workspaceId)
     })
-    const formatted = ownedSessions.map((s: SessionOnDiskRow) => ({
-      sessionId: s.id,
-      sessionFile: s.path,
-      parentSessionFile: s.parentSessionPath,
-      workspaceId,
-      title: resolveSessionListTitle(
-        s.path,
-        s.firstMessage?.slice(0, 60) || s.id.slice(0, 8),
-        s.name,
-      ),
-      firstMessage: s.firstMessage?.slice(0, 120) || '',
-      createdAt: timeMs(s.created),
-      updatedAt: timeMs(s.modified),
-      messageCount: s.messageCount || 0,
-      modelId: '',
-      status: 'idle' as const,
-    }))
+    const formatted = ownedSessions.map((s: SessionOnDiskRow) => {
+      const preview = sessionPreviewText(s.firstMessage || '')
+      return {
+        sessionId: s.id,
+        sessionFile: s.path,
+        // Forks list flat with a "forked from" note; only subagent children nest under a parent.
+        parentSessionFile: s.forked ? undefined : s.parentSessionPath,
+        forkedFromSessionFile: s.forked ? s.parentSessionPath : undefined,
+        workspaceId,
+        title: resolveSessionListTitle(
+          s.path,
+          preview.slice(0, 60) || s.id.slice(0, 8),
+          s.name,
+        ),
+        firstMessage: preview.slice(0, 120),
+        createdAt: timeMs(s.created),
+        updatedAt: timeMs(s.modified),
+        messageCount: s.messageCount || 0,
+        modelId: '',
+        status: 'idle' as const,
+      }
+    })
     return { sessions: formatted }
   })
 
@@ -601,14 +607,54 @@ export function registerSessionHandlers(): void {
   registerHandler('ipc:project.removeRecent', async (req) => {
     const path = (req.path as string | undefined)?.trim()
     if (!path) return { ok: false, error: 'missing path' }
-    configStore.removeRecentProject(path)
+    const isRepositoryGroup = req.isRepositoryGroup === true
+    const groupPaths = Array.isArray(req.groupPaths)
+      ? (req.groupPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
+      : []
+    const siblingPaths = Array.isArray(req.siblingPaths)
+      ? (req.siblingPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
+      : []
+    const removedPaths = isRepositoryGroup ? [path, ...groupPaths] : [path]
+    for (const target of removedPaths) {
+      configStore.removeRecentProject(target)
+      if (!isRepositoryGroup && typeof configStore.hideWorktree === 'function') {
+        configStore.hideWorktree(target)
+      }
+    }
+    if (!isRepositoryGroup && siblingPaths.length > 0) {
+      const recentAfter = configStore.get('recentProjects') || []
+      const hasSiblingInRecent = siblingPaths.some((sib) =>
+        recentAfter.some((r) => workspacePathsEqual(r, sib)),
+      )
+      if (!hasSiblingInRecent) {
+        configStore.addRecentProject(siblingPaths[0])
+      }
+    }
     const cur = configStore.get('currentProject')
-    if (cur === path) {
+    if (cur && removedPaths.some((target) => workspacePathsEqual(cur, target))) {
       const recent = configStore.get('recentProjects') || []
-      const next = recent.find((p) => p && p !== path) || null
+      const next = recent.find((p) => p && !removedPaths.some((target) => workspacePathsEqual(p, target))) || null
       configStore.set('currentProject', next)
     }
-    return { ok: true, currentProject: configStore.get('currentProject') }
+    return {
+      ok: true,
+      currentProject: configStore.get('currentProject'),
+      recentProjects: configStore.get('recentProjects') || [],
+    }
+  })
+
+  registerHandler('ipc:project.rename', async (req) => {
+    const path = (req.path as string | undefined)?.trim()
+    if (!path) return { ok: false, error: 'missing path' }
+    const name = typeof req.name === 'string' ? req.name.trim() : ''
+    const isRepositoryGroup = req.isRepositoryGroup === true
+    if (typeof configStore.setProjectDisplayName === 'function') {
+      configStore.setProjectDisplayName(path, name, isRepositoryGroup)
+    }
+    return {
+      ok: true,
+      projectDisplayNames: configStore.get('projectDisplayNames') || {},
+    }
   })
 
   registerHandlerWithSchema('ipc:session.compact', sessionCompactSchema, async (req) => {

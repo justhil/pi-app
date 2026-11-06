@@ -432,6 +432,8 @@
     "followUpModeDesc": "排在当前任务之后的消息怎么送达。",
     "transport": "传输方式",
     "transportDesc": "供应商支持多种连接时优先用哪种。",
+    "httpConnectTimeout": "HTTP 连接超时",
+    "httpConnectTimeoutDesc": "首次建连（含 DNS 与 TLS 握手）毫秒数，默认 30000；填 0 也按默认值。",
     "httpIdleTimeout": "请求空闲超时",
     "httpIdleTimeoutDesc": "毫秒，0 为不限。",
     "autoCompaction": "自动压缩",

@@ -81,6 +81,29 @@ export function NotificationInbox() {
     [load],
   )
 
+  // Opening a conversation (or returning to the window on it) reads its rows in Main; pick that
+  // up right away. The short delay lets session.setVisible land first.
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const seenSessionFile = useRef(historySessionFile)
+  useEffect(() => {
+    let timer = 0
+    const refresh = () => {
+      window.clearTimeout(timer)
+      if (document.visibilityState === 'hidden') return
+      timer = window.setTimeout(() => void load(), 300)
+    }
+    // Mount is covered by the poll's first load; only a real switch needs the extra refresh.
+    if (seenSessionFile.current !== historySessionFile) {
+      seenSessionFile.current = historySessionFile
+      refresh()
+    }
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [historySessionFile, load])
+
   useEffect(() => {
     if (!loading && !loadFailed) void ipcClient.invoke('desktop.setBadge', { count: unread }).catch(() => {})
   }, [unread, loading, loadFailed])

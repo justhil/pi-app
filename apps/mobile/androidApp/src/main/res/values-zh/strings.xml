@@ -19,6 +19,10 @@
     <string name="hosts_address_invalid">请填写 主机:端口，主机须为局域网或组网地址（10.x、192.168.x、100.64–127.x、*.ts.net）。</string>
     <string name="hosts_address_auto">来自电脑</string>
     <string name="hosts_address_mine">手动添加</string>
+    <string name="hosts_address_public">公网</string>
+    <string name="hosts_address_allow_public">公网地址（frp / 端口转发）</string>
+    <string name="hosts_address_public_note">可以填任意 IP 或域名。连接仍是端到端加密，但端口会暴露在公网上：请先在家里扫码配对，再在这里添加地址。</string>
+    <string name="hosts_address_invalid_public">请填写 主机:端口，例如 203.0.113.7:7000 或 pi.example.com:7000。</string>
     <string name="hosts_scan_prompt">扫描电脑上显示的二维码</string>
     <string name="pair_err_unreachable">连不上电脑。确认手机和电脑在同一个网络，并且电脑上已开启手机连接。</string>
     <string name="pair_err_pair_expired">二维码已过期，请在电脑上重新生成。</string>

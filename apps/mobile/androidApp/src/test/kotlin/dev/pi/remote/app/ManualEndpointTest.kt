@@ -20,6 +20,23 @@ class ManualEndpointTest {
         assertNull(manualEndpoint(""))
     }
 
+    @Test fun acceptsPublicHostsOnlyWhenOptedIn() {
+        assertEquals("ws://203.0.113.7:7000", manualEndpoint("203.0.113.7:7000", allowPublic = true))
+        assertEquals("ws://pi.example.com:7000", manualEndpoint("ws://pi.example.com:7000/", allowPublic = true))
+        assertEquals("ws://[2001:db8::1]:7000", manualEndpoint("[2001:db8::1]:7000", allowPublic = true))
+        assertEquals("ws://192.168.1.5:47900", manualEndpoint("192.168.1.5:47900", allowPublic = true))
+        assertNull(manualEndpoint("203.0.113.7:7000"))
+    }
+
+    @Test fun publicOptInStillNeedsHostAndPort() {
+        assertNull(manualEndpoint("pi.example.com", allowPublic = true))
+        assertNull(manualEndpoint("pi.example.com:0", allowPublic = true))
+        assertNull(manualEndpoint("pi.example.com:70000", allowPublic = true))
+        assertNull(manualEndpoint("pi example.com:7000", allowPublic = true))
+        assertNull(manualEndpoint("http://pi.example.com:7000", allowPublic = true))
+        assertNull(manualEndpoint("pi.example.com:7000/ws", allowPublic = true))
+    }
+
     @Test fun manualAddressesAreProbedAfterKnownOnes() {
         val h = SavedHost("h", "pc", "k", listOf("ws://192.168.1.5:1", "ws://10.0.0.2:1"), "d", "operator", manualEndpoints = listOf("ws://100.101.1.2:1", "ws://10.0.0.2:1"))
         assertEquals(listOf("ws://192.168.1.5:1", "ws://10.0.0.2:1", "ws://100.101.1.2:1"), h.allEndpoints)

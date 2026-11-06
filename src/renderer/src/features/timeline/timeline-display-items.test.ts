@@ -43,6 +43,19 @@ describe('isActivitySegmentSealed', () => {
     expect(isActivitySegmentSealed(items, 1)).toBe(true)
     expect(isActivitySegmentSealed([tool('t1', 'read')], 1)).toBe(false)
   })
+
+  it('seals before an auto-compaction notice', () => {
+    const compaction: TimelineRawItem = { id: 'c1', type: 'compaction', text: 'summary', timestamp: 1 }
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'go'),
+      tool('t1', 'read'),
+      tool('t2', 'bash'),
+      compaction,
+      tool('t3', 'edit'),
+      assistant('a1', 'done'),
+    ])
+    expect(blocks.map((block) => block.kind)).toEqual(['single', 'tool-group', 'single', 'tool-group', 'single'])
+  })
 })
 
 describe('buildTimelineDisplayItems — flat until prose seals', () => {

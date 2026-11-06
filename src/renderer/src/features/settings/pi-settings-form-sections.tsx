@@ -130,6 +130,16 @@ export function PiSettingsFormSections({
             <option value="websocket-cached">{t('settings:pi.transportWsCached')}</option>
           </select>
         </SettingRow>
+        <SettingRow label={t('settings:pi.httpConnectTimeout')} description={t('settings:pi.httpConnectTimeoutDesc')} settingKey="httpConnectTimeoutMs">
+          <NumberField
+            value={ui?.httpConnectTimeoutMs}
+            fallback={30000}
+            epochKey={`httpConnect-${formEpoch}`}
+            step={1000}
+            disabled={!ui}
+            onCommit={(n) => queuePatch({ httpConnectTimeoutMs: n })}
+          />
+        </SettingRow>
         <SettingRow label={t('settings:pi.httpIdleTimeout')} description={t('settings:pi.httpIdleTimeoutDesc')} settingKey="httpIdleTimeoutMs">
           <NumberField
             value={ui?.httpIdleTimeoutMs}

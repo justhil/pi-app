@@ -157,6 +157,9 @@ export async function applyPiSettingsPatch(
     )
   }
   if (patch.httpIdleTimeoutMs !== undefined) sm.setHttpIdleTimeoutMs(Number(patch.httpIdleTimeoutMs))
+  if (patch.httpConnectTimeoutMs !== undefined) {
+    setRawGlobalSetting(sm, 'httpConnectTimeoutMs', nonNegativeInt(patch.httpConnectTimeoutMs, 'httpConnectTimeoutMs'))
+  }
   if (patch.modelThinkingLevels !== undefined) {
     setModelThinkingLevels(sm, normalizeModelThinkingLevels(patch.modelThinkingLevels))
   }

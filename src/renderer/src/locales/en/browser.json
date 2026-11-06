@@ -16,7 +16,8 @@
     "closeTab": "Close tab",
     "tabs": "Tabs",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "more": "More"
   },
   "tab": {
     "untitled": "New tab",

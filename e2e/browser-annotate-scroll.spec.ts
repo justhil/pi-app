@@ -103,11 +103,14 @@ test('annotation mode scrolls without stalling', async () => {
     // Leave annotation mode; open a second tab, then close tabs with the middle button.
     await win.keyboard.press('Escape')
     await win.getByRole('button', { name: /Exit|退出/ }).first().click().catch(() => {})
-    await win.getByRole('button', { name: /New tab|新标签/ }).first().click()
+    // A single tab has no strip; "New tab" lives in the toolbar's more menu until a second exists.
     const tabs = win.locator('[data-browser-tab]')
+    await expect(tabs).toHaveCount(0)
+    await win.getByRole('button', { name: /^(More|更多)$/ }).click()
+    await win.getByRole('menuitem', { name: /New tab|新标签/ }).click()
     await expect(tabs).toHaveCount(2)
     await tabs.nth(1).click({ button: 'middle' })
-    await expect(tabs).toHaveCount(1)
+    await expect(tabs).toHaveCount(0)
     await expect(win.getByRole('combobox', { name: /Address bar|地址栏/ })).toHaveValue(/127\.0\.0\.1/)
 
     // Right panel tab strip: vertical wheel over it scrolls it sideways, not the page.

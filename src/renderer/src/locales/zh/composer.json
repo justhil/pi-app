@@ -114,6 +114,14 @@
   "queueTitle": "{{count}} 条排队",
   "queueAria": "待发送队列，共 {{count}} 条",
   "compactionActiveHint": "正在压缩上下文… 可继续发送，消息将自动排队并在压缩完成后执行",
+  "retry": {
+    "reasonTimeout": "模型请求超时",
+    "reasonConnection": "连接模型失败",
+    "reasonStatus": "模型服务返回 {{status}}",
+    "reasonUnknown": "模型请求失败",
+    "waiting": "{{seconds}} 秒后自动重试（第 {{attempt}}/{{max}} 次）",
+    "running": "正在自动重试（第 {{attempt}}/{{max}} 次）"
+  },
   "subagents": {
     "title": "Subagents",
     "working": "{{count}} 个运行中",

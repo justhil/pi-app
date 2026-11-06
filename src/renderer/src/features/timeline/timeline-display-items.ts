@@ -117,7 +117,8 @@ function findAgentClusterEnd(items: TimelineRawItem[], start: number): number | 
 }
 
 /**
- * Segment is sealed only when the next visible item is assistant prose.
+ * Segment is sealed when the next visible item is assistant prose, or a compaction notice
+ * (auto-compaction mid-run cuts the segment; the tools before it never get prose of their own).
  * Until then, tools stay flat (no summary hierarchy).
  */
 export function isActivitySegmentSealed(
@@ -125,7 +126,8 @@ export function isActivitySegmentSealed(
   clusterEnd: number,
 ): boolean {
   if (clusterEnd >= items.length) return false
-  return isAssistantWithProse(items[clusterEnd])
+  const next = items[clusterEnd]
+  return isAssistantWithProse(next) || next.type === 'compaction'
 }
 
 function toolPhaseIsLive(item: TimelineRawItem): boolean {

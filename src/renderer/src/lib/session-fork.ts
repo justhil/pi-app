@@ -7,6 +7,11 @@ import { openSessionIntoWorker } from '@renderer/lib/open-session'
 import { composerTurnActive } from '@renderer/lib/session-worker-sync'
 import { workspacePathsEqual } from '@shared/workspace-path'
 import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
+import { selectSessionAttention } from '@renderer/lib/session-attention'
+import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+
+/** A session picked outside the timeline (sidebar menu); defaults to the open session. */
+export type ForkSource = { sessionFile: string; workspacePath: string }
 
 function resolveSourceSessionFile(): string | null {
   const store = useUIStore.getState()
@@ -16,7 +21,19 @@ function resolveSourceSessionFile(): string | null {
   return fromSessions || null
 }
 
-function assertIdleForBranchAction(): boolean {
+function isCurrentSource(source: ForkSource | undefined): boolean {
+  return !source || sessionFilesEqual(source.sessionFile, resolveSourceSessionFile())
+}
+
+function assertIdleForBranchAction(source?: ForkSource): boolean {
+  if (!isCurrentSource(source)) {
+    // Another session: the sidebar's attention state is the only run signal we have for it.
+    if (selectSessionAttention(source!.sessionFile, useUIStore.getState().sessionAttention) !== 'working') return true
+    toast.warning(i18n.t('composer:toast.sessionBusyBranch', {
+      defaultValue: 'Agent 运行中，请先停止后再 Fork / Clone / 跳转',
+    }))
+    return false
+  }
   if (isCurrentSubagentSessionPreview()) {
     toast.warning(i18n.t('composer:toast.subagentPreviewReadOnly'))
     return false
@@ -40,7 +57,7 @@ async function refreshSidebarAndOpen(
   workspaceId: string,
   sessionId: string,
   sessionFile: string | undefined,
-  opts?: { editorText?: string | null },
+  opts?: { editorText?: string | null; startWorkspace?: string | null },
 ): Promise<void> {
   const store = useUIStore.getState()
   if (workspaceId) {
@@ -66,8 +83,17 @@ async function refreshSidebarAndOpen(
     }
   }
 
-  if (!workspacePathsEqual(useUIStore.getState().currentWorkspace, workspaceId)) return
-  await openSessionIntoWorker(sessionId, sessionFile)
+  const currentWorkspace = useUIStore.getState().currentWorkspace
+  // The user moved to another project while this ran: leave the result in its own project.
+  if (!workspacePathsEqual(currentWorkspace, opts?.startWorkspace ?? workspaceId)) return
+  if (!workspacePathsEqual(currentWorkspace, workspaceId)) {
+    // Sidebar menu on another project's session: open the result there.
+    const { activateWorkspace } = await import('@renderer/lib/activate-workspace')
+    await activateWorkspace(workspaceId, { sessionId, sessionFile })
+    if (!workspacePathsEqual(useUIStore.getState().currentWorkspace, workspaceId)) return
+  } else {
+    await openSessionIntoWorker(sessionId, sessionFile)
+  }
   if (opts?.editorText != null && opts.editorText.length > 0) {
     useUIStore.getState().setComposerPrefill(opts.editorText)
   } else {
@@ -79,9 +105,9 @@ async function refreshSidebarAndOpen(
 /**
  * TUI /fork: new session file from a user entry; auto-switch + prefill prompt text.
  */
-export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
-  if (!assertIdleForBranchAction()) return false
-  const sessionFile = resolveSourceSessionFile()
+export async function forkSessionFromEntry(entryId: string, source?: ForkSource): Promise<boolean> {
+  if (!assertIdleForBranchAction(source)) return false
+  const sessionFile = source?.sessionFile || resolveSourceSessionFile()
   if (!sessionFile) {
     toast.warning(i18n.t('composer:toast.needSessionFile', { defaultValue: '未找到会话文件' }))
     return false
@@ -91,7 +117,8 @@ export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
     return false
   }
 
-  const workspaceId = useUIStore.getState().currentWorkspace || ''
+  const startWorkspace = useUIStore.getState().currentWorkspace
+  const workspaceId = source?.workspacePath || startWorkspace || ''
   try {
     const res = (await ipcClient.invoke('session.fork', {
       sessionFile,
@@ -132,6 +159,7 @@ export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
 
     await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, {
       editorText: typeof res.editorText === 'string' ? res.editorText : '',
+      startWorkspace,
     })
     toast.success(
       res.editorText
@@ -149,15 +177,16 @@ export async function forkSessionFromEntry(entryId: string): Promise<boolean> {
 }
 
 /** TUI /clone: duplicate active branch into a new session file; empty composer. */
-export async function cloneCurrentSession(): Promise<boolean> {
-  if (!assertIdleForBranchAction()) return false
-  const sessionFile = resolveSourceSessionFile()
+export async function cloneCurrentSession(source?: ForkSource): Promise<boolean> {
+  if (!assertIdleForBranchAction(source)) return false
+  const sessionFile = source?.sessionFile || resolveSourceSessionFile()
   if (!sessionFile) {
     toast.warning(i18n.t('composer:toast.needSessionFile', { defaultValue: '未找到会话文件' }))
     return false
   }
 
-  const workspaceId = useUIStore.getState().currentWorkspace || ''
+  const startWorkspace = useUIStore.getState().currentWorkspace
+  const workspaceId = source?.workspacePath || startWorkspace || ''
   try {
     const res = (await ipcClient.invoke('session.clone', {
       sessionFile,
@@ -197,7 +226,7 @@ export async function cloneCurrentSession(): Promise<boolean> {
       return false
     }
 
-    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null })
+    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null, startWorkspace })
     toast.success(i18n.t('composer:toast.cloned', { defaultValue: '已 Clone 到新会话' }))
     return true
   } catch (e: unknown) {
@@ -207,9 +236,9 @@ export async function cloneCurrentSession(): Promise<boolean> {
   }
 }
 
-export async function loadForkCandidates(): Promise<Array<{ entryId: string; text: string }>> {
-  if (isCurrentSubagentSessionPreview()) return []
-  const sessionFile = resolveSourceSessionFile()
+export async function loadForkCandidates(source?: ForkSource): Promise<Array<{ entryId: string; text: string }>> {
+  if (isCurrentSource(source) && isCurrentSubagentSessionPreview()) return []
+  const sessionFile = source?.sessionFile || resolveSourceSessionFile()
   if (!sessionFile) return []
   try {
     const res = (await ipcClient.invoke('session.forkCandidates', { sessionFile })) as {

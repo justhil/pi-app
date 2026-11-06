@@ -1,4 +1,5 @@
 import { ArchiveIcon as P0 } from '@phosphor-icons/react/dist/csr/Archive'
+import { DotsThreeIcon as PMoreH } from '@phosphor-icons/react/dist/csr/DotsThree'
 import { ArrowBendDownLeftIcon as P1 } from '@phosphor-icons/react/dist/csr/ArrowBendDownLeft'
 import { ArrowClockwiseIcon as P2 } from '@phosphor-icons/react/dist/csr/ArrowClockwise'
 import { ArrowCounterClockwiseIcon as P3 } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise'
@@ -187,6 +188,7 @@ export const phosphorIcons = {
   'message-circle-question': P18,
   'message-square': P16,
   'message-square-plus': P17,
+  'more-horizontal': PMoreH,
   'message-square-text': P19,
   'messages-square': P20,
   'mic': P66,

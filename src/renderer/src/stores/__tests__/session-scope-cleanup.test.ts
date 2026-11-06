@@ -59,4 +59,17 @@ describe('session-scope cleanup', () => {
     expect(s.sessionStates[draftKey]).toBeUndefined()
     expect(s.sessionStates[sessionKeyOf(FILE_A)]?.timelineItems.map((i) => i.id)).toEqual(['d'])
   })
+
+  it('promoteViewSession keeps a widget the new session published while it was created', () => {
+    useUIStore.setState({ historySessionFile: null, pendingNewSessionPlaceholder: true })
+    const widget = {
+      adapterId: 'a', widgetKey: 'k', protocol: 'todo-list-v1' as const, title: 'Todo',
+      payload: { items: [{ id: '1', text: 'From session_start', status: 'pending' as const }] }, updatedAt: 1,
+    }
+    // The background event for the not-yet-visible session lands in its own entry.
+    sessionStoreApi(sessionKeyOf(FILE_A), nextId).get().setComposerWidget(widget)
+
+    useUIStore.getState().promoteViewSession({ sessionId: 's1', sessionFile: FILE_A })
+    expect(useUIStore.getState().composerWidget).toEqual(widget)
+  })
 })

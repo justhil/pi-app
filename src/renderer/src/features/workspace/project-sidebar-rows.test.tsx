@@ -90,6 +90,26 @@ describe('ProjectSessionTree subagent rows', () => {
     expectCollapsedChild('Finished review')
   })
 
+  it('lists forks flat with their source instead of nesting them like subagents', () => {
+    useUIStore.setState({ historySessionFile: null, subagentSessionGroup: null })
+    const onSessionContextMenu = vi.fn()
+    render(<ProjectSessionTree
+      workspacePath="/workspace" loading={false} currentWorkspace="/workspace" currentSessionId={null}
+      onSessionContextMenu={onSessionContextMenu} projectSessions={[
+        { sessionId: 'fork', sessionFile: '/sessions/fork.jsonl', forkedFromSessionFile: '/sessions/parent.jsonl', title: 'Retry idea', updatedAt: 2, modelId: '' },
+        { sessionId: 'parent', sessionFile: '/sessions/parent.jsonl', title: 'Parent', updatedAt: 1, modelId: '' },
+      ]}
+    />)
+    expect(screen.queryByRole('button', { name: 'Toggle subagents for Parent' })).not.toBeInTheDocument()
+    expect(screen.getByText('Forked from: Parent')).toBeInTheDocument()
+    expect(screen.getByLabelText('Forked conversation')).toBeInTheDocument()
+    fireEvent.contextMenu(screen.getByText('Parent'))
+    expect(onSessionContextMenu.mock.calls[0][1]).toMatchObject({
+      sessionFile: '/sessions/parent.jsonl',
+      forks: [{ sessionId: 'fork', sessionFile: '/sessions/fork.jsonl', title: 'Retry idea' }],
+    })
+  })
+
   it('preserves ancestors while searching persisted children and resets search-only expansion', () => {
     useUIStore.setState({ historySessionFile: null, subagentSessionGroup: null })
     const props = {

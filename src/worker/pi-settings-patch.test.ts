@@ -66,12 +66,14 @@ describe('applyPiSettingsPatch newer pi keys', () => {
       retryMaxAgentDelayMs: 30000,
       retryMaxRetries: 5,
       cacheWarming: 'idle',
+      httpConnectTimeoutMs: 45000,
       websocketConnectTimeoutMs: 8000,
     })
     expect(sm.globalSettings).toMatchObject({
       modelThinkingLevels: { 'openai/gpt-6': 'max' },
       retry: { maxAgentDelayMs: 30000, maxRetries: 5 },
       cacheWarming: 'idle',
+      httpConnectTimeoutMs: 45000,
       websocketConnectTimeoutMs: 8000,
     })
     expect(sm.markModified).toHaveBeenCalledWith('modelThinkingLevels')

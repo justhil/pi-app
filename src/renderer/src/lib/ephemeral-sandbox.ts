@@ -3,9 +3,10 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { selectViewSession } from '@renderer/stores/session-state'
 import { materializePendingNewSession } from '@renderer/lib/new-session'
 import { beginSessionNavigation, getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
+import { sessionPreviewText } from '@shared/session-preview-text'
 
 export function titleFromFirstMessage(text: string, maxLen = 48): string {
-  const one = text.replace(/\s+/g, ' ').trim()
+  const one = sessionPreviewText(text).trim()
   if (!one) return 'New chat'
   return one.length > maxLen ? `${one.slice(0, maxLen)}…` : one
 }

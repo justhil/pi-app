@@ -104,9 +104,21 @@ object Pairing {
     }
 
     /** `ws://host:port` with a private host. */
-    fun isAllowedEndpoint(endpoint: String): Boolean {
-        val m = Regex("^ws://(\\[[^\\]]+]|[^:/]+):(\\d{1,5})/?$").matchEntire(endpoint) ?: return false
-        val port = m.groupValues[2].toInt()
-        return port in 1..65535 && isPrivateHost(m.groupValues[1])
+    fun isAllowedEndpoint(endpoint: String): Boolean = endpointHost(endpoint)?.let(::isPrivateHost) ?: false
+
+    /**
+     * `ws://host:port` with any IP or DNS name. Only for addresses the user typed and marked as public
+     * (frp, port forwarding); pair links stay private-only. The channel is still end-to-end encrypted.
+     */
+    fun isPublicEndpoint(endpoint: String): Boolean {
+        val host = endpointHost(endpoint) ?: return false
+        return ipv4(host) != null || host.startsWith("[") || dnsName.matches(host)
+    }
+
+    private val dnsName = Regex("^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.?$")
+
+    private fun endpointHost(endpoint: String): String? {
+        val m = Regex("^ws://(\\[[^\\]]+]|[^:/]+):(\\d{1,5})/?$").matchEntire(endpoint) ?: return null
+        return m.groupValues[1].takeIf { m.groupValues[2].toInt() in 1..65535 }
     }
 }

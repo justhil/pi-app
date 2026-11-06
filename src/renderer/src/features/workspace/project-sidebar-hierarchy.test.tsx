@@ -28,7 +28,7 @@ beforeEach(() => {
   mocks.invoke.mockReset()
   mocks.activate.mockReset()
   failSessions = false
-  useUIStore.setState({ currentWorkspace: '/copies/feature', recentProjects: [], sessions: [], sessionsWorkspace: null,
+  useUIStore.setState({ currentWorkspace: '/copies/feature', recentProjects: [], projectDisplayNames: {}, sessions: [], sessionsWorkspace: null,
     currentSessionId: null, historySessionFile: null, timelineItems: [], subagentSessionGroup: null,
     sessionAttention: {}, sidebarCollapsed: false, ephemeralSandboxDraft: false,
   })
@@ -165,5 +165,65 @@ describe('repository / checkout / session sidebar', () => {
     await act(async () => { useUIStore.getState().setWorkspace('/repo') })
     await waitFor(() => expect(container.querySelector('[data-workspace="/repo"] [aria-current="location"]')).toBeTruthy())
     expect(screen.queryByText('/copies/feature question')).toBeNull()
+  })
+
+  it('renames a checkout or repository group from the project context menu', async () => {
+    const { container } = sidebar()
+    await screen.findByText('/copies/feature question')
+    const mainRow = container.querySelector('[data-workspace="/repo"]')!
+    fireEvent.contextMenu(mainRow)
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename' }))
+    const dialog = await screen.findByRole('dialog')
+    const input = within(dialog).getByRole('textbox')
+    expect(input).toHaveValue('Main checkout')
+    fireEvent.change(input, { target: { value: 'Primary Workspace' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'OK' }))
+    await waitFor(() => expect(within(mainRow as HTMLElement).getByText('Primary Workspace')).toBeTruthy())
+    expect(mocks.invoke).toHaveBeenCalledWith('project.rename', {
+      path: '/repo',
+      name: 'Primary Workspace',
+      isRepositoryGroup: undefined,
+    })
+  })
+
+  it('creates a new worktree and deletes a secondary worktree from the context menu', async () => {
+    const invoke = mocks.invoke.getMockImplementation()!
+    mocks.invoke.mockImplementation(async (method, req) => {
+      if (method === 'desktop.createGitWorktree') {
+        return { ok: true, path: '/repo.worktrees/feat-x', branch: 'feat/x' }
+      }
+      if (method === 'desktop.removeGitWorktree') {
+        return { ok: true, repositoryPath: '/repo', currentProject: '/repo', recentProjects: ['/repo'] }
+      }
+      return invoke(method, req)
+    })
+    const { container } = sidebar()
+    await screen.findByText('/copies/feature question')
+    const mainRow = container.querySelector('[data-workspace="/repo"]')!
+    fireEvent.contextMenu(mainRow)
+    expect(screen.queryByRole('button', { name: 'Delete worktree' })).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'New worktree…' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'feat/x' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'OK' }))
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith('desktop.createGitWorktree', {
+        workspaceId: '/repo',
+        branch: 'feat/x',
+      }),
+    )
+    expect(mocks.activate).toHaveBeenCalledWith('/repo.worktrees/feat-x', { preferHome: true })
+
+    const secondaryRow = container.querySelector('[data-workspace="/copies/feature"]')!
+    fireEvent.contextMenu(secondaryRow)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete worktree' }))
+    const confirmDialog = await screen.findByRole('dialog')
+    fireEvent.click(within(confirmDialog).getByRole('button', { name: 'OK' }))
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith('desktop.removeGitWorktree', {
+        workspaceId: '/repo',
+        worktreePath: '/copies/feature',
+      }),
+    )
   })
 })

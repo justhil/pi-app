@@ -38,6 +38,8 @@ function pushAssistantItem(
     timestamp: number
     sessionEntryId?: string
     stopReason?: string
+    /** Provider error of a failed reply (e.g. "Request timed out."), shown instead of a bare "incomplete". */
+    errorMessage?: string
     /** Same assistant message also emitted toolCall blocks — not a crash leaf. */
     hasToolCalls?: boolean
   },
@@ -56,7 +58,11 @@ function pushAssistantItem(
     timestamp: opts.timestamp,
     ...(opts.sessionEntryId ? { sessionEntryId: opts.sessionEntryId } : {}),
     ...(incomplete
-      ? { incomplete: true, stopReason: opts.stopReason || 'interrupted' }
+      ? {
+          incomplete: true,
+          stopReason: opts.stopReason || 'interrupted',
+          ...(opts.stopReason === 'error' && opts.errorMessage?.trim() ? { errorMessage: opts.errorMessage.trim() } : {}),
+        }
       : opts.stopReason
         ? { stopReason: opts.stopReason }
         : {}),
@@ -86,6 +92,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
         thinkingText,
         timestamp: ts,
         stopReason: pm.stopReason,
+        errorMessage: (pm as { errorMessage?: string }).errorMessage,
         hasToolCalls: toolCalls.length > 0,
       })
       for (const c of toolCalls) {
@@ -223,6 +230,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
         timestamp: ts,
         sessionEntryId: sid,
         stopReason: m.stopReason,
+        errorMessage: (m as { errorMessage?: string }).errorMessage,
         hasToolCalls: toolCalls.length > 0,
       })
       for (const c of toolCalls) {

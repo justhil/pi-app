@@ -84,21 +84,33 @@ export function createCompletionNotificationController(deps: CompletionControlle
     return true
   }
 
-  function cancelPendingForSession(file: string | null | undefined): void {
+  /** Pending cards of a session; `file` keeps them in the inbox (without a popup) instead of dropping them. */
+  function cancelPendingForSession(file: string | null | undefined, opts?: { file?: boolean }): void {
     const key = sessionKey(file)
     if (!key) return
     for (const [id, item] of pending) {
       if (sessionKey(item.event.sessionFile) === key) {
         clearTimeout(item.timer)
         pending.delete(id)
+        if (opts?.file) rememberInbox(cardFromEvent(item.event, deps.getSettings(), id))
       }
     }
   }
 
-  function shouldDeliver(event: CompletionEvent, settings: CompletionNotificationSettings): boolean {
+  /** Outcomes the user switched off are not notifications at all. */
+  function isTracked(event: CompletionEvent, settings: CompletionNotificationSettings): boolean {
     if (event.outcome === 'cancelled' && !settings.alertOnCancelled) return false
     if (event.outcome === 'failed' && !settings.alertOnRunFailed) return false
     if (event.outcome === 'success' && !settings.alertOnRunIdle) return false
+    return true
+  }
+
+  /**
+   * Whether a tracked completion also pops up / plays a sound. The inbox keeps every tracked one:
+   * focus, background, DND and the popup switches only decide the interruption.
+   */
+  function shouldDeliver(event: CompletionEvent, settings: CompletionNotificationSettings): boolean {
+    if (!isTracked(event, settings)) return false
     if (settings.dndUntil != null && settings.dndUntil > deps.now()) return false
     if (!settings.notificationEnabled && !settings.soundEnabled) return false
 
@@ -131,8 +143,25 @@ export function createCompletionNotificationController(deps: CompletionControlle
     }
   }
 
+  /** The user is looking at this session right now: the app is in front and showing it. */
+  function sessionInView(file: string | null | undefined): boolean {
+    const win = deps.getWindowState()
+    if (!win.visible || win.minimized || !win.focused) return false
+    return !!sessionKey(file) && sessionFilePathsEqual(deps.getVisibleSessionFile(), file)
+  }
+
+  /** Opening a conversation reads its notifications, like opening a chat clears its badge. */
+  function markSessionInboxRead(file: string | null | undefined): void {
+    const key = sessionKey(file)
+    if (!key) return
+    for (const card of inbox) {
+      if (card.unread && sessionKey(card.sessionFile) === key) card.unread = false
+    }
+  }
+
   function rememberInbox(card: CompletionCard): void {
-    inbox.unshift({ ...card, kind: card.kind || 'done', unread: true, createdAt: deps.now() })
+    const unread = !sessionInView(card.sessionFile)
+    inbox.unshift({ ...card, kind: card.kind || 'done', unread, createdAt: deps.now() })
     if (inbox.length > MAX_SEEN) inbox.length = MAX_SEEN
   }
 
@@ -151,8 +180,7 @@ export function createCompletionNotificationController(deps: CompletionControlle
     if (file && exitNotified.has(file)) return
     if (file) settledSinceRun.add(file)
     if (!rememberSeen(dedupeKey(event.sessionFile, event.runId, event.outcome))) return
-    const settings = deps.getSettings()
-    if (!shouldDeliver(event, settings)) return
+    if (!isTracked(event, deps.getSettings())) return
 
     const notificationId = `n-${deps.now()}-${++seq}`
     const timer = setTimeout(() => {
@@ -173,7 +201,9 @@ export function createCompletionNotificationController(deps: CompletionControlle
   function notifyVisibleSessionChanged(sessionFile: string | null | undefined): void {
     const win = deps.getWindowState()
     if (!win.visible || win.minimized) return
-    cancelPendingForSession(sessionFile)
+    // The user is looking at it now: no popup, but it still belongs in the history.
+    cancelPendingForSession(sessionFile, { file: true })
+    if (sessionInView(sessionFile)) markSessionInboxRead(sessionFile)
   }
 
   function handleWorkerExitFailure(target: {

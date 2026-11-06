@@ -26,6 +26,13 @@ export function isAbortUiHoldActive(sessionFile: string | null | undefined): boo
   return isSessionTimerActive(abortUiHoldUntil, sessionFile)
 }
 
+/** Milliseconds until the session's abort hold lapses (0 when none is active). */
+export function abortUiHoldRemainingMs(sessionFile: string | null | undefined): number {
+  const key = normalizeSessionFileKey(sessionFile)
+  if (!key) return 0
+  return Math.max(0, (abortUiHoldUntil.get(key) ?? 0) - Date.now())
+}
+
 export function clearAbortUiHold(sessionFile?: string): void {
   const key = normalizeSessionFileKey(sessionFile)
   if (key) abortUiHoldUntil.delete(key)
