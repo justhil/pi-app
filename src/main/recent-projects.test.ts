@@ -37,5 +37,16 @@ describe('nextRecentProjects', () => {
       expect(next[next.length - 1]).toBe('new')
       expect(next).not.toContain('p0')
     })
+
+    it('deduplicates Windows paths with different slash styles', () => {
+      expect(nextRecentProjects(['E:\\myproject\\pi-app', 'D:\\other'], 'E:/myproject/pi-app', true)).toEqual([
+        'E:\\myproject\\pi-app',
+        'D:\\other',
+      ])
+      expect(nextRecentProjects(['D:\\other', 'E:\\myproject\\pi-app'], 'E:/myproject/pi-app', false)).toEqual([
+        'E:/myproject/pi-app',
+        'D:\\other',
+      ])
+    })
   })
 })

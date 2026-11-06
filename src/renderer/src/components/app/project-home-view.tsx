@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { createPortal } from 'react-dom'
 import { ChevronDown, FolderOpen, Folder, Check } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
+import { useUIStore } from '@renderer/stores/ui-store'
+import { resolveProjectDisplayName, workspacePathsEqual } from '@shared/workspace-path'
 
 function diskProjectName(path: string) {
-  return path.split(/[\\/]/).pop() || path
+  return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
 }
 
 export function ProjectHomeView({
@@ -26,6 +28,7 @@ export function ProjectHomeView({
   onOpenProject: () => void
 }) {
   const { t } = useTranslation()
+  const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const [pickerOpen, setPickerOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [pickerPos, setPickerPos] = useState<{ left: number; top: number } | null>(null)
@@ -122,7 +125,7 @@ export function ProjectHomeView({
                 <p className="px-3 py-3 text-[12px] text-muted-foreground">{t('common:home.noRecentProjects')}</p>
               ) : (
                 recentProjects.map((path) => {
-                  const active = path === currentWorkspace
+                  const active = workspacePathsEqual(path, currentWorkspace)
                   return (
                     <button
                       key={path}
@@ -138,7 +141,7 @@ export function ProjectHomeView({
                     >
                       <Folder className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground')} />
                       <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                        {diskProjectName(path)}
+                        {resolveProjectDisplayName(projectDisplayNames, path, diskProjectName(path))}
                       </span>
                       {active && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
                     </button>

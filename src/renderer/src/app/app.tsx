@@ -19,6 +19,7 @@ import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
+import { resolveProjectDisplayName } from '@shared/workspace-path'
 import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-worker'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
@@ -117,6 +118,7 @@ export default function App() {
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const terminalOpen = useTerminalStore((s) => s.open)
   const terminalHeight = useTerminalStore((s) => s.height)
   useTerminalShortcut()
@@ -137,7 +139,8 @@ export default function App() {
     }
     const norm = currentWorkspace.replace(/\\/g, '/')
     if (!norm.includes('sandbox-workspaces/')) {
-      setWorkspaceTitle(currentWorkspace.split(/[\\/]/).pop())
+      const fallback = currentWorkspace.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || currentWorkspace
+      setWorkspaceTitle(resolveProjectDisplayName(projectDisplayNames, currentWorkspace, fallback))
       return
     }
     ipcClient
@@ -147,7 +150,7 @@ export default function App() {
         setWorkspaceTitle(box?.label || t('common:sidebar.tempChat'))
       })
       .catch(() => setWorkspaceTitle(t('common:sidebar.tempChat')))
-  }, [currentWorkspace, ephemeralSandboxDraft, t])
+  }, [currentWorkspace, ephemeralSandboxDraft, projectDisplayNames, t])
 
   const projectName = workspaceTitle
 

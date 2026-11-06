@@ -146,6 +146,7 @@ export interface UIState {
   currentWorkspace: string | null
   workspaceFileToOpen: { workspaceRoot: string; rel: string; line?: number } | null
   recentProjects: string[]
+  projectDisplayNames: Record<string, string>
   setWorkspace: (path: string | null) => void
   ephemeralSandboxDraft: boolean
   pendingNewSessionPlaceholder: boolean

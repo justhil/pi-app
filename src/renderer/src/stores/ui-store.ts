@@ -43,6 +43,7 @@ export const useUIStore = create<UIState>()(
   currentWorkspace: null,
   workspaceFileToOpen: null,
   recentProjects: [],
+  projectDisplayNames: {},
   ephemeralSandboxDraft: false,
   pendingNewSessionPlaceholder: false,
   clearPendingNewSessionPlaceholder: () => {

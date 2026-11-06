@@ -26,7 +26,7 @@ import { projectFolderOrder } from './project-folder-order'
 import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow } from './project-sidebar-rows'
 import { groupSidebarProjects } from './project-worktree-groups'
 import { useProjectWorktrees } from './use-project-worktrees'
-import { uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
+import { resolveProjectDisplayName, uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import type { GitWorktree } from '@shared/git-worktree'
 
 const TEMP_CHATS_OPEN_KEY = 'pi-desktop:sidebar-temp-chats-open'
@@ -59,6 +59,7 @@ export function ProjectSidebar({
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const recentProjects = useUIStore((s) => s.recentProjects)
+  const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const sessions = useUIStore((s) => s.sessions)
   const sessionsWorkspace = useUIStore((s) => s.sessionsWorkspace)
   const currentKey = workspacePathKey(currentWorkspace)
@@ -198,8 +199,9 @@ export function ProjectSidebar({
     [],
   )
 
-  const activeInTempChats =
-    !!ephemeralSandboxDraft || (!!currentWorkspace && sandboxes.some((box) => box.path === currentWorkspace))
+  // Judge by the path, not by the loaded list: a temp chat's first message moves the view into a
+  // sandbox that is listed only once its session is bound, and in that gap the section folded away.
+  const activeInTempChats = !!ephemeralSandboxDraft || (!!currentWorkspace && isSandboxPath(currentWorkspace))
   // Auto-open is not remembered — only the user's own toggles are — and it folds back once the
   // active conversation leaves temp chats (the app starts in a temp-chat draft).
   const sectionOpenRef = useRef(sectionOpen)
@@ -216,7 +218,6 @@ export function ProjectSidebar({
   }, [activeInTempChats])
 
   const sessionMenu = useSessionContextMenu(refreshSessionsAfterMutation)
-  const projectMenu = useProjectContextMenu(refreshSessionsAfterMutation)
 
   useEffect(() => {
     const onChanged = () => refreshSandboxes()
@@ -233,7 +234,7 @@ export function ProjectSidebar({
         if (list) {
           const diskOnly = list.filter((p) => !isSandboxPath(p))
           const merged = [...diskOnly]
-          if (currentWorkspace && !isSandboxPath(currentWorkspace) && !merged.includes(currentWorkspace)) {
+          if (currentWorkspace && !isSandboxPath(currentWorkspace) && !merged.some((p) => workspacePathsEqual(p, currentWorkspace))) {
             if (fixedOrderRef.current) merged.push(currentWorkspace)
             else merged.unshift(currentWorkspace)
           }
@@ -255,7 +256,23 @@ export function ProjectSidebar({
         setRecentProjectsFixedOrder(v)
       })
       .catch(() => {})
+    ipcClient
+      .invoke('settings.get', { key: 'projectDisplayNames' })
+      .then((res) => {
+        const names = res?.settings?.projectDisplayNames as Record<string, string> | undefined
+        if (names && typeof names === 'object') {
+          useUIStore.setState({ projectDisplayNames: names })
+        }
+      })
+      .catch(() => {})
   }, [currentWorkspace])
+
+  const handleProjectListChange = useCallback(() => {
+    worktrees.refresh()
+    reloadSidebarSettings()
+    refreshSessionsAfterMutation()
+  }, [worktrees, reloadSidebarSettings, refreshSessionsAfterMutation])
+  const projectMenu = useProjectContextMenu(handleProjectListChange)
 
   useEffect(() => {
     refreshSandboxes()
@@ -265,7 +282,12 @@ export function ProjectSidebar({
   useEffect(() => {
     const onSettingsChanged = (event: Event) => {
       const detail = (event as CustomEvent).detail as { key?: string } | undefined
-      if (!detail?.key || detail.key === 'recentProjects' || detail.key === 'recentProjectsFixedOrder') {
+      if (
+        !detail?.key ||
+        detail.key === 'recentProjects' ||
+        detail.key === 'recentProjectsFixedOrder' ||
+        detail.key === 'projectDisplayNames'
+      ) {
         reloadSidebarSettings()
       }
     }
@@ -403,15 +425,17 @@ export function ProjectSidebar({
       && box.label.toLowerCase().includes(sessionQuery.trim().toLowerCase()))
     : sandboxes
 
-  const renderProject = (project: GitWorktree, grouped: boolean) => {
+  const renderProject = (project: GitWorktree, grouped: boolean, repositoryPath?: string | null, siblingPaths?: string[]) => {
     const { path } = project
     const key = workspacePathKey(path)
     const open = searchActive || expandedPaths.has(key)
     const rows = mergedSessionsByWorkspace[key] || []
+    const fallbackName = grouped && project.isMain ? t('common:sidebar.mainWorktree') : diskProjectName(path)
+    const displayName = resolveProjectDisplayName(projectDisplayNames, path, fallbackName, { grouped })
     return <ProjectDiskRow
       key={key}
       path={path}
-      name={grouped && project.isMain ? t('common:sidebar.mainWorktree') : diskProjectName(path)}
+      name={displayName}
       branch={project.detached ? t('common:sidebar.detachedWorktree') : project.branch}
       worktree={grouped}
       active={workspacePathsEqual(path, currentWorkspace)}
@@ -431,7 +455,13 @@ export function ProjectSidebar({
         if (willExpand && !(key in mergedSessionsByWorkspace)) void loadWorkspaceSessions(path)
       }}
       onNewSession={() => void handleNewSessionInProject(path)}
-      onProjectContextMenu={(event) => projectMenu.open(event, path, diskProjectName(path))}
+      onProjectContextMenu={(event) =>
+        projectMenu.open(event, path, displayName, {
+          repositoryPath: repositoryPath || path,
+          isSecondaryWorktree: grouped && !project.isMain,
+          siblingPaths,
+        })
+      }
       sessionTree={<ProjectSessionTree
         workspacePath={path}
         projectSessions={rows}
@@ -568,7 +598,7 @@ export function ProjectSidebar({
       <ProjectContextMenuPortal
         menu={projectMenu.menu}
         onClose={projectMenu.close}
-        onListChange={refreshSessionsAfterMutation}
+        onListChange={handleProjectListChange}
       />
 
       <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
@@ -598,16 +628,51 @@ export function ProjectSidebar({
             const projects = group.projects.filter((project) => visiblePaths.includes(project.path))
             if (!projects.length) return null
             if (!group.repositoryPath) return projects.map((project) => renderProject(project, false))
-            const name = diskProjectName(group.repositoryPath)
+            const name = resolveProjectDisplayName(
+              projectDisplayNames,
+              group.repositoryPath,
+              diskProjectName(group.repositoryPath),
+              { isRepositoryGroup: true },
+            )
             const open = searchActive || (repositoryOpen[group.key] ?? group.key === activeRepository)
+            const groupPaths = group.projects.map((p) => p.path)
             return <div key={group.key} className="sidebar-repository-group mb-2" role="group" aria-label={name} data-repository={group.repositoryPath}>
-              <button type="button" className="sidebar-repository-hit flex min-h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left hover:bg-[var(--bg-hover)]" aria-expanded={open} title={group.repositoryPath} onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}>
-                <ChevronRight className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80" data-open={open ? 'true' : 'false'} />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{name}</span>
-                <span className="shrink-0 text-[11px] tabular-nums text-foreground-secondary" title={t('common:sidebar.worktreeCount', { count: group.projects.length })}>{group.projects.length}</span>
+              <button
+                type="button"
+                className="sidebar-repository-hit flex min-h-[36px] w-full min-w-0 items-center gap-0.5 rounded-lg pl-0.5 pr-1 text-left hover:bg-[var(--bg-hover)]"
+                aria-expanded={open}
+                title={group.repositoryPath}
+                onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}
+                onContextMenu={(event) =>
+                  projectMenu.open(event, group.repositoryPath!, name, {
+                    isRepositoryGroup: true,
+                    repositoryPath: group.repositoryPath!,
+                    groupPaths,
+                  })
+                }
+              >
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
+                  <ChevronRight className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/80" data-open={open ? 'true' : 'false'} />
+                </span>
+                <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-semibold">{name}</span>
+                <span
+                  className="ml-0.5 inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center text-[11px] tabular-nums text-foreground-secondary"
+                  title={t('common:sidebar.worktreeCount', { count: group.projects.length })}
+                >
+                  {group.projects.length}
+                </span>
               </button>
               <SidebarAnimatedCollapse open={open}>
-                <div className="ml-3 border-l border-border/40 pl-1.5 pt-1">{projects.map((project) => renderProject(project, true))}</div>
+                <div className="ml-3 border-l border-border/40 pl-1.5 pt-1">
+                  {projects.map((project) =>
+                    renderProject(
+                      project,
+                      true,
+                      group.repositoryPath,
+                      groupPaths.filter((p) => !workspacePathsEqual(p, project.path)),
+                    ),
+                  )}
+                </div>
               </SidebarAnimatedCollapse>
             </div>
           })

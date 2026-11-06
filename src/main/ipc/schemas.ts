@@ -255,6 +255,8 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),
   sessionDisplayNames: z.record(z.string()),
+  projectDisplayNames: z.record(z.string()),
+  hiddenWorktrees: z.array(z.string()),
   extensionOverrides: z.record(z.boolean()),
   skillOverrides: z.record(z.boolean()),
   skillPresentation: z.record(z.object({ alias: z.string().optional(), icon: z.string().optional() }).strict()),
