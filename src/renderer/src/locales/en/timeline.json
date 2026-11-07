@@ -132,9 +132,11 @@
     "skillContext": "Loaded Skill context · {{name}}",
     "verbEdit": "Edited {{detail}}",
     "verbRun": "Ran {{detail}}",
+    "verbCodemode": "Script · {{detail}}",
     "verbSearch": "Searched {{detail}}",
     "verbUsed": "Used {{name}} · {{detail}}",
-    "workingTool": "Running {{name}}…"
+    "workingTool": "Running {{name}}…",
+    "workingCodemode": "Running script · {{detail}}"
   },
   "uiBlock": {
     "fallback": {
@@ -243,5 +245,14 @@
   "mcp": {
     "noOutput": "No output",
     "fullOutput": "Full output:"
+  },
+  "codemode": {
+    "scriptLines": "Script ({{count}} lines)",
+    "showScript": "Show script",
+    "hideScript": "Hide script",
+    "callsCount": "{{count}} calls",
+    "earlierCalls": "Show {{count}} earlier calls",
+    "collapseCalls": "Hide earlier calls",
+    "modelCost": "Model calls: {{cost}}"
   }
 }

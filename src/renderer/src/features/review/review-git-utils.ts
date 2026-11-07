@@ -145,6 +145,8 @@ export function filterReviewGroups(groups: ReviewFileGroups, touched: string[]):
   return { staged, unstaged, cleanTouched }
 }
 
+import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-detail'
+
 const MUTATE_TOOLS = new Set(['write', 'edit', 'insert'])
 
 function pathFromUnknown(value: unknown): string | undefined {
@@ -155,7 +157,7 @@ function pathFromUnknown(value: unknown): string | undefined {
 
 export function collectTouchedPaths(
   fileChanges: { path: string; runId?: string }[],
-  tools: { toolName?: string; runId?: string; path?: string; toolDetail?: unknown; toolArgs?: unknown }[],
+  tools: { toolName?: string; runId?: string; path?: string; toolDetails?: unknown; toolDetail?: unknown; toolArgs?: unknown }[],
   turnRunId?: string | null,
 ): string[] {
   const out = new Set<string>()
@@ -165,6 +167,17 @@ export function collectTouchedPaths(
     if (change.path) out.add(reviewPathKey(change.path))
   }
   for (const tool of tools) {
+    if (tool.toolName === 'codemode') {
+      if (turnRunId && tool.runId && tool.runId !== turnRunId) continue
+      if (turnRunId && !tool.runId) continue
+      for (const call of parseCodemodeCalls(tool.toolDetails)) {
+        if (call.status === 'error' || call.status === 'cancelled') continue
+        if (!MUTATE_TOOLS.has(call.name)) continue
+        const p = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
+        if (p) out.add(reviewPathKey(p))
+      }
+      continue
+    }
     if (!MUTATE_TOOLS.has(tool.toolName || '')) continue
     if (turnRunId && tool.runId && tool.runId !== turnRunId) continue
     if (turnRunId && !tool.runId) continue

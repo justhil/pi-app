@@ -31,13 +31,10 @@ import { localFilePathFromHref } from '@renderer/lib/open-workspace-path'
 const markdownUrlTransform: UrlTransform = (url, key) =>
   key === 'href' && localFilePathFromHref(url) ? url : defaultUrlTransform(url)
 
-/** `<pre>` whose code child is a pi-ui or mermaid fence: those render their own chrome. */
+/** `<pre>` whose code child renders its own block chrome (CodeBlock, pi-ui, mermaid, math). */
 function isSelfRenderingPre(node: ExtraProps['node']): boolean {
   const code = node?.children?.find((child) => child.type === 'element')
-  if (!code || code.type !== 'element' || code.tagName !== 'code') return false
-  const raw = code.properties?.className
-  const className = Array.isArray(raw) ? raw.join(' ') : String(raw ?? '')
-  return !!uiBlockLanguageFromClassName(className) || /(?:^|\s)language-mermaid(?:\s|$)/i.test(className)
+  return !!code && code.type === 'element' && code.tagName === 'code'
 }
 
 function CodeBlock({
@@ -50,13 +47,33 @@ function CodeBlock({
   defaultExpanded?: boolean
 }) {
   const { t } = useTranslation()
+  const surfaceRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(!!defaultExpanded)
+  const [scrollActive, setScrollActive] = useState(false)
   const [copied, setCopied] = useState(false)
   const lang = /language-([\w-]+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
   const PREVIEW_LINES = 3
   const lineCount = code.split('\n').length
   const needsFold = lineCount > PREVIEW_LINES
+
+  useEffect(() => {
+    if (!scrollActive) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (surfaceRef.current && !surfaceRef.current.contains(e.target as Node)) {
+        setScrollActive(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setScrollActive(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [scrollActive])
 
   const copy = () => {
     navigator.clipboard.writeText(code).then(() => {
@@ -67,7 +84,12 @@ function CodeBlock({
 
   return (
     <div
-      className="code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/35"
+      ref={surfaceRef}
+      data-scroll-active={scrollActive ? 'true' : undefined}
+      className={cn(
+        'code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/35 transition-colors',
+        scrollActive && 'border-primary/45 ring-1 ring-primary/20',
+      )}
       style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
     >
       <div
@@ -88,10 +110,12 @@ function CodeBlock({
         </button>
       </div>
       <pre
-        data-independent-scroll
+        data-independent-scroll={scrollActive ? '' : undefined}
+        onClick={() => setScrollActive(true)}
         className={cn(
-          'overflow-auto overscroll-contain px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
-          !expanded && needsFold && 'max-h-[4.5rem]',
+          'px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
+          scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
+          !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
         )}
         style={{ margin: 0, color: 'var(--text-primary)' }}
       >
@@ -240,8 +264,9 @@ const MarkdownView = memo(function MarkdownView({
     () => ({
       code: ({ className: cn2, children: ch, ...rest }: ComponentPropsWithoutRef<'code'>) => {
         const lang = /language-([\w-]+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
-        const raw = String(ch ?? '').replace(/\n$/, '')
-        const isInline = !cn2 && !raw.includes('\n')
+        const rawText = String(ch ?? '')
+        const raw = rawText.replace(/\n$/, '')
+        const isInline = !cn2 && !rawText.includes('\n')
         if (lang === 'math' || lang === 'latex' || lang === 'tex') {
           return <FencedMathBlock code={raw} />
         }

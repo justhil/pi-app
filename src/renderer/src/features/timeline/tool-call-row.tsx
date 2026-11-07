@@ -8,16 +8,17 @@ import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-card-registry'
 import { tryRenderAdapterToolCard } from '@extension-compat/renderer/render-adapter-tool-card'
-import { McpToolPreview, renderNativeToolPreview } from './tool-previews'
+import { parseCodemodeCalls, stripCodemodeOutputHeader, summarizeCodemodeCalls } from '@shared/tool-call-detail'
+import { extractToolText } from '@extension-compat/renderer/tool-output'
+import { McpToolPreview, renderNativeToolPreview, buildToolSummary } from './tool-previews'
 import { mcpArgSummary, mcpToolLabel, resolveMcpTool } from './mcp-tool'
-import { buildToolSummary } from './tool-previews'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
 import { countToolDiffStats } from './timeline-turn-activity'
 import { DiffStatBadge } from './diff-stat-badge'
 import { resolveSkillContextActivity } from './skill-context-activity'
 
-const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls'])
+const NATIVE_TOOLS = new Set(['read', 'edit', 'insert', 'write', 'grep', 'ffgrep', 'fffind', 'find', 'bash', 'ls', 'codemode'])
 
 function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
   const name = item.toolName || ''
@@ -34,7 +35,19 @@ function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
 }
 
 function toolArgSummary(item: ToolTimelineItem): string {
-  const argSummary = buildToolSummary(item.toolName || '', item.toolArgs, item.toolDetail)
+  if (item.toolName === 'codemode') {
+    const calls = parseCodemodeCalls(item.toolDetails)
+    const isRunning = item.toolPhase === 'start' || item.toolPhase === 'update'
+    if (calls.length > 0) {
+      const stripped = stripCodemodeOutputHeader(extractToolText(item.toolOutput || ''))
+      return summarizeCodemodeCalls(calls, {
+        isRunning,
+        wallTimeSeconds: stripped.wallTimeSeconds ?? (item.toolDetail?.type === 'codemode' ? item.toolDetail.wallTimeSeconds : undefined),
+      })
+    }
+    return buildToolSummary('codemode', item.toolArgs, item.toolDetail, item.toolDetails)
+  }
+  const argSummary = buildToolSummary(item.toolName || '', item.toolArgs, item.toolDetail, item.toolDetails)
   if (argSummary) return argSummary
   if (item.toolStatusLine) return String(item.toolStatusLine)
   const output = (item.toolOutput || '').trim()
@@ -48,6 +61,7 @@ function humanToolVerbKey(toolName: string): string {
   if (name === 'read' || name === 'ls') return 'timeline:activity.verbRead'
   if (name === 'edit' || name === 'write' || name === 'insert') return 'timeline:activity.verbEdit'
   if (name === 'bash') return 'timeline:activity.verbRun'
+  if (name === 'codemode') return 'timeline:activity.verbCodemode'
   if (name === 'grep' || name === 'ffgrep' || name === 'find' || name === 'fffind') {
     return 'timeline:activity.verbSearch'
   }
@@ -106,6 +120,12 @@ function ToolCallRowImpl({
     if (mcpTool) {
       const label = mcpToolLabel(mcpTool)
       return argSummary ? `${label} · ${argSummary}` : label
+    }
+    if (isRunning && item.toolName === 'codemode' && argSummary) {
+      return t('timeline:activity.workingCodemode', {
+        detail: argSummary,
+        defaultValue: `Running script · ${argSummary}`,
+      })
     }
     if (argSummary) {
       return t(humanToolVerbKey(item.toolName || ''), {

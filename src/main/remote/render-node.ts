@@ -1,4 +1,4 @@
-import { toolCallDetailFromPi } from '@shared/tool-call-detail'
+import { parseCodemodeCalls, stripCodemodeOutputHeader, summarizeCodemodeCalls, toolCallDetailFromPi } from '@shared/tool-call-detail'
 import type { RenderNode, StepStatus, ToolStep } from '@shared/remote'
 import type { ToolCardDef } from '../../extension-compat/adapter-schema'
 import { applyToolCardFields, extractTextFromToolOutput } from '../../extension-compat/json-path'
@@ -27,7 +27,7 @@ export type ToolCategory = ToolStep['category']
 
 export function toolCategory(toolName: string, card?: ToolCardDef): ToolCategory {
   const detail = toolCallDetailFromPi(toolName, undefined, undefined).type
-  if (detail === 'bash') return 'run'
+  if (detail === 'bash' || detail === 'codemode') return 'run'
   if (detail === 'read') return 'read'
   if (detail === 'edit') return 'edit'
   if (detail === 'write') return 'write'
@@ -163,6 +163,27 @@ export function buildRenderNode(input: ToolCallInput, card?: ToolCardDef): Rende
         ...(out.text ? { preview: out.text } : {}),
         ...(out.clipped ? { detail: true } : {}),
         fallbackText: `${name} ${detail.path} +${stats.add}${detail.type === 'edit' ? ` −${stats.del}` : ''}`.trim(),
+      }
+    }
+    case 'codemode': {
+      const calls = parseCodemodeCalls(input.details)
+      const stripped = stripCodemodeOutputHeader(outputText(input.output) || text)
+      const summary = summarizeCodemodeCalls(calls, {
+        isRunning: input.phase !== 'end',
+        wallTimeSeconds: stripped.wallTimeSeconds,
+      }) || detail.summary || name
+      const out = clip(stripped.body, PREVIEW_LIMITS.bash, true)
+      return {
+        template: 'bash',
+        title: summary,
+        status,
+        fields: {
+          command: detail.code,
+          ...(calls.length > 0 ? { calls: calls.length } : {}),
+        },
+        ...(out.text ? { preview: out.text } : {}),
+        ...(out.clipped ? { detail: true } : {}),
+        fallbackText: `codemode ${summary}`.trim(),
       }
     }
     case 'grep':

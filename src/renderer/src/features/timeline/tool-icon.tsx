@@ -1,5 +1,6 @@
 import { memo } from 'react'
 import {
+  FileCode2,
   FileEdit,
   FileText,
   FolderTree,
@@ -23,6 +24,7 @@ const BUILTIN_ICON: Record<string, AppIconComponent> = {
   write: FileEdit,
   insert: FileEdit,
   bash: Terminal,
+  codemode: FileCode2,
   ls: FolderTree,
   find: Search,
   fffind: Search,

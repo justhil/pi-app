@@ -12,6 +12,7 @@ import {
 } from '@shared/worker-message'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath, extractStatusFromOutput } from '../extension-compat/json-path.js'
+import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-detail'
 import { enrichToolChildSessionFiles } from '../extension-compat/tool-child-session.js'
 import type { DesktopUIBridge } from './desktop-ui-bridge.js'
 import { lastAssistantFromMessages } from './session-event-helpers.js'
@@ -340,6 +341,21 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
             path: args.path,
             changeType: event.toolName === 'write' ? 'added' : 'modified',
           } as AppEvent)
+        }
+      } else if (event.toolName === 'codemode') {
+        for (const call of parseCodemodeCalls(details)) {
+          if (call.status !== 'ok') continue
+          if (call.name !== 'edit' && call.name !== 'write') continue
+          const filePath = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
+          if (filePath) {
+            deps.emit({
+              ...base,
+              type: 'file',
+              source: call.name,
+              path: filePath,
+              changeType: call.name === 'write' ? 'added' : 'modified',
+            } as AppEvent)
+          }
         }
       }
       break
