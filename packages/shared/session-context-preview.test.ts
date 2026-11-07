@@ -44,4 +44,59 @@ describe('buildSessionContextPreview', () => {
     expect(preview.snippets[0]).toBe('[toolResult] ✔ pass')
     expect(preview.segments[0].chars).toBe(colored.length)
   })
+
+  it('should_extract_text_from_system_sections_and_summary_fields_when_building_context_preview', () => {
+    const preview = buildSessionContextPreview({
+      sessionId: 'session-138',
+      sessionFile: '/sessions/issue-138.jsonl',
+      messages: [
+        {
+          role: 'system',
+          content: '',
+          sections: {
+            preamble: 'You are Pi coding agent.',
+            rules: 'Always verify with tests.',
+          },
+        },
+        {
+          role: 'compactionSummary',
+          summary: 'Compacted earlier conversation about browser tabs.',
+        },
+        {
+          role: 'branchSummary',
+          summary: 'Branched from main investigation.',
+        },
+      ],
+    })
+
+    const expectedSystem = 'You are Pi coding agent.\n\nAlways verify with tests.'
+    const expectedCompaction = 'Compacted earlier conversation about browser tabs.'
+    const expectedBranch = 'Branched from main investigation.'
+
+    expect(preview.segments[0]).toEqual(
+      expect.objectContaining({
+        role: 'system',
+        chars: expectedSystem.length,
+        preview: expectedSystem,
+      }),
+    )
+    expect(preview.segments[1]).toEqual(
+      expect.objectContaining({
+        role: 'compactionSummary',
+        chars: expectedCompaction.length,
+        preview: expectedCompaction,
+      }),
+    )
+    expect(preview.segments[2]).toEqual(
+      expect.objectContaining({
+        role: 'branchSummary',
+        chars: expectedBranch.length,
+        preview: expectedBranch,
+      }),
+    )
+    expect(preview.roleBreakdown).toEqual([
+      { role: 'system', chars: expectedSystem.length },
+      { role: 'summary', chars: expectedCompaction.length + expectedBranch.length },
+    ])
+  })
 })
