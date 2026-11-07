@@ -4,12 +4,14 @@ import type { CapabilityId, CapabilityInfo } from '@shared/capabilities'
 import { Clock, Globe, Monitor, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useBrowserStore } from '@renderer/features/browser/browser-store'
 import {
   capabilityKey,
   loadSessionCapabilities,
   onCapabilityKeyChange,
   setSessionCapability,
   useSessionCapabilitiesStore,
+  withAutoBrowserCapability,
 } from '@renderer/lib/session-capabilities'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -153,7 +155,10 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   const { t } = useTranslation()
   const sessionFile = useUIStore((s) => s.historySessionFile)
   const key = capabilityKey(sessionFile)
-  const enabled = useSessionCapabilitiesStore((s) => s.byKey[key]) ?? EMPTY
+  const storedEnabled = useSessionCapabilitiesStore((s) => s.byKey[key]) ?? EMPTY
+  // Subscribe to browser tabs so auto-mounted browser capability reflects in the badge and menu.
+  useBrowserStore((s) => s.tabs)
+  const enabled = withAutoBrowserCapability(storedEnabled, key)
   const [open, setOpen] = useState(false)
   const [catalog, setCatalog] = useState<CapabilityInfo[] | null>(catalogCache)
   const prevKey = useRef(key)

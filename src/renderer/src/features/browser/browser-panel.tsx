@@ -6,6 +6,7 @@ import {
   formatLogsForComposer,
   formatSelectionForComposer,
   normalizeAddressInput,
+  normalizeBrowserSessionKey,
   type BrowserEvent,
   type BrowserLogEntry,
   type PageContextResult,
@@ -16,7 +17,7 @@ import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { browserActions, ensureBrowserSubscription, onBrowserSideEvent, useBrowserStore } from './browser-store'
+import { browserActions, ensureBrowserSubscription, onBrowserSideEvent, useBrowserStore, visibleTabOrder } from './browser-store'
 import { useOverlayCovering, useViewPlacement } from './use-view-placement'
 import { AnnotationLayer } from './annotation-layer'
 import { saveImageAttachment, sendToComposer } from './browser-composer'
@@ -30,6 +31,14 @@ import { clampViewport, fitViewport, loadViewportMode, saveViewportMode, type Vi
 const isMod = (e: { ctrlKey: boolean; metaKey: boolean }) =>
   window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
 
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M9.5 2.5L13.5 6.5L12 8L9.5 7.5L6.5 10.5L7 13L5.5 14.5L3.5 10.5L1.5 12.5L3.5 10.5L1.5 8.5L3 7L5.5 7.5L8.5 4.5L8 2L9.5 2.5Z" />
+    </svg>
+  )
+}
+
 export function BrowserPanel() {
   const { t } = useTranslation('browser')
   const rootRef = useRef<HTMLDivElement>(null)
@@ -39,9 +48,16 @@ export function BrowserPanel() {
   const addressRef = useRef<HTMLInputElement>(null)
   const expandButtonRef = useRef<HTMLButtonElement>(null)
 
+  const sessionFile = useUIStore((s) => s.historySessionFile)
+  const sessionKey = normalizeBrowserSessionKey(sessionFile)
   const tabs = useBrowserStore((s) => s.tabs)
-  const order = useBrowserStore((s) => s.order)
-  const activeTabId = useBrowserStore((s) => s.activeTabId)
+  const rawOrder = useBrowserStore((s) => s.order)
+  const storeActiveTabId = useBrowserStore((s) => s.activeTabId)
+  const order = visibleTabOrder({ tabs, order: rawOrder }, sessionKey)
+  const activeTabId =
+    storeActiveTabId && order.includes(storeActiveTabId)
+      ? storeActiveTabId
+      : order.at(-1) ?? null
   const activeTab = activeTabId ? tabs[activeTabId] : undefined
   const pageShown = !!activeTab && activeTab.url !== 'about:blank'
 
@@ -79,6 +95,11 @@ export function BrowserPanel() {
       .then((res: { settings?: { browserSearchEngine?: string } } | undefined) => setSearchUrl(browserSearchUrl(res?.settings?.browserSearchEngine)))
       .catch(() => {})
   }, [])
+
+  // Keep the browser view bound to the active conversation (switching chats switches tabs).
+  useEffect(() => {
+    void browserActions.setSession(sessionKey).catch(() => {})
+  }, [sessionKey])
 
   // Overlays (dialogs, menus) would sit under the native view: freeze a snapshot, then hide the view.
   useEffect(() => {
@@ -144,10 +165,14 @@ export function BrowserPanel() {
       }),
     [activeTabId],
   )
-  // A find belongs to one tab.
+  // A find belongs to one tab; clear address draft when the last tab closes.
   useEffect(() => {
     setFindOpen(false)
     setFindResult(null)
+    if (!activeTabId) {
+      setDraft('')
+      setEditing(false)
+    }
   }, [activeTabId])
 
   useEffect(() => {
@@ -190,7 +215,7 @@ export function BrowserPanel() {
     }
     strip.addEventListener('wheel', onWheel, { passive: false })
     return () => strip.removeEventListener('wheel', onWheel)
-  }, [order.length > 1])
+  }, [order.length > 0])
   useEffect(() => {
     if (!activeTabId) return
     tabStripRef.current?.querySelector<HTMLElement>(`[data-browser-tab="${CSS.escape(activeTabId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -204,13 +229,13 @@ export function BrowserPanel() {
   const openTab = useCallback(
     async (url?: string) => {
       try {
-        await browserActions.open(url)
+        await browserActions.open(url, sessionKey)
         if (!url) requestAnimationFrame(focusAddress)
       } catch {
         toast.error(t('toast.navigateFailed'))
       }
     },
-    [focusAddress, t],
+    [focusAddress, sessionKey, t],
   )
 
   const closeActive = useCallback(() => {
@@ -232,12 +257,12 @@ export function BrowserPanel() {
       try {
         if (s?.kind === 'tab') await browserActions.focus(s.tabId)
         else if (activeTabId) await browserActions.navigate(activeTabId, url)
-        else await browserActions.open(url)
+        else await browserActions.open(url, sessionKey)
       } catch {
         toast.error(t('toast.navigateFailed'))
       }
     },
-    [draft, searchUrl, activeTabId, t],
+    [draft, searchUrl, activeTabId, sessionKey, t],
   )
 
   const toggleAnnotate = useCallback(async () => {
@@ -401,18 +426,20 @@ export function BrowserPanel() {
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col" onKeyDown={onRootKeyDown}>
-      {/* Tab strip: only once there is a second tab — a single page needs no strip. */}
-      {order.length > 1 ? (
+      {/* Tab strip: always shown whenever at least one tab is open, so single tabs can be closed or pinned and new tabs added. */}
+      {order.length > 0 ? (
       <div className="flex h-9 shrink-0 items-center border-b border-border/40 px-1.5">
         <div ref={tabStripRef} className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto" role="tablist" aria-label={t('nav.tabs')}>
           {order.map((id) => {
             const tab = tabs[id]
             const active = id === activeTabId
+            const pinned = !!tab?.pinned
             const label = tab?.title || (tab?.url !== 'about:blank' ? tab?.url : '') || t('tab.untitled')
             return (
               <div
                 key={id}
                 data-browser-tab={id}
+                data-pinned={pinned ? 'true' : undefined}
                 // Middle click closes, like every browser. Its defaults (autoscroll on mousedown,
                 // X11 primary-selection paste on mouseup into the focused address bar) are blocked.
                 onMouseDown={(e) => e.button === 1 && e.preventDefault()}
@@ -431,6 +458,19 @@ export function BrowserPanel() {
                 <button type="button" role="tab" aria-selected={active} className="min-w-0 flex-1 truncate text-left"
                   title={tab?.url} onClick={() => void browserActions.focus(id)}>
                   {label}
+                </button>
+                <button
+                  type="button"
+                  aria-label={pinned ? t('nav.unpinTab') : t('nav.pinTab')}
+                  title={pinned ? t('nav.unpinTab') : t('nav.pinTab')}
+                  aria-pressed={pinned}
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-[var(--bg-hover)] focus-visible:opacity-100',
+                    pinned ? 'text-primary opacity-100' : 'opacity-0 group-hover:opacity-60',
+                  )}
+                  onClick={() => void browserActions.pin(id, !pinned)}
+                >
+                  <PinIcon className="h-3 w-3" />
                 </button>
                 <button type="button" aria-label={t('nav.closeTab')} title={t('nav.closeTab')}
                   className={cn(
@@ -608,6 +648,15 @@ export function BrowserPanel() {
                   <span className="flex-1">{t('nav.newTab')}</span>
                   <span className="text-[11px] text-foreground-tertiary">{modKeyLabel}T</span>
                 </button>
+                {activeTabId ? (
+                  <button type="button" role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                    onClick={() => { setMoreMenuOpen(false); closeActive() }}>
+                    <X className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                    <span className="flex-1">{t('nav.closeTab')}</span>
+                    <span className="text-[11px] text-foreground-tertiary">{modKeyLabel}W</span>
+                  </button>
+                ) : null}
                 {compact ? (
                   <>
                     <button type="button" role="menuitem" disabled={!activeTab?.canGoForward}

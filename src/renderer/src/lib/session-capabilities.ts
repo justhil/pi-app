@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import { sessionHasBrowserTabs } from '@shared/browser-types'
 import { normalizeCapabilities, type CapabilityId } from '@shared/capabilities'
+import { browserActions, useBrowserStore } from '@renderer/features/browser/browser-store'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -89,10 +91,31 @@ export function adoptDraftCapabilities(byKey: Record<string, CapabilityId[]>, se
   return out
 }
 
+/** Sessions where the user explicitly clicked "Off" for browser control (do not auto-enable). */
+const browserExplicitlyOff = new Set<string>()
+
 export function setSessionCapability(sessionFile: string | null | undefined, id: CapabilityId, on: boolean): void {
-  const byKey = toggleCapabilityIn(useSessionCapabilitiesStore.getState().byKey, capabilityKey(sessionFile), id, on)
+  const key = capabilityKey(sessionFile)
+  const byKey = toggleCapabilityIn(useSessionCapabilitiesStore.getState().byKey, key, id, on)
+  if (id === 'browser' || id === 'chrome') {
+    const next = byKey[key] ?? []
+    if (on) browserExplicitlyOff.delete(key)
+    else if (!next.includes('browser') && !next.includes('chrome')) browserExplicitlyOff.add(key)
+  }
   useSessionCapabilitiesStore.setState({ byKey })
   persist(byKey)
+}
+
+/** Auto-mount built-in browser tools when the conversation already has browser tabs open. */
+export function withAutoBrowserCapability(base: readonly CapabilityId[], sessionKey: string): CapabilityId[] {
+  if (base.includes('browser') || base.includes('chrome') || browserExplicitlyOff.has(sessionKey)) {
+    return [...base]
+  }
+  const tabs = Object.values(useBrowserStore.getState().tabs)
+  if (tabs.length > 0 && sessionHasBrowserTabs(tabs, sessionKey)) {
+    return [...base, 'browser']
+  }
+  return [...base]
 }
 
 let lastDraftSendAt = 0
@@ -104,18 +127,24 @@ export function currentSessionCapabilities(): CapabilityId[] {
   const key = capabilityKey(useUIStore.getState().historySessionFile)
   if (key === DRAFT_CAPABILITY_KEY) {
     lastDraftSendAt = Date.now()
-    return useSessionCapabilitiesStore.getState().byKey[key] ?? []
+    return withAutoBrowserCapability(useSessionCapabilitiesStore.getState().byKey[key] ?? [], key)
   }
   // Sending a new chat creates its session file before the prompt goes out: the draft's switches
-  // belong to it. (Switching to another session already dropped them, so this is that draft.)
+  // and any draft browser tabs belong to it.
+  if (Date.now() - lastDraftSendAt < DRAFT_ADOPT_WINDOW_MS) {
+    const draftTabs = Object.values(useBrowserStore.getState().tabs)
+    if (sessionHasBrowserTabs(draftTabs, DRAFT_CAPABILITY_KEY)) {
+      void browserActions.adoptSession(DRAFT_CAPABILITY_KEY, key).catch(() => {})
+    }
+  }
   const { byKey } = useSessionCapabilitiesStore.getState()
   const adopted = adoptDraftCapabilities(byKey, key)
   if (adopted) {
     useSessionCapabilitiesStore.setState({ byKey: adopted })
     persist(adopted)
-    return adopted[key]
+    return withAutoBrowserCapability(adopted[key], key)
   }
-  return byKey[key] ?? []
+  return withAutoBrowserCapability(byKey[key] ?? [], key)
 }
 
 /**
@@ -125,6 +154,12 @@ export function currentSessionCapabilities(): CapabilityId[] {
  */
 export function onCapabilityKeyChange(prevKey: string, nextKey: string, now = Date.now()): void {
   if (prevKey === nextKey) return
+  if (prevKey === DRAFT_CAPABILITY_KEY && now - lastDraftSendAt < DRAFT_ADOPT_WINDOW_MS) {
+    const draftTabs = Object.values(useBrowserStore.getState().tabs)
+    if (sessionHasBrowserTabs(draftTabs, DRAFT_CAPABILITY_KEY)) {
+      void browserActions.adoptSession(DRAFT_CAPABILITY_KEY, nextKey).catch(() => {})
+    }
+  }
   const { byKey } = useSessionCapabilitiesStore.getState()
   if (!byKey[DRAFT_CAPABILITY_KEY]) return
   if (prevKey === DRAFT_CAPABILITY_KEY && now - lastDraftSendAt < DRAFT_ADOPT_WINDOW_MS) {

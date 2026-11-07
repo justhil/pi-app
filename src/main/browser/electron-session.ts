@@ -3,7 +3,9 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   browserAcceptLanguages,
+  cleanElectronUserAgent,
   chromeUserAgent,
+  wantsElectronUserAgent,
   withChromeClientHints,
   type BrowserEvent,
   type BrowserLogEntry,
@@ -32,6 +34,7 @@ export function peekDownloadManager(): DownloadManager | null {
 }
 
 const configured = new Set<string>()
+const sessionAgents = new WeakMap<Session, { chrome: string; electron: string }>()
 
 /** Requests in flight per page (webContents id) — what "the page is still working" means after an action. */
 const inflight = new Map<number, Set<number>>()
@@ -77,10 +80,15 @@ export function configureBrowserSession(profileId: string, hooks: BrowserSession
 
   const chromeMajor = process.versions.chrome.split('.')[0]
   const languages = browserAcceptLanguages(app.getPreferredSystemLanguages())
-  ses.setUserAgent(chromeUserAgent(chromeMajor, process.platform), languages.join(','))
+  const electronUa = cleanElectronUserAgent(ses.getUserAgent(), app.getName())
+  const chromeUa = chromeUserAgent(chromeMajor, process.platform)
+  sessionAgents.set(ses, { chrome: chromeUa, electron: electronUa })
+  ses.setUserAgent(chromeUa, languages.join(','))
 
   ses.webRequest.onBeforeSendHeaders((details, callback) => {
-    callback({ requestHeaders: withChromeClientHints(details.url, details.requestHeaders, chromeMajor, process.platform) })
+    callback({
+      requestHeaders: withChromeClientHints(details.url, details.requestHeaders, chromeMajor, process.platform, electronUa),
+    })
   })
 
   ses.webRequest.onSendHeaders((details) => {
@@ -128,4 +136,10 @@ export function configureBrowserSession(profileId: string, hooks: BrowserSession
     getDownloadManager(emit).onWillDownload(event, ses, item, webContents, savePath)
   })
   return ses
+}
+
+export function userAgentForSessionUrl(ses: Session, url: string): string {
+  const agents = sessionAgents.get(ses)
+  if (!agents) return chromeUserAgent(process.versions.chrome.split('.')[0], process.platform)
+  return wantsElectronUserAgent(url) ? agents.electron : agents.chrome
 }

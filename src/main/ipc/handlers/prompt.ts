@@ -5,7 +5,9 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { readRemoteAttachment, writeClipboardTempImage } from '../../clipboard-temp-images'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
 import { clipboardReadTempImageSchema, clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
+import { peekBrowserHost } from '../../browser/browser-host'
 import { noteBrowserTarget } from '../../browser/targets'
+import { configStore } from '../../config-store'
 
 /** Matches the composer's paste limit, so a re-read can never return more than was written. */
 const CLIPBOARD_READ_IMAGE_MAX_BYTES = 8 * 1024 * 1024
@@ -37,10 +39,20 @@ export function registerPromptHandlers(): void {
   }
 
   // Enabled capabilities travel with each message so drafts and restarted workers stay in sync.
+  // If this session already owns browser tabs (or pinned tabs exist), auto-mount built-in browser tools.
   const applyCapabilities = async (req: { capabilities?: string[]; sessionFile?: string }) => {
     if (req.capabilities === undefined) return
-    noteBrowserTarget(req.sessionFile, req.capabilities)
-    await workerManager.setCapabilities(capabilitySectionMap(req.capabilities), capabilityToolFamilies(req.capabilities), req.sessionFile)
+    let caps = req.capabilities
+    if (
+      !caps.includes('browser') &&
+      !caps.includes('chrome') &&
+      configStore.get('rightPanelPrefs')?.browser &&
+      peekBrowserHost()?.hasSessionTabs(req.sessionFile)
+    ) {
+      caps = [...caps, 'browser']
+    }
+    noteBrowserTarget(req.sessionFile, caps)
+    await workerManager.setCapabilities(capabilitySectionMap(caps), capabilityToolFamilies(caps), req.sessionFile)
   }
 
   registerHandler('ipc:capabilities.catalog', async () => ({ capabilities: capabilityCatalog() }))

@@ -39,18 +39,20 @@ export const BROWSER_TOOL_DEFS: readonly BrowserToolDef[] = [
   {
     name: 'browser_navigate',
     label: 'Browser navigate',
-    description: 'Open an http(s) URL in the current tab; "back" goes to the previous page.',
+    description: 'Open an http(s) URL in the current tab, or pass "back", "forward", or "reload".',
     parameters: obj({ url: str(8192) }, ['url']),
   },
   {
     name: 'browser_snapshot',
     label: 'Browser snapshot',
     description:
-      'Page snapshot (YAML); [ref=eN] marks elements for other tools. Repeated lists fold to "… N more"; target reads one region in full.',
+      'Page snapshot (YAML); [ref=eN] marks elements for other tools. Repeated lists fold to "… N more"; target reads one region in full; index reads tab N; allTabs reads all open tabs at once.',
     parameters: obj({
       target,
       query: str(500, 'Only lines matching this text or /regex/i, with their ancestors'),
       mode: { type: 'string', enum: ['aria', 'text'], description: 'text: readable text, controls inline with refs' },
+      index: { type: 'integer', minimum: 0, maximum: 99, description: '0-based tab index to read' },
+      allTabs: { type: 'boolean', description: 'Read all open tabs in this conversation at once' },
       probeHover: { type: 'boolean' },
       depth: { type: 'integer', minimum: 1, maximum: 50 },
       saveTo: str(120, 'File name: write the whole page (no folding or cut) to a file and return its path'),
@@ -282,7 +284,11 @@ export const BROWSER_CORE_TOOLS: readonly string[] = [
   'browser_snapshot',
   'browser_click',
   'browser_type',
+  'browser_press_key',
   'browser_mouse_wheel',
+  'browser_select_option',
+  'browser_wait_for',
+  'browser_tabs',
   'browser_take_screenshot',
 ]
 

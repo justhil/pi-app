@@ -67,6 +67,18 @@ function containsDeep(parent: Element, child: Element | null): boolean {
 }
 
 /**
+ * Styled checkboxes, radios, switches and file inputs in modern component libraries are often
+ * covered by their associated <label> or sibling indicator inside the same label/control.
+ */
+function sameControlHit(el: Element, hit: Element): boolean {
+  const ownLabel = el.closest('label')
+  if (ownLabel && containsDeep(ownLabel, hit)) return true
+  const hitLabel = hit.closest('label') as HTMLLabelElement | null
+  if (hitLabel && (hitLabel.control === el || (el.id && hitLabel.getAttribute('for') === el.id))) return true
+  return false
+}
+
+/**
  * Point that actually reaches `el` (hit-test like Playwright's "receives events" check): center
  * first, then a few inner points. Null when the element is covered (e.g. by a modal) or offscreen.
  */
@@ -79,7 +91,7 @@ function hitPoint(el: Element): { x: number; y: number } | null {
     const y = r.top + r.height * fy
     if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) continue
     const hit = deepElementFromPoint(x, y)
-    if (hit && (hit === el || containsDeep(el, hit))) return { x, y }
+    if (hit && (hit === el || containsDeep(el, hit) || sameControlHit(el, hit))) return { x, y }
   }
   return null
 }
@@ -227,8 +239,8 @@ function snapshotOf(root: Element, opts: SnapshotOptions): SnapshotResult {
     if (!info) return
     const r = info.element.getBoundingClientRect()
     const interactive = INTERACTIVE.has(n.role) || n.box?.cursor === 'pointer'
-    if (inViewport(r) && !hitPoint(info.element)) {
-      if (interactive) covered++
+    if (interactive && inViewport(r) && !hitPoint(info.element)) {
+      covered++
       tree.info.delete(n.ref)
       n.ref = undefined
       return

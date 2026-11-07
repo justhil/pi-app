@@ -144,6 +144,17 @@ describe('snapshot post-pass', () => {
     expect(s.covered).toBe(1)
   })
 
+  it('keeps refs of inputs covered by their associated label and region containers', () => {
+    document.body.innerHTML = '<main id="m"><label for="cb"><span id="decor">Accept terms</span></label><input type="checkbox" id="cb"></main>'
+    const decor = document.getElementById('decor')!
+    boxOf = () => ({ x: 10, y: 10, width: 80, height: 24 })
+    pointAt(decor)
+    const s = snap()
+    expect(s.yaml).toMatch(/main \[ref=e\d+\]/)
+    expect(s.yaml).toMatch(/checkbox "Accept terms" \[ref=e\d+\]/)
+    expect(s.covered).toBe(0)
+  })
+
   it('shows only a modal dialog when it covers the page', () => {
     document.body.innerHTML = '<button id="under">Buy</button><div role="dialog" aria-modal="true" aria-label="Sign in"><button id="ok">OK</button></div>'
     boxOf = (el) => (el.tagName === 'BUTTON' ? { x: 10, y: 10, width: 80, height: 30 } : { x: 0, y: 0, width: 400, height: 300 })

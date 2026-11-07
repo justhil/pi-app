@@ -41,21 +41,22 @@ describe('worker browser tools', () => {
     await (browserToolsExtension as { factory: (pi: unknown) => void }).factory(f.pi)
     f.handlers.session_start()
     expect(f.active()).toEqual(['read', 'bash'])
-    expect(f.tool('browser_tabs').exposure).toBe('hidden')
+    expect(f.tool('browser_fill_form').exposure).toBe('hidden')
     expect(f.tool('browser_navigate').exposure).toBeUndefined()
+    expect(f.tool('browser_tabs').exposure).toBeUndefined()
 
     setBrowserToolsEnabled(true)
     expect(f.active()).toEqual(['read', 'bash', 'tool_search', ...BROWSER_CORE_TOOLS])
-    expect(f.tool('browser_tabs').exposure).toBe('deferred')
+    expect(f.tool('browser_fill_form').exposure).toBe('deferred')
 
-    // tool_search loaded browser_tabs; the next switch keeps it
-    f.pi.setActiveTools([...f.active(), 'browser_tabs'])
+    // tool_search loaded browser_fill_form; the next switch keeps it
+    f.pi.setActiveTools([...f.active(), 'browser_fill_form'])
     setBrowserToolsEnabled(true)
-    expect(f.active()).toContain('browser_tabs')
+    expect(f.active()).toContain('browser_fill_form')
 
     setBrowserToolsEnabled(false)
     expect(f.active()).toEqual(['read', 'bash'])
-    expect(f.tool('browser_tabs').exposure).toBe('hidden')
+    expect(f.tool('browser_fill_form').exposure).toBe('hidden')
     await expect(f.tool('browser_navigate').execute('x', {})).rejects.toThrow('browser_off')
   })
 

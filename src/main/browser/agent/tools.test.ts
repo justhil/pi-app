@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BrowserTabInfo } from '@shared/browser-types'
 import type { PageEngine } from '../engines/types'
 import { Pointer } from './input'
-import { executeBrowserTool, forgetBrowserTab, type AgentBrowserHost, type ToolResult } from './tools'
+import { adoptAgentSessionTabs, executeBrowserTool, forgetBrowserTab, sessionTabs, type AgentBrowserHost, type ToolResult } from './tools'
 
 type Snap = { yaml: string; modal?: { description: string; behind: number } }
 
@@ -47,13 +47,24 @@ function fakePage(snaps: Snap[], opts: { flashes?: string[]; failOn?: string } =
     cdpTab: () => null,
   } as unknown as PageEngine
   const info = { tabId: 't1', url: 'https://shop.test/', title: 'Shop', loading: false, openedBy: { sessionKey: 's1' } } as unknown as BrowserTabInfo
+  const tabs: BrowserTabInfo[] = [info]
   const pointer = new Pointer(engine)
   const host: AgentBrowserHost = {
-    list: () => ({ tabs: [info], activeTabId: 't1' }),
-    openTab: () => info,
+    list: () => ({ tabs, activeTabId: 't1' }),
+    openTab: (o) => {
+      const next = {
+        tabId: `t${tabs.length + 1}`,
+        url: o?.url ?? 'about:blank',
+        title: 'Shop',
+        loading: false,
+        openedBy: o?.openedBy ?? { sessionKey: 's1' },
+      } as unknown as BrowserTabInfo
+      tabs.push(next)
+      return next
+    },
     closeTab() {},
     focusTab() {},
-    agentTab: () => ({ info, engine, pointer }),
+    agentTab: (id) => ({ info: tabs.find((t) => t.tabId === id) ?? info, engine, pointer }),
     runOnTab: (_id, _action, work) => work(),
     downloads: () => [],
     kind: 'builtin',
@@ -139,6 +150,49 @@ describe('snapshot saveTo', () => {
     const saved = readFileSync(m![1], 'utf8')
     expect(saved).toMatch(/link "Product 29"/)
     expect(saved).not.toMatch(/more listitems/)
+  })
+})
+
+describe('navigation and session isolation', () => {
+  it('returns a structured shaped snapshot with page text and region refs on browser_navigate', async () => {
+    forgetBrowserTab('t1')
+    const { host } = fakePage([
+      {
+        yaml: '- main [ref=e1]:\n  - heading "Welcome" [level=1] [ref=e2]\n  - paragraph: Read the full article body here.\n  - button "Continue" [ref=e3]',
+      },
+    ])
+    const out = textOf(await executeBrowserTool(host, call('browser_navigate', { url: 'https://shop.test/welcome' })))
+    expect(out).toMatch(/- main \[ref=e1\]:/)
+    expect(out).toMatch(/paragraph: Read the full article body here\./)
+    expect(out).toMatch(/- button "Continue" \[ref=e3\]/)
+  })
+
+  it('isolates session tabs while keeping pinned tabs visible across sessions', () => {
+    const tabs: BrowserTabInfo[] = [
+      { tabId: 't1', engine: 'electron', profileId: 'p', url: 'https://a.test', title: 'A', loading: false, canGoBack: false, canGoForward: false, openedBy: { sessionKey: '/s1.jsonl' } },
+      { tabId: 't2', engine: 'electron', profileId: 'p', url: 'https://b.test', title: 'B', loading: false, canGoBack: false, canGoForward: false, openedBy: { sessionKey: '/s2.jsonl' } },
+      { tabId: 'p1', engine: 'electron', profileId: 'p', url: 'https://pin.test', title: 'Pin', loading: false, canGoBack: false, canGoForward: false, openedBy: { sessionKey: '/s2.jsonl' }, pinned: true },
+    ]
+    expect(sessionTabs(tabs, '/s1.jsonl').map((t) => t.tabId)).toEqual(['t1', 'p1'])
+    expect(sessionTabs(tabs, '/s2.jsonl').map((t) => t.tabId)).toEqual(['t2', 'p1'])
+    expect(sessionTabs(tabs, '/s3.jsonl').map((t) => t.tabId)).toEqual(['p1'])
+    adoptAgentSessionTabs('\u0000draft', '/s1.jsonl')
+  })
+
+  it('reads all open tabs at once with browser_snapshot allTabs:true and lists open tabs in pageSection', async () => {
+    forgetBrowserTab('t1')
+    forgetBrowserTab('t2')
+    const { host } = fakePage([
+      { yaml: '- heading "First Tab" [level=1] [ref=e1]' },
+      { yaml: '- heading "Second Tab" [level=1] [ref=e1]' },
+    ])
+    await executeBrowserTool(host, call('browser_tabs', { action: 'new', url: 'https://shop.test/second' }))
+    const single = textOf(await executeBrowserTool(host, call('browser_snapshot', { index: 0 })))
+    expect(single).toContain('### Open tabs (2)')
+
+    const all = textOf(await executeBrowserTool(host, call('browser_snapshot', { allTabs: true })))
+    expect(all).toContain('### Tab 0 (current):')
+    expect(all).toContain('### Tab 1:')
   })
 })
 

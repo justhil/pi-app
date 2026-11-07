@@ -14,6 +14,8 @@
     "stop": "Stop loading",
     "newTab": "New tab",
     "closeTab": "Close tab",
+    "pinTab": "Pin tab (keep across chats)",
+    "unpinTab": "Unpin tab",
     "tabs": "Tabs",
     "expand": "Expand",
     "collapse": "Collapse",
