@@ -10,6 +10,7 @@
 import { homedir } from 'os'
 import { join } from 'path'
 import { wslPathToWindows } from '@shared/wsl-path'
+import { isSshDistro } from './ssh/ssh-exec'
 import { setActiveDirResolvers } from '../extension-compat/active-dirs'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 import { wslHomeDirSync } from './wsl/wsl-exec'
@@ -26,7 +27,7 @@ function expandTilde(p: string): string {
 
 export function resolveActiveAgentDir(): string {
   const { mode, distro } = getAgentRuntimeConfig()
-  if (mode === 'wsl' && distro) {
+  if (mode === 'wsl' && distro && !isSshDistro(distro)) {
     const home = wslHomeDirSync(distro)
     if (home) return wslPathToWindows(distro, `${home}/.pi/agent`)
   }
@@ -38,7 +39,7 @@ export function resolveActiveAgentDir(): string {
 
 export function resolveActiveDesktopDir(): string {
   const { mode, distro } = getAgentRuntimeConfig()
-  if (mode === 'wsl' && distro) {
+  if (mode === 'wsl' && distro && !isSshDistro(distro)) {
     const home = wslHomeDirSync(distro)
     if (home) return wslPathToWindows(distro, `${home}/.pi/desktop`)
   }
@@ -47,7 +48,7 @@ export function resolveActiveDesktopDir(): string {
 
 export function resolveActiveHomeDir(): string {
   const { mode, distro } = getAgentRuntimeConfig()
-  if (mode === 'wsl' && distro) {
+  if (mode === 'wsl' && distro && !isSshDistro(distro)) {
     const home = wslHomeDirSync(distro)
     if (home) return wslPathToWindows(distro, home)
   }

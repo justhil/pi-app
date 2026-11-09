@@ -3,6 +3,7 @@
  * the persisted settings store.
  */
 
+import { isSshDistro } from '../ssh/ssh-exec.js'
 import { configStore } from '../config-store.js'
 
 export interface AgentRuntimeConfig {
@@ -23,6 +24,11 @@ export function getAgentRuntimeConfig(): AgentRuntimeConfig {
 export function isWslRuntimeActive(): boolean {
   const { mode, distro } = getAgentRuntimeConfig()
   return mode === 'wsl' && distro !== null
+}
+
+export function isSshRuntimeActive(): boolean {
+  const { mode, distro } = getAgentRuntimeConfig()
+  return mode === 'wsl' && isSshDistro(distro)
 }
 
 export function setAgentRuntimeMode(mode: 'host' | 'wsl', distro: string | null): void {

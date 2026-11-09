@@ -32,7 +32,8 @@ vi.mock('./wsl-env', () => ({ wslNodeCommand: (_distro: string, script: string) 
 vi.mock('../utility-entry-path', () => ({
   resolveUtilityEntry: (name: string) => join('/out/main', name),
 }))
-vi.mock('@shared/wsl-path', () => ({
+vi.mock('@shared/wsl-path', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@shared/wsl-path')>(),
   wslPathToWindows: (_distro: string, path: string) => path,
 }))
 vi.mock('fs', () => {

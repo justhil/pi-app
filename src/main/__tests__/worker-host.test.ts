@@ -59,7 +59,8 @@ vi.mock('../wsl/wsl-exec', () => ({
   wslHomeDir: vi.fn(async () => '/root'),
 }))
 
-vi.mock('@shared/wsl-path', () => ({
+vi.mock('@shared/wsl-path', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@shared/wsl-path')>(),
   wslPathToWindows: mocks.wslPathToWindows,
 }))
 

@@ -1,6 +1,6 @@
 /** 右侧栏 Tab：核心栏目 + 适配器声明的 sidePanel（合并后用于 Tab / 设置开关） */
 
-export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'browser'] as const
+export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'browser', 'ssh'] as const
 
 export type CoreRightPanelId = (typeof CORE_RIGHT_PANEL_IDS)[number]
 
@@ -29,6 +29,7 @@ export const CORE_RIGHT_PANEL_CATALOG: RightPanelCatalogItem[] = [
   { id: 'tree', labelKey: 'panel.tree', fallbackLabel: 'Tree', description: 'Session tree / rewind (like /tree)', descriptionKey: 'panel.treeDesc', icon: 'ListTree', source: 'core' },
   { id: 'files', labelKey: 'panel.files', fallbackLabel: 'Files', description: 'Workspace file preview & explorer', descriptionKey: 'panel.filesDesc', icon: 'FolderTree', source: 'core' },
   { id: 'browser', labelKey: 'panel.browser', fallbackLabel: 'Browser', description: 'Built-in browser (experimental)', descriptionKey: 'panel.browserDesc', icon: 'Globe', source: 'core' },
+  { id: 'ssh', labelKey: 'panel.ssh', fallbackLabel: 'SSH', description: 'SSH remote VPS connection & workspace', descriptionKey: 'panel.sshDesc', icon: 'Terminal', source: 'core' },
 ]
 
 /** @deprecated */
@@ -46,6 +47,7 @@ export function defaultCoreRightPanelPrefs(): RightPanelPrefs {
     files: true,
     // Experimental: off until the user enables it in Settings → Right panels.
     browser: false,
+    ssh: false,
   }
 }
 

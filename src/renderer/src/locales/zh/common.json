@@ -104,6 +104,8 @@
     "filesDesc": "工作区文件预览与浏览",
     "browser": "浏览器",
     "browserDesc": "内置浏览器（实验）",
+    "ssh": "SSH",
+    "sshDesc": "SSH 远程 VPS 连接与工作区切换",
     "unregistered": "未注册面板: {{id}}"
   },
   "settings": {

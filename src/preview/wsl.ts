@@ -13,6 +13,8 @@ import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { probeExtensions } from '../extension-compat/extension-probe'
 import { prepareAdapterCatalog } from '../extension-compat/adapter-loader'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
+import { workspaceFsCreate, workspaceFsListDir, workspaceFsReadText, workspaceFsRename } from '../main/workspace-fs'
+import { workspaceFsSearch } from '../main/workspace-file-search'
 import { encodeWorkerFrame, WORKER_STDIO_ENV, WORKER_WSL_DISTRO_ENV } from '@shared/worker-frame'
 import { wslPathToWindows } from '@shared/wsl-path'
 import type { WorkerIncomingMessage } from '../worker/worker-port-types'
@@ -37,6 +39,11 @@ type WslPreviewRequest = WorkerIncomingMessage & {
     | 'context.preview'
     | 'warm'
     | 'system.prompt'
+    | 'fs.listDir'
+    | 'fs.readText'
+    | 'fs.create'
+    | 'fs.rename'
+    | 'fs.search'
   userDataDir: string
   sdkPath: string
   workspaceId?: string
@@ -147,6 +154,36 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         (message.globalSettings as Record<string, unknown>) || {},
         (message.projectSettings as Record<string, unknown>) || {},
       )
+    } else if (message.type === 'fs.listDir') {
+      result = await workspaceFsListDir({
+        workspaceRoot: String(message.workspaceRoot || message.cwd || '/'),
+        path: message.path != null ? String(message.path) : '.',
+        includeDotfiles: message.includeDotfiles === true,
+      })
+    } else if (message.type === 'fs.readText') {
+      result = await workspaceFsReadText({
+        workspaceRoot: String(message.workspaceRoot || message.cwd || '/'),
+        path: String(message.path || ''),
+        maxBytes: typeof message.maxBytes === 'number' ? message.maxBytes : undefined,
+      })
+    } else if (message.type === 'fs.create') {
+      result = await workspaceFsCreate({
+        workspaceRoot: String(message.workspaceRoot || message.cwd || '/'),
+        relativePath: String(message.relativePath || ''),
+        isDirectory: message.isDirectory === true,
+      })
+    } else if (message.type === 'fs.rename') {
+      result = await workspaceFsRename({
+        workspaceRoot: String(message.workspaceRoot || message.cwd || '/'),
+        relativePath: String(message.relativePath || ''),
+        newName: String(message.newName || ''),
+      })
+    } else if (message.type === 'fs.search') {
+      result = await workspaceFsSearch({
+        workspaceRoot: String(message.workspaceRoot || message.cwd || '/'),
+        query: String(message.query || ''),
+        maxResults: typeof message.maxResults === 'number' ? message.maxResults : undefined,
+      })
     } else {
       throw new Error(`Unknown WSL preview request: ${String((message as { type?: string }).type)}`)
     }

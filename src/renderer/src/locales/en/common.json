@@ -104,6 +104,8 @@
     "filesDesc": "Workspace file preview & explorer",
     "browser": "Browser",
     "browserDesc": "Built-in browser (experimental)",
+    "ssh": "SSH",
+    "sshDesc": "SSH remote VPS connection & workspace",
     "unregistered": "Unregistered panel: {{id}}"
   },
   "settings": {

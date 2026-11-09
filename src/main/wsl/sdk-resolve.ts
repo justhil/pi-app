@@ -8,6 +8,7 @@
 import { join, posix } from 'path'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { wslPathToWindows } from '@shared/wsl-path'
+import { isSshDistro, quotePosixArg } from '../ssh/ssh-exec.js'
 import { runWslDistroAsync, wslHomeDir } from './wsl-exec.js'
 import { readWslPersisted, resolveWslEnv, writeWslPersisted } from './wsl-env.js'
 
@@ -63,6 +64,49 @@ const PROBE_SCRIPT = [
 
 function resolveProbeScript(): string {
   return PROBE_SCRIPT.replace('__PKG__', PKG)
+}
+
+const SSH_RESOLVE_NODE_JS = [
+  'const fs = require("fs"), path = require("path");',
+  'for (const raw of fs.readFileSync(0, "utf8").split(/\\r?\\n/)) {',
+  '  const root = (raw || "").trim();',
+  '  if (!root.startsWith("/")) continue;',
+  '  try {',
+  '    const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));',
+  '    const exp = typeof pkg.exports === "string" ? pkg.exports : (pkg.exports && pkg.exports["."]);',
+  '    const entry = (typeof exp === "string" ? exp : (exp && exp.import)) || pkg.main;',
+  '    if (!entry) continue;',
+  '    const rel = String(entry).replace(/\\\\/g, "/");',
+  '    const entryPath = path.posix.join(root, rel);',
+  '    if (!fs.existsSync(entryPath)) continue;',
+  '    const version = typeof pkg.version === "string" && pkg.version ? pkg.version : null;',
+  '    console.log("__PI_SDK__:" + JSON.stringify({ packageRoot: root, entryPath, version }));',
+  '    break;',
+  '  } catch {}',
+  '}',
+].join(' ')
+
+async function runSshSdkProbe(distro: string, now: number): Promise<WslSdkResolution | null> {
+  const env = await resolveWslEnv(distro)
+  const nodeBin = env?.node || 'node'
+  const script = [
+    '(',
+    resolveProbeScript(),
+    `) | ${quotePosixArg(nodeBin)} -e ${quotePosixArg(SSH_RESOLVE_NODE_JS)}`,
+    '',
+  ].join('\n')
+  const cmd = env ? ['env', `PATH=${env.path}`, 'sh', '-s'] : ['sh', '-s']
+  const result = await runWslDistroAsync(distro, cmd, { input: script, timeout: 30000 })
+  const marker = result.stdout.split(/\r?\n/).find((line) => line.startsWith('__PI_SDK__:'))
+  const resolved = result.status === 0 && marker
+    ? JSON.parse(marker.slice('__PI_SDK__:'.length)) as WslSdkResolution
+    : null
+  wslSdkResolveCache = { at: now, distro, value: resolved }
+  writeWslPersisted('wslSdkCache', {
+    ...(readWslPersisted<SdkCacheRecord>('wslSdkCache') ?? {}),
+    [distro]: { at: now, value: resolved },
+  })
+  return resolved
 }
 
 /**
@@ -177,6 +221,7 @@ function probeWslSdk(distro: string): Promise<WslSdkResolution | null> {
 
 async function runWslSdkProbe(distro: string): Promise<WslSdkResolution | null> {
   const now = Date.now()
+  if (isSshDistro(distro)) return runSshSdkProbe(distro, now)
   const home = await wslHomeDir(distro)
   if (!home) return null
 

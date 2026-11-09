@@ -22,7 +22,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...fs, default: fs }
 })
 vi.mock('../utility-entry-path', () => ({ resolveUtilityEntry: (name: string) => join(mocks.source, name) }))
-vi.mock('@shared/wsl-path', () => ({ wslPathToWindows: () => mocks.destination }))
+vi.mock('@shared/wsl-path', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@shared/wsl-path')>(),
+  wslPathToWindows: () => mocks.destination,
+}))
 vi.mock('./wsl-exec', () => ({
   wslHomeDir: async () => '/home/u',
   wslHomeDirSync: () => '/home/u',

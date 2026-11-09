@@ -19,6 +19,7 @@ import { registerCommandsSlashHandlers } from './ipc/handlers/commands-slash'
 import { registerAsrHandlers } from './ipc/handlers/asr'
 import { registerPiSdkHandlers } from './ipc/handlers/pi-sdk'
 import { registerWslHandlers } from './ipc/handlers/wsl'
+import { registerSshHandlers } from './ipc/handlers/ssh'
 import { registerDesktopChromeHandlers } from './ipc/handlers/desktop-chrome'
 import { registerBrowserHandlers } from './ipc/handlers/browser'
 import { registerMcpHandlers } from './ipc/handlers/mcp'
@@ -52,6 +53,7 @@ export function registerAllHandlers(): void {
   registerMcpHandlers()
   registerModelRouterHandlers()
   registerWslHandlers()
+  registerSshHandlers()
   registerDesktopChromeHandlers()
   registerBrowserHandlers()
   registerRemoteHandlers()

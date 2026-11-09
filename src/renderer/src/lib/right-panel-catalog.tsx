@@ -7,6 +7,7 @@ import {
   ListTree,
   Network,
   PanelRight,
+  Terminal,
   normalizeLegacyIconName,
   resolveAppIcon,
   type AppIconComponent,
@@ -22,6 +23,7 @@ const CORE_PANEL_ICONS: Record<string, AppIconComponent> = {
   tree: ListTree,
   files: FolderTree,
   browser: Globe,
+  ssh: Terminal,
   intercom: Network,
 }
 

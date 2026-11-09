@@ -5,11 +5,12 @@
 
 import { execFileSync, spawn } from 'child_process'
 import { errorMessage } from '@shared/error-message'
+import { isSshDistro, runSshTargetAsync, runSshTargetSync } from '../ssh/ssh-exec.js'
 import { getCachedWslEnv, refreshWslEnvInBackground, resolveWslEnv } from './wsl-env.js'
 
 export const WSL_EXE = 'wsl.exe'
 
-export const WSL_DISTRO_PATTERN = /^[A-Za-z0-9._-]+$/
+export const WSL_DISTRO_PATTERN = /^[A-Za-z0-9._@-]+$/
 
 export function isValidWslDistroName(distro: string | null | undefined): boolean {
   return typeof distro === 'string' && distro.trim() !== '' && WSL_DISTRO_PATTERN.test(distro)
@@ -120,6 +121,7 @@ export function runWslDistroSync(
   if (!isValidWslDistroName(distro)) {
     return { status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` }
   }
+  if (isSshDistro(distro)) return runSshTargetSync(distro, null, args, opts)
   return runWslSync(['-d', distro, '--', ...args], opts)
 }
 
@@ -131,11 +133,12 @@ export function runWslDistroCdSync(
   distro: string,
   wslCwd: string,
   args: string[],
-  opts: { timeout?: number } = {},
+  opts: { timeout?: number; input?: string } = {},
 ): WslExecResult {
   if (!isValidWslDistroName(distro)) {
     return { status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` }
   }
+  if (isSshDistro(distro)) return runSshTargetSync(distro, wslCwd, args, opts)
   return runWslSync(['-d', distro, '--cd', wslCwd, '--', ...args], opts)
 }
 
@@ -205,11 +208,12 @@ export function runWslAsync(
 export function runWslDistroAsync(
   distro: string,
   args: string[],
-  opts: { timeout?: number; maxBuffer?: number } = {},
+  opts: { timeout?: number; maxBuffer?: number; input?: string } = {},
 ): Promise<WslExecResult> {
   if (!isValidWslDistroName(distro)) {
     return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
   }
+  if (isSshDistro(distro)) return runSshTargetAsync(distro, null, args, opts)
   return runWslAsync(['-d', distro, '--', ...args], opts)
 }
 
@@ -222,6 +226,7 @@ export function runWslDistroCdAsync(
   if (!isValidWslDistroName(distro)) {
     return Promise.resolve({ status: -1, stdout: '', stderr: `invalid wsl distro: ${String(distro)}` })
   }
+  if (isSshDistro(distro)) return runSshTargetAsync(distro, wslCwd, args, opts)
   // Bypass the default shell so arguments such as git's %(refname) stay literal.
   return runWslAsync(['-d', distro, '--cd', wslCwd, '--exec', ...args], opts)
 }

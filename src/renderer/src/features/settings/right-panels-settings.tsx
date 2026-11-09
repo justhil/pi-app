@@ -9,12 +9,14 @@ import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { Toggle } from '@renderer/features/settings/settings-page-shared'
 import { btnOutline } from '@renderer/features/settings/settings-controls'
 import { BrowserSettingsSection } from '@renderer/features/browser/browser-settings-section'
+import { SshSettingsSection } from '@renderer/features/ssh/ssh-panel'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 export function RightPanelsSettings() {
   const { t } = useTranslation()
   const {
     draft,
+    setAgentRuntime,
     setRightPanelPref,
     reorderRightPanels,
     resetRightPanelsToDefault,
@@ -187,6 +189,7 @@ export function RightPanelsSettings() {
         )}
       </ul>
       {prefs.browser ? <div className="pt-4"><BrowserSettingsSection /></div> : null}
+      {prefs.ssh ? <div className="pt-4"><SshSettingsSection onRuntimeSynced={setAgentRuntime} /></div> : null}
     </div>
   )
 }

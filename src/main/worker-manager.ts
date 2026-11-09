@@ -31,9 +31,11 @@ import {
 } from './worker-manager-pool'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
-import { isWslWindowsPath } from '@shared/wsl-path'
+import { isWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
+import { isSshWindowsPath } from './ssh/ssh-exec'
 import { getAgentRuntimeConfig, isWslRuntimeActive } from './wsl/runtime-config'
 import { normalizeWorkspaceCwd } from './wsl/workspace-path'
+import { runWslDistroAsync } from './wsl/wsl-exec'
 import { readMaxSessionWorkers } from './worker-pool-config'
 import { configStore } from './config-store'
 import { unlink } from 'node:fs/promises'
@@ -1085,6 +1087,16 @@ export class WorkerManager {
 }
 
 async function deleteOfflineSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
+  if (isSshWindowsPath(sessionFile)) {
+    const distro = wslWindowsPathDistro(sessionFile)
+    const remotePath = distro ? windowsPathToWsl(distro, sessionFile) : ''
+    if (distro && remotePath) {
+      const res = await runWslDistroAsync(distro, ['rm', '-f', remotePath], { timeout: 10000 })
+      if (res.status !== 0) return { ok: false, error: res.stderr || 'SSH delete failed' }
+    }
+    clearSessionLeafOverride(sessionFile)
+    return { ok: true }
+  }
   try {
     await unlink(sessionFilePathForFs(sessionFile))
   } catch (error) {

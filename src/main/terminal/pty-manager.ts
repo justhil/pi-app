@@ -1,5 +1,7 @@
 import { existsSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
+import { buildSshCliArgs, isSshWindowsPath, quotePosixArg, SSH_EXE } from '../ssh/ssh-exec'
 import type { ShellProfile } from './shell-profiles'
 
 /** The slice of node-pty this module uses (so tests can pass a fake). */
@@ -39,8 +41,33 @@ export class PtyManager {
   }
 
   create(profile: ShellProfile, opts: { cwd?: string; cols: number; rows: number }): { id: string; pid: number } {
-    const cwd = opts.cwd && existsSync(opts.cwd) && statSync(opts.cwd).isDirectory() ? opts.cwd : homedir()
     const env = { ...this.baseEnv(), TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'pi-desktop' }
+    if (opts.cwd && isSshWindowsPath(opts.cwd)) {
+      const distro = wslWindowsPathDistro(opts.cwd)
+      const remoteCwd = distro ? windowsPathToWsl(distro, opts.cwd) : '~'
+      const sshArgs = [
+        ...buildSshCliArgs(distro || '', { tty: true, batchMode: false }),
+        `cd -- ${quotePosixArg(remoteCwd || '/')} 2>/dev/null; exec "\${SHELL:-/bin/bash}" -l`,
+      ]
+      const pty = this.spawn(SSH_EXE, sshArgs, {
+        name: 'xterm-256color',
+        cols: clampDim(opts.cols, 80),
+        rows: clampDim(opts.rows, 24),
+        cwd: homedir(),
+        env,
+      })
+      const id = `t${++this.seq}`
+      const entry: Entry = { pty, profile, buf: '', timer: null }
+      this.ptys.set(id, entry)
+      pty.onData((d) => this.push(id, d))
+      pty.onExit(({ exitCode }) => {
+        this.flush(id)
+        this.ptys.delete(id)
+        this.sink.exit(id, exitCode)
+      })
+      return { id, pid: pty.pid }
+    }
+    const cwd = opts.cwd && existsSync(opts.cwd) && statSync(opts.cwd).isDirectory() ? opts.cwd : homedir()
     const pty = this.spawn(profile.path, profile.args, { name: 'xterm-256color', cols: clampDim(opts.cols, 80), rows: clampDim(opts.rows, 24), cwd, env })
     const id = `t${++this.seq}`
     const entry: Entry = { pty, profile, buf: '', timer: null }

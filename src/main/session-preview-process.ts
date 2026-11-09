@@ -135,7 +135,12 @@ export class SessionPreviewProcess {
       | 'context.preview'
       | 'warm'
       | 'system.prompt'
-      | 'usage.summary',
+      | 'usage.summary'
+      | 'fs.listDir'
+      | 'fs.readText'
+      | 'fs.create'
+      | 'fs.rename'
+      | 'fs.search',
     payload: Record<string, unknown>,
     /** Host-side work (e.g. extension probing over UNC paths) that must not go to the WSL runner. */
     opts?: { local?: boolean },
@@ -255,6 +260,13 @@ export class SessionPreviewProcess {
 
   getPiSettings(cwd: string): Promise<Record<string, unknown>> {
     return this.request('pi.settings.get', { cwd })
+  }
+
+  remoteFs<T>(
+    type: 'fs.listDir' | 'fs.readText' | 'fs.create' | 'fs.rename' | 'fs.search',
+    payload: Record<string, unknown>,
+  ): Promise<T> {
+    return this.request<T>(type, payload)
   }
 
   setPiSettings(patch: Record<string, unknown>, cwd: string): Promise<void> {

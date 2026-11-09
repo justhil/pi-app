@@ -16,6 +16,21 @@
 | `ipc:runtime.getState` | `{}` | Worker/runtime 快照 |
 | `ipc:session.list` | workspace 相关字段 | 会话列表 |
 
+## SSH 运行环境
+
+SSH 使用本机 OpenSSH。主机列表读取 `~/.ssh/config` 中的具体 `Host` 条目，并叠加应用保存的连接参数。应用只保存私钥文件路径。
+
+| Channel | Request | Response |
+|---------|---------|----------|
+| `ipc:ssh.listHosts` | `{}` | `{ hosts, activeHost, runtime }` |
+| `ipc:ssh.saveHost` | `{ host, label?, hostName?, user?, port?, identityFile?, remotePath? }` | `{ ok, hosts }` |
+| `ipc:ssh.removeHost` | `{ host }` | `{ ok, hosts }` |
+| `ipc:ssh.probeHost` | `{ host, refresh? }` | `{ result }`，包含远端 Node、SDK 和 Git 状态 |
+| `ipc:ssh.listRemoteDir` | `{ host, path? }` | `{ ok, cwd, parent, dirs, error? }` |
+| `ipc:ssh.connect` | `{ enabled: true, host, remotePath? }` 或 `{ enabled: false }` | `{ ok, enabled?, activeHost?, runtime?, workspacePath?, remotePath?, hosts, error? }` |
+
+SSH 工作区在桌面端用 `\\\\wsl.localhost\\ssh@<host>\\...` 表示。文件列表、读取、搜索、新建和重命名由当前 SSH 主机的预览进程处理，路径必须属于该运行环境。
+
 ## 内置浏览器（`ipc:browser.*`，实验）
 
 Main 在第一次 `tabs.open` 时才创建 `BrowserHost`；没有打开过标签时，其余 channel 都是空操作。类型见 `packages/shared/browser-types.ts`。

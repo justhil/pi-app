@@ -9,7 +9,7 @@ import type {
   WorkspaceFsSearchResponse,
 } from '@shared/ipc-contract'
 import { resolvePathUnderWorkspace } from './workspace-fs'
-import { resolveActiveAgentDir } from './agent-dir'
+import { getActiveAgentDir } from '../extension-compat/active-dirs'
 
 const execFileAsync = promisify(execFile)
 const FD_ENUMERATION_LIMIT = 100
@@ -106,7 +106,7 @@ async function verifyFdExecutable(candidate: string): Promise<boolean> {
 
 export async function resolveFdExecutable(): Promise<string | null> {
   if (cachedFdExecutable !== undefined) return cachedFdExecutable
-  const agentDir = process.env.PI_CODING_AGENT_DIR || resolveActiveAgentDir()
+  const agentDir = process.env.PI_CODING_AGENT_DIR || getActiveAgentDir()
   const managed = join(agentDir, 'bin', process.platform === 'win32' ? 'fd.exe' : 'fd')
   if (existsSync(managed)) {
     cachedFdExecutable = managed

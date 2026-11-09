@@ -7,6 +7,7 @@ import { AlertTriangle, Check, Copy, Loader2, RefreshCw, XCircle } from '@render
 import { SettingRow, SettingsSection } from './settings-page-shared'
 import { selectCls, btnOutline } from './settings-controls'
 import { useSettingsDraft } from './settings-draft-context'
+import { SshSettingsSection } from '@renderer/features/ssh/ssh-panel'
 
 type WslDistroInfo = { name: string; version?: number; isDefault: boolean }
 type WslProbeResult = {
@@ -40,6 +41,7 @@ export function RuntimeSettingsPanel() {
   const [probeState, setProbeState] = useState<'idle' | 'checking'>('idle')
 
   const runtime = draft.agentRuntime
+  const isSshMode = runtime.mode === 'wsl' && !!runtime.distro?.startsWith('ssh@')
 
   useEffect(() => {
     if (!isWindows) return
@@ -61,32 +63,40 @@ export function RuntimeSettingsPanel() {
   }, [])
 
   useEffect(() => {
-    if (runtime.mode !== 'wsl' || !runtime.distro) {
+    if (runtime.mode !== 'wsl' || !runtime.distro || isSshMode) {
       setProbe(null)
       setProbeState('idle')
       return
     }
     runProbe(runtime.distro, false)
-  }, [runtime.mode, runtime.distro, runProbe])
+  }, [runtime.mode, runtime.distro, isSshMode, runProbe])
 
   const selectedExists = !distros || distros.some((d) => d.name === runtime.distro)
 
   return (
+    <>
     <SettingsSection title={t('settings:runtime.sectionAgentRuntime')} description={t('settings:runtime.sectionAgentRuntimeDesc')}>
       <SettingRow label={t('settings:runtime.mode')} description={t('settings:runtime.modeDesc')}>
         <select
           className={cn(selectCls, 'min-w-[min(220px,60vw)]')}
-          value={runtime.mode}
+          value={isSshMode ? 'ssh' : runtime.mode}
           onChange={(e) => {
-            const mode = e.target.value as 'host' | 'wsl'
+            const val = e.target.value
+            if (val === 'ssh') return
+            const mode = val as 'host' | 'wsl'
             const fallbackDistro = distros?.find((d) => d.isDefault)?.name ?? distros?.[0]?.name ?? null
-            setAgentRuntime({ mode, distro: mode === 'wsl' ? (runtime.distro ?? fallbackDistro) : null })
+            setAgentRuntime({ mode, distro: mode === 'wsl' ? (isSshMode ? fallbackDistro : (runtime.distro ?? fallbackDistro)) : null })
           }}
         >
           <option value="host">{t('settings:runtime.modeHost')}</option>
           <option value="wsl" disabled={!isWindows}>
             {t('settings:runtime.modeWsl')}
           </option>
+          {isSshMode && (
+            <option value="ssh">
+              SSH ({runtime.distro?.slice(4)})
+            </option>
+          )}
         </select>
       </SettingRow>
 
@@ -96,7 +106,7 @@ export function RuntimeSettingsPanel() {
         </SettingRow>
       )}
 
-      {runtime.mode === 'wsl' && isWindows && (
+      {runtime.mode === 'wsl' && !isSshMode && isWindows && (
         <>
           <SettingRow label={t('settings:runtime.distro')} description={t('settings:runtime.distroDesc')}>
             <select
@@ -137,6 +147,8 @@ export function RuntimeSettingsPanel() {
         </>
       )}
     </SettingsSection>
+    <SshSettingsSection onRuntimeSynced={setAgentRuntime} />
+    </>
   )
 }
 

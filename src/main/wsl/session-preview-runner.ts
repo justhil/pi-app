@@ -2,6 +2,7 @@ import type { ChildProcess } from 'child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { decodeWorkerFrameLine } from '@shared/worker-frame'
 import { windowsPathToWsl, wslPathToWindows } from '@shared/wsl-path'
+import { rememberSessionMeta } from '../session-file-meta'
 import { getAgentRuntimeConfig } from './runtime-config'
 import { resolveWslActiveSdk } from './sdk-resolve'
 import { spawnPreviewInWsl, syncPreviewBundleToWsl } from './preview-host'
@@ -20,6 +21,11 @@ export type WslPreviewRequest = {
     | 'warm'
     | 'system.prompt'
     | 'usage.summary'
+    | 'fs.listDir'
+    | 'fs.readText'
+    | 'fs.create'
+    | 'fs.rename'
+    | 'fs.search'
   payload: Record<string, unknown>
   userDataDir: string
 }
@@ -164,11 +170,14 @@ export class WslSessionPreviewRunner {
     if (runtime.mode !== 'wsl' || !runtime.distro) throw new Error('WSL preview runtime is not active')
     const cwd = windowsPathToWsl(
       runtime.distro,
-      String(request.payload.cwd || request.payload.workspaceId || ''),
+      String(request.payload.cwd || request.payload.workspaceRoot || request.payload.workspaceId || ''),
     ) || '/'
     const payload: Record<string, unknown> = { ...request.payload, cwd }
     if (typeof payload.workspaceId === 'string') {
       payload.workspaceId = windowsPathToWsl(runtime.distro, payload.workspaceId)
+    }
+    if (typeof payload.workspaceRoot === 'string') {
+      payload.workspaceRoot = windowsPathToWsl(runtime.distro, payload.workspaceRoot)
     }
     if (typeof payload.sessionFile === 'string') {
       payload.sessionFile = windowsPathToWsl(runtime.distro, payload.sessionFile)
@@ -206,12 +215,19 @@ export class WslSessionPreviewRunner {
     })
     // Match worker events: paths crossing into Main use the Windows view of WSL.
     if (request.type === 'session.list' && Array.isArray(result)) {
-      return result.map((row) => ({
-        ...row,
-        path: wslPathToWindows(runtime.distro, row.path),
-        ...(row.cwd ? { cwd: wslPathToWindows(runtime.distro, row.cwd) } : {}),
-        ...(row.parentSessionPath ? { parentSessionPath: wslPathToWindows(runtime.distro, row.parentSessionPath) } : {}),
-      })) as T
+      return result.map((row) => {
+        const winPath = wslPathToWindows(runtime.distro, row.path)
+        const rawCwd = row.cwd ? windowsPathToWsl(runtime.distro, row.cwd) : null
+        if (winPath && row.id) {
+          rememberSessionMeta(winPath, { sessionId: String(row.id), cwd: rawCwd })
+        }
+        return {
+          ...row,
+          path: winPath,
+          ...(row.cwd ? { cwd: wslPathToWindows(runtime.distro, row.cwd) } : {}),
+          ...(row.parentSessionPath ? { parentSessionPath: wslPathToWindows(runtime.distro, row.parentSessionPath) } : {}),
+        }
+      }) as T
     }
     return result
   }
