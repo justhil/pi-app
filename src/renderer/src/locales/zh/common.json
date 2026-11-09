@@ -78,7 +78,13 @@
     "forkSourceMissing": "已删除的会话",
     "newSessionDraft": "新会话",
     "openFolderHint": "选择一个文件夹作为项目",
-    "openFolderEmpty": "打开文件夹，开始一个项目"
+    "openFolderEmpty": "打开文件夹，开始一个项目",
+    "activeDrawer": {
+      "title": "活跃会话",
+      "empty": "暂无运行中或近 1 小时活跃会话",
+      "justNow": "刚刚",
+      "dismiss": "从列表移除"
+    }
   },
   "attention": {
     "needsYou": "等你",

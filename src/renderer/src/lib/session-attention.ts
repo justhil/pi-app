@@ -57,3 +57,88 @@ export function listAttentionSessions(
     .filter(([, value]) => value === kind)
     .map(([file]) => file)
 }
+
+/** 1 hour retention window for recently active sessions in the sidebar drawer. */
+export const RECENT_ACTIVE_WINDOW_MS = 60 * 60 * 1000
+
+export function pruneExpiredRecentSessions(
+  recent: Record<string, number> | undefined,
+  now = Date.now(),
+  windowMs = RECENT_ACTIVE_WINDOW_MS,
+): Record<string, number> {
+  if (!recent) return {}
+  const cutoff = now - windowMs
+  const out: Record<string, number> = {}
+  for (const [rawKey, ts] of Object.entries(recent)) {
+    const key = attentionKey(rawKey)
+    if (!key || typeof ts !== 'number' || !Number.isFinite(ts) || ts < cutoff) continue
+    out[key] = Math.max(out[key] ?? 0, ts)
+  }
+  return out
+}
+
+export interface ActiveDrawerEntry {
+  sessionFile: string
+  attention: SessionAttention
+  lastActiveAt: number
+}
+
+function drawerTier(attention: SessionAttention): number {
+  if (attention === 'needs-you') return 0
+  if (attention === 'working') return 1
+  // 'done' (unread) and 'idle' (read within 1h) share tier 2 so clicking a 'done' session
+  // to read it never reorders the list under the user's cursor.
+  return 2
+}
+
+/**
+ * Build the ordered list of sessions for the sidebar pull-up drawer:
+ * - Currently running ('working') or waiting on user ('needs-you')
+ * - Finished unread ('done')
+ * - Ran within the last 1 hour (even after being viewed/read)
+ */
+export function buildActiveDrawerEntries(input: {
+  attention: Record<string, SessionAttention>
+  recentActiveAt?: Record<string, number>
+  now?: number
+  windowMs?: number
+}): ActiveDrawerEntry[] {
+  const now = input.now ?? Date.now()
+  const windowMs = input.windowMs ?? RECENT_ACTIVE_WINDOW_MS
+  const cutoff = now - windowMs
+  const byKey = new Map<string, ActiveDrawerEntry>()
+
+  for (const [rawFile, value] of Object.entries(input.attention || {})) {
+    if (value === 'idle') continue
+    const key = attentionKey(rawFile)
+    if (!key) continue
+    byKey.set(key, {
+      sessionFile: key,
+      attention: value,
+      lastActiveAt: input.recentActiveAt?.[key] ?? input.recentActiveAt?.[rawFile] ?? 0,
+    })
+  }
+
+  for (const [rawFile, ts] of Object.entries(input.recentActiveAt || {})) {
+    if (typeof ts !== 'number' || !Number.isFinite(ts) || ts < cutoff) continue
+    const key = attentionKey(rawFile)
+    if (!key) continue
+    const existing = byKey.get(key)
+    if (existing) {
+      if (ts > existing.lastActiveAt) existing.lastActiveAt = ts
+    } else {
+      byKey.set(key, {
+        sessionFile: key,
+        attention: selectSessionAttention(key, input.attention || {}),
+        lastActiveAt: ts,
+      })
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) => {
+    const tierDiff = drawerTier(a.attention) - drawerTier(b.attention)
+    if (tierDiff !== 0) return tierDiff
+    if (b.lastActiveAt !== a.lastActiveAt) return b.lastActiveAt - a.lastActiveAt
+    return a.sessionFile.localeCompare(b.sessionFile)
+  })
+}

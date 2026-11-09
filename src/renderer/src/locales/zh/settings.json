@@ -105,6 +105,8 @@
     "langZh": "中文",
     "langEn": "English",
     "recentProjects": "最近项目",
+    "activeSessionsDrawer": "侧边栏活跃会话抽屉",
+    "activeSessionsDrawerDesc": "在左侧栏底部展示运行中、未读及近 1 小时内运行过的会话。",
     "fixedOrder": "固定项目顺序",
     "fixedOrderDesc": "关闭时按最近使用排序。",
     "noRecentProjects": "暂无最近项目",

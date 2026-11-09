@@ -78,7 +78,13 @@
     "forkSourceMissing": "a deleted conversation",
     "newSessionDraft": "New session",
     "openFolderHint": "Choose a folder to work in as a project",
-    "openFolderEmpty": "Open a folder to start a project"
+    "openFolderEmpty": "Open a folder to start a project",
+    "activeDrawer": {
+      "title": "Active sessions",
+      "empty": "No running or last-hour sessions",
+      "justNow": "now",
+      "dismiss": "Dismiss from list"
+    }
   },
   "attention": {
     "needsYou": "Needs you",

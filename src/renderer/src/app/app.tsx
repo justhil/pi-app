@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
 import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
 import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
+import { SidebarActiveSessionsDrawer } from '@renderer/features/workspace/sidebar-active-sessions-drawer'
 import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
@@ -407,6 +408,7 @@ export default function App() {
                   openProjectLabel={t('sidebar.openProject')}
                 />
               </SidebarContent>
+              <SidebarActiveSessionsDrawer />
               <div className="border-t border-border/50 p-1.5">
                 <SidebarItem
                   label={t('sidebar.settings')}

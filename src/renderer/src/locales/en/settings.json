@@ -105,6 +105,8 @@
     "langZh": "中文",
     "langEn": "English",
     "recentProjects": "Recent projects",
+    "activeSessionsDrawer": "Sidebar active sessions drawer",
+    "activeSessionsDrawerDesc": "Show running, unread, and last-hour sessions above Settings in the left sidebar.",
     "fixedOrder": "Keep project order fixed",
     "fixedOrderDesc": "Off sorts by last use.",
     "noRecentProjects": "No recent projects yet",

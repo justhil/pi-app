@@ -1,5 +1,6 @@
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
+  pruneExpiredRecentSessions,
   reduceSessionAttention,
   type SessionAttention,
 } from '@renderer/lib/session-attention'
@@ -15,10 +16,12 @@ type RuntimeSlice = Pick<
   | 'sessionWaitingUi'
   | 'sessionSettledUnseen'
   | 'sessionAttention'
+  | 'sessionLastActiveAt'
   | 'setSessionRuntimeRunning'
   | 'setSessionWaitingUi'
   | 'markSessionSettled'
   | 'markSessionViewed'
+  | 'dismissRecentSession'
   | 'reconcileSessionRuntimeIdle'
 >
 
@@ -82,21 +85,35 @@ function projectAttention(
   return next
 }
 
+function recordActiveTimestamp(
+  existing: Record<string, number> | undefined,
+  sessionFile: string,
+  now = Date.now(),
+): Record<string, number> {
+  const key = runtimeKey(sessionFile)
+  const pruned = pruneExpiredRecentSessions(existing, now)
+  if (!key) return pruned
+  return { ...pruned, [key]: now }
+}
+
 export function createRuntimeSlice(set: StoreSet): RuntimeSlice {
   return {
     sessionRuntimeRunning: {},
     sessionWaitingUi: {},
     sessionSettledUnseen: {},
     sessionAttention: {},
+    sessionLastActiveAt: {},
     setSessionRuntimeRunning: (sessionFile, running) =>
       set((state) => {
         const key = runtimeKey(sessionFile)
         if (!key) return state
         const sessionRuntimeRunning = withoutSessionFlag(state.sessionRuntimeRunning || {}, sessionFile)
         if (running) sessionRuntimeRunning[key] = true
-        const next = { ...state, sessionRuntimeRunning }
+        const sessionLastActiveAt = recordActiveTimestamp(state.sessionLastActiveAt, sessionFile)
+        const next = { ...state, sessionRuntimeRunning, sessionLastActiveAt }
         return {
           sessionRuntimeRunning,
+          sessionLastActiveAt,
           sessionAttention: projectAttention(next, sessionFile),
         }
       }),
@@ -106,9 +123,13 @@ export function createRuntimeSlice(set: StoreSet): RuntimeSlice {
         if (!key) return state
         const sessionWaitingUi = withoutSessionFlag(state.sessionWaitingUi || {}, sessionFile)
         if (waiting) sessionWaitingUi[key] = true
-        const next = { ...state, sessionWaitingUi }
+        const sessionLastActiveAt = waiting
+          ? recordActiveTimestamp(state.sessionLastActiveAt, sessionFile)
+          : state.sessionLastActiveAt
+        const next = { ...state, sessionWaitingUi, sessionLastActiveAt }
         return {
           sessionWaitingUi,
+          sessionLastActiveAt,
           sessionAttention: projectAttention(next, sessionFile),
         }
       }),
@@ -119,9 +140,11 @@ export function createRuntimeSlice(set: StoreSet): RuntimeSlice {
         const viewing = sessionFilesEqual(state.historySessionFile, sessionFile)
         const sessionSettledUnseen = withoutSessionFlag(state.sessionSettledUnseen || {}, sessionFile)
         if (!viewing) sessionSettledUnseen[key] = true
-        const next = { ...state, sessionSettledUnseen }
+        const sessionLastActiveAt = recordActiveTimestamp(state.sessionLastActiveAt, sessionFile)
+        const next = { ...state, sessionSettledUnseen, sessionLastActiveAt }
         return {
           sessionSettledUnseen,
+          sessionLastActiveAt,
           sessionAttention: projectAttention(next, sessionFile),
         }
       }),
@@ -133,6 +156,20 @@ export function createRuntimeSlice(set: StoreSet): RuntimeSlice {
         const next = { ...state, sessionSettledUnseen }
         return {
           sessionSettledUnseen,
+          sessionAttention: projectAttention(next, sessionFile),
+        }
+      }),
+    dismissRecentSession: (sessionFile) =>
+      set((state) => {
+        const key = runtimeKey(sessionFile)
+        if (!key) return state
+        const sessionSettledUnseen = withoutSessionFlag(state.sessionSettledUnseen || {}, sessionFile)
+        const sessionLastActiveAt = pruneExpiredRecentSessions(state.sessionLastActiveAt)
+        delete sessionLastActiveAt[key]
+        const next = { ...state, sessionSettledUnseen, sessionLastActiveAt }
+        return {
+          sessionSettledUnseen,
+          sessionLastActiveAt,
           sessionAttention: projectAttention(next, sessionFile),
         }
       }),

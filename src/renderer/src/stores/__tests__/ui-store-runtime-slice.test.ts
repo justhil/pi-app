@@ -49,5 +49,10 @@ describe('UI runtime state isolation', () => {
     focusSessionSync('background', '/sessions/background.jsonl')
 
     expect(useUIStore.getState().sessionSettledUnseen['/sessions/background.jsonl']).toBeUndefined()
+    // The session remains in sessionLastActiveAt for the 1h drawer even after being viewed
+    expect(useUIStore.getState().sessionLastActiveAt['/sessions/background.jsonl']).toBeGreaterThan(0)
+
+    useUIStore.getState().dismissRecentSession('/sessions/background.jsonl')
+    expect(useUIStore.getState().sessionLastActiveAt['/sessions/background.jsonl']).toBeUndefined()
   })
 })

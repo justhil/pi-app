@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.translate }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }))
 
 vi.mock('@renderer/lib/ipc-client', () => ({

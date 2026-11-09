@@ -47,6 +47,10 @@ type ShellSlice = Pick<
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
   | 'toggleSidebar'
+  | 'sidebarActiveSessionsDrawer'
+  | 'setSidebarActiveSessionsDrawer'
+  | 'sidebarActiveSessionsOpen'
+  | 'setSidebarActiveSessionsOpen'
   | 'rightPanelWidth'
   | 'setRightPanelWidth'
   | 'rightPanelCollapsed'
@@ -124,6 +128,10 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+    sidebarActiveSessionsDrawer: true,
+    setSidebarActiveSessionsDrawer: (on) => set({ sidebarActiveSessionsDrawer: on }),
+    sidebarActiveSessionsOpen: true,
+    setSidebarActiveSessionsOpen: (open) => set({ sidebarActiveSessionsOpen: open }),
     rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),

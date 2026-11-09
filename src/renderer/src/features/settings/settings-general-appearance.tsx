@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
@@ -104,6 +105,8 @@ export function GeneralSettings() {
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [fixedOrder, setFixedOrder] = useState(false)
+  const activeSessionsDrawer = useUIStore((s) => s.sidebarActiveSessionsDrawer)
+  const setActiveSessionsDrawer = useUIStore((s) => s.setSidebarActiveSessionsDrawer)
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -478,6 +481,12 @@ export function GeneralSettings() {
       <RuntimeSettingsPanel />
 
       <SettingsSection title={t('settings:general.recentProjects')}>
+        <SettingRow
+          label={t('settings:general.activeSessionsDrawer')}
+          description={t('settings:general.activeSessionsDrawerDesc')}
+        >
+          <Switch checked={activeSessionsDrawer} onCheckedChange={setActiveSessionsDrawer} />
+        </SettingRow>
         <SettingRow label={t('settings:general.fixedOrder')} description={t('settings:general.fixedOrderDesc')}>
           <Switch checked={fixedOrder} onCheckedChange={toggleFixedOrder} />
         </SettingRow>
