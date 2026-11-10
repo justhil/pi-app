@@ -107,7 +107,7 @@ export function PiSettingsSdkSection({
 
       {sdkStatus?.active?.fallbackReason && (
         <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-          {sdkStatus.active.kind === 'user' ? t('settings:pi.fallbackUser') : t('settings:pi.fallbackGlobal')}
+          {sdkStatus.active.fallbackReason === 'user-unavailable' ? t('settings:pi.fallbackUser') : t('settings:pi.fallbackGlobal')}
         </div>
       )}
       {sdkStatus?.workerFallback && (

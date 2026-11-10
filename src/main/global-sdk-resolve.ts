@@ -103,8 +103,43 @@ function piPackageRootFromPiShim(shimPath: string): string | null {
   return validatePiCodingAgentRoot(root) ? root : null
 }
 
+const SAFE_RELEASE_VERSION_RE = /^[0-9A-Za-z._+-]+$/
+
+/**
+ * Pi 1.5+ managed install layout (`~/.pi/agent/install`):
+ * `current-version` points to `releases/<version>/node_modules/@earendil-works/pi-coding-agent`.
+ */
+function pkgRootFromManagedInstallDir(installRoot: string): string | null {
+  try {
+    const currentFile = join(installRoot, 'current-version')
+    if (!existsSync(currentFile)) return null
+    const ver = readFileSync(currentFile, 'utf-8').trim()
+    if (!ver || ver === '.' || ver === '..' || !SAFE_RELEASE_VERSION_RE.test(ver)) return null
+    const pkgRoot = join(installRoot, 'releases', ver, 'node_modules', PKG_SCOPE, PKG_NAME)
+    return validatePiCodingAgentRoot(pkgRoot) ? pkgRoot : null
+  } catch {
+    return null
+  }
+}
+
+function piManagedInstallEnvRoots(): string[] {
+  const roots: string[] = []
+  const explicitInstall = process.env.PI_MANAGED_INSTALL_ROOT?.trim()
+  if (explicitInstall) roots.push(explicitInstall)
+  const explicitAgent = process.env.PI_CODING_AGENT_DIR?.trim()
+  if (explicitAgent) roots.push(join(explicitAgent, 'install'))
+  return roots
+}
+
+function piManagedInstallHomeRoots(): string[] {
+  const home = homedir()
+  return home ? [join(home, '.pi', 'agent', 'install')] : []
+}
+
 function piPackageRootBesideShim(shimPath: string): string | null {
   const dir = dirname(shimPath)
+  const managedBesideShim = pkgRootFromManagedInstallDir(join(dir, '..', 'install'))
+  if (managedBesideShim) return managedBesideShim
   const candidates = [
     join(dir, 'node_modules', PKG_SCOPE, PKG_NAME),
     join(dir, '..', 'node_modules', PKG_SCOPE, PKG_NAME),
@@ -209,13 +244,25 @@ export function discoverGlobalPiCodingAgentRoot(opts?: { skipSpawn?: boolean }):
   }
   const tryModuleRoot = (moduleRoot: string): string | null => tryPkgRoot(scanModuleRoot(moduleRoot))
 
-  // 0) env 推导的全局 node_modules（无子进程）：APPDATA/npm、npm_config_prefix、HOME
+  // 0a) Explicit PI_MANAGED_INSTALL_ROOT / PI_CODING_AGENT_DIR env override (no subprocess)
+  for (const installRoot of piManagedInstallEnvRoots()) {
+    const hit = tryPkgRoot(pkgRootFromManagedInstallDir(installRoot))
+    if (hit) return hit
+  }
+
+  // 0b) env 推导的全局 node_modules（无子进程）：APPDATA/npm、npm_config_prefix、HOME
   for (const moduleRoot of npmGlobalModuleRootsFromEnv()) {
     const hit = tryModuleRoot(moduleRoot)
     if (hit) return hit
   }
 
-  // 0b) pi-node 等独立安装布局（无子进程）
+  // 0c) Pi 1.5+ 官方 managed-install 布局：~/.pi/agent/install/current-version -> releases/<ver>（无子进程）
+  for (const installRoot of piManagedInstallHomeRoots()) {
+    const hit = tryPkgRoot(pkgRootFromManagedInstallDir(installRoot))
+    if (hit) return hit
+  }
+
+  // 0d) pi-node 等独立安装布局（无子进程）
   for (const moduleRoot of piNodeStyleModuleRoots()) {
     const hit = tryModuleRoot(moduleRoot)
     if (hit) return hit

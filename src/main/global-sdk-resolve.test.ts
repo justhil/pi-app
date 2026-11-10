@@ -27,6 +27,8 @@ beforeEach(() => {
   delete process.env.NPM_CONFIG_PREFIX
   delete process.env.APPDATA
   delete process.env.LOCALAPPDATA
+  delete process.env.PI_MANAGED_INSTALL_ROOT
+  delete process.env.PI_CODING_AGENT_DIR
 })
 
 afterEach(() => {
@@ -57,6 +59,37 @@ describe('discoverGlobalPiCodingAgentRoot', () => {
     process.env.APPDATA = tempRoot
 
     const root = discoverGlobalPiCodingAgentRoot()
+    expect(root).toBe(join(pkgRoot))
+    expect(spawnSyncSpy).not.toHaveBeenCalled()
+  })
+
+  it('should_find_pi_managed_install_releases_v1_layout_without_spawning_child_process', () => {
+    tempRoot = mkdtempSync(join(tmpdir(), 'pi-sdk-managed-'))
+    const agentDir = join(tempRoot, '.pi', 'agent')
+    const installDir = join(agentDir, 'install')
+    const pkgRoot = join(
+      installDir,
+      'releases',
+      '1.5.0',
+      'node_modules',
+      '@earendil-works',
+      'pi-coding-agent',
+    )
+    mkdirSync(pkgRoot, { recursive: true })
+    writeFileSync(join(installDir, 'current-version'), '1.5.0\n')
+    writeFileSync(
+      join(pkgRoot, 'package.json'),
+      JSON.stringify({
+        name: '@earendil-works/pi-coding-agent',
+        version: '1.5.0',
+        exports: { '.': { import: './dist/index.js' } },
+      }),
+    )
+    mkdirSync(join(pkgRoot, 'dist'), { recursive: true })
+    writeFileSync(join(pkgRoot, 'dist', 'index.js'), '')
+    process.env.PI_CODING_AGENT_DIR = agentDir
+
+    const root = discoverGlobalPiCodingAgentRoot({ skipSpawn: true })
     expect(root).toBe(join(pkgRoot))
     expect(spawnSyncSpy).not.toHaveBeenCalled()
   })
