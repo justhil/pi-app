@@ -21,6 +21,7 @@ import {
   resetSessionEventTracking,
 } from './worker-session-events.js'
 import { errorMessage } from '@shared/error-message'
+import { removeWindowsReservedDeviceFiles } from '@shared/windows-reserved-files'
 import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
@@ -148,6 +149,7 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   } catch {
     /* ignore */
   }
+  await removeWindowsReservedDeviceFiles(st.currentCwd).catch(() => {})
   await prepareAdapterCatalog(st.currentCwd, { refresh: true })
   await bindDesktopExtensions(session)
   st.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -218,6 +220,7 @@ function piBuiltinExtensions(sdk: unknown): InlineExtension[] {
 function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
   const sdk = st.sdk!
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
+    await removeWindowsReservedDeviceFiles(cwd).catch(() => {})
     await prepareAdapterCatalog(cwd, { refresh: true })
     const services = await sdk.createAgentSessionServices({
       cwd,

@@ -70,8 +70,11 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       hasEditorText: !!(r?.editorText && r.editorText.length),
     })
     if (!stillCurrent()) return false
-    if (r?.cancelled || r?.error) {
-      toast.error(r?.error || '跳转已取消')
+    if (r?.error) {
+      toast.error(r.error)
+      return false
+    }
+    if (r?.cancelled) {
       return false
     }
 

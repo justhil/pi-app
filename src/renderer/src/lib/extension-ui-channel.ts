@@ -3,7 +3,10 @@ import { onExtensionUIRequest, onExtensionUIDismiss } from '@renderer/lib/ipc-cl
 import { useExtensionUIStore, type ExtensionUIPending } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
-import { shouldShowExtensionNotify } from '@renderer/lib/extension-notify-policy'
+import {
+  formatExtensionNotifyMessage,
+  shouldShowExtensionNotify,
+} from '@renderer/lib/extension-notify-policy'
 import { signalDesktopAlert } from '@renderer/lib/desktop-alerts'
 import type { AskQuestionPayload } from '@renderer/features/extension-ui/questionnaire-dialog'
 import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-review-dialog'
@@ -126,7 +129,7 @@ export function ensureExtensionUIChannel(): void {
 
     if (method === 'notify') {
       const t = (req.notifyType as string) || 'info'
-      const msg = req.message as string
+      const msg = formatExtensionNotifyMessage(String(req.message || ''))
       traceAudioRenderer('extension-ui.notify', { notifyType: t, msg: msg?.slice(0, 120) })
       const show = shouldShowExtensionNotify(msg, t)
       alertTrace('extension notify', { notifyType: t, show, msg: msg?.slice(0, 120) })
