@@ -258,4 +258,11 @@ describe('GeneralSettings manual update feedback', () => {
 
     expect(mocks.showAppUpdateDialog).not.toHaveBeenCalled()
   })
+
+  it('shows the concurrent task limit directly without requiring an expand toggle', () => {
+    mocks.invoke.mockResolvedValue({ settings: {} })
+    render(<GeneralSettings />)
+    expect(screen.getByRole('spinbutton', { name: 'settings:general.maxSessionWorkers' })).toHaveValue(2)
+    expect(screen.getByRole('button', { name: '8' })).toBeInTheDocument()
+  })
 })

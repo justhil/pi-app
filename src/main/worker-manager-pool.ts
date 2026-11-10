@@ -504,6 +504,6 @@ export function canAcquireNewWorker(
   }
   return {
     ok: false,
-    reason: `Worker pool full (${max} running sessions). Stop a turn or raise maxSessionWorkers.`,
+    reason: `已达并发任务上限（当前最多同时运行 ${max} 个会话任务），请停止其中一个或在「设置 → 常规 / Pi → 并发任务上限」中调高上限。`,
   }
 }
