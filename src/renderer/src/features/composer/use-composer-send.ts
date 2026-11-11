@@ -10,6 +10,11 @@ import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
 import { extensionUiBlocksComposer, useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
+import {
+  commitPurgedSessionAfterSend,
+  consumeDraftPurgeForFirstSend,
+  rollbackDraftPurgeAfterSendFailure,
+} from '@renderer/lib/agent-purge-store'
 import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -122,6 +127,8 @@ export function useComposerSend(opts: {
         editorRef.current?.focus()
         const pendingNew = store.pendingNewSessionPlaceholder
         const homeMode = !store.currentSessionId && store.timelineItems.length === 0
+        const isFirstTurnOfNewChat = !running && (draft || pendingNew || homeMode) && !store.historySessionFile
+        const agentPurge = consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat)
         const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
           await import('@renderer/lib/optimistic-send')
         let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
@@ -132,11 +139,15 @@ export function useComposerSend(opts: {
           sessionFile,
           text: promptText,
           capabilities,
+          ...(agentPurge ? { agentPurge } : {}),
         })
         let promptAccepted = false
         const sendPrompt = async () => {
           const bind = await ipcClient.invoke('prompt.send', promptPayload())
           promptAccepted = true
+          if (agentPurge?.enabled) {
+            commitPurgedSessionAfterSend(sessionFile, bind?.purgedSession)
+          }
           return bind
         }
         const pendMsg = trimmed
@@ -223,6 +234,7 @@ export function useComposerSend(opts: {
           console.error('Send failed:', e)
           const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
           if (!promptAccepted) {
+            rollbackDraftPurgeAfterSendFailure(agentPurge)
             if (clearOptimisticOutgoing(optimisticToken)) {
               useUIStore.getState().setRunState({ status: 'idle' })
             }

@@ -17,6 +17,7 @@ import { ImageLightbox } from '@renderer/components/ui/image-lightbox'
 import { rememberImagePreviewDataUrl } from '@renderer/features/timeline/clipboard-image-chip'
 import type { StagedImage } from './attachments'
 import { ComposerModelStrip } from './composer-model-strip'
+import { ComposerPurgeToggle } from './composer-purge-toggle'
 import { ComposerToolsMenu } from './composer-tools-menu'
 import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
@@ -558,6 +559,9 @@ export function Composer() {
               <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
             </button>
             {canSendMessages && <ComposerToolsMenu running={isRunning} />}
+            {canCompose && !readOnlySubagentPreview && (
+              <ComposerPurgeToggle draftContextKey={draftContextKey} running={isRunning} />
+            )}
             <div className="min-w-0 flex-1">
               {canSendMessages && (
                 <ComposerModelStrip

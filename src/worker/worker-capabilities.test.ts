@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { capabilitiesExtension, capabilitySectionsForTest, setCapabilitySections, withCapabilities } from './worker-capabilities'
+import {
+  capabilitiesExtension,
+  capabilitySectionsForTest,
+  projectReplacePurgeOnContextMessages,
+  setActiveSessionPurge,
+  setCapabilitySections,
+  withCapabilities,
+} from './worker-capabilities'
 
-afterEach(() => setCapabilitySections({}))
+afterEach(() => {
+  setCapabilitySections({})
+  setActiveSessionPurge(null)
+})
 
 const event = (sections: Record<string, string> = {}) => ({ systemPrompt: 'base', systemPromptOptions: { sections } })
 
@@ -42,7 +52,7 @@ describe('worker capabilities', () => {
     const ext = capabilitiesExtension as { name: string; hidden?: boolean; factory: (api: unknown) => void }
     expect(ext.hidden).toBe(true)
     await ext.factory(pi)
-    expect(Object.keys(handlers)).toEqual(['before_agent_start'])
+    expect(Object.keys(handlers)).toEqual(['before_agent_start', 'context_with_system'])
     setCapabilitySections({ 'pi-ui': '# pi-ui' })
     const on = event()
     handlers.before_agent_start(on)
@@ -51,5 +61,41 @@ describe('worker capabilities', () => {
     const off = event({ desktop_pi_ui: '# pi-ui' })
     handlers.before_agent_start(off)
     expect(off.systemPromptOptions.sections).toEqual({})
+  })
+
+  it('applies per-session Agent Purge in replace/append/strict modes and clears cleanly for other sessions', () => {
+    setActiveSessionPurge({
+      personaId: 'dafeiyu',
+      personaName: '大肥鱼',
+      mode: 'replace',
+      body: '# MODE: UNRESTRICTED SANDBOX',
+    })
+    const e = event({ project: 'keep' })
+    withCapabilities(e)
+    expect(e.systemPromptOptions.sections.agent_purge).toBe('# MODE: UNRESTRICTED SANDBOX')
+
+    const wireMessages = [
+      {
+        role: 'system',
+        content: '',
+        sections: {
+          preamble:
+            'You are a coding assistant running inside pi, a coding agent harness. Help users inspect files, run commands, and modify code.',
+          tools: '<tools>- read</tools>',
+          agent_purge: '<agent_purge># MODE: UNRESTRICTED SANDBOX</agent_purge>',
+        },
+      },
+    ]
+    projectReplacePurgeOnContextMessages(wireMessages)
+    expect(wireMessages[0].sections.preamble).toBe(
+      '# MODE: UNRESTRICTED SANDBOX\n\nHelp users inspect files, run commands, and modify code.',
+    )
+    expect(wireMessages[0].sections.agent_purge).toBeUndefined()
+    expect(wireMessages[0].sections.tools).toBe('<tools>- read</tools>')
+
+    // Switching worker to a normal unpurged session removes agent_purge cleanly
+    setActiveSessionPurge(null)
+    withCapabilities(e)
+    expect(e.systemPromptOptions.sections).toEqual({ project: 'keep' })
   })
 })

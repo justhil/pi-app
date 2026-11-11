@@ -19,6 +19,7 @@ import {
 } from '../../session-bind-state'
 import { setVisibleSessionFile } from '../../completion-notification-events'
 import { sessionPreviewProcess } from '../../session-preview-process'
+import { inheritPurgedSession, removePurgedSession } from '../../agent-purge-service'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import type { SessionOnDiskRow } from '../sdk-session'
@@ -415,6 +416,7 @@ export function registerSessionHandlers(): void {
           },
         }
       }
+      inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
       return {
@@ -505,6 +507,7 @@ export function registerSessionHandlers(): void {
           },
         }
       }
+      inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
       return {
@@ -584,6 +587,7 @@ export function registerSessionHandlers(): void {
     const r = await workerManager.deleteSessionFile(authorized.sessionFile)
     if (r.ok) {
       clearSessionDisplayName(authorized.sessionFile)
+      removePurgedSession(authorized.sessionFile)
       await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
     }
     return { ok: !!r.ok, error: r.error }

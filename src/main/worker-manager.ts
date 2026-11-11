@@ -475,9 +475,14 @@ export class WorkerManager {
     return out
   }
 
-  /** Prompt text of the enabled session capabilities, applied from the next agent turn on. */
-  async setCapabilities(sections: Record<string, string>, tools: string[], sessionFile?: string): Promise<void> {
-    await this.request('setCapabilities', { sections, tools, sessionFile })
+  /** Prompt text of the enabled session capabilities (+ per-session Agent Purge), applied from the next agent turn on. */
+  async setCapabilities(
+    sections: Record<string, string>,
+    tools: string[],
+    sessionFile?: string,
+    purge?: import('@shared/agent-purge').ActivePurgePayload | null,
+  ): Promise<void> {
+    await this.request('setCapabilities', { sections, tools, sessionFile, purge: purge ?? null })
   }
 
   async sendPrompt(text: string, sessionFile?: string): Promise<void> {

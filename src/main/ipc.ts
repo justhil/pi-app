@@ -3,6 +3,7 @@ import { registerWorkspaceFsHandlers } from './ipc/handlers/workspace-fs'
 import { registerWorkspaceHandlers } from './ipc/handlers/workspace'
 import { registerSessionHandlers } from './ipc/handlers/session'
 import { registerPromptHandlers } from './ipc/handlers/prompt'
+import { registerPurgeHandlers } from './ipc/handlers/purge'
 import { registerSettingsHandlers } from './ipc/handlers/settings'
 import { registerWindowControlHandlers } from './ipc/handlers/window-controls'
 import { registerTerminalHandlers } from './ipc/handlers/terminal'
@@ -34,6 +35,7 @@ export function registerAllHandlers(): void {
   registerWorkspaceHandlers()
   registerSessionHandlers()
   registerPromptHandlers()
+  registerPurgeHandlers()
   registerSettingsHandlers()
   registerWindowControlHandlers()
   registerTerminalHandlers()

@@ -249,5 +249,22 @@
     }
   },
   "thinkingShort": "思考 {{level}}",
-  "thinkingPrefix": "思考"
+  "thinkingPrefix": "思考",
+  "purge": {
+    "shortLabel": "人设",
+    "choosePersona": "选择注入人设与模式",
+    "menuTitle": "新对话首轮注入",
+    "openSettings": "配置",
+    "modeLabel": "注入模式",
+    "modes": {
+      "replace": "换身份",
+      "append": "追加",
+      "strict": "只留人设"
+    },
+    "firstTurnNote": "仅当前新对话生效，不影响全局。发送首条消息后锁定，不可中途修改。",
+    "inactiveDraftHint": "点击为本新对话启用人设注入（默认：{{name}}）",
+    "activeDraftHint": "将在首条消息自动注入：{{name}}（{{mode}}），点击可取消",
+    "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）· 已锁定不可修改",
+    "lockedOffHint": "仅新对话发送首条消息前可开启人设注入"
+  }
 }

@@ -8,6 +8,7 @@ import { normalizeSessionFileKey } from '@shared/session-file-key'
 import { normalizeCapabilities } from '@shared/capabilities'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { findAdapterByTool } from '../extension-compat/adapter-loader'
+import { getActivePurgeForSession } from './agent-purge-service'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
@@ -147,7 +148,12 @@ export function createElectronRemoteHost(): RemoteHostPort {
       // re-loading it would read a missing header, so only cold sessions go through loadSession.
       if (!workerManager.hasLiveSessionWorker(sessionFile)) await workerManager.loadSession(sessionFile, { cwd: projectId })
       noteBrowserTarget(sessionFile, capabilities)
-      await workerManager.setCapabilities(capabilitySectionMap(capabilities), capabilityToolFamilies(capabilities), sessionFile)
+      await workerManager.setCapabilities(
+        capabilitySectionMap(capabilities),
+        capabilityToolFamilies(capabilities),
+        sessionFile,
+        getActivePurgeForSession(sessionFile),
+      )
       if (mode === 'steer') await workerManager.steer(text, sessionFile)
       else if (mode === 'followUp') await workerManager.followUp(text, sessionFile)
       else await workerManager.sendPrompt(text, sessionFile)

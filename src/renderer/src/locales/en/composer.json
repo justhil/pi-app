@@ -249,5 +249,22 @@
     }
   },
   "thinkingShort": "Thinking {{level}}",
-  "thinkingPrefix": "Thinking"
+  "thinkingPrefix": "Thinking",
+  "purge": {
+    "shortLabel": "Purge",
+    "choosePersona": "Choose persona and mode",
+    "menuTitle": "New chat injection",
+    "openSettings": "Configure",
+    "modeLabel": "Injection mode",
+    "modes": {
+      "replace": "Replace ID",
+      "append": "Append",
+      "strict": "Strict"
+    },
+    "firstTurnNote": "Applies to this new chat only (never global). Locks permanently once the first message is sent.",
+    "inactiveDraftHint": "Enable persona injection for this new chat (default: {{name}})",
+    "activeDraftHint": "Will inject on first message: {{name}} ({{mode}}) — click to turn off",
+    "lockedOnHint": "Injected in this chat: {{name}} ({{mode}}) · Locked after start",
+    "lockedOffHint": "Persona injection can only be enabled before the first message of a new chat"
+  }
 }

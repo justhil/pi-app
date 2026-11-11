@@ -295,9 +295,12 @@ export default function App() {
       setView('main')
       void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile })
     }
+    const onOpenSettingsPage = () => setView('settings')
     window.addEventListener('pi-desktop:open-session', onOpenSession)
+    window.addEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
     return () => {
       window.removeEventListener('pi-desktop:open-session', onOpenSession)
+      window.removeEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
       unsubEvents()
       unsubExit()
       unsubNotify()

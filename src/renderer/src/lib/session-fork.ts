@@ -1,5 +1,6 @@
 import { toast } from 'sonner'
 import i18n from '@renderer/lib/i18n'
+import { inheritPurgedSessionInStore } from '@renderer/lib/agent-purge-store'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
@@ -157,6 +158,7 @@ export async function forkSessionFromEntry(entryId: string, source?: ForkSource)
       return false
     }
 
+    inheritPurgedSessionInStore(sessionFile, newFile)
     await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, {
       editorText: typeof res.editorText === 'string' ? res.editorText : '',
       startWorkspace,
@@ -226,6 +228,7 @@ export async function cloneCurrentSession(source?: ForkSource): Promise<boolean>
       return false
     }
 
+    inheritPurgedSessionInStore(sessionFile, newFile)
     await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null, startWorkspace })
     toast.success(i18n.t('composer:toast.cloned', { defaultValue: '已 Clone 到新会话' }))
     return true
