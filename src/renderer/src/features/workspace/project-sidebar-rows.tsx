@@ -18,8 +18,24 @@ import { SessionAttentionDot } from './session-attention-dot'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
+import {
+  dropEdgeAt,
+  getSidebarDrag,
+  moveRanked,
+  orderByRank,
+  readSessionRanks,
+  setSidebarDrag,
+  writeSessionRanks,
+  type DropEdge,
+  type SessionRanks,
+} from './sidebar-manual-order'
 
 const NO_CHILDREN: SubagentSessionChild[] = []
+
+export type SidebarDragProps = Pick<React.HTMLAttributes<HTMLElement>, 'onDragStart' | 'onDragEnd' | 'onDragOver' | 'onDragLeave' | 'onDrop'> & {
+  draggable?: boolean
+  'data-drop-edge'?: DropEdge
+}
 
 export function ProjectSessionTree({
   workspacePath,
@@ -48,6 +64,11 @@ export function ProjectSessionTree({
   const subagentSessionGroup = useUIStore((st) => st.subagentSessionGroup)
   const catalogReady = useToolCardCatalogReady()
   const [expandedSessionFiles, setExpandedSessionFiles] = useState<Set<string>>(() => new Set())
+  // Dragged order of this project's conversations (top level only), remembered in this window.
+  const projectKey = workspacePathKey(workspacePath)
+  const [ranks, setRanks] = useState<SessionRanks>(() => readSessionRanks(projectKey))
+  const [sessionDrop, setSessionDrop] = useState<{ key: string; edge: DropEdge } | null>(null)
+  const canReorder = !searchQuery.trim()
   const isCurrentProject = workspacePathsEqual(currentWorkspace, workspacePath)
   // Only the viewed project has live subagents; the memoized selector keeps the same array
   // across streaming tokens so this tree does not re-render on every delta.
@@ -72,8 +93,9 @@ export function ProjectSessionTree({
       && workspacePathKey(subagentSessionGroup.parentSessionFile) !== workspacePathKey(historySessionFile)) {
       groups.push(subagentSessionGroup)
     }
-    return buildSessionTree(projectSessions, groups)
-  }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath])
+    const built = buildSessionTree(projectSessions, groups)
+    return { ...built, roots: orderByRank(built.roots, (node) => node.key, (node) => node.session.updatedAt, ranks) }
+  }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath, ranks])
   const visibleRoots = useMemo(() => filterSessionTree(tree.roots, searchQuery), [tree, searchQuery])
   const { sessionsByFile, forksBySource } = useMemo(() => {
     const byFile = new Map<string, SessionItem>()
@@ -154,15 +176,52 @@ export function ProjectSessionTree({
     const parentActive = currentSessionId === s.sessionId
       && workspacePathsEqual(workspacePath, currentWorkspace)
       && workspacePathKey(historySessionFile) === node.key
+    // A top-level row also takes drops from its own project's rows to change their order.
+    const acceptsDrop = (e: React.DragEvent) => {
+      const drag = getSidebarDrag()
+      return depth === 0 && canReorder && drag?.kind === 'session' && drag.projectKey === projectKey && drag.key !== node.key ? drag : null
+    }
     return (
       <div
         key={node.key}
         className="mb-0.5"
         data-session-file={sessionFile}
+        data-drop-edge={sessionDrop?.key === node.key ? sessionDrop.edge : undefined}
         draggable={!!sessionFile && !node.liveChild}
         onDragStart={(e) => {
           if (!sessionFile) return
+          // Without this a child row's drag would bubble up and carry its parent instead.
+          e.stopPropagation()
           startSessionDrag(e, { sessionId: s.sessionId, sessionFile, workspace: workspacePath, title: s.title || s.firstMessage || '' })
+          setSidebarDrag(depth === 0 ? { kind: 'session', projectKey, key: node.key } : null)
+        }}
+        onDragEnd={(e) => {
+          e.stopPropagation()
+          setSidebarDrag(null)
+          setSessionDrop(null)
+        }}
+        onDragOver={(e) => {
+          if (!acceptsDrop(e)) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.dataTransfer.dropEffect = 'move'
+          const edge = dropEdgeAt(e)
+          setSessionDrop((previous) => previous?.key === node.key && previous.edge === edge ? previous : { key: node.key, edge })
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+          setSessionDrop((previous) => previous?.key === node.key ? null : previous)
+        }}
+        onDrop={(e) => {
+          const drag = acceptsDrop(e)
+          if (!drag) return
+          e.preventDefault()
+          e.stopPropagation()
+          const next = moveRanked(visibleRoots, drag.key, node.key, dropEdgeAt(e), (row) => row.key, (row) => row.session.updatedAt, ranks)
+          setRanks(next)
+          writeSessionRanks(projectKey, next)
+          setSessionDrop(null)
+          setSidebarDrag(null)
         }}
       >
         <div
@@ -385,6 +444,7 @@ export function ProjectDiskRow({
   onNewSession,
   onProjectContextMenu,
   sessionTree,
+  headerDragProps,
 }: {
   path: string
   name: string
@@ -397,12 +457,15 @@ export function ProjectDiskRow({
   onNewSession: () => void
   onProjectContextMenu: (e: React.MouseEvent) => void
   sessionTree: React.ReactNode
+  /** Drag-to-reorder handlers for a top-level project; worktrees inside a group get none. */
+  headerDragProps?: SidebarDragProps
 }) {
   const { t } = useTranslation()
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
       <div
         className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg pl-0.5 pr-1"
+        {...headerDragProps}
       >
         <button
           type="button"

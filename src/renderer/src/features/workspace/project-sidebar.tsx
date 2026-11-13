@@ -23,7 +23,9 @@ import {
 } from './project-sidebar-types'
 import { matchesSessionQuery } from './project-session-tree'
 import { projectFolderOrder } from './project-folder-order'
-import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow } from './project-sidebar-rows'
+import { ProjectDiskRow, ProjectSessionTree, SandboxDialogRow, type SidebarDragProps } from './project-sidebar-rows'
+import { arrangeRecentProjects, dropEdgeAt, getSidebarDrag, moveItem, setSidebarDrag, type DropEdge } from './sidebar-manual-order'
+import { setDragLabel } from '@renderer/features/split/split-dnd'
 import { groupSidebarProjects } from './project-worktree-groups'
 import { useProjectWorktrees } from './use-project-worktrees'
 import { resolveProjectDisplayName, uniqueWorkspacePaths, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
@@ -71,6 +73,7 @@ export function ProjectSidebar({
   const [sandboxes, setSandboxes] = useState<SandboxEntry[]>([])
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
   const [recentProjectsFixedOrder, setRecentProjectsFixedOrder] = useState(false)
+  const [projectDrop, setProjectDrop] = useState<{ key: string; edge: DropEdge } | null>(null)
   const fixedOrderRef = useRef(false)
   // Temporary chats start collapsed (remembered); they open by themselves when the active
   // conversation lives there (new temp chat / opened sandbox) so it is never hidden.
@@ -425,7 +428,60 @@ export function ProjectSidebar({
       && box.label.toLowerCase().includes(sessionQuery.trim().toLowerCase()))
     : sandboxes
 
-  const renderProject = (project: GitWorktree, grouped: boolean, repositoryPath?: string | null, siblingPaths?: string[]) => {
+  /** Drop a top-level project or repository group next to another and save the stored order. */
+  const reorderProjects = async (fromKey: string, targetKey: string, edge: DropEdge) => {
+    const items = projectGroups.map((group) => ({ key: group.key, paths: group.projects.map((project) => project.path) }))
+    const moved = moveItem(items, items.findIndex((item) => item.key === fromKey), items.findIndex((item) => item.key === targetKey), edge)
+    if (moved === items) return
+    const order = moved.map((item) => item.paths)
+    useUIStore.setState((state) => ({ recentProjects: arrangeRecentProjects(state.recentProjects, order) }))
+    try {
+      // Rearrange the list as the main process has it now, so a project it just added stays.
+      const res = await ipcClient.invoke('settings.get', { key: 'recentProjects' })
+      const stored = res?.settings?.recentProjects as string[] | undefined
+      if (stored) await ipcClient.invoke('settings.set', { key: 'recentProjects', value: arrangeRecentProjects(stored, order) })
+    } catch (e) {
+      console.error('[ProjectSidebar] saving project order failed:', e)
+    } finally {
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
+    }
+  }
+
+  const projectDragProps = (groupKey: string, label: string): SidebarDragProps | undefined => searchActive ? undefined : {
+    draggable: true,
+    'data-drop-edge': projectDrop?.key === groupKey ? projectDrop.edge : undefined,
+    onDragStart: (e) => {
+      e.dataTransfer.effectAllowed = 'move'
+      setDragLabel(e, label)
+      setSidebarDrag({ kind: 'project', key: groupKey })
+    },
+    onDragEnd: () => {
+      setSidebarDrag(null)
+      setProjectDrop(null)
+    },
+    onDragOver: (e) => {
+      const drag = getSidebarDrag()
+      if (drag?.kind !== 'project' || drag.key === groupKey) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      const edge = dropEdgeAt(e)
+      setProjectDrop((previous) => previous?.key === groupKey && previous.edge === edge ? previous : { key: groupKey, edge })
+    },
+    onDragLeave: (e) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+      setProjectDrop((previous) => previous?.key === groupKey ? null : previous)
+    },
+    onDrop: (e) => {
+      const drag = getSidebarDrag()
+      if (drag?.kind !== 'project' || drag.key === groupKey) return
+      e.preventDefault()
+      setProjectDrop(null)
+      setSidebarDrag(null)
+      void reorderProjects(drag.key, groupKey, dropEdgeAt(e))
+    },
+  }
+
+  const renderProject = (project: GitWorktree, grouped: boolean, repositoryPath?: string | null, siblingPaths?: string[], headerDragProps?: SidebarDragProps) => {
     const { path } = project
     const key = workspacePathKey(path)
     const open = searchActive || expandedPaths.has(key)
@@ -455,6 +511,7 @@ export function ProjectSidebar({
         if (willExpand && !(key in mergedSessionsByWorkspace)) void loadWorkspaceSessions(path)
       }}
       onNewSession={() => void handleNewSessionInProject(path)}
+      headerDragProps={headerDragProps}
       onProjectContextMenu={(event) =>
         projectMenu.open(event, path, displayName, {
           repositoryPath: repositoryPath || path,
@@ -627,7 +684,10 @@ export function ProjectSidebar({
           projectGroups.map((group) => {
             const projects = group.projects.filter((project) => visiblePaths.includes(project.path))
             if (!projects.length) return null
-            if (!group.repositoryPath) return projects.map((project) => renderProject(project, false))
+            if (!group.repositoryPath) {
+              return projects.map((project) => renderProject(project, false, null, undefined,
+                projectDragProps(group.key, resolveProjectDisplayName(projectDisplayNames, project.path, diskProjectName(project.path), { grouped: false }))))
+            }
             const name = resolveProjectDisplayName(
               projectDisplayNames,
               group.repositoryPath,
@@ -642,6 +702,7 @@ export function ProjectSidebar({
                 className="sidebar-repository-hit flex min-h-[36px] w-full min-w-0 items-center gap-0.5 rounded-lg pl-0.5 pr-1 text-left hover:bg-[var(--bg-hover)]"
                 aria-expanded={open}
                 title={group.repositoryPath}
+                {...projectDragProps(group.key, name)}
                 onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}
                 onContextMenu={(event) =>
                   projectMenu.open(event, group.repositoryPath!, name, {
