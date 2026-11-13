@@ -136,7 +136,7 @@ describe('snapshot saveTo', () => {
     expect(m, out).toBeTruthy()
     expect(out).not.toMatch(/Product 3/)
     const { readFileSync } = await import('node:fs')
-    const saved = readFileSync(m![1], 'utf8')
+    const saved =readFileSync(m![1], 'utf8')
     expect(saved).toMatch(/link "Product 29"/)
     expect(saved).not.toMatch(/more listitems/)
   })
@@ -145,8 +145,9 @@ describe('snapshot saveTo', () => {
 describe('tool coverage', () => {
   it('handles every defined browser tool', async () => {
     const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
     const { BROWSER_TOOL_DEFS } = await import('@shared/browser-tools')
-    const source = readFileSync(require('node:path').join(__dirname, 'tools.ts'), 'utf8')
+    const source = readFileSync(join(__dirname, 'tools.ts'), 'utf8')
     const missing = BROWSER_TOOL_DEFS.map((d) => d.name).filter((n) => !source.includes(`case '${n}'`) && !source.includes(`call.tool === '${n}'`))
     expect(missing).toEqual([])
   })

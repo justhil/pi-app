@@ -166,6 +166,54 @@ describe.skipIf(!process.env.PI_PERF)('timeline render cost', () => {
     expect(samples.length).toBeGreaterThan(100)
   }, 120_000)
 
+  it('S5 streaming under sealed tool groups in a 1200-row session', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    // 150 turns of: question, six tool calls, answer — each turn's tools seal into one summary.
+    const base: TimelineItem[] = []
+    for (let turn = 0; turn < 150; turn++) {
+      base.push({ id: `u-${turn}`, type: 'user-message', text: `question ${turn}`, timestamp: turn * 1000, sessionEntryId: `ue-${turn}` } as TimelineItem)
+      for (let tool = 0; tool < 6; tool++) {
+        base.push({
+          id: `t-${turn}-${tool}`,
+          type: 'tool-call',
+          toolName: tool % 2 ? 'edit' : 'read',
+          toolPhase: 'end',
+          toolCallId: `call-${turn}-${tool}`,
+          toolArgs: { path: `src/file-${tool}.ts` },
+          timestamp: turn * 1000 + tool,
+        } as unknown as TimelineItem)
+      }
+      base.push({ id: `a-${turn}`, type: 'assistant-message', text: answer(1), timestamp: turn * 1000 + 900, sessionEntryId: `ae-${turn}` } as TimelineItem)
+    }
+    base.push({ id: 'u-live', type: 'user-message', text: 'and now?', timestamp: 999_000, sessionEntryId: 'ue-live' } as TimelineItem)
+    useUIStore.setState(baseState(base))
+    let reactMs = 0
+    render(
+      <Profiler id="timeline" onRender={(_id, _phase, actual) => { reactMs += actual }}>
+        <Timeline />
+      </Profiler>,
+    )
+    await settleLazyMarkdown()
+    reactMs = 0
+    const full = 'Short answer that keeps streaming one sentence at a time. '.repeat(40)
+    const step = Math.ceil(full.length / 150)
+    const samples: number[] = []
+    for (let end = step; end <= full.length + step; end += step) {
+      const text = full.slice(0, Math.min(end, full.length))
+      const started = performance.now()
+      act(() => {
+        useUIStore.setState({
+          timelineItems: [...base, { id: 'stream', type: 'assistant-message', text, timestamp: 999_999 } as TimelineItem],
+          streamingAssistantId: 'stream',
+        })
+      })
+      samples.push(performance.now() - started)
+    }
+    const groups = document.querySelectorAll('.tool-group-hit').length
+    console.log('[perf] S5 tool-group streaming', JSON.stringify({ ...stats(samples), loadedRows: base.length, toolGroups: groups, reactMs: +reactMs.toFixed(1) }))
+    expect(groups).toBeGreaterThan(0)
+  }, 120_000)
+
   it('S4 streaming a large pi-ui table block', async () => {
     Element.prototype.scrollIntoView = vi.fn()
     const base = history(200)

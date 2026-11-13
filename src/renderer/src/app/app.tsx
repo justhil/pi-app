@@ -90,6 +90,9 @@ if ((window as unknown as { piDesktop?: { e2e?: boolean } }).piDesktop?.e2e) {
   ;(window as unknown as { __piE2E?: unknown }).__piE2E = { useUIStore, useExtensionUIStore, ipcClient }
 }
 
+/** Best-effort startup work: a failure must not break the shell, but it should leave a trace. */
+const logFailure = (what: string) => (error: unknown) => console.warn(`[App] ${what} failed`, error)
+
 performance.mark('pi:app-module')
 
 export default function App() {
@@ -111,7 +114,7 @@ export default function App() {
   const browserWasEnabled = useRef(browserPanelEnabled)
   useEffect(() => {
     // Turning the experimental browser panel off releases every tab in Main.
-    if (browserWasEnabled.current && !browserPanelEnabled) void ipcClient.invoke('browser.shutdown').catch(() => {})
+    if (browserWasEnabled.current && !browserPanelEnabled) void ipcClient.invoke('browser.shutdown').catch(logFailure('browser.shutdown'))
     browserWasEnabled.current = browserPanelEnabled
   }, [browserPanelEnabled])
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
@@ -184,10 +187,10 @@ export default function App() {
     markExtensionNotifyAppReady()
     useExtensionUIStore.getState().resetForSessionContext()
     void ensureWorkspaceWorkerOnBoot()
-    void hydrateThemeFromSettings().catch(() => {})
-    void hydrateCustomThemeFromSettings().catch(() => {})
-    void hydrateCustomCssOverrideFromSettings().catch(() => {})
-    void hydrateBackgroundFromSettings().catch(() => {})
+    void hydrateThemeFromSettings().catch(logFailure('theme hydration'))
+    void hydrateCustomThemeFromSettings().catch(logFailure('custom theme hydration'))
+    void hydrateCustomCssOverrideFromSettings().catch(logFailure('custom CSS hydration'))
+    void hydrateBackgroundFromSettings().catch(logFailure('background hydration'))
     applyUiZoom(readUiZoom())
   }, [])
 
@@ -195,9 +198,7 @@ export default function App() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      void loadNormalizedRightPanelPrefs()
-        .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
-        .catch(() => {})
+      // Right-panel prefs load in the workspace effect below (it also runs on mount).
       void ipcClient
         .invoke('settings.get', { key: 'timelineMaxAutoExpandedTools' })
         .then((res) => {
@@ -206,13 +207,13 @@ export default function App() {
             .getState()
             .setTimelineMaxAutoExpandedTools(normalizeTimelineMaxAutoExpandedTools(raw))
         })
-        .catch(() => {})
+        .catch(logFailure('timelineMaxAutoExpandedTools load'))
       void ipcClient
         .invoke('settings.get', { key: 'timelineVisibleTurns' })
         .then((res) => {
           useUIStore.getState().setTimelineVisibleTurns(normalizeTimelineVisibleTurns(res?.settings?.timelineVisibleTurns))
         })
-        .catch(() => {})
+        .catch(logFailure('timelineVisibleTurns load'))
       prefetchAvailableModels()
       // The composer menus open from a chip click; load their code ahead so the first open is instant.
       window.setTimeout(() => {
@@ -221,7 +222,7 @@ export default function App() {
       }, 1500)
     })
     return () => cancelAnimationFrame(frame)
-  }, [applyRightPanelRuntime])
+  }, [])
 
   useEffect(() => {
     activateAdapterWorkspace(currentWorkspace)
@@ -229,7 +230,7 @@ export default function App() {
     let active = true
     void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
       if (active) applyRightPanelRuntime(catalog, prefs, order)
-    }).catch(() => {})
+    }).catch(logFailure('right panel prefs load'))
     return () => { active = false }
   }, [currentWorkspace, applyRightPanelRuntime])
 
@@ -248,7 +249,7 @@ export default function App() {
         const workspace = useUIStore.getState().currentWorkspace
         void loadNormalizedRightPanelPrefs().then(({ catalog, prefs, order }) => {
           if (useUIStore.getState().currentWorkspace === workspace) useUIStore.getState().applyRightPanelRuntime(catalog, prefs, order)
-        }).catch(() => {})
+        }).catch(logFailure('right panel prefs reload'))
         if (event.type === 'sdk-runtime-changed') void handleSdkRuntimeChanged()
         return
       }
@@ -273,7 +274,7 @@ export default function App() {
     void import('@renderer/lib/session-worker-sync').then(({ fetchWorkerLiveSnapshot }) => {
       fetchWorkerLiveSnapshot()
         .then((snap) => useUIStore.getState().setWorkerLiveSnapshot(snap))
-        .catch(() => {})
+        .catch(logFailure('worker live snapshot'))
     })
     const unsubExit = onWorkerExit((info) => {
       console.warn('Worker exited:', info)
