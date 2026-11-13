@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { CodeBlockView } from '../code-block-view'
 
 vi.mock('@renderer/lib/shiki-highlighter', () => ({
@@ -12,12 +12,25 @@ describe('CodeBlockView', () => {
     expect(await screen.findByText('typescript')).toBeInTheDocument()
   })
 
-  it('marks the scroll container as independent and contains overscroll', () => {
-    const { container } = render(<CodeBlockView code="hello" lang="text" />)
+  it('scrolls globally by default, activates internal scroll on click, and exits on outside click', () => {
+    const { container } = render(
+      <div>
+        <div data-testid="outside">Outside</div>
+        <CodeBlockView code="hello" lang="text" />
+      </div>,
+    )
 
-    const scrollContainer = container.querySelector('.native-code-shiki')
+    const scrollContainer = container.querySelector('.native-code-shiki')!
+    expect(scrollContainer).not.toHaveAttribute('data-independent-scroll')
+    expect(scrollContainer).toHaveClass('overflow-hidden')
+
+    fireEvent.click(scrollContainer)
     expect(scrollContainer).toHaveAttribute('data-independent-scroll')
     expect(scrollContainer).toHaveClass('overflow-auto', 'overscroll-contain')
+
+    fireEvent.pointerDown(screen.getByTestId('outside'))
+    expect(scrollContainer).not.toHaveAttribute('data-independent-scroll')
+    expect(scrollContainer).toHaveClass('overflow-hidden')
   })
 
   it('shows copy control', async () => {

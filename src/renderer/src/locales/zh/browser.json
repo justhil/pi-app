@@ -14,6 +14,8 @@
     "stop": "停止加载",
     "newTab": "新标签页",
     "closeTab": "关闭标签页",
+    "pinTab": "固定标签页（跨对话常驻）",
+    "unpinTab": "取消固定标签页",
     "tabs": "标签页",
     "expand": "展开",
     "collapse": "收起",

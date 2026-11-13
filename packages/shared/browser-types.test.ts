@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   browserAcceptLanguages,
   chromeSecChUa,
+  cleanElectronUserAgent,
   greaseBrand,
   withChromeClientHints,
+  wantsElectronUserAgent,
   chromeUserAgent,
   dedupeLanguages,
   isAllowedBrowserUrl,
@@ -98,5 +100,29 @@ describe('user agent', () => {
     expect(out['Sec-CH-UA-Mobile']).toBe('?1')
     expect(out['sec-ch-ua-mobile']).toBeUndefined()
     expect(out['sec-ch-ua-platform']).toBe('"Windows"')
+  })
+
+  it('should_send_electron_user_agent_when_requesting_google_signin_hosts', () => {
+    const electronUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/146.0.0.0 Electron/43.7.7 Safari/537.36'
+    expect(wantsElectronUserAgent('https://accounts.google.com/v3/signin/identifier')).toBe(true)
+    expect(wantsElectronUserAgent('https://accounts.youtube.com/ServiceLogin')).toBe(true)
+    expect(wantsElectronUserAgent('https://www.google.com/search?q=pi')).toBe(false)
+
+    const out = withChromeClientHints(
+      'https://accounts.google.com/v3/signin/identifier',
+      { 'User-Agent': 'Mozilla/5.0 Chrome/146.0.0.0' },
+      '146',
+      'win32',
+      electronUa,
+    )
+    expect(out['User-Agent']).toBe(electronUa)
+    expect(
+      cleanElectronUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) pi-desktop/0.7.7 Chrome/146.0.0.0 Electron/43.7.7 Safari/537.36',
+        'pi-desktop',
+      ),
+    ).toBe(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Electron/43.7.7 Safari/537.36',
+    )
   })
 })

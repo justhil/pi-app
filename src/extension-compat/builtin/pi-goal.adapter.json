@@ -1,18 +1,37 @@
 {
   "id": "pi-goal",
   "displayName": "Goal",
-  "description": "目标循环（斜杠状态输出）",
+  "description": "持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令",
   "match": {
     "names": [
+      "@astrosheep/pi-goal-next",
+      "pi-goal-next",
       "pi-goal"
+    ],
+    "tools": [
+      "get_goal",
+      "create_goal",
+      "update_goal"
     ],
     "commands": [
       "/goal"
     ]
   },
-  "tier": "headless",
+  "tier": "partial",
+  "toolCard": {
+    "template": "default",
+    "icon": "Target"
+  },
   "config": {
-    "note": "目标循环由扩展自管；桌面仅展示斜杠状态输出。"
+    "note": "目标状态与预算按会话分支持久化；通过 /goal status、/goal pause、/goal resume、/goal clear、/goal budget <tokens> 或 /goal <目标描述> 管理。",
+    "i18n": {
+      "zh": {
+        "note": "目标状态与预算按会话分支持久化；通过 /goal status、/goal pause、/goal resume、/goal clear、/goal budget <tokens> 或 /goal <目标描述> 管理。"
+      },
+      "en": {
+        "note": "Goal state and token budgets are journaled per session branch; manage with /goal status, /goal pause, /goal resume, /goal clear, /goal budget <tokens>, or /goal <objective>."
+      }
+    }
   },
   "slash": {
     "/goal": "notify"
@@ -20,11 +39,11 @@
   "i18n": {
     "zh": {
       "displayName": "Goal",
-      "description": "目标循环（斜杠状态输出）"
+      "description": "持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令"
     },
     "en": {
       "displayName": "Goal",
-      "description": "Goal loop manager; list and status included"
+      "description": "Persistent autonomous goals: get_goal / create_goal / update_goal tool cards and /goal command"
     }
   }
 }

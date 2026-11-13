@@ -1,0 +1,104 @@
+{
+  "id": "pi-devin-search",
+  "displayName": "Devin Search",
+  "description": "Devin / Windsurf 网页搜索：devin_search 工具卡片，配置读写 ~/.pi/agent/devin-search.json",
+  "match": {
+    "names": [
+      "pi-devin-search"
+    ],
+    "tools": [
+      "devin_search"
+    ],
+    "commands": [
+      "/devin-search",
+      "/devin-search-status",
+      "/devin-search-config",
+      "/devin-search-import-key"
+    ]
+  },
+  "tier": "headless",
+  "toolCard": {
+    "template": "list",
+    "icon": "Search",
+    "statusField": "$.output.text"
+  },
+  "config": {
+    "configFile": "~/.pi/agent/devin-search.json",
+    "fileKeyMap": {
+      "apiKey": "apiKey",
+      "dbPath": "dbPath"
+    },
+    "envOverride": {
+      "apiKey": "DEVIN_SEARCH_API_KEY",
+      "dbPath": "DEVIN_SEARCH_DB_PATH"
+    },
+    "sections": [
+      {
+        "title": "凭证与数据源",
+        "fields": [
+          {
+            "key": "apiKey",
+            "type": "secret",
+            "label": "API Key",
+            "description": "Devin / Windsurf 搜索凭证；留空则自动尝试环境变量或 Windsurf 本地数据库"
+          },
+          {
+            "key": "dbPath",
+            "type": "text",
+            "label": "state.vscdb 路径",
+            "description": "可选：自定义 Windsurf state.vscdb 路径以自动提取凭证"
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "凭证与数据源"
+          },
+          "en": {
+            "title": "Credentials"
+          }
+        }
+      }
+    ],
+    "note": "配置写入 ~/.pi/agent/devin-search.json（与 CLI 共享）。优先级：环境变量 DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → 项目配置 → 全局配置 → Windsurf state.vscdb 自动发现。",
+    "i18n": {
+      "zh": {
+        "note": "配置写入 ~/.pi/agent/devin-search.json（与 CLI 共享）。优先级：环境变量 DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → 项目配置 → 全局配置 → Windsurf state.vscdb 自动发现。"
+      },
+      "en": {
+        "note": "Writes ~/.pi/agent/devin-search.json (shared with the CLI). Resolution order: DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → project config → global config → Windsurf state.vscdb."
+      }
+    }
+  },
+  "slash": {
+    "/devin-search": "notify",
+    "/devin-search-status": "notify",
+    "/devin-search-config": "config-page",
+    "/devin-search-import-key": "notify"
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Devin Search",
+      "description": "Devin / Windsurf 网页搜索：devin_search 工具卡片，配置读写 ~/.pi/agent/devin-search.json",
+      "fieldLabels": {
+        "apiKey": "API Key",
+        "dbPath": "state.vscdb 路径"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Devin / Windsurf 搜索凭证；留空则自动尝试环境变量或 Windsurf 本地数据库",
+        "dbPath": "可选：自定义 Windsurf state.vscdb 路径以自动提取凭证"
+      }
+    },
+    "en": {
+      "displayName": "Devin Search",
+      "description": "Devin / Windsurf web search: devin_search tool cards, settings in ~/.pi/agent/devin-search.json",
+      "fieldLabels": {
+        "apiKey": "API Key",
+        "dbPath": "state.vscdb path"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Devin / Windsurf search credential; leave blank to discover from env or Windsurf local db",
+        "dbPath": "Optional path to Windsurf state.vscdb for automatic credential discovery"
+      }
+    }
+  }
+}

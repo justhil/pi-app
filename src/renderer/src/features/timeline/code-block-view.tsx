@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
@@ -24,9 +24,29 @@ function CodeBlockViewImpl({
   defaultExpanded = false,
 }: Props) {
   const { t } = useTranslation()
+  const surfaceRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(defaultExpanded)
+  const [scrollActive, setScrollActive] = useState(false)
   const [html, setHtml] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!scrollActive) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (surfaceRef.current && !surfaceRef.current.contains(e.target as Node)) {
+        setScrollActive(false)
+      }
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setScrollActive(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [scrollActive])
   const lines = code.split('\n')
   const needsFold = lines.length > previewLines
   // Highlight what is shown. Streaming tool output appends below a collapsed preview; keying on the
@@ -52,7 +72,13 @@ function CodeBlockViewImpl({
 
   return (
     <div
-      className={cn('code-surface group overflow-hidden rounded-md border border-border/35', className)}
+      ref={surfaceRef}
+      data-scroll-active={scrollActive ? 'true' : undefined}
+      className={cn(
+        'code-surface group overflow-hidden rounded-md border border-border/35 transition-colors',
+        scrollActive && 'border-primary/45 ring-1 ring-primary/20',
+        className,
+      )}
       style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
     >
       <div
@@ -73,9 +99,11 @@ function CodeBlockViewImpl({
         </button>
       </div>
       <div
-        data-independent-scroll
+        data-independent-scroll={scrollActive ? '' : undefined}
+        onClick={() => setScrollActive(true)}
         className={cn(
-          'native-code-shiki overflow-auto overscroll-contain text-[11px] leading-[1.45]',
+          'native-code-shiki text-[11px] leading-[1.45]',
+          scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
           expanded ? maxHeightExpanded : 'max-h-40',
         )}
       >

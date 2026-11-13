@@ -3,15 +3,18 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const dirs = vi.hoisted(() => ({ desktop: '' }))
-vi.mock('./active-dirs', () => ({ getActiveDesktopDir: () => dirs.desktop }))
+const dirs = vi.hoisted(() => ({ desktop: '', agent: '' }))
+vi.mock('./active-dirs', () => ({ getActiveDesktopDir: () => dirs.desktop, getActiveAgentDir: () => dirs.agent }))
 import * as loader from './adapter-loader'
+import { probeExtensions } from './extension-probe'
 
 let root: string
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'adapter-catalog-'))
   dirs.desktop = join(root, 'desktop')
+  dirs.agent = join(root, 'agent')
   await mkdir(join(dirs.desktop, 'adapters'), { recursive: true })
+  await mkdir(dirs.agent, { recursive: true })
   loader.invalidateAdapterCatalog()
 })
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
@@ -21,6 +24,13 @@ describe('scoped adapter catalog', () => {
   it('should_not_match_similar_packages_when_only_exact_aliases_are_declared', () => {
     expect(loader.resolveV2ByPluginName('pi-search-extra')).toBeNull()
     expect(loader.resolveV2ByPluginName('npm:pi-search@2.0.0')?.id).toBe('pi-search')
+    expect(loader.resolveV2ByPluginName('git:github.com/justhil/pi-devin-search')?.id).toBe('pi-devin-search')
+    expect(loader.resolveV2ByPluginName('npm:@bytetrue/pi-background-terminal')?.id).toBe('@bytetrue/pi-background-terminal')
+    expect(loader.resolveV2ByPluginName('npm:@astrosheep/pi-goal-next')?.id).toBe('pi-goal')
+    expect(loader.resolveV2ByPluginName('npm:pi-rewind-hook')?.id).toBe('pi-rewind-hook')
+    expect(loader.resolveV2ByPluginName('local-packages\\pi-prompt-enhancer')?.id).toBe('pi-prompt-enhancer')
+    expect(loader.resolveV2ByPluginName('local-packages/pi-quality')?.id).toBe('pi-quality')
+    expect(loader.resolveV2ByPluginName('npm:pi-win-notify@1.0.15')?.tier).toBe('none')
   })
 
   it('should_isolate_invalid_declarations_when_loading_desktop_contributions', async () => {
@@ -68,5 +78,41 @@ describe('scoped adapter catalog', () => {
     expect(await prepare(a)).toBe(ca)
     dirs.desktop = join(root, 'other-runtime')
     expect(loader.findAdapterById('search-local', a)).toBeUndefined()
+  })
+
+  it('should_probe_local_packages_and_directory_extension_entries', async () => {
+    const localPkgDir = join(dirs.agent, 'local-packages', 'pi-quality')
+    const notifyExtDir = join(dirs.agent, 'npm', 'node_modules', 'pi-win-notify', 'extensions')
+    await mkdir(localPkgDir, { recursive: true })
+    await mkdir(notifyExtDir, { recursive: true })
+    await writeFile(
+      join(localPkgDir, 'package.json'),
+      JSON.stringify({ name: 'pi-quality', version: '0.1.0', pi: { extensions: ['./index.ts'] } }),
+    )
+    await writeFile(
+      join(localPkgDir, 'index.ts'),
+      'export default function(pi) { pi.registerCommand("quality", {}); pi.registerCommand("review", {}); }',
+    )
+    await writeFile(
+      join(dirs.agent, 'npm', 'node_modules', 'pi-win-notify', 'package.json'),
+      JSON.stringify({ name: 'pi-win-notify', version: '1.0.15', pi: { extensions: ['./extensions'] } }),
+    )
+    await writeFile(
+      join(notifyExtDir, 'desktop-notify.ts'),
+      'export default function(pi) { pi.registerCommand("notify", {}); }',
+    )
+    await writeFile(
+      join(dirs.agent, 'settings.json'),
+      JSON.stringify({ packages: ['local-packages/pi-quality', 'npm:pi-win-notify@1.0.15'] }),
+    )
+
+    const results = probeExtensions(root)
+    const quality = results.find((r) => r.name === 'pi-quality')
+    const notify = results.find((r) => r.name === 'pi-win-notify')
+
+    expect(quality?.adapterId).toBe('pi-quality')
+    expect(quality?.registeredCommands).toEqual(expect.arrayContaining(['quality', 'review']))
+    expect(notify?.tuiOnly).toBe(true)
+    expect(notify?.registeredCommands).toContain('notify')
   })
 })

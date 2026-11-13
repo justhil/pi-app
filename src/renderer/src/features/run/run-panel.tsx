@@ -196,7 +196,13 @@ export function RunPanel() {
           <dl>
             <div className="panel-kv"><dt>{t('run:input')}</dt><dd>{runState.usage.input.toLocaleString()}</dd></div>
             <div className="panel-kv"><dt>{t('run:output')}</dt><dd>{runState.usage.output.toLocaleString()}</dd></div>
-            <div className="panel-kv"><dt>{t('run:cacheReadLabel')}</dt><dd>{runState.usage.cacheRead.toLocaleString()}</dd></div>
+            <div className="panel-kv">
+              <dt>{t('run:cacheReadLabel')}</dt>
+              <dd>
+                {runState.usage.cacheRead.toLocaleString()}
+                {metrics.cacheHitPct != null ? ` (${metrics.cacheHitPct.toFixed(1)}%)` : ''}
+              </dd>
+            </div>
             <div className="panel-kv"><dt>{t('run:cacheWriteLabel')}</dt><dd>{runState.usage.cacheWrite.toLocaleString()}</dd></div>
             <div className="panel-kv"><dt>{t('run:cost')}</dt><dd>${runState.usage.cost.toFixed(4)}</dd></div>
           </dl>

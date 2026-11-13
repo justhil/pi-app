@@ -1,8 +1,13 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { renderRichFromSegments, serializeRichInput } from './attachments'
-import { clearTransientComposerDraft, readTransientComposerDraft } from './composer-transient-draft'
+import { renderRichFromSegments, serializeRichInput, type StagedImage } from './attachments'
+import {
+  clearTransientComposerDraft,
+  composerDraftContextKey,
+  readTransientComposerDraft,
+  readTransientComposerImages,
+} from './composer-transient-draft'
 import { beginSessionNavigation } from '@renderer/lib/session-navigation'
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   turnActive: vi.fn(() => false),
   routeSlash: vi.fn(async () => ({ handled: false })),
   cancelForSession: vi.fn(),
+  setStagedImages: vi.fn(),
+  readStagedImages: () => [] as StagedImage[],
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -76,7 +83,7 @@ function createEditor(text: string): HTMLDivElement {
   return editor
 }
 
-function renderSender(input: string | HTMLDivElement) {
+function renderSender(input: string | HTMLDivElement, stagedImages: StagedImage[] = []) {
   const editor = typeof input === 'string' ? createEditor(input) : input
   const text = serializeRichInput(editor).displayText
   const updateFromEditor = vi.fn()
@@ -97,6 +104,8 @@ function renderSender(input: string | HTMLDivElement) {
       editorRef: { current: editor },
       text,
       attachments: [],
+      stagedImages,
+      setStagedImages: mocks.setStagedImages,
       updateFromEditor,
       clearEditor,
       setContent: vi.fn(),
@@ -323,6 +332,71 @@ describe('useComposerSend submission arbitration', () => {
 
     expect(mocks.invoke).toHaveBeenCalledWith('prompt.send', expect.anything())
     expect(mocks.invoke).not.toHaveBeenCalledWith('session.compact', expect.anything())
+  })
+
+  it('sends staged images as attachments without writing them to the editor', async () => {
+    const editor = createEditor('')
+    const { result } = renderSender(editor, [
+      {
+        path: 'C:/tmp/pi-clipboard-a.png',
+        name: 'clipboard-image-1.png',
+        mimeType: 'image/png',
+        dataUrl: 'data:image/png;base64,eA==',
+      },
+    ])
+
+    await act(() => result.current.handleSend())
+
+    const sendCall = mocks.invoke.mock.calls.find(([method]) => method === 'prompt.send')
+    expect(sendCall).toBeTruthy()
+    expect(String((sendCall?.[1] as { text: string }).text)).toContain('C:/tmp/pi-clipboard-a.png')
+    expect(mocks.setStagedImages).toHaveBeenCalledWith([])
+    expect(editor.textContent).toBe('')
+  })
+
+  it('should_restore_staged_images_to_origin_session_without_duplicating_into_editor_when_send_fails', async () => {
+    const staged: StagedImage = {
+      path: 'C:/tmp/pi-clipboard-fail.png',
+      name: 'clipboard-image-fail.png',
+      mimeType: 'image/png',
+      dataUrl: 'data:image/png;base64,eA==',
+    }
+    const originDraftKey = composerDraftContextKey(useUIStore.getState())
+    mocks.invoke.mockImplementationOnce(async (method) => {
+      if (method === 'prompt.send') {
+        useUIStore.setState({
+          currentSessionId: 'session-other',
+          historySessionFile: 'C:/sessions/other.jsonl',
+        })
+        throw new Error('send failed')
+      }
+      return {}
+    })
+
+    const editor = createEditor('hello')
+    const { result } = renderSender(editor, [staged])
+
+    await act(() => result.current.handleSend())
+
+    expect(editor.querySelectorAll('.rich-attachment-chip').length).toBe(0)
+    expect(mocks.setStagedImages).toHaveBeenCalledTimes(1)
+    expect(mocks.setStagedImages).toHaveBeenCalledWith([])
+    expect(readTransientComposerImages(originDraftKey)).toEqual([staged])
+    clearTransientComposerDraft(originDraftKey)
+
+    // Same-session failure also keeps staged images out of the contenteditable DOM.
+    mocks.setStagedImages.mockClear()
+    mocks.invoke.mockImplementationOnce(async (method) => {
+      if (method === 'prompt.send') throw new Error('send failed in same session')
+      return {}
+    })
+    const sameEditor = createEditor('retry')
+    const sameSender = renderSender(sameEditor, [staged])
+    await act(() => sameSender.result.current.handleSend())
+    expect(sameEditor.querySelectorAll('.rich-attachment-chip').length).toBe(0)
+    expect(sameEditor.textContent).toBe('retry')
+    expect(mocks.setStagedImages).toHaveBeenCalledTimes(2)
+    clearTransientComposerDraft(composerDraftContextKey(useUIStore.getState()))
   })
 
   it('sends the first prompt to a new session while another session is running', async () => {

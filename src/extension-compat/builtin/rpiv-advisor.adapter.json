@@ -1,10 +1,11 @@
 {
   "id": "@juicesharp/rpiv-advisor",
   "displayName": "Advisor",
-  "description": "第二意见：advisor 工具卡片；/advisor 选择顾问模型",
+  "description": "第二意见顾问：advisor 工具卡片，配置读写 ~/.config/rpiv-advisor/advisor.json",
   "match": {
     "names": [
-      "@juicesharp/rpiv-advisor"
+      "@juicesharp/rpiv-advisor",
+      "rpiv-advisor"
     ],
     "tools": [
       "advisor"
@@ -18,25 +19,81 @@
     "template": "default",
     "icon": "Lightbulb"
   },
+  "slash": {
+    "/advisor": "config-page"
+  },
   "config": {
-    "note": "顾问模型和思考等级用 /advisor 选择，保存在 ~/.config/rpiv-advisor/advisor.json。",
+    "configFile": "~/.config/rpiv-advisor/advisor.json",
+    "fileKeyMap": {
+      "modelKey": "modelKey",
+      "effort": "effort"
+    },
+    "sections": [
+      {
+        "title": "顾问模型",
+        "fields": [
+          {
+            "key": "modelKey",
+            "type": "text",
+            "label": "顾问模型 (provider:modelId)",
+            "description": "格式为 provider:id（如 CloseAI:gpt-5.6-sol）；留空则禁用 advisor 工具"
+          },
+          {
+            "key": "effort",
+            "type": "select",
+            "label": "顾问思考等级",
+            "default": "high",
+            "options": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "i18n": {
+          "zh": {
+            "title": "顾问模型"
+          },
+          "en": {
+            "title": "Advisor Model"
+          }
+        }
+      }
+    ],
+    "note": "配置保存在 ~/.config/rpiv-advisor/advisor.json（与 CLI /advisor 共享）。注意 modelKey 使用冒号连接 provider:modelId。",
     "i18n": {
       "zh": {
-        "note": "顾问模型和思考等级用 /advisor 选择，保存在 ~/.config/rpiv-advisor/advisor.json。"
+        "note": "配置保存在 ~/.config/rpiv-advisor/advisor.json（与 CLI /advisor 共享）。注意 modelKey 使用冒号连接 provider:modelId。"
       },
       "en": {
-        "note": "Pick the advisor model and effort with /advisor; saved in ~/.config/rpiv-advisor/advisor.json."
+        "note": "Saved to ~/.config/rpiv-advisor/advisor.json (shared with CLI /advisor). Note that modelKey uses a colon (provider:modelId)."
       }
     }
   },
   "i18n": {
     "zh": {
       "displayName": "Advisor",
-      "description": "第二意见：advisor 工具卡片；/advisor 选择顾问模型"
+      "description": "第二意见顾问：advisor 工具卡片，配置读写 ~/.config/rpiv-advisor/advisor.json",
+      "fieldLabels": {
+        "modelKey": "顾问模型 (provider:modelId)",
+        "effort": "顾问思考等级"
+      },
+      "fieldDescriptions": {
+        "modelKey": "格式为 provider:id（如 CloseAI:gpt-5.6-sol）；留空则禁用 advisor 工具"
+      }
     },
     "en": {
       "displayName": "Advisor",
-      "description": "Second opinion: advisor tool cards; /advisor picks the advisor model"
+      "description": "Second opinion: advisor tool cards; settings in ~/.config/rpiv-advisor/advisor.json",
+      "fieldLabels": {
+        "modelKey": "Advisor model (provider:modelId)",
+        "effort": "Advisor thinking effort"
+      },
+      "fieldDescriptions": {
+        "modelKey": "Format: provider:id (e.g. CloseAI:gpt-5.6-sol); leave empty to disable the advisor tool"
+      }
     }
   }
 }

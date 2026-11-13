@@ -2,6 +2,7 @@ import type { FileChange, ToolTimelineItem } from '@renderer/stores/ui-store-typ
 import type { TimelineDisplayItem } from './timeline-display-items'
 import { resolveEditWriteDiffRows } from '@extension-compat/renderer/native-diff'
 import { fullPathFromArgs, normalizeToolArgs } from '@extension-compat/renderer/tool-output'
+import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-detail'
 import { displayToolName } from './mcp-tool'
 
 export type TurnFileStat = {
@@ -118,6 +119,19 @@ export function buildTurnActivitySummary(
   let exploreCount = 0
   for (const tool of tools) {
     const name = tool.toolName || ''
+    if (name === 'codemode') {
+      const nested = parseCodemodeCalls(tool.toolDetails)
+      if (nested.length === 0) {
+        commandCount++
+      } else {
+        for (const call of nested) {
+          if (SEARCH_TOOLS.has(call.name)) searchCount++
+          else if (COMMAND_TOOLS.has(call.name)) commandCount++
+          else if (EXPLORE_TOOLS.has(call.name)) exploreCount++
+        }
+      }
+      continue
+    }
     if (SEARCH_TOOLS.has(name)) searchCount++
     else if (COMMAND_TOOLS.has(name)) commandCount++
     else if (EXPLORE_TOOLS.has(name)) exploreCount++
@@ -152,6 +166,27 @@ export function buildTurnActivitySummary(
 
   for (const tool of tools) {
     const name = tool.toolName || ''
+    if (name === 'codemode') {
+      for (const call of parseCodemodeCalls(tool.toolDetails)) {
+        if (call.status === 'error' || call.status === 'cancelled') continue
+        if (!MUTATE_TOOLS.has(call.name)) continue
+        const path = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
+        if (!path) continue
+        const key = path.replace(/\\/g, '/')
+        if (!fileMap.has(key)) {
+          fileMap.set(key, {
+            path,
+            displayName: toDisplayPath(path, workspaceRoot),
+            changeType: call.name === 'write' ? 'created' : 'modified',
+            additions: 0,
+            deletions: 0,
+            runId: tool.runId,
+            source: 'tool',
+          })
+        }
+      }
+      continue
+    }
     if (!MUTATE_TOOLS.has(name)) continue
     const path = pathFromTool(tool)
     if (!path) continue
@@ -269,6 +304,7 @@ export function buildToolListActivitySummary(
         toolName: tool.toolName,
         toolPhase: tool.toolPhase,
         toolArgs: tool.toolArgs,
+        toolDetails: tool.toolDetails,
         toolDetail: tool.toolDetail,
         toolOutput: tool.toolOutput,
         runId: tool.runId,
@@ -282,6 +318,7 @@ export function buildToolListActivitySummary(
           toolName: tool.toolName,
           toolPhase: tool.toolPhase,
           toolArgs: tool.toolArgs,
+          toolDetails: tool.toolDetails,
           toolDetail: tool.toolDetail,
           toolOutput: tool.toolOutput,
           runId: tool.runId,

@@ -13,6 +13,8 @@ export type PiContentBlock = PiTextBlock | PiToolResultBlock | { type: string; t
 export type PiSessionMessage = {
   role?: string
   content?: string | PiContentBlock[]
+  sections?: Record<string, string | null | undefined>
+  summary?: string
   usage?: {
     input?: number
     output?: number
@@ -53,12 +55,24 @@ export function normalizeUserMessageDisplayText(text: string): string {
 export function extractTextFromPiMessage(message: PiSessionMessage | string | null | undefined): string {
   if (!message) return ''
   if (typeof message === 'string') return message
-  if (!message.content) return ''
-  if (typeof message.content === 'string') return message.content
-  return message.content
-    .filter((c): c is PiTextBlock => c.type === 'text')
-    .map((c) => c.text || '')
-    .join('')
+  if (typeof message.content === 'string' && message.content.length > 0) return message.content
+  if (Array.isArray(message.content)) {
+    const joined = message.content
+      .filter((c): c is PiTextBlock => c.type === 'text')
+      .map((c) => c.text || '')
+      .join('')
+    if (joined.length > 0) return joined
+  }
+  // Pi 1.0 SystemMessage keeps empty content and stores section text in sections (matching getSystemMessageText).
+  if (message.sections && typeof message.sections === 'object') {
+    const parts = Object.values(message.sections).filter((v): v is string => typeof v === 'string' && v.length > 0)
+    if (parts.length > 0) return parts.join('\n\n')
+  }
+  // Pi CompactionSummaryMessage and BranchSummaryMessage store their text in summary.
+  if (typeof message.summary === 'string' && message.summary.length > 0) {
+    return message.summary
+  }
+  return ''
 }
 
 /** 对齐 pi-tui AssistantMessageComponent：按 content 顺序拼接 thinking 块 */

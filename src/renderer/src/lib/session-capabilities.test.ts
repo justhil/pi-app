@@ -4,9 +4,11 @@ import {
   adoptDraftCapabilities,
   currentSessionCapabilities,
   onCapabilityKeyChange,
+  setSessionCapability,
   toggleCapabilityIn,
   useSessionCapabilitiesStore,
 } from './session-capabilities'
+import { useBrowserStore } from '@renderer/features/browser/browser-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 describe('session capabilities', () => {
@@ -43,6 +45,41 @@ describe('session capabilities', () => {
     useUIStore.setState({ historySessionFile: '/created-on-send.jsonl' })
     expect(currentSessionCapabilities()).toEqual(['browser'])
     expect(useSessionCapabilitiesStore.getState().byKey).toEqual({ '/created-on-send.jsonl': ['browser'] })
+    useUIStore.setState({ historySessionFile: null })
+  })
+
+  it('auto-attaches built-in browser capability when the session already has browser tabs unless explicitly turned off', () => {
+    useSessionCapabilitiesStore.setState({ byKey: {} })
+    useUIStore.setState({ historySessionFile: '/with-tab.jsonl' })
+    useBrowserStore.setState({
+      tabs: {
+        t1: {
+          tabId: 't1',
+          engine: 'electron',
+          profileId: 'default-electron',
+          url: 'https://example.com',
+          title: 'Example',
+          loading: false,
+          canGoBack: false,
+          canGoForward: false,
+          openedBy: { sessionKey: '/with-tab.jsonl' },
+        },
+      },
+      order: ['t1'],
+      activeTabId: 't1',
+    })
+    expect(currentSessionCapabilities()).toEqual(['browser'])
+
+    // Unrelated session without tabs stays off
+    useUIStore.setState({ historySessionFile: '/no-tab.jsonl' })
+    expect(currentSessionCapabilities()).toEqual([])
+
+    // Explicit off in /with-tab.jsonl is respected
+    useUIStore.setState({ historySessionFile: '/with-tab.jsonl' })
+    setSessionCapability('/with-tab.jsonl', 'browser', false)
+    expect(currentSessionCapabilities()).toEqual([])
+
+    useBrowserStore.setState({ tabs: {}, order: [], activeTabId: null })
     useUIStore.setState({ historySessionFile: null })
   })
 })

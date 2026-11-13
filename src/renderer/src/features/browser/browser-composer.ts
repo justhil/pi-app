@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { getAttachmentKind } from '@renderer/features/composer/attachments'
+import { capabilityKey, setSessionCapability, useSessionCapabilitiesStore } from '@renderer/lib/session-capabilities'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 export interface ComposerFile {
@@ -13,7 +14,13 @@ export interface ComposerFile {
  */
 export function sendToComposer(payload: { text?: string; files?: ComposerFile[] }): void {
   // The expanded browser hides the chat column; bring the composer back into view.
+  const ui = useUIStore.getState()
   useUIStore.setState({ browserChatExpand: false })
+  const key = capabilityKey(ui.historySessionFile)
+  const currentCaps = useSessionCapabilitiesStore.getState().byKey[key] ?? []
+  if (!currentCaps.includes('browser') && !currentCaps.includes('chrome')) {
+    setSessionCapability(ui.historySessionFile, 'browser', true)
+  }
   window.dispatchEvent(
     new CustomEvent('pi-desktop:composer-attach-files', {
       detail: {

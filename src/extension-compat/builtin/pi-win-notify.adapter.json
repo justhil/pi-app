@@ -1,0 +1,38 @@
+{
+  "id": "pi-win-notify",
+  "displayName": "Windows Notify",
+  "description": "CLI 终端完成通知弹窗（与桌面内置完成通知重复，建议在桌面停用）",
+  "match": {
+    "names": [
+      "pi-win-notify"
+    ],
+    "commands": [
+      "/notify"
+    ]
+  },
+  "tier": "none",
+  "slash": {
+    "/notify": "notify"
+  },
+  "config": {
+    "note": "桌面端已内置原生完成通知与快捷键（Ctrl/⌘+Shift+N），无需再启用此 CLI 通知扩展，可在插件列表中将其关闭以避免重复弹窗。",
+    "i18n": {
+      "zh": {
+        "note": "桌面端已内置原生完成通知与快捷键（Ctrl/⌘+Shift+N），无需再启用此 CLI 通知扩展，可在插件列表中将其关闭以避免重复弹窗。"
+      },
+      "en": {
+        "note": "The desktop app already includes built-in completion notifications (Ctrl/⌘+Shift+N). Disable this CLI extension in the extensions list to avoid duplicate popups."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Windows Notify",
+      "description": "CLI 终端完成通知弹窗（与桌面内置完成通知重复，建议在桌面停用）"
+    },
+    "en": {
+      "displayName": "Windows Notify",
+      "description": "CLI completion notification popup (duplicates built-in desktop notifications)"
+    }
+  }
+}

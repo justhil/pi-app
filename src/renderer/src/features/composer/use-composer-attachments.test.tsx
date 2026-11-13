@@ -19,6 +19,7 @@ function setup() {
   const dragDepth = { current: 0 }
   const setIsDragActive = vi.fn()
   const updateFromEditor = vi.fn()
+  const stageImage = vi.fn()
   const { result } = renderHook(() =>
     useComposerAttachments({
       editorRef,
@@ -29,9 +30,10 @@ function setup() {
       ephemeralSandboxDraft: false,
       setIsDragActive,
       dragDepth,
+      stageImage,
     }),
   )
-  return { handlePaste: result.current.handlePaste, editorRef, updateFromEditor }
+  return { handlePaste: result.current.handlePaste, editorRef, updateFromEditor, stageImage }
 }
 
 function pasteEvent(clipboardData: unknown) {

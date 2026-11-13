@@ -1,5 +1,7 @@
 /** Built-in browser: wire types and pure helpers shared by Renderer and Main. */
 
+import { normalizeSessionFileKey } from './session-file-key'
+
 export type BrowserEngineId = 'electron' | 'stealth' | 'chrome'
 
 export interface BrowserTabInfo {
@@ -12,6 +14,31 @@ export interface BrowserTabInfo {
   canGoBack: boolean
   canGoForward: boolean
   openedBy: 'user' | { sessionKey: string }
+  /** Pinned tabs stay visible and usable across every conversation. */
+  pinned?: boolean
+}
+
+export const DRAFT_BROWSER_SESSION_KEY = '\u0000draft'
+
+export function normalizeBrowserSessionKey(sessionKey: string | null | undefined): string {
+  const raw = String(sessionKey ?? '').trim()
+  if (!raw || raw === DRAFT_BROWSER_SESSION_KEY) return DRAFT_BROWSER_SESSION_KEY
+  return normalizeSessionFileKey(raw) || raw
+}
+
+/** Whether `tab` belongs to `sessionKey` or is shared across conversations (pinned / legacy user tab). */
+export function isTabVisibleInSession(tab: BrowserTabInfo, sessionKey: string | null | undefined): boolean {
+  if (tab.pinned) return true
+  if (tab.openedBy === 'user') return true
+  return normalizeBrowserSessionKey(tab.openedBy.sessionKey) === normalizeBrowserSessionKey(sessionKey)
+}
+
+/** Whether `sessionKey` already has at least one browser tab (owned by this conversation or pinned). */
+export function sessionHasBrowserTabs(tabs: readonly BrowserTabInfo[], sessionKey: string | null | undefined): boolean {
+  const target = normalizeBrowserSessionKey(sessionKey)
+  return tabs.some(
+    (t) => t.pinned === true || (t.openedBy !== 'user' && normalizeBrowserSessionKey(t.openedBy.sessionKey) === target),
+  )
 }
 
 /** One download of the built-in browser (multi-connection via aria2 when available). */
@@ -222,15 +249,53 @@ export function chromeSecChUaPlatform(platform: string): string {
  * Low-entropy UA client hints Chrome sends on every https request. Electron drops them once the
  * UA is overridden, and a Chrome UA without them is itself a tell; add or fix them here.
  */
+/**
+ * Google sign-in endpoints reject embedded Chromium views that claim a desktop Chrome UA without
+ * matching Chrome's native platform signals (Botguard rrk=46). Sending Electron's own UA (without
+ * the app token) only to these auth hosts passes Google's sign-in checks while keeping the Chrome
+ * UA everywhere else.
+ */
+export const ELECTRON_UA_HOSTS: readonly string[] = [
+  'accounts.google.com',
+  'accounts.youtube.com',
+]
+
+export function wantsElectronUserAgent(
+  url: string,
+  hosts: readonly string[] = ELECTRON_UA_HOSTS,
+): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase()
+    return hosts.some((h) => hostname === h || hostname.endsWith(`.${h}`))
+  } catch {
+    return false
+  }
+}
+
+export function cleanElectronUserAgent(defaultUa: string, appName?: string): string {
+  if (!defaultUa) return defaultUa
+  if (appName) {
+    const escaped = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const stripped = defaultUa.replace(new RegExp(`\\s+${escaped}\\/[^\\s]+`, 'gi'), '')
+    if (stripped !== defaultUa) return stripped
+  }
+  return defaultUa.replace(/\s+(?=[^\s/]+\/[^\s]+\s+Chrome\/)[^\s/]+\/[^\s]+/, '')
+}
+
 export function withChromeClientHints(
   url: string,
   headers: Record<string, string>,
   chromeMajor: string,
   platform: string,
+  electronUserAgent?: string,
 ): Record<string, string> {
-  if (!url.startsWith('https://')) return headers
   const out = { ...headers }
   const find = (name: string) => Object.keys(out).find((k) => k.toLowerCase() === name)
+  if (electronUserAgent && wantsElectronUserAgent(url)) {
+    const uaKey = find('user-agent') ?? 'User-Agent'
+    out[uaKey] = electronUserAgent
+  }
+  if (!url.startsWith('https://')) return out
   const ua = find('sec-ch-ua')
   out[ua ?? 'sec-ch-ua'] = chromeSecChUa(ua ? out[ua] : undefined, chromeMajor)
   if (!find('sec-ch-ua-mobile')) out['sec-ch-ua-mobile'] = '?0'

@@ -1,0 +1,45 @@
+{
+  "id": "pi-prompt-enhancer",
+  "displayName": "Prompt Enhancer",
+  "description": "结合代码库目录树、Git 状态与引用文件自动改写强化提示词",
+  "match": {
+    "names": [
+      "@jmcombs/pi-prompt-enhancer",
+      "pi-prompt-enhancer"
+    ],
+    "commands": [
+      "/prompt_enhance",
+      "/prompt_enhance_model",
+      "/prompt_enhance_revert",
+      "/prompt_enhance_auto"
+    ]
+  },
+  "tier": "partial",
+  "slash": {
+    "/prompt_enhance": "notify",
+    "/prompt_enhance_model": "notify",
+    "/prompt_enhance_revert": "notify",
+    "/prompt_enhance_auto": "notify"
+  },
+  "config": {
+    "note": "通过 /prompt_enhance <草稿文本> 可结合当前项目上下文改写提示词；/prompt_enhance_auto 切换回车自动改写。模型选择器依赖 TUI 自定义组件，桌面端默认使用当前会话模型。",
+    "i18n": {
+      "zh": {
+        "note": "通过 /prompt_enhance <草稿文本> 可结合当前项目上下文改写提示词；/prompt_enhance_auto 切换回车自动改写。模型选择器依赖 TUI 自定义组件，桌面端默认使用当前会话模型。"
+      },
+      "en": {
+        "note": "Use /prompt_enhance <draft> to rewrite prompts with codebase context, or /prompt_enhance_auto to toggle auto-enhance. The TUI model selector is not shown on desktop (uses the session model)."
+      }
+    }
+  },
+  "i18n": {
+    "zh": {
+      "displayName": "Prompt Enhancer",
+      "description": "结合代码库目录树、Git 状态与引用文件自动改写强化提示词"
+    },
+    "en": {
+      "displayName": "Prompt Enhancer",
+      "description": "Codebase-aware prompt rewriter using project tree, git context, and referenced files"
+    }
+  }
+}

@@ -132,9 +132,11 @@
     "skillContext": "已载入 Skill 上下文 · {{name}}",
     "verbEdit": "编辑了 {{detail}}",
     "verbRun": "运行了 {{detail}}",
+    "verbCodemode": "脚本 · {{detail}}",
     "verbSearch": "搜索了 {{detail}}",
     "verbUsed": "使用了 {{name}} · {{detail}}",
-    "workingTool": "正在运行 {{name}}…"
+    "workingTool": "正在运行 {{name}}…",
+    "workingCodemode": "正在运行脚本 · {{detail}}"
   },
   "uiBlock": {
     "fallback": {
@@ -243,5 +245,14 @@
   "mcp": {
     "noOutput": "（无输出）",
     "fullOutput": "完整输出："
+  },
+  "codemode": {
+    "scriptLines": "脚本 ({{count}} 行)",
+    "showScript": "查看脚本",
+    "hideScript": "收起脚本",
+    "callsCount": "{{count}} 次调用",
+    "earlierCalls": "展开更早的 {{count}} 次调用",
+    "collapseCalls": "收起较早调用",
+    "modelCost": "模型调用: {{cost}}"
   }
 }

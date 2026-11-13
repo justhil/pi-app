@@ -61,11 +61,16 @@ export function registerBrowserHandlers(): void {
   registerHandlerWithSchema('ipc:browser.help.respond', z.object({ id: z.string().min(1).max(64), outcome: z.enum(['completed', 'cancelled']) }), async (req) => ({
     ok: respondHelp(req.id, req.outcome),
   }))
-  registerHandler('ipc:browser.tabs.list',async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
+  registerHandler('ipc:browser.tabs.list', async () => peekBrowserHost()?.list() ?? { tabs: [], activeTabId: null })
 
   registerHandlerWithSchema(
     'ipc:browser.tabs.open',
-    z.object({ url: z.string().max(8192).optional(), profileId: profileId.optional() }),
+    z.object({
+      url: z.string().max(8192).optional(),
+      profileId: profileId.optional(),
+      sessionKey: z.string().max(4096).optional(),
+      pinned: z.boolean().optional(),
+    }),
     async (req) => ({ tab: host().openTab(req) }),
   )
 
@@ -74,10 +79,29 @@ export function registerBrowserHandlers(): void {
     return { ok: true }
   })
 
-  registerHandlerWithSchema('ipc:browser.tabs.focus', z.object({ tabId }), async (req) => {
-    peekBrowserHost()?.focusTab(req.tabId)
+  registerHandlerWithSchema('ipc:browser.tabs.focus', z.object({ tabId: tabId.nullable(), sessionKey: z.string().max(4096).optional() }), async (req) => {
+    peekBrowserHost()?.focusTab(req.tabId, req.sessionKey ? { sessionKey: req.sessionKey } : undefined)
     return { ok: true }
   })
+
+  registerHandlerWithSchema('ipc:browser.tabs.pin', z.object({ tabId, pinned: z.boolean() }), async (req) => ({
+    tab: peekBrowserHost()?.pinTab(req.tabId, req.pinned) ?? null,
+  }))
+
+  registerHandlerWithSchema(
+    'ipc:browser.tabs.adoptSession',
+    z.object({ fromSessionKey: z.string().max(4096), toSessionKey: z.string().max(4096) }),
+    async (req) => {
+      peekBrowserHost()?.adoptSessionTabs(req.fromSessionKey, req.toSessionKey)
+      return { ok: true }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:browser.session.set',
+    z.object({ sessionKey: z.string().max(4096).nullable().optional() }),
+    async (req) => peekBrowserHost()?.setSession(req.sessionKey ?? null) ?? { activeTabId: null },
+  )
 
   registerHandlerWithSchema(
     'ipc:browser.navigate',

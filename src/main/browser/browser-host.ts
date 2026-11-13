@@ -6,6 +6,9 @@ import {
   isAllowedBrowserUrl,
   isDevOrigin,
   isExternalProtocolUrl,
+  isTabVisibleInSession,
+  normalizeBrowserSessionKey,
+  sessionHasBrowserTabs,
   type BrowserEvent,
   type BrowserDownloadInfo,
   type BrowserLogEntry,
@@ -15,12 +18,12 @@ import {
   type PageContextResult,
 } from '@shared/browser-types'
 import { configStore } from '../config-store'
-import { configureBrowserSession, partitionForProfile, peekDownloadManager } from './electron-session'
+import { configureBrowserSession, partitionForProfile, peekDownloadManager, userAgentForSessionUrl } from './electron-session'
 import { FRAMEWORK_SOURCE } from './page-scripts'
 import { computeViewBounds } from './view-layout'
 import { BrowserToolError } from './agent/errors'
 import { Pointer } from './agent/input'
-import { forgetBrowserTab, type AgentBrowserHost } from './agent/tools'
+import { adoptAgentSessionTabs, forgetBrowserTab, type AgentBrowserHost } from './agent/tools'
 import { ElectronPageEngine } from './engines/electron'
 import type { PageEngine } from './engines/types'
 
@@ -75,6 +78,8 @@ export type BrowserNavigateOp = { url: string } | { history: 'back' | 'forward' 
 export class BrowserHost implements AgentBrowserHost {
   private readonly tabs = new Map<string, Tab>()
   private activeTabId: string | null = null
+  private activeSessionKey: string | null = null
+  private readonly activeTabBySession = new Map<string, string>()
 
   constructor(private readonly getWindow: () => BrowserWindow | null) {}
 
@@ -87,7 +92,20 @@ export class BrowserHost implements AgentBrowserHost {
     return { tabs: [...this.tabs.values()].map((t) => t.info), activeTabId: this.activeTabId }
   }
 
-  openTab(opts: { url?: string; profileId?: string; focus?: boolean; openedBy?: BrowserTabInfo['openedBy'] } = {}): BrowserTabInfo {
+  hasSessionTabs(sessionKey: string | null | undefined): boolean {
+    return sessionHasBrowserTabs([...this.tabs.values()].map((t) => t.info), sessionKey)
+  }
+
+  openTab(
+    opts: {
+      url?: string
+      profileId?: string
+      focus?: boolean
+      openedBy?: BrowserTabInfo['openedBy']
+      sessionKey?: string
+      pinned?: boolean
+    } = {},
+  ): BrowserTabInfo {
     const win = this.getWindow()
     if (!win || win.isDestroyed()) throw new Error('browser: main window unavailable')
     const profileId = opts.profileId || DEFAULT_ELECTRON_PROFILE_ID
@@ -116,6 +134,17 @@ export class BrowserHost implements AgentBrowserHost {
     view.setBounds({ x: 0, y: 0, width: Math.min(DEFAULT_VIEW_SIZE.width, Math.max(320, content.width - 16)), height: Math.min(DEFAULT_VIEW_SIZE.height, Math.max(240, content.height - 90)) })
     win.contentView.addChildView(view)
 
+    const rawOwner =
+      opts.openedBy !== undefined
+        ? opts.openedBy
+        : opts.sessionKey !== undefined
+          ? { sessionKey: normalizeBrowserSessionKey(opts.sessionKey) }
+          : this.activeSessionKey
+            ? { sessionKey: this.activeSessionKey }
+            : 'user'
+    const openedBy: BrowserTabInfo['openedBy'] =
+      rawOwner === 'user' ? 'user' : { sessionKey: normalizeBrowserSessionKey(rawOwner.sessionKey) }
+
     const info: BrowserTabInfo = {
       tabId: randomUUID(),
       engine: 'electron',
@@ -125,7 +154,8 @@ export class BrowserHost implements AgentBrowserHost {
       loading: false,
       canGoBack: false,
       canGoForward: false,
-      openedBy: opts.openedBy ?? 'user',
+      openedBy,
+      ...(opts.pinned ? { pinned: true } : {}),
     }
     const engine = new ElectronPageEngine(view.webContents, () => tab.logs, {
       cdp: () => configStore.get('browserAgentCdp') !== 'off',
@@ -142,7 +172,13 @@ export class BrowserHost implements AgentBrowserHost {
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
     this.emit({ type: 'tab-updated', tab: info })
-    if (opts.focus !== false) this.focusTab(info.tabId)
+    const ownerKey = openedBy !== 'user' ? openedBy.sessionKey : this.activeSessionKey
+    if (ownerKey) this.activeTabBySession.set(ownerKey, info.tabId)
+    const shouldFocus =
+      opts.focus !== undefined
+        ? opts.focus
+        : !this.activeSessionKey || !ownerKey || ownerKey === this.activeSessionKey || !!opts.pinned
+    if (shouldFocus) this.focusTab(info.tabId)
 
     const url = opts.url && isAllowedBrowserUrl(opts.url) ? opts.url : 'about:blank'
     if (url !== 'about:blank') void this.load(tab, url)
@@ -153,24 +189,95 @@ export class BrowserHost implements AgentBrowserHost {
     const tab = this.tabs.get(tabId)
     if (!tab) return
     this.tabs.delete(tabId)
+    for (const [k, id] of this.activeTabBySession) if (id === tabId) this.activeTabBySession.delete(k)
     forgetBrowserTab(tabId)
     const win = this.getWindow()
     if (win && !win.isDestroyed()) win.contentView.removeChildView(tab.view)
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
     this.emit({ type: 'tab-closed', tabId })
     if (this.activeTabId === tabId) {
-      const next = [...this.tabs.keys()].pop() ?? null
+      const visible = [...this.tabs.values()]
+        .filter((t) => !this.activeSessionKey || isTabVisibleInSession(t.info, this.activeSessionKey))
+        .map((t) => t.info.tabId)
+      const next = visible.pop() ?? null
       this.activeTabId = null
       if (next) this.focusTab(next)
       else this.emit({ type: 'tab-focused', tabId: null })
     }
   }
 
-  focusTab(tabId: string): void {
-    if (!this.tabs.has(tabId)) return
+  focusTab(tabId: string | null, opts?: { window?: boolean; sessionKey?: string }): void {
+    if (tabId === null) {
+      if (this.activeTabId) this.tabs.get(this.activeTabId)?.view.setVisible(false)
+      this.activeTabId = null
+      this.emit({ type: 'tab-focused', tabId: null })
+      return
+    }
+    const tab = this.tabs.get(tabId)
+    if (!tab) return
+    const targetSession = opts?.sessionKey
+      ? normalizeBrowserSessionKey(opts.sessionKey)
+      : tab.info.openedBy !== 'user'
+        ? normalizeBrowserSessionKey(tab.info.openedBy.sessionKey)
+        : this.activeSessionKey
+    if (targetSession) this.activeTabBySession.set(targetSession, tabId)
+    if (tab.info.pinned && this.activeSessionKey) this.activeTabBySession.set(this.activeSessionKey, tabId)
+    if (opts?.sessionKey && this.activeSessionKey && targetSession !== this.activeSessionKey && !tab.info.pinned && !opts?.window) {
+      return
+    }
     if (this.activeTabId && this.activeTabId !== tabId) this.tabs.get(this.activeTabId)?.view.setVisible(false)
     this.activeTabId = tabId
     this.emit({ type: 'tab-focused', tabId })
+  }
+
+  setSession(sessionKey: string | null): { activeTabId: string | null } {
+    const nextKey = normalizeBrowserSessionKey(sessionKey)
+    this.activeSessionKey = nextKey
+    const visible = [...this.tabs.values()].filter((t) => isTabVisibleInSession(t.info, nextKey))
+    const remembered = this.activeTabBySession.get(nextKey)
+    const own = visible.filter((t) => t.info.openedBy !== 'user' && normalizeBrowserSessionKey(t.info.openedBy.sessionKey) === nextKey)
+    const nextTabId =
+      (remembered && visible.some((t) => t.info.tabId === remembered) ? remembered : null) ??
+      own.at(-1)?.info.tabId ??
+      visible.at(-1)?.info.tabId ??
+      null
+    this.focusTab(nextTabId)
+    return { activeTabId: this.activeTabId }
+  }
+
+  pinTab(tabId: string, pinned: boolean): BrowserTabInfo | null {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return null
+    const openedBy = !pinned && this.activeSessionKey ? { sessionKey: this.activeSessionKey } : tab.info.openedBy
+    const nextInfo: BrowserTabInfo = {
+      ...tab.info,
+      openedBy,
+      ...(pinned ? { pinned: true } : {}),
+    }
+    if (!pinned) delete nextInfo.pinned
+    tab.info = nextInfo
+    if (this.activeSessionKey && pinned) this.activeTabBySession.set(this.activeSessionKey, tabId)
+    this.emit({ type: 'tab-updated', tab: tab.info })
+    return tab.info
+  }
+
+  adoptSessionTabs(fromSessionKey: string, toSessionKey: string): void {
+    const from = normalizeBrowserSessionKey(fromSessionKey)
+    const to = normalizeBrowserSessionKey(toSessionKey)
+    if (!from || !to || from === to) return
+    for (const tab of this.tabs.values()) {
+      if (tab.info.openedBy !== 'user' && normalizeBrowserSessionKey(tab.info.openedBy.sessionKey) === from) {
+        tab.info = { ...tab.info, openedBy: { sessionKey: to } }
+        this.emit({ type: 'tab-updated', tab: tab.info })
+      }
+    }
+    const remembered = this.activeTabBySession.get(from)
+    if (remembered) {
+      if (!this.activeTabBySession.has(to)) this.activeTabBySession.set(to, remembered)
+      this.activeTabBySession.delete(from)
+    }
+    if (this.activeSessionKey === from) this.activeSessionKey = to
+    adoptAgentSessionTabs(from, to)
   }
 
   async navigate(tabId: string, op: BrowserNavigateOp): Promise<void> {
@@ -352,7 +459,7 @@ export class BrowserHost implements AgentBrowserHost {
 
     wc.setWindowOpenHandler(({ url }) => {
       if (isExternalProtocolUrl(url)) void shell.openExternal(url)
-      else if (isAllowedBrowserUrl(url)) this.openTab({ url, profileId: tab.info.profileId })
+      else if (isAllowedBrowserUrl(url)) this.openTab({ url, profileId: tab.info.profileId, openedBy: tab.info.openedBy })
       return { action: 'deny' }
     })
     wc.on('will-navigate', (event, url) => {
@@ -363,9 +470,30 @@ export class BrowserHost implements AgentBrowserHost {
     wc.on('will-redirect', (event, url) => {
       if (!isAllowedBrowserUrl(url)) event.preventDefault()
     })
+    const syncUaForUrl = (url: string) => {
+      if (wc.isDestroyed()) return
+      const targetUa = userAgentForSessionUrl(wc.session, url)
+      if (wc.getUserAgent() !== targetUa) wc.setUserAgent(targetUa)
+    }
     wc.on('did-start-loading', () => update({ loading: true }))
     wc.on('did-stop-loading', () => update({ loading: false }))
-    wc.on('did-navigate', () => update())
+    wc.on('did-navigate', (_e, url) => {
+      update()
+      // If an earlier attempt hit Google's rrk=46 rejection page, clear the poisoned anti-bot cookies
+      // (__Host-GAPS / OTZ) so retrying sign-in is not short-circuited back to /signin/rejected.
+      if (typeof url === 'string' && url.includes('accounts.google.com') && url.includes('signin/rejected')) {
+        void wc.session.cookies
+          .get({ domain: 'accounts.google.com' })
+          .then((cookies) =>
+            Promise.all(
+              cookies
+                .filter((c) => c.name === '__Host-GAPS' || c.name === 'OTZ')
+                .map((c) => wc.session.cookies.remove(`https://${(c.domain ?? 'accounts.google.com').replace(/^\./, '')}${c.path ?? '/'}`, c.name)),
+            ),
+          )
+          .catch(() => {})
+      }
+    })
     wc.on('did-navigate-in-page', () => update())
     wc.on('page-title-updated', () => update())
     wc.on('console-message', (details) => {
@@ -374,7 +502,15 @@ export class BrowserHost implements AgentBrowserHost {
       pushLog(tab, { at: Date.now(), kind: 'console', level: details.level, message: details.message, ...(source ? { source } : {}) })
     })
     wc.on('did-start-navigation', (details) => {
-      if (details.isMainFrame && !details.isSameDocument) tab.logs = []
+      if (details.isMainFrame && !details.isSameDocument) {
+        tab.logs = []
+        syncUaForUrl(details.url)
+      }
+    })
+    wc.on('did-redirect-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) {
+        syncUaForUrl(details.url)
+      }
     })
     wc.on('found-in-page', (_e, result) => {
       this.emit({ type: 'find-result', tabId: tab.info.tabId, active: result.activeMatchOrdinal ?? 0, matches: result.matches ?? 0 })

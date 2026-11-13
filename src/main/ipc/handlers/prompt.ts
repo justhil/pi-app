@@ -2,10 +2,15 @@ import { workerManager } from '../../worker-manager'
 import { ensureWorkerSessionBound } from '../../session-bind-state'
 import { normalizeSessionKey } from '../../worker-session-key'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
-import { writeClipboardTempImage } from '../../clipboard-temp-images'
+import { readRemoteAttachment, writeClipboardTempImage } from '../../clipboard-temp-images'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
-import { clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
+import { clipboardReadTempImageSchema, clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
+import { peekBrowserHost } from '../../browser/browser-host'
 import { noteBrowserTarget } from '../../browser/targets'
+import { configStore } from '../../config-store'
+
+/** Matches the composer's paste limit, so a re-read can never return more than was written. */
+const CLIPBOARD_READ_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 
 export function registerPromptHandlers(): void {
   const bindBeforePrompt = async (sessionFile?: string) => {
@@ -34,10 +39,20 @@ export function registerPromptHandlers(): void {
   }
 
   // Enabled capabilities travel with each message so drafts and restarted workers stay in sync.
+  // If this session already owns browser tabs (or pinned tabs exist), auto-mount built-in browser tools.
   const applyCapabilities = async (req: { capabilities?: string[]; sessionFile?: string }) => {
     if (req.capabilities === undefined) return
-    noteBrowserTarget(req.sessionFile, req.capabilities)
-    await workerManager.setCapabilities(capabilitySectionMap(req.capabilities), capabilityToolFamilies(req.capabilities), req.sessionFile)
+    let caps = req.capabilities
+    if (
+      !caps.includes('browser') &&
+      !caps.includes('chrome') &&
+      configStore.get('rightPanelPrefs')?.browser &&
+      peekBrowserHost()?.hasSessionTabs(req.sessionFile)
+    ) {
+      caps = [...caps, 'browser']
+    }
+    noteBrowserTarget(req.sessionFile, caps)
+    await workerManager.setCapabilities(capabilitySectionMap(caps), capabilityToolFamilies(caps), req.sessionFile)
   }
 
   registerHandler('ipc:capabilities.catalog', async () => ({ capabilities: capabilityCatalog() }))
@@ -69,6 +84,15 @@ export function registerPromptHandlers(): void {
               : 'png'
     const filePath = writeClipboardTempImage(Buffer.from(req.data, 'base64'), ext)
     return { path: filePath }
+  })
+
+  /** Thumbnail for images already sent, so the timeline can show the picture instead of its file name. */
+  registerHandlerWithSchema('ipc:clipboard.readTempImage', clipboardReadTempImageSchema, async (req) => {
+    const file = readRemoteAttachment(req.path)
+    if (!file) return { ok: false as const, error: 'not_found' }
+    if (!file.mime.startsWith('image/')) return { ok: false as const, error: 'not_image' }
+    if (file.bytes.length > CLIPBOARD_READ_IMAGE_MAX_BYTES) return { ok: false as const, error: 'too_large' }
+    return { ok: true as const, dataUrl: `data:${file.mime};base64,${file.bytes.toString('base64')}` }
   })
 
   registerHandlerWithSchema('ipc:prompt.steer', promptTextSchema, async (req) => {

@@ -7,7 +7,14 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { BROWSER_BATCH_EXCLUDED, BROWSER_TOOL_DEFS, checkArgs } from '@shared/browser-tools'
-import { isAllowedBrowserUrl, type BrowserDownloadInfo, type BrowserEvent, type BrowserTabInfo } from '@shared/browser-types'
+import {
+  isAllowedBrowserUrl,
+  isTabVisibleInSession,
+  normalizeBrowserSessionKey,
+  type BrowserDownloadInfo,
+  type BrowserEvent,
+  type BrowserTabInfo,
+} from '@shared/browser-types'
 import type { Modifier, PageEngine } from '../engines/types'
 import { BrowserToolError, unwrap, type RuntimeError } from './errors'
 import { Pointer, targetPoint, typeText } from './input'
@@ -43,7 +50,7 @@ export interface AgentBrowserHost {
   openTab(opts: { url?: string; focus?: boolean; openedBy?: BrowserTabInfo['openedBy'] }): BrowserTabInfo | Promise<BrowserTabInfo>
   closeTab(tabId: string): void
   /** `window`: also bring the browser window forward (help requests). */
-  focusTab(tabId: string, opts?: { window?: boolean }): void
+  focusTab(tabId: string, opts?: { window?: boolean; sessionKey?: string }): void
   agentTab(tabId: string): { info: BrowserTabInfo; engine: PageEngine; pointer: Pointer }
   runOnTab<T>(tabId: string, action: string, work: () => Promise<T>): Promise<T>
   /** Downloads this browser knows about (newest last). */
@@ -84,9 +91,10 @@ interface Actionable {
 
 /** What the model sees of one snapshot, after slimming and folding. */
 const SNAPSHOT_MAX_CHARS = 40_000
+/** Snapshot budget returned automatically on navigation so the model can read and act in one turn. */
+const NAV_SNAPSHOT_MAX_CHARS = 12_000
 /** Raw snapshot cap: the shaped view and diffs work from this. */
 const RAW_MAX_CHARS = 400_000
-const BASELINE_MAX_AGE_MS = 5000
 const ACTION_TIMEOUT_MS = 5000
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 const DEFS = new Map(BROWSER_TOOL_DEFS.map((d) => [d.name, d]))
@@ -102,19 +110,34 @@ const lastShot = new Map<string, { scale: number; originX: number; originY: numb
 /** Selected tab per conversation. */
 const currentTab = new Map<string, string>()
 
-/** Tabs a conversation sees: the user's tabs and its own, never another conversation's. */
+/** Tabs a conversation sees: its own tabs plus pinned / shared tabs, never another conversation's private tabs. */
 export function sessionTabs(tabs: BrowserTabInfo[], sessionKey: string): BrowserTabInfo[] {
-  return tabs.filter((t) => t.openedBy === 'user' || t.openedBy.sessionKey === sessionKey)
+  return tabs.filter((t) => isTabVisibleInSession(t, sessionKey))
+}
+
+export function adoptAgentSessionTabs(fromSessionKey: string, toSessionKey: string): void {
+  const from = normalizeBrowserSessionKey(fromSessionKey)
+  const to = normalizeBrowserSessionKey(toSessionKey)
+  if (!from || !to || from === to) return
+  const chosen = currentTab.get(from)
+  if (chosen && !currentTab.has(to)) currentTab.set(to, chosen)
+  currentTab.delete(from)
 }
 
 function currentTabId(host: AgentBrowserHost, sessionKey: string, required = true): string | null {
+  const key = normalizeBrowserSessionKey(sessionKey)
   const { tabs, activeTabId } = host.list()
-  const mine = sessionTabs(tabs, sessionKey)
-  const chosen = currentTab.get(sessionKey)
+  const mine = sessionTabs(tabs, key)
+  const chosen = currentTab.get(key) ?? currentTab.get(sessionKey)
   if (chosen && mine.some((t) => t.tabId === chosen)) return chosen
-  const id = (activeTabId && mine.some((t) => t.tabId === activeTabId) ? activeTabId : mine.at(-1)?.tabId) ?? null
+  const own = mine.filter((t) => t.openedBy !== 'user' && normalizeBrowserSessionKey(t.openedBy.sessionKey) === key)
+  const id =
+    (activeTabId && mine.some((t) => t.tabId === activeTabId) ? activeTabId : null) ??
+    own.at(-1)?.tabId ??
+    mine.at(-1)?.tabId ??
+    null
   if (!id && required) throw new BrowserToolError('browser_no_tab', 'no tab is open; call browser_navigate or browser_tabs with action "new"')
-  if (id) currentTab.set(sessionKey, id)
+  if (id) currentTab.set(key, id)
   return id
 }
 
@@ -165,15 +188,29 @@ function slimmed(snap: Snap): string {
   return shapeSnapshot(snap.yaml, { origin: originOf(snap.url), fold: false }).yaml
 }
 
-/** Interactive outline of a page the model has not seen yet. */
+/** Structured ARIA snapshot of a newly loaded page (slimmed, repeated lists folded, budgeted). */
 function outline(snap: Snap): string {
-  return compactSnapshot(shapeSnapshot(snap.yaml, { origin: originOf(snap.url) }).yaml) || '(no interactive elements)'
+  return shapeSnapshot(snap.yaml, { origin: originOf(snap.url), fold: true, budget: NAV_SNAPSHOT_MAX_CHARS }).yaml || compactSnapshot(snap.yaml) || '(empty page)'
 }
 
-function pageSection(engine: PageEngine, prevUrl?: string): string {
+function pageSection(
+  engine: PageEngine,
+  prevUrl?: string,
+  tabsCtx?: { host: AgentBrowserHost; sessionKey: string; activeId: string },
+): string {
   const url = engine.url()
   const moved = prevUrl !== undefined && prevUrl !== url
-  return `### Page\nURL: ${url}${moved ? ' (changed)' : ''}\nTitle: ${engine.title() || '(untitled)'}`
+  const lines = [`### Page\nURL: ${url}${moved ? ' (changed)' : ''}\nTitle: ${engine.title() || '(untitled)'}`]
+  if (tabsCtx) {
+    const mine = sessionTabs(tabsCtx.host.list().tabs, tabsCtx.sessionKey)
+    if (mine.length > 1) {
+      lines.push(`### Open tabs (${mine.length})`)
+      mine.forEach((t, i) => {
+        lines.push(`- ${i}:${t.tabId === tabsCtx.activeId ? ' (current)' : ''}${t.pinned ? ' (pinned)' : ''} [${t.title || 'untitled'}](${t.url})`)
+      })
+    }
+  }
+  return lines.join('\n')
 }
 
 function snapshotNotes(snap: Snap, tabId?: string): string {
@@ -215,8 +252,8 @@ function situationHints(tabId: string, snap: Snap): string[] {
  */
 async function act(tabId: string, engine: PageEngine, done: () => Promise<string>): Promise<ToolResult> {
   const known = lastSnap.get(tabId)
-  const fresh = known && known.url === engine.url() && Date.now() - known.at < BASELINE_MAX_AGE_MS
-  const before = fresh ? known : await takeSnapshot(tabId, engine).catch(() => null)
+  // Diff against what the model last saw on this URL (do not re-snapshot before acting after >5s of model thinking).
+  const before = known && known.url === engine.url() ? known : await takeSnapshot(tabId, engine).catch(() => null)
   const beforeUrl = engine.url()
   await engine.run<boolean>('__piBrowser.transients.start()').catch(() => false)
   const net = engine.cdpTab()?.network
@@ -460,11 +497,12 @@ function pdfName(filename: string | undefined, title: string): string {
 type Args = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function tabsTool(host: AgentBrowserHost, call: BrowserToolCall, a: Args): Promise<ToolResult> {
-  const mine = () => sessionTabs(host.list().tabs, call.sessionKey)
-  const current = currentTabId(host, call.sessionKey, false)
+  const key = normalizeBrowserSessionKey(call.sessionKey)
+  const mine = () => sessionTabs(host.list().tabs, key)
+  const current = currentTabId(host, key, false)
   const listing = () =>
     mine()
-      .map((t, i) => `- ${i}:${t.tabId === currentTab.get(call.sessionKey) ? ' (current)' : ''} [${t.title || 'untitled'}](${t.url})`)
+      .map((t, i) => `- ${i}:${t.tabId === currentTab.get(key) ? ' (current)' : ''}${t.pinned ? ' (pinned)' : ''} [${t.title || 'untitled'}](${t.url})`)
       .join('\n') || '(no tabs)'
   const pick = (): BrowserTabInfo => {
     const tabs = mine()
@@ -497,8 +535,8 @@ async function tabsTool(host: AgentBrowserHost, call: BrowserToolCall, a: Args):
         tabOpen: () => true,
       })
       if (ok.outcome !== 'completed') throw new BrowserToolError('browser_denied', `the user did not lend the tab (${ok.outcome}); do not ask again`)
-      const info = await host.borrow(t.chromeTabId, call.sessionKey)
-      currentTab.set(call.sessionKey, info.tabId)
+      const info = await host.borrow(t.chromeTabId, key)
+      currentTab.set(key, info.tabId)
       return text(`### Result\nBorrowed "${t.title || t.url}"; return it with browser_tabs action "return" when done.\n### Open tabs\n${listing()}`)
     }
     case 'return': {
@@ -506,28 +544,40 @@ async function tabsTool(host: AgentBrowserHost, call: BrowserToolCall, a: Args):
       const tab = pick()
       await host.giveBack(tab.tabId)
       lastSnap.delete(tab.tabId)
-      if (currentTab.get(call.sessionKey) === tab.tabId) currentTab.delete(call.sessionKey)
+      if (currentTab.get(key) === tab.tabId) currentTab.delete(key)
       return text(`### Result\nReturned the tab to the user\n### Open tabs\n${listing()}`)
     }
     case 'new': {
       const url = a.url ?? 'about:blank'
       if (!isAllowedBrowserUrl(url)) throw new BrowserToolError('browser_denied', 'only http(s) URLs can be opened')
-      const info = await host.openTab({ url, focus: host.list().tabs.length === 0, openedBy: { sessionKey: call.sessionKey } })
-      currentTab.set(call.sessionKey, info.tabId)
-      if (url !== 'about:blank') await settle(host.agentTab(info.tabId).engine, 15_000)
+      const info = await host.openTab({ url, openedBy: { sessionKey: key } })
+      currentTab.set(key, info.tabId)
+      if (url !== 'about:blank') {
+        const { engine } = host.agentTab(info.tabId)
+        await settle(engine, 15_000)
+        const snap = await takeSnapshot(info.tabId, engine).catch(() => null)
+        if (snap) {
+          return text([`### Open tabs\n${listing()}`, pageSection(engine), `### Snapshot (interactive elements)\n${outline(snap)}`, snapshotNotes(snap, info.tabId)].filter(Boolean).join('\n'))
+        }
+      }
       return text(`### Open tabs\n${listing()}`)
     }
     case 'close': {
       const tab = pick()
       host.closeTab(tab.tabId)
       lastSnap.delete(tab.tabId)
-      if (currentTab.get(call.sessionKey) === tab.tabId) currentTab.delete(call.sessionKey)
+      if (currentTab.get(key) === tab.tabId) currentTab.delete(key)
       return text(`### Open tabs\n${listing()}`)
     }
     default: {
       const tab = pick()
-      currentTab.set(call.sessionKey, tab.tabId)
-      host.focusTab(tab.tabId)
+      currentTab.set(key, tab.tabId)
+      host.focusTab(tab.tabId, { sessionKey: key })
+      const { engine } = host.agentTab(tab.tabId)
+      const snap = tab.url !== 'about:blank' ? await takeSnapshot(tab.tabId, engine).catch(() => null) : null
+      if (snap) {
+        return text([`### Open tabs\n${listing()}`, pageSection(engine), `### Snapshot (interactive elements)\n${outline(snap)}`, snapshotNotes(snap, tab.tabId)].filter(Boolean).join('\n'))
+      }
       return text(`### Open tabs\n${listing()}`)
     }
   }
@@ -626,12 +676,16 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
   if (call.tool === 'browser_tabs') return tabsTool(host, call, a)
   if (call.tool === 'browser_batch') return batch(host, call, a)
 
-  if (call.tool === 'browser_navigate' && a.url !== 'back') {
+  const sessionKey = normalizeBrowserSessionKey(call.sessionKey)
+
+  if (call.tool === 'browser_navigate' && a.url !== 'back' && a.url !== 'forward' && a.url !== 'reload') {
     if (!isAllowedBrowserUrl(a.url)) throw new BrowserToolError('browser_denied', 'only http(s) URLs can be opened')
-    let id = currentTabId(host, call.sessionKey, false)
+    let id = currentTabId(host, sessionKey, false)
     if (!id) {
-      id = (await host.openTab({ focus: host.list().tabs.length === 0, openedBy: { sessionKey: call.sessionKey } })).tabId
-      currentTab.set(call.sessionKey, id)
+      id = (await host.openTab({ openedBy: { sessionKey } })).tabId
+      currentTab.set(sessionKey, id)
+    } else {
+      host.focusTab(id, { sessionKey })
     }
     const { engine } = host.agentTab(id)
     return host.runOnTab(id, 'navigate', async () => {
@@ -640,18 +694,61 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
       await engine.navigate(a.url)
       await settle(engine, 15_000)
       const snap = await takeSnapshot(id, engine)
-      return text([pageSection(engine), `### Snapshot (interactive elements)\n${outline(snap)}`, snapshotNotes(snap, id)].filter(Boolean).join('\n'))
+      return text([pageSection(engine, undefined, { host, sessionKey, activeId: id }), `### Snapshot (interactive elements)\n${outline(snap)}`, snapshotNotes(snap, id)].filter(Boolean).join('\n'))
     })
   }
 
-  const id = currentTabId(host, call.sessionKey)!
+  if (call.tool === 'browser_snapshot' && (a.allTabs || a.index !== undefined)) {
+    const mine = sessionTabs(host.list().tabs, sessionKey)
+    if (mine.length === 0) throw new BrowserToolError('browser_no_tab', 'no tab is open; call browser_navigate or browser_tabs with action "new"')
+    if (a.allTabs) {
+      const perTabBudget = Math.max(4000, Math.floor(SNAPSHOT_MAX_CHARS / Math.max(1, mine.length)))
+      const sections: string[] = [`### Open tabs (${mine.length})`]
+      for (let i = 0; i < mine.length; i++) {
+        const t = mine[i]
+        const { engine: tabEngine } = host.agentTab(t.tabId)
+        if (a.mode === 'text') {
+          const r = unwrap(
+            await tabEngine.run<{ text: string; truncated: boolean; chars: number } | RuntimeError>(
+              `__piBrowser.textView(${js({ target: a.target, maxChars: perTabBudget })})`,
+              8000,
+            ),
+          )
+          sections.push(`### Tab ${i}${t.tabId === currentTab.get(sessionKey) ? ' (current)' : ''}${t.pinned ? ' (pinned)' : ''}: [${tabEngine.title() || t.title || 'untitled'}](${tabEngine.url() || t.url})\n${r.text || '(no text)'}`)
+        } else {
+          const snap = await takeSnapshot(t.tabId, tabEngine).catch(() => null)
+          const body = snap ? shapeSnapshot(snap.yaml, { origin: originOf(snap.url), fold: true, budget: perTabBudget }).yaml : '(unavailable)'
+          sections.push(`### Tab ${i}${t.tabId === currentTab.get(sessionKey) ? ' (current)' : ''}${t.pinned ? ' (pinned)' : ''}: [${tabEngine.title() || t.title || 'untitled'}](${tabEngine.url() || t.url})\n${body || '(empty page)'}`)
+        }
+      }
+      return text(sections.join('\n\n'))
+    }
+    if (a.index !== undefined) {
+      const picked = mine[a.index]
+      if (!picked) throw new BrowserToolError('browser_denied', `no tab at index ${a.index}`)
+      currentTab.set(sessionKey, picked.tabId)
+      host.focusTab(picked.tabId, { sessionKey })
+    }
+  }
+
+  const id = currentTabId(host, sessionKey)!
   const { engine, pointer } = host.agentTab(id)
   const tool = call.tool.replace(/^browser_/, '')
 
   switch (call.tool) {
-    case 'browser_navigate': // url "back"
-      return host.runOnTab(id, 'back', () =>
+    case 'browser_navigate': // url "back" | "forward" | "reload"
+      return host.runOnTab(id, a.url, () =>
         act(id, engine, async () => {
+          if (a.url === 'reload') {
+            await engine.run('location.reload()').catch(() => undefined)
+            await settle(engine, 15_000)
+            return 'Reloaded page'
+          }
+          if (a.url === 'forward') {
+            await engine.run('history.forward()').catch(() => undefined)
+            await settle(engine, 15_000)
+            return 'Went forward'
+          }
           if (!(await engine.back())) throw new BrowserToolError('browser_denied', 'no previous page')
           await settle(engine, 15_000)
           return 'Went back'
@@ -659,12 +756,13 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
       )
     case 'browser_snapshot':
       return host.runOnTab(id, tool, async () => {
+        const tabsCtx = { host, sessionKey, activeId: id }
         if (a.mode === 'text') {
           const t = unwrap(await engine.run<{ text: string; truncated: boolean; chars: number } | RuntimeError>(`__piBrowser.textView(${js({ target: a.target, maxChars: a.saveTo ? RAW_MAX_CHARS : SNAPSHOT_MAX_CHARS })})`, 8000))
           lastSnap.delete(id)
-          if (a.saveTo) return text(`${pageSection(engine)}\n${await saveSnapshot(call.sessionKey, a.saveTo, t.text)}`)
+          if (a.saveTo) return text(`${pageSection(engine, undefined, tabsCtx)}\n${await saveSnapshot(call.sessionKey, a.saveTo, t.text)}`)
           const note = t.truncated ? `\nText truncated (${t.chars} chars in all): use target=<ref> for one region, query="…", or saveTo for all of it in a file.` : ''
-          return text(`${pageSection(engine)}\n### Text\n${t.text || '(no text)'}${note}`)
+          return text(`${pageSection(engine, undefined, tabsCtx)}\n### Text\n${t.text || '(no text)'}${note}`)
         }
         if (a.query) {
           // Search the whole (unfolded) snapshot: folded and cut items are found too.
@@ -675,11 +773,11 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
         const raw = await takeSnapshot(id, engine, { target: a.target, depth: a.depth })
         if (a.saveTo) {
           const saved = await saveSnapshot(call.sessionKey, a.saveTo, shapeSnapshot(raw.yaml, { origin: originOf(raw.url), fold: false }).yaml)
-          return text([pageSection(engine), saved, snapshotNotes({ ...raw, truncated: false }, id)].filter(Boolean).join('\n'))
+          return text([pageSection(engine, undefined, tabsCtx), saved, snapshotNotes({ ...raw, truncated: false }, id)].filter(Boolean).join('\n'))
         }
         const snap = shaped(raw, { target: a.target })
         const hover = a.probeHover ? await probeHover(id, engine, pointer, raw) : ''
-        return text([pageSection(engine), `### Snapshot\n\`\`\`yaml\n${snap.yaml || '(empty page)'}\n\`\`\``, hover, snapshotNotes(snap, id)].filter(Boolean).join('\n'))
+        return text([pageSection(engine, undefined, tabsCtx), `### Snapshot\n\`\`\`yaml\n${snap.yaml || '(empty page)'}\n\`\`\``, hover, snapshotNotes(snap, id)].filter(Boolean).join('\n'))
       })
     case 'browser_click':
       return host.runOnTab(id, tool, () =>
@@ -699,7 +797,13 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
             throw new BrowserToolError('browser_denied', 'this opens a file chooser; use browser_file_upload with the same target instead')
           }
           const probe = await actionable(engine, a.target)
-          if (probe.tag === 'select') throw new BrowserToolError('browser_denied', 'this is a <select>; use browser_select_option')
+          if (probe.tag === 'select') {
+            const opts = await scopeOf(engine, a.target)
+              .run<string[]>(`(() => { const el = __piBrowser.resolveElement(${js(a.target)}); return el && el.options ? [...el.options].map(o => o.label.trim() || o.value).slice(0, 20) : [] })()`)
+              .catch(() => [] as string[])
+            const hint = opts.length ? ` (options: ${opts.join(', ')})` : ''
+            throw new BrowserToolError('browser_denied', `this is a <select>${hint}; use browser_select_option with target=${js(a.target)}`)
+          }
           const { ptr, p } = aim(pointer, probe)
           await ptr.click(p.x, p.y, { button: a.button, clickCount: a.doubleClick ? 2 : 1, modifiers: toModifiers(a.modifiers) })
           return `${a.doubleClick ? 'Double-clicked' : 'Clicked'} ${probe.description}`
@@ -786,7 +890,8 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
           }
           await pointer.wheel(at.x, at.y, a.deltaX ?? 0, a.deltaY)
           await sleep(200)
-          return `Scrolled ${a.deltaY > 0 ? 'down' : 'up'} ${Math.abs(a.deltaY)}px`
+          const pos = await engine.run<[number, number]>('[Math.round(scrollY), Math.round(document.documentElement.scrollHeight)]').catch(() => null)
+          return `Scrolled ${a.deltaY > 0 ? 'down' : 'up'} ${Math.abs(a.deltaY)}px${pos ? ` (scrollY ${pos[0]} / ${pos[1]}px)` : ''}`
         }),
       )
     case 'browser_file_upload':
@@ -978,7 +1083,7 @@ export async function executeBrowserTool(host: AgentBrowserHost, call: BrowserTo
     const result = await execute(host, call)
     if (!result.isError && !call.nested && call.tool !== 'browser_site_notes') {
       // First visit of a site in this conversation: hand over what earlier runs learned there.
-      const id = currentTab.get(call.sessionKey)
+      const id = currentTab.get(normalizeBrowserSessionKey(call.sessionKey)) ?? currentTab.get(call.sessionKey)
       const url = id ? (() => { try { return host.agentTab(id).engine.url() } catch { return '' } })() : ''
       const section = url ? await siteNotesSection(call.sessionKey, url).catch(() => '') : ''
       if (section) result.content.push({ type: 'text', text: section })

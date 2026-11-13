@@ -98,8 +98,8 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
 
   const cacheHitPercent = (() => {
     if (!usage) return null
-    const denominator = usage.input + usage.cacheRead
-    if (denominator <= 0) return null
+    const denominator = usage.input + usage.cacheRead + usage.cacheWrite
+    if (denominator <= 0 || (usage.cacheRead <= 0 && usage.cacheWrite <= 0)) return null
     return (usage.cacheRead / denominator) * 100
   })()
 
@@ -109,6 +109,7 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
     contextWindow,
     ctxPct: contextPercent,
     cacheHitPct: cacheHitPercent,
+    cacheRead: usage?.cacheRead ?? 0,
     cacheWrite: usage?.cacheWrite ?? 0,
     tps,
     formatTokens,

@@ -11,20 +11,18 @@ const search = (query: string, limit = 8) => new Bm25Ranker().rank(query, docume
 
 describe('browser tools through tool_search', () => {
   it('loads exactly the tools named, when limit matches the count', () => {
-    expect(search('browser_wait_for browser_tabs', 2).sort()).toEqual(['browser_tabs', 'browser_wait_for'])
+    expect(search('browser_fill_form browser_evaluate', 2).sort()).toEqual(['browser_evaluate', 'browser_fill_form'])
     expect(search('browser_file_upload', 1)).toEqual(['browser_file_upload'])
     for (const name of BROWSER_DEFERRED_TOOLS) expect(search(name, 1)).toEqual([name])
   })
 
   it('finds the right tool from plain wording', () => {
-    expect(search('wait for text to appear')[0]).toBe('browser_wait_for')
-    expect(search('switch to another tab')[0]).toBe('browser_tabs')
     expect(search('upload a file')[0]).toBe('browser_file_upload')
-    expect(search('press Enter key')[0]).toBe('browser_press_key')
     expect(search('fill several form fields')[0]).toBe('browser_fill_form')
     expect(search('accept the confirm dialog')[0]).toBe('browser_handle_dialog')
     expect(search('save the page as pdf')[0]).toBe('browser_pdf_save')
     expect(search('debug console errors')[0]).toBe('browser_devtools')
+    expect(search('run javascript function in page')[0]).toBe('browser_evaluate')
   })
 
   it('reaches every deferred tool from a broad query with a large limit', () => {
