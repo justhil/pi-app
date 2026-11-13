@@ -125,7 +125,7 @@ export function PurgeSettingsPanel() {
     setDraftConfig((prev) => {
       const remaining = prev.personas.filter((p) => p.id !== id)
       const nextDefault =
-        prev.defaultPersonaId === id ? remaining[0]?.id ?? 'dafeiyu' : prev.defaultPersonaId
+        prev.defaultPersonaId === id ? remaining[0]?.id ?? 'konata' : prev.defaultPersonaId
       return normalizeAgentPurgeConfig({
         ...prev,
         defaultPersonaId: nextDefault,

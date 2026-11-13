@@ -63,7 +63,7 @@ describe('ComposerPurgeToggle state machine', () => {
     })
     expect(sendPayload).toEqual({
       enabled: true,
-      personaId: 'dafeiyu',
+      personaId: 'konata',
       mode: 'replace',
     })
     rerender(<ComposerPurgeToggle draftContextKey="session:/sessions/chat-1.jsonl" running={false} />)

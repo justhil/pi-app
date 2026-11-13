@@ -25,8 +25,10 @@ describe('PurgeSettingsPanel', () => {
     render(<PurgeSettingsPanel />)
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('purge.getState'))
-    expect(screen.getAllByText(/大肥鱼/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/小码酱/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/大肥鱼/)).toBeNull()
+    expect(screen.queryByText(/小码酱/)).toBeNull()
+    expect(screen.queryByText(/YG/)).toBeNull()
+    expect(screen.getAllByText(/泉此方/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/CTF/).length).toBeGreaterThan(0)
 
     const addButtons = screen.getAllByRole('button')

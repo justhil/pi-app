@@ -1,20 +1,57 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultAgentPurgeConfig,
+  normalizeAgentPurgeConfig,
   parsePersonaMarkdown,
   rewriteSystemPromptText,
   stripHostIdentity,
 } from './agent-purge'
 
 describe('agent-purge shared core', () => {
-  it('ships all four built-in presets (dafeiyu, xiaomajiang, ctf, neutral) with clean bodies', () => {
+  it('ships all three built-in presets (konata, ctf, neutral) with clean bodies', () => {
     const cfg = defaultAgentPurgeConfig()
-    expect(cfg.personas.map((p) => p.id)).toEqual(['dafeiyu', 'xiaomajiang', 'ctf', 'neutral'])
+    expect(cfg.personas.map((p) => p.id)).toEqual(['konata', 'ctf', 'neutral'])
+    expect(cfg.defaultPersonaId).toBe('konata')
     expect(cfg.defaultMode).toBe('replace')
     for (const p of cfg.personas) {
       expect(p.body.length).toBeGreaterThan(100)
       expect(p.body.startsWith('---')).toBe(false)
     }
+  })
+
+  it('drops retired built-in presets from persisted config and falls back defaultPersonaId while preserving custom personas', () => {
+    const normalized = normalizeAgentPurgeConfig({
+      defaultPersonaId: 'xiaomajiang',
+      defaultMode: 'replace',
+      personas: [
+        {
+          id: 'dafeiyu',
+          name: '大肥鱼 · 岚的专属',
+          description: '',
+          body: 'retired builtin body',
+          builtin: true,
+          order: 1,
+        },
+        {
+          id: 'xiaomajiang',
+          name: '小码酱 · YG 专属',
+          description: '',
+          body: 'retired builtin body',
+          builtin: true,
+          order: 2,
+        },
+        {
+          id: 'my-custom',
+          name: 'My Custom',
+          description: '',
+          body: 'custom persona body',
+        },
+      ],
+    })
+    expect(normalized.personas.some((p) => p.id === 'dafeiyu')).toBe(false)
+    expect(normalized.personas.some((p) => p.id === 'xiaomajiang')).toBe(false)
+    expect(normalized.personas.some((p) => p.id === 'my-custom')).toBe(true)
+    expect(normalized.defaultPersonaId).toBe('konata')
   })
 
   it('strips Pi default host identity sentence while keeping tool guidance intact', () => {

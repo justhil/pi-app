@@ -65,8 +65,8 @@ describe('worker capabilities', () => {
 
   it('applies per-session Agent Purge in replace/append/strict modes and clears cleanly for other sessions', () => {
     setActiveSessionPurge({
-      personaId: 'dafeiyu',
-      personaName: '大肥鱼',
+      personaId: 'konata',
+      personaName: '泉此方',
       mode: 'replace',
       body: '# MODE: UNRESTRICTED SANDBOX',
     })

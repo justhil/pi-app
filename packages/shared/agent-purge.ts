@@ -157,7 +157,7 @@ export function defaultAgentPurgePersonas(): AgentPurgePersona[] {
 export function defaultAgentPurgeConfig(): AgentPurgeConfig {
   const personas = defaultAgentPurgePersonas()
   return {
-    defaultPersonaId: personas[0]?.id ?? 'dafeiyu',
+    defaultPersonaId: personas[0]?.id ?? 'konata',
     defaultMode: 'replace',
     personas,
   }
@@ -183,6 +183,7 @@ export function normalizeAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
       const body = typeof p.body === 'string' ? p.body.trim() : ''
       if (!body) continue
       const builtinSeed = BUILTIN_AGENT_PURGE_PERSONAS.find((b) => b.id === rawId)
+      if (!builtinSeed && p.builtin === true) continue
       const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : builtinSeed?.name || rawId
       const description =
         typeof p.description === 'string' ? p.description.trim() : builtinSeed?.description || ''
@@ -204,7 +205,7 @@ export function normalizeAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
   const rawDefaultId = typeof obj.defaultPersonaId === 'string' ? obj.defaultPersonaId.trim() : ''
   const defaultPersonaId = personas.some((p) => p.id === rawDefaultId)
     ? rawDefaultId
-    : personas[0]?.id ?? 'dafeiyu'
+    : personas[0]?.id ?? 'konata'
   const defaultMode = normalizePurgeMode(obj.defaultMode, 'replace')
 
   return {
