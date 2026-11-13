@@ -91,11 +91,11 @@
     "selectProjectFirst": "请先打开项目"
   },
   "panel": {
-    "review": "Review",
+    "review": "审查",
     "trellis": "Trellis",
-    "run": "Run",
-    "context": "Context",
-    "tree": "Tree",
+    "run": "运行",
+    "context": "上下文",
+    "tree": "会话树",
     "files": "文件",
     "reviewDesc": "Git 变更与 diff（只读）",
     "runDesc": "当前轮次状态与用量",
