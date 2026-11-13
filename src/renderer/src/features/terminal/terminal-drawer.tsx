@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, Columns2, MessageSquarePlus, Plus, Terminal as TerminalIcon, X } from '@renderer/components/icons'
 import { sendToComposer } from '@renderer/features/browser/browser-composer'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { loadProfiles, spawnPane } from './terminal-bridge'
-import { disposeTerminalInstance, onTerminalSelection, TerminalPane, terminalSelection, useClosePane } from './terminal-pane'
+import { disposeTerminalInstance, onTerminalSelection, terminalSelection, useClosePane } from './terminal-instances'
 import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, useTerminalStore, type ShellProfile, type TerminalTab } from './terminal-store'
 
-const isToggleKey = (e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
+// xterm and its addons (~0.6 MB) load with the first pane instead of with the app shell.
+const TerminalPane = lazy(() => import('./terminal-pane').then((m) => ({ default: m.TerminalPane })))
+
+const isToggleKey =(e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
 
 /** Open a new tab with a shell (default: pi's), in the current project. */
 export async function openTerminalTab(profileId?: string): Promise<string | null> {
@@ -136,7 +139,9 @@ function SplitPanes({ tab, active, visible, onClose }: { tab: TerminalTab; activ
             />
           ) : null}
           <div className={cn('flex min-w-0 flex-1', i > 0 && 'border-l border-border')}>
-            <TerminalPane tabId={tab.id} index={i} pane={p} active={active && tab.activePane === i} visible={visible} split={split} onClose={() => onClose(p.ptyId)} />
+            <Suspense fallback={null}>
+              <TerminalPane tabId={tab.id} index={i} pane={p} active={active && tab.activePane === i} visible={visible} split={split} onClose={() => onClose(p.ptyId)} />
+            </Suspense>
           </div>
         </div>
       ))}

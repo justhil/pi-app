@@ -11,20 +11,13 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { attachWriter, resizePty, shellPath, writeToPty } from './terminal-bridge'
+import { getTerminalInstance, registerTerminalInstance, type TerminalInstance } from './terminal-instances'
 import { terminalActions, useTerminalStore, type TerminalPaneState } from './terminal-store'
 import { TERMINAL_FONT, terminalTheme } from './terminal-theme'
 
-type Instance = { term: Terminal; host: HTMLDivElement; fit: FitAddon; search: SearchAddon; dispose: () => void }
-
-/**
- * xterm instances outlive their React pane: a terminal cannot be re-opened into a new element,
- * so each pty's terminal lives in its own host div that panes move in and out of the DOM.
- */
-const instances = new Map<string, Instance>()
-
 const isMac = () => window.piDesktop?.platform === 'darwin'
 
-function createInstance(pane: TerminalPaneState): Instance {
+function createInstance(pane: TerminalPaneState): TerminalInstance {
   const host = document.createElement('div')
   host.className = 'terminal-host h-full w-full'
   const term = new Terminal({
@@ -143,22 +136,6 @@ function createInstance(pane: TerminalPaneState): Instance {
   }
 }
 
-export function disposeTerminalInstance(ptyId: string): void {
-  instances.get(ptyId)?.dispose()
-  instances.delete(ptyId)
-}
-
-export function terminalSelection(ptyId: string): string {
-  return instances.get(ptyId)?.term.getSelection() ?? ''
-}
-
-export function onTerminalSelection(ptyId: string, cb: (has: boolean) => void): () => void {
-  const inst = instances.get(ptyId)
-  if (!inst) return () => {}
-  const d = inst.term.onSelectionChange(() => cb(inst.term.hasSelection()))
-  return () => d.dispose()
-}
-
 export function TerminalPane({ tabId, index, pane, active, visible, split, onClose }: { tabId: string; index: number; pane: TerminalPaneState; active: boolean; visible: boolean; split: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -168,10 +145,10 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    let inst = instances.get(pane.ptyId)
+    let inst = getTerminalInstance(pane.ptyId)
     if (!inst) {
       inst = createInstance(pane)
-      instances.set(pane.ptyId, inst)
+      registerTerminalInstance(pane.ptyId, inst)
     }
     el.appendChild(inst.host)
     const fitNow = () => {
@@ -192,7 +169,7 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
   }, [pane.ptyId])
 
   useEffect(() => {
-    const inst = instances.get(pane.ptyId)
+    const inst = getTerminalInstance(pane.ptyId)
     if (!inst || !visible) return
     requestAnimationFrame(() => {
       try {
@@ -214,7 +191,7 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
   }, [pane.ptyId])
 
   const find = (next: boolean) => {
-    const inst = instances.get(pane.ptyId)
+    const inst = getTerminalInstance(pane.ptyId)
     if (!inst || !query) return
     const opts = { caseSensitive: false, decorations: { matchOverviewRuler: '#888', activeMatchColorOverviewRuler: '#165dff' } }
     if (next) inst.search.findNext(query, opts)
@@ -255,8 +232,8 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
                 if (e.key === 'Enter') find(!e.shiftKey)
                 if (e.key === 'Escape') {
                   setSearching(false)
-                  instances.get(pane.ptyId)?.search.clearDecorations()
-                  instances.get(pane.ptyId)?.term.focus()
+                  getTerminalInstance(pane.ptyId)?.search.clearDecorations()
+                  getTerminalInstance(pane.ptyId)?.term.focus()
                 }
               }}
             />
@@ -270,16 +247,4 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
       </div>
     </div>
   )
-}
-
-/** Kill-and-forget a pane's process and terminal (closing its tab or pane). */
-function closePaneNow(ptyId: string): void {
-  const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
-  terminalActions.closePane(ptyId)
-  disposeTerminalInstance(ptyId)
-  if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
-}
-
-export function useClosePane(): (ptyId: string) => void {
-  return closePaneNow
 }

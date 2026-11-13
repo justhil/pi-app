@@ -6,12 +6,9 @@ import ReactMarkdown, { defaultUrlTransform, type Components, type ExtraProps, t
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
 import type { Pluggable } from 'unified'
-import 'katex/dist/katex.min.css'
-import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
-import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
+import { preprocessMarkdownMath } from '@renderer/features/timeline/markdown-math-preprocess'
 import { splitOpenUIFence, splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
 import {
   advanceMarkdownBlocks,
@@ -20,7 +17,7 @@ import {
 } from '@renderer/features/timeline/markdown-blocks'
 import { MarkdownPathText } from '@renderer/features/timeline/markdown-inline-paths'
 import { MarkdownLink } from '@renderer/features/timeline/markdown-link'
-import { FencedMathBlock } from '@renderer/features/timeline/markdown-math'
+import { mayContainMath, useKatexRuntime } from '@renderer/features/timeline/markdown-katex-runtime'
 import { MermaidBlock } from '@renderer/features/timeline/mermaid-block'
 import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-reveal'
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
@@ -112,30 +109,13 @@ function CodeBlock({
   )
 }
 
-function buildRemarkPlugins(streaming?: boolean): Pluggable[] {
-  return [
-    remarkGfm,
-    remarkBreaks,
-    [remarkMath, { singleDollarTextMath: !streaming }],
-  ]
-}
-
-const REHYPE_PLUGINS: Pluggable[] = [
-  [
-    rehypeKatex,
-    {
-      trust: false,
-      // 'warn' 只会刷控制台（中文进公式等），渲染结果不变
-      strict: 'ignore',
-      macros: KATEX_MACROS,
-      output: 'htmlAndMathml',
-    },
-  ],
-]
+/** Math syntax is only parsed once KaTeX is loaded (see markdown-katex-runtime.ts). */
+const NO_MATH_REMARK_PLUGINS: Pluggable[] = [remarkGfm, remarkBreaks]
+const SETTLED_REMARK_PLUGINS: Pluggable[] = [...NO_MATH_REMARK_PLUGINS, [remarkMath, { singleDollarTextMath: true }]]
+const STREAMING_REMARK_PLUGINS: Pluggable[] = [...NO_MATH_REMARK_PLUGINS, [remarkMath, { singleDollarTextMath: false }]]
+const NO_REHYPE_PLUGINS: Pluggable[] = []
 
 const STREAM_PLAIN_ONLY_MAX = 96
-
-const SETTLED_REMARK_PLUGINS = buildRemarkPlugins(false)
 
 /** One top-level block of a streaming answer; unchanged blocks skip Markdown/KaTeX re-parsing. */
 const MarkdownBlock = memo(function MarkdownBlock({
@@ -146,8 +126,9 @@ const MarkdownBlock = memo(function MarkdownBlock({
   components: Components
 }) {
   const markdown = useMemo(() => preprocessMarkdownMath(source, { streaming: false }), [source])
+  const katex = useKatexRuntime(mayContainMath(source))
   return (
-    <ReactMarkdown remarkPlugins={SETTLED_REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
+    <ReactMarkdown remarkPlugins={katex ? SETTLED_REMARK_PLUGINS : NO_MATH_REMARK_PLUGINS} rehypePlugins={katex?.rehypePlugins ?? NO_REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
       {markdown}
     </ReactMarkdown>
   )
@@ -231,10 +212,15 @@ const MarkdownView = memo(function MarkdownView({
     [children, streaming, usePlainStream, committedPrefix],
   )
 
-  const remarkPlugins = useMemo(
-    () => buildRemarkPlugins(!!streaming && (!usePlainStream || !!committedPrefix)),
-    [streaming, usePlainStream, committedPrefix],
-  )
+  const katex = useKatexRuntime(mayContainMath(children))
+  const FencedMath = katex?.FencedMathBlock
+  const rehypePlugins = katex?.rehypePlugins ?? NO_REHYPE_PLUGINS
+  const settledRemarkPlugins = katex ? SETTLED_REMARK_PLUGINS : NO_MATH_REMARK_PLUGINS
+  const remarkPlugins = !katex
+    ? NO_MATH_REMARK_PLUGINS
+    : streaming && (!usePlainStream || !!committedPrefix)
+      ? STREAMING_REMARK_PLUGINS
+      : SETTLED_REMARK_PLUGINS
 
   const components = useMemo(
     () => ({
@@ -242,8 +228,9 @@ const MarkdownView = memo(function MarkdownView({
         const lang = /language-([\w-]+)/.exec(cn2 || '')?.[1]?.toLowerCase() || ''
         const raw = String(ch ?? '').replace(/\n$/, '')
         const isInline = !cn2 && !raw.includes('\n')
-        if (lang === 'math' || lang === 'latex' || lang === 'tex') {
-          return <FencedMathBlock code={raw} />
+        // Before KaTeX has loaded a math fence shows as a plain code block.
+        if (FencedMath && (lang === 'math' || lang === 'latex' || lang === 'tex')) {
+          return <FencedMath code={raw} />
         }
         if (uiBlockLanguageFromClassName(cn2)) {
           return <UIBlockHost raw={raw} streaming={!!streaming} />
@@ -325,7 +312,7 @@ const MarkdownView = memo(function MarkdownView({
       },
       hr: () => <hr className="my-3 border-border/35" />,
     }),
-    [streaming, baseDirectory],
+    [streaming, baseDirectory, FencedMath],
   )
 
   if (usePlainStream) {
@@ -348,8 +335,8 @@ const MarkdownView = memo(function MarkdownView({
         {tailMarkdown ? (
           tailHasBlockSyntax(tailMarkdown) ? (
             <ReactMarkdown
-              remarkPlugins={SETTLED_REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
+              remarkPlugins={settledRemarkPlugins}
+              rehypePlugins={rehypePlugins}
               components={components}
               urlTransform={markdownUrlTransform}
             >
@@ -366,7 +353,7 @@ const MarkdownView = memo(function MarkdownView({
 
   return (
     <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
-      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
+      <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components} urlTransform={markdownUrlTransform}>
         {markdown}
       </ReactMarkdown>
     </div>
