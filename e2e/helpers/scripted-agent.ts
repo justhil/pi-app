@@ -126,19 +126,21 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     ...opts.config,
   }))
 
+  const env = {
+    ...process.env,
+    HOME: home,
+    XDG_CONFIG_HOME: path.join(home, '.config'),
+    PI_CODING_AGENT_DIR: agentDir,
+    PI_E2E: '1',
+    LANG: 'en_US.UTF-8',
+    ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+  }
+  delete env.ELECTRON_RUN_AS_NODE
   const app = await electron.launch({
     executablePath: electronExecutable,
     // --user-data-dir: Windows ignores XDG_CONFIG_HOME; this pins userData to the test config on every OS.
     args: [mainEntry, '--ozone-platform=x11', '--lang=en-US', `--user-data-dir=${configDir}`, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
-    env: {
-      ...process.env,
-      HOME: home,
-      XDG_CONFIG_HOME: path.join(home, '.config'),
-      PI_CODING_AGENT_DIR: agentDir,
-      PI_E2E: '1',
-      LANG: 'en_US.UTF-8',
-      ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
-    },
+    env,
     timeout: 60_000,
   })
   const win = await app.firstWindow({ timeout: 45_000 })

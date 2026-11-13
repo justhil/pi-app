@@ -10,8 +10,8 @@ import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
 export function applyComposerAbortUi(sessionFile: string): void {
   const store = useUIStore.getState()
-  markAbortUiHold(sessionFile)
-  markAbortQueueIgnore(sessionFile)
+  markAbortUiHold(sessionFile, 900)
+  markAbortQueueIgnore(sessionFile, 2500)
   store.setSessionRuntimeRunning(sessionFile, false)
   markSessionTurnEnded(sessionFile, 'idle')
   if (!sessionFilesEqual(store.historySessionFile, sessionFile)) return
@@ -30,6 +30,7 @@ export function applyComposerAbortUi(sessionFile: string): void {
   useUIStore.setState({
     streamingAssistantId: null,
     agentTurnBootstrapping: false,
+    pendingTurnStage: null,
     optimisticPendingUserText: null,
   })
   store.clearPendingQueue()

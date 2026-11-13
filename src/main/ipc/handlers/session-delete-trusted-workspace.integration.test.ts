@@ -51,6 +51,7 @@ vi.mock('../../worker-manager', () => ({
 vi.mock('../../config-store', () => ({
   configStore: {
     get: vi.fn((key: string) => key === 'currentProject' ? mocks.currentProject : key === 'recentProjects' ? mocks.recentProjects : undefined),
+    set: vi.fn(),
   },
 }))
 

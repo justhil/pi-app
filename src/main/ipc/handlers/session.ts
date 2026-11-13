@@ -22,6 +22,7 @@ import { sessionPreviewProcess } from '../../session-preview-process'
 import { inheritPurgedSession, removePurgedSession } from '../../agent-purge-service'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
+import { bumpPromptAbortEpoch } from '../../prompt-abort-epoch'
 import type { SessionOnDiskRow } from '../sdk-session'
 import { sessionPreviewText } from '@shared/session-preview-text'
 import type { PiSessionMessage } from '@shared/worker-message'
@@ -216,6 +217,9 @@ export function registerSessionHandlers(): void {
 
   registerHandlerWithSchema('ipc:session.navigateTree', sessionNavigateTreeSchema, async (req) => {
     try {
+      if (req.abortIfBusy !== false && req.sessionFile) {
+        bumpPromptAbortEpoch(req.sessionFile)
+      }
       // Bind the *requested* session worker, then navigate on that same slot.
       // Passing sessionFile through avoids foreground-fallback / wrong-worker races.
       // Pass explicit cwd so rewind works after cold open without a pre-started Worker.
@@ -231,6 +235,7 @@ export function registerSessionHandlers(): void {
         summarize: req.summarize === true,
         label: req.label,
         sessionFile: req.sessionFile,
+        abortIfBusy: req.abortIfBusy === true,
       })
       // Persist leaf tip for disk getMessages / next loadSession (pi does not write leaf to JSONL).
       if (!result.cancelled && req.sessionFile) {

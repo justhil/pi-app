@@ -63,6 +63,8 @@ export interface TimelineItem {
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
   errorKind?: 'error' | 'aborted' | 'retry'
   sessionEntryId?: string
+  /** Prompt payload text submitted to worker (kept for attachment/chip echo matching). */
+  payloadText?: string
   /** Force-quit / abort mid-stream — empty or partial assistant leaf */
   incomplete?: boolean
   stopReason?: string

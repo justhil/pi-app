@@ -80,21 +80,33 @@ export async function openSessionIntoWorker(
 
   if (!sessionFile) {
     captureVisibleLiveSessionTimeline()
-    // Re-point the view first so the resets below apply to this file-less session.
-    store.setHistoryMeta(0, 0, null)
-    store.setCurrentSession(sessionId)
-    store.clearTimeline()
-    store.clearFileChanges()
-    useExtensionUIStore.getState().resetForSessionContext()
-    store.loadHistoryItems([])
-    store.setHistoryLoading(false)
-    store.setRunState({
-      status: 'idle',
-      activeTool: undefined,
-      activeToolStatus: undefined,
-      activeRunId: undefined,
+    // Re-point the view atomically so the leaving session's state stays untouched
+    // and no intermediate draft key catches a partial reset.
+    useUIStore.setState({
+      currentSessionId: sessionId,
+      historySessionFile: null,
+      historyTotalCount: 0,
+      historyLoadedCount: 0,
+      historyLoading: false,
+      timelineItems: [],
+      streamingAssistantId: null,
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+      pendingTurnStage: null,
+      pendingSteering: [],
+      pendingFollowUp: [],
+      fileChanges: [],
+      composerWidget: null,
+      workerLiveSnapshot: { sessionId: null, sessionFile: null, status: 'idle' },
+      runState: {
+        ...useUIStore.getState().runState,
+        status: 'idle',
+        activeTool: undefined,
+        activeToolStatus: undefined,
+        activeRunId: undefined,
+      },
     })
-    store.setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
+    useExtensionUIStore.getState().resetForSessionContext()
     await ipcClient.invoke('session.setPendingBind', { sessionFile: null }).catch(() => {})
     if (navToken != null && !assertSessionNavigation(navToken)) return
     await applyComposerDisplayMeta()

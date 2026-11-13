@@ -78,17 +78,27 @@ describe('selectSessionChrome', () => {
     expect(view.canStop).toBe(true)
   })
 
-  it('maps abort hold to stopping even after local idle clear', () => {
+  it('maps abort hold to stopping when turn is still draining, and idle once settled', () => {
     markAbortUiHold('/a.jsonl', 5000)
-    const view = selectSessionChrome(
+    const draining = selectSessionChrome(
+      base({
+        runState: { status: 'idle' },
+        sessionRuntimeRunning: { '/a.jsonl': true },
+      }),
+    )
+    expect(draining.phase).toBe('stopping')
+    expect(draining.canStop).toBe(false)
+    expect(draining.showSpinner).toBe(true)
+
+    const settled = selectSessionChrome(
       base({
         runState: { status: 'idle' },
         sessionRuntimeRunning: {},
       }),
     )
-    expect(view.phase).toBe('stopping')
-    expect(view.canStop).toBe(false)
-    expect(view.showSpinner).toBe(true)
+    expect(settled.phase).toBe('idle')
+    expect(settled.canStop).toBe(false)
+    expect(settled.showSpinner).toBe(false)
   })
 
   it('does not project another session abort hold into the visible session', () => {

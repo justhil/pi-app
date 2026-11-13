@@ -75,6 +75,36 @@ type ViewMeta = {
 
 const meta = new Map<string, ViewMeta>()
 let focusKey: string | null = null
+const hydrateSeqByKey = new Map<string, number>()
+const hydrateEpochByKey = new Map<string, number>()
+const activeHydrateByKey = new Map<string, Promise<void>>()
+
+export function getSessionHydrateEpoch(sessionFile: string | null | undefined): number {
+  const key = sessionKeyFromFile(sessionFile)
+  return key ? (hydrateEpochByKey.get(key) ?? 0) : 0
+}
+
+export function bumpSessionHydrateEpoch(sessionFile: string | null | undefined): number {
+  const key = sessionKeyFromFile(sessionFile)
+  if (!key) return 0
+  const next = (hydrateEpochByKey.get(key) ?? 0) + 1
+  hydrateEpochByKey.set(key, next)
+  // Also invalidate any in-flight hydrateSessionView result for this session.
+  hydrateSeqByKey.set(key, (hydrateSeqByKey.get(key) ?? 0) + 1)
+  return next
+}
+
+export function isSessionHydrating(sessionFile: string | null | undefined): boolean {
+  const key = sessionKeyFromFile(sessionFile)
+  return !!key && activeHydrateByKey.has(key)
+}
+
+export async function waitForSessionHydrate(sessionFile: string | null | undefined): Promise<void> {
+  const key = sessionKeyFromFile(sessionFile)
+  if (!key) return
+  const pending = activeHydrateByKey.get(key)
+  if (pending) await pending.catch(() => {})
+}
 
 export function sessionKeyFromFile(sessionFile: string | null | undefined): string {
   return normalizeSessionFileKey(sessionFile) || String(sessionFile || '').trim()
@@ -306,114 +336,132 @@ export async function hydrateSessionView(
 ): Promise<void> {
   if (navToken != null && !assertSessionNavigation(navToken)) return
   const sessionKey = sessionKeyFromFile(sessionFileOrKey)
-
-  const before = entryOf(sessionKey)
-  const priorMeta = meta.get(sessionKey)
-  const hadRows = (before?.timelineItems.length ?? 0) > 0
-  meta.set(sessionKey, {
-    sessionId: sessionId ?? priorMeta?.sessionId ?? null,
-    phase: hadRows ? (priorMeta?.phase ?? 'cached') : 'hydrating',
-    lastFocusedAt: priorMeta?.lastFocusedAt ?? Date.now(),
-    sessionMeta: priorMeta?.sessionMeta,
-  })
-
-  const restorePhaseIfUnfinished = (): void => {
-    // Never leave phase stuck as hydrating, or switch-back treats rows as a cold open.
-    const current = meta.get(sessionKey)
-    if (!current || current.phase !== 'hydrating') return
-    const rows = entryOf(sessionKey)?.timelineItems.length ?? 0
-    meta.set(sessionKey, { ...current, phase: rows > 0 ? 'cached' : priorMeta?.phase === 'ready' ? 'ready' : 'empty' })
-  }
-  const focused = (): boolean => sessionFilesEqual(focusKey, sessionKey)
-
-  try {
-    // A running turn can persist a fuller reply before its terminal event reaches us.
-    // Disk-first IPC — never spawns a worker.
-    const diskAuthoritative = isSessionDiskAuthoritative(sessionKey)
-    const hist = await fetchSessionHistoryTail(sessionKey, 80, {
-      bypassCache: !hadRows || diskAuthoritative || sessionTurnActive(sessionKey),
-    })
-    if (navToken != null && !assertSessionNavigation(navToken)) {
-      restorePhaseIfUnfinished()
-      return
-    }
-
-    if (hist.error) {
-      const rows = entryOf(sessionKey)?.timelineItems.length ?? 0
-      const m = meta.get(sessionKey)
-      if (m) meta.set(sessionKey, { ...m, phase: rows > 0 ? 'cached' : 'error' })
-      if (focused()) useUIStore.getState().setHistoryLoading(false)
-      return
-    }
-
-    // Land batched stream text, then read the session's entry as it is *now* (events may have
-    // appended rows during the fetch).
-    flushAllStreamPendingSync()
-    const entry = entryOf(sessionKey)
-    const rows = entry?.timelineItems ?? []
-    const diskItems = sanitizeHistoryTimeline(hist.items as TimelineItem[])
-    const projected = projectTimelineItems(diskItems) as TimelineItem[]
-
-    // Finished background turn: disk is authoritative for the tail (#99) — splice it in place of
-    // whatever the session held, keeping its earlier loaded prefix. A turn that restarted
-    // meanwhile (queued follow-up) keeps its live rows.
-    const turnActive = sessionTurnActive(sessionKey)
-    const reconciled = diskAuthoritative && !turnActive ? spliceFreshDiskTail(rows, projected) : null
-    const merged = reconciled ? reconciled.items : mergeDiskWithSessionRows(projected, entry)
-
-    const loadedFromDisk = reconciled
-      ? reconciled.prefixCount > 0
-        ? Math.min(
-            hist.totalCount,
-            Math.max(
-              hist.sourceCount,
-              (entry?.historyLoadedCount ?? 0) +
-                Math.max(0, hist.totalCount - (entry?.historyTotalCount ?? hist.totalCount)),
-            ),
-          )
-        : Math.min(hist.totalCount, hist.sourceCount)
-      : Math.min(hist.totalCount, hist.sourceCount)
-    // A view-jump reveal may have loaded far more history than this tail; never shrink the counter.
-    const historyLoadedCount = reconciled
-      ? loadedFromDisk
-      : Math.max(loadedFromDisk, entry?.historyLoadedCount ?? 0)
-
-    const streamingAssistantId = reconciled
-      ? null
-      : resolveMergedStreamingAssistantId(merged, rows, entry?.streamingAssistantId ?? null)
-
-    patchSessionState(sessionKey, {
-      timelineItems: merged,
-      streamingAssistantId,
-      historyTotalCount: hist.totalCount,
-      historyLoadedCount,
-    })
-    if (turnActive) useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)
-    if (reconciled) clearSessionDiskAuthoritative(sessionKey)
-
-    const m = meta.get(sessionKey)
+  const hydrateSeq = (hydrateSeqByKey.get(sessionKey) ?? 0) + 1
+  hydrateSeqByKey.set(sessionKey, hydrateSeq)
+  let settled = false
+  let tokenPromise: Promise<void> | undefined = undefined
+  const runHydrate = (async () => {
+    const before = entryOf(sessionKey)
+    const priorMeta = meta.get(sessionKey)
+    const hadRows = (before?.timelineItems.length ?? 0) > 0
     meta.set(sessionKey, {
-      sessionId: sessionId ?? m?.sessionId ?? null,
-      phase: focused() ? 'ready' : merged.length > 0 ? 'cached' : 'empty',
-      lastFocusedAt: m?.lastFocusedAt ?? Date.now(),
-      sessionMeta: hist.sessionMeta ?? m?.sessionMeta,
+      sessionId: sessionId ?? priorMeta?.sessionId ?? null,
+      phase: hadRows ? (priorMeta?.phase ?? 'cached') : 'hydrating',
+      lastFocusedAt: priorMeta?.lastFocusedAt ?? Date.now(),
+      sessionMeta: priorMeta?.sessionMeta,
     })
 
-    if (focused()) {
-      bindViewToUiStore(getSessionView(sessionKey)!)
-      if (options?.bindWorker !== false) {
-        // Normal conversations bind before showing composer meta/context.
-        await ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
-      }
-      useUIStore.getState().setHistoryLoading(false)
-      void applyComposerDisplayMeta(hist.sessionMeta)
+    const restorePhaseIfUnfinished = (): void => {
+      // Never leave phase stuck as hydrating, or switch-back treats rows as a cold open.
+      const current = meta.get(sessionKey)
+      if (!current || current.phase !== 'hydrating') return
+      const rows = entryOf(sessionKey)?.timelineItems.length ?? 0
+      meta.set(sessionKey, { ...current, phase: rows > 0 ? 'cached' : priorMeta?.phase === 'ready' ? 'ready' : 'empty' })
     }
-  } catch (error) {
-    console.error('[session-shell] hydrate failed:', error)
-    restorePhaseIfUnfinished()
-    if (navToken != null && !assertSessionNavigation(navToken)) return
-    if (focused()) useUIStore.getState().setHistoryLoading(false)
-  }
+    const focused = (): boolean => sessionFilesEqual(focusKey, sessionKey)
+    const stillValid = (): boolean =>
+      hydrateSeqByKey.get(sessionKey) === hydrateSeq &&
+      (navToken == null || assertSessionNavigation(navToken))
+
+    try {
+      // A running turn can persist a fuller reply before its terminal event reaches us.
+      // Disk-first IPC — never spawns a worker.
+      const diskAuthoritative = isSessionDiskAuthoritative(sessionKey)
+      const hist = await fetchSessionHistoryTail(sessionKey, 80, {
+        bypassCache: !hadRows || diskAuthoritative || sessionTurnActive(sessionKey),
+      })
+      if (!stillValid()) {
+        restorePhaseIfUnfinished()
+        return
+      }
+
+      if (hist.error) {
+        const rows = entryOf(sessionKey)?.timelineItems.length ?? 0
+        const m = meta.get(sessionKey)
+        if (m) meta.set(sessionKey, { ...m, phase: rows > 0 ? 'cached' : 'error' })
+        if (focused()) useUIStore.getState().setHistoryLoading(false)
+        return
+      }
+
+      // Land batched stream text, then read the session's entry as it is *now* (events may have
+      // appended rows during the fetch).
+      flushAllStreamPendingSync()
+      const entry = entryOf(sessionKey)
+      const rows = entry?.timelineItems ?? []
+      const diskItems = sanitizeHistoryTimeline(hist.items as TimelineItem[])
+      const projected = projectTimelineItems(diskItems) as TimelineItem[]
+
+      // Finished background turn: disk is authoritative for the tail (#99) — splice it in place of
+      // whatever the session held, keeping its earlier loaded prefix. A turn that restarted
+      // meanwhile (queued follow-up) keeps its live rows.
+      const turnActive = sessionTurnActive(sessionKey)
+      const reconciled = diskAuthoritative && !turnActive ? spliceFreshDiskTail(rows, projected) : null
+      const merged = reconciled ? reconciled.items : mergeDiskWithSessionRows(projected, entry)
+
+      const loadedFromDisk = reconciled
+        ? reconciled.prefixCount > 0
+          ? Math.min(
+              hist.totalCount,
+              Math.max(
+                hist.sourceCount,
+                (entry?.historyLoadedCount ?? 0) +
+                  Math.max(0, hist.totalCount - (entry?.historyTotalCount ?? hist.totalCount)),
+              ),
+            )
+          : Math.min(hist.totalCount, hist.sourceCount)
+        : Math.min(hist.totalCount, hist.sourceCount)
+      // A view-jump reveal may have loaded far more history than this tail; never shrink the counter.
+      const historyLoadedCount = reconciled
+        ? loadedFromDisk
+        : Math.max(loadedFromDisk, entry?.historyLoadedCount ?? 0)
+
+      const streamingAssistantId = reconciled
+        ? null
+        : resolveMergedStreamingAssistantId(merged, rows, entry?.streamingAssistantId ?? null)
+
+      patchSessionState(sessionKey, {
+        timelineItems: merged,
+        streamingAssistantId,
+        historyTotalCount: hist.totalCount,
+        historyLoadedCount,
+      })
+      hydrateEpochByKey.set(sessionKey, (hydrateEpochByKey.get(sessionKey) ?? 0) + 1)
+      if (turnActive) useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)
+      if (reconciled) clearSessionDiskAuthoritative(sessionKey)
+
+      const m = meta.get(sessionKey)
+      meta.set(sessionKey, {
+        sessionId: sessionId ?? m?.sessionId ?? null,
+        phase: focused() ? 'ready' : merged.length > 0 ? 'cached' : 'empty',
+        lastFocusedAt: m?.lastFocusedAt ?? Date.now(),
+        sessionMeta: hist.sessionMeta ?? m?.sessionMeta,
+      })
+
+      if (focused()) {
+        bindViewToUiStore(getSessionView(sessionKey)!)
+        if (options?.bindWorker !== false) {
+          // Normal conversations bind before showing composer meta/context.
+          await ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
+          if (!stillValid() || !focused()) return
+        }
+        useUIStore.getState().setHistoryLoading(false)
+        void applyComposerDisplayMeta(hist.sessionMeta)
+      }
+    } catch (error) {
+      console.error('[session-shell] hydrate failed:', error)
+      restorePhaseIfUnfinished()
+      if (!stillValid()) return
+      if (focused()) useUIStore.getState().setHistoryLoading(false)
+    } finally {
+      settled = true
+      if (tokenPromise && activeHydrateByKey.get(sessionKey) === tokenPromise) {
+        activeHydrateByKey.delete(sessionKey)
+      }
+    }
+  })()
+  tokenPromise = runHydrate
+  if (!settled) activeHydrateByKey.set(sessionKey, runHydrate)
+  await runHydrate
 }
 
 /**
@@ -436,6 +484,9 @@ export async function focusSession(
 export function clearSessionShellForTests(): void {
   meta.clear()
   focusKey = null
+  hydrateSeqByKey.clear()
+  hydrateEpochByKey.clear()
+  activeHydrateByKey.clear()
   clearSessionDiskAuthoritative()
   useUIStore.setState({ sessionStates: {}, viewSessionKey: null })
 }

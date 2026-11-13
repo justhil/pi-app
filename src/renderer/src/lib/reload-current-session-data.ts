@@ -9,6 +9,8 @@ import { refreshWorkspaceSessionLists } from '@renderer/lib/refresh-workspace-se
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
+import { bumpSessionHydrateEpoch } from '@renderer/lib/session-shell'
+import { flushAllStreamPendingSync } from '@renderer/stores/ui-store-stream'
 
 let reloadGeneration = 0
 
@@ -38,9 +40,25 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     const hist = await loadSessionHistoryWithRetry(sessionFile, { bindPending: false, alignWorkerOnRetry: false })
     if (!stillCurrent()) return { ok: true }
     if (hist.error) return { ok: false, error: hist.error }
-    const { items, totalCount, sessionMeta } = hist
-    store.loadHistoryItems(sanitizeHistoryTimeline(items as TimelineItem[]))
-    store.setHistoryMeta(totalCount, items.length, sessionFile)
+    flushAllStreamPendingSync()
+    const before = useUIStore.getState()
+    const prevLoaded = before.historyLoadedCount
+    const prevTotal = before.historyTotalCount
+    const { items, sourceCount, totalCount, sessionMeta } = hist
+    const sanitized = sanitizeHistoryTimeline(items as TimelineItem[])
+    before.loadHistoryItems(sanitized)
+    const afterItems = useUIStore.getState().timelineItems
+    const diskCount = Math.min(totalCount, sourceCount ?? items.length)
+    const firstDiskEntry = sanitized.find((row) => !!row.sessionEntryId)?.sessionEntryId
+    const diskAnchorIdx = firstDiskEntry
+      ? afterItems.findIndex((row) => row.sessionEntryId === firstDiskEntry)
+      : -1
+    const keptOlderPrefix = diskAnchorIdx > 0
+    const nextLoaded = keptOlderPrefix
+      ? Math.min(totalCount, Math.max(diskCount, prevLoaded + Math.max(0, totalCount - prevTotal)))
+      : diskCount
+    useUIStore.getState().setHistoryMeta(totalCount, nextLoaded, sessionFile)
+    bumpSessionHydrateEpoch(sessionFile)
     captureVisibleLiveSessionTimeline()
     await applyComposerDisplayMeta(sessionMeta)
     if (!stillCurrent()) return { ok: true }

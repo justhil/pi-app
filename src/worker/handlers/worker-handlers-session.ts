@@ -338,17 +338,53 @@ export async function handleNavigatetree(msg: WorkerIncomingMessage, reply: Work
         const navSession = st.session
         if (!navSession) { reply({ type: 'error', error: 'No session' }); return }
         if (isSessionBusy()) {
-          reply({ type: 'error', error: 'SESSION_BUSY' })
-          return
+          if (msg.abortIfBusy === true) {
+            st.abortingTurn = true
+            st.cancelledPromptTicket = st.promptTicket
+            try {
+              navSession.clearQueue?.()
+              if (st.promptPreflightActive) {
+                st.abortAfterPreflight = true
+                st.abortedTurnSeq = st.turnSeq
+              }
+              await navSession.abort()
+              const { waitForWorkerTurnIdle } = await import('./worker-handlers-turn.js')
+              await waitForWorkerTurnIdle(navSession, 8_000)
+            } catch (abortErr) {
+              console.warn('[Worker] navigateTree abortIfBusy failed:', abortErr)
+            } finally {
+              if (!isSessionBusy()) st.abortingTurn = false
+            }
+          }
+          if (isSessionBusy()) {
+            reply({ type: 'error', error: 'SESSION_BUSY' })
+            return
+          }
         }
         try {
+          type NavigateTreeOpts = Parameters<NonNullable<typeof st.session>['navigateTree']>[1]
+          type NavigateTreeFn = (
+            targetId: string,
+            opts?: NavigateTreeOpts,
+          ) => ReturnType<NonNullable<typeof st.session>['navigateTree']>
           const navOpts = {
             summarize: msg.summarize === true,
             customInstructions: typeof msg.customInstructions === 'string' ? msg.customInstructions : undefined,
             replaceInstructions: typeof msg.replaceInstructions === 'string' ? msg.replaceInstructions : undefined,
             label: typeof msg.label === 'string' ? msg.label : undefined,
-          } as Parameters<typeof navSession.navigateTree>[1]
-          const result = await navSession.navigateTree(String(msg.targetId ?? ''), navOpts)
+          } as NavigateTreeOpts
+          const sessionNav = navSession as unknown as { navigateTree?: NavigateTreeFn }
+          const runtimeNav = st.runtime as unknown as { navigateTree?: NavigateTreeFn } | null
+          const navigator =
+            typeof sessionNav.navigateTree === 'function'
+              ? sessionNav
+              : runtimeNav && typeof runtimeNav.navigateTree === 'function'
+                ? runtimeNav
+                : null
+          if (!navigator?.navigateTree) {
+            throw new Error('navigateTree unavailable')
+          }
+          const result = await navigator.navigateTree(String(msg.targetId ?? ''), navOpts)
           const leafId = navSession.sessionManager.getLeafId?.() ?? null
           reply({
             type: 'navigateTree-done',

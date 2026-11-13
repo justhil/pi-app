@@ -990,7 +990,7 @@ export class WorkerManager {
   }
   async navigateTree(
     targetId: string,
-    options?: { summarize?: boolean; label?: string; sessionFile?: string },
+    options?: { summarize?: boolean; label?: string; sessionFile?: string; abortIfBusy?: boolean },
   ): Promise<{
     cancelled: boolean
     editorText?: string
@@ -1003,6 +1003,7 @@ export class WorkerManager {
       targetId,
       summarize: options?.summarize,
       label: options?.label,
+      ...(options?.abortIfBusy ? { abortIfBusy: true } : {}),
       ...(sessionFile ? { sessionFile } : {}),
     })
     if (r.type === 'error') {

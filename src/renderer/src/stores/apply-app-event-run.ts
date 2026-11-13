@@ -1,4 +1,9 @@
-import { isAbortQueueIgnoreActive, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import {
+  clearAbortQueueIgnore,
+  clearAbortUiHold,
+  isAbortQueueIgnoreActive,
+  isAbortUiHoldActive,
+} from '@renderer/lib/abort-ui-hold'
 import { isViewingWorkerBoundSession } from '@renderer/lib/session-worker-sync'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import type { RunEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
@@ -88,7 +93,7 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       startTime: state.runState.startTime,
     })
     const s = api.get()
-    if (shouldSuppressPrematureRunIdle(s)) {
+    if (event.phase !== 'cancelled' && shouldSuppressPrematureRunIdle(s)) {
       alertTrace('run idle suppressed (local outbound not yet bound to worker run)', {
         optimistic: !!s.optimisticPendingUserText,
         bootstrapping: s.agentTurnBootstrapping,
@@ -96,14 +101,19 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       return true
     }
     // Authoritative completion (pi agent_end / !isStreaming): clear all local turn markers.
+    const settledFile = eventSessionFile(event)
+    if (settledFile) {
+      clearAbortUiHold(settledFile)
+      clearAbortQueueIgnore(settledFile)
+    }
     api.set({
       optimisticPendingUserText: null,
       agentTurnBootstrapping: false,
+      pendingTurnStage: null,
       streamingAssistantId: null,
     })
     // Compaction always finishes before the run settles; a lost compaction_end
     // event (worker crash) must not leave the badge stuck. 只清本会话的压缩标志
-    const settledFile = eventSessionFile(event)
     api.get().setCompactingSession(settledFile ?? null, false)
     const rs = api.get().runState
     const wasActive = rs.status === 'running' || rs.status === 'failed'
@@ -128,7 +138,23 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
   }
   if (event.phase === 'failed') {
     flushStreamPendingSync(api.get, api.set)
-    state.setRunState({ status: 'failed' })
+    const failedFile = eventSessionFile(event)
+    if (failedFile) {
+      clearAbortUiHold(failedFile)
+      clearAbortQueueIgnore(failedFile)
+    }
+    api.set({
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+      pendingTurnStage: null,
+      streamingAssistantId: null,
+    })
+    state.setRunState({
+      status: 'failed',
+      activeRunId: undefined,
+      activeTool: undefined,
+      activeToolStatus: undefined,
+    })
     const viewFile = state.historySessionFile
     const liveSnap = state.workerLiveSnapshot
     if (!liveSnap.sessionFile || !viewFile || liveSnap.sessionFile === viewFile) {

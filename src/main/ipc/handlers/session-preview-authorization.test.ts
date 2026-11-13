@@ -52,7 +52,7 @@ vi.mock('../../worker-manager', () => ({
 }))
 
 vi.mock('../../config-store', () => ({
-  configStore: { get: vi.fn(() => '/workspace') },
+  configStore: { get: vi.fn(() => '/workspace'), set: vi.fn() },
 }))
 
 vi.mock('../../session-leaf-override', () => ({

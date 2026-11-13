@@ -14,16 +14,10 @@ import {
   type AgentPurgePersona,
   type PurgedSessionRecord,
 } from '@shared/agent-purge'
-import type { configStore as ConfigStoreType } from './config-store'
+import { configStore } from './config-store'
 
-let cachedStore: typeof ConfigStoreType | null = null
-function store(): typeof ConfigStoreType {
-  if (!cachedStore) {
-    // Lazy load so modules importing agent-purge-service stay importable in pure-Node unit tests without Electron app context.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    cachedStore = (require('./config-store') as { configStore: typeof ConfigStoreType }).configStore
-  }
-  return cachedStore
+function store(): typeof configStore | null {
+  return configStore
 }
 
 const IGNORED_MD_NAMES = new Set([
@@ -48,12 +42,12 @@ export function resolveLocalAgentPurgePersonasDir(): string {
 }
 
 export function getAgentPurgeConfig(): AgentPurgeConfig {
-  return normalizeAgentPurgeConfig(store().get('agentPurgeConfig'))
+  return normalizeAgentPurgeConfig(store()?.get('agentPurgeConfig'))
 }
 
 export function saveAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
   const normalized = normalizeAgentPurgeConfig(raw)
-  store().set('agentPurgeConfig', normalized)
+  store()?.set('agentPurgeConfig', normalized)
   return normalized
 }
 
@@ -69,7 +63,9 @@ export function resetBuiltinPurgePersonas(): AgentPurgeConfig {
 }
 
 export function getPurgedSessions(): Record<string, PurgedSessionRecord> {
-  return normalizePurgedSessionsMap(store().get('purgedSessions'))
+  const s = store()
+  if (typeof s?.get !== 'function') return {}
+  return normalizePurgedSessionsMap(s.get('purgedSessions'))
 }
 
 export function getActivePurgeForSession(sessionFile: string | null | undefined): ActivePurgePayload | null {
@@ -143,7 +139,7 @@ export function maybeLockPurgedSessionOnSend(
     lockedAt: Date.now(),
   }
   map[key] = record
-  store().set('purgedSessions', map)
+  store()?.set('purgedSessions', map)
   return record
 }
 
@@ -154,19 +150,23 @@ export function inheritPurgedSession(
   const from = normalizePurgedSessionKey(fromSessionFile)
   const to = normalizePurgedSessionKey(toSessionFile)
   if (!from || !to || from === to) return
+  const s = store()
+  if (typeof s?.get !== 'function' || typeof s?.set !== 'function') return
   const map = getPurgedSessions()
   if (!map[from] || map[to]) return
   map[to] = { ...map[from], lockedAt: Date.now() }
-  store().set('purgedSessions', map)
+  s.set('purgedSessions', map)
 }
 
 export function removePurgedSession(sessionFile: string | undefined): void {
   const key = normalizePurgedSessionKey(sessionFile)
   if (!key) return
+  const s = store()
+  if (typeof s?.get !== 'function' || typeof s?.set !== 'function') return
   const map = getPurgedSessions()
   if (!map[key]) return
   delete map[key]
-  store().set('purgedSessions', map)
+  s.set('purgedSessions', map)
 }
 
 export function importPersonasFromDirectory(dirPath?: string): {

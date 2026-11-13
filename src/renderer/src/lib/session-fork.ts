@@ -10,6 +10,7 @@ import { workspacePathsEqual } from '@shared/workspace-path'
 import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
+import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 
 /** A session picked outside the timeline (sidebar menu); defaults to the open session. */
 export type ForkSource = { sessionFile: string; workspacePath: string }
@@ -58,8 +59,8 @@ async function refreshSidebarAndOpen(
   workspaceId: string,
   sessionId: string,
   sessionFile: string | undefined,
-  opts?: { editorText?: string | null; startWorkspace?: string | null },
-): Promise<void> {
+  opts?: { editorText?: string | null; startWorkspace?: string | null; navToken?: number },
+): Promise<boolean> {
   const store = useUIStore.getState()
   if (workspaceId) {
     try {
@@ -84,23 +85,26 @@ async function refreshSidebarAndOpen(
     }
   }
 
+  if (opts?.navToken != null && !isSessionNavigationCurrent(opts.navToken)) return false
   const currentWorkspace = useUIStore.getState().currentWorkspace
   // The user moved to another project while this ran: leave the result in its own project.
-  if (!workspacePathsEqual(currentWorkspace, opts?.startWorkspace ?? workspaceId)) return
+  if (!workspacePathsEqual(currentWorkspace, opts?.startWorkspace ?? workspaceId)) return false
   if (!workspacePathsEqual(currentWorkspace, workspaceId)) {
     // Sidebar menu on another project's session: open the result there.
     const { activateWorkspace } = await import('@renderer/lib/activate-workspace')
     await activateWorkspace(workspaceId, { sessionId, sessionFile })
-    if (!workspacePathsEqual(useUIStore.getState().currentWorkspace, workspaceId)) return
+    if (!workspacePathsEqual(useUIStore.getState().currentWorkspace, workspaceId)) return false
   } else {
     await openSessionIntoWorker(sessionId, sessionFile)
   }
+  if (opts?.navToken != null && !isSessionNavigationCurrent(opts.navToken)) return false
   if (opts?.editorText != null && opts.editorText.length > 0) {
     useUIStore.getState().setComposerPrefill(opts.editorText)
   } else {
     useUIStore.getState().setComposerPrefill(null)
   }
   void import('@renderer/lib/composer-run-display').then((m) => m.refreshComposerRunDisplay())
+  return true
 }
 
 /**
@@ -120,6 +124,7 @@ export async function forkSessionFromEntry(entryId: string, source?: ForkSource)
 
   const startWorkspace = useUIStore.getState().currentWorkspace
   const workspaceId = source?.workspacePath || startWorkspace || ''
+  const navToken = getSessionNavigationToken()
   try {
     const res = (await ipcClient.invoke('session.fork', {
       sessionFile,
@@ -159,10 +164,12 @@ export async function forkSessionFromEntry(entryId: string, source?: ForkSource)
     }
 
     inheritPurgedSessionInStore(sessionFile, newFile)
-    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, {
+    const opened = await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, {
       editorText: typeof res.editorText === 'string' ? res.editorText : '',
       startWorkspace,
+      navToken,
     })
+    if (!opened) return true
     toast.success(
       res.editorText
         ? i18n.t('composer:toast.forkedWithPrefill', {
@@ -189,6 +196,7 @@ export async function cloneCurrentSession(source?: ForkSource): Promise<boolean>
 
   const startWorkspace = useUIStore.getState().currentWorkspace
   const workspaceId = source?.workspacePath || startWorkspace || ''
+  const navToken = getSessionNavigationToken()
   try {
     const res = (await ipcClient.invoke('session.clone', {
       sessionFile,
@@ -229,7 +237,7 @@ export async function cloneCurrentSession(source?: ForkSource): Promise<boolean>
     }
 
     inheritPurgedSessionInStore(sessionFile, newFile)
-    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null, startWorkspace })
+    await refreshSidebarAndOpen(workspaceId, newId || newFile || '', newFile, { editorText: null, startWorkspace, navToken })
     toast.success(i18n.t('composer:toast.cloned', { defaultValue: '已 Clone 到新会话' }))
     return true
   } catch (e: unknown) {

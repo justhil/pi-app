@@ -31,7 +31,7 @@ describe('agent completion semantics (pi-tui aligned)', () => {
   it('prompt preflight is visible while agent completion remains settlement-owned', () => {
     const src = readFileSync(join(root, 'src/worker/handlers/worker-handlers-turn.ts'), 'utf8')
     assert.match(src, /beginRunIdentity\(\)[\s\S]*promptPreflightActive\s*=\s*true[\s\S]*phase:\s*'started'/)
-    assert.match(src, /if \(!alreadyStreaming && st\.promptPreflightActive\)[\s\S]*phase:\s*'idle'/)
+    assert.match(src, /if \(!alreadyStreaming && st\.promptPreflightActive\)[\s\S]*phase:\s*abortedDuringPreflight\s*\?\s*'cancelled'\s*:\s*'idle'/)
     assert.doesNotMatch(src, /phase:\s*'idle',[\s\S]*settled:\s*true/)
     assert.match(src, /await session\.abort\(\)/)
   })

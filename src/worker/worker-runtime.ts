@@ -59,6 +59,20 @@ export type WorkerMutableState = {
   promptPreflightActive: boolean
   /** Stop arrived while prompt() was still in preflight — there was no agent run to abort yet. */
   abortAfterPreflight: boolean
+  /** Monotonic counter per top-level agent turn so deferred aborts never hit a newer turn. */
+  turnSeq: number
+  /** Turn seq explicitly targeted by an abort during preflight. */
+  abortedTurnSeq: number
+  /** True while handleAbort / abort-on-rewind is draining an in-flight turn. */
+  abortingTurn: boolean
+  /** Current top-level prompt promise (preflight + run + settle cleanup). */
+  activeTurnPromise: Promise<void> | null
+  /** Monotonic ticket for queued fresh prompts waiting on a settling/aborting turn. */
+  promptTicket: number
+  /** Highest ticket invalidated by abort / rewind before starting. */
+  cancelledPromptTicket: number
+  /** Count of fresh prompts waiting for previous turn to finish settling. */
+  pendingFreshPrompts: number
   promptSent: boolean
 }
 
@@ -81,6 +95,13 @@ export const st: WorkerMutableState = {
   agentTurnActive: false,
   promptPreflightActive: false,
   abortAfterPreflight: false,
+  turnSeq: 0,
+  abortedTurnSeq: 0,
+  abortingTurn: false,
+  activeTurnPromise: null,
+  promptTicket: 0,
+  cancelledPromptTicket: 0,
+  pendingFreshPrompts: 0,
   promptSent: false,
 }
 
@@ -143,6 +164,10 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   st.agentTurnActive = false
   st.promptPreflightActive = false
   st.abortAfterPreflight = false
+  st.abortedTurnSeq = 0
+  st.abortingTurn = false
+  st.activeTurnPromise = null
+  st.pendingFreshPrompts = 0
   try {
     const cwd = session.sessionManager?.getCwd?.()
     if (typeof cwd === 'string' && cwd.length > 0) st.currentCwd = cwd
@@ -253,6 +278,10 @@ function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
     st.agentTurnActive = false
     st.promptPreflightActive = false
     st.abortAfterPreflight = false
+    st.abortedTurnSeq = 0
+    st.abortingTurn = false
+    st.activeTurnPromise = null
+    st.pendingFreshPrompts = 0
   })
   runtime.setRebindSession(async (session) => {
     await rebindAfterRuntimeReplace(session)
@@ -264,6 +293,10 @@ async function disposeRuntimeOrSession(): Promise<void> {
   st.agentTurnActive = false
   st.promptPreflightActive = false
   st.abortAfterPreflight = false
+  st.abortedTurnSeq = 0
+  st.abortingTurn = false
+  st.activeTurnPromise = null
+  st.pendingFreshPrompts = 0
   if (st.runtime) {
     try {
       st.runtime.setRebindSession(undefined)
@@ -509,6 +542,7 @@ function sessionEventDeps() {
     isAgentTurnActive: () => st.agentTurnActive,
     setAgentTurnActive: (v: boolean) => {
       st.agentTurnActive = v
+      if (!v) st.abortingTurn = false
     },
     setPromptPreflightActive: (value: boolean) => {
       st.promptPreflightActive = value
@@ -524,9 +558,14 @@ function sessionEventDeps() {
 }
 
 export function handleSessionEvent(event: AgentSessionEvent): void {
-  if (event.type === 'agent_start' && st.abortAfterPreflight) {
+  if (
+    event.type === 'agent_start' &&
+    st.abortAfterPreflight &&
+    (!st.abortedTurnSeq || st.abortedTurnSeq === st.turnSeq)
+  ) {
     // The run the user already stopped has just begun: abort it now instead of letting it stream.
     st.abortAfterPreflight = false
+    st.abortedTurnSeq = 0
     const session = st.session
     if (session) {
       queueMicrotask(() => {

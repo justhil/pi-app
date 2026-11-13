@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -8,6 +8,7 @@ import { renderRichFromSegments, serializeRichInput, type AttachmentMeta, type S
 import { segmentsToPromptPayload } from './attachment-text'
 import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
+import { clearAbortQueueIgnore, clearAbortUiHold } from '@renderer/lib/abort-ui-hold'
 import { extensionUiBlocksComposer, useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
 import {
@@ -43,6 +44,15 @@ export function useComposerSend(opts: {
 }) {
   const { t } = useTranslation()
   const sendingRef = useRef(false)
+  const sendGenRef = useRef(0)
+  const cancelledSendGenRef = useRef(0)
+  const activeSendContextRef = useRef<{
+    gen: number
+    draftKey: string
+    sessionFile?: string
+    optimisticToken: { sessionFile: string | null; assistantId: string; userId: string } | null
+    agentPurge?: ReturnType<typeof consumeDraftPurgeForFirstSend>
+  } | null>(null)
   const {
     editorRef,
     text,
@@ -57,13 +67,37 @@ export function useComposerSend(opts: {
     isRunning,
   } = opts
 
+  useEffect(() => {
+    const cancelInFlightForSession = (targetSessionFile: string | null | undefined) => {
+      const ctx = activeSendContextRef.current
+      if (!ctx) return
+      const matchesTarget =
+        !targetSessionFile ||
+        !ctx.sessionFile ||
+        sessionFilesEqual(ctx.sessionFile, targetSessionFile) ||
+        sessionFilesEqual(ctx.optimisticToken?.sessionFile, targetSessionFile)
+      if (!matchesTarget) return
+      cancelledSendGenRef.current = Math.max(cancelledSendGenRef.current, ctx.gen)
+      sendingRef.current = false
+    }
+    const onAbortEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ sessionFile?: string | null }>).detail
+      cancelInFlightForSession(detail?.sessionFile)
+    }
+    window.addEventListener('pi-desktop:cancel-pending-send', onAbortEvent)
+    return () => window.removeEventListener('pi-desktop:cancel-pending-send', onAbortEvent)
+  }, [])
+
   const sendCurrent = useCallback(
     async (queueOpts?: { queue?: 'steer' | 'followUp' }) => {
       if (sendingRef.current) return
       sendingRef.current = true
+      const sendGen = ++sendGenRef.current
+      const isCancelled = () => cancelledSendGenRef.current >= sendGen
       // Snapshot the switches the user sees now: sending a new chat creates its session file
       // before the prompt goes out, and the draft's switches move to it.
       const capabilities = currentSessionCapabilities()
+      let sendCtx: NonNullable<typeof activeSendContextRef.current> | null = null
       try {
         if (extensionUiBlocksComposer()) {
           toast.message(t('composer:toast.completeExtensionFirst'))
@@ -106,12 +140,20 @@ export function useComposerSend(opts: {
             clearEditor()
             return
           }
+          if (isCancelled()) return
         }
         const draft = store.ephemeralSandboxDraft
         const currentWorkspace = store.currentWorkspace
         if (!currentWorkspace && !draft) return
         let sessionFile = store.historySessionFile ?? undefined
+        if (sessionFile) {
+          // A fresh prompt lifts any previous abort-hold mask immediately on this session
+          // so its own run events and Stop button are never dropped.
+          clearAbortUiHold(sessionFile)
+          clearAbortQueueIgnore(sessionFile)
+        }
         const { composerTurnActive } = await import('@renderer/lib/session-worker-sync')
+        if (isCancelled()) return
         const running = composerTurnActive({
           historySessionFile: store.historySessionFile,
           workerLiveSnapshot: store.workerLiveSnapshot,
@@ -129,11 +171,13 @@ export function useComposerSend(opts: {
         const homeMode = !store.currentSessionId && store.timelineItems.length === 0
         const isFirstTurnOfNewChat = !running && (draft || pendingNew || homeMode) && !store.historySessionFile
         const agentPurge = consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat)
-        const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession } =
+        const { appendOptimisticOutgoingMessage, bindOptimisticOutgoingToSession, clearOptimisticOutgoing } =
           await import('@renderer/lib/optimistic-send')
         let optimisticToken: ReturnType<typeof appendOptimisticOutgoingMessage> = null
         let draftKey = composerDraftContextKey(store)
         rememberTransientComposerImages(draftKey, [])
+        sendCtx = { gen: sendGen, draftKey, sessionFile, optimisticToken: null, agentPurge }
+        activeSendContextRef.current = sendCtx
         const promptPayload = () => ({
           sessionId: '',
           sessionFile,
@@ -142,8 +186,54 @@ export function useComposerSend(opts: {
           ...(agentPurge ? { agentPurge } : {}),
         })
         let promptAccepted = false
+        const restoreUnsentDraft = (silent = false) => {
+          rollbackDraftPurgeAfterSendFailure(agentPurge)
+          if (clearOptimisticOutgoing(optimisticToken)) {
+            useUIStore.getState().setRunState({ status: 'idle' })
+          }
+          const ownsEditor = editorRef.current === el &&
+            draftKey === composerDraftContextKey(useUIStore.getState())
+          const currentDraft = ownsEditor
+            ? serializeRichInput(el).segments
+            : readTransientComposerDraft(draftKey) ?? []
+          const restored = [...segments]
+          if (currentDraft.length) restored.push({ type: 'text', text: '\n' }, ...currentDraft)
+          rememberTransientComposerDraft(draftKey, restored)
+          if (stagedSnapshot.length > 0) {
+            if (ownsEditor) {
+              setStagedImages((prev) => {
+                const merged = [
+                  ...stagedSnapshot,
+                  ...prev.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
+                ]
+                rememberTransientComposerImages(draftKey, merged)
+                return merged
+              })
+            } else {
+              const existing = readTransientComposerImages(draftKey) ?? []
+              const merged = [
+                ...stagedSnapshot,
+                ...existing.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
+              ]
+              rememberTransientComposerImages(draftKey, merged)
+            }
+          }
+          if (ownsEditor) {
+            renderRichFromSegments(el, restored)
+            updateFromEditor()
+          }
+          if (!silent) toast.error(t('composer:toast.sendFailed'))
+        }
         const sendPrompt = async () => {
+          if (isCancelled()) {
+            restoreUnsentDraft(true)
+            return null
+          }
           const bind = await ipcClient.invoke('prompt.send', promptPayload())
+          if ((bind as { cancelledBeforeSend?: boolean } | undefined)?.cancelledBeforeSend) {
+            restoreUnsentDraft(true)
+            return null
+          }
           promptAccepted = true
           if (agentPurge?.enabled) {
             commitPurgedSessionAfterSend(sessionFile, bind?.purgedSession)
@@ -164,18 +254,26 @@ export function useComposerSend(opts: {
                 bootstrap: true,
                 attachments: allAtts,
                 segments: allSegments,
+                payloadText: promptText,
               })
+              sendCtx.optimisticToken = optimisticToken
               useUIStore.getState().setPendingTurnStage('starting')
             }
             const { finalizeEphemeralSandboxOnFirstSend } =
               await import('@renderer/lib/ephemeral-sandbox')
             sessionFile = await finalizeEphemeralSandboxOnFirstSend(pendMsg, creationOrigin)
+            sendCtx.sessionFile = sessionFile
             draftKey = composerDraftContextKey({
               ...store,
               historySessionFile: sessionFile,
               ephemeralSandboxDraft: false,
               pendingNewSessionPlaceholder: false,
             })
+            sendCtx.draftKey = draftKey
+            if (isCancelled()) {
+              restoreUnsentDraft(true)
+              return
+            }
             bindOptimisticOutgoingToSession(
               optimisticToken,
               sessionFile,
@@ -184,7 +282,7 @@ export function useComposerSend(opts: {
               useUIStore.getState().setPendingTurnStage('sending')
             }
             const bind = await sendPrompt()
-            await updateSentView(bind)
+            if (bind) await updateSentView(bind)
             return
           }
           if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
@@ -193,87 +291,84 @@ export function useComposerSend(opts: {
                 bootstrap: true,
                 attachments: allAtts,
                 segments: allSegments,
+                payloadText: promptText,
               })
+              sendCtx.optimisticToken = optimisticToken
               useUIStore.getState().setPendingTurnStage('starting')
             }
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
-            sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (sessionFile) => {
+            sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (nextSessionFile) => {
+              if (sendCtx) sendCtx.sessionFile = nextSessionFile
               draftKey = composerDraftContextKey({
                 ...store,
-                historySessionFile: sessionFile,
+                historySessionFile: nextSessionFile,
                 pendingNewSessionPlaceholder: false,
               })
-              bindOptimisticOutgoingToSession(optimisticToken, sessionFile)
+              if (sendCtx) sendCtx.draftKey = draftKey
+              if (!isCancelled()) {
+                bindOptimisticOutgoingToSession(optimisticToken, nextSessionFile)
+              }
             }, creationOrigin)
+            sendCtx.sessionFile = sessionFile
+            if (isCancelled()) {
+              restoreUnsentDraft(true)
+              return
+            }
             if (sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) {
               useUIStore.getState().setPendingTurnStage('sending')
             }
             const bind = await sendPrompt()
-            await updateSentView(bind)
+            if (bind) await updateSentView(bind)
             return
           }
           if (running) {
+            if (isCancelled()) {
+              restoreUnsentDraft(true)
+              return
+            }
             const queue = queueOpts?.queue ?? 'steer'
             if (queue === 'steer') {
               const bind = await ipcClient.invoke('prompt.steer', promptPayload())
+              if ((bind as { cancelledBeforeSend?: boolean } | undefined)?.cancelledBeforeSend) {
+                restoreUnsentDraft(true)
+                return
+              }
               promptAccepted = true
               await updateSentView(bind)
             } else {
               const bind = await ipcClient.invoke('prompt.followUp', promptPayload())
+              if ((bind as { cancelledBeforeSend?: boolean } | undefined)?.cancelledBeforeSend) {
+                restoreUnsentDraft(true)
+                return
+              }
               promptAccepted = true
               await updateSentView(bind)
             }
             return
           }
           if (ownsSourceView()) {
-            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, { attachments: allAtts, segments: allSegments })
+            optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
+              attachments: allAtts,
+              segments: allSegments,
+              payloadText: promptText,
+            })
+            sendCtx.optimisticToken = optimisticToken
           }
           const bind = await sendPrompt()
-          await updateSentView(bind)
+          if (bind) await updateSentView(bind)
         } catch (e) {
           console.error('Send failed:', e)
-          const { clearOptimisticOutgoing } = await import('@renderer/lib/optimistic-send')
           if (!promptAccepted) {
-            rollbackDraftPurgeAfterSendFailure(agentPurge)
-            if (clearOptimisticOutgoing(optimisticToken)) {
-              useUIStore.getState().setRunState({ status: 'idle' })
-            }
-            const ownsEditor = editorRef.current === el &&
-              draftKey === composerDraftContextKey(useUIStore.getState())
-            const currentDraft = ownsEditor
-              ? serializeRichInput(el).segments
-              : readTransientComposerDraft(draftKey) ?? []
-            const restored = [...segments]
-            if (currentDraft.length) restored.push({ type: 'text', text: '\n' }, ...currentDraft)
-            rememberTransientComposerDraft(draftKey, restored)
-            if (stagedSnapshot.length > 0) {
-              if (ownsEditor) {
-                setStagedImages((prev) => {
-                  const merged = [
-                    ...stagedSnapshot,
-                    ...prev.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
-                  ]
-                  rememberTransientComposerImages(draftKey, merged)
-                  return merged
-                })
-              } else {
-                const existing = readTransientComposerImages(draftKey) ?? []
-                const merged = [
-                  ...stagedSnapshot,
-                  ...existing.filter((item) => !stagedSnapshot.some((s) => s.path === item.path)),
-                ]
-                rememberTransientComposerImages(draftKey, merged)
-              }
-            }
-            if (ownsEditor) {
-              renderRichFromSegments(el, restored)
-              updateFromEditor()
-            }
+            restoreUnsentDraft(isCancelled())
           }
-          toast.error(t('composer:toast.sendFailed'))
         }
       } finally {
-        sendingRef.current = false
+        if (activeSendContextRef.current?.gen === sendGen) {
+          activeSendContextRef.current = null
+        }
+        if (sendGenRef.current === sendGen || !activeSendContextRef.current) {
+          sendingRef.current = false
+        }
       }
     },
     [clearEditor, editorRef, inputHistory, refreshCommands, setStagedImages, stagedImages, t, updateFromEditor],
@@ -286,7 +381,12 @@ export function useComposerSend(opts: {
 
   const runComposerAbort = useCallback(
     async (currentText: string) => {
-      useExtensionUIStore.getState().cancelForSession(useUIStore.getState().historySessionFile)
+      const store = useUIStore.getState()
+      const sessionFile = store.historySessionFile
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pi-desktop:cancel-pending-send', { detail: { sessionFile } }))
+      }
+      useExtensionUIStore.getState().cancelForSession(sessionFile)
       await abortAgentTurn({ restoreEditorText: currentText, setEditorText: setContent })
     },
     [setContent],

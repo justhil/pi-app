@@ -6,7 +6,13 @@ import { readRemoteAttachment, writeClipboardTempImage } from '../../clipboard-t
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
 import { clipboardReadTempImageSchema, clipboardWriteTempImageSchema, promptTextSchema } from '../schemas'
 import type { AgentPurgeMode } from '@shared/agent-purge'
-import { getActivePurgeForSession, maybeLockPurgedSessionOnSend } from '../../agent-purge-service'
+import {
+  getActivePurgeForSession,
+  maybeLockPurgedSessionOnSend,
+  removePurgedSession,
+  sessionFileHasPriorTurns,
+} from '../../agent-purge-service'
+import { bumpPromptAbortEpoch, getPromptAbortEpoch } from '../../prompt-abort-epoch'
 import { noteBrowserTarget } from '../../browser/targets'
 
 /** Matches the composer's paste limit, so a re-read can never return more than was written. */
@@ -76,12 +82,40 @@ export function registerPromptHandlers(): void {
   registerHandler('ipc:capabilities.catalog', async () => ({ capabilities: capabilityCatalog() }))
 
   registerHandlerWithSchema('ipc:prompt.send', promptTextSchema, async (req) => {
+    const abortEpochAtEntry = getPromptAbortEpoch(req.sessionFile)
+    const purgeExisted = !!(req.sessionFile && getActivePurgeForSession(req.sessionFile))
     // Check and lock Agent Purge BEFORE bindBeforePrompt creates/touches the session transcript
     if (req.agentPurge?.enabled && req.sessionFile) {
       maybeLockPurgedSessionOnSend(req.sessionFile, req.agentPurge)
     }
+    const isCancelledBeforeDispatch = () =>
+      !!req.sessionFile && getPromptAbortEpoch(req.sessionFile) !== abortEpochAtEntry
     const bind = await bindBeforePrompt(req.sessionFile)
+    if (isCancelledBeforeDispatch()) {
+      if (!purgeExisted && req.agentPurge?.enabled && req.sessionFile && !sessionFileHasPriorTurns(req.sessionFile)) {
+        removePurgedSession(req.sessionFile)
+      }
+      return {
+        messageId: '',
+        cancelledBeforeSend: true,
+        model: bind?.model,
+        thinkingLevel: bind?.thinkingLevel,
+        modelFallbackMessage: bind?.modelFallbackMessage,
+      }
+    }
     await applyCapabilities(req, true)
+    if (isCancelledBeforeDispatch()) {
+      if (!purgeExisted && req.agentPurge?.enabled && req.sessionFile && !sessionFileHasPriorTurns(req.sessionFile)) {
+        removePurgedSession(req.sessionFile)
+      }
+      return {
+        messageId: '',
+        cancelledBeforeSend: true,
+        model: bind?.model,
+        thinkingLevel: bind?.thinkingLevel,
+        modelFallbackMessage: bind?.modelFallbackMessage,
+      }
+    }
     await workerManager.sendPrompt(req.text, req.sessionFile)
     const activePurge = getActivePurgeForSession(req.sessionFile)
     // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
@@ -128,7 +162,17 @@ export function registerPromptHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:prompt.steer', promptTextSchema, async (req) => {
+    const abortEpochAtEntry = getPromptAbortEpoch(req.sessionFile)
     const bind = await bindBeforePrompt(req.sessionFile)
+    if (req.sessionFile && getPromptAbortEpoch(req.sessionFile) !== abortEpochAtEntry) {
+      return {
+        steered: false,
+        cancelledBeforeSend: true,
+        model: bind?.model,
+        thinkingLevel: bind?.thinkingLevel,
+        modelFallbackMessage: bind?.modelFallbackMessage,
+      }
+    }
     await applyCapabilities(req)
     await workerManager.steer(req.text, req.sessionFile)
     return {
@@ -140,7 +184,17 @@ export function registerPromptHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:prompt.followUp', promptTextSchema, async (req) => {
+    const abortEpochAtEntry = getPromptAbortEpoch(req.sessionFile)
     const bind = await bindBeforePrompt(req.sessionFile)
+    if (req.sessionFile && getPromptAbortEpoch(req.sessionFile) !== abortEpochAtEntry) {
+      return {
+        messageId: '',
+        cancelledBeforeSend: true,
+        model: bind?.model,
+        thinkingLevel: bind?.thinkingLevel,
+        modelFallbackMessage: bind?.modelFallbackMessage,
+      }
+    }
     await applyCapabilities(req)
     await workerManager.followUp(req.text, req.sessionFile)
     return {
@@ -166,6 +220,7 @@ export function registerPromptHandlers(): void {
     if (got && want && got !== want && streaming) {
       return { aborted: false, ignored: true, reason: 'session_mismatch' }
     }
+    bumpPromptAbortEpoch(sessionFile)
     try {
       await workerManager.abort(sessionFile)
     } catch (e) {

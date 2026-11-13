@@ -9,6 +9,8 @@ vi.mock('@renderer/lib/alert-trace', () => ({
 vi.mock('@renderer/lib/abort-ui-hold', () => ({
   isAbortUiHoldActive: () => false,
   isAbortQueueIgnoreActive: () => false,
+  clearAbortUiHold: vi.fn(),
+  clearAbortQueueIgnore: vi.fn(),
 }))
 vi.mock('@renderer/lib/extension-ui-tool-sync', () => ({
   reconcileAllStaleInteractiveToolRows: vi.fn(),

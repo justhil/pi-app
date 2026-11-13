@@ -60,6 +60,7 @@ export const sessionNavigateTreeSchema = z.object({
   sessionFile: z.string().optional(),
   summarize: z.boolean().optional(),
   label: z.string().optional(),
+  abortIfBusy: z.boolean().optional(),
 })
 
 export const sessionTreeSchema = z

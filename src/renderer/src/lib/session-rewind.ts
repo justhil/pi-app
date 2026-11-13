@@ -51,11 +51,26 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       return false
     }
 
+    const { clearAbortQueueIgnore, clearAbortUiHold } = await import('@renderer/lib/abort-ui-hold')
+    clearAbortUiHold(file)
+    clearAbortQueueIgnore(file)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('pi-desktop:cancel-pending-send', { detail: { sessionFile: file } }))
+    }
+    const needAbort =
+      st.runState.status === 'running' ||
+      st.sessionRuntimeRunning[file] === true ||
+      st.workerLiveSnapshot.status === 'running' ||
+      st.agentTurnBootstrapping ||
+      !!st.streamingAssistantId ||
+      st.optimisticPendingUserText != null
+
     // Bind + navigate on the session's worker (required for pi tree pointer).
     const r = (await ipcClient.invoke('session.navigateTree', {
       targetId,
       sessionFile: file,
       summarize: false,
+      ...(needAbort ? { abortIfBusy: true } : {}),
     })) as {
       cancelled?: boolean
       error?: string
