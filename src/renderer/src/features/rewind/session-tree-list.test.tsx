@@ -120,6 +120,20 @@ describe('SessionTreeList view and rewind actions', () => {
     expect(onView).not.toHaveBeenCalled()
     expect(onActivate).not.toHaveBeenCalled()
   })
+
+  it('should_keep_current_leaf_tag_outside_truncated_title_span_when_leaf_preview_is_long', () => {
+    renderTree({
+      ...userNode,
+      isLeaf: true,
+      preview: '这是一段很长的当前叶子消息预览文本用于验证截断边界'.repeat(5),
+    })
+
+    const tagText = screen.getByText(i18n.t('timeline:treeCurrentTag'))
+    const tag = tagText.closest('.panel-tag')
+    expect(tag).not.toBeNull()
+    expect(tag?.classList.contains('shrink-0')).toBe(true)
+    expect(tag?.closest('.truncate')).toBeNull()
+  })
 })
 
 describe('resolveViewTargetId', () => {

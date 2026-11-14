@@ -3264,6 +3264,24 @@
   .review-skeleton span { animation: none; }
 }
 
+/* ── Tree panel ── */
+.tree-panel { container: tree-panel / inline-size; }
+@container tree-panel (max-width: 360px) {
+  .tree-panel-toolbar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .tree-panel-refresh {
+    margin-left: auto;
+    order: 2;
+  }
+  .tree-panel-hint {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
 /* ── Settings visual system: card-grouped sections, nav indicator, page transitions ── */
 .settings-page-enter { animation: settings-page-in 260ms var(--motion-ease) both; }
 @keyframes settings-page-in { from { opacity: 0; transform: translateY(6px); } }
