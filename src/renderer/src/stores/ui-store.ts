@@ -260,14 +260,14 @@ export const useUIStore = create<UIState>()(
   rewindLoadingTree: false,
   rewindTreeError: undefined,
   setRewindMeta: (patch) =>
-    set((s) => ({
-      ...(patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
-      ...(patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
-      ...(patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
-      ...(patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
-      ...(patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
-      ...(patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
-      ...(patch.treeError !== undefined ? { rewindTreeError: patch.treeError } : {}),
+    set(() => ({
+      ...('rewindKey' in patch && patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
+      ...('checkpoints' in patch && patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
+      ...('treeNodes' in patch && patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
+      ...('workerBound' in patch && patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
+      ...('loadingCheckpoints' in patch && patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
+      ...('loadingTree' in patch && patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
+      ...('treeError' in patch ? { rewindTreeError: patch.treeError || undefined } : {}),
     })),
 
   composerPrefill: null,

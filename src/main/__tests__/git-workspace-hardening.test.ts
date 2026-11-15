@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -56,7 +56,7 @@ vi.mock('../wsl/runtime-config', () => ({
 }))
 vi.mock('../wsl/git-delegate', () => ({ runGitInWsl: vi.fn(), runGitInWslAsync: mocks.wslGit }))
 
-import { stageHunks, unstageHunks } from '../git-workspace'
+import { readGitWorkspaceSnapshot, stageHunks, unstageHunks } from '../git-workspace'
 import { refreshGitWorkspaceWatch, stopGitWorkspaceWatch } from '../git-workspace-watch'
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' })
@@ -250,3 +250,20 @@ describe('R11 watch real git metadata', () => {
     expect(mocks.watchers).toHaveLength(0)
   })
 })
+
+describe('readGitWorkspaceSnapshot untracked files and directories', () => {
+  it('should_expand_untracked_directory_files_and_include_line_diffs', async () => {
+    const dir = repo()
+    mkdirSync(join(dir, 'src', 'new-dir'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'new-dir', 'created.ts'), 'export const x = 1\nexport const y = 2\n')
+
+    const snap = await readGitWorkspaceSnapshot(dir)
+    expect(snap.isRepo).toBe(true)
+    expect(snap.status).toContain('?? src/new-dir/created.ts')
+    expect(snap.raw).toContain('diff --git a/src/new-dir/created.ts b/src/new-dir/created.ts')
+    expect(snap.raw).toContain('@@ -0,0 +1,2 @@')
+    expect(snap.raw).toContain('+export const x = 1')
+    expect(snap.raw).toContain('+export const y = 2')
+  })
+})
+

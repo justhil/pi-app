@@ -28,6 +28,7 @@ import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compa
 import { capabilitiesExtension } from './worker-capabilities.js'
 import { modelRoutersExtension } from './worker-model-routers.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
+import { codemodeStatsExtension } from './worker-codemode-stats.js'
 
 
 
@@ -252,7 +253,7 @@ function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
       agentDir,
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
-        extensionFactories: [...piBuiltinExtensions(sdk), capabilitiesExtension, browserToolsExtension, modelRoutersExtension(agentDir)],
+        extensionFactories: [...piBuiltinExtensions(sdk), codemodeStatsExtension, capabilitiesExtension, browserToolsExtension, modelRoutersExtension(agentDir)],
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
         skillsOverride: applySkillsOverride as never,
       },

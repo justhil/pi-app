@@ -52,6 +52,16 @@ describe('TreePanel refresh behaviour', () => {
     act(() => useUIStore.setState({ historySessionFile: '/other/session.jsonl' }))
     expect(refresh).toHaveBeenLastCalledWith('/other/session.jsonl')
   })
+
+  it('should_auto_refresh_tree_when_agent_turn_settles_to_idle_while_panel_is_open', () => {
+    const refresh = vi.mocked(refreshSessionTree)
+    useUIStore.setState({ runState: { status: 'running', toolCount: 1, errorCount: 0 } })
+    render(<TreePanel />)
+    refresh.mockClear()
+
+    act(() => useUIStore.setState({ runState: { status: 'idle', toolCount: 1, errorCount: 0 } }))
+    expect(refresh).toHaveBeenCalledWith('/tmp/proj/session.jsonl')
+  })
 })
 
 describe('TreePanel user-only filter', () => {

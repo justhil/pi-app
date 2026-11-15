@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { GitFork, Loader2, RefreshCw } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -23,8 +23,10 @@ export function TreePanel() {
   const rawTree = useUIStore((s) => s.rewindTreeNodes) as SessionTreeNode[]
   const loading = useUIStore((s) => s.rewindLoadingTree)
   const treeError = useUIStore((s) => s.rewindTreeError)
+  const runStatus = useUIStore((s) => s.runState.status)
   const [filter, setFilter] = useState<TreeFilterMode>('default')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const prevRunStatusRef = useRef(runStatus)
 
   const refresh = useCallback(() => {
     if (!sessionFile) return
@@ -38,6 +40,14 @@ export function TreePanel() {
     // 否则旧树的响应会在空会话 store 里回填。
     void refreshSessionTree(sessionFile)
   }, [sessionFile])
+
+  useEffect(() => {
+    const prev = prevRunStatusRef.current
+    prevRunStatusRef.current = runStatus
+    if (sessionFile && prev === 'running' && (runStatus === 'idle' || runStatus === 'failed')) {
+      void refreshSessionTree(sessionFile)
+    }
+  }, [runStatus, sessionFile])
 
   const filtered = useMemo(() => filterSessionTreeNodes(rawTree, filter), [rawTree, filter])
   const { nodes: display, truncated, hiddenCount } = useMemo(

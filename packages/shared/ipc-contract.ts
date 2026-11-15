@@ -221,6 +221,7 @@ export interface ReviewGetDiffRequest {
   sessionId: string
   scope: 'turn' | 'session' | 'git'
   turnId?: string
+  cwd?: string
 }
 export interface ReviewGitDiffPayload {
   raw: string

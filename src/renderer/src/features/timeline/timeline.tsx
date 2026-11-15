@@ -846,10 +846,15 @@ export function Timeline() {
         .join('|'),
     [items],
   )
+  const isSessionTurnLive =
+    !!streamingAssistantId || agentRunning || agentBoot || sessionChrome.phase === 'waiting_ui'
   // Grouping is cheap and must see live item references (streaming text).
   const displayItems = useMemo(
-    () => buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[]),
-    [visibleItems],
+    () =>
+      buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[], {
+        turnSettled: !isSessionTurnLive,
+      }),
+    [visibleItems, isSessionTurnLive],
   )
   const { leading, turns: turnGroups } = useMemo(
     () => groupDisplayBlocksByTurn(displayItems),

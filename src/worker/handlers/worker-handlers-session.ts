@@ -6,7 +6,7 @@ import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { errorMessage } from '@shared/error-message'
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { sessionFilePathsEqual } from '@shared/session-file-path'
-import { timelineItemsFromBranchPath } from '../worker-timeline.js'
+import { extractBranchTouchedFiles, timelineItemsFromBranchPath } from '../worker-timeline.js'
 import { boundThinkingLevel } from '../worker-model-thinking.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -580,6 +580,7 @@ export async function handleGetmessages(msg: WorkerIncomingMessage, reply: Worke
               activeSdkPath: st.activeSdkPath,
             },
             timelineItemsFromBranchPath,
+            extractBranchTouchedFiles,
           )
           const projected = projectTimelineItems(page.items as Parameters<typeof projectTimelineItems>[0])
           const items = projected.map((row) => {

@@ -2,7 +2,12 @@ import type { FileChange, ToolTimelineItem } from '@renderer/stores/ui-store-typ
 import type { TimelineDisplayItem } from './timeline-display-items'
 import { resolveEditWriteDiffRows } from '@extension-compat/renderer/native-diff'
 import { fullPathFromArgs, normalizeToolArgs } from '@extension-compat/renderer/tool-output'
-import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-detail'
+import {
+  countTextLines,
+  extractCodemodeArgField,
+  parseCodemodeCalls,
+  sumCodemodeDiffStats,
+} from '@shared/tool-call-detail'
 import { displayToolName } from './mcp-tool'
 
 export type TurnFileStat = {
@@ -63,12 +68,11 @@ function collectToolsFromBlocks(blocks: TimelineDisplayItem[]): ToolTimelineItem
 function countDiffRows(item: ToolTimelineItem): { additions: number; deletions: number } {
   const resolved = resolveEditWriteDiffRows(item)
   if (!resolved) {
-    if (item.toolName === 'write') {
+    if (item.toolName === 'write' || item.toolName === 'insert') {
       const args = normalizeToolArgs(item.toolArgs)
       const content = String(args.content ?? args.new_string ?? args.newString ?? '')
       if (content) {
-        const lines = content.split('\n').length
-        return { additions: lines, deletions: 0 }
+        return { additions: countTextLines(content), deletions: 0 }
       }
     }
     return { additions: 0, deletions: 0 }
@@ -82,9 +86,17 @@ function countDiffRows(item: ToolTimelineItem): { additions: number; deletions: 
   return { additions, deletions }
 }
 
-/** Public: +/− line counts for a single mutate tool (edit/write/insert). */
+function codemodeSourceOf(item: ToolTimelineItem): string | undefined {
+  const args = normalizeToolArgs(item.toolArgs)
+  return typeof args.code === 'string' && args.code ? args.code : undefined
+}
+
+/** Public: +/− line counts for a single mutate tool (edit/write/insert) or codemode script. */
 export function countToolDiffStats(item: ToolTimelineItem): { additions: number; deletions: number } {
   const name = (item.toolName || '').toLowerCase()
+  if (name === 'codemode') {
+    return sumCodemodeDiffStats(parseCodemodeCalls(item.toolDetails, codemodeSourceOf(item)))
+  }
   if (name !== 'edit' && name !== 'write' && name !== 'insert') {
     return { additions: 0, deletions: 0 }
   }
@@ -142,10 +154,7 @@ export function buildTurnActivitySummary(
   const workspaceRoot = opts?.workspaceRoot
 
   for (const change of fileChanges) {
-    if (runIds && runIds.size > 0 && change.runId && !runIds.has(change.runId)) continue
-    if (runIds && runIds.size > 0 && !change.runId) {
-      // keep session-scoped entries when no run match yet
-    }
+    if (!change.runId || !runIds || runIds.size === 0 || !runIds.has(change.runId)) continue
     const key = change.path.replace(/\\/g, '/')
     const existing = fileMap.get(key)
     if (existing) {
@@ -167,23 +176,35 @@ export function buildTurnActivitySummary(
   for (const tool of tools) {
     const name = tool.toolName || ''
     if (name === 'codemode') {
-      for (const call of parseCodemodeCalls(tool.toolDetails)) {
+      for (const call of parseCodemodeCalls(tool.toolDetails, codemodeSourceOf(tool))) {
         if (call.status === 'error' || call.status === 'cancelled') continue
         if (!MUTATE_TOOLS.has(call.name)) continue
-        const path = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
+        const path =
+          call.path ??
+          extractCodemodeArgField(call.args, 'path') ??
+          extractCodemodeArgField(call.args, 'file_path')
         if (!path) continue
         const key = path.replace(/\\/g, '/')
-        if (!fileMap.has(key)) {
-          fileMap.set(key, {
-            path,
-            displayName: toDisplayPath(path, workspaceRoot),
-            changeType: call.name === 'write' ? 'created' : 'modified',
-            additions: 0,
-            deletions: 0,
-            runId: tool.runId,
-            source: 'tool',
-          })
+        const add = call.additions ?? 0
+        const del = call.deletions ?? 0
+        const existing = fileMap.get(key)
+        if (existing) {
+          existing.additions += add
+          existing.deletions += del
+          if (!existing.changeType || existing.changeType === 'modified') {
+            existing.changeType = call.name === 'write' ? 'created' : 'modified'
+          }
+          continue
         }
+        fileMap.set(key, {
+          path,
+          displayName: toDisplayPath(path, workspaceRoot),
+          changeType: call.name === 'write' ? 'created' : 'modified',
+          additions: add,
+          deletions: del,
+          runId: tool.runId,
+          source: 'tool',
+        })
       }
       continue
     }

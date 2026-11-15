@@ -123,13 +123,13 @@ export function groupReviewFiles(input: {
 }
 
 export function reviewPathKey(path: string): string {
-  return path.replace(/\\/g, '/').replace(/\/+$/, '')
+  return path.replace(/\\/g, '/').replace(/^(?:\.\/)+/, '').replace(/\/+$/, '')
 }
 
 export function reviewPathMatches(gitPath: string, touched: string[]): boolean {
-  const git = reviewPathKey(gitPath)
+  const git = reviewPathKey(gitPath).toLowerCase()
   return touched.some((item) => {
-    const path = reviewPathKey(item)
+    const path = reviewPathKey(item).toLowerCase()
     return path === git || path.endsWith(`/${git}`) || git.endsWith(`/${path}`)
   })
 }
@@ -150,39 +150,93 @@ import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-d
 const MUTATE_TOOLS = new Set(['write', 'edit', 'insert'])
 
 function pathFromUnknown(value: unknown): string | undefined {
-  if (!value || typeof value !== 'object' || !('path' in value)) return undefined
-  const path = (value as { path?: unknown }).path
+  if (!value || typeof value !== 'object') return undefined
+  const rec = value as { path?: unknown; file_path?: unknown; filePath?: unknown }
+  const path = rec.path ?? rec.file_path ?? rec.filePath
   return typeof path === 'string' && path ? path : undefined
 }
 
 export function collectTouchedPaths(
   fileChanges: { path: string; runId?: string }[],
-  tools: { toolName?: string; runId?: string; path?: string; toolDetails?: unknown; toolDetail?: unknown; toolArgs?: unknown }[],
+  tools: {
+    toolName?: string
+    runId?: string
+    path?: string
+    toolDetails?: unknown
+    toolDetail?: unknown
+    toolArgs?: unknown
+    isError?: boolean
+  }[],
   turnRunId?: string | null,
+  workspaceRoot?: string | null,
 ): string[] {
-  const out = new Set<string>()
+  const normRoot = workspaceRoot
+    ? workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+    : ''
+  const isWindowsRoot = /^[a-z]:/i.test(normRoot)
+
+  const normalizeCandidate = (raw: string): string | null => {
+    let p = reviewPathKey(raw.trim())
+    if (!p) return null
+    const isAbs = /^[a-z]:\//i.test(p) || p.startsWith('/')
+    if (normRoot && isAbs) {
+      const pCmp = isWindowsRoot ? p.toLowerCase() : p
+      const rootCmp = isWindowsRoot ? normRoot.toLowerCase() : normRoot
+      if (pCmp === rootCmp) return null
+      if (pCmp.startsWith(rootCmp + '/')) {
+        p = reviewPathKey(p.slice(normRoot.length + 1))
+      } else {
+        return null
+      }
+    }
+    return p || null
+  }
+
+  const seenLower = new Set<string>()
+  const out: string[] = []
+  const addPath = (raw: string | undefined): void => {
+    if (!raw) return
+    const n = normalizeCandidate(raw)
+    if (!n) return
+    const lower = n.toLowerCase()
+    if (seenLower.has(lower)) return
+    seenLower.add(lower)
+    out.push(n)
+  }
+
   for (const change of fileChanges) {
     if (turnRunId && change.runId && change.runId !== turnRunId) continue
     if (turnRunId && !change.runId) continue
-    if (change.path) out.add(reviewPathKey(change.path))
+    if (change.path) addPath(change.path)
   }
   for (const tool of tools) {
-    if (tool.toolName === 'codemode') {
+    if (tool.isError) continue
+    const toolName = (tool.toolName || '').toLowerCase()
+    if (toolName === 'codemode') {
       if (turnRunId && tool.runId && tool.runId !== turnRunId) continue
       if (turnRunId && !tool.runId) continue
-      for (const call of parseCodemodeCalls(tool.toolDetails)) {
+      const code =
+        tool.toolArgs &&
+        typeof tool.toolArgs === 'object' &&
+        typeof (tool.toolArgs as { code?: unknown }).code === 'string'
+          ? (tool.toolArgs as { code: string }).code
+          : undefined
+      for (const call of parseCodemodeCalls(tool.toolDetails, code)) {
         if (call.status === 'error' || call.status === 'cancelled') continue
-        if (!MUTATE_TOOLS.has(call.name)) continue
-        const p = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
-        if (p) out.add(reviewPathKey(p))
+        if (!MUTATE_TOOLS.has(call.name.toLowerCase())) continue
+        const p =
+          call.path ??
+          extractCodemodeArgField(call.args, 'path') ??
+          extractCodemodeArgField(call.args, 'file_path')
+        addPath(p)
       }
       continue
     }
-    if (!MUTATE_TOOLS.has(tool.toolName || '')) continue
+    if (!MUTATE_TOOLS.has(toolName)) continue
     if (turnRunId && tool.runId && tool.runId !== turnRunId) continue
     if (turnRunId && !tool.runId) continue
     const path = tool.path || pathFromUnknown(tool.toolDetail) || pathFromUnknown(tool.toolArgs)
-    if (path) out.add(reviewPathKey(path))
+    addPath(path)
   }
-  return [...out]
+  return out
 }

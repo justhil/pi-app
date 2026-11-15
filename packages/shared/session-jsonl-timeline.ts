@@ -4,10 +4,17 @@ import { errorMessage } from './error-message'
 
 export type SessionTimelineMeta = { model?: string; thinkingLevel?: string }
 
+export type SessionTouchedFile = {
+  path: string
+  source: 'edit' | 'write'
+  changeType: 'created' | 'modified'
+}
+
 export type SessionTimelinePage = {
   items: Array<Record<string, unknown>>
   totalCount: number
   sessionMeta?: SessionTimelineMeta
+  touchedFiles?: SessionTouchedFile[]
 }
 
 type SessionManagerOpen = {
@@ -72,6 +79,7 @@ export async function buildTimelinePageFromSessionFile(
     activeSdkPath?: string | null
   },
   timelineItemsFromBranchPath: (path: unknown[]) => Array<Record<string, unknown>>,
+  extractBranchTouchedFiles?: (path: unknown[]) => SessionTouchedFile[],
 ): Promise<SessionTimelinePage> {
   const offset = Math.max(0, Number(opts.offset) || 0)
   const sm = await loadSessionManagerModule(opts.activeSdkPath)
@@ -92,7 +100,13 @@ export async function buildTimelinePageFromSessionFile(
   const totalCount = all.length
   const limit = Math.min(500, Math.max(1, Number(opts.limit) || totalCount || 1))
   const items = paginateItems(all, offset, limit)
-  return { items, totalCount, sessionMeta }
+  const touchedFiles = offset === 0 && extractBranchTouchedFiles ? extractBranchTouchedFiles(branchPath) : undefined
+  return {
+    items,
+    totalCount,
+    sessionMeta,
+    ...(touchedFiles ? { touchedFiles } : {}),
+  }
 }
 
 export function sessionTimelineError(e: unknown): string {

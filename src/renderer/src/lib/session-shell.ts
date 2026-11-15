@@ -419,11 +419,24 @@ export async function hydrateSessionView(
         ? null
         : resolveMergedStreamingAssistantId(merged, rows, entry?.streamingAssistantId ?? null)
 
+      let mergedFileChanges = entry?.fileChanges
+      if (Array.isArray(hist.touchedFiles) && hist.touchedFiles.length > 0) {
+        const byPath = new Map<string, SessionState['fileChanges'][number]>()
+        for (const df of hist.touchedFiles) {
+          byPath.set(df.path.replace(/\\/g, '/').toLowerCase(), df)
+        }
+        for (const lf of entry?.fileChanges ?? []) {
+          byPath.set(lf.path.replace(/\\/g, '/').toLowerCase(), lf)
+        }
+        mergedFileChanges = [...byPath.values()]
+      }
+
       patchSessionState(sessionKey, {
         timelineItems: merged,
         streamingAssistantId,
         historyTotalCount: hist.totalCount,
         historyLoadedCount,
+        ...(mergedFileChanges ? { fileChanges: mergedFileChanges } : {}),
       })
       hydrateEpochByKey.set(sessionKey, (hydrateEpochByKey.get(sessionKey) ?? 0) + 1)
       if (turnActive) useUIStore.getState().setSessionRuntimeRunning(sessionKey, true)

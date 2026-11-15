@@ -33,6 +33,23 @@ export function shouldSuppressPrematureRunIdle(state: {
   return true
 }
 
+function settleDanglingToolRows(api: StoreApi): void {
+  const items = api.get().timelineItems
+  if (
+    !Array.isArray(items) ||
+    !items.some((row) => row.type === 'tool-call' && (row.toolPhase === 'start' || row.toolPhase === 'update'))
+  ) {
+    return
+  }
+  api.set({
+    timelineItems: items.map((row) =>
+      row.type === 'tool-call' && (row.toolPhase === 'start' || row.toolPhase === 'update')
+        ? { ...row, toolPhase: 'end', toolStatusLine: undefined }
+        : row,
+    ),
+  })
+}
+
 function markViewIdle(state: ReturnType<StoreApi['get']>): void {
   const viewFile = state.historySessionFile
   const liveSnap = state.workerLiveSnapshot
@@ -127,6 +144,7 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       activeTool: undefined,
       activeToolStatus: undefined,
     })
+    settleDanglingToolRows(api)
     markViewIdle(state)
     state.clearPendingQueue()
     state.pruneEmptyAssistantBubbles()
@@ -149,6 +167,7 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       pendingTurnStage: null,
       streamingAssistantId: null,
     })
+    settleDanglingToolRows(api)
     state.setRunState({
       status: 'failed',
       activeRunId: undefined,

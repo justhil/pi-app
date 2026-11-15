@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { buildTimelineDisplayItems } from './timeline-display-items'
-import { buildTurnActivitySummary, collectRunIdsFromBlocks } from './timeline-turn-activity'
+import {
+  buildToolListActivitySummary,
+  buildTurnActivitySummary,
+  collectRunIdsFromBlocks,
+} from './timeline-turn-activity'
 import type { FileChange } from '@renderer/stores/ui-store-types'
 
 describe('buildTurnActivitySummary', () => {
@@ -51,5 +55,29 @@ describe('buildTurnActivitySummary', () => {
     expect(summary.files).toHaveLength(1)
     expect(summary.files[0].displayName).toContain('a.ts')
     expect(summary.additions).toBeGreaterThan(0)
+  })
+
+  it('should_not_leak_session_level_unscoped_fileChanges_into_single_turn_or_tool_group_summary', () => {
+    const summary = buildToolListActivitySummary(
+      [
+        {
+          id: 't-cm',
+          type: 'tool-call',
+          toolName: 'codemode',
+          toolPhase: 'end',
+          toolDetails: {
+            calls: [{ id: '1', name: 'edit', args: '{"path":"src/cm-mod.ts"}', status: 'ok', additions: 3, deletions: 1 }],
+          },
+        },
+      ],
+      [
+        // Session-wide hydrated file from an earlier turn (no runId)
+        { path: 'src/new-dir/early-created.ts', source: 'write', changeType: 'created' },
+      ],
+      '/workspace',
+    )
+    expect(summary.files.map((f) => f.path)).toEqual(['src/cm-mod.ts'])
+    expect(summary.additions).toBe(3)
+    expect(summary.deletions).toBe(1)
   })
 })

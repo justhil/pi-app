@@ -190,14 +190,16 @@ function untrackedPatch(cwd: string, relPath: string): string {
   if (!stat.isFile() || stat.size > UNTRACKED_DIFF_MAX_BYTES) return ''
   const buf = readFileSync(abs)
   if (buf.includes(0)) return ''
-  const text = buf.toString('utf8')
-  const lines = text.split('\n')
+  const text = buf.toString('utf8').replace(/\r\n/g, '\n')
+  if (text.length === 0) return ''
+  const trimmed = text.endsWith('\n') ? text.slice(0, -1) : text
+  const lines = trimmed.split('\n')
   return [
     `diff --git a/${relPath} b/${relPath}`,
     'new file mode 100644',
     '--- /dev/null',
     `+++ b/${relPath}`,
-    `@@ -0,0 +1,${Math.max(lines.length, 1)} @@`,
+    `@@ -0,0 +1,${lines.length} @@`,
     ...lines.map((line) => `+${line}`),
     '',
   ].join('\n')
@@ -230,7 +232,7 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
     runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
     runGitReadOnly(cwd, ['diff'], { timeout: 10000 }),
     runGitReadOnly(cwd, ['diff', '--cached'], { timeout: 10000 }),
-    runGitReadOnly(cwd, ['status', '--porcelain', '-b'], { timeout: 5000 }),
+    runGitReadOnly(cwd, ['status', '--porcelain', '-b', '-uall'], { timeout: 5000 }),
     runGitReadOnly(cwd, ['log', '--oneline', '-12'], { timeout: 5000 }),
   ])
   const branch = branchR.ok ? branchR.stdout.trim() : ''
@@ -257,7 +259,7 @@ export async function readGitDiffVsHead(cwd: string): Promise<{ isRepo: boolean;
   const [branchR, headR, statusR] = await Promise.all([
     runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
     runGitReadOnly(cwd, ['diff', 'HEAD', '--no-color', '--no-ext-diff'], { timeout: 10000, maxBuffer: 32 * 1024 * 1024 }),
-    runGitReadOnly(cwd, ['status', '--porcelain'], { timeout: 5000 }),
+    runGitReadOnly(cwd, ['status', '--porcelain', '-uall'], { timeout: 5000 }),
   ])
   let raw = headR.ok ? headR.stdout : ''
   // A repository without commits has no HEAD: show what is staged plus the working tree.

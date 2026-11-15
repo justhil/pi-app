@@ -199,6 +199,16 @@ export function registerSessionHandlers(): void {
           cwd,
           leafId: leafOverride,
         })
+        if (r.nodes.length === 0 && workerManager.hasLiveSessionWorker(sessionFile)) {
+          const liveTree = await workerManager.getSessionTree(sessionFile).catch(() => null)
+          if (liveTree && !liveTree.error && liveTree.nodes.length > 0) {
+            return {
+              nodes: liveTree.nodes,
+              leafId: liveTree.leafId,
+              workerBound: true,
+            }
+          }
+        }
         return { nodes: r.nodes, leafId: r.leafId, workerBound: workerSessionFile === sessionFile }
       } catch (e: unknown) {
         return { nodes: [], leafId: null, error: errorMessage(e) }
@@ -312,6 +322,7 @@ export function registerSessionHandlers(): void {
         sourceCount: disk.items.length,
         totalCount: disk.totalCount,
         sessionMeta: disk.sessionMeta,
+        ...(disk.touchedFiles ? { touchedFiles: disk.touchedFiles } : {}),
       }
     } catch (e: unknown) {
       console.error('[IPC] session.getMessages failed:', e)
