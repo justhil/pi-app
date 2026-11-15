@@ -15,7 +15,9 @@ import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
-import { refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { queryUsageLogs, refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
+import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
 
@@ -34,6 +36,8 @@ type PreviewRequest = {
     | 'warm'
     | 'system.prompt'
     | 'usage.summary'
+    | 'usage.logs'
+    | 'usage.requestDetail'
   payload: Record<string, unknown>
   userDataDir: string
   activeSdkPath?: string | null
@@ -157,6 +161,27 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
       // Incremental: only session files that changed since the last call are read again.
       refreshUsage(String(message.payload.agentDir || ''))
       result = summarizeUsage(Number(message.payload.from), Number(message.payload.to), Number(message.payload.offsetMin) || 0)
+    } else if (message.type === 'usage.logs') {
+      refreshUsage(String(message.payload.agentDir || ''))
+      result = queryUsageLogs({
+        from: Number(message.payload.from) || 0,
+        to: Number(message.payload.to) || Date.now(),
+        model: typeof message.payload.model === 'string' ? message.payload.model : undefined,
+        project: typeof message.payload.project === 'string' ? message.payload.project : undefined,
+        api: typeof message.payload.api === 'string' ? message.payload.api : undefined,
+        status: typeof message.payload.status === 'string' ? (message.payload.status as 'all' | UsageStopStatus) : undefined,
+        search: typeof message.payload.search === 'string' ? message.payload.search : undefined,
+        sortBy: typeof message.payload.sortBy === 'string' ? (message.payload.sortBy as UsageLogSortField) : undefined,
+        sortDir: message.payload.sortDir === 'asc' ? 'asc' : 'desc',
+        offset: typeof message.payload.offset === 'number' ? message.payload.offset : 0,
+        limit: typeof message.payload.limit === 'number' ? message.payload.limit : 50,
+      })
+    } else if (message.type === 'usage.requestDetail') {
+      result = await readUsageRequestDetailFromFile(
+        String(message.payload.sessionFile || ''),
+        String(message.payload.entryId || ''),
+        message.activeSdkPath ?? null,
+      )
     } else if (message.type === 'system.prompt') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)

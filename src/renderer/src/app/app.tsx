@@ -18,6 +18,7 @@ import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '@renderer/lib/ipc-client'
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
+import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { resolveProjectDisplayName } from '@shared/workspace-path'
@@ -289,11 +290,17 @@ export default function App() {
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)
     })
-    // Settings → Usage: a session row opens that session.
+    // Settings → Usage: a session row or request log opens that session (and optionally scrolls to entryId).
     const onOpenSession = (e: Event) => {
-      const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string }>).detail
+      const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string; entryId?: string }>).detail
       setView('main')
-      void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile })
+      void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile }).then(
+        () => {
+          if (d?.entryId && !d.entryId.startsWith('@line:')) {
+            requestTimelineViewEntry(d.entryId)
+          }
+        },
+      )
     }
     const onOpenSettingsPage = () => setView('settings')
     window.addEventListener('pi-desktop:open-session', onOpenSession)

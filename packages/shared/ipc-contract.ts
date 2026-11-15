@@ -5,6 +5,12 @@ import type { CompatibilityLevel } from './extension-types'
 import type { ModelAuthProjection } from './model-auth-projection'
 import type { AdapterCatalog } from '../../src/extension-compat/adapter-schema'
 import type { SessionContextPreview } from './session-context-preview'
+import type {
+  UsageLogPage,
+  UsageLogQuery,
+  UsageRequestDetail,
+  UsageSummary,
+} from './usage-summary'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -363,6 +369,18 @@ export interface IpcMethodMap {
   'app.downloadUpdate': {
     request: AppDownloadUpdateRequest
     response: AppDownloadUpdateResponse
+  }
+  'usage.summary': {
+    request: { days?: number }
+    response: UsageSummary
+  }
+  'usage.logs': {
+    request: UsageLogQuery
+    response: UsageLogPage
+  }
+  'usage.requestDetail': {
+    request: { sessionFile: string; entryId: string }
+    response: UsageRequestDetail
   }
   'events.subscribe': { request: EventsSubscribeRequest; response: EventsSubscribeResponse; stream: AppEvent }
 }
