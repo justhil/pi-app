@@ -153,7 +153,8 @@ export function DayChart({ days }: { days: UsageSummary['byDay'] }) {
         : '#476885'
 
   return (
-    <div ref={p.ref} className="relative px-4 py-3.5" onMouseMove={(e) => p.move(e.clientX)} onMouseLeave={() => setHover(null)}>
+    <div className="settings-flush">
+      <div ref={p.ref} className="relative px-4 py-3.5" onMouseMove={(e) => p.move(e.clientX)} onMouseLeave={() => setHover(null)}>
       {h ? (
         <Tip x={p.pos.x} w={p.pos.w}>
           <div className="font-medium tabular-nums">
@@ -282,15 +283,18 @@ export function DayChart({ days }: { days: UsageSummary['byDay'] }) {
           </div>
         ))}
       </div>
+      </div>
     </div>
   )
 }
 
-const HEAT_STEPS = [0.22, 0.42, 0.65, 0.9]
+const HEAT_STEPS = [0.22, 0.45, 0.7, 0.94]
+const HEAT_BASE_COLOR = '#267a63'
 function heatFill(v: number, max: number): string {
-  if (v <= 0 || max <= 0) return 'var(--bg-elevated, rgba(127,127,127,0.1))'
-  const i = Math.min(HEAT_STEPS.length - 1, Math.floor((v / max) * HEAT_STEPS.length))
-  return `color-mix(in srgb, var(--primary-semantic) ${Math.round(HEAT_STEPS[i] * 100)}%, transparent)`
+  if (v <= 0 || max <= 0) return 'color-mix(in srgb, var(--border-base) 42%, transparent)'
+  const ratio = v / max
+  const i = ratio >= 0.78 ? 3 : ratio >= 0.48 ? 2 : ratio >= 0.2 ? 1 : 0
+  return `color-mix(in srgb, ${HEAT_BASE_COLOR} ${Math.round(HEAT_STEPS[i] * 100)}%, var(--bg-base))`
 }
 
 /** GitHub-style calendar: one column per week (Monday first), one cell per day, coloured by cost or tokens. */
@@ -319,7 +323,8 @@ export function CalendarHeatmap({ days, metric }: { days: UsageSummary['byDay'];
   })
 
   return (
-    <div ref={p.ref} className="relative px-4 py-3.5" onMouseMove={(e) => p.move(e.clientX)} onMouseLeave={() => setHover(null)}>
+    <div className="settings-flush">
+      <div ref={p.ref} className="relative px-4 py-3.5" onMouseMove={(e) => p.move(e.clientX)} onMouseLeave={() => setHover(null)}>
       {h ? (
         <Tip x={p.pos.x} w={p.pos.w}>
           <span className="font-medium tabular-nums">{h.day}</span>
@@ -331,7 +336,7 @@ export function CalendarHeatmap({ days, metric }: { days: UsageSummary['byDay'];
           </span>
         </Tip>
       ) : null}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-hidden pb-0.5">
         <div className="inline-flex gap-1.5">
           <div className="grid grid-rows-7 gap-[3px] pt-4 text-[10px] leading-[11px] text-muted-foreground">
             {[0, 1, 2, 3, 4, 5, 6].map((w) => (
@@ -370,11 +375,14 @@ export function CalendarHeatmap({ days, metric }: { days: UsageSummary['byDay'];
           </div>
         </div>
       </div>
+      </div>
     </div>
   )
 }
 
-/** Weekday × hour of day (local time): when the requests happen. */
+const HOUR_GRID_STYLE = { gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' } as const
+
+/** Weekday (7 rows) × hour of day (24 columns, local time) compact matrix. */
 export function HourHeatmap({ heat, metric }: { heat: UsageSummary['heat']; metric: 'calls' | 'cost' }) {
   const { t } = useTranslation()
   const p = usePointer()
@@ -382,8 +390,26 @@ export function HourHeatmap({ heat, metric }: { heat: UsageSummary['heat']; metr
   const data = metric === 'cost' ? heat.cost : heat.calls
   const max = Math.max(0, ...data)
 
+  const peakIdx = useMemo(() => {
+    let best = -1
+    let bestVal = 0
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] > bestVal) {
+        bestVal = data[i]
+        best = i
+      }
+    }
+    return best
+  }, [data])
+
   return (
-    <div ref={p.ref} className="relative px-4 py-3.5" onMouseMove={(e) => p.move(e.clientX)} onMouseLeave={() => setHover(null)}>
+    <div className="settings-flush">
+      <div
+        ref={p.ref}
+        className="relative px-4 py-3.5"
+        onMouseMove={(e) => p.move(e.clientX)}
+        onMouseLeave={() => setHover(null)}
+      >
       {hover !== null ? (
         <Tip x={p.pos.x} w={p.pos.w}>
           <span className="font-medium tabular-nums">
@@ -395,11 +421,39 @@ export function HourHeatmap({ heat, metric }: { heat: UsageSummary['heat']; metr
           </span>
         </Tip>
       ) : null}
-      <div className="flex flex-col gap-[3px]">
+
+      {/* Compact header strip: Peak slot + 5-step intensity legend */}
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+        <span className="tabular-nums">
+          {peakIdx >= 0
+            ? t('settings:usage.peakSlot', {
+                day: t(`settings:usage.weekdayShort.${Math.floor(peakIdx / 24)}`),
+                hour: String(peakIdx % 24).padStart(2, '0'),
+                calls: heat.calls[peakIdx],
+                cost: formatCost(heat.cost[peakIdx]),
+              })
+            : '\u00a0'}
+        </span>
+        <div className="flex items-center gap-1 text-[10px]">
+          <span>{t('settings:usage.less')}</span>
+          {[0, 0.15, 0.35, 0.65, 1].map((lv, idx) => (
+            <span
+              key={idx}
+              style={{ background: heatFill(lv, 1) }}
+              className="h-2.5 w-2.5 rounded-[2px]"
+            />
+          ))}
+          <span>{t('settings:usage.more')}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-[3px]" data-testid="hour-heatmap-matrix">
         {[0, 1, 2, 3, 4, 5, 6].map((w) => (
-          <div key={w} className="flex items-center gap-1.5">
-            <span className="w-5 shrink-0 text-[10px] text-muted-foreground">{t(`settings:usage.weekdayShort.${w}`)}</span>
-            <div className="grid flex-1 grid-cols-24 gap-[3px]">
+          <div key={w} className="flex items-center gap-2">
+            <span className="w-5 shrink-0 text-right text-[10.5px] leading-none text-muted-foreground">
+              {t(`settings:usage.weekdayShort.${w}`)}
+            </span>
+            <div className="grid flex-1 gap-[3px]" style={HOUR_GRID_STYLE}>
               {Array.from({ length: 24 }, (_, hr) => {
                 const idx = w * 24 + hr
                 return (
@@ -407,21 +461,27 @@ export function HourHeatmap({ heat, metric }: { heat: UsageSummary['heat']; metr
                     key={hr}
                     onMouseEnter={() => setHover(idx)}
                     style={{ background: heatFill(data[idx], max) }}
-                    className={cn('h-3.5 rounded-[2px]', hover === idx && 'ring-1 ring-foreground/60')}
+                    className={cn(
+                      'h-[16px] rounded-[3px] transition-shadow',
+                      hover === idx && 'ring-1.5 ring-foreground/75',
+                    )}
                   />
                 )
               })}
             </div>
           </div>
         ))}
-        <div className="mt-0.5 flex items-center gap-1.5 text-[10px] tabular-nums text-muted-foreground">
+        <div className="mt-1 flex items-center gap-2 font-mono text-[10px] tabular-nums text-muted-foreground">
           <span className="w-5 shrink-0" />
-          <div className="grid flex-1 grid-cols-24 gap-[3px]">
+          <div className="grid flex-1 gap-[3px]" style={HOUR_GRID_STYLE}>
             {Array.from({ length: 24 }, (_, hr) => (
-              <span key={hr}>{hr % 6 === 0 ? String(hr).padStart(2, '0') : ''}</span>
+              <span key={hr} className="leading-none">
+                {hr % 3 === 0 ? String(hr).padStart(2, '0') : ''}
+              </span>
             ))}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

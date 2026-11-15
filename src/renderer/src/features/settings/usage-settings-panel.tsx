@@ -86,7 +86,7 @@ function ModelPerfTable({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="overflow-x-auto">
+    <div className="settings-flush overflow-x-auto">
       <table className="w-full border-collapse text-left text-[12px]">
         <thead>
           <tr className="border-b border-border/60 bg-[var(--bg-elevated)]/30 text-[11px] font-semibold tracking-wide text-muted-foreground">
@@ -340,10 +340,10 @@ export function UsageSettingsPanel() {
 
           {data && total ? (
             <>
-              {/* 6-cell KPI matrix */}
-              <div className="settings-card grid grid-cols-2 divide-x divide-y divide-border/60 sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0">
+              {/* 6-cell KPI matrix (standalone card container so .settings-card > * + * does not inject top borders) */}
+              <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-[var(--border-base)] bg-[var(--bg-base)] shadow-[0_1px_2px_rgba(16,24,40,0.04)] dark:bg-[var(--bg-1)] dark:shadow-none sm:grid-cols-3 lg:grid-cols-6">
                 {/* 1. Cost */}
-                <div className="px-3.5 py-3">
+                <div className="border-b border-r border-border/60 px-4 py-3.5 lg:border-b-0">
                   <div className="text-[11px] text-muted-foreground">{t('settings:usage.cost')}</div>
                   <div className="mt-0.5 font-mono text-[19px] font-semibold tracking-tight tabular-nums">
                     {formatCost(total.cost)}
@@ -358,7 +358,7 @@ export function UsageSettingsPanel() {
                 </div>
 
                 {/* 2. Tokens + stacked proportion bar */}
-                <div className="px-3.5 py-3">
+                <div className="border-b border-border/60 px-4 py-3.5 sm:border-r lg:border-b-0">
                   <div className="text-[11px] text-muted-foreground">{t('settings:usage.tokens')}</div>
                   <div className="mt-0.5 font-mono text-[19px] font-semibold tracking-tight tabular-nums">
                     {formatTokens(totalTokensVal)}
@@ -377,7 +377,7 @@ export function UsageSettingsPanel() {
                 </div>
 
                 {/* 3. Requests & Status */}
-                <div className="px-3.5 py-3">
+                <div className="border-b border-r border-border/60 px-4 py-3.5 sm:border-r-0 lg:border-b-0 lg:border-r">
                   <div className="text-[11px] text-muted-foreground">{t('settings:usage.calls')}</div>
                   <div className="mt-0.5 font-mono text-[19px] font-semibold tracking-tight tabular-nums">
                     {total.calls.toLocaleString()}
@@ -394,7 +394,7 @@ export function UsageSettingsPanel() {
                 </div>
 
                 {/* 4. Cache Hit & Write */}
-                <div className="px-3.5 py-3" title={t('settings:usage.cacheHitHint')}>
+                <div className="border-b border-border/60 px-4 py-3.5 sm:border-b-0 sm:border-r" title={t('settings:usage.cacheHitHint')}>
                   <div className="text-[11px] text-muted-foreground">{t('settings:usage.cacheHit')}</div>
                   <div className={cn('mt-0.5 font-mono text-[19px] font-semibold tracking-tight tabular-nums', cacheHitTone(data.cacheHitRate))}>
                     {formatPct(data.cacheHitRate)}
@@ -406,7 +406,7 @@ export function UsageSettingsPanel() {
                 </div>
 
                 {/* 5. Throughput (TPS) */}
-                <div className="px-3.5 py-3">
+                <div className="border-r border-border/60 px-4 py-3.5">
                   <div className="text-[11px] text-muted-foreground">{t('settings:usage.tps')}</div>
                   <div className={cn('mt-0.5 font-mono text-[19px] font-semibold tracking-tight tabular-nums', tpsTone(total.genTps ?? total.totalTps, total.genTps != null))}>
                     {(total.genTps ?? total.totalTps) != null ? `${formatTps(total.genTps ?? total.totalTps)}` : '—'}
@@ -424,7 +424,7 @@ export function UsageSettingsPanel() {
                 </div>
 
                 {/* 6. TTFT & Latency */}
-                <div className="px-3.5 py-3">
+                <div className="px-4 py-3.5">
                   <div className="text-[11px] text-muted-foreground">
                     {total.ttftCalls > 0 ? t('settings:usage.ttft') : t('settings:usage.latency')}
                   </div>
@@ -458,44 +458,42 @@ export function UsageSettingsPanel() {
                     </SettingsSection>
                   ) : null}
 
-                  <div className={cn('grid gap-5', data.byDay.length > 14 ? 'lg:grid-cols-2' : 'grid-cols-1')}>
-                    {data.byDay.length > 14 ? (
-                      <SettingsSection
-                        title={t('settings:usage.activity')}
-                        description={
-                          data.firstAt ? `${t('settings:usage.since')} ${new Date(data.firstAt).toISOString().slice(0, 10)}` : undefined
-                        }
-                        action={
-                          <MetricToggle
-                            value={heatMetric}
-                            options={[
-                              ['cost', t('settings:usage.cost')],
-                              ['tokens', t('settings:usage.tokens')],
-                            ]}
-                            onChange={setHeatMetric}
-                          />
-                        }
-                      >
-                        <CalendarHeatmap days={data.byDay} metric={heatMetric} />
-                      </SettingsSection>
-                    ) : null}
-
+                  {data.byDay.length >= 60 ? (
                     <SettingsSection
-                      title={t('settings:usage.byHour')}
+                      title={t('settings:usage.activity')}
+                      description={
+                        data.firstAt ? `${t('settings:usage.since')} ${new Date(data.firstAt).toISOString().slice(0, 10)}` : undefined
+                      }
                       action={
                         <MetricToggle
-                          value={hourMetric}
+                          value={heatMetric}
                           options={[
-                            ['calls', t('settings:usage.calls')],
                             ['cost', t('settings:usage.cost')],
+                            ['tokens', t('settings:usage.tokens')],
                           ]}
-                          onChange={setHourMetric}
+                          onChange={setHeatMetric}
                         />
                       }
                     >
-                      <HourHeatmap heat={data.heat} metric={hourMetric} />
+                      <CalendarHeatmap days={data.byDay} metric={heatMetric} />
                     </SettingsSection>
-                  </div>
+                  ) : null}
+
+                  <SettingsSection
+                    title={t('settings:usage.byHour')}
+                    action={
+                      <MetricToggle
+                        value={hourMetric}
+                        options={[
+                          ['calls', t('settings:usage.calls')],
+                          ['cost', t('settings:usage.cost')],
+                        ]}
+                        onChange={setHourMetric}
+                      />
+                    }
+                  >
+                    <HourHeatmap heat={data.heat} metric={hourMetric} />
+                  </SettingsSection>
 
                   <SettingsSection title={t('settings:usage.byModel')} description={t('settings:usage.modelPerfHint')}>
                     <ModelPerfTable models={data.byModel} maxCost={maxModel} onSelectModel={jumpToModelLogs} />

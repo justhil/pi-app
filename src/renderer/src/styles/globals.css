@@ -3304,7 +3304,8 @@
   transition: background-color var(--motion-fast) ease;
 }
 .settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 32%, transparent); }
-.settings-card > :not(.settings-row) { padding: 14px 16px; }
+.settings-card > :not(.settings-row):not(.settings-flush) { padding: 14px 16px; }
+:where(.settings-card > .settings-flush) { padding: 0; }
 
 /* WSL runtime environment checklist (settings → 通用 → Agent 运行时). */
 .wsl-env-card { animation: wsl-check-in 220ms var(--motion-ease) both; }
@@ -3500,12 +3501,15 @@
 .settings-segmented { background: var(--bg-2); }
 .settings-segmented-item { color: hsl(var(--text-secondary-hsl)); transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .settings-segmented-item:hover { color: var(--text-primary); }
-.settings-segmented-item[aria-checked='true'] {
+.settings-segmented-item[aria-checked='true'],
+.settings-segmented-item[aria-selected='true'] {
   background: var(--bg-base);
   color: var(--text-primary);
+  font-weight: 500;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base);
 }
-.dark .settings-segmented-item[aria-checked='true'] { background: #46474d; box-shadow: none; }
+.dark .settings-segmented-item[aria-checked='true'],
+.dark .settings-segmented-item[aria-selected='true'] { background: #46474d; box-shadow: none; }
 .settings-check { accent-color: hsl(var(--foreground)); }
 .settings-model-entry {
   border-color: var(--border-base);

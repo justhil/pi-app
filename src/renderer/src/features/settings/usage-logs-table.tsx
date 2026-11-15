@@ -31,8 +31,20 @@ import {
 } from './usage-charts'
 import { UsageRequestDrawer } from './usage-request-drawer'
 
-const PAGE_SIZE = 50
+const PAGE_SIZES = [25, 50, 100] as const
 const projectLabel = (p: string) => (p === '(unknown)' ? p : p.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || p)
+
+function buildPageButtons(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out: (number | 'ellipsis')[] = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(total - 1, current + 1)
+  if (start > 2) out.push('ellipsis')
+  for (let p = start; p <= end; p++) out.push(p)
+  if (end < total - 1) out.push('ellipsis')
+  out.push(total)
+  return out
+}
 
 function formatShortTime(ts: number): string {
   const d = new Date(ts)
@@ -102,7 +114,9 @@ export function UsageLogsTable({
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortBy, setSortBy] = useState<UsageLogSortField>('ts')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [pageSize, setPageSize] = useState<number>(50)
   const [offset, setOffset] = useState(0)
+  const [jumpInput, setJumpInput] = useState('1')
   const [reloadNonce, setReloadNonce] = useState(0)
 
   const [page, setPage] = useState<UsageLogPage | null>(null)
@@ -147,7 +161,7 @@ export function UsageLogsTable({
         sortBy,
         sortDir,
         offset,
-        limit: PAGE_SIZE,
+        limit: pageSize,
       })
       .then((res) => {
         if (!live) return
@@ -163,7 +177,29 @@ export function UsageLogsTable({
     return () => {
       live = false
     }
-  }, [days, model, project, api, status, debouncedSearch, sortBy, sortDir, offset, reloadNonce])
+  }, [days, model, project, api, status, debouncedSearch, sortBy, sortDir, offset, pageSize, reloadNonce])
+
+  const totalPages = page ? Math.max(1, Math.ceil(page.totalCount / pageSize)) : 1
+  const currentPage = Math.min(totalPages, Math.floor(offset / pageSize) + 1)
+
+  useEffect(() => {
+    setJumpInput(String(currentPage))
+  }, [currentPage])
+
+  const goToPage = (targetPage: number) => {
+    const clamped = Math.max(1, Math.min(totalPages, Math.floor(targetPage)))
+    setOffset((clamped - 1) * pageSize)
+    setJumpInput(String(clamped))
+  }
+
+  const commitJumpInput = () => {
+    const parsed = Number.parseInt(jumpInput.trim(), 10)
+    if (!Number.isFinite(parsed)) {
+      setJumpInput(String(currentPage))
+      return
+    }
+    goToPage(parsed)
+  }
 
   const handleSort = (field: UsageLogSortField) => {
     if (sortBy === field) {
@@ -324,11 +360,11 @@ export function UsageLogsTable({
         ) : rows.length === 0 ? (
           <div className="p-6 text-center text-[12.5px] text-muted-foreground">{t('settings:usage.empty')}</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="settings-flush overflow-x-auto">
             <table className="w-full border-collapse text-left text-[12px]">
               <thead>
                 <tr className="border-b border-border/70 bg-[var(--bg-elevated)]/40">
-                  <th className="px-3.5 py-2.5 font-semibold">
+                  <th className="px-4 py-2.5 font-semibold">
                     <SortHeader
                       label={t('settings:usage.colTimeSession')}
                       field="ts"
@@ -377,7 +413,7 @@ export function UsageLogsTable({
                       onSort={handleSort}
                     />
                   </th>
-                  <th className="px-3.5 py-2.5 text-right">
+                  <th className="px-4 py-2.5 text-right">
                     <SortHeader
                       label={t('settings:usage.colCost')}
                       field="cost"
@@ -401,7 +437,7 @@ export function UsageLogsTable({
                       )}
                     >
                       {/* 1. Time & Session */}
-                      <td className="max-w-[220px] px-3.5 py-2.5 align-top">
+                      <td className="max-w-[220px] px-4 py-2.5 align-top">
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-[11.5px] font-medium tabular-nums text-foreground">
                             {formatShortTime(r.ts)}
@@ -518,7 +554,7 @@ export function UsageLogsTable({
 
                       {/* 7. Cost */}
                       <td
-                        className="whitespace-nowrap px-3.5 py-2.5 text-right align-top font-mono text-[12px] font-medium tabular-nums text-foreground"
+                        className="whitespace-nowrap px-4 py-2.5 text-right align-top font-mono text-[12px] font-medium tabular-nums text-foreground"
                         title={`${t('settings:usage.input')}: ${formatExactCost(r.costBreakdown.input)} | ${t('settings:usage.output')}: ${formatExactCost(r.costBreakdown.output)} | ${t('settings:usage.cacheRead')}: ${formatExactCost(r.costBreakdown.cacheRead)} | ${t('settings:usage.cacheWrite')}: ${formatExactCost(r.costBreakdown.cacheWrite)}`}
                       >
                         {formatExactCost(r.cost)}
@@ -531,35 +567,108 @@ export function UsageLogsTable({
           </div>
         )}
 
-        {/* Pagination footer */}
+        {/* Pagination footer with page numbers, per-page selector & direct page jump */}
         {page && page.totalCount > 0 ? (
-          <div className="flex items-center justify-between border-t border-border/60 px-4 py-2.5 text-[11.5px] text-muted-foreground">
-            <span className="tabular-nums">
-              {t('settings:usage.pageInfo', {
-                from: page.offset + 1,
-                to: Math.min(page.offset + rows.length, page.totalCount),
-                total: page.totalCount,
-              })}
-            </span>
-            <div className="flex items-center gap-1.5">
+          <div className="settings-flush border-t border-border/60 bg-[var(--bg-elevated)]/20">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-[11.5px] text-muted-foreground">
+            <div className="flex items-center gap-2.5">
+              <span className="tabular-nums">
+                {t('settings:usage.pageInfo', {
+                  from: page.offset + 1,
+                  to: Math.min(page.offset + rows.length, page.totalCount),
+                  total: page.totalCount,
+                })}
+              </span>
+              <select
+                value={pageSize}
+                aria-label="Page size"
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setOffset(0)
+                }}
+                className="h-7 rounded border border-border bg-background px-2 text-[11.5px] text-foreground focus:outline-none"
+              >
+                {PAGE_SIZES.map((sz) => (
+                  <option key={sz} value={sz}>
+                    {t('settings:usage.perPage', { count: sz })}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
-                disabled={offset <= 0 || loading}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-foreground-secondary hover:bg-accent disabled:opacity-40"
+                disabled={currentPage <= 1 || loading}
+                onClick={() => goToPage(currentPage - 1)}
+                className="inline-flex h-7 items-center gap-1 rounded border border-border bg-background px-2 text-foreground-secondary hover:bg-accent hover:text-foreground disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 {t('settings:usage.prevPage')}
               </button>
+
+              {totalPages > 1 ? (
+                <div className="flex items-center gap-1">
+                  {buildPageButtons(currentPage, totalPages).map((item, i) =>
+                    item === 'ellipsis' ? (
+                      <span key={`el-${i}`} className="px-1 font-mono text-[11px] text-muted-foreground">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => goToPage(item)}
+                        aria-current={item === currentPage ? 'page' : undefined}
+                        className={cn(
+                          'inline-flex h-7 min-w-7 items-center justify-center rounded border px-1.5 font-mono text-[11.5px] tabular-nums transition-colors',
+                          item === currentPage
+                            ? 'border-primary/45 bg-primary/10 font-semibold text-primary'
+                            : 'border-border bg-background text-foreground-secondary hover:bg-accent hover:text-foreground',
+                        )}
+                      >
+                        {item}
+                      </button>
+                    ),
+                  )}
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={offset + PAGE_SIZE >= page.totalCount || loading}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                className="inline-flex h-7 items-center gap-1 rounded border border-border px-2 text-foreground-secondary hover:bg-accent disabled:opacity-40"
+                disabled={currentPage >= totalPages || loading}
+                onClick={() => goToPage(currentPage + 1)}
+                className="inline-flex h-7 items-center gap-1 rounded border border-border bg-background px-2 text-foreground-secondary hover:bg-accent hover:text-foreground disabled:opacity-40"
               >
                 {t('settings:usage.nextPage')}
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
+
+              {totalPages > 1 ? (
+                <div className="ml-1.5 flex items-center gap-1.5 border-l border-border/70 pl-2.5">
+                  <span>{t('settings:usage.jumpToPage')}</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    aria-label={t('settings:usage.jumpToPage')}
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value.replace(/[^\d]/g, ''))}
+                    onBlur={commitJumpInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        commitJumpInput()
+                      }
+                    }}
+                    className="h-7 w-11 rounded border border-border bg-background px-1.5 text-center font-mono text-[11.5px] tabular-nums text-foreground focus:border-primary/60 focus:outline-none"
+                  />
+                  <span className="font-mono tabular-nums">
+                    {t('settings:usage.pageTotal', { total: totalPages })}
+                  </span>
+                </div>
+              ) : null}
+            </div>
             </div>
           </div>
         ) : null}

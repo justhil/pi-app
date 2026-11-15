@@ -92,7 +92,7 @@ const sampleSummary: UsageSummary = {
 }
 
 const sampleLogs: UsageLogPage = {
-  totalCount: 1,
+  totalCount: 270,
   offset: 0,
   limit: 50,
   facets: {
@@ -248,5 +248,18 @@ describe('UsageSettingsPanel', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'settings:usage.tabResponse' }))
     expect(screen.getByText('Deep reasoning content')).toBeInTheDocument()
     expect(screen.getByText('Final assistant answer body')).toBeInTheDocument()
+
+    // Close drawer and verify direct page jump (input page 4 + Enter -> offset = 150)
+    fireEvent.click(screen.getByLabelText('settings:usage.drawerClose'))
+    const jumpInput = screen.getByLabelText('settings:usage.jumpToPage')
+    fireEvent.change(jumpInput, { target: { value: '4' } })
+    fireEvent.keyDown(jumpInput, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(mocks.invoke).toHaveBeenCalledWith(
+        'usage.logs',
+        expect.objectContaining({ offset: 150, limit: 50 }),
+      )
+    })
   })
 })
