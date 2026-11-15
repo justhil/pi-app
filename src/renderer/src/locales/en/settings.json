@@ -258,6 +258,7 @@
     "presets": {
       "default": "Pi default",
       "claude": "Claude",
+      "amp": "Amp",
       "vscodePlus": "VS Code Light+",
       "codexDark": "Codex Dark"
     },
