@@ -12,10 +12,7 @@ import { join } from 'node:path'
  * Plural suffixes (_one/_other for en, _one/_few/_many for ru) collapse to the base key.
  * KEEP_AS_IS lists the values that are intentionally left in Latin script (product name).
  */
-const PENDING_RU = [
-  'browser',
-  'settings',
-]
+const PENDING_RU = ['settings']
 
 const LOCALES_DIR = join(process.cwd(), 'src/renderer/src/locales')
 
