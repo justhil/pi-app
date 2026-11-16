@@ -23,5 +23,27 @@
   },
   "desktop": "Desktop",
   "probe": "проба",
-  "version": "версия"
+  "version": "версия",
+  "tasks": {
+    "status": {
+      "in_progress": "В работе",
+      "planning": "Планируется",
+      "review": "На проверке",
+      "completed": "Завершено"
+    },
+    "noAdapterId": "Адаптер не привязан ({{panelId}})",
+    "openProjectFirst": "Сначала откройте проект",
+    "loadFailed": "Состояние панели не загрузилось",
+    "retry": "Повторить",
+    "noLayout": "В этом проекте нет структуры рабочей области задач",
+    "needsTrellis": "Нужен `.trellis/` в корне проекта (stateProvider: workspace-trellis)",
+    "activeCount": "Активные задачи ({{count}})",
+    "currentTask": "Текущая задача",
+    "subtaskCount": "подзадач: {{count}}",
+    "subtasks": "Подзадачи",
+    "acceptance": "Критерии приёмки",
+    "empty": "Активных задач нет",
+    "journals": "Свежие журналы",
+    "lines": "строк: {{count}}"
+  }
 }

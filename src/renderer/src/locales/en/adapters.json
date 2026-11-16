@@ -23,5 +23,27 @@
   },
   "desktop": "Desktop",
   "probe": "probe",
-  "version": "version"
+  "version": "version",
+  "tasks": {
+    "status": {
+      "in_progress": "In progress",
+      "planning": "Planning",
+      "review": "In review",
+      "completed": "Completed"
+    },
+    "noAdapterId": "No adapterId bound ({{panelId}})",
+    "openProjectFirst": "Open a project first",
+    "loadFailed": "Cannot load panel state",
+    "retry": "Retry",
+    "noLayout": "This project has no tasks workspace layout",
+    "needsTrellis": "Requires `.trellis/` in the project root (stateProvider: workspace-trellis)",
+    "activeCount": "Active tasks ({{count}})",
+    "currentTask": "Current task",
+    "subtaskCount": "{{count}} subtasks",
+    "subtasks": "Subtasks",
+    "acceptance": "Acceptance criteria",
+    "empty": "No active tasks",
+    "journals": "Recent journals",
+    "lines": "{{count}} lines"
+  }
 }
