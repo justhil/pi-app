@@ -15,7 +15,6 @@ import { join } from 'node:path'
 const PENDING_RU = [
   'adapters',
   'browser',
-  'composer',
   'context',
   'extension',
   'files',
