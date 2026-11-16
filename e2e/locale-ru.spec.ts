@@ -116,8 +116,102 @@ test.describe('Russian locale layout', () => {
         await tab.click()
         await win.waitForTimeout(800)
         await win.screenshot({ path: path.join(SHOT_DIR, `panel-${panel.toLowerCase()}.png`) })
-        const clip = await auditClip(win)
-        expect(clip, `${panel} panel clips Russian labels`).toEqual([])
+        expect(await auditClip(win), `${panel} panel clips Russian labels`).toEqual([])
+      }
+    } finally {
+      await agent.close()
+      model.close()
+    }
+  })
+
+  test('settings sections, popovers and overlays have no clipped Russian text', async () => {
+    test.setTimeout(240_000)
+    const seen: Seen[] = []
+    const model = startScriptedModel(() => ({ text: 'ok' }), seen)
+    const agent = await launchAgentApp(await listen(model), { language: 'ru' })
+    const { win } = agent
+    try {
+      await agent.newSession()
+
+      // Notification board (status bar button) - long Russian hints.
+      await win.locator('button[aria-label="Активность сессий"]').first().click()
+      await win.waitForTimeout(600)
+      await expect(win.getByText('Диалоги не ждут вашего внимания').first()).toBeVisible()
+      await win.screenshot({ path: path.join(SHOT_DIR, 'board.png') })
+      expect(await auditClip(win), 'notification board clips Russian labels').toEqual([])
+      await win.keyboard.press('Escape')
+
+      // Composer popovers: slash command list and file search.
+      const editor = win.locator('[contenteditable="true"]').last()
+      await editor.click()
+      await win.keyboard.type('/')
+      await expect(win.locator('[data-slash-idx]').first()).toBeVisible()
+      await win.waitForTimeout(400)
+      await win.screenshot({ path: path.join(SHOT_DIR, 'slash-popover.png') })
+      expect(await auditClip(win), 'slash popover clips Russian labels').toEqual([])
+      await win.keyboard.press('Escape')
+      await editor.click()
+      await win.keyboard.press('Control+A')
+      await win.keyboard.press('Delete')
+      await win.keyboard.type('@')
+      await expect(win.locator('[data-file-search-idx]').first()).toBeVisible()
+      await win.waitForTimeout(400)
+      await win.screenshot({ path: path.join(SHOT_DIR, 'file-popover.png') })
+      expect(await auditClip(win), 'file search popover clips Russian labels').toEqual([])
+      await win.keyboard.press('Escape')
+
+      // Session tree overlay (Esc Esc in an empty composer, like TUI /tree).
+      await editor.click()
+      await win.keyboard.press('Control+A')
+      await win.keyboard.press('Delete')
+      await agent.send('привет')
+      await expect(win.getByText('ok').first()).toBeVisible({ timeout: 30_000 })
+      await win.waitForTimeout(2000)
+      await win.locator('[contenteditable="true"]').last().click()
+      await win.keyboard.press('Escape')
+      // Double Esc: the hook accepts gaps between 40 and 500 ms.
+      await win.waitForTimeout(150)
+      await win.keyboard.press('Escape')
+      await win.waitForTimeout(1200)
+      const tree = win.locator('[data-tree-overlay]')
+      await tree.waitFor({ state: 'visible', timeout: 10_000 })
+      await win.getByText('Дерево сессии', { exact: true }).first().waitFor({ state: 'visible' })
+      await win.screenshot({ path: path.join(SHOT_DIR, 'tree-overlay.png') })
+      expect(await auditClip(win), 'session tree overlay clips Russian labels').toEqual([])
+      await win.keyboard.press('Escape')
+
+      // Settings sections with the widest Russian labels.
+      await win.locator('button:has-text("Настройки")').first().click()
+      // Sidebar navigation must show every section name in full (no ellipsis cut).
+      const navCut = await win.evaluate(`(() => {
+        const out = []
+        for (const el of document.querySelectorAll('nav a, nav button')) {
+          const text = (el.textContent || '').trim()
+          if (text.length < 2) continue
+          if (el.scrollWidth > el.clientWidth + 1) out.push({ text: text.slice(0, 40), scrollWidth: el.scrollWidth, clientWidth: el.clientWidth })
+        }
+        return out
+      })()`)
+      expect(navCut, 'settings navigation cuts Russian section names').toEqual([])
+      const slug: Record<string, string> = {
+        'MCP': 'mcp',
+        'Маршруты моделей': 'routing',
+        'Промпты': 'prompts',
+        'Runtime': 'runtime',
+        'Скиллы': 'skills',
+        'Голос': 'voice',
+        'Мобильные': 'mobile',
+        'Расширения': 'extensions',
+        'Правые панели': 'right-panels',
+        'Usage': 'usage',
+      }
+      for (const section of Object.keys(slug)) {
+        const nav = win.getByText(section, { exact: true }).first()
+        await nav.waitFor({ state: 'visible' })
+        await nav.click()
+        await win.waitForTimeout(600)
+        await win.screenshot({ path: path.join(SHOT_DIR, `settings-${slug[section]}.png`) })
+        expect(await auditClip(win), `settings section ${section} clips Russian labels`).toEqual([])
       }
     } finally {
       await agent.close()
