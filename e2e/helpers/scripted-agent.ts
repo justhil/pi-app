@@ -150,7 +150,7 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
 
   const pickBrowserMode = async (name: RegExp) => {
     await win.locator('[data-composer-tools]').click()
-    const radio = win.getByRole('radiogroup', { name: /^(Browser|浏览器)$/ }).getByRole('radio', { name })
+    const radio = win.getByRole('radiogroup', { name: /^(Browser|浏览器|Браузер)$/ }).getByRole('radio', { name })
     await radio.waitFor({ state: 'visible' })
     await radio.click()
     await win.keyboard.press('Escape')
@@ -168,10 +168,10 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
       await win.waitForTimeout(1200)
     },
     async enableBrowserControl() {
-      await pickBrowserMode(/^(Built-in|内置)$/)
+      await pickBrowserMode(/^(Built-in|内置|Встроенный)$/)
     },
     async disableBrowserControl() {
-      await pickBrowserMode(/^(Off|关)$/)
+      await pickBrowserMode(/^(Off|关|Выкл)$/)
     },
     async send(message: string) {
       const editor = win.locator('[contenteditable="true"]').last()

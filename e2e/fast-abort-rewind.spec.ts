@@ -17,7 +17,7 @@ test.describe('session switch & fast abort/rewind isolation', () => {
     try {
       await agent.newSession()
       await agent.send('slow first')
-      const stopBtn = win.locator('button[aria-label^="Stop"], button[aria-label^="停止"]').first()
+      const stopBtn = win.locator('button[aria-label^="Stop"], button[aria-label^="停止"], button[aria-label^="Остановить"]').first()
       await stopBtn.waitFor({ state: 'visible', timeout: 15_000 })
       await stopBtn.click()
 
@@ -49,7 +49,7 @@ test.describe('session switch & fast abort/rewind isolation', () => {
       await expect(win.getByText('ok turn one').first()).toBeVisible({ timeout: 30_000 })
 
       await agent.send('second busy turn')
-      await win.locator('button[aria-label^="Stop"], button[aria-label^="停止"]').first().waitFor({
+      await win.locator('button[aria-label^="Stop"], button[aria-label^="停止"], button[aria-label^="Остановить"]').first().waitFor({
         state: 'visible',
         timeout: 15_000,
       })
@@ -58,7 +58,7 @@ test.describe('session switch & fast abort/rewind isolation', () => {
         has: win.locator('.timeline-user-bubble', { hasText: 'turn one' }),
       }).first()
       await firstUserRow.locator('.timeline-user-bubble').hover()
-      const rewindBtn = firstUserRow.locator('button[title*="Jump"], button[title*="Rewind"], button[title*="回退"], button[title*="跳转"]').first()
+      const rewindBtn = firstUserRow.locator('button[title*="Jump"], button[title*="Rewind"], button[title*="回退"], button[title*="跳转"], button[title*="Вернуться"]').first()
       await rewindBtn.waitFor({ state: 'visible', timeout: 5_000 })
       await rewindBtn.click()
 
