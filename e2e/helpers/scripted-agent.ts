@@ -94,7 +94,7 @@ export interface AgentApp {
 }
 
 /** Launch pi Desktop against the scripted model with the Browser panel enabled. */
-export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh'; home?: string; keepHome?: boolean; config?: Record<string, unknown> } = {}): Promise<AgentApp> {
+export async function launchAgentApp(modelPort: number, opts: { language?: 'en' | 'zh' | 'ru'; home?: string; keepHome?: boolean; config?: Record<string, unknown> } = {}): Promise<AgentApp> {
   const home = opts.home ?? fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-agent-'))
   const agentDir = path.join(home, '.pi', 'agent')
   const project = path.join(home, 'code', 'demo')
@@ -126,10 +126,11 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     ...opts.config,
   }))
 
+  const chromiumLang = opts.language === 'ru' ? 'ru-RU' : opts.language === 'zh' ? 'zh-CN' : 'en-US'
   const app = await electron.launch({
     executablePath: electronExecutable,
     // --user-data-dir: Windows ignores XDG_CONFIG_HOME; this pins userData to the test config on every OS.
-    args: [mainEntry, '--ozone-platform=x11', '--lang=en-US', `--user-data-dir=${configDir}`, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
+    args: [mainEntry, '--ozone-platform=x11', `--lang=${chromiumLang}`, `--user-data-dir=${configDir}`, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
     env: {
       ...process.env,
       HOME: home,
@@ -158,7 +159,10 @@ export async function launchAgentApp(modelPort: number, opts: { language?: 'en' 
     home,
     project,
     async newSession() {
-      await win.locator('button[aria-label="New session"], button[aria-label="新建会话"], button[aria-label="新会话"]').first().click()
+      await win
+        .locator('button[aria-label="New session"], button[aria-label="新建会话"], button[aria-label="新会话"], button[aria-label="Новая сессия"]')
+        .first()
+        .click()
       await win.waitForTimeout(1200)
     },
     async enableBrowserControl() {
