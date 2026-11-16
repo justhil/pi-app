@@ -42,7 +42,7 @@
   },
   "commands": {
     "model": "Выбрать модель или посмотреть текущую",
-    "thinking": "Сменить уровень раздумий",
+    "thinking": "Сменить уровень размышлений",
     "clear": "Очистить текущий timeline",
     "compact": "Скомпактировать историю сессии",
     "new": "Новая сессия",
@@ -100,7 +100,7 @@
   "selectModel": "Выбор модели",
   "selectModelHint": "Выбрать модель (клик)",
   "modelLabel": "Модель: {{name}}",
-  "thinkingLevel": "Раздумия: {{level}}",
+  "thinkingLevel": "Размышления: {{level}}",
   "contextLabel": "Контекст",
   "contextHint": "Оценка контекста сессии",
   "messages": "сообщений: {{count}}",
@@ -163,14 +163,14 @@
   "modelNotFound": "Модель не найдена: {{arg}}",
   "switchModelFailed": "Не удалось переключить модель",
   "invalidThinkingLevel": "Недопустимый уровень: {{arg}} (допустимо: {{options}})",
-  "switchThinkingFailed": "Не удалось сменить уровень раздумий",
+  "switchThinkingFailed": "Не удалось сменить уровень размышлений",
   "timelineCleared": "Timeline очищен",
   "compactedHistory": "История сессии скомпактирована",
   "compactionFailed": "Компакция не удалась",
   "noSessionToCompact": "Нет сессии для компакции",
   "thinkingMax": "Максимум",
   "thinkingPicker": {
-    "title": "Уровень раздумий",
+    "title": "Уровень размышлений",
     "subtitle": "Чем выше уровень, тем дольше модель рассуждает и тем больше это стоит времени и токенов",
     "desc": {
       "off": "Отвечать сразу",
@@ -179,22 +179,22 @@
       "medium": "Повседневный стандарт",
       "high": "Сложные правки, отладка",
       "xhigh": "Крупные рефакторинги, трудные баги",
-      "max": "Самые длинные раздумия, медленно и дорого"
+      "max": "Самые длинные размышления, медленно и дорого"
     },
     "unsupported": "Эта модель не поддерживает",
     "current": "Текущий",
     "bound": "Привязан",
     "bindLabel": "Запомнить для этой модели",
     "bindHint": "Применяется при каждом переходе на {{model}}",
-    "bindNoModel": "Выберите модель, чтобы привязать к ней уровень раздумий",
+    "bindNoModel": "Выберите модель, чтобы привязать к ней уровень размышлений",
     "boundToast": "Уровень {{level}} привязан к {{model}}",
-    "unboundToast": "Привязка уровня раздумий для {{model}} удалена",
-    "switched": "Раздумия: {{level}}"
+    "unboundToast": "Привязка уровня размышлений для {{model}} удалена",
+    "switched": "Размышления: {{level}}"
   },
   "recentModels": "Недавние",
   "allModels": "Все модели",
   "modelPickerKeys": "↑↓ выбор · Enter переключение · Esc закрыть",
-  "thinkingChip": "Раздумия: {{level}} (циклически по Shift+Tab)",
+  "thinkingChip": "Размышления: {{level}} (циклически по Shift+Tab)",
   "contextRing": "Контекст {{used}} из {{total}} ({{pct}} %)",
   "tools": {
     "button": "Инструменты",
@@ -248,6 +248,6 @@
       }
     }
   },
-  "thinkingShort": "Раздумия {{level}}",
-  "thinkingPrefix": "Раздумия"
+  "thinkingShort": "Размышления {{level}}",
+  "thinkingPrefix": "Размышления"
 }
