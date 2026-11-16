@@ -628,7 +628,7 @@ export function BrowserPanel() {
           <button
             type="button"
             className={cn(navButton, 'w-auto min-w-7 px-1 text-[11px] tabular-nums', moreMenuOpen && 'bg-[var(--bg-active)]')}
-            title={viewportMode.kind === 'fit' ? t('nav.more') : `${t('nav.more')} · ${t('viewport.title')}：${viewportLabel}`}
+            title={viewportMode.kind === 'fit' ? t('nav.more') : `${t('nav.more')} · ${t('viewport.title')}${t('common:colon')}${viewportLabel}`}
             aria-label={t('nav.more')}
             aria-haspopup="menu"
             aria-expanded={moreMenuOpen}

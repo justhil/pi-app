@@ -146,7 +146,7 @@ function BrowserModeRow({ builtin, chrome, enabled, sessionFile }: { builtin: Ca
         })}
       </div>
       {cost ? <div className="mt-1 text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
-      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}：{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
+      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}{t('common:colon')}{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
     </div>
   )
 }

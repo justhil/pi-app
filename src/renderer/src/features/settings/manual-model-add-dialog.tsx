@@ -83,7 +83,7 @@ export function ManualModelAddDialog({
     for (const id of ids) {
       const v = validateModelId(id)
       if (!v.ok) {
-        problems.push(`「${id}」${v.reason}`)
+        problems.push(tr('models.invalidIdProblem', { id, reason: v.reason }))
         continue
       }
       if (existingIds.has(id)) {

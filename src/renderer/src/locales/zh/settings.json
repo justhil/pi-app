@@ -357,7 +357,8 @@
     "bgSeparateDesc": "单独设置它们的不透明度、材质和模糊；关闭时与其余部分一致。",
     "bgContentOpacity": "聊天区与右侧栏不透明度",
     "bgContentMaterial": "聊天区与右侧栏材质",
-    "bgContentBlur": "聊天区与右侧栏模糊"
+    "bgContentBlur": "聊天区与右侧栏模糊",
+    "sampleGlyph": "Aa 文"
   },
   "pi": {
     "title": "运行时",
@@ -742,7 +743,9 @@
     "inputTextImage": "文本 + 图片",
     "summaryContext": "{{n}} 上下文",
     "summaryCache": "缓存",
-    "thinkingMapHint": "思考等级 → 传给模型的值"
+    "thinkingMapHint": "思考等级 → 传给模型的值",
+    "invalidIdProblem": "「{{id}}」{{reason}}",
+    "presetZhipu": "智谱 GLM"
   },
   "voice": {
     "advancedTitle": "高级",

@@ -5,6 +5,7 @@ import type { PiModelsConfigPayload, PiModelsProviderConfig } from '@shared/ipc-
 import {
   PROVIDER_PRESETS,
   guessPresetForProvider,
+  presetLabel,
   type ProviderPreset,
 } from '@renderer/features/settings/model-provider-presets'
 import { ModelCatalogPicker } from '@renderer/features/settings/model-catalog-picker'
@@ -69,7 +70,7 @@ export function ModelsProviderCard({
   const { t } = useTranslation('settings')
   const p = config.providers[pid]
   const preset = guessPresetForProvider(pid, p)
-  const displayName = p.name || preset?.label || pid
+  const displayName = p.name || presetLabel(preset, t) || pid
   const modelCount = p.models?.length ?? 0
   const hasOverrides = p.modelOverrides && Object.keys(p.modelOverrides).length > 0
 
@@ -124,7 +125,7 @@ export function ModelsProviderCard({
                     <option value="">{t('models.fillFromTemplate')}</option>
                     {PROVIDER_PRESETS.map((pr) => (
                       <option key={pr.id} value={pr.id}>
-                        {pr.label}
+                        {presetLabel(pr, t)}
                       </option>
                     ))}
                   </select>

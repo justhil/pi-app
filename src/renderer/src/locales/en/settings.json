@@ -357,7 +357,8 @@
     "bgSeparateDesc": "Their own opacity, material and blur; off = same as the rest.",
     "bgContentOpacity": "Chat & right panel opacity",
     "bgContentMaterial": "Chat & right panel material",
-    "bgContentBlur": "Chat & right panel blur"
+    "bgContentBlur": "Chat & right panel blur",
+    "sampleGlyph": "Aa"
   },
   "pi": {
     "title": "Runtime",
@@ -744,7 +745,9 @@
     "inputTextImage": "Text + image",
     "summaryContext": "{{n}} context",
     "summaryCache": "cache",
-    "thinkingMapHint": "Thinking level → value sent to the model"
+    "thinkingMapHint": "Thinking level → value sent to the model",
+    "invalidIdProblem": "\"{{id}}\": {{reason}}",
+    "presetZhipu": "Zhipu GLM"
   },
   "voice": {
     "advancedTitle": "Advanced",

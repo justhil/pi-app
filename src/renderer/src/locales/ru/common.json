@@ -254,7 +254,8 @@
     "terminalsAlso_one": "Оно завершит и процесс в {{count}} терминале.",
     "terminalsAlso_few": "Оно завершит и процессы в {{count}} терминалах.",
     "terminalsAlso_many": "Оно завершит и процессы в {{count}} терминалах.",
-    "closeTerminals": "Закрыть"
+    "closeTerminals": "Закрыть",
+    "dragResizeWidth": "Перетащите, чтобы изменить ширину"
   },
   "notification": {
     "sessionGone": "Эта сессия удалена или недоступна",
@@ -313,7 +314,15 @@
     "sessionTree": "Открыть дерево сессий",
     "shortcuts": "Горячие клавиши",
     "waitingSection": "Ждут вас",
-    "doneSection": "Только что завершено"
+    "doneSection": "Только что завершено",
+    "keywords": {
+      "settings": "settings настройки параметры",
+      "composer": "composer композер ввод сообщение текст",
+      "files": "files панель файлы проводник",
+      "run": "run запуск статус метрики",
+      "git": "git ветка переключение checkout",
+      "shortcuts": "shortcuts горячие клавиши клавиатура справка"
+    }
   },
   "shortcuts": {
     "title": "Горячие клавиши",
@@ -392,5 +401,8 @@
     },
     "focusHint": "Слишком узко для всех панелей — показаны вкладками. Раскладка меняется здесь"
   },
-  "listSeparator": ", "
+  "listSeparator": ", ",
+  "parenOpen": " (",
+  "parenClose": ")",
+  "colon": ": "
 }
