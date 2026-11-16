@@ -259,5 +259,21 @@
     "earlierCalls": "Показать предыдущих вызовов: {{count}}",
     "collapseCalls": "Свернуть предыдущие вызовы",
     "modelCost": "Запросы модели: {{cost}}"
+  },
+  "previews": {
+    "written": "Записано",
+    "saved": "Сохранено",
+    "noDiff": "Нет деталей diff",
+    "lines_one": "строк: {{count}}",
+    "lines_few": "строки: {{count}}",
+    "lines_many": "строк: {{count}}",
+    "matches_one": "совпадений: {{count}}",
+    "matches_few": "совпадений: {{count}}",
+    "matches_many": "совпадений: {{count}}",
+    "noResults": "Результатов нет",
+    "expandAll_one": "Показать все совпадений: {{count}}",
+    "expandAll_few": "Показать все совпадений: {{count}}",
+    "expandAll_many": "Показать все совпадений: {{count}}",
+    "noOutput": "Вывода нет"
   }
 }

@@ -254,5 +254,15 @@
     "earlierCalls": "展开更早的 {{count}} 次调用",
     "collapseCalls": "收起较早调用",
     "modelCost": "模型调用: {{cost}}"
+  },
+  "previews": {
+    "written": "写入",
+    "saved": "已保存",
+    "noDiff": "无 diff 详情",
+    "lines": "{{count}} 行",
+    "matches": "{{count}} 条",
+    "noResults": "无结果",
+    "expandAll": "展开全部 {{count}} 条",
+    "noOutput": "无输出"
   }
 }
