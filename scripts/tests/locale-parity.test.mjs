@@ -18,6 +18,84 @@ const LOCALES_DIR = join(process.cwd(), 'src/renderer/src/locales')
 
 const KEEP_AS_IS = new Set(['app.name'])
 
+/**
+ * Latin terms and brand names left untranslated by design (panel names, protocols,
+ * key combos, search engines). An ru value identical to en is only accepted when
+ * every latin word in it is listed here - that keeps the guard from firing on
+ * strings like "AI · {{action}}" while still catching whole untranslated sentences.
+ */
+const UNTRANSLATED_TERMS = new Set([
+  'AI',
+  'Adapters',
+  'Alt',
+  'API',
+  'ASR',
+  'aria2',
+  'aria2c',
+  'Baidu',
+  'Bing',
+  'Board',
+  'Browser',
+  'ChatGPT',
+  'Chrome',
+  'CLI',
+  'Context',
+  'Ctrl',
+  'CSV',
+  'Desktop',
+  'DevTools',
+  'Developer',
+  'DuckDuckGo',
+  'Esc',
+  'Files',
+  'GB',
+  'Git',
+  'git',
+  'Google',
+  'GPU',
+  'HEAD',
+  'hunk',
+  'JSON',
+  'KPI',
+  'Load',
+  'Markdown',
+  'MCP',
+  'MB',
+  'mode',
+  'MCP',
+  'OK',
+  'panel',
+  'Panel',
+  'Pi',
+  'pi',
+  'PDF',
+  'protocol',
+  'Review',
+  'Run',
+  'Search',
+  'Settings',
+  'Shift',
+  'Split',
+  'Tab',
+  'token',
+  'tokens',
+  'Tools',
+  'Tree',
+  'Trellis',
+  'TUI',
+  'UI',
+  'unpacked',
+  'Unified',
+  'Usage',
+  'worktree',
+  'WSL',
+])
+
+/** Latin words of a string, ignoring `{{interpolation}}` and punctuation. */
+function latinWords(value) {
+  return value.replace(/\{\{[^}]*\}\}/g, ' ').match(/[A-Za-z][A-Za-z0-9+./-]*/g) ?? []
+}
+
 function loadJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
 }
@@ -90,8 +168,11 @@ test('ru namespaces stay non-latin and never a copy of en', () => {
       if (KEEP_AS_IS.has(p)) return false
       const value = leafValue(ru, p)
       const enValue = enByPath.get(p.replace(/_(one|few|many)$/, '_other')) ?? enByPath.get(p)
-      // Terms kept on purpose (panel names, MCP, Git, worktree, …) are short single words.
-      return typeof value === 'string' && value === enValue && value.split(/\s+/).length > 1
+      // A value identical to en is a copy only when it carries latin words that are
+      // not established terms (Review, MCP, Git, Chrome, aria2, Ctrl+0, …).
+      return (
+        typeof value === 'string' && value === enValue && latinWords(value).some((w) => !UNTRANSLATED_TERMS.has(w))
+      )
     })
     assert.deepEqual(copied, [], `ru/${ns}.json copies en verbatim: ${copied.slice(0, 6).join(', ')}`)
   }
