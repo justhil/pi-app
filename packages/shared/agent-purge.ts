@@ -1,5 +1,7 @@
-import { BUILTIN_AGENT_PURGE_PERSONAS } from './agent-purge-presets'
+import { BUILTIN_AGENT_PURGE_PERSONAS, type LocalizedPersonaCopy, type PersonaUiLanguage } from './agent-purge-presets'
 import { normalizeSessionFileKey } from './session-file-key'
+
+export type { LocalizedPersonaCopy, PersonaUiLanguage } from './agent-purge-presets'
 
 export const AGENT_PURGE_MODES = ['replace', 'append', 'strict'] as const
 export type AgentPurgeMode = (typeof AGENT_PURGE_MODES)[number]
@@ -12,6 +14,8 @@ export interface AgentPurgePersona {
   builtin?: boolean
   order?: number
   updatedAt?: number
+  /** Display copy for the persona lists, keyed by app language. Never affects the prompt body. */
+  i18n?: Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>>
 }
 
 export interface AgentPurgeConfig {
@@ -151,7 +155,45 @@ export function defaultAgentPurgePersonas(): AgentPurgePersona[] {
     body: p.body,
     builtin: true,
     order: p.order,
+    ...(p.i18n ? { i18n: p.i18n } : {}),
   }))
+}
+
+/** App language (i18next strings like `zh-CN`) -> the persona copy key. */
+export function personaLanguage(language: string | undefined): PersonaUiLanguage {
+  const raw = String(language ?? '').toLowerCase()
+  if (raw.startsWith('ru')) return 'ru'
+  if (raw.startsWith('zh')) return 'zh'
+  return 'en'
+}
+
+/**
+ * The name/description to show for a persona in the given UI language, falling back to the
+ * shipped copy. The prompt body is never touched here - only the list labels are localized.
+ */
+export function personaCopy(
+  persona: Pick<AgentPurgePersona, 'name' | 'description' | 'i18n'>,
+  language: PersonaUiLanguage,
+): { name: string; description: string } {
+  const localized = persona.i18n?.[language]
+  return {
+    name: localized?.name?.trim() || persona.name,
+    description: localized?.description?.trim() || persona.description,
+  }
+}
+
+function normalizePersonaI18n(raw: unknown): Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>> = {}
+  for (const language of ['en', 'zh', 'ru'] as const) {
+    const entry = (raw as Record<string, unknown>)[language]
+    if (!entry || typeof entry !== 'object') continue
+    const e = entry as Record<string, unknown>
+    const name = typeof e.name === 'string' ? e.name.trim() : ''
+    const description = typeof e.description === 'string' ? e.description.trim() : ''
+    if (name) out[language] = { ...(name ? { name } : {}), ...(description ? { description } : {}) }
+  }
+  return Object.keys(out).length ? out : undefined
 }
 
 export function defaultAgentPurgeConfig(): AgentPurgeConfig {
@@ -187,11 +229,13 @@ export function normalizeAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
       const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : builtinSeed?.name || rawId
       const description =
         typeof p.description === 'string' ? p.description.trim() : builtinSeed?.description || ''
+      const i18n = normalizePersonaI18n(p.i18n) ?? builtinSeed?.i18n
       byId.set(rawId, {
         id: rawId,
         name,
         description,
         body,
+        ...(i18n ? { i18n } : {}),
         ...(builtinSeed ? { builtin: true, order: builtinSeed.order } : {}),
         ...(typeof p.order === 'number' && Number.isFinite(p.order) ? { order: p.order } : {}),
         ...(typeof p.updatedAt === 'number' && Number.isFinite(p.updatedAt) ? { updatedAt: p.updatedAt } : {}),

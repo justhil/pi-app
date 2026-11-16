@@ -5,6 +5,8 @@ import {
   AGENT_PURGE_MODES,
   defaultAgentPurgeConfig,
   normalizeAgentPurgeConfig,
+  personaCopy,
+  personaLanguage,
   sanitizePurgePersonaId,
   type AgentPurgeConfig,
   type AgentPurgeMode,
@@ -28,7 +30,8 @@ function estimateTokens(text: string): number {
 }
 
 export function PurgeSettingsPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = personaLanguage(i18n.language)
   const storeConfig = useAgentPurgeStore((s) => s.config)
   const localDir = useAgentPurgeStore((s) => s.localDir)
 
@@ -222,7 +225,7 @@ export function PurgeSettingsPanel() {
           >
             {draftConfig.personas.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}
+                {personaCopy(p, lang).name}
               </option>
             ))}
           </select>
@@ -300,7 +303,7 @@ export function PurgeSettingsPanel() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="truncate text-[13px] font-medium">{p.name}</span>
+                    <span className="truncate text-[13px] font-medium">{personaCopy(p, lang).name}</span>
                     <div className="flex shrink-0 items-center gap-1">
                       {isDefault ? (
                         <span className="settings-badge text-[10px]">

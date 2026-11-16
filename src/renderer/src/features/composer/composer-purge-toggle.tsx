@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AGENT_PURGE_MODES, type AgentPurgeMode } from '@shared/agent-purge'
+import { AGENT_PURGE_MODES, personaCopy, personaLanguage, type AgentPurgeMode } from '@shared/agent-purge'
 import { Bot, Check, ChevronDown, Settings } from '@renderer/components/icons'
 import {
   loadAgentPurgeState,
@@ -28,7 +28,8 @@ export function ComposerPurgeToggle({
   draftContextKey: string
   running?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = personaLanguage(i18n.language)
   const [menuOpen, setMenuOpen] = useState(false)
 
   const historySessionFile = useUIStore((s) => s.historySessionFile)
@@ -73,8 +74,11 @@ export function ComposerPurgeToggle({
 
   if (uiState.status === 'locked-on') {
     const modeLabel = t(`composer:purge.modes.${uiState.mode}`)
+    // The lock stores the name as it was at lock time; show the localized label when the persona is known.
+    const lockedPersona = config.personas.find((p) => p.id === uiState.personaId)
+    const displayName = lockedPersona ? personaCopy(lockedPersona, lang).name : uiState.personaName
     const title = t('composer:purge.lockedOnHint', {
-      name: uiState.personaName,
+      name: displayName,
       mode: modeLabel,
     })
     return (
@@ -89,7 +93,7 @@ export function ComposerPurgeToggle({
         className="flex h-7 shrink-0 cursor-not-allowed items-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-2 text-[12px] font-medium text-foreground/65 opacity-60"
       >
         <Bot className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
-        <span className="max-w-[76px] truncate">{shortPersonaLabel(uiState.personaName)}</span>
+        <span className="max-w-[76px] truncate">{shortPersonaLabel(displayName)}</span>
         <Check className="h-3 w-3 shrink-0 opacity-80" strokeWidth={2.2} />
       </button>
     )
@@ -116,9 +120,10 @@ export function ComposerPurgeToggle({
 
   const active = uiState.checked
   const currentModeLabel = t(`composer:purge.modes.${uiState.mode}`)
+  const draftName = personaCopy(uiState.persona, lang).name
   const toggleTitle = active
-    ? t('composer:purge.activeDraftHint', { name: uiState.persona.name, mode: currentModeLabel })
-    : t('composer:purge.inactiveDraftHint', { name: uiState.persona.name })
+    ? t('composer:purge.activeDraftHint', { name: draftName, mode: currentModeLabel })
+    : t('composer:purge.inactiveDraftHint', { name: draftName })
 
   return (
     <div data-composer-purge-anchor className="relative flex shrink-0 items-center">
@@ -142,7 +147,7 @@ export function ComposerPurgeToggle({
         >
           <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.85} />
           <span className="max-w-[76px] truncate">
-            {active ? shortPersonaLabel(uiState.persona.name) : t('composer:purge.shortLabel')}
+            {active ? shortPersonaLabel(draftName) : t('composer:purge.shortLabel')}
           </span>
         </button>
         <button
@@ -184,6 +189,7 @@ export function ComposerPurgeToggle({
           <div className="max-h-44 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
             {config.personas.map((p) => {
               const selected = p.id === uiState.persona.id
+              const copy = personaCopy(p, lang)
               return (
                 <button
                   key={p.id}
@@ -199,10 +205,10 @@ export function ComposerPurgeToggle({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-foreground">{p.name}</div>
-                    {p.description ? (
+                    <div className="truncate text-[12px] font-medium text-foreground">{copy.name}</div>
+                    {copy.description ? (
                       <div className="line-clamp-1 text-[10.5px] text-muted-foreground/75">
-                        {p.description}
+                        {copy.description}
                       </div>
                     ) : null}
                   </div>
