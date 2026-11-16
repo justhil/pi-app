@@ -60,6 +60,8 @@ const UNTRANSLATED_TERMS = new Set([
   'GB',
   'GPU',
   'Git',
+  'GLM',
+  'Zhipu',
   'GitHub',
   'Google',
   'HEAD',
