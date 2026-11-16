@@ -220,19 +220,19 @@ export function SessionTreeList({
                   })() : null}
                   <span
                     className={cn(
-                      'min-w-0 flex-1 truncate text-[12px] leading-[26px]',
+                      'min-w-0 truncate text-[12px] leading-[26px]',
                       n.entryType === 'message' && n.role === 'user' ? 'text-foreground' : 'text-foreground-secondary',
                     )}
                     title={sessionTreeLineTitle(n, t)}
                   >
                     {sessionTreeLineTitle(n, t)}
-                    {n.isLeaf && (
-                      <span className="panel-tag ml-1.5 gap-0.5 align-middle">
-                        <ArrowLeft className="h-3 w-3" strokeWidth={2} />
-                        {t('timeline:treeCurrentTag')}
-                      </span>
-                    )}
                   </span>
+                  {n.isLeaf && (
+                    <span className="panel-tag shrink-0 gap-0.5">
+                      <ArrowLeft className="h-3 w-3" strokeWidth={2} />
+                      {t('timeline:treeCurrentTag')}
+                    </span>
+                  )}
                 </span>
               </button>
               {trailing != null && (

@@ -18,6 +18,7 @@ import { SettingsPageHeader } from './settings-shell'
 import { PiSettingsSdkSection } from './pi-settings-sdk-section'
 import { PiSettingsFormSections } from './pi-settings-form-sections'
 import { PiSettingsEnvAuthRows } from './pi-settings-env-auth-rows'
+import { SessionWorkersSection } from './session-workers-section'
 import { savePiSettingsDraft } from './save-pi-settings'
 import { ensureAvailableModels } from '@renderer/lib/available-models-cache'
 
@@ -264,6 +265,8 @@ export function PiSettingsPanel() {
         />
         {ui && <PiSettingsEnvAuthRows info={info} ui={ui} />}
       </SettingsSection>
+
+      <SessionWorkersSection />
 
       {ui && (
         <PiSettingsFormSections

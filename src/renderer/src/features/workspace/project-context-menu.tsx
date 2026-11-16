@@ -128,11 +128,19 @@ export function ProjectContextMenuPortal({
         const nextPath = (!target.isRepositoryGroup && target.siblingPaths?.[0]) || nextRecent[0]
         if (nextPath) await activateWorkspace(nextPath, { preferHome: true })
         else {
-          store.setWorkspace(null)
-          store.setCurrentSession(null)
-          store.clearTimeline()
-          store.setHistoryMeta(0, 0, null)
-          store.setSessions([])
+          useUIStore.setState({
+            currentWorkspace: null,
+            currentSessionId: null,
+            historySessionFile: null,
+            historyTotalCount: 0,
+            historyLoadedCount: 0,
+            timelineItems: [],
+            streamingAssistantId: null,
+            optimisticPendingUserText: null,
+            agentTurnBootstrapping: false,
+            pendingTurnStage: null,
+            sessions: [],
+          })
           await ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
         }
       }

@@ -1,81 +1,158 @@
 export type ThemeVariantKey = 'light' | 'dark'
 
-export const DISABLE_CUSTOM_THEME_CLI_FLAG = '--disable-custom-theme'
-export const CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT = '--pi-custom-theme-disabled=1'
-export const CUSTOM_THEME_ENABLED_RENDERER_ARGUMENT = '--pi-custom-theme-disabled=0'
+export const THEME_COLOR_KEYS = ['sidebar', 'chat', 'userBubble', 'codeBg', 'border'] as const
+export type ThemeColorOverrides = Partial<Record<(typeof THEME_COLOR_KEYS)[number], string>>
 
-export const CUSTOM_THEME_STYLE_ID = 'pi-custom-theme'
-export const CUSTOM_THEME_CSS_CACHE_KEY = 'pi-desktop-theme-css'
-export const CUSTOM_CSS_OVERRIDE_STYLE_ID = 'pi-custom-css'
-export const CUSTOM_CSS_OVERRIDE_CACHE_KEY = 'pi-desktop-custom-css'
+export const FRAME_STYLES = ['paper', 'island', 'flat'] as const
+export type ThemeFrameStyle = (typeof FRAME_STYLES)[number]
 
-/** 一份变体配置；字段形状取 codex-theme-v1 的 theme 对象超集 */
+export const MESSAGE_STYLES = ['bubble', 'editorial', 'card'] as const
+export type ThemeMessageStyle = (typeof MESSAGE_STYLES)[number]
+
+export const THEME_DENSITIES = ['compact', 'default', 'relaxed'] as const
+export type ThemeDensity = (typeof THEME_DENSITIES)[number]
+
+export const ACCENT_PRESENCES = ['subtle', 'balanced', 'vivid'] as const
+export type ThemeAccentPresence = (typeof ACCENT_PRESENCES)[number]
+
+export const SURFACE_MATERIALS = ['solid', 'bevel', 'frosted', 'liquid-glass'] as const
+export type ThemeSurfaceMaterial = (typeof SURFACE_MATERIALS)[number]
+
+export const WINDOW_MATERIALS = ['none', 'mica', 'acrylic', 'tabbed'] as const
+export type ThemeWindowMaterial = (typeof WINDOW_MATERIALS)[number]
+
+export const BACKDROP_PRESETS = ['none', 'ambient', 'dots', 'grid', 'grain'] as const
+export type ThemeBackdropPreset = (typeof BACKDROP_PRESETS)[number]
+
+export const SHIKI_THEME_IDS = [
+  'github-light',
+  'github-dark',
+  'vitesse-light',
+  'vitesse-dark',
+  'everforest-light',
+  'everforest-dark',
+  'catppuccin-latte',
+  'catppuccin-mocha',
+  'rose-pine-dawn',
+  'rose-pine',
+  'tokyo-night',
+  'kanagawa-wave',
+  'vesper',
+  'nord',
+  'one-dark-pro',
+] as const
+export type ShikiThemeId = (typeof SHIKI_THEME_IDS)[number]
+
 export type ThemeVariant = {
-  /** 预设 id；字段被改动后置 null（= 自定义） */
   preset: string | null
   accent: string
   surface: string
   ink: string
-  /** 0-100，surface↔ink 灰阶插值强度 */
   contrast: number
-  /** 本机字体名，前置到默认栈之前；null = 默认栈 */
   fontUi: string | null
   fontCode: string | null
-  /** codex opaqueWindows 取反 */
   translucentSidebar: boolean
   diffAdded?: string
   diffRemoved?: string
-  /** Surface overrides; a missing key = derived from surface / ink. */
+  /** Optional per-surface hex overrides; unset keys stay derived from surface/ink. */
   colors?: ThemeColorOverrides
-  /** Headings (and prose, see `proseFont`): a local font name, or `serif` for the built-in serif stack. */
-  fontDisplay?: string | null
-  /** Assistant prose in the UI font or the display font. */
+  /** `'serif'` uses the built-in serif stack; any other string is a family name; unset = UI font. */
+  fontDisplay?: string
+  /** `'display'` sets assistant prose in the display font; `'ui'` or unset keeps UI sans. */
   proseFont?: 'ui' | 'display'
-  /** Chat text size (px) and line height. */
+  /** Assistant prose size in px, 12–18. */
   chatFontSize?: number
+  /** Assistant prose line-height, 1.3–2.0. */
   chatLineHeight?: number
-  /** Corner radius base (px), 0–16. */
+  /** Base control radius in px, 0–20; paper radius scales with it. */
   radius?: number
-  /** Shadow strength 0–100 (50 = default). */
+  /** Paper shadow strength, 0 (flat) – 100. */
   shadow?: number
+
+  /* ---- Render FX, Layout & Syntax Primitives ---- */
+  /** Workbench shell geometry: default paper corner, floating island panes, or sharp flat IDE split. */
+  frameStyle?: ThemeFrameStyle
+  /** Conversation row presentation: right bubble, left-accent editorial bar, or bordered cards. */
+  messageStyle?: ThemeMessageStyle
+  /** Max prose column width in px (640–1400), or `0` for 100% full width. */
+  contentWidth?: number
+  /** Global spacing density across sidebar, timeline, and tool rows. */
+  density?: ThemeDensity
+  /** How strongly `--brand` participates in active indicators, user bars, tabs, and primary actions. */
+  accentPresence?: ThemeAccentPresence
+  /** Optical surface treatment for floating chrome (Composer dock, popovers, overlays, pills). */
+  surfaceMaterial?: ThemeSurfaceMaterial
+  /** Native OS compositor backdrop (Win11 Mica/Acrylic/Tabbed, macOS Vibrancy). */
+  windowMaterial?: ThemeWindowMaterial
+  /** Edge lens refraction scale (0–48) when `surfaceMaterial === 'liquid-glass'`. */
+  glassRefraction?: number
+  /** Backdrop frost blur radius in px (0–28) for `frosted` / `liquid-glass`. */
+  glassFrost?: number
+  /** Tint opacity (0.15–0.96) for translucent chrome surfaces. */
+  glassTintAlpha?: number
+  /** Asymmetric top specular rim intensity (0–1). */
+  glassSpecular?: number
+  /** Subtle chromatic rim dispersion highlight on liquid glass edges. */
+  glassDispersion?: boolean
+  /** Built-in procedural backdrop stage (requires zero external wallpaper images). */
+  backdropPreset?: ThemeBackdropPreset
+  /** Procedural backdrop strength (0.05–1). */
+  backdropIntensity?: number
+  /** Syntax highlighting theme for chat and file preview code blocks. */
+  codeTheme?: ShikiThemeId
 }
 
-export type ThemeColorOverrides = { sidebar?: string; chat?: string; userBubble?: string; codeBg?: string; border?: string }
-export const THEME_COLOR_KEYS = ['sidebar', 'chat', 'userBubble', 'codeBg', 'border'] as const
+export type CustomTheme = {
+  light?: ThemeVariant
+  dark?: ThemeVariant
+}
 
-export const THEME_LIMITS = {
-  chatFontSize: [12, 18],
-  chatLineHeight: [1.3, 2],
-  radius: [0, 16],
-  shadow: [0, 100],
-} as const
-
-/** 槽位缺省 = 该变体未定制 */
-export type CustomTheme = { light?: ThemeVariant; dark?: ThemeVariant }
-
-/** 自由 CSS 是结构化主题之后的独立覆盖层。 */
 export type CustomCssOverride = {
   enabled: boolean
   css: string
 }
 
-export const DEFAULT_CUSTOM_CSS_OVERRIDE: CustomCssOverride = { enabled: false, css: '' }
-export const DEFAULT_THEME_CONTRAST: Record<ThemeVariantKey, number> = { light: 45, dark: 60 }
+export const DEFAULT_CUSTOM_THEME: CustomTheme = {}
+
+export const DEFAULT_CUSTOM_CSS_OVERRIDE: CustomCssOverride = {
+  enabled: false,
+  css: '',
+}
+
+export const DEFAULT_THEME_CONTRAST: Record<ThemeVariantKey, number> = {
+  light: 45,
+  dark: 60,
+}
+
+export const CUSTOM_THEME_CSS_CACHE_KEY = 'pi-desktop-theme-css'
+export const CUSTOM_CSS_OVERRIDE_CACHE_KEY = 'pi-desktop-custom-css'
+export const CUSTOM_THEME_STYLE_ID = 'pi-custom-theme'
+export const CUSTOM_CSS_OVERRIDE_STYLE_ID = 'pi-custom-css'
+export const CUSTOM_SNIPPETS_STYLE_ID = 'pi-custom-snippets'
+export const DISABLE_CUSTOM_THEME_CLI_FLAG = '--disable-custom-theme'
+export const CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT = '--pi-custom-theme-disabled=1'
+export const CUSTOM_THEME_ENABLED_RENDERER_ARGUMENT = '--pi-custom-theme-disabled=0'
+export const MAX_CUSTOM_CSS_LENGTH = 50_000
 
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
-/** 只接受 #rgb / #rrggbb，统一展开为小写 #rrggbb */
-export function normalizeHexColor(raw: unknown): string | null {
-  const s = String(raw ?? '').trim().toLowerCase()
-  if (!HEX_COLOR_RE.test(s)) return null
-  if (s.length === 7) return s
-  return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`
+function expandHexColor(raw: string): string {
+  const value = raw.trim().toLowerCase()
+  if (value.length === 4) {
+    return `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}`
+  }
+  return value
 }
 
-/** 本机字体名：去掉能撑破 CSS 声明的字符，空串归一为 null */
+export function normalizeHexColor(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !HEX_COLOR_RE.test(raw.trim())) return null
+  return expandHexColor(raw)
+}
+
 export function normalizeFontName(raw: unknown): string | null {
+  if (raw == null) return null
   let sanitized = ''
-  for (const char of String(raw ?? '')) {
+  for (const char of String(raw)) {
     const code = char.charCodeAt(0)
     if (code < 32 || code === 127) {
       if (/\s/.test(char)) sanitized += ' '
@@ -88,69 +165,117 @@ export function normalizeFontName(raw: unknown): string | null {
   return name ? name.slice(0, 80) : null
 }
 
-export function normalizeThemeVariant(raw: unknown, key: ThemeVariantKey): ThemeVariant | null {
-  if (!raw || typeof raw !== 'object') return null
-  const v = raw as Record<string, unknown>
-  const accent = normalizeHexColor(v.accent)
-  const surface = normalizeHexColor(v.surface)
-  const ink = normalizeHexColor(v.ink)
-  if (!accent || !surface || !ink) return null
+function clampRange(raw: unknown, min: number, max: number, round = true): number | undefined {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN
+  if (!Number.isFinite(n)) return undefined
+  const c = Math.min(max, Math.max(min, n))
+  return round ? Math.round(c) : Math.round(c * 100) / 100
+}
 
-  const contrastRaw = typeof v.contrast === 'number' ? v.contrast : Number(v.contrast)
+function pickEnum<T extends string>(raw: unknown, allowed: readonly T[]): T | undefined {
+  return typeof raw === 'string' && (allowed as readonly string[]).includes(raw) ? (raw as T) : undefined
+}
+
+export function normalizeThemeExtras(raw: Record<string, unknown>): Partial<ThemeVariant> {
+  const out: Partial<ThemeVariant> = {}
+  if (raw.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors)) {
+    const src = raw.colors as Record<string, unknown>
+    const colors: ThemeColorOverrides = {}
+    for (const key of THEME_COLOR_KEYS) {
+      const hex = normalizeHexColor(src[key])
+      if (hex) colors[key] = hex
+    }
+    if (Object.keys(colors).length) out.colors = colors
+  }
+  const fontDisplay = raw.fontDisplay === 'serif' ? 'serif' : normalizeFontName(raw.fontDisplay)
+  if (fontDisplay) out.fontDisplay = fontDisplay
+  if (raw.proseFont === 'ui' || raw.proseFont === 'display') out.proseFont = raw.proseFont
+  const chatFontSize = clampRange(raw.chatFontSize, 12, 18)
+  if (chatFontSize !== undefined) out.chatFontSize = chatFontSize
+  const chatLineHeight = clampRange(raw.chatLineHeight, 1.3, 2, false)
+  if (chatLineHeight !== undefined) out.chatLineHeight = chatLineHeight
+  const radius = clampRange(raw.radius, 0, 20)
+  if (radius !== undefined) out.radius = radius
+  const shadow = clampRange(raw.shadow, 0, 100)
+  if (shadow !== undefined) out.shadow = shadow
+
+  const frameStyle = pickEnum(raw.frameStyle, FRAME_STYLES)
+  if (frameStyle) out.frameStyle = frameStyle
+  const messageStyle = pickEnum(raw.messageStyle, MESSAGE_STYLES)
+  if (messageStyle) out.messageStyle = messageStyle
+  if (raw.contentWidth === 0 || raw.contentWidth === '0') {
+    out.contentWidth = 0
+  } else {
+    const contentWidth = clampRange(raw.contentWidth, 640, 1400)
+    if (contentWidth !== undefined) out.contentWidth = contentWidth
+  }
+  const density = pickEnum(raw.density, THEME_DENSITIES)
+  if (density) out.density = density
+  const accentPresence = pickEnum(raw.accentPresence, ACCENT_PRESENCES)
+  if (accentPresence) out.accentPresence = accentPresence
+
+  const surfaceMaterial = pickEnum(raw.surfaceMaterial, SURFACE_MATERIALS)
+  if (surfaceMaterial) out.surfaceMaterial = surfaceMaterial
+  const windowMaterial = pickEnum(raw.windowMaterial, WINDOW_MATERIALS)
+  if (windowMaterial) out.windowMaterial = windowMaterial
+  const glassRefraction = clampRange(raw.glassRefraction, 0, 48)
+  if (glassRefraction !== undefined) out.glassRefraction = glassRefraction
+  const glassFrost = clampRange(raw.glassFrost, 0, 28)
+  if (glassFrost !== undefined) out.glassFrost = glassFrost
+  const glassTintAlpha = clampRange(raw.glassTintAlpha, 0.15, 0.96, false)
+  if (glassTintAlpha !== undefined) out.glassTintAlpha = glassTintAlpha
+  const glassSpecular = clampRange(raw.glassSpecular, 0, 1, false)
+  if (glassSpecular !== undefined) out.glassSpecular = glassSpecular
+  if (typeof raw.glassDispersion === 'boolean') out.glassDispersion = raw.glassDispersion
+
+  const backdropPreset = pickEnum(raw.backdropPreset, BACKDROP_PRESETS)
+  if (backdropPreset) out.backdropPreset = backdropPreset
+  const backdropIntensity = clampRange(raw.backdropIntensity, 0.05, 1, false)
+  if (backdropIntensity !== undefined) out.backdropIntensity = backdropIntensity
+
+  const codeTheme = pickEnum(raw.codeTheme, SHIKI_THEME_IDS)
+  if (codeTheme) out.codeTheme = codeTheme
+
+  return out
+}
+
+export function normalizeThemeVariant(raw: unknown, variant: ThemeVariantKey): ThemeVariant | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  const accent = normalizeHexColor(value.accent)
+  const surface = normalizeHexColor(value.surface)
+  const ink = normalizeHexColor(value.ink)
+  if (!accent || !surface || !ink) return undefined
+
+  const contrastRaw = typeof value.contrast === 'number' ? value.contrast : Number(value.contrast)
   const contrast = Number.isFinite(contrastRaw)
     ? Math.min(100, Math.max(0, contrastRaw))
-    : DEFAULT_THEME_CONTRAST[key]
-  const diffAdded = normalizeHexColor(v.diffAdded)
-  const diffRemoved = normalizeHexColor(v.diffRemoved)
-  const extras = normalizeThemeExtras(v)
+    : DEFAULT_THEME_CONTRAST[variant]
+
+  const diffAdded = normalizeHexColor(value.diffAdded) ?? undefined
+  const diffRemoved = normalizeHexColor(value.diffRemoved) ?? undefined
+  const preset = typeof value.preset === 'string' && value.preset.trim() ? value.preset.trim() : null
 
   return {
-    preset: typeof v.preset === 'string' ? v.preset : null,
+    preset,
     accent,
     surface,
     ink,
     contrast,
-    fontUi: normalizeFontName(v.fontUi),
-    fontCode: normalizeFontName(v.fontCode),
-    translucentSidebar: v.translucentSidebar === true,
+    fontUi: normalizeFontName(value.fontUi),
+    fontCode: normalizeFontName(value.fontCode),
+    translucentSidebar: typeof value.translucentSidebar === 'boolean' ? value.translucentSidebar : true,
     ...(diffAdded ? { diffAdded } : {}),
     ...(diffRemoved ? { diffRemoved } : {}),
-    ...extras,
+    ...normalizeThemeExtras(value),
   }
-}
-
-function clampNumber(raw: unknown, [min, max]: readonly [number, number]): number | undefined {
-  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined
-}
-
-/** The optional fields added after v1 (colors, typography, shape); invalid values are dropped. */
-export function normalizeThemeExtras(v: Record<string, unknown>): Partial<ThemeVariant> {
-  const out: Partial<ThemeVariant> = {}
-  if (v.colors && typeof v.colors === 'object') {
-    const src = v.colors as Record<string, unknown>
-    const colors: ThemeColorOverrides = {}
-    for (const k of THEME_COLOR_KEYS) {
-      const c = normalizeHexColor(src[k])
-      if (c) colors[k] = c
-    }
-    if (Object.keys(colors).length) out.colors = colors
-  }
-  const display = v.fontDisplay === 'serif' ? 'serif' : normalizeFontName(v.fontDisplay)
-  if (display) out.fontDisplay = display
-  if (v.proseFont === 'ui' || v.proseFont === 'display') out.proseFont = v.proseFont
-  for (const k of ['chatFontSize', 'chatLineHeight', 'radius', 'shadow'] as const) {
-    const n = clampNumber(v[k], THEME_LIMITS[k])
-    if (n !== undefined) out[k] = k === 'chatLineHeight' ? Math.round(n * 100) / 100 : Math.round(n)
-  }
-  return out
 }
 
 export function normalizeCustomTheme(raw: unknown): CustomTheme {
-  if (!raw || typeof raw !== 'object') return {}
-  const t = raw as Record<string, unknown>
-  const light = normalizeThemeVariant(t.light, 'light')
-  const dark = normalizeThemeVariant(t.dark, 'dark')
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const value = raw as Record<string, unknown>
+  const light = normalizeThemeVariant(value.light, 'light')
+  const dark = normalizeThemeVariant(value.dark, 'dark')
   return {
     ...(light ? { light } : {}),
     ...(dark ? { dark } : {}),
@@ -158,10 +283,13 @@ export function normalizeCustomTheme(raw: unknown): CustomTheme {
 }
 
 export function normalizeCustomCssOverride(raw: unknown): CustomCssOverride {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_CUSTOM_CSS_OVERRIDE }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...DEFAULT_CUSTOM_CSS_OVERRIDE }
+  }
   const value = raw as Record<string, unknown>
+  const css = typeof value.css === 'string' ? value.css.slice(0, MAX_CUSTOM_CSS_LENGTH) : ''
   return {
-    enabled: value.enabled === true,
-    css: typeof value.css === 'string' ? value.css : '',
+    enabled: Boolean(value.enabled),
+    css,
   }
 }

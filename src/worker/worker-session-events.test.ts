@@ -506,4 +506,99 @@ describe('worker session event lifecycle', () => {
       st.currentTurnId = originalTurnId
     }
   })
+
+  it('should_emit_file_event_for_direct_edit_using_start_args_and_suppress_nested_codemode_tool_rows', () => {
+    const harness = createSessionEventHarness()
+
+    // Direct edit: Pi SDK puts `args` on tool_execution_start, NOT tool_execution_end
+    handleSessionEvent(
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'edit-1',
+        toolName: 'edit',
+        args: { path: 'src/direct.ts', edits: [{ oldText: 'a', newText: 'b' }] },
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'edit-1',
+        toolName: 'edit',
+        result: { content: [{ type: 'text', text: 'ok' }], details: { patch: '--- a/src/direct.ts\n+++ b/src/direct.ts\n@@ -1 +1 @@\n-a\n+b\n' } },
+        isError: false,
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    // Codemode with nested edit carrying parentToolCallId
+    handleSessionEvent(
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'cm-1',
+        toolName: 'codemode',
+        args: { code: 'await tools.edit(...)' },
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'cm-1/1',
+        toolName: 'edit',
+        args: { path: 'src/nested.ts', edits: [{ oldText: 'old', newText: 'n1\nn2' }] },
+        parentToolCallId: 'cm-1',
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'cm-1/1',
+        toolName: 'edit',
+        result: {
+          content: [{ type: 'text', text: 'ok' }],
+          details: { patch: '--- a/src/nested.ts\n+++ b/src/nested.ts\n@@ -1 +1,2 @@\n-old\n+n1\n+n2\n' },
+        },
+        isError: false,
+        parentToolCallId: 'cm-1',
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+    handleSessionEvent(
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'cm-1',
+        toolName: 'codemode',
+        result: {
+          content: [{ type: 'text', text: 'Script completed\nWall time 0.1 seconds\nOutput:\nok' }],
+          details: {
+            calls: [
+              { id: 'cm-1/1', name: 'edit', args: '{"path":"src/nested.ts"...', status: 'ok', durationMs: 5 },
+            ],
+          },
+        },
+        isError: false,
+      } as AgentSessionEvent,
+      harness.dependencies,
+    )
+
+    const toolEvents = harness.emittedEvents.filter((e) => e.type === 'tool')
+    expect(toolEvents.some((e) => e.toolCallId === 'cm-1/1')).toBe(false)
+
+    const cmEnd = toolEvents.find((e) => e.toolCallId === 'cm-1' && e.phase === 'end')
+    expect(cmEnd?.details).toMatchObject({
+      calls: [
+        expect.objectContaining({
+          id: 'cm-1/1',
+          path: 'src/nested.ts',
+          additions: 2,
+          deletions: 1,
+        }),
+      ],
+    })
+
+    const fileEvents = harness.emittedEvents.filter((e) => e.type === 'file')
+    expect(fileEvents.map((e) => e.path)).toEqual(['src/direct.ts', 'src/nested.ts'])
+  })
 })

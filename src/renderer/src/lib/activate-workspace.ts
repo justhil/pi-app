@@ -63,15 +63,20 @@ export async function activateWorkspace(path: string, options?: ActivateWorkspac
    * - Target unknown → clear + historyLoading until list/pick resolves.
    */
   if (openingSession) {
-    store.setCurrentSession(options!.sessionId!)
     focusSessionSync(options!.sessionId!, options!.sessionFile!)
   } else if (options?.preferHome) {
     enterBlankSession('pending-project')
   } else {
-    // Point the view away from the leaving session first; the clear applies to the blank view.
-    store.setHistoryMeta(0, 0, null)
-    store.clearTimeline()
-    store.setHistoryLoading(true)
+    // Point the view away from the leaving session atomically; the leaving session keeps its own state.
+    resetBlankSessionProjection()
+    useUIStore.setState({
+      currentSessionId: null,
+      historySessionFile: null,
+      historyTotalCount: 0,
+      historyLoadedCount: 0,
+      timelineItems: [],
+      historyLoading: true,
+    })
   }
 
   const navToken = beginSessionNavigation()
@@ -203,7 +208,6 @@ export async function switchSessionInPlace(sessionId: string, sessionFile?: stri
   // leaving session's own state (its in-flight turn markers), not just the display.
   store.setHistoryLoading(true)
 
-  store.setCurrentSession(sessionId)
   // Immediate paint: cache hit → timeline; cold → skeleton (never blank empty-chat).
   focusSessionSync(sessionId, file)
 
@@ -221,7 +225,6 @@ export async function previewSessionInPlace(
   store.clearPendingNewSessionPlaceholder()
 
   captureVisibleLiveSessionTimeline()
-  store.setCurrentSession(sessionId)
   focusSessionSync(sessionId, sessionFile)
 
   await openSessionPreview(sessionId, sessionFile, navToken)

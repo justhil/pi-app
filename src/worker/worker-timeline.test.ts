@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { normalizeMessages, resetTimelineSeq, timelineItemsFromBranchPath } from './worker-timeline'
+import {
+  extractBranchTouchedFiles,
+  normalizeMessages,
+  resetTimelineSeq,
+  timelineItemsFromBranchPath,
+} from './worker-timeline'
 import { isInterruptedAssistantRow, resolveRewindTargetEntryId } from '@shared/timeline-incomplete'
 
 const expandedSkill = `<skill name="demo-skill" location="/skills/demo-skill/SKILL.md">
@@ -148,5 +153,54 @@ describe('worker timeline retry recovery', () => {
     const crash = timelineItemsFromBranchPath(branch([user, { role: 'assistant', content: [] }]))
     expect(crash[1]).toMatchObject({ incomplete: true })
     expect(crash[1]).not.toHaveProperty('errorMessage')
+  })
+
+  it('should_extract_all_branch_touched_files_even_across_long_sessions_and_skip_failed_mutations', () => {
+    const entries = [
+      {
+        id: 'e-early-assist',
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id: 'tc-early', name: 'write', arguments: { path: 'src/early.ts', content: '1' } },
+            { type: 'toolCall', id: 'tc-fail', name: 'edit', arguments: { path: 'src/failed.ts', edits: [] } },
+            { type: 'toolCall', id: 'tc-cm', name: 'codemode', arguments: { code: 'await tools.edit(...)' } },
+          ],
+        },
+      },
+      {
+        id: 'e-early-res-1',
+        type: 'message',
+        message: { role: 'toolResult', toolCallId: 'tc-early', toolName: 'write', content: [], isError: false },
+      },
+      {
+        id: 'e-early-res-fail',
+        type: 'message',
+        message: { role: 'toolResult', toolCallId: 'tc-fail', toolName: 'edit', content: [], isError: true },
+      },
+      {
+        id: 'e-early-res-cm',
+        type: 'message',
+        message: {
+          role: 'toolResult',
+          toolCallId: 'tc-cm',
+          toolName: 'codemode',
+          content: [],
+          isError: false,
+          details: {
+            calls: [
+              { id: 'tc-cm/1', name: 'edit', args: '{"path":"src/cm-edited.ts"...', status: 'ok' },
+              { id: 'tc-cm/2', name: 'write', args: '{"path":"src/cm-err.ts"...', status: 'error' },
+            ],
+          },
+        },
+      },
+    ]
+
+    expect(extractBranchTouchedFiles(entries)).toEqual([
+      { path: 'src/early.ts', source: 'write', changeType: 'created' },
+      { path: 'src/cm-edited.ts', source: 'edit', changeType: 'modified' },
+    ])
   })
 })

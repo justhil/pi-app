@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
@@ -9,6 +10,7 @@ import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
 import { AppearanceBackground } from '@renderer/features/settings/appearance-background'
 import { RuntimeSettingsPanel } from '@renderer/features/settings/runtime-settings-panel'
+import { SessionWorkersSection } from '@renderer/features/settings/session-workers-section'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
 import { btnOutline, numberInputCls } from '@renderer/features/settings/settings-controls'
@@ -99,14 +101,13 @@ export function GeneralSettings() {
     setCompletionNotificationOnlyWhenUnfocused,
     setCompletionNotificationDndMinutes,
     setCompletionNotificationDelivery,
-    setMaxSessionWorkers,
-    setSessionWorkerIdleTimeoutMinutes,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [fixedOrder, setFixedOrder] = useState(false)
+  const activeSessionsDrawer = useUIStore((s) => s.sidebarActiveSessionsDrawer)
+  const setActiveSessionsDrawer = useUIStore((s) => s.setSidebarActiveSessionsDrawer)
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [testingAlert, setTestingAlert] = useState(false)
   const [alertTestFeedback, setAlertTestFeedback] = useState<'sent' | 'failed' | null>(null)
   const updateCheckAttemptRef = useRef(0)
@@ -393,58 +394,7 @@ export function GeneralSettings() {
         </SettingRow>
       </SettingsSection>
 
-      <SettingsSection
-        title={t('settings:general.workersAdvanced')}
-        action={
-          <button
-            type="button"
-            className="text-xs text-muted-foreground/70 hover:text-foreground"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen}
-          >
-            {advancedOpen ? t('settings:general.hideAdvanced') : t('settings:general.showAdvanced')}
-          </button>
-        }
-      >
-        {advancedOpen ? (
-          <>
-            <SettingRow
-              label={t('settings:general.maxSessionWorkers')}
-              description={t('settings:general.maxSessionWorkersDesc')}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={draft.maxSessionWorkers}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
-                  setMaxSessionWorkers(n)
-                }}
-                className={numberInputCls}
-              />
-            </SettingRow>
-            <SettingRow
-              label={t('settings:general.sessionWorkerIdleTimeout')}
-              description={t('settings:general.sessionWorkerIdleTimeoutDesc')}
-            >
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={draft.sessionWorkerIdleTimeoutMinutes}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
-                  setSessionWorkerIdleTimeoutMinutes(n)
-                }}
-                className={numberInputCls}
-              />
-            </SettingRow>
-          </>
-        ) : null}
-      </SettingsSection>
+      <SessionWorkersSection />
 
       <SettingsSection title={t('settings:general.language')}>
         <SettingRow label={t('settings:general.language')} description={t('settings:general.languageDesc')}>
@@ -479,6 +429,12 @@ export function GeneralSettings() {
       <RuntimeSettingsPanel />
 
       <SettingsSection title={t('settings:general.recentProjects')}>
+        <SettingRow
+          label={t('settings:general.activeSessionsDrawer')}
+          description={t('settings:general.activeSessionsDrawerDesc')}
+        >
+          <Switch checked={activeSessionsDrawer} onCheckedChange={setActiveSessionsDrawer} />
+        </SettingRow>
         <SettingRow label={t('settings:general.fixedOrder')} description={t('settings:general.fixedOrderDesc')}>
           <Switch checked={fixedOrder} onCheckedChange={toggleFixedOrder} />
         </SettingRow>

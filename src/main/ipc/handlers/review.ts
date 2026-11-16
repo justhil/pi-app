@@ -1,17 +1,33 @@
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { reviewMutationSchema } from '../schemas'
-import { workerManager } from '../../worker-manager'
-import { configStore } from '../../config-store'
 import { readGitWorkspaceSnapshot, stageHunks, unstageHunks } from '../../git-workspace'
-import { authorizeTrustedCwd, getTrustedWorkspaceRoot } from '../../trusted-workspace'
+import { authorizeProjectCwd, getTrustedWorkspaceRoot } from '../../trusted-workspace'
 
 function reviewMutationCwd(reqCwd?: string): { ok: true; cwd: string } | { ok: false; error: string } {
-  return authorizeTrustedCwd(reqCwd)
+  return authorizeProjectCwd(reqCwd)
 }
 
 export function registerReviewHandlers(): void {
   registerHandler('ipc:review.getDiff', async (req) => {
-    const cwd = getTrustedWorkspaceRoot() || process.cwd()
+    let cwd: string
+    if (typeof req.cwd === 'string' && req.cwd.trim()) {
+      const auth = authorizeProjectCwd(req.cwd)
+      if (!auth.ok) {
+        return {
+          diff: {
+            raw: '',
+            stagedRaw: '',
+            status: '',
+            scope: req.scope,
+            isRepo: false,
+            message: auth.error,
+          },
+        }
+      }
+      cwd = auth.cwd
+    } else {
+      cwd = getTrustedWorkspaceRoot() || process.cwd()
+    }
     if (req.scope === 'git') {
       const snap = await readGitWorkspaceSnapshot(cwd)
       return {

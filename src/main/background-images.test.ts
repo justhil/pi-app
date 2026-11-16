@@ -43,9 +43,9 @@ describe('background images', () => {
     expect(bg).toEqual({
       shared: false,
       light: {
-        file: '0123456789abcdef0123.png', opacity: 1, blur: 24, uiOpacity: 0.5, fit: 'cover', position: 'center',
+        file: '0123456789abcdef0123.png', opacity: 1, blur: 24, uiOpacity: 0.15, fit: 'cover', position: 'center',
         brightness: 1, saturation: 1, vignette: false, material: 'glass', paneBlur: 40, fullCover: false,
-        content: { uiOpacity: 0.3, paneBlur: 4, material: 'frosted' },
+        content: { uiOpacity: 0.15, paneBlur: 4, material: 'frosted' },
       },
     })
     // Settings saved by 0.7.3 (before the effects existed) gain the defaults.

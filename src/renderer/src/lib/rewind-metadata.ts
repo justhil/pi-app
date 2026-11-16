@@ -13,11 +13,16 @@ export async function refreshSessionTree(sessionFile: string | null): Promise<vo
   const store = useUIStore.getState()
   const key = sessionFile || ''
   const seq = ++rewindTreeRequestSeq
-  store.setRewindMeta({ rewindKey: key, loadingTree: !!sessionFile })
+  const switchedSession = store.rewindKey !== key
+  store.setRewindMeta({
+    rewindKey: key,
+    loadingTree: !!sessionFile,
+    ...(switchedSession ? { treeNodes: [], treeError: undefined } : {}),
+  })
 
   if (!sessionFile) {
     if (seq === rewindTreeRequestSeq) {
-      store.setRewindMeta({ treeNodes: [], workerBound: false, loadingTree: false })
+      store.setRewindMeta({ treeNodes: [], workerBound: false, loadingTree: false, treeError: undefined })
     }
     return
   }
@@ -45,7 +50,7 @@ export async function refreshSessionTree(sessionFile: string | null): Promise<vo
       treeNodes: withLeaf,
       workerBound: !!treeRes?.workerBound,
       loadingTree: false,
-      treeError: treeRes?.error,
+      treeError: treeRes?.error || undefined,
     })
   } catch (e) {
     console.error('[refreshSessionTree]', e)

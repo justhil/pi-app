@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
 import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
 import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
+import { SidebarActiveSessionsDrawer } from '@renderer/features/workspace/sidebar-active-sessions-drawer'
 import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
@@ -17,6 +18,7 @@ import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '@renderer/lib/ipc-client'
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
+import { requestTimelineViewEntry } from '@renderer/features/timeline/timeline-view-jump'
 
 import { activateWorkspace } from '@renderer/lib/activate-workspace'
 import { resolveProjectDisplayName } from '@shared/workspace-path'
@@ -40,6 +42,7 @@ import {
   hydrateThemeFromSettings,
   watchSystemTheme,
 } from '@renderer/features/settings/settings-draft'
+import { hydrateSnippetsFromDisk } from '@renderer/lib/theme/render-fx-engine'
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
@@ -78,6 +81,9 @@ const SessionTreeOverlay = lazy(() =>
 const SessionForkOverlay = lazy(() =>
   import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })),
 )
+const LiveThemeStudio = lazy(() =>
+  import('@renderer/features/shell/live-theme-studio').then((m) => ({ default: m.LiveThemeStudio })),
+)
 const ProjectHomeView = lazy(() =>
   import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })),
 )
@@ -98,6 +104,8 @@ export default function App() {
   const [view, setView] = useState<View>('main')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [studioOpen, setStudioOpen] = useState(false)
+  const [studioSeedTheme, setStudioSeedTheme] = useState<import('@shared/custom-theme').CustomTheme | undefined>(undefined)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -187,6 +195,7 @@ export default function App() {
     void hydrateThemeFromSettings().catch(() => {})
     void hydrateCustomThemeFromSettings().catch(() => {})
     void hydrateCustomCssOverrideFromSettings().catch(() => {})
+    void hydrateSnippetsFromDisk().catch(() => {})
     void hydrateBackgroundFromSettings().catch(() => {})
     applyUiZoom(readUiZoom())
   }, [])
@@ -288,15 +297,32 @@ export default function App() {
     const unsubNotify = onNotificationOpenSession((payload) => {
       void handleNotificationOpenSession(payload)
     })
-    // Settings → Usage: a session row opens that session.
+    // Settings → Usage: a session row or request log opens that session (and optionally scrolls to entryId).
     const onOpenSession = (e: Event) => {
-      const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string }>).detail
+      const d = (e as CustomEvent<{ workspaceId?: string; sessionFile?: string; entryId?: string }>).detail
       setView('main')
-      void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile })
+      void handleNotificationOpenSession({ ok: true, workspaceId: d?.workspaceId, sessionFile: d?.sessionFile }).then(
+        () => {
+          if (d?.entryId && !d.entryId.startsWith('@line:')) {
+            requestTimelineViewEntry(d.entryId)
+          }
+        },
+      )
+    }
+    const onOpenSettingsPage = () => setView('settings')
+    const onOpenLiveStudio = (e: Event) => {
+      const d = (e as CustomEvent<{ theme?: import('@shared/custom-theme').CustomTheme }>).detail
+      setStudioSeedTheme(d?.theme)
+      setView('main')
+      setStudioOpen(true)
     }
     window.addEventListener('pi-desktop:open-session', onOpenSession)
+    window.addEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
+    window.addEventListener('pi-desktop:open-live-theme-studio', onOpenLiveStudio)
     return () => {
       window.removeEventListener('pi-desktop:open-session', onOpenSession)
+      window.removeEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
+      window.removeEventListener('pi-desktop:open-live-theme-studio', onOpenLiveStudio)
       unsubEvents()
       unsubExit()
       unsubNotify()
@@ -407,6 +433,7 @@ export default function App() {
                   openProjectLabel={t('sidebar.openProject')}
                 />
               </SidebarContent>
+              <SidebarActiveSessionsDrawer />
               <div className="border-t border-border/50 p-1.5">
                 <SidebarItem
                   label={t('sidebar.settings')}
@@ -487,6 +514,13 @@ export default function App() {
               setForkOpen(false)
               setForkSource(undefined)
             }}
+          />
+        )}
+        {studioOpen && (
+          <LiveThemeStudio
+            open={studioOpen}
+            initialTheme={studioSeedTheme}
+            onClose={() => setStudioOpen(false)}
           />
         )}
       </Suspense>

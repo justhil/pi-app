@@ -3264,6 +3264,24 @@
   .review-skeleton span { animation: none; }
 }
 
+/* ── Tree panel ── */
+.tree-panel { container: tree-panel / inline-size; }
+@container tree-panel (max-width: 360px) {
+  .tree-panel-toolbar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .tree-panel-refresh {
+    margin-left: auto;
+    order: 2;
+  }
+  .tree-panel-hint {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
 /* ── Settings visual system: card-grouped sections, nav indicator, page transitions ── */
 .settings-page-enter { animation: settings-page-in 260ms var(--motion-ease) both; }
 @keyframes settings-page-in { from { opacity: 0; transform: translateY(6px); } }
@@ -3286,7 +3304,8 @@
   transition: background-color var(--motion-fast) ease;
 }
 .settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 32%, transparent); }
-.settings-card > :not(.settings-row) { padding: 14px 16px; }
+.settings-card > :not(.settings-row):not(.settings-flush) { padding: 14px 16px; }
+:where(.settings-card > .settings-flush) { padding: 0; }
 
 /* WSL runtime environment checklist (settings → 通用 → Agent 运行时). */
 .wsl-env-card { animation: wsl-check-in 220ms var(--motion-ease) both; }
@@ -3482,12 +3501,15 @@
 .settings-segmented { background: var(--bg-2); }
 .settings-segmented-item { color: hsl(var(--text-secondary-hsl)); transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .settings-segmented-item:hover { color: var(--text-primary); }
-.settings-segmented-item[aria-checked='true'] {
+.settings-segmented-item[aria-checked='true'],
+.settings-segmented-item[aria-selected='true'] {
   background: var(--bg-base);
   color: var(--text-primary);
+  font-weight: 500;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base);
 }
-.dark .settings-segmented-item[aria-checked='true'] { background: #46474d; box-shadow: none; }
+.dark .settings-segmented-item[aria-checked='true'],
+.dark .settings-segmented-item[aria-selected='true'] { background: #46474d; box-shadow: none; }
 .settings-check { accent-color: hsl(var(--foreground)); }
 .settings-model-entry {
   border-color: var(--border-base);
@@ -3601,40 +3623,80 @@ html[data-bg='on'] #root { position: relative; z-index: 1; }
 
 /* Elements that paint the sidebar colour themselves would stack a second tint. */
 html[data-bg='on'] .shell-track-center,
-html[data-bg='on'] .split-view { background: transparent !important; }
+html[data-bg='on'] .split-view,
+html[data-bg='on'] .shell-track-right-rail,
+html[data-bg='on'] [data-testid='sidebar-active-sessions-drawer'],
+html[data-backdrop-preset] [data-testid='sidebar-active-sessions-drawer'] {
+  background: transparent !important;
+}
+html[data-bg='on'] .shell-track-right-rail {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
 
-html[data-bg-cover='frame'] .app-viewport { background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important; }
+/* Frame mode (default): .app-viewport paints ONE unified translucent veil across topbar, sidebar,
+   island gaps & statusbar (zero dark seam strips around rounded island corners!), while content panes
+   add a light frost sheet so the wallpaper shines clearly through every pane! */
+html[data-bg-cover='frame'] .app-viewport {
+  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 62%), transparent) !important;
+}
 html[data-bg-cover='frame'] .app-viewport .electron-drag,
 html[data-bg-cover='frame'] .shell-track-left,
-html[data-bg-cover='frame'] .workbench-statusbar { background: transparent !important; }
+html[data-bg-cover='frame'] .workbench-statusbar {
+  background: transparent !important;
+}
+html[data-bg-cover='frame'] .shell-track-center .main-chat-column,
+html[data-bg-cover='frame'] .shell-track-right:not(.shell-track-right-rail),
+html[data-bg-cover='frame'] .terminal-drawer {
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 42%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.12);
+}
 
-html[data-bg-cover='full'] .app-viewport { background: transparent !important; }
-html[data-bg-cover='full'] .app-viewport > .electron-drag,
+/* Full cover mode: .app-viewport carries outer pane blur + --ui-alpha uniformly so island gaps match seamlessly */
+html[data-bg-cover='full'] .app-viewport {
+  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 65%), transparent) !important;
+  backdrop-filter: blur(var(--pane-blur)) saturate(1.08);
+}
+html[data-bg-cover='full'][data-bg-material='clear'] .app-viewport { backdrop-filter: none; }
+html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport {
+  backdrop-filter: blur(var(--pane-blur)) saturate(1.65) brightness(1.03);
+}
+html[data-bg-cover='full'] .app-viewport .electron-drag,
 html[data-bg-cover='full'] .shell-track-left,
 html[data-bg-cover='full'] .workbench-statusbar {
-  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important;
-  backdrop-filter: blur(var(--pane-blur)) saturate(1.05);
+  background: transparent !important;
+  backdrop-filter: none !important;
 }
-html[data-bg-cover='full'][data-bg-material='clear'] .app-viewport > .electron-drag,
-html[data-bg-cover='full'][data-bg-material='clear'] .shell-track-left,
-html[data-bg-cover='full'][data-bg-material='clear'] .workbench-statusbar { backdrop-filter: none; }
-html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left { box-shadow: inset -1px 0 0 var(--glass-edge); }
-html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport > .electron-drag,
-html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left,
-html[data-bg-cover='full'][data-bg-material='glass'] .workbench-statusbar { backdrop-filter: blur(var(--pane-blur)) saturate(1.8) brightness(1.04); }
+html[data-bg-cover='full'] .shell-track-center .main-chat-column,
+html[data-bg-cover='full'] .shell-track-right:not(.shell-track-right-rail),
+html[data-bg-cover='full'] .terminal-drawer {
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 45%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.12);
+}
 
-/* Content panes: chat column, right panel, terminal drawer. */
-html[data-bg='on'] .shell-track-center .main-chat-column,
-html[data-bg='on'] .shell-track-right,
-html[data-bg='on'] .terminal-drawer {
-  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 100%), transparent) !important;
-  backdrop-filter: blur(var(--content-blur)) saturate(1.05);
+/* Settings view & sidebar search pill also let the wallpaper breathe through */
+html[data-bg='on'] .settings-nav {
+  background: transparent !important;
+}
+html[data-bg='on'] .settings-main,
+:root:not(.dark)[data-bg='on'] .settings-main {
+  background: color-mix(in srgb, var(--bg-base) calc(var(--content-alpha) * 46%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.08);
+}
+html[data-bg='on'] .settings-card {
+  background: color-mix(in srgb, var(--bg-base) 68%, transparent) !important;
+}
+html:not(.dark)[data-bg='on'] .shell-track-left input {
+  background: rgba(255, 255, 255, 0.56) !important;
+}
+html.dark[data-bg='on'] .shell-track-left input {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 html[data-bg-content-material='clear'] .shell-track-center .main-chat-column,
-html[data-bg-content-material='clear'] .shell-track-right,
+html[data-bg-content-material='clear'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='clear'] .terminal-drawer { backdrop-filter: none; }
 html[data-bg-content-material='glass'] .shell-track-center .main-chat-column,
-html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='glass'] .terminal-drawer {
   background:
     linear-gradient(160deg, var(--glass-sheen), transparent 38%),
@@ -3642,12 +3704,392 @@ html[data-bg-content-material='glass'] .terminal-drawer {
   backdrop-filter: blur(var(--content-blur)) saturate(1.8) brightness(1.04);
 }
 html[data-bg-content-material='glass'] .shell-track-center .main-chat-column { box-shadow: var(--main-chat-surface-shadow), inset 0 1px 0 var(--glass-highlight), inset 0 0 0 1px var(--glass-edge); }
-html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='glass'] .terminal-drawer { box-shadow: inset 0 1px 0 var(--glass-highlight), inset 1px 0 0 var(--glass-edge); }
 html[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.16); --glass-highlight: rgba(255, 255, 255, 0.55); --glass-edge: rgba(255, 255, 255, 0.18); }
 html.dark[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.06); --glass-highlight: rgba(255, 255, 255, 0.14); --glass-edge: rgba(255, 255, 255, 0.07); }
 html[data-bg='on'] .composer-dock-fade { background: linear-gradient(to top, color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 85%), transparent), transparent) !important; }
-/* Full cover: the chat column is a layer of its own, so its paper corner would show the bare image. */
-html[data-bg-cover='full'] .shell-track-center .main-chat-column { border-radius: 0; }
+/* Full cover: keep rounded island corners when `data-frame-style='island'`, flatten only in default paper mode. */
+html[data-bg-cover='full']:not([data-frame-style='island']) .shell-track-center .main-chat-column { border-radius: 0; }
 /* The fade's scrollbar gap would leave an untinted strip on the image. */
 html[data-bg='on'] .composer-dock-fade { right: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Built-in Render Primitives: Frame Geometry, Message Layout, Optical Glass,
+ * Hardware Bevel, Procedural Backdrop Stage & OS Window Compositor Materials
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fx-glass-refraction: 24;
+  --fx-glass-frost: 10px;
+  --fx-glass-tint-alpha: 0.56;
+  --fx-glass-specular: 0.65;
+  --fx-backdrop-intensity: 0.55;
+}
+html.dark {
+  --fx-glass-tint-alpha: 0.48;
+  --fx-glass-specular: 0.45;
+}
+
+/* ── 1. Frame Geometry: Island (Arc/Craft floating panes) & Flat (Zed/Linear IDE) ── */
+html[data-frame-style='island'] .shell-track-center {
+  padding: 2px 7px 7px 4px;
+  background: transparent !important;
+}
+html[data-frame-style='island'] .split-view,
+html[data-frame-style='island'] .shell-track-right-rail {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-frame-style='island'] .shell-track-center::after {
+  display: none;
+}
+html[data-frame-style='island'] .shell-track-center .main-chat-column {
+  border-radius: var(--main-chat-surface-radius, 15px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 78%, transparent);
+  box-shadow:
+    0 4px 18px -6px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  margin: 2px 7px 7px 0;
+  border-radius: var(--main-chat-surface-radius, 15px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 78%, transparent);
+  box-shadow: 0 4px 16px -6px rgba(15, 23, 42, 0.055);
+  overflow: hidden;
+}
+
+html[data-frame-style='flat'] .shell-track-center .main-chat-column {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-left: 1px solid var(--border-base);
+  border-top: 1px solid var(--border-base);
+}
+html[data-frame-style='flat'] .shell-track-right:not(.shell-track-right-rail) {
+  box-shadow: none !important;
+  border-top: 1px solid var(--border-base);
+}
+
+/* ── 2. Message Flow Styles: Editorial Left-Bar & Card ── */
+html[data-msg-style='editorial'] .timeline-user-row > div {
+  justify-content: flex-start !important;
+}
+html[data-msg-style='editorial'] .timeline-user-bubble {
+  max-width: 100%;
+  width: 100%;
+  border-radius: 2px var(--radius-md, 8px) var(--radius-md, 8px) 2px;
+  border-left: 2.5px solid var(--brand);
+  padding: 0.55rem 0.95rem;
+  background: color-mix(in srgb, var(--message-user-bg) 78%, transparent);
+}
+html[data-msg-style='card'] .timeline-prose-row > div {
+  border-radius: var(--radius-lg, 10px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 52%, var(--chat-bg));
+  padding: 0.65rem 0.9rem;
+}
+
+/* ── 3. Spacing Density (Compact / Relaxed) ── */
+html[data-density='compact'] .timeline-user-row { padding-block: 0.3rem 0.2rem; }
+html[data-density='compact'] .timeline-prose-row { padding-block: 0.15rem; }
+html[data-density='compact'] .sidebar-session-hit { min-height: 28px; padding-block: 3px; }
+html[data-density='relaxed'] .timeline-user-row { padding-block: 0.8rem 0.55rem; }
+html[data-density='relaxed'] .timeline-prose-row { padding-block: 0.45rem; }
+
+/* ── 4. Accent Presence (Balanced / Vivid) ── */
+html[data-accent-presence='balanced'] .shell-track-left .nav-row-active,
+html[data-accent-presence='vivid'] .shell-track-left .nav-row-active {
+  background-color: color-mix(in srgb, var(--brand) 12%, transparent) !important;
+  box-shadow: inset 2.5px 0 0 var(--brand);
+}
+html[data-accent-presence='balanced'] .composer-toolbar-send:not(:disabled),
+html[data-accent-presence='vivid'] .composer-toolbar-send:not(:disabled) {
+  background-color: var(--brand) !important;
+  color: #ffffff !important;
+}
+html[data-accent-presence='balanced'] ::selection,
+html[data-accent-presence='vivid'] ::selection {
+  background: color-mix(in srgb, var(--brand) 28%, transparent);
+}
+html[data-accent-presence='vivid'] [data-panel-tab][aria-selected='true'] {
+  color: var(--brand) !important;
+  box-shadow: inset 0 -2px 0 var(--brand);
+}
+html[data-accent-presence='vivid'] .timeline-user-bubble {
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--message-user-bg));
+}
+
+/* ── 5. Hardware Bevel Material (Asymmetric 1px top specular highlight) ── */
+html[data-surface-material='bevel'] .composer-shell,
+html[data-surface-material='bevel'] .shell-popover,
+html[data-surface-material='bevel'] .overlay-panel,
+html[data-surface-material='bevel'] .settings-card,
+html[data-surface-material='bevel'] .code-surface {
+  box-shadow:
+    0 6px 20px -8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+}
+html:not(.dark)[data-surface-material='bevel'] .composer-shell,
+html:not(.dark)[data-surface-material='bevel'] .settings-card {
+  box-shadow:
+    0 4px 14px -6px rgba(16, 24, 40, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(16, 24, 40, 0.05);
+}
+
+/* ── 6. Optical Frosted & True Refractive Liquid Glass (Scoped to Floating Chrome!) ── */
+html[data-surface-material='frosted'] .composer-shell,
+html[data-surface-material='frosted'] .shell-popover,
+html[data-surface-material='frosted'] .overlay-panel,
+html[data-surface-material='frosted'] .live-theme-studio {
+  background-clip: padding-box;
+  background: color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(155%);
+}
+
+/* Outer soft drop-shadow lives on the unclipped wrapper so `clip-path: inset(0 round R)` on `.composer-shell`
+   can cleanly trim Skia's rectangular SVG `backdrop-filter: url(#pi-liquid-lens)` surface with ZERO corner ears! */
+html:not(.dark)[data-surface-material='liquid-glass'] .composer-dock-panel {
+  filter: drop-shadow(0 8px 20px rgba(15, 23, 42, 0.065));
+}
+html.dark[data-surface-material='liquid-glass'] .composer-dock-panel {
+  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.36));
+}
+
+/* Light-mode Crystal Liquid Glass: neutral mineral quartz, crisp specular rim, zero cold hospital tint */
+html:not(.dark)[data-surface-material='liquid-glass'] .composer-shell,
+html:not(.dark)[data-surface-material='liquid-glass'] .shell-popover,
+html:not(.dark)[data-surface-material='liquid-glass'] .overlay-panel,
+html:not(.dark)[data-surface-material='liquid-glass'] .live-theme-studio {
+  isolation: isolate;
+  overflow: hidden;
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--composer-shell-radius, 14px));
+  background:
+    linear-gradient(
+      138deg,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.76)) 0%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.22)) 42%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.42)) 100%
+    ),
+    color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  border-color: rgba(15, 23, 42, 0.085) !important;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.72),
+    inset 1px 0 0 rgba(255, 255, 255, 0.75),
+    inset -1px 0 0 rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(165%) brightness(1.02);
+}
+
+/* Cohesive Tier-2 Tactile Quartz family (zero backdrop-filter cost inside scrolling lists!) */
+html:not(.dark)[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.62)) !important;
+  border: 1px solid rgba(15, 23, 42, 0.065);
+  box-shadow:
+    0 2px 8px -2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+html.dark[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 4px 12px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+html:not(.dark)[data-surface-material='liquid-glass']:not([data-msg-style='editorial']) .timeline-user-bubble {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(240, 243, 248, 0.78)) !important;
+  border: 1px solid rgba(15, 23, 42, 0.075);
+  box-shadow:
+    0 2px 10px -3px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+html.dark[data-surface-material='liquid-glass']:not([data-msg-style='editorial']) .timeline-user-bubble {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(24, 28, 36, 0.78)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 4px 14px -4px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+html:not(.dark)[data-surface-material='liquid-glass'] .code-surface {
+  background: linear-gradient(180deg, rgba(246, 248, 251, 0.88), rgba(240, 243, 248, 0.72)) !important;
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+html.dark[data-surface-material='liquid-glass'] .code-surface {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Dark-mode Obsidian Liquid Glass */
+html.dark[data-surface-material='liquid-glass'] .composer-shell,
+html.dark[data-surface-material='liquid-glass'] .shell-popover,
+html.dark[data-surface-material='liquid-glass'] .overlay-panel,
+html.dark[data-surface-material='liquid-glass'] .live-theme-studio {
+  isolation: isolate;
+  overflow: hidden;
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--composer-shell-radius, 14px));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.24)) 0%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.04)) 34%,
+      transparent 64%
+    ),
+    color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  border-color: rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.22)) !important;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.46)),
+    inset 0 -1px 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.14)),
+    inset 1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.1)),
+    inset -1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.1)) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(180%) brightness(1.05);
+}
+
+html[data-surface-material='liquid-glass'] .shell-popover,
+html[data-surface-material='liquid-glass'] .overlay-panel,
+html[data-surface-material='liquid-glass'] .live-theme-studio {
+  clip-path: inset(0 round 12px);
+}
+
+/* Note: #pi-liquid-lens already embeds edgeMode="duplicate" frosted blur + saturation + clamped alpha inside SVG! */
+@supports (backdrop-filter: url('#pi-liquid-lens')) {
+  html[data-surface-material='liquid-glass'] .composer-shell,
+  html[data-surface-material='liquid-glass'] .shell-popover,
+  html[data-surface-material='liquid-glass'] .overlay-panel,
+  html[data-surface-material='liquid-glass'] .live-theme-studio {
+    backdrop-filter: url('#pi-liquid-lens');
+  }
+}
+
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .composer-shell,
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .shell-popover,
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .live-theme-studio {
+  box-shadow:
+    inset 0 1px 0.75px rgba(255, 232, 212, calc(var(--fx-glass-specular) * 0.48)),
+    inset 0 -1px 0.75px rgba(188, 230, 255, calc(var(--fx-glass-specular) * 0.22)),
+    inset 1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.12)),
+    inset -1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.12)) !important;
+}
+
+/* Completely hide the opaque dock gradient under glass/frosted composer so scrolling messages refract cleanly! */
+html[data-surface-material='liquid-glass'] .composer-dock-fade,
+html[data-surface-material='frosted'] .composer-dock-fade {
+  display: none !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-surface-material='liquid-glass'] .composer-shell,
+  html[data-surface-material='liquid-glass'] .shell-popover,
+  html[data-surface-material='liquid-glass'] .overlay-panel,
+  html[data-surface-material='liquid-glass'] .live-theme-studio,
+  html[data-surface-material='frosted'] .composer-shell {
+    background: var(--bg-base) !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* ── 7. Built-in Procedural Backdrop Stage (`#pi-fx-backdrop`, zero external images) ──
+   Yields 100% to user-uploaded wallpaper (`html[data-bg='on']`) so custom backgrounds are NEVER occluded! */
+#pi-fx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--fx-backdrop-intensity, 0.55);
+}
+html[data-bg='on'] #pi-fx-backdrop {
+  display: none !important;
+}
+
+/* CRITICAL: Paint ONE continuous outer frame tint on `.app-viewport` ONLY when no user wallpaper is active! */
+html[data-backdrop-preset]:not([data-bg='on']) .app-viewport {
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-sidebar) 44%, transparent) !important;
+}
+html[data-backdrop-preset]:not([data-bg='on']) .app-viewport .electron-drag,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-left,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center,
+html[data-backdrop-preset]:not([data-bg='on']) .split-view,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right-rail,
+html[data-backdrop-preset]:not([data-bg='on']) .workbench-statusbar {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border-color: transparent !important;
+}
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center .main-chat-column,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  background: color-mix(in srgb, var(--chat-bg) 86%, transparent) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark)[data-backdrop-preset][data-frame-style='island'] .shell-track-center .main-chat-column,
+html:not(.dark)[data-backdrop-preset][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail),
+html:not(.dark)[data-bg='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+html:not(.dark)[data-bg='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow:
+    0 4px 18px -6px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+html.dark[data-backdrop-preset][data-frame-style='island'] .shell-track-center .main-chat-column,
+html.dark[data-backdrop-preset][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail),
+html.dark[data-bg='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+html.dark[data-bg='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    0 10px 28px -10px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Smooth, wide-aperture atmospheric wash — NO dark corner blobs near window controls! */
+html:not(.dark)[data-backdrop-preset='ambient'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 80% 70% at 18% 22%, rgba(168, 212, 206, 0.22), transparent 75%),
+    radial-gradient(ellipse 85% 70% at 52% 88%, rgba(236, 214, 194, 0.2), transparent 75%),
+    linear-gradient(180deg, #eff1f5 0%, #eceff3 55%, #efeeec 100%);
+}
+html.dark[data-backdrop-preset='ambient'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 80% 70% at 20% 24%, rgba(36, 82, 94, 0.24), transparent 75%),
+    radial-gradient(ellipse 85% 70% at 55% 88%, rgba(44, 62, 102, 0.2), transparent 75%),
+    linear-gradient(180deg, #0b0d11 0%, #0d0f14 55%, #101013 100%);
+}
+html[data-backdrop-preset='dots'] #pi-fx-backdrop {
+  background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 18%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+html[data-backdrop-preset='grid'] #pi-fx-backdrop {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+html[data-backdrop-preset='grain'] #pi-fx-backdrop {
+  opacity: calc(var(--fx-backdrop-intensity, 0.55) * 0.14);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
+/* ── 8. Native OS Compositor Window Materials (Win11 Mica / Acrylic / macOS Vibrancy) ── */
+html[data-win-material] body,
+html[data-win-material] .app-viewport {
+  background: transparent !important;
+}
+html[data-win-material] .app-viewport .electron-drag,
+html[data-win-material] .shell-track-left,
+html[data-win-material] .shell-track-center,
+html[data-win-material] .split-view,
+html[data-win-material] .shell-track-right-rail,
+html[data-win-material] .workbench-statusbar {
+  background: transparent !important;
+}
+html[data-win-material] .shell-track-center .main-chat-column {
+  background: color-mix(in srgb, var(--chat-bg) 88%, transparent) !important;
+}
+

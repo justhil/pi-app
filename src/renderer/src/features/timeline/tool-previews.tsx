@@ -22,6 +22,7 @@ import {
 } from '@extension-compat/renderer/native-diff'
 import { buildHashlineProtocolSummary } from '@extension-compat/renderer/hashline-protocol'
 import { resolveAdapterToolCardTemplate } from './tool-card-registry'
+import { DiffStatBadge } from './diff-stat-badge'
 import type { ToolTimelineItem } from './tool-preview-shell'
 import {
   firstMeaningfulCodeLine,
@@ -376,6 +377,11 @@ function CodemodeNestedCallRow({ call }: { call: CodemodeNestedCall }) {
         ) : (
           <span className="flex-1" />
         )}
+        <DiffStatBadge
+          additions={call.additions ?? 0}
+          deletions={call.deletions ?? 0}
+          className="pl-1"
+        />
         {duration ? (
           <span className="shrink-0 font-mono text-[10px] text-foreground-secondary/60 tabular-nums">{duration}</span>
         ) : null}
@@ -403,7 +409,7 @@ export function CodemodePreview({ item }: { item: ToolTimelineItem; flat?: boole
   const args = normalizeToolArgs(item.toolArgs)
   const code = typeof args.code === 'string' ? args.code.replace(/\r/g, '').trimEnd() : ''
   const codeLines = code ? code.split('\n').length : 0
-  const calls = parseCodemodeCalls(item.toolDetails)
+  const calls = parseCodemodeCalls(item.toolDetails, code)
   const rawOutput = extractToolText(item.toolOutput || '').replace(/\n$/, '')
   const stripped = stripCodemodeOutputHeader(rawOutput)
   const output = formatMcpOutput(stripped.body)

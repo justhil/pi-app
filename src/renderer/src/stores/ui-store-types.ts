@@ -63,6 +63,8 @@ export interface TimelineItem {
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
   errorKind?: 'error' | 'aborted' | 'retry'
   sessionEntryId?: string
+  /** Prompt payload text submitted to worker (kept for attachment/chip echo matching). */
+  payloadText?: string
   /** Force-quit / abort mid-stream — empty or partial assistant leaf */
   incomplete?: boolean
   stopReason?: string
@@ -226,10 +228,13 @@ export interface UIState {
   sessionWaitingUi: Record<string, boolean>
   sessionSettledUnseen: Record<string, boolean>
   sessionAttention: Record<string, SessionAttention>
+  /** Normalized sessionFile → timestamp (ms) when the session last ran or settled (kept for 1h). */
+  sessionLastActiveAt: Record<string, number>
   setSessionRuntimeRunning: (sessionFile: string, running: boolean) => void
   setSessionWaitingUi: (sessionFile: string, waiting: boolean) => void
   markSessionSettled: (sessionFile: string) => void
   markSessionViewed: (sessionFile: string) => void
+  dismissRecentSession: (sessionFile: string) => void
   reconcileSessionRuntimeIdle: (sessionFile: string) => void
   /**
    * Session-scoped tool row expand memory (toolCallId → expanded).
@@ -246,6 +251,12 @@ export interface UIState {
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean
   toggleSidebar: () => void
+  /** Show the pull-up drawer of running / unread / last-1h sessions at the bottom of the left sidebar. */
+  sidebarActiveSessionsDrawer: boolean
+  setSidebarActiveSessionsDrawer: (on: boolean) => void
+  /** Whether the sidebar active-sessions pull-up drawer is expanded (default: true; stays open on outside click). */
+  sidebarActiveSessionsOpen: boolean
+  setSidebarActiveSessionsOpen: (open: boolean) => void
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
   rightPanelCollapsed: boolean

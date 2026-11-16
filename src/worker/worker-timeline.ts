@@ -7,6 +7,11 @@ import {
   type PiSessionMessage,
 } from '@shared/worker-message'
 import { markTrailingIncompleteAssistants } from '@shared/timeline-incomplete'
+import {
+  extractCodemodeArgField,
+  mergeCodemodeNestedCalls,
+  parseCodemodeCalls,
+} from '@shared/tool-call-detail'
 
 let msgSeq = 0
 /**
@@ -138,10 +143,14 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
           }
         }
       }
+      const mergedDetails = mergeCodemodeNestedCalls(
+        pm.details,
+        (pm as { nestedCalls?: unknown }).nestedCalls,
+      )
       if (targetIdx !== undefined && items[targetIdx]) {
         items[targetIdx].toolOutput = text.slice(0, 4000)
         if (callId) items[targetIdx].toolCallId = callId
-        if (pm.details !== undefined) items[targetIdx].toolDetails = pm.details
+        if (mergedDetails !== undefined) items[targetIdx].toolDetails = mergedDetails
         if (pm.isError !== undefined) items[targetIdx].isError = pm.isError
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
@@ -152,7 +161,7 @@ export function normalizeMessages(messages: unknown[]): Array<Record<string, unk
           toolName: toolName || 'result',
           toolPhase: 'end',
           toolOutput: text.slice(0, 2000),
-          ...(pm.details !== undefined ? { toolDetails: pm.details } : {}),
+          ...(mergedDetails !== undefined ? { toolDetails: mergedDetails } : {}),
           ...(pm.isError !== undefined ? { isError: pm.isError } : {}),
           timestamp: ts,
         })
@@ -276,10 +285,14 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
           }
         }
       }
+      const mergedDetails = mergeCodemodeNestedCalls(
+        m.details,
+        (m as { nestedCalls?: unknown }).nestedCalls,
+      )
       if (targetIdx !== undefined && items[targetIdx]) {
         items[targetIdx].toolOutput = text.slice(0, 4000)
         if (callId) items[targetIdx].toolCallId = callId
-        if (m.details !== undefined) items[targetIdx].toolDetails = m.details
+        if (mergedDetails !== undefined) items[targetIdx].toolDetails = mergedDetails
         if (m.isError !== undefined) items[targetIdx].isError = m.isError
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
       } else if (text) {
@@ -290,7 +303,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
           toolName: toolName || 'result',
           toolPhase: 'end',
           toolOutput: text.slice(0, 2000),
-          ...(m.details !== undefined ? { toolDetails: m.details } : {}),
+          ...(mergedDetails !== undefined ? { toolDetails: mergedDetails } : {}),
           ...(m.isError !== undefined ? { isError: m.isError } : {}),
           timestamp: ts,
           sessionEntryId: sid,
@@ -300,4 +313,98 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
   }
   // Force-quit mid-stream leaves empty assistant leaf — mark so UI keeps it + rewind works.
   return markTrailingIncompleteAssistants(items)
+}
+
+export type BranchTouchedFile = {
+  path: string
+  source: 'edit' | 'write'
+  changeType: 'created' | 'modified'
+}
+
+/**
+ * Scan the entire active branch path from root to leaf for successful mutate tool calls
+ * (`edit`, `write`, `insert`, or `codemode` nested edits/writes), so Review's "This session"
+ * scope stays accurate even when a session exceeds the initial 80-message timeline page.
+ */
+export function extractBranchTouchedFiles(path: unknown[]): BranchTouchedFile[] {
+  const pendingCalls = new Map<string, { name: string; args?: Record<string, unknown> }>()
+  const byKey = new Map<string, BranchTouchedFile>()
+
+  const record = (rawPath: string | undefined, toolName: string): void => {
+    const trimmed = typeof rawPath === 'string' ? rawPath.trim() : ''
+    if (!trimmed) return
+    const key = trimmed.replace(/\\/g, '/').toLowerCase()
+    const source: 'edit' | 'write' = toolName === 'write' ? 'write' : 'edit'
+    const changeType: 'created' | 'modified' = toolName === 'write' ? 'created' : 'modified'
+    if (!byKey.has(key)) {
+      byKey.set(key, { path: trimmed, source, changeType })
+    }
+  }
+
+  for (const raw of path) {
+    if (!raw || typeof raw !== 'object') continue
+    const e = raw as { type?: string; message?: PiSessionMessage & { nestedCalls?: unknown } }
+    if (e.type !== 'message' || !e.message) continue
+    const m = e.message
+
+    if (m.role === 'assistant' && Array.isArray(m.content)) {
+      for (const rawBlock of m.content) {
+        const block = rawBlock as {
+          type?: string
+          id?: string
+          name?: string
+          arguments?: unknown
+          toolCall?: { id?: string; name?: string; input?: unknown; arguments?: unknown }
+        }
+        if (block.type !== 'toolCall') continue
+        const callId = block.id || block.toolCall?.id || ''
+        const name = block.name || block.toolCall?.name || ''
+        const rawArgs = block.arguments ?? block.toolCall?.input ?? block.toolCall?.arguments
+        const args =
+          rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs)
+            ? (rawArgs as Record<string, unknown>)
+            : undefined
+        if (callId && name) {
+          pendingCalls.set(callId, { name, args })
+        }
+      }
+      continue
+    }
+
+    if (m.role === 'toolResult') {
+      const mTool = m as { toolCallId?: string; toolUseId?: string; toolName?: string }
+      const callId = mTool.toolCallId || mTool.toolUseId || ''
+      const started = callId ? pendingCalls.get(callId) : undefined
+      if (callId) pendingCalls.delete(callId)
+      if (m.isError) continue
+      const toolName = (started?.name || mTool.toolName || '').toLowerCase()
+      if (toolName === 'edit' || toolName === 'write' || toolName === 'insert') {
+        const args = started?.args
+        const rawPath =
+          typeof args?.path === 'string'
+            ? args.path
+            : typeof args?.file_path === 'string'
+              ? args.file_path
+              : typeof args?.filePath === 'string'
+                ? args.filePath
+                : undefined
+        record(rawPath, toolName)
+      } else if (toolName === 'codemode') {
+        const mergedDetails = mergeCodemodeNestedCalls(m.details, m.nestedCalls)
+        const code = typeof started?.args?.code === 'string' ? started.args.code : undefined
+        for (const call of parseCodemodeCalls(mergedDetails, code)) {
+          if (call.status === 'error' || call.status === 'cancelled') continue
+          const nestedName = call.name.toLowerCase()
+          if (nestedName !== 'edit' && nestedName !== 'write' && nestedName !== 'insert') continue
+          const filePath =
+            call.path ??
+            extractCodemodeArgField(call.args, 'path') ??
+            extractCodemodeArgField(call.args, 'file_path')
+          record(filePath, nestedName)
+        }
+      }
+    }
+  }
+
+  return [...byKey.values()]
 }

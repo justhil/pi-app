@@ -146,19 +146,8 @@ const TimelineItemBase = memo(function TimelineItem({
     const allowMessageActions = showMessageActions && !streaming
 
     if (!hasText && !hasThinking) {
-      // Optimistic / live wait: show thinking placeholder (not empty silence).
-      if (streaming || agentBoot) {
-        return (
-          <div className="timeline-message-row timeline-activity-item">
-            <ReplyPlaceholder
-              startedAt={Number(item.timestamp ?? 0) || undefined}
-              labelSeed={String(item.id)}
-            />
-          </div>
-        )
-      }
-      // Only show interrupted chrome for true incomplete leaves — not mid-turn tool bridges.
-      if (isInterrupted) {
+      // Settled incomplete leaves (from an earlier abort/error) must stay static even when a later turn boots.
+      if (isInterrupted && !streaming) {
         return (
           <div className="timeline-message-row timeline-prose-row">
             <MessageHoverShell
@@ -184,6 +173,17 @@ const TimelineItemBase = memo(function TimelineItem({
                     })}
               </div>
             </MessageHoverShell>
+          </div>
+        )
+      }
+      // Optimistic / live wait: show thinking placeholder (not empty silence).
+      if (streaming || agentBoot) {
+        return (
+          <div className="timeline-message-row timeline-activity-item">
+            <ReplyPlaceholder
+              startedAt={Number(item.timestamp ?? 0) || undefined}
+              labelSeed={String(item.id)}
+            />
           </div>
         )
       }
@@ -846,10 +846,15 @@ export function Timeline() {
         .join('|'),
     [items],
   )
+  const isSessionTurnLive =
+    !!streamingAssistantId || agentRunning || agentBoot || sessionChrome.phase === 'waiting_ui'
   // Grouping is cheap and must see live item references (streaming text).
   const displayItems = useMemo(
-    () => buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[]),
-    [visibleItems],
+    () =>
+      buildTimelineDisplayItems(visibleItems as unknown as TimelineRawItem[], {
+        turnSettled: !isSessionTurnLive,
+      }),
+    [visibleItems, isSessionTurnLive],
   )
   const { leading, turns: turnGroups } = useMemo(
     () => groupDisplayBlocksByTurn(displayItems),
@@ -927,9 +932,10 @@ export function Timeline() {
   const renderDisplayBlock = (
     block: TimelineDisplayItem,
     blockKey: string,
-    opts?: { showMessageActions?: boolean },
+    opts?: { showMessageActions?: boolean; allowBootPlaceholder?: boolean },
   ) => {
     const showMessageActions = opts?.showMessageActions !== false
+    const rowAgentBoot = agentBoot && !!opts?.allowBootPlaceholder
     if (block.kind === 'tool-group') {
       const groupThinking = block.thinkingText?.trim() || ''
       const stableGroupKey = block.groupId || `tg-${block.tools[0]?.id || blockKey}`
@@ -968,7 +974,7 @@ export function Timeline() {
         prevType={prevType}
         streaming={streamingAssistantId === item.id}
         agentRunning={agentRunning}
-        agentBoot={agentBoot}
+        agentBoot={rowAgentBoot}
         rewindEntryId={rewindEntryByItemId.get(item.id)}
         showMessageActions={showMessageActions}
       />
@@ -1087,7 +1093,7 @@ export function Timeline() {
                   item={turn.userItem as unknown as TimelineRawItem}
                   streaming={false}
                   agentRunning={agentRunning}
-                  agentBoot={agentBoot}
+                  agentBoot={false}
                   rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
                   showMessageActions
                 />
@@ -1115,7 +1121,10 @@ export function Timeline() {
                     : `${turn.turnId}-b${bi}`
               return (
                 <Fragment key={claimBlockKey(blockKey || `${turn.turnId}-b${bi}`)}>
-                  {renderDisplayBlock(block, blockKey, { showMessageActions: isLastProse })}
+                  {renderDisplayBlock(block, blockKey, {
+                    showMessageActions: isLastProse,
+                    allowBootPlaceholder: isLiveTurn && bi === turn.blocks.length - 1,
+                  })}
                 </Fragment>
               )
             })}
@@ -1145,6 +1154,7 @@ export function Timeline() {
               block.kind === 'single' &&
               block.item.type === 'assistant-message' &&
               block.item.id === lastProseIdInTurn(displayItems),
+            allowBootPlaceholder: isSessionTurnLive && i === displayItems.length - 1,
           }),
         )}
       {/*

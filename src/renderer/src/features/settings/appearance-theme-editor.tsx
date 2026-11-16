@@ -19,13 +19,30 @@ import { exportThemeString, parseThemeString, type ParsedThemeString } from '@re
 import { mixColors } from '@renderer/lib/theme/derive-theme'
 import { presetsFor, presetVariant, type ThemePreset } from '@renderer/lib/theme/presets'
 import {
+  ACCENT_PRESENCES,
+  BACKDROP_PRESETS,
+  FRAME_STYLES,
+  MESSAGE_STYLES,
   normalizeFontName,
+  SHIKI_THEME_IDS,
+  SURFACE_MATERIALS,
   THEME_COLOR_KEYS,
+  THEME_DENSITIES,
+  WINDOW_MATERIALS,
+  type ThemeAccentPresence,
+  type ThemeBackdropPreset,
   type ThemeColorOverrides,
   type CustomTheme,
+  type ThemeDensity,
+  type ThemeFrameStyle,
+  type ThemeMessageStyle,
+  type ShikiThemeId,
+  type ThemeSurfaceMaterial,
   type ThemeVariant,
   type ThemeVariantKey,
+  type ThemeWindowMaterial,
 } from '@shared/custom-theme'
+import { AppearanceThemeLibrary } from './appearance-theme-library'
 
 const COLOR_RE = /^#[0-9a-f]{6}$/i
 
@@ -642,7 +659,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 
             <GroupHeading>{t('settings:appearance.groupShape')}</GroupHeading>
             <SettingRow label={t('settings:appearance.radius')} description={t('settings:appearance.radiusDesc')}>
-              <RangeField label={t('settings:appearance.radius')} value={configured.radius} fallback={10} min={0} max={16} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('radius', v)} />
+              <RangeField label={t('settings:appearance.radius')} value={configured.radius} fallback={10} min={0} max={20} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('radius', v)} />
             </SettingRow>
             <SettingRow label={t('settings:appearance.shadow')} description={t('settings:appearance.shadowDesc')}>
               <RangeField label={t('settings:appearance.shadow')} value={configured.shadow} fallback={50} min={0} max={100} step={5} format={(n) => String(n)} onChange={(v) => changeField('shadow', v)} />
@@ -657,6 +674,225 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
                 onCheckedChange={(value) => changeField('translucentSidebar', value)}
               />
             </SettingRow>
+
+            <GroupHeading>{t('settings:appearance.groupLayout')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.frameStyle')} description={t('settings:appearance.frameStyleDesc')}>
+              <select
+                aria-label={t('settings:appearance.frameStyle')}
+                value={configured.frameStyle ?? 'paper'}
+                className={selectCls}
+                onChange={(e) => changeField('frameStyle', e.target.value as ThemeFrameStyle)}
+              >
+                {FRAME_STYLES.map((fs) => (
+                  <option key={fs} value={fs}>
+                    {t(`settings:appearance.frameOptions.${fs}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.messageStyle')} description={t('settings:appearance.messageStyleDesc')}>
+              <select
+                aria-label={t('settings:appearance.messageStyle')}
+                value={configured.messageStyle ?? 'bubble'}
+                className={selectCls}
+                onChange={(e) => changeField('messageStyle', e.target.value as ThemeMessageStyle)}
+              >
+                {MESSAGE_STYLES.map((ms) => (
+                  <option key={ms} value={ms}>
+                    {t(`settings:appearance.messageOptions.${ms}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.contentWidth')} description={t('settings:appearance.contentWidthDesc')}>
+              <div className="flex flex-wrap items-center gap-3">
+                {configured.contentWidth !== 0 ? (
+                  <RangeField
+                    label={t('settings:appearance.contentWidth')}
+                    value={configured.contentWidth}
+                    fallback={820}
+                    min={640}
+                    max={1400}
+                    step={20}
+                    format={(n) => `${n}px`}
+                    onChange={(v) => changeField('contentWidth', v)}
+                  />
+                ) : null}
+                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-foreground-secondary">
+                  <Switch
+                    checked={configured.contentWidth === 0}
+                    onCheckedChange={(full) => changeField('contentWidth', full ? 0 : 840)}
+                  />
+                  <span>{t('settings:appearance.fullWidth')}</span>
+                </label>
+              </div>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.spacingDensity')}>
+              <select
+                aria-label={t('settings:appearance.spacingDensity')}
+                value={configured.density ?? 'default'}
+                className={selectCls}
+                onChange={(e) => changeField('density', e.target.value as ThemeDensity)}
+              >
+                {THEME_DENSITIES.map((d) => (
+                  <option key={d} value={d}>
+                    {t(`settings:appearance.densityOptions.${d}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.accentPresence')} description={t('settings:appearance.accentPresenceDesc')}>
+              <select
+                aria-label={t('settings:appearance.accentPresence')}
+                value={configured.accentPresence ?? 'subtle'}
+                className={selectCls}
+                onChange={(e) => changeField('accentPresence', e.target.value as ThemeAccentPresence)}
+              >
+                {ACCENT_PRESENCES.map((ap) => (
+                  <option key={ap} value={ap}>
+                    {t(`settings:appearance.accentOptions.${ap}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.codeTheme')} description={t('settings:appearance.codeThemeDesc')}>
+              <select
+                aria-label={t('settings:appearance.codeTheme')}
+                value={configured.codeTheme ?? (variant === 'dark' ? 'github-dark' : 'github-light')}
+                className={cn(selectCls, 'font-mono text-[12px]')}
+                onChange={(e) => changeField('codeTheme', e.target.value as ShikiThemeId)}
+              >
+                {SHIKI_THEME_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+
+            <GroupHeading>{t('settings:appearance.groupMaterials')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.surfaceMaterial')} description={t('settings:appearance.surfaceMaterialDesc')}>
+              <select
+                aria-label={t('settings:appearance.surfaceMaterial')}
+                value={configured.surfaceMaterial ?? 'solid'}
+                className={selectCls}
+                onChange={(e) => changeField('surfaceMaterial', e.target.value as ThemeSurfaceMaterial)}
+              >
+                {SURFACE_MATERIALS.map((sm) => (
+                  <option key={sm} value={sm}>
+                    {t(`settings:appearance.materialOptions.${sm}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            {(configured.surfaceMaterial === 'liquid-glass' || configured.surfaceMaterial === 'frosted') ? (
+              <>
+                {configured.surfaceMaterial === 'liquid-glass' ? (
+                  <SettingRow label={t('settings:appearance.glassRefraction')} description={t('settings:appearance.glassRefractionDesc')}>
+                    <RangeField
+                      label={t('settings:appearance.glassRefraction')}
+                      value={configured.glassRefraction}
+                      fallback={24}
+                      min={0}
+                      max={48}
+                      step={2}
+                      format={(n) => String(n)}
+                      onChange={(v) => changeField('glassRefraction', v)}
+                    />
+                  </SettingRow>
+                ) : null}
+                <SettingRow label={t('settings:appearance.glassFrost')}>
+                  <RangeField
+                    label={t('settings:appearance.glassFrost')}
+                    value={configured.glassFrost}
+                    fallback={10}
+                    min={0}
+                    max={28}
+                    step={1}
+                    format={(n) => `${n}px`}
+                    onChange={(v) => changeField('glassFrost', v)}
+                  />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.glassTintAlpha')}>
+                  <RangeField
+                    label={t('settings:appearance.glassTintAlpha')}
+                    value={configured.glassTintAlpha}
+                    fallback={variant === 'dark' ? 0.48 : 0.56}
+                    min={0.15}
+                    max={0.96}
+                    step={0.02}
+                    format={(n) => `${Math.round(n * 100)}%`}
+                    onChange={(v) => changeField('glassTintAlpha', v)}
+                  />
+                </SettingRow>
+                {configured.surfaceMaterial === 'liquid-glass' ? (
+                  <>
+                    <SettingRow label={t('settings:appearance.glassSpecular')}>
+                      <RangeField
+                        label={t('settings:appearance.glassSpecular')}
+                        value={configured.glassSpecular}
+                        fallback={variant === 'dark' ? 0.48 : 0.68}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        format={(n) => `${Math.round(n * 100)}%`}
+                        onChange={(v) => changeField('glassSpecular', v)}
+                      />
+                    </SettingRow>
+                    <SettingRow label={t('settings:appearance.glassDispersion')} description={t('settings:appearance.glassDispersionDesc')}>
+                      <Switch
+                        aria-label={t('settings:appearance.glassDispersion')}
+                        checked={Boolean(configured.glassDispersion)}
+                        onCheckedChange={(v) => changeField('glassDispersion', v)}
+                      />
+                    </SettingRow>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+            <SettingRow label={t('settings:appearance.windowMaterial')} description={t('settings:appearance.windowMaterialDesc')}>
+              <select
+                aria-label={t('settings:appearance.windowMaterial')}
+                value={configured.windowMaterial ?? 'none'}
+                className={selectCls}
+                onChange={(e) => changeField('windowMaterial', e.target.value as ThemeWindowMaterial)}
+              >
+                {WINDOW_MATERIALS.map((wm) => (
+                  <option key={wm} value={wm}>
+                    {t(`settings:appearance.windowMaterialOptions.${wm}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.backdropPreset')} description={t('settings:appearance.backdropPresetDesc')}>
+              <select
+                aria-label={t('settings:appearance.backdropPreset')}
+                value={configured.backdropPreset ?? 'none'}
+                className={selectCls}
+                onChange={(e) => changeField('backdropPreset', e.target.value as ThemeBackdropPreset)}
+              >
+                {BACKDROP_PRESETS.map((bp) => (
+                  <option key={bp} value={bp}>
+                    {t(`settings:appearance.backdropOptions.${bp}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            {configured.backdropPreset && configured.backdropPreset !== 'none' ? (
+              <SettingRow label={t('settings:appearance.backdropIntensity')}>
+                <RangeField
+                  label={t('settings:appearance.backdropIntensity')}
+                  value={configured.backdropIntensity}
+                  fallback={0.55}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  format={(n) => `${Math.round(n * 100)}%`}
+                  onChange={(v) => changeField('backdropIntensity', v)}
+                />
+              </SettingRow>
+            ) : null}
+
             <SettingRow
               label={t('settings:appearance.restoreDefault')}
               description={t('settings:appearance.restoreDefaultDesc')}
@@ -712,6 +948,9 @@ const CSS_VARIABLES: { name: string; key: string }[] = [
   { name: '--radius', key: 'varRadius' },
   { name: '--main-chat-surface-radius', key: 'varPaperRadius' },
   { name: '--main-chat-surface-shadow', key: 'varPaperShadow' },
+  { name: '--timeline-content-max', key: 'varTimelineMax' },
+  { name: '--fx-glass-refraction', key: 'varGlassRefraction' },
+  { name: '--fx-glass-frost', key: 'varGlassFrost' },
   { name: '--diff-added', key: 'varDiffAdded' },
   { name: '--diff-removed', key: 'varDiffRemoved' },
 ]
@@ -723,6 +962,16 @@ export function AppearanceThemeEditor() {
 
   return (
     <div className="flex flex-col gap-8">
+      <AppearanceThemeLibrary
+        theme={draft.customTheme}
+        customCss={draft.customCssOverride}
+        onApplyPack={(nextTheme, nextCss) => {
+          setCustomTheme(nextTheme)
+          if (typeof nextCss === 'string') {
+            setCustomCssOverride({ enabled: Boolean(nextCss.trim()), css: nextCss })
+          }
+        }}
+      />
       <ThemeVariantSection variant="light" theme={draft.customTheme} onChange={setCustomTheme} />
       <ThemeVariantSection variant="dark" theme={draft.customTheme} onChange={setCustomTheme} />
 

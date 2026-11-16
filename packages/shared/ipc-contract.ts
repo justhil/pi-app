@@ -5,6 +5,14 @@ import type { CompatibilityLevel } from './extension-types'
 import type { ModelAuthProjection } from './model-auth-projection'
 import type { AdapterCatalog } from '../../src/extension-compat/adapter-schema'
 import type { SessionContextPreview } from './session-context-preview'
+import type {
+  UsageLogPage,
+  UsageLogQuery,
+  UsageRequestDetail,
+  UsageSummary,
+} from './usage-summary'
+import type { CustomTheme, ThemeWindowMaterial } from './custom-theme'
+import type { CssSnippetItem, CssSnippetValues, SavedThemePack } from './theme-pack'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -221,6 +229,7 @@ export interface ReviewGetDiffRequest {
   sessionId: string
   scope: 'turn' | 'session' | 'git'
   turnId?: string
+  cwd?: string
 }
 export interface ReviewGitDiffPayload {
   raw: string
@@ -362,6 +371,58 @@ export interface IpcMethodMap {
   'app.downloadUpdate': {
     request: AppDownloadUpdateRequest
     response: AppDownloadUpdateResponse
+  }
+  'usage.summary': {
+    request: { days?: number }
+    response: UsageSummary
+  }
+  'usage.logs': {
+    request: UsageLogQuery
+    response: UsageLogPage
+  }
+  'usage.requestDetail': {
+    request: { sessionFile: string; entryId: string }
+    response: UsageRequestDetail
+  }
+  'themeLibrary.list': {
+    request: Record<string, never>
+    response: { items: SavedThemePack[] }
+  }
+  'themeLibrary.save': {
+    request: { id?: string; name: string; theme: CustomTheme; customCss?: string }
+    response: { item: SavedThemePack }
+  }
+  'themeLibrary.delete': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'themeLibrary.importFile': {
+    request: Record<string, never>
+    response: { ok: boolean; item?: SavedThemePack; error?: string }
+  }
+  'themeLibrary.exportFile': {
+    request: { name: string; theme: CustomTheme; customCss?: string }
+    response: { ok: boolean; error?: string }
+  }
+  'snippets.list': {
+    request: Record<string, never>
+    response: { items: CssSnippetItem[] }
+  }
+  'snippets.save': {
+    request: { id?: string; name: string; css: string; enabled?: boolean }
+    response: { item: CssSnippetItem }
+  }
+  'snippets.patch': {
+    request: { id: string; enabled?: boolean; values?: CssSnippetValues; css?: string; name?: string }
+    response: { item: CssSnippetItem | null }
+  }
+  'snippets.delete': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'window.setMaterial': {
+    request: { material: ThemeWindowMaterial }
+    response: { ok: boolean; applied: boolean; effective: ThemeWindowMaterial }
   }
   'events.subscribe': { request: EventsSubscribeRequest; response: EventsSubscribeResponse; stream: AppEvent }
 }

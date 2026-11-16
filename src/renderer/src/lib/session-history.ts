@@ -7,6 +7,7 @@ export interface GetMessagesResult {
   sourceCount: number
   totalCount: number
   sessionMeta?: { model?: string; thinkingLevel?: string }
+  touchedFiles?: Array<{ path: string; source: 'edit' | 'write'; changeType: 'created' | 'modified' }>
   error?: string
 }
 
@@ -18,6 +19,7 @@ const sliceCache = new Map<
     items: unknown[]
     at: number
     sessionMeta?: GetMessagesResult['sessionMeta']
+    touchedFiles?: GetMessagesResult['touchedFiles']
   }
 >()
 const SLICE_TTL_MS = 120_000
@@ -52,6 +54,7 @@ export async function fetchSessionHistoryTail(
         sourceCount: hit.sourceCount,
         totalCount: hit.totalCount,
         sessionMeta: hit.sessionMeta,
+        touchedFiles: hit.touchedFiles,
       }
     }
   }
@@ -69,14 +72,15 @@ export async function fetchSessionHistoryTail(
       : items.length
   const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : sourceCount
   const sessionMeta = res?.sessionMeta
+  const touchedFiles = (res as { touchedFiles?: GetMessagesResult['touchedFiles'] })?.touchedFiles
   const err = (res as { error?: string })?.error
   if (err) {
     return { items: [], sourceCount: 0, totalCount: 0, sessionMeta, error: err }
   }
   if (sourceCount > 0 || totalCount > 0) {
-    sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now(), sessionMeta })
+    sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now(), sessionMeta, touchedFiles })
   }
-  return { items, sourceCount, totalCount, sessionMeta }
+  return { items, sourceCount, totalCount, sessionMeta, touchedFiles }
 }
 
 export async function fetchSessionHistoryOlder(

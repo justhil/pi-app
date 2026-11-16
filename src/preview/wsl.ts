@@ -19,6 +19,9 @@ import type { WorkerIncomingMessage } from '../worker/worker-port-types'
 import { listAvailableModelsWithSdk, listCatalogModelsWithSdk, type ModelEntry } from '../main/active-sdk-models-core'
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
+import { queryUsageLogs, refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
+import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
 if (process.env[WORKER_STDIO_ENV] !== '1') throw new Error('WSL preview requires stdio mode')
 const distro = process.env[WORKER_WSL_DISTRO_ENV]
@@ -37,6 +40,9 @@ type WslPreviewRequest = WorkerIncomingMessage & {
     | 'context.preview'
     | 'warm'
     | 'system.prompt'
+    | 'usage.summary'
+    | 'usage.logs'
+    | 'usage.requestDetail'
   userDataDir: string
   sdkPath: string
   workspaceId?: string
@@ -139,6 +145,33 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
       )
       await applyPiSettingsPatch(manager, (message.patch as Record<string, unknown>) || {})
       result = null
+    } else if (message.type === 'usage.summary') {
+      const m = message as unknown as Record<string, unknown>
+      refreshUsage(String(m.agentDir || ''))
+      result = summarizeUsage(Number(m.from), Number(m.to), Number(m.offsetMin) || 0)
+    } else if (message.type === 'usage.logs') {
+      const m = message as unknown as Record<string, unknown>
+      refreshUsage(String(m.agentDir || ''))
+      result = queryUsageLogs({
+        from: Number(m.from) || 0,
+        to: Number(m.to) || Date.now(),
+        model: typeof m.model === 'string' ? m.model : undefined,
+        project: typeof m.project === 'string' ? m.project : undefined,
+        api: typeof m.api === 'string' ? m.api : undefined,
+        status: typeof m.status === 'string' ? (m.status as 'all' | UsageStopStatus) : undefined,
+        search: typeof m.search === 'string' ? m.search : undefined,
+        sortBy: typeof m.sortBy === 'string' ? (m.sortBy as UsageLogSortField) : undefined,
+        sortDir: m.sortDir === 'asc' ? 'asc' : 'desc',
+        offset: typeof m.offset === 'number' ? m.offset : 0,
+        limit: typeof m.limit === 'number' ? m.limit : 50,
+      })
+    } else if (message.type === 'usage.requestDetail') {
+      const m = message as unknown as Record<string, unknown>
+      result = await readUsageRequestDetailFromFile(
+        String(m.sessionFile || ''),
+        String(m.entryId || ''),
+        message.sdkPath,
+      )
     } else if (message.type === 'system.prompt') {
       const sdk = await import(message.sdkPath)
       result = await buildSystemPromptPreview(

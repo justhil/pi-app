@@ -4,14 +4,37 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { ReviewPanel } from './review-panel'
 import { listAllReviewComments, upsertReviewComment } from './review-inline-comments'
 
-const mocks = vi.hoisted(() => ({ send: vi.fn() }))
-vi.mock('react-i18next', async (importOriginal) => ({ ...await importOriginal<typeof import('react-i18next')>(), useTranslation: () => ({ t: (key: string) => key }) }))
+const mocks = vi.hoisted(() => ({
+  send: vi.fn(),
+  gitData: { isRepo: true, branch: 'main', status: '', raw: '', stagedRaw: '' } as {
+    isRepo: boolean
+    branch: string
+    status: string
+    raw: string
+    stagedRaw: string
+  },
+}))
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({
+    t: (key: string, opts?: Record<string, unknown>) =>
+      opts && 'count' in opts ? `${key}:${opts.count}` : key,
+  }),
+}))
 vi.mock('@renderer/lib/send-composer-prompt', () => ({ sendComposerPrompt: mocks.send }))
-vi.mock('./use-review-git-data', () => ({ useReviewGitData: () => ({ gitData: { isRepo: true, branch: 'main', status: '', raw: '', stagedRaw: '' }, loading: false, refreshing: false, refresh: vi.fn() }) }))
+vi.mock('./use-review-git-data', () => ({
+  useReviewGitData: () => ({
+    gitData: mocks.gitData,
+    loading: false,
+    refreshing: false,
+    refresh: vi.fn(),
+  }),
+}))
 
 beforeEach(() => {
   localStorage.clear()
   mocks.send.mockReset()
+  mocks.gitData = { isRepo: true, branch: 'main', status: '', raw: '', stagedRaw: '' }
   useUIStore.setState({ currentWorkspace: '/project', fileChanges: [], timelineItems: [] })
 })
 
@@ -55,5 +78,41 @@ describe('Review action area', () => {
     expect(git).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('button', { name: /generate|commit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+  })
+
+  it('should_count_codemode_modified_files_and_dedupe_staged_plus_unstaged_files_in_session_scope', () => {
+    mocks.gitData = {
+      isRepo: true,
+      branch: 'main',
+      status: 'MM src/cm.ts\n',
+      stagedRaw: 'diff --git a/src/cm.ts b/src/cm.ts\n--- a/src/cm.ts\n+++ b/src/cm.ts\n@@ -1 +1,3 @@\n a\n+b\n+c\n',
+      raw: 'diff --git a/src/cm.ts b/src/cm.ts\n--- a/src/cm.ts\n+++ b/src/cm.ts\n@@ -1,3 +1,4 @@\n-a\n+x\n+y\n b\n c\n',
+    }
+    useUIStore.setState({
+      currentWorkspace: '/project',
+      fileChanges: [],
+      timelineItems: [
+        {
+          id: 'cm-review-1',
+          type: 'tool-call',
+          toolName: 'codemode',
+          toolPhase: 'end',
+          runId: 'run-1',
+          toolArgs: { code: 'await tools.edit({ path: "src/cm.ts", edits: [] })' },
+          toolDetails: {
+            calls: [
+              { id: 'cm-review-1/1', name: 'edit', args: '{"path":"src/cm.ts"}', status: 'ok' },
+            ],
+          },
+          timestamp: 1,
+        },
+      ],
+    })
+
+    render(<ReviewPanel />)
+    expect(screen.getByText('review:scopeHintSession:1')).toBeInTheDocument()
+    expect(screen.getByText('+4')).toBeInTheDocument()
+    expect(screen.getAllByText('−1').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('button', { name: 'review:scope.session' })).toHaveTextContent('1')
   })
 })

@@ -54,17 +54,39 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
   const state = api.get()
   if (event.phase === 'start' && event.role === 'user') {
     // A queued message delivered just as the user hit Stop must not re-light the run.
-    if (state.runState.status !== 'running' && !isAbortUiHoldActive(event.sessionFile)) {
+    if (
+      state.runState.status !== 'running' &&
+      !isAbortUiHoldActive(event.sessionFile) &&
+      !event.sessionEntryId
+    ) {
       state.setRunState({ status: 'running', startTime: event.timestamp })
+    }
+    if (event.sessionEntryId) {
+      const existingByEntry = state.timelineItems.find(
+        (item) => item.type === 'user-message' && item.sessionEntryId === event.sessionEntryId,
+      )
+      if (existingByEntry) {
+        api.set({ optimisticPendingUserText: null })
+        return
+      }
     }
     const opt = state.optimisticPendingUserText
     if (opt || event.text) {
       const items = api.get().timelineItems
-      const lastUser = [...items].reverse().find((i) => i.type === 'user-message')
-      const matchesOpt = isReusableOptimisticUserMessage(lastUser, event.text, opt)
-      if (matchesOpt) {
-        if (event.text?.trim()) {
-          state.updateTimelineItem(lastUser!.id, {
+      let matchedOpt: TimelineItem | undefined
+      for (let i = items.length - 1; i >= 0; i--) {
+        const row = items[i]
+        if (row.type !== 'user-message') continue
+        if (row.sessionEntryId) break
+        if (isReusableOptimisticUserMessage(row, event.text, opt)) {
+          matchedOpt = row
+          break
+        }
+      }
+      if (matchedOpt) {
+        const keepSegments = !!(matchedOpt.segments && matchedOpt.segments.length > 0)
+        if (!keepSegments && event.text?.trim()) {
+          state.updateTimelineItem(matchedOpt.id, {
             text: event.text,
             segments: undefined,
             runId: event.runId,
@@ -72,7 +94,8 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
             ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
           })
         } else {
-          state.updateTimelineItem(lastUser!.id, {
+          state.updateTimelineItem(matchedOpt.id, {
+            ...(event.text?.trim() ? { payloadText: event.text } : {}),
             runId: event.runId,
             turnId: event.turnId,
             ...(event.sessionEntryId ? { sessionEntryId: event.sessionEntryId } : {}),
@@ -96,16 +119,30 @@ export function handleMessage(event: MessageEvent, api: StoreApi): void {
   }
   if (event.phase === 'end' && event.role === 'user' && event.sessionEntryId) {
     const items = api.get().timelineItems
+    if (items.some((item) => item.type === 'user-message' && item.sessionEntryId === event.sessionEntryId)) {
+      api.set({ optimisticPendingUserText: null })
+      return
+    }
+    let targetIdx = -1
     for (let i = items.length - 1; i >= 0; i--) {
-      if (items[i].type === 'user-message' && !items[i].sessionEntryId) {
-        state.updateTimelineItem(items[i].id, {
-          sessionEntryId: event.sessionEntryId,
-          runId: event.runId,
-          turnId: event.turnId,
-        })
-        api.set({ optimisticPendingUserText: null })
+      if (items[i].type !== 'user-message' || items[i].sessionEntryId) continue
+      if (event.turnId && items[i].turnId === event.turnId) {
+        targetIdx = i
         break
       }
+      if (event.runId && items[i].runId === event.runId && targetIdx < 0) {
+        targetIdx = i
+      } else if (targetIdx < 0) {
+        targetIdx = i
+      }
+    }
+    if (targetIdx >= 0) {
+      state.updateTimelineItem(items[targetIdx].id, {
+        sessionEntryId: event.sessionEntryId,
+        runId: event.runId,
+        turnId: event.turnId,
+      })
+      api.set({ optimisticPendingUserText: null })
     }
     return
   }

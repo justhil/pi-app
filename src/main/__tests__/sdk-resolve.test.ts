@@ -98,11 +98,14 @@ describe('resolveWslActiveSdk', () => {
     expect(result!.entryPath).not.toContain('\\')
   })
 
-  it('probes with the login-shell PATH so npm/pi match the node that runs the worker', async () => {
+  it('probes with the login-shell PATH and includes Pi managed-install releases in probe.sh', async () => {
     envMocks.resolveWslEnv.mockResolvedValue({ path: '/home/u/.nvm/bin:/usr/bin' })
     mocks.runWslDistroAsync.mockResolvedValue({ status: 0, stdout: '', stderr: '' })
     await resolveWslActiveSdk('Debian')
     expect(mocks.runWslDistroAsync.mock.calls[0][1]).toEqual(['env', 'PATH=/home/u/.nvm/bin:/usr/bin', 'sh', '/root/.pi-desktop/probe.sh'])
+    const writtenScript = String(mocks.writeFileSync.mock.calls[0][1])
+    expect(writtenScript).toContain('.pi/agent/install/current-version')
+    expect(writtenScript).toContain('releases/')
   })
 
   it('serves a persisted install immediately and revalidates it in the background once stale', async () => {

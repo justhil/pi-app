@@ -18,6 +18,7 @@ import {
   queueStreamDelta,
 } from '@renderer/stores/ui-store-stream'
 import { createShellSlice, DEFAULT_RIGHT_PANEL_WIDTH } from '@renderer/stores/ui-store-shell-slice'
+import { pruneExpiredRecentSessions } from '@renderer/lib/session-attention'
 import { createRuntimeSlice } from '@renderer/stores/ui-store-runtime-slice'
 import { workspacePathKey } from '@shared/workspace-path'
 import { isAbortQueueIgnoreActive } from '@renderer/lib/abort-ui-hold'
@@ -259,14 +260,14 @@ export const useUIStore = create<UIState>()(
   rewindLoadingTree: false,
   rewindTreeError: undefined,
   setRewindMeta: (patch) =>
-    set((s) => ({
-      ...(patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
-      ...(patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
-      ...(patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
-      ...(patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
-      ...(patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
-      ...(patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
-      ...(patch.treeError !== undefined ? { rewindTreeError: patch.treeError } : {}),
+    set(() => ({
+      ...('rewindKey' in patch && patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
+      ...('checkpoints' in patch && patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
+      ...('treeNodes' in patch && patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
+      ...('workerBound' in patch && patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
+      ...('loadingCheckpoints' in patch && patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
+      ...('loadingTree' in patch && patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
+      ...('treeError' in patch ? { rewindTreeError: patch.treeError || undefined } : {}),
     })),
 
   composerPrefill: null,
@@ -341,6 +342,9 @@ export const useUIStore = create<UIState>()(
         theme: s.theme,
         sidebarWidth: s.sidebarWidth,
         sidebarCollapsed: s.sidebarCollapsed,
+        sidebarActiveSessionsDrawer: s.sidebarActiveSessionsDrawer,
+        sidebarActiveSessionsOpen: s.sidebarActiveSessionsOpen,
+        sessionLastActiveAt: pruneExpiredRecentSessions(s.sessionLastActiveAt),
         rightPanelWidth: s.rightPanelWidth,
         rightPanelCollapsed: s.rightPanelCollapsed,
         rightPanelRailIcons: s.rightPanelRailIcons,

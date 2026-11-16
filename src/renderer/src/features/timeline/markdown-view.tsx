@@ -11,6 +11,9 @@ import type { Pluggable } from 'unified'
 import 'katex/dist/katex.min.css'
 import 'katex/contrib/mhchem/mhchem.js'
 import { cn } from '@renderer/lib/utils'
+import { sanitizeHtml } from '@renderer/lib/sanitize'
+import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
+import { useCodeHighlightRevision } from '@renderer/lib/theme/use-code-highlight-revision'
 import { preprocessMarkdownMath, KATEX_MACROS } from '@renderer/features/timeline/markdown-math-preprocess'
 import { splitOpenUIFence, splitStreamingMarkdown } from '@renderer/features/timeline/markdown-stream-split'
 import {
@@ -41,21 +44,39 @@ function CodeBlock({
   className,
   children,
   defaultExpanded,
+  streaming,
 }: {
   className?: string
   children?: React.ReactNode
   defaultExpanded?: boolean
+  streaming?: boolean
 }) {
   const { t } = useTranslation()
   const surfaceRef = useRef<HTMLDivElement>(null)
   const [expanded, setExpanded] = useState(!!defaultExpanded)
   const [scrollActive, setScrollActive] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [html, setHtml] = useState<string | null>(null)
   const lang = /language-([\w-]+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
   const PREVIEW_LINES = 3
   const lineCount = code.split('\n').length
   const needsFold = lineCount > PREVIEW_LINES
+  const themeRev = useCodeHighlightRevision()
+
+  useEffect(() => {
+    if (streaming || !lang || !code) {
+      setHtml(null)
+      return
+    }
+    let cancelled = false
+    void highlightCodeToHtml(code, lang).then((res) => {
+      if (!cancelled) setHtml(res)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [code, lang, streaming, themeRev])
 
   useEffect(() => {
     if (!scrollActive) return
@@ -87,10 +108,10 @@ function CodeBlock({
       ref={surfaceRef}
       data-scroll-active={scrollActive ? 'true' : undefined}
       className={cn(
-        'code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/35 transition-colors',
+        'code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/45 transition-colors',
         scrollActive && 'border-primary/45 ring-1 ring-primary/20',
       )}
-      style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
+      style={{ background: 'var(--code-bg, color-mix(in srgb, var(--bg-2) 55%, transparent))' }}
     >
       <div
         className="flex items-center justify-between gap-2 border-b border-border/30 px-2 py-0.5"
@@ -109,18 +130,31 @@ function CodeBlock({
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
         </button>
       </div>
-      <pre
-        data-independent-scroll={scrollActive ? '' : undefined}
-        onClick={() => setScrollActive(true)}
-        className={cn(
-          'px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
-          scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
-          !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
-        )}
-        style={{ margin: 0, color: 'var(--text-primary)' }}
-      >
-        <code>{code}</code>
-      </pre>
+      {html != null && !streaming ? (
+        <div
+          data-independent-scroll={scrollActive ? '' : undefined}
+          onClick={() => setScrollActive(true)}
+          className={cn(
+            'native-code-shiki px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[12.5px]',
+            scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
+            !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
+          )}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
+        />
+      ) : (
+        <pre
+          data-independent-scroll={scrollActive ? '' : undefined}
+          onClick={() => setScrollActive(true)}
+          className={cn(
+            'px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
+            scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
+            !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
+          )}
+          style={{ margin: 0, color: 'var(--text-primary)' }}
+        >
+          <code>{code}</code>
+        </pre>
+      )}
       {needsFold && (
         <button
           type="button"
@@ -288,7 +322,7 @@ const MarkdownView = memo(function MarkdownView({
           )
         }
         return (
-          <CodeBlock className={cn2} defaultExpanded={!!streaming}>
+          <CodeBlock className={cn2} defaultExpanded={!!streaming} streaming={streaming}>
             {ch}
           </CodeBlock>
         )

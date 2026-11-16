@@ -1,17 +1,29 @@
+import {
+  isInterruptedAssistantRow,
+  isToolBridgeEmptyAssistant,
+  type IncompleteTimelineRow,
+} from '@shared/timeline-incomplete'
+
 /**
  * Build timeline display blocks.
  *
  * Cursor-style activity segments:
- * - While a tool segment is still open (no following assistant prose yet), tools and
- *   thinking render as **flat singles** — no summary hierarchy, no nested fold.
- * - When the next assistant **prose** arrives, the preceding tools collapse into one
- *   `tool-group` summary line (screenshot-style). Prose itself never enters the group.
+ * - While the live trailing tool segment is still open, tools and thinking render as
+ *   **flat singles** — no summary hierarchy, no nested fold.
+ * - Once a segment is closed (by following prose, user message, compaction, abort/error,
+ *   slash notice, interrupted leaf, or turn settlement), its tools and thinking collapse
+ *   into one `tool-group` summary line. Prose itself never enters the group.
  */
 
 export type TimelineRawItem = {
   id: string
   type: string
   [key: string]: unknown
+}
+
+export type BuildTimelineDisplayOptions = {
+  /** True when the session has no live turn in flight, so a trailing tool-only segment can seal. */
+  turnSettled?: boolean
 }
 
 /** Ordered node inside a sealed tool cluster (thinking / tool only). */
@@ -60,10 +72,27 @@ function isAssistantWithProse(item: TimelineRawItem): boolean {
   return item.type === 'assistant-message' && !!String(item.text ?? '').trim()
 }
 
-function isHardBoundary(item: TimelineRawItem): boolean {
+/**
+ * Interrupted empty leaves (or error-bearing rows) render their own status/rewind UI
+ * and must terminate a tool cluster rather than being swallowed into it.
+ */
+function isInterruptedTerminalAssistant(items: TimelineRawItem[], index: number): boolean {
+  const row = items[index]
+  if (!row || row.type !== 'assistant-message') return false
+  if (isAssistantWithProse(row)) return false
+  const errMsg = typeof row.errorMessage === 'string' ? row.errorMessage.trim() : ''
+  if (errMsg) return true
+  if (!isEmptyAssistantShell(row)) return false
+  if (!isInterruptedAssistantRow(row as IncompleteTimelineRow)) return false
+  return !isToolBridgeEmptyAssistant(items as IncompleteTimelineRow[], index)
+}
+
+function isHardBoundary(items: TimelineRawItem[], index: number): boolean {
+  const item = items[index]
+  if (!item) return true
   if (isToolCall(item)) return false
   if (item.type === 'assistant-message') {
-    return isAssistantWithProse(item)
+    return isAssistantWithProse(item) || isInterruptedTerminalAssistant(items, index)
   }
   return true
 }
@@ -75,12 +104,12 @@ function isHardBoundary(item: TimelineRawItem): boolean {
 export function canFoldAssistantIntoCluster(items: TimelineRawItem[], index: number): boolean {
   const item = items[index]
   if (!item || item.type !== 'assistant-message') return false
-  if (isAssistantWithProse(item)) return false
+  if (isAssistantWithProse(item) || isInterruptedTerminalAssistant(items, index)) return false
   if (!isThinkingOnlyAssistant(item) && !isEmptyAssistantShell(item)) return false
   for (let cursor = index + 1; cursor < items.length; cursor++) {
     const next = items[cursor]
     if (isToolCall(next)) return true
-    if (isHardBoundary(next)) return false
+    if (isHardBoundary(items, cursor)) return false
   }
   return false
 }
@@ -106,7 +135,10 @@ function findAgentClusterEnd(items: TimelineRawItem[], start: number): number | 
       index++
       continue
     }
-    if (isThinkingOnlyAssistant(row) || isEmptyAssistantShell(row)) {
+    if (
+      (isThinkingOnlyAssistant(row) || isEmptyAssistantShell(row)) &&
+      !isInterruptedTerminalAssistant(items, index)
+    ) {
       index++
       continue
     }
@@ -117,17 +149,25 @@ function findAgentClusterEnd(items: TimelineRawItem[], start: number): number | 
 }
 
 /**
- * Segment is sealed when the next visible item is assistant prose, or a compaction notice
- * (auto-compaction mid-run cuts the segment; the tools before it never get prose of their own).
- * Until then, tools stay flat (no summary hierarchy).
+ * Segment is sealed when closed by a boundary item (assistant prose, user message,
+ * compaction, error/abort banner, slash notice, or interrupted terminal leaf), or when
+ * it sits at the tail of an already-settled turn.
  */
 export function isActivitySegmentSealed(
   items: TimelineRawItem[],
   clusterEnd: number,
+  opts?: BuildTimelineDisplayOptions,
 ): boolean {
-  if (clusterEnd >= items.length) return false
+  if (clusterEnd >= items.length) return !!opts?.turnSettled
   const next = items[clusterEnd]
-  return isAssistantWithProse(next) || next.type === 'compaction'
+  return (
+    isAssistantWithProse(next) ||
+    isInterruptedTerminalAssistant(items, clusterEnd) ||
+    next.type === 'user-message' ||
+    next.type === 'compaction' ||
+    next.type === 'error' ||
+    next.type === 'slash'
+  )
 }
 
 function toolPhaseIsLive(item: TimelineRawItem): boolean {
@@ -149,20 +189,13 @@ export function buildClusterChildren(slice: TimelineRawItem[]): TimelineClusterC
     if (prose) continue
 
     const startedAt = typeof row.timestamp === 'number' ? row.timestamp : undefined
-    const incomplete = !!(row as { incomplete?: boolean }).incomplete
-    const stopReason = String((row as { stopReason?: string }).stopReason || '')
-    const trulyInterrupted =
-      incomplete &&
-      (stopReason === 'aborted' || stopReason === 'interrupted' || stopReason === 'error')
-    const streaming =
-      trulyInterrupted || (!!thinking && !!(row as { streaming?: boolean }).streaming)
 
     if (thinking) {
       children.push({
         kind: 'thinking',
         id: `${row.id}-think`,
         text: thinking,
-        streaming,
+        streaming: false,
         startedAt,
         duration: (row as { thinkingDuration?: number }).thinkingDuration,
       })
@@ -207,7 +240,10 @@ function pushFlatActivitySlice(
   }
 }
 
-export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDisplayItem[] {
+export function buildTimelineDisplayItems(
+  items: TimelineRawItem[],
+  opts?: BuildTimelineDisplayOptions,
+): TimelineDisplayItem[] {
   const out: TimelineDisplayItem[] = []
   let index = 0
 
@@ -215,10 +251,11 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
     const item = items[index]
 
     const canStartActivity =
-      isToolCall(item) ||
-      isThinkingOnlyAssistant(item) ||
-      isEmptyAssistantShell(item) ||
-      canFoldAssistantIntoCluster(items, index)
+      !isInterruptedTerminalAssistant(items, index) &&
+      (isToolCall(item) ||
+        isThinkingOnlyAssistant(item) ||
+        isEmptyAssistantShell(item) ||
+        canFoldAssistantIntoCluster(items, index))
 
     if (canStartActivity) {
       const clusterEnd = findAgentClusterEnd(items, index)
@@ -231,9 +268,19 @@ export function buildTimelineDisplayItems(items: TimelineRawItem[]): TimelineDis
             continue
           }
         } else {
-          const sealed = isActivitySegmentSealed(items, clusterEnd) && !clusterHasLiveTool(tools)
+          const next = clusterEnd < items.length ? items[clusterEnd] : null
+          const hardCutByTurnEnd =
+            !!opts?.turnSettled ||
+            (next != null &&
+              (next.type === 'user-message' ||
+                next.type === 'compaction' ||
+                next.type === 'error' ||
+                next.type === 'slash' ||
+                isInterruptedTerminalAssistant(items, clusterEnd)))
+          const sealed =
+            isActivitySegmentSealed(items, clusterEnd, opts) &&
+            (hardCutByTurnEnd || !clusterHasLiveTool(tools))
           if (sealed) {
-            // Next item is prose — collapse prior tools into one summary line.
             const children = buildClusterChildren(slice)
             out.push({
               kind: 'tool-group',

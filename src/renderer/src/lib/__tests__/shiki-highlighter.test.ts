@@ -53,4 +53,13 @@ describe('highlightCodeToHtml', () => {
     expect(escaped).toBe('a\nb')
     expect(escaped.includes('<pre')).toBe(false)
   })
+
+  it('dynamically loads selectable Shiki syntax themes (everforest-dark vs vitesse-light)', async () => {
+    const sample = 'export const count: number = 42;\n'
+    const everforest = await highlightCodeToHtml(sample, 'ts', 'everforest-dark')
+    const vitesse = await highlightCodeToHtml(sample, 'ts', 'vitesse-light')
+    expect(everforest).toContain('everforest-dark')
+    expect(vitesse).toContain('vitesse-light')
+    expect(everforest).not.toBe(vitesse)
+  })
 })

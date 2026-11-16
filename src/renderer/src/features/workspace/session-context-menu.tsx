@@ -101,10 +101,17 @@ export function SessionContextMenuPortal({
       if (r?.ok) {
         const cur = useUIStore.getState().currentSessionId
         if (cur === target.sessionId) {
-          useUIStore.getState().setCurrentSession('')
-          useUIStore.getState().clearTimeline()
-          useUIStore.getState().loadHistoryItems([])
-          useUIStore.getState().setHistoryMeta(0, 0, null)
+          useUIStore.setState({
+            currentSessionId: '',
+            historySessionFile: null,
+            historyTotalCount: 0,
+            historyLoadedCount: 0,
+            timelineItems: [],
+            streamingAssistantId: null,
+            optimisticPendingUserText: null,
+            agentTurnBootstrapping: false,
+            pendingTurnStage: null,
+          })
           void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
         }
         // Drop the deleted session's per-session state so late events cannot resurrect it.

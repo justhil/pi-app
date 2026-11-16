@@ -12,7 +12,11 @@ import {
 } from '@shared/worker-message'
 import { resolveInteractByTool } from '../extension-compat/adapter-loader.js'
 import { extractJsonPath, extractStatusFromOutput } from '../extension-compat/json-path.js'
-import { extractCodemodeArgField, parseCodemodeCalls } from '@shared/tool-call-detail'
+import {
+  computeMutateCallDiffStats,
+  extractCodemodeArgField,
+  parseCodemodeCalls,
+} from '@shared/tool-call-detail'
 import { enrichToolChildSessionFiles } from '../extension-compat/tool-child-session.js'
 import type { DesktopUIBridge } from './desktop-ui-bridge.js'
 import { lastAssistantFromMessages } from './session-event-helpers.js'
@@ -47,11 +51,18 @@ let lastAssistantPreview = ''
 let runStartedAt = 0
 let queuedSteering = 0
 let queuedFollowUp = 0
+const toolArgsByCallId = new Map<string, unknown>()
+const nestedMutateStatsByParent = new Map<
+  string,
+  Map<string, { path?: string; additions: number; deletions: number }>
+>()
 
 export function resetSessionEventTracking(): void {
   assistantTextSnapshot = ''
   assistantThinkingSnapshot = ''
   pendingTerminalError = null
+  toolArgsByCallId.clear()
+  nestedMutateStatsByParent.clear()
 }
 
 export function resetCompletionTurnTracking(): void {
@@ -268,6 +279,13 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'tool_execution_start': {
+      const parentToolCallId = (event as { parentToolCallId?: string }).parentToolCallId
+      if (event.toolCallId && event.args !== undefined) {
+        toolArgsByCallId.set(event.toolCallId, event.args)
+      }
+      if (parentToolCallId) {
+        break
+      }
       if (event.args) deps.captureAdapterTool?.(event.toolName, event.args)
       if (uiBridge && event.args) {
         const interact = resolveInteractByTool(event.toolName)
@@ -290,6 +308,9 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'tool_execution_update': {
+      if ((event as { parentToolCallId?: string }).parentToolCallId) {
+        break
+      }
       const statusLine = extractStatusFromOutput(event.partialResult)
       const partialResult = event.partialResult as { details?: unknown } | null | undefined
       const parentSessionFile = typeof base.sessionFile === 'string' ? base.sessionFile : undefined
@@ -313,13 +334,57 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
       break
     }
     case 'tool_execution_end': {
-      const endResult = event.result as { details?: unknown }
+      const parentToolCallId = (event as { parentToolCallId?: string }).parentToolCallId
+      const savedArgs = event.toolCallId ? toolArgsByCallId.get(event.toolCallId) : undefined
+      if (event.toolCallId) toolArgsByCallId.delete(event.toolCallId)
+      const endResult = event.result as { details?: unknown } | undefined
+
+      if (parentToolCallId) {
+        if (!event.isError) {
+          const lower = event.toolName.toLowerCase()
+          if (lower === 'edit' || lower === 'write' || lower === 'insert') {
+            const stats = computeMutateCallDiffStats(lower, savedArgs, endResult?.details)
+            let byCall = nestedMutateStatsByParent.get(parentToolCallId)
+            if (!byCall) {
+              byCall = new Map()
+              nestedMutateStatsByParent.set(parentToolCallId, byCall)
+            }
+            byCall.set(event.toolCallId, stats)
+          }
+        }
+        break
+      }
+
       const parentSessionFile = typeof base.sessionFile === 'string' ? base.sessionFile : undefined
-      const details = enrichToolChildSessionFiles(
+      let details = enrichToolChildSessionFiles(
         event.toolName,
         parentSessionFile,
         endResult?.details,
       )
+      if (event.toolName === 'codemode' && event.toolCallId) {
+        const nestedStats = nestedMutateStatsByParent.get(event.toolCallId)
+        nestedMutateStatsByParent.delete(event.toolCallId)
+        if (nestedStats && nestedStats.size > 0 && details && typeof details === 'object') {
+          const detRec = details as { calls?: unknown[] }
+          if (Array.isArray(detRec.calls)) {
+            details = {
+              ...detRec,
+              calls: detRec.calls.map((raw) => {
+                if (!raw || typeof raw !== 'object') return raw
+                const c = raw as Record<string, unknown>
+                const hit = typeof c.id === 'string' ? nestedStats.get(c.id) : undefined
+                if (!hit) return raw
+                return {
+                  ...c,
+                  ...(c.path === undefined && hit.path ? { path: hit.path } : {}),
+                  ...(c.additions === undefined ? { additions: hit.additions } : {}),
+                  ...(c.deletions === undefined ? { deletions: hit.deletions } : {}),
+                }
+              }),
+            }
+          }
+        }
+      }
       deps.captureAdapterTool?.(event.toolName, details ?? endResult)
       deps.emit({
         ...base,
@@ -331,27 +396,42 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         details,
         isError: event.isError,
       } as AppEvent)
-      if (event.toolName === 'edit' || event.toolName === 'write') {
-        const args = (event as { args?: { path?: string } }).args
-        if (args?.path) {
+      if (!event.isError && (event.toolName === 'edit' || event.toolName === 'write' || event.toolName === 'insert')) {
+        const rawArgs = ((event as { args?: Record<string, unknown> }).args ?? savedArgs) as
+          | { path?: unknown; file_path?: unknown }
+          | undefined
+        const filePath =
+          typeof rawArgs?.path === 'string'
+            ? rawArgs.path
+            : typeof rawArgs?.file_path === 'string'
+              ? rawArgs.file_path
+              : undefined
+        if (filePath) {
           deps.emit({
             ...base,
             type: 'file',
-            source: event.toolName,
-            path: args.path,
+            source: event.toolName === 'insert' ? 'edit' : event.toolName,
+            path: filePath,
             changeType: event.toolName === 'write' ? 'added' : 'modified',
           } as AppEvent)
         }
       } else if (event.toolName === 'codemode') {
-        for (const call of parseCodemodeCalls(details)) {
+        const code =
+          savedArgs && typeof savedArgs === 'object' && typeof (savedArgs as { code?: unknown }).code === 'string'
+            ? ((savedArgs as { code: string }).code)
+            : undefined
+        for (const call of parseCodemodeCalls(details, code)) {
           if (call.status !== 'ok') continue
-          if (call.name !== 'edit' && call.name !== 'write') continue
-          const filePath = extractCodemodeArgField(call.args, 'path') ?? extractCodemodeArgField(call.args, 'file_path')
+          if (call.name !== 'edit' && call.name !== 'write' && call.name !== 'insert') continue
+          const filePath =
+            call.path ??
+            extractCodemodeArgField(call.args, 'path') ??
+            extractCodemodeArgField(call.args, 'file_path')
           if (filePath) {
             deps.emit({
               ...base,
               type: 'file',
-              source: call.name,
+              source: call.name === 'insert' ? 'edit' : call.name,
               path: filePath,
               changeType: call.name === 'write' ? 'added' : 'modified',
             } as AppEvent)

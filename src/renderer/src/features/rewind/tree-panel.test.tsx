@@ -52,6 +52,16 @@ describe('TreePanel refresh behaviour', () => {
     act(() => useUIStore.setState({ historySessionFile: '/other/session.jsonl' }))
     expect(refresh).toHaveBeenLastCalledWith('/other/session.jsonl')
   })
+
+  it('should_auto_refresh_tree_when_agent_turn_settles_to_idle_while_panel_is_open', () => {
+    const refresh = vi.mocked(refreshSessionTree)
+    useUIStore.setState({ runState: { status: 'running', toolCount: 1, errorCount: 0 } })
+    render(<TreePanel />)
+    refresh.mockClear()
+
+    act(() => useUIStore.setState({ runState: { status: 'idle', toolCount: 1, errorCount: 0 } }))
+    expect(refresh).toHaveBeenCalledWith('/tmp/proj/session.jsonl')
+  })
 })
 
 describe('TreePanel user-only filter', () => {
@@ -90,3 +100,33 @@ describe('TreePanel user-only filter', () => {
     expect(screen.queryByRole('button', { name: /第一条回复/i })).toBeNull()
   })
 })
+
+describe('TreePanel toolbar layout contracts', () => {
+  it('should_keep_filter_radiogroup_and_refresh_non_shrinking_when_panel_is_narrow', () => {
+    const { container } = render(<TreePanel />)
+
+    expect(container.querySelector('.tree-panel')).not.toBeNull()
+
+    const radiogroup = screen.getByRole('radiogroup', { name: '显示范围' })
+    expect(radiogroup.classList.contains('shrink-0')).toBe(true)
+    expect(radiogroup.classList.contains('min-w-0')).toBe(false)
+
+    const radios = screen.getAllByRole('radio')
+    expect(radios).toHaveLength(3)
+    for (const radio of radios) {
+      expect(radio.classList.contains('shrink-0')).toBe(true)
+      expect(radio.classList.contains('whitespace-nowrap')).toBe(true)
+    }
+
+    const hint = screen.getByText('单击查看 · 双击回到此处')
+    expect(hint.classList.contains('min-w-0')).toBe(true)
+    expect(hint.classList.contains('truncate')).toBe(true)
+    expect(hint.classList.contains('tree-panel-hint')).toBe(true)
+    expect(hint).toHaveAttribute('title', '单击查看 · 双击回到此处')
+
+    const refreshBtn = screen.getByRole('button', { name: '刷新' })
+    expect(refreshBtn).toHaveAttribute('aria-label', '刷新')
+    expect(refreshBtn.classList.contains('shrink-0')).toBe(true)
+  })
+})
+

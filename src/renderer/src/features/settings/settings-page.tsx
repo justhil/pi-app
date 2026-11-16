@@ -5,7 +5,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import { SlidersHorizontal, Palette, Cpu, Puzzle, Zap, MessageSquareText, Mic,
-  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, Smartphone, type AppIconComponent, Activity } from '@renderer/components/icons'
+  Bot, Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, Smartphone, type AppIconComponent, Activity } from '@renderer/components/icons'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { McpSettingsPanel } from '@renderer/features/settings/mcp-settings-panel'
 import { ModelRoutingPanel } from '@renderer/features/settings/model-routing-panel'
@@ -25,10 +25,12 @@ import { SettingsSaveBar } from '@renderer/features/settings/settings-save-bar'
 import { invalidateRightPanelCatalog } from '@renderer/lib/right-panel-runtime'
 import { GeneralSettings, AppearanceSettings, PiSettings } from '@renderer/features/settings/settings-general-appearance'
 import { ExtensionsSettings } from '@renderer/features/settings/settings-extensions-panel'
+import { consumePendingSettingsPage } from '@renderer/lib/agent-purge-store'
+import { PurgeSettingsPanel } from '@renderer/features/settings/purge-settings-panel'
 import { SettingsSearchContext } from './settings-page-shared'
 import { AdaptersSettings } from '@renderer/features/settings/settings-adapters-panel'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice' | 'mobile' | 'usage'
+type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'purge' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice' | 'mobile' | 'usage'
 
 type NavGroup = { key: string; labelKey: string; pages: { key: SettingsPage; icon: AppIconComponent }[] }
 
@@ -49,6 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: 'settings:nav.groupAgent',
     pages: [
       { key: 'pi', icon: Cpu },
+      { key: 'purge', icon: Bot },
       { key: 'models', icon: Boxes },
       { key: 'routing', icon: Network },
       { key: 'voice', icon: Mic },
@@ -67,11 +70,14 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-const WIDE_PAGES: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice']
+const WIDE_PAGES: SettingsPage[] = ['appearance', 'rightPanels', 'pi', 'purge', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice', 'usage']
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const [page, setPage] = useState<SettingsPage>('general')
+  const [page, setPage] = useState<SettingsPage>(() => {
+    const pending = consumePendingSettingsPage()
+    return (pending as SettingsPage) || 'general'
+  })
   const [settingsQuery, setSettingsQuery] = useState('')
   const [configExt, setConfigExt] = useState<string | null>(null)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
@@ -81,6 +87,15 @@ export function SettingsPage() {
   useEffect(() => {
     invalidateRightPanelCatalog()
     void ipcClient.invoke('adapters.json.catalog', { refresh: true, workspaceId: useUIStore.getState().currentWorkspace || '' }).catch(() => {})
+    const onOpenPage = (ev: Event) => {
+      const target = (ev as CustomEvent<{ page?: SettingsPage }>).detail?.page
+      if (target) {
+        setConfigExt(null)
+        setPage(target)
+      }
+    }
+    window.addEventListener('pi-desktop:open-settings-page', onOpenPage)
+    return () => window.removeEventListener('pi-desktop:open-settings-page', onOpenPage)
   }, [])
 
   // B-layer slash config-page routing -> open embedded config subpage
@@ -157,12 +172,13 @@ export function SettingsPage() {
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {settingsQuery.trim() && <div className="settings-search-summary flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-5 py-2 text-xs text-foreground-secondary"><span role="status">{t('settings:searchResults', { count: pages.length })}</span><button type="button" className="workbench-button" onClick={() => setSettingsQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
-          <SettingsMain wide={wide} pageKey={page} footer={<SettingsSaveBar wide={wide} />}>
+          <SettingsMain wide={wide} pageKey={page} footer={page === 'usage' ? undefined : <SettingsSaveBar wide={wide} />}>
             {pages.length === 0 ? <div className="workbench-empty"><Search className="h-6 w-6 opacity-50" /><p>{t('settings:noSearchResults')}</p><span>{t('settings:searchHint')}</span></div> : <>
             {page === 'general' && <GeneralSettings />}
             {page === 'appearance' && <AppearanceSettings />}
             {page === 'rightPanels' && <RightPanelsSettings />}
             {page === 'pi' && <PiSettings />}
+            {page === 'purge' && <PurgeSettingsPanel />}
             {page === 'models' && <ModelsSettingsPanel />}
             {page === 'skills' && <SkillsSettingsPanel />}
             {page === 'prompts' && <PromptsSettingsPanel />}

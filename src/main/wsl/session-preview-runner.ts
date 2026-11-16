@@ -20,6 +20,8 @@ export type WslPreviewRequest = {
     | 'warm'
     | 'system.prompt'
     | 'usage.summary'
+    | 'usage.logs'
+    | 'usage.requestDetail'
   payload: Record<string, unknown>
   userDataDir: string
 }
@@ -173,6 +175,12 @@ export class WslSessionPreviewRunner {
     if (typeof payload.sessionFile === 'string') {
       payload.sessionFile = windowsPathToWsl(runtime.distro, payload.sessionFile)
     }
+    if (typeof payload.agentDir === 'string') {
+      payload.agentDir = windowsPathToWsl(runtime.distro, payload.agentDir)
+    }
+    if (request.type === 'usage.logs' && typeof payload.project === 'string' && payload.project !== '(unknown)') {
+      payload.project = windowsPathToWsl(runtime.distro, payload.project)
+    }
     const { process: proc, sdkPath } = await this.ensureProcess(cwd, generation)
     this.assertLifecycle(generation)
     const stdin = proc.stdin
@@ -212,6 +220,70 @@ export class WslSessionPreviewRunner {
         ...(row.cwd ? { cwd: wslPathToWindows(runtime.distro, row.cwd) } : {}),
         ...(row.parentSessionPath ? { parentSessionPath: wslPathToWindows(runtime.distro, row.parentSessionPath) } : {}),
       })) as T
+    }
+    if (request.type === 'usage.summary' && result && typeof result === 'object') {
+      const s = result as {
+        byProject?: Array<{ project: string }>
+        topSessions?: Array<{ sessionFile: string; project: string }>
+      }
+      return {
+        ...s,
+        ...(Array.isArray(s.byProject)
+          ? {
+              byProject: s.byProject.map((p) => ({
+                ...p,
+                project: p.project === '(unknown)' ? p.project : wslPathToWindows(runtime.distro, p.project),
+              })),
+            }
+          : {}),
+        ...(Array.isArray(s.topSessions)
+          ? {
+              topSessions: s.topSessions.map((row) => ({
+                ...row,
+                sessionFile: wslPathToWindows(runtime.distro, row.sessionFile),
+                project: row.project === '(unknown)' ? row.project : wslPathToWindows(runtime.distro, row.project),
+              })),
+            }
+          : {}),
+      } as T
+    }
+    if (request.type === 'usage.logs' && result && typeof result === 'object') {
+      const p = result as {
+        rows?: Array<{ sessionFile: string; project: string }>
+        facets?: { models: string[]; projects: string[]; apis: string[] }
+      }
+      return {
+        ...p,
+        ...(Array.isArray(p.rows)
+          ? {
+              rows: p.rows.map((r) => ({
+                ...r,
+                sessionFile: wslPathToWindows(runtime.distro, r.sessionFile),
+                project: r.project === '(unknown)' ? r.project : wslPathToWindows(runtime.distro, r.project),
+              })),
+            }
+          : {}),
+        ...(p.facets
+          ? {
+              facets: {
+                ...p.facets,
+                projects: p.facets.projects.map((proj) =>
+                  proj === '(unknown)' ? proj : wslPathToWindows(runtime.distro, proj),
+                ),
+              },
+            }
+          : {}),
+      } as T
+    }
+    if (request.type === 'usage.requestDetail' && result && typeof result === 'object') {
+      const d = result as { sessionFile?: string; project?: string }
+      return {
+        ...d,
+        ...(typeof d.sessionFile === 'string' ? { sessionFile: wslPathToWindows(runtime.distro, d.sessionFile) } : {}),
+        ...(typeof d.project === 'string' && d.project !== '(unknown)'
+          ? { project: wslPathToWindows(runtime.distro, d.project) }
+          : {}),
+      } as T
     }
     return result
   }

@@ -16,10 +16,10 @@ export const btnCompact =
   'settings-chip inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
 
 export const btnOutline =
-  'settings-chip rounded-md border border-border bg-background px-2.5 py-1.5 text-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40'
+  'settings-chip inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1.5 text-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40'
 
 export const btnPrimary =
-  'settings-chip rounded-md bg-primary px-2.5 py-1.5 text-sm text-primary-foreground transition-colors disabled:pointer-events-none disabled:opacity-40'
+  'settings-chip inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-2.5 py-1.5 text-sm text-primary-foreground transition-colors disabled:pointer-events-none disabled:opacity-40'
 
 export const btnDanger =
-  'settings-chip rounded-md border border-destructive/40 bg-background px-2.5 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-40'
+  'settings-chip inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-destructive/40 bg-background px-2.5 py-1.5 text-sm text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-40'

@@ -100,6 +100,7 @@ function ToolGroupSummaryImpl({
           toolName: tool.toolName,
           toolPhase: tool.toolPhase,
           toolArgs: tool.toolArgs,
+          toolDetails: tool.toolDetails,
           toolDetail: tool.toolDetail,
           toolOutput: tool.toolOutput,
           toolCallId: tool.toolCallId,

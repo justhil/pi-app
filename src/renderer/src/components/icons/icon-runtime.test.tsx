@@ -7,7 +7,14 @@ import {
   applyIconTheme,
 } from '@renderer/components/icons'
 
-for (const theme of ['phosphor', 'lucide', 'fluent', 'hugeicons', 'iconoir'] as const) {
+const THEMES = ['phosphor', 'lucide', 'fluent', 'hugeicons', 'iconoir'] as const
+
+const DIRECTION_GROUPS = [
+  ['arrows', ['arrow-down', 'arrow-left', 'arrow-right', 'arrow-up']],
+  ['chevrons', ['chevron-down', 'chevron-left', 'chevron-right']],
+] as const
+
+for (const theme of THEMES) {
   describe(`${theme} icon theme`, () => {
     afterEach(cleanup)
 
@@ -43,3 +50,20 @@ for (const theme of ['phosphor', 'lucide', 'fluent', 'hugeicons', 'iconoir'] as 
     })
   })
 }
+
+// Opposite directions must not share a glyph. A placeholder mapping that reuses one
+// icon for a whole group silently turns a back button into a right arrow.
+describe('directional glyphs', () => {
+  afterEach(cleanup)
+
+  for (const [label, names] of DIRECTION_GROUPS) {
+    for (const theme of THEMES) {
+      it(`${theme}: ${label} point in distinct directions`, () => {
+        const markup = names.map(
+          (name) => render(<ThemedIcon theme={theme} name={name} />).container.innerHTML,
+        )
+        expect(new Set(markup).size).toBe(names.length)
+      })
+    }
+  }
+})

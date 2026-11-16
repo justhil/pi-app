@@ -4,18 +4,53 @@ import { extractToolText, normalizeToolArgs, pathFromArgs } from './tool-output'
 export type DiffRow = { kind: 'same' | 'del' | 'add'; old?: string; new?: string }
 
 export function lineDiffRows(oldStr: string, newStr: string): DiffRow[] {
-  const oldLines = oldStr.split('\n')
-  const newLines = newStr.split('\n')
-  const max = Math.max(oldLines.length, newLines.length)
+  const oldLines = oldStr ? oldStr.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n') : []
+  const newLines = newStr ? newStr.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n') : []
+  let start = 0
+  while (start < oldLines.length && start < newLines.length && oldLines[start] === newLines[start]) {
+    start++
+  }
+  let oldEnd = oldLines.length
+  let newEnd = newLines.length
+  while (oldEnd > start && newEnd > start && oldLines[oldEnd - 1] === newLines[newEnd - 1]) {
+    oldEnd--
+    newEnd--
+  }
   const rows: DiffRow[] = []
-  for (let i = 0; i < max; i++) {
-    const o = oldLines[i]
-    const n = newLines[i]
-    if (o === n) rows.push({ kind: 'same', old: o, new: n })
-    else {
-      if (o !== undefined && o !== n) rows.push({ kind: 'del', old: o })
-      if (n !== undefined && n !== o) rows.push({ kind: 'add', new: n })
+  for (let i = 0; i < start; i++) {
+    rows.push({ kind: 'same', old: oldLines[i], new: newLines[i] })
+  }
+  const m = oldEnd - start
+  const n = newEnd - start
+  if (m > 0 && n > 0 && m * n <= 20_000) {
+    const dp: number[][] = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0))
+    for (let i = m - 1; i >= 0; i--) {
+      for (let j = n - 1; j >= 0; j--) {
+        if (oldLines[start + i] === newLines[start + j]) dp[i][j] = dp[i + 1][j + 1] + 1
+        else dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1]
+      }
     }
+    let i = 0
+    let j = 0
+    while (i < m && j < n) {
+      if (oldLines[start + i] === newLines[start + j]) {
+        rows.push({ kind: 'same', old: oldLines[start + i], new: newLines[start + j] })
+        i++
+        j++
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        rows.push({ kind: 'del', old: oldLines[start + i++] })
+      } else {
+        rows.push({ kind: 'add', new: newLines[start + j++] })
+      }
+    }
+    while (i < m) rows.push({ kind: 'del', old: oldLines[start + i++] })
+    while (j < n) rows.push({ kind: 'add', new: newLines[start + j++] })
+  } else {
+    for (let i = start; i < oldEnd; i++) rows.push({ kind: 'del', old: oldLines[i] })
+    for (let j = start; j < newEnd; j++) rows.push({ kind: 'add', new: newLines[j] })
+  }
+  for (let i = oldEnd; i < oldLines.length; i++) {
+    rows.push({ kind: 'same', old: oldLines[i], new: newLines[newEnd + (i - oldEnd)] })
   }
   return rows
 }

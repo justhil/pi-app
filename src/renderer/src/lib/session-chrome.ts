@@ -92,8 +92,13 @@ export function selectSessionChrome(input: SessionChromeInput): SessionChromeVie
     sessionRuntimeRunning: input.sessionRuntimeRunning,
   })
 
-  // Abort hold always projects stopping (even after local markers cleared by applyComposerAbortUi).
-  if (abortHold) {
+  // Abort hold always projects stopping unless the session is already completely idle.
+  // Once applyComposerAbortUi marks local state idle and no worker/stream is active,
+  // composer must stay unlocked for immediate re-send instead of spinning for 900ms-2800ms.
+  if (
+    input.abortHoldActive === true ||
+    (abortHold && (turnActive || input.agentTurnBootstrapping || input.streamingAssistantId != null))
+  ) {
     return {
       sessionFile,
       phase: 'stopping',
