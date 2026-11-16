@@ -42,8 +42,11 @@ export function sanitizeCompletionPreview(text: string | undefined, maxGraphemes
 export const COMPLETION_TITLE_MAX = 40
 export const COMPLETION_BODY_MAX = 140
 
+/** Languages the main-process notification copy is written in (mirrors the app language). */
+export type CompletionUiLanguage = 'zh' | 'en' | 'ru'
+
 export type CompletionCopyInput = {
-  language: 'zh' | 'en'
+  language: CompletionUiLanguage
   outcome: CompletionOutcome
   promptPreview?: string
   responsePreview?: string
@@ -63,18 +66,33 @@ export type CompletionCopy = {
   muteLabel: string
 }
 
-function formatDuration(language: 'zh' | 'en', durationMs?: number): string {
+/** Russian plural: 1 секунда / 2 секунды / 5 секунд. */
+function ruPlural(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few
+  return many
+}
+
+function formatDuration(language: CompletionUiLanguage, durationMs?: number): string {
   if (durationMs == null || !Number.isFinite(durationMs) || durationMs < 0) return ''
   const sec = Math.max(0, Math.round(durationMs / 1000))
   if (language === 'zh') return sec > 0 ? `${sec} 秒` : '不到 1 秒'
+  if (language === 'ru') return sec > 0 ? `${sec} ${ruPlural(sec, 'секунду', 'секунды', 'секунд')}` : 'меньше секунды'
   return sec > 0 ? `${sec}s` : '<1s'
 }
 
-function outcomeLabel(language: 'zh' | 'en', outcome: CompletionOutcome): string {
+function outcomeLabel(language: CompletionUiLanguage, outcome: CompletionOutcome): string {
   if (language === 'zh') {
     if (outcome === 'failed') return '失败'
     if (outcome === 'cancelled') return '已取消'
     return '完成'
+  }
+  if (language === 'ru') {
+    if (outcome === 'failed') return 'С ошибками'
+    if (outcome === 'cancelled') return 'Отменено'
+    return 'Готово'
   }
   if (outcome === 'failed') return 'Failed'
   if (outcome === 'cancelled') return 'Cancelled'
@@ -83,25 +101,34 @@ function outcomeLabel(language: 'zh' | 'en', outcome: CompletionOutcome): string
 
 export function buildCompletionNotificationCopy(input: CompletionCopyInput): CompletionCopy {
   const zh = input.language === 'zh'
+  const ru = input.language === 'ru'
   if (input.isTest) {
     return {
       projectLabel: 'pi Desktop',
-      title: zh ? '测试提醒' : 'Test notification',
-      body: zh ? '任务完成，可以返回查看' : 'Task finished. You can return to the session.',
-      meta: zh ? '测试' : 'Test',
-      openLabel: zh ? '返回应用' : 'Back to app',
-      dismissLabel: zh ? '关闭' : 'Dismiss',
-      muteLabel: zh ? '勿扰 30 分钟' : 'Mute 30 min',
+      title: ru ? 'Тестовое уведомление' : zh ? '测试提醒' : 'Test notification',
+      body: ru
+        ? 'Задача завершена, можно вернуться в сессию.'
+        : zh
+          ? '任务完成，可以返回查看'
+          : 'Task finished. You can return to the session.',
+      meta: ru ? 'Тест' : zh ? '测试' : 'Test',
+      openLabel: ru ? 'Вернуться в приложение' : zh ? '返回应用' : 'Back to app',
+      dismissLabel: ru ? 'Закрыть' : zh ? '关闭' : 'Dismiss',
+      muteLabel: ru ? 'Не беспокоить 30 мин' : zh ? '勿扰 30 分钟' : 'Mute 30 min',
     }
   }
 
   const title =
     sanitizeCompletionPreview(input.promptPreview, COMPLETION_TITLE_MAX) ||
-    (zh ? '任务已完成' : 'Task finished')
+    (ru ? 'Задача завершена' : zh ? '任务已完成' : 'Task finished')
   const rawBody = input.previewMode === 'response' ? input.responsePreview : ''
   const body =
     sanitizeCompletionPreview(rawBody, COMPLETION_BODY_MAX) ||
-    (zh ? '任务完成，可以返回查看' : 'Task finished. You can return to the session.')
+    (ru
+      ? 'Задача завершена, можно вернуться в сессию.'
+      : zh
+        ? '任务完成，可以返回查看'
+        : 'Task finished. You can return to the session.')
   const duration = formatDuration(input.language, input.durationMs)
   const meta = [outcomeLabel(input.language, input.outcome), duration].filter(Boolean).join(' · ')
 
@@ -110,9 +137,9 @@ export function buildCompletionNotificationCopy(input: CompletionCopyInput): Com
     title,
     body,
     meta,
-    openLabel: zh ? '返回会话' : 'Open session',
-    dismissLabel: zh ? '关闭' : 'Dismiss',
-    muteLabel: zh ? '勿扰 30 分钟' : 'Mute 30 min',
+    openLabel: ru ? 'Открыть сессию' : zh ? '返回会话' : 'Open session',
+    dismissLabel: ru ? 'Закрыть' : zh ? '关闭' : 'Dismiss',
+    muteLabel: ru ? 'Не беспокоить 30 мин' : zh ? '勿扰 30 分钟' : 'Mute 30 min',
   }
 }
 

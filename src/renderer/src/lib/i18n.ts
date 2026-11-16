@@ -24,24 +24,41 @@ import enExtension from '../locales/en/extension.json'
 import enFiles from '../locales/en/files.json'
 import enUpdate from '../locales/en/update.json'
 import enBrowser from '../locales/en/browser.json'
+import ruCommon from '../locales/ru/common.json'
+import ruTimeline from '../locales/ru/timeline.json'
+import ruReview from '../locales/ru/review.json'
+import ruSettings from '../locales/ru/settings.json'
+import ruComposer from '../locales/ru/composer.json'
+import ruContext from '../locales/ru/context.json'
+import ruAdapters from '../locales/ru/adapters.json'
+import ruRun from '../locales/ru/run.json'
+import ruExtension from '../locales/ru/extension.json'
+import ruFiles from '../locales/ru/files.json'
+import ruUpdate from '../locales/ru/update.json'
+import ruBrowser from '../locales/ru/browser.json'
 import { ipcClient } from './ipc-client'
 
-type AppLanguage = 'zh' | 'en'
+export type AppLanguage = 'zh' | 'en' | 'ru'
 
 function detectInitialLanguage(): AppLanguage {
   const systemLanguage = (navigator.language || 'en').toLowerCase()
-  return systemLanguage.startsWith('zh') ? 'zh' : 'en'
+  if (systemLanguage.startsWith('zh')) return 'zh'
+  if (systemLanguage.startsWith('ru')) return 'ru'
+  return 'en'
 }
 
 function normalizeAppLanguage(language: unknown, fallbackLanguage: AppLanguage): AppLanguage {
   const normalizedLanguage = String(language ?? '').toLowerCase()
   if (normalizedLanguage.startsWith('zh')) return 'zh'
   if (normalizedLanguage.startsWith('en')) return 'en'
+  if (normalizedLanguage.startsWith('ru')) return 'ru'
   return fallbackLanguage
 }
 
+const DOCUMENT_LANG: Record<AppLanguage, string> = { zh: 'zh-CN', en: 'en', ru: 'ru' }
+
 function applyDocumentLanguage(language: AppLanguage): void {
-  document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en'
+  document.documentElement.lang = DOCUMENT_LANG[language]
 }
 
 const i18nInitialization = i18n.use(initReactI18next).init({
@@ -73,6 +90,20 @@ const i18nInitialization = i18n.use(initReactI18next).init({
       files: enFiles,
       update: enUpdate,
       browser: enBrowser,
+    },
+    ru: {
+      common: ruCommon,
+      timeline: ruTimeline,
+      review: ruReview,
+      settings: ruSettings,
+      composer: ruComposer,
+      context: ruContext,
+      adapters: ruAdapters,
+      run: ruRun,
+      extension: ruExtension,
+      files: ruFiles,
+      update: ruUpdate,
+      browser: ruBrowser,
     },
   },
   lng: detectInitialLanguage(),
