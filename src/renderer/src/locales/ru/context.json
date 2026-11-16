@@ -25,5 +25,7 @@
   "toolResultLabel": "Результат инструмента",
   "compactionLabel": "Компакция",
   "branchLabel": "Сводка ветки",
-  "systemLabel": "Система"
+  "systemLabel": "Система",
+  "noSegments": "Сегментов сообщений нет",
+  "emptyPreview": "(пусто)"
 }

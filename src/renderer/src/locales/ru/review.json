@@ -49,5 +49,7 @@
     "turn": "Ход",
     "session": "Сессия",
     "git": "Git"
-  }
+  },
+  "inlineDraftTitle": "Построчное замечание (черновик)",
+  "inlineDraftPlaceholder": "Текст замечания…"
 }

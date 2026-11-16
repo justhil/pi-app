@@ -75,7 +75,10 @@
     "cloneCancelled": "Клонирование отменено",
     "cloneFailed": "Не удалось клонировать",
     "cloned": "Создана клонированная сессия",
-    "nothingToClone": "Пока нечего клонировать"
+    "nothingToClone": "Пока нечего клонировать",
+    "forkSelectorFailed": "Не удалось открыть выбор узла для форка",
+    "panelSwitched": "Панель «{{panel}}» открыта",
+    "openSettingsFromSidebar": "Откройте настройки в левой панели"
   },
   "voice": {
     "start": "Начать запись",
@@ -249,5 +252,10 @@
     }
   },
   "thinkingShort": "Размышления {{level}}",
-  "thinkingPrefix": "Размышления"
+  "thinkingPrefix": "Размышления",
+  "queueRestored_one": "В поле ввода возвращено сообщение из очереди: {{count}}",
+  "queueRestored_few": "В поле ввода возвращено сообщения из очереди: {{count}}",
+  "queueRestored_many": "В поле ввода возвращено сообщений из очереди: {{count}}",
+  "queueNothingToRestore": "В очереди сообщений нет",
+  "queueRestoreFailed": "Очередь не вернулась"
 }

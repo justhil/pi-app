@@ -75,7 +75,10 @@
     "cloneCancelled": "Clone cancelled",
     "cloneFailed": "Clone failed",
     "cloned": "Cloned into a new session",
-    "nothingToClone": "Nothing to clone yet"
+    "nothingToClone": "Nothing to clone yet",
+    "forkSelectorFailed": "Couldn't open the Fork selector",
+    "panelSwitched": "Switched to the {{panel}} panel",
+    "openSettingsFromSidebar": "Open settings from the sidebar"
   },
   "voice": {
     "start": "Start recording",
@@ -249,5 +252,9 @@
     }
   },
   "thinkingShort": "Thinking {{level}}",
-  "thinkingPrefix": "Thinking"
+  "thinkingPrefix": "Thinking",
+  "queueRestored_one": "Pulled {{count}} queued message back into the input",
+  "queueRestored_other": "Pulled {{count}} queued messages back into the input",
+  "queueNothingToRestore": "No queued messages to pull back",
+  "queueRestoreFailed": "Couldn't pull the queue back"
 }

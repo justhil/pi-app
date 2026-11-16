@@ -77,7 +77,7 @@ export function ContextPanel() {
           </p>
         </div>
       ) : segments.length === 0 ? (
-        <p className="px-3 py-6 text-[12px] text-foreground-secondary/70">暂无消息片段</p>
+        <p className="px-3 py-6 text-[12px] text-foreground-secondary/70">{t('context:noSegments')}</p>
       ) : (
         <div className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto py-1">
           {segments.map((seg) => {
@@ -117,7 +117,7 @@ export function ContextPanel() {
                 </button>
                 {open ? (
                   <ContextMessageBody>
-                    {seg.preview || '(空)'}
+                    {seg.preview || t('context:emptyPreview')}
                     {seg.chars > 280 && (
                       <span className="text-foreground-secondary/50"> … {seg.chars}</span>
                     )}

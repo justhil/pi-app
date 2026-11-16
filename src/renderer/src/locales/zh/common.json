@@ -375,5 +375,6 @@
       "turns": "{{count}} 轮"
     },
     "focusHint": "窗口太窄，暂以标签显示；可在此切换布局"
-  }
+  },
+  "listSeparator": "、"
 }

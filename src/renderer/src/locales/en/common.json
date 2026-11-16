@@ -382,5 +382,6 @@
       "turns_other": "{{count}} turns"
     },
     "focusHint": "Too narrow for all panes; shown as tabs. Change the layout here"
-  }
+  },
+  "listSeparator": ", "
 }

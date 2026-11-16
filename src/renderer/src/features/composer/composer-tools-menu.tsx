@@ -185,7 +185,7 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   }, [open])
 
   const label = (id: CapabilityId) => t(`composer:tools.items.${id}.name`)
-  const names = enabled.map(label).join('、')
+  const names = enabled.map(label).join(t('common:listSeparator'))
 
   return (
     <div className="flex min-w-0 items-center">
