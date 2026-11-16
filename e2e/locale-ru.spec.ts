@@ -107,14 +107,15 @@ test.describe('Russian locale layout', () => {
       expect(toolsClip, 'composer tools menu clips Russian labels').toEqual([])
       await win.keyboard.press('Escape')
 
-      // Right panels (Run / Context / Review keep their names untranslated).
+      // Right panels - the tab strip is Run / Files / Browser / Trellis (panel names stay untranslated).
       const expand = win.locator('button[aria-label="Развернуть правую панель"]')
       if (await expand.count()) await expand.first().click()
-      for (const panel of ['Run', 'Context', 'Review']) {
-        const tab = win.getByText(panel, { exact: true }).first()
-        if ((await tab.count()) === 0) continue
-        await tab.click()
-        await win.waitForTimeout(800)
+      for (const panel of ['Run', 'Files', 'Browser', 'Trellis']) {
+        const tab = win.getByRole('tab', { name: panel, exact: true }).first()
+        const target = (await tab.count()) ? tab : win.getByText(panel, { exact: true }).first()
+        if ((await target.count()) === 0) continue
+        await target.click()
+        await win.waitForTimeout(900)
         await win.screenshot({ path: path.join(SHOT_DIR, `panel-${panel.toLowerCase()}.png`) })
         expect(await auditClip(win), `${panel} panel clips Russian labels`).toEqual([])
       }
