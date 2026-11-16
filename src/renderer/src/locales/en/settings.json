@@ -1410,6 +1410,7 @@
     "importGithubDesc": "Enter owner/repo or a GitHub URL to import .md personas.",
     "pullGithub": "Pull personas",
     "importedToast": "Imported {{count}} persona(s)",
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "newPersonaDefaultBody": "# Custom session prompt\n\nWrite the system prompt body to inject into new conversations here."
   }
 }

@@ -173,8 +173,6 @@ describe('resolveWslActiveSdk', () => {
     expect(sdk.entryPath).toContain('/dist/index.js')
 
     mocks.runWslDistroAsync.mockResolvedValue({ status: 0, stdout: '', stderr: '' })
-    await expect(assertWslSdkAvailable('Debian', { refresh: true })).rejects.toThrow(
-      'WSL 发行版内未检测到 pi-coding-agent',
-    )
+    await expect(assertWslSdkAvailable('Debian', { refresh: true })).rejects.toThrow(/pi-coding-agent/)
   })
 })

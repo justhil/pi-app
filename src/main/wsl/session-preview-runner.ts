@@ -2,6 +2,8 @@ import type { ChildProcess } from 'child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { decodeWorkerFrameLine } from '@shared/worker-frame'
 import { windowsPathToWsl, wslPathToWindows } from '@shared/wsl-path'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { getAgentRuntimeConfig } from './runtime-config'
 import { resolveWslActiveSdk } from './sdk-resolve'
 import { spawnPreviewInWsl, syncPreviewBundleToWsl } from './preview-host'
@@ -98,7 +100,7 @@ export class WslSessionPreviewRunner {
       stopping,
     ])
     this.assertLifecycle(generation)
-    if (!sdk) throw new Error(`[WSL] 发行版 ${runtime.distro} 内未找到 pi-coding-agent`)
+    if (!sdk) throw new Error(mainLabel(getMainUiLanguage(), 'wsl.sdkMissingPreview', { distro: runtime.distro }))
     // One process per distro: every request carries its own cwd/paths, so there is no reason to
     // respawn (wsl.exe + cold SDK import, seconds) when requests for different dirs interleave.
     const processKey = runtime.distro
@@ -109,7 +111,7 @@ export class WslSessionPreviewRunner {
     this.assertLifecycle(generation)
     // Another request may have completed the same asynchronous bundle sync first.
     if (this.process && this.processKey === processKey) return { process: this.process, sdkPath: sdk.entryPath }
-    if (!previewWslPath) throw new Error('[WSL] 无法将 preview utility 同步到发行版')
+    if (!previewWslPath) throw new Error(mainLabel(getMainUiLanguage(), 'wsl.previewSyncFailed'))
     const proc = spawnPreviewInWsl({
       distro: runtime.distro,
       wslCwd: cwd,

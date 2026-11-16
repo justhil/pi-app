@@ -108,7 +108,7 @@ export function PurgeSettingsPanel() {
       id: newId,
       name: t('settings:purge.newPersonaDefaultName', { index: idx }),
       description: '',
-      body: '# 自定义会话提示词\n\n在这里编写需要注入新对话的系统提示词正文。',
+      body: t('settings:purge.newPersonaDefaultBody'),
       order: 50 + idx,
       updatedAt: Date.now(),
     }

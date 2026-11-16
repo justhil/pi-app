@@ -1,4 +1,6 @@
 import { configStore } from '../../config-store'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { workerManager } from '../../worker-manager'
 import { listRewindCheckpoints } from '../../pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
@@ -349,7 +351,7 @@ export function registerSessionHandlers(): void {
         sessionId: result.sessionId,
         sessionFile,
         workspaceId,
-        title: '新会话',
+        title: mainLabel(getMainUiLanguage(), 'session.newTitle'),
         createdAt: Date.now(),
         updatedAt: Date.now(),
         modelId: '',

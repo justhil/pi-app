@@ -14,6 +14,8 @@ import {
   type AgentPurgePersona,
   type PurgedSessionRecord,
 } from '@shared/agent-purge'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { configStore } from './config-store'
 
 function store(): typeof configStore | null {
@@ -176,7 +178,7 @@ export function importPersonasFromDirectory(dirPath?: string): {
 } {
   const dir = dirPath?.trim() ? resolve(dirPath.trim()) : resolveLocalAgentPurgePersonasDir()
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-    throw new Error(`目录不存在：${dir}`)
+    throw new Error(mainLabel(getMainUiLanguage(), 'purge.dirMissing', { dir }))
   }
   const files = readdirSync(dir).filter((f) => {
     if (extname(f).toLowerCase() !== '.md') return false
@@ -212,14 +214,14 @@ export function importPersonasFromDirectory(dirPath?: string): {
 
 function parseGithubSource(source: string): { owner: string; repo: string; ref?: string; subpath: string } {
   const raw = source.trim()
-  if (!raw) throw new Error('请输入 GitHub 仓库地址或 owner/repo')
+  if (!raw) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghInputRequired'))
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
     const u = new URL(raw)
     if (!u.hostname.toLowerCase().includes('github.com')) {
-      throw new Error('仅支持 GitHub 仓库地址')
+      throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghOnlyGithub'))
     }
     const parts = u.pathname.replace(/^\/+|\/+$/g, '').split('/')
-    if (parts.length < 2) throw new Error('无效的 GitHub 仓库 URL')
+    if (parts.length < 2) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghBadUrl'))
     const owner = parts[0]
     const repo = parts[1].replace(/\.git$/i, '')
     if ((parts[2] === 'tree' || parts[2] === 'blob') && parts[3]) {
@@ -230,7 +232,7 @@ function parseGithubSource(source: string): { owner: string; repo: string; ref?:
   const clean = raw.replace(/\.git$/i, '')
   const [repoPart, ref] = clean.split('@')
   const parts = repoPart.split('/').filter(Boolean)
-  if (parts.length < 2) throw new Error('格式示例：ZiChuanLan/some-magic')
+  if (parts.length < 2) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghFormatExample'))
   return {
     owner: parts[0],
     repo: parts[1],
@@ -252,7 +254,7 @@ export async function importPersonasFromGithub(source: string): Promise<{
     headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'pi-desktop' },
   })
   if (!res.ok) {
-    throw new Error(`GitHub API 请求失败 (HTTP ${res.status})`)
+    throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghApiFailed', { status: res.status }))
   }
   const data = (await res.json()) as unknown
   const entries = Array.isArray(data) ? data : [data]

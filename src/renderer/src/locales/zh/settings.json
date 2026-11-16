@@ -1405,6 +1405,7 @@
     "importGithubDesc": "输入 owner/repo 或 GitHub 目录链接一键导入其中的 .md 人设。",
     "pullGithub": "拉取导入",
     "importedToast": "已同步 {{count}} 份人设",
-    "importFailed": "导入失败"
+    "importFailed": "导入失败",
+    "newPersonaDefaultBody": "# 自定义会话提示词\n\n在这里编写需要注入新对话的系统提示词正文。"
   }
 }
