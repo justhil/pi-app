@@ -21,7 +21,6 @@ const PENDING_RU = [
   'review',
   'run',
   'settings',
-  'timeline',
   'update',
 ]
 
