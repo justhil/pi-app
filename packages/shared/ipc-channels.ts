@@ -218,6 +218,16 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:remote.revokeDevice',
   'ipc:remote.removeDevice',
   'ipc:remote.setDeviceRole',
+  'ipc:themeLibrary.list',
+  'ipc:themeLibrary.save',
+  'ipc:themeLibrary.delete',
+  'ipc:themeLibrary.importFile',
+  'ipc:themeLibrary.exportFile',
+  'ipc:snippets.list',
+  'ipc:snippets.save',
+  'ipc:snippets.patch',
+  'ipc:snippets.delete',
+  'ipc:window.setMaterial',
 ] as const
 
 export type IpcInvokeChannel = (typeof IPC_INVOKE_CHANNELS)[number]

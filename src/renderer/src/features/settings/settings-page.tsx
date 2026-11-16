@@ -70,7 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-const WIDE_PAGES: SettingsPage[] = ['rightPanels', 'pi', 'purge', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice', 'usage']
+const WIDE_PAGES: SettingsPage[] = ['appearance', 'rightPanels', 'pi', 'purge', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice', 'usage']
 
 export function SettingsPage() {
   const { t } = useTranslation()

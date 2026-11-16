@@ -42,6 +42,7 @@ import {
   hydrateThemeFromSettings,
   watchSystemTheme,
 } from '@renderer/features/settings/settings-draft'
+import { hydrateSnippetsFromDisk } from '@renderer/lib/theme/render-fx-engine'
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { AppUpdateHost } from '@renderer/lib/app-update-notify'
@@ -80,6 +81,9 @@ const SessionTreeOverlay = lazy(() =>
 const SessionForkOverlay = lazy(() =>
   import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })),
 )
+const LiveThemeStudio = lazy(() =>
+  import('@renderer/features/shell/live-theme-studio').then((m) => ({ default: m.LiveThemeStudio })),
+)
 const ProjectHomeView = lazy(() =>
   import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })),
 )
@@ -100,6 +104,8 @@ export default function App() {
   const [view, setView] = useState<View>('main')
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [studioOpen, setStudioOpen] = useState(false)
+  const [studioSeedTheme, setStudioSeedTheme] = useState<import('@shared/custom-theme').CustomTheme | undefined>(undefined)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -189,6 +195,7 @@ export default function App() {
     void hydrateThemeFromSettings().catch(() => {})
     void hydrateCustomThemeFromSettings().catch(() => {})
     void hydrateCustomCssOverrideFromSettings().catch(() => {})
+    void hydrateSnippetsFromDisk().catch(() => {})
     void hydrateBackgroundFromSettings().catch(() => {})
     applyUiZoom(readUiZoom())
   }, [])
@@ -303,11 +310,19 @@ export default function App() {
       )
     }
     const onOpenSettingsPage = () => setView('settings')
+    const onOpenLiveStudio = (e: Event) => {
+      const d = (e as CustomEvent<{ theme?: import('@shared/custom-theme').CustomTheme }>).detail
+      setStudioSeedTheme(d?.theme)
+      setView('main')
+      setStudioOpen(true)
+    }
     window.addEventListener('pi-desktop:open-session', onOpenSession)
     window.addEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
+    window.addEventListener('pi-desktop:open-live-theme-studio', onOpenLiveStudio)
     return () => {
       window.removeEventListener('pi-desktop:open-session', onOpenSession)
       window.removeEventListener('pi-desktop:open-settings-page', onOpenSettingsPage)
+      window.removeEventListener('pi-desktop:open-live-theme-studio', onOpenLiveStudio)
       unsubEvents()
       unsubExit()
       unsubNotify()
@@ -499,6 +514,13 @@ export default function App() {
               setForkOpen(false)
               setForkSource(undefined)
             }}
+          />
+        )}
+        {studioOpen && (
+          <LiveThemeStudio
+            open={studioOpen}
+            initialTheme={studioSeedTheme}
+            onClose={() => setStudioOpen(false)}
           />
         )}
       </Suspense>

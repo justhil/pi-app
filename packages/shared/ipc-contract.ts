@@ -11,6 +11,8 @@ import type {
   UsageRequestDetail,
   UsageSummary,
 } from './usage-summary'
+import type { CustomTheme, ThemeWindowMaterial } from './custom-theme'
+import type { CssSnippetItem, CssSnippetValues, SavedThemePack } from './theme-pack'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -381,6 +383,46 @@ export interface IpcMethodMap {
   'usage.requestDetail': {
     request: { sessionFile: string; entryId: string }
     response: UsageRequestDetail
+  }
+  'themeLibrary.list': {
+    request: Record<string, never>
+    response: { items: SavedThemePack[] }
+  }
+  'themeLibrary.save': {
+    request: { id?: string; name: string; theme: CustomTheme; customCss?: string }
+    response: { item: SavedThemePack }
+  }
+  'themeLibrary.delete': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'themeLibrary.importFile': {
+    request: Record<string, never>
+    response: { ok: boolean; item?: SavedThemePack; error?: string }
+  }
+  'themeLibrary.exportFile': {
+    request: { name: string; theme: CustomTheme; customCss?: string }
+    response: { ok: boolean; error?: string }
+  }
+  'snippets.list': {
+    request: Record<string, never>
+    response: { items: CssSnippetItem[] }
+  }
+  'snippets.save': {
+    request: { id?: string; name: string; css: string; enabled?: boolean }
+    response: { item: CssSnippetItem }
+  }
+  'snippets.patch': {
+    request: { id: string; enabled?: boolean; values?: CssSnippetValues; css?: string; name?: string }
+    response: { item: CssSnippetItem | null }
+  }
+  'snippets.delete': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'window.setMaterial': {
+    request: { material: ThemeWindowMaterial }
+    response: { ok: boolean; applied: boolean; effective: ThemeWindowMaterial }
   }
   'events.subscribe': { request: EventsSubscribeRequest; response: EventsSubscribeResponse; stream: AppEvent }
 }

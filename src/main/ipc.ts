@@ -10,6 +10,7 @@ import { registerTerminalHandlers } from './ipc/handlers/terminal'
 import { registerUsageHandlers } from './ipc/handlers/usage'
 import { registerGitBranchHandlers } from './ipc/handlers/git-branches'
 import { registerBackgroundHandlers } from './ipc/handlers/background'
+import { registerThemeLibraryHandlers } from './ipc/handlers/theme-library'
 import { registerModelRuntimeHandlers } from './ipc/handlers/model-runtime'
 import { registerExtensionHandlers } from './ipc/handlers/extensions'
 import { registerExtensionUiHandlers } from './ipc/handlers/extension-ui'
@@ -42,6 +43,7 @@ export function registerAllHandlers(): void {
   registerUsageHandlers()
   registerGitBranchHandlers()
   registerBackgroundHandlers()
+  registerThemeLibraryHandlers()
   registerExtensionUiHandlers()
   registerModelRuntimeHandlers()
   registerExtensionHandlers()

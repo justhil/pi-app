@@ -1,5 +1,15 @@
 import { z } from 'zod'
-import { normalizeFontName } from '../../../packages/shared/custom-theme.ts'
+import {
+  ACCENT_PRESENCES,
+  BACKDROP_PRESETS,
+  FRAME_STYLES,
+  MESSAGE_STYLES,
+  normalizeFontName,
+  SHIKI_THEME_IDS,
+  SURFACE_MATERIALS,
+  THEME_DENSITIES,
+  WINDOW_MATERIALS,
+} from '../../../packages/shared/custom-theme.ts'
 import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
 import { BROWSER_SEARCH_ENGINE_IDS, type BrowserSearchEngine } from '../../../packages/shared/browser-types.ts'
 import { AGENT_PURGE_MODES } from '../../../packages/shared/agent-purge.ts'
@@ -203,8 +213,23 @@ const themeVariantSchema = z
     proseFont: z.enum(['ui', 'display']).optional(),
     chatFontSize: z.number().min(12).max(18).optional(),
     chatLineHeight: z.number().min(1.3).max(2).optional(),
-    radius: z.number().min(0).max(16).optional(),
+    radius: z.number().min(0).max(20).optional(),
     shadow: z.number().min(0).max(100).optional(),
+    frameStyle: z.enum(FRAME_STYLES).optional(),
+    messageStyle: z.enum(MESSAGE_STYLES).optional(),
+    contentWidth: z.union([z.literal(0), z.number().min(640).max(1400)]).optional(),
+    density: z.enum(THEME_DENSITIES).optional(),
+    accentPresence: z.enum(ACCENT_PRESENCES).optional(),
+    surfaceMaterial: z.enum(SURFACE_MATERIALS).optional(),
+    windowMaterial: z.enum(WINDOW_MATERIALS).optional(),
+    glassRefraction: z.number().min(0).max(48).optional(),
+    glassFrost: z.number().min(0).max(28).optional(),
+    glassTintAlpha: z.number().min(0.15).max(0.96).optional(),
+    glassSpecular: z.number().min(0).max(1).optional(),
+    glassDispersion: z.boolean().optional(),
+    backdropPreset: z.enum(BACKDROP_PRESETS).optional(),
+    backdropIntensity: z.number().min(0.05).max(1).optional(),
+    codeTheme: z.enum(SHIKI_THEME_IDS).optional(),
   })
   .strict()
 
@@ -215,7 +240,7 @@ const backgroundImageSchema = z
     file: z.string().regex(/^[a-f0-9]{16,64}\.(png|jpe?g|webp|gif|avif)$/),
     opacity: z.number().min(0.05).max(1),
     blur: z.number().min(0).max(24),
-    uiOpacity: z.number().min(0.5).max(1),
+    uiOpacity: z.number().min(0.15).max(1),
     fit: z.enum(['cover', 'contain', 'tile', 'center']),
     position: z.enum(['center', 'top', 'bottom']),
     brightness: z.number().min(0.4).max(1.3).optional(),
@@ -224,7 +249,7 @@ const backgroundImageSchema = z
     material: paneMaterialSchema.optional(),
     paneBlur: z.number().min(0).max(40).optional(),
     fullCover: z.boolean().optional(),
-    content: z.object({ uiOpacity: z.number().min(0.3).max(1), paneBlur: z.number().min(0).max(40), material: paneMaterialSchema }).strict().optional(),
+    content: z.object({ uiOpacity: z.number().min(0.15).max(1), paneBlur: z.number().min(0).max(40), material: paneMaterialSchema }).strict().optional(),
   })
   .strict()
 

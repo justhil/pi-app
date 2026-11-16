@@ -219,6 +219,29 @@ export function deriveThemeVariables(variant: ThemeVariant): ThemeVar[] {
   if (sans) vars.push({ name: '--font-sans', value: sans, format: 'raw' })
   if (mono) vars.push({ name: '--font-mono', value: mono, format: 'raw' })
 
+  if (variant.contentWidth !== undefined) {
+    const maxVal = variant.contentWidth === 0 ? '100%' : `${variant.contentWidth}px`
+    vars.push(
+      { name: '--timeline-content-max', value: maxVal, format: 'raw' },
+      { name: '--composer-content-max', value: maxVal, format: 'raw' },
+    )
+  }
+  if (variant.glassRefraction !== undefined) {
+    vars.push({ name: '--fx-glass-refraction', value: String(variant.glassRefraction), format: 'raw' })
+  }
+  if (variant.glassFrost !== undefined) {
+    vars.push({ name: '--fx-glass-frost', value: `${variant.glassFrost}px`, format: 'raw' })
+  }
+  if (variant.glassTintAlpha !== undefined) {
+    vars.push({ name: '--fx-glass-tint-alpha', value: String(variant.glassTintAlpha), format: 'raw' })
+  }
+  if (variant.glassSpecular !== undefined) {
+    vars.push({ name: '--fx-glass-specular', value: String(variant.glassSpecular), format: 'raw' })
+  }
+  if (variant.backdropIntensity !== undefined) {
+    vars.push({ name: '--fx-backdrop-intensity', value: String(variant.backdropIntensity), format: 'raw' })
+  }
+
   vars.push(
     hsl('--background', surface),
     hsl('--foreground', ink),
