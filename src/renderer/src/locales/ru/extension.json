@@ -62,5 +62,22 @@
   "mcpNoteManaged": "pi-mcp-adapter управляет подключениями MCP и списком серверов внутри pi; desktop-приложение конфиг не пишет.",
   "mcpNoteConnect": "Как только сервер подключён командами MCP pi или настройками в терминале, его инструменты появятся в списке инструментов агента.",
   "mcpNoteConfig": "Переменные окружения и конфиг MCP в ~/.pi/agent настраиваются по документации расширения.",
-  "mcpPackages": "Найденные пакеты"
+  "mcpPackages": "Найденные пакеты",
+  "imageReview": {
+    "defaultTitle": "Проверка изображения",
+    "defaultQuestion": "Подходит ли это изображение?",
+    "options": {
+      "accept": "Принять",
+      "revise": "Нужны правки",
+      "redo": "Переделать",
+      "cancel": "Отмена"
+    }
+  },
+  "dialogBody": {
+    "askUserQuestion": "Вопрос расширения",
+    "needsAction": "Нужно ваше действие"
+  },
+  "alertTitle": {
+    "waitingAction": "pi Desktop · ждёт вашего действия"
+  }
 }

@@ -395,5 +395,12 @@
   "listSeparator": ", ",
   "parenOpen": " (",
   "parenClose": ")",
-  "colon": ": "
+  "colon": ": ",
+  "agentError": {
+    "unknown": "Unknown error",
+    "aborted": "Request aborted (Request was aborted)",
+    "retriesExhausted_one": "Failed after {{count}} retry",
+    "retriesExhausted_other": "Failed after {{count}} retries",
+    "emptyStream": "Upstream model stream ended abnormally (empty_stream)\n{{details}}"
+  }
 }

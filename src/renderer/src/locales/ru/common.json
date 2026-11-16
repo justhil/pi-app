@@ -404,5 +404,13 @@
   "listSeparator": ", ",
   "parenOpen": " (",
   "parenClose": ")",
-  "colon": ": "
+  "colon": ": ",
+  "agentError": {
+    "unknown": "Неизвестная ошибка",
+    "aborted": "Запрос прерван (Request was aborted)",
+    "retriesExhausted_one": "Не удалось после {{count}} повтора",
+    "retriesExhausted_few": "Не удалось после {{count}} повторов",
+    "retriesExhausted_many": "Не удалось после {{count}} повторов",
+    "emptyStream": "Поток модели на стороне провайдера оборвался (empty_stream)\n{{details}}"
+  }
 }
