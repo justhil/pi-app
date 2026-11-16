@@ -13,15 +13,11 @@ import { join } from 'node:path'
  * KEEP_AS_IS lists the values that are intentionally left in Latin script (product name).
  */
 const PENDING_RU = [
-  'adapters',
   'browser',
-  'context',
   'extension',
   'files',
-  'review',
   'run',
   'settings',
-  'update',
 ]
 
 const LOCALES_DIR = join(process.cwd(), 'src/renderer/src/locales')
