@@ -78,7 +78,13 @@
     "forkSourceMissing": "удалённый диалог",
     "newSessionDraft": "Новая сессия",
     "openFolderHint": "Выберите папку, в которой работать как в проекте",
-    "openFolderEmpty": "Откройте папку, чтобы начать проект"
+    "openFolderEmpty": "Откройте папку, чтобы начать проект",
+    "activeDrawer": {
+      "title": "Активные сессии",
+      "empty": "Нет запущенных сессий и сессий за последний час",
+      "justNow": "сейчас",
+      "dismiss": "Убрать из списка"
+    }
   },
   "attention": {
     "needsYou": "Нужна ваша помощь",
@@ -401,10 +407,10 @@
     },
     "focusHint": "Слишком узко для всех панелей — показаны вкладками. Раскладка меняется здесь"
   },
-  "listSeparator": ", ",
   "parenOpen": " (",
   "parenClose": ")",
   "colon": ": ",
+  "listSeparator": ", ",
   "agentError": {
     "unknown": "Неизвестная ошибка",
     "aborted": "Запрос прерван (Request was aborted)",

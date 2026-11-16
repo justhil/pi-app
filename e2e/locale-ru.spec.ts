@@ -204,6 +204,7 @@ test.describe('Russian locale layout', () => {
         'Мобильные': 'mobile',
         'Расширения': 'extensions',
         'Правые панели': 'right-panels',
+        'Персоны (Purge)': 'purge',
         'Usage': 'usage',
       }
       for (const section of Object.keys(slug)) {

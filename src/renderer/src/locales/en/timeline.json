@@ -271,7 +271,6 @@
   "rewind": {
     "needFile": "Session file not found, the timeline cannot refresh",
     "needEntryId": "Cannot rewind: message node id is missing",
-    "cancelled": "Jump cancelled",
     "historyRefreshFailed": "History refresh after rewind failed",
     "doneWithText": "Rewound: the message is in the input, edit and resend",
     "doneAtNode": "Jumped to that node, continue from here",
