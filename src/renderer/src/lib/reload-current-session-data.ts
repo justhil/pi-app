@@ -1,4 +1,5 @@
 import { useUIStore } from '@renderer/stores/ui-store'
+import i18n from '@renderer/lib/i18n'
 import { loadSessionHistoryWithRetry } from '@renderer/lib/load-session-history'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { requestTimelineBottomAnchor } from '@renderer/features/timeline/timeline-bottom-anchor'
@@ -68,7 +69,7 @@ export async function reloadCurrentSessionData(): Promise<{ ok: boolean; error?:
     return { ok: true }
   } catch (e: unknown) {
     console.error('[reloadCurrentSessionData]', e)
-    return { ok: false, error: (e instanceof Error ? e.message : String(e)) || '刷新失败' }
+    return { ok: false, error: (e instanceof Error ? e.message : String(e)) || i18n.t('common:sessionReload.failed') }
   } finally {
     if (stillCurrent()) useUIStore.getState().setHistoryLoading(false)
   }

@@ -8,6 +8,8 @@
 import { join, posix } from 'path'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { wslPathToWindows } from '@shared/wsl-path'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { runWslDistroAsync, wslHomeDir } from './wsl-exec.js'
 import { readWslPersisted, resolveWslEnv, writeWslPersisted } from './wsl-env.js'
 
@@ -126,7 +128,7 @@ export async function assertWslSdkAvailable(
 ): Promise<WslSdkResolution> {
   const sdk = await resolveWslActiveSdk(distro, opts)
   if (!sdk) {
-    throw new Error('WSL 发行版内未检测到 pi-coding-agent，无法切换到全局版本')
+    throw new Error(mainLabel(getMainUiLanguage(), 'wsl.sdkMissingSwitch'))
   }
   return sdk
 }

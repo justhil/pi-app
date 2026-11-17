@@ -8,6 +8,7 @@ import { sessionPreviewProcess } from './session-preview-process'
 import { guardAppQuit, setRunningTerminalsProbe } from './window-close-guard'
 import { runningTerminalCount, shutdownTerminals } from './terminal/terminal-service'
 import { configStore } from './config-store'
+import { resolveUiLanguage } from './ui-language'
 import { scheduleStartupWarmupFallback } from './startup-warmup'
 import { bindWslPersistence } from './wsl/wsl-env'
 import { is } from '@electron-toolkit/utils'
@@ -79,6 +80,7 @@ if (!gotLock) {
 
 app.whenReady().then(() => {
   if (!gotLock) return
+  resolveUiLanguage()
   if (process.env.PI_AUDIO_TRACE === '1' || process.env.PI_ALERT_TRACE === '1') {
     void import('./audio-trace').then(({ getAudioTraceLogHint }) => {
       console.log('[audio-trace] enabled — log file:', getAudioTraceLogHint())

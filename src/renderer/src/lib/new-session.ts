@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import i18n from '@renderer/lib/i18n'
 import { useUIStore } from '@renderer/stores/ui-store'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { titleFromFirstMessage } from '@renderer/lib/ephemeral-sandbox'
@@ -23,7 +24,7 @@ export async function materializePendingNewSession(
   if (!workspaceId) throw new Error('A workspace is required to create a session')
   const store = origin.state
 
-  const title = titleFromFirstMessage(firstMessage, 48) || '新会话'
+  const title = titleFromFirstMessage(firstMessage, 48) || i18n.t('common:newSession')
 
   const res = await ipcClient.invoke('session.new', { workspaceId })
   const sessionId = res?.session?.sessionId

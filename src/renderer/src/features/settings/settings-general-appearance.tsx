@@ -418,6 +418,7 @@ export function GeneralSettings() {
             {[
               { key: 'zh' as const, label: t('settings:general.langZh') },
               { key: 'en' as const, label: t('settings:general.langEn') },
+              { key: 'ru' as const, label: t('settings:general.langRu') },
             ].map((l) => (
               <button
                 key={l.key}

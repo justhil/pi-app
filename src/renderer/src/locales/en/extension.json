@@ -60,5 +60,22 @@
   "mcpNoteManaged": "pi-mcp-adapter manages MCP connections and the server list inside pi; the desktop app writes no config.",
   "mcpNoteConnect": "Once a server is connected through pi's MCP commands or settings in the terminal, its tools show up in the agent's tool list.",
   "mcpNoteConfig": "For environment variables and the MCP config under ~/.pi/agent, follow the extension's docs.",
-  "mcpPackages": "Detected packages"
+  "mcpPackages": "Detected packages",
+  "imageReview": {
+    "defaultTitle": "Image review",
+    "defaultQuestion": "Is this image usable?",
+    "options": {
+      "accept": "Accept",
+      "revise": "Needs changes",
+      "redo": "Redo",
+      "cancel": "Cancel"
+    }
+  },
+  "dialogBody": {
+    "askUserQuestion": "Extension question",
+    "needsAction": "Your action is needed"
+  },
+  "alertTitle": {
+    "waitingAction": "pi Desktop · waiting for your action"
+  }
 }

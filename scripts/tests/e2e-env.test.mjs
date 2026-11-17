@@ -10,9 +10,12 @@ describe('E2E smoke env', () => {
     assert.match(src, /PI_E2E/)
   })
 
-  it('smoke spec sets PI_E2E and electron executable', () => {
-    const src = readFileSync(join(process.cwd(), 'e2e/smoke.spec.ts'), 'utf8')
-    assert.match(src, /PI_E2E/)
-    assert.match(src, /executablePath/)
+  it('smoke spec launches through the isolated clean-launch helper', () => {
+    const spec = readFileSync(join(process.cwd(), 'e2e/smoke.spec.ts'), 'utf8')
+    assert.match(spec, /launchCleanApp/)
+    const launcher = readFileSync(join(process.cwd(), 'e2e/helpers/clean-launch.ts'), 'utf8')
+    assert.match(launcher, /PI_E2E/)
+    assert.match(launcher, /executablePath/)
+    assert.match(launcher, /--user-data-dir/)
   })
 })

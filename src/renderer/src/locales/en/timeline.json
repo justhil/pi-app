@@ -254,5 +254,26 @@
     "earlierCalls": "Show {{count}} earlier calls",
     "collapseCalls": "Hide earlier calls",
     "modelCost": "Model calls: {{cost}}"
+  },
+  "previews": {
+    "written": "Written",
+    "saved": "Saved",
+    "noDiff": "No diff details",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
+    "noResults": "No results",
+    "expandAll_one": "Show all {{count}} match",
+    "expandAll_other": "Show all {{count}} matches",
+    "noOutput": "No output"
+  },
+  "rewind": {
+    "needFile": "Session file not found, the timeline cannot refresh",
+    "needEntryId": "Cannot rewind: message node id is missing",
+    "historyRefreshFailed": "History refresh after rewind failed",
+    "doneWithText": "Rewound: the message is in the input, edit and resend",
+    "doneAtNode": "Jumped to that node, continue from here",
+    "failed": "Rewind failed"
   }
 }

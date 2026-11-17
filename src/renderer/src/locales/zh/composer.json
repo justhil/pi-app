@@ -75,7 +75,10 @@
     "cloneCancelled": "已取消 Clone",
     "cloneFailed": "Clone 失败",
     "cloned": "已 Clone 到新会话",
-    "nothingToClone": "当前没有可 Clone 的内容"
+    "nothingToClone": "当前没有可 Clone 的内容",
+    "forkSelectorFailed": "无法打开 Fork 选择器",
+    "panelSwitched": "已切换到 {{panel}} 面板",
+    "openSettingsFromSidebar": "请从左侧栏打开设置"
   },
   "voice": {
     "start": "开始录音",
@@ -269,5 +272,8 @@
     "activeMidHint": "当前生效：{{name}}（{{mode}}）· 点击关闭或点右侧箭头切换（将重置提示词缓存）",
     "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）",
     "lockedOffHint": "当前会话未启用人设注入"
-  }
+  },
+  "queueRestored": "已拉回 {{count}} 条排队消息到输入框",
+  "queueNothingToRestore": "没有可拉回的排队消息",
+  "queueRestoreFailed": "拉回队列失败"
 }

@@ -3,6 +3,8 @@ import { execFile, execFileSync } from 'child_process'
 import { existsSync, readFileSync, statSync } from 'fs'
 import { join } from 'path'
 import { isWslWindowsPath } from '@shared/wsl-path'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { getAgentRuntimeConfig } from './wsl/runtime-config'
 import { runGitInWsl, runGitInWslAsync } from './wsl/git-delegate'
 
@@ -68,15 +70,15 @@ export function runGit(
   options?: { timeout?: number; maxBuffer?: number; input?: string },
 ): { ok: true; stdout: string } | { ok: false; notRepo: boolean; message: string } {
   if (!isGitRepository(cwd)) {
-    return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+    return { ok: false, notRepo: true, message: mainLabel(getMainUiLanguage(), 'git.notRepo') }
   }
   const r = gitExecSync(cwd, args, options)
   if (r.status !== 0) {
-    const message = (r.stderr || r.stdout || '').trim() || 'git 命令失败'
+    const message = (r.stderr || r.stdout || '').trim() || mainLabel(getMainUiLanguage(), 'git.commandFailed')
     if (isNotGitRepo(r.stderr, message)) {
-      return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+      return { ok: false, notRepo: true, message: mainLabel(getMainUiLanguage(), 'git.notRepo') }
     }
-    const short = r.stderr.split('\n').find((l: string) => l.trim()) || message.split('\n')[0] || 'git 命令失败'
+    const short = r.stderr.split('\n').find((l: string) => l.trim()) || message.split('\n')[0] || mainLabel(getMainUiLanguage(), 'git.commandFailed')
     return { ok: false, notRepo: false, message: short.slice(0, 500) }
   }
   return { ok: true, stdout: r.stdout ?? '' }
@@ -157,15 +159,15 @@ export async function runGitReadOnly(
   options?: { timeout?: number; maxBuffer?: number },
 ): Promise<{ ok: true; stdout: string } | { ok: false; notRepo: boolean; message: string }> {
   if (!isGitRepository(cwd)) {
-    return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+    return { ok: false, notRepo: true, message: mainLabel(getMainUiLanguage(), 'git.notRepo') }
   }
   const r = await gitExec(cwd, ['--no-optional-locks', ...args], options)
   if (r.status !== 0) {
-    const message = (r.stderr || r.stdout || '').trim() || 'git 命令失败'
+    const message = (r.stderr || r.stdout || '').trim() || mainLabel(getMainUiLanguage(), 'git.commandFailed')
     if (isNotGitRepo(r.stderr, message)) {
-      return { ok: false, notRepo: true, message: '当前目录不是 Git 仓库' }
+      return { ok: false, notRepo: true, message: mainLabel(getMainUiLanguage(), 'git.notRepo') }
     }
-    const short = r.stderr.split('\n').find((line) => line.trim()) || message.split('\n')[0] || 'git 命令失败'
+    const short = r.stderr.split('\n').find((line) => line.trim()) || message.split('\n')[0] || mainLabel(getMainUiLanguage(), 'git.commandFailed')
     return { ok: false, notRepo: false, message: short.slice(0, 500) }
   }
   return { ok: true, stdout: r.stdout ?? '' }
@@ -224,7 +226,7 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
       stagedRaw: '',
       status: '',
       log: '',
-      message: '当前目录不是 Git 仓库',
+      message: mainLabel(getMainUiLanguage(), 'git.notRepo'),
     }
   }
 
@@ -255,7 +257,7 @@ export async function readGitWorkspaceSnapshot(cwd: string): Promise<GitWorkspac
 
 /** Working tree (staged + unstaged + untracked text files) against HEAD, for the phone's review view. */
 export async function readGitDiffVsHead(cwd: string): Promise<{ isRepo: boolean; branch: string; raw: string; message?: string }> {
-  if (!isGitRepository(cwd)) return { isRepo: false, branch: '', raw: '', message: '当前目录不是 Git 仓库' }
+  if (!isGitRepository(cwd)) return { isRepo: false, branch: '', raw: '', message: mainLabel(getMainUiLanguage(), 'git.notRepo') }
   const [branchR, headR, statusR] = await Promise.all([
     runGitReadOnly(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 3000 }),
     runGitReadOnly(cwd, ['diff', 'HEAD', '--no-color', '--no-ext-diff'], { timeout: 10000, maxBuffer: 32 * 1024 * 1024 }),
@@ -288,7 +290,7 @@ export function stageHunks(
         if (!patch || (!patch.startsWith('diff --git') && !patch.startsWith('@@'))) continue
         const r = await gitExec(cwd, ['apply', '--cached', '--recount'], { timeout: 10000, input: patch })
         if (r.status !== 0) {
-          return { ok: false, error: (r.stderr || 'git apply 失败').trim().slice(0, 500) }
+          return { ok: false, error: (r.stderr || mainLabel(getMainUiLanguage(), 'git.applyFailed')).trim().slice(0, 500) }
         }
       }
     }
@@ -307,7 +309,7 @@ export function unstageHunks(
         if (!patch) continue
         const r = await gitExec(cwd, ['apply', '-R', '--cached'], { timeout: 10000, input: patch })
         if (r.status !== 0) {
-          return { ok: false, error: (r.stderr || 'git apply -R 失败').trim().slice(0, 500) }
+          return { ok: false, error: (r.stderr || mainLabel(getMainUiLanguage(), 'git.applyReverseFailed')).trim().slice(0, 500) }
         }
       }
     }

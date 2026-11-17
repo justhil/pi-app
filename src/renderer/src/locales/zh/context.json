@@ -25,5 +25,7 @@
   "toolResultLabel": "工具结果",
   "compactionLabel": "压缩摘要",
   "branchLabel": "分支摘要",
-  "systemLabel": "System"
+  "systemLabel": "System",
+  "noSegments": "暂无消息片段",
+  "emptyPreview": "（空）"
 }

@@ -6,7 +6,9 @@
 export function defaultAppLanguage(
   env: NodeJS.ProcessEnv = process.env,
   systemLocale: string = Intl.DateTimeFormat().resolvedOptions().locale,
-): 'zh' | 'en' {
-  const locale = env.LC_ALL || env.LC_MESSAGES || env.LANG || systemLocale
-  return locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'
+): 'zh' | 'en' | 'ru' {
+  const locale = (env.LC_ALL || env.LC_MESSAGES || env.LANG || systemLocale).toLowerCase()
+  if (locale.startsWith('zh')) return 'zh'
+  if (locale.startsWith('ru')) return 'ru'
+  return 'en'
 }

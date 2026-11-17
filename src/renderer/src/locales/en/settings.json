@@ -106,6 +106,7 @@
     "languageDesc": "",
     "langZh": "中文",
     "langEn": "English",
+    "langRu": "Русский",
     "recentProjects": "Recent projects",
     "activeSessionsDrawer": "Sidebar active sessions drawer",
     "activeSessionsDrawerDesc": "Show running, unread, and last-hour sessions above Settings in the left sidebar.",
@@ -458,7 +459,8 @@
     "bgSeparateDesc": "Their own opacity, material and blur; off = same as the rest.",
     "bgContentOpacity": "Chat & right panel opacity",
     "bgContentMaterial": "Chat & right panel material",
-    "bgContentBlur": "Chat & right panel blur"
+    "bgContentBlur": "Chat & right panel blur",
+    "sampleGlyph": "Aa"
   },
   "pi": {
     "title": "Runtime",
@@ -845,7 +847,9 @@
     "inputTextImage": "Text + image",
     "summaryContext": "{{n}} context",
     "summaryCache": "cache",
-    "thinkingMapHint": "Thinking level → value sent to the model"
+    "thinkingMapHint": "Thinking level → value sent to the model",
+    "invalidIdProblem": "\"{{id}}\": {{reason}}",
+    "presetZhipu": "Zhipu GLM"
   },
   "voice": {
     "advancedTitle": "Advanced",
@@ -878,6 +882,7 @@
     "installUrl": "https://github.com/Wangnov/codex-asr/releases/latest",
     "langZh": "Chinese",
     "langEn": "English",
+    "langRu": "Русский",
     "descriptionBuiltin": "Transcribe with your ChatGPT / Codex sign-in, no API key needed.",
     "builtinTitle": "Built-in voice service",
     "builtinDesc": "Paste an access_token or use ~/.codex/auth.json; requests go to the ChatGPT transcribe API.",
@@ -1408,6 +1413,7 @@
     "importGithubDesc": "Enter owner/repo or a GitHub URL to import .md personas.",
     "pullGithub": "Pull personas",
     "importedToast": "Imported {{count}} persona(s)",
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "newPersonaDefaultBody": "# Custom session prompt\n\nWrite the system prompt body to inject into new conversations here."
   }
 }

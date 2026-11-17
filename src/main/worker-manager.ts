@@ -32,6 +32,8 @@ import {
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { normalizeSessionKey, workspacePoolKey } from './worker-session-key'
 import { isWslWindowsPath } from '@shared/wsl-path'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { getAgentRuntimeConfig, isWslRuntimeActive } from './wsl/runtime-config'
 import { normalizeWorkspaceCwd } from './wsl/workspace-path'
 import { readMaxSessionWorkers } from './worker-pool-config'
@@ -375,7 +377,7 @@ export class WorkerManager {
         code,
         cwd: slot.cwd,
         sessionFile: slot.sessionFile,
-        message: 'Worker 已退出。请重新打开工作区；若界面空白请先结束任务管理器里多余的 pi Desktop 进程。',
+        message: mainLabel(getMainUiLanguage(), 'worker.fatalExit'),
       })
     }
   }

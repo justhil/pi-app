@@ -256,7 +256,8 @@
     "terminalsMessage_other": "Closing the window ends the processes running in {{count}} terminals.",
     "terminalsAlso_one": "It also ends the process in {{count}} terminal.",
     "terminalsAlso_other": "It also ends the processes in {{count}} terminals.",
-    "closeTerminals": "Close"
+    "closeTerminals": "Close",
+    "dragResizeWidth": "Drag to resize width"
   },
   "notification": {
     "sessionGone": "This session was deleted or is unavailable",
@@ -315,7 +316,15 @@
     "sessionTree": "Open session tree",
     "shortcuts": "Keyboard shortcuts",
     "waitingSection": "Waiting on you",
-    "doneSection": "Just finished"
+    "doneSection": "Just finished",
+    "keywords": {
+      "settings": "settings preferences",
+      "composer": "composer input message",
+      "files": "files panel explorer",
+      "run": "run status metrics",
+      "git": "git branch checkout switch",
+      "shortcuts": "shortcuts keyboard help"
+    }
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -388,5 +397,16 @@
       "turns_other": "{{count}} turns"
     },
     "focusHint": "Too narrow for all panes; shown as tabs. Change the layout here"
+  },
+  "parenOpen": " (",
+  "parenClose": ")",
+  "colon": ": ",
+  "listSeparator": ", ",
+  "agentError": {
+    "unknown": "Unknown error",
+    "aborted": "Request aborted (Request was aborted)",
+    "retriesExhausted_one": "Failed after {{count}} retry",
+    "retriesExhausted_other": "Failed after {{count}} retries",
+    "emptyStream": "Upstream model stream ended abnormally (empty_stream)\n{{details}}"
   }
 }

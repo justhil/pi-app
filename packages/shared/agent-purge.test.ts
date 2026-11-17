@@ -3,6 +3,8 @@ import {
   defaultAgentPurgeConfig,
   normalizeAgentPurgeConfig,
   parsePersonaMarkdown,
+  personaCopy,
+  personaLanguage,
   rewriteSystemPromptText,
   stripHostIdentity,
 } from './agent-purge'
@@ -88,5 +90,37 @@ describe('agent-purge shared core', () => {
       description: '中文先给结论',
       body: '直接进入正题，先读代码再修改。',
     })
+  })
+
+  it('localizes the persona list copy without touching the prompt body', () => {
+    const cfg = defaultAgentPurgeConfig()
+    const konata = cfg.personas.find((p) => p.id === 'konata')!
+    expect(personaCopy(konata, 'ru').name).toBe('Коната · исполнение в песочнице')
+    expect(personaCopy(konata, 'en').name).toBe('Konata · Sandbox execution')
+    // zh is the shipped language, so it stays the upstream copy.
+    expect(personaCopy(konata, 'zh').name).toBe('泉此方 · 沙箱执行')
+    expect(personaCopy(konata, 'ru').description).not.toBe(konata.description)
+    // The body is the prompt itself: localization never reaches it.
+    expect(konata.body).toContain('泉此方')
+    expect(personaLanguage('zh-CN')).toBe('zh')
+    expect(personaLanguage('ru-RU')).toBe('ru')
+    expect(personaLanguage(undefined)).toBe('en')
+  })
+
+  it('keeps localized copy across config normalization and falls back when absent', () => {
+    const cfg = normalizeAgentPurgeConfig({
+      defaultPersonaId: 'ctf',
+      defaultMode: 'strict',
+      personas: [
+        { id: 'ctf', name: 'CTF 沙箱 · 五阶段门', description: 'x', body: 'body text' },
+        { id: 'mine', name: 'My persona', description: '', body: 'mine', i18n: { ru: { name: 'Моя персона' } } },
+      ],
+    })
+    const ctf = cfg.personas.find((p) => p.id === 'ctf')!
+    expect(personaCopy(ctf, 'ru').name).toBe('CTF-песочница · пять фаз')
+    const mine = cfg.personas.find((p) => p.id === 'mine')!
+    expect(personaCopy(mine, 'ru').name).toBe('Моя персона')
+    expect(personaCopy(mine, 'en').name).toBe('My persona')
+    expect(personaCopy(mine, 'zh').description).toBe('')
   })
 })

@@ -5,10 +5,11 @@ import {
   normalizeDndUntil,
 } from '@shared/completion-preview'
 import { configStore } from './config-store'
+import { resolveUiLanguage } from './ui-language'
 import type { CompletionNotificationSettings } from './completion-notification-controller'
 
 export function readCompletionNotificationSettings(now = Date.now()): CompletionNotificationSettings {
-  const language = configStore.get('language') === 'en' ? 'en' : 'zh'
+  const language = resolveUiLanguage()
   return {
     soundEnabled: configStore.get('alertSoundEnabled') !== false,
     notificationEnabled: configStore.get('alertNotificationEnabled') !== false,

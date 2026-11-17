@@ -11,6 +11,7 @@ import { registerHandler, registerHandlerWithSchema, sendEvent } from '../regist
 import { settingsSetSchema } from '../schemas'
 import { remoteTap } from '../../remote/tap'
 import { isSandboxWorkspacePath } from '../../sandbox-workspaces'
+import { resolveUiLanguage } from '../../ui-language'
 
 function isSandboxPathSafe(path: string): boolean {
   try {
@@ -87,6 +88,7 @@ export function registerSettingsHandlers(): void {
       return { key: req.key, value: next }
     }
     configStore.set(key, req.value as StoreSchema[typeof key])
+    if (key === 'language') resolveUiLanguage()
     if (key === 'sessionCapabilities') remoteTap.settingsChanged('capabilities')
     return { key: req.key, value: req.value }
   })

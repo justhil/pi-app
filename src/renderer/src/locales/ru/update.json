@@ -1,0 +1,15 @@
+{
+  "title": "Доступно обновление",
+  "versionLine": "Доступна v{{latest}} (текущая v{{current}})",
+  "notesHeading": "Примечания к релизу",
+  "noNotes": "К этому релизу подробных примечаний не приложили. откройте страницу релиза.",
+  "remindLater": "Не сейчас",
+  "ignoreVersion": "Пропустить эту версию",
+  "updateNow": "Обновить",
+  "openRelease": "Открыть страницу релиза",
+  "updating": "Обновление…",
+  "downloading": "Загрузка…",
+  "downloadingPercent": "Загрузка {{percent}} %",
+  "launchingInstaller": "Запускается установщик…",
+  "downloadFailed": "Загрузка не удалась: {{error}}"
+}

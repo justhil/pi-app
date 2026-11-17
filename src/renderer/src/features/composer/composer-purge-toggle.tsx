@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AGENT_PURGE_MODES, type AgentPurgeMode } from '@shared/agent-purge'
+import { AGENT_PURGE_MODES, personaCopy, personaLanguage, type AgentPurgeMode } from '@shared/agent-purge'
 import { Bot, Check, ChevronDown, Settings } from '@renderer/components/icons'
 import {
   loadAgentPurgeState,
@@ -29,7 +29,8 @@ export function ComposerPurgeToggle({
   draftContextKey: string
   running?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const lang = personaLanguage(i18n.language)
   const [menuOpen, setMenuOpen] = useState(false)
 
   const historySessionFile = useUIStore((s) => s.historySessionFile)
@@ -75,13 +76,14 @@ export function ComposerPurgeToggle({
   const active = uiState.checked
   const midSession = uiState.midSession
   const currentModeLabel = t(`composer:purge.modes.${uiState.mode}`)
+  const displayName = personaCopy(uiState.persona, lang).name || uiState.personaName
   const toggleTitle = active
     ? t(midSession ? 'composer:purge.activeMidHint' : 'composer:purge.activeDraftHint', {
-        name: uiState.personaName,
+        name: displayName,
         mode: currentModeLabel,
       })
     : t(midSession ? 'composer:purge.inactiveMidHint' : 'composer:purge.inactiveDraftHint', {
-        name: uiState.persona.name,
+        name: displayName,
       })
 
   const handleToggle = () => {
@@ -143,7 +145,7 @@ export function ComposerPurgeToggle({
         >
           <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.85} />
           <span className="max-w-[76px] truncate">
-            {active ? shortPersonaLabel(uiState.personaName) : t('composer:purge.shortLabel')}
+            {active ? shortPersonaLabel(displayName) : t('composer:purge.shortLabel')}
           </span>
         </button>
         <button
@@ -185,6 +187,7 @@ export function ComposerPurgeToggle({
           <div className="max-h-44 space-y-0.5 overflow-y-auto px-1.5 pb-1.5">
             {config.personas.map((p) => {
               const selected = p.id === uiState.persona.id
+              const copy = personaCopy(p, lang)
               return (
                 <button
                   key={p.id}
@@ -196,10 +199,10 @@ export function ComposerPurgeToggle({
                   )}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-foreground">{p.name}</div>
-                    {p.description ? (
+                    <div className="truncate text-[12px] font-medium text-foreground">{copy.name}</div>
+                    {copy.description ? (
                       <div className="line-clamp-1 text-[10.5px] text-muted-foreground/75">
-                        {p.description}
+                        {copy.description}
                       </div>
                     ) : null}
                   </div>

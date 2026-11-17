@@ -1,4 +1,5 @@
 import { agentErrorKind, formatAgentErrorForTimeline } from '@renderer/lib/agent-error-text'
+import i18n from '@renderer/lib/i18n'
 import { markStreamingAssistantIncomplete } from '@renderer/lib/mark-streaming-incomplete'
 import type { UIState } from '@renderer/stores/ui-store-types'
 import type { AgentErrorEvent, StoreApi } from '@renderer/stores/apply-app-event-types'
@@ -23,7 +24,7 @@ function settleOpenToolRows(api: StoreApi): void {
 
 export function handleAgentError(event: AgentErrorEvent, api: StoreApi): void {
   flushStreamPendingSync(api.get, api.set)
-  const raw = event.text || '未知错误'
+  const raw = event.text || i18n.t('common:agentError.unknown')
   const kind = event.kind || agentErrorKind(raw)
   const stopReason = kind === 'aborted' ? 'aborted' : kind === 'retry' ? 'error' : 'error'
   // Mark incomplete before clearing stream id / pruning empty bubbles.

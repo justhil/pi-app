@@ -378,7 +378,7 @@ function PresetCard({ preset, variant, selected, onPick }: { preset: ThemePreset
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 px-2 pt-2">
           <div className="ml-auto h-2.5 w-1/2 rounded" style={{ background: bubble }} />
-          <div className="text-[11px] leading-none" style={{ color: ink, fontFamily: serif ? 'var(--font-serif-base)' : undefined }}>Aa 文</div>
+          <div className="text-[11px] leading-none" style={{ color: ink, fontFamily: serif ? 'var(--font-serif-base)' : undefined }}>{t('settings:appearance.sampleGlyph')}</div>
           <div className="h-1 w-4/5 rounded-full" style={{ background: mixColors(surface, ink, 0.22) }} />
           <div className="mt-auto mb-1.5 h-1.5 w-6 rounded-full" style={{ background: accent }} />
         </div>

@@ -254,5 +254,23 @@
     "earlierCalls": "展开更早的 {{count}} 次调用",
     "collapseCalls": "收起较早调用",
     "modelCost": "模型调用: {{cost}}"
+  },
+  "previews": {
+    "written": "写入",
+    "saved": "已保存",
+    "noDiff": "无 diff 详情",
+    "lines": "{{count}} 行",
+    "matches": "{{count}} 条",
+    "noResults": "无结果",
+    "expandAll": "展开全部 {{count}} 条",
+    "noOutput": "无输出"
+  },
+  "rewind": {
+    "needFile": "未找到会话文件，无法刷新时间线",
+    "needEntryId": "无法回退：缺少消息节点 id",
+    "historyRefreshFailed": "回退后刷新历史失败",
+    "doneWithText": "已回退：消息已填入输入框，可修改后重新发送",
+    "doneAtNode": "已跳转到该节点，可从此继续",
+    "failed": "回退失败"
   }
 }

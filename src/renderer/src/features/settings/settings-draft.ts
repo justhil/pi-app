@@ -31,7 +31,7 @@ import {
 } from '@shared/right-panels'
 
 export type ThemeChoice = 'light' | 'dark' | 'system'
-export type LanguageChoice = 'zh' | 'en'
+export type LanguageChoice = 'zh' | 'en' | 'ru'
 
 export type AgentRuntimeChoice = { mode: 'host' | 'wsl'; distro: string | null }
 
@@ -72,6 +72,7 @@ function normalizeLanguage(raw: unknown, fallback: LanguageChoice): LanguageChoi
   const s = String(raw || '').toLowerCase()
   if (s.startsWith('zh')) return 'zh'
   if (s.startsWith('en')) return 'en'
+  if (s.startsWith('ru')) return 'ru'
   return fallback
 }
 

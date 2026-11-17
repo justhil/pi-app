@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { mainLabel } from '@shared/main-labels'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../config-store', () => ({
@@ -44,7 +45,13 @@ describe('git-workspace host mode', () => {
     const dir = mkdtempSync(join(tmpdir(), 'pi-desktop-notrepo-'))
     tempDirs.push(dir)
     const r = runGit(dir, ['status'], { timeout: 3000 })
-    expect(r).toEqual({ ok: false, notRepo: true, message: '当前目录不是 Git 仓库' })
+    // The message follows the app language (packages/shared/main-labels.ts).
+    expect(r.ok).toBe(false)
+    if (r.ok) throw new Error('expected runGit to fail outside a repo')
+    expect(r.notRepo).toBe(true)
+    expect([mainLabel('zh', 'git.notRepo'), mainLabel('en', 'git.notRepo'), mainLabel('ru', 'git.notRepo')]).toContain(
+      r.message,
+    )
   })
 
   it('stageHunks stages a working-tree diff and unstageHunks reverses it', async () => {

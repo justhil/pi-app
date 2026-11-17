@@ -254,7 +254,8 @@
     "terminalsTitle": "终端还在运行",
     "terminalsMessage": "关闭窗口会结束 {{count}} 个终端里正在运行的进程。",
     "terminalsAlso": "同时会结束 {{count}} 个终端里的进程。",
-    "closeTerminals": "关闭"
+    "closeTerminals": "关闭",
+    "dragResizeWidth": "拖动调整宽度"
   },
   "notification": {
     "sessionGone": "会话已删除或不可用",
@@ -313,7 +314,15 @@
     "sessionTree": "打开会话树",
     "shortcuts": "键盘快捷键",
     "waitingSection": "等你的会话",
-    "doneSection": "刚做完的会话"
+    "doneSection": "刚做完的会话",
+    "keywords": {
+      "settings": "settings preferences 设置",
+      "composer": "composer input message 输入",
+      "files": "files panel 文件",
+      "run": "run status 运行",
+      "git": "git branch checkout switch 分支 切换",
+      "shortcuts": "shortcuts keyboard help 快捷键"
+    }
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -381,5 +390,15 @@
       "turns": "{{count}} 轮"
     },
     "focusHint": "窗口太窄，暂以标签显示；可在此切换布局"
+  },
+  "parenOpen": "（",
+  "parenClose": "）",
+  "colon": "：",
+  "listSeparator": "、",
+  "agentError": {
+    "unknown": "未知错误",
+    "aborted": "请求已中止（Request was aborted）",
+    "retriesExhausted": "重试 {{count}} 次后仍失败",
+    "emptyStream": "上游模型流异常结束（empty_stream）\n{{details}}"
   }
 }

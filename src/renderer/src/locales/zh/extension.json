@@ -60,5 +60,22 @@
   "mcpNoteManaged": "MCP 连接与服务器列表由 pi-mcp-adapter 在 pi 运行时自管，桌面不写配置。",
   "mcpNoteConnect": "在终端用 pi 的 MCP 相关斜杠命令或设置完成连接后，工具会出现在 Agent 工具列表。",
   "mcpNoteConfig": "环境变量与 ~/.pi/agent 下的 MCP 配置以扩展文档为准。",
-  "mcpPackages": "探测到的包"
+  "mcpPackages": "探测到的包",
+  "imageReview": {
+    "defaultTitle": "图片审查",
+    "defaultQuestion": "这张图片是否可用？",
+    "options": {
+      "accept": "通过",
+      "revise": "需要修改",
+      "redo": "重做",
+      "cancel": "取消"
+    }
+  },
+  "dialogBody": {
+    "askUserQuestion": "扩展问答",
+    "needsAction": "需要你的操作"
+  },
+  "alertTitle": {
+    "waitingAction": "pi Desktop · 等待操作"
+  }
 }

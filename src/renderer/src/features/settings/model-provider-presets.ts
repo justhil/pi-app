@@ -1,4 +1,5 @@
 import type { PiModelsProviderConfig } from '@shared/ipc-contract'
+import type { TFunction } from 'i18next'
 
 export type ProviderPresetId =
   | 'openai'
@@ -15,6 +16,8 @@ export type ProviderPresetId =
 export type ProviderPreset = {
   id: ProviderPresetId
   label: string
+  /** Locale key for presets whose brand is written differently per language (智谱 GLM / Zhipu GLM). */
+  labelKey?: string
   tagline: string
   /** 建议写入 models.json 的 provider 键 */
   defaultKey: string
@@ -151,7 +154,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
   {
     id: 'zhipu',
-    label: '智谱 GLM',
+    label: 'Zhipu GLM',
+    labelKey: 'settings:models.presetZhipu',
     tagline: 'OpenAI-compatible',
     defaultKey: 'zhipu',
     accentClass: 'bg-indigo-600',
@@ -215,4 +219,14 @@ export function clonePresetConfig(preset: ProviderPreset): PiModelsProviderConfi
     c.models = c.models ? [...c.models] : []
   }
   return c
+}
+
+/**
+ * Preset label for the UI. Brand presets that are written differently per language
+ * (智谱 GLM in Chinese, Zhipu GLM elsewhere) carry a `labelKey`; the provider name stored
+ * in models.json is never affected.
+ */
+export function presetLabel(preset: ProviderPreset | undefined, t: TFunction): string {
+  if (!preset) return ''
+  return preset.labelKey ? t(preset.labelKey) : preset.label
 }

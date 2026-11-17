@@ -1,16 +1,13 @@
-import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
+import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createRequire } from 'node:module'
+import { launchCleanApp } from './helpers/clean-launch'
 
-const require = createRequire(import.meta.url)
-const electronExecutable = require('electron') as string
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const mainEntry = path.join(root, 'out/main/index.js')
 const shotDir = path.join(root, 'test-results', 'browser')
 
 type Seen = { path: string; secChUa?: string; acceptLanguage?: string }
@@ -112,12 +109,7 @@ test.describe('built-in browser panel', () => {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     const configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-browser-'))
     fs.mkdirSync(shotDir, { recursive: true })
-    const app = await electron.launch({
-      executablePath: electronExecutable,
-      args: [mainEntry, '--ozone-platform=x11', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
-      env: { ...process.env, PI_E2E: '1', XDG_CONFIG_HOME: configHome, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
-      timeout: 60_000,
-    })
+    const app = await launchCleanApp({ env: { XDG_CONFIG_HOME: configHome } })
     try {
       const window = await app.firstWindow({ timeout: 45_000 })
       await app.evaluate(({ BrowserWindow }) => {
@@ -253,12 +245,7 @@ test.describe('built-in browser panel', () => {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     const configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-browser-'))
     fs.mkdirSync(shotDir, { recursive: true })
-    const app = await electron.launch({
-      executablePath: electronExecutable,
-      args: [mainEntry, '--ozone-platform=x11', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
-      env: { ...process.env, PI_E2E: '1', XDG_CONFIG_HOME: configHome, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
-      timeout: 60_000,
-    })
+    const app = await launchCleanApp({ env: { XDG_CONFIG_HOME: configHome } })
     try {
       const window = await app.firstWindow({ timeout: 45_000 })
       await window.waitForFunction(() => !!(window as unknown as { __piE2E?: unknown }).__piE2E, null, { timeout: 45_000 })

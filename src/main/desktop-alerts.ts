@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { configStore } from './config-store'
+import { resolveUiLanguage } from './ui-language'
 import { traceAudio } from './audio-trace'
 import { presentCompletionCard } from './completion-notification-delivery'
 import { buildCompletionNotificationCopy } from '@shared/completion-preview'
@@ -61,7 +62,7 @@ export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopA
   if (!scenario || (!doNotify && !doSound)) return
 
   ensureNotificationIdentity()
-  const language = configStore.get('language') === 'en' ? 'en' : 'zh'
+  const language = resolveUiLanguage()
   const copy = buildCompletionNotificationCopy({
     language,
     outcome: 'success',
