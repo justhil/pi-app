@@ -1,5 +1,9 @@
-import { fileURLToPath } from 'node:url'
-import { preparePiCliEntry } from '../worker-cli-entry.js'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import {
+  preferUnpackedAsarPath,
+  preparePiCliEntry,
+  resolveBuiltinSdkEntry,
+} from '../worker-cli-entry.js'
 import { widenHttpConnectTimeout } from '../worker-http-connect.js'
 import { errorMessage } from '@shared/error-message'
 import { normalizeUserMessageDisplayText } from '@shared/worker-message'
@@ -15,6 +19,19 @@ import {
   currentSessionModelKey,
 } from '../worker-runtime.js'
 
+async function loadBuiltinSdk() {
+  try {
+    const rawBuiltinEntry = fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+    const preferredEntry = preferUnpackedAsarPath(rawBuiltinEntry)
+    if (preferredEntry !== rawBuiltinEntry) {
+      return import(pathToFileURL(preferredEntry).href)
+    }
+  } catch {
+    // Fall back to standard bare specifier import when resolve is unavailable in test mocks.
+  }
+  return import('@earendil-works/pi-coding-agent')
+}
+
 export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           console.log('[Worker] Initializing st.session for:', msg.cwd)
@@ -23,25 +40,26 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
           try {
             if (st.activeSdkPath) {
               const { isAbsolute } = await import('node:path')
-              const { pathToFileURL } = await import('node:url')
               if (isAbsolute(st.activeSdkPath)) {
-                st.sdk = await import(pathToFileURL(st.activeSdkPath).href)
+                st.sdk = await import(pathToFileURL(preferUnpackedAsarPath(st.activeSdkPath)).href)
               } else {
                 st.sdk = await import(st.activeSdkPath)
               }
             } else {
-              st.sdk = await import('@earendil-works/pi-coding-agent')
+              st.sdk = await loadBuiltinSdk()
             }
           } catch (e: unknown) {
             console.error('[Worker] Dynamic import SDK failed, fallback to builtin:', errorMessage(e))
             st.activeSdkPath = null
-            st.sdk = await import('@earendil-works/pi-coding-agent')
+            st.sdk = await loadBuiltinSdk()
             sdkFallback = true
           }
           if (!st.sdk) throw new Error('SDK load failed')
           let resolvedEntry: string | null = null
           try {
-            resolvedEntry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+            resolvedEntry = st.activeSdkPath
+              ? preferUnpackedAsarPath(st.activeSdkPath)
+              : resolveBuiltinSdkEntry()
             await preparePiCliEntry(resolvedEntry)
             widenHttpConnectTimeout(resolvedEntry)
           } catch (e) {

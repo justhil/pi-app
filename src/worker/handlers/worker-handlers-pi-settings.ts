@@ -1,4 +1,4 @@
-import { fileURLToPath } from 'node:url'
+import { preferUnpackedAsarPath, resolveBuiltinSdkEntry } from '../worker-cli-entry.js'
 import { errorMessage } from '@shared/error-message'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -42,7 +42,7 @@ export async function handleApplyhttpconnecttimeout(msg: WorkerIncomingMessage, 
   // A worker still loading its SDK reads the saved value at the end of init.
   if (st.sdk) {
     try {
-      const entry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+      const entry = st.activeSdkPath ? preferUnpackedAsarPath(st.activeSdkPath) : resolveBuiltinSdkEntry()
       widenHttpConnectTimeout(entry, msg.timeoutMs)
     } catch (e: unknown) {
       console.warn('[Worker] Could not apply the HTTP connect timeout:', errorMessage(e))

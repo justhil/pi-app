@@ -23,6 +23,10 @@ files:
   - '!**/bignumber.js/doc/**'
   - '!**/readable-stream/**/doc/**'
 
+# Unpack the Pi SDK runtime dependency closure dynamically so external Node child processes
+# spawned by extensions can read SDK modules from app.asar.unpacked instead of app.asar.
+beforePack: ./scripts/before-pack.mjs
+
 # Native pty binaries (pty.node, conpty.dll, spawn-helper) cannot load from inside the asar.
 asarUnpack:
   - '**/node_modules/@lydell/node-pty*/**'
