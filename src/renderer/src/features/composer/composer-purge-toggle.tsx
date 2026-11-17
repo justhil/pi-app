@@ -10,6 +10,7 @@ import {
   setDraftPurgeMode,
   setDraftPurgePersona,
   syncPurgeDraftContextKey,
+  updateSessionPurge,
   useAgentPurgeStore,
 } from '@renderer/lib/agent-purge-store'
 import { cn } from '@renderer/lib/utils'
@@ -71,54 +72,54 @@ export function ComposerPurgeToggle({
     pendingLock,
   })
 
-  if (uiState.status === 'locked-on') {
-    const modeLabel = t(`composer:purge.modes.${uiState.mode}`)
-    const title = t('composer:purge.lockedOnHint', {
-      name: uiState.personaName,
-      mode: modeLabel,
-    })
-    return (
-      <button
-        type="button"
-        disabled
-        aria-pressed="true"
-        data-testid="composer-purge-toggle"
-        data-purge-state="locked-on"
-        title={title}
-        aria-label={title}
-        className="flex h-7 shrink-0 cursor-not-allowed items-center gap-1 rounded-md border border-primary/25 bg-primary/10 px-2 text-[12px] font-medium text-foreground/65 opacity-60"
-      >
-        <Bot className="h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
-        <span className="max-w-[76px] truncate">{shortPersonaLabel(uiState.personaName)}</span>
-        <Check className="h-3 w-3 shrink-0 opacity-80" strokeWidth={2.2} />
-      </button>
-    )
-  }
-
-  if (uiState.status === 'locked-off') {
-    const title = t('composer:purge.lockedOffHint')
-    return (
-      <button
-        type="button"
-        disabled
-        aria-pressed="false"
-        data-testid="composer-purge-toggle"
-        data-purge-state="locked-off"
-        title={title}
-        aria-label={title}
-        className="composer-toolbar-btn flex h-7 shrink-0 cursor-not-allowed items-center gap-1 rounded-md px-1.5 text-[12px] text-foreground-secondary/50 opacity-35"
-      >
-        <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.8} />
-        <span className="hidden sm:inline">{t('composer:purge.shortLabel')}</span>
-      </button>
-    )
-  }
-
   const active = uiState.checked
+  const midSession = uiState.midSession
   const currentModeLabel = t(`composer:purge.modes.${uiState.mode}`)
   const toggleTitle = active
-    ? t('composer:purge.activeDraftHint', { name: uiState.persona.name, mode: currentModeLabel })
-    : t('composer:purge.inactiveDraftHint', { name: uiState.persona.name })
+    ? t(midSession ? 'composer:purge.activeMidHint' : 'composer:purge.activeDraftHint', {
+        name: uiState.personaName,
+        mode: currentModeLabel,
+      })
+    : t(midSession ? 'composer:purge.inactiveMidHint' : 'composer:purge.inactiveDraftHint', {
+        name: uiState.persona.name,
+      })
+
+  const handleToggle = () => {
+    if (historySessionFile) {
+      void updateSessionPurge(historySessionFile, {
+        enabled: !active,
+        personaId: uiState.persona.id,
+        mode: uiState.mode,
+      })
+    } else {
+      setDraftPurgeEnabled(!active)
+    }
+  }
+
+  const handleSelectPersona = (personaId: string) => {
+    setDraftPurgePersona(personaId)
+    if (historySessionFile) {
+      void updateSessionPurge(historySessionFile, {
+        enabled: true,
+        personaId,
+        mode: uiState.mode,
+      })
+    } else {
+      setDraftPurgeEnabled(true)
+    }
+    setMenuOpen(false)
+  }
+
+  const handleSelectMode = (mode: AgentPurgeMode) => {
+    setDraftPurgeMode(mode)
+    if (historySessionFile && active) {
+      void updateSessionPurge(historySessionFile, {
+        enabled: true,
+        personaId: uiState.persona.id,
+        mode,
+      })
+    }
+  }
 
   return (
     <div data-composer-purge-anchor className="relative flex shrink-0 items-center">
@@ -134,15 +135,15 @@ export function ComposerPurgeToggle({
           type="button"
           aria-pressed={active}
           data-testid="composer-purge-toggle"
-          data-purge-state={active ? 'draft-on' : 'draft-off'}
+          data-purge-state={active ? (midSession ? 'active-mid' : 'draft-on') : midSession ? 'off-mid' : 'draft-off'}
           title={toggleTitle}
           aria-label={toggleTitle}
-          onClick={() => setDraftPurgeEnabled(!active)}
+          onClick={handleToggle}
           className="flex h-full items-center gap-1 rounded-l-md pl-1.5 pr-1 text-[12px] font-medium"
         >
           <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.85} />
           <span className="max-w-[76px] truncate">
-            {active ? shortPersonaLabel(uiState.persona.name) : t('composer:purge.shortLabel')}
+            {active ? shortPersonaLabel(uiState.personaName) : t('composer:purge.shortLabel')}
           </span>
         </button>
         <button
@@ -162,7 +163,7 @@ export function ComposerPurgeToggle({
           anchorSelector="[data-composer-purge-anchor]"
           onClose={() => setMenuOpen(false)}
           label={t('composer:purge.menuTitle')}
-          width={276}
+          width={284}
         >
           <div className="flex items-center justify-between px-3 pb-1 pt-1.5">
             <span className="text-[11px] font-medium text-foreground-secondary">
@@ -188,11 +189,7 @@ export function ComposerPurgeToggle({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => {
-                    setDraftPurgePersona(p.id)
-                    setDraftPurgeEnabled(true)
-                    setMenuOpen(false)
-                  }}
+                  onClick={() => handleSelectPersona(p.id)}
                   className={cn(
                     'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]',
                     selected && active && 'bg-primary/10',
@@ -227,7 +224,7 @@ export function ComposerPurgeToggle({
                   type="button"
                   role="radio"
                   aria-checked={uiState.mode === m}
-                  onClick={() => setDraftPurgeMode(m)}
+                  onClick={() => handleSelectMode(m)}
                   className={cn(
                     'flex-1 rounded-[5px] px-1.5 py-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground',
                     uiState.mode === m &&
@@ -238,8 +235,13 @@ export function ComposerPurgeToggle({
                 </button>
               ))}
             </div>
-            <div className="mt-1.5 text-[10.5px] leading-4 text-muted-foreground/65">
-              {t('composer:purge.firstTurnNote')}
+            <div
+              className={cn(
+                'mt-1.5 text-[10.5px] leading-4',
+                midSession ? 'text-amber-600/85 dark:text-amber-400/85' : 'text-muted-foreground/65',
+              )}
+            >
+              {t(midSession ? 'composer:purge.cacheBreakWarn' : 'composer:purge.firstTurnNote')}
             </div>
           </div>
         </ComposerPopover>

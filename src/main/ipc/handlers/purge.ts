@@ -1,6 +1,8 @@
 import { z } from 'zod'
+import { AGENT_PURGE_MODES } from '@shared/agent-purge'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
+  getActivePurgeForSession,
   getAgentPurgeConfig,
   getPurgedSessions,
   importPersonasFromDirectory,
@@ -8,7 +10,11 @@ import {
   resetBuiltinPurgePersonas,
   resolveLocalAgentPurgePersonasDir,
   saveAgentPurgeConfig,
+  setPurgedSession,
 } from '../../agent-purge-service'
+import { capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
+import { configStore } from '../../config-store'
+import { workerManager } from '../../worker-manager'
 
 export function registerPurgeHandlers(): void {
   registerHandler('ipc:purge.getState', async () => ({
@@ -20,16 +26,46 @@ export function registerPurgeHandlers(): void {
   registerHandlerWithSchema(
     'ipc:purge.saveConfig',
     z.object({ config: z.record(z.unknown()) }),
-    async (req) => ({
-      ok: true,
-      config: saveAgentPurgeConfig(req.config),
-    }),
+    async (req) => {
+      const config = saveAgentPurgeConfig(req.config)
+      return { ok: true, config }
+    },
   )
 
-  registerHandler('ipc:purge.resetBuiltins', async () => ({
-    ok: true,
-    config: resetBuiltinPurgePersonas(),
-  }))
+  registerHandlerWithSchema(
+    'ipc:purge.setSession',
+    z.object({
+      sessionFile: z.string().min(1).max(4096),
+      enabled: z.boolean(),
+      personaId: z.string().max(128).optional(),
+      mode: z.enum(AGENT_PURGE_MODES).optional(),
+    }),
+    async (req) => {
+      const record = setPurgedSession(req.sessionFile, {
+        enabled: req.enabled,
+        personaId: req.personaId,
+        mode: req.mode,
+      })
+      if (workerManager.hasLiveSessionWorker(req.sessionFile)) {
+        const capMap = (configStore.get('sessionCapabilities') || {}) as Record<string, string[]>
+        const caps = capMap[req.sessionFile] ?? []
+        await workerManager
+          .setCapabilities(
+            capabilitySectionMap(caps),
+            capabilityToolFamilies(caps),
+            req.sessionFile,
+            getActivePurgeForSession(req.sessionFile),
+          )
+          .catch(() => {})
+      }
+      return { ok: true, purgedSessions: getPurgedSessions(), record }
+    },
+  )
+
+  registerHandler('ipc:purge.resetBuiltins', async () => {
+    const config = resetBuiltinPurgePersonas()
+    return { ok: true, config }
+  })
 
   registerHandlerWithSchema(
     'ipc:purge.importLocal',

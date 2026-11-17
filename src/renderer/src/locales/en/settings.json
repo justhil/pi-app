@@ -1362,7 +1362,7 @@
   },
   "purge": {
     "title": "Persona Injection (Agent Purge)",
-    "description": "Manage persona prompts for opt-in first-turn session injection. Off by default on new chats; never modifies global configuration.",
+    "description": "Manage persona prompts for per-session injection. Off by default on new chats; can be toggled or switched anytime in the toolbar (switching mid-chat resets prompt cache) without modifying global configuration.",
     "defaultsSection": "Default injection policy",
     "defaultsSectionDesc": "Default persona and rewrite mode used when toggling Purge on in the composer toolbar.",
     "defaultPersona": "Default persona",

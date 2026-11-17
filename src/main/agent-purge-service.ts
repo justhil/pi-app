@@ -158,6 +158,36 @@ export function inheritPurgedSession(
   s.set('purgedSessions', map)
 }
 
+export function setPurgedSession(
+  sessionFile: string | undefined,
+  req: { enabled: boolean; personaId?: string; mode?: AgentPurgeMode },
+): PurgedSessionRecord | null {
+  const key = normalizePurgedSessionKey(sessionFile)
+  if (!key) return null
+  if (!req.enabled) {
+    removePurgedSession(sessionFile)
+    return null
+  }
+  const cfg = getAgentPurgeConfig()
+  const chosen =
+    cfg.personas.find((p) => p.id === req.personaId) ??
+    cfg.personas.find((p) => p.id === cfg.defaultPersonaId) ??
+    cfg.personas[0]
+  if (!chosen || !chosen.body.trim()) return null
+
+  const map = getPurgedSessions()
+  const record: PurgedSessionRecord = {
+    personaId: chosen.id,
+    personaName: chosen.name,
+    mode: normalizePurgeMode(req.mode ?? cfg.defaultMode, cfg.defaultMode),
+    body: chosen.body.trim(),
+    lockedAt: Date.now(),
+  }
+  map[key] = record
+  store()?.set('purgedSessions', map)
+  return record
+}
+
 export function removePurgedSession(sessionFile: string | undefined): void {
   const key = normalizePurgedSessionKey(sessionFile)
   if (!key) return

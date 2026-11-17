@@ -115,6 +115,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:purge.importLocal',
   'ipc:purge.resetBuiltins',
   'ipc:purge.saveConfig',
+  'ipc:purge.setSession',
   'ipc:registry.refresh',
   'ipc:resource.read',
   'ipc:resource.restore',

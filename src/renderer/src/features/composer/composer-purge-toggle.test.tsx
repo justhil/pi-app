@@ -9,20 +9,24 @@ import {
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ComposerPurgeToggle } from './composer-purge-toggle'
 
+const invokeMock = vi.fn((channel: string, _payload?: unknown) => {
+  if (channel === 'purge.setSession') return Promise.resolve({ ok: true })
+  return Promise.resolve({
+    config: defaultAgentPurgeConfig(),
+    purgedSessions: {},
+    localDir: '',
+  })
+})
+
 vi.mock('@renderer/lib/ipc-client', () => ({
   ipcClient: {
-    invoke: vi.fn(() =>
-      Promise.resolve({
-        config: defaultAgentPurgeConfig(),
-        purgedSessions: {},
-        localDir: '',
-      }),
-    ),
+    invoke: (...args: unknown[]) => invokeMock(args[0] as string, args[1]),
   },
 }))
 
 describe('ComposerPurgeToggle state machine', () => {
   beforeEach(() => {
+    invokeMock.mockClear()
     useAgentPurgeStore.setState({
       loaded: true,
       config: defaultAgentPurgeConfig(),
@@ -41,7 +45,7 @@ describe('ComposerPurgeToggle state machine', () => {
     })
   })
 
-  it('starts OFF on a brand-new chat, toggles ON, and locks ON + disabled once the first message sends', () => {
+  it('starts OFF on a brand-new chat, commits on first send, and remains switchable/togglable mid-session', () => {
     const { rerender } = render(<ComposerPurgeToggle draftContextKey="draft-1" running={false} />)
 
     const btn = screen.getByTestId('composer-purge-toggle')
@@ -68,24 +72,35 @@ describe('ComposerPurgeToggle state machine', () => {
     })
     rerender(<ComposerPurgeToggle draftContextKey="session:/sessions/chat-1.jsonl" running={false} />)
 
-    const lockedBtn = screen.getByTestId('composer-purge-toggle')
-    expect(lockedBtn).toBeDisabled()
-    expect(lockedBtn).toHaveAttribute('aria-pressed', 'true')
-    expect(lockedBtn).toHaveAttribute('data-purge-state', 'locked-on')
+    const midBtn = screen.getByTestId('composer-purge-toggle')
+    expect(midBtn).not.toBeDisabled()
+    expect(midBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(midBtn).toHaveAttribute('data-purge-state', 'active-mid')
 
-    // Clicking the locked button cannot turn it off
-    fireEvent.click(lockedBtn)
-    expect(lockedBtn).toHaveAttribute('aria-pressed', 'true')
+    // Clicking mid-session turns it off via purge.setSession
+    fireEvent.click(midBtn)
+    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'false')
+    expect(invokeMock).toHaveBeenCalledWith(
+      'purge.setSession',
+      expect.objectContaining({ sessionFile: '/sessions/chat-1.jsonl', enabled: false }),
+    )
   })
 
-  it('renders OFF and disabled on existing conversations where Purge was not enabled on turn 1', () => {
+  it('allows enabling Purge mid-session on existing conversations and shows cache invalidation warning', () => {
     useUIStore.setState({ historySessionFile: '/sessions/existing-normal.jsonl' })
     render(<ComposerPurgeToggle draftContextKey="session:/sessions/existing-normal.jsonl" running={false} />)
 
     const btn = screen.getByTestId('composer-purge-toggle')
-    expect(btn).toBeDisabled()
+    expect(btn).not.toBeDisabled()
     expect(btn).toHaveAttribute('aria-pressed', 'false')
-    expect(btn).toHaveAttribute('data-purge-state', 'locked-off')
+    expect(btn).toHaveAttribute('data-purge-state', 'off-mid')
+
+    fireEvent.click(btn)
+    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'true')
+    expect(invokeMock).toHaveBeenCalledWith(
+      'purge.setSession',
+      expect.objectContaining({ sessionFile: '/sessions/existing-normal.jsonl', enabled: true }),
+    )
   })
 
   it('resets back to OFF when opening another brand-new conversation', () => {

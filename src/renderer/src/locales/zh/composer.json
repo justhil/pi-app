@@ -253,7 +253,7 @@
   "purge": {
     "shortLabel": "人设",
     "choosePersona": "选择注入人设与模式",
-    "menuTitle": "新对话首轮注入",
+    "menuTitle": "单会话人设注入",
     "openSettings": "配置",
     "modeLabel": "注入模式",
     "modes": {
@@ -261,10 +261,13 @@
       "append": "追加",
       "strict": "只留人设"
     },
-    "firstTurnNote": "仅当前新对话生效，不影响全局。发送首条消息后锁定，不可中途修改。",
+    "firstTurnNote": "仅当前会话生效，不影响全局；在首条消息前设定可保持整场对话的提示词缓存命中。",
+    "cacheBreakWarn": "提示：会话中途开启、切换或关闭人设会改写系统提示词，将使当前会话的提示词缓存（Prompt Cache）失效重建。",
     "inactiveDraftHint": "点击为本新对话启用人设注入（默认：{{name}}）",
     "activeDraftHint": "将在首条消息自动注入：{{name}}（{{mode}}），点击可取消",
-    "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）· 已锁定不可修改",
-    "lockedOffHint": "仅新对话发送首条消息前可开启人设注入"
+    "inactiveMidHint": "点击为当前会话启用人设注入（默认：{{name}}，将重置提示词缓存）",
+    "activeMidHint": "当前生效：{{name}}（{{mode}}）· 点击关闭或点右侧箭头切换（将重置提示词缓存）",
+    "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）",
+    "lockedOffHint": "当前会话未启用人设注入"
   }
 }

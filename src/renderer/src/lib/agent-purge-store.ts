@@ -18,27 +18,15 @@ export interface DraftPurgeSendPayload {
   mode?: AgentPurgeMode
 }
 
-export type ComposerPurgeUiState =
-  | {
-      status: 'draft'
-      checked: boolean
-      disabled: false
-      persona: AgentPurgePersona
-      mode: AgentPurgeMode
-    }
-  | {
-      status: 'locked-on'
-      checked: true
-      disabled: true
-      personaName: string
-      personaId: string
-      mode: AgentPurgeMode
-    }
-  | {
-      status: 'locked-off'
-      checked: false
-      disabled: true
-    }
+export type ComposerPurgeUiState = {
+  status: 'ready'
+  checked: boolean
+  disabled: false
+  midSession: boolean
+  persona: AgentPurgePersona
+  personaName: string
+  mode: AgentPurgeMode
+}
 
 interface PendingLock {
   personaId: string
@@ -158,50 +146,92 @@ export function resolveComposerPurgeState(input: {
   pendingLock: PendingLock | null
 }): ComposerPurgeUiState {
   const sessionKey = normalizePurgedSessionKey(input.historySessionFile)
-  const lockedRecord = sessionKey ? input.purgedSessions[sessionKey] : undefined
-  if (lockedRecord) {
-    return {
-      status: 'locked-on',
-      checked: true,
-      disabled: true,
-      personaName: lockedRecord.personaName,
-      personaId: lockedRecord.personaId,
-      mode: lockedRecord.mode,
-    }
-  }
-  if (input.pendingLock) {
-    return {
-      status: 'locked-on',
-      checked: true,
-      disabled: true,
-      personaName: input.pendingLock.personaName,
-      personaId: input.pendingLock.personaId,
-      mode: input.pendingLock.mode,
-    }
-  }
-
   const isBrandNewChat =
     !sessionKey &&
     input.timelineLength === 0 &&
     !input.optimisticPendingUserText &&
     !input.isRunning
 
-  if (!isBrandNewChat) {
+  const activeRecord = (sessionKey ? input.purgedSessions[sessionKey] : undefined) ?? input.pendingLock
+  if (activeRecord) {
+    const matched = resolveSelectedDraftPersona(input.config, activeRecord.personaId)
+    const persona: AgentPurgePersona =
+      matched.id === activeRecord.personaId
+        ? matched
+        : {
+            id: activeRecord.personaId,
+            name: activeRecord.personaName,
+            description: '',
+            body: '',
+          }
     return {
-      status: 'locked-off',
-      checked: false,
-      disabled: true,
+      status: 'ready',
+      checked: true,
+      disabled: false,
+      midSession: !isBrandNewChat,
+      persona,
+      personaName: activeRecord.personaName || persona.name,
+      mode: activeRecord.mode,
     }
   }
 
   const persona = resolveSelectedDraftPersona(input.config, input.draftPersonaId)
   const mode = normalizePurgeMode(input.draftMode ?? input.config.defaultMode, input.config.defaultMode)
   return {
-    status: 'draft',
-    checked: input.draftEnabled,
+    status: 'ready',
+    checked: isBrandNewChat ? input.draftEnabled : false,
     disabled: false,
+    midSession: !isBrandNewChat,
     persona,
+    personaName: persona.name,
     mode,
+  }
+}
+
+export async function updateSessionPurge(
+  sessionFile: string,
+  req: { enabled: boolean; personaId?: string; mode?: AgentPurgeMode },
+): Promise<void> {
+  const key = normalizePurgedSessionKey(sessionFile)
+  if (!key) return
+  const st = useAgentPurgeStore.getState()
+  if (!req.enabled) {
+    const next = { ...st.purgedSessions }
+    delete next[key]
+    useAgentPurgeStore.setState({ pendingLock: null, purgedSessions: next })
+  } else {
+    const persona = resolveSelectedDraftPersona(st.config, req.personaId ?? st.draftPersonaId)
+    const mode = normalizePurgeMode(req.mode ?? st.draftMode ?? st.config.defaultMode, st.config.defaultMode)
+    useAgentPurgeStore.setState({
+      pendingLock: null,
+      draftPersonaId: persona.id,
+      draftMode: mode,
+      purgedSessions: {
+        ...st.purgedSessions,
+        [key]: {
+          personaId: persona.id,
+          personaName: persona.name,
+          mode,
+          body: persona.body || 'active',
+          lockedAt: Date.now(),
+        },
+      },
+    })
+  }
+  try {
+    const res = (await ipcClient.invoke('purge.setSession', {
+      sessionFile,
+      enabled: req.enabled,
+      ...(req.personaId ? { personaId: req.personaId } : {}),
+      ...(req.mode ? { mode: req.mode } : {}),
+    })) as { purgedSessions?: unknown } | undefined
+    if (res?.purgedSessions !== undefined) {
+      useAgentPurgeStore.setState({
+        purgedSessions: normalizePurgedSessionsMap(res.purgedSessions),
+      })
+    }
+  } catch {
+    void loadAgentPurgeState(true)
   }
 }
 

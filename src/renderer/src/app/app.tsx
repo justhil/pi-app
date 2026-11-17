@@ -263,6 +263,7 @@ export default function App() {
       }
       if (event.type === 'remote-settings-changed') {
         if (event.key === 'capabilities') void import('@renderer/lib/session-capabilities').then((m) => m.reloadSessionCapabilities())
+        if (event.key === 'purge') void import('@renderer/lib/agent-purge-store').then((m) => m.loadAgentPurgeState(true))
         if (event.key === 'rewound' && event.sessionFile) {
           // A phone rewound a session: if it is on screen, rebuild it from disk on the new branch.
           const rewound = event.sessionFile
