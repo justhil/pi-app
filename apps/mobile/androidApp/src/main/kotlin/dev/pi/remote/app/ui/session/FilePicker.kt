@@ -116,6 +116,7 @@ fun FilePicker(
     search: suspend (String) -> List<FileEntry>?,
     onInsert: (List<String>) -> Unit,
     onDismiss: () -> Unit,
+    onPreview: ((String) -> Unit)? = null,
 ) {
     val shown = remember { MutableTransitionState(false).apply { targetState = true } }
     var closing by remember { mutableStateOf(false) }
@@ -216,7 +217,13 @@ fun FilePicker(
                                 r.isEmpty() -> Centered { Text(stringResource(R.string.files_none), style = Pi.t.secondary.copy(color = Pi.c.fg3)) }
                                 else -> LazyColumn(Modifier.fillMaxWidth()) {
                                     items(r, key = { "s" + it.path }) { e ->
-                                        EntryRow(e, e.path in picked, showPath = true, onClick = { if (e.dir) { query = ""; open(e.path) } else toggle(e.path) }, onLongClick = { toggle(e.path) }, modifier = Modifier.animateItem())
+                                        EntryRow(
+                                            e, e.path in picked, showPath = true,
+                                            onClick = { if (e.dir) { query = ""; open(e.path) } else toggle(e.path) },
+                                            onLongClick = { toggle(e.path) },
+                                            onPreview = if (!e.dir && onPreview != null) ({ onPreview(e.path) }) else null,
+                                            modifier = Modifier.animateItem(),
+                                        )
                                     }
                                 }
                             }
@@ -235,7 +242,12 @@ fun FilePicker(
                                     listing != null && listing.entries.isEmpty() -> Centered { Text(stringResource(R.string.files_empty), style = Pi.t.secondary.copy(color = Pi.c.fg3)) }
                                     listing != null -> LazyColumn(Modifier.fillMaxWidth()) {
                                         items(listing.entries, key = { it.path }) { e ->
-                                            EntryRow(e, e.path in picked, showPath = false, onClick = { if (e.dir) open(e.path) else toggle(e.path) }, onLongClick = { toggle(e.path) })
+                                            EntryRow(
+                                                e, e.path in picked, showPath = false,
+                                                onClick = { if (e.dir) open(e.path) else toggle(e.path) },
+                                                onLongClick = { toggle(e.path) },
+                                                onPreview = if (!e.dir && onPreview != null) ({ onPreview(e.path) }) else null,
+                                            )
                                         }
                                         if (listing.truncated) item("more") {
                                             Text(stringResource(R.string.files_truncated), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(16.dp))
@@ -314,13 +326,21 @@ private fun Crumb(text: String, current: Boolean, onClick: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EntryRow(e: FileEntry, picked: Boolean, showPath: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EntryRow(
+    e: FileEntry,
+    picked: Boolean,
+    showPath: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onPreview: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val bg by animateFloatAsState(if (picked) 1f else 0f, spring(stiffness = Spring.StiffnessMedium), label = "picked")
     Row(
         modifier.fillMaxWidth().background(Pi.c.surface.copy(alpha = bg)).combinedClickable(role = Role.Button, onClick = onClick, onLongClick = onLongClick)
             .heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         PiIcon(if (e.dir) PiIcons.Folder else PiIcons.File, if (e.dir) Pi.c.fg2 else Pi.c.fg3, 17.dp)
         Column(Modifier.weight(1f)) {
@@ -328,6 +348,11 @@ private fun EntryRow(e: FileEntry, picked: Boolean, showPath: Boolean, onClick: 
             val meta = if (showPath) e.path.substringBeforeLast('/', "").ifEmpty { null }
             else listOfNotNull(e.size?.takeIf { !e.dir }?.let(::formatSize), e.mtime?.let { formatAgo(it) }).joinToString(" · ").ifEmpty { null }
             meta?.let { Text(it, style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        }
+        if (onPreview != null) {
+            Box(Modifier.size(30.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onPreview), contentAlignment = Alignment.Center) {
+                PiIcon(PiIcons.Eye, Pi.c.fg3, 14.dp, contentDescription = stringResource(R.string.file_preview_open))
+            }
         }
         when {
             picked -> Box(Modifier.size(20.dp).clip(CircleShape).background(Pi.c.fg), contentAlignment = Alignment.Center) { PiIcon(PiIcons.Check, Pi.c.bg, 12.dp) }

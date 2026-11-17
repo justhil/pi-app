@@ -126,6 +126,7 @@ fun ReviewScreen(
     load: suspend (scope: String, turnId: String?, path: String?) -> Result<ReviewDiffResult>,
     onInsert: (String) -> Unit,
     onDismiss: () -> Unit,
+    onGenerateCommit: (() -> Unit)? = null,
 ) {
     val shown = remember { MutableTransitionState(false).apply { targetState = true } }
     var closing by remember { mutableStateOf(false) }
@@ -245,6 +246,28 @@ fun ReviewScreen(
                                 }
                             },
                         )
+                    }
+                }
+                val gitDirty = scope == "git" && path == null && selFrom == null && comments.isEmpty() && canComment && onGenerateCommit != null && (list?.getOrNull()?.files?.isNotEmpty() == true)
+                AnimatedVisibility(
+                    gitDirty,
+                    enter = fadeIn(tween(140)) + slideInVertically(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMedium)) { it },
+                    exit = fadeOut(tween(100)) + slideOutVertically(tween(140)) { it },
+                ) {
+                    Column {
+                        Hairline()
+                        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 6.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val branch = list?.getOrNull()?.branch.orEmpty()
+                            Text(
+                                if (branch.isNotEmpty()) "$branch · ${list?.getOrNull()?.files?.size ?: 0} files" else "${list?.getOrNull()?.files?.size ?: 0} files",
+                                style = Pi.t.meta.copy(color = Pi.c.fg3),
+                                modifier = Modifier.weight(1f),
+                            )
+                            QuietButton(stringResource(R.string.review_generate_commit), color = Pi.c.fg, onClick = {
+                                onGenerateCommit?.invoke()
+                                close()
+                            })
+                        }
                     }
                 }
                 AnimatedVisibility(

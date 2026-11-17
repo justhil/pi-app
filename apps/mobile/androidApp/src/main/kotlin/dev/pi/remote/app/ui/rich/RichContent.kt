@@ -21,9 +21,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
@@ -139,14 +143,32 @@ fun MarkdownText(text: String) {
             ) { _ -> InlineMath(it, c.fg) }
         }
     }.toMap()
+    val onOpenFile = LocalFileOpen.current
     val codeStyle = SpanStyle(fontFamily = FontFamily.Monospace, background = c.surface)
-    val annotator = remember(parsed, boxes, codeStyle) {
+    val fileLinkStyles = remember(c.blue, c.surface) {
+        TextLinkStyles(SpanStyle(fontFamily = FontFamily.Monospace, color = c.blue, background = c.surface, textDecoration = TextDecoration.Underline))
+    }
+    val annotator = remember(parsed, boxes, codeStyle, fileLinkStyles, onOpenFile) {
         markdownAnnotator { content, child ->
             if (child.type != MarkdownElementTypes.CODE_SPAN) return@markdownAnnotator false
-            val i = mathMarkRe.find(child.getTextInNode(content).toString())?.groupValues?.get(1)?.toIntOrNull() ?: return@markdownAnnotator false
-            val tex = parsed.maths.getOrNull(i) ?: return@markdownAnnotator false
-            if (boxes.getOrNull(i) != null) appendInlineContent("m$i", tex) else withStyle(codeStyle) { append(tex) }
-            true
+            val rawSpan = child.getTextInNode(content).toString()
+            val i = mathMarkRe.find(rawSpan)?.groupValues?.get(1)?.toIntOrNull()
+            if (i != null) {
+                val tex = parsed.maths.getOrNull(i) ?: return@markdownAnnotator false
+                if (boxes.getOrNull(i) != null) appendInlineContent("m$i", tex) else withStyle(codeStyle) { append(tex) }
+                return@markdownAnnotator true
+            }
+            if (onOpenFile != null) {
+                val inner = rawSpan.removeSurrounding("`")
+                val fileTarget = parseFileTarget(inner)
+                if (fileTarget != null) {
+                    withLink(LinkAnnotation.Clickable("file:${fileTarget.path}", fileLinkStyles) { onOpenFile(fileTarget) }) {
+                        append(inner)
+                    }
+                    return@markdownAnnotator true
+                }
+            }
+            false
         }
     }
     Markdown(

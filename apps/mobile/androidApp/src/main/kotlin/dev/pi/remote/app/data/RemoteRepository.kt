@@ -6,9 +6,15 @@ import dev.pi.remote.protocol.SessionStatsResult
 import dev.pi.remote.protocol.ReviewDiffResult
 import dev.pi.remote.protocol.BranchInfo
 import dev.pi.remote.protocol.ForkResult
+import dev.pi.remote.protocol.HostBrowseResult
+import dev.pi.remote.protocol.PurgeSend
+import dev.pi.remote.protocol.PurgeStateResult
 import dev.pi.remote.protocol.TimelineReset
+import dev.pi.remote.protocol.TurnSettle
 import dev.pi.remote.protocol.FileEntry
 import dev.pi.remote.protocol.FileListResult
+import dev.pi.remote.protocol.FileReadResult
+import dev.pi.remote.protocol.UsageSummaryResult
 import dev.pi.remote.crypto.Hs2Payload
 import dev.pi.remote.net.HostConnection
 import dev.pi.remote.net.RemoteApi
@@ -37,6 +43,7 @@ import java.io.File
 import java.net.URI
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,10 +69,13 @@ data class InboxState(
     val sessions: List<SessionSummary> = emptyList(),
     val projects: List<ProjectInfo> = emptyList(),
     val loaded: Boolean = false,
+    val allowAllProjects: Boolean = false,
 )
 
 sealed interface SendOutcome {
     data object Sent : SendOutcome
+    /** Enqueued locally in the persistent outbox; will auto-deliver on reconnect. */
+    data object Queued : SendOutcome
     /** The socket dropped before the answer: the message may or may not have arrived. */
     data object Unknown : SendOutcome
     data class Failed(val message: String) : SendOutcome
@@ -94,6 +104,14 @@ class RemoteRepository(
     val connection: StateFlow<HostConnection.State> = _connection
     private val _inbox = MutableStateFlow(InboxState())
     val inbox: StateFlow<InboxState> = _inbox
+    private val _unread = MutableStateFlow<Set<String>>(emptySet())
+    val unread: StateFlow<Set<String>> = _unread
+    private val _drafts = MutableStateFlow<Map<String, String>>(emptyMap())
+    val drafts: StateFlow<Map<String, String>> = _drafts
+    private val _outbox = MutableStateFlow<List<OutboxEntry>>(emptyList())
+    val outbox: StateFlow<List<OutboxEntry>> = _outbox
+    private val _hostMeta = MutableStateFlow(HostMetaCache())
+    val hostMeta: StateFlow<HostMetaCache> = _hostMeta
     private val _timelines = MutableStateFlow<Map<String, SessionTimeline>>(emptyMap())
     val timelines: StateFlow<Map<String, SessionTimeline>> = _timelines
     private val _pendingSends = MutableStateFlow<Map<String, String>>(emptyMap())
@@ -115,7 +133,32 @@ class RemoteRepository(
     private val helloParams get() = HelloParams(AppInfo("pi-remote", appVersion, platform), CLIENT_CAPS)
 
     init {
-        _active.value?.let { h -> _inbox.value = InboxState(sessions = cache.loadInbox(h.hostId)) }
+        _active.value?.let { h -> hydrateFromDisk(h.hostId) }
+    }
+
+    private fun hydrateFromDisk(hostId: String) {
+        val sessions = cache.loadInbox(hostId)
+        val meta = cache.loadMeta(hostId)
+        _hostMeta.value = meta
+        _unread.value = meta.unreadSessions
+        _drafts.value = meta.drafts
+        _outbox.value = meta.outbox
+        _inbox.value = InboxState(
+            sessions = sessions,
+            projects = meta.projects,
+            loaded = false,
+            allowAllProjects = meta.allowAllProjects,
+        )
+    }
+
+    private fun mutateMeta(transform: (HostMetaCache) -> HostMetaCache) {
+        val host = _active.value ?: return
+        val optimistic = transform(_hostMeta.value)
+        _hostMeta.value = optimistic
+        scope.launch(Dispatchers.IO) {
+            val saved = cache.updateMeta(host.hostId, transform)
+            if (_active.value?.hostId == host.hostId) _hostMeta.value = saved
+        }
     }
 
     // ── Hosts / pairing ──
@@ -152,9 +195,10 @@ class RemoteRepository(
         val host = hostStore.hosts.firstOrNull { it.hostId == hostId } ?: return
         hostStore.setActive(hostId)
         if (_active.value?.hostId != hostId) {
+            flushPendingSaves()
             disconnect()
             _timelines.value = emptyMap()
-            _inbox.value = InboxState(sessions = cache.loadInbox(hostId))
+            hydrateFromDisk(hostId)
         }
         _active.value = host
         if (foreground) connect()
@@ -175,9 +219,17 @@ class RemoteRepository(
 
     fun forget(hostId: String) {
         if (_active.value?.hostId == hostId) {
+            saveJobs.values.forEach { it.cancel() }
+            saveJobs.clear()
+            draftJobs.values.forEach { it.cancel() }
+            draftJobs.clear()
             disconnect()
             _active.value = null
             _inbox.value = InboxState()
+            _unread.value = emptySet()
+            _drafts.value = emptyMap()
+            _outbox.value = emptyList()
+            _hostMeta.value = HostMetaCache()
             _timelines.value = emptyMap()
         }
         hostStore.remove(hostId)
@@ -189,22 +241,32 @@ class RemoteRepository(
 
     fun onForeground() {
         foreground = true
-        openKey?.let { notifier?.clear(it) }
+        openKey?.let {
+            notifier?.clear(it)
+            markRead(it)
+        }
         updateKeepAlive()
         stopJob?.cancel()
         stopJob = null
         val c = conn
-        if (c == null) connect() else c.kick()
+        if (c == null) connect() else c.kick(immediateProbe = true)
     }
 
     fun onBackground() {
         foreground = false
+        flushPendingSaves()
         scheduleDisconnect()
         updateKeepAlive()
     }
 
+    /** Default network route changed (Wi-Fi ↔ cellular / VPN): probe Ready links or skip backoff. */
+    fun onNetworkChanged() {
+        if (!foreground && !keptAlive) return
+        conn?.kick(immediateProbe = true)
+    }
+
     fun retry() {
-        conn?.kick() ?: connect()
+        conn?.kick(immediateProbe = true) ?: connect()
     }
 
     /**
@@ -219,9 +281,11 @@ class RemoteRepository(
         }
         val a = api ?: return false
         return runCatching {
-            val projects = a.projects()
+            val plist = a.projectList()
             val sessions = a.watchList()
-            _inbox.value = InboxState(sessions, projects, loaded = true)
+            val allowAll = plist.allowAllProjects ?: false
+            _inbox.value = InboxState(sessions, plist.projects, loaded = true, allowAllProjects = allowAll)
+            mutateMeta { it.copy(projects = plist.projects, allowAllProjects = allowAll) }
             persistInbox()
         }.onFailure { _notices.tryEmit(it.message ?: "list failed") }.isSuccess
     }
@@ -260,12 +324,24 @@ class RemoteRepository(
         }
         val a = api ?: return
         runCatching {
-            val projects = a.projects()
+            val plist = a.projectList()
             val sessions = a.watchList()
-            _inbox.value = InboxState(sessions, projects, loaded = true)
+            val allowAll = plist.allowAllProjects ?: false
+            _inbox.value = InboxState(sessions, plist.projects, loaded = true, allowAllProjects = allowAll)
+            mutateMeta { it.copy(projects = plist.projects, allowAllProjects = allowAll) }
             persistInbox()
         }.onFailure { _notices.tryEmit(it.message ?: "list failed") }
+        scope.launch {
+            runCatching { a.purge(null) }.getOrNull()?.let { p -> mutateMeta { it.copy(purge = p) } }
+            runCatching { a.cacheWarming() }.getOrNull()?.let { w -> mutateMeta { it.copy(cacheWarming = w) } }
+            runCatching { a.usageSummary(30) }.getOrNull()?.let { u ->
+                mutateMeta { it.copy(usage30d = u) }
+                notifier?.refreshWidgets()
+            }
+        }
         openKey?.let { reopen(it) }
+        scope.launch { drainOutbox() }
+        notifier?.refreshWidgets()
     }
 
     private fun persistInbox() {
@@ -285,6 +361,12 @@ class RemoteRepository(
                     u.removed?.forEach { byKey.remove(it) }
                     inbox.copy(sessions = byKey.values.sortedByDescending { it.updatedAt })
                 }
+                u.removed?.takeIf { it.isNotEmpty() }?.let { removed ->
+                    val hostId = _active.value?.hostId
+                    _timelines.update { it - removed.toSet() }
+                    setUnread(_unread.value - removed.toSet())
+                    removed.forEach { k -> if (hostId != null) scope.launch(Dispatchers.IO) { cache.removeTimeline(hostId, k) } }
+                }
                 persistInbox()
                 noticeTransitions(before, u.sessions)
             }
@@ -295,8 +377,12 @@ class RemoteRepository(
                     scope.launch { reopen(evt.sessionKey, fresh = true) }
                     return
                 }
+                val settled = evt.patches.any { it is TurnSettle }
                 when (val r = TurnStore.applyAll(current, evt.patches)) {
-                    is ApplyResult.Applied -> putTimeline(r.timeline)
+                    is ApplyResult.Applied -> {
+                        putTimeline(r.timeline)
+                        persistTimeline(evt.sessionKey, immediate = settled)
+                    }
                     is ApplyResult.Gap -> {
                         putTimeline(r.timeline)
                         scope.launch { reopen(evt.sessionKey) }
@@ -305,14 +391,25 @@ class RemoteRepository(
             }
             "ui.request" -> {
                 val req = RemoteJson.decodeFromJsonElement(UiRequest.serializer(), e.payload)
-                _timelines.value[req.sessionKey]?.let { putTimeline(TurnStore.addUi(it, req)) }
+                _timelines.value[req.sessionKey]?.let {
+                    putTimeline(TurnStore.addUi(it, req))
+                    persistTimeline(req.sessionKey)
+                }
             }
             "ui.dismiss" -> {
                 val d = RemoteJson.decodeFromJsonElement(UiDismiss.serializer(), e.payload)
-                _timelines.value[d.sessionKey]?.let { putTimeline(TurnStore.removeUi(it, d.id)) }
+                _timelines.value[d.sessionKey]?.let {
+                    putTimeline(TurnStore.removeUi(it, d.id))
+                    persistTimeline(d.sessionKey)
+                }
             }
             "settings.changed" -> {
-                RemoteJson.decodeFromJsonElement(SettingsChanged.serializer(), e.payload)
+                val chg = RemoteJson.decodeFromJsonElement(SettingsChanged.serializer(), e.payload)
+                val sk = chg.sessionKey
+                when (chg.key) {
+                    "projects" -> scope.launch { refreshInbox() }
+                    "rewound" -> if (sk != null && sk == openKey) scope.launch { reopen(sk, fresh = true) }
+                }
                 _settingsVersion.update { it + 1 }
             }
             "host.notice" -> _notices.tryEmit(e.payload.toString())
@@ -325,13 +422,64 @@ class RemoteRepository(
         if (t.turns.takeLast(2).any { it.user.text.trim() == pending }) _pendingSends.update { it - t.sessionKey }
     }
 
-    private var saveJob: Job? = null
-    private fun persistTimeline(key: String) {
+    private val saveJobs = ConcurrentHashMap<String, Job>()
+    private val draftJobs = ConcurrentHashMap<String, Job>()
+
+    private fun persistTimeline(key: String, immediate: Boolean = false) {
         val host = _active.value ?: return
-        saveJob?.cancel()
-        saveJob = scope.launch(Dispatchers.IO) {
-            delay(1500)
-            _timelines.value[key]?.let { cache.saveTimeline(host.hostId, it) }
+        saveJobs.remove(key)?.cancel()
+        if (immediate) {
+            val snap = _timelines.value[key] ?: return
+            scope.launch(Dispatchers.IO) { cache.saveTimeline(host.hostId, snap) }
+        } else {
+            val job = scope.launch(Dispatchers.IO) {
+                delay(1200)
+                saveJobs.remove(key)
+                _timelines.value[key]?.let { cache.saveTimeline(host.hostId, it) }
+            }
+            saveJobs[key] = job
+        }
+    }
+
+    private fun flushPendingSaves() {
+        val host = _active.value ?: return
+        val keys = saveJobs.keys.toList()
+        saveJobs.values.forEach { it.cancel() }
+        saveJobs.clear()
+        for (k in keys) {
+            _timelines.value[k]?.let { snap -> scope.launch(Dispatchers.IO) { cache.saveTimeline(host.hostId, snap) } }
+        }
+    }
+
+    private fun setUnread(next: Set<String>) {
+        if (_unread.value == next) return
+        _unread.value = next
+        mutateMeta { it.copy(unreadSessions = next) }
+    }
+
+    fun markRead(key: String) {
+        if (key in _unread.value) setUnread(_unread.value - key)
+    }
+
+    fun markUnread(key: String) {
+        if (key !in _unread.value) setUnread(_unread.value + key)
+    }
+
+    fun draftOf(key: String): String = _drafts.value[key].orEmpty()
+
+    fun saveDraft(key: String, text: String) {
+        val cur = _drafts.value[key].orEmpty()
+        if (cur == text) return
+        val nextMap = if (text.isEmpty()) _drafts.value - key else _drafts.value + (key to text)
+        _drafts.value = nextMap
+        draftJobs.remove(key)?.cancel()
+        draftJobs[key] = scope.launch {
+            delay(350)
+            draftJobs.remove(key)
+            mutateMeta { meta ->
+                val map = if (text.isEmpty()) meta.drafts - key else meta.drafts + (key to text)
+                meta.copy(drafts = map)
+            }
         }
     }
 
@@ -341,8 +489,11 @@ class RemoteRepository(
     suspend fun openSession(key: String) {
         openKey = key
         // The session screen stays composed in the background and re-opens on reconnects;
-        // only an actual look at it (foreground) should clear its notification.
-        if (foreground) notifier?.clear(key)
+        // only an actual look at it (foreground) should clear its notification and unread badge.
+        if (foreground) {
+            notifier?.clear(key)
+            markRead(key)
+        }
         val host = _active.value
         if (_timelines.value[key] == null && host != null) {
             withContext(Dispatchers.IO) { cache.loadTimeline(host.hostId, key) }?.let { putTimeline(it) }
@@ -363,14 +514,14 @@ class RemoteRepository(
                     return@onSuccess
                 }
                 putTimeline(TurnStore.fromOpen(prev?.takeIf { r.kind == "replay" }, r))
-                persistTimeline(key)
+                persistTimeline(key, immediate = true)
             }
             .onFailure { _notices.tryEmit(it.message ?: "open failed") }
     }
 
     fun closeSession(key: String) {
         if (openKey == key) openKey = null
-        persistTimeline(key)
+        persistTimeline(key, immediate = true)
         val a = api ?: return
         scope.launch { runCatching { a.close(key) } }
     }
@@ -384,14 +535,73 @@ class RemoteRepository(
         }
     }
 
-    suspend fun send(key: String, text: String, mode: String): SendOutcome {
-        val a = api ?: return SendOutcome.Failed("offline")
+    private var drainingOutbox = false
+
+    private fun setOutbox(next: List<OutboxEntry>) {
+        _outbox.value = next
+        mutateMeta { it.copy(outbox = next) }
+    }
+
+    private fun enqueueOutbox(entry: OutboxEntry) {
+        val deduped = _outbox.value.filterNot { it.id == entry.id } + entry
+        setOutbox(deduped)
+    }
+
+    fun removeOutbox(id: String): OutboxEntry? {
+        val hit = _outbox.value.firstOrNull { it.id == id } ?: return null
+        setOutbox(_outbox.value.filterNot { it.id == id })
+        return hit
+    }
+
+    private suspend fun drainOutbox() {
+        if (drainingOutbox) return
+        drainingOutbox = true
+        try {
+            while (true) {
+                val a = api ?: break
+                if (conn?.isReady != true) break
+                val head = _outbox.value.firstOrNull() ?: break
+                try {
+                    if (head.mode == "prompt") _pendingSends.update { it + (head.sessionKey to head.text.trim()) }
+                    a.send(head.sessionKey, head.text, head.mode, head.id, head.agentPurge)
+                    setOutbox(_outbox.value.filterNot { it.id == head.id })
+                } catch (_: HostConnection.ConnectionLost) {
+                    _pendingSends.update { it - head.sessionKey }
+                    break
+                } catch (e: Exception) {
+                    // Permanent rejection (auth/forbidden/not_found): restore into draft so text is never lost.
+                    _pendingSends.update { it - head.sessionKey }
+                    setOutbox(_outbox.value.filterNot { it.id == head.id })
+                    val existing = draftOf(head.sessionKey).trim()
+                    val merged = listOf(head.text.trim(), existing).filter { it.isNotEmpty() }.joinToString("\n")
+                    saveDraft(head.sessionKey, merged)
+                    _notices.tryEmit(e.message ?: "send failed")
+                }
+            }
+        } finally {
+            drainingOutbox = false
+        }
+    }
+
+    suspend fun send(key: String, text: String, mode: String, agentPurge: PurgeSend? = null): SendOutcome {
+        val msgId = "m_${UUID.randomUUID()}"
+        val a = api
+        if (a == null || conn?.isReady != true) {
+            enqueueOutbox(OutboxEntry(msgId, key, text, mode, agentPurge, System.currentTimeMillis()))
+            saveDraft(key, "")
+            retry()
+            return SendOutcome.Queued
+        }
         if (mode == "prompt") _pendingSends.update { it + (key to text.trim()) }
         return try {
-            a.send(key, text, mode, "m_${UUID.randomUUID()}")
+            a.send(key, text, mode, msgId, agentPurge)
+            saveDraft(key, "")
             SendOutcome.Sent
         } catch (e: HostConnection.ConnectionLost) {
-            SendOutcome.Unknown
+            _pendingSends.update { it - key }
+            enqueueOutbox(OutboxEntry(msgId, key, text, mode, agentPurge, System.currentTimeMillis()))
+            saveDraft(key, "")
+            SendOutcome.Queued
         } catch (e: Exception) {
             _pendingSends.update { it - key }
             SendOutcome.Failed(e.message ?: "send failed")
@@ -417,6 +627,18 @@ class RemoteRepository(
 
     suspend fun searchFiles(key: String, query: String): List<FileEntry>? = runCatching { api?.searchFiles(key, query) }.getOrNull()
 
+    suspend fun readFile(key: String, path: String): Result<FileReadResult> =
+        runCatching { (api ?: error("offline")).readFile(key, path) }
+
+    suspend fun usageSummary(days: Int = 30): Result<UsageSummaryResult> = runCatching {
+        val res = (api ?: error("offline")).usageSummary(days)
+        if (days == 30) {
+            mutateMeta { it.copy(usage30d = res) }
+            notifier?.refreshWidgets()
+        }
+        res
+    }
+
     /** Rewind before the turn's user message; the message text on success, failure message otherwise. */
     suspend fun rewind(key: String, anchor: String): Result<String> = runCatching {
         val a = api ?: error("offline")
@@ -440,7 +662,7 @@ class RemoteRepository(
 
     suspend fun sessionStats(key: String): SessionStatsResult? = runCatching { api?.stats(key) }.getOrNull()
 
-    suspend fun dequeue(key: String): List<String>? = runCatching { api?.dequeue(key)?.restored }.getOrNull()
+    suspend fun dequeue(key: String, index: Int? = null): List<String>? = runCatching { api?.dequeue(key, index)?.restored }.getOrNull()
 
     suspend fun respondUi(key: String, response: UiResponse): Boolean {
         val ok = runCatching { api?.respondUi(response) ?: false }.getOrDefault(false)
@@ -453,8 +675,11 @@ class RemoteRepository(
         _timelines.value[key]?.let { putTimeline(TurnStore.removeUi(it, id)) }
     }
 
-    suspend fun models(key: String): ModelListResult? = runCatching { api?.models(key) }.getOrNull()
-    suspend fun setModel(key: String, id: String) = runCatching { api?.setModel(key, id) }
+    suspend fun models(key: String): ModelListResult? =
+        runCatching { api?.models(key) }.getOrNull()?.also { m -> mutateMeta { it.copy(models = m) } } ?: _hostMeta.value.models
+    suspend fun setModel(key: String, id: String) = runCatching { api?.setModel(key, id) }.onSuccess {
+        _hostMeta.value.models?.let { m -> mutateMeta { it.copy(models = m.copy(current = id)) } }
+    }
     private val _pendingShare = MutableStateFlow<SharedContent?>(null)
     /** Shared from another app; the next opened session takes it into its composer. */
     val pendingShare: StateFlow<SharedContent?> = _pendingShare
@@ -467,27 +692,55 @@ class RemoteRepository(
 
     /** Notify on running → done/failed and on a new question, unless the user is looking at it. */
     private fun noticeTransitions(before: Map<String, SessionSummary>, after: List<SessionSummary>) {
-        val n = notifier ?: return
+        val n = notifier
+        val hostId = _active.value?.hostId
+        var unreadNext = _unread.value
         for (s in after) {
             val was = before[s.sessionKey]?.status ?: continue
             val settled = was == "running" && s.status != "running"
             val asks = s.status == "needsInput" && was != "needsInput"
-            if ((settled || asks) && !(foreground && openKey == s.sessionKey)) n.notifySession(s)
+            val viewing = foreground && openKey == s.sessionKey
+            if ((settled || asks) && !viewing) {
+                n?.notifySession(hostId, s)
+                if (s.status == "idle") unreadNext = unreadNext + s.sessionKey
+            }
         }
+        setUnread(unreadNext)
         updateKeepAlive()
+        n?.refreshWidgets()
     }
 
     /** In the background, stay connected while something is still running; drop 30 s after the last run ends. */
     private fun updateKeepAlive() {
-        val running = _inbox.value.sessions.count { it.status == "running" }
+        val sessions = _inbox.value.sessions
+        val runningList = sessions.filter { it.status == "running" }
+        val needsList = sessions.filter { it.status == "needsInput" }
+        val running = runningList.size
         val want = !foreground && running > 0
         if (want) {
             stopJob?.cancel()
             stopJob = null
-            notifier?.keepAlive(running)
+            val primary = needsList.firstOrNull() ?: runningList.firstOrNull()
+            notifier?.keepAlive(
+                ActiveRunDigest(
+                    hostId = _active.value?.hostId,
+                    runningCount = running,
+                    needsCount = needsList.size,
+                    sessionKey = primary?.sessionKey,
+                    title = primary?.title?.ifBlank { "pi" } ?: "pi",
+                    detail = when {
+                        primary == null -> ""
+                        primary.status == "needsInput" -> primary.preview.orEmpty()
+                        !primary.live.isNullOrBlank() -> primary.live!!
+                        else -> ""
+                    },
+                    phase = primary?.status ?: "running",
+                    startedAt = primary?.startedAt ?: 0L,
+                ),
+            )
             keptAlive = true
         } else if (keptAlive) {
-            notifier?.keepAlive(0)
+            notifier?.keepAlive(null)
             keptAlive = false
             if (!foreground) scheduleDisconnect()
         }
@@ -516,11 +769,64 @@ class RemoteRepository(
         val r = a.attachment(path)
         return withContext(Dispatchers.Default) { android.util.Base64.decode(r.data, android.util.Base64.NO_WRAP) }
     }
-    suspend fun setThinking(key: String, level: String) = runCatching { api?.setThinking(key, level) }
-    suspend fun capabilities(key: String): List<CapabilityRow> = runCatching { api?.capabilities(key) }.getOrNull().orEmpty()
+    suspend fun setThinking(key: String, level: String) = runCatching { api?.setThinking(key, level) }.onSuccess {
+        _hostMeta.value.models?.let { m -> mutateMeta { it.copy(models = m.copy(thinking = level)) } }
+    }
+    suspend fun capabilities(key: String): List<CapabilityRow> =
+        runCatching { api?.capabilities(key) }.getOrNull()?.also { list ->
+            mutateMeta { meta ->
+                val trimmed = (meta.capabilitiesBySession + (key to list)).entries.toList().takeLast(20).associate { it.key to it.value }
+                meta.copy(capabilitiesBySession = trimmed)
+            }
+        } ?: _hostMeta.value.capabilitiesBySession[key].orEmpty()
     suspend fun setCapability(key: String, id: String, on: Boolean) = runCatching { api?.setCapability(key, id, on) }
-    suspend fun cacheWarming(): String? = runCatching { api?.cacheWarming() }.getOrNull()
-    suspend fun setCacheWarming(mode: String) = runCatching { api?.setCacheWarming(mode) }
+    suspend fun cacheWarming(): String? =
+        runCatching { api?.cacheWarming() }.getOrNull()?.also { w -> mutateMeta { it.copy(cacheWarming = w) } } ?: _hostMeta.value.cacheWarming
+    suspend fun setCacheWarming(mode: String) = runCatching { api?.setCacheWarming(mode) }.onSuccess {
+        mutateMeta { it.copy(cacheWarming = mode) }
+    }
+    suspend fun purgeState(sessionKey: String? = null): PurgeStateResult? =
+        runCatching { api?.purge(sessionKey) }.getOrNull()?.also { p ->
+            mutateMeta { meta -> meta.copy(purge = p.copy(session = null)) }
+        } ?: _hostMeta.value.purge
+    suspend fun setPurge(sessionKey: String, enabled: Boolean, personaId: String?, mode: String?): PurgeStateResult? =
+        runCatching { api?.setPurge(sessionKey, enabled, personaId, mode) }.getOrNull()?.also { p ->
+            mutateMeta { meta -> meta.copy(purge = p.copy(session = null)) }
+        }
+    suspend fun browseHostDir(path: String? = null, dotfiles: Boolean = false): Result<HostBrowseResult> =
+        runCatching { (api ?: error("offline")).browseHostDir(path, dotfiles) }
+    suspend fun renameSession(key: String, title: String): Result<String> = runCatching {
+        val next = (api ?: error("offline")).renameSession(key, title).title
+        _inbox.update { inbox -> inbox.copy(sessions = inbox.sessions.map { if (it.sessionKey == key) it.copy(title = next) else it }) }
+        _timelines.value[key]?.let { putTimeline(it.copy(title = next)); persistTimeline(key, immediate = true) }
+        persistInbox()
+        next
+    }
+    suspend fun deleteSession(key: String): Result<Boolean> = runCatching {
+        val deleted = (api ?: error("offline")).deleteSession(key).deleted
+        if (deleted) {
+            val hostId = _active.value?.hostId
+            _inbox.update { inbox -> inbox.copy(sessions = inbox.sessions.filterNot { it.sessionKey == key }) }
+            _timelines.update { it - key }
+            setUnread(_unread.value - key)
+            saveDraft(key, "")
+            if (hostId != null) withContext(Dispatchers.IO) { cache.removeTimeline(hostId, key) }
+            persistInbox()
+        }
+        deleted
+    }
+    suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+        cache.totalBytes() + (attachmentStore?.totalBytes() ?: 0L)
+    }
+    suspend fun clearLocalCache() {
+        flushPendingSaves()
+        withContext(Dispatchers.IO) {
+            cache.clearCachedContent()
+            attachmentStore?.clear()
+        }
+        _timelines.value = emptyMap()
+        if (_connection.value is HostConnection.State.Ready) refreshInbox()
+    }
     suspend fun toolDetail(key: String, toolCallId: String): ToolDetailResult? = runCatching { api?.toolDetail(key, toolCallId) }.getOrNull()
     suspend fun createSession(projectId: String, caps: List<String>?): String? = runCatching { api?.create(projectId, caps)?.sessionKey }.getOrNull()
 

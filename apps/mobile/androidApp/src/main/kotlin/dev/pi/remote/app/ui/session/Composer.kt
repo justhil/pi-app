@@ -48,6 +48,7 @@ import androidx.compose.foundation.content.hasMediaType
 import dev.pi.remote.R
 import dev.pi.remote.app.data.Attachment
 import dev.pi.remote.app.data.ImageSource
+import dev.pi.remote.app.data.OutboxEntry
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import dev.pi.remote.app.theme.Pi
 import dev.pi.remote.app.theme.PiIcon
 import dev.pi.remote.app.theme.PiIcons
+import dev.pi.remote.app.ui.Dot
 import dev.pi.remote.app.ui.Hairline
 import dev.pi.remote.app.ui.Spinner
 import androidx.compose.animation.AnimatedVisibility
@@ -104,13 +106,37 @@ fun Composer(
     onRetryAttachment: (String) -> Unit = {},
     /** Images pasted or inserted from the keyboard (GIF/sticker keyboards, clipboard). */
     onReceiveUris: (List<android.net.Uri>) -> Unit = {},
+    /** First-turn persona controls (shown only on an empty draft chat before its first send). */
+    purgeDraft: Boolean = false,
+    purgeLabel: String? = null,
+    onTogglePurge: (() -> Unit)? = null,
+    onOpenPurge: (() -> Unit)? = null,
+    onEditQueued: ((Int) -> Unit)? = null,
+    onRemoveQueued: ((Int) -> Unit)? = null,
+    outbox: List<OutboxEntry> = emptyList(),
+    onEditOutbox: ((String) -> Unit)? = null,
+    onCancelOutbox: ((String) -> Unit)? = null,
+    /** Allow pressing Send while offline so text-only messages queue into the persistent Outbox. */
+    canQueueOffline: Boolean = false,
 ) {
     val haptic = LocalHapticFeedback.current
     Column(Modifier.fillMaxWidth().background(Pi.c.bg)) {
         Hairline()
         Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (outbox.isNotEmpty()) {
+                OutboxRows(outbox, editable, onEditOutbox, onCancelOutbox)
+            }
             val queued = queue?.let { it.steering + it.followUp }.orEmpty()
-            if (queued.isNotEmpty()) QueuedRows(queued, enabled, onDequeue)
+            if (queued.isNotEmpty()) QueuedRows(queued, enabled, onDequeue, onEditQueued, onRemoveQueued)
+            if (onTogglePurge != null && onOpenPurge != null) {
+                PurgeDraftStrip(
+                    active = purgeDraft,
+                    label = purgeLabel,
+                    enabled = editable,
+                    onToggle = onTogglePurge,
+                    onOpen = onOpenPurge,
+                )
+            }
             val token = slashToken(text)
             val suggestions = remember(token, text.text, slashItems) { token?.let { filterSlash(slashItems, text.text.substring(it)) }.orEmpty() }
             SlashSuggestions(editable && token != null, suggestions, onSlashPick)
@@ -194,7 +220,9 @@ fun Composer(
                         Spacer(Modifier.width(8.dp))
                     }
                 }
-                val canSend = enabled && (text.text.isNotBlank() || attachments.any { it.status == Attachment.Status.Ready }) && attachments.none { it.status == Attachment.Status.Failed }
+                val canSend = (enabled || (canQueueOffline && editable && attachments.isEmpty())) &&
+                    (text.text.isNotBlank() || attachments.any { it.status == Attachment.Status.Ready }) &&
+                    attachments.none { it.status == Attachment.Status.Failed }
                 val sendDesc = stringResource(if (running) R.string.send_steer else R.string.send)
                 Box(
                     Modifier.size(36.dp).clip(CircleShape).background(Pi.c.fg.copy(alpha = if (canSend) 1f else 0.35f))
@@ -219,29 +247,164 @@ fun Composer(
     }
 }
 
-/** Queued steer / follow-up messages (last two shown) with one action that pulls them all back. */
+/** Persona selector pill shown above the composer: tap the pill to pick/switch persona, × to turn off. */
 @Composable
-private fun QueuedRows(queued: List<String>, enabled: Boolean, onDequeue: () -> Unit) {
+private fun PurgeDraftStrip(active: Boolean, label: String?, enabled: Boolean, onToggle: () -> Unit, onOpen: () -> Unit) {
     val haptic = LocalHapticFeedback.current
-    Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (queued.size > 2) Text(stringResource(R.string.queued_more, queued.size - 2), style = Pi.t.small.copy(color = Pi.c.fg3))
-            queued.takeLast(2).forEach { q ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PiIcon(PiIcons.Queue, Pi.c.fg3, 13.dp)
-                    Spacer(Modifier.width(7.dp))
-                    Text(stringResource(R.string.queued, q), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val shape = RoundedCornerShape(9.dp)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.weight(1f, fill = false).heightIn(min = 30.dp).clip(shape)
+                .background(if (active) Pi.c.surface else androidx.compose.ui.graphics.Color.Transparent)
+                .border(1.dp, if (active) Pi.c.fg3.copy(alpha = 0.35f) else Pi.c.line, shape)
+                .clickable(enabled = enabled, role = Role.Button) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onOpen()
+                }.padding(start = 10.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (active) {
+                Dot(Pi.c.blue, 6.dp)
+                Spacer(Modifier.width(6.dp))
+            } else {
+                PiIcon(PiIcons.User, Pi.c.fg3, 13.dp)
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                if (active && !label.isNullOrBlank()) label else stringResource(R.string.purge_short_off),
+                style = Pi.t.meta.copy(color = if (active) Pi.c.fg else Pi.c.fg3),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(5.dp))
+            PiIcon(PiIcons.ChevronDown, if (active) Pi.c.fg2 else Pi.c.fg3, 12.dp)
+        }
+        if (active) {
+            Spacer(Modifier.width(4.dp))
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).clickable(enabled = enabled, role = Role.Button) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onToggle()
+                },
+                contentAlignment = Alignment.Center,
+            ) {
+                PiIcon(PiIcons.X, Pi.c.fg3, 12.dp, contentDescription = stringResource(R.string.cancel))
+            }
+        }
+    }
+}
+
+/** Offline-queued messages waiting for the encrypted link to come back. */
+@Composable
+private fun OutboxRows(
+    items: List<OutboxEntry>,
+    editable: Boolean,
+    onEdit: ((String) -> Unit)?,
+    onCancel: ((String) -> Unit)?,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Pi.c.surface).padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(stringResource(R.string.outbox_waiting), style = Pi.t.small.copy(color = Pi.c.warn))
+        for (entry in items) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+                PiIcon(PiIcons.Queue, Pi.c.warn, 13.dp)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    entry.text.lineSequence().firstOrNull().orEmpty(),
+                    style = Pi.t.meta.copy(color = Pi.c.fg),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).clickable(enabled = editable && onEdit != null, role = Role.Button) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onEdit?.invoke(entry.id)
+                    },
+                )
+                if (onEdit != null) {
+                    Text(
+                        stringResource(R.string.outbox_edit),
+                        style = Pi.t.small.copy(color = Pi.c.fg2),
+                        modifier = Modifier.clip(RoundedCornerShape(5.dp)).clickable(enabled = editable, role = Role.Button) { onEdit(entry.id) }.padding(horizontal = 6.dp, vertical = 4.dp),
+                    )
+                }
+                if (onCancel != null) {
+                    Box(Modifier.size(24.dp).clip(CircleShape).clickable(enabled = editable, role = Role.Button) { onCancel(entry.id) }, contentAlignment = Alignment.Center) {
+                        PiIcon(PiIcons.X, Pi.c.fg3, 11.dp, contentDescription = stringResource(R.string.cancel))
+                    }
                 }
             }
         }
-        Text(
-            stringResource(R.string.queue_restore),
-            style = Pi.t.meta.copy(color = if (enabled) Pi.c.fg2 else Pi.c.fg3),
-            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, role = Role.Button) {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onDequeue()
-            }.padding(horizontal = 8.dp, vertical = 8.dp),
-        )
+    }
+}
+
+/** Queued steer / follow-up messages: tap any row to edit it back in composer, × to drop one, or pull all back. */
+@Composable
+private fun QueuedRows(
+    queued: List<String>,
+    enabled: Boolean,
+    onDequeue: () -> Unit,
+    onEditOne: ((Int) -> Unit)? = null,
+    onRemoveOne: ((Int) -> Unit)? = null,
+) {
+    val haptic = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(start = 4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        val startIdx = (queued.size - 3).coerceAtLeast(0)
+        if (startIdx > 0) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.queued_more, startIdx), style = Pi.t.small.copy(color = Pi.c.fg3), modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.queue_restore),
+                    style = Pi.t.small.copy(color = if (enabled) Pi.c.fg2 else Pi.c.fg3),
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onDequeue).padding(horizontal = 6.dp, vertical = 4.dp),
+                )
+            }
+        }
+        for (i in startIdx until queued.size) {
+            val q = queued[i]
+            Row(Modifier.fillMaxWidth().heightIn(min = 28.dp), verticalAlignment = Alignment.CenterVertically) {
+                PiIcon(PiIcons.Queue, Pi.c.fg3, 13.dp)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    stringResource(R.string.queued, q),
+                    style = Pi.t.meta.copy(color = Pi.c.fg2),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).clickable(enabled = enabled, role = Role.Button) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        if (onEditOne != null) onEditOne(i) else onDequeue()
+                    },
+                )
+                if (onRemoveOne != null) {
+                    Box(
+                        Modifier.size(26.dp).clip(CircleShape).clickable(enabled = enabled, role = Role.Button) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onRemoveOne(i)
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        PiIcon(PiIcons.X, Pi.c.fg3, 11.dp, contentDescription = stringResource(R.string.queue_remove_one))
+                    }
+                } else if (i == queued.lastIndex) {
+                    Text(
+                        stringResource(R.string.queue_restore),
+                        style = Pi.t.meta.copy(color = if (enabled) Pi.c.fg2 else Pi.c.fg3),
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onDequeue).padding(horizontal = 8.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        if (startIdx == 0 && queued.size > 1 && onRemoveOne != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Text(
+                    stringResource(R.string.queue_restore),
+                    style = Pi.t.small.copy(color = if (enabled) Pi.c.fg2 else Pi.c.fg3),
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onDequeue).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
     }
 }
 

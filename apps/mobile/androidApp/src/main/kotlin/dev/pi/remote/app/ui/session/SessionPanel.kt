@@ -52,6 +52,7 @@ import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.piui.uibColor
 import dev.pi.remote.protocol.ContextStats
 import dev.pi.remote.protocol.ReviewDiffResult
+import dev.pi.remote.protocol.SessionSummary
 import dev.pi.remote.protocol.SessionUsage
 import dev.pi.remote.sync.SessionTimeline
 import dev.pi.remote.text.formatClock
@@ -80,6 +81,7 @@ data class SessionFacts(
     val statusColor: Color,
     val model: String?,
     val thinking: String?,
+    val persona: String? = null,
     val turns: Int,
     val toolCalls: Int,
     val files: Int,
@@ -93,7 +95,15 @@ data class SessionFacts(
     val sessionFile: String,
 )
 
-fun sessionFacts(title: String, projectPath: String, status: String, statusColor: Color, timeline: SessionTimeline?, toolsOn: Int): SessionFacts {
+fun sessionFacts(
+    title: String,
+    projectPath: String,
+    status: String,
+    statusColor: Color,
+    timeline: SessionTimeline?,
+    toolsOn: Int,
+    persona: String? = null,
+): SessionFacts {
     val turns = timeline?.turns.orEmpty()
     val files = turns.flatMap { it.files }.groupBy { it.path }
     val todo = timeline?.state?.todo
@@ -104,6 +114,7 @@ fun sessionFacts(title: String, projectPath: String, status: String, statusColor
         statusColor = statusColor,
         model = timeline?.state?.model,
         thinking = timeline?.state?.thinking,
+        persona = persona,
         turns = turns.size,
         toolCalls = turns.sumOf { t -> t.activity.counts.let { it.read + it.edit + it.write + it.run + it.search + it.other } },
         files = files.size,
@@ -137,8 +148,11 @@ fun SessionPanel(
     branchCount: Int? = null,
     onBranches: (() -> Unit)? = null,
     usage: SessionUsage? = null,
+    onOpenUsage: (() -> Unit)? = null,
+    activeSessions: List<SessionSummary> = emptyList(),
+    onSwitchSession: ((String) -> Unit)? = null,
 ) {
-    val p = progress()
+    val p = progress().coerceIn(0f, 1f)
     if (p <= 0.001f) return
     // [modifier] carries the same horizontal drag as the page, so the panel follows the finger closed too.
     Box(modifier.fillMaxSize()) {
@@ -147,7 +161,7 @@ fun SessionPanel(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
         )
         Column(
-            Modifier.align(Alignment.CenterEnd).offset { IntOffset((width.toPx() * (1f - progress())).roundToInt(), 0) }.width(width).fillMaxHeight()
+            Modifier.align(Alignment.CenterEnd).offset { IntOffset((width.toPx() * (1f - progress().coerceIn(0f, 1f))).roundToInt(), 0) }.width(width).fillMaxHeight()
                 .shadow(elevation = (16 * p).dp, shape = RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp), ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
                 .clip(RoundedCornerShape(topStart = 18.dp, bottomStart = 18.dp)).background(Pi.c.bg)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
@@ -168,6 +182,41 @@ fun SessionPanel(
                     Dot(facts.statusColor, 7.dp)
                     Spacer(Modifier.width(8.dp))
                     Text(facts.status, style = Pi.t.secondary.copy(color = Pi.c.fg2))
+                }
+
+                if (activeSessions.isNotEmpty() && onSwitchSession != null) {
+                    Section(stringResource(R.string.panel_active_sessions)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            for (s in activeSessions.take(5)) {
+                                Row(
+                                    Modifier.fillMaxWidth().heightIn(min = 38.dp).clip(RoundedCornerShape(8.dp))
+                                        .clickable(role = Role.Button) {
+                                            onClose()
+                                            onSwitchSession(s.sessionKey)
+                                        }.padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    when (s.status) {
+                                        "needsInput" -> PiIcon(PiIcons.Question, Pi.c.warn, 13.dp)
+                                        "failed" -> PiIcon(PiIcons.Alert, Pi.c.bad, 13.dp)
+                                        else -> Spinner(Pi.c.blue, 13.dp)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            s.title.ifEmpty { stringResource(R.string.session_untitled) },
+                                            style = Pi.t.secondary.copy(color = Pi.c.fg),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        val proj = s.projectId.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+                                        if (proj.isNotEmpty()) Text(proj, style = Pi.t.small.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 13.dp)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section(stringResource(R.string.panel_context)) {
@@ -214,10 +263,27 @@ fun SessionPanel(
                 }
 
                 Section(stringResource(R.string.panel_session)) {
+                    changes?.branch?.takeIf { it.isNotBlank() }?.let { Fact(stringResource(R.string.panel_branch), it) }
                     Fact(stringResource(R.string.model), facts.model?.substringAfter('/') ?: "—")
                     Fact(stringResource(R.string.thinking), thinkingLabel(facts.thinking))
+                    facts.persona?.takeIf { it.isNotBlank() }?.let { Fact(stringResource(R.string.panel_persona), it) }
                     Fact(stringResource(R.string.panel_turns), "${facts.turns}")
-                    if (usage != null && usage.calls > 0) Fact(stringResource(R.string.panel_cost), pluralStringResource(R.plurals.panel_cost_value, usage.calls, formatCost(usage.cost), usage.calls))
+                    if (usage != null && usage.calls > 0) {
+                        Fact(stringResource(R.string.panel_cost), pluralStringResource(R.plurals.panel_cost_value, usage.calls, formatCost(usage.cost), usage.calls))
+                    }
+                    if (onOpenUsage != null) {
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 34.dp).clip(RoundedCornerShape(6.dp))
+                                .clickable(role = Role.Button) {
+                                    onClose()
+                                    onOpenUsage()
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(stringResource(R.string.menu_usage), style = Pi.t.secondary.copy(color = Pi.c.blue), modifier = Modifier.weight(1f))
+                            PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 13.dp)
+                        }
+                    }
                     Fact(stringResource(R.string.panel_tool_calls), "${facts.toolCalls}")
                     if (facts.files > 0) Fact(stringResource(R.string.panel_files), stringResource(R.string.panel_files_value, facts.files, facts.added, facts.deleted))
                     if (facts.workedMs > 0) Fact(stringResource(R.string.panel_worked), formatClock(facts.workedMs))

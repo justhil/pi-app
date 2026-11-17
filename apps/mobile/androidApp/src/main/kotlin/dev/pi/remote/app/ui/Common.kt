@@ -1,11 +1,20 @@
 package dev.pi.remote.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -164,14 +173,24 @@ fun Segmented(options: List<Pair<String, String>>, selected: String, onSelect: (
     }
 }
 
-/** Small quiet switch (38×22). */
+/** Small quiet switch (38×22) with critically damped thumb motion (no bounce overshoot). */
 @Composable
 fun QuietSwitch(on: Boolean, onChange: (Boolean) -> Unit, description: String, enabled: Boolean = true) {
+    val still = reducedMotion()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val startPad by animateDpAsState(
+        targetValue = if (on) 19.dp else 3.dp,
+        animationSpec = if (still) snap() else spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+        label = "switch",
+    )
     Box(
         Modifier.size(width = 38.dp, height = 22.dp).clip(RoundedCornerShape(11.dp)).background(if (on) Pi.c.fg else Pi.c.line)
-            .clickable(enabled = enabled, role = Role.Switch) { onChange(!on) }.semantics { contentDescription = description }.alpha(if (enabled) 1f else 0.5f),
+            .clickable(enabled = enabled, role = Role.Switch) {
+                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                onChange(!on)
+            }.semantics { contentDescription = description }.alpha(if (enabled) 1f else 0.5f),
     ) {
-        Box(Modifier.padding(start = if (on) 19.dp else 3.dp, top = 3.dp).size(16.dp).clip(CircleShape).background(Pi.c.bg))
+        Box(Modifier.padding(start = startPad, top = 3.dp).size(16.dp).clip(CircleShape).background(Pi.c.bg))
     }
 }
 
@@ -221,13 +240,44 @@ fun useTicker(active: Boolean, periodMs: Long = 1000): Long {
     return now
 }
 
-/** Thin top banner only while not connected — never a modal. */
+/**
+ * Thin top banner only while genuinely disconnected — transient sub-second foreground reconnects
+ * are debounced so the list below never jumps on resume.
+ */
 @Composable
 fun ConnectionBanner(state: dev.pi.remote.net.HostConnection.State, onRetry: () -> Unit) {
-    when (state) {
-        is dev.pi.remote.net.HostConnection.State.Backoff -> Banner(androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_reconnecting), androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_retry), onRetry)
-        is dev.pi.remote.net.HostConnection.State.Connecting -> if (state.attempt > 0) Banner(androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_reconnecting))
-        is dev.pi.remote.net.HostConnection.State.Refused -> Banner(androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_refused))
-        else -> Unit
+    var debouncedConnecting by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(state) {
+        if (state is dev.pi.remote.net.HostConnection.State.Connecting && state.attempt > 0) {
+            kotlinx.coroutines.delay(650)
+            debouncedConnecting = true
+        } else {
+            debouncedConnecting = false
+        }
+    }
+    val show = when (state) {
+        is dev.pi.remote.net.HostConnection.State.Backoff,
+        is dev.pi.remote.net.HostConnection.State.Refused,
+        -> true
+        is dev.pi.remote.net.HostConnection.State.Connecting -> debouncedConnecting
+        else -> false
+    }
+    var lastKind by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<dev.pi.remote.net.HostConnection.State>(state) }
+    if (show) lastKind = state
+    val still = reducedMotion()
+    AnimatedVisibility(
+        visible = show,
+        enter = if (still) fadeIn(snap()) else expandVertically(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(tween(140)),
+        exit = if (still) fadeOut(snap()) else shrinkVertically(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)) + fadeOut(tween(110)),
+    ) {
+        when (lastKind) {
+            is dev.pi.remote.net.HostConnection.State.Refused -> Banner(androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_refused))
+            is dev.pi.remote.net.HostConnection.State.Backoff -> Banner(
+                androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_reconnecting),
+                androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_retry),
+                onRetry,
+            )
+            else -> Banner(androidx.compose.ui.res.stringResource(dev.pi.remote.R.string.conn_reconnecting))
+        }
     }
 }

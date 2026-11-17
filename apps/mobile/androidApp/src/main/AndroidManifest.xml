@@ -23,6 +23,12 @@
         android:theme="@style/Theme.PiRemote">
         <!-- Keeps the connection while runs finish in the background (see RunNotifier). -->
         <service android:name=".app.data.KeepAliveService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <receiver android:name=".app.widget.PiRemoteWidget" android:exported="true" android:label="@string/widget_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/pi_widget_info" />
+        </receiver>
         <!-- Camera output for "take photo" attachments (cache/camera, pruned after a day). -->
         <provider
             android:name="androidx.core.content.FileProvider"

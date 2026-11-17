@@ -1,6 +1,8 @@
 package dev.pi.remote.app
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -29,5 +31,15 @@ class PiRemoteApp : Application() {
             override fun onStart(owner: LifecycleOwner) = graph.repository.onForeground()
             override fun onStop(owner: LifecycleOwner) = graph.repository.onBackground()
         })
+        runCatching {
+            val cm = getSystemService(ConnectivityManager::class.java)
+            cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = graph.repository.onNetworkChanged()
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: android.net.NetworkCapabilities) {
+                    // Only trigger when validated / route shifts; probeNow is conflated & cheap.
+                }
+                override fun onLost(network: Network) = graph.repository.onNetworkChanged()
+            })
+        }
     }
 }

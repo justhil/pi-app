@@ -38,6 +38,14 @@ class UiPrefs(private val context: Context) {
     var lastProject: String?
         get() = sp.getString("lastProject", null)
         set(v) { sp.edit().putString("lastProject", v).apply() }
+
+    private val _collapsedProjects = MutableStateFlow(sp.getStringSet("collapsedProjects", emptySet())?.toSet().orEmpty())
+    val collapsedProjects: StateFlow<Set<String>> = _collapsedProjects
+    fun setProjectCollapsed(projectId: String, collapsed: Boolean) {
+        val next = if (collapsed) _collapsedProjects.value + projectId else _collapsedProjects.value - projectId
+        _collapsedProjects.value = next
+        sp.edit().putStringSet("collapsedProjects", next).apply()
+    }
 }
 
 val LocalUiPrefs = staticCompositionLocalOf<UiPrefs?> { null }
