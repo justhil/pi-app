@@ -174,7 +174,29 @@ const methodSamples: Samples = {
       endpoints: ['ws://192.168.1.23:47900', 'ws://10.0.0.5:47900'],
     },
   },
-  'project.list': { params: {}, result: { projects: [{ id: '/work/pi-app', name: 'pi-app' }, { id: '/home/me/.config/pi-desktop/sandbox-workspaces/02c9a317', name: '帮我看下这个报错', temporary: true }] } },
+  'project.list': {
+    params: {},
+    result: {
+      projects: [
+        { id: '/work/pi-app', name: 'pi-app', branch: 'main', repo: '/work/pi-app' },
+        { id: '/home/me/.config/pi-desktop/sandbox-workspaces/02c9a317', name: '帮我看下这个报错', temporary: true },
+      ],
+      allowAllProjects: true,
+    },
+  },
+  'host.browseDir': {
+    params: { path: '/work' },
+    result: {
+      path: '/work',
+      parent: '/',
+      roots: ['/', '/home/me'],
+      entries: [
+        { name: 'pi-app', path: '/work/pi-app', git: true },
+        { name: 'notes', path: '/work/notes' },
+      ],
+      truncated: false,
+    },
+  },
   'session.watchList': {
     params: { projectId: '/work/pi-app' },
     result: {
@@ -217,7 +239,16 @@ const methodSamples: Samples = {
     params: { sessionKey, toolCallId: 'call_9' },
     result: { node: bashNode, output: 'full output' },
   },
-  'turn.send': { params: { sessionKey, text: '顺便更新 CHANGELOG', mode: 'followUp', clientMessageId: 'm_01JABCDEF' }, result: { accepted: true, duplicate: false } },
+  'turn.send': {
+    params: {
+      sessionKey,
+      text: '顺便更新 CHANGELOG',
+      mode: 'followUp',
+      clientMessageId: 'm_01JABCDEF',
+      agentPurge: { enabled: true, personaId: 'konata', mode: 'replace' },
+    },
+    result: { accepted: true, duplicate: false },
+  },
   'turn.abort': { params: { sessionKey }, result: { aborted: true, restored: ['顺便更新 CHANGELOG'] } },
   'session.branches': {
     params: { sessionKey },
@@ -254,6 +285,8 @@ const methodSamples: Samples = {
   'turn.rewind': { params: { sessionKey, anchor: 'entry-41' }, result: { editorText: '登录页偶尔会报 401，帮我查一下原因' } },
   'turn.dequeue': { params: { sessionKey }, result: { restored: ['顺便更新 CHANGELOG'] } },
   'session.create': { params: { projectId: '/work/pi-app', capabilities: ['pi-ui'] }, result: { sessionKey } },
+  'session.rename': { params: { sessionKey, title: '修复登录页 401 并发刷新' }, result: { title: '修复登录页 401 并发刷新' } },
+  'session.delete': { params: { sessionKey }, result: { deleted: true } },
   'model.list': {
     params: { sessionKey },
     result: { models: [{ id: 'local/qwen-coder', name: 'Qwen Coder', provider: 'local', group: 'custom' }, { id: 'anthropic/sonnet-5', name: 'Sonnet 5', provider: 'anthropic', group: 'login' }], current: 'anthropic/sonnet-5', thinking: 'high', availableThinking: ['off', 'low', 'medium', 'high'] },
@@ -296,11 +329,56 @@ const methodSamples: Samples = {
     params: { sessionKey, query: 'auth' },
     result: { entries: [{ name: 'auth.ts', path: 'src/auth.ts', dir: false }] },
   },
+  'file.read': {
+    params: { sessionKey, path: 'src/auth.ts' },
+    result: { path: 'src/auth.ts', content: 'export function verifyToken(token: string): boolean {\n  return token.length > 0\n}\n', size: 82, truncated: false },
+  },
+  'usage.summary': {
+    params: { days: 30 },
+    result: {
+      days: 30,
+      calls: 148,
+      sessions: 19,
+      input: 420000,
+      output: 98500,
+      cacheRead: 3850000,
+      cacheWrite: 310000,
+      cost: 12.64,
+      cacheHitRate: 0.84,
+      avgTtftMs: 1420,
+      genTps: 68.4,
+      byModel: [{ model: 'anthropic/sonnet-5', calls: 112, input: 320000, output: 74000, cacheRead: 3100000, cost: 9.85 }],
+      byDay: [{ day: '2026-10-08', calls: 24, tokens: 612000, cost: 2.15 }],
+    },
+  },
   'capability.list': {
     params: { sessionKey },
-    result: { capabilities: [{ id: 'pi-ui', available: true, promptTokens: 2410, tools: 0, enabled: true }, { id: 'browser', available: false, reason: 'browser-panel-off', promptTokens: 3100, tools: 24, enabled: false }] },
+    result: {
+      capabilities: [
+        { id: 'pi-ui', available: true, promptTokens: 2410, tools: 0, enabled: true },
+        { id: 'browser', available: false, reason: 'browser-panel-off', promptTokens: 3100, tools: 24, coreTools: 6, enabled: false },
+      ],
+    },
   },
   'capability.set': { params: { sessionKey, id: 'pi-ui', on: true }, result: { enabled: ['pi-ui'] } },
+  'purge.get': {
+    params: { sessionKey },
+    result: {
+      defaultPersonaId: 'konata',
+      defaultMode: 'replace',
+      personas: [{ id: 'konata', name: '泉此方 · 慵懒宅系工程师', description: '去八股、直接干脆' }],
+      session: { locked: 'on', personaId: 'konata', personaName: '泉此方 · 慵懒宅系工程师', mode: 'replace' },
+    },
+  },
+  'purge.set': {
+    params: { sessionKey, enabled: true, personaId: 'konata', mode: 'replace' },
+    result: {
+      defaultPersonaId: 'konata',
+      defaultMode: 'replace',
+      personas: [{ id: 'konata', name: '泉此方 · 慵懒宅系工程师', description: '去八股、直接干脆' }],
+      session: { locked: 'on', personaId: 'konata', personaName: '泉此方 · 慵懒宅系工程师', mode: 'replace' },
+    },
+  },
   'settings.cacheWarming.get': { params: {}, result: { mode: 'streaming' } },
   'settings.cacheWarming.set': { params: { mode: 'idle' }, result: { mode: 'idle' } },
   'ui.respond': { params: { id: 'u6', result: { cancelled: false, answers: [] } }, result: { accepted: true } },
@@ -314,7 +392,7 @@ const eventSamples: EventSamples = {
   'turn.patch': [{ sessionKey, patches }],
   'ui.request': uiRequests,
   'ui.dismiss': [{ id: 'u6', sessionKey, by: 'desktop' }],
-  'settings.changed': [{ key: 'capabilities', sessionKey }, { key: 'cacheWarming' }],
+  'settings.changed': [{ key: 'capabilities', sessionKey }, { key: 'cacheWarming' }, { key: 'purge', sessionKey }, { key: 'projects' }],
   'host.notice': [{ level: 'warning', text: '桌面即将退出' }],
 }
 

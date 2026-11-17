@@ -1,0 +1,34 @@
+{
+  "schema": "usage.summary/result",
+  "value": {
+    "days": 30,
+    "calls": 148,
+    "sessions": 19,
+    "input": 420000,
+    "output": 98500,
+    "cacheRead": 3850000,
+    "cacheWrite": 310000,
+    "cost": 12.64,
+    "cacheHitRate": 0.84,
+    "avgTtftMs": 1420,
+    "genTps": 68.4,
+    "byModel": [
+      {
+        "model": "anthropic/sonnet-5",
+        "calls": 112,
+        "input": 320000,
+        "output": 74000,
+        "cacheRead": 3100000,
+        "cost": 9.85
+      }
+    ],
+    "byDay": [
+      {
+        "day": "2026-10-08",
+        "calls": 24,
+        "tokens": 612000,
+        "cost": 2.15
+      }
+    ]
+  }
+}

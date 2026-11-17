@@ -13,7 +13,18 @@ import { SessionHub } from './session-hub'
 import { setRemoteTapSink } from './tap'
 import { UiRouter } from './ui-router'
 
-export const REMOTE_FEATURES = ['capabilities', 'cacheWarming', 'sessionCreate', 'assets']
+export const REMOTE_FEATURES = [
+  'capabilities',
+  'cacheWarming',
+  'sessionCreate',
+  'assets',
+  'purge',
+  'hostBrowse',
+  'sessionManage',
+  'fileRead',
+  'usageSummary',
+  'subagentTree',
+]
 const HANDSHAKE_FAILS_PER_MIN = 20
 
 const isLoopback = (ip: string): boolean => /^(::ffff:)?127\./.test(ip) || ip === '::1'
@@ -34,9 +45,10 @@ export type GatewayStatus = {
   pairing: { link: string; exp: number } | null
   devices: GatewayDevice[]
   projects: string[]
+  allowAllProjects: boolean
   trustedProjects: string[]
-  /** Labels for temporary-chat sandboxes (the folder name is a random id). */
-  projectInfo: Record<string, { label?: string; temporary?: boolean }>
+  /** Labels for temporary-chat sandboxes and custom project names / worktrees. */
+  projectInfo: Record<string, { label?: string; temporary?: boolean; branch?: string; repo?: string }>
 }
 
 export type EndpointKind = 'lan' | 'tailscale' | 'overlay'
@@ -104,7 +116,7 @@ export class RemoteGateway {
       for (const c of this.hub.subscribersOf(sessionKey)) c.sendEvent(event, payload)
       this.hub.onUiChanged(sessionKey)
     })
-    this.hub = new SessionHub(port, this.ui, () => this.allowedProjects(), now)
+    this.hub = new SessionHub(port, this.ui, () => this.allowedProjects(), now, () => !!this.auth.config.allowAllProjects)
     this.assets = new AssetStore(port)
     this.rpc = new RemoteRpc({
       port,
@@ -114,12 +126,14 @@ export class RemoteGateway {
       assets: () => this.assets.infos(),
       features: REMOTE_FEATURES,
       endpoints: () => this.endpoints(),
+      allowAllProjects: () => !!this.auth.config.allowAllProjects,
     })
   }
 
-  /** Whitelisted projects the desktop still trusts. */
+  /** Whitelisted projects the desktop trusts, or all trusted projects when allowAllProjects is enabled. */
   allowedProjects(): string[] {
     const trusted = this.port.trustedProjects()
+    if (this.auth.config.allowAllProjects) return trusted
     const keys = new Set(this.auth.config.projects.map((p) => normalizeSessionFileKey(p).replace(/\/+$/, '')))
     return trusted.filter((t) => keys.has(normalizeSessionFileKey(t).replace(/\/+$/, '')))
   }
@@ -131,6 +145,13 @@ export class RemoteGateway {
       uiResolved: (id, by) => this.ui.onResolved(id, by),
       settingsChanged: (key, sessionFile) => {
         for (const c of this.conns) if (c.ready) c.sendEvent('settings.changed', { key, ...(sessionFile ? { sessionKey: sessionFile } : {}) })
+        if (key === 'projects') void this.hub.onProjectsChanged()
+      },
+      sessionsChanged: (projectId, removedSessionFile) => {
+        void this.hub.onDesktopSessionsChanged(projectId, removedSessionFile)
+      },
+      branchMoved: (sessionFile) => {
+        this.hub.onDesktopBranchMoved(sessionFile)
       },
     }
   }
@@ -327,11 +348,12 @@ export class RemoteGateway {
       pairing: this.listening ? this.pairLink() : null,
       devices: this.auth.config.devices.map(({ pub, ...d }) => ({ ...d, fingerprint: pub.slice(0, 8), online: online.has(d.id) })),
       projects: this.auth.config.projects,
+      allowAllProjects: !!this.auth.config.allowAllProjects,
       trustedProjects: this.port.trustedProjects(),
       projectInfo: Object.fromEntries(
         this.port.trustedProjects().flatMap((p) => {
           const info = this.port.projectInfo?.(p)
-          return info && (info.label || info.temporary) ? [[p, info]] : []
+          return info && (info.label || info.temporary || info.branch || info.repo) ? [[p, info]] : []
         }),
       ),
     }

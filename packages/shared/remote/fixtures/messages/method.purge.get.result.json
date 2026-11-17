@@ -1,0 +1,20 @@
+{
+  "schema": "purge.get/result",
+  "value": {
+    "defaultPersonaId": "konata",
+    "defaultMode": "replace",
+    "personas": [
+      {
+        "id": "konata",
+        "name": "泉此方 · 慵懒宅系工程师",
+        "description": "去八股、直接干脆"
+      }
+    ],
+    "session": {
+      "locked": "on",
+      "personaId": "konata",
+      "personaName": "泉此方 · 慵懒宅系工程师",
+      "mode": "replace"
+    }
+  }
+}

@@ -163,6 +163,10 @@ export const SessionSummarySchema = z
     title: z.string(),
     status: SessionStatusSchema,
     updatedAt: z.number(),
+    /** Subagent child's parent session key (nested under parent in mobile inbox). */
+    parentSessionKey: z.string().optional(),
+    /** Source session this one was forked/cloned from (listed flat, not nested). */
+    forkedFromSessionKey: z.string().optional(),
     /** Last answer line, pending question, or failure text. */
     preview: z.string().optional(),
     /** Running sessions: the step in progress, e.g. "npm run lint". */
@@ -179,5 +183,13 @@ export const CursorSchema = z.object({ epoch: z.string(), seq }).strict()
 export type Cursor = z.infer<typeof CursorSchema>
 
 /** `temporary`: a desktop temporary chat (sandbox folder); `name` is then its title, not the folder id. */
-export const ProjectInfoSchema = z.object({ id: z.string(), name: z.string(), temporary: z.boolean().optional() }).strict()
+export const ProjectInfoSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    temporary: z.boolean().optional(),
+    branch: z.string().optional(),
+    repo: z.string().optional(),
+  })
+  .strict()
 export type ProjectInfo = z.infer<typeof ProjectInfoSchema>

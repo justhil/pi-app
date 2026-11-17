@@ -14,6 +14,7 @@ import {
 } from '../../agent-purge-service'
 import { bumpPromptAbortEpoch, getPromptAbortEpoch } from '../../prompt-abort-epoch'
 import { noteBrowserTarget } from '../../browser/targets'
+import { remoteTap } from '../../remote/tap'
 
 /** Matches the composer's paste limit, so a re-read can never return more than was written. */
 const CLIPBOARD_READ_IMAGE_MAX_BYTES = 8 * 1024 * 1024
@@ -118,6 +119,9 @@ export function registerPromptHandlers(): void {
     }
     await workerManager.sendPrompt(req.text, req.sessionFile)
     const activePurge = getActivePurgeForSession(req.sessionFile)
+    if (!purgeExisted && activePurge && req.sessionFile) {
+      remoteTap.settingsChanged('purge', req.sessionFile)
+    }
     // Keep clipboard images on disk for the agent turn (tools like `read` use the path).
     // Cleanup is TTL/startup prune + optional quit, not immediate delete-on-send.
     return {

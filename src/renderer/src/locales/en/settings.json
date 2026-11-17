@@ -1355,7 +1355,10 @@
     "unpair": "Unpair",
     "forget": "Remove",
     "projects": "Projects",
-    "projectsDesc": "Phones only see, and start sessions in, the projects you check.",
+    "projectsDesc": "By default phones only access checked projects, unless unrestricted access is enabled.",
+    "allowAllProjects": "Allow all projects",
+    "allowAllProjectsDesc": "Remove project restrictions so phones can access all workspaces, worktrees, and session history, and browse host folders to start new chats.",
+    "allowAllProjectsActive": "All {{count}} known projects and host folder browsing are open to paired phones. Turn off to restore per-project whitelisting.",
     "projectSearch": "Search projects",
     "temporaryChats": "Temporary chats",
     "noProjects": "No projects opened yet."

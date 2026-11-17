@@ -216,6 +216,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:remote.setPort',
   'ipc:remote.regeneratePairing',
   'ipc:remote.setProjects',
+  'ipc:remote.setAllowAllProjects',
   'ipc:remote.revokeDevice',
   'ipc:remote.removeDevice',
   'ipc:remote.setDeviceRole',

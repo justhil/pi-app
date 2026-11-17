@@ -1,0 +1,6 @@
+{
+  "schema": "session.delete/result",
+  "value": {
+    "deleted": true
+  }
+}

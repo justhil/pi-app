@@ -16,6 +16,8 @@ import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
 import { getMainWindow } from '../../window'
 import { refreshGitWorkspaceWatch } from '../../git-workspace-watch'
+import { invalidateKnownRemoteProjects } from '../../remote-project-registry'
+import { remoteTap } from '../../remote/tap'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -55,6 +57,8 @@ export function registerWorkspaceHandlers(): void {
     } else {
       void refreshGitWorkspaceWatch(getMainWindow())
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return { workspaceId: path, path, name }
   })
 

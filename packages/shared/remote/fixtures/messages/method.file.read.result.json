@@ -1,0 +1,9 @@
+{
+  "schema": "file.read/result",
+  "value": {
+    "path": "src/auth.ts",
+    "content": "export function verifyToken(token: string): boolean {\n  return token.length > 0\n}\n",
+    "size": 82,
+    "truncated": false
+  }
+}

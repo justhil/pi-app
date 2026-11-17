@@ -5,6 +5,7 @@ import {
   remoteStatus,
   removeRemoteDevice,
   revokeRemoteDevice,
+  setRemoteAllowAllProjects,
   setRemoteDeviceRole,
   setRemoteEnabled,
   setRemotePort,
@@ -17,7 +18,8 @@ export function registerRemoteHandlers(): void {
   registerHandlerWithSchema('ipc:remote.setEnabled', z.object({ enabled: z.boolean() }), async (req) => setRemoteEnabled(req.enabled))
   registerHandlerWithSchema('ipc:remote.setPort', z.object({ port: z.number().int().min(1024).max(65535) }), async (req) => setRemotePort(req.port))
   registerHandler('ipc:remote.regeneratePairing', async () => regenerateRemotePairing())
-  registerHandlerWithSchema('ipc:remote.setProjects', z.object({ projects: z.array(z.string()).max(200) }), async (req) => setRemoteProjects(req.projects))
+  registerHandlerWithSchema('ipc:remote.setProjects', z.object({ projects: z.array(z.string()).max(500) }), async (req) => setRemoteProjects(req.projects))
+  registerHandlerWithSchema('ipc:remote.setAllowAllProjects', z.object({ allow: z.boolean() }), async (req) => setRemoteAllowAllProjects(req.allow))
   registerHandlerWithSchema('ipc:remote.revokeDevice', z.object({ id: z.string() }), async (req) => revokeRemoteDevice(req.id))
   registerHandlerWithSchema('ipc:remote.removeDevice', z.object({ id: z.string() }), async (req) => removeRemoteDevice(req.id))
   registerHandlerWithSchema(

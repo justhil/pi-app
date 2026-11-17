@@ -1350,7 +1350,10 @@
     "unpair": "解绑",
     "forget": "移除",
     "projects": "项目",
-    "projectsDesc": "手机只能看到并新建勾选项目里的会话。",
+    "projectsDesc": "默认仅允许手机访问已勾选的项目；也可开启全局开放。",
+    "allowAllProjects": "开放全部项目",
+    "allowAllProjectsDesc": "开启后不再限制手机访问的项目范围，支持查看全部工作区、工作树与历史会话，并可浏览电脑目录新建会话。",
+    "allowAllProjectsActive": "已开放本机全部 {{count}} 个已知项目及电脑目录浏览权限；关闭开关可恢复白名单逐项控制。",
     "projectSearch": "搜索项目",
     "temporaryChats": "临时对话",
     "noProjects": "还没有打开过项目。"

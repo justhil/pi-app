@@ -2,7 +2,9 @@ import QRCode from 'qrcode'
 import type { Role } from '@shared/remote'
 import { RemoteGateway, type GatewayStatus } from './remote/gateway'
 import { createElectronRemoteHost } from './remote-host-electron'
+import { refreshKnownRemoteProjects } from './remote-project-registry'
 import { detectTailnetName } from './remote/tailnet'
+import { remoteTap } from './remote/tap'
 
 /**
  * Owns the single RemoteGateway: created lazily, started when the user enables it (or at boot
@@ -51,6 +53,7 @@ export async function stopRemoteGateway(): Promise<void> {
 
 export async function remoteStatus(): Promise<RemoteStatus> {
   const gw = instance()
+  await refreshKnownRemoteProjects()
   if (gw.listening) await refreshTailnet(gw)
   return withQr(gw.status(gw.auth.config.enabled))
 }
@@ -92,6 +95,13 @@ export async function regenerateRemotePairing(): Promise<RemoteStatus> {
 
 export async function setRemoteProjects(projects: string[]): Promise<RemoteStatus> {
   instance().auth.setProjects(projects)
+  remoteTap.settingsChanged('projects')
+  return remoteStatus()
+}
+
+export async function setRemoteAllowAllProjects(allow: boolean): Promise<RemoteStatus> {
+  instance().auth.setAllowAllProjects(allow)
+  remoteTap.settingsChanged('projects')
   return remoteStatus()
 }
 

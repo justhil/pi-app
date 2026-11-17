@@ -2,6 +2,7 @@ import { isAbsolute, posix, resolve } from 'path'
 import { existsSync } from 'fs'
 import { isWslWindowsPath, wslPathToWindows, wslWindowsPathDistro } from '@shared/wsl-path'
 import { configStore } from './config-store'
+import { isRemoteAuthorizedProject } from './remote-project-registry'
 import { isSandboxWorkspacePath } from './sandbox-workspaces'
 import { readSessionMetaFromFile } from './session-file-meta'
 import { workerManager } from './worker-manager'
@@ -62,6 +63,9 @@ export function authorizeProjectCwd(reqCwd: string | undefined): { ok: true; cwd
     .find((workspace) => workspace && workspacePathsEqual(workspace, target))
   if (trusted) return { ok: true, cwd: trusted }
   if (isPortableAbsolutePath(target) && isSandboxWorkspacePath(target) && existsSync(target)) {
+    return { ok: true, cwd: target }
+  }
+  if (isPortableAbsolutePath(target) && isRemoteAuthorizedProject(target)) {
     return { ok: true, cwd: target }
   }
   return { ok: false, error: 'cwd_not_trusted' }

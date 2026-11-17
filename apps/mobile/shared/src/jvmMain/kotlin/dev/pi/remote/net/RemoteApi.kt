@@ -23,6 +23,20 @@ import dev.pi.remote.protocol.CapabilitySetParams
 import dev.pi.remote.protocol.CapabilitySetResult
 import dev.pi.remote.protocol.CreateParams
 import dev.pi.remote.protocol.CreateResult
+import dev.pi.remote.protocol.DeleteResult
+import dev.pi.remote.protocol.DequeueParams
+import dev.pi.remote.protocol.FileReadParams
+import dev.pi.remote.protocol.FileReadResult
+import dev.pi.remote.protocol.HostBrowseParams
+import dev.pi.remote.protocol.HostBrowseResult
+import dev.pi.remote.protocol.PurgeGetParams
+import dev.pi.remote.protocol.PurgeSend
+import dev.pi.remote.protocol.PurgeSetParams
+import dev.pi.remote.protocol.PurgeStateResult
+import dev.pi.remote.protocol.RenameParams
+import dev.pi.remote.protocol.RenameResult
+import dev.pi.remote.protocol.UsageSummaryParams
+import dev.pi.remote.protocol.UsageSummaryResult
 import dev.pi.remote.protocol.Cursor
 import dev.pi.remote.protocol.ModelListResult
 import dev.pi.remote.protocol.ModelSetParams
@@ -50,20 +64,27 @@ import dev.pi.remote.protocol.WatchListParams
 
 /** Typed facade over [HostConnection] — one function per gateway method. */
 class RemoteApi(private val c: HostConnection) {
-    suspend fun projects() = c.typedCall("project.list", Empty.serializer(), Empty(), ProjectList.serializer()).projects
+    suspend fun projectList() = c.typedCall("project.list", Empty.serializer(), Empty(), ProjectList.serializer())
+    suspend fun projects() = projectList().projects
+    suspend fun browseHostDir(path: String? = null, dotfiles: Boolean = false) =
+        c.typedCall("host.browseDir", HostBrowseParams.serializer(), HostBrowseParams(path, dotfiles.takeIf { it }), HostBrowseResult.serializer())
     suspend fun watchList(projectId: String? = null) = c.typedCall("session.watchList", WatchListParams.serializer(), WatchListParams(projectId), SessionList.serializer()).sessions
     suspend fun open(sessionKey: String, cursor: Cursor?) = c.typedCall("session.open", OpenParams.serializer(), OpenParams(sessionKey, cursor), OpenResult.serializer())
     suspend fun close(sessionKey: String) = c.typedCall("session.close", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), Empty.serializer())
     suspend fun page(sessionKey: String, before: String, limit: Int = 20) = c.typedCall("turn.page", PageParams.serializer(), PageParams(sessionKey, before, limit), PageResult.serializer())
     suspend fun toolDetail(sessionKey: String, toolCallId: String) = c.typedCall("turn.toolDetail", ToolDetailParams.serializer(), ToolDetailParams(sessionKey, toolCallId), ToolDetailResult.serializer())
-    suspend fun send(sessionKey: String, text: String, mode: String, clientMessageId: String) =
-        c.typedCall("turn.send", SendParams.serializer(), SendParams(sessionKey, text, mode, clientMessageId), SendResult.serializer())
+    suspend fun send(sessionKey: String, text: String, mode: String, clientMessageId: String, agentPurge: PurgeSend? = null) =
+        c.typedCall("turn.send", SendParams.serializer(), SendParams(sessionKey, text, mode, clientMessageId, agentPurge), SendResult.serializer())
     suspend fun abort(sessionKey: String) = c.typedCall("turn.abort", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), AbortResult.serializer())
     suspend fun commands(sessionKey: String) = c.typedCall("command.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), CommandListResult.serializer()).commands
     suspend fun listFiles(sessionKey: String, path: String, dotfiles: Boolean = false) =
         c.typedCall("file.list", FileListParams.serializer(), FileListParams(sessionKey, path, dotfiles.takeIf { it }), FileListResult.serializer())
     suspend fun searchFiles(sessionKey: String, query: String) =
         c.typedCall("file.search", FileSearchParams.serializer(), FileSearchParams(sessionKey, query), FileSearchResult.serializer()).entries
+    suspend fun readFile(sessionKey: String, path: String) =
+        c.typedCall("file.read", FileReadParams.serializer(), FileReadParams(sessionKey, path), FileReadResult.serializer())
+    suspend fun usageSummary(days: Int = 30) =
+        c.typedCall("usage.summary", UsageSummaryParams.serializer(), UsageSummaryParams(days), UsageSummaryResult.serializer())
     suspend fun branches(sessionKey: String) = c.typedCall("session.branches", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), BranchesResult.serializer()).branches
     suspend fun switchBranch(sessionKey: String, leafId: String) = c.typedCall("session.switchBranch", SwitchBranchParams.serializer(), SwitchBranchParams(sessionKey, leafId), Empty.serializer())
     suspend fun fork(sessionKey: String, anchor: String) = c.typedCall("session.fork", RewindParams.serializer(), RewindParams(sessionKey, anchor), ForkResult.serializer())
@@ -71,8 +92,11 @@ class RemoteApi(private val c: HostConnection) {
     suspend fun reviewDiff(sessionKey: String, scope: String, turnId: String? = null, path: String? = null) =
         c.typedCall("review.diff", ReviewDiffParams.serializer(), ReviewDiffParams(sessionKey, scope, turnId, path), ReviewDiffResult.serializer())
     suspend fun stats(sessionKey: String) = c.typedCall("session.stats", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), SessionStatsResult.serializer())
-    suspend fun dequeue(sessionKey: String) = c.typedCall("turn.dequeue", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DequeueResult.serializer())
+    suspend fun dequeue(sessionKey: String, index: Int? = null) =
+        c.typedCall("turn.dequeue", DequeueParams.serializer(), DequeueParams(sessionKey, index), DequeueResult.serializer())
     suspend fun create(projectId: String, capabilities: List<String>? = null) = c.typedCall("session.create", CreateParams.serializer(), CreateParams(projectId, capabilities), CreateResult.serializer())
+    suspend fun renameSession(sessionKey: String, title: String) = c.typedCall("session.rename", RenameParams.serializer(), RenameParams(sessionKey, title), RenameResult.serializer())
+    suspend fun deleteSession(sessionKey: String) = c.typedCall("session.delete", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), DeleteResult.serializer())
     suspend fun models(sessionKey: String) = c.typedCall("model.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), ModelListResult.serializer())
     suspend fun setModel(sessionKey: String, modelId: String) = c.typedCall("model.set", ModelSetParams.serializer(), ModelSetParams(sessionKey, modelId), ModelSetResult.serializer())
     /** Uploads can be several MB: give them a longer timeout than ordinary calls. */
@@ -83,6 +107,9 @@ class RemoteApi(private val c: HostConnection) {
     suspend fun setThinking(sessionKey: String, level: String) = c.typedCall("thinking.set", ThinkingSetParams.serializer(), ThinkingSetParams(sessionKey, level), ThinkingSetResult.serializer())
     suspend fun capabilities(sessionKey: String) = c.typedCall("capability.list", SessionKeyParams.serializer(), SessionKeyParams(sessionKey), CapabilityList.serializer()).capabilities
     suspend fun setCapability(sessionKey: String, id: String, on: Boolean) = c.typedCall("capability.set", CapabilitySetParams.serializer(), CapabilitySetParams(sessionKey, id, on), CapabilitySetResult.serializer())
+    suspend fun purge(sessionKey: String? = null) = c.typedCall("purge.get", PurgeGetParams.serializer(), PurgeGetParams(sessionKey), PurgeStateResult.serializer())
+    suspend fun setPurge(sessionKey: String, enabled: Boolean, personaId: String? = null, mode: String? = null) =
+        c.typedCall("purge.set", PurgeSetParams.serializer(), PurgeSetParams(sessionKey, enabled, personaId, mode), PurgeStateResult.serializer())
     suspend fun cacheWarming() = c.typedCall("settings.cacheWarming.get", Empty.serializer(), Empty(), CacheWarmingValue.serializer()).mode
     suspend fun setCacheWarming(mode: String) = c.typedCall("settings.cacheWarming.set", CacheWarmingValue.serializer(), CacheWarmingValue(mode), CacheWarmingValue.serializer()).mode
     suspend fun respondUi(response: UiResponse) = c.typedCall("ui.respond", UiResponse.serializer(), response, Accepted.serializer()).accepted

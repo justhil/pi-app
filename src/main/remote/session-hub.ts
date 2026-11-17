@@ -80,6 +80,7 @@ export class SessionHub {
     private readonly ui: UiRouter,
     private readonly allowedProjects: () => string[],
     private readonly now: () => number = Date.now,
+    private readonly allowAllProjects: () => boolean = () => false,
   ) {}
 
   dispose(): void {
@@ -101,12 +102,21 @@ export class SessionHub {
     return this.allowedProjects().find((p) => normalizeSessionFileKey(p).replace(/\/+$/, '') === want)
   }
 
-  /** Resolve the session's workspace and require it to be whitelisted. */
+  private async resolveAllowedProject(projectId: string): Promise<string | undefined> {
+    const direct = this.allowedProjectFor(projectId)
+    if (direct) return direct
+    if (!this.allowAllProjects()) return undefined
+    const admitted = await this.port.admitProject?.(projectId)
+    if (!admitted) return undefined
+    return this.allowedProjectFor(admitted) ?? admitted
+  }
+
+  /** Resolve the session's workspace and require it to be whitelisted (or admitted when allowAllProjects is on). */
   async authorize(sessionKey: string): Promise<{ entry: Entry; projectId: string }> {
     const row = this.rows.get(normalizeSessionFileKey(sessionKey))
     const sessionFile = row?.sessionFile ?? sessionKey
     const cwd = row?.projectId ?? (await this.port.sessionProject(sessionFile))
-    const projectId = cwd ? this.allowedProjectFor(cwd) : undefined
+    const projectId = cwd ? await this.resolveAllowedProject(cwd) : undefined
     if (!projectId) throw new RpcFail('forbidden', 'session is not in an allowed project')
     return { entry: this.entryFor(sessionFile), projectId }
   }
@@ -230,7 +240,8 @@ export class SessionHub {
     const live = e?.projector.liveTurn
     const ask = pending.get(key)
     const extra = this.enriched.get(key)
-    const running = !!state?.running
+    const liveWorkerRunning = this.port.liveRunningSessions?.()?.has(key) ?? false
+    const running = e && (e.seeded || e.updatedAt > 0) ? !!state?.running : liveWorkerRunning
     const status: SessionSummary['status'] = ask ? 'needsInput' : running ? 'running' : e?.lastFailure ? 'failed' : 'idle'
     const out: SessionSummary = {
       sessionKey: row.sessionFile,
@@ -238,6 +249,8 @@ export class SessionHub {
       title: row.title,
       status,
       updatedAt: Math.max(row.updatedAt, e?.updatedAt ?? 0),
+      ...(row.parentSessionFile ? { parentSessionKey: row.parentSessionFile } : {}),
+      ...(row.forkedFromSessionFile ? { forkedFromSessionKey: row.forkedFromSessionFile } : {}),
     }
     const preview = ask ? uiPreview(ask) : status === 'failed' ? e?.lastFailure : e?.lastAnswer ?? extra?.preview ?? (row.firstMessage ? firstLine(row.firstMessage) : undefined)
     if (preview) out.preview = preview
@@ -258,7 +271,8 @@ export class SessionHub {
   }
 
   async listSummaries(projectId?: string): Promise<SessionSummary[]> {
-    const projects = projectId ? (this.allowedProjectFor(projectId) ? [this.allowedProjectFor(projectId)!] : []) : this.allowedProjects()
+    const resolved = projectId ? await this.resolveAllowedProject(projectId) : undefined
+    const projects = projectId ? (resolved ? [resolved] : []) : this.allowedProjects()
     if (projectId && !projects.length) throw new RpcFail('forbidden', 'project is not allowed')
     const rows = (await Promise.all(projects.map((p) => this.loadRows(p).catch(() => [] as HostSessionRow[])))).flat()
     const pending = this.ui.pendingBySession()
@@ -438,6 +452,118 @@ export class SessionHub {
     entry.projector.clearLiveTurn()
     this.publish(entry, [{ op: 'timeline.reset' }])
     this.port.notifySettingsChanged('rewound', entry.sessionFile)
+  }
+
+  /** Desktop rewound or navigated a session tree: reset remote viewers without re-notifying desktop. */
+  onDesktopBranchMoved(sessionFile: string): void {
+    const key = normalizeSessionFileKey(sessionFile)
+    const entry = this.entries.get(key)
+    this.history.delete(key)
+    if (!entry) return
+    entry.projector.clearLiveTurn()
+    this.publish(entry, [{ op: 'timeline.reset' }])
+  }
+
+  private purgeDeletedSession(sessionFile: string): void {
+    const key = normalizeSessionFileKey(sessionFile)
+    const row = this.rows.get(key)
+    const removedKey = row?.sessionFile ?? sessionFile
+    this.rows.delete(key)
+    this.entries.delete(key)
+    this.history.delete(key)
+    this.enriched.delete(key)
+    this.unlisted.delete(key)
+    this.dirty.delete(key)
+    for (const [client, filter] of this.listWatchers) {
+      if (filter.projectId && row && normalizeSessionFileKey(row.projectId) !== normalizeSessionFileKey(filter.projectId)) continue
+      client.sendEvent('sessions.update', { sessions: [], removed: [removedKey] })
+    }
+  }
+
+  async rename(sessionKey: string, title: string): Promise<{ title: string }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    const trimmed = title.trim()
+    if (!trimmed) throw new RpcFail('bad_request', 'title is empty')
+    if (!this.port.renameSession) throw new RpcFail('not_supported', 'rename is not supported')
+    const nextTitle = await this.port.renameSession(entry.sessionFile, trimmed, projectId)
+    const prev = this.rows.get(entry.key)
+    this.rows.set(entry.key, {
+      sessionFile: entry.sessionFile,
+      projectId,
+      title: nextTitle,
+      createdAt: prev?.createdAt ?? this.now(),
+      updatedAt: Math.max(prev?.updatedAt ?? 0, this.now()),
+      ...(prev?.firstMessage ? { firstMessage: prev.firstMessage } : {}),
+      ...(prev?.parentSessionFile ? { parentSessionFile: prev.parentSessionFile } : {}),
+      ...(prev?.forkedFromSessionFile ? { forkedFromSessionFile: prev.forkedFromSessionFile } : {}),
+    })
+    this.markDirty(entry.key)
+    this.port.notifySessionsChanged(projectId)
+    return { title: nextTitle }
+  }
+
+  async deleteSession(sessionKey: string): Promise<{ deleted: boolean }> {
+    const { entry, projectId } = await this.authorize(sessionKey)
+    const liveWorkerRunning = this.port.liveRunningSessions?.()?.has(entry.key) ?? false
+    if (entry.projector.sessionState.running || liveWorkerRunning) throw new RpcFail('busy', 'stop the run before deleting')
+    if (!this.port.deleteSession) throw new RpcFail('not_supported', 'delete is not supported')
+    const deleted = await this.port.deleteSession(entry.sessionFile, projectId)
+    if (deleted) {
+      this.purgeDeletedSession(entry.sessionFile)
+      this.port.notifySessionsChanged(projectId)
+    }
+    return { deleted }
+  }
+
+  /** Desktop created, renamed or deleted sessions: push fresh summaries to active watchers. */
+  async onDesktopSessionsChanged(projectId?: string, removedSessionFile?: string): Promise<void> {
+    if (removedSessionFile) this.purgeDeletedSession(removedSessionFile)
+    if (!this.listWatchers.size || !projectId) return
+    const allowed = await this.resolveAllowedProject(projectId)
+    if (!allowed) return
+    const prevKeys = [...this.rows.entries()]
+      .filter(([, r]) => normalizeSessionFileKey(r.projectId) === normalizeSessionFileKey(allowed))
+      .map(([k, r]) => ({ k, file: r.sessionFile }))
+    const loaded = await this.loadRows(allowed).catch(() => null)
+    if (!loaded) return
+    const loadedKeys = new Set(loaded.map((r) => normalizeSessionFileKey(r.sessionFile)))
+    const removed: string[] = []
+    for (const p of prevKeys) {
+      if (!loadedKeys.has(p.k) && !this.unlisted.has(p.k)) {
+        this.rows.delete(p.k)
+        removed.push(p.file)
+      }
+    }
+    const pending = this.ui.pendingBySession()
+    const summaries = loaded.map((r) => this.summaryFor(r, pending))
+    for (const [client, filter] of this.listWatchers) {
+      if (filter.projectId && normalizeSessionFileKey(filter.projectId) !== normalizeSessionFileKey(allowed)) continue
+      if (summaries.length || removed.length) {
+        client.sendEvent('sessions.update', { sessions: summaries, ...(removed.length ? { removed } : {}) })
+      }
+    }
+  }
+
+  /** Allowed project scope changed on desktop: reconcile watchers immediately. */
+  async onProjectsChanged(): Promise<void> {
+    if (!this.listWatchers.size) return
+    await this.port.refreshProjects?.()
+    const allowedSet = new Set(this.allowedProjects().map((p) => normalizeSessionFileKey(p).replace(/\/+$/, '')))
+    const removed: string[] = []
+    for (const [k, r] of [...this.rows.entries()]) {
+      const pk = normalizeSessionFileKey(r.projectId).replace(/\/+$/, '')
+      if (!allowedSet.has(pk)) {
+        this.rows.delete(k)
+        removed.push(r.sessionFile)
+      }
+    }
+    const allSummaries = await this.listSummaries().catch(() => [] as SessionSummary[])
+    for (const [client, filter] of this.listWatchers) {
+      const mine = filter.projectId
+        ? allSummaries.filter((s) => normalizeSessionFileKey(s.projectId) === normalizeSessionFileKey(filter.projectId!))
+        : allSummaries
+      client.sendEvent('sessions.update', { sessions: mine, ...(removed.length ? { removed } : {}) })
+    }
   }
 
   async branches(sessionKey: string): Promise<{ branches: BranchInfo[] }> {

@@ -25,6 +25,8 @@ export type RemoteStoredConfig = {
   devices: DeviceRecord[]
   /** Workspace paths remote clients may see and create sessions in. */
   projects: string[]
+  /** When true, remote clients may access all desktop projects and browse host folders. */
+  allowAllProjects?: boolean
 }
 
 export const DEFAULT_REMOTE_PORT = 47900
@@ -60,6 +62,7 @@ export class AuthStore {
       ...(typeof raw?.hostKeySealed === 'string' ? { hostKeySealed: raw.hostKeySealed } : {}),
       devices: Array.isArray(raw?.devices) ? raw.devices.filter((d) => d && typeof d.pub === 'string' && typeof d.id === 'string') : [],
       projects: Array.isArray(raw?.projects) ? raw.projects.filter((p): p is string => typeof p === 'string') : [],
+      allowAllProjects: raw?.allowAllProjects === true,
     }
     if (!raw?.hostId) this.save()
   }
@@ -128,6 +131,11 @@ export class AuthStore {
 
   setProjects(projects: string[]): void {
     this.cfg.projects = [...new Set(projects.filter((p) => typeof p === 'string' && p.trim()))]
+    this.save()
+  }
+
+  setAllowAllProjects(allow: boolean): void {
+    this.cfg.allowAllProjects = allow
     this.save()
   }
 

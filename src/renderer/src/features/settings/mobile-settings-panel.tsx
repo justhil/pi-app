@@ -32,8 +32,9 @@ type RemoteStatus = {
   qrSvg?: string
   devices: Device[]
   projects: string[]
+  allowAllProjects?: boolean
   trustedProjects: string[]
-  projectInfo?: Record<string, { label?: string; temporary?: boolean }>
+  projectInfo?: Record<string, { label?: string; temporary?: boolean; branch?: string; repo?: string }>
 }
 
 const POLL_MS = 3000
@@ -233,55 +234,70 @@ export function MobileSettingsPanel() {
       </SettingsSection>
 
       <SettingsSection title={t('settings:mobile.projects')} description={t('settings:mobile.projectsDesc')}>
-        {status.trustedProjects.length === 0 && <div className="settings-row text-[12.5px] text-foreground-secondary">{t('settings:mobile.noProjects')}</div>}
-        {status.trustedProjects.length > 10 && (
-          <div className="settings-row">
-            <input
-              className={cn(numberInputCls, 'w-full text-left')}
-              placeholder={t('settings:mobile.projectSearch')}
-              value={projectQuery}
-              onChange={(e) => setProjectQuery(e.target.value)}
-            />
+        <SettingRow label={t('settings:mobile.allowAllProjects')} description={t('settings:mobile.allowAllProjectsDesc')}>
+          <Toggle
+            on={!!status.allowAllProjects}
+            disabled={busy}
+            onChange={(v) => void call('remote.setAllowAllProjects', { allow: v })}
+          />
+        </SettingRow>
+        {status.allowAllProjects ? (
+          <div className="settings-row text-[12.5px] text-foreground-secondary">
+            {t('settings:mobile.allowAllProjectsActive', { count: status.trustedProjects.length })}
           </div>
-        )}
-        {groups.map((g) => {
-          const on = g.projects.filter((p) => isOn(p.path)).length
-          // Temporary chats start folded: usually many, rarely what the phone should see.
-          const open = projectQuery.trim() !== '' || (openGroups[g.key] ?? !g.temporary)
-          return (
-            <div key={g.key} className="settings-row block py-1">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[12.5px] text-foreground-secondary hover:text-foreground"
-                  onClick={() => setOpenGroups((m) => ({ ...m, [g.key]: !open }))}
-                  title={g.label}
-                >
-                  <span className={cn('inline-block text-[10px] transition-transform', open && 'rotate-90')}>▸</span>
-                  <span className={cn('truncate text-[12px]', !g.temporary && 'font-mono')}>{g.label}</span>
-                  <span className="shrink-0 tabular-nums text-foreground-tertiary">
-                    {on}/{g.projects.length}
-                  </span>
-                </button>
-                <Toggle
-                  on={on === g.projects.length}
-                  disabled={busy}
-                  onChange={(v) => setGroupProjects(g.projects.map((p) => p.path), v)}
+        ) : (
+          <>
+            {status.trustedProjects.length === 0 && <div className="settings-row text-[12.5px] text-foreground-secondary">{t('settings:mobile.noProjects')}</div>}
+            {status.trustedProjects.length > 10 && (
+              <div className="settings-row">
+                <input
+                  className={cn(numberInputCls, 'w-full text-left')}
+                  placeholder={t('settings:mobile.projectSearch')}
+                  value={projectQuery}
+                  onChange={(e) => setProjectQuery(e.target.value)}
                 />
               </div>
-              {open && (
-                <div className="ml-4 mt-0.5 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-                  {g.projects.map((p) => (
-                    <label key={p.path} className="flex cursor-pointer items-center justify-between gap-3 py-1 text-[13px]" title={p.path}>
-                      <span className="truncate">{p.name}</span>
-                      <Toggle on={isOn(p.path)} disabled={busy} onChange={(v) => toggleProject(p.path, v)} />
-                    </label>
-                  ))}
+            )}
+            {groups.map((g) => {
+              const on = g.projects.filter((p) => isOn(p.path)).length
+              // Temporary chats start folded: usually many, rarely what the phone should see.
+              const open = projectQuery.trim() !== '' || (openGroups[g.key] ?? !g.temporary)
+              return (
+                <div key={g.key} className="settings-row block py-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-[12.5px] text-foreground-secondary hover:text-foreground"
+                      onClick={() => setOpenGroups((m) => ({ ...m, [g.key]: !open }))}
+                      title={g.label}
+                    >
+                      <span className={cn('inline-block text-[10px] transition-transform', open && 'rotate-90')}>▸</span>
+                      <span className={cn('truncate text-[12px]', !g.temporary && 'font-mono')}>{g.label}</span>
+                      <span className="shrink-0 tabular-nums text-foreground-tertiary">
+                        {on}/{g.projects.length}
+                      </span>
+                    </button>
+                    <Toggle
+                      on={on === g.projects.length}
+                      disabled={busy}
+                      onChange={(v) => setGroupProjects(g.projects.map((p) => p.path), v)}
+                    />
+                  </div>
+                  {open && (
+                    <div className="ml-4 mt-0.5 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                      {g.projects.map((p) => (
+                        <label key={p.path} className="flex cursor-pointer items-center justify-between gap-3 py-1 text-[13px]" title={p.path}>
+                          <span className="truncate">{p.name}</span>
+                          <Toggle on={isOn(p.path)} disabled={busy} onChange={(v) => toggleProject(p.path, v)} />
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )
-        })}
+              )
+            })}
+          </>
+        )}
       </SettingsSection>
     </div>
   )

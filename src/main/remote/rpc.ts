@@ -23,6 +23,7 @@ export type RpcContext = {
   assets: () => AssetInfo[]
   features: string[]
   endpoints?: () => string[]
+  allowAllProjects?: () => boolean
 }
 
 type Handler<M extends RemoteMethod> = (caller: RpcCaller, params: MethodParams<M>) => Promise<MethodResult<M>>
@@ -52,19 +53,38 @@ export class RemoteRpc {
         assets: ctx.assets(),
         ...(ctx.endpoints ? { endpoints: ctx.endpoints() } : {}),
       }),
-      'project.list': async () => ({
-        projects: port
-          .trustedProjects()
-          .filter((p) => hub.isAllowedProject(p))
-          .map((id) => {
-            const info = port.projectInfo?.(id) ?? {}
-            const folder = id.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || id
-            return { id, name: info.label || folder, ...(info.temporary ? { temporary: true } : {}) }
-          })
-          // Temporary chats after real projects.
-          .sort((a, b) => Number(!!a.temporary) - Number(!!b.temporary)),
-      }),
-      'session.watchList': async (caller, p) => ({ sessions: await hub.watchList(caller, p.projectId) }),
+      'project.list': async () => {
+        await port.refreshProjects?.()
+        const allowAll = ctx.allowAllProjects?.() ?? false
+        return {
+          projects: port
+            .trustedProjects()
+            .filter((p) => allowAll || hub.isAllowedProject(p))
+            .map((id) => {
+              const info = port.projectInfo?.(id) ?? {}
+              const folder = id.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || id
+              return {
+                id,
+                name: info.label || folder,
+                ...(info.temporary ? { temporary: true } : {}),
+                ...(info.branch ? { branch: info.branch } : {}),
+                ...(info.repo ? { repo: info.repo } : {}),
+              }
+            })
+            // Temporary chats after real projects.
+            .sort((a, b) => Number(!!a.temporary) - Number(!!b.temporary)),
+          allowAllProjects: allowAll,
+        }
+      },
+      'host.browseDir': async (_c, p) => {
+        if (!ctx.allowAllProjects?.()) throw new RpcFail('forbidden', 'host directory browsing is disabled')
+        if (!port.browseHostDir) throw new RpcFail('not_supported', 'host directory browsing unavailable')
+        return port.browseHostDir(p.path, p.dotfiles === true)
+      },
+      'session.watchList': async (caller, p) => {
+        await port.refreshProjects?.()
+        return { sessions: await hub.watchList(caller, p.projectId) }
+      },
       'session.unwatchList': async (caller) => {
         hub.unwatchList(caller)
         return {}
@@ -81,7 +101,7 @@ export class RemoteRpc {
         if (prior) return prior.then((r) => ({ ...r, duplicate: true }))
         const run = (async () => {
           const { entry, projectId } = await hub.authorize(p.sessionKey)
-          await port.send(entry.sessionFile, p.text, p.mode, port.sessionCapabilities(entry.sessionFile), projectId)
+          await port.send(entry.sessionFile, p.text, p.mode, port.sessionCapabilities(entry.sessionFile), projectId, p.agentPurge)
           return { accepted: true as const }
         })()
         this.sent.set(p.clientMessageId, run)
@@ -103,11 +123,18 @@ export class RemoteRpc {
       'session.fork': async (_c, p) => hub.fork(p.sessionKey, p.anchor),
       'turn.dequeue': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
-        return { restored: await port.clearQueue(entry.sessionFile) }
+        return { restored: await port.clearQueue(entry.sessionFile, p.index) }
       },
       'session.create': async (_c, p) => {
-        if (!hub.isAllowedProject(p.projectId)) throw new RpcFail('forbidden', 'project is not allowed')
-        const project = port.trustedProjects().find((t) => normalizeSessionFileKey(t) === normalizeSessionFileKey(p.projectId)) ?? p.projectId
+        let project: string | undefined
+        if (hub.isAllowedProject(p.projectId)) {
+          project = port.trustedProjects().find((t) => normalizeSessionFileKey(t) === normalizeSessionFileKey(p.projectId)) ?? p.projectId
+        } else if (ctx.allowAllProjects?.()) {
+          project = (await port.admitProject?.(p.projectId)) ?? undefined
+          if (!project) throw new RpcFail('not_found', 'folder not found')
+        } else {
+          throw new RpcFail('forbidden', 'project is not allowed')
+        }
         const sessionFile = await port.createSession(project)
         if (p.capabilities?.length) {
           const known = new Set(port.capabilityCatalog().map((c) => c.id as string))
@@ -116,6 +143,8 @@ export class RemoteRpc {
         hub.announceSession(sessionFile, project)
         return { sessionKey: sessionFile }
       },
+      'session.rename': async (_c, p) => hub.rename(p.sessionKey, p.title),
+      'session.delete': async (_c, p) => hub.deleteSession(p.sessionKey),
       'model.list': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
         return port.listModels(entry.sessionFile)
@@ -163,6 +192,17 @@ export class RemoteRpc {
         const { projectId } = await hub.authorize(p.sessionKey)
         return { entries: (await port.searchFiles(projectId, p.query)).slice(0, 60) }
       },
+      'file.read': async (_c, p) => {
+        const { projectId } = await hub.authorize(p.sessionKey)
+        if (!port.readFile) throw new RpcFail('not_supported', 'file preview unavailable')
+        const r = await port.readFile(projectId, p.path)
+        if (!r.ok) throw new RpcFail(r.code, r.message)
+        return r.value
+      },
+      'usage.summary': async (_c, p) => {
+        if (!port.usageSummary) throw new RpcFail('not_supported', 'usage summary unavailable')
+        return port.usageSummary(p.days ?? 30)
+      },
       'capability.list': async (_c, p) => {
         const { entry } = await hub.authorize(p.sessionKey)
         const on = new Set(port.sessionCapabilities(entry.sessionFile))
@@ -173,6 +213,7 @@ export class RemoteRpc {
             ...(c.reason ? { reason: c.reason } : {}),
             promptTokens: c.promptTokens,
             tools: c.tools,
+            ...(c.coreTools !== undefined ? { coreTools: c.coreTools } : {}),
             enabled: on.has(c.id),
           })),
         }
@@ -185,6 +226,26 @@ export class RemoteRpc {
         port.setSessionCapabilities(entry.sessionFile, next)
         port.notifySettingsChanged('capabilities', entry.sessionFile)
         return { enabled: next }
+      },
+      'purge.get': async (_c, p) => {
+        let sessionFile: string | undefined
+        if (p.sessionKey) {
+          const { entry } = await hub.authorize(p.sessionKey)
+          sessionFile = entry.sessionFile
+        }
+        if (!port.getPurgeState) {
+          return { defaultPersonaId: '', defaultMode: 'replace' as const, personas: [] }
+        }
+        return port.getPurgeState(sessionFile)
+      },
+      'purge.set': async (_c, p) => {
+        const { entry } = await hub.authorize(p.sessionKey)
+        if (!port.setPurgeState) throw new RpcFail('not_supported', 'persona switching unavailable')
+        return port.setPurgeState(entry.sessionFile, {
+          enabled: p.enabled,
+          ...(p.personaId ? { personaId: p.personaId } : {}),
+          ...(p.mode ? { mode: p.mode } : {}),
+        })
       },
       'settings.cacheWarming.get': async () => ({ mode: await port.getCacheWarming() }),
       'settings.cacheWarming.set': async (_c, p) => {

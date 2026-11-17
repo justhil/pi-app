@@ -14,6 +14,7 @@ import {
 } from '../../agent-purge-service'
 import { capabilitySectionMap, capabilityToolFamilies } from '../../capabilities/catalog'
 import { configStore } from '../../config-store'
+import { remoteTap } from '../../remote/tap'
 import { workerManager } from '../../worker-manager'
 
 export function registerPurgeHandlers(): void {
@@ -28,6 +29,7 @@ export function registerPurgeHandlers(): void {
     z.object({ config: z.record(z.unknown()) }),
     async (req) => {
       const config = saveAgentPurgeConfig(req.config)
+      remoteTap.settingsChanged('purge')
       return { ok: true, config }
     },
   )
@@ -58,12 +60,14 @@ export function registerPurgeHandlers(): void {
           )
           .catch(() => {})
       }
+      remoteTap.settingsChanged('purge', req.sessionFile)
       return { ok: true, purgedSessions: getPurgedSessions(), record }
     },
   )
 
   registerHandler('ipc:purge.resetBuiltins', async () => {
     const config = resetBuiltinPurgePersonas()
+    remoteTap.settingsChanged('purge')
     return { ok: true, config }
   })
 
@@ -72,6 +76,7 @@ export function registerPurgeHandlers(): void {
     z.object({ dir: z.string().max(4096).optional() }),
     async (req) => {
       const res = importPersonasFromDirectory(req.dir)
+      if (res.imported.length) remoteTap.settingsChanged('purge')
       return { ok: true, count: res.imported.length, config: res.config, dir: res.dir }
     },
   )
@@ -81,6 +86,7 @@ export function registerPurgeHandlers(): void {
     z.object({ source: z.string().min(1).max(1024) }),
     async (req) => {
       const res = await importPersonasFromGithub(req.source)
+      if (res.imported.length) remoteTap.settingsChanged('purge')
       return { ok: true, count: res.imported.length, config: res.config }
     },
   )

@@ -145,6 +145,8 @@ export function registerModelRuntimeHandlers(): void {
       await workerManager.start(cwd)
     }
     const actualModel = await workerManager.setModel(provider, modelId, sessionFile)
+    const { remoteTap } = await import('../../remote/tap')
+    remoteTap.settingsChanged('models', sessionFile)
     return { modelId: actualModel }
   })
 
@@ -157,6 +159,8 @@ export function registerModelRuntimeHandlers(): void {
     const sessionFile = String(req.sessionFile || '').trim()
     if (!sessionFile) throw new Error('SESSION_FILE_REQUIRED')
     await workerManager.setThinkingLevel(req.level, sessionFile)
+    const { remoteTap } = await import('../../remote/tap')
+    remoteTap.settingsChanged('models', sessionFile)
     return { level: req.level }
   })
 

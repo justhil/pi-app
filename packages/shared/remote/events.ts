@@ -9,7 +9,7 @@ export const REMOTE_EVENTS = {
   'ui.request': UiRequestSchema,
   'ui.dismiss': UiDismissSchema,
   'settings.changed': z
-    .object({ key: z.enum(['cacheWarming', 'capabilities']), sessionKey: z.string().optional() })
+    .object({ key: z.enum(['cacheWarming', 'capabilities', 'purge', 'projects', 'models', 'rewound']), sessionKey: z.string().optional() })
     .strict(),
   'host.notice': z.object({ level: z.enum(['info', 'warning', 'error']), text: z.string() }).strict(),
 } as const

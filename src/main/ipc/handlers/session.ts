@@ -20,6 +20,8 @@ import {
 import { setVisibleSessionFile } from '../../completion-notification-events'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { inheritPurgedSession, removePurgedSession } from '../../agent-purge-service'
+import { invalidateKnownRemoteProjects } from '../../remote-project-registry'
+import { remoteTap } from '../../remote/tap'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
 import { bumpPromptAbortEpoch } from '../../prompt-abort-epoch'
@@ -251,6 +253,7 @@ export function registerSessionHandlers(): void {
       if (!result.cancelled && req.sessionFile) {
         const leaf = result.leafId !== undefined ? result.leafId : req.targetId
         setSessionLeafOverride(req.sessionFile, leaf)
+        remoteTap.branchMoved(req.sessionFile)
       }
       return result
     } catch (e: unknown) {
@@ -344,6 +347,7 @@ export function registerSessionHandlers(): void {
     if (isSandboxWorkspacePath(workspaceId)) {
       bindSandboxSession(workspaceId, result.sessionId, sessionFile)
     }
+    remoteTap.sessionsChanged(workspaceId)
     return {
       session: {
         sessionId: result.sessionId,
@@ -435,6 +439,7 @@ export function registerSessionHandlers(): void {
       inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
+      remoteTap.sessionsChanged(workspaceId)
       return {
         cancelled: false,
         editorText: result.editorText,
@@ -526,6 +531,7 @@ export function registerSessionHandlers(): void {
       inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
+      remoteTap.sessionsChanged(workspaceId)
       return {
         cancelled: false,
         sessionId: result.sessionId,
@@ -577,10 +583,14 @@ export function registerSessionHandlers(): void {
     const cwd = workerManager.cwd || configStore.get('currentProject') || ''
     if (req.sandboxPath && isSandboxWorkspacePath(req.sandboxPath)) {
       renameSandboxWorkspace(req.sandboxPath, title)
+      invalidateKnownRemoteProjects()
+      remoteTap.settingsChanged('projects')
       return { ok: true, title }
     }
     if (isSandboxWorkspacePath(cwd) && !req.sessionFile) {
       renameSandboxWorkspace(cwd, title)
+      invalidateKnownRemoteProjects()
+      remoteTap.settingsChanged('projects')
       return { ok: true, title }
     }
     const file = req.sessionFile as string | undefined
@@ -594,6 +604,7 @@ export function registerSessionHandlers(): void {
     if (!r.ok) return { ok: false, title, error: r.error || 'rename failed' }
     clearSessionDisplayName(file)
     await sessionPreviewProcess.invalidateListSessions(workspaceCwd)
+    remoteTap.sessionsChanged(workspaceCwd)
     return { ok: true, title }
   })
 
@@ -605,6 +616,7 @@ export function registerSessionHandlers(): void {
       clearSessionDisplayName(authorized.sessionFile)
       removePurgedSession(authorized.sessionFile)
       await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
+      remoteTap.sessionsChanged(authorized.cwd, authorized.sessionFile)
     }
     return { ok: !!r.ok, error: r.error }
   })
@@ -656,6 +668,8 @@ export function registerSessionHandlers(): void {
       const next = recent.find((p) => p && !removedPaths.some((target) => workspacePathsEqual(p, target))) || null
       configStore.set('currentProject', next)
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return {
       ok: true,
       currentProject: configStore.get('currentProject'),
@@ -671,6 +685,8 @@ export function registerSessionHandlers(): void {
     if (typeof configStore.setProjectDisplayName === 'function') {
       configStore.setProjectDisplayName(path, name, isRepositoryGroup)
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return {
       ok: true,
       projectDisplayNames: configStore.get('projectDisplayNames') || {},

@@ -1,7 +1,19 @@
 import type { TreeRow } from '../branches'
 import type { AppEvent } from '@shared/app-events'
 import type { CapabilityInfo } from '@shared/capabilities'
-import type { CacheWarming, CommandInfo, ContextStats, FileEntry, UiResponse } from '@shared/remote'
+import type {
+  CacheWarming,
+  CommandInfo,
+  ContextStats,
+  FileEntry,
+  FileReadResult,
+  HostBrowseResult,
+  PurgeSend,
+  PurgeStateResult,
+  UiResponse,
+  UsageSummaryResult,
+} from '@shared/remote'
+import { normalizeSessionFileKey } from '@shared/session-file-key'
 import type { ToolCardDef } from '../../../extension-compat/adapter-schema'
 import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, SendMode } from '../host-port'
 
@@ -14,7 +26,7 @@ import type { HostSessionRow, HostTimelineItem, RemoteHostPort, RemoteTapSink, S
 type FakeSession = { row: HostSessionRow; items: HostTimelineItem[]; running: boolean; model: string; thinking: string; queue?: { steering: string[]; followUp: string[] }; aborted?: boolean; alts?: HostTimelineItem[][] }
 
 export type FakeCalls = {
-  sent: Array<{ sessionFile: string; text: string; mode: SendMode; capabilities: string[] }>
+  sent: Array<{ sessionFile: string; text: string; mode: SendMode; capabilities: string[]; agentPurge?: PurgeSend }>
   aborted: string[]
   created: string[]
   responded: UiResponse[]
@@ -37,6 +49,8 @@ export class FakeHost implements RemoteHostPort {
   readonly sessions = new Map<string, FakeSession>()
   readonly store = new Map<string, unknown>()
   capabilities: Record<string, string[]> = {}
+  purgedSessions: Record<string, { personaId: string; personaName: string; mode: 'replace' | 'append' | 'strict' }> = {}
+  extraDirs: string[] = ['/work/extra-repo', '/work/notes']
   cacheWarming: CacheWarming = 'streaming'
   sink: RemoteTapSink | null = null
   /** Created sessions whose file pi has not written yet (it does so on the first reply). */
@@ -200,6 +214,27 @@ export class FakeHost implements RemoteHostPort {
   trustedProjects(): string[] {
     return this.projects
   }
+  async admitProject(projectId: string): Promise<string | null> {
+    if (!this.projects.includes(projectId) && !this.extraDirs.includes(projectId)) return null
+    if (!this.projects.includes(projectId)) this.projects.push(projectId)
+    return projectId
+  }
+  async browseHostDir(path = '/work'): Promise<HostBrowseResult> {
+    const all = [...new Set([...this.projects, ...this.extraDirs])]
+    const prefix = path.replace(/\/+$/, '') || '/'
+    const entries = all
+      .filter((d) => d.startsWith(prefix === '/' ? '/' : `${prefix}/`))
+      .map((d) => {
+        const rest = d.slice(prefix === '/' ? 1 : prefix.length + 1).split('/')[0]
+        const full = `${prefix === '/' ? '' : prefix}/${rest}`
+        return { name: rest, path: full, ...(full.includes('pi-app') || full.includes('repo') ? { git: true } : {}) }
+      })
+      .filter((v, i, arr) => v.name && arr.findIndex((x) => x.path === v.path) === i)
+    return { path: prefix, parent: prefix === '/' ? null : '/', roots: ['/', '/work'], entries, truncated: false }
+  }
+  liveRunningSessions(): Set<string> {
+    return new Set([...this.sessions.values()].filter((s) => s.running).map((s) => normalizeSessionFileKey(s.row.sessionFile)))
+  }
   projectInfo(path: string) {
     return path.includes('/sandbox-workspaces/') ? { temporary: true, label: '临时：问个问题' } : {}
   }
@@ -218,9 +253,16 @@ export class FakeHost implements RemoteHostPort {
     const s = this.sessions.get(sessionFile)
     return { running: !!s?.running, model: s?.model, thinking: s?.thinking, availableThinking: ['off', 'low', 'medium', 'high'] }
   }
-  async send(sessionFile: string, text: string, mode: SendMode, capabilities: string[]): Promise<void> {
-    this.calls.sent.push({ sessionFile, text, mode, capabilities })
+  async send(sessionFile: string, text: string, mode: SendMode, capabilities: string[], _projectId?: string, agentPurge?: PurgeSend): Promise<void> {
+    this.calls.sent.push({ sessionFile, text, mode, capabilities, ...(agentPurge ? { agentPurge } : {}) })
     const s = this.sessions.get(sessionFile)
+    if (mode === 'prompt' && agentPurge?.enabled && !this.purgedSessions[sessionFile] && !(s?.items.length)) {
+      this.purgedSessions[sessionFile] = {
+        personaId: agentPurge.personaId ?? 'konata',
+        personaName: '泉此方 · 慵懒宅系工程师',
+        mode: agentPurge.mode ?? 'replace',
+      }
+    }
     if (mode !== 'prompt' && s?.running) {
       const q = (s.queue ??= { steering: [], followUp: [] })
       ;(mode === 'steer' ? q.steering : q.followUp).push(text)
@@ -284,15 +326,29 @@ export class FakeHost implements RemoteHostPort {
     if (!s || i < 0) throw new Error('entry not found')
     const file = this.addSession(projectId, `${s.row.title} fork`)
     this.sessions.get(file)!.items = s.items.slice(0, i)
+    if (this.purgedSessions[sessionFile]) this.purgedSessions[file] = { ...this.purgedSessions[sessionFile] }
     return { sessionFile: file, editorText: s.items[i].text }
   }
-  async clearQueue(sessionFile: string): Promise<string[]> {
+  async clearQueue(sessionFile: string, index?: number): Promise<string[]> {
     const s = this.sessions.get(sessionFile)
     if (!s?.queue) return []
-    const out = [...s.queue.steering, ...s.queue.followUp]
-    s.queue = { steering: [], followUp: [] }
+    const all = [
+      ...s.queue.steering.map((text) => ({ text, mode: 'steer' as const })),
+      ...s.queue.followUp.map((text) => ({ text, mode: 'followUp' as const })),
+    ]
+    if (index === undefined) {
+      s.queue = { steering: [], followUp: [] }
+      this.emitQueue(sessionFile)
+      return all.map((x) => x.text)
+    }
+    if (index < 0 || index >= all.length) return []
+    const kept = all.filter((_, i) => i !== index)
+    s.queue = {
+      steering: kept.filter((x) => x.mode === 'steer').map((x) => x.text),
+      followUp: kept.filter((x) => x.mode === 'followUp').map((x) => x.text),
+    }
     this.emitQueue(sessionFile)
-    return out
+    return [all[index].text]
   }
   readonly attachments = new Map<string, Uint8Array>()
   async saveAttachment(bytes: Uint8Array, name: string): Promise<string> {
@@ -309,6 +365,40 @@ export class FakeHost implements RemoteHostPort {
     this.unwritten.add(file)
     this.calls.created.push(file)
     return file
+  }
+  async renameSession(sessionFile: string, title: string): Promise<string> {
+    const s = this.sessions.get(sessionFile)
+    if (!s) throw new Error('session not found')
+    s.row = { ...s.row, title }
+    return title
+  }
+  async deleteSession(sessionFile: string): Promise<boolean> {
+    const existed = this.sessions.delete(sessionFile)
+    this.unwritten.delete(sessionFile)
+    delete this.purgedSessions[sessionFile]
+    return existed
+  }
+  async getPurgeState(sessionFile?: string): Promise<PurgeStateResult> {
+    const personas = [{ id: 'konata', name: '泉此方 · 慵懒宅系工程师', description: '去八股、直接干脆' }]
+    const base = { defaultPersonaId: 'konata', defaultMode: 'replace' as const, personas }
+    if (!sessionFile) return base
+    const locked = this.purgedSessions[sessionFile]
+    if (locked) return { ...base, session: { locked: 'on', ...locked } }
+    const s = this.sessions.get(sessionFile)
+    return { ...base, session: { locked: s && (s.running || s.items.length > 0) ? 'off' : 'draft' } }
+  }
+  async setPurgeState(sessionFile: string, req: PurgeSend): Promise<PurgeStateResult> {
+    if (!req.enabled) {
+      delete this.purgedSessions[sessionFile]
+    } else {
+      this.purgedSessions[sessionFile] = {
+        personaId: req.personaId ?? 'konata',
+        personaName: '泉此方 · 慵懒宅系工程师',
+        mode: req.mode ?? 'replace',
+      }
+    }
+    this.notifySettingsChanged('purge')
+    return this.getPurgeState(sessionFile)
   }
   async listModels(sessionFile: string) {
     const s = this.sessions.get(sessionFile)
@@ -414,6 +504,39 @@ export class FakeHost implements RemoteHostPort {
       .filter((f) => f.toLowerCase().includes(q))
       .map((f) => ({ name: f.replace(/\/$/, '').split('/').pop()!, path: f.replace(/\/$/, ''), dir: f.endsWith('/') }))
   }
+  async readFile(_projectId: string, path: string): Promise<
+    { ok: true; value: FileReadResult } | { ok: false; code: 'not_found' | 'forbidden' | 'bad_request'; message: string }
+  > {
+    if (path.includes('..')) return { ok: false, code: 'forbidden', message: 'outside workspace' }
+    if (path === 'missing.ts') return { ok: false, code: 'not_found', message: 'not_found' }
+    if (path.endsWith('.png')) return { ok: true, value: { path, content: '', size: 0, truncated: false, binary: true } }
+    return {
+      ok: true,
+      value: {
+        path,
+        content: `// ${path}\nexport const line2 = 2\nexport function demo() {\n  return line2\n}\n`,
+        size: 76,
+        truncated: false,
+      },
+    }
+  }
+  async usageSummary(days: number): Promise<UsageSummaryResult> {
+    return {
+      days,
+      calls: 42,
+      sessions: 5,
+      input: 120_000,
+      output: 34_000,
+      cacheRead: 980_000,
+      cacheWrite: 90_000,
+      cost: 3.48,
+      cacheHitRate: 0.82,
+      avgTtftMs: 1180,
+      genTps: 72.5,
+      byModel: [{ model: 'anthropic/sonnet-5', calls: 42, input: 120_000, output: 34_000, cacheRead: 980_000, cost: 3.48 }],
+      byDay: [{ day: '2026-10-08', calls: 14, tokens: 410_000, cost: 1.12 }],
+    }
+  }
   capabilityCatalog(): CapabilityInfo[] {
     return [
       { id: 'pi-ui', available: true, promptTokens: 2410, tools: 0 },
@@ -433,7 +556,7 @@ export class FakeHost implements RemoteHostPort {
     this.cacheWarming = mode
     return mode
   }
-  notifySettingsChanged(key: 'cacheWarming' | 'capabilities' | 'rewound'): void {
+  notifySettingsChanged(key: 'cacheWarming' | 'capabilities' | 'rewound' | 'purge'): void {
     this.calls.settingsNotified.push(key)
   }
   notifySessionsChanged(projectId: string): void {

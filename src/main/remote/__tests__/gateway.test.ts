@@ -484,6 +484,115 @@ describe('settings', () => {
     await expect(c.call('turn.page', { sessionKey: session, before: 'x', limit: 999 })).rejects.toMatchObject({ err: { code: 'bad_request' } })
     expect(await c.ping()).toBeNull()
   })
+
+  it('opens all projects and browses host folders when allowAllProjects is enabled', async () => {
+    const c = await pairNew()
+    await expect(c.call('host.browseDir', {})).rejects.toMatchObject({ err: { code: 'forbidden' } })
+    expect((await c.call('project.list', {})).projects.map((p) => p.id)).toEqual(['/work/pi-app'])
+
+    gw.auth.setAllowAllProjects(true)
+    remoteTap.settingsChanged('projects')
+    await c.waitFor((e) => e.m === 'settings.changed' && (e.p as { key?: string }).key === 'projects')
+
+    const listed = await c.call('project.list', {})
+    expect(listed.allowAllProjects).toBe(true)
+    expect(listed.projects.map((p) => p.id)).toEqual(['/work/pi-app', '/work/secret'])
+
+    const browsed = await c.call('host.browseDir', { path: '/work' })
+    expect(browsed.entries.map((e) => e.path)).toContain('/work/extra-repo')
+
+    const created = await c.call('session.create', { projectId: '/work/extra-repo' })
+    expect(created.sessionKey).toContain('/work/extra-repo')
+  })
+
+  it('supports first-turn Agent Purge locking, fork inheritance, rename, delete and live running status', async () => {
+    // Unopened running session is reported as running on first watchList
+    const runningFile = host.addSession('/work/pi-app', '正在编译', [{ user: 'build', answer: '' }])
+    host.sessions.get(runningFile)!.running = true
+
+    const c = await pairNew()
+    const initial = await c.call('session.watchList', {})
+    expect(initial.sessions.find((s) => s.sessionKey === runningFile)?.status).toBe('running')
+    await expect(c.call('session.delete', { sessionKey: runningFile })).rejects.toMatchObject({ err: { code: 'busy' } })
+
+    const created = await c.call('session.create', { projectId: '/work/pi-app' })
+    const before = await c.call('purge.get', { sessionKey: created.sessionKey })
+    expect(before.session?.locked).toBe('draft')
+
+    await c.call('turn.send', {
+      sessionKey: created.sessionKey,
+      text: '写个脚本',
+      mode: 'prompt',
+      clientMessageId: 'm_purge_first_01',
+      agentPurge: { enabled: true, personaId: 'konata', mode: 'replace' },
+    })
+    const after = await c.call('purge.get', { sessionKey: created.sessionKey })
+    expect(after.session).toMatchObject({ locked: 'on', personaId: 'konata', mode: 'replace' })
+
+    const opened = (await c.call('session.open', { sessionKey: created.sessionKey })) as OpenResult
+    const forked = await c.call('session.fork', { sessionKey: created.sessionKey, anchor: opened.turns![0].anchor })
+    const forkedPurge = await c.call('purge.get', { sessionKey: forked.sessionKey })
+    expect(forkedPurge.session).toMatchObject({ locked: 'on', personaId: 'konata', mode: 'replace' })
+
+    const renamed = await c.call('session.rename', { sessionKey: session, title: '单飞刷新修复' })
+    expect(renamed.title).toBe('单飞刷新修复')
+    const renameEvt = await c.waitFor((e) => e.m === 'sessions.update' && (e.p as { sessions: Array<{ title: string }> }).sessions.some((s) => s.title === '单飞刷新修复'))
+    expect(renameEvt).toBeTruthy()
+
+    const del = await c.call('session.delete', { sessionKey: session })
+    expect(del.deleted).toBe(true)
+    const delEvt = await c.waitFor((e) => e.m === 'sessions.update' && ((e.p as { removed?: string[] }).removed ?? []).includes(session))
+    expect(delEvt).toBeTruthy()
+  })
+
+  it('serves file.read, usage.summary, subagent parentSessionKey, and single-item turn.dequeue', async () => {
+    const parentFile = host.addSession('/work/pi-app', '主代理任务', [{ user: 'audit', answer: 'ok' }])
+    const childFile = host.addSession('/work/pi-app', 'oracle 子审查', [{ user: 'check', answer: 'done' }])
+    host.sessions.get(childFile)!.row.parentSessionFile = parentFile
+    const s = host.sessions.get(parentFile)!
+    s.running = true
+    s.queue = { steering: ['先看 rpc.ts'], followUp: ['补测试', '跑 lint'] }
+
+    const c = await pairNew()
+    const list = await c.call('session.watchList', {})
+    expect(list.sessions.find((x) => x.sessionKey === childFile)?.parentSessionKey).toBe(parentFile)
+
+    const file = await c.call('file.read', { sessionKey: parentFile, path: 'src/auth.ts' })
+    expect(file.content).toContain('export const line2 = 2')
+    await expect(c.call('file.read', { sessionKey: parentFile, path: '../etc/passwd' })).rejects.toMatchObject({ err: { code: 'forbidden' } })
+
+    const usage = await c.call('usage.summary', { days: 7 })
+    expect(usage.days).toBe(7)
+    expect(usage.byModel[0].model).toBe('anthropic/sonnet-5')
+
+    const pulled = await c.call('turn.dequeue', { sessionKey: parentFile, index: 1 })
+    expect(pulled.restored).toEqual(['补测试'])
+    expect(s.queue).toEqual({ steering: ['先看 rpc.ts'], followUp: ['跑 lint'] })
+  })
+
+  it('should_switch_and_disable_persona_on_existing_session_when_purge_set_called', async () => {
+    const c = await pairNew()
+    const initial = await c.call('purge.get', { sessionKey: session })
+    expect(initial.session?.locked).toBe('off')
+
+    const switched = await c.call('purge.set' as never, {
+      sessionKey: session,
+      enabled: true,
+      personaId: 'konata',
+      mode: 'append',
+    } as never)
+    expect(switched).toMatchObject({
+      session: { locked: 'on', personaId: 'konata', mode: 'append' },
+    })
+
+    const cleared = await c.call('purge.set' as never, {
+      sessionKey: session,
+      enabled: false,
+    } as never)
+    expect(cleared).toMatchObject({
+      session: { locked: 'off' },
+    })
+  })
 })
 
 describe('lanAddresses', () => {
