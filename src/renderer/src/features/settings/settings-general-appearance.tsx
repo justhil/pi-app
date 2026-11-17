@@ -6,6 +6,7 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
+import { isSandboxPath } from '@renderer/features/workspace/project-sidebar-types'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
 import { AppearanceBackground } from '@renderer/features/settings/appearance-background'
@@ -122,14 +123,29 @@ export function GeneralSettings() {
   }, [])
 
   useEffect(() => {
-    ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
-      if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
-    })
+    const loadRecentProjects = () => {
+      ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
+        if (!mountedRef.current) return
+        if (Array.isArray(res?.settings?.recentProjects)) {
+          setRecentProjects(res.settings.recentProjects.filter((p: string) => !isSandboxPath(p)))
+        }
+      })
+    }
+    loadRecentProjects()
     ipcClient.invoke('settings.get', { key: 'recentProjectsFixedOrder' }).then((res) => {
+      if (!mountedRef.current) return
       if (typeof res?.settings?.recentProjectsFixedOrder === 'boolean') {
         setFixedOrder(res.settings.recentProjectsFixedOrder)
       }
     })
+    const onSettingsChanged = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { key?: string } | undefined
+      if (!detail?.key || detail.key === 'recentProjects') {
+        loadRecentProjects()
+      }
+    }
+    window.addEventListener('pi-desktop:settings-changed', onSettingsChanged)
+    return () => window.removeEventListener('pi-desktop:settings-changed', onSettingsChanged)
   }, [])
 
   const toggleFixedOrder = (next: boolean) => {
@@ -438,9 +454,9 @@ export function GeneralSettings() {
           <Switch checked={fixedOrder} onCheckedChange={toggleFixedOrder} />
         </SettingRow>
         {recentProjects.length > 0 ? (
-          <div className="space-y-1 py-3">
-            {recentProjects.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--bg-hover)]">
+          <div className="max-h-64 space-y-1 overflow-y-auto py-3">
+            {recentProjects.map((p) => (
+              <div key={p} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--bg-hover)]">
                 <Folder className="h-3 w-3 shrink-0 text-muted-foreground/50" strokeWidth={2} />
                 <span className="truncate font-mono text-muted-foreground">{p}</span>
               </div>

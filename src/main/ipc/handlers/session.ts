@@ -41,7 +41,8 @@ import {
 } from '../schemas'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { errorMessage } from '@shared/error-message'
-import { workspacePathsEqual } from '@shared/workspace-path'
+import { uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
+import { replaceRecentProjectInPlace, workspaceRealPathsEqual } from '../../recent-projects'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 
@@ -640,32 +641,43 @@ export function registerSessionHandlers(): void {
     const path = (req.path as string | undefined)?.trim()
     if (!path) return { ok: false, error: 'missing path' }
     const isRepositoryGroup = req.isRepositoryGroup === true
+    const isSecondaryWorktree = req.isSecondaryWorktree === true
     const groupPaths = Array.isArray(req.groupPaths)
       ? (req.groupPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
       : []
     const siblingPaths = Array.isArray(req.siblingPaths)
       ? (req.siblingPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
       : []
-    const removedPaths = isRepositoryGroup ? [path, ...groupPaths] : [path]
-    for (const target of removedPaths) {
-      configStore.removeRecentProject(target)
-      if (!isRepositoryGroup && typeof configStore.hideWorktree === 'function') {
+    const removedPaths = isRepositoryGroup ? uniqueWorkspacePaths([path, ...groupPaths]) : [path]
+    const beforeRecent = (configStore.get('recentProjects') || []).filter(
+      (p) => typeof p === 'string' && !!p.trim() && !isSandboxWorkspacePath(p),
+    )
+    if (!isRepositoryGroup && (siblingPaths.length > 0 || isSecondaryWorktree) && typeof configStore.hideWorktree === 'function') {
+      for (const target of removedPaths) {
         configStore.hideWorktree(target)
       }
     }
+    const isRemoved = (candidate: string) => removedPaths.some((rem) => workspaceRealPathsEqual(candidate, rem))
+    let nextRecent: string[]
     if (!isRepositoryGroup && siblingPaths.length > 0) {
-      const recentAfter = configStore.get('recentProjects') || []
-      const hasSiblingInRecent = siblingPaths.some((sib) =>
-        recentAfter.some((r) => workspacePathsEqual(r, sib)),
+      const hasRemainingSibling = siblingPaths.some((sib) =>
+        beforeRecent.some((r) => !isRemoved(r) && workspaceRealPathsEqual(r, sib)),
       )
-      if (!hasSiblingInRecent) {
-        configStore.addRecentProject(siblingPaths[0])
+      if (hasRemainingSibling) {
+        nextRecent = beforeRecent.filter((r) => !isRemoved(r))
+      } else {
+        nextRecent = replaceRecentProjectInPlace(beforeRecent, removedPaths, siblingPaths[0], workspaceRealPathsEqual)
       }
+    } else {
+      nextRecent = beforeRecent.filter((r) => !isRemoved(r))
     }
+    configStore.set('recentProjects', nextRecent)
     const cur = configStore.get('currentProject')
-    if (cur && removedPaths.some((target) => workspacePathsEqual(cur, target))) {
-      const recent = configStore.get('recentProjects') || []
-      const next = recent.find((p) => p && !removedPaths.some((target) => workspacePathsEqual(p, target))) || null
+    if (cur && isRemoved(cur)) {
+      const next =
+        (!isRepositoryGroup ? siblingPaths[0] : undefined) ||
+        nextRecent.find((p) => p && !isSandboxWorkspacePath(p) && !isRemoved(p)) ||
+        null
       configStore.set('currentProject', next)
     }
     invalidateKnownRemoteProjects()
@@ -673,7 +685,7 @@ export function registerSessionHandlers(): void {
     return {
       ok: true,
       currentProject: configStore.get('currentProject'),
-      recentProjects: configStore.get('recentProjects') || [],
+      recentProjects: nextRecent,
     }
   })
 

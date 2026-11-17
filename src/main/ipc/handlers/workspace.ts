@@ -36,7 +36,9 @@ export function registerWorkspaceHandlers(): void {
   registerHandlerWithSchema('ipc:workspace.open', workspaceOpenSchema, async (req) => {
     const path = req.path
     const name = path.split(/[\\/]/).pop() || path
-    configStore.addRecentProject(path)
+    if (!isSandboxWorkspacePath(path)) {
+      configStore.addRecentProject(path)
+    }
     configStore.set('currentProject', path)
     try {
       sqliteIndex.upsertWorkspace(path, name, path)
@@ -103,7 +105,9 @@ export function registerWorkspaceHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.sandbox.delete', workspaceSandboxDeleteSchema, async (req) => {
-    return { ok: deleteSandboxWorkspace(req.path) }
+    const ok = deleteSandboxWorkspace(req.path)
+    if (ok) configStore.removeRecentProject(req.path)
+    return { ok }
   })
 
   registerHandler('ipc:workspace.isSandbox', async (req) => {

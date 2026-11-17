@@ -7,7 +7,7 @@ import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
 import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
 import { projectDisplayNameKey, uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
 import { bindSecretStoreBacking } from './secret-store'
-import { nextRecentProjects } from './recent-projects'
+import { nextRecentProjects, workspaceRealPathsEqual } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
 
 export interface StoreSchema {
@@ -207,7 +207,7 @@ export const configStore = {
   },
 
   removeRecentProject(path: string): void {
-    const recent = (store.get('recentProjects') || []).filter((p: string) => !workspacePathsEqual(p, path))
+    const recent = (store.get('recentProjects') || []).filter((p: string) => !workspaceRealPathsEqual(p, path))
     store.set('recentProjects', recent)
   },
 
