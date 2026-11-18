@@ -139,6 +139,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:session.clone',
   'ipc:session.compact',
   'ipc:session.delete',
+  'ipc:session.editMessage',
   'ipc:session.export',
   'ipc:session.fork',
   'ipc:session.forkCandidates',

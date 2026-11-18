@@ -274,6 +274,22 @@
     "failed": "回退失败"
   },
   "forkFromHere": "从此 Fork 新会话",
+  "editMessage": "编辑消息",
+  "edit": {
+    "placeholderUser": "编辑用户消息内容…",
+    "placeholderAssistant": "编辑或伪造助手回复内容…",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "取消",
+    "shortcutHint": "{{mod}}+Enter 保存 · Esc 取消",
+    "needFile": "未找到会话文件，请先发送一条消息落盘后再编辑",
+    "needEntryId": "该消息尚未落盘，暂不可编辑",
+    "emptyText": "消息内容不可为空",
+    "sessionBusy": "当前会话运行中，请先停止后再编辑历史消息",
+    "notEditable": "该节点不支持编辑",
+    "entryNotFound": "在会话记录中未找到对应消息节点",
+    "failed": "编辑消息失败"
+  },
   "openPathHint": "在文件中打开 · Shift+点击打开 Review",
   "slashSentToPi": "已发送给 pi 执行",
   "slashExecutedDetail": "命令已执行（详见下方助手/工具输出）",

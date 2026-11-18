@@ -1,14 +1,17 @@
 import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Copy, Check, Undo2, GitFork } from '@renderer/components/icons'
+import { Copy, Check, Undo2, GitFork, Pencil } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 
-/** Hover actions for messages: copy, rewind, fork (user) */
+/** Hover actions for messages: copy, edit, rewind, fork (user) */
 function MessageHoverActionsImpl({
   text,
   timestamp,
   align,
   sessionEntryId,
+  editEntryId,
+  editDisabled = false,
+  onEdit,
   onRewind,
   onFork,
 }: {
@@ -16,11 +19,17 @@ function MessageHoverActionsImpl({
   timestamp?: number
   align: 'left' | 'right'
   sessionEntryId?: string
+  /** Own message entry ID for in-place editing (distinct from rewind fallback target). */
+  editEntryId?: string
+  editDisabled?: boolean
+  onEdit?: (entryId: string) => void
   onRewind?: (entryId: string) => void
   onFork?: (entryId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const resolvedEditId = editEntryId ?? sessionEntryId
+  const canEdit = Boolean(resolvedEditId) && !editDisabled
   const copy = () => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
@@ -59,6 +68,22 @@ function MessageHoverActionsImpl({
           <Undo2 className="h-3.5 w-3.5" />
         </button>
       )}
+      {onEdit && (
+        <button
+          type="button"
+          disabled={!canEdit}
+          onClick={() => resolvedEditId && onEdit(resolvedEditId)}
+          className="chrome-icon-btn flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
+          title={
+            resolvedEditId
+              ? t('timeline:editMessage')
+              : t('timeline:edit.needEntryId')
+          }
+          aria-label={t('timeline:editMessage')}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         type="button"
         onClick={copy}
@@ -69,7 +94,7 @@ function MessageHoverActionsImpl({
       </button>
       {timestamp != null && (
         <span className="select-none text-[11px] tabular-nums text-foreground-secondary">
-          {new Date(timestamp).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}
+          {new Date(timestamp).toLocaleTimeString(i18n?.language, { hour: '2-digit', minute: '2-digit' })}
         </span>
       )}
     </div>

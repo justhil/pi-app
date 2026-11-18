@@ -17,6 +17,7 @@ import { ToolCallRow } from './tool-call-row'
 import { ToolGroupSummary } from './tool-group-summary'
 import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawItem } from './timeline-display-items'
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
+import { MessageInlineEditor } from './message-inline-editor'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
@@ -25,6 +26,8 @@ import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer
 import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
+import { editSessionMessageInPlace } from '@renderer/lib/session-edit-message'
+import { isSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
 import { resolveRewindTargetEntryId, isInterruptedAssistantRow } from '@shared/timeline-incomplete'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
 import {
@@ -72,6 +75,10 @@ const TimelineItemBase = memo(function TimelineItem({
   rewindEntryId,
   /** Only the last prose leaf of a turn (or user) should expose copy/rewind chrome. */
   showMessageActions = true,
+  isEditing = false,
+  editDisabled = false,
+  onStartEdit,
+  onCancelEdit,
 }: {
   item: TimelineRawItem
   prevType?: string
@@ -81,12 +88,37 @@ const TimelineItemBase = memo(function TimelineItem({
   /** Pre-resolved incomplete-assistant / user rewind target for this row */
   rewindEntryId?: string
   showMessageActions?: boolean
+  isEditing?: boolean
+  editDisabled?: boolean
+  onStartEdit?: (itemId: string) => void
+  onCancelEdit?: () => void
 }) {
   const { t } = useTranslation()
   const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
     rewindEntryId ?? (row.sessionEntryId as string | undefined)
+  const ownEntryId = item.sessionEntryId as string | undefined
 
   if (item.type === 'user-message') {
+    if (isEditing && ownEntryId) {
+      return (
+        <div className="timeline-message-row timeline-user-row">
+          <MessageInlineEditor
+            initialText={String(item.text ?? '')}
+            role="user"
+            align="right"
+            onCancel={() => onCancelEdit?.()}
+            onSave={(nextText) =>
+              editSessionMessageInPlace({
+                itemId: String(item.id),
+                entryId: ownEntryId,
+                text: nextText,
+              })
+            }
+          />
+        </div>
+      )
+    }
+
     const segments: Segment[] = (item.segments as Segment[] | undefined)?.length
       ? (item.segments as Segment[])
       : [{ type: 'text', text: String(item.text || '') }]
@@ -102,6 +134,9 @@ const TimelineItemBase = memo(function TimelineItem({
                 timestamp={Number(item.timestamp ?? 0)}
                 align="right"
                 sessionEntryId={rewindTargetFor(item)}
+                editEntryId={ownEntryId}
+                editDisabled={editDisabled}
+                onEdit={onStartEdit ? () => onStartEdit(String(item.id)) : undefined}
                 onRewind={(id) => void navigateSessionToEntry(id)}
                 onFork={(id) => void forkSessionFromEntry(id)}
               />
@@ -148,6 +183,26 @@ const TimelineItemBase = memo(function TimelineItem({
     if (!hasText && !hasThinking) {
       // Settled incomplete leaves (from an earlier abort/error) must stay static even when a later turn boots.
       if (isInterrupted && !streaming) {
+        if (isEditing && sessionEntryId) {
+          return (
+            <div className="timeline-message-row timeline-prose-row">
+              <MessageInlineEditor
+                initialText=""
+                role="assistant"
+                align="left"
+                forceAllowUnchanged
+                onCancel={() => onCancelEdit?.()}
+                onSave={(nextText) =>
+                  editSessionMessageInPlace({
+                    itemId: String(item.id),
+                    entryId: sessionEntryId,
+                    text: nextText,
+                  })
+                }
+              />
+            </div>
+          )
+        }
         return (
           <div className="timeline-message-row timeline-prose-row">
             <MessageHoverShell
@@ -159,6 +214,9 @@ const TimelineItemBase = memo(function TimelineItem({
                     timestamp={Number(item.timestamp ?? 0)}
                     align="left"
                     sessionEntryId={resolvedRewindEntryId}
+                    editEntryId={sessionEntryId}
+                    editDisabled={editDisabled}
+                    onEdit={onStartEdit ? () => onStartEdit(String(item.id)) : undefined}
                     onRewind={(id) => void navigateSessionToEntry(id)}
                   />
                 ) : null
@@ -236,6 +294,36 @@ const TimelineItemBase = memo(function TimelineItem({
       </>
     )
 
+    if (isEditing && sessionEntryId) {
+      return (
+        <div className="timeline-message-row timeline-prose-row">
+          {hasThinking && (
+            <ThinkingChainBlock
+              text={String(item.thinkingText ?? '')}
+              streaming={streaming}
+              startedAt={Number(item.timestamp ?? 0) || undefined}
+              duration={Number(item.thinkingDuration ?? 0) || undefined}
+              labelSeed={String(item.id)}
+            />
+          )}
+          <MessageInlineEditor
+            initialText={String(item.text ?? '')}
+            role="assistant"
+            align="left"
+            forceAllowUnchanged={isInterrupted}
+            onCancel={() => onCancelEdit?.()}
+            onSave={(nextText) =>
+              editSessionMessageInPlace({
+                itemId: String(item.id),
+                entryId: sessionEntryId,
+                text: nextText,
+              })
+            }
+          />
+        </div>
+      )
+    }
+
     return (
       <div className="timeline-message-row timeline-prose-row">
         {allowMessageActions ? (
@@ -247,6 +335,9 @@ const TimelineItemBase = memo(function TimelineItem({
                 timestamp={Number(item.timestamp ?? 0)}
                 align="left"
                 sessionEntryId={isInterrupted && !hasText ? resolvedRewindEntryId : sessionEntryId}
+                editEntryId={sessionEntryId}
+                editDisabled={editDisabled}
+                onEdit={onStartEdit ? () => onStartEdit(String(item.id)) : undefined}
                 onRewind={(id) => void navigateSessionToEntry(id)}
               />
             }
@@ -363,6 +454,9 @@ export function Timeline() {
   const historyTotalCount = useUIStore((s) => s.historyTotalCount)
   const historyLoadedCount = useUIStore((s) => s.historyLoadedCount)
   const historySessionFile = useUIStore((s) => s.historySessionFile)
+  const readOnlySubagentPreview = useUIStore((s) =>
+    isSubagentSessionPreview(s.subagentSessionGroup, s.historySessionFile),
+  )
   const historyLoading = useUIStore((s) => s.historyLoading)
   const activeRunId = useUIStore((s) => s.runState.activeRunId)
   const timelineMaxAutoExpandedTools = useUIStore((s) => s.timelineMaxAutoExpandedTools)
@@ -409,6 +503,12 @@ export function Timeline() {
   const viewTailSnapshotRef = useRef<{ id?: string; type?: string } | null>(null)
   const viewLandedRef = useRef<{ entryId: string; seq: number } | null>(null)
   const [viewTarget, setViewTarget] = useState<string | null>(null)
+  const [editingState, setEditingState] = useState<{ sessionFile: string | null; itemId: string } | null>(null)
+  const handleStartEdit = useCallback(
+    (itemId: string) => setEditingState({ sessionFile: windowSessionRef.current, itemId }),
+    [],
+  )
+  const handleCancelEdit = useCallback(() => setEditingState(null), [])
   const lastTailId = items[items.length - 1]?.id
   // contentEpoch intentionally ignores raw stream text length — height growth is observed.
   const contentEpoch = `${lastTailId ?? ''}:${renderCount}:${historySessionFile ?? ''}`
@@ -863,6 +963,14 @@ export function Timeline() {
   )
   const isSessionTurnLive =
     !!streamingAssistantId || agentRunning || agentBoot || sessionChrome.phase === 'waiting_ui'
+  const editDisabled = isSessionTurnLive || readOnlySubagentPreview
+  const activeEditingItemId =
+    editingState &&
+    editingState.sessionFile === (historySessionFile ?? null) &&
+    !editDisabled
+      ? editingState.itemId
+      : null
+  const onStartEditRow = readOnlySubagentPreview ? undefined : handleStartEdit
   // Grouping is cheap and must see live item references (streaming text).
   const displayItems = useMemo(
     () =>
@@ -992,6 +1100,10 @@ export function Timeline() {
         agentBoot={rowAgentBoot}
         rewindEntryId={rewindEntryByItemId.get(item.id)}
         showMessageActions={showMessageActions}
+        isEditing={activeEditingItemId === item.id}
+        editDisabled={editDisabled}
+        onStartEdit={onStartEditRow}
+        onCancelEdit={handleCancelEdit}
       />
     )
     return rowEntryId ? (
@@ -1026,19 +1138,31 @@ export function Timeline() {
   }
   const claimTopKey = createKeyClaimer()
 
-  /** Last assistant prose block id in a turn — only that leaf gets message actions. */
+  /** Last assistant prose block id in a turn (or trailing interrupted leaf) — only that leaf gets message actions. */
   const lastProseIdInTurn = (blocks: TimelineDisplayItem[]): string | null => {
+    let fallbackInterruptedId: string | null = null
     for (let index = blocks.length - 1; index >= 0; index--) {
       const block = blocks[index]
-      if (
-        block.kind === 'single' &&
-        block.item.type === 'assistant-message' &&
-        !!String(block.item.text ?? '').trim()
-      ) {
+      if (block.kind !== 'single' || block.item.type !== 'assistant-message') continue
+      if (String(block.item.text ?? '').trim()) {
         return block.item.id
       }
+      if (
+        !fallbackInterruptedId &&
+        isInterruptedAssistantRow(
+          block.item as {
+            type?: string
+            incomplete?: boolean
+            stopReason?: string
+            text?: string
+            thinkingText?: string
+          },
+        )
+      ) {
+        fallbackInterruptedId = block.item.id
+      }
     }
-    return null
+    return fallbackInterruptedId
   }
 
   return (
@@ -1111,6 +1235,10 @@ export function Timeline() {
                   agentBoot={false}
                   rewindEntryId={rewindEntryByItemId.get(String(turn.userItem.id))}
                   showMessageActions
+                  isEditing={activeEditingItemId === turn.userItem.id}
+                  editDisabled={editDisabled}
+                  onStartEdit={onStartEditRow}
+                  onCancelEdit={handleCancelEdit}
                 />
               )
               return userEntryId ? (

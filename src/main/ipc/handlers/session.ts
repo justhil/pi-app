@@ -7,6 +7,7 @@ import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
 import { resolvePreparedSessionFile } from '../../session-prepare'
 import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
+import { editPiSessionMessageOnDisk } from '../../session-edit-message'
 import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
   bindSandboxSession,
@@ -34,6 +35,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
   sessionCompactSchema,
   sessionDeleteSchema,
+  sessionEditMessageSchema,
   sessionExportSchema,
   sessionGetMessagesSchema,
   sessionNavigateTreeSchema,
@@ -622,6 +624,23 @@ export function registerSessionHandlers(): void {
       remoteTap.sessionsChanged(authorized.cwd, authorized.sessionFile)
     }
     return { ok: !!r.ok, error: r.error }
+  })
+
+  registerHandlerWithSchema('ipc:session.editMessage', sessionEditMessageSchema, async (req) => {
+    const workspaceId =
+      req.workspaceId || workerManager.cwd || (configStore.get('currentProject') as string | undefined) || ''
+    const authorized = await authorizeTrustedSessionFile(workspaceId, req.sessionFile)
+    if (!authorized.ok) return { ok: false, error: authorized.error }
+    const r = await editPiSessionMessageOnDisk({
+      sessionFile: authorized.sessionFile,
+      entryId: req.entryId,
+      text: req.text,
+    })
+    if (r.ok) {
+      await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
+      remoteTap.sessionsChanged(authorized.cwd, authorized.sessionFile)
+    }
+    return r
   })
 
   registerHandler('ipc:session.reloadFromDisk', async (req) => {

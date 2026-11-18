@@ -953,6 +953,24 @@ export class WorkerManager {
     const r = await this.request('sessionRenameFile', { sessionFile, title })
     return { ok: !!r.ok, title: r.title as string | undefined, error: r.error as string | undefined }
   }
+  async editSessionMessageOnLiveWorker(
+    sessionFile: string,
+    entryId: string,
+    text: string,
+  ): Promise<{ ok: boolean; role?: 'user' | 'assistant'; error?: string } | null> {
+    const sk = normalizeSessionKey(sessionFile)
+    const slot = this.pool.get(sk)
+    if (!slot || slot.stopping) return null
+    if (slot.agentTurnActive) return { ok: false, error: 'SESSION_BUSY' }
+    if (slot.initPromise) await slot.initPromise.catch(() => {})
+    if (slot.stopping || this.pool.get(sk) !== slot) return null
+    const r = await this.requestOnSlot(slot, 'sessionEditMessage', { sessionFile, entryId, text })
+    return {
+      ok: !!r.ok,
+      role: r.role === 'user' || r.role === 'assistant' ? r.role : undefined,
+      error: typeof r.error === 'string' ? r.error : undefined,
+    }
+  }
   async deleteSessionFile(sessionFile: string): Promise<{ ok: boolean; error?: string }> {
     return this.enqueueLifecycle(() => this.deleteSessionFileUnlocked(sessionFile))
   }

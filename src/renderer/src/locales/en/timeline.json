@@ -277,6 +277,22 @@
     "failed": "Rewind failed"
   },
   "forkFromHere": "Fork new session from here",
+  "editMessage": "Edit message",
+  "edit": {
+    "placeholderUser": "Edit user message…",
+    "placeholderAssistant": "Edit or forge assistant reply…",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "shortcutHint": "{{mod}}+Enter to save · Esc to cancel",
+    "needFile": "Session file not found; send a message first before editing",
+    "needEntryId": "Message is not persisted yet",
+    "emptyText": "Message content must not be empty",
+    "sessionBusy": "Session is running; stop it before editing history",
+    "notEditable": "This entry is not editable",
+    "entryNotFound": "Target message entry was not found in the session file",
+    "failed": "Failed to edit message"
+  },
   "openPathHint": "Open in Files · Shift+Click for Review",
   "slashSentToPi": "Sent to pi",
   "slashExecutedDetail": "Command executed (see assistant/tool output below)",

@@ -28,6 +28,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'listSessions': Session.handleListsessions,
   'loadSession': Session.handleLoadsession,
   'sessionRenameFile': Session.handleSessionrenamefile,
+  'sessionEditMessage': Session.handleSessioneditmessage,
   'sessionDeleteFile': Session.handleSessiondeletefile,
   'getSessionTree': Session.handleGetsessiontree,
   'navigateTree': Session.handleNavigatetree,
