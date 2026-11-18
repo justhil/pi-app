@@ -1,3 +1,6 @@
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
+
 type PreviewSettings = Record<string, unknown> & {
   packages?: unknown[]
   extensions?: string[]
@@ -158,7 +161,7 @@ export async function buildSystemPromptPreview(
     sessionManager: sdk.SessionManager.inMemory(cwd),
   })
   try {
-    return session.systemPrompt?.slice(0, 12000) || '（空）'
+    return session.systemPrompt?.slice(0, 12000) || mainLabel(getMainUiLanguage(), 'prompts.emptyPreview')
   } finally {
     await session.dispose()
   }

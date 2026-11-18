@@ -8,6 +8,8 @@ import {
   normalizePurgedSessionKey,
   normalizePurgedSessionsMap,
   parsePersonaMarkdown,
+  personaCopy,
+  personaLanguage,
   type ActivePurgePayload,
   type AgentPurgeConfig,
   type AgentPurgeMode,
@@ -131,13 +133,16 @@ export function maybeLockPurgedSessionOnSend(
     cfg.personas.find((p) => p.id === req.personaId) ??
     cfg.personas.find((p) => p.id === cfg.defaultPersonaId) ??
     cfg.personas[0]
-  if (!chosen || !chosen.body.trim()) return null
+  if (!chosen) return null
+  const copy = personaCopy(chosen, personaLanguage(getMainUiLanguage()))
+  const body = copy.body.trim()
+  if (!body) return null
 
   const record: PurgedSessionRecord = {
     personaId: chosen.id,
-    personaName: chosen.name,
+    personaName: copy.name,
     mode: normalizePurgeMode(req.mode ?? cfg.defaultMode, cfg.defaultMode),
-    body: chosen.body.trim(),
+    body,
     lockedAt: Date.now(),
   }
   map[key] = record
@@ -175,14 +180,17 @@ export function setPurgedSession(
     cfg.personas.find((p) => p.id === req.personaId) ??
     cfg.personas.find((p) => p.id === cfg.defaultPersonaId) ??
     cfg.personas[0]
-  if (!chosen || !chosen.body.trim()) return null
+  if (!chosen) return null
+  const copy = personaCopy(chosen, personaLanguage(getMainUiLanguage()))
+  const body = copy.body.trim()
+  if (!body) return null
 
   const map = getPurgedSessions()
   const record: PurgedSessionRecord = {
     personaId: chosen.id,
-    personaName: chosen.name,
+    personaName: copy.name,
     mode: normalizePurgeMode(req.mode ?? cfg.defaultMode, cfg.defaultMode),
-    body: chosen.body.trim(),
+    body,
     lockedAt: Date.now(),
   }
   map[key] = record

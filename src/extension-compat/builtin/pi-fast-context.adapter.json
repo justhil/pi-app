@@ -81,7 +81,10 @@
             "title": "API 与索引"
           },
           "en": {
-            "title": "API Settings"
+            "title": "API & Index"
+          },
+          "ru": {
+            "title": "API и индекс"
           }
         }
       },
@@ -124,7 +127,10 @@
             "title": "搜索行为"
           },
           "en": {
-            "title": "Index"
+            "title": "Search Behavior"
+          },
+          "ru": {
+            "title": "Поведение поиска"
           }
         }
       },
@@ -153,7 +159,10 @@
             "title": "仓库图模式"
           },
           "en": {
-            "title": "Connectivity Test"
+            "title": "Repo Map Mode"
+          },
+          "ru": {
+            "title": "Режим карты репозитория"
           }
         }
       },
@@ -208,7 +217,10 @@
             "title": "Bootstrap / Hotspot"
           },
           "en": {
-            "title": "Status"
+            "title": "Bootstrap / Hotspot"
+          },
+          "ru": {
+            "title": "Bootstrap / Hotspot"
           }
         }
       }
@@ -219,7 +231,10 @@
         "note": "配置写入 ~/.pi/agent/fast-context.json（与扩展 CLI/TUI 共享）。apiKey 留空时扩展会自动发现 WINDSURF_API_KEY。"
       },
       "en": {
-        "note": "Writes ~/.pi/agent/fast-context.json. Connectivity test verifies the API key works."
+        "note": "Writes ~/.pi/agent/fast-context.json (shared with the extension CLI/TUI). When apiKey is blank, the extension auto-discovers WINDSURF_API_KEY."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/fast-context.json (общий с CLI/TUI расширения). Если apiKey пуст, расширение автоматически подхватывает WINDSURF_API_KEY."
       }
     }
   },
@@ -231,11 +246,84 @@
   "i18n": {
     "zh": {
       "displayName": "Fast Context",
-      "description": "语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试）"
+      "description": "语义代码搜索（配置 ~/.pi/agent/fast-context.json + 连通性测试）",
+      "fieldLabels": {
+        "apiKey": "API Key",
+        "dbPath": "索引数据库路径",
+        "treeDepth": "仓库树深度",
+        "maxTurns": "最大搜索轮数",
+        "maxCommands": "每轮最大命令数",
+        "maxResults": "最大结果数",
+        "timeoutSecs": "超时（秒）",
+        "repoMapMode": "Repo Map 模式",
+        "excludePaths": "排除路径（逗号分隔）",
+        "bootstrapEnabled": "启用 Bootstrap",
+        "bootstrapTreeDepth": "Bootstrap 树深度",
+        "bootstrapMaxTurns": "Bootstrap 最大轮数",
+        "bootstrapMaxCommands": "Bootstrap 最大命令数",
+        "hotspotTopK": "Hotspot TopK",
+        "hotspotTreeDepth": "Hotspot 树深度",
+        "hotspotMaxBytes": "Hotspot 最大字节"
+      },
+      "fieldDescriptions": {
+        "apiKey": "嵌入服务密钥；留空则用 WINDSURF_API_KEY 自动发现",
+        "dbPath": "留空使用默认 ~/.pi/agent/fast-context.db",
+        "excludePaths": "如 node_modules,dist,.git"
+      }
     },
     "en": {
       "displayName": "Fast Context",
-      "description": "Semantic context search; writes ~/.pi/agent/fast-context.json + connectivity test"
+      "description": "Semantic code search (settings in ~/.pi/agent/fast-context.json + connectivity test)",
+      "fieldLabels": {
+        "apiKey": "API Key",
+        "dbPath": "Index database path",
+        "treeDepth": "Repo tree depth",
+        "maxTurns": "Max search turns",
+        "maxCommands": "Max commands per turn",
+        "maxResults": "Max results",
+        "timeoutSecs": "Timeout (seconds)",
+        "repoMapMode": "Repo Map mode",
+        "excludePaths": "Exclude paths (comma-separated)",
+        "bootstrapEnabled": "Enable Bootstrap",
+        "bootstrapTreeDepth": "Bootstrap tree depth",
+        "bootstrapMaxTurns": "Bootstrap max turns",
+        "bootstrapMaxCommands": "Bootstrap max commands",
+        "hotspotTopK": "Hotspot TopK",
+        "hotspotTreeDepth": "Hotspot tree depth",
+        "hotspotMaxBytes": "Hotspot max bytes"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Embedding service key; leave blank to auto-discover via WINDSURF_API_KEY",
+        "dbPath": "Leave blank to use default ~/.pi/agent/fast-context.db",
+        "excludePaths": "e.g. node_modules,dist,.git"
+      }
+    },
+    "ru": {
+      "displayName": "Fast Context",
+      "description": "Семантический поиск по коду (настройки в ~/.pi/agent/fast-context.json + проверка соединения)",
+      "fieldLabels": {
+        "apiKey": "API-ключ",
+        "dbPath": "Путь к БД индекса",
+        "treeDepth": "Глубина дерева репозитория",
+        "maxTurns": "Макс. шагов поиска",
+        "maxCommands": "Макс. команд за шаг",
+        "maxResults": "Макс. результатов",
+        "timeoutSecs": "Таймаут (секунды)",
+        "repoMapMode": "Режим Repo Map",
+        "excludePaths": "Исключаемые пути (через запятую)",
+        "bootstrapEnabled": "Включить Bootstrap",
+        "bootstrapTreeDepth": "Глубина дерева Bootstrap",
+        "bootstrapMaxTurns": "Макс. шагов Bootstrap",
+        "bootstrapMaxCommands": "Макс. команд Bootstrap",
+        "hotspotTopK": "Hotspot TopK",
+        "hotspotTreeDepth": "Глубина дерева Hotspot",
+        "hotspotMaxBytes": "Макс. байт Hotspot"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Ключ сервиса эмбеддингов; оставьте пустым для автообнаружения через WINDSURF_API_KEY",
+        "dbPath": "Оставьте пустым для пути по умолчанию ~/.pi/agent/fast-context.db",
+        "excludePaths": "Например: node_modules,dist,.git"
+      }
     }
   }
 }

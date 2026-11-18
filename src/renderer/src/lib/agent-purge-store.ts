@@ -5,11 +5,14 @@ import {
   normalizePurgeMode,
   normalizePurgedSessionKey,
   normalizePurgedSessionsMap,
+  personaCopy,
+  personaLanguage,
   type AgentPurgeConfig,
   type AgentPurgeMode,
   type AgentPurgePersona,
   type PurgedSessionRecord,
 } from '@shared/agent-purge'
+import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 
 export interface DraftPurgeSendPayload {
@@ -202,6 +205,7 @@ export async function updateSessionPurge(
   } else {
     const persona = resolveSelectedDraftPersona(st.config, req.personaId ?? st.draftPersonaId)
     const mode = normalizePurgeMode(req.mode ?? st.draftMode ?? st.config.defaultMode, st.config.defaultMode)
+    const copy = personaCopy(persona, personaLanguage(i18n.language))
     useAgentPurgeStore.setState({
       pendingLock: null,
       draftPersonaId: persona.id,
@@ -210,9 +214,9 @@ export async function updateSessionPurge(
         ...st.purgedSessions,
         [key]: {
           personaId: persona.id,
-          personaName: persona.name,
+          personaName: copy.name,
           mode,
-          body: persona.body || 'active',
+          body: copy.body || 'active',
           lockedAt: Date.now(),
         },
       },
@@ -245,11 +249,12 @@ export function consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat: boolean): Dr
   if (!st.draftEnabled) return undefined
   const persona = resolveSelectedDraftPersona(st.config, st.draftPersonaId)
   const mode = normalizePurgeMode(st.draftMode ?? st.config.defaultMode, st.config.defaultMode)
+  const copy = personaCopy(persona, personaLanguage(i18n.language))
   useAgentPurgeStore.setState({
     draftEnabled: false,
     pendingLock: {
       personaId: persona.id,
-      personaName: persona.name,
+      personaName: copy.name,
       mode,
     },
   })
@@ -280,15 +285,16 @@ export function commitPurgedSessionAfterSend(
     return
   }
   const persona = st.config.personas.find((p) => p.id === meta.personaId)
+  const localized = persona ? personaCopy(persona, personaLanguage(i18n.language)) : null
   useAgentPurgeStore.setState({
     pendingLock: null,
     purgedSessions: {
       ...st.purgedSessions,
       [key]: {
         personaId: meta.personaId,
-        personaName: meta.personaName,
+        personaName: localized?.name || meta.personaName,
         mode: meta.mode,
-        body: persona?.body || 'locked',
+        body: localized?.body || 'locked',
         lockedAt: Date.now(),
       },
     },

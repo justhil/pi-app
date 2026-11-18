@@ -111,6 +111,9 @@
           },
           "en": {
             "title": "Autonomy"
+          },
+          "ru": {
+            "title": "Автономное выполнение"
           }
         }
       },
@@ -141,6 +144,9 @@
           },
           "en": {
             "title": "Tasks"
+          },
+          "ru": {
+            "title": "Задачи"
           }
         }
       },
@@ -167,6 +173,9 @@
           },
           "en": {
             "title": "When unfocused"
+          },
+          "ru": {
+            "title": "Без фокуса"
           }
         }
       },
@@ -211,6 +220,9 @@
           },
           "en": {
             "title": "Completion auditor"
+          },
+          "ru": {
+            "title": "Аудитор завершения"
           }
         }
       }
@@ -222,6 +234,9 @@
       },
       "en": {
         "note": "Global settings. Use /goal-settings in a chat for project overrides and keybindings; run /goal-refresh in a running session to pick up changes."
+      },
+      "ru": {
+        "note": "Глобальные настройки. Для проектных переопределений и горячих клавиш используйте /goal-settings в чате; выполните /goal-refresh в активной сессии, чтобы применить изменения."
       }
     }
   },
@@ -275,7 +290,33 @@
         "strictExecutionContract": "Ready / wait protocol with one repair, then pause",
         "hideUnfocusedPrompt": "Stop the [PI GOAL UNFOCUSED] reminder sent with every request",
         "provider": "Empty uses the session's model",
-        "model": "Model id"
+        "model": "Model ID, e.g. claude-opus-5-5"
+      }
+    },
+    "ru": {
+      "displayName": "Goal",
+      "description": "Планирование целей и автономные запуски: список задач над композером, настройки в ~/.pi/agent/pi-goal-x-settings.json",
+      "fieldLabels": {
+        "maxAutonomousRuns": "Лимит автономных продолжений",
+        "showAutonomousRuns": "Показывать счётчик продолжений",
+        "strictExecutionContract": "Явный контракт выполнения",
+        "disableTasks": "Отключить список задач",
+        "subtaskDepth": "Глубина подзадач",
+        "disableContracts": "Отключить условия завершения",
+        "autoSelectSingleGoal": "Автовыбор единственной цели",
+        "hideUnfocusedPrompt": "Скрыть напоминание о фокусе",
+        "hideUnfocusedBanner": "Скрыть подсказку без фокуса",
+        "disabled": "Отключить аудитора завершения",
+        "provider": "Провайдер аудитора",
+        "model": "Модель аудитора",
+        "thinkingLevel": "Уровень рассуждений аудитора"
+      },
+      "fieldDescriptions": {
+        "maxAutonomousRuns": "Пусто = без ограничений; 0 отключает автоматическое продолжение",
+        "strictExecutionContract": "Протокол ready / wait с одним исправлением перед паузой",
+        "hideUnfocusedPrompt": "Не добавлять напоминание [PI GOAL UNFOCUSED] к каждому запросу при наличии цели без фокуса",
+        "provider": "Пусто — использовать модель текущей сессии",
+        "model": "ID модели, например claude-opus-5-5"
       }
     }
   }

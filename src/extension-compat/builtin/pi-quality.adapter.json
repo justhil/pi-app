@@ -55,6 +55,9 @@
           },
           "en": {
             "title": "Quality Gate & Review"
+          },
+          "ru": {
+            "title": "Контроль качества и ревью"
           }
         }
       }
@@ -66,6 +69,9 @@
       },
       "en": {
         "note": "Saves to ~/.pi/agent/pi-quality.json. Bare /quality opens this page; /review runs a clean-context review of uncommitted git changes."
+      },
+      "ru": {
+        "note": "Сохраняется в ~/.pi/agent/pi-quality.json. /quality без аргументов открывает эту страницу; с аргументами (например /quality gate off) выполняется в сессии. /review запускает проверку незафиксированных изменений Git в чистом контексте."
       }
     }
   },
@@ -96,6 +102,20 @@
         "gate": "Verify task completion with an independent model before the agent stops",
         "diagnostics": "Run syntax, lint, and type checks after edit / write",
         "model": "Format: provider/modelId; falls back to the current session model"
+      }
+    },
+    "ru": {
+      "displayName": "Quality Gate",
+      "description": "Контроль завершения, диагностика после правок и ревью кода в чистом контексте /review (~/.pi/agent/pi-quality.json)",
+      "fieldLabels": {
+        "gate": "Контроль завершения",
+        "diagnostics": "Диагностика после правок",
+        "model": "Модель контроля и ревью"
+      },
+      "fieldDescriptions": {
+        "gate": "Перед завершением хода независимая модель проверяет выполнение требований",
+        "diagnostics": "Автоматически запускать проверку синтаксиса, lint и типов после edit / write",
+        "model": "Формат: provider/modelId; если не найдена, используется модель текущей сессии"
       }
     }
   }

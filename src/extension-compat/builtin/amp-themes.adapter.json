@@ -9,7 +9,18 @@
   },
   "tier": "none",
   "config": {
-    "note": "Amp 风格主题/编辑器装饰；桌面用独立 Appearance 设置。"
+    "note": "Amp 风格主题/编辑器装饰；桌面用独立 Appearance 设置。",
+    "i18n": {
+      "zh": {
+        "note": "Amp 风格主题/编辑器装饰；桌面用独立 Appearance 设置。"
+      },
+      "en": {
+        "note": "Amp-style themes and editor decorations; the desktop app uses its own Appearance settings."
+      },
+      "ru": {
+        "note": "Темы и оформление редактора в стиле Amp; в desktop-клиенте используются собственные настройки Appearance."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -18,7 +29,11 @@
     },
     "en": {
       "displayName": "Amp Themes",
-      "description": "Amp theme loader/editor package; desktop-side adapter only"
+      "description": "Amp-style themes & editor decorations (no desktop counterpart)"
+    },
+    "ru": {
+      "displayName": "Amp Themes",
+      "description": "Темы и оформление редактора в стиле Amp (нет аналога в desktop)"
     }
   }
 }

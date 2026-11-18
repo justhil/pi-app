@@ -22,6 +22,9 @@
       },
       "en": {
         "note": "The desktop app already includes built-in completion notifications (Ctrl/⌘+Shift+N). Disable this CLI extension in the extensions list to avoid duplicate popups."
+      },
+      "ru": {
+        "note": "В desktop-приложении уже есть встроенные системные уведомления о завершении (Ctrl/⌘+Shift+N). Отключите это CLI-расширение в списке расширений, чтобы избежать дублирования."
       }
     }
   },
@@ -33,6 +36,10 @@
     "en": {
       "displayName": "Windows Notify",
       "description": "CLI completion notification popup (duplicates built-in desktop notifications)"
+    },
+    "ru": {
+      "displayName": "Windows Notify",
+      "description": "Всплывающие уведомления CLI о завершении (дублируют встроенные уведомления desktop)"
     }
   }
 }

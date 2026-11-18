@@ -581,7 +581,7 @@ export function UsageLogsTable({
               </span>
               <select
                 value={pageSize}
-                aria-label="Page size"
+                aria-label={t('settings:usage.pageSizeAria')}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value))
                   setOffset(0)

@@ -40,6 +40,14 @@ describe('main process labels', () => {
       'src/main/wsl/session-preview-runner.ts',
       'src/main/agent-purge-service.ts',
       'src/main/ipc/handlers/session.ts',
+      'src/main/desktop-alerts.ts',
+      'src/main/browser/chrome/index.ts',
+      'src/main/ipc/handlers/dialog.ts',
+      'src/main/sandbox-workspaces.ts',
+      'src/main/resource-revisions.ts',
+      'src/main/ipc/handlers/skills-resources.ts',
+      'src/main/system-prompt-preview.ts',
+      'src/main/github-release-fetch.ts',
     ]
     for (const file of files) {
       const src = readFileSync(join(process.cwd(), file), 'utf8')

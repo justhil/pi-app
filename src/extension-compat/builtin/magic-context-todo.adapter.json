@@ -69,6 +69,9 @@
       },
       "en": {
         "note": "Memory and compaction are managed by the extension (magic-context.jsonc); /ctx-status shows the current state."
+      },
+      "ru": {
+        "note": "Память и сжатие управляются самим расширением (magic-context.jsonc); текущее состояние можно проверить командой /ctx-status."
       }
     }
   },
@@ -89,6 +92,10 @@
     "en": {
       "displayName": "Magic Context",
       "description": "Cross-session memory and context management: ctx_* tool cards, todowrite list above the composer"
+    },
+    "ru": {
+      "displayName": "Magic Context",
+      "description": "Межсессионная память и управление контекстом: карточки инструментов ctx_*, список todowrite над композером"
     }
   }
 }

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultAgentPurgeConfig } from '@shared/agent-purge'
+import i18n from '@renderer/lib/i18n'
 import { PurgeSettingsPanel } from './purge-settings-panel'
 
 const invokeMock = vi.fn((channel: string) => {
@@ -20,8 +21,19 @@ vi.mock('@renderer/lib/ipc-client', () => ({
   },
 }))
 
+const INITIAL_LANG = i18n.language
+
 describe('PurgeSettingsPanel', () => {
+  afterEach(async () => {
+    await act(async () => {
+      await i18n.changeLanguage(INITIAL_LANG)
+    })
+  })
+
   it('renders built-in presets and allows creating a new custom persona', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('zh')
+    })
     render(<PurgeSettingsPanel />)
 
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('purge.getState'))
@@ -36,5 +48,32 @@ describe('PurgeSettingsPanel', () => {
     expect(newBtn).toBeDefined()
     fireEvent.click(newBtn!)
     expect(screen.getByDisplayValue(/custom-/)).toBeInTheDocument()
+  })
+
+  it('displays localized Konata Izumi name, description, and body without CJK in en and ru', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('en')
+    })
+    const { container } = render(<PurgeSettingsPanel />)
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('purge.getState'))
+
+    expect(
+      screen.getAllByDisplayValue('Konata Izumi · Sandbox execution').some((el) => el.tagName === 'INPUT'),
+    ).toBe(true)
+    const bodyTextarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(bodyTextarea.value).toContain('Konata Izumi')
+    expect(bodyTextarea.value).not.toMatch(/[\u4e00-\u9fff]/)
+
+    await act(async () => {
+      await i18n.changeLanguage('ru')
+    })
+    expect(
+      screen
+        .getAllByDisplayValue('Коната Изуми · исполнение в песочнице')
+        .some((el) => el.tagName === 'INPUT'),
+    ).toBe(true)
+    const ruBodyTextarea = container.querySelector('textarea') as HTMLTextAreaElement
+    expect(ruBodyTextarea.value).toContain('Коната Изуми')
+    expect(ruBodyTextarea.value).not.toMatch(/[\u4e00-\u9fff]/)
   })
 })

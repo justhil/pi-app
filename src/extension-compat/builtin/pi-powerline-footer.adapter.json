@@ -16,7 +16,18 @@
   },
   "tier": "none",
   "config": {
-    "note": "Powerline 样式页脚状态栏；桌面用独立 Appearance 设置。"
+    "note": "Powerline 样式页脚状态栏；桌面用独立 Appearance 设置。",
+    "i18n": {
+      "zh": {
+        "note": "Powerline 样式页脚状态栏；桌面用独立 Appearance 设置。"
+      },
+      "en": {
+        "note": "Powerline-style footer status bar; the desktop app uses its own Appearance settings."
+      },
+      "ru": {
+        "note": "Строка состояния в стиле Powerline; desktop-клиент использует собственные настройки Appearance."
+      }
+    }
   },
   "slash": {
     "/powerline": "notify",
@@ -32,7 +43,11 @@
     },
     "en": {
       "displayName": "Powerline Footer",
-      "description": "Powerline footer status indicator; desktop-side adapter only"
+      "description": "Powerline footer status bar (no desktop counterpart)"
+    },
+    "ru": {
+      "displayName": "Powerline Footer",
+      "description": "Нижняя строка статуса Powerline (нет аналога в desktop)"
     }
   }
 }

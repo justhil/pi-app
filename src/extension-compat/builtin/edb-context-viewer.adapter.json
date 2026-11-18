@@ -25,6 +25,9 @@
       },
       "en": {
         "note": "The desktop Context panel lists every context entry with token estimates; the Run panel shows the split by role."
+      },
+      "ru": {
+        "note": "Desktop-панель Context перечисляет все элементы текущего контекста с оценкой токенов; на панели Run показано распределение по ролям."
       }
     }
   },
@@ -36,6 +39,10 @@
     "en": {
       "displayName": "Context Viewer",
       "description": "/context opens the desktop Context panel (the extension's terminal overlay can't show on desktop)"
+    },
+    "ru": {
+      "displayName": "Context Viewer",
+      "description": "/context открывает desktop-панель Context (терминальный оверлей расширения в desktop не отображается)"
     }
   }
 }

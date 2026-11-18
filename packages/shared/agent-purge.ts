@@ -1,4 +1,9 @@
-import { BUILTIN_AGENT_PURGE_PERSONAS, type LocalizedPersonaCopy, type PersonaUiLanguage } from './agent-purge-presets'
+import {
+  BUILTIN_AGENT_PURGE_PERSONAS,
+  type BuiltinPurgePersonaSeed,
+  type LocalizedPersonaCopy,
+  type PersonaUiLanguage,
+} from './agent-purge-presets'
 import { normalizeSessionFileKey } from './session-file-key'
 
 export type { LocalizedPersonaCopy, PersonaUiLanguage } from './agent-purge-presets'
@@ -14,7 +19,7 @@ export interface AgentPurgePersona {
   builtin?: boolean
   order?: number
   updatedAt?: number
-  /** Display copy for the persona lists, keyed by app language. Never affects the prompt body. */
+  /** Localized display copy and prompt body, keyed by app language. */
   i18n?: Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>>
 }
 
@@ -168,17 +173,18 @@ export function personaLanguage(language: string | undefined): PersonaUiLanguage
 }
 
 /**
- * The name/description to show for a persona in the given UI language, falling back to the
- * shipped copy. The prompt body is never touched here - only the list labels are localized.
+ * The localized name, description, and prompt body for a persona in the given UI language,
+ * falling back to the shipped copy when a language entry is absent.
  */
 export function personaCopy(
-  persona: Pick<AgentPurgePersona, 'name' | 'description' | 'i18n'>,
+  persona: Pick<AgentPurgePersona, 'name' | 'description' | 'i18n'> & { body?: string },
   language: PersonaUiLanguage,
-): { name: string; description: string } {
+): { name: string; description: string; body: string } {
   const localized = persona.i18n?.[language]
   return {
     name: localized?.name?.trim() || persona.name,
     description: localized?.description?.trim() || persona.description,
+    body: localized?.body?.trim() || persona.body || '',
   }
 }
 
@@ -191,7 +197,62 @@ function normalizePersonaI18n(raw: unknown): Partial<Record<PersonaUiLanguage, L
     const e = entry as Record<string, unknown>
     const name = typeof e.name === 'string' ? e.name.trim() : ''
     const description = typeof e.description === 'string' ? e.description.trim() : ''
-    if (name) out[language] = { ...(name ? { name } : {}), ...(description ? { description } : {}) }
+    const body = typeof e.body === 'string' ? e.body.trim() : ''
+    if (name || description || body) {
+      out[language] = {
+        ...(name ? { name } : {}),
+        ...(description ? { description } : {}),
+        ...(body ? { body } : {}),
+      }
+    }
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+const LEGACY_BUILTIN_NAMES = new Set([
+  'Konata · Sandbox execution',
+  'Коната · исполнение в песочнице',
+])
+
+function mergeBuiltinPersonaI18n(
+  seed: BuiltinPurgePersonaSeed,
+  rawI18n: unknown,
+  name: string,
+  description: string,
+  body: string,
+): Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>> | undefined {
+  const parsed = normalizePersonaI18n(rawI18n)
+  const seedEntries = Object.values(seed.i18n ?? {})
+  const isDefaultName =
+    name === seed.name ||
+    LEGACY_BUILTIN_NAMES.has(name) ||
+    seedEntries.some((entry) => entry?.name === name)
+  const isDefaultDesc =
+    description === seed.description ||
+    seedEntries.some((entry) => entry?.description === description)
+  const isDefaultBody =
+    body === seed.body.trim() ||
+    seedEntries.some((entry) => entry?.body?.trim() === body)
+
+  const out: Partial<Record<PersonaUiLanguage, LocalizedPersonaCopy>> = {}
+  for (const language of ['en', 'zh', 'ru'] as const) {
+    const parsedEntry = parsed?.[language]
+    const seedEntry = seed.i18n?.[language]
+    const mergedName =
+      parsedEntry?.name && !LEGACY_BUILTIN_NAMES.has(parsedEntry.name)
+        ? parsedEntry.name
+        : isDefaultName
+          ? seedEntry?.name
+          : undefined
+    const mergedDesc = parsedEntry?.description ?? (isDefaultDesc ? seedEntry?.description : undefined)
+    const mergedBody = parsedEntry?.body ?? (isDefaultBody ? seedEntry?.body : undefined)
+    if (mergedName || mergedDesc || mergedBody) {
+      out[language] = {
+        ...(mergedName ? { name: mergedName } : {}),
+        ...(mergedDesc ? { description: mergedDesc } : {}),
+        ...(mergedBody ? { body: mergedBody } : {}),
+      }
+    }
   }
   return Object.keys(out).length ? out : undefined
 }
@@ -229,7 +290,9 @@ export function normalizeAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
       const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim() : builtinSeed?.name || rawId
       const description =
         typeof p.description === 'string' ? p.description.trim() : builtinSeed?.description || ''
-      const i18n = normalizePersonaI18n(p.i18n) ?? builtinSeed?.i18n
+      const i18n = builtinSeed
+        ? mergeBuiltinPersonaI18n(builtinSeed, p.i18n, name, description, body)
+        : normalizePersonaI18n(p.i18n)
       byId.set(rawId, {
         id: rawId,
         name,

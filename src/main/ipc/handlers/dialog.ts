@@ -1,12 +1,15 @@
 import { dialog, BrowserWindow } from 'electron'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { registerHandler } from '../registry'
 
 export function registerDialogHandlers(): void {
   registerHandler('ipc:dialog:openDirectory', async () => {
     const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const title = mainLabel(getMainUiLanguage(), 'dialog.openDirectory')
     const result = win
-      ? await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '选择项目目录' })
-      : await dialog.showOpenDialog({ properties: ['openDirectory'], title: '选择项目目录' })
+      ? await dialog.showOpenDialog(win, { properties: ['openDirectory'], title })
+      : await dialog.showOpenDialog({ properties: ['openDirectory'], title })
     if (result.canceled || result.filePaths.length === 0) {
       return { path: null }
     }
@@ -19,7 +22,7 @@ export function registerDialogHandlers(): void {
     if (req?.multiple !== false) props.push('multiSelections')
     const opts = {
       properties: props,
-      title: req?.title || '添加附件',
+      title: req?.title || mainLabel(getMainUiLanguage(), 'dialog.openFiles'),
     }
     const result = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
     if (result.canceled || !result.filePaths.length) {

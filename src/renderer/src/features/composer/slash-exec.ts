@@ -123,7 +123,7 @@ export async function executeSlashCommand(
         commitSessionDisplayMeta(sessionFile, { thinkingLevel: arg })
         useUIStore.getState().setSessionRunState(sessionFile ?? sessionKey, { thinkingLevel: arg })
         if (sessionFile && !sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)) return true
-        toast.success(`Thinking: ${arg}`)
+        toast.success(i18n.t('composer:thinkingPicker.switched', { level: arg }))
       } catch (e) {
         console.error('/thinking failed:', e)
         toast.error(i18n.t('composer:switchThinkingFailed'))

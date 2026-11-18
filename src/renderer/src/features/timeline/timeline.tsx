@@ -230,7 +230,7 @@ const TimelineItemBase = memo(function TimelineItem({
           </div>
         ) : isInterrupted && !hasText ? (
           <div className="text-[12px] timeline-text-quiet">
-            {t('timeline:interruptedPartial', { defaultValue: '回复未完成（已中断）' })}
+            {t('timeline:interruptedPartial')}
           </div>
         ) : null}
       </>
@@ -262,6 +262,15 @@ const TimelineItemBase = memo(function TimelineItem({
 
   if (item.type === 'slash') {
     const status = item.slashStatus || 'dispatched'
+    const rawSlashText = String(item.text ?? '')
+    const slashText =
+      rawSlashText === '已发送给 pi 执行'
+        ? t('timeline:slashSentToPi')
+        : rawSlashText === '命令已执行（详见下方助手/工具输出）'
+          ? t('timeline:slashExecutedDetail')
+          : rawSlashText.startsWith('执行失败:')
+            ? t('timeline:slashExecFailed', { error: rawSlashText.slice('执行失败:'.length).trim() })
+            : rawSlashText
     const iconCls =
       status === 'error'
         ? 'text-destructive/70'
@@ -270,15 +279,21 @@ const TimelineItemBase = memo(function TimelineItem({
           : 'timeline-text-quiet'
     const Icon = status === 'error' ? XCircle : status === 'ok' ? CheckCircle2 : CornerDownLeft
     const label =
-      status === 'error' ? t('timeline:statusFailed') : status === 'ok' ? t('timeline:statusDone') : String(item.text ?? '').includes('失败') ? t('timeline:statusFailed') : t('timeline:statusExecuted')
+      status === 'error'
+        ? t('timeline:statusFailed')
+        : status === 'ok'
+          ? t('timeline:statusDone')
+          : rawSlashText.includes('失败') || rawSlashText.startsWith('Execution failed:')
+            ? t('timeline:statusFailed')
+            : t('timeline:statusExecuted')
     return (
       <div className="py-1">
         <div className="timeline-status-line">
           <Icon className={cn('h-3 w-3 shrink-0', iconCls)} />
           <span className="font-mono text-[12px] timeline-text-secondary">{String(item.slashCommand ?? '')}</span>
           <span className={cn('text-[11px]', iconCls)}>{label}</span>
-          {String(item.text ?? '').length > 0 && (
-            <span className="truncate timeline-text-quiet">{String(item.text ?? '')}</span>
+          {slashText.length > 0 && (
+            <span className="truncate timeline-text-quiet">{slashText}</span>
           )}
         </div>
       </div>

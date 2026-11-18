@@ -14,6 +14,7 @@ import {
   clonePresetConfig,
   guessPresetForProvider,
   presetLabel,
+  presetTagline,
   type ProviderPreset,
 } from '@renderer/features/settings/model-provider-presets'
 import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-add-dialog'
@@ -149,7 +150,7 @@ export function ModelsSettingsPanel() {
   const addFromPreset = (preset: ProviderPreset) => {
     const key = allocateProviderKey(draft?.providers || {}, preset.defaultKey)
     patchDraft((c) => {
-      c.providers[key] = clonePresetConfig(preset)
+      c.providers[key] = clonePresetConfig(preset, t)
     })
     setExpanded((e) => ({ ...e, [key]: true }))
     setAddMenuOpen(false)
@@ -171,7 +172,7 @@ export function ModelsSettingsPanel() {
   const applyPresetToExisting = (providerId: string, preset: ProviderPreset) => {
     patchDraft((c) => {
       const prev = c.providers[providerId]
-      const templ = clonePresetConfig(preset)
+      const templ = clonePresetConfig(preset, t)
       const models = prev.models?.length ? prev.models : templ.models?.length ? templ.models : []
       c.providers[providerId] = {
         ...templ,
@@ -341,7 +342,7 @@ export function ModelsSettingsPanel() {
                         <ProviderAvatar preset={preset} label={presetLabel(preset, t)} />
                         <div className="min-w-0 flex-1">
                           <div className="text-base font-medium">{presetLabel(preset, t)}</div>
-                          <div className="text-xs text-muted-foreground">{preset.tagline}</div>
+                          <div className="text-xs text-muted-foreground">{presetTagline(preset, t)}</div>
                           <div className="mt-0.5 font-mono text-2xs text-muted-foreground/50">
                             {t('models.keyName')} {preset.defaultKey}
                             {preset.starterModels?.length

@@ -19,7 +19,18 @@
   },
   "tier": "headless",
   "config": {
-    "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。"
+    "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。",
+    "i18n": {
+      "zh": {
+        "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。"
+      },
+      "en": {
+        "note": "Side-chat sessions are managed by the extension; the desktop only displays slash command status output."
+      },
+      "ru": {
+        "note": "Сессии побочного чата управляются расширением; desktop-клиент лишь показывает вывод статуса slash-команд."
+      }
+    }
   },
   "slash": {
     "/btw": "notify",
@@ -38,7 +49,11 @@
     },
     "en": {
       "displayName": "BTW",
-      "description": "By-the-way insert model; list and status included"
+      "description": "Parallel side-chat (slash command status output)"
+    },
+    "ru": {
+      "displayName": "BTW",
+      "description": "Параллельный побочный чат (вывод статуса slash-команд)"
     }
   }
 }

@@ -19,6 +19,8 @@ export type ProviderPreset = {
   /** Locale key for presets whose brand is written differently per language (智谱 GLM / Zhipu GLM). */
   labelKey?: string
   tagline: string
+  /** Locale key for the preset tagline shown in the template selector. */
+  taglineKey?: string
   /** 建议写入 models.json 的 provider 键 */
   defaultKey: string
   accentClass: string
@@ -31,6 +33,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'openai',
     label: 'OpenAI',
     tagline: 'Official or OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.openai',
     defaultKey: 'openai',
     accentClass: 'bg-emerald-500',
     config: {
@@ -49,6 +52,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'anthropic',
     label: 'Anthropic',
     tagline: 'Claude Messages API',
+    taglineKey: 'settings:models.presetTaglines.anthropic',
     defaultKey: 'anthropic',
     accentClass: 'bg-orange-500',
     config: {
@@ -66,6 +70,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'gemini',
     label: 'Google Gemini',
     tagline: 'Gemini API',
+    taglineKey: 'settings:models.presetTaglines.gemini',
     defaultKey: 'google',
     accentClass: 'bg-blue-500',
     config: {
@@ -83,6 +88,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'deepseek',
     label: 'DeepSeek',
     tagline: 'OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.openaiCompatible',
     defaultKey: 'deepseek',
     accentClass: 'bg-cyan-600',
     config: {
@@ -97,6 +103,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'groq',
     label: 'Groq',
     tagline: 'OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.openaiCompatible',
     defaultKey: 'groq',
     accentClass: 'bg-fuchsia-600',
     config: {
@@ -111,6 +118,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'ollama',
     label: 'Ollama',
     tagline: 'Local OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.localOpenai',
     defaultKey: 'ollama',
     accentClass: 'bg-slate-500',
     config: {
@@ -129,6 +137,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'openrouter',
     label: 'OpenRouter',
     tagline: 'OpenAI-compatible aggregator',
+    taglineKey: 'settings:models.presetTaglines.openrouter',
     defaultKey: 'openrouter',
     accentClass: 'bg-violet-600',
     config: {
@@ -142,6 +151,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'moonshot',
     label: 'Moonshot / Kimi',
     tagline: 'OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.openaiCompatible',
     defaultKey: 'moonshot',
     accentClass: 'bg-amber-600',
     config: {
@@ -157,6 +167,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     label: 'Zhipu GLM',
     labelKey: 'settings:models.presetZhipu',
     tagline: 'OpenAI-compatible',
+    taglineKey: 'settings:models.presetTaglines.openaiCompatible',
     defaultKey: 'zhipu',
     accentClass: 'bg-indigo-600',
     config: {
@@ -170,7 +181,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: 'custom-openai',
     label: 'Custom relay',
+    labelKey: 'settings:models.presetCustomRelay',
     tagline: 'Custom baseUrl',
+    taglineKey: 'settings:models.presetTaglines.customBaseUrl',
     defaultKey: 'my-proxy',
     accentClass: 'bg-muted-foreground/50',
     config: {
@@ -211,8 +224,11 @@ export function allocateProviderKey(existing: Record<string, unknown>, base: str
   return `${base}-${n}`
 }
 
-export function clonePresetConfig(preset: ProviderPreset): PiModelsProviderConfig {
+export function clonePresetConfig(preset: ProviderPreset, t?: TFunction): PiModelsProviderConfig {
   const c = JSON.parse(JSON.stringify(preset.config)) as PiModelsProviderConfig
+  if (t && preset.labelKey) {
+    c.name = presetLabel(preset, t)
+  }
   if (preset.starterModels?.length) {
     c.models = preset.starterModels.map((m) => ({ ...m }))
   } else {
@@ -224,9 +240,14 @@ export function clonePresetConfig(preset: ProviderPreset): PiModelsProviderConfi
 /**
  * Preset label for the UI. Brand presets that are written differently per language
  * (智谱 GLM in Chinese, Zhipu GLM elsewhere) carry a `labelKey`; the provider name stored
- * in models.json is never affected.
+ * in models.json is never affected unless localized at preset creation time.
  */
 export function presetLabel(preset: ProviderPreset | undefined, t: TFunction): string {
   if (!preset) return ''
   return preset.labelKey ? t(preset.labelKey) : preset.label
+}
+
+export function presetTagline(preset: ProviderPreset | undefined, t: TFunction): string {
+  if (!preset) return ''
+  return preset.taglineKey ? t(preset.taglineKey) : preset.tagline
 }

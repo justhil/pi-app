@@ -61,7 +61,18 @@
             "label": "Session Token",
             "description": "可选，临时凭证"
           }
-        ]
+        ],
+        "i18n": {
+          "zh": {
+            "title": "R2 / S3 兼容存储"
+          },
+          "en": {
+            "title": "R2 / S3-Compatible Storage"
+          },
+          "ru": {
+            "title": "Хранилище R2 / S3"
+          }
+        }
       },
       {
         "title": "同步策略",
@@ -84,10 +95,32 @@
             "label": "会话结束自动同步",
             "default": false
           }
-        ]
+        ],
+        "i18n": {
+          "zh": {
+            "title": "同步策略"
+          },
+          "en": {
+            "title": "Sync Policy"
+          },
+          "ru": {
+            "title": "Политика синхронизации"
+          }
+        }
       }
     ],
-    "note": "配置写入 ~/.pi/agent/pi-sync.local.json（与扩展 /pisync init 共享）。保存后可在终端 /pisync doctor 验证连通性。"
+    "note": "配置写入 ~/.pi/agent/pi-sync.local.json（与扩展 /pisync init 共享）。保存后可在终端 /pisync doctor 验证连通性。",
+    "i18n": {
+      "zh": {
+        "note": "配置写入 ~/.pi/agent/pi-sync.local.json（与扩展 /pisync init 共享）。保存后可在终端 /pisync doctor 验证连通性。"
+      },
+      "en": {
+        "note": "Writes ~/.pi/agent/pi-sync.local.json (shared with /pisync init). After saving, run /pisync doctor in the terminal to verify connectivity."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/pi-sync.local.json (общий с /pisync init). После сохранения проверьте соединение в терминале командой /pisync doctor."
+      }
+    }
   },
   "slash": {
     "/pisync": "notify",
@@ -96,11 +129,60 @@
   "i18n": {
     "zh": {
       "displayName": "Pi Sync",
-      "description": "配置同步到 R2（配置 ~/.pi/agent/pi-sync.local.json）"
+      "description": "配置同步到 R2（配置 ~/.pi/agent/pi-sync.local.json）",
+      "fieldLabels": {
+        "endpoint": "Endpoint URL",
+        "bucket": "Bucket",
+        "region": "Region",
+        "accessKeyId": "Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "sessionToken": "Session Token",
+        "profile": "Profile 名称",
+        "prefix": "对象前缀",
+        "autoSync": "会话结束自动同步"
+      },
+      "fieldDescriptions": {
+        "endpoint": "如 https://xxx.r2.cloudflarestorage.com",
+        "sessionToken": "可选，临时凭证"
+      }
     },
     "en": {
       "displayName": "Pi Sync",
-      "description": "Sync config to R2 (configured in ~/.pi/agent/pi-sync.local.json)"
+      "description": "Sync config to R2 (configured in ~/.pi/agent/pi-sync.local.json)",
+      "fieldLabels": {
+        "endpoint": "Endpoint URL",
+        "bucket": "Bucket",
+        "region": "Region",
+        "accessKeyId": "Access Key ID",
+        "secretAccessKey": "Secret Access Key",
+        "sessionToken": "Session Token",
+        "profile": "Profile name",
+        "prefix": "Object prefix",
+        "autoSync": "Auto-sync on session end"
+      },
+      "fieldDescriptions": {
+        "endpoint": "e.g. https://xxx.r2.cloudflarestorage.com",
+        "sessionToken": "Optional temporary credential"
+      }
+    },
+    "ru": {
+      "displayName": "Pi Sync",
+      "description": "Синхронизация конфигурации в R2 (настройки в ~/.pi/agent/pi-sync.local.json)",
+      "fieldLabels": {
+        "endpoint": "URL конечной точки",
+        "bucket": "Бакет",
+        "region": "Регион",
+        "accessKeyId": "ID ключа доступа",
+        "secretAccessKey": "Секретный ключ доступа",
+        "sessionToken": "Токен сессии",
+        "profile": "Имя профиля",
+        "prefix": "Префикс объектов",
+        "autoSync": "Автосинхронизация при завершении сессии"
+      },
+      "fieldDescriptions": {
+        "endpoint": "Например: https://xxx.r2.cloudflarestorage.com",
+        "sessionToken": "Необязательно: временный токен доступа"
+      }
     }
   }
 }

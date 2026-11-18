@@ -174,7 +174,7 @@ export function LiveThemeStudio({
               onClick={() => switchMode('light')}
               className="settings-segmented-item rounded-[3px] px-2"
             >
-              Light
+              {t('settings:appearance.themeLight')}
             </button>
             <button
               type="button"
@@ -183,13 +183,13 @@ export function LiveThemeStudio({
               onClick={() => switchMode('dark')}
               className="settings-segmented-item rounded-[3px] px-2"
             >
-              Dark
+              {t('settings:appearance.themeDark')}
             </button>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('common:close')}
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
@@ -434,7 +434,7 @@ export function LiveThemeStudio({
             </select>
           </div>
           <div>
-            <div className="mb-1 text-[10.5px] text-muted-foreground">Shiki</div>
+            <div className="mb-1 text-[10.5px] text-muted-foreground">{t('settings:appearance.codeTheme')}</div>
             <select
               value={activeVariant.codeTheme ?? (mode === 'dark' ? 'github-dark' : 'github-light')}
               onChange={(e) => updateVariant({ codeTheme: e.target.value as ShikiThemeId })}

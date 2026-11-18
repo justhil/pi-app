@@ -32,6 +32,9 @@
       },
       "en": {
         "note": "Background commands run for up to 8 hours and wake the session with a follow-up message on exit. Run /background to inspect or stop active commands."
+      },
+      "ru": {
+        "note": "Фоновые задачи выполняются до 8 часов и автоматически пробуждают текущую сессию follow-up сообщением при выходе или таймауте. Выполните /background, чтобы просмотреть или остановить активные команды."
       }
     }
   },
@@ -43,6 +46,10 @@
     "en": {
       "displayName": "Background Terminal",
       "description": "Background shell commands: background_run / status / kill tool cards with automatic exit notifications"
+    },
+    "ru": {
+      "displayName": "Background Terminal",
+      "description": "Фоновые команды оболочки: карточки инструментов background_run / status / kill с автоуведомлением о завершении"
     }
   }
 }

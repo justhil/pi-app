@@ -354,19 +354,38 @@ function formatCodemodeCost(cost: number): string {
 }
 
 function CodemodeNestedCallRow({ call }: { call: CodemodeNestedCall }) {
+  const { t } = useTranslation()
   const argSummary = summarizeCodemodeCallArg(call.name, call.args, 100)
   const duration = formatCodemodeDuration(call.durationMs)
   return (
     <div className="space-y-0.5 px-2 py-0.5 text-[11px]">
       <div className="flex min-w-0 items-center gap-1.5">
         {call.status === 'running' ? (
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500" aria-label="running" />
+          <span
+            className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500"
+            aria-label={t('timeline:codemodeStatus.running')}
+          />
         ) : call.status === 'ok' ? (
-          <span className="shrink-0 font-mono text-[10px] text-emerald-500" aria-label="ok">✓</span>
+          <span
+            className="shrink-0 font-mono text-[10px] text-emerald-500"
+            aria-label={t('timeline:codemodeStatus.ok')}
+          >
+            ✓
+          </span>
         ) : call.status === 'error' ? (
-          <span className="shrink-0 font-mono text-[10px] text-destructive" aria-label="error">✗</span>
+          <span
+            className="shrink-0 font-mono text-[10px] text-destructive"
+            aria-label={t('timeline:codemodeStatus.error')}
+          >
+            ✗
+          </span>
         ) : (
-          <span className="shrink-0 font-mono text-[10px] text-foreground-secondary/50" aria-label="cancelled">⊘</span>
+          <span
+            className="shrink-0 font-mono text-[10px] text-foreground-secondary/50"
+            aria-label={t('timeline:codemodeStatus.cancelled')}
+          >
+            ⊘
+          </span>
         )}
         <ToolIcon name={call.name} className="h-3 w-3 shrink-0 timeline-text-quiet" />
         <span className="shrink-0 font-mono font-medium text-foreground/85">{displayToolName(call.name)}</span>

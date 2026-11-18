@@ -217,27 +217,47 @@ export interface ResolvedAdapterText {
 }
 
 export function resolveAdapterText(a: AdapterJson, language: string): ResolvedAdapterText {
-  const lang = language.slice(0, 2)
-  const loc = a.i18n?.[language] || a.i18n?.[lang] || {}
+  const lang = language.slice(0, 2).toLowerCase()
+  const exact = a.i18n?.[language]
+  const base = a.i18n?.[lang]
+  const enFallback = lang !== 'zh' ? a.i18n?.en : undefined
   return {
-    displayName: loc.displayName ?? a.displayName,
-    description: loc.description ?? a.description,
-    note: a.config?.i18n?.[language]?.note ?? a.config?.i18n?.[lang]?.note ?? loc.note ?? a.config?.note,
+    displayName: exact?.displayName ?? base?.displayName ?? enFallback?.displayName ?? a.displayName,
+    description: exact?.description ?? base?.description ?? enFallback?.description ?? a.description,
+    note:
+      a.config?.i18n?.[language]?.note ??
+      a.config?.i18n?.[lang]?.note ??
+      exact?.note ??
+      base?.note ??
+      (lang !== 'zh' ? (a.config?.i18n?.en?.note ?? enFallback?.note) : undefined) ??
+      a.config?.note,
     sections: (a.config?.sections ?? []).map((s) => ({
-      title: s.i18n?.[language]?.title ?? s.i18n?.[lang]?.title ?? s.title,
+      title:
+        s.i18n?.[language]?.title ??
+        s.i18n?.[lang]?.title ??
+        (lang !== 'zh' ? s.i18n?.en?.title : undefined) ??
+        s.title,
       fields: (s.fields ?? []).map((f) => ({
         ...f,
-        label: loc.fieldLabels?.[f.key] ?? f.label,
-        description: loc.fieldDescriptions?.[f.key] ?? f.description,
+        label: exact?.fieldLabels?.[f.key] ?? base?.fieldLabels?.[f.key] ?? enFallback?.fieldLabels?.[f.key] ?? f.label,
+        description:
+          exact?.fieldDescriptions?.[f.key] ??
+          base?.fieldDescriptions?.[f.key] ??
+          enFallback?.fieldDescriptions?.[f.key] ??
+          f.description,
       })),
     })),
     actions: (a.config?.actions ?? []).map((act) => ({
       id: act.id,
-      label: loc.actionLabels?.[act.id] ?? act.label,
+      label: exact?.actionLabels?.[act.id] ?? base?.actionLabels?.[act.id] ?? enFallback?.actionLabels?.[act.id] ?? act.label,
     })),
     sidePanel: {
-      label: loc.sidePanel?.label ?? a.sidePanel?.label,
-      description: loc.sidePanel?.description ?? a.sidePanel?.description,
+      label: exact?.sidePanel?.label ?? base?.sidePanel?.label ?? enFallback?.sidePanel?.label ?? a.sidePanel?.label,
+      description:
+        exact?.sidePanel?.description ??
+        base?.sidePanel?.description ??
+        enFallback?.sidePanel?.description ??
+        a.sidePanel?.description,
     },
   }
 }

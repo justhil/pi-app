@@ -29,6 +29,9 @@
       },
       "en": {
         "note": "Use /prompt_enhance <draft> to rewrite prompts with codebase context, or /prompt_enhance_auto to toggle auto-enhance. The TUI model selector is not shown on desktop (uses the session model)."
+      },
+      "ru": {
+        "note": "Используйте /prompt_enhance <черновик>, чтобы переписать промпт с контекстом кодовой базы, или /prompt_enhance_auto для переключения автоулучшения. Выбор модели в TUI на desktop не отображается (используется модель текущей сессии)."
       }
     }
   },
@@ -40,6 +43,10 @@
     "en": {
       "displayName": "Prompt Enhancer",
       "description": "Codebase-aware prompt rewriter using project tree, git context, and referenced files"
+    },
+    "ru": {
+      "displayName": "Prompt Enhancer",
+      "description": "Переписывание промптов с учётом дерева проекта, состояния Git и упомянутых файлов"
     }
   }
 }

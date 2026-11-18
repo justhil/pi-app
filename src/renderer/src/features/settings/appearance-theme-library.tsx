@@ -60,7 +60,7 @@ export function AppearanceThemeLibrary({
   customCss: CustomCssOverride
   onApplyPack: (nextTheme: CustomTheme, nextCss?: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const hasDesktopIpc = typeof window !== 'undefined' && Boolean(window.piDesktop)
   const [packs, setPacks] = useState<SavedThemePack[]>([])
   const [packName, setPackName] = useState('')
@@ -88,7 +88,7 @@ export function AppearanceThemeLibrary({
 
   const handleSavePack = async () => {
     if (!hasDesktopIpc) return
-    const name = packName.trim() || 'My Theme'
+    const name = packName.trim() || t('settings:appearance.defaultPackName')
     try {
       const res = await ipcClient.invoke('themeLibrary.save', {
         name,
@@ -149,7 +149,7 @@ export function AppearanceThemeLibrary({
     if (!hasDesktopIpc || !newSnipCss.trim()) return
     const res = await ipcClient
       .invoke('snippets.save', {
-        name: newSnipName.trim() || 'Custom Snippet',
+        name: newSnipName.trim() || t('settings:appearance.defaultSnippetName'),
         css: newSnipCss,
         enabled: true,
       })
@@ -254,12 +254,12 @@ export function AppearanceThemeLibrary({
                     <span
                       className="h-full flex-1"
                       style={{ background: l?.surface ?? '#ffffff' }}
-                      title="Light"
+                      title={t('settings:appearance.themeLight')}
                     />
                     <span
                       className="h-full flex-1"
                       style={{ background: d?.surface ?? '#141518' }}
-                      title="Dark"
+                      title={t('settings:appearance.themeDark')}
                     />
                     <span
                       className="h-full w-2"
@@ -275,7 +275,7 @@ export function AppearanceThemeLibrary({
                         d?.codeTheme || l?.codeTheme,
                       ]
                         .filter(Boolean)
-                        .join(' · ') || new Date(pack.updatedAt).toLocaleDateString()}
+                        .join(' · ') || new Date(pack.updatedAt).toLocaleDateString(i18n.language)}
                     </div>
                   </div>
                 </div>
@@ -334,7 +334,7 @@ export function AppearanceThemeLibrary({
               <button
                 type="button"
                 onClick={() => {
-                  if (!newSnipName.trim()) setNewSnipName('Liquid Glass Tweaks')
+                  if (!newSnipName.trim()) setNewSnipName(t('settings:appearance.defaultTemplateName'))
                   setNewSnipCss(SNIPPET_TEMPLATE)
                 }}
                 className={btnCompact}

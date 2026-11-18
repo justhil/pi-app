@@ -272,5 +272,16 @@
     "doneWithText": "已回退：消息已填入输入框，可修改后重新发送",
     "doneAtNode": "已跳转到该节点，可从此继续",
     "failed": "回退失败"
+  },
+  "forkFromHere": "从此 Fork 新会话",
+  "openPathHint": "在文件中打开 · Shift+点击打开 Review",
+  "slashSentToPi": "已发送给 pi 执行",
+  "slashExecutedDetail": "命令已执行（详见下方助手/工具输出）",
+  "slashExecFailed": "执行失败: {{error}}",
+  "codemodeStatus": {
+    "running": "运行中",
+    "ok": "成功",
+    "error": "错误",
+    "cancelled": "已取消"
   }
 }

@@ -275,5 +275,16 @@
     "doneWithText": "Rewound: the message is in the input, edit and resend",
     "doneAtNode": "Jumped to that node, continue from here",
     "failed": "Rewind failed"
+  },
+  "forkFromHere": "Fork new session from here",
+  "openPathHint": "Open in Files · Shift+Click for Review",
+  "slashSentToPi": "Sent to pi",
+  "slashExecutedDetail": "Command executed (see assistant/tool output below)",
+  "slashExecFailed": "Execution failed: {{error}}",
+  "codemodeStatus": {
+    "running": "Running",
+    "ok": "OK",
+    "error": "Error",
+    "cancelled": "Cancelled"
   }
 }

@@ -11,8 +11,14 @@ import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings
 type Revision = { id: string; at: number; label: string; hash: string }
 
 function RevisionMenu({ revisions, onRestore }: { revisions: Revision[]; onRestore: (id: string) => void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  const formatRevisionLabel = (label: string) =>
+    label === '保存前'
+      ? t('settings:prompts.revisionBeforeSave')
+      : label === '回退前'
+        ? t('settings:prompts.revisionBeforeRestore')
+        : label
   return (
     <div className="relative">
       <button
@@ -37,9 +43,9 @@ function RevisionMenu({ revisions, onRestore }: { revisions: Revision[]; onResto
                   onRestore(r.id)
                 }}
               >
-                <span className="font-medium">{r.label}</span>
+                <span className="font-medium">{formatRevisionLabel(r.label)}</span>
                 <span className="text-muted-foreground">
-                  {new Date(r.at).toLocaleString('zh-CN')} · {r.hash}
+                  {new Date(r.at).toLocaleString(i18n.language)} · {r.hash}
                 </span>
               </button>
             ))}

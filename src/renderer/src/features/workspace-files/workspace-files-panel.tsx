@@ -387,7 +387,7 @@ export function WorkspaceFilesPanel() {
               <button
                 type="button"
                 className="fixed inset-0 z-[510] bg-black/20"
-                aria-label="close"
+                aria-label={t('common:close')}
                 onClick={() => {
                   setRenameOpen(false)
                   setRenameTarget(null)

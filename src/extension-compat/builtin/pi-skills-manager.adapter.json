@@ -14,7 +14,18 @@
   "tier": "headless",
   "config": {
     "note": "技能列表来自 Worker resourceLoader.getSkills（动态）；桌面仅控制每技能的桌面禁用，不写 pi settings.json。",
-    "customRenderer": "skills-manager"
+    "customRenderer": "skills-manager",
+    "i18n": {
+      "zh": {
+        "note": "技能列表来自 Worker resourceLoader.getSkills（动态）；桌面仅控制每技能的桌面禁用，不写 pi settings.json。"
+      },
+      "en": {
+        "note": "Skill list is loaded dynamically from Worker resourceLoader.getSkills; desktop toggles only disable skills in the desktop app without modifying pi settings.json."
+      },
+      "ru": {
+        "note": "Список скиллов динамически загружается из Worker resourceLoader.getSkills; переключатели в desktop управляют только отключением в приложении и не изменяют pi settings.json."
+      }
+    }
   },
   "slash": {
     "/skill": "config-page",
@@ -28,6 +39,10 @@
     "en": {
       "displayName": "Skills Manager",
       "description": "Skill discovery and desktop on/off (lists the skills the worker loaded)"
+    },
+    "ru": {
+      "displayName": "Skills Manager",
+      "description": "Поиск и переключение скиллов в desktop (показывает загруженные Worker'ом скиллы)"
     }
   }
 }

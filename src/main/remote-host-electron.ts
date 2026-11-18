@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { hostname } from 'node:os'
 import type { CacheWarming, FileReadResult, PurgeSend, PurgeStateResult, UiResponse, UsageSummaryResult } from '@shared/remote'
 import type { UsageSummary } from '@shared/usage-summary'
+import { personaCopy, personaLanguage } from '@shared/agent-purge'
+import { getMainUiLanguage } from '@shared/main-language'
 import { normalizeSessionFileKey } from '@shared/session-file-key'
 import { normalizeCapabilities } from '@shared/capabilities'
 import { wslPathToWindows } from '@shared/wsl-path'
@@ -305,24 +307,29 @@ export function createElectronRemoteHost(): RemoteHostPort {
 
     async getPurgeState(sessionFile?: string): Promise<PurgeStateResult> {
       const cfg = getAgentPurgeConfig()
+      const lang = personaLanguage(getMainUiLanguage())
       const base = {
         defaultPersonaId: cfg.defaultPersonaId,
         defaultMode: cfg.defaultMode,
-        personas: cfg.personas.map((p) => ({
-          id: p.id,
-          name: p.name,
-          ...(p.description ? { description: p.description } : {}),
-        })),
+        personas: cfg.personas.map((p) => {
+          const copy = personaCopy(p, lang)
+          return {
+            id: p.id,
+            name: copy.name,
+            ...(copy.description ? { description: copy.description } : {}),
+          }
+        }),
       }
       if (!sessionFile) return base
       const active = getActivePurgeForSession(sessionFile)
       if (active) {
+        const matched = cfg.personas.find((p) => p.id === active.personaId)
         return {
           ...base,
           session: {
             locked: 'on',
             personaId: active.personaId,
-            personaName: active.personaName,
+            personaName: matched ? personaCopy(matched, lang).name : active.personaName,
             mode: active.mode,
           },
         }

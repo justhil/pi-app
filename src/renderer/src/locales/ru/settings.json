@@ -460,7 +460,10 @@
     "bgContentOpacity": "Непрозрачность чата и правой панели",
     "bgContentMaterial": "Материал чата и правой панели",
     "bgContentBlur": "Размытие чата и правой панели",
-    "sampleGlyph": "Аа"
+    "sampleGlyph": "Аа",
+    "defaultPackName": "Моя тема",
+    "defaultSnippetName": "Пользовательский фрагмент",
+    "defaultTemplateName": "Настройки Liquid Glass"
   },
   "pi": {
     "title": "Runtime",
@@ -850,7 +853,17 @@
     "summaryCache": "кэш",
     "thinkingMapHint": "Уровень размышлений → значение, отправляемое модели",
     "invalidIdProblem": "«{{id}}»: {{reason}}",
-    "presetZhipu": "Zhipu GLM"
+    "presetZhipu": "Zhipu GLM",
+    "presetCustomRelay": "Свой прокси",
+    "presetTaglines": {
+      "openai": "Официальный или совместимый с OpenAI",
+      "anthropic": "API сообщений Claude",
+      "gemini": "Официальный API Gemini",
+      "openaiCompatible": "Совместимый с OpenAI",
+      "localOpenai": "Локальный совместимый с OpenAI",
+      "openrouter": "Агрегатор, совместимый с OpenAI",
+      "customBaseUrl": "Свой baseUrl"
+    }
   },
   "voice": {
     "advancedTitle": "Дополнительно",
@@ -930,6 +943,8 @@
     "piBuiltin": "Встроенное pi / SYSTEM",
     "promptTemplate": "Шаблон промпта (/name)",
     "revision": "Ревизии ({{count}})",
+    "revisionBeforeSave": "Перед сохранением",
+    "revisionBeforeRestore": "Перед откатом",
     "markdownSource": "Markdown-исходник",
     "preview": "Предпросмотр",
     "emptyContent": "*(пусто)*",
@@ -1318,7 +1333,12 @@
     "imageOmitted": "Встроенное изображение {{mime}} · {{size}} (сырой Base64 пропущен)",
     "noContent": "Пусто",
     "detailLoading": "Читаю запись сессии с диска…",
-    "detailFailed": "Запись сессии прочитать не удалось: {{error}}"
+    "detailFailed": "Запись сессии прочитать не удалось: {{error}}",
+    "pageSizeAria": "Размер страницы",
+    "jsonItems": "эл.: {{count}}",
+    "jsonKeys": "ключей: {{count}}",
+    "charsCount": "симв.: {{value}}",
+    "errorBadge": "ошибка"
   },
   "mobile": {
     "title": "Мобильные",
@@ -1418,6 +1438,8 @@
     "pullGithub": "Загрузить персоны",
     "importedToast": "Импортировано персон: {{count}}.",
     "importFailed": "Импорт не удался",
+    "tokShort": "~{{tokens}} ток.",
+    "bodyStats": "{{chars}} симв. · ~{{tokens}} токенов",
     "newPersonaDefaultBody": "# Свой промпт для сессии\n\nНапишите здесь тело системного промпта, которое внедряется в новые диалоги."
   }
 }

@@ -56,6 +56,7 @@ function CompactJsonNode({
   depth: number
   defaultExpandDepth?: number
 }) {
+  const { t } = useTranslation()
   const isObj = value !== null && typeof value === 'object'
   const entries = useMemo(() => {
     if (!isObj) return []
@@ -109,7 +110,9 @@ function CompactJsonNode({
         {name !== undefined ? <span className="text-foreground-secondary">{name}: </span> : null}
         <span className="text-muted-foreground">
           {bracketOpen}
-          {!open ? ` ${entries.length} ${Array.isArray(value) ? 'items' : 'keys'} ${bracketClose}` : ''}
+          {!open
+            ? ` ${t(Array.isArray(value) ? 'settings:usage.jsonItems' : 'settings:usage.jsonKeys', { count: entries.length })} ${bracketClose}`
+            : ''}
         </span>
       </button>
       {open ? (
@@ -131,7 +134,7 @@ function CompactJsonNode({
 }
 
 function MessageBlocksView({ blocks }: { blocks: readonly UsageMessageBlock[] }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   if (blocks.length === 0) {
     return <div className="text-[12px] italic text-muted-foreground">{t('settings:usage.noContent')}</div>
   }
@@ -142,7 +145,8 @@ function MessageBlocksView({ blocks }: { blocks: readonly UsageMessageBlock[] })
           return (
             <div key={idx} className="rounded-md border border-border/60 bg-[var(--bg-elevated)]/60 px-3 py-2">
               <div className="mb-1 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
-                {t('settings:usage.blockThinking')} · {b.thinking.length.toLocaleString()} chars
+                {t('settings:usage.blockThinking')} ·{' '}
+                {t('settings:usage.charsCount', { value: b.thinking.length.toLocaleString(i18n.language) })}
               </div>
               <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px] leading-[1.55] text-foreground-secondary">
                 {b.thinking}
@@ -189,6 +193,7 @@ function MessageBlocksView({ blocks }: { blocks: readonly UsageMessageBlock[] })
 }
 
 function ContextMessageCard({ item, highlighted }: { item: UsageContextMessageItem; highlighted?: boolean }) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(highlighted ?? false)
   const roleBadge =
     item.role === 'user'
@@ -222,7 +227,7 @@ function ContextMessageCard({ item, highlighted }: { item: UsageContextMessageIt
         </span>
         {item.isError ? (
           <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">
-            error
+            {t('settings:usage.errorBadge')}
           </span>
         ) : null}
         <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-foreground-secondary">

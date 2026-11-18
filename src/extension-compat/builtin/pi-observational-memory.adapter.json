@@ -9,7 +9,18 @@
   },
   "tier": "headless",
   "config": {
-    "note": "观察/反思记忆由扩展自动维护（compactAfterTokens）；桌面无配置项。"
+    "note": "观察/反思记忆由扩展自动维护（compactAfterTokens）；桌面无配置项。",
+    "i18n": {
+      "zh": {
+        "note": "观察/反思记忆由扩展自动维护（compactAfterTokens）；桌面无配置项。"
+      },
+      "en": {
+        "note": "Observation and reflection memory is maintained automatically by the extension (compactAfterTokens); there are no desktop settings."
+      },
+      "ru": {
+        "note": "Память наблюдений и рефлексии поддерживается расширением автоматически (compactAfterTokens); в desktop настроек нет."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -18,7 +29,11 @@
     },
     "en": {
       "displayName": "Observational Memory",
-      "description": "Observation memory (automatic, always-on); list and entry included"
+      "description": "Observational memory (automatic, no slash command)"
+    },
+    "ru": {
+      "displayName": "Observational Memory",
+      "description": "Наблюдательная память (автоматическая, без slash-команды)"
     }
   }
 }

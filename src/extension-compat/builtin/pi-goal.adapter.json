@@ -30,6 +30,9 @@
       },
       "en": {
         "note": "Goal state and token budgets are journaled per session branch; manage with /goal status, /goal pause, /goal resume, /goal clear, /goal budget <tokens>, or /goal <objective>."
+      },
+      "ru": {
+        "note": "Состояние целей и бюджеты токенов сохраняются по веткам сессии; управление через /goal status, /goal pause, /goal resume, /goal clear, /goal budget <tokens> или /goal <описание цели>."
       }
     }
   },
@@ -44,6 +47,10 @@
     "en": {
       "displayName": "Goal",
       "description": "Persistent autonomous goals: get_goal / create_goal / update_goal tool cards and /goal command"
+    },
+    "ru": {
+      "displayName": "Goal",
+      "description": "Постоянные автономные цели: карточки инструментов get_goal / create_goal / update_goal и команда /goal"
     }
   }
 }

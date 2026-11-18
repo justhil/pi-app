@@ -460,7 +460,10 @@
     "bgContentOpacity": "Chat & right panel opacity",
     "bgContentMaterial": "Chat & right panel material",
     "bgContentBlur": "Chat & right panel blur",
-    "sampleGlyph": "Aa"
+    "sampleGlyph": "Aa",
+    "defaultPackName": "My Theme",
+    "defaultSnippetName": "Custom Snippet",
+    "defaultTemplateName": "Liquid Glass Tweaks"
   },
   "pi": {
     "title": "Runtime",
@@ -849,7 +852,17 @@
     "summaryCache": "cache",
     "thinkingMapHint": "Thinking level → value sent to the model",
     "invalidIdProblem": "\"{{id}}\": {{reason}}",
-    "presetZhipu": "Zhipu GLM"
+    "presetZhipu": "Zhipu GLM",
+    "presetCustomRelay": "Custom relay",
+    "presetTaglines": {
+      "openai": "Official or OpenAI-compatible",
+      "anthropic": "Claude Messages API",
+      "gemini": "Gemini API",
+      "openaiCompatible": "OpenAI-compatible",
+      "localOpenai": "Local OpenAI-compatible",
+      "openrouter": "OpenAI-compatible aggregator",
+      "customBaseUrl": "Custom baseUrl"
+    }
   },
   "voice": {
     "advancedTitle": "Advanced",
@@ -929,6 +942,8 @@
     "piBuiltin": "pi Built-in / SYSTEM",
     "promptTemplate": "Prompt Template (/name)",
     "revision": "Revisions ({{count}})",
+    "revisionBeforeSave": "Before save",
+    "revisionBeforeRestore": "Before restore",
     "markdownSource": "Markdown Source",
     "preview": "Preview",
     "emptyContent": "*(empty)*",
@@ -1314,7 +1329,12 @@
     "imageOmitted": "Inline image {{mime}} · {{size}} (raw Base64 omitted)",
     "noContent": "Empty",
     "detailLoading": "Reading session entry from disk…",
-    "detailFailed": "Failed to read session entry: {{error}}"
+    "detailFailed": "Failed to read session entry: {{error}}",
+    "pageSizeAria": "Page size",
+    "jsonItems": "{{count}} items",
+    "jsonKeys": "{{count}} keys",
+    "charsCount": "{{value}} chars",
+    "errorBadge": "error"
   },
   "mobile": {
     "title": "Mobile",
@@ -1414,6 +1434,8 @@
     "pullGithub": "Pull personas",
     "importedToast": "Imported {{count}} persona(s)",
     "importFailed": "Import failed",
+    "tokShort": "~{{tokens}} tok",
+    "bodyStats": "{{chars}} chars · ~{{tokens}} tokens",
     "newPersonaDefaultBody": "# Custom session prompt\n\nWrite the system prompt body to inject into new conversations here."
   }
 }

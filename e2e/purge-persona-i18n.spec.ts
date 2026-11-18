@@ -23,7 +23,7 @@ test('the composer persona menu speaks Russian', async () => {
   test.setTimeout(150_000)
   const { app, win } = await openPurgeMenu('ru')
   try {
-    await expect(win.getByText('Коната · исполнение в песочнице').first()).toBeVisible()
+    await expect(win.getByText('Коната Изуми · исполнение в песочнице').first()).toBeVisible()
     await expect(win.getByText('CTF-песочница · пять фаз').first()).toBeVisible()
     await expect(win.getByText('Нейтральный шаблон').first()).toBeVisible()
     await win.screenshot({ path: path.join('artifacts', 'locale-ru', 'purge-personas-ru.png') })
@@ -36,7 +36,7 @@ test('the composer persona menu keeps the English copy', async () => {
   test.setTimeout(150_000)
   const { app, win } = await openPurgeMenu('en')
   try {
-    await expect(win.getByText('Konata · Sandbox execution').first()).toBeVisible()
+    await expect(win.getByText('Konata Izumi · Sandbox execution').first()).toBeVisible()
     await expect(win.getByText('Neutral template').first()).toBeVisible()
     await win.screenshot({ path: path.join('artifacts', 'locale-ru', 'purge-personas-en.png') })
   } finally {

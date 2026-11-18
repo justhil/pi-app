@@ -1,4 +1,5 @@
 import { memo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { openReviewGitForPath, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 
 const PATH_RE =
@@ -12,6 +13,7 @@ function looksLikePath(segment: string): boolean {
 }
 
 export const MarkdownPathText = memo(function MarkdownPathText({ text }: { text: string }) {
+  const { t } = useTranslation()
   const parts: ReactNode[] = []
   let last = 0
   let m: RegExpExecArray | null
@@ -34,7 +36,7 @@ export const MarkdownPathText = memo(function MarkdownPathText({ text }: { text:
             if (e.shiftKey) openReviewGitForPath(path)
             else openWorkspaceRelativePath(path)
           }}
-          title="Files · Shift+Review"
+          title={t('timeline:openPathHint')}
         >
           {full}
         </button>,

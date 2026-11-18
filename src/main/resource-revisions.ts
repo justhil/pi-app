@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { createHash } from 'crypto'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { resolveActiveAgentDir } from './agent-dir'
 
 export type RevisionEntry = {
@@ -38,15 +40,16 @@ export function listRevisions(filePath: string): RevisionEntry[] {
   }
 }
 
-export function pushRevision(filePath: string, label = '保存前'): RevisionEntry | null {
+export function pushRevision(filePath: string, label?: string): RevisionEntry | null {
   if (!existsSync(filePath)) return null
+  const revLabel = label ?? mainLabel(getMainUiLanguage(), 'revision.beforeSave')
   const content = readFileSync(filePath, 'utf-8')
   const hash = createHash('sha256').update(content).digest('hex').slice(0, 12)
   const id = `${Date.now()}-${hash}`
   const dir = revDir(filePath)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(snapPath(filePath, id), content, 'utf-8')
-  const entry: RevisionEntry = { id, at: Date.now(), label, hash }
+  const entry: RevisionEntry = { id, at: Date.now(), label: revLabel, hash }
   const next = [entry, ...listRevisions(filePath)].slice(0, 40)
   writeFileSync(metaPath(filePath), JSON.stringify(next, null, 2), 'utf-8')
   return entry
@@ -54,13 +57,13 @@ export function pushRevision(filePath: string, label = '保存前'): RevisionEnt
 
 export function readRevision(filePath: string, revisionId: string): string {
   const p = snapPath(filePath, revisionId)
-  if (!existsSync(p)) throw new Error('版本不存在')
+  if (!existsSync(p)) throw new Error(mainLabel(getMainUiLanguage(), 'revision.notFound'))
   return readFileSync(p, 'utf-8')
 }
 
 export function restoreRevision(filePath: string, revisionId: string): void {
   const content = readRevision(filePath, revisionId)
-  pushRevision(filePath, '回退前')
+  pushRevision(filePath, mainLabel(getMainUiLanguage(), 'revision.beforeRestore'))
   writeFileSync(filePath, content, 'utf-8')
 }
 

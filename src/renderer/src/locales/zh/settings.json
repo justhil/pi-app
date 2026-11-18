@@ -460,7 +460,10 @@
     "bgContentOpacity": "聊天区与右侧栏不透明度",
     "bgContentMaterial": "聊天区与右侧栏材质",
     "bgContentBlur": "聊天区与右侧栏模糊",
-    "sampleGlyph": "Aa 文"
+    "sampleGlyph": "Aa 文",
+    "defaultPackName": "我的主题",
+    "defaultSnippetName": "自定义片段",
+    "defaultTemplateName": "液态玻璃微调"
   },
   "pi": {
     "title": "运行时",
@@ -847,7 +850,17 @@
     "summaryCache": "缓存",
     "thinkingMapHint": "思考等级 → 传给模型的值",
     "invalidIdProblem": "「{{id}}」{{reason}}",
-    "presetZhipu": "智谱 GLM"
+    "presetZhipu": "智谱 GLM",
+    "presetCustomRelay": "自定义中转",
+    "presetTaglines": {
+      "openai": "官方或兼容 OpenAI 协议",
+      "anthropic": "Claude Messages 协议",
+      "gemini": "Gemini 官方协议",
+      "openaiCompatible": "兼容 OpenAI 协议",
+      "localOpenai": "本地兼容 OpenAI 协议",
+      "openrouter": "兼容 OpenAI 的聚合网关",
+      "customBaseUrl": "自定义 baseUrl"
+    }
   },
   "voice": {
     "advancedTitle": "高级",
@@ -927,6 +940,8 @@
     "piBuiltin": "pi 内置 / SYSTEM",
     "promptTemplate": "提示词模板（/name）",
     "revision": "版本 ({{count}})",
+    "revisionBeforeSave": "保存前",
+    "revisionBeforeRestore": "回退前",
     "markdownSource": "Markdown 源码",
     "preview": "预览",
     "emptyContent": "*（空）*",
@@ -1309,7 +1324,12 @@
     "imageOmitted": "内嵌图片 {{mime}} · {{size}}（已省略原始 Base64）",
     "noContent": "无内容",
     "detailLoading": "正在读取本地会话原文…",
-    "detailFailed": "读取会话原文失败：{{error}}"
+    "detailFailed": "读取会话原文失败：{{error}}",
+    "pageSizeAria": "每页条数",
+    "jsonItems": "{{count}} 项",
+    "jsonKeys": "{{count}} 个键",
+    "charsCount": "{{value}} 字符",
+    "errorBadge": "错误"
   },
   "mobile": {
     "title": "手机连接",
@@ -1409,6 +1429,8 @@
     "pullGithub": "拉取导入",
     "importedToast": "已同步 {{count}} 份人设",
     "importFailed": "导入失败",
+    "tokShort": "~{{tokens}} tok",
+    "bodyStats": "{{chars}} 字符 · 约 {{tokens}} tokens",
     "newPersonaDefaultBody": "# 自定义会话提示词\n\n在这里编写需要注入新对话的系统提示词正文。"
   }
 }

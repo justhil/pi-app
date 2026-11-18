@@ -84,6 +84,9 @@
           },
           "en": {
             "title": "API"
+          },
+          "ru": {
+            "title": "API"
           }
         }
       },
@@ -131,6 +134,9 @@
           },
           "en": {
             "title": "Generation"
+          },
+          "ru": {
+            "title": "Генерация"
           }
         }
       },
@@ -150,6 +156,9 @@
           },
           "en": {
             "title": "Desktop card"
+          },
+          "ru": {
+            "title": "Карточка в desktop"
           }
         }
       }
@@ -178,6 +187,9 @@
       },
       "en": {
         "note": "Writes ~/.pi/agent/image-gen.json, shared with the extension. Inline preview is a desktop-only switch. Leave the key blank to keep the saved one."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/image-gen.json (общий с расширением). Встроенный предпросмотр — локальный переключатель desktop. Оставьте ключ пустым, чтобы сохранить текущий."
       }
     }
   },
@@ -188,6 +200,20 @@
     "zh": {
       "displayName": "Image Gen",
       "description": "生图与改图（配置 ~/.pi/agent/image-gen.json + 连通性测试 + 模型下拉）",
+      "fieldLabels": {
+        "baseUrl": "API Base URL",
+        "apiKey": "API Key",
+        "model": "模型",
+        "size": "默认尺寸",
+        "responseFormat": "返回格式",
+        "outputDir": "输出目录",
+        "maxConcurrency": "最大并行数（1-8）",
+        "showInlinePreview": "时间线内联图像预览"
+      },
+      "fieldDescriptions": {
+        "baseUrl": "OpenAI 兼容的生图服务地址（不含 /v1）",
+        "apiKey": "输入 - 清除已保存 key"
+      },
       "actionLabels": {
         "test": "测试连接"
       }
@@ -211,6 +237,27 @@
       },
       "actionLabels": {
         "test": "Test connection"
+      }
+    },
+    "ru": {
+      "displayName": "Image Gen",
+      "description": "Генерация и редактирование изображений (~/.pi/agent/image-gen.json, проверка соединения, выбор модели)",
+      "fieldLabels": {
+        "baseUrl": "Базовый URL API",
+        "apiKey": "API-ключ",
+        "model": "Модель",
+        "size": "Размер по умолчанию",
+        "responseFormat": "Формат ответа",
+        "outputDir": "Папка вывода",
+        "maxConcurrency": "Макс. параллельных запросов (1-8)",
+        "showInlinePreview": "Встроенный предпросмотр в таймлайне"
+      },
+      "fieldDescriptions": {
+        "baseUrl": "OpenAI-совместимый сервис генерации изображений (без /v1)",
+        "apiKey": "Введите -, чтобы очистить сохранённый ключ"
+      },
+      "actionLabels": {
+        "test": "Проверить соединение"
       }
     }
   }

@@ -19,7 +19,7 @@ function MessageHoverActionsImpl({
   onRewind?: (entryId: string) => void
   onFork?: (entryId: string) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [copied, setCopied] = useState(false)
   const copy = () => {
     navigator.clipboard.writeText(text).then(() => {
@@ -37,7 +37,7 @@ function MessageHoverActionsImpl({
           className="chrome-icon-btn flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary hover:text-primary disabled:opacity-35 disabled:pointer-events-none"
           title={
             sessionEntryId
-              ? t('timeline:forkFromHere', { defaultValue: '从此 Fork 新会话' })
+              ? t('timeline:forkFromHere')
               : t('timeline:jumpNeedEntry')
           }
         >
@@ -69,7 +69,7 @@ function MessageHoverActionsImpl({
       </button>
       {timestamp != null && (
         <span className="select-none text-[11px] tabular-nums text-foreground-secondary">
-          {new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(timestamp).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}
         </span>
       )}
     </div>

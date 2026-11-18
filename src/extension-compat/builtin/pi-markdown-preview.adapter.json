@@ -23,7 +23,18 @@
     "statusField": "$.output.text"
   },
   "config": {
-    "note": "预览/导出由扩展工具执行；桌面展示结果卡片并提供打开产物（路径来自 details.paths）。"
+    "note": "预览/导出由扩展工具执行；桌面展示结果卡片并提供打开产物（路径来自 details.paths）。",
+    "i18n": {
+      "zh": {
+        "note": "预览/导出由扩展工具执行；桌面展示结果卡片并提供打开产物（路径来自 details.paths）。"
+      },
+      "en": {
+        "note": "Preview and export run in the extension tool; the desktop shows result cards with actions to open generated files (paths from details.paths)."
+      },
+      "ru": {
+        "note": "Предпросмотр и экспорт выполняются инструментом расширения; desktop отображает карточку результата и позволяет открыть файлы (пути берутся из details.paths)."
+      }
+    }
   },
   "slash": {
     "/preview": "notify",
@@ -38,7 +49,11 @@
     },
     "en": {
       "displayName": "Markdown Preview",
-      "description": "Markdown/LaTeX preview and PDF/HTML export tool (screenshot + open file)"
+      "description": "Markdown/LaTeX preview and PDF/HTML export (tool results + open artifact)"
+    },
+    "ru": {
+      "displayName": "Markdown Preview",
+      "description": "Предпросмотр Markdown/LaTeX и экспорт в PDF/HTML (результаты инструмента + открытие артефакта)"
     }
   }
 }

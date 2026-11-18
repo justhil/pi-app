@@ -93,6 +93,9 @@
           },
           "en": {
             "title": "Features"
+          },
+          "ru": {
+            "title": "Функции"
           }
         }
       }
@@ -104,6 +107,9 @@
       },
       "en": {
         "note": "Same file as the extension's /cache-optimizer feature switches; overrides environment variables and applies to new sessions. /cache-optimizer with arguments (status, stats…) still runs in the extension."
+      },
+      "ru": {
+        "note": "Тот же файл, что и для переключателей /cache-optimizer расширения; имеет приоритет над переменными окружения и действует для новых сессий. Вызов /cache-optimizer с аргументами (status, stats…) по-прежнему выполняется расширением."
       }
     }
   },
@@ -147,6 +153,25 @@
         "promptRewrite": "Moves volatile content so the prompt prefix stays cacheable",
         "openAICacheKey": "Adds prompt_cache_key to OpenAI-compatible requests",
         "virtualRewrite": "Experimental"
+      }
+    },
+    "ru": {
+      "displayName": "Cache Optimizer",
+      "description": "Повышение попаданий в кэш промптов: переключатели функций в ~/.pi/agent/pi-cache-optimizer-config.json",
+      "fieldLabels": {
+        "promptRewrite": "Стабильный системный промпт",
+        "skillCompression": "Сжимать список скиллов",
+        "openAICacheKey": "OpenAI cache key",
+        "zeroPriceWarming": "Бесплатный прогрев кэша",
+        "statsIncremental": "Инкрементальное обновление статистики",
+        "virtualRewrite": "Виртуальная перезапись",
+        "toolOrder": "Фиксированный порядок инструментов",
+        "footerMode": "Уровень агрегации статистики"
+      },
+      "fieldDescriptions": {
+        "promptRewrite": "Переставляет изменчивые фрагменты, чтобы префикс промпта лучше кэшировался",
+        "openAICacheKey": "Добавляет prompt_cache_key в OpenAI-совместимые запросы",
+        "virtualRewrite": "Экспериментальная функция"
       }
     }
   }

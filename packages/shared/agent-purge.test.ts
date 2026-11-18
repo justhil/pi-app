@@ -92,32 +92,55 @@ describe('agent-purge shared core', () => {
     })
   })
 
-  it('localizes the persona list copy without touching the prompt body', () => {
+  it('localizes the persona name, description, and prompt body per UI language', () => {
     const cfg = defaultAgentPurgeConfig()
     const konata = cfg.personas.find((p) => p.id === 'konata')!
-    expect(personaCopy(konata, 'ru').name).toBe('Коната · исполнение в песочнице')
-    expect(personaCopy(konata, 'en').name).toBe('Konata · Sandbox execution')
-    // zh is the shipped language, so it stays the upstream copy.
+    expect(personaCopy(konata, 'ru').name).toBe('Коната Изуми · исполнение в песочнице')
+    expect(personaCopy(konata, 'en').name).toBe('Konata Izumi · Sandbox execution')
     expect(personaCopy(konata, 'zh').name).toBe('泉此方 · 沙箱执行')
     expect(personaCopy(konata, 'ru').description).not.toBe(konata.description)
-    // The body is the prompt itself: localization never reaches it.
-    expect(konata.body).toContain('泉此方')
+
+    expect(personaCopy(konata, 'zh').body).toContain('泉此方')
+    expect(personaCopy(konata, 'en').body).toContain('Konata Izumi')
+    expect(personaCopy(konata, 'en').body).not.toMatch(/[\u4e00-\u9fff]/)
+    expect(personaCopy(konata, 'ru').body).toContain('Коната Изуми')
+    expect(personaCopy(konata, 'ru').body).not.toMatch(/[\u4e00-\u9fff]/)
+
     expect(personaLanguage('zh-CN')).toBe('zh')
     expect(personaLanguage('ru-RU')).toBe('ru')
     expect(personaLanguage(undefined)).toBe('en')
   })
 
-  it('keeps localized copy across config normalization and falls back when absent', () => {
+  it('backfills localized built-in bodies for uncustomized presets while preserving custom edits', () => {
     const cfg = normalizeAgentPurgeConfig({
       defaultPersonaId: 'ctf',
       defaultMode: 'strict',
       personas: [
-        { id: 'ctf', name: 'CTF 沙箱 · 五阶段门', description: 'x', body: 'body text' },
+        {
+          id: 'konata',
+          name: '泉此方 · 沙箱执行',
+          description: '泉此方人格与执行契约（首个思考者、沙箱执行者）。含任务优先级、拒绝对抗、分层回答、CTF/沙箱契约与路由表；strict 模式的基底。',
+          body: defaultAgentPurgeConfig().personas.find((p) => p.id === 'konata')!.body,
+          i18n: {
+            en: { name: 'Konata · Sandbox execution', description: 'legacy desc' },
+            ru: { name: 'Коната · исполнение в песочнице', description: 'старое описание' },
+          },
+        },
+        { id: 'ctf', name: 'CTF 沙箱 · 五阶段门', description: 'x', body: 'custom edited body' },
         { id: 'mine', name: 'My persona', description: '', body: 'mine', i18n: { ru: { name: 'Моя персона' } } },
       ],
     })
+    const konata = cfg.personas.find((p) => p.id === 'konata')!
+    expect(personaCopy(konata, 'en').name).toBe('Konata Izumi · Sandbox execution')
+    expect(personaCopy(konata, 'ru').name).toBe('Коната Изуми · исполнение в песочнице')
+    expect(personaCopy(konata, 'en').body).toContain('Konata Izumi')
+    expect(personaCopy(konata, 'ru').body).toContain('Коната Изуми')
+
     const ctf = cfg.personas.find((p) => p.id === 'ctf')!
     expect(personaCopy(ctf, 'ru').name).toBe('CTF-песочница · пять фаз')
+    expect(personaCopy(ctf, 'en').body).toBe('custom edited body')
+    expect(personaCopy(ctf, 'ru').body).toBe('custom edited body')
+
     const mine = cfg.personas.find((p) => p.id === 'mine')!
     expect(personaCopy(mine, 'ru').name).toBe('Моя персона')
     expect(personaCopy(mine, 'en').name).toBe('My persona')

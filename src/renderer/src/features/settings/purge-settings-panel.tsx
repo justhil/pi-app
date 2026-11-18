@@ -11,6 +11,7 @@ import {
   type AgentPurgeConfig,
   type AgentPurgeMode,
   type AgentPurgePersona,
+  type LocalizedPersonaCopy,
 } from '@shared/agent-purge'
 import { CloudDownload, FolderOpen, Plus, RotateCcw, Trash2 } from '@renderer/components/icons'
 import {
@@ -89,13 +90,45 @@ export function PurgeSettingsPanel() {
     [draftConfig.personas, selectedId],
   )
 
+  const selectedCopy = selectedPersona ? personaCopy(selectedPersona, lang) : null
+  const rawLoc = selectedPersona?.i18n?.[lang]
+  const editName = selectedPersona ? (rawLoc?.name !== undefined ? rawLoc.name : selectedCopy!.name) : ''
+  const editDescription = selectedPersona
+    ? rawLoc?.description !== undefined
+      ? rawLoc.description
+      : selectedCopy!.description
+    : ''
+  const editBody = selectedPersona ? (rawLoc?.body !== undefined ? rawLoc.body : selectedCopy!.body) : ''
+
   const updateSelectedPersona = (patch: Partial<AgentPurgePersona>) => {
     if (!selectedPersona) return
     setDraftConfig((prev) => ({
       ...prev,
-      personas: prev.personas.map((p) =>
-        p.id === selectedPersona.id ? { ...p, ...patch, updatedAt: Date.now() } : p,
-      ),
+      personas: prev.personas.map((p) => {
+        if (p.id !== selectedPersona.id) return p
+        if (!p.i18n) {
+          return { ...p, ...patch, updatedAt: Date.now() }
+        }
+        const cur = personaCopy(p, lang)
+        const existingLoc = p.i18n[lang]
+        const nextLoc: LocalizedPersonaCopy = {
+          name: patch.name !== undefined ? patch.name : (existingLoc?.name ?? cur.name),
+          description:
+            patch.description !== undefined
+              ? patch.description
+              : (existingLoc?.description ?? cur.description),
+          body: patch.body !== undefined ? patch.body : (existingLoc?.body ?? cur.body),
+        }
+        return {
+          ...p,
+          ...(lang === 'zh' ? patch : {}),
+          i18n: {
+            ...p.i18n,
+            [lang]: nextLoc,
+          },
+          updatedAt: Date.now(),
+        }
+      }),
     }))
   }
 
@@ -290,6 +323,7 @@ export function PurgeSettingsPanel() {
             {draftConfig.personas.map((p) => {
               const selected = p.id === selectedPersona?.id
               const isDefault = p.id === draftConfig.defaultPersonaId
+              const copy = personaCopy(p, lang)
               return (
                 <button
                   key={p.id}
@@ -303,7 +337,7 @@ export function PurgeSettingsPanel() {
                   )}
                 >
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="truncate text-[13px] font-medium">{personaCopy(p, lang).name}</span>
+                    <span className="truncate text-[13px] font-medium">{copy.name}</span>
                     <div className="flex shrink-0 items-center gap-1">
                       {isDefault ? (
                         <span className="settings-badge text-[10px]">
@@ -318,7 +352,7 @@ export function PurgeSettingsPanel() {
                     </div>
                   </div>
                   <span className="truncate font-mono text-[11px] text-muted-foreground/75">
-                    {p.id} · ~{estimateTokens(p.body)} tok
+                    {p.id} · {t('settings:purge.tokShort', { tokens: estimateTokens(copy.body) })}
                   </span>
                 </button>
               )
@@ -336,7 +370,7 @@ export function PurgeSettingsPanel() {
                     <input
                       type="text"
                       className={inputCls}
-                      value={selectedPersona.name}
+                      value={editName}
                       onChange={(e) => updateSelectedPersona({ name: e.target.value })}
                     />
                   </div>
@@ -388,7 +422,7 @@ export function PurgeSettingsPanel() {
                   type="text"
                   className={inputCls}
                   placeholder={t('settings:purge.fieldDescriptionPlaceholder')}
-                  value={selectedPersona.description}
+                  value={editDescription}
                   onChange={(e) => updateSelectedPersona({ description: e.target.value })}
                 />
               </div>
@@ -397,13 +431,16 @@ export function PurgeSettingsPanel() {
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                   <label>{t('settings:purge.fieldBody')}</label>
                   <span className="font-mono tabular-nums">
-                    {selectedPersona.body.length} chars · ~{estimateTokens(selectedPersona.body)} tokens
+                    {t('settings:purge.bodyStats', {
+                      chars: editBody.length,
+                      tokens: estimateTokens(editBody),
+                    })}
                   </span>
                 </div>
                 <textarea
                   rows={14}
                   className={cn(textareaCls, 'min-h-[280px] font-mono text-[12.5px] leading-[1.55]')}
-                  value={selectedPersona.body}
+                  value={editBody}
                   onChange={(e) => updateSelectedPersona({ body: e.target.value })}
                 />
               </div>

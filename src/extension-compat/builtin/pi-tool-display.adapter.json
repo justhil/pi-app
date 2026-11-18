@@ -9,7 +9,18 @@
   },
   "tier": "headless",
   "config": {
-    "note": "工具显示美化仅作用于终端 TUI；桌面无对应组件。"
+    "note": "工具显示美化仅作用于终端 TUI；桌面无对应组件。",
+    "i18n": {
+      "zh": {
+        "note": "工具显示美化仅作用于终端 TUI；桌面无对应组件。"
+      },
+      "en": {
+        "note": "Tool display formatting applies only to the terminal TUI; there is no desktop counterpart."
+      },
+      "ru": {
+        "note": "Оформление вывода инструментов работает только в терминальном TUI; в desktop аналогичного компонента нет."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -18,7 +29,11 @@
     },
     "en": {
       "displayName": "Tool Display",
-      "description": "Tool display decorator (TUI only); desktop-side adapter only"
+      "description": "Compact tool display (TUI only, no desktop counterpart)"
+    },
+    "ru": {
+      "displayName": "Tool Display",
+      "description": "Компактное отображение инструментов (только для TUI, нет аналога в desktop)"
     }
   }
 }
