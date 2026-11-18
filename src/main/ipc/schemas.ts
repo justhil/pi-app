@@ -12,7 +12,11 @@ import {
 } from '../../../packages/shared/custom-theme.ts'
 import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
 import { BROWSER_SEARCH_ENGINE_IDS, type BrowserSearchEngine } from '../../../packages/shared/browser-types.ts'
-import { AGENT_PURGE_MODES } from '../../../packages/shared/agent-purge.ts'
+import {
+  AGENT_PURGE_MODES,
+  PURGE_CIPHER_LEVELS,
+  PURGE_HISTORY_MODES,
+} from '../../../packages/shared/agent-purge.ts'
 import { CAPABILITY_IDS } from '../../../packages/shared/capabilities.ts'
 
 export const shellOpenPathSchema = z.object({
@@ -102,6 +106,15 @@ export const sessionDeleteSchema = z
   })
   .strict()
 
+export const sessionEditMessageSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1).optional(),
+    entryId: z.string().trim().min(1).max(256),
+    text: z.string().max(1_000_000),
+  })
+  .strict()
+
 export const sessionPrepareSchema = z.object({
   sessionFile: z.string().min(1),
   bind: z.boolean().optional(),
@@ -134,6 +147,17 @@ export const promptTextSchema = z.object({
       enabled: z.boolean(),
       personaId: z.string().max(64).optional(),
       mode: z.enum(AGENT_PURGE_MODES).optional(),
+      strategy: z
+        .object({
+          primerEnabled: z.boolean().optional(),
+          scrubHistory: z.boolean().optional(),
+          historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
+          toolOutputRelay: z.boolean().optional(),
+          cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
+          autoRetry: z.boolean().optional(),
+        })
+        .strict()
+        .optional(),
     })
     .optional(),
 })

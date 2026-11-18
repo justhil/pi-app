@@ -26,6 +26,7 @@ import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 import { capabilitiesExtension } from './worker-capabilities.js'
+import { createPurgeStreamWrapper, type PurgeModelLike, type PurgeStreamFn } from './worker-purge-stream.js'
 import { modelRoutersExtension } from './worker-model-routers.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
 import { codemodeStatsExtension } from './worker-codemode-stats.js'
@@ -151,6 +152,38 @@ function detachSessionSubscription(): void {
   }
 }
 
+const wrappedPurgeAgents = new WeakSet<object>()
+
+function installPurgeStreamWrapper(session: AgentSession): void {
+  const agent = (session as unknown as { agent?: { streamFunction?: PurgeStreamFn } }).agent
+  if (!agent || typeof agent.streamFunction !== 'function' || wrappedPurgeAgents.has(agent)) return
+  const baseFn = agent.streamFunction.bind(agent)
+  agent.streamFunction = createPurgeStreamWrapper(baseFn, async (spec) => {
+    const trimmed = spec.trim()
+    if (!trimmed) return null
+    const all = st.modelRuntime?.getModels?.() ?? []
+    const slash = trimmed.indexOf('/')
+    const matched =
+      slash > 0
+        ? all.find((m) => m.provider === trimmed.slice(0, slash) && m.id === trimmed.slice(slash + 1))
+        : all.find((m) => m.id === trimmed)
+    if (!matched) return null
+    let apiKey: string | undefined
+    try {
+      const authRes = await (
+        session.modelRuntime as unknown as {
+          getAuth?: (m: unknown) => Promise<{ auth?: { apiKey?: string } } | null | undefined>
+        }
+      )?.getAuth?.(matched)
+      apiKey = authRes?.auth?.apiKey
+    } catch {
+      /* fallback to caller auth */
+    }
+    return { model: matched as unknown as PurgeModelLike, ...(apiKey ? { apiKey } : {}) }
+  })
+  wrappedPurgeAgents.add(agent)
+}
+
 /** After Runtime replaces the AgentSession: resubscribe + rebind desktop extensions. */
 export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<void> {
   detachSessionSubscription()
@@ -159,6 +192,7 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   st.widgetHost?.dispose()
   st.widgetHost = null
   st.session = session
+  installPurgeStreamWrapper(session)
   st.modelRuntime = st.runtime?.services.modelRuntime ?? session.modelRuntime ?? null
   st.currentSessionId = session.sessionId
   st.currentRunId = ''

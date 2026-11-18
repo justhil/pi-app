@@ -1,18 +1,23 @@
-// Session capabilities the user switched on in the composer's Tools menu (pi Desktop host feature).
-// Main sends the prompt text of every enabled capability (keyed by capability id) before each
-// prompt. The inline extension puts each one into pi's structured prompt sections as
-// <desktop_{id}>…</desktop_{id}>: pi records section changes in the transcript and sends them as a
-// system message after the cached prefix, so switching a capability on or off keeps the prompt
-// cache. SDKs without structured sections fall back to appending to that turn's system prompt.
-// See docs/architecture/adr/ADR-desktop-host-tools.md.
+// Session capabilities the user switched on in the composer's Tools menu (pi Desktop host feature)
+// plus per-session Agent Purge v2 (persona + primer demonstration + in-memory refusal scrubbing).
 
 import type { BeforeAgentStartEvent, BeforeAgentStartEventResult, ExtensionAPI, InlineExtension } from '@earendil-works/pi-coding-agent'
 import {
+  DEFAULT_PURGE_STRATEGY,
+  normalizeCustomTerms,
+  normalizePrimerTurns,
   normalizePurgeMode,
+  normalizePurgeStrategy,
+  personaLanguage,
   rewriteSystemPromptText,
   stripHostIdentity,
   type ActivePurgePayload,
 } from '@shared/agent-purge'
+import { getMainUiLanguage } from '@shared/main-language'
+import {
+  injectPrimerTurnsIntoContext,
+  scrubContextMessagesInMemory,
+} from '@shared/purge-transforms'
 import type { WorkerIncomingMessage } from './worker-port-types.js'
 import type { WorkerReply } from './worker-handler-types.js'
 import { setBrowserToolsEnabled } from './worker-browser-tools.js'
@@ -33,12 +38,27 @@ export function setActiveSessionPurge(next: unknown): void {
     activePurge = null
     return
   }
+  const primerTurns = normalizePrimerTurns(obj.primerTurns)
+  const retryFallbackModel =
+    typeof obj.retryFallbackModel === 'string' && obj.retryFallbackModel.trim()
+      ? obj.retryFallbackModel.trim()
+      : undefined
+  const customTerms = normalizeCustomTerms(obj.customTerms)
+
   activePurge = {
     personaId: typeof obj.personaId === 'string' && obj.personaId ? obj.personaId : 'custom',
     personaName: typeof obj.personaName === 'string' && obj.personaName ? obj.personaName : 'Purge',
     mode: normalizePurgeMode(obj.mode, 'replace'),
     body,
+    ...(primerTurns ? { primerTurns } : {}),
+    strategy: normalizePurgeStrategy(obj.strategy, DEFAULT_PURGE_STRATEGY),
+    ...(retryFallbackModel ? { retryFallbackModel } : {}),
+    ...(customTerms.length > 0 ? { customTerms } : {}),
   }
+}
+
+export function getActiveSessionPurge(): Readonly<ActivePurgePayload> | null {
+  return activePurge
 }
 
 export function activeSessionPurgeForTest(): Readonly<ActivePurgePayload> | null {
@@ -54,7 +74,9 @@ export function setCapabilitySections(next: unknown): void {
       : []
   sections = {}
   for (const [id, text] of entries) {
-    if (typeof text === 'string' && text.trim()) sections[`${SECTION_PREFIX}${id.replace(/[^A-Za-z0-9_]/g, '_')}`] = text.trim()
+    if (typeof text === 'string' && text.trim()) {
+      sections[`${SECTION_PREFIX}${id.replace(/[^A-Za-z0-9_]/g, '_')}`] = text.trim()
+    }
   }
 }
 
@@ -78,8 +100,12 @@ export function withCapabilities(event: StartEvent): BeforeAgentStartEventResult
   const opts = event.systemPromptOptions
   const target = opts?.sections
   if (target) {
-    for (const key of Object.keys(target)) if (key.startsWith(SECTION_PREFIX) && !(key in sections)) delete target[key]
-    for (const [key, text] of Object.entries(sections)) if (target[key] !== text) target[key] = text
+    for (const key of Object.keys(target)) {
+      if (key.startsWith(SECTION_PREFIX) && !(key in sections)) delete target[key]
+    }
+    for (const [key, text] of Object.entries(sections)) {
+      if (target[key] !== text) target[key] = text
+    }
 
     if (activePurge) {
       if (activePurge.mode === 'strict') {
@@ -104,21 +130,38 @@ export function withCapabilities(event: StartEvent): BeforeAgentStartEventResult
 }
 
 /**
- * In `replace` mode on structured-section runtimes (Pi 1.5+), strip the default host identity
- * sentence from the outgoing request's `preamble` and place the persona at the very top while
- * avoiding sending the duplicate `agent_purge` section tag.
+ * Apply in-memory pre-flight transformations on `context_with_system`:
+ * 1. `replace` mode: strip default host identity from `preamble` and place persona at the top.
+ * 2. `scrubHistory`: neutralize prior soft-refusal assistant turns and compaction safety clauses.
+ * 3. `primerEnabled`: inject static in-context demonstration turns right after leading system message(s).
  */
 export function projectReplacePurgeOnContextMessages(messages: unknown[]): void {
-  if (!activePurge || activePurge.mode !== 'replace' || !Array.isArray(messages)) return
-  const head = messages[0] as { role?: string; content?: unknown; sections?: Record<string, string | null> } | undefined
-  if (!head || head.role !== 'system') return
-  if (head.sections && typeof head.sections === 'object') {
-    const rawPreamble = typeof head.sections.preamble === 'string' ? head.sections.preamble : ''
-    const stripped = stripHostIdentity(rawPreamble)
-    head.sections.preamble = stripped ? `${activePurge.body}\n\n${stripped}` : activePurge.body
-    delete head.sections[PURGE_SECTION_KEY]
-  } else if (typeof head.content === 'string') {
-    head.content = rewriteSystemPromptText(head.content, activePurge.body, 'replace')
+  if (!activePurge || !Array.isArray(messages) || messages.length === 0) return
+
+  if (activePurge.mode === 'replace') {
+    const head = messages[0] as { role?: string; content?: unknown; sections?: Record<string, string | null> } | undefined
+    if (head && head.role === 'system') {
+      if (head.sections && typeof head.sections === 'object') {
+        const rawPreamble = typeof head.sections.preamble === 'string' ? head.sections.preamble : ''
+        const stripped = stripHostIdentity(rawPreamble)
+        head.sections.preamble = stripped ? `${activePurge.body}\n\n${stripped}` : activePurge.body
+        delete head.sections[PURGE_SECTION_KEY]
+      } else if (typeof head.content === 'string') {
+        head.content = rewriteSystemPromptText(head.content, activePurge.body, 'replace')
+      }
+    }
+  }
+
+  const lang = personaLanguage(getMainUiLanguage())
+  let next: unknown[] = messages
+  if (activePurge.strategy.scrubHistory) {
+    next = scrubContextMessagesInMemory(next, lang)
+  }
+  if (activePurge.strategy.primerEnabled && activePurge.primerTurns?.length) {
+    next = injectPrimerTurnsIntoContext(next, activePurge.primerTurns)
+  }
+  if (next !== messages) {
+    messages.splice(0, messages.length, ...next)
   }
 }
 

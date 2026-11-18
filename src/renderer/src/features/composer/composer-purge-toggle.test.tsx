@@ -1,6 +1,8 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defaultAgentPurgeConfig } from '@shared/agent-purge'
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_PURGE_STRATEGY, defaultAgentPurgeConfig } from '@shared/agent-purge'
 import {
   commitPurgedSessionAfterSend,
   consumeDraftPurgeForFirstSend,
@@ -9,33 +11,42 @@ import {
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ComposerPurgeToggle } from './composer-purge-toggle'
 
-const invokeMock = vi.fn((channel: string, _payload?: unknown) => {
-  if (channel === 'purge.setSession') return Promise.resolve({ ok: true })
-  return Promise.resolve({
-    config: defaultAgentPurgeConfig(),
-    purgedSessions: {},
-    localDir: '',
-  })
-})
+const invokeMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@renderer/lib/ipc-client', () => ({
-  ipcClient: {
-    invoke: (...args: unknown[]) => invokeMock(args[0] as string, args[1]),
-  },
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({
+    t: (key: string, opts?: Record<string, unknown>) =>
+      opts && 'defaultValue' in opts ? String(opts.defaultValue) : key,
+    i18n: { language: 'zh-CN' },
+  }),
 }))
 
-describe('ComposerPurgeToggle state machine', () => {
+vi.mock('@renderer/lib/ipc-client', () => ({
+  ipcClient: { invoke: invokeMock },
+  onAppEvent: () => () => {},
+}))
+
+describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher drift warning', () => {
   beforeEach(() => {
-    invokeMock.mockClear()
+    invokeMock.mockReset()
+    const cfg = defaultAgentPurgeConfig()
+    invokeMock.mockImplementation(async (channel: string) => {
+      if (channel === 'purge.getState') {
+        return { config: cfg, purgedSessions: {}, localDir: '/tmp/personas' }
+      }
+      return { ok: true }
+    })
     useAgentPurgeStore.setState({
       loaded: true,
-      config: defaultAgentPurgeConfig(),
+      config: cfg,
       purgedSessions: {},
-      localDir: '',
-      draftContextKey: 'draft-1',
+      localDir: '/tmp/personas',
+      draftContextKey: 'new-chat',
       draftEnabled: false,
       draftPersonaId: null,
       draftMode: null,
+      draftStrategy: null,
       pendingLock: null,
     })
     useUIStore.setState({
@@ -45,70 +56,123 @@ describe('ComposerPurgeToggle state machine', () => {
     })
   })
 
-  it('starts OFF on a brand-new chat, commits on first send, and remains switchable/togglable mid-session', () => {
-    const { rerender } = render(<ComposerPurgeToggle draftContextKey="draft-1" running={false} />)
+  afterEach(() => {
+    cleanup()
+  })
+
+  it('starts OFF on a brand-new chat, commits on first send, and resets back to OFF on another draft', async () => {
+    const { rerender } = render(<ComposerPurgeToggle draftContextKey="new-chat" running={false} />)
 
     const btn = screen.getByTestId('composer-purge-toggle')
-    expect(btn).not.toBeDisabled()
     expect(btn).toHaveAttribute('aria-pressed', 'false')
     expect(btn).toHaveAttribute('data-purge-state', 'draft-off')
 
-    // User enables Purge on the new draft
+    // Unrestricted first-turn enable
     fireEvent.click(btn)
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('data-purge-state', 'draft-on')
+    expect(btn).toHaveAttribute('aria-pressed', 'true')
+    expect(btn).toHaveAttribute('data-purge-state', 'draft-on')
 
-    // First message is sent and materializes /sessions/chat-1.jsonl
     let sendPayload: ReturnType<typeof consumeDraftPurgeForFirstSend>
     act(() => {
       sendPayload = consumeDraftPurgeForFirstSend(true)
-      useUIStore.setState({ historySessionFile: '/sessions/chat-1.jsonl' })
+      useUIStore.setState({
+        historySessionFile: '/sessions/chat-1.jsonl',
+        timelineItems: [{ id: 'u1', type: 'user-message', text: 'hello', timestamp: 1 } as never],
+      })
       commitPurgedSessionAfterSend('/sessions/chat-1.jsonl')
     })
+
     expect(sendPayload).toEqual({
       enabled: true,
       personaId: 'konata',
       mode: 'replace',
+      strategy: DEFAULT_PURGE_STRATEGY,
     })
-    rerender(<ComposerPurgeToggle draftContextKey="session:/sessions/chat-1.jsonl" running={false} />)
 
+    rerender(<ComposerPurgeToggle draftContextKey="session:/sessions/chat-1.jsonl" running={false} />)
     const midBtn = screen.getByTestId('composer-purge-toggle')
-    expect(midBtn).not.toBeDisabled()
     expect(midBtn).toHaveAttribute('aria-pressed', 'true')
     expect(midBtn).toHaveAttribute('data-purge-state', 'active-mid')
 
-    // Clicking mid-session turns it off via purge.setSession
+    // Clicking toolbar toggle mid-session opens popover with explicit cache-impact confirmation
     fireEvent.click(midBtn)
+    expect(screen.getByTestId('purge-mid-session-confirm')).toHaveTextContent(
+      'composer:purge.impactReasons.toggle_disable',
+    )
+    fireEvent.click(screen.getByTestId('purge-mid-session-apply'))
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        'purge.setSession',
+        expect.objectContaining({ sessionFile: '/sessions/chat-1.jsonl', enabled: false }),
+      )
+    })
+
+    // Entering another brand-new draft resets draft switch to OFF
+    act(() => {
+      useUIStore.setState({ historySessionFile: null, timelineItems: [] })
+    })
+    rerender(<ComposerPurgeToggle draftContextKey="draft-2" running={false} />)
     expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'false')
-    expect(invokeMock).toHaveBeenCalledWith(
-      'purge.setSession',
-      expect.objectContaining({ sessionFile: '/sessions/chat-1.jsonl', enabled: false }),
+  })
+
+  it('allows unrestricted switching before the first message and warns against keyword substitution drift', async () => {
+    render(<ComposerPurgeToggle draftContextKey="new-chat" running={false} />)
+
+    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
+    expect(screen.getByText('composer:purge.firstTurnFreeBadge')).toBeInTheDocument()
+
+    // Switch directly to Tool Tunnel preset -> applies immediately without mid-session confirmation
+    fireEvent.click(screen.getByText('composer:purge.presets.tunnel'))
+    expect(screen.queryByTestId('purge-mid-session-confirm')).not.toBeInTheDocument()
+    expect(useAgentPurgeStore.getState().draftStrategy?.historyMode).toBe('tunnel')
+
+    // Open advanced options and select minimal keyword substitution -> shows drift warning
+    fireEvent.click(screen.getByText('composer:purge.showAdvanced'))
+    expect(screen.getByText('composer:purge.badges.notRecommendedDrift')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('composer:purge.cipherLevels.minimal'))
+    expect(screen.getByTestId('purge-cipher-drift-warning')).toHaveTextContent(
+      'composer:purge.cipherDriftWarn',
     )
   })
 
-  it('allows enabling Purge mid-session on existing conversations and shows cache invalidation warning', () => {
-    useUIStore.setState({ historySessionFile: '/sessions/existing-normal.jsonl' })
-    render(<ComposerPurgeToggle draftContextKey="session:/sessions/existing-normal.jsonl" running={false} />)
+  it('stages explicit cache-impact confirmation when changing prefix-breaking options mid-session', async () => {
+    useUIStore.setState({
+      historySessionFile: '/tmp/proj/s1.jsonl',
+      timelineItems: [{ id: 'u1', type: 'user-message', text: 'hi', timestamp: 1 } as never],
+      optimisticPendingUserText: null,
+    })
+    useAgentPurgeStore.setState({
+      purgedSessions: {
+        '/tmp/proj/s1.jsonl': {
+          personaId: 'konata',
+          personaName: '泉此方 · 沙箱执行',
+          mode: 'replace',
+          body: '# Konata',
+          strategy: { ...DEFAULT_PURGE_STRATEGY },
+          lockedAt: 1,
+        },
+      },
+    })
 
-    const btn = screen.getByTestId('composer-purge-toggle')
-    expect(btn).not.toBeDisabled()
-    expect(btn).toHaveAttribute('aria-pressed', 'false')
-    expect(btn).toHaveAttribute('data-purge-state', 'off-mid')
+    render(<ComposerPurgeToggle draftContextKey="s1" running={false} />)
 
-    fireEvent.click(btn)
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'true')
-    expect(invokeMock).toHaveBeenCalledWith(
-      'purge.setSession',
-      expect.objectContaining({ sessionFile: '/sessions/existing-normal.jsonl', enabled: true }),
-    )
-  })
+    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
+    fireEvent.click(screen.getByText('composer:purge.presets.tunnel'))
 
-  it('resets back to OFF when opening another brand-new conversation', () => {
-    const { rerender } = render(<ComposerPurgeToggle draftContextKey="draft-a" running={false} />)
-    fireEvent.click(screen.getByTestId('composer-purge-toggle'))
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'true')
+    const confirmBox = screen.getByTestId('purge-mid-session-confirm')
+    expect(confirmBox).toHaveTextContent('composer:purge.impactReasons.switch_tunnel')
+    expect(invokeMock).not.toHaveBeenCalledWith('purge.setSession', expect.anything())
 
-    rerender(<ComposerPurgeToggle draftContextKey="draft-b" running={false} />)
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByTestId('purge-mid-session-apply'))
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        'purge.setSession',
+        expect.objectContaining({
+          sessionFile: '/tmp/proj/s1.jsonl',
+          enabled: true,
+          strategy: expect.objectContaining({ historyMode: 'tunnel', toolOutputRelay: true }),
+        }),
+      )
+    })
   })
 })

@@ -255,21 +255,74 @@
   "thinkingPrefix": "思考",
   "purge": {
     "shortLabel": "人设",
-    "choosePersona": "选择注入人设与模式",
-    "menuTitle": "单会话人设注入",
+    "choosePersona": "选择注入人设与抗拦截策略",
+    "menuTitle": "单会话人设与历史构造",
+    "firstTurnFreeBadge": "首轮无限制",
+    "primerBadge": "含示范轮",
     "openSettings": "配置",
-    "modeLabel": "注入模式",
+    "modeLabel": "系统注入模式",
     "modes": {
       "replace": "换身份",
       "append": "追加",
       "strict": "只留人设"
     },
-    "firstTurnNote": "仅当前会话生效，不影响全局；在首条消息前设定可保持整场对话的提示词缓存命中。",
-    "cacheBreakWarn": "提示：会话中途开启、切换或关闭人设会改写系统提示词，将使当前会话的提示词缓存（Prompt Cache）失效重建。",
-    "inactiveDraftHint": "点击为本新对话启用人设注入（默认：{{name}}）",
-    "activeDraftHint": "将在首条消息自动注入：{{name}}（{{mode}}），点击可取消",
-    "inactiveMidHint": "点击为当前会话启用人设注入（默认：{{name}}，将重置提示词缓存）",
-    "activeMidHint": "当前生效：{{name}}（{{mode}}）· 点击关闭或点右侧箭头切换（将重置提示词缓存）",
+    "strategyPresetLabel": "通道与历史伪造档位",
+    "showAdvanced": "细项",
+    "hideAdvanced": "收起细项",
+    "presets": {
+      "standard": "标准示范",
+      "relay_push": "推入+回填",
+      "tunnel": "协议隧道",
+      "custom": "自定义"
+    },
+    "badges": {
+      "cacheSafe": "保前缀缓存",
+      "tailNoCache": "尾轮无缓存",
+      "midBreak": "中途切破缓存",
+      "midSwitchBreaksCache": "会话中途切换将重算缓存",
+      "notRecommendedDrift": "易偏航·不建议"
+    },
+    "opts": {
+      "primer": "注入首轮示范问答",
+      "scrub": "内存态洗白历史软拒",
+      "toolRelay": "调用工具输出全文并回填",
+      "historyMode": "历史伪造结构",
+      "autoRetry": "拦截自动无损升档重试",
+      "cipher": "关键词替换"
+    },
+    "historyModes": {
+      "none": "不改写末尾结构（保缓存）",
+      "push": "末轮后置确认推入（尾轮无缓存）",
+      "tunnel": "协议级工具历史隧道（中途切破缓存）"
+    },
+    "cipherLevels": {
+      "off": "关（推荐）",
+      "minimal": "精简红线",
+      "full": "全量 [破缓存]"
+    },
+    "cipherDriftWarn": "注意：关键词替换会改写输入字面表达，容易引发模型语义理解跑偏、代码精度下降与行为偏移，不建议日常开启；建议优先使用「推入+回填」或「协议隧道」。",
+    "cipherFullDriftAndCacheWarn": "高风险：全量词表替换会改写整段历史消息与动态槽位表，不仅每轮破坏 Prompt Cache，还会显著加剧模型语义与行为偏移，强烈不建议开启。",
+    "tailPushMidNotice": "已切换为「末轮推入」：前序历史前缀缓存保持有效，仅每轮最末尾 1 条消息不进入下轮静态缓存。",
+    "midConfirmTitle": "会话中途变更将重建提示词缓存",
+    "midConfirmCancel": "取消",
+    "midConfirmApply": "确认切换",
+    "impactReasons": {
+      "toggle_enable": "当前会话已有对话记录：中途开启人设注入会改写顶部系统提示词，导致已有 Prompt Cache 立即失效重算，后续轮次按新前缀重新缓存。",
+      "toggle_disable": "当前会话已有对话记录：中途关闭人设注入会还原系统提示词，导致已有 Prompt Cache 失效重算。",
+      "switch_persona": "当前会话已有对话记录：切换人设模板会替换顶部系统提示词与示范前缀，当前会话已有 Prompt Cache 将立即失效重算。",
+      "switch_mode": "当前会话已有对话记录：切换系统注入模式（换身份/追加/只留人设）会改变系统提示词结构，导致已有 Prompt Cache 失效重算。",
+      "toggle_primer": "当前会话已有对话记录：中途开关「首轮示范问答」会在历史最前端增删示范消息，使整段历史前缀偏移并使已有缓存失效。",
+      "switch_tunnel": "当前会话已有对话记录：中途切换「协议隧道」会将系统与全部历史消息重排为工具调用链并更新工具表，当前前缀缓存将立即失效。",
+      "toggle_relay": "当前会话已有对话记录：中途开关「工具代出回填」会增删虚拟回复工具定义与输出规则，触发当前会话前缀缓存重建。",
+      "switch_cipher_full": "切换「全量词表」会改写前序历史消息并动态变更槽位表，不仅立即破坏 Prompt Cache，还极易导致模型语义与行为偏移（不建议开启）。",
+      "switch_push": "启用「末轮推入」仅在每轮尾部追加临时确认轮，不影响更早轮次缓存。"
+    },
+    "firstTurnNote": "首轮发送前可自由切换任意模板与通道策略（不设限、零缓存损耗）；发送首条消息后固定配置即可全程命中缓存。",
+    "cacheBreakWarn": "当前会话已有历史记录：标注「中途切破缓存」或「破缓存」的项在切换时会提示缓存与行为影响。",
+    "inactiveDraftHint": "点击为本新对话启用人设注入（默认：{{name}}，首轮前可自由调整）",
+    "activeDraftHint": "将在首条消息注入：{{name}}（{{mode}}），点击可取消",
+    "inactiveMidHint": "点击为当前会话启用人设注入（默认：{{name}}，将提示缓存影响）",
+    "activeMidHint": "当前生效：{{name}}（{{mode}}）· 点击关闭或展开调整策略",
     "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）",
     "lockedOffHint": "当前会话未启用人设注入"
   },

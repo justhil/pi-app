@@ -1,16 +1,19 @@
 import { create } from 'zustand'
 import {
+  DEFAULT_PURGE_STRATEGY,
   defaultAgentPurgeConfig,
   normalizeAgentPurgeConfig,
   normalizePurgeMode,
   normalizePurgedSessionKey,
   normalizePurgedSessionsMap,
+  normalizePurgeStrategy,
   personaCopy,
   personaLanguage,
   type AgentPurgeConfig,
   type AgentPurgeMode,
   type AgentPurgePersona,
   type PurgedSessionRecord,
+  type PurgeStrategyOptions,
 } from '@shared/agent-purge'
 import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -19,22 +22,26 @@ export interface DraftPurgeSendPayload {
   enabled: boolean
   personaId?: string
   mode?: AgentPurgeMode
+  strategy?: PurgeStrategyOptions
 }
 
 export type ComposerPurgeUiState = {
   status: 'ready'
   checked: boolean
   disabled: false
+  /** True only when the session already has >= 1 turn (or is actively sending/running). First turn is always false (unrestricted). */
   midSession: boolean
   persona: AgentPurgePersona
   personaName: string
   mode: AgentPurgeMode
+  strategy: PurgeStrategyOptions
 }
 
 interface PendingLock {
   personaId: string
   personaName: string
   mode: AgentPurgeMode
+  strategy: PurgeStrategyOptions
 }
 
 interface AgentPurgeStoreState {
@@ -46,6 +53,7 @@ interface AgentPurgeStoreState {
   draftEnabled: boolean
   draftPersonaId: string | null
   draftMode: AgentPurgeMode | null
+  draftStrategy: PurgeStrategyOptions | null
   pendingLock: PendingLock | null
 }
 
@@ -58,6 +66,7 @@ export const useAgentPurgeStore = create<AgentPurgeStoreState>(() => ({
   draftEnabled: false,
   draftPersonaId: null,
   draftMode: null,
+  draftStrategy: null,
   pendingLock: null,
 }))
 
@@ -95,7 +104,6 @@ export function applySavedAgentPurgeConfig(raw: unknown): AgentPurgeConfig {
 export function syncPurgeDraftContextKey(contextKey: string): void {
   const cur = useAgentPurgeStore.getState()
   if (cur.draftContextKey === contextKey) return
-  // Keep pendingLock while the newly materialized session is finishing its first send
   if (cur.pendingLock) {
     useAgentPurgeStore.setState({ draftContextKey: contextKey })
     return
@@ -105,6 +113,7 @@ export function syncPurgeDraftContextKey(contextKey: string): void {
     draftEnabled: false,
     draftPersonaId: null,
     draftMode: null,
+    draftStrategy: null,
   })
 }
 
@@ -118,6 +127,18 @@ export function setDraftPurgePersona(personaId: string | null): void {
 
 export function setDraftPurgeMode(mode: AgentPurgeMode | null): void {
   useAgentPurgeStore.setState({ draftMode: mode })
+}
+
+export function setDraftPurgeStrategy(patch: Partial<PurgeStrategyOptions> | null): void {
+  if (patch === null) {
+    useAgentPurgeStore.setState({ draftStrategy: null })
+    return
+  }
+  const st = useAgentPurgeStore.getState()
+  const base = st.draftStrategy ?? st.config.defaultStrategy ?? DEFAULT_PURGE_STRATEGY
+  useAgentPurgeStore.setState({
+    draftStrategy: normalizePurgeStrategy({ ...base, ...patch }, base),
+  })
 }
 
 export function resolveSelectedDraftPersona(
@@ -146,14 +167,14 @@ export function resolveComposerPurgeState(input: {
   draftEnabled: boolean
   draftPersonaId: string | null
   draftMode: AgentPurgeMode | null
+  draftStrategy?: PurgeStrategyOptions | null
   pendingLock: PendingLock | null
 }): ComposerPurgeUiState {
   const sessionKey = normalizePurgedSessionKey(input.historySessionFile)
-  const isBrandNewChat =
-    !sessionKey &&
-    input.timelineLength === 0 &&
-    !input.optimisticPendingUserText &&
-    !input.isRunning
+  // First turn is unrestricted whenever zero turns exist in the conversation yet,
+  // even if an empty session file has already been materialized.
+  const hasPriorTurns =
+    input.timelineLength > 0 || Boolean(input.optimisticPendingUserText) || input.isRunning
 
   const activeRecord = (sessionKey ? input.purgedSessions[sessionKey] : undefined) ?? input.pendingLock
   if (activeRecord) {
@@ -171,45 +192,70 @@ export function resolveComposerPurgeState(input: {
       status: 'ready',
       checked: true,
       disabled: false,
-      midSession: !isBrandNewChat,
+      midSession: hasPriorTurns,
       persona,
       personaName: activeRecord.personaName || persona.name,
       mode: activeRecord.mode,
+      strategy: normalizePurgeStrategy(activeRecord.strategy, input.config.defaultStrategy),
     }
   }
 
   const persona = resolveSelectedDraftPersona(input.config, input.draftPersonaId)
   const mode = normalizePurgeMode(input.draftMode ?? input.config.defaultMode, input.config.defaultMode)
+  const strategy = normalizePurgeStrategy(
+    input.draftStrategy ?? input.config.defaultStrategy,
+    input.config.defaultStrategy,
+  )
   return {
     status: 'ready',
-    checked: isBrandNewChat ? input.draftEnabled : false,
+    checked: !hasPriorTurns && !sessionKey ? input.draftEnabled : false,
     disabled: false,
-    midSession: !isBrandNewChat,
+    midSession: hasPriorTurns,
     persona,
     personaName: persona.name,
     mode,
+    strategy,
   }
 }
 
 export async function updateSessionPurge(
   sessionFile: string,
-  req: { enabled: boolean; personaId?: string; mode?: AgentPurgeMode },
+  req: {
+    enabled: boolean
+    personaId?: string
+    mode?: AgentPurgeMode
+    strategy?: Partial<PurgeStrategyOptions>
+  },
 ): Promise<void> {
   const key = normalizePurgedSessionKey(sessionFile)
   if (!key) return
   const st = useAgentPurgeStore.getState()
+  const prevRec = st.purgedSessions[key]
+
   if (!req.enabled) {
     const next = { ...st.purgedSessions }
     delete next[key]
     useAgentPurgeStore.setState({ pendingLock: null, purgedSessions: next })
   } else {
-    const persona = resolveSelectedDraftPersona(st.config, req.personaId ?? st.draftPersonaId)
-    const mode = normalizePurgeMode(req.mode ?? st.draftMode ?? st.config.defaultMode, st.config.defaultMode)
+    const persona = resolveSelectedDraftPersona(
+      st.config,
+      req.personaId ?? prevRec?.personaId ?? st.draftPersonaId,
+    )
+    const mode = normalizePurgeMode(
+      req.mode ?? prevRec?.mode ?? st.draftMode ?? st.config.defaultMode,
+      st.config.defaultMode,
+    )
+    const baseStrategy = prevRec?.strategy ?? st.draftStrategy ?? st.config.defaultStrategy
+    const nextStrategy = req.strategy
+      ? normalizePurgeStrategy({ ...baseStrategy, ...req.strategy }, baseStrategy)
+      : normalizePurgeStrategy(baseStrategy, st.config.defaultStrategy)
     const copy = personaCopy(persona, personaLanguage(i18n.language))
+
     useAgentPurgeStore.setState({
       pendingLock: null,
       draftPersonaId: persona.id,
       draftMode: mode,
+      draftStrategy: nextStrategy,
       purgedSessions: {
         ...st.purgedSessions,
         [key]: {
@@ -217,7 +263,9 @@ export async function updateSessionPurge(
           personaName: copy.name,
           mode,
           body: copy.body || 'active',
-          lockedAt: Date.now(),
+          ...(copy.primerTurns ? { primerTurns: copy.primerTurns } : {}),
+          strategy: nextStrategy,
+          lockedAt: prevRec?.lockedAt || Date.now(),
         },
       },
     })
@@ -228,6 +276,7 @@ export async function updateSessionPurge(
       enabled: req.enabled,
       ...(req.personaId ? { personaId: req.personaId } : {}),
       ...(req.mode ? { mode: req.mode } : {}),
+      ...(req.strategy ? { strategy: req.strategy } : {}),
     })) as { purgedSessions?: unknown } | undefined
     if (res?.purgedSessions !== undefined) {
       useAgentPurgeStore.setState({
@@ -241,7 +290,6 @@ export async function updateSessionPurge(
 
 /**
  * Snapshot the draft's Purge switch right when the user sends the first message of a new chat.
- * Immediately flips the UI into `locked-on` (via `pendingLock`) so the switch greys out on send.
  */
 export function consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat: boolean): DraftPurgeSendPayload | undefined {
   if (!isFirstTurnOfNewChat) return undefined
@@ -249,6 +297,10 @@ export function consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat: boolean): Dr
   if (!st.draftEnabled) return undefined
   const persona = resolveSelectedDraftPersona(st.config, st.draftPersonaId)
   const mode = normalizePurgeMode(st.draftMode ?? st.config.defaultMode, st.config.defaultMode)
+  const strategy = normalizePurgeStrategy(
+    st.draftStrategy ?? st.config.defaultStrategy,
+    st.config.defaultStrategy,
+  )
   const copy = personaCopy(persona, personaLanguage(i18n.language))
   useAgentPurgeStore.setState({
     draftEnabled: false,
@@ -256,12 +308,14 @@ export function consumeDraftPurgeForFirstSend(isFirstTurnOfNewChat: boolean): Dr
       personaId: persona.id,
       personaName: copy.name,
       mode,
+      strategy,
     },
   })
   return {
     enabled: true,
     personaId: persona.id,
     mode,
+    strategy,
   }
 }
 
@@ -275,7 +329,12 @@ export function rollbackDraftPurgeAfterSendFailure(payload: DraftPurgeSendPayloa
 
 export function commitPurgedSessionAfterSend(
   sessionFile: string | undefined,
-  confirmed?: { personaId: string; personaName: string; mode: AgentPurgeMode },
+  confirmed?: {
+    personaId: string
+    personaName: string
+    mode: AgentPurgeMode
+    strategy?: PurgeStrategyOptions
+  },
 ): void {
   const st = useAgentPurgeStore.getState()
   const key = normalizePurgedSessionKey(sessionFile)
@@ -295,6 +354,8 @@ export function commitPurgedSessionAfterSend(
         personaName: localized?.name || meta.personaName,
         mode: meta.mode,
         body: localized?.body || 'locked',
+        ...(localized?.primerTurns ? { primerTurns: localized.primerTurns } : {}),
+        strategy: normalizePurgeStrategy(meta.strategy, st.config.defaultStrategy),
         lockedAt: Date.now(),
       },
     },
@@ -314,7 +375,7 @@ export function inheritPurgedSessionInStore(
   useAgentPurgeStore.setState({
     purgedSessions: {
       ...st.purgedSessions,
-      [to]: { ...record, lockedAt: Date.now() },
+      [to]: { ...record, strategy: { ...record.strategy }, lockedAt: Date.now() },
     },
   })
 }

@@ -51,7 +51,12 @@ export function registerPromptHandlers(): void {
     req: {
       capabilities?: string[]
       sessionFile?: string
-      agentPurge?: { enabled: boolean; personaId?: string; mode?: AgentPurgeMode }
+      agentPurge?: {
+        enabled: boolean
+        personaId?: string
+        mode?: AgentPurgeMode
+        strategy?: Partial<import('@shared/agent-purge').PurgeStrategyOptions>
+      }
     },
     allowNewPurgeLock = false,
   ) => {
@@ -135,6 +140,7 @@ export function registerPromptHandlers(): void {
               personaId: activePurge.personaId,
               personaName: activePurge.personaName,
               mode: activePurge.mode,
+              strategy: activePurge.strategy,
             },
           }
         : {}),

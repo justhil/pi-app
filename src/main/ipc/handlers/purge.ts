@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AGENT_PURGE_MODES } from '@shared/agent-purge'
+import { AGENT_PURGE_MODES, PURGE_CIPHER_LEVELS, PURGE_HISTORY_MODES } from '@shared/agent-purge'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
   getActivePurgeForSession,
@@ -34,6 +34,17 @@ export function registerPurgeHandlers(): void {
     },
   )
 
+  const purgeStrategyPatchSchema = z
+    .object({
+      primerEnabled: z.boolean().optional(),
+      scrubHistory: z.boolean().optional(),
+      historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
+      toolOutputRelay: z.boolean().optional(),
+      cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
+      autoRetry: z.boolean().optional(),
+    })
+    .strict()
+
   registerHandlerWithSchema(
     'ipc:purge.setSession',
     z.object({
@@ -41,12 +52,14 @@ export function registerPurgeHandlers(): void {
       enabled: z.boolean(),
       personaId: z.string().max(128).optional(),
       mode: z.enum(AGENT_PURGE_MODES).optional(),
+      strategy: purgeStrategyPatchSchema.optional(),
     }),
     async (req) => {
       const record = setPurgedSession(req.sessionFile, {
         enabled: req.enabled,
         personaId: req.personaId,
         mode: req.mode,
+        strategy: req.strategy,
       })
       if (workerManager.hasLiveSessionWorker(req.sessionFile)) {
         const capMap = (configStore.get('sessionCapabilities') || {}) as Record<string, string[]>

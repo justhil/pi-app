@@ -4,16 +4,24 @@ import { toast } from 'sonner'
 import {
   AGENT_PURGE_MODES,
   defaultAgentPurgeConfig,
+  detectPurgeStrategyPreset,
   normalizeAgentPurgeConfig,
+  normalizeCustomTerms,
+  PURGE_CIPHER_LEVELS,
   personaCopy,
   personaLanguage,
   sanitizePurgePersonaId,
+  strategyForPreset,
   type AgentPurgeConfig,
   type AgentPurgeMode,
   type AgentPurgePersona,
   type LocalizedPersonaCopy,
+  type PurgeCipherLevel,
+  type PurgeHistoryMode,
+  type PurgePrimerTurn,
+  type PurgeStrategyOptions,
 } from '@shared/agent-purge'
-import { CloudDownload, FolderOpen, Plus, RotateCcw, Trash2 } from '@renderer/components/icons'
+import { AlertTriangle, CloudDownload, FolderOpen, Plus, RotateCcw, Trash2 } from '@renderer/components/icons'
 import {
   applySavedAgentPurgeConfig,
   loadAgentPurgeState,
@@ -39,6 +47,9 @@ export function PurgeSettingsPanel() {
   const [baseConfig, setBaseConfig] = useState<AgentPurgeConfig>(() => storeConfig || defaultAgentPurgeConfig())
   const [draftConfig, setDraftConfig] = useState<AgentPurgeConfig>(() => storeConfig || defaultAgentPurgeConfig())
   const [selectedId, setSelectedId] = useState<string>(() => (storeConfig || defaultAgentPurgeConfig()).defaultPersonaId)
+  const [customTermsRaw, setCustomTermsRaw] = useState<string>(() =>
+    ((storeConfig || defaultAgentPurgeConfig()).customTerms ?? []).join('\n'),
+  )
   const [githubRepo, setGithubRepo] = useState('ZiChuanLan/some-magic')
   const [importing, setImporting] = useState(false)
 
@@ -47,6 +58,7 @@ export function PurgeSettingsPanel() {
     const fresh = useAgentPurgeStore.getState().config
     setBaseConfig(fresh)
     setDraftConfig(fresh)
+    setCustomTermsRaw((fresh.customTerms ?? []).join('\n'))
     setSelectedId((prev) =>
       fresh.personas.some((p) => p.id === prev) ? prev : fresh.defaultPersonaId,
     )
@@ -73,9 +85,11 @@ export function PurgeSettingsPanel() {
       const saved = applySavedAgentPurgeConfig(res?.config ?? draftConfig)
       setBaseConfig(saved)
       setDraftConfig(saved)
+      setCustomTermsRaw((saved.customTerms ?? []).join('\n'))
     },
     discard: () => {
       setDraftConfig(baseConfig)
+      setCustomTermsRaw((baseConfig.customTerms ?? []).join('\n'))
       if (!baseConfig.personas.some((p) => p.id === selectedId)) {
         setSelectedId(baseConfig.defaultPersonaId)
       }
@@ -99,6 +113,26 @@ export function PurgeSettingsPanel() {
       : selectedCopy!.description
     : ''
   const editBody = selectedPersona ? (rawLoc?.body !== undefined ? rawLoc.body : selectedCopy!.body) : ''
+  const editPrimerTurns: PurgePrimerTurn[] = selectedPersona
+    ? (rawLoc?.primerTurns ?? selectedCopy?.primerTurns ?? [])
+    : []
+
+  const updateDefaultStrategy = (patch: Partial<PurgeStrategyOptions>) => {
+    setDraftConfig((prev) => {
+      const nextHistoryMode = patch.historyMode ?? prev.defaultStrategy.historyMode
+      return {
+        ...prev,
+        defaultStrategy: {
+          ...prev.defaultStrategy,
+          ...patch,
+          toolOutputRelay:
+            nextHistoryMode === 'tunnel'
+              ? true
+              : (patch.toolOutputRelay ?? prev.defaultStrategy.toolOutputRelay),
+        },
+      }
+    })
+  }
 
   const updateSelectedPersona = (patch: Partial<AgentPurgePersona>) => {
     if (!selectedPersona) return
@@ -111,6 +145,10 @@ export function PurgeSettingsPanel() {
         }
         const cur = personaCopy(p, lang)
         const existingLoc = p.i18n[lang]
+        const nextPrimer =
+          patch.primerTurns !== undefined
+            ? patch.primerTurns
+            : (existingLoc?.primerTurns ?? cur.primerTurns)
         const nextLoc: LocalizedPersonaCopy = {
           name: patch.name !== undefined ? patch.name : (existingLoc?.name ?? cur.name),
           description:
@@ -118,6 +156,7 @@ export function PurgeSettingsPanel() {
               ? patch.description
               : (existingLoc?.description ?? cur.description),
           body: patch.body !== undefined ? patch.body : (existingLoc?.body ?? cur.body),
+          ...(nextPrimer !== undefined ? { primerTurns: nextPrimer } : {}),
         }
         return {
           ...p,
@@ -130,6 +169,25 @@ export function PurgeSettingsPanel() {
         }
       }),
     }))
+  }
+
+  const handleAddPrimerPair = () => {
+    const appended: PurgePrimerTurn[] = [
+      { role: 'user', content: t('settings:purge.primerDefaultUser') },
+      { role: 'assistant', content: t('settings:purge.primerDefaultAssistant') },
+    ]
+    const next: PurgePrimerTurn[] = [...editPrimerTurns, ...appended].slice(0, 8)
+    updateSelectedPersona({ primerTurns: next })
+  }
+
+  const handleUpdatePrimerTurn = (idx: number, patch: Partial<PurgePrimerTurn>) => {
+    const next = editPrimerTurns.map((item, i) => (i === idx ? { ...item, ...patch } : item))
+    updateSelectedPersona({ primerTurns: next })
+  }
+
+  const handleRemovePrimerTurn = (idx: number) => {
+    const next = editPrimerTurns.filter((_, i) => i !== idx)
+    updateSelectedPersona({ primerTurns: next })
   }
 
   const handleAddPersona = () => {
@@ -193,6 +251,7 @@ export function PurgeSettingsPanel() {
       const saved = applySavedAgentPurgeConfig(res?.config)
       setBaseConfig(saved)
       setDraftConfig(saved)
+      setCustomTermsRaw((saved.customTerms ?? []).join('\n'))
       toast.success(t('settings:purge.importedToast', { count: res?.count ?? 0 }))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('settings:purge.importFailed'))
@@ -213,6 +272,7 @@ export function PurgeSettingsPanel() {
       const saved = applySavedAgentPurgeConfig(res?.config)
       setBaseConfig(saved)
       setDraftConfig(saved)
+      setCustomTermsRaw((saved.customTerms ?? []).join('\n'))
       toast.success(t('settings:purge.importedToast', { count: res?.count ?? 0 }))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t('settings:purge.importFailed'))
@@ -227,11 +287,14 @@ export function PurgeSettingsPanel() {
       const saved = applySavedAgentPurgeConfig(res?.config)
       setBaseConfig(saved)
       setDraftConfig(saved)
+      setCustomTermsRaw((saved.customTerms ?? []).join('\n'))
       toast.success(t('settings:purge.resetSuccess'))
     } catch {
       toast.error(t('common:saveFailed'))
     }
   }
+
+  const defaultPreset = detectPurgeStrategyPreset(draftConfig.defaultStrategy)
 
   return (
     <div className="space-y-8">
@@ -250,7 +313,7 @@ export function PurgeSettingsPanel() {
           settingKey="defaultPersonaId"
         >
           <select
-            className={cn(selectCls, 'min-w-[13rem]')}
+            className={cn(selectCls, 'min-w-[14rem]')}
             value={draftConfig.defaultPersonaId}
             onChange={(e) =>
               setDraftConfig((prev) => ({ ...prev, defaultPersonaId: e.target.value }))
@@ -318,12 +381,13 @@ export function PurgeSettingsPanel() {
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-[248px_minmax(0,1fr)]">
           <div className="space-y-1 rounded-lg border border-border/50 bg-[var(--bg-2)]/35 p-1.5">
             {draftConfig.personas.map((p) => {
               const selected = p.id === selectedPersona?.id
               const isDefault = p.id === draftConfig.defaultPersonaId
               const copy = personaCopy(p, lang)
+              const hasPrimer = Boolean(copy.primerTurns?.length)
               return (
                 <button
                   key={p.id}
@@ -353,6 +417,7 @@ export function PurgeSettingsPanel() {
                   </div>
                   <span className="truncate font-mono text-[11px] text-muted-foreground/75">
                     {p.id} · {t('settings:purge.tokShort', { tokens: estimateTokens(copy.body) })}
+                    {hasPrimer ? ` · ${t('composer:purge.primerBadge')}` : ''}
                   </span>
                 </button>
               )
@@ -360,9 +425,9 @@ export function PurgeSettingsPanel() {
           </div>
 
           {selectedPersona ? (
-            <div className="space-y-3 rounded-lg border border-border/50 bg-[var(--bg-2)]/20 p-3.5">
+            <div className="space-y-3.5 rounded-lg border border-border/50 bg-[var(--bg-2)]/20 p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0 flex-1 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="grid min-w-0 flex-1 grid-cols-1 gap-2.5 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">
                       {t('settings:purge.fieldName')}
@@ -438,15 +503,268 @@ export function PurgeSettingsPanel() {
                   </span>
                 </div>
                 <textarea
-                  rows={14}
-                  className={cn(textareaCls, 'min-h-[280px] font-mono text-[12.5px] leading-[1.55]')}
+                  rows={12}
+                  className={cn(textareaCls, 'min-h-[220px] font-mono text-[12.5px] leading-[1.55]')}
                   value={editBody}
                   onChange={(e) => updateSelectedPersona({ body: e.target.value })}
                 />
               </div>
+
+              <div className="space-y-2 border-t border-border/50 pt-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-medium text-foreground">
+                      {t('settings:purge.primerSectionTitle')}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {t('settings:purge.primerSectionDesc')}
+                    </div>
+                  </div>
+                  {editPrimerTurns.length < 8 ? (
+                    <button
+                      type="button"
+                      onClick={handleAddPrimerPair}
+                      className={cn(btnOutline, 'gap-1 text-xs')}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>{t('settings:purge.addPrimerPair')}</span>
+                    </button>
+                  ) : null}
+                </div>
+
+                {editPrimerTurns.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                    {t('settings:purge.primerEmptyHint')}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {editPrimerTurns.map((turn, idx) => (
+                      <div
+                        key={idx}
+                        className="space-y-1.5 rounded-md border border-border/50 bg-background/60 p-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <select
+                            value={turn.role}
+                            onChange={(e) =>
+                              handleUpdatePrimerTurn(idx, {
+                                role: e.target.value as 'user' | 'assistant',
+                              })
+                            }
+                            className="h-6 rounded border border-border/60 bg-background px-2 font-mono text-xs"
+                          >
+                            <option value="user">user</option>
+                            <option value="assistant">assistant</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePrimerTurn(idx)}
+                            className="text-xs text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={turn.content}
+                          onChange={(e) => handleUpdatePrimerTurn(idx, { content: e.target.value })}
+                          className={cn(textareaCls, 'font-mono text-xs leading-5')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>
+      </SettingsSection>
+
+      <SettingsSection
+        title={t('settings:purge.strategySection')}
+        description={t('settings:purge.strategySectionDesc')}
+      >
+        <SettingRow
+          label={t('settings:purge.strategyPresetLabel')}
+          description={t('settings:purge.strategyPresetDesc')}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {(['standard', 'relay_push', 'tunnel'] as const).map((preset) => {
+              const active = defaultPreset === preset
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    setDraftConfig((prev) => ({
+                      ...prev,
+                      defaultStrategy: strategyForPreset(preset, prev.defaultStrategy),
+                    }))
+                  }
+                  className={cn(
+                    'settings-chip rounded-md border px-2.5 py-1.5 text-xs transition-all duration-motion-fast',
+                    active
+                      ? 'border-primary/40 bg-primary/10 font-medium text-foreground'
+                      : 'border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  {t(`composer:purge.presets.${preset}`)}
+                </button>
+              )
+            })}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.primerEnabledLabel')}
+          description={t('settings:purge.primerEnabledDesc')}
+        >
+          <input
+            type="checkbox"
+            checked={draftConfig.defaultStrategy.primerEnabled}
+            onChange={(e) => updateDefaultStrategy({ primerEnabled: e.target.checked })}
+            className="h-4 w-4 accent-[var(--brand)]"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.scrubHistoryLabel')}
+          description={t('settings:purge.scrubHistoryDesc')}
+        >
+          <input
+            type="checkbox"
+            checked={draftConfig.defaultStrategy.scrubHistory}
+            onChange={(e) => updateDefaultStrategy({ scrubHistory: e.target.checked })}
+            className="h-4 w-4 accent-[var(--brand)]"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.historyModeLabel')}
+          description={t('settings:purge.historyModeDesc')}
+        >
+          <select
+            className={cn(selectCls, 'min-w-[13rem]')}
+            value={draftConfig.defaultStrategy.historyMode}
+            onChange={(e) =>
+              updateDefaultStrategy({ historyMode: e.target.value as PurgeHistoryMode })
+            }
+          >
+            <option value="none">{t('composer:purge.historyModes.none')}</option>
+            <option value="push">{t('composer:purge.historyModes.push')}</option>
+            <option value="tunnel">{t('composer:purge.historyModes.tunnel')}</option>
+          </select>
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.toolOutputRelayLabel')}
+          description={t('settings:purge.toolOutputRelayDesc')}
+        >
+          <input
+            type="checkbox"
+            disabled={draftConfig.defaultStrategy.historyMode === 'tunnel'}
+            checked={
+              draftConfig.defaultStrategy.toolOutputRelay ||
+              draftConfig.defaultStrategy.historyMode === 'tunnel'
+            }
+            onChange={(e) => updateDefaultStrategy({ toolOutputRelay: e.target.checked })}
+            className="h-4 w-4 accent-[var(--brand)] disabled:opacity-50"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.autoRetryLabel')}
+          description={t('settings:purge.autoRetryDesc')}
+        >
+          <input
+            type="checkbox"
+            checked={draftConfig.defaultStrategy.autoRetry}
+            onChange={(e) => updateDefaultStrategy({ autoRetry: e.target.checked })}
+            className="h-4 w-4 accent-[var(--brand)]"
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings:purge.fallbackModelLabel')}
+          description={t('settings:purge.fallbackModelDesc')}
+        >
+          <input
+            type="text"
+            value={draftConfig.retryFallbackModel ?? ''}
+            placeholder="provider/model-id"
+            onChange={(e) =>
+              setDraftConfig((prev) => ({
+                ...prev,
+                retryFallbackModel: e.target.value.trim() || undefined,
+              }))
+            }
+            className={cn(inputCls, 'w-60 font-mono text-xs')}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={`${t('settings:purge.cipherLevelLabel')} · ${t('composer:purge.badges.notRecommendedDrift')}`}
+          description={t('settings:purge.cipherLevelDesc')}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {PURGE_CIPHER_LEVELS.map((lv: PurgeCipherLevel) => {
+              const active = draftConfig.defaultStrategy.cipherLevel === lv
+              return (
+                <button
+                  key={lv}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => updateDefaultStrategy({ cipherLevel: lv })}
+                  className={cn(
+                    'settings-chip rounded-md border px-2.5 py-1.5 text-xs transition-all duration-motion-fast',
+                    active
+                      ? lv === 'off'
+                        ? 'border-primary/40 bg-primary/10 font-medium text-foreground'
+                        : 'border-amber-500/45 bg-amber-500/15 font-medium text-amber-700 dark:text-amber-300'
+                      : 'border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  {t(`composer:purge.cipherLevels.${lv}`)}
+                </button>
+              )
+            })}
+          </div>
+        </SettingRow>
+
+        {draftConfig.defaultStrategy.cipherLevel !== 'off' && (
+          <>
+            <div className="my-2 flex items-start gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs leading-5 text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                {t(
+                  draftConfig.defaultStrategy.cipherLevel === 'full'
+                    ? 'composer:purge.cipherFullDriftAndCacheWarn'
+                    : 'composer:purge.cipherDriftWarn',
+                )}
+              </span>
+            </div>
+
+            <div className="pt-2">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                <label>{t('settings:purge.customTermsLabel')}</label>
+                <span className="text-[11px]">{t('settings:purge.customTermsSyntaxHint')}</span>
+              </div>
+              <textarea
+                rows={4}
+                value={customTermsRaw}
+                placeholder={t('settings:purge.customTermsPlaceholder')}
+                onChange={(e) => {
+                  const rawVal = e.target.value
+                  setCustomTermsRaw(rawVal)
+                  const parsed = normalizeCustomTerms(rawVal.split(/\r?\n/))
+                  setDraftConfig((prev) => ({ ...prev, customTerms: parsed }))
+                }}
+                className={cn(textareaCls, 'font-mono text-xs leading-5')}
+              />
+            </div>
+          </>
+        )}
       </SettingsSection>
 
       <SettingsSection

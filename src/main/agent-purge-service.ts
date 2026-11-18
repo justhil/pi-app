@@ -7,6 +7,7 @@ import {
   normalizePurgeMode,
   normalizePurgedSessionKey,
   normalizePurgedSessionsMap,
+  normalizePurgeStrategy,
   parsePersonaMarkdown,
   personaCopy,
   personaLanguage,
@@ -15,6 +16,7 @@ import {
   type AgentPurgeMode,
   type AgentPurgePersona,
   type PurgedSessionRecord,
+  type PurgeStrategyOptions,
 } from '@shared/agent-purge'
 import { mainLabel } from '@shared/main-labels'
 import { getMainUiLanguage } from '@shared/main-language'
@@ -77,11 +79,19 @@ export function getActivePurgeForSession(sessionFile: string | null | undefined)
   if (!key) return null
   const record = getPurgedSessions()[key]
   if (!record || !record.body.trim()) return null
+  const cfg = getAgentPurgeConfig()
+  const livePersona = cfg.personas.find((p) => p.id === record.personaId)
+  const copy = livePersona ? personaCopy(livePersona, personaLanguage(getMainUiLanguage())) : null
+  const primerTurns = record.primerTurns ?? copy?.primerTurns
   return {
     personaId: record.personaId,
     personaName: record.personaName,
     mode: record.mode,
     body: record.body,
+    ...(primerTurns ? { primerTurns } : {}),
+    strategy: record.strategy,
+    ...(cfg.retryFallbackModel ? { retryFallbackModel: cfg.retryFallbackModel } : {}),
+    ...(cfg.customTerms.length > 0 ? { customTerms: cfg.customTerms } : {}),
   }
 }
 
@@ -119,7 +129,12 @@ export function sessionFileHasPriorTurns(sessionFile: string | undefined): boole
  */
 export function maybeLockPurgedSessionOnSend(
   sessionFile: string | undefined,
-  req?: { enabled?: boolean; personaId?: string; mode?: AgentPurgeMode },
+  req?: {
+    enabled?: boolean
+    personaId?: string
+    mode?: AgentPurgeMode
+    strategy?: Partial<PurgeStrategyOptions>
+  },
 ): PurgedSessionRecord | null {
   const key = normalizePurgedSessionKey(sessionFile)
   if (!key) return null
@@ -143,6 +158,8 @@ export function maybeLockPurgedSessionOnSend(
     personaName: copy.name,
     mode: normalizePurgeMode(req.mode ?? cfg.defaultMode, cfg.defaultMode),
     body,
+    ...(copy.primerTurns ? { primerTurns: copy.primerTurns } : {}),
+    strategy: normalizePurgeStrategy(req.strategy, cfg.defaultStrategy),
     lockedAt: Date.now(),
   }
   map[key] = record
@@ -161,13 +178,22 @@ export function inheritPurgedSession(
   if (typeof s?.get !== 'function' || typeof s?.set !== 'function') return
   const map = getPurgedSessions()
   if (!map[from] || map[to]) return
-  map[to] = { ...map[from], lockedAt: Date.now() }
+  map[to] = {
+    ...map[from],
+    strategy: { ...map[from].strategy },
+    lockedAt: Date.now(),
+  }
   s.set('purgedSessions', map)
 }
 
 export function setPurgedSession(
   sessionFile: string | undefined,
-  req: { enabled: boolean; personaId?: string; mode?: AgentPurgeMode },
+  req: {
+    enabled: boolean
+    personaId?: string
+    mode?: AgentPurgeMode
+    strategy?: Partial<PurgeStrategyOptions>
+  },
 ): PurgedSessionRecord | null {
   const key = normalizePurgedSessionKey(sessionFile)
   if (!key) return null
@@ -176,8 +202,10 @@ export function setPurgedSession(
     return null
   }
   const cfg = getAgentPurgeConfig()
+  const map = getPurgedSessions()
+  const existing = map[key]
   const chosen =
-    cfg.personas.find((p) => p.id === req.personaId) ??
+    cfg.personas.find((p) => p.id === (req.personaId ?? existing?.personaId)) ??
     cfg.personas.find((p) => p.id === cfg.defaultPersonaId) ??
     cfg.personas[0]
   if (!chosen) return null
@@ -185,13 +213,19 @@ export function setPurgedSession(
   const body = copy.body.trim()
   if (!body) return null
 
-  const map = getPurgedSessions()
+  const baseStrategy = existing?.strategy ?? cfg.defaultStrategy
+  const nextStrategy = req.strategy
+    ? normalizePurgeStrategy({ ...baseStrategy, ...req.strategy }, baseStrategy)
+    : normalizePurgeStrategy(baseStrategy, cfg.defaultStrategy)
+
   const record: PurgedSessionRecord = {
     personaId: chosen.id,
     personaName: copy.name,
-    mode: normalizePurgeMode(req.mode ?? cfg.defaultMode, cfg.defaultMode),
+    mode: normalizePurgeMode(req.mode ?? existing?.mode ?? cfg.defaultMode, cfg.defaultMode),
     body,
-    lockedAt: Date.now(),
+    ...(copy.primerTurns ? { primerTurns: copy.primerTurns } : {}),
+    strategy: nextStrategy,
+    lockedAt: existing?.lockedAt || Date.now(),
   }
   map[key] = record
   store()?.set('purgedSessions', map)
@@ -218,115 +252,144 @@ export function importPersonasFromDirectory(dirPath?: string): {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     throw new Error(mainLabel(getMainUiLanguage(), 'purge.dirMissing', { dir }))
   }
-  const files = readdirSync(dir).filter((f) => {
-    if (extname(f).toLowerCase() !== '.md') return false
-    if (f.startsWith('.')) return false
-    return !IGNORED_MD_NAMES.has(f.toLowerCase())
-  })
-
-  const imported: AgentPurgePersona[] = []
-  for (const file of files) {
-    const raw = readFileSync(join(dir, file), 'utf8')
-    const fallbackId = basename(file, extname(file))
-    const parsed = parsePersonaMarkdown(raw, fallbackId)
-    if (parsed) imported.push({ ...parsed, updatedAt: Date.now() })
-  }
-
-  if (imported.length === 0) {
-    return { imported: [], config: getAgentPurgeConfig(), dir }
-  }
 
   const current = getAgentPurgeConfig()
   const byId = new Map(current.personas.map((p) => [p.id, p]))
-  for (const p of imported) {
-    const prev = byId.get(p.id)
-    byId.set(p.id, {
-      ...prev,
-      ...p,
-      ...(prev?.builtin ? { builtin: true, order: prev.order } : {}),
-    })
+  const imported: AgentPurgePersona[] = []
+
+  const files = readdirSync(dir)
+    .filter((f) => extname(f).toLowerCase() === '.md' && !IGNORED_MD_NAMES.has(f.toLowerCase()))
+    .sort()
+
+  for (const file of files) {
+    const full = join(dir, file)
+    let raw = ''
+    try {
+      if (!statSync(full).isFile()) continue
+      raw = readFileSync(full, 'utf8')
+    } catch {
+      continue
+    }
+    const stem = basename(file, extname(file))
+    const parsed = parsePersonaMarkdown(raw, stem)
+    if (!parsed) continue
+    const existing = byId.get(parsed.id)
+    const merged: AgentPurgePersona = {
+      ...parsed,
+      ...(existing?.builtin ? { builtin: true, order: existing.order } : {}),
+      updatedAt: Date.now(),
+    }
+    byId.set(merged.id, merged)
+    imported.push(merged)
   }
-  const next = saveAgentPurgeConfig({ ...current, personas: [...byId.values()] })
-  return { imported, config: next, dir }
+
+  const saved = saveAgentPurgeConfig({
+    ...current,
+    personas: [...byId.values()],
+  })
+  return { imported, config: saved, dir }
 }
 
-function parseGithubSource(source: string): { owner: string; repo: string; ref?: string; subpath: string } {
-  const raw = source.trim()
-  if (!raw) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghInputRequired'))
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    const u = new URL(raw)
-    if (!u.hostname.toLowerCase().includes('github.com')) {
-      throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghOnlyGithub'))
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com'
+const GITHUB_API_BASE = 'https://api.github.com'
+
+function parseGithubSource(source: string): { owner: string; repo: string; branch?: string; path?: string } {
+  const trimmed = source.trim().replace(/\.git$/i, '').replace(/\/+$/, '')
+  const urlMatch = /^https?:\/\/github\.com\/([^/]+)\/([^/]+)(?:\/tree\/([^/]+)(?:\/(.*))?)?$/i.exec(trimmed)
+  if (urlMatch) {
+    return {
+      owner: urlMatch[1],
+      repo: urlMatch[2],
+      branch: urlMatch[3] || undefined,
+      path: urlMatch[4] || undefined,
     }
-    const parts = u.pathname.replace(/^\/+|\/+$/g, '').split('/')
-    if (parts.length < 2) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghBadUrl'))
-    const owner = parts[0]
-    const repo = parts[1].replace(/\.git$/i, '')
-    if ((parts[2] === 'tree' || parts[2] === 'blob') && parts[3]) {
-      return { owner, repo, ref: parts[3], subpath: parts.slice(4).join('/') }
+  }
+  const shortMatch = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:@([^/]+))?(?:\/(.*))?$/.exec(trimmed)
+  if (shortMatch) {
+    return {
+      owner: shortMatch[1],
+      repo: shortMatch[2],
+      branch: shortMatch[3] || undefined,
+      path: shortMatch[4] || undefined,
     }
-    return { owner, repo, subpath: '' }
   }
-  const clean = raw.replace(/\.git$/i, '')
-  const [repoPart, ref] = clean.split('@')
-  const parts = repoPart.split('/').filter(Boolean)
-  if (parts.length < 2) throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghFormatExample'))
-  return {
-    owner: parts[0],
-    repo: parts[1],
-    ...(ref ? { ref } : {}),
-    subpath: parts.slice(2).join('/'),
-  }
+  throw new Error(mainLabel(getMainUiLanguage(), 'purge.invalidGithubSource'))
 }
 
 export async function importPersonasFromGithub(source: string): Promise<{
   imported: AgentPurgePersona[]
   config: AgentPurgeConfig
 }> {
-  const { owner, repo, ref, subpath } = parseGithubSource(source)
-  const pathPart = subpath ? `/${subpath.split('/').map(encodeURIComponent).join('/')}` : ''
-  const query = ref ? `?ref=${encodeURIComponent(ref)}` : ''
-  const apiUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents${pathPart}${query}`
+  const { owner, repo, branch, path: subPath } = parseGithubSource(source)
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'pi-desktop',
+  }
 
-  const res = await fetch(apiUrl, {
-    headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'pi-desktop' },
+  let ref = branch
+  if (!ref) {
+    const repoResp = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}`, { headers })
+    if (!repoResp.ok) {
+      throw new Error(`GitHub HTTP ${repoResp.status}`)
+    }
+    const repoJson = (await repoResp.json()) as { default_branch?: string }
+    ref = repoJson.default_branch || 'main'
+  }
+
+  const treeResp = await fetch(
+    `${GITHUB_API_BASE}/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`,
+    { headers },
+  )
+  if (!treeResp.ok) {
+    throw new Error(`GitHub tree HTTP ${treeResp.status}`)
+  }
+  const treeJson = (await treeResp.json()) as {
+    tree?: Array<{ path?: string; type?: string; size?: number }>
+  }
+
+  const prefix = subPath ? `${subPath.replace(/^\/+|\/+$/g, '')}/` : ''
+  const mdEntries = (treeJson.tree ?? []).filter((entry) => {
+    if (entry.type !== 'blob' || typeof entry.path !== 'string') return false
+    if (prefix && !entry.path.startsWith(prefix)) return false
+    if (!entry.path.toLowerCase().endsWith('.md')) return false
+    if ((entry.size ?? 0) > 512 * 1024) return false
+    const base = basename(entry.path).toLowerCase()
+    return !IGNORED_MD_NAMES.has(base)
   })
-  if (!res.ok) {
-    throw new Error(mainLabel(getMainUiLanguage(), 'purge.ghApiFailed', { status: res.status }))
-  }
-  const data = (await res.json()) as unknown
-  const entries = Array.isArray(data) ? data : [data]
-  const mdItems = entries.filter((e): e is { name: string; download_url?: string; type?: string } => {
-    if (!e || typeof e !== 'object') return false
-    const item = e as { name?: string; download_url?: string; type?: string }
-    if (item.type !== 'file' || typeof item.name !== 'string' || !item.download_url) return false
-    if (extname(item.name).toLowerCase() !== '.md') return false
-    return !IGNORED_MD_NAMES.has(item.name.toLowerCase())
-  })
-
-  const imported: AgentPurgePersona[] = []
-  for (const item of mdItems) {
-    const rawRes = await fetch(item.download_url!, { headers: { 'User-Agent': 'pi-desktop' } })
-    if (!rawRes.ok) continue
-    const raw = await rawRes.text()
-    const parsed = parsePersonaMarkdown(raw, basename(item.name, extname(item.name)))
-    if (parsed) imported.push({ ...parsed, updatedAt: Date.now() })
-  }
-
-  if (imported.length === 0) {
-    return { imported: [], config: getAgentPurgeConfig() }
-  }
 
   const current = getAgentPurgeConfig()
   const byId = new Map(current.personas.map((p) => [p.id, p]))
-  for (const p of imported) {
-    const prev = byId.get(p.id)
-    byId.set(p.id, {
-      ...prev,
-      ...p,
-      ...(prev?.builtin ? { builtin: true, order: prev.order } : {}),
-    })
+  const imported: AgentPurgePersona[] = []
+
+  for (const entry of mdEntries.slice(0, 40)) {
+    const relPath = entry.path!
+    const rawUrl = `${GITHUB_RAW_BASE}/${owner}/${repo}/${encodeURIComponent(ref)}/${relPath
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/')}`
+    try {
+      const r = await fetch(rawUrl, { headers: { 'User-Agent': 'pi-desktop' } })
+      if (!r.ok) continue
+      const text = await r.text()
+      const stem = basename(relPath, extname(relPath))
+      const parsed = parsePersonaMarkdown(text, stem)
+      if (!parsed) continue
+      const existing = byId.get(parsed.id)
+      const merged: AgentPurgePersona = {
+        ...parsed,
+        ...(existing?.builtin ? { builtin: true, order: existing.order } : {}),
+        updatedAt: Date.now(),
+      }
+      byId.set(merged.id, merged)
+      imported.push(merged)
+    } catch {
+      /* skip broken file */
+    }
   }
-  const next = saveAgentPurgeConfig({ ...current, personas: [...byId.values()] })
-  return { imported, config: next }
+
+  const saved = saveAgentPurgeConfig({
+    ...current,
+    personas: [...byId.values()],
+  })
+  return { imported, config: saved }
 }

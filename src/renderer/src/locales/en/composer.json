@@ -255,21 +255,74 @@
   "thinkingPrefix": "Thinking",
   "purge": {
     "shortLabel": "Purge",
-    "choosePersona": "Choose persona and mode",
-    "menuTitle": "Session persona",
+    "choosePersona": "Choose persona and anti-filter strategy",
+    "menuTitle": "Session persona & history shaping",
+    "firstTurnFreeBadge": "First turn free",
+    "primerBadge": "Primer",
     "openSettings": "Configure",
-    "modeLabel": "Injection mode",
+    "modeLabel": "System injection mode",
     "modes": {
       "replace": "Replace ID",
       "append": "Append",
       "strict": "Strict"
     },
-    "firstTurnNote": "Applies to this chat only (never global). Setting before the first message keeps prompt cache intact.",
-    "cacheBreakWarn": "Note: Enabling, switching, or turning off a persona mid-chat rewrites the system prompt and invalidates this chat's prompt cache.",
-    "inactiveDraftHint": "Enable persona injection for this new chat (default: {{name}})",
+    "strategyPresetLabel": "History & output channel preset",
+    "showAdvanced": "Options",
+    "hideAdvanced": "Hide options",
+    "presets": {
+      "standard": "Standard",
+      "relay_push": "Push + Relay",
+      "tunnel": "Tool Tunnel",
+      "custom": "Custom"
+    },
+    "badges": {
+      "cacheSafe": "Cache-safe",
+      "tailNoCache": "1-turn tail",
+      "midBreak": "Mid-switch resets cache",
+      "midSwitchBreaksCache": "Switching mid-chat resets cache",
+      "notRecommendedDrift": "Drift risk · avoid"
+    },
+    "opts": {
+      "primer": "Inject Turn-1 primer Q&A",
+      "scrub": "Scrub prior soft refusals in RAM",
+      "toolRelay": "Output full text via tool & unwrap",
+      "historyMode": "Synthetic history mode",
+      "autoRetry": "Auto lossless escalation retry",
+      "cipher": "Keyword substitution"
+    },
+    "historyModes": {
+      "none": "Keep tail intact (cache-safe)",
+      "push": "Tail ack push (1-turn tail uncached)",
+      "tunnel": "Full tool-chain tunnel (mid-switch resets cache)"
+    },
+    "cipherLevels": {
+      "off": "Off (Rec.)",
+      "minimal": "Minimal",
+      "full": "Full [No-cache]"
+    },
+    "cipherDriftWarn": "Caution: Keyword substitution alters literal tokens and can cause semantic misunderstanding, reduced code precision, and model behavior drift. Not recommended — prefer Push + Relay or Tool Tunnel first.",
+    "cipherFullDriftAndCacheWarn": "High risk: Full keyword substitution rewrites all history turns and dynamic slot tables, invalidating Prompt Cache every turn while causing noticeable semantic/behavior drift. Strongly discouraged.",
+    "tailPushMidNotice": "Switched to Tail Push: earlier history stays cached; only the trailing turn is excluded from the next turn's static prefix.",
+    "midConfirmTitle": "Mid-session change will reset Prompt Cache",
+    "midConfirmCancel": "Cancel",
+    "midConfirmApply": "Apply change",
+    "impactReasons": {
+      "toggle_enable": "This chat already has messages: enabling persona injection mid-session rewrites the leading system prompt and invalidates the existing Prompt Cache.",
+      "toggle_disable": "This chat already has messages: turning off persona injection restores the default system prompt and invalidates the existing Prompt Cache.",
+      "switch_persona": "This chat already has messages: switching persona replaces the leading system prompt/primer prefix and resets the existing Prompt Cache.",
+      "switch_mode": "This chat already has messages: changing injection mode alters the system prompt layout and resets the existing Prompt Cache.",
+      "toggle_primer": "This chat already has messages: toggling Turn-1 primer Q&A inserts or removes leading messages, shifting all subsequent turns and resetting Prompt Cache.",
+      "switch_tunnel": "This chat already has messages: toggling Tool Tunnel rewrites system and historical messages into tool-call chains, immediately resetting Prompt Cache.",
+      "toggle_relay": "This chat already has messages: toggling tool output relay adds or removes virtual tool schemas, triggering a Prompt Cache rebuild.",
+      "switch_cipher_full": "Enabling Full keyword substitution rewrites historical messages and dynamic slot tables — breaking Prompt Cache and risking model behavior drift (not recommended).",
+      "switch_push": "Tail Push only appends a transient confirmation pair at the end of each send without invalidating earlier cached turns."
+    },
+    "firstTurnNote": "Before sending the first message, switch any persona or channel freely with zero cache penalty; keeping it steady afterward preserves Prompt Cache.",
+    "cacheBreakWarn": "Active session: options badged as cache-breaking will explain their cache and behavior impact before taking effect.",
+    "inactiveDraftHint": "Enable persona injection for this new chat (default: {{name}}, unrestricted before first send)",
     "activeDraftHint": "Will inject on first message: {{name}} ({{mode}}) — click to turn off",
-    "inactiveMidHint": "Enable persona for this chat (default: {{name}}, resets prompt cache)",
-    "activeMidHint": "Active: {{name}} ({{mode}}) — click to turn off or use arrow to switch (resets prompt cache)",
+    "inactiveMidHint": "Enable persona for this chat (default: {{name}}, shows cache impact before applying)",
+    "activeMidHint": "Active: {{name}} ({{mode}}) — click to turn off or open menu to adjust strategy",
     "lockedOnHint": "Active in this chat: {{name}} ({{mode}})",
     "lockedOffHint": "No persona enabled in this chat"
   },
