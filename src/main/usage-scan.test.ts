@@ -7,6 +7,7 @@ import {
   dayOf,
   queryUsageLogs,
   refreshUsage,
+  refreshUsageAsync,
   sessionUsage,
   summarizeUsage,
 } from './usage-scan'
@@ -239,5 +240,64 @@ describe('usage scan', () => {
     const abortedOnly = queryUsageLogs({ from: D, to: D + 86_400_000, status: 'aborted' })
     expect(abortedOnly.totalCount).toBe(1)
     expect(abortedOnly.rows[0].entryId).toBe('m4')
+  })
+
+  it('persists disk index for 0-read cold starts, tail-appends grown files, and re-scans rewritten files safely', async () => {
+    const dir = agentDir()
+    const cacheDir = mkdtempSync(join(tmpdir(), 'pi-usage-cache-'))
+    const s1 = join(dir, 'sessions', '--work-a--', 's1.jsonl')
+    const s2 = join(dir, 'sessions', '--work-b--', 's2.jsonl')
+
+    // Inject a large irrelevant toolResult line to verify pre-filtering skips it cleanly
+    const bigToolLine = JSON.stringify({
+      type: 'message',
+      id: 'tr1',
+      message: { role: 'toolResult', toolName: 'read', content: [{ type: 'text', text: 'x'.repeat(20_000) }] },
+    })
+    writeFileSync(s1, readFileSync(s1, 'utf8') + bigToolLine + '\n')
+
+    // 1. Cold async build persists disk index
+    const first = await refreshUsageAsync(dir, { cacheDir, awaitBackground: true })
+    expect(first).toMatchObject({ files: 2, read: 2, loadedFromDiskIndex: false })
+    expect(summarizeUsage(D, D + 86_400_000, 0).total.calls).toBe(2)
+
+    // 2. Simulated app restart: clear in-memory cache -> cold start loads from disk index with 0 file re-reads!
+    __resetUsageCacheForTest()
+    const warmCold = await refreshUsageAsync(dir, { cacheDir, awaitBackground: true })
+    expect(warmCold).toMatchObject({ files: 2, read: 0, loadedFromDiskIndex: true })
+    expect(summarizeUsage(D, D + 86_400_000, 0).total.calls).toBe(2)
+
+    // 3. Tail-append a new reply to s1 -> uses incremental tail-append path (appended === 1)
+    writeFileSync(s1, readFileSync(s1, 'utf8') + reply(D + 9_000_000, 'sonnet-5', 40, 20, 0, 0.05) + '\n')
+    const afterAppend = await refreshUsageAsync(dir, { cacheDir, awaitBackground: true })
+    expect(afterAppend).toMatchObject({ files: 2, read: 1, appended: 1 })
+    expect(summarizeUsage(D, D + 86_400_000, 0).total.calls).toBe(3)
+    expect(summarizeUsage(D, D + 86_400_000, 0).total.cost).toBeCloseTo(0.17)
+
+    // 4. In-place rewrite (simulating historical message edit) changes tail/content -> falls back to full scan safely
+    writeFileSync(s2, [header('/work/b'), user('edited docs'), reply(D + 7_200_000, 'opus-5', 200, 100, 0, 0.25)].join('\n') + '\n')
+    const afterRewrite = await refreshUsageAsync(dir, { cacheDir, awaitBackground: true })
+    expect(afterRewrite).toMatchObject({ files: 2, read: 1, appended: 0 })
+    expect(summarizeUsage(D, D + 86_400_000, 0).total.cost).toBeCloseTo(0.32)
+  })
+
+  it('prioritizes recent window files on cold scan and defers older out-of-window files', async () => {
+    const dir = agentDir()
+    const cacheDir = mkdtempSync(join(tmpdir(), 'pi-usage-priority-'))
+    const s1 = join(dir, 'sessions', '--work-a--', 's1.jsonl')
+    const s2 = join(dir, 'sessions', '--work-b--', 's2.jsonl')
+
+    // Make s1 old (60 days before D) and s2 recent (at D + 1h)
+    const oldTime = new Date(D - 60 * 86_400_000)
+    const newTime = new Date(D + 3_600_000)
+    utimesSync(s1, oldTime, oldTime)
+    utimesSync(s2, newTime, newTime)
+
+    const res = await refreshUsageAsync(dir, { from: D - 7 * 86_400_000, cacheDir })
+    expect(res.read).toBe(1)
+    expect(res.deferred).toBe(1)
+    // Recent window already has s2 immediately
+    const sum = summarizeUsage(D, D + 86_400_000, 0)
+    expect(sum.byModel.some((m) => m.model === 'anthropic/opus-5')).toBe(true)
   })
 })

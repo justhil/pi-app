@@ -64,6 +64,8 @@ export type UsageSummary = {
   byModel: (UsageStatsBucket & { model: string; provider: string; modelId: string })[]
   byProject: (UsageStatsBucket & { project: string })[]
   topSessions: (UsageStatsBucket & { sessionFile: string; title: string; project: string })[]
+  /** Present only while cold background indexing of older out-of-window sessions is still running. */
+  indexing?: { pendingFiles: number; totalFiles: number }
 }
 
 export type UsageStopStatus = 'ok' | 'error' | 'aborted' | 'length'

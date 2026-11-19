@@ -15,7 +15,7 @@ import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
-import { queryUsageLogs, refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { queryUsageLogs, refreshUsageAsync, summarizeUsage } from '../main/usage-scan'
 import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
 import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
@@ -158,11 +158,15 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
       )
       result = null
     } else if (message.type === 'usage.summary') {
-      // Incremental: only session files that changed since the last call are read again.
-      refreshUsage(String(message.payload.agentDir || ''))
-      result = summarizeUsage(Number(message.payload.from), Number(message.payload.to), Number(message.payload.offsetMin) || 0)
+      // Async priority-window scan with disk index persistence and tail-append incremental reads.
+      const from = Number(message.payload.from) || 0
+      const cacheDir = typeof message.payload.cacheDir === 'string' ? message.payload.cacheDir : undefined
+      await refreshUsageAsync(String(message.payload.agentDir || ''), { from, cacheDir })
+      result = summarizeUsage(from, Number(message.payload.to), Number(message.payload.offsetMin) || 0)
     } else if (message.type === 'usage.logs') {
-      refreshUsage(String(message.payload.agentDir || ''))
+      const from = Number(message.payload.from) || 0
+      const cacheDir = typeof message.payload.cacheDir === 'string' ? message.payload.cacheDir : undefined
+      await refreshUsageAsync(String(message.payload.agentDir || ''), { from, cacheDir })
       result = queryUsageLogs({
         from: Number(message.payload.from) || 0,
         to: Number(message.payload.to) || Date.now(),

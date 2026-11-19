@@ -220,15 +220,32 @@ export function UsageSettingsPanel() {
 
   useEffect(() => {
     let live = true
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
     setLoading(true)
     setError(false)
-    ipcClient
-      .invoke('usage.summary', { days: range })
-      .then((r: UsageSummary) => live && setData(r))
-      .catch(() => live && setError(true))
-      .finally(() => live && setLoading(false))
+
+    const fetchSummary = (isBackgroundPoll = false) => {
+      ipcClient
+        .invoke('usage.summary', { days: range })
+        .then((r: UsageSummary) => {
+          if (!live) return
+          setData(r)
+          if (r.indexing && r.indexing.pendingFiles > 0) {
+            pollTimer = setTimeout(() => fetchSummary(true), 1800)
+          }
+        })
+        .catch(() => {
+          if (live && !isBackgroundPoll) setError(true)
+        })
+        .finally(() => {
+          if (live && !isBackgroundPoll) setLoading(false)
+        })
+    }
+
+    fetchSummary(false)
     return () => {
       live = false
+      if (pollTimer) clearTimeout(pollTimer)
     }
   }, [range])
 
@@ -337,9 +354,17 @@ export function UsageSettingsPanel() {
         <>
           {error ? <p className="text-sm text-destructive">{t('settings:usage.failed')}</p> : null}
           {!data && loading ? <p className="text-sm text-muted-foreground">{t('settings:usage.loading')}</p> : null}
+          {data?.indexing && data.indexing.pendingFiles > 0 ? (
+            <p className="text-[11.5px] tabular-nums text-muted-foreground">
+              {t('settings:usage.indexingOlder', {
+                pending: data.indexing.pendingFiles,
+                total: data.indexing.totalFiles,
+              })}
+            </p>
+          ) : null}
 
           {data && total ? (
-            <>
+            <div className={cn('flex flex-col gap-5 transition-opacity duration-150', loading && 'opacity-65')}>
               {/* 6-cell KPI matrix (standalone card container so .settings-card > * + * does not inject top borders) */}
               <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-[var(--border-base)] bg-[var(--bg-base)] shadow-[0_1px_2px_rgba(16,24,40,0.04)] dark:bg-[var(--bg-1)] dark:shadow-none sm:grid-cols-3 lg:grid-cols-6">
                 {/* 1. Cost */}
@@ -528,7 +553,7 @@ export function UsageSettingsPanel() {
                   </div>
                 </>
               )}
-            </>
+            </div>
           ) : null}
         </>
       )}

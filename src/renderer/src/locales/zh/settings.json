@@ -1277,6 +1277,7 @@
     "untitled": "未命名会话",
     "empty": "这段时间没有用量记录。",
     "loading": "正在统计…",
+    "indexingOlder": "后台补建更早历史索引中（剩余 {{pending}} / {{total}} 个会话）…",
     "failed": "用量统计失败。",
     "note": "费用按回复时模型条目的价格估算（未设单价记为 $0）。直接读取 ~/.pi/agent/sessions 与 sessionDir 下的会话文件，不额外生成副本；首字延迟（TTFT）仅由桌面端新请求实测记录，历史与纯 CLI 请求展示总耗时与端到端吞吐。",
     "viewOverview": "概览统计",

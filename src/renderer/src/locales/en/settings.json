@@ -1282,6 +1282,7 @@
     "untitled": "Untitled session",
     "empty": "No usage in this range.",
     "loading": "Counting…",
+    "indexingOlder": "Indexing older history in background ({{pending}} / {{total}} sessions remaining)…",
     "failed": "Could not compute usage.",
     "note": "Cost is estimated from model catalog pricing at reply time ($0 when unpriced). Reads ~/.pi/agent/sessions and sessionDir in place without creating extra files; TTFT is measured on new desktop requests while historical/CLI replies show total latency and end-to-end throughput.",
     "viewOverview": "Overview",

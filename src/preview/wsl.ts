@@ -19,7 +19,9 @@ import type { WorkerIncomingMessage } from '../worker/worker-port-types'
 import { listAvailableModelsWithSdk, listCatalogModelsWithSdk, type ModelEntry } from '../main/active-sdk-models-core'
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
-import { queryUsageLogs, refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { queryUsageLogs, refreshUsageAsync, summarizeUsage } from '../main/usage-scan'
 import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
 import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
@@ -147,11 +149,15 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
       result = null
     } else if (message.type === 'usage.summary') {
       const m = message as unknown as Record<string, unknown>
-      refreshUsage(String(m.agentDir || ''))
-      result = summarizeUsage(Number(m.from), Number(m.to), Number(m.offsetMin) || 0)
+      const from = Number(m.from) || 0
+      const cacheDir = join(homedir(), '.cache', 'pi-desktop', 'usage-cache')
+      await refreshUsageAsync(String(m.agentDir || ''), { from, cacheDir })
+      result = summarizeUsage(from, Number(m.to), Number(m.offsetMin) || 0)
     } else if (message.type === 'usage.logs') {
       const m = message as unknown as Record<string, unknown>
-      refreshUsage(String(m.agentDir || ''))
+      const from = Number(m.from) || 0
+      const cacheDir = join(homedir(), '.cache', 'pi-desktop', 'usage-cache')
+      await refreshUsageAsync(String(m.agentDir || ''), { from, cacheDir })
       result = queryUsageLogs({
         from: Number(m.from) || 0,
         to: Number(m.to) || Date.now(),
