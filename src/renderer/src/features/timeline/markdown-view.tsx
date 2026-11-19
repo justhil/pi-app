@@ -40,6 +40,41 @@ function isSelfRenderingPre(node: ExtraProps['node']): boolean {
   return !!code && code.type === 'element' && code.tagName === 'code'
 }
 
+/**
+ * Shared IntersectionObserver so prepending dozens of historical code blocks offscreen does not
+ * fire 20+ concurrent Shiki highlighting tasks on the same frame. Highlights lazily within 450px
+ * of the viewport (falls back to immediate in environments without IntersectionObserver).
+ */
+let sharedCodeObserver: IntersectionObserver | null = null
+const codeObserverCallbacks = new WeakMap<Element, () => void>()
+
+function observeCodeBlockNearViewport(el: Element, onNear: () => void): () => void {
+  if (typeof IntersectionObserver === 'undefined') {
+    onNear()
+    return () => {}
+  }
+  if (!sharedCodeObserver) {
+    sharedCodeObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const cb = codeObserverCallbacks.get(entry.target)
+          codeObserverCallbacks.delete(entry.target)
+          sharedCodeObserver?.unobserve(entry.target)
+          cb?.()
+        }
+      },
+      { rootMargin: '450px 0px' },
+    )
+  }
+  codeObserverCallbacks.set(el, onNear)
+  sharedCodeObserver.observe(el)
+  return () => {
+    codeObserverCallbacks.delete(el)
+    sharedCodeObserver?.unobserve(el)
+  }
+}
+
 function CodeBlock({
   className,
   children,
@@ -57,6 +92,7 @@ function CodeBlock({
   const [scrollActive, setScrollActive] = useState(false)
   const [copied, setCopied] = useState(false)
   const [html, setHtml] = useState<string | null>(null)
+  const [nearViewport, setNearViewport] = useState(() => typeof IntersectionObserver === 'undefined')
   const lang = /language-([\w-]+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
   const PREVIEW_LINES = 3
@@ -65,7 +101,14 @@ function CodeBlock({
   const themeRev = useCodeHighlightRevision()
 
   useEffect(() => {
-    if (streaming || !lang || !code) {
+    if (nearViewport || streaming || !lang || !code) return
+    const node = surfaceRef.current
+    if (!node) return
+    return observeCodeBlockNearViewport(node, () => setNearViewport(true))
+  }, [nearViewport, streaming, lang, code])
+
+  useEffect(() => {
+    if (streaming || !lang || !code || !nearViewport) {
       setHtml(null)
       return
     }
@@ -76,7 +119,7 @@ function CodeBlock({
     return () => {
       cancelled = true
     }
-  }, [code, lang, streaming, themeRev])
+  }, [code, lang, streaming, themeRev, nearViewport])
 
   useEffect(() => {
     if (!scrollActive) return

@@ -33,7 +33,12 @@ import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
-import { fetchSessionHistoryOlder, fetchSessionHistoryTail } from '@renderer/lib/session-history'
+import {
+  SESSION_HISTORY_PAGE,
+  fetchSessionHistoryOlder,
+  fetchSessionHistoryTail,
+} from '@renderer/lib/session-history'
+import { prefetchTimelineHistoryPage } from '@renderer/lib/session-timeline-sync'
 import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
 import { forkSessionFromEntry } from '@renderer/lib/session-fork'
 import { editSessionMessageInPlace } from '@renderer/lib/session-edit-message'
@@ -62,7 +67,19 @@ import {
   useTimelineBottomAnchorController,
 } from './timeline-bottom-anchor'
 import { TimelineBottomAnchorButton } from './timeline-bottom-anchor-button'
-import { rowsForTurns, splitTimelineRenderSegments, sliceHistoryForViewport, turnsForRows } from './timeline-render-segments'
+import {
+  nextTurnWindowStep,
+  rowsForTurns,
+  splitTimelineRenderSegments,
+  sliceHistoryForViewport,
+  turnsForRows,
+} from './timeline-render-segments'
+import {
+  captureViewportAnchor,
+  restoreViewportAnchor,
+  startAnchorSettleGuard,
+  type ViewportScrollAnchor,
+} from './timeline-scroll-anchor'
 import { pickAutoExpandedToolIds } from './timeline-tool-expand-policy'
 import { groupDisplayBlocksByTurn } from './timeline-turn-groups'
 import { TurnActivityBlock } from './turn-activity-block'
@@ -874,12 +891,22 @@ export function Timeline() {
       ro.disconnect()
     }
   }, [hasWorkspace, onUserScrollIntent, historySessionFile, scrollNode])
-  const scrollHeightBeforeLoadRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null)
+  const pendingAnchorRef = useRef<ViewportScrollAnchor | null>(null)
+  const settleGuardCleanupRef = useRef<(() => void) | null>(null)
   const renderCountRef = useRef(renderCount)
   renderCountRef.current = renderCount
+  const windowTurnsRef = useRef(windowTurns)
+  windowTurnsRef.current = windowTurns
 
   const [fetchingOlder, setFetchingOlder] = useState(false)
   const olderLoadSeqRef = useRef(0)
+
+  const clearSettleGuard = useCallback(() => {
+    settleGuardCleanupRef.current?.()
+    settleGuardCleanupRef.current = null
+  }, [])
+
+  useEffect(() => clearSettleGuard, [clearSettleGuard])
 
   const loadMoreHistory = useCallback((grow = true) => {
     const el = scrollRef.current
@@ -900,75 +927,120 @@ export function Timeline() {
 
     if (!canFetchDisk && !canRevealInMemory) return
 
+    // Prefer 0ms in-memory reveal when RAM already holds enough buffered rows to cover the
+    // full step without hitting the end of loaded items (or when disk has nothing more).
+    // When the step reaches the end of the RAM buffer and disk has older pages, fetch now so
+    // one scroll/click seamlessly loads and reveals a full batch.
+    if (grow && canRevealInMemory) {
+      const maxStep = st.timelineVisibleTurns
+      const targetTurns = nextTurnWindowStep(segs.history, windowTurnsRef.current, maxStep)
+      const revealedRows = rowsForTurns(segs.history, targetTurns)
+      const hitBufferCeiling = revealedRows >= segs.history.length
+      if (!canFetchDisk || !hitBufferCeiling) {
+        pendingAnchorRef.current = captureViewportAnchor(el)
+        setWindowTurns(targetTurns)
+        if (canFetchDisk && segs.history.length - revealedRows <= 36) {
+          prefetchTimelineHistoryPage(st.historySessionFile!, st.historyLoadedCount)
+        }
+        return
+      }
+    }
+
     if (canFetchDisk) {
       const loadSeq = ++olderLoadSeqRef.current
       setFetchingOlder(true)
-      scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
+      const fetchStartScrollHeight = el.scrollHeight
       const offset = st.historyLoadedCount
       const sessionFile = st.historySessionFile!
       const navToken = getSessionNavigationToken()
       const stillCurrent = () => isSessionNavigationCurrent(navToken) &&
         sessionFilesEqual(useUIStore.getState().historySessionFile, sessionFile)
-      void prependOlderTimelinePage(sessionFile, offset)
+      void prependOlderTimelinePage(sessionFile, offset, SESSION_HISTORY_PAGE, {
+        onBeforeCommit: ({ nextTimelineItems }) => {
+          if (loadSeq !== olderLoadSeqRef.current || !stillCurrent()) return
+          const curEl = scrollRef.current
+          if (curEl) {
+            // Capture the DOM viewport anchor at the exact commit instant (never stale across
+            // async IPC, even if the user kept scrolling while the fetch was in flight).
+            pendingAnchorRef.current = captureViewportAnchor(curEl, {
+              fallbackScrollHeight: fetchStartScrollHeight,
+            })
+          }
+          if (grow) {
+            const latest = useUIStore.getState()
+            const nextSegs = splitTimelineRenderSegments(nextTimelineItems, {
+              streamingAssistantId: latest.streamingAssistantId,
+              agentRunning: latest.runState.status === 'running',
+            })
+            const maxStep = latest.timelineVisibleTurns
+            // Batched in the same tick as `useUIStore.setState` so prepend + window growth
+            // land in ONE single atomic React commit (zero anchor wipe / zero jump).
+            setWindowTurns((turns) => nextTurnWindowStep(nextSegs.history, turns, maxStep))
+          }
+        },
+      })
         .then(({ items: older, error, cancelled }) => {
           if (cancelled || !stillCurrent()) {
-            if (loadSeq === olderLoadSeqRef.current) scrollHeightBeforeLoadRef.current = null
+            if (loadSeq === olderLoadSeqRef.current) pendingAnchorRef.current = null
             return
           }
           if (error) {
             console.error('[Timeline] load older failed', error)
-            scrollHeightBeforeLoadRef.current = null
+            pendingAnchorRef.current = null
             return
           }
           if (!older.length) {
             // Empty page: unlock and stop pretending more disk history exists.
-            scrollHeightBeforeLoadRef.current = null
+            pendingAnchorRef.current = null
             const latest = useUIStore.getState()
             if (latest.historyLoadedCount < latest.historyTotalCount) {
               useUIStore.setState({ historyLoadedCount: latest.historyTotalCount })
             }
-            return
           }
-          // Reveal the next N turns (they may span several disk pages; the fill effect
-          // below keeps fetching while the window wants more turns than are loaded).
-          if (grow) setWindowTurns((turns) => turns + useUIStore.getState().timelineVisibleTurns)
         })
         .catch((error) => {
           if (!stillCurrent()) return
           console.error('[Timeline] load older failed', error)
-          scrollHeightBeforeLoadRef.current = null
+          pendingAnchorRef.current = null
         })
         .finally(() => { if (loadSeq === olderLoadSeqRef.current) setFetchingOlder(false) })
-      return
     }
-
-    // In-memory reveal only (already loaded items outside the render window).
-    scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
-    if (grow) setWindowTurns((turns) => turns + useUIStore.getState().timelineVisibleTurns)
   }, [fetchingOlder, setWindowTurns])
 
+  const visibleItems = useMemo(() => {
+    const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
+    return [...historyWindow, ...segments.liveHead]
+  }, [segments, renderCount])
+  const visibleHeadId = visibleItems[0]?.id ?? null
+
+  // Restore scroll anchor ONLY when the actually mounted DOM slice (`visibleItems`) prepends rows —
+  // never prematurely on a store buffer update whose rows are still hidden outside the window.
   useLayoutEffect(() => {
     const el = scrollRef.current
-    const previous = scrollHeightBeforeLoadRef.current
-    if (!el || previous == null) return
-    scrollHeightBeforeLoadRef.current = null
-    // Anchor the viewport's content (not the bottom): when older rows are
-    // prepended / the render window grows, keep the same content at the top of
-    // the viewport. A bottom-anchored formula (scrollHeight - prevHeight) yanked
-    // the view toward the leaf right after a view-jump landed on an old node.
-    // Use the CURRENT scrollTop (not the load-start snapshot): the user may keep
-    // scrolling while the fetch is in flight, and restoring the stale snapshot
-    // yanks the viewport back to where the load began.
-    const growth = el.scrollHeight - previous.scrollHeight
-    el.scrollTop = el.scrollTop + growth
-  }, [renderCount, items.length])
+    const anchor = pendingAnchorRef.current
+    if (!el || anchor == null) return
+    pendingAnchorRef.current = null
+    clearSettleGuard()
+    if (followLiveRef.current) {
+      scheduleTimelineScrollToBottom(el)
+      return
+    }
+    restoreViewportAnchor(el, anchor)
+    settleGuardCleanupRef.current = startAnchorSettleGuard(
+      el,
+      contentRef.current,
+      anchor,
+      () => followLiveRef.current,
+    )
+  }, [visibleHeadId, visibleItems.length, clearSettleGuard, followLiveRef])
 
   // Reset the virtualization window only when the session file changes — not when
   // older messages are prepended (that changes items[0].id and must not reset).
   const prevSessionFileRef = useRef<string | null>(null)
   useEffect(() => {
     setWindowTurns(FIRST_PAINT_TURNS)
-    scrollHeightBeforeLoadRef.current = null
+    pendingAnchorRef.current = null
+    clearSettleGuard()
     olderLoadSeqRef.current += 1
     setFetchingOlder(false)
     const prevFile = prevSessionFileRef.current
@@ -992,12 +1064,12 @@ export function Timeline() {
     let growFrame = requestAnimationFrame(() => {
       growFrame = requestAnimationFrame(() => {
         const el = scrollRef.current
-        if (el) scrollHeightBeforeLoadRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight }
+        if (el) pendingAnchorRef.current = captureViewportAnchor(el)
         setWindowTurns((turns) => Math.max(turns, useUIStore.getState().timelineVisibleTurns))
       })
     })
     return () => cancelAnimationFrame(growFrame)
-  }, [historySessionFile, followLiveRef, setWindowTurns])
+  }, [historySessionFile, followLiveRef, setWindowTurns, clearSettleGuard])
 
   // Fill: when the window asks for more turns than the loaded history holds and the disk
   // has more, fetch older pages without growing the window again (initial load included).
@@ -1019,24 +1091,37 @@ export function Timeline() {
     const el = scrollRef.current
     if (!el) return
     syncFollowFromScroll()
-    // Skip full segmentation unless the viewport is near the older-history threshold.
-    if (el.scrollTop >= TIMELINE_LOAD_OLDER_SCROLL_TOP_PX) return
     const storeState = useUIStore.getState()
+    const canFetch = !!storeState.historySessionFile && storeState.historyLoadedCount < storeState.historyTotalCount
+
+    // Warm the next disk page silently in the approach zone before hitting the reveal threshold.
+    if (
+      !followLiveRef.current &&
+      canFetch &&
+      el.scrollTop >= TIMELINE_LOAD_OLDER_SCROLL_TOP_PX &&
+      el.scrollTop < TIMELINE_LOAD_OLDER_SCROLL_TOP_PX * 2.4
+    ) {
+      const segs = splitTimelineRenderSegments(storeState.timelineItems, {
+        streamingAssistantId: storeState.streamingAssistantId,
+        agentRunning: storeState.runState.status === 'running',
+      })
+      if (segs.history.length - renderCountRef.current <= 36) {
+        prefetchTimelineHistoryPage(storeState.historySessionFile!, storeState.historyLoadedCount)
+      }
+    }
+
+    // Skip reveal/fetch work unless the viewport is near the older-history threshold.
+    if (el.scrollTop >= TIMELINE_LOAD_OLDER_SCROLL_TOP_PX) return
     const segs = splitTimelineRenderSegments(storeState.timelineItems, {
       streamingAssistantId: storeState.streamingAssistantId,
       agentRunning: storeState.runState.status === 'running',
     })
     const canReveal = renderCountRef.current < segs.history.length
-    const canFetch = storeState.historyLoadedCount < storeState.historyTotalCount
     if (canReveal || canFetch) {
       loadMoreHistory()
     }
-  }, [loadMoreHistory, syncFollowFromScroll])
+  }, [followLiveRef, loadMoreHistory, syncFollowFromScroll])
 
-  const visibleItems = useMemo(() => {
-    const historyWindow = sliceHistoryForViewport(segments.history, renderCount)
-    return [...historyWindow, ...segments.liveHead]
-  }, [segments, renderCount])
   const toolExpandSlots = useMemo(
     () =>
       visibleItems

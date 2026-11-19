@@ -14,8 +14,8 @@ export const TIMELINE_NEAR_BOTTOM_PX = 140
  */
 export const TIMELINE_STREAM_TAIL_PAD_PX = 72
 
-/** Near top of the scrollport: auto-load / reveal older history */
-export const TIMELINE_LOAD_OLDER_SCROLL_TOP_PX = 220
+/** Near top of the scrollport: auto-load / reveal older history early before hitting top ceiling */
+export const TIMELINE_LOAD_OLDER_SCROLL_TOP_PX = 560
 
 export function isTimelineNearBottom(el: HTMLElement, thresholdPx = TIMELINE_NEAR_BOTTOM_PX): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= thresholdPx

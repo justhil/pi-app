@@ -1760,7 +1760,9 @@
     contain: layout style;
   }
   /* 向下滚到底：最后一条停在输入框上方（留白 + scroll-padding）；向上滚：内容可穿过悬浮层由渐变+模糊处理 */
+  /* 禁用 Chromium 原生 overflow-anchor，避免与元素级视口锚定叠加造成向上加载历史时双重补偿跳页 */
   .timeline-scroll-with-dock .overlay-scroll-pane {
+    overflow-anchor: none;
     padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
     scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
   }

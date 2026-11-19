@@ -17,6 +17,14 @@ export async function prependOlderTimelinePage(
   sessionFile: string,
   offset: number,
   limit = SESSION_HISTORY_PAGE,
+  opts?: {
+    /**
+     * Called synchronously right before `useUIStore.setState` commits prepended rows so the
+     * viewport can capture its DOM anchor at the exact commit instant and batch window growth
+     * into the same React render (eliminating two-commit anchor loss and stale scroll snapshots).
+     */
+    onBeforeCommit?: (info: { items: TimelineItem[]; nextTimelineItems: TimelineItem[] }) => void
+  },
 ): Promise<{ items: TimelineItem[]; sourceCount: number; totalCount: number; error?: string; cancelled?: boolean }> {
   const navToken = getSessionNavigationToken()
   let effectiveOffset = offset
@@ -66,6 +74,9 @@ export async function prependOlderTimelinePage(
   }
 
   const nextTotal = Math.max(store.historyTotalCount, page.totalCount)
+  if (page.items.length > 0) {
+    opts?.onBeforeCommit?.({ items: page.items, nextTimelineItems: timelineItems })
+  }
   useUIStore.setState({
     timelineItems,
     historyLoadedCount: Math.min(nextTotal, store.historyLoadedCount + addedSource),
