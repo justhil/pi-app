@@ -2,6 +2,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { applyComposerDisplayMeta } from '@renderer/lib/session-display-meta'
 import { refreshSessionTree } from '@renderer/lib/rewind-metadata'
+import { refreshBackgroundTasksFromMain } from '@renderer/stores/background-tasks-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { assertSessionNavigation } from '@renderer/lib/session-navigation'
 import { captureVisibleLiveSessionTimeline } from '@renderer/lib/capture-live-session-timeline'
@@ -41,6 +42,7 @@ async function openExistingSessionView(
     void ipcClient.invoke('session.setPendingBind', { sessionFile: sessionKey }).catch(() => {})
   }
   void refreshSessionTree(sessionFile)
+  void refreshBackgroundTasksFromMain(sessionFile, useUIStore.getState().currentWorkspace)
 
   if (instant) {
     void hydrateSessionView(sessionKey, sessionId, navToken, { bindWorker }).then(() => {

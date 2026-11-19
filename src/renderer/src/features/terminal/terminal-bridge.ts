@@ -29,6 +29,19 @@ export function attachWriter(id: string, w: Writer): () => void {
   }
 }
 
+/** Feed output directly into a terminal pane's xterm stream (used by virtual background-task viewers). */
+export function pushTerminalOutput(id: string, data: string): void {
+  if (!data) return
+  const w = writers.get(id)
+  if (w) w(data)
+  else pending.set(id, [...(pending.get(id) ?? []), data])
+}
+
+export function clearTerminalBuffer(id: string): void {
+  writers.delete(id)
+  pending.delete(id)
+}
+
 export function writeToPty(id: string, data: string): void {
   window.piDesktop?.terminalWrite?.(id, data)
 }

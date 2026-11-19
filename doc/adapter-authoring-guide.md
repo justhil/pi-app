@@ -596,6 +596,54 @@ Composer 输入 `/foo` 时：
 - 现有任务布局可用 `stateProvider: workspace-trellis` 和 `panelComponent: workspace-tasks`，同样可声明为 `desktop`。
 - 不执行脚本或命令，不写业务文件，不加载外部 React/JavaScript。普通 Pi 扩展没有适配文件也能加载和执行；未知自定义 TUI 不模拟成问卷。
 
+---
+
+## 10.7 原语 F：`statusBar` — 底部状态栏协议（`background-jobs-v1` / `status-pill-v1`）
+
+当 Pi 扩展需要在 24px 底部状态栏展示后台任务或轻量状态胶囊时，直接通过 `statusBar` 声明接入桌面宿主（`DesktopStatusBarHost` + `StatusBarAdapterSlots`），禁止在桌面壳中硬编码具体扩展包名或工具名。
+
+### 10.7.1 `background-jobs-v1`（后台作业面板 + 内置终端日志追更）
+
+```json
+"statusBar": {
+  "protocol": "background-jobs-v1",
+  "icon": "Activity",
+  "title": "后台终端命令",
+  "tools": ["background_run", "background_status", "background_kill"],
+  "exitMessageTypes": ["background-exit"],
+  "statusKeys": ["background-terminal"],
+  "actions": {
+    "inspectTool": "background_status",
+    "killTool": "background_kill"
+  },
+  "logFile": {
+    "dirName": "pi-background-terminal",
+    "filePattern": "^bg_[a-f0-9]+\\.log$"
+  }
+}
+```
+
+- **严格门控**：只有当前会话运行时真实注册了 `tools` 中的工具，或该会话存在历史任务记录时，底部状态栏才会显示触发图标；
+- **安全边界**：`logFile.dirName` 必须是单个安全目录名（禁止 `/`、`\`、`..`），`logFile.filePattern` 为正则；桌面只允许按该规则只读读取日志末尾或在内置终端中只读追更，停止/查询一律委托给 `actions.killTool` / `actions.inspectTool`。
+
+### 10.7.2 `status-pill-v1`（轻量状态胶囊，透传 `ctx.ui.setStatus`）
+
+```json
+"statusBar": {
+  "protocol": "status-pill-v1",
+  "statusKeys": ["goal-progress"],
+  "icon": "Target",
+  "title": "Goal",
+  "clickAction": {
+    "type": "slash",
+    "command": "/goal-status"
+  }
+}
+```
+
+- 只有显式声明在 `statusKeys` 中的 `ctx.ui.setStatus(key, text)` 会投射到底部状态栏（自动剥离 ANSI 颜色码），未声明的 key 自动忽略；
+- `clickAction.type` 支持 `none` / `slash` / `open-panel` / `config-page`。
+
 ## 11. 通用 IPC（扩展作者只需知道契约）
 
 Renderer 使用 `ipcClient.invoke('<method>', req)`，内部 channel 为 `ipc:<method>`。

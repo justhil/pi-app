@@ -681,6 +681,7 @@
     "tierNone": "无",
     "desktop": "桌面：",
     "openConfig": "打开配置",
+    "loadErrorsTitle": "适配器声明校验异常（相关文件已跳过）",
     "loading": "加载中…",
     "empty": "还没有适配器。扩展需要声明 adapter.json 才能接入桌面界面。"
   },

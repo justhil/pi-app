@@ -29,6 +29,7 @@ export type SessionEventDeps = {
   getSessionModelKey: () => string | undefined
   getUiBridge: () => DesktopUIBridge | null
   captureAdapterTool?: (toolName: string, payload: unknown) => void
+  captureAdapterCustomMessage?: (msg: unknown) => void
   isAgentTurnActive: () => boolean
   setAgentTurnActive: (v: boolean) => void
   setPromptPreflightActive: (value: boolean) => void
@@ -188,6 +189,9 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
     }
     case 'message_start': {
       const msg = event.message as PiSessionMessage
+      if ((msg as { role?: string })?.role === 'custom') {
+        deps.captureAdapterCustomMessage?.(msg)
+      }
       if (msg?.role === 'assistant') {
         assistantTextSnapshot = ''
         assistantThinkingSnapshot = ''
@@ -246,6 +250,9 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
     }
     case 'message_end': {
       const msg = event.message as PiSessionMessage
+      if ((msg as { role?: string })?.role === 'custom') {
+        deps.captureAdapterCustomMessage?.(msg)
+      }
       if (msg?.role === 'assistant') {
         pendingTerminalError = terminalErrorFromAssistant(msg)
         lastAssistantPreview = extractTextFromPiMessage(msg)
@@ -307,7 +314,7 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
           for (const [field, path] of Object.entries(interact.fields || {})) {
             extracted[field] = extractJsonPath(event.args, path)
           }
-          uiBridge.setInteractArgs(interact.schema, extracted)
+          uiBridge.setInteractArgs(interact.schema, extracted, interact.defaults)
         }
       }
       deps.emit({

@@ -298,6 +298,36 @@
       "other": "其他"
     }
   },
+  "bgTasks": {
+    "title": "后台终端命令",
+    "triggerRunningTitle": "后台终端命令（{{count}} 个运行中）",
+    "summary": "运行中 {{running}} · 已结束 {{finished}}",
+    "empty": "暂无后台终端命令",
+    "emptyHint": "当 Agent 调用 background_run 在后台执行构建、测试或服务时，会在此显示实时状态与日志。",
+    "currentSession": "当前会话",
+    "otherSessions": "其他会话运行中",
+    "lines": "{{count}} 行",
+    "copyCommand": "复制命令",
+    "openInTerminal": "在内置终端中打开并跟踪输出",
+    "openLog": "用外部程序打开完整日志文件",
+    "logFileShort": "日志文件",
+    "terminalReadOnlyLive": "后台命令实时输出（只读）",
+    "terminalReadOnlyExited": "后台命令已结束（退出码 {{code}}）",
+    "kill": "停止此后台命令",
+    "stopShort": "停止",
+    "recentOutput": "最近输出",
+    "recentOutputTruncated": "最近输出（已截取末尾）",
+    "noOutput": "暂无输出",
+    "status": {
+      "running": "运行中",
+      "exited": "已退出",
+      "exitedOk": "完成 (0)",
+      "killed": "已停止",
+      "timedOut": "已超时",
+      "failed": "启动失败",
+      "exitCode": "退出 {{code}}"
+    }
+  },
   "sessionReload": {
     "success": "已刷新会话数据",
     "failed": "刷新失败",

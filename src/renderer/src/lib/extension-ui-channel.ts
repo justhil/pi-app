@@ -14,6 +14,7 @@ import type { ImageReviewPayload } from '@renderer/features/extension-ui/image-r
 import { traceAudioRenderer } from '@renderer/lib/audio-trace'
 import { alertTrace } from '@renderer/lib/alert-trace'
 import {
+  interactiveToolsForDialogMethod,
   linkExtensionDialogToToolRow,
   reconcileAllStaleInteractiveToolRows,
   reconcileStaleInteractiveToolRows,
@@ -21,7 +22,6 @@ import {
 
 let started = false
 const seenDialogIds = new Set<string>()
-const INTERACTIVE_TOOL_NAMES = new Set(['ask_user_question', 'image_review'])
 
 function pruneSeenIds(): void {
   if (seenDialogIds.size > 120) seenDialogIds.clear()
@@ -172,8 +172,9 @@ export function ensureExtensionUIChannel(): void {
     } else {
       useExtensionUIStore.getState().setActivePending(p)
     }
-    if (INTERACTIVE_TOOL_NAMES.has(p.method)) {
-      linkExtensionDialogToToolRow(p.id, p.method)
+    const rawToolCallId = typeof req.toolCallId === 'string' ? req.toolCallId : undefined
+    if (interactiveToolsForDialogMethod(p.method).size > 0) {
+      linkExtensionDialogToToolRow(p.id, p.method, rawToolCallId)
     }
 
     const body =

@@ -29,6 +29,18 @@
       "context": "$.context",
       "options": "$.options",
       "allow_feedback": "$.allow_feedback"
+    },
+    "defaults": {
+      "title": "图片审查",
+      "question": "这张图片是否可用？",
+      "options": [
+        "通过",
+        "需要修改",
+        "重做",
+        "取消"
+      ],
+      "cancelLabel": "取消",
+      "allowFeedback": true
     }
   },
   "config": {

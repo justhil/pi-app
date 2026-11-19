@@ -1,6 +1,19 @@
 import { app, powerSaveBlocker, dialog } from 'electron'
+import { open, readFile, stat } from 'node:fs/promises'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { z } from 'zod'
+import {
+  extractBackgroundTasksFromBranchEntries,
+  isSafeBackgroundLogPath,
+  sortBackgroundTasks,
+  type BackgroundTaskSnapshot,
+} from '@shared/background-tasks'
+import { prepareAdapterCatalog } from '../../../extension-compat/adapter-loader'
+import {
+  collectAllowedBackgroundLogRules,
+  listBackgroundJobsSpecs,
+} from '../../../extension-compat/status-bar-adapters'
+import { normalizeSessionFileKey } from '@shared/session-file-key'
 import { workspacePathsEqual } from '@shared/workspace-path'
 import { configStore } from '../../config-store'
 import { listGitWorktrees } from '../../git-worktrees'
@@ -49,6 +62,188 @@ export function registerDesktopChromeHandlers(): void {
     await workerManager.abort(file)
     return { ok: true }
   })
+
+  registerHandlerWithSchema(
+    'ipc:backgroundTasks.list',
+    z.object({
+      sessionFile: z.string().max(4096).optional(),
+      workspaceId: z.string().max(4096).optional(),
+    }).optional(),
+    async (req) => {
+      const targetSession = req?.sessionFile?.trim() || undefined
+      const projectDir = req?.workspaceId?.trim() || undefined
+      await prepareAdapterCatalog(projectDir)
+      const specs = listBackgroundJobsSpecs(projectDir)
+      const live = await workerManager.listBackgroundTasks()
+      const merged = new Map<string, BackgroundTaskSnapshot>()
+      const liveKeys = new Set(live.liveSessionFiles.map((f) => normalizeSessionFileKey(f)))
+
+      for (const task of live.tasks) {
+        const key = `${normalizeSessionFileKey(task.sessionFile)}::${task.id}`
+        merged.set(key, task)
+      }
+
+      // If the active session has no live worker yet, parse persisted JSONL history asynchronously
+      // using declared `background-jobs-v1` adapter specs (never waking a cold worker).
+      if (targetSession && specs.length > 0 && !liveKeys.has(normalizeSessionFileKey(targetSession))) {
+        const keywords = [
+          ...new Set(specs.flatMap((s) => [...s.tools, ...s.exitMessageTypes]).filter(Boolean)),
+        ]
+        try {
+          const info = await stat(targetSession)
+          if (info.isFile() && info.size > 0 && info.size <= 32 * 1024 * 1024) {
+            const raw = await readFile(targetSession, 'utf8')
+            const entries: unknown[] = []
+            for (const line of raw.split(/\r?\n/)) {
+              const trimmed = line.trim()
+              if (!trimmed) continue
+              if (keywords.length > 0 && !keywords.some((kw) => trimmed.includes(kw))) {
+                continue
+              }
+              try {
+                entries.push(JSON.parse(trimmed))
+              } catch {
+                /* skip malformed jsonl line */
+              }
+            }
+            const persisted = extractBackgroundTasksFromBranchEntries(entries, targetSession, specs)
+            for (const task of persisted) {
+              const settled: BackgroundTaskSnapshot =
+                task.status === 'running' ? { ...task, status: 'exited' } : task
+              const key = `${normalizeSessionFileKey(settled.sessionFile)}::${settled.id}`
+              if (!merged.has(key)) merged.set(key, settled)
+            }
+          }
+        } catch {
+          /* unreadable or missing session file */
+        }
+      }
+
+      return {
+        tasks: sortBackgroundTasks(merged.values()),
+        activeAdaptersBySession: live.activeAdaptersBySession,
+      }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:backgroundTasks.inspect',
+    z.object({
+      sessionFile: z.string().max(4096).optional(),
+      workspaceId: z.string().max(4096).optional(),
+      taskId: z.string().min(1).max(128),
+      outputPath: z.string().max(4096).optional(),
+    }),
+    async (req) => {
+      const fromWorker = await workerManager.inspectBackgroundTask(
+        req.sessionFile,
+        req.taskId,
+        req.outputPath,
+      )
+      if (fromWorker && fromWorker.ok) return fromWorker
+
+      // Fallback: safe tail-read strictly validated against adapter-declared `logFile` rules.
+      const projectDir = req.workspaceId?.trim() || undefined
+      await prepareAdapterCatalog(projectDir)
+      const logRules = collectAllowedBackgroundLogRules(projectDir)
+      if (req.outputPath && isSafeBackgroundLogPath(req.outputPath, logRules)) {
+        try {
+          const info = await stat(req.outputPath)
+          if (info.isFile()) {
+            const maxBytes = 16 * 1024
+            const start = Math.max(0, info.size - maxBytes)
+            const length = info.size - start
+            const fh = await open(req.outputPath, 'r')
+            try {
+              const buf = Buffer.alloc(length)
+              const { bytesRead } = await fh.read(buf, 0, length, start)
+              let tail = buf.subarray(0, bytesRead).toString('utf8')
+              if (start > 0) {
+                const nl = tail.indexOf('\n')
+                if (nl >= 0 && nl < 240) tail = tail.slice(nl + 1)
+              }
+              return { ok: true, task: null, tail, truncated: start > 0, sizeBytes: info.size }
+            } finally {
+              await fh.close()
+            }
+          }
+        } catch {
+          /* log file cleaned up */
+        }
+      }
+      return fromWorker ?? { ok: true, task: null, tail: '', truncated: false, sizeBytes: 0 }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:backgroundTasks.readLog',
+    z.object({
+      outputPath: z.string().min(1).max(4096),
+      workspaceId: z.string().max(4096).optional(),
+      offset: z.number().int().min(0).default(0),
+      maxBytes: z.number().int().min(1024).max(256 * 1024).default(64 * 1024),
+    }),
+    async (req) => {
+      const requestedOffset = req.offset ?? 0
+      const maxBytes = req.maxBytes ?? 64 * 1024
+      const projectDir = req.workspaceId?.trim() || undefined
+      await prepareAdapterCatalog(projectDir)
+      const logRules = collectAllowedBackgroundLogRules(projectDir)
+      if (!isSafeBackgroundLogPath(req.outputPath, logRules)) {
+        return { ok: false, error: 'Invalid background task log path', text: '', nextOffset: requestedOffset, sizeBytes: 0 }
+      }
+      try {
+        const info = await stat(req.outputPath)
+        if (!info.isFile()) {
+          return { ok: false, error: 'Log file not found', text: '', nextOffset: requestedOffset, sizeBytes: 0 }
+        }
+        const sizeBytes = info.size
+        // On initial open of a huge log (> 128KB), start near the last 128KB so xterm renders instantly.
+        let start = requestedOffset
+        let skippedPrefix = false
+        if (start === 0 && sizeBytes > 128 * 1024) {
+          start = sizeBytes - 128 * 1024
+          skippedPrefix = true
+        }
+        if (start >= sizeBytes) {
+          return { ok: true, text: '', nextOffset: sizeBytes, sizeBytes, skippedPrefix: false }
+        }
+        const length = Math.min(maxBytes, sizeBytes - start)
+        const fh = await open(req.outputPath, 'r')
+        try {
+          const buf = Buffer.alloc(length)
+          const { bytesRead } = await fh.read(buf, 0, length, start)
+          const text = buf.subarray(0, bytesRead).toString('utf8')
+          return {
+            ok: true,
+            text,
+            nextOffset: start + bytesRead,
+            sizeBytes,
+            skippedPrefix,
+          }
+        } finally {
+          await fh.close()
+        }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+          text: '',
+          nextOffset: requestedOffset,
+          sizeBytes: 0,
+        }
+      }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:backgroundTasks.kill',
+    z.object({
+      sessionFile: z.string().min(1).max(4096),
+      taskId: z.string().min(1).max(128),
+    }),
+    async (req) => workerManager.killBackgroundTask(req.sessionFile, req.taskId),
+  )
 
   registerHandler('ipc:desktop.setSleepBlock', async (req) => {
     const on = req.on === true

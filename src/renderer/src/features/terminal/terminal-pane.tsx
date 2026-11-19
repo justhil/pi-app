@@ -11,6 +11,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { attachWriter, resizePty, shellPath, writeToPty } from './terminal-bridge'
+import { stopBackgroundTaskLogFollower } from './background-task-terminal'
 import { terminalActions, useTerminalStore, type TerminalPaneState } from './terminal-store'
 import { TERMINAL_FONT, terminalTheme } from './terminal-theme'
 
@@ -27,14 +28,16 @@ const isMac = () => window.piDesktop?.platform === 'darwin'
 function createInstance(pane: TerminalPaneState): Instance {
   const host = document.createElement('div')
   host.className = 'terminal-host h-full w-full'
+  const isReadOnlyBgTask = Boolean(pane.backgroundTask)
   const term = new Terminal({
     fontFamily: TERMINAL_FONT,
     fontSize: 12.5,
     lineHeight: 1.25,
     letterSpacing: 0,
-    cursorBlink: true,
+    cursorBlink: !isReadOnlyBgTask,
     cursorStyle: 'bar',
-    cursorWidth: 2,
+    cursorWidth: isReadOnlyBgTask ? 1 : 2,
+    disableStdin: isReadOnlyBgTask,
     scrollback: 10000,
     allowProposedApi: true,
     macOptionIsMeta: true,
@@ -92,6 +95,7 @@ function createInstance(pane: TerminalPaneState): Instance {
   })
 
   const offInput = term.onData((d) => {
+    if (isReadOnlyBgTask) return
     const exited = useTerminalStore.getState().tabs.some((t) => t.panes.some((p) => p.ptyId === pane.ptyId && p.exited !== undefined))
     // An exited pane: Enter starts the same shell again in its place.
     if (exited) {
@@ -100,7 +104,9 @@ function createInstance(pane: TerminalPaneState): Instance {
     }
     writeToPty(pane.ptyId, d)
   })
-  const offResize = term.onResize(({ cols, rows }) => resizePty(pane.ptyId, cols, rows))
+  const offResize = term.onResize(({ cols, rows }) => {
+    if (!isReadOnlyBgTask) resizePty(pane.ptyId, cols, rows)
+  })
   const offOutput = attachWriter(pane.ptyId, (d) => term.write(d))
 
   // Images on the clipboard: save as a temp file and type its path (CLI agents read image paths).
@@ -264,7 +270,13 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
         ) : null}
         {pane.exited !== undefined ? (
           <div className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-foreground-tertiary">
-            {t('common:terminal.exited', { code: pane.exited })} · {t('common:terminal.restartHint')}
+            {pane.backgroundTask
+              ? t('common:bgTasks.terminalReadOnlyExited', { code: pane.exited })
+              : `${t('common:terminal.exited', { code: pane.exited })} · ${t('common:terminal.restartHint')}`}
+          </div>
+        ) : pane.backgroundTask ? (
+          <div className="pointer-events-none absolute bottom-2 right-3 text-[11px] text-foreground-tertiary">
+            {t('common:bgTasks.terminalReadOnlyLive')}
           </div>
         ) : null}
       </div>
@@ -277,6 +289,10 @@ function closePaneNow(ptyId: string): void {
   const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
   terminalActions.closePane(ptyId)
   disposeTerminalInstance(ptyId)
+  if (pane?.backgroundTask) {
+    stopBackgroundTaskLogFollower(ptyId)
+    return
+  }
   if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
 }
 

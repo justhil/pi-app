@@ -15,6 +15,7 @@ export interface AdapterI18nLocale {
   fieldDescriptions?: Record<string, string>
   actionLabels?: Record<string, string>
   sidePanel?: { label?: string; description?: string }
+  statusBar?: { title?: string }
 }
 
 export interface SectionI18nLocale {
@@ -106,11 +107,74 @@ export interface ToolCardDef {
   }
 }
 
+export interface InteractDefaults {
+  title?: string
+  question?: string
+  options?: string[]
+  cancelLabel?: string
+  allowFeedback?: boolean
+}
+
 export interface InteractDef {
   trigger: { tool?: string; argsMatch?: Record<string, unknown> }
   schema: 'questions' | 'clarify' | 'review'
   /** Map dialog field → tool-arg JSONPath (e.g. "image": "$.image"). */
   fields?: Record<string, string>
+  /** Default UI strings/options for review/clarify dialogs when tool args omit them. */
+  defaults?: InteractDefaults
+}
+
+export type StatusBarProtocol = 'background-jobs-v1' | 'status-pill-v1'
+
+export interface AdapterStatusBarClickAction {
+  type: 'none' | 'slash' | 'open-panel' | 'config-page'
+  command?: string
+  panelId?: string
+}
+
+export interface AdapterStatusBarLogFileRule {
+  /** Exact parent directory name (single path segment, no slashes or '..'). */
+  dirName: string
+  /** Regular expression matching allowed log file names inside dirName. */
+  filePattern: string
+}
+
+export interface AdapterStatusBarDef {
+  protocol: StatusBarProtocol
+  /** ctx.ui.setStatus(key, text) keys claimed by this adapter. */
+  statusKeys?: string[]
+  /** Tool names whose toolResult.details feed background-jobs-v1. */
+  tools?: string[]
+  /** custom_message customType names indicating background job settlement. */
+  exitMessageTypes?: string[]
+  /** Extension tool names invoked by the desktop host for live inspect/kill actions. */
+  actions?: {
+    inspectTool?: string
+    killTool?: string
+  }
+  /** Read-only disk log boundary for background-jobs-v1 tail/terminal streaming. */
+  logFile?: AdapterStatusBarLogFileRule
+  /** Optional field mappings for background-jobs-v1 payloads. */
+  fields?: Partial<
+    Record<
+      | 'id'
+      | 'command'
+      | 'cwd'
+      | 'status'
+      | 'exitCode'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'outputPath'
+      | 'lineCount'
+      | 'tail'
+      | 'timeoutSeconds'
+      | 'error',
+      string
+    >
+  >
+  icon?: string
+  title?: string
+  clickAction?: AdapterStatusBarClickAction
 }
 
 export interface AdapterSlash {
@@ -185,6 +249,7 @@ export interface AdapterJson {
   /** open-panel commands that open a core panel (e.g. `{ "/context": "context" }`) instead of the adapter's own. */
   slashPanels?: Record<string, string>
   widget?: AdapterWidgetDef
+  statusBar?: AdapterStatusBarDef
   sidePanel?: AdapterSidePanel
   /** 不依赖 npm 安装即可生效（如 trellis 靠项目 .trellis/ 目录） */
   alwaysVisible?: boolean
@@ -214,6 +279,7 @@ export interface ResolvedAdapterText {
   sections: Array<{ title?: string; fields: ConfigField[] }>
   actions: Array<{ id: string; label?: string }>
   sidePanel: { label?: string; description?: string }
+  statusBar: { title?: string }
 }
 
 export function resolveAdapterText(a: AdapterJson, language: string): ResolvedAdapterText {
@@ -258,6 +324,13 @@ export function resolveAdapterText(a: AdapterJson, language: string): ResolvedAd
         base?.sidePanel?.description ??
         enFallback?.sidePanel?.description ??
         a.sidePanel?.description,
+    },
+    statusBar: {
+      title:
+        exact?.statusBar?.title ??
+        base?.statusBar?.title ??
+        enFallback?.statusBar?.title ??
+        a.statusBar?.title,
     },
   }
 }

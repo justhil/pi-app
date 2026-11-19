@@ -681,6 +681,7 @@
     "tierNone": "None",
     "desktop": "Desktop: ",
     "openConfig": "Open config",
+    "loadErrorsTitle": "Adapter declaration validation errors (skipped)",
     "loading": "Loading…",
     "empty": "No desktop adapters registered. Plugins still appear on the Extensions page; to integrate a new plugin, declare an adapter.json in the compat layer."
   },

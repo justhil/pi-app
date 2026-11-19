@@ -13,6 +13,7 @@ import type { AppEvent } from '@shared/app-events'
 import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
 import { createDesktopUIBridge, type DesktopUIBridge } from './desktop-ui-bridge.js'
 import { createDesktopWidgetHost } from './desktop-widget-host.js'
+import { createDesktopStatusBarHost } from './desktop-status-bar-host.js'
 import { applySkillsOverride } from './skill-override.js'
 import { decorateQuestionnaireTools } from './questionnaire-tool-decorator.js'
 import {
@@ -51,6 +52,7 @@ export type WorkerMutableState = {
   runtime: AgentSessionRuntime | null
   uiBridge: DesktopUIBridge | null
   widgetHost: ReturnType<typeof createDesktopWidgetHost> | null
+  statusBarHost: ReturnType<typeof createDesktopStatusBarHost> | null
   pendingAdapterCatalog: import('../extension-compat/adapter-schema').AdapterCatalog | null
   seq: number
   currentCwd: string
@@ -88,6 +90,7 @@ export const st: WorkerMutableState = {
   runtime: null,
   uiBridge: null,
   widgetHost: null,
+  statusBarHost: null,
   pendingAdapterCatalog: null,
   seq: 0,
   currentCwd: '',
@@ -191,6 +194,8 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   resetCompletionTurnTracking()
   st.widgetHost?.dispose()
   st.widgetHost = null
+  st.statusBarHost?.dispose()
+  st.statusBarHost = null
   st.session = session
   installPurgeStreamWrapper(session)
   st.modelRuntime = st.runtime?.services.modelRuntime ?? session.modelRuntime ?? null
@@ -326,6 +331,10 @@ function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
 
 async function disposeRuntimeOrSession(): Promise<void> {
   detachSessionSubscription()
+  st.widgetHost?.dispose()
+  st.widgetHost = null
+  st.statusBarHost?.dispose()
+  st.statusBarHost = null
   st.agentTurnActive = false
   st.promptPreflightActive = false
   st.abortAfterPreflight = false
@@ -366,6 +375,7 @@ export function applyPendingAdapterCatalog(): void {
   if (!st.pendingAdapterCatalog || isSessionBusy()) return
   installAdapterCatalog(st.currentCwd, st.pendingAdapterCatalog)
   st.pendingAdapterCatalog = null
+  st.statusBarHost?.resyncCatalog()
 }
 
 export async function initSession(cwd: string): Promise<void> {
@@ -553,7 +563,15 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
     projectDir: st.currentCwd,
     theme: (st.uiBridge.uiContext as { theme?: unknown }).theme ?? {},
   })
+  st.statusBarHost?.dispose()
+  st.statusBarHost = createDesktopStatusBarHost({
+    emit,
+    baseEvent,
+    getSession: () => st.session,
+    projectDir: st.currentCwd,
+  })
   st.uiBridge.attachWidgetHost(st.widgetHost)
+  st.uiBridge.setStatusListener?.((key, text) => st.statusBarHost?.setStatus(key, text))
   await sess.bindExtensions({
     uiContext: st.uiBridge.uiContext as never,
     mode: 'rpc',
@@ -561,7 +579,12 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   })
   try {
     const entries = sess.sessionManager?.getBranch?.() ?? sess.messages ?? []
-    st.widgetHost.reconstructFromBranch(Array.isArray(entries) ? entries : [])
+    const entryList = Array.isArray(entries) ? entries : []
+    st.widgetHost.reconstructFromBranch(entryList)
+    await st.statusBarHost.reconstructFromBranch(
+      entryList,
+      sess.sessionManager?.getSessionFile?.() ?? undefined,
+    )
   } catch {
     /* history reconstruction is best-effort */
   }
@@ -574,7 +597,13 @@ function sessionEventDeps() {
     getSession: () => st.session,
     getSessionModelKey: currentSessionModelKey,
     getUiBridge: () => st.uiBridge,
-    captureAdapterTool: (toolName: string, payload: unknown) => st.widgetHost?.captureTool(toolName, payload),
+    captureAdapterTool: (toolName: string, payload: unknown) => {
+      st.widgetHost?.captureTool(toolName, payload)
+      st.statusBarHost?.captureTool(toolName, payload)
+    },
+    captureAdapterCustomMessage: (msg: unknown) => {
+      st.statusBarHost?.captureCustomMessage(msg)
+    },
     isAgentTurnActive: () => st.agentTurnActive,
     setAgentTurnActive: (v: boolean) => {
       st.agentTurnActive = v

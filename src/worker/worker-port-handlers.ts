@@ -5,6 +5,11 @@ import * as Session from './handlers/worker-handlers-session.js'
 import * as Catalog from './handlers/worker-handlers-catalog.js'
 import * as PiSettings from './handlers/worker-handlers-pi-settings.js'
 import { handleSetCapabilities } from './worker-capabilities.js'
+import {
+  handleInspectBackgroundTask,
+  handleKillBackgroundTask,
+  handleListBackgroundTasks,
+} from './worker-background-tasks.js'
 import { handleReloadModelRouters } from './worker-model-routers.js'
 import { handleBrowserToolResponse } from './worker-browser-tools.js'
 
@@ -22,6 +27,9 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'setModel': Session.handleSetmodel,
   'setThinkingLevel': Session.handleSetthinkinglevel,
   'setCapabilities': handleSetCapabilities,
+  'listBackgroundTasks': handleListBackgroundTasks,
+  'inspectBackgroundTask': handleInspectBackgroundTask,
+  'killBackgroundTask': handleKillBackgroundTask,
   'reloadModelRouters': handleReloadModelRouters,
   'browser-tool-response': handleBrowserToolResponse,
   'newSession': Session.handleNewsession,

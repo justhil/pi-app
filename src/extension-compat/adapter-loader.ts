@@ -6,65 +6,10 @@ import { createHash } from 'node:crypto'
 import { join, resolve } from 'path'
 import { adapterIdentity, parseAdapterDeclaration } from './adapter-validation'
 import { getActiveDesktopDir } from './active-dirs'
+import { BUILTIN_ADAPTERS } from './builtin-adapters'
 import type { AdapterCatalog, AdapterJson, AdapterLoadError, InteractDef } from './adapter-schema'
 
-// Builtin adapters are imported as modules so they survive bundling (no runtime fs read needed).
-import piSearchAdapter from './builtin/pi-search.adapter.json'
-import trellisAdapter from './builtin/trellis.adapter.json'
-import askAdapter from './builtin/rpiv-ask-user-question.adapter.json'
-import imageGenAdapter from './builtin/pi-image-gen.adapter.json'
-import multimodalAdapter from './builtin/pi-multimodal-proxy.adapter.json'
-import markdownPreviewAdapter from './builtin/pi-markdown-preview.adapter.json'
-import studioAdapter from './builtin/pi-studio.adapter.json'
-import fastContextAdapter from './builtin/pi-fast-context.adapter.json'
-import subagentsAdapter from './builtin/pi-subagents.adapter.json'
-import cacheOptimizerAdapter from './builtin/pi-cache-optimizer.adapter.json'
-import skillsManagerAdapter from './builtin/pi-skills-manager.adapter.json'
-import mcpAdapter from './builtin/pi-mcp-adapter.adapter.json'
-import contextViewerAdapter from './builtin/edb-context-viewer.adapter.json'
-import fffAdapter from './builtin/pi-fff.adapter.json'
-import syncAdapter from './builtin/pi-sync.adapter.json'
-import rewindAdapter from './builtin/pi-rewind.adapter.json'
-import continueAdapter from './builtin/pi-continue.adapter.json'
-import goalAdapter from './builtin/pi-goal.adapter.json'
-import goalXAdapter from './builtin/pi-goal-x.adapter.json'
-import btwAdapter from './builtin/pi-btw.adapter.json'
-import simplifyAdapter from './builtin/pi-simplify.adapter.json'
-import advisorAdapter from './builtin/rpiv-advisor.adapter.json'
-import observationalMemoryAdapter from './builtin/pi-observational-memory.adapter.json'
-import toolDisplayAdapter from './builtin/pi-tool-display.adapter.json'
-import agentsmdAdapter from './builtin/pi-agentsmd.adapter.json'
-import aceToolAdapter from './builtin/pi-ace-tool.adapter.json'
-import sequentialThinkingAdapter from './builtin/pi-sequential-thinking.adapter.json'
-import aegisAdapter from './builtin/aegis.adapter.json'
-import tpsExtensionsAdapter from './builtin/pi-tps-extensions.adapter.json'
-import nanoContextAdapter from './builtin/pi-nano-context.adapter.json'
-import powerlineFooterAdapter from './builtin/pi-powerline-footer.adapter.json'
-import ampThemesAdapter from './builtin/amp-themes.adapter.json'
-import curatedThemesAdapter from './builtin/pi-curated-themes.adapter.json'
-import themesBundleAdapter from './builtin/pi-themes-bundle.adapter.json'
-import hashlineEditAdapter from './builtin/pi-hashline-edit.adapter.json'
-import piDeckTodoAdapter from './builtin/pi-deck-todo.adapter.json'
-import magicContextTodoAdapter from './builtin/magic-context-todo.adapter.json'
-import devinSearchAdapter from './builtin/pi-devin-search.adapter.json'
-import backgroundTerminalAdapter from './builtin/pi-background-terminal.adapter.json'
-import rewindHookAdapter from './builtin/pi-rewind-hook.adapter.json'
-import promptEnhancerAdapter from './builtin/pi-prompt-enhancer.adapter.json'
-import qualityAdapter from './builtin/pi-quality.adapter.json'
-import winNotifyAdapter from './builtin/pi-win-notify.adapter.json'
-
-const BUILTIN: AdapterJson[] = [
-  piSearchAdapter, trellisAdapter, askAdapter, imageGenAdapter, multimodalAdapter,
-  markdownPreviewAdapter, studioAdapter, fastContextAdapter, subagentsAdapter,
-  cacheOptimizerAdapter, skillsManagerAdapter, mcpAdapter, contextViewerAdapter, fffAdapter,
-  syncAdapter, rewindAdapter, continueAdapter, goalAdapter, goalXAdapter, btwAdapter, simplifyAdapter,
-  advisorAdapter, observationalMemoryAdapter, toolDisplayAdapter, agentsmdAdapter, aceToolAdapter,
-  sequentialThinkingAdapter, aegisAdapter, tpsExtensionsAdapter, nanoContextAdapter,
-  powerlineFooterAdapter, ampThemesAdapter, curatedThemesAdapter, themesBundleAdapter,
-  hashlineEditAdapter, piDeckTodoAdapter, magicContextTodoAdapter,
-  devinSearchAdapter, backgroundTerminalAdapter, rewindHookAdapter, promptEnhancerAdapter,
-  qualityAdapter, winNotifyAdapter,
-].map((a) => a as unknown as AdapterJson)
+const BUILTIN: AdapterJson[] = BUILTIN_ADAPTERS
 type Cached = { catalog: AdapterCatalog; checkedAt: number; fingerprint?: string; promise?: Promise<AdapterCatalog> }
 const catalogs = new Map<string, Cached>()
 let generation = 0
@@ -334,11 +279,21 @@ export function v2DisplayInfo(adapterId: string, projectDir?: string): {
 export function resolveInteractByTool(
   toolName: string,
   projectDir?: string,
-): { adapterId: string; schema: InteractDef['schema']; fields?: Record<string, string> } | null {
+): {
+  adapterId: string
+  schema: InteractDef['schema']
+  fields?: Record<string, string>
+  defaults?: InteractDef['defaults']
+} | null {
   for (const a of loadAdapterCatalog(projectDir).adapters) {
     const interact = a.interact
     if (interact?.trigger?.tool === toolName) {
-      return { adapterId: a.id, schema: interact.schema, fields: interact.fields }
+      return {
+        adapterId: a.id,
+        schema: interact.schema,
+        fields: interact.fields,
+        defaults: interact.defaults,
+      }
     }
   }
   return null

@@ -7,7 +7,18 @@
       "pi-rewind-hook"
     ]
   },
-  "tier": "partial",
+  "tier": "native",
+  "statusBar": {
+    "protocol": "status-pill-v1",
+    "statusKeys": [
+      "rewind"
+    ],
+    "icon": "GitBranch",
+    "title": "Rewind 快照",
+    "clickAction": {
+      "type": "config-page"
+    }
+  },
   "config": {
     "configFile": "~/.pi/agent/settings.json",
     "fileKeyMap": {
@@ -104,6 +115,9 @@
       },
       "fieldDescriptions": {
         "silentCheckpoints": "开启后隐藏创建检查点时的状态提示"
+      },
+      "statusBar": {
+        "title": "Rewind 快照"
       }
     },
     "en": {
@@ -119,6 +133,9 @@
       },
       "fieldDescriptions": {
         "silentCheckpoints": "Suppress status notifications when creating checkpoints"
+      },
+      "statusBar": {
+        "title": "Rewind Snapshots"
       }
     },
     "ru": {
@@ -134,6 +151,9 @@
       },
       "fieldDescriptions": {
         "silentCheckpoints": "Скрывать уведомления о статусе при создании контрольных точек"
+      },
+      "statusBar": {
+        "title": "Снимки Rewind"
       }
     }
   }

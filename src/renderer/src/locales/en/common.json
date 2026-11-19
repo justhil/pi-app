@@ -300,6 +300,36 @@
       "other": "Other"
     }
   },
+  "bgTasks": {
+    "title": "Background commands",
+    "triggerRunningTitle": "Background commands ({{count}} running)",
+    "summary": "{{running}} running · {{finished}} finished",
+    "empty": "No background commands",
+    "emptyHint": "When the agent starts hands-off builds, tests, or dev servers via background_run, live status and logs appear here.",
+    "currentSession": "Current session",
+    "otherSessions": "Running in other sessions",
+    "lines": "{{count}} lines",
+    "copyCommand": "Copy command",
+    "openInTerminal": "Open in built-in terminal",
+    "openLog": "Open full log file externally",
+    "logFileShort": "Log file",
+    "terminalReadOnlyLive": "Live background output (read-only)",
+    "terminalReadOnlyExited": "Background task finished (exit {{code}})",
+    "kill": "Stop this background command",
+    "stopShort": "Stop",
+    "recentOutput": "Recent output",
+    "recentOutputTruncated": "Recent output (tail)",
+    "noOutput": "No output yet",
+    "status": {
+      "running": "Running",
+      "exited": "Exited",
+      "exitedOk": "Done (0)",
+      "killed": "Stopped",
+      "timedOut": "Timed out",
+      "failed": "Failed",
+      "exitCode": "Exit {{code}}"
+    }
+  },
   "sessionReload": {
     "success": "Session data refreshed",
     "failed": "Refresh failed",

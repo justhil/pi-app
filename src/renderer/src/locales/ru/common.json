@@ -304,6 +304,36 @@
       "other": "Прочее"
     }
   },
+  "bgTasks": {
+    "title": "Фоновые команды",
+    "triggerRunningTitle": "Фоновые команды (выполняется: {{count}})",
+    "summary": "Выполняется: {{running}} · Завершено: {{finished}}",
+    "empty": "Нет фоновых команд",
+    "emptyHint": "Когда агент запускает сборки, тесты или серверы через background_run, их статус и логи отображаются здесь.",
+    "currentSession": "Текущая сессия",
+    "otherSessions": "Выполняется в других сессиях",
+    "lines": "строк: {{count}}",
+    "copyCommand": "Копировать команду",
+    "openInTerminal": "Открыть во встроенном терминале",
+    "openLog": "Открыть полный лог внешним приложением",
+    "logFileShort": "Файл лога",
+    "terminalReadOnlyLive": "Вывод фоновой команды (только чтение)",
+    "terminalReadOnlyExited": "Фоновая команда завершена (код {{code}})",
+    "kill": "Остановить фоновую команду",
+    "stopShort": "Стоп",
+    "recentOutput": "Последний вывод",
+    "recentOutputTruncated": "Последний вывод (хвост файла)",
+    "noOutput": "Вывода пока нет",
+    "status": {
+      "running": "Выполняется",
+      "exited": "Завершено",
+      "exitedOk": "Готово (0)",
+      "killed": "Остановлено",
+      "timedOut": "Таймаут",
+      "failed": "Ошибка",
+      "exitCode": "Код {{code}}"
+    }
+  },
   "sessionReload": {
     "success": "Данные сессии обновлены",
     "failed": "Не удалось обновить",
