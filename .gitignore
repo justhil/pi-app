@@ -50,10 +50,17 @@ AGENTS.md
 *.swo
 *~
 
-# Project-local pi + Trellis (machine / workflow, not app source)
+# Project-local pi + Trellis + agent toolchains (machine / workflow, not app source)
 # Never git add -f .trellis — tracked files ignore this rule
 .pi/
+.pi-subagents/
 .trellis/
+.agent/
+.agents/
+.codex/
+.devin/
+.gitattributes
+PRODUCT.md
 
 # Generated / scratch / test artifacts
 .image-gen/
