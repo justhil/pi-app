@@ -233,6 +233,13 @@ export interface AdapterMatch {
   commands?: string[]
 }
 
+export interface AdapterInstallDef {
+  /** Pi package install spec (`npm:<pkg>` or `git:<repo>`). */
+  source: string
+  /** Optional package homepage or repository URL. */
+  homepage?: string
+}
+
 export interface AdapterJson {
   $schema?: string
   schemaVersion?: 1
@@ -243,6 +250,8 @@ export interface AdapterJson {
   match: AdapterMatch
   tier: AdapterTier
   config?: AdapterConfig
+  /** Verified Pi CLI install source (`pi install <source>`); omitted adapters stay hidden from one-click install. */
+  install?: AdapterInstallDef
   toolCard?: ToolCardDef
   interact?: InteractDef
   slash?: AdapterSlash

@@ -12,6 +12,10 @@
       "/fff-rescan"
     ]
   },
+  "install": {
+    "source": "npm:@ff-labs/pi-fff",
+    "homepage": "https://github.com/dmtrKovalenko/fff"
+  },
   "tier": "headless",
   "config": {
     "piSettingsKey": "fff-mode",

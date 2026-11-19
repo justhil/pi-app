@@ -4,6 +4,7 @@
   "description": "持久自主目标循环：get_goal / create_goal / update_goal 工具卡片与 /goal 命令",
   "match": {
     "names": [
+      "@narumitw/pi-goal",
       "@astrosheep/pi-goal-next",
       "pi-goal-next",
       "pi-goal"
@@ -16,6 +17,10 @@
     "commands": [
       "/goal"
     ]
+  },
+  "install": {
+    "source": "npm:@narumitw/pi-goal",
+    "homepage": "https://www.npmjs.com/package/@narumitw/pi-goal"
   },
   "tier": "partial",
   "toolCard": {

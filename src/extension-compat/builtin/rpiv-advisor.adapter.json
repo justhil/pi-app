@@ -14,6 +14,10 @@
       "/advisor"
     ]
   },
+  "install": {
+    "source": "npm:@juicesharp/rpiv-advisor",
+    "homepage": "https://github.com/juicesharp/rpiv-mono"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",

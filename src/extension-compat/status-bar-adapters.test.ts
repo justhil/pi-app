@@ -32,6 +32,28 @@ describe('statusBar adapter schema, validation & custom protocol decoupling', ()
     expect(resolveAdapterText(rewindHook!, 'zh').statusBar.title).toBe('Rewind 快照')
     expect(resolveAdapterText(rewindHook!, 'en').statusBar.title).toBe('Rewind Snapshots')
     expect(resolveAdapterText(rewindHook!, 'ru').statusBar.title).toBe('Снимки Rewind')
+
+    // All 43 builtin declarations pass schema validation and expose exact 23 Group A install specs
+    for (const raw of BUILTIN_ADAPTERS) {
+      const parsed = parseAdapterDeclaration(raw)
+      expect('adapter' in parsed, `failed validation for ${raw.id}`).toBe(true)
+    }
+    const installable = BUILTIN_ADAPTERS.filter((a) => Boolean(a.install?.source))
+    expect(installable).toHaveLength(23)
+    expect(installable.some((a) => a.id === 'pi-continue')).toBe(false)
+    expect(installable.some((a) => a.id === 'trellis')).toBe(false)
+    expect(installable.some((a) => a.id === 'pi-rewind')).toBe(false)
+
+    // Rejects unsafe install.source strings
+    expect(
+      'error' in
+        parseAdapterDeclaration({
+          id: 'bad-pkg',
+          tier: 'headless',
+          match: { names: ['bad-pkg'] },
+          install: { source: 'npm:foo; rm -rf /' },
+        }),
+    ).toBe(true)
   })
 
   it('validates status-pill-v1, background-jobs-v1, and interact.defaults strictly', () => {

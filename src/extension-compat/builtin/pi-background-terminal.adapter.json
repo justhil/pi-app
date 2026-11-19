@@ -16,6 +16,10 @@
       "/background"
     ]
   },
+  "install": {
+    "source": "npm:@bytetrue/pi-background-terminal",
+    "homepage": "https://github.com/ByteTrue/pi-package-mono"
+  },
   "tier": "native",
   "toolCard": {
     "template": "default",

@@ -32,6 +32,10 @@
       "/goal-recovery"
     ]
   },
+  "install": {
+    "source": "npm:pi-goal-x",
+    "homepage": "https://github.com/tmonk/pi-goal-x"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",

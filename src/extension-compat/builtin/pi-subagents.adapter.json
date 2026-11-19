@@ -34,6 +34,10 @@
       "/pi-subagents-bridge"
     ]
   },
+  "install": {
+    "source": "npm:pi-subagents",
+    "homepage": "https://github.com/nicobailon/pi-subagents"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "tree",

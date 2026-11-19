@@ -34,6 +34,10 @@
       "/pi-ext-docs"
     ]
   },
+  "install": {
+    "source": "git:github.com/justhil/pi-search",
+    "homepage": "https://github.com/justhil/pi-search"
+  },
   "tier": "partial",
   "config": {
     "configFile": "~/.config/pi-search/config.json",

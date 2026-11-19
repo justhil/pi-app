@@ -10,6 +10,10 @@
       "analyze_image"
     ]
   },
+  "install": {
+    "source": "npm:pi-multimodal-proxy",
+    "homepage": "https://github.com/pungggi/pi-multimodal-proxy"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "media",

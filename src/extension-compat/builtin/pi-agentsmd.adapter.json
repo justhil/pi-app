@@ -7,6 +7,10 @@
       "pi-agentsmd"
     ]
   },
+  "install": {
+    "source": "npm:pi-agentsmd",
+    "homepage": "https://github.com/jvm/pi-mono"
+  },
   "tier": "headless",
   "config": {
     "note": "AGENTS.md 生成由扩展自管；桌面无配置项。",

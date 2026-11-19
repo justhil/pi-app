@@ -15,6 +15,10 @@
       "/fast-context-import-key"
     ]
   },
+  "install": {
+    "source": "git:github.com/justhil/pi-fast-context",
+    "homepage": "https://github.com/justhil/pi-fast-context"
+  },
   "tier": "headless",
   "toolCard": {
     "template": "list",

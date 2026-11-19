@@ -10,6 +10,10 @@
       "/context"
     ]
   },
+  "install": {
+    "source": "npm:@agnishc/edb-context-viewer",
+    "homepage": "https://github.com/agnishcc/pi-extention-monorepo"
+  },
   "tier": "partial",
   "slash": {
     "/context": "open-panel"

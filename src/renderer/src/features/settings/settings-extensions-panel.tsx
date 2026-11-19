@@ -9,6 +9,7 @@ import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { btnDanger } from '@renderer/features/settings/settings-controls'
 import { Switch } from '@renderer/components/ui/switch'
 import { Check, Dot } from '@renderer/components/icons'
+import { AdaptedExtensionsInstaller } from './adapted-extensions-installer'
 
 export function ExtensionsSettings() {
   const { t } = useTranslation()
@@ -169,6 +170,11 @@ export function ExtensionsSettings() {
           ))}
         </div>
       </div>
+      <AdaptedExtensionsInstaller
+        workspaceId={workspaceId || null}
+        extensions={extensions}
+        onInstalled={refreshExtensions}
+      />
       {extensions.length === 0 ? (
         <div className="py-4 text-sm text-muted-foreground/70">
           {t('settings:extensions.empty')}

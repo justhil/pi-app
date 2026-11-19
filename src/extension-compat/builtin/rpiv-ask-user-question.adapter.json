@@ -11,6 +11,10 @@
       "ask_user_question"
     ]
   },
+  "install": {
+    "source": "npm:@juicesharp/rpiv-ask-user-question",
+    "homepage": "https://github.com/juicesharp/rpiv-mono"
+  },
   "tier": "native",
   "toolCard": {
     "template": "kv",

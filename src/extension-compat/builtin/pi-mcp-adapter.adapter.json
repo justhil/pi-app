@@ -7,6 +7,10 @@
       "pi-mcp-adapter"
     ]
   },
+  "install": {
+    "source": "npm:pi-mcp-adapter",
+    "homepage": "https://github.com/nicobailon/pi-mcp-adapter"
+  },
   "tier": "headless",
   "config": {
     "note": "MCP 连接与服务器配置由扩展在 pi/TUI 自管；桌面配置页仅展示诊断说明。",

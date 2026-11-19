@@ -10,6 +10,10 @@
       "/pisync"
     ]
   },
+  "install": {
+    "source": "npm:@narumitw/pi-sync",
+    "homepage": "https://github.com/narumiruna/pi-extensions"
+  },
   "tier": "headless",
   "config": {
     "configFile": "~/.pi/agent/pi-sync.local.json",

@@ -7,6 +7,10 @@
       "pi-rewind-hook"
     ]
   },
+  "install": {
+    "source": "npm:pi-rewind-hook",
+    "homepage": "https://github.com/nicobailon/pi-rewind-hook"
+  },
   "tier": "native",
   "statusBar": {
     "protocol": "status-pill-v1",

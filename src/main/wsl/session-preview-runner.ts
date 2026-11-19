@@ -17,6 +17,7 @@ export type WslPreviewRequest = {
     | 'pi.settings.get'
     | 'pi.settings.set'
     | 'extensions.probe'
+    | 'extensions.install'
     | 'model.list'
     | 'context.preview'
     | 'warm'

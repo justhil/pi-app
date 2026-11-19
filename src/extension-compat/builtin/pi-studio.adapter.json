@@ -21,6 +21,10 @@
       "/studio-current"
     ]
   },
+  "install": {
+    "source": "npm:pi-studio",
+    "homepage": "https://github.com/omaclaren/pi-studio"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",

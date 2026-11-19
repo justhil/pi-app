@@ -16,6 +16,10 @@
       "/preview-clear-cache"
     ]
   },
+  "install": {
+    "source": "npm:pi-markdown-preview",
+    "homepage": "https://github.com/omaclaren/pi-markdown-preview"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",

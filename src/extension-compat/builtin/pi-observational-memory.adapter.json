@@ -7,6 +7,10 @@
       "pi-observational-memory"
     ]
   },
+  "install": {
+    "source": "npm:pi-observational-memory",
+    "homepage": "https://github.com/elpapi42/pi-observational-memory"
+  },
   "tier": "headless",
   "config": {
     "note": "观察/反思记忆由扩展自动维护（compactAfterTokens）；桌面无配置项。",

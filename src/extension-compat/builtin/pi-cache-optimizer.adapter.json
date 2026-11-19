@@ -10,6 +10,10 @@
       "/cache-optimizer"
     ]
   },
+  "install": {
+    "source": "npm:pi-cache-optimizer",
+    "homepage": "https://github.com/jiangge/pi-cache-optimizer"
+  },
   "tier": "headless",
   "config": {
     "configFile": "~/.pi/agent/pi-cache-optimizer-config.json",

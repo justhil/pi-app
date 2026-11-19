@@ -26,6 +26,10 @@
       "/todos"
     ]
   },
+  "install": {
+    "source": "npm:@cortexkit/pi-magic-context",
+    "homepage": "https://github.com/cortexkit/magic-context"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",
@@ -50,7 +54,10 @@
       "priority": "priority"
     },
     "textLines": {
-      "skip": ["^\\S+\\s+Todos\\s+—", "^\\+\\d+ more$"],
+      "skip": [
+        "^\\S+\\s+Todos\\s+—",
+        "^\\+\\d+ more$"
+      ],
       "strip": "^[├└│]─\\s*",
       "status": {
         "○": "pending",

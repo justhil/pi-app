@@ -17,6 +17,10 @@
       "/btw:thinking"
     ]
   },
+  "install": {
+    "source": "npm:pi-btw",
+    "homepage": "https://github.com/dbachelder/pi-btw"
+  },
   "tier": "headless",
   "config": {
     "note": "侧聊会话由扩展自管；桌面仅展示斜杠状态输出。",

@@ -137,6 +137,7 @@ export class SessionPreviewProcess {
       | 'pi.settings.get'
       | 'pi.settings.set'
       | 'extensions.probe'
+      | 'extensions.install'
       | 'model.list'
       | 'context.preview'
       | 'warm'
@@ -267,6 +268,15 @@ export class SessionPreviewProcess {
     homeDir: string
   }): Promise<ExtensionProbeResult[]> {
     return this.request('extensions.probe', payload)
+  }
+
+  installExtensionPackage(payload: {
+    cwd: string
+    agentDir: string
+    source: string
+    local?: boolean
+  }): Promise<{ ok: boolean }> {
+    return this.request('extensions.install', payload)
   }
 
   warm(): Promise<void> {

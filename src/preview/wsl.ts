@@ -138,6 +138,21 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
     } else if (message.type === 'pi.settings.get') {
       const sdk = await import(message.sdkPath)
       result = piSettingsSnapshot(sdk.SettingsManager.create(String(message.cwd || '/'), sdk.getAgentDir()))
+    } else if (message.type === 'extensions.install') {
+      const m = message as unknown as Record<string, unknown>
+      const sdk = await import(message.sdkPath)
+      const cwd = String(m.cwd || '/')
+      const agentDir = String(m.agentDir || sdk.getAgentDir())
+      const source = String(m.source || '').trim()
+      const local = m.local === true
+      const settingsManager = sdk.SettingsManager.create(cwd, agentDir, { projectTrusted: local })
+      const pkgManager = new sdk.DefaultPackageManager({ cwd, agentDir, settingsManager })
+      await pkgManager.installAndPersist(source, { local })
+      await settingsManager.flush()
+      const targetScope = local ? 'project' : 'global'
+      const errors = settingsManager.drainErrors().filter((entry: { scope: string }) => entry.scope === targetScope)
+      if (errors.length > 0) throw errors[0].error
+      result = { ok: true }
     } else if (message.type === 'pi.settings.set') {
       const sdk = await import(message.sdkPath)
       const manager = sdk.SettingsManager.create(

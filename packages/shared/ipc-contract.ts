@@ -353,6 +353,10 @@ export interface IpcMethodMap {
   'review.unstageHunks': { request: ReviewStageHunksRequest; response: ReviewStageHunksResponse }
   'extensions.list': { request: ExtensionsListRequest; response: ExtensionsListResponse }
   'extensions.setEnabled': { request: ExtensionsSetEnabledRequest; response: ExtensionsSetEnabledResponse }
+  'extensions.install': {
+    request: { adapterId: string; scope?: 'global' | 'project'; workspaceId?: string }
+    response: { ok: boolean; source?: string; error?: string }
+  }
   'registry.refresh': { request: RegistryRefreshRequest; response: RegistryRefreshResponse }
   'settings.get': { request: SettingsGetRequest; response: SettingsGetResponse }
   'settings.set': { request: SettingsSetRequest; response: SettingsSetResponse }

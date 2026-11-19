@@ -11,6 +11,10 @@
       "/skill:enable"
     ]
   },
+  "install": {
+    "source": "npm:@vanillagreen/pi-skills-manager",
+    "homepage": "https://github.com/vanillagreencom/kendex"
+  },
   "tier": "headless",
   "config": {
     "note": "技能列表来自 Worker resourceLoader.getSkills（动态）；桌面仅控制每技能的桌面禁用，不写 pi settings.json。",

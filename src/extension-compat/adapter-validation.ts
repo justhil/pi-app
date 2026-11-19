@@ -89,6 +89,23 @@ const statusBar = z
       ctx.addIssue({ code: 'custom', path: ['clickAction', 'command'], message: 'slash clickAction requires command' })
     }
   })
+const installSource = text.refine(
+  (value) =>
+    /^(?:npm:(?:@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*(?:@[a-z0-9-._~^>=<]+)?|git:(?:https?:\/\/|github\.com\/|gitlab\.com\/)[a-z0-9._/-]+(?:#[a-z0-9._/-]+)?)$/i.test(
+      value,
+    ) && !value.includes('..'),
+  'must be a valid npm: or git: Pi package spec',
+)
+const installDef = z
+  .object({
+    source: installSource,
+    homepage: z
+      .string()
+      .url()
+      .refine((u) => u.startsWith('https://'), 'homepage must be https://')
+      .optional(),
+  })
+  .strict()
 const source = z.object({ type: z.literal('json'), path: text, itemsPath: z.string().optional(), fields: z.record(z.string()).optional() }).strict()
 const interactDefaults = z
   .object({
@@ -104,6 +121,7 @@ const schema = z.object({
   id: text, tier: z.enum(['native', 'partial', 'headless', 'none']),
   displayName: z.string().optional(), description: z.string().optional(),
   match: z.object({ names: strings.optional(), tools: strings.optional(), commands: strings.optional() }).strict().optional(),
+  install: installDef.optional(),
   alwaysVisible: z.boolean().optional(),
   config: z.object({
     configFile: text.optional(), fileKeyMap: z.record(text).optional(), envOverride: z.record(text).optional(), localKeys: strings.optional(), piSettingsKey: text.optional(), fileConstants: z.record(z.unknown()).optional(), customRenderer: text.optional(),

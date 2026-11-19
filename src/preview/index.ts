@@ -137,6 +137,22 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
       const probes = probeExtensions(cwd)
       const sdk = message.activeSdkPath ? await import(pathToFileURL(message.activeSdkPath).href) : await import('@earendil-works/pi-coding-agent')
       result = await annotateExtensionInventory(sdk, cwd, agentDir, probes)
+    } else if (message.type === 'extensions.install') {
+      const sdk = message.activeSdkPath
+        ? await import(pathToFileURL(message.activeSdkPath).href)
+        : await import('@earendil-works/pi-coding-agent')
+      const cwd = String(message.payload.cwd || process.cwd())
+      const agentDir = String(message.payload.agentDir || sdk.getAgentDir())
+      const source = String(message.payload.source || '').trim()
+      const local = message.payload.local === true
+      const settingsManager = sdk.SettingsManager.create(cwd, agentDir, { projectTrusted: local })
+      const pkgManager = new sdk.DefaultPackageManager({ cwd, agentDir, settingsManager })
+      await pkgManager.installAndPersist(source, { local })
+      await settingsManager.flush()
+      const targetScope = local ? 'project' : 'global'
+      const errors = settingsManager.drainErrors().filter((entry: { scope: string }) => entry.scope === targetScope)
+      if (errors.length > 0) throw errors[0].error
+      result = { ok: true }
     } else if (message.type === 'pi.settings.get') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)
