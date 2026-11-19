@@ -5,6 +5,7 @@ import i18n from '@renderer/lib/i18n'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { QuestionnaireDialog, type AskQuestionPayload } from './questionnaire-dialog'
+import { hasRichMarkdownSyntax, QuestionnaireMarkdown } from './questionnaire-markdown'
 import { ImageReviewDialog, type ImageReviewPayload } from './image-review-dialog'
 import { ExtensionDialogShell } from './extension-dialog-shell'
 import {
@@ -145,8 +146,12 @@ function ConfirmDialog({ title, message, onAnswer, onSuspend, onCancel }: {
   return (
     <ExtensionDialogShell title={title} onDismiss={onSuspend} wide>
       {message.trim() && (
-        <div className="mb-4 max-h-[min(50vh,320px)] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/85">
-          {message}
+        <div className="mb-4 max-h-[min(50vh,340px)] overflow-auto rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/85">
+          {hasRichMarkdownSyntax(message) ? (
+            <QuestionnaireMarkdown content={message} compact />
+          ) : (
+            <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message}</div>
+          )}
         </div>
       )}
       <div className="flex justify-end gap-2">
