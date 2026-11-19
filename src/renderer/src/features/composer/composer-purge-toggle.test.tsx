@@ -170,9 +170,23 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
         expect.objectContaining({
           sessionFile: '/tmp/proj/s1.jsonl',
           enabled: true,
-          strategy: expect.objectContaining({ historyMode: 'tunnel', toolOutputRelay: true }),
+          strategy: expect.objectContaining({
+            historyMode: 'tunnel',
+            toolOutputRelay: true,
+            thinkingGuidance: 'tool_cot',
+          }),
         }),
       )
+    })
+  })
+
+  it('switches thinkingGuidance directly on turn 1 and selects tool_cot with relay enabled', () => {
+    render(<ComposerPurgeToggle draftContextKey="draft-cot" running={false} />)
+    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
+    fireEvent.click(screen.getByTestId('purge-thinking-tool_cot'))
+    expect(useAgentPurgeStore.getState().draftStrategy).toMatchObject({
+      thinkingGuidance: 'tool_cot',
+      toolOutputRelay: true,
     })
   })
 })

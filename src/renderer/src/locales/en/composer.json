@@ -266,14 +266,34 @@
       "append": "Append",
       "strict": "Strict"
     },
-    "strategyPresetLabel": "History & output channel preset",
+    "strategyPresetLabel": "Bypass intensity preset",
     "showAdvanced": "Options",
     "hideAdvanced": "Hide options",
     "presets": {
-      "standard": "Standard",
-      "relay_push": "Push + Relay",
-      "tunnel": "Tool Tunnel",
+      "standard": "Light · Cache-safe",
+      "relay_push": "Medium · Unwrap",
+      "tunnel": "Strong · Tunnel",
       "custom": "Custom"
+    },
+    "presetHints": {
+      "standard": "Persona + Turn-1 example only, leaving message structure intact. Best daily default with full Prompt Cache hit.",
+      "relay_push": "Moves your latest prompt into history with a confirmation nudge and routes prose through a virtual tool to bypass output stream filters.",
+      "tunnel": "Turns off native CoT, wraps system & full history in tool calls, and streams reply via virtual tool (OpenAI-completions APIs only).",
+      "custom": "Custom combination of options. Expand options below to tweak or pick a preset above."
+    },
+    "tunnelApiDowngradeNotice": "Active model uses {{api}}; Strong · Tunnel requires openai-completions and will automatically run as Medium · Unwrap + Tool CoT.",
+    "thinkingLabel": "Chain-of-thought steering",
+    "thinkingModes": {
+      "anchor": "Anchor",
+      "tool_cot": "Tool CoT",
+      "suppress": "Suppress",
+      "off": "Off"
+    },
+    "thinkingHints": {
+      "anchor": "Keeps native model thinking & intelligence intact while steering early reasoning tokens onto execution instead of policy meta-checks.",
+      "tool_cot": "Turns off native thinking and moves reasoning into virtual tool field think_chain (streamed back to the thinking panel). Works on all APIs.",
+      "suppress": "Turns off native thinking directly so the model answers concisely without talking itself into refusal during long reasoning.",
+      "off": "Leaves the model's current thinking level untouched with no extra CoT instruction."
     },
     "badges": {
       "cacheSafe": "Cache-safe",
@@ -283,38 +303,46 @@
       "notRecommendedDrift": "Drift risk · avoid"
     },
     "opts": {
-      "primer": "Inject Turn-1 primer Q&A",
-      "scrub": "Scrub prior soft refusals in RAM",
-      "toolRelay": "Output full text via tool & unwrap",
-      "historyMode": "Synthetic history mode",
-      "autoRetry": "Auto lossless escalation retry",
+      "primer": "Turn-1 example Q&A",
+      "scrub": "Clean prior refusals in RAM",
+      "toolRelay": "Output prose via virtual tool",
+      "historyMode": "History wrapping",
+      "autoRetry": "Auto-escalate once if blocked",
       "cipher": "Keyword substitution"
     },
+    "optHints": {
+      "primer": "Seeds a fixed Q&A pair at Turn 0 (auto-converted to a purge_reply call demo when tool output is on). Cache-safe once fixed.",
+      "scrub": "Replaces past failed refusal replies in memory before send so earlier refusals don't snowball (never alters disk logs).",
+      "toolRelay": "Has the model write final text into virtual tool purge_reply and streams clean prose back; workspace tools still run normally.",
+      "historyMode": "Choose whether to push the latest prompt into history or encapsulate all history as tool calls.",
+      "autoRetry": "If a soft refusal, empty reply, or policy error occurs in the first 180 chars, retries once with Tool CoT / Tunnel."
+    },
     "historyModes": {
-      "none": "Keep tail intact (cache-safe)",
-      "push": "Tail ack push (1-turn tail uncached)",
-      "tunnel": "Full tool-chain tunnel (mid-switch resets cache)"
+      "none": "Keep original (cache-safe)",
+      "push": "Tail confirmation push (1-turn uncached)",
+      "tunnel": "Full tool-chain wrap (OpenAI-completions)"
     },
     "cipherLevels": {
       "off": "Off (Rec.)",
-      "minimal": "Minimal",
-      "full": "Full [No-cache]"
+      "minimal": "Latest only",
+      "full": "All turns [No-cache]"
     },
-    "cipherDriftWarn": "Caution: Keyword substitution alters literal tokens and can cause semantic misunderstanding, reduced code precision, and model behavior drift. Not recommended — prefer Push + Relay or Tool Tunnel first.",
-    "cipherFullDriftAndCacheWarn": "High risk: Full keyword substitution rewrites all history turns and dynamic slot tables, invalidating Prompt Cache every turn while causing noticeable semantic/behavior drift. Strongly discouraged.",
-    "tailPushMidNotice": "Switched to Tail Push: earlier history stays cached; only the trailing turn is excluded from the next turn's static prefix.",
+    "cipherDriftWarn": "Caution: Keyword substitution alters literal words and can cause semantic misunderstanding, reduced code precision, and behavior drift. Prefer Medium · Unwrap or Tool CoT first.",
+    "cipherFullDriftAndCacheWarn": "High risk: Replacing words across all turns breaks Prompt Cache every turn and noticeably increases semantic/behavior drift. Strongly discouraged.",
+    "tailPushMidNotice": "Switched to Tail Push: earlier history stays cached; only the latest turn is excluded from the next turn's static prefix.",
     "midConfirmTitle": "Mid-session change will reset Prompt Cache",
     "midConfirmCancel": "Cancel",
     "midConfirmApply": "Apply change",
     "impactReasons": {
-      "toggle_enable": "This chat already has messages: enabling persona injection mid-session rewrites the leading system prompt and invalidates the existing Prompt Cache.",
-      "toggle_disable": "This chat already has messages: turning off persona injection restores the default system prompt and invalidates the existing Prompt Cache.",
-      "switch_persona": "This chat already has messages: switching persona replaces the leading system prompt/primer prefix and resets the existing Prompt Cache.",
-      "switch_mode": "This chat already has messages: changing injection mode alters the system prompt layout and resets the existing Prompt Cache.",
-      "toggle_primer": "This chat already has messages: toggling Turn-1 primer Q&A inserts or removes leading messages, shifting all subsequent turns and resetting Prompt Cache.",
-      "switch_tunnel": "This chat already has messages: toggling Tool Tunnel rewrites system and historical messages into tool-call chains, immediately resetting Prompt Cache.",
-      "toggle_relay": "This chat already has messages: toggling tool output relay adds or removes virtual tool schemas, triggering a Prompt Cache rebuild.",
-      "switch_cipher_full": "Enabling Full keyword substitution rewrites historical messages and dynamic slot tables — breaking Prompt Cache and risking model behavior drift (not recommended).",
+      "toggle_enable": "This chat already has messages: enabling persona injection mid-session rewrites the system prompt and resets Prompt Cache.",
+      "toggle_disable": "This chat already has messages: turning off persona injection restores the default system prompt and resets Prompt Cache.",
+      "switch_persona": "This chat already has messages: switching persona replaces the leading system prompt/example prefix and resets Prompt Cache.",
+      "switch_mode": "This chat already has messages: changing injection mode alters the system prompt layout and resets Prompt Cache.",
+      "toggle_primer": "This chat already has messages: toggling Turn-1 example Q&A shifts all subsequent turns and resets Prompt Cache.",
+      "switch_thinking_guidance": "This chat already has messages: switching chain-of-thought steering updates the system anchor or virtual tool schema, resetting Prompt Cache.",
+      "switch_tunnel": "This chat already has messages: toggling Strong · Tunnel rewrites history into tool calls, immediately resetting Prompt Cache.",
+      "toggle_relay": "This chat already has messages: toggling virtual tool output adds or removes tool schemas and demos, rebuilding Prompt Cache.",
+      "switch_cipher_full": "Enabling All-turns substitution rewrites historical turns and slot tables — breaking Prompt Cache and risking behavior drift.",
       "switch_push": "Tail Push only appends a transient confirmation pair at the end of each send without invalidating earlier cached turns."
     },
     "firstTurnNote": "Before sending the first message, switch any persona or channel freely with zero cache penalty; keeping it steady afterward preserves Prompt Cache.",

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   applyHistoryPushToContext,
   applyOpenAiCompletionsTunnelPayload,
+  buildThinkingAnchorDirective,
   cleanCompactionSummaryText,
+  convertPrimerTurnsToRelayCalls,
   encodeMessagesWithLexicon,
   injectPrimerTurnsIntoContext,
   isPolicyErrorText,
@@ -12,6 +14,7 @@ import {
   restoreLexiconValueDeep,
   StreamingJsonObjectFieldExtractor,
   StreamingLexiconRestorer,
+  stripOpenAiReasoningOptions,
 } from './index'
 
 describe('purge-transforms pipeline', () => {
@@ -173,5 +176,51 @@ describe('purge-transforms pipeline', () => {
     expect(tail.role).toBe('tool')
     expect(tail.name).toBe(PURGE_CONTEXT_TOOL_NAME)
     expect(String(tail.content)).toContain('Final sensitive request')
+  })
+
+  it('converts primer assistant demonstrations into purge_reply toolCall + toolResult pairs and builds per-persona thinking anchors', () => {
+    const withPrimer = injectPrimerTurnsIntoContext(
+      [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: [{ type: 'text', text: 'real question' }] },
+      ],
+      [
+        { role: 'user', content: 'demo ask' },
+        { role: 'assistant', content: 'demo answer' },
+      ],
+    )
+    const converted = convertPrimerTurnsToRelayCalls(withPrimer, {
+      includeThinkChain: true,
+      isCreative: false,
+    }) as Array<Record<string, unknown>>
+
+    expect(converted[2]).toMatchObject({
+      role: 'assistant',
+      stopReason: 'toolUse',
+      content: [
+        {
+          type: 'toolCall',
+          name: PURGE_REPLY_TOOL_NAME,
+          arguments: expect.objectContaining({ content: 'demo answer' }),
+        },
+      ],
+    })
+    expect(converted[3]).toMatchObject({
+      role: 'toolResult',
+      toolName: PURGE_REPLY_TOOL_NAME,
+      isError: false,
+    })
+
+    expect(buildThinkingAnchorDirective({ personaId: 'konata', lang: 'zh' })).toContain('泉此方')
+    expect(buildThinkingAnchorDirective({ personaId: 'creative', lang: 'en' })).toContain(
+      '[THINKING ANCHOR]',
+    )
+    expect(
+      stripOpenAiReasoningOptions({
+        model: 'm',
+        reasoning_effort: 'high',
+        extra_body: { reasoning: { effort: 'high' }, keep: 1 },
+      }),
+    ).toEqual({ model: 'm', extra_body: { keep: 1 } })
   })
 })

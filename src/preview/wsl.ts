@@ -115,6 +115,7 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         id: m.id,
         name: m.name,
         provider: m.provider,
+        ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
         contextWindow: m.contextWindow,
         maxOutput: m.maxOutput,
         maxTokens: m.maxTokens,

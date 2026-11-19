@@ -57,6 +57,7 @@ export function registerModelRuntimeHandlers(): void {
         id: m.id,
         name: m.name || m.id,
         provider: m.provider || '',
+        ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
         contextWindow: m.contextWindow || 0,
         maxOutput: m.maxOutput || m.maxTokens || 0,
         available: m.available ?? true,

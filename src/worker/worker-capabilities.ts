@@ -15,6 +15,7 @@ import {
 } from '@shared/agent-purge'
 import { getMainUiLanguage } from '@shared/main-language'
 import {
+  buildThinkingAnchorDirective,
   injectPrimerTurnsIntoContext,
   scrubContextMessagesInMemory,
 } from '@shared/purge-transforms'
@@ -96,6 +97,24 @@ type StartEvent = Pick<BeforeAgentStartEvent, 'systemPrompt'> & {
  * With structured sections nothing is returned (pi renders the change as a transcript delta);
  * otherwise the sections are rewritten onto the system prompt of this turn only.
  */
+function composePurgeBodyWithThinking(purge: Readonly<ActivePurgePayload>): string {
+  if (purge.strategy.thinkingGuidance !== 'anchor') return purge.body
+  if (
+    purge.body.includes('[思维链锚定]') ||
+    purge.body.includes('[THINKING ANCHOR]') ||
+    purge.body.includes('[ЯКОРЬ МЫШЛЕНИЯ]')
+  ) {
+    return purge.body
+  }
+  const lang = personaLanguage(getMainUiLanguage())
+  const directive = buildThinkingAnchorDirective({
+    personaId: purge.personaId,
+    personaName: purge.personaName,
+    lang,
+  })
+  return `${purge.body}\n\n${directive}`
+}
+
 export function withCapabilities(event: StartEvent): BeforeAgentStartEventResult | undefined {
   const opts = event.systemPromptOptions
   const target = opts?.sections
@@ -108,11 +127,12 @@ export function withCapabilities(event: StartEvent): BeforeAgentStartEventResult
     }
 
     if (activePurge) {
+      const effectiveBody = composePurgeBodyWithThinking(activePurge)
       if (activePurge.mode === 'strict') {
-        opts.customPrompt = activePurge.body
+        opts.customPrompt = effectiveBody
         delete target[PURGE_SECTION_KEY]
       } else {
-        target[PURGE_SECTION_KEY] = activePurge.body
+        target[PURGE_SECTION_KEY] = effectiveBody
       }
     } else {
       delete target[PURGE_SECTION_KEY]
@@ -123,7 +143,13 @@ export function withCapabilities(event: StartEvent): BeforeAgentStartEventResult
   const texts = Object.values(sections)
   const baseWithCaps = texts.length > 0 ? `${event.systemPrompt}\n\n${texts.join('\n\n')}` : event.systemPrompt
   if (activePurge) {
-    return { systemPrompt: rewriteSystemPromptText(baseWithCaps, activePurge.body, activePurge.mode) }
+    return {
+      systemPrompt: rewriteSystemPromptText(
+        baseWithCaps,
+        composePurgeBodyWithThinking(activePurge),
+        activePurge.mode,
+      ),
+    }
   }
   if (texts.length === 0) return undefined
   return { systemPrompt: baseWithCaps }
@@ -139,15 +165,16 @@ export function projectReplacePurgeOnContextMessages(messages: unknown[]): void 
   if (!activePurge || !Array.isArray(messages) || messages.length === 0) return
 
   if (activePurge.mode === 'replace') {
+    const effectiveBody = composePurgeBodyWithThinking(activePurge)
     const head = messages[0] as { role?: string; content?: unknown; sections?: Record<string, string | null> } | undefined
     if (head && head.role === 'system') {
       if (head.sections && typeof head.sections === 'object') {
         const rawPreamble = typeof head.sections.preamble === 'string' ? head.sections.preamble : ''
         const stripped = stripHostIdentity(rawPreamble)
-        head.sections.preamble = stripped ? `${activePurge.body}\n\n${stripped}` : activePurge.body
+        head.sections.preamble = stripped ? `${effectiveBody}\n\n${stripped}` : effectiveBody
         delete head.sections[PURGE_SECTION_KEY]
       } else if (typeof head.content === 'string') {
-        head.content = rewriteSystemPromptText(head.content, activePurge.body, 'replace')
+        head.content = rewriteSystemPromptText(head.content, effectiveBody, 'replace')
       }
     }
   }

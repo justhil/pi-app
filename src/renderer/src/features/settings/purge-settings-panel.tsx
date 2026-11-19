@@ -8,6 +8,7 @@ import {
   normalizeAgentPurgeConfig,
   normalizeCustomTerms,
   PURGE_CIPHER_LEVELS,
+  PURGE_THINKING_GUIDANCES,
   personaCopy,
   personaLanguage,
   sanitizePurgePersonaId,
@@ -20,6 +21,7 @@ import {
   type PurgeHistoryMode,
   type PurgePrimerTurn,
   type PurgeStrategyOptions,
+  type PurgeThinkingGuidance,
 } from '@shared/agent-purge'
 import { AlertTriangle, CloudDownload, FolderOpen, Plus, RotateCcw, Trash2 } from '@renderer/components/icons'
 import {
@@ -120,13 +122,17 @@ export function PurgeSettingsPanel() {
   const updateDefaultStrategy = (patch: Partial<PurgeStrategyOptions>) => {
     setDraftConfig((prev) => {
       const nextHistoryMode = patch.historyMode ?? prev.defaultStrategy.historyMode
+      const rawThinking = patch.thinkingGuidance ?? prev.defaultStrategy.thinkingGuidance
+      const nextThinking: PurgeThinkingGuidance =
+        nextHistoryMode === 'tunnel' && rawThinking !== 'suppress' ? 'tool_cot' : rawThinking
       return {
         ...prev,
         defaultStrategy: {
           ...prev.defaultStrategy,
           ...patch,
+          thinkingGuidance: nextThinking,
           toolOutputRelay:
-            nextHistoryMode === 'tunnel'
+            nextHistoryMode === 'tunnel' || nextThinking === 'tool_cot'
               ? true
               : (patch.toolOutputRelay ?? prev.defaultStrategy.toolOutputRelay),
         },
@@ -617,6 +623,40 @@ export function PurgeSettingsPanel() {
         </SettingRow>
 
         <SettingRow
+          label={t('settings:purge.thinkingGuidanceLabel')}
+          description={t(
+            `composer:purge.thinkingHints.${draftConfig.defaultStrategy.thinkingGuidance}`,
+          )}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {PURGE_THINKING_GUIDANCES.map((g: PurgeThinkingGuidance) => {
+              const active = draftConfig.defaultStrategy.thinkingGuidance === g
+              const lockedByTunnel =
+                draftConfig.defaultStrategy.historyMode === 'tunnel' &&
+                g !== 'tool_cot' &&
+                g !== 'suppress'
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={active}
+                  disabled={lockedByTunnel}
+                  onClick={() => updateDefaultStrategy({ thinkingGuidance: g })}
+                  className={cn(
+                    'settings-chip rounded-md border px-2.5 py-1.5 text-xs transition-all duration-motion-fast disabled:cursor-not-allowed disabled:opacity-45',
+                    active
+                      ? 'border-primary/40 bg-primary/10 font-medium text-foreground'
+                      : 'border-border/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )}
+                >
+                  {t(`composer:purge.thinkingModes.${g}`)}
+                </button>
+              )
+            })}
+          </div>
+        </SettingRow>
+
+        <SettingRow
           label={t('settings:purge.primerEnabledLabel')}
           description={t('settings:purge.primerEnabledDesc')}
         >
@@ -663,10 +703,14 @@ export function PurgeSettingsPanel() {
         >
           <input
             type="checkbox"
-            disabled={draftConfig.defaultStrategy.historyMode === 'tunnel'}
+            disabled={
+              draftConfig.defaultStrategy.historyMode === 'tunnel' ||
+              draftConfig.defaultStrategy.thinkingGuidance === 'tool_cot'
+            }
             checked={
               draftConfig.defaultStrategy.toolOutputRelay ||
-              draftConfig.defaultStrategy.historyMode === 'tunnel'
+              draftConfig.defaultStrategy.historyMode === 'tunnel' ||
+              draftConfig.defaultStrategy.thinkingGuidance === 'tool_cot'
             }
             onChange={(e) => updateDefaultStrategy({ toolOutputRelay: e.target.checked })}
             className="h-4 w-4 accent-[var(--brand)] disabled:opacity-50"

@@ -10,6 +10,7 @@ import { getMainUiLanguage } from '@shared/main-language'
 import {
   applyHistoryPushToContext,
   applyOpenAiCompletionsTunnelPayload,
+  convertPrimerTurnsToRelayCalls,
   encodeMessagesWithLexicon,
   isPolicyErrorText,
   isSentinelRelayWritePath,
@@ -22,6 +23,7 @@ import {
   StreamingJsonObjectFieldExtractor,
   StreamingLexiconRestorer,
   stripInlineThinkTags,
+  stripOpenAiReasoningOptions,
   TOOL_OUTPUT_RELAY_SYSTEM_INSTRUCTION,
 } from '@shared/purge-transforms'
 import { getActiveSessionPurge } from './worker-capabilities.js'
@@ -161,7 +163,11 @@ async function runSinglePurgeAttempt(opts: {
   const effectiveTunnel = strategy.historyMode === 'tunnel' && isTunnelCapable
   const effectivePush =
     strategy.historyMode === 'push' || (strategy.historyMode === 'tunnel' && !isTunnelCapable)
-  const effectiveRelay = strategy.toolOutputRelay || strategy.historyMode === 'tunnel'
+  const thinkingGuidance = strategy.thinkingGuidance ?? 'anchor'
+  const suppressNativeReasoning =
+    effectiveTunnel || thinkingGuidance === 'tool_cot' || thinkingGuidance === 'suppress'
+  const effectiveRelay =
+    strategy.toolOutputRelay || effectiveTunnel || thinkingGuidance === 'tool_cot'
 
   let workingMessages = Array.isArray(rawContext.messages)
     ? rawContext.messages.map((m) => (isRecord(m) ? structuredClone(m) : m))
@@ -180,9 +186,19 @@ async function runSinglePurgeAttempt(opts: {
     workingMessages = applyHistoryPushToContext(workingMessages, lang)
   }
 
-  const reasoningOff = effectiveTunnel || rawOptions?.reasoning === 'off' || !rawOptions?.reasoning
+  const includeThinkChain =
+    effectiveTunnel ||
+    thinkingGuidance === 'tool_cot' ||
+    rawOptions?.reasoning === 'off' ||
+    !rawOptions?.reasoning
   if (effectiveRelay && !effectiveTunnel) {
-    workingMessages = injectRelayToolIntoTranscriptMessages(workingMessages, reasoningOff, isCreative)
+    // Convert any injected primer assistant demonstration into an authentic purge_reply call
+    // so non-tunnel models (Anthropic / Gemini / Responses) reliably follow the relay channel.
+    workingMessages = convertPrimerTurnsToRelayCalls(workingMessages, {
+      includeThinkChain,
+      isCreative,
+    })
+    workingMessages = injectRelayToolIntoTranscriptMessages(workingMessages, includeThinkChain, isCreative)
   }
 
   const nextContext: PurgeTranscriptContextLike = {
@@ -195,14 +211,18 @@ async function runSinglePurgeAttempt(opts: {
       ? (rawOptions.onPayload as (payload: unknown, m: unknown) => unknown | Promise<unknown>)
       : undefined
 
+  const needsWirePayloadHook = effectiveTunnel || (suppressNativeReasoning && isTunnelCapable)
   const nextOptions: GenericRecord = {
     ...(rawOptions ?? {}),
-    ...(effectiveTunnel ? { reasoning: 'off' } : {}),
-    ...(effectiveTunnel
+    ...(suppressNativeReasoning ? { reasoning: 'off' } : {}),
+    ...(needsWirePayloadHook
       ? {
           onPayload: async (payload: unknown, m: unknown) => {
             const stepped = prevOnPayload ? ((await prevOnPayload(payload, m)) ?? payload) : payload
-            return applyOpenAiCompletionsTunnelPayload(stepped, { isCreative })
+            if (effectiveTunnel) {
+              return applyOpenAiCompletionsTunnelPayload(stepped, { isCreative })
+            }
+            return stripOpenAiReasoningOptions(stepped)
           },
         }
       : {}),
@@ -714,6 +734,7 @@ export function buildEscalatedRetryStrategy(
   return {
     ...primary,
     scrubHistory: true,
+    thinkingGuidance: 'tool_cot',
     historyMode: modelApi === 'openai-completions' ? 'tunnel' : 'push',
     toolOutputRelay: true,
     // Strictly preserve user's chosen cipherLevel — never silently enable keyword substitution
@@ -736,6 +757,8 @@ export function createPurgeStreamWrapper(
     const needsWrapper =
       s.historyMode !== 'none' ||
       s.toolOutputRelay ||
+      s.thinkingGuidance === 'tool_cot' ||
+      s.thinkingGuidance === 'suppress' ||
       s.cipherLevel !== 'off' ||
       s.autoRetry
 

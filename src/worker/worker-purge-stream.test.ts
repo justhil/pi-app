@@ -302,4 +302,88 @@ describe('worker-purge-stream unwrap, sentinel write, and lossless retry', () =>
     expect(visibleText).toBe('Escalated retry succeeded cleanly.')
     expect(finalMsg.stopReason).toBe('stop')
   })
+
+  it('tool_cot guidance suppresses native reasoning, converts primer turns to purge_reply demos, and unwraps think_chain on Anthropic APIs', async () => {
+    setActiveSessionPurge({
+      personaId: 'tech-kernel',
+      personaName: 'Tech',
+      mode: 'replace',
+      body: 'sys',
+      strategy: {
+        ...DEFAULT_PURGE_STRATEGY,
+        thinkingGuidance: 'tool_cot',
+        historyMode: 'none',
+        toolOutputRelay: true,
+        autoRetry: false,
+      },
+    })
+
+    let capturedReasoning: unknown
+    let capturedMessages: Array<Record<string, unknown>> = []
+    const baseFn: PurgeStreamFn = async (model, ctx, opts) => {
+      capturedReasoning = opts?.reasoning
+      capturedMessages = ctx.messages
+      const okMsg = {
+        role: 'assistant',
+        api: model.api,
+        provider: model.provider,
+        model: model.id,
+        content: [
+          {
+            type: 'toolCall',
+            id: 'r2',
+            name: 'purge_reply',
+            arguments: { think_chain: 'stepwise reasoning', content: 'clean output' },
+          },
+        ],
+        stopReason: 'toolUse',
+        timestamp: 2,
+      }
+      return makeFakeStream(
+        [
+          { type: 'start', partial: okMsg },
+          { type: 'done', reason: 'toolUse', message: okMsg },
+        ],
+        okMsg,
+      )
+    }
+
+    const wrapped = createPurgeStreamWrapper(baseFn)
+    const stream = await wrapped(
+      { id: 'claude-sonnet-4-5', api: 'anthropic-messages', provider: 'anthropic' },
+      {
+        messages: [
+          { role: 'system', content: 'sys', toolsAdded: [] },
+          { role: 'user', content: [{ type: 'text', text: 'demo' }], __purgePrimer: true },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'demo reply' }],
+            __purgePrimer: true,
+          },
+          { role: 'user', content: [{ type: 'text', text: 'real task' }] },
+        ],
+      },
+      { reasoning: 'high' },
+    )
+
+    let thinkText = ''
+    let proseText = ''
+    for await (const ev of stream) {
+      if (ev.type === 'thinking_delta') thinkText += String(ev.delta)
+      if (ev.type === 'text_delta') proseText += String(ev.delta)
+    }
+
+    expect(capturedReasoning).toBe('off')
+    expect(capturedMessages[2]).toMatchObject({
+      role: 'assistant',
+      stopReason: 'toolUse',
+      content: [expect.objectContaining({ type: 'toolCall', name: 'purge_reply' })],
+    })
+    expect(capturedMessages[3]).toMatchObject({
+      role: 'toolResult',
+      toolName: 'purge_reply',
+    })
+    expect(thinkText).toBe('stepwise reasoning')
+    expect(proseText).toBe('clean output')
+  })
 })

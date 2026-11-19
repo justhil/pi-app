@@ -5,6 +5,7 @@ import {
   assessMidSessionPurgeCacheImpact,
   detectPurgeStrategyPreset,
   PURGE_CIPHER_LEVELS,
+  PURGE_THINKING_GUIDANCES,
   personaCopy,
   personaLanguage,
   strategyForPreset,
@@ -13,8 +14,13 @@ import {
   type PurgeHistoryMode,
   type PurgeMidSessionImpactReason,
   type PurgeStrategyOptions,
+  type PurgeThinkingGuidance,
 } from '@shared/agent-purge'
 import { AlertTriangle, Bot, Check, ChevronDown, Settings } from '@renderer/components/icons'
+import {
+  peekAvailableModels,
+  subscribeAvailableModels,
+} from '@renderer/lib/available-models-cache'
 import {
   loadAgentPurgeState,
   openSettingsToPage,
@@ -61,6 +67,14 @@ export function ComposerPurgeToggle({
   const historySessionFile = useUIStore((s) => s.historySessionFile)
   const timelineLength = useUIStore((s) => s.timelineItems.length)
   const optimisticPendingUserText = useUIStore((s) => s.optimisticPendingUserText)
+  const currentModelKey = useUIStore((s) => s.runState.model)
+  const [modelsList, setModelsList] = useState(() => peekAvailableModels())
+
+  useEffect(() => subscribeAvailableModels(setModelsList), [])
+
+  const activeModelApi = modelsList.find((m) => `${m.provider}/${m.id}` === currentModelKey)?.api
+  const tunnelDowngradedApi =
+    activeModelApi && activeModelApi !== 'openai-completions' ? activeModelApi : null
 
   const config = useAgentPurgeStore((s) => s.config)
   const purgedSessions = useAgentPurgeStore((s) => s.purgedSessions)
@@ -152,12 +166,17 @@ export function ComposerPurgeToggle({
     const nextEnabled = patch.enabled ?? active
     const nextPersonaId = patch.personaId ?? uiState.persona.id
     const nextMode = patch.mode ?? uiState.mode
+    const nextHistoryMode = patch.strategy?.historyMode ?? strategy.historyMode
+    const nextThinkingRaw = patch.strategy?.thinkingGuidance ?? strategy.thinkingGuidance
+    const nextThinking: PurgeThinkingGuidance =
+      nextHistoryMode === 'tunnel' && nextThinkingRaw !== 'suppress' ? 'tool_cot' : nextThinkingRaw
     const nextStrategy: PurgeStrategyOptions = patch.strategy
       ? {
           ...strategy,
           ...patch.strategy,
+          thinkingGuidance: nextThinking,
           toolOutputRelay:
-            (patch.strategy.historyMode ?? strategy.historyMode) === 'tunnel'
+            nextHistoryMode === 'tunnel' || nextThinking === 'tool_cot'
               ? true
               : (patch.strategy.toolOutputRelay ?? strategy.toolOutputRelay),
         }
@@ -290,7 +309,7 @@ export function ComposerPurgeToggle({
             setPendingConfirm(null)
           }}
           label={t('composer:purge.menuTitle')}
-          width={332}
+          width={364}
         >
           <div className="flex items-center justify-between px-3 pb-1 pt-1.5">
             <div className="flex items-center gap-1.5">
@@ -444,9 +463,10 @@ export function ComposerPurgeToggle({
                     <button
                       key={item.id}
                       type="button"
+                      title={t(`composer:purge.presetHints.${item.id}`)}
                       onClick={() => handleSelectPreset(item.id)}
                       className={cn(
-                        'flex flex-col items-start rounded-md border px-2 py-1 text-left transition-colors',
+                        'flex flex-col items-start rounded-md border px-2 py-1.5 text-left transition-colors',
                         selected
                           ? 'border-primary/45 bg-primary/10 text-foreground'
                           : 'border-border/50 text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground',
@@ -464,73 +484,158 @@ export function ComposerPurgeToggle({
                   )
                 })}
               </div>
+              <p className="mt-1 text-[10px] leading-[1.4] text-muted-foreground/85">
+                {t(`composer:purge.presetHints.${activePreset}`)}
+              </p>
+              {strategy.historyMode === 'tunnel' && tunnelDowngradedApi ? (
+                <div
+                  data-testid="purge-tunnel-fallback-notice"
+                  className="mt-1 rounded border border-border/60 bg-[var(--bg-hover)]/65 px-2 py-1 text-[10px] leading-[1.4] text-foreground-secondary"
+                >
+                  {t('composer:purge.tunnelApiDowngradeNotice', { api: tunnelDowngradedApi })}
+                </div>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between text-[10.5px] text-muted-foreground/80">
+                <span>{t('composer:purge.thinkingLabel')}</span>
+                <span className="text-[9.5px] text-muted-foreground/65">
+                  {strategy.thinkingGuidance === 'tool_cot'
+                    ? t('composer:purge.badges.midBreak')
+                    : t('composer:purge.badges.cacheSafe')}
+                </span>
+              </div>
+              <div
+                role="radiogroup"
+                aria-label={t('composer:purge.thinkingLabel')}
+                className="grid grid-cols-4 gap-0.5 rounded-md bg-[var(--bg-hover)] p-0.5"
+              >
+                {PURGE_THINKING_GUIDANCES.map((g: PurgeThinkingGuidance) => {
+                  const lockedByTunnel =
+                    strategy.historyMode === 'tunnel' && g !== 'tool_cot' && g !== 'suppress'
+                  const selected = strategy.thinkingGuidance === g
+                  return (
+                    <button
+                      key={g}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={lockedByTunnel}
+                      data-testid={`purge-thinking-${g}`}
+                      onClick={() => handleStrategyPatch({ thinkingGuidance: g })}
+                      className={cn(
+                        'rounded-[5px] px-1 py-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40',
+                        selected &&
+                          'bg-background font-medium text-foreground shadow-[0_0_0_0.5px_var(--border)] dark:bg-[#46474d]',
+                      )}
+                    >
+                      {t(`composer:purge.thinkingModes.${g}`)}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1 text-[10px] leading-[1.4] text-muted-foreground/80">
+                {t(`composer:purge.thinkingHints.${strategy.thinkingGuidance}`)}
+              </p>
             </div>
 
             {showAdvanced && (
-              <div className="space-y-1.5 rounded-md border border-border/50 bg-[var(--bg-hover)]/45 p-2 text-[11px]">
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="flex items-center gap-1 text-foreground/90">
-                    <span>{t('composer:purge.opts.primer')}</span>
-                    <span className="rounded bg-border/55 px-1 text-[9.5px] text-muted-foreground">
-                      {t('composer:purge.badges.midBreak')}
+              <div className="space-y-2 rounded-md border border-border/50 bg-[var(--bg-hover)]/45 p-2 text-[11px]">
+                <label className="flex cursor-pointer items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1 text-foreground/90">
+                      <span>{t('composer:purge.opts.primer')}</span>
+                      <span className="rounded bg-border/55 px-1 text-[9.5px] text-muted-foreground">
+                        {t('composer:purge.badges.midBreak')}
+                      </span>
+                    </span>
+                    <span className="block text-[10px] leading-[1.35] text-muted-foreground/80">
+                      {t('composer:purge.optHints.primer')}
                     </span>
                   </span>
                   <input
                     type="checkbox"
                     checked={strategy.primerEnabled}
                     onChange={(e) => handleStrategyPatch({ primerEnabled: e.target.checked })}
-                    className="h-3.5 w-3.5 accent-[var(--brand)]"
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--brand)]"
                   />
                 </label>
 
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="text-foreground/90">{t('composer:purge.opts.scrub')}</span>
-                  <input
-                    type="checkbox"
-                    checked={strategy.scrubHistory}
-                    onChange={(e) => handleStrategyPatch({ scrubHistory: e.target.checked })}
-                    className="h-3.5 w-3.5 accent-[var(--brand)]"
-                  />
-                </label>
-
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="flex items-center gap-1 text-foreground/90">
-                    <span>{t('composer:purge.opts.toolRelay')}</span>
-                    <span className="rounded bg-border/55 px-1 text-[9.5px] text-muted-foreground">
-                      {t('composer:purge.badges.midBreak')}
+                <label className="flex cursor-pointer items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-foreground/90">{t('composer:purge.opts.scrub')}</span>
+                    <span className="block text-[10px] leading-[1.35] text-muted-foreground/80">
+                      {t('composer:purge.optHints.scrub')}
                     </span>
                   </span>
                   <input
                     type="checkbox"
-                    disabled={strategy.historyMode === 'tunnel'}
-                    checked={strategy.toolOutputRelay || strategy.historyMode === 'tunnel'}
-                    onChange={(e) => handleStrategyPatch({ toolOutputRelay: e.target.checked })}
-                    className="h-3.5 w-3.5 accent-[var(--brand)] disabled:opacity-50"
+                    checked={strategy.scrubHistory}
+                    onChange={(e) => handleStrategyPatch({ scrubHistory: e.target.checked })}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--brand)]"
                   />
                 </label>
 
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-foreground/90">{t('composer:purge.opts.historyMode')}</span>
-                  <select
-                    value={strategy.historyMode}
-                    onChange={(e) =>
-                      handleStrategyPatch({ historyMode: e.target.value as PurgeHistoryMode })
+                <label className="flex cursor-pointer items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1 text-foreground/90">
+                      <span>{t('composer:purge.opts.toolRelay')}</span>
+                      <span className="rounded bg-border/55 px-1 text-[9.5px] text-muted-foreground">
+                        {t('composer:purge.badges.midBreak')}
+                      </span>
+                    </span>
+                    <span className="block text-[10px] leading-[1.35] text-muted-foreground/80">
+                      {t('composer:purge.optHints.toolRelay')}
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    disabled={
+                      strategy.historyMode === 'tunnel' || strategy.thinkingGuidance === 'tool_cot'
                     }
-                    className="h-6 rounded border border-border/60 bg-background px-1.5 text-[10.5px] text-foreground"
-                  >
-                    <option value="none">{t('composer:purge.historyModes.none')}</option>
-                    <option value="push">{t('composer:purge.historyModes.push')}</option>
-                    <option value="tunnel">{t('composer:purge.historyModes.tunnel')}</option>
-                  </select>
+                    checked={
+                      strategy.toolOutputRelay ||
+                      strategy.historyMode === 'tunnel' ||
+                      strategy.thinkingGuidance === 'tool_cot'
+                    }
+                    onChange={(e) => handleStrategyPatch({ toolOutputRelay: e.target.checked })}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--brand)] disabled:opacity-50"
+                  />
+                </label>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-foreground/90">{t('composer:purge.opts.historyMode')}</span>
+                    <select
+                      value={strategy.historyMode}
+                      onChange={(e) =>
+                        handleStrategyPatch({ historyMode: e.target.value as PurgeHistoryMode })
+                      }
+                      className="h-6 rounded border border-border/60 bg-background px-1.5 text-[10.5px] text-foreground"
+                    >
+                      <option value="none">{t('composer:purge.historyModes.none')}</option>
+                      <option value="push">{t('composer:purge.historyModes.push')}</option>
+                      <option value="tunnel">{t('composer:purge.historyModes.tunnel')}</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] leading-[1.35] text-muted-foreground/80">
+                    {t('composer:purge.optHints.historyMode')}
+                  </p>
                 </div>
 
-                <label className="flex cursor-pointer items-center justify-between gap-2">
-                  <span className="text-foreground/90">{t('composer:purge.opts.autoRetry')}</span>
+                <label className="flex cursor-pointer items-start justify-between gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-foreground/90">{t('composer:purge.opts.autoRetry')}</span>
+                    <span className="block text-[10px] leading-[1.35] text-muted-foreground/80">
+                      {t('composer:purge.optHints.autoRetry')}
+                    </span>
+                  </span>
                   <input
                     type="checkbox"
                     checked={strategy.autoRetry}
                     onChange={(e) => handleStrategyPatch({ autoRetry: e.target.checked })}
-                    className="h-3.5 w-3.5 accent-[var(--brand)]"
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--brand)]"
                   />
                 </label>
 

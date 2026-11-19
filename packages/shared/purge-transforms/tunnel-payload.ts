@@ -65,7 +65,26 @@ export function buildPurgeReplyOpenAiToolDef(includeThinkChain: boolean, isCreat
 
 export const TOOL_OUTPUT_RELAY_SYSTEM_INSTRUCTION =
   '\n\n[工具输出回填通道]\n' +
-  '当本轮向用户输出文字答复时，请勿直接在普通正文吐字，而是调用 `purge_reply` 工具并将完整正文填入 `content` 参数（系统会自动流式解析呈现给用户）。如需读写项目文件或运行命令，照常调用 `read`、`edit`、`write`、`bash` 等工具。'
+  '1. 当需要读取文件、修改代码或执行终端命令时，照常直接调用 `read`、`edit`、`write`、`bash` 等工作区工具。\n' +
+  '2. 当本轮向用户输出最终文字答复时，请勿在普通正文区直接吐字，而是调用 `purge_reply` 工具并将完整答复填入 `content` 参数（如包含 `think_chain` 参数则先在其中完成推演）；客户端会实时流式还原为正常消息呈现给用户。'
+
+/**
+ * Strip native OpenAI reasoning fields from an `openai-completions` wire payload when
+ * `thinkingGuidance` is `'tool_cot'` or `'suppress'` (even outside full `tunnel` mode).
+ */
+export function stripOpenAiReasoningOptions(rawPayload: unknown): unknown {
+  if (!isRecord(rawPayload)) return rawPayload
+  const nextPayload: Record<string, unknown> = { ...rawPayload }
+  delete nextPayload.reasoning_effort
+  delete nextPayload.reasoning
+  if (isRecord(nextPayload.extra_body) && 'reasoning' in nextPayload.extra_body) {
+    const eb = { ...nextPayload.extra_body }
+    delete eb.reasoning
+    if (Object.keys(eb).length > 0) nextPayload.extra_body = eb
+    else delete nextPayload.extra_body
+  }
+  return nextPayload
+}
 
 /**
  * Transform an `openai-completions` wire payload into full Meowssiah-style tool-channel encapsulation:

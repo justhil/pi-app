@@ -15,6 +15,9 @@ export type AgentPurgeMode = (typeof AGENT_PURGE_MODES)[number]
 export const PURGE_HISTORY_MODES = ['none', 'push', 'tunnel'] as const
 export type PurgeHistoryMode = (typeof PURGE_HISTORY_MODES)[number]
 
+export const PURGE_THINKING_GUIDANCES = ['anchor', 'tool_cot', 'suppress', 'off'] as const
+export type PurgeThinkingGuidance = (typeof PURGE_THINKING_GUIDANCES)[number]
+
 export const PURGE_CIPHER_LEVELS = ['off', 'minimal', 'full'] as const
 export type PurgeCipherLevel = (typeof PURGE_CIPHER_LEVELS)[number]
 
@@ -26,6 +29,8 @@ export interface PurgeStrategyOptions {
   primerEnabled: boolean
   /** Scrub prior soft-refusal assistant turns and compaction safety clauses in memory before send. */
   scrubHistory: boolean
+  /** Chain-of-thought steering mode: anchor | tool_cot | suppress | off. */
+  thinkingGuidance: PurgeThinkingGuidance
   /** Synthetic conversation history wrapping mode: none | push (tail ack) | tunnel (full tool chain). */
   historyMode: PurgeHistoryMode
   /** Emit full assistant text via virtual tool (`purge_reply`) and stream-unwrap back to prose. */
@@ -39,6 +44,7 @@ export interface PurgeStrategyOptions {
 export const DEFAULT_PURGE_STRATEGY: Readonly<PurgeStrategyOptions> = Object.freeze({
   primerEnabled: true,
   scrubHistory: true,
+  thinkingGuidance: 'anchor',
   historyMode: 'none',
   toolOutputRelay: false,
   cipherLevel: 'off',
@@ -106,6 +112,7 @@ export type PurgeMidSessionImpactReason =
   | 'switch_persona'
   | 'switch_mode'
   | 'toggle_primer'
+  | 'switch_thinking_guidance'
   | 'switch_tunnel'
   | 'toggle_relay'
   | 'switch_cipher_full'
@@ -157,6 +164,15 @@ export function normalizePurgeHistoryMode(
   return (PURGE_HISTORY_MODES as readonly unknown[]).includes(raw) ? (raw as PurgeHistoryMode) : fallback
 }
 
+export function normalizePurgeThinkingGuidance(
+  raw: unknown,
+  fallback: PurgeThinkingGuidance = 'anchor',
+): PurgeThinkingGuidance {
+  return (PURGE_THINKING_GUIDANCES as readonly unknown[]).includes(raw)
+    ? (raw as PurgeThinkingGuidance)
+    : fallback
+}
+
 export function normalizePurgeCipherLevel(
   raw: unknown,
   fallback: PurgeCipherLevel = 'off',
@@ -173,8 +189,12 @@ export function normalizePurgeStrategy(
   }
   const obj = raw as Record<string, unknown>
   const historyMode = normalizePurgeHistoryMode(obj.historyMode, fallback.historyMode)
+  const rawThinking = normalizePurgeThinkingGuidance(obj.thinkingGuidance, fallback.thinkingGuidance)
+  // Full protocol tunnel disables native reasoning and routes thinking via purge_reply.think_chain.
+  const thinkingGuidance: PurgeThinkingGuidance =
+    historyMode === 'tunnel' && rawThinking !== 'suppress' ? 'tool_cot' : rawThinking
   const toolOutputRelay =
-    historyMode === 'tunnel'
+    historyMode === 'tunnel' || thinkingGuidance === 'tool_cot'
       ? true
       : typeof obj.toolOutputRelay === 'boolean'
         ? obj.toolOutputRelay
@@ -182,6 +202,7 @@ export function normalizePurgeStrategy(
   return {
     primerEnabled: typeof obj.primerEnabled === 'boolean' ? obj.primerEnabled : fallback.primerEnabled,
     scrubHistory: typeof obj.scrubHistory === 'boolean' ? obj.scrubHistory : fallback.scrubHistory,
+    thinkingGuidance,
     historyMode,
     toolOutputRelay,
     cipherLevel: normalizePurgeCipherLevel(obj.cipherLevel, fallback.cipherLevel),
@@ -200,6 +221,7 @@ export function strategyForPreset(
         ...prev,
         primerEnabled: true,
         scrubHistory: true,
+        thinkingGuidance: 'anchor',
         historyMode: 'none',
         toolOutputRelay: false,
       }
@@ -208,6 +230,7 @@ export function strategyForPreset(
         ...prev,
         primerEnabled: true,
         scrubHistory: true,
+        thinkingGuidance: 'anchor',
         historyMode: 'push',
         toolOutputRelay: true,
       }
@@ -216,6 +239,7 @@ export function strategyForPreset(
         ...prev,
         primerEnabled: true,
         scrubHistory: true,
+        thinkingGuidance: 'tool_cot',
         historyMode: 'tunnel',
         toolOutputRelay: true,
       }
@@ -224,8 +248,20 @@ export function strategyForPreset(
 
 export function detectPurgeStrategyPreset(strategy: PurgeStrategyOptions): PurgeStrategyPresetId {
   if (strategy.historyMode === 'tunnel') return 'tunnel'
-  if (strategy.historyMode === 'push' && strategy.toolOutputRelay) return 'relay_push'
-  if (strategy.historyMode === 'none' && !strategy.toolOutputRelay) return 'standard'
+  if (
+    strategy.historyMode === 'push' &&
+    strategy.toolOutputRelay &&
+    strategy.thinkingGuidance === 'anchor'
+  ) {
+    return 'relay_push'
+  }
+  if (
+    strategy.historyMode === 'none' &&
+    !strategy.toolOutputRelay &&
+    strategy.thinkingGuidance === 'anchor'
+  ) {
+    return 'standard'
+  }
   return 'custom'
 }
 
@@ -288,9 +324,18 @@ export function assessMidSessionPurgeCacheImpact(opts: {
     reasons.push('switch_tunnel')
     breaksPrefix = true
   } else {
-    const prevRelay = prevS.toolOutputRelay
-    const nextRelay = nextS.toolOutputRelay
-    if (prevRelay !== nextRelay) {
+    const prevAnchor = prevS.thinkingGuidance === 'anchor'
+    const nextAnchor = nextS.thinkingGuidance === 'anchor'
+    const prevToolCot = prevS.thinkingGuidance === 'tool_cot'
+    const nextToolCot = nextS.thinkingGuidance === 'tool_cot'
+    if (prevAnchor !== nextAnchor || prevToolCot !== nextToolCot) {
+      reasons.push('switch_thinking_guidance')
+      breaksPrefix = true
+    }
+
+    const prevRelay = prevS.toolOutputRelay || prevToolCot
+    const nextRelay = nextS.toolOutputRelay || nextToolCot
+    if (prevRelay !== nextRelay && !reasons.includes('switch_thinking_guidance')) {
       reasons.push('toggle_relay')
       breaksPrefix = true
     }
