@@ -186,4 +186,79 @@ describe('Timeline in-place message editing', () => {
     expect(updated?.incomplete).toBeUndefined()
     expect(updated?.stopReason).toBe('stop')
   })
+
+  it('exposes floating hover edit actions on intermediate assistant prose messages inside a multi-step turn', async () => {
+    const now = Date.now()
+    const items: TimelineItem[] = [
+      {
+        id: 'u1',
+        type: 'user-message',
+        text: 'Build and package',
+        timestamp: now - 10_000,
+        sessionEntryId: 'entry-u1',
+      },
+      {
+        id: 'a-mid',
+        type: 'assistant-message',
+        text: 'Intermediate status message before tool',
+        timestamp: now - 8_000,
+        sessionEntryId: 'entry-a-mid',
+      },
+      {
+        id: 't1',
+        type: 'tool-call',
+        toolCallId: 'tc-1',
+        toolName: 'bash',
+        toolPhase: 'end',
+        toolOutput: 'ok',
+        timestamp: now - 6_000,
+      },
+      {
+        id: 'a-last',
+        type: 'assistant-message',
+        text: 'Final summary message',
+        timestamp: now - 4_000,
+        sessionEntryId: 'entry-a-last',
+      },
+    ]
+
+    useUIStore.setState({
+      currentWorkspace: '/tmp/proj',
+      historySessionFile: '/tmp/proj/s.jsonl',
+      currentSessionId: 's',
+      timelineItems: items,
+      historyTotalCount: items.length,
+      historyLoadedCount: items.length,
+      historyLoading: false,
+      streamingAssistantId: null,
+      optimisticPendingUserText: null,
+      agentTurnBootstrapping: false,
+      subagentSessionGroup: null,
+      runState: { status: 'idle', toolCount: 0, errorCount: 0 } as never,
+      sessionRuntimeRunning: {},
+      workerLiveSnapshot: { status: 'idle', sessionFile: '/tmp/proj/s.jsonl', sessionId: 's' } as never,
+    })
+
+    render(<Timeline />)
+
+    // User + intermediate assistant + final assistant all expose edit buttons
+    const editButtons = screen.getAllByLabelText('timeline:editMessage')
+    expect(editButtons).toHaveLength(3)
+
+    // Edit the intermediate assistant message specifically
+    fireEvent.click(editButtons[1])
+    const editor = screen.getByTestId('message-inline-editor-assistant') as HTMLTextAreaElement
+    expect(editor.value).toBe('Intermediate status message before tool')
+    fireEvent.change(editor, { target: { value: 'Edited intermediate prose' } })
+    fireEvent.click(screen.getByText('timeline:edit.save'))
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith('session.editMessage', {
+        sessionFile: '/tmp/proj/s.jsonl',
+        workspaceId: '/tmp/proj',
+        entryId: 'entry-a-mid',
+        text: 'Edited intermediate prose',
+      })
+    })
+  })
 })

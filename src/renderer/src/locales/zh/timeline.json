@@ -275,6 +275,19 @@
   },
   "forkFromHere": "从此 Fork 新会话",
   "editMessage": "编辑消息",
+  "contextMenu": {
+    "copySelection": "复制选中文本",
+    "copyMessage": "复制消息",
+    "rewindToMessage": "回退到此消息",
+    "expandTool": "展开工具详情",
+    "collapseTool": "收起工具详情",
+    "copyToolOutput": "复制工具输出",
+    "copyToolArgs": "复制工具参数",
+    "rewindToToolStep": "回退到此工具步骤",
+    "expandToolGroup": "展开全部工具",
+    "collapseToolGroup": "收起工具组",
+    "rewindToToolGroup": "回退到此工具组末尾"
+  },
   "edit": {
     "placeholderUser": "编辑用户消息内容…",
     "placeholderAssistant": "编辑或伪造助手回复内容…",

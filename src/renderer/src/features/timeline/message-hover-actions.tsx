@@ -1,7 +1,13 @@
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Copy, Check, Undo2, GitFork, Pencil } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
+import {
+  canActivateTimelineHover,
+  claimTimelineHoverOwner,
+  releaseTimelineHoverOwner,
+  subscribeTimelineScrollLock,
+} from './timeline-hover-guard'
 
 /** Hover actions for messages: copy, edit, rewind, fork (user) */
 function MessageHoverActionsImpl({
@@ -107,37 +113,109 @@ export const MessageHoverActions = memo(MessageHoverActionsImpl)
  * Message chrome: actions live in a fixed-height row (not an absolute overlay).
  * Hidden until hover/focus, but the row stays reserved so the next card cannot cover it.
  */
+const SHOW_DELAY_RESERVED_MS = 55
+const SHOW_DELAY_FLOATING_MS = 135
+const HIDE_GRACE_MS = 150
+
 export function MessageHoverShell({
   align,
   children,
   actions,
   reserve = false,
+  floating = false,
 }: {
   align: 'left' | 'right'
   children: ReactNode
   actions: ReactNode
   /** Keep a row in the document flow for the actions (user messages) instead of floating them. */
   reserve?: boolean
+  /** Overlay actions without reserving extra vertical height (used for mid-turn prose blocks). */
+  floating?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
+  const pointerInside = useRef(false)
+  const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasActions = actions != null && actions !== false
-  const clearHide = () => {
+
+  const clearShow = useCallback(() => {
+    if (showTimer.current) clearTimeout(showTimer.current)
+    showTimer.current = null
+  }, [])
+
+  const clearHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current)
     hideTimer.current = null
-  }
-  useEffect(() => clearHide, [])
+  }, [])
+
+  const dismissNow = useCallback(() => {
+    clearShow()
+    clearHide()
+    setHovered(false)
+  }, [clearHide, clearShow])
+
+  const scheduleReveal = useCallback(() => {
+    if (!hasActions || !canActivateTimelineHover()) return
+    clearHide()
+    if (showTimer.current) return
+    const delay = floating ? SHOW_DELAY_FLOATING_MS : SHOW_DELAY_RESERVED_MS
+    showTimer.current = setTimeout(() => {
+      showTimer.current = null
+      if (!pointerInside.current || !canActivateTimelineHover()) return
+      claimTimelineHoverOwner(dismissNow)
+      setHovered(true)
+    }, delay)
+  }, [clearHide, dismissNow, floating, hasActions])
+
+  useEffect(() => {
+    const unsub = subscribeTimelineScrollLock(() => {
+      pointerInside.current = false
+      dismissNow()
+    })
+    return () => {
+      unsub()
+      clearShow()
+      clearHide()
+      releaseTimelineHoverOwner(dismissNow)
+    }
+  }, [clearHide, clearShow, dismissNow])
+
   return (
     <div
       className={cn('message-hover-shell', align === 'right' && 'items-end')}
       onMouseEnter={() => {
+        pointerInside.current = true
+        scheduleReveal()
+      }}
+      onMouseMove={() => {
+        pointerInside.current = true
+        if (!hovered) {
+          scheduleReveal()
+        }
+      }}
+      // Short grace period so moving the pointer onto the actions never drops them,
+      // while claiming another row or scrolling still dismisses this one immediately.
+      onMouseLeave={() => {
+        pointerInside.current = false
+        clearShow()
         clearHide()
+        hideTimer.current = setTimeout(() => {
+          hideTimer.current = null
+          releaseTimelineHoverOwner(dismissNow)
+          setHovered(false)
+        }, HIDE_GRACE_MS)
+      }}
+      onFocusCapture={() => {
+        clearShow()
+        clearHide()
+        claimTimelineHoverOwner(dismissNow)
         setHovered(true)
       }}
-      // Short grace period so moving the pointer down onto the actions never drops them.
-      onMouseLeave={() => {
-        clearHide()
-        hideTimer.current = setTimeout(() => setHovered(false), 160)
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          releaseTimelineHoverOwner(dismissNow)
+          setHovered(false)
+        }
       }}
     >
       {children}
@@ -145,7 +223,8 @@ export function MessageHoverShell({
         <div
           className={cn(
             'message-actions-slot',
-            reserve && 'message-actions-slot--reserved',
+            reserve && !floating && 'message-actions-slot--reserved',
+            floating && 'message-actions-slot--floating',
             align === 'right' && 'message-actions-slot--end',
             hovered && 'message-actions-slot-visible',
           )}

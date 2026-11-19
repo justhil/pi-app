@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next'
 import {
   Archive,
   CheckCircle2, XCircle,
-  CornerDownLeft, AlertCircle
+  CornerDownLeft, AlertCircle,
+  Copy, Pencil, Undo2, GitFork,
 } from '@renderer/components/icons'
-import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from 'react'
+import { lazy, Suspense, useState, memo, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment, type MouseEvent as ReactMouseEvent } from 'react'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { StreamingCaret } from './tool-card-primitives'
 import { SessionOpenLoadingView } from './session-open-loading'
@@ -19,6 +20,15 @@ import { buildTimelineDisplayItems, type TimelineDisplayItem, type TimelineRawIt
 import { MessageHoverActions, MessageHoverShell } from './message-hover-actions'
 import { MessageInlineEditor } from './message-inline-editor'
 import { registerTimelineScrollEl } from './timeline-scroll-bridge'
+import { attachTimelineScrollHoverGuard } from './timeline-hover-guard'
+import {
+  TimelineContextMenuHost,
+  closeTimelineContextMenu,
+  getActiveTextSelection,
+  openTimelineContextMenu,
+  shouldBypassTimelineContextMenu,
+  type TimelineContextMenuItem,
+} from './timeline-context-menu'
 import { rafThrottle } from '@renderer/lib/raf-throttle'
 import { prependOlderTimelinePage } from '@renderer/lib/timeline-history-prepend'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -73,8 +83,10 @@ const TimelineItemBase = memo(function TimelineItem({
   agentRunning,
   agentBoot,
   rewindEntryId,
-  /** Only the last prose leaf of a turn (or user) should expose copy/rewind chrome. */
+  /** Show hover action chrome (copy/edit/rewind). */
   showMessageActions = true,
+  /** Mid-turn prose blocks float actions over the bottom edge without adding vertical gap. */
+  floatingMessageActions = false,
   isEditing = false,
   editDisabled = false,
   onStartEdit,
@@ -88,6 +100,7 @@ const TimelineItemBase = memo(function TimelineItem({
   /** Pre-resolved incomplete-assistant / user rewind target for this row */
   rewindEntryId?: string
   showMessageActions?: boolean
+  floatingMessageActions?: boolean
   isEditing?: boolean
   editDisabled?: boolean
   onStartEdit?: (itemId: string) => void
@@ -97,6 +110,67 @@ const TimelineItemBase = memo(function TimelineItem({
   const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
     rewindEntryId ?? (row.sessionEntryId as string | undefined)
   const ownEntryId = item.sessionEntryId as string | undefined
+
+  const openMessageContextMenu = (
+    e: ReactMouseEvent,
+    opts: {
+      role: 'user' | 'assistant'
+      text: string
+      editTargetId?: string
+      rewindTarget?: string
+      allowFork?: boolean
+    },
+  ) => {
+    if (shouldBypassTimelineContextMenu(e.target)) return
+    const selection = getActiveTextSelection()
+    const menuItems: TimelineContextMenuItem[] = []
+    if (selection) {
+      menuItems.push({
+        id: 'copy-selection',
+        label: t('timeline:contextMenu.copySelection'),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onSelect: () => void navigator.clipboard.writeText(selection),
+      })
+    }
+    if (onStartEdit && opts.editTargetId) {
+      menuItems.push({
+        id: 'edit-message',
+        label: t('timeline:editMessage'),
+        icon: <Pencil className="h-3.5 w-3.5" />,
+        disabled: editDisabled,
+        onSelect: () => onStartEdit(String(item.id)),
+      })
+    }
+    if (opts.text) {
+      menuItems.push({
+        id: 'copy-message',
+        label: t('timeline:contextMenu.copyMessage'),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onSelect: () => void navigator.clipboard.writeText(opts.text),
+      })
+    }
+    if (opts.rewindTarget) {
+      if (menuItems.length > 0) menuItems.push({ type: 'separator', id: 'sep-nav' })
+      menuItems.push({
+        id: 'rewind-message',
+        label: t('timeline:contextMenu.rewindToMessage'),
+        icon: <Undo2 className="h-3.5 w-3.5" />,
+        onSelect: () => void navigateSessionToEntry(opts.rewindTarget!),
+      })
+      if (opts.allowFork && opts.role === 'user') {
+        menuItems.push({
+          id: 'fork-message',
+          label: t('timeline:forkFromHere'),
+          icon: <GitFork className="h-3.5 w-3.5" />,
+          onSelect: () => void forkSessionFromEntry(opts.rewindTarget!),
+        })
+      }
+    }
+    if (menuItems.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    openTimelineContextMenu({ x: e.clientX, y: e.clientY, items: menuItems })
+  }
 
   if (item.type === 'user-message') {
     if (isEditing && ownEntryId) {
@@ -123,7 +197,18 @@ const TimelineItemBase = memo(function TimelineItem({
       ? (item.segments as Segment[])
       : [{ type: 'text', text: String(item.text || '') }]
     return (
-      <div className="timeline-message-row timeline-user-row">
+      <div
+        className="timeline-message-row timeline-user-row"
+        onContextMenu={(e) =>
+          openMessageContextMenu(e, {
+            role: 'user',
+            text: String(item.text ?? ''),
+            editTargetId: ownEntryId,
+            rewindTarget: rewindTargetFor(item),
+            allowFork: true,
+          })
+        }
+      >
         <MessageHoverShell
           align="right"
           reserve={showMessageActions}
@@ -204,7 +289,17 @@ const TimelineItemBase = memo(function TimelineItem({
           )
         }
         return (
-          <div className="timeline-message-row timeline-prose-row">
+          <div
+            className="timeline-message-row timeline-prose-row"
+            onContextMenu={(e) =>
+              openMessageContextMenu(e, {
+                role: 'assistant',
+                text: '',
+                editTargetId: sessionEntryId,
+                rewindTarget: resolvedRewindEntryId,
+              })
+            }
+          >
             <MessageHoverShell
               align="left"
               actions={
@@ -325,10 +420,24 @@ const TimelineItemBase = memo(function TimelineItem({
     }
 
     return (
-      <div className="timeline-message-row timeline-prose-row">
+      <div
+        className="timeline-message-row timeline-prose-row"
+        onContextMenu={
+          streaming
+            ? undefined
+            : (e) =>
+                openMessageContextMenu(e, {
+                  role: 'assistant',
+                  text: String(item.text ?? ''),
+                  editTargetId: sessionEntryId,
+                  rewindTarget: isInterrupted && !hasText ? resolvedRewindEntryId : sessionEntryId,
+                })
+        }
+      >
         {allowMessageActions ? (
           <MessageHoverShell
             align="left"
+            floating={floatingMessageActions}
             actions={
               <MessageHoverActions
                 text={String(item.text ?? '')}
@@ -737,8 +846,12 @@ export function Timeline() {
     const el = scrollNode
     registerTimelineScrollEl(el)
     if (!el) return () => registerTimelineScrollEl(null)
-    const notify = rafThrottle(() => window.dispatchEvent(new Event('timeline-scroll')))
+    const notify = rafThrottle(() => {
+      closeTimelineContextMenu()
+      window.dispatchEvent(new Event('timeline-scroll'))
+    })
     el.addEventListener('scroll', notify, { passive: true })
+    const detachHoverGuard = attachTimelineScrollHoverGuard(el)
     // Upward wheel detaches live-follow immediately so stream growth never fights the user.
     const onWheel = (e: WheelEvent) => {
       if (e.deltaY !== 0) {
@@ -754,6 +867,7 @@ export function Timeline() {
     ro.observe(el)
     notify()
     return () => {
+      detachHoverGuard()
       registerTimelineScrollEl(null)
       el.removeEventListener('scroll', notify)
       el.removeEventListener('wheel', onWheel)
@@ -1055,9 +1169,14 @@ export function Timeline() {
   const renderDisplayBlock = (
     block: TimelineDisplayItem,
     blockKey: string,
-    opts?: { showMessageActions?: boolean; allowBootPlaceholder?: boolean },
+    opts?: {
+      showMessageActions?: boolean
+      floatingMessageActions?: boolean
+      allowBootPlaceholder?: boolean
+    },
   ) => {
     const showMessageActions = opts?.showMessageActions !== false
+    const floatingMessageActions = !!opts?.floatingMessageActions
     const rowAgentBoot = agentBoot && !!opts?.allowBootPlaceholder
     if (block.kind === 'tool-group') {
       const groupThinking = block.thinkingText?.trim() || ''
@@ -1100,6 +1219,7 @@ export function Timeline() {
         agentBoot={rowAgentBoot}
         rewindEntryId={rewindEntryByItemId.get(item.id)}
         showMessageActions={showMessageActions}
+        floatingMessageActions={floatingMessageActions}
         isEditing={activeEditingItemId === item.id}
         editDisabled={editDisabled}
         onStartEdit={onStartEditRow}
@@ -1207,16 +1327,21 @@ export function Timeline() {
           </button>
         </div>
       )}
-      {leading.map((block, i) => (
-        <Fragment key={claimTopKey(block.kind === 'tool-group' ? block.groupId : block.item.id || `lead-${i}`)}>
-          {renderDisplayBlock(block, `lead-${i}`, {
-            showMessageActions:
-              block.kind === 'single' &&
-              block.item.type === 'assistant-message' &&
-              block.item.id === lastProseIdInTurn(leading),
-          })}
-        </Fragment>
-      ))}
+      {leading.map((block, i) => {
+        const isAssistantSingle = block.kind === 'single' && block.item.type === 'assistant-message'
+        const leadLastId = lastProseIdInTurn(leading)
+        const isLeadLast = isAssistantSingle && block.item.id === leadLastId
+        const isLeadMidProse =
+          isAssistantSingle && !isLeadLast && !!String(block.item.text ?? '').trim()
+        return (
+          <Fragment key={claimTopKey(block.kind === 'tool-group' ? block.groupId : block.item.id || `lead-${i}`)}>
+            {renderDisplayBlock(block, `lead-${i}`, {
+              showMessageActions: isLeadLast || isLeadMidProse,
+              floatingMessageActions: isLeadMidProse,
+            })}
+          </Fragment>
+        )
+      })}
       {turnGroups.map((turn, turnIndex) => {
         const isLiveTurn =
           turnIndex === turnGroups.length - 1 &&
@@ -1250,12 +1375,17 @@ export function Timeline() {
               )
             })()}
             {turn.blocks.map((block, bi) => {
-              // One reply = one message chrome: only the final prose leaf after the turn settles.
+              const isAssistantSingle =
+                block.kind === 'single' && block.item.type === 'assistant-message'
               const isLastProse =
+                !isLiveTurn && isAssistantSingle && block.item.id === turnLastProseId
+              // Mid-turn assistant prose messages also expose a zero-gap floating hover bar
+              // so every persisted assistant block can be edited or copied in place.
+              const isMidTurnProse =
                 !isLiveTurn &&
-                block.kind === 'single' &&
-                block.item.type === 'assistant-message' &&
-                block.item.id === turnLastProseId
+                isAssistantSingle &&
+                !isLastProse &&
+                !!String(block.item.text ?? '').trim()
               const blockKey =
                 block.kind === 'tool-group'
                   ? block.groupId
@@ -1265,7 +1395,8 @@ export function Timeline() {
               return (
                 <Fragment key={claimBlockKey(blockKey || `${turn.turnId}-b${bi}`)}>
                   {renderDisplayBlock(block, blockKey, {
-                    showMessageActions: isLastProse,
+                    showMessageActions: isLastProse || isMidTurnProse,
+                    floatingMessageActions: isMidTurnProse,
                     allowBootPlaceholder: isLiveTurn && bi === turn.blocks.length - 1,
                   })}
                 </Fragment>
@@ -1291,15 +1422,18 @@ export function Timeline() {
       })}
       {leading.length === 0 &&
         turnGroups.length === 0 &&
-        displayItems.map((block, i) =>
-          renderDisplayBlock(block, `orphan-${i}`, {
-            showMessageActions:
-              block.kind === 'single' &&
-              block.item.type === 'assistant-message' &&
-              block.item.id === lastProseIdInTurn(displayItems),
+        displayItems.map((block, i) => {
+          const isAssistantSingle = block.kind === 'single' && block.item.type === 'assistant-message'
+          const orphanLastId = lastProseIdInTurn(displayItems)
+          const isOrphanLast = isAssistantSingle && block.item.id === orphanLastId
+          const isOrphanMidProse =
+            isAssistantSingle && !isOrphanLast && !!String(block.item.text ?? '').trim()
+          return renderDisplayBlock(block, `orphan-${i}`, {
+            showMessageActions: isOrphanLast || isOrphanMidProse,
+            floatingMessageActions: isOrphanMidProse,
             allowBootPlaceholder: isSessionTurnLive && i === displayItems.length - 1,
-          }),
-        )}
+          })
+        })}
       {/*
         Stream tail pad: while agent is live, leave blank room under the last bubble so
         new tokens grow into empty space instead of constantly shoving the viewport.
@@ -1322,6 +1456,7 @@ export function Timeline() {
       followLiveRef={followLiveRef}
       deps={[lastTailId, streamingTailBucket, renderCount, items.length]}
     />
+    <TimelineContextMenuHost />
     </div>
   )
 }

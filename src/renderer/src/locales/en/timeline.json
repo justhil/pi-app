@@ -278,6 +278,19 @@
   },
   "forkFromHere": "Fork new session from here",
   "editMessage": "Edit message",
+  "contextMenu": {
+    "copySelection": "Copy selection",
+    "copyMessage": "Copy message",
+    "rewindToMessage": "Rewind to this message",
+    "expandTool": "Expand tool details",
+    "collapseTool": "Collapse tool details",
+    "copyToolOutput": "Copy tool output",
+    "copyToolArgs": "Copy tool arguments",
+    "rewindToToolStep": "Rewind to this tool step",
+    "expandToolGroup": "Expand all tools",
+    "collapseToolGroup": "Collapse tool group",
+    "rewindToToolGroup": "Rewind to end of tool group"
+  },
   "edit": {
     "placeholderUser": "Edit user message…",
     "placeholderAssistant": "Edit or forge assistant reply…",

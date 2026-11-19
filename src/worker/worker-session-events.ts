@@ -253,6 +253,10 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
         lastUserPreview = normalizeUserMessageDisplayText(extractTextFromPiMessage(msg))
       }
       const text = msg?.role === 'assistant' ? extractTextFromPiMessage(msg) : undefined
+      const toolResultCallId =
+        msg?.role === 'toolResult' ? String((msg as { toolCallId?: unknown }).toolCallId || '') : ''
+      const toolResultName =
+        msg?.role === 'toolResult' ? String((msg as { toolName?: unknown }).toolName || '') : ''
       queueMicrotask(() => {
         const entryId = session?.sessionManager?.getLeafId?.() ?? undefined
         if (msg?.role === 'assistant') {
@@ -270,6 +274,15 @@ export function handleSessionEvent(event: AgentSessionEvent, deps: SessionEventD
             type: 'message',
             role: 'user',
             phase: 'end',
+            sessionEntryId: entryId,
+          } as AppEvent)
+        } else if (msg?.role === 'toolResult' && toolResultCallId && entryId) {
+          deps.emit({
+            ...base,
+            type: 'tool',
+            toolCallId: toolResultCallId,
+            toolName: toolResultName || 'tool',
+            phase: 'entry',
             sessionEntryId: entryId,
           } as AppEvent)
         }

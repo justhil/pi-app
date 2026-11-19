@@ -286,6 +286,19 @@
   },
   "forkFromHere": "Форкнуть новую сессию отсюда",
   "editMessage": "Редактировать сообщение",
+  "contextMenu": {
+    "copySelection": "Копировать выделенное",
+    "copyMessage": "Копировать сообщение",
+    "rewindToMessage": "Откатиться к этому сообщению",
+    "expandTool": "Развернуть детали инструмента",
+    "collapseTool": "Свернуть детали инструмента",
+    "copyToolOutput": "Копировать вывод инструмента",
+    "copyToolArgs": "Копировать аргументы инструмента",
+    "rewindToToolStep": "Откатиться к этому шагу инструмента",
+    "expandToolGroup": "Развернуть все инструменты",
+    "collapseToolGroup": "Свернуть группу инструментов",
+    "rewindToToolGroup": "Откатиться к концу группы инструментов"
+  },
   "edit": {
     "placeholderUser": "Изменить сообщение пользователя…",
     "placeholderAssistant": "Изменить ответ ассистента…",

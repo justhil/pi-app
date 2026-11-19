@@ -38,6 +38,9 @@ export type ToolTimelineItem = {
   turnId?: string
   isError?: boolean
   timestamp?: number
+  sessionEntryId?: string
+  /** Persisted pi JSONL entry id for the matching toolResult message (preferred /tree rewind target). */
+  toolResultEntryId?: string
 }
 
 export interface TimelineItem {
@@ -63,6 +66,8 @@ export interface TimelineItem {
   slashStatus?: 'dispatched' | 'ok' | 'error' | 'info'
   errorKind?: 'error' | 'aborted' | 'retry'
   sessionEntryId?: string
+  /** Persisted pi JSONL entry id for a tool-call's matching toolResult (preferred step rewind target). */
+  toolResultEntryId?: string
   /** Prompt payload text submitted to worker (kept for attachment/chip echo matching). */
   payloadText?: string
   /** Force-quit / abort mid-stream — empty or partial assistant leaf */

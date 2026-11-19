@@ -334,6 +334,7 @@ export class LiveProjector {
         break
       }
       case 'tool': {
+        if (event.phase === 'entry') break
         const b = this.ensureTurn(out)
         const closed = b.closeThinking(this.now())
         if (closed) out.push(this.stepPatch(b, closed))

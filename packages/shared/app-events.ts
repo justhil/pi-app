@@ -29,11 +29,13 @@ export interface ToolEvent extends AppEventBase {
   type: 'tool'
   toolCallId: string
   toolName: string
-  phase: 'start' | 'update' | 'end'
+  phase: 'start' | 'update' | 'end' | 'entry'
   input?: unknown
   output?: unknown
   details?: unknown
   isError?: boolean
+  /** pi JSONL entry id of the persisted toolResult message (used for step-level /tree rewind). */
+  sessionEntryId?: string
 }
 
 export interface FileEvent extends AppEventBase {

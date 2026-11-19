@@ -1,9 +1,17 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight, BookOpen } from '@renderer/components/icons'
+import { ChevronRight, BookOpen, Copy, Undo2, ChevronDown } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
+import {
+  getActiveTextSelection,
+  openTimelineContextMenu,
+  shouldBypassTimelineContextMenu,
+  type TimelineContextMenuItem,
+} from './timeline-context-menu'
 import { ToolIcon } from './tool-icon'
 import { renderToolCard } from './tool-card-templates'
 import { resolveAdapterToolCardTemplate, resolveToolCardTemplate } from './tool-card-registry'
@@ -145,8 +153,75 @@ function ToolCallRowImpl({
     if (expandKey) setToolCallExpanded(expandKey, next)
   }
 
+  // Prefer the persisted toolResult entry id so /tree rewind lands right after this tool completed
+  // without leaving a dangling toolCall without a matching toolResult.
+  const rewindEntryId = item.toolResultEntryId || item.sessionEntryId
+
+  const handleContextMenu = (e: ReactMouseEvent) => {
+    if (shouldBypassTimelineContextMenu(e.target)) return
+    const selection = getActiveTextSelection()
+    const menuItems: TimelineContextMenuItem[] = []
+    if (selection) {
+      menuItems.push({
+        id: 'copy-selection',
+        label: t('timeline:contextMenu.copySelection'),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onSelect: () => void navigator.clipboard.writeText(selection),
+      })
+    }
+    if (hasToolBody) {
+      menuItems.push({
+        id: 'toggle-tool-detail',
+        label: expanded
+          ? t('timeline:contextMenu.collapseTool')
+          : t('timeline:contextMenu.expandTool'),
+        icon: expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />,
+        onSelect: toggleExpanded,
+      })
+    }
+    const outputText = typeof item.toolOutput === 'string' ? item.toolOutput.trim() : ''
+    if (outputText) {
+      menuItems.push({
+        id: 'copy-tool-output',
+        label: t('timeline:contextMenu.copyToolOutput'),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onSelect: () => void navigator.clipboard.writeText(outputText),
+      })
+    } else if (item.toolArgs !== undefined) {
+      menuItems.push({
+        id: 'copy-tool-args',
+        label: t('timeline:contextMenu.copyToolArgs'),
+        icon: <Copy className="h-3.5 w-3.5" />,
+        onSelect: () => {
+          const serialized =
+            typeof item.toolArgs === 'string' ? item.toolArgs : JSON.stringify(item.toolArgs, null, 2)
+          void navigator.clipboard.writeText(serialized)
+        },
+      })
+    }
+    if (rewindEntryId) {
+      if (menuItems.length > 0) menuItems.push({ type: 'separator', id: 'sep-rewind' })
+      menuItems.push({
+        id: 'rewind-tool-step',
+        label: t('timeline:contextMenu.rewindToToolStep'),
+        icon: <Undo2 className="h-3.5 w-3.5" />,
+        disabled: isRunning || isCurrentSubagentSessionPreview(),
+        onSelect: () => void navigateSessionToEntry(rewindEntryId),
+      })
+    }
+    if (menuItems.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    openTimelineContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      header: item.toolName || undefined,
+      items: menuItems,
+    })
+  }
+
   return (
-    <div className={cn('tool-call-row', compact ? 'py-0' : 'py-0')}>
+    <div className={cn('tool-call-row', compact ? 'py-0' : 'py-0')} onContextMenu={handleContextMenu}>
       <button
         type="button"
         title={skillContext ? primaryLabel : item.toolName || undefined}

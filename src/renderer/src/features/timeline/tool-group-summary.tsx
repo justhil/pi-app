@@ -1,9 +1,16 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight } from '@renderer/components/icons'
+import { ChevronDown, ChevronRight, Undo2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
+import {
+  openTimelineContextMenu,
+  shouldBypassTimelineContextMenu,
+  type TimelineContextMenuItem,
+} from './timeline-context-menu'
 import { ToolCallRow } from './tool-call-row'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
@@ -108,6 +115,8 @@ function ToolGroupSummaryImpl({
           isError: tool.isError,
           toolStatusLine: tool.toolStatusLine,
           extensionUiSuspended: tool.extensionUiSuspended,
+          sessionEntryId: tool.sessionEntryId,
+          toolResultEntryId: tool.toolResultEntryId,
         },
       })
     }
@@ -118,12 +127,55 @@ function ToolGroupSummaryImpl({
     return legacy
   }, [clusterChildren, thinkingText, foldedAssistantTexts, tools])
 
+  const lastGroupRewindEntryId = useMemo(() => {
+    for (let i = tools.length - 1; i >= 0; i--) {
+      const id = tools[i]?.toolResultEntryId || tools[i]?.sessionEntryId
+      if (id) return id
+    }
+    return undefined
+  }, [tools])
+
+  const groupRunning = tools.some((tool) => tool.toolPhase === 'start' || tool.toolPhase === 'update')
+
+  const handleGroupContextMenu = (e: ReactMouseEvent) => {
+    if (shouldBypassTimelineContextMenu(e.target)) return
+    const menuItems: TimelineContextMenuItem[] = [
+      {
+        id: 'toggle-group',
+        label: userExpanded
+          ? t('timeline:contextMenu.collapseToolGroup')
+          : t('timeline:contextMenu.expandToolGroup'),
+        icon: userExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />,
+        onSelect: () => setToolCallExpanded(groupId, !userExpanded),
+      },
+    ]
+    if (lastGroupRewindEntryId) {
+      menuItems.push({ type: 'separator', id: 'sep-group-rewind' })
+      menuItems.push({
+        id: 'rewind-tool-group',
+        label: t('timeline:contextMenu.rewindToToolGroup'),
+        icon: <Undo2 className="h-3.5 w-3.5" />,
+        disabled: groupRunning || isCurrentSubagentSessionPreview(),
+        onSelect: () => void navigateSessionToEntry(lastGroupRewindEntryId),
+      })
+    }
+    e.preventDefault()
+    e.stopPropagation()
+    openTimelineContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      header: activityLabel,
+      items: menuItems,
+    })
+  }
+
   return (
     <div className="py-0">
       <button
         type="button"
         aria-expanded={userExpanded}
         onClick={() => setToolCallExpanded(groupId, !userExpanded)}
+        onContextMenu={handleGroupContextMenu}
         className={cn(
           'group timeline-activity-row tool-group-hit w-full',
           hasError && 'tool-group-hit--error',

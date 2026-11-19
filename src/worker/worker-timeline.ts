@@ -292,6 +292,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
       if (targetIdx !== undefined && items[targetIdx]) {
         items[targetIdx].toolOutput = text.slice(0, 4000)
         if (callId) items[targetIdx].toolCallId = callId
+        if (sid) items[targetIdx].toolResultEntryId = sid
         if (mergedDetails !== undefined) items[targetIdx].toolDetails = mergedDetails
         if (m.isError !== undefined) items[targetIdx].isError = m.isError
         if (toolName && items[targetIdx].toolName === 'tool') items[targetIdx].toolName = toolName
@@ -307,6 +308,7 @@ export function timelineItemsFromBranchPath(path: unknown[]): Array<Record<strin
           ...(m.isError !== undefined ? { isError: m.isError } : {}),
           timestamp: ts,
           sessionEntryId: sid,
+          ...(sid ? { toolResultEntryId: sid } : {}),
         })
       }
     }
