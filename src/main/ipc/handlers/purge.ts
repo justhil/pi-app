@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { AGENT_PURGE_MODES, PURGE_CIPHER_LEVELS, PURGE_HISTORY_MODES } from '@shared/agent-purge'
+import { AGENT_PURGE_MODES } from '@shared/agent-purge'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
+import { purgeStrategyPatchSchema } from '../schemas'
 import {
   getActivePurgeForSession,
   getAgentPurgeConfig,
@@ -33,17 +34,6 @@ export function registerPurgeHandlers(): void {
       return { ok: true, config }
     },
   )
-
-  const purgeStrategyPatchSchema = z
-    .object({
-      primerEnabled: z.boolean().optional(),
-      scrubHistory: z.boolean().optional(),
-      historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
-      toolOutputRelay: z.boolean().optional(),
-      cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
-      autoRetry: z.boolean().optional(),
-    })
-    .strict()
 
   registerHandlerWithSchema(
     'ipc:purge.setSession',

@@ -258,6 +258,8 @@
     "choosePersona": "选择注入人设与抗拦截策略",
     "menuTitle": "单会话人设与历史构造",
     "firstTurnFreeBadge": "首轮无限制",
+    "switchOn": "已开启",
+    "switchOff": "已关闭",
     "primerBadge": "含示范轮",
     "openSettings": "配置",
     "modeLabel": "系统注入模式",

@@ -258,6 +258,8 @@
     "choosePersona": "Choose persona and anti-filter strategy",
     "menuTitle": "Session persona & history shaping",
     "firstTurnFreeBadge": "First turn free",
+    "switchOn": "On",
+    "switchOff": "Off",
     "primerBadge": "Primer",
     "openSettings": "Configure",
     "modeLabel": "System injection mode",

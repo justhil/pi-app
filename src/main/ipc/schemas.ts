@@ -16,6 +16,7 @@ import {
   AGENT_PURGE_MODES,
   PURGE_CIPHER_LEVELS,
   PURGE_HISTORY_MODES,
+  PURGE_THINKING_GUIDANCES,
 } from '../../../packages/shared/agent-purge.ts'
 import { CAPABILITY_IDS } from '../../../packages/shared/capabilities.ts'
 
@@ -136,6 +137,18 @@ export const workspaceSandboxDeleteSchema = z.object({
   path: z.string().min(1),
 })
 
+export const purgeStrategyPatchSchema = z
+  .object({
+    primerEnabled: z.boolean().optional(),
+    scrubHistory: z.boolean().optional(),
+    thinkingGuidance: z.enum(PURGE_THINKING_GUIDANCES).optional(),
+    historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
+    toolOutputRelay: z.boolean().optional(),
+    cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
+    autoRetry: z.boolean().optional(),
+  })
+  .strict()
+
 export const promptTextSchema = z.object({
   text: z.string(),
   sessionFile: z.string().optional(),
@@ -145,19 +158,9 @@ export const promptTextSchema = z.object({
   agentPurge: z
     .object({
       enabled: z.boolean(),
-      personaId: z.string().max(64).optional(),
+      personaId: z.string().max(128).optional(),
       mode: z.enum(AGENT_PURGE_MODES).optional(),
-      strategy: z
-        .object({
-          primerEnabled: z.boolean().optional(),
-          scrubHistory: z.boolean().optional(),
-          historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
-          toolOutputRelay: z.boolean().optional(),
-          cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
-          autoRetry: z.boolean().optional(),
-        })
-        .strict()
-        .optional(),
+      strategy: purgeStrategyPatchSchema.optional(),
     })
     .optional(),
 })

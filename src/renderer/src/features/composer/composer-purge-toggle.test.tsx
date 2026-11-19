@@ -60,16 +60,20 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
     cleanup()
   })
 
-  it('starts OFF on a brand-new chat, commits on first send, and resets back to OFF on another draft', async () => {
+  it('starts OFF on a brand-new chat, opens menu on button click without auto-enabling, commits on first send, and resets on another draft', async () => {
     const { rerender } = render(<ComposerPurgeToggle draftContextKey="new-chat" running={false} />)
 
     const btn = screen.getByTestId('composer-purge-toggle')
-    expect(btn).toHaveAttribute('aria-pressed', 'false')
+    expect(btn).toHaveAttribute('aria-expanded', 'false')
     expect(btn).toHaveAttribute('data-purge-state', 'draft-off')
 
-    // Unrestricted first-turn enable
+    // Clicking the persona icon/button opens the popover instead of silently applying a default preset
     fireEvent.click(btn)
-    expect(btn).toHaveAttribute('aria-pressed', 'true')
+    expect(btn).toHaveAttribute('aria-expanded', 'true')
+    expect(btn).toHaveAttribute('data-purge-state', 'draft-off')
+
+    // Enable via the explicit header switch inside the popover
+    fireEvent.click(screen.getByTestId('composer-purge-enable-switch'))
     expect(btn).toHaveAttribute('data-purge-state', 'draft-on')
 
     let sendPayload: ReturnType<typeof consumeDraftPurgeForFirstSend>
@@ -91,11 +95,11 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
 
     rerender(<ComposerPurgeToggle draftContextKey="session:/sessions/chat-1.jsonl" running={false} />)
     const midBtn = screen.getByTestId('composer-purge-toggle')
-    expect(midBtn).toHaveAttribute('aria-pressed', 'true')
     expect(midBtn).toHaveAttribute('data-purge-state', 'active-mid')
 
-    // Clicking toolbar toggle mid-session opens popover with explicit cache-impact confirmation
+    // Re-open popover and toggle off mid-session -> shows explicit cache-impact confirmation
     fireEvent.click(midBtn)
+    fireEvent.click(screen.getByTestId('composer-purge-enable-switch'))
     expect(screen.getByTestId('purge-mid-session-confirm')).toHaveTextContent(
       'composer:purge.impactReasons.toggle_disable',
     )
@@ -112,7 +116,7 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
       useUIStore.setState({ historySessionFile: null, timelineItems: [] })
     })
     rerender(<ComposerPurgeToggle draftContextKey="draft-2" running={false} />)
-    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('data-purge-state', 'draft-off')
   })
 
   it('allows unrestricted switching before the first message and warns against keyword substitution drift', async () => {

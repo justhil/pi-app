@@ -224,7 +224,7 @@ export function ComposerPurgeToggle({
     })
   }
 
-  const handleToolbarToggleClick = () => {
+  const handleEnableSwitchToggle = () => {
     requestPurgeChange({ enabled: !active }, { openPopoverOnConfirm: true })
   }
 
@@ -261,45 +261,35 @@ export function ComposerPurgeToggle({
 
   return (
     <div data-composer-purge-anchor className="relative flex shrink-0 items-center">
-      <div
+      <button
+        type="button"
+        aria-expanded={menuOpen}
+        aria-haspopup="dialog"
+        data-testid="composer-purge-toggle"
+        data-purge-state={
+          active ? (midSession ? 'active-mid' : 'draft-on') : midSession ? 'off-mid' : 'draft-off'
+        }
+        title={toggleTitle}
+        aria-label={t('composer:purge.choosePersona')}
+        onClick={() => {
+          setMenuOpen((v) => !v)
+          setPendingConfirm(null)
+        }}
         className={cn(
-          'flex h-7 items-center rounded-md transition-colors',
+          'flex h-7 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium transition-colors',
           active
             ? 'border border-primary/35 bg-primary/12 text-primary'
             : 'text-foreground-secondary/70 hover:bg-[var(--bg-hover)] hover:text-foreground',
         )}
       >
-        <button
-          type="button"
-          aria-pressed={active}
-          data-testid="composer-purge-toggle"
-          data-purge-state={
-            active ? (midSession ? 'active-mid' : 'draft-on') : midSession ? 'off-mid' : 'draft-off'
-          }
-          title={toggleTitle}
-          aria-label={toggleTitle}
-          onClick={handleToolbarToggleClick}
-          className="flex h-full items-center gap-1 rounded-l-md pl-1.5 pr-1 text-[12px] font-medium"
-        >
-          <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.85} />
-          <span className="max-w-[84px] truncate">
-            {active ? shortPersonaLabel(displayName) : t('composer:purge.shortLabel')}
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-label={t('composer:purge.choosePersona')}
-          title={t('composer:purge.choosePersona')}
-          aria-expanded={menuOpen}
-          onClick={() => {
-            setMenuOpen((v) => !v)
-            setPendingConfirm(null)
-          }}
-          className="flex h-full w-4 items-center justify-center rounded-r-md pr-0.5 opacity-70 hover:opacity-100"
-        >
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      </div>
+        <Bot className="h-[15px] w-[15px] shrink-0" strokeWidth={1.85} />
+        <span className="max-w-[84px] truncate">
+          {active ? shortPersonaLabel(displayName) : t('composer:purge.shortLabel')}
+        </span>
+        <ChevronDown
+          className={cn('h-3 w-3 shrink-0 opacity-70 transition-transform', menuOpen && 'rotate-180')}
+        />
+      </button>
 
       {menuOpen && (
         <ComposerPopover
@@ -311,28 +301,51 @@ export function ComposerPurgeToggle({
           label={t('composer:purge.menuTitle')}
           width={364}
         >
-          <div className="flex items-center justify-between px-3 pb-1 pt-1.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-medium text-foreground-secondary">
+          <div className="flex items-center justify-between gap-2 px-3 pb-1.5 pt-1.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[11.5px] font-medium text-foreground">
                 {t('composer:purge.menuTitle')}
               </span>
               {!midSession ? (
-                <span className="rounded bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="shrink-0 rounded bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                   {t('composer:purge.firstTurnFreeBadge')}
                 </span>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false)
-                openSettingsToPage('purge')
-              }}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground"
-            >
-              <Settings className="h-3 w-3" />
-              <span>{t('composer:purge.openSettings')}</span>
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={active}
+                data-testid="composer-purge-enable-switch"
+                onClick={handleEnableSwitchToggle}
+                className={cn(
+                  'inline-flex h-5 items-center gap-1 rounded-full border px-2 text-[10.5px] font-medium transition-colors',
+                  active
+                    ? 'border-primary/40 bg-primary/15 text-primary'
+                    : 'border-border/70 bg-muted/60 text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    active ? 'bg-primary' : 'bg-muted-foreground/50',
+                  )}
+                />
+                <span>{active ? t('composer:purge.switchOn') : t('composer:purge.switchOff')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  openSettingsToPage('purge')
+                }}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground"
+              >
+                <Settings className="h-3 w-3" />
+                <span>{t('composer:purge.openSettings')}</span>
+              </button>
+            </div>
           </div>
 
           {pendingConfirm && (

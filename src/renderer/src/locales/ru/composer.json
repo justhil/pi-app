@@ -258,6 +258,8 @@
     "choosePersona": "Выбрать персону и стратегию обхода",
     "menuTitle": "Персона и конструирование истории",
     "firstTurnFreeBadge": "До 1-го хода свободно",
+    "switchOn": "Вкл",
+    "switchOff": "Выкл",
     "primerBadge": "Демо-ход",
     "openSettings": "Настроить",
     "modeLabel": "Режим системного внедрения",
