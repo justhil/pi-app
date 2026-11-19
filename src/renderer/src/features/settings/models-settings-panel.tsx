@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import { Boxes, Plus, RefreshCw } from '@renderer/components/icons'
+import { Plus, RefreshCw, Search, Sparkles } from '@renderer/components/icons'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -16,15 +16,23 @@ import {
   presetLabel,
   presetTagline,
   type ProviderPreset,
+  type ProviderPresetCategory,
 } from '@renderer/features/settings/model-provider-presets'
 import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-add-dialog'
 import type { LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
+import {
+  refreshUpstreamCatalog,
+  useUpstreamModelCatalogStore,
+} from '@renderer/features/settings/upstream-model-catalog'
 import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry, ProviderAvatar } from './models-settings-shared'
 import { ModelsProviderCard } from './models-provider-card'
 import { ModelsSdkProviderSection } from './models-sdk-provider-section'
 import { saveModelsConfigDraft } from './save-models-config'
 import { ModelDefaultsSection } from './model-defaults-section'
 import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
+import { cn } from '@renderer/lib/utils'
+
+type PresetFilterCategory = 'all' | ProviderPresetCategory
 
 export function ModelsSettingsPanel() {
   const { t } = useTranslation('settings')
@@ -40,6 +48,9 @@ export function ModelsSettingsPanel() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [fetching, setFetching] = useState<string | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [presetQuery, setPresetQuery] = useState('')
+  const [presetCategory, setPresetCategory] = useState<PresetFilterCategory>('all')
+  const presetSearchRef = useRef<HTMLInputElement>(null)
   const [remoteCatalog, setRemoteCatalog] = useState<Record<string, { ids: string[]; error?: string }>>({})
   const [settingsModels, setSettingsModels] = useState<ModelInfo[]>([])
   const [expandedLocalModel, setExpandedLocalModel] = useState<Record<string, boolean>>({})
@@ -50,6 +61,19 @@ export function ModelsSettingsPanel() {
     destructive?: boolean
     onConfirm: () => void
   } | null>(null)
+
+  const catalogSnapshot = useUpstreamModelCatalogStore((s) => s.snapshot)
+  const catalogLoading = useUpstreamModelCatalogStore((s) => s.loading)
+
+  useEffect(() => {
+    if (!addMenuOpen) {
+      setPresetQuery('')
+      setPresetCategory('all')
+      return
+    }
+    const timer = window.setTimeout(() => presetSearchRef.current?.focus(), 0)
+    return () => window.clearTimeout(timer)
+  }, [addMenuOpen])
 
   const load = useCallback(async () => {
     const res = await ipcClient.invoke('pi.models.get', {})
@@ -63,10 +87,13 @@ export function ModelsSettingsPanel() {
     const cfg = res?.config ?? { providers: {} }
     setBaseline(cloneConfig(cfg))
     setDraft(cloneConfig(cfg))
-    const keys = Object.keys(cfg.providers || {})
+    const keys = Object.keys(cfg.providers || {}).sort((a, b) => a.localeCompare(b))
     setExpanded((prev) => {
       const next = { ...prev }
-      for (const k of keys) if (next[k] === undefined) next[k] = keys.length <= 3
+      // Expand only the first provider on initial load so multi-provider pages stay scannable.
+      keys.forEach((k, idx) => {
+        if (next[k] === undefined) next[k] = idx === 0
+      })
       return next
     })
   }, [])
@@ -107,9 +134,10 @@ export function ModelsSettingsPanel() {
         })
         prefetchAvailableModels()
       } catch (error) {
-        const message = error instanceof Error && error.message !== 'SAVE_FAILED'
-          ? error.message
-          : t('models.saveFailed')
+        const message =
+          error instanceof Error && error.message !== 'SAVE_FAILED'
+            ? error.message
+            : t('models.saveFailed')
         setSaveError(message)
         throw new Error(message)
       }
@@ -147,12 +175,38 @@ export function ModelsSettingsPanel() {
     [draft],
   )
 
+  const filteredPresets = useMemo(() => {
+    const needle = presetQuery.trim().toLowerCase()
+    return PROVIDER_PRESETS.filter((preset) => {
+      if (presetCategory !== 'all' && preset.category !== presetCategory) return false
+      if (!needle) return true
+      const label = presetLabel(preset, t).toLowerCase()
+      const tagline = presetTagline(preset, t).toLowerCase()
+      const hay = [
+        preset.id,
+        preset.defaultKey,
+        label,
+        tagline,
+        preset.config.baseUrl || '',
+        ...(preset.aliases || []),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(needle)
+    })
+  }, [presetCategory, presetQuery, t])
+
   const addFromPreset = (preset: ProviderPreset) => {
     const key = allocateProviderKey(draft?.providers || {}, preset.defaultKey)
     patchDraft((c) => {
-      c.providers[key] = clonePresetConfig(preset, t)
+      c.providers[key] = clonePresetConfig(preset, t, useUpstreamModelCatalogStore.getState().snapshot)
     })
-    setExpanded((e) => ({ ...e, [key]: true }))
+    setExpanded((prev) => {
+      const next: Record<string, boolean> = {}
+      for (const k of Object.keys(prev)) next[k] = false
+      next[key] = true
+      return next
+    })
     setAddMenuOpen(false)
     toast.success(t('models.addedProviderToast', { label: presetLabel(preset, t), key }))
   }
@@ -172,7 +226,7 @@ export function ModelsSettingsPanel() {
   const applyPresetToExisting = (providerId: string, preset: ProviderPreset) => {
     patchDraft((c) => {
       const prev = c.providers[providerId]
-      const templ = clonePresetConfig(preset, t)
+      const templ = clonePresetConfig(preset, t, useUpstreamModelCatalogStore.getState().snapshot)
       const models = prev.models?.length ? prev.models : templ.models?.length ? templ.models : []
       c.providers[providerId] = {
         ...templ,
@@ -214,28 +268,46 @@ export function ModelsSettingsPanel() {
     }
   }
 
-  const addModelToLocal = (providerId: string, modelId: string) => {
-    if ((draft?.providers[providerId].models || []).some((m) => m.id === modelId)) return
-    patchDraft((c) => {
-      const prov = c.providers[providerId]
-      prov.models = [...(prov.models || []), defaultModelEntry(modelId)]
+  const addModelToLocal = (providerId: string, modelId: string, expandAdded = false) => {
+    const prov = draft?.providers[providerId]
+    if (!prov || (prov.models || []).some((m) => m.id === modelId)) return
+    const snap = useUpstreamModelCatalogStore.getState().snapshot
+    const built = defaultModelEntry(modelId, {
+      catalog: snap,
+      providerId,
+      baseUrl: prov.baseUrl,
     })
-    const key = `${providerId}\0${modelId}`
-    setExpandedLocalModel((e) => ({ ...e, [key]: true }))
+    patchDraft((c) => {
+      const target = c.providers[providerId]
+      target.models = [...(target.models || []), built]
+    })
+    // Keep newly added models compact if full specs were auto-filled; expand only if manual/bare.
+    if (expandAdded || built.contextWindow == null) {
+      const key = `${providerId}\0${modelId}`
+      setExpandedLocalModel((e) => ({ ...e, [key]: true }))
+    }
     toast.success(t('models.addedModelToast', { id: modelId }))
   }
 
   const addAllNewToLocal = (providerId: string) => {
+    const prov = draft?.providers[providerId]
+    if (!prov) return
     const catalog = remoteCatalog[providerId]?.ids || []
-    const existing = new Set((draft?.providers[providerId].models || []).map((m) => m.id))
+    const existing = new Set((prov.models || []).map((m) => m.id))
     const toAdd = catalog.filter((id) => !existing.has(id))
     if (!toAdd.length) {
       toast.message(t('models.noNewModels'))
       return
     }
+    const snap = useUpstreamModelCatalogStore.getState().snapshot
     patchDraft((c) => {
-      const prov = c.providers[providerId]
-      prov.models = [...(prov.models || []), ...toAdd.map((id) => defaultModelEntry(id))]
+      const target = c.providers[providerId]
+      target.models = [
+        ...(target.models || []),
+        ...toAdd.map((id) =>
+          defaultModelEntry(id, { catalog: snap, providerId, baseUrl: target.baseUrl }),
+        ),
+      ]
     })
     toast.success(t('models.addedModels', { count: toAdd.length }))
   }
@@ -255,13 +327,47 @@ export function ModelsSettingsPanel() {
   }
 
   const confirmManualModels = async (providerId: string, ids: string[]) => {
-    for (const modelId of ids) {
-      if ((draft?.providers[providerId].models || []).some((m) => m.id === modelId)) continue
-      addModelToLocal(providerId, modelId)
+    const prov = draft?.providers[providerId]
+    if (!prov) return
+    const snap = useUpstreamModelCatalogStore.getState().snapshot
+    const existing = new Set((prov.models || []).map((m) => m.id))
+    const toAdd = ids.filter((id) => !existing.has(id))
+    if (toAdd.length > 0) {
+      patchDraft((c) => {
+        const target = c.providers[providerId]
+        target.models = [
+          ...(target.models || []),
+          ...toAdd.map((id) =>
+            defaultModelEntry(id, { catalog: snap, providerId, baseUrl: target.baseUrl }),
+          ),
+        ]
+      })
     }
     setManualAddProviderId(null)
-    if (ids.length === 1) return
-    toast.success(t('models.addedModels', { count: ids.length }))
+    if (toAdd.length === 1) {
+      toast.success(t('models.addedModelToast', { id: toAdd[0] }))
+    } else if (toAdd.length > 1) {
+      toast.success(t('models.addedModels', { count: toAdd.length }))
+    }
+  }
+
+  const handleSyncCatalog = async () => {
+    const snap = await refreshUpstreamCatalog()
+    if (snap && snap.modelCount > 0 && !snap.error) {
+      toast.success(t('models.catalogSyncedToast', { count: snap.modelCount }))
+    } else if (snap?.error) {
+      toast.error(t('models.catalogSyncFailedToast', { error: snap.error }))
+    }
+  }
+
+  const focusProvider = (targetPid: string) => {
+    setExpanded((prev) => {
+      const currentlyOnly = prev[targetPid] && Object.entries(prev).every(([k, v]) => k === targetPid || !v)
+      if (currentlyOnly) return prev
+      const next: Record<string, boolean> = {}
+      for (const k of providerIds) next[k] = k === targetPid
+      return next
+    })
   }
 
   if (loading && !draft) {
@@ -274,14 +380,33 @@ export function ModelsSettingsPanel() {
         title={t('models.providerLabel')}
         description={t('models.description', { path: filePath || '~/.pi/agent/models.json' })}
         action={
-          <button
-            type="button"
-            className={btnOutline}
-            onClick={() => void load().catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))}
-          >
-            <RefreshCw className="mr-1 inline h-3 w-3" strokeWidth={2} />
-            {t('models.reload')}
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="sync-models-dev-btn"
+              disabled={catalogLoading}
+              title={t('models.catalogSyncTooltip')}
+              className={cn(btnOutline, 'inline-flex items-center gap-1 text-[12px]')}
+              onClick={() => void handleSyncCatalog()}
+            >
+              <Sparkles className={cn('h-3 w-3 text-primary', catalogLoading && 'animate-pulse')} strokeWidth={2} />
+              <span>
+                {catalogLoading
+                  ? t('models.catalogSyncing')
+                  : catalogSnapshot?.modelCount
+                    ? t('models.catalogSyncedBadge', { count: catalogSnapshot.modelCount })
+                    : t('models.catalogSyncBtn')}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={btnOutline}
+              onClick={() => void load().catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))}
+            >
+              <RefreshCw className="mr-1 inline h-3 w-3" strokeWidth={2} />
+              {t('models.reload')}
+            </button>
+          </div>
         }
       />
 
@@ -312,7 +437,9 @@ export function ModelsSettingsPanel() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0 px-1">
             <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{t('models.userProvidersTitle')}</h3>
-            <p className="mt-0.5 text-[12.5px] leading-[1.6] text-foreground-secondary">{t('models.userProvidersDescription', { count: providerIds.length })}</p>
+            <p className="mt-0.5 text-[12.5px] leading-[1.6] text-foreground-secondary">
+              {t('models.userProvidersDescription', { count: providerIds.length })}
+            </p>
           </div>
           <div className="relative">
             <button type="button" className={btnPrimary} onClick={() => setAddMenuOpen((o) => !o)}>
@@ -327,37 +454,99 @@ export function ModelsSettingsPanel() {
                   aria-label={t('models.close')}
                   onClick={() => setAddMenuOpen(false)}
                 />
-                <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2 shadow-lg">
-                  <div className="px-2 py-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/50">
-                    {t('models.selectTemplate')}
+                <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(380px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2.5 shadow-xl">
+                  <div className="relative mb-2">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+                    <input
+                      ref={presetSearchRef}
+                      className="settings-field h-[30px] w-full rounded-lg border border-border/70 bg-background pl-8 pr-2.5 text-[12.5px] outline-none focus:border-primary/60"
+                      placeholder={t('models.presetSearchPlaceholder')}
+                      value={presetQuery}
+                      onChange={(e) => setPresetQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setAddMenuOpen(false)
+                        if (e.key === 'Enter' && filteredPresets.length === 1) {
+                          addFromPreset(filteredPresets[0])
+                        }
+                      }}
+                    />
                   </div>
-                  <div className="max-h-[min(420px,60vh)] overflow-y-auto">
-                    {PROVIDER_PRESETS.map((preset) => (
+                  <div className="mb-2 flex items-center gap-1">
+                    {(['all', 'official', 'relay', 'local'] as const).map((cat) => (
                       <button
-                        key={preset.id}
+                        key={cat}
                         type="button"
-                        className="settings-preset-menu-item flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left"
-                        onClick={() => addFromPreset(preset)}
+                        onClick={() => setPresetCategory(cat)}
+                        className={cn(
+                          'rounded-md px-2 py-0.5 text-[11px] transition-colors',
+                          presetCategory === cat
+                            ? 'bg-primary/12 font-medium text-primary'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}
                       >
-                        <ProviderAvatar preset={preset} label={presetLabel(preset, t)} />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-base font-medium">{presetLabel(preset, t)}</div>
-                          <div className="text-xs text-muted-foreground">{presetTagline(preset, t)}</div>
-                          <div className="mt-0.5 font-mono text-2xs text-muted-foreground/50">
-                            {t('models.keyName')} {preset.defaultKey}
-                            {preset.starterModels?.length
-                              ? ` · ${t('models.containsModels', { count: preset.starterModels.length })}`
-                              : ` · ${t('models.needsFetch')}`}
-                          </div>
-                        </div>
+                        {t(`models.presetCategory.${cat}`)}
                       </button>
                     ))}
+                  </div>
+                  <div className="max-h-[min(360px,56vh)] overflow-y-auto">
+                    {filteredPresets.length === 0 ? (
+                      <p className="py-5 text-center text-[12px] text-muted-foreground">
+                        {t('models.noMatchModel')}
+                      </p>
+                    ) : (
+                      filteredPresets.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          className="settings-preset-menu-item flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left"
+                          onClick={() => addFromPreset(preset)}
+                        >
+                          <ProviderAvatar preset={preset} label={presetLabel(preset, t)} />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-medium leading-tight">{presetLabel(preset, t)}</div>
+                            <div className="mt-0.5 text-[11.5px] text-muted-foreground">{presetTagline(preset, t)}</div>
+                            <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/65">
+                              {t('models.keyName', { key: preset.defaultKey })}
+                              {preset.starterModels?.length
+                                ? ` · ${t('models.containsModels', { count: preset.starterModels.length })}`
+                                : ` · ${t('models.needsFetch')}`}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               </>
             )}
           </div>
         </div>
+
+        {providerIds.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-1.5 px-0.5" role="navigation" aria-label={t('models.userProvidersTitle')}>
+            {providerIds.map((pid) => {
+              const p = draft!.providers[pid]
+              const label = p.name || presetLabel(guessPresetForProvider(pid, p), t) || pid
+              const active = expanded[pid] === true
+              return (
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => focusProvider(pid)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] transition-colors',
+                    active
+                      ? 'border-primary/45 bg-primary/10 font-medium text-foreground'
+                      : 'border-border/60 bg-background/60 text-foreground-secondary hover:bg-muted/70 hover:text-foreground',
+                  )}
+                >
+                  <span className="max-w-[9rem] truncate">{label}</span>
+                  <span className="font-mono text-[10.5px] tabular-nums opacity-70">{p.models?.length ?? 0}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
 
         {providerIds.length === 0 ? (
           <p className="rounded-md border border-dashed border-border/50 px-3 py-3 text-sm text-muted-foreground">
@@ -366,11 +555,13 @@ export function ModelsSettingsPanel() {
         ) : (
           <div className="space-y-2">
             {providerIds.map((pid, cardIndex) => {
-              const catalogIds = Array.from(new Set(
-                (remoteCatalog[pid]?.ids || []).filter(
-                  (id) => !(draft?.providers[pid].models || []).some((model) => model.id === id),
+              const catalogIds = Array.from(
+                new Set(
+                  (remoteCatalog[pid]?.ids || []).filter(
+                    (id) => !(draft?.providers[pid].models || []).some((model) => model.id === id),
+                  ),
                 ),
-              ))
+              )
               return (
                 <ModelsProviderCard
                   key={pid}
@@ -419,6 +610,7 @@ export function ModelsSettingsPanel() {
                   onAddAllNew={() => addAllNewToLocal(pid)}
                   onUpdateModel={(modelId, patch) => updateModelEntry(pid, modelId, patch)}
                   onRemoveModel={(modelId) => removeModel(pid, modelId)}
+                  sdkModels={settingsModels}
                 />
               )
             })}
@@ -431,6 +623,8 @@ export function ModelsSettingsPanel() {
       {manualAddProviderId && draft?.providers[manualAddProviderId] && (
         <ManualModelAddDialog
           open
+          providerId={manualAddProviderId}
+          baseUrl={draft.providers[manualAddProviderId].baseUrl}
           providerLabel={
             draft.providers[manualAddProviderId].name ||
             presetLabel(guessPresetForProvider(manualAddProviderId, draft.providers[manualAddProviderId]), t) ||

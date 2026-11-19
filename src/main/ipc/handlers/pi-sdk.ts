@@ -6,6 +6,7 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
+import { getUpstreamModelCatalog } from '../../models-dev-catalog'
 import { remoteTap } from '../../remote/tap'
 import { clearGlobalSdkPathCache, readSdkSelection } from '../../sdk-loader'
 import {
@@ -94,6 +95,10 @@ export function registerPiSdkHandlers(): void {
       apiKey: req?.apiKey,
       authHeader: req?.authHeader,
     }),
+  )
+
+  registerHandler('ipc:pi.models.catalog', async (req) =>
+    getUpstreamModelCatalog({ force: req?.force === true }),
   )
 
   registerHandler('ipc:sdk.status', async (req) => {

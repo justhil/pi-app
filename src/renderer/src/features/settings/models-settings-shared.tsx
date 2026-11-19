@@ -2,6 +2,11 @@ import i18n from '@renderer/lib/i18n'
 import { cn } from '@renderer/lib/utils'
 import type { PiModelsConfigPayload } from '@shared/ipc-contract'
 import type { ProviderPreset } from '@renderer/features/settings/model-provider-presets'
+import {
+  buildModelEntryFromUpstream,
+  resolveUpstreamModelSpec,
+  type UpstreamCatalogSnapshot,
+} from '@shared/models-dev-catalog'
 import type { LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
 
 export const API_OPTS = [
@@ -44,14 +49,33 @@ export function ProviderAvatar({ preset, label }: { preset?: ProviderPreset; lab
   )
 }
 
-export function defaultModelEntry(id: string): LocalModelEntry {
-  const guessReasoning = /^(o\d|gpt-5|claude-opus|deepseek-reasoner|think)/i.test(id)
-  const guessVision = /(vision|gpt-4o|gemini|claude-3|image)/i.test(id)
-  return {
-    id,
-    name: id,
-    reasoning: guessReasoning || undefined,
-    input: guessVision ? ['text', 'image'] : ['text'],
-    ...(guessReasoning ? { thinkingLevelMap: { xhigh: 'xhigh', max: 'max' } } : {}),
-  }
+export function defaultModelEntry(
+  id: string,
+  opts?: {
+    catalog?: UpstreamCatalogSnapshot | null
+    providerId?: string
+    baseUrl?: string
+  },
+): LocalModelEntry {
+  const spec = resolveUpstreamModelSpec(opts?.catalog, id, {
+    providerId: opts?.providerId,
+    baseUrl: opts?.baseUrl,
+  })
+  return buildModelEntryFromUpstream(id, spec)
+}
+
+export function formatContextK(n: number | undefined): string {
+  if (!n || !Number.isFinite(n)) return ''
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1000) return `${Math.round(n / 1000)}K`
+  return String(n)
+}
+
+export function formatShortPrice(cost?: { input?: number; output?: number }): string {
+  if (!cost) return ''
+  const hasIn = typeof cost.input === 'number'
+  const hasOut = typeof cost.output === 'number'
+  if (!hasIn && !hasOut) return ''
+  const fmt = (v?: number) => (typeof v === 'number' ? `$${Number(v.toFixed(3))}` : '—')
+  return `${fmt(cost.input)}/${fmt(cost.output)}`
 }

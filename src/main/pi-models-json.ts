@@ -266,10 +266,29 @@ function resolveApiKeyForFetch(apiKey?: string): string | undefined {
   return apiKey
 }
 
-function modelsListUrl(baseUrl: string): string {
+function modelsListCandidateUrls(baseUrl: string): string[] {
   const trimmed = baseUrl.replace(/\/+$/, '')
-  if (/\/v\d+$/i.test(trimmed)) return `${trimmed}/models`
-  return `${trimmed}/v1/models`
+  const out: string[] = []
+  const add = (u: string) => {
+    if (u && !out.includes(u)) out.push(u)
+  }
+
+  if (/\/v\d+(?:beta\d*)?$/i.test(trimmed)) {
+    add(`${trimmed}/models`)
+  } else {
+    add(`${trimmed}/v1/models`)
+    add(`${trimmed}/models`)
+  }
+
+  // Fallback for Anthropic-compatible / vendor subpath relays (e.g. DeepSeek / Kimi / GLM / MiniMax `/anthropic`):
+  // strip trailing compat subpath and try `/v1/models` and `/models` at the API root.
+  const stripped = trimmed.replace(/\/(?:anthropic|claude|messages|openai)(?:\/v\d+(?:beta\d*)?)?$/i, '')
+  if (stripped && stripped !== trimmed) {
+    add(`${stripped}/v1/models`)
+    add(`${stripped}/models`)
+  }
+
+  return out
 }
 
 export async function fetchRemoteModelIds(input: {
@@ -280,25 +299,35 @@ export async function fetchRemoteModelIds(input: {
   const baseUrl = input.baseUrl?.trim()
   if (!baseUrl) return { ok: false, error: '缺少 baseUrl' }
   const key = resolveApiKeyForFetch(input.apiKey)
-  const url = modelsListUrl(baseUrl)
+  const candidates = modelsListCandidateUrls(baseUrl)
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (key) {
     if (input.authHeader !== false) headers.Authorization = `Bearer ${key}`
     else headers['x-api-key'] = key
   }
-  try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(25_000) })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      return { ok: false, error: `HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}` }
+
+  let lastError = '请求失败'
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) })
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        lastError = `HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ''}`
+        continue
+      }
+      const data = (await res.json()) as {
+        data?: { id?: string }[]
+        models?: { id?: string; name?: string }[]
+      }
+      const fromData = (data.data || []).map((m) => m.id).filter(Boolean) as string[]
+      const fromModels = (data.models || []).map((m) => m.id || m.name).filter(Boolean) as string[]
+      const ids = [...new Set([...fromData, ...fromModels])].sort((a, b) => a.localeCompare(b))
+      if (ids.length > 0) return { ok: true, ids }
+      lastError = '响应中未找到模型列表（需 OpenAI 兼容 /v1/models）'
+    } catch (e: unknown) {
+      lastError = (e as { message?: string })?.message || '请求失败'
     }
-    const data = (await res.json()) as { data?: { id?: string }[]; models?: { id?: string; name?: string }[] }
-    const fromData = (data.data || []).map((m) => m.id).filter(Boolean) as string[]
-    const fromModels = (data.models || []).map((m) => m.id || m.name).filter(Boolean) as string[]
-    const ids = [...new Set([...fromData, ...fromModels])].sort((a, b) => a.localeCompare(b))
-    if (ids.length === 0) return { ok: false, error: '响应中未找到模型列表（需 OpenAI 兼容 /v1/models）' }
-    return { ok: true, ids }
-  } catch (e: unknown) {
-    return { ok: false, error: (e as { message?: string })?.message || '请求失败' }
   }
+
+  return { ok: false, error: lastError }
 }

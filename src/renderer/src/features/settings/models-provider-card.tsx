@@ -1,20 +1,28 @@
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, CloudDownload, Eye, EyeOff, Trash2 } from '@renderer/components/icons'
+import { ChevronRight, Eye, EyeOff, Sparkles, Trash2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
-import type { PiModelsConfigPayload, PiModelsProviderConfig } from '@shared/ipc-contract'
+import type { ModelInfo, PiModelsConfigPayload, PiModelsProviderConfig } from '@shared/ipc-contract'
+import {
+  computeSpecFillPatch,
+  resolveUpstreamModelSpec,
+} from '@shared/models-dev-catalog'
 import {
   PROVIDER_PRESETS,
   guessPresetForProvider,
   presetLabel,
   type ProviderPreset,
 } from '@renderer/features/settings/model-provider-presets'
-import { ModelCatalogPicker } from '@renderer/features/settings/model-catalog-picker'
 import { ModelEntryEditor, type LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
+import { ModelAutocompleteBar } from '@renderer/features/settings/model-autocomplete-bar'
+import {
+  ensureUpstreamCatalogLoaded,
+  useUpstreamModelCatalogStore,
+} from '@renderer/features/settings/upstream-model-catalog'
 import {
   API_OPTS,
   ProviderAvatar,
   btnDanger,
-  btnOutline,
   inputCls,
   maskApiKey,
   selectCls,
@@ -44,6 +52,7 @@ export function ModelsProviderCard({
   onAddAllNew,
   onUpdateModel,
   onRemoveModel,
+  sdkModels,
 }: {
   pid: string
   cardIndex: number
@@ -66,13 +75,50 @@ export function ModelsProviderCard({
   onAddAllNew: () => void
   onUpdateModel: (modelId: string, patch: Partial<LocalModelEntry>) => void
   onRemoveModel: (modelId: string) => void
+  sdkModels?: ModelInfo[]
 }) {
   const { t } = useTranslation('settings')
+  const catalog = useUpstreamModelCatalogStore((s) => s.snapshot)
+  const catalogLoading = useUpstreamModelCatalogStore((s) => s.loading)
   const p = config.providers[pid]
   const preset = guessPresetForProvider(pid, p)
   const displayName = p.name || presetLabel(preset, t) || pid
-  const modelCount = p.models?.length ?? 0
+  const models = p.models ?? []
+  const modelCount = models.length
   const hasOverrides = p.modelOverrides && Object.keys(p.modelOverrides).length > 0
+
+  // Preload upstream catalog lazily once a provider card is open (zero unsolicited IPC on mount).
+  useEffect(() => {
+    if (open) void ensureUpstreamCatalogLoaded()
+  }, [open])
+
+  const localIds = useMemo(() => new Set(models.map((m) => m.id)), [models])
+
+  const matchedSpecsByModelId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolveUpstreamModelSpec>>()
+    if (!catalog?.models.length) return map
+    for (const m of models) {
+      map.set(m.id, resolveUpstreamModelSpec(catalog, m.id, { providerId: pid, baseUrl: p.baseUrl }))
+    }
+    return map
+  }, [catalog, models, p.baseUrl, pid])
+
+  const fillableModels = useMemo(() => {
+    const list: Array<{ id: string; patch: Partial<LocalModelEntry> }> = []
+    for (const m of models) {
+      const spec = matchedSpecsByModelId.get(m.id)
+      if (!spec) continue
+      const patch = computeSpecFillPatch(m, spec, { overwriteExisting: false })
+      if (Object.keys(patch).length > 0) list.push({ id: m.id, patch })
+    }
+    return list
+  }, [matchedSpecsByModelId, models])
+
+  const handleFillAllMissing = () => {
+    for (const item of fillableModels) {
+      onUpdateModel(item.id, item.patch)
+    }
+  }
 
   return (
     <div
@@ -84,17 +130,17 @@ export function ModelsProviderCard({
     >
       <button
         type="button"
-        className="settings-provider-header interactive-row flex w-full items-center gap-3 px-3 py-3 text-left"
+        className="settings-provider-header interactive-row flex w-full items-center gap-3 px-3 py-2.5 text-left"
         onClick={onToggleOpen}
       >
         <ChevronRight className="settings-chevron h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={2} data-open={open} />
         <ProviderAvatar preset={preset} label={displayName} />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[14px] font-medium text-foreground">{displayName}</span>
-            {pid !== displayName ? <span className="truncate font-mono text-[11.5px] text-foreground-secondary">{pid}</span> : null}
+            <span className="truncate text-[13.5px] font-medium text-foreground">{displayName}</span>
+            {pid !== displayName ? <span className="truncate font-mono text-[11px] text-foreground-secondary">{pid}</span> : null}
           </div>
-          <div className="mt-0.5 truncate text-[12px] text-foreground-secondary">
+          <div className="mt-0.5 truncate text-[11.5px] text-foreground-secondary">
             {p.baseUrl || t('models.notSetBaseUrl')}
             <span className="mx-1.5 text-border">·</span>
             {API_OPTS.find((o) => o.v === p.api)?.l || p.api || t('models.apiNotSetLabel')}
@@ -102,20 +148,22 @@ export function ModelsProviderCard({
             {maskApiKey(p.apiKey)}
           </div>
         </div>
-        <span className="shrink-0 text-[12px] tabular-nums text-foreground-secondary">{t('models.modelCount', { count: modelCount })}</span>
+        <span className="shrink-0 rounded-full bg-muted/70 px-2 py-0.5 text-[11px] tabular-nums text-foreground-secondary">
+          {t('models.modelCount', { count: modelCount })}
+        </span>
       </button>
 
       <div className="settings-expand-grid" data-open={open}>
         <div className="settings-expand-inner">
-          <div className="settings-expand-content space-y-5 px-4 py-4">
-
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="settings-expand-content space-y-4 px-4 py-3.5">
+            {/* Connection block (compact 2-row grid) */}
+            <div className="grid gap-2.5 sm:grid-cols-2">
               <div>
                 <label className="mb-1 flex items-center justify-between text-[11.5px] text-foreground-secondary">
-                  {t('models.labelName')}
+                  <span>{t('models.labelName')}</span>
                   <select
                     aria-label={t('models.changeTemplate')}
-                    className="max-w-[10rem] bg-transparent text-right text-[11.5px] text-foreground-secondary outline-none hover:text-foreground"
+                    className="max-w-[9.5rem] bg-transparent text-right text-[11px] text-foreground-secondary outline-none hover:text-foreground"
                     value=""
                     onChange={(e) => {
                       const pr = PROVIDER_PRESETS.find((x) => x.id === e.target.value)
@@ -136,6 +184,7 @@ export function ModelsProviderCard({
                   onChange={(e) => onUpdateProvider({ name: e.target.value || undefined })}
                 />
               </div>
+
               <div>
                 <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelApi')}</label>
                 <select
@@ -150,20 +199,22 @@ export function ModelsProviderCard({
                   ))}
                 </select>
               </div>
-              <div className="sm:col-span-2">
+
+              <div>
                 <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelBaseUrl')}</label>
                 <input
-                  className={cn(inputCls, fieldCls)}
+                  className={cn(inputCls, fieldCls, 'font-mono text-[12px]')}
                   value={p.baseUrl || ''}
                   placeholder="https://api.example.com/v1"
                   onChange={(e) => onUpdateProvider({ baseUrl: e.target.value || undefined })}
                 />
               </div>
-              <div className="sm:col-span-2">
+
+              <div>
                 <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelApiKey')}</label>
                 <div className="relative">
                   <input
-                    className={cn(inputCls, fieldCls, 'pr-9')}
+                    className={cn(inputCls, fieldCls, 'pr-8 font-mono text-[12px]')}
                     type={apiKeyVisible ? 'text' : 'password'}
                     value={p.apiKey || ''}
                     placeholder="$OPENAI_API_KEY"
@@ -181,57 +232,75 @@ export function ModelsProviderCard({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={cn(btnOutline, 'border-primary/30 text-primary')}
-                disabled={fetching}
-                onClick={onFetchRemote}
-              >
-                <CloudDownload className="mr-1 inline h-3 w-3" strokeWidth={2} />
-                {fetching ? t('models.fetching') : t('models.fetchModels')}
-              </button>
-              <button type="button" className={btnOutline} onClick={onManualAdd}>
-                {t('models.manualAdd')}
-              </button>
-              <button
-                type="button"
-                className={cn(btnDanger, 'ml-auto')}
-                onClick={onRemoveProvider}
-              >
-                <Trash2 className="mr-1 inline h-3 w-3" strokeWidth={2} />
-                {t('models.deleteBtn')}
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="text-[12px] font-medium text-foreground">{t('models.remoteModels')}</h4>
-              <ModelCatalogPicker
-                ids={remoteIds}
-                localIds={new Set((p.models || []).map((m) => m.id))}
-                loading={fetching}
-                error={remoteError}
-                onAdd={onAddModel}
-                onAddAllNew={onAddAllNew}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h4 className="text-[12px] font-medium text-foreground">{t('models.localCount', { count: modelCount })}</h4>
+            {/* Unified Models Workspace: instant autocomplete + optional remote fetch + clean list */}
+            <div className="space-y-2.5 border-t border-[var(--settings-divider)] pt-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-[12px] font-medium text-foreground">
+                  {t('models.localCount', { count: modelCount })}
+                </h4>
+                <div className="flex items-center gap-2">
+                  {fillableModels.length > 0 ? (
+                    <button
+                      type="button"
+                      data-testid={`fill-missing-specs-${pid}`}
+                      className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      onClick={handleFillAllMissing}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>{t('models.fillMissingSpecs', { count: fillableModels.length })}</span>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={cn(btnDanger, 'h-[26px] px-2 text-[11.5px]')}
+                    onClick={onRemoveProvider}
+                  >
+                    <Trash2 className="mr-1 inline h-3 w-3" strokeWidth={2} />
+                    {t('models.deleteBtn')}
+                  </button>
+                </div>
               </div>
+
+              <ModelAutocompleteBar
+                providerId={pid}
+                baseUrl={p.baseUrl}
+                catalog={catalog}
+                catalogLoading={catalogLoading}
+                remoteIds={remoteIds}
+                remoteError={remoteError}
+                fetchingRemote={fetching}
+                sdkModels={sdkModels}
+                localIds={localIds}
+                onEnsureCatalog={() => void ensureUpstreamCatalogLoaded()}
+                onAddModel={onAddModel}
+                onAddAllRemote={onAddAllNew}
+                onFetchRemote={onFetchRemote}
+                onOpenBatchAdd={onManualAdd}
+              />
+
               {modelCount > 0 ? (
                 <div className="space-y-1.5">
-                  {(p.models || []).map((m) => {
+                  {models.map((m) => {
                     const rowKey = `${pid}\0${m.id}`
                     const rowExpanded = expandedLocalModel[rowKey] === true
+                    const matchedSpec = matchedSpecsByModelId.get(m.id) ?? null
                     return (
                       <div key={m.id} className={rowExpanded ? undefined : 'settings-virtual-row settings-virtual-row-sm'}>
                         <ModelEntryEditor
                           model={m}
                           expanded={rowExpanded}
+                          matchedSpec={matchedSpec}
                           onToggleExpand={() => onToggleLocalModel(rowKey)}
                           onChange={(patch) => onUpdateModel(m.id, patch)}
+                          onApplySpec={
+                            matchedSpec
+                              ? () =>
+                                  onUpdateModel(
+                                    m.id,
+                                    computeSpecFillPatch(m, matchedSpec, { overwriteExisting: true }),
+                                  )
+                              : undefined
+                          }
                           onRemove={() => onRemoveModel(m.id)}
                         />
                       </div>
@@ -240,7 +309,7 @@ export function ModelsProviderCard({
                 </div>
               ) : (
                 <p className="rounded-lg border border-dashed border-[var(--border-base)] px-3 py-4 text-center text-[12px] text-foreground-secondary">
-                  {t('models.localEmptyHint')}
+                  {t('models.autocompleteEmptyHint')}
                 </p>
               )}
             </div>

@@ -94,6 +94,7 @@ export const IPC_INVOKE_CHANNELS = [
   'ipc:model.list',
   'ipc:model.set',
   'ipc:pi.getInfo',
+  'ipc:pi.models.catalog',
   'ipc:pi.models.fetch',
   'ipc:pi.models.get',
   'ipc:pi.models.set',

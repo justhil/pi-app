@@ -1,22 +1,30 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { Sparkles } from '@renderer/components/icons'
+import { resolveUpstreamModelSpec } from '@shared/models-dev-catalog'
+import { useUpstreamModelCatalogStore } from './upstream-model-catalog'
 import { parseModelIdList, sanitizeModelId, validateModelId } from './model-id-utils'
 
 export function ManualModelAddDialog({
   open,
+  providerId,
+  baseUrl,
   providerLabel,
   existingIds,
   onConfirm,
   onCancel,
 }: {
   open: boolean
+  providerId?: string
+  baseUrl?: string
   providerLabel: string
   existingIds: Set<string>
   onConfirm: (ids: string[]) => void | Promise<void>
   onCancel: () => void
 }) {
   const { t: tr } = useTranslation('settings')
+  const catalog = useUpstreamModelCatalogStore((s) => s.snapshot)
   const titleId = useId()
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [value, setValue] = useState('')
@@ -106,6 +114,10 @@ export function ManualModelAddDialog({
   }
 
   const { valid, invalid, dup } = preview()
+  const matchedUpstreamCount =
+    catalog?.models.length && valid.length > 0
+      ? valid.filter((id) => Boolean(resolveUpstreamModelSpec(catalog, id, { providerId, baseUrl }))).length
+      : 0
 
   return createPortal(
     <div
@@ -145,10 +157,16 @@ export function ManualModelAddDialog({
           }}
         />
         {value.trim() && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {tr('models.willAdd', { count: valid.length })}
-            {dup.length > 0 && <span> · {tr('models.skipDuplicates', { count: dup.length })}</span>}
-            {invalid.length > 0 && <span className="text-amber-700 dark:text-amber-300"> · {tr('models.invalidFormat')} {invalid.length}</span>}
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span>{tr('models.willAdd', { count: valid.length })}</span>
+            {matchedUpstreamCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-primary">
+                <Sparkles className="h-3 w-3" />
+                {tr('models.batchMatchedUpstream', { count: matchedUpstreamCount })}
+              </span>
+            )}
+            {dup.length > 0 && <span>· {tr('models.skipDuplicates', { count: dup.length })}</span>}
+            {invalid.length > 0 && <span className="text-amber-700 dark:text-amber-300">· {tr('models.invalidFormat')} {invalid.length}</span>}
           </p>
         )}
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}

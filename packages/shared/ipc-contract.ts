@@ -13,6 +13,7 @@ import type {
 } from './usage-summary'
 import type { CustomTheme, ThemeWindowMaterial } from './custom-theme'
 import type { CssSnippetItem, CssSnippetValues, SavedThemePack } from './theme-pack'
+import type { UpstreamCatalogSnapshot } from './models-dev-catalog'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -344,6 +345,7 @@ export interface IpcMethodMap {
   'pi.models.get': { request: PiModelsGetRequest; response: PiModelsGetResponse }
   'pi.models.set': { request: PiModelsSetRequest; response: PiModelsSetResponse }
   'pi.models.fetch': { request: PiModelsFetchRequest; response: PiModelsFetchResponse }
+  'pi.models.catalog': { request: { force?: boolean }; response: UpstreamCatalogSnapshot }
   'thinkingLevel.set': { request: ThinkingLevelSetRequest; response: ThinkingLevelSetResponse }
   'commands.list': { request: CommandsListRequest; response: CommandsListResponse }
   'review.getDiff': { request: ReviewGetDiffRequest; response: ReviewGetDiffResponse }
