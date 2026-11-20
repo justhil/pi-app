@@ -14,13 +14,6 @@ import {
   useDismissContextMenu,
 } from '@renderer/features/workspace/context-menu-shared'
 
-function previewText(value?: string): string | undefined {
-  if (!value) return undefined
-  const textarea = document.createElement('textarea')
-  textarea.innerHTML = value.replace(/</g, '&lt;')
-  return textarea.value
-}
-
 export function MarkdownLink({ href, children, baseDirectory, ...props }: ComponentPropsWithoutRef<'a'> & { baseDirectory?: string }) {
   const { t } = useTranslation()
   const workspaceRoot = useUIStore((store) => store.currentWorkspace)
@@ -241,9 +234,9 @@ export function MarkdownLink({ href, children, baseDirectory, ...props }: Compon
               </div>
               {preview?.image && <img src={preview.image} alt="" className="h-44 w-full object-cover" onError={(event) => { event.currentTarget.hidden = true }} />}
               <div className="space-y-2 px-4 py-3">
-                <div className="line-clamp-2 break-words text-sm font-semibold">{previewText(preview?.title) || children}</div>
+                <div className="line-clamp-2 break-words text-sm font-semibold">{preview?.title || children}</div>
                 {isWeb && !preview && <p role="status" className="text-xs text-muted-foreground">{t('common:loading')}</p>}
-                {preview?.description && <p className="line-clamp-3 break-words text-xs leading-relaxed text-muted-foreground">{previewText(preview.description)}</p>}
+                {preview?.description && <p className="line-clamp-3 break-words text-xs leading-relaxed text-muted-foreground">{preview.description}</p>}
                 <p className={cn('text-xs text-muted-foreground', filePath ? 'break-all' : 'truncate')} title={filePath || href}>{filePath || href}</p>
               </div>
             </>

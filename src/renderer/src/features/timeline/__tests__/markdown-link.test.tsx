@@ -11,7 +11,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const href = 'https://github.com/justhil/pi-app/pull/109'
 const markdown = `[**PR #109**](${href})`
-const preview = { url: href, title: 'Fix &amp; improve sessions', description: 'Keep the first message.', image: 'data:image/png;base64,AA==' }
+const preview = { url: href, title: 'Fix & improve sessions', description: 'Keep the first message.', image: 'data:image/png;base64,AA==' }
 
 beforeEach(async () => {
   await i18n.changeLanguage('en')

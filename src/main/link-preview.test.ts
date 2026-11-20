@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), resolveHost: vi.fn() }))
 vi.mock('electron', () => ({ net: mocks }))
 
-import { getLinkPreview, isPublicPreviewAddress, isWebLink, parseLinkPreview } from './link-preview'
+import { getLinkPreview, isPublicPreviewAddress, isWebLink } from './link-preview'
 
 type ResponseFixture = { status?: number; type?: string; location?: string; body?: string | Buffer }
 function respond(fixtures: ResponseFixture[]) {
@@ -22,21 +22,42 @@ beforeEach(() => {
 })
 
 describe('Link preview', () => {
-  it('extracts Open Graph metadata ahead of fallbacks and ignores scripts, comments and body tags', () => {
-    expect(parseLinkPreview(`<head><title>Fallback</title>
+  it('extracts Open Graph metadata ahead of fallbacks and ignores scripts, comments and body tags', async () => {
+    respond([
+      { body: `<head><title>Fallback</title>
       <!-- <meta property="og:title" content="Comment"> -->
       <script>const html = '<meta property="og:title" content="Script">'</script>
       <meta CONTENT='Real &amp; useful' PROPERTY='og:title'>
       <meta name=description content="Description > details">
       <meta property="og:image" content="/image.png?a=1&amp;b=2"></head>
-      <meta property="og:title" content="Body">`, 'https://example.com/page')).toEqual({
-      url: 'https://example.com/page', title: 'Real &amp; useful', description: 'Description > details',
-      imageUrl: 'https://example.com/image.png?a=1&b=2',
+      <meta property="og:title" content="Body">` },
+      { type: 'image/png', body: Buffer.from([1]) },
+    ])
+    expect(await getLinkPreview('https://example.com/page')).toEqual({
+      url: 'https://example.com/page', title: 'Real & useful', description: 'Description > details', image: 'data:image/png;base64,AQ==',
     })
+    expect(mocks.fetch.mock.calls[1][0]).toBe('https://example.com/image.png?a=1&b=2')
   })
 
-  it('falls back to standard HTML title and Twitter metadata', () => {
-    expect(parseLinkPreview('<title>Plain page</title><meta name="twitter:description" content="Summary">', 'https://example.com')).toMatchObject({ title: 'Plain page', description: 'Summary' })
+  it('falls back to standard HTML title and Twitter metadata', async () => {
+    respond([{ body: '<title>Plain page</title><meta name="twitter:description" content="Summary">' }])
+    expect(await getLinkPreview('https://example.com/plain')).toMatchObject({ title: 'Plain page', description: 'Summary' })
+  })
+
+  it('decodes pages using the charset from the header or <meta charset>', async () => {
+    respond([{ type: 'text/html; charset=shift_jis', body: Buffer.concat([Buffer.from('<title>'), Buffer.from([0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/shift-jis')).toMatchObject({ title: '日本語' })
+    respond([{ type: 'text/html', body: Buffer.concat([Buffer.from('<meta charset="gbk"><title>'), Buffer.from([0xd6, 0xd0, 0xce, 0xc4]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/gbk')).toMatchObject({ title: '中文' })
+  })
+
+  it('resolves a relative share image against <base href>', async () => {
+    respond([
+      { body: '<base href="https://cdn.example.com/assets/"><meta property="og:image" content="share.png"></head>' },
+      { type: 'image/png', body: Buffer.from([1]) },
+    ])
+    expect(await getLinkPreview('https://example.com/base-href')).toMatchObject({ image: 'data:image/png;base64,AQ==' })
+    expect(mocks.fetch.mock.calls[1][0]).toBe('https://cdn.example.com/assets/share.png')
   })
 
   it.each(['127.0.0.1', '10.1.1.1', '169.254.169.254', '172.16.0.1', '192.168.1.1', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', 'fc00::1', 'fe80::1', '::ffff:127.0.0.1'])('rejects non-public preview addresses: %s', (address) => {
@@ -59,7 +80,7 @@ describe('Link preview', () => {
     expect(result).toMatchObject({ title: 'Page', image: 'data:image/png;base64,AQID' })
     expect(await getLinkPreview(`${url}#section`)).toEqual(result)
     expect(mocks.fetch).toHaveBeenCalledTimes(2)
-    expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ credentials: 'omit', redirect: 'manual', headers: { Accept: 'text/html' } })
+    expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ credentials: 'omit', redirect: 'manual' })
   })
 
   it('checks DNS using the same Chromium resolver and rejects mixed public/private answers', async () => {
