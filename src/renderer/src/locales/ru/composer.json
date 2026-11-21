@@ -256,21 +256,41 @@
   "purge": {
     "shortLabel": "Purge",
     "choosePersona": "Выбрать персону и стратегию обхода",
-    "menuTitle": "Персона и конструирование истории",
+    "menuTitle": "Персона и обход",
+    "personaSectionLabel": "Персона",
+    "advancedTitle": "Тонкая настройка",
+    "openFullSettings": "Все настройки →",
+    "footerFirstTurn": "До 1-го хода свободно · без потерь кэша",
+    "footerMid": "В ходе чата · смена префикса с предупреждением",
     "firstTurnFreeBadge": "До 1-го хода свободно",
     "switchOn": "Вкл",
     "switchOff": "Выкл",
     "primerBadge": "Демо-ход",
-    "openSettings": "Настроить",
+    "openSettings": "Все настройки",
     "modeLabel": "Режим системного внедрения",
     "modes": {
       "replace": "Заменить роль",
       "append": "Дописывать",
       "strict": "Строго"
     },
-    "strategyPresetLabel": "Уровень обхода фильтров",
-    "showAdvanced": "Параметры",
+    "strategyPresetLabel": "Уровень обхода",
+    "showAdvanced": "Тонкая настройка",
     "hideAdvanced": "Скрыть",
+    "presetShort": {
+      "standard": "Лёгкий",
+      "relay_push": "Средний",
+      "tunnel": "Сильный"
+    },
+    "presetSub": {
+      "standard": "Кэш цел",
+      "relay_push": "Обход",
+      "tunnel": "Туннель"
+    },
+    "historyShort": {
+      "none": "Без сдвига",
+      "push": "Сдвиг хвоста",
+      "tunnel": "Туннель"
+    },
     "presets": {
       "standard": "Лёгкий · кэш",
       "relay_push": "Средний · обход",

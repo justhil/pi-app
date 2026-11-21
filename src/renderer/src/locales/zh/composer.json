@@ -256,21 +256,41 @@
   "purge": {
     "shortLabel": "人设",
     "choosePersona": "选择注入人设与抗拦截策略",
-    "menuTitle": "单会话人设与历史构造",
+    "menuTitle": "人设与破限",
+    "personaSectionLabel": "人设模板",
+    "advancedTitle": "高级微调",
+    "openFullSettings": "完整设置 →",
+    "footerFirstTurn": "首轮无限制 · 零缓存损耗",
+    "footerMid": "会话中 · 改前缀项会提示缓存影响",
     "firstTurnFreeBadge": "首轮无限制",
     "switchOn": "已开启",
     "switchOff": "已关闭",
     "primerBadge": "含示范轮",
-    "openSettings": "配置",
+    "openSettings": "完整设置",
     "modeLabel": "系统注入模式",
     "modes": {
       "replace": "换身份",
       "append": "追加",
       "strict": "只留人设"
     },
-    "strategyPresetLabel": "抗拦截强度档位",
-    "showAdvanced": "展开细项",
-    "hideAdvanced": "收起细项",
+    "strategyPresetLabel": "抗拦截强度",
+    "showAdvanced": "高级微调",
+    "hideAdvanced": "收起微调",
+    "presetShort": {
+      "standard": "轻度",
+      "relay_push": "中度",
+      "tunnel": "强力"
+    },
+    "presetSub": {
+      "standard": "稳缓存",
+      "relay_push": "防截断",
+      "tunnel": "全通道"
+    },
+    "historyShort": {
+      "none": "保持原样",
+      "push": "尾轮推入",
+      "tunnel": "全封装"
+    },
     "presets": {
       "standard": "轻度 · 稳缓存",
       "relay_push": "中度 · 防截断",

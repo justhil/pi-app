@@ -27,7 +27,7 @@ vi.mock('@renderer/lib/ipc-client', () => ({
   onAppEvent: () => () => {},
 }))
 
-describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher drift warning', () => {
+describe('ComposerPurgeToggle state machine, refined popover UX, cache reminders, and cipher drift warning', () => {
   beforeEach(() => {
     invokeMock.mockReset()
     const cfg = defaultAgentPurgeConfig()
@@ -53,6 +53,8 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
       historySessionFile: null,
       timelineItems: [],
       optimisticPendingUserText: null,
+      modelPickerOpen: false,
+      thinkingPickerOpen: false,
     })
   })
 
@@ -60,19 +62,22 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
     cleanup()
   })
 
-  it('starts OFF on a brand-new chat, opens menu on button click without auto-enabling, commits on first send, and resets on another draft', async () => {
+  it('starts OFF on a brand-new chat, dismisses sibling pickers on open, commits on first send, and resets on another draft', async () => {
+    useUIStore.setState({ modelPickerOpen: true, thinkingPickerOpen: true })
     const { rerender } = render(<ComposerPurgeToggle draftContextKey="new-chat" running={false} />)
 
     const btn = screen.getByTestId('composer-purge-toggle')
     expect(btn).toHaveAttribute('aria-expanded', 'false')
     expect(btn).toHaveAttribute('data-purge-state', 'draft-off')
 
-    // Clicking the persona icon/button opens the popover instead of silently applying a default preset
+    // Clicking the trigger opens popover cleanly without auto-enabling and closes sibling pickers
     fireEvent.click(btn)
     expect(btn).toHaveAttribute('aria-expanded', 'true')
     expect(btn).toHaveAttribute('data-purge-state', 'draft-off')
+    expect(useUIStore.getState().modelPickerOpen).toBe(false)
+    expect(useUIStore.getState().thinkingPickerOpen).toBe(false)
 
-    // Enable via the explicit header switch inside the popover
+    // Enable via Radix Switch in header
     fireEvent.click(screen.getByTestId('composer-purge-enable-switch'))
     expect(btn).toHaveAttribute('data-purge-state', 'draft-on')
 
@@ -119,20 +124,29 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
     expect(screen.getByTestId('composer-purge-toggle')).toHaveAttribute('data-purge-state', 'draft-off')
   })
 
-  it('allows unrestricted switching before the first message and warns against keyword substitution drift', async () => {
+  it('keeps advanced section collapsed by default with live summary, auto-enables on preset pick, and warns on cipher drift', () => {
     render(<ComposerPurgeToggle draftContextKey="new-chat" running={false} />)
 
-    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
-    expect(screen.getByText('composer:purge.firstTurnFreeBadge')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('composer-purge-toggle'))
+    expect(screen.getByText('composer:purge.footerFirstTurn')).toBeInTheDocument()
 
-    // Switch directly to Tool Tunnel preset -> applies immediately without mid-session confirmation
-    fireEvent.click(screen.getByText('composer:purge.presets.tunnel'))
+    // Advanced section collapsed initially; thinking radio controls hidden until expanded
+    const advToggle = screen.getByTestId('purge-advanced-toggle')
+    expect(advToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('purge-thinking-tool_cot')).not.toBeInTheDocument()
+
+    // Picking a preset while OFF enables purge and applies tunnel strategy immediately on turn 1
+    fireEvent.click(screen.getByTestId('purge-preset-tunnel'))
     expect(screen.queryByTestId('purge-mid-session-confirm')).not.toBeInTheDocument()
+    expect(useAgentPurgeStore.getState().draftEnabled).toBe(true)
     expect(useAgentPurgeStore.getState().draftStrategy?.historyMode).toBe('tunnel')
 
-    // Open advanced options and select minimal keyword substitution -> shows drift warning
-    fireEvent.click(screen.getByText('composer:purge.showAdvanced'))
+    // Expand advanced drawer -> shows thinking modes & cipher drift warning
+    fireEvent.click(advToggle)
+    expect(advToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('purge-thinking-tool_cot')).toBeInTheDocument()
     expect(screen.getByText('composer:purge.badges.notRecommendedDrift')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('composer:purge.cipherLevels.minimal'))
     expect(screen.getByTestId('purge-cipher-drift-warning')).toHaveTextContent(
       'composer:purge.cipherDriftWarn',
@@ -160,8 +174,8 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
 
     render(<ComposerPurgeToggle draftContextKey="s1" running={false} />)
 
-    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
-    fireEvent.click(screen.getByText('composer:purge.presets.tunnel'))
+    fireEvent.click(screen.getByTestId('composer-purge-toggle'))
+    fireEvent.click(screen.getByTestId('purge-preset-tunnel'))
 
     const confirmBox = screen.getByTestId('purge-mid-session-confirm')
     expect(confirmBox).toHaveTextContent('composer:purge.impactReasons.switch_tunnel')
@@ -184,10 +198,12 @@ describe('ComposerPurgeToggle state machine, cache impact reminders, and cipher 
     })
   })
 
-  it('switches thinkingGuidance directly on turn 1 and selects tool_cot with relay enabled', () => {
+  it('switches thinkingGuidance inside expanded advanced drawer on turn 1 and enables tool_cot with relay', () => {
     render(<ComposerPurgeToggle draftContextKey="draft-cot" running={false} />)
-    fireEvent.click(screen.getByLabelText('composer:purge.choosePersona'))
+    fireEvent.click(screen.getByTestId('composer-purge-toggle'))
+    fireEvent.click(screen.getByTestId('purge-advanced-toggle'))
     fireEvent.click(screen.getByTestId('purge-thinking-tool_cot'))
+    expect(useAgentPurgeStore.getState().draftEnabled).toBe(true)
     expect(useAgentPurgeStore.getState().draftStrategy).toMatchObject({
       thinkingGuidance: 'tool_cot',
       toolOutputRelay: true,

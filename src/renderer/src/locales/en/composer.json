@@ -256,21 +256,41 @@
   "purge": {
     "shortLabel": "Purge",
     "choosePersona": "Choose persona and anti-filter strategy",
-    "menuTitle": "Session persona & history shaping",
+    "menuTitle": "Persona & Purge",
+    "personaSectionLabel": "Persona",
+    "advancedTitle": "Advanced",
+    "openFullSettings": "All settings →",
+    "footerFirstTurn": "First turn free · zero cache loss",
+    "footerMid": "Mid-chat · prefix changes warn on cache",
     "firstTurnFreeBadge": "First turn free",
     "switchOn": "On",
     "switchOff": "Off",
     "primerBadge": "Primer",
-    "openSettings": "Configure",
+    "openSettings": "All settings",
     "modeLabel": "System injection mode",
     "modes": {
       "replace": "Replace ID",
       "append": "Append",
       "strict": "Strict"
     },
-    "strategyPresetLabel": "Bypass intensity preset",
-    "showAdvanced": "Options",
-    "hideAdvanced": "Hide options",
+    "strategyPresetLabel": "Bypass intensity",
+    "showAdvanced": "Advanced",
+    "hideAdvanced": "Hide advanced",
+    "presetShort": {
+      "standard": "Light",
+      "relay_push": "Medium",
+      "tunnel": "Strong"
+    },
+    "presetSub": {
+      "standard": "Cache-safe",
+      "relay_push": "Unwrap",
+      "tunnel": "Tunnel"
+    },
+    "historyShort": {
+      "none": "Keep as-is",
+      "push": "Tail push",
+      "tunnel": "Full wrap"
+    },
     "presets": {
       "standard": "Light · Cache-safe",
       "relay_push": "Medium · Unwrap",
