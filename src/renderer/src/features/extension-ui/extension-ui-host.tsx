@@ -18,6 +18,7 @@ import {
   reconcileStaleInteractiveToolRows,
 } from '@renderer/lib/extension-ui-tool-sync'
 
+export type { AskQuestionPayload, ImageReviewPayload, ExtensionUIPending }
 
 function respond(payload: {
   id: string
@@ -66,105 +67,231 @@ function suspendActiveDialog() {
   toast.message(i18n.t('extension:suspendedToast'))
 }
 
-/** Option list for `ui.select`: number keys pick, arrows move focus. */
-function SelectDialog({ title, options, onPick, onSuspend, onCancel }: {
+type RewindOptionDisplay = {
+  label: string
+  description?: string
+  danger?: boolean
+}
+
+function mapRewindOption(raw: string, t: (key: string) => string): RewindOptionDisplay | null {
+  switch (raw) {
+    case 'Keep current files':
+    case 'Conversation only (keep current files)':
+      return {
+        label: t('extension:rewindPrompt.keepFiles'),
+        description: t('extension:rewindPrompt.keepFilesDesc'),
+      }
+    case 'Restore files to that point':
+      return {
+        label: t('extension:rewindPrompt.restoreFiles'),
+        description: t('extension:rewindPrompt.restoreFilesDesc'),
+      }
+    case 'Restore all (files + conversation)':
+      return {
+        label: t('extension:rewindPrompt.restoreAll'),
+        description: t('extension:rewindPrompt.restoreAllDesc'),
+      }
+    case 'Code only (restore files, keep conversation)':
+      return {
+        label: t('extension:rewindPrompt.codeOnly'),
+        description: t('extension:rewindPrompt.codeOnlyDesc'),
+      }
+    case 'Undo last file rewind':
+      return {
+        label: t('extension:rewindPrompt.undoFileRewind'),
+        description: t('extension:rewindPrompt.undoFileRewindDesc'),
+      }
+    case 'Cancel navigation':
+      return {
+        label: t('extension:rewindPrompt.cancel'),
+        description: t('extension:rewindPrompt.cancelDesc'),
+        danger: true,
+      }
+    default:
+      return null
+  }
+}
+
+/** Option list for ui.select: controlled hover + keyboard highlight, localized rewind options. */
+function SelectDialog({
+  title,
+  options,
+  suspendable,
+  onPick,
+  onSuspend,
+  onCancel,
+}: {
   title: string
   options: string[]
+  suspendable: boolean
   onPick: (value: string) => void
   onSuspend: () => void
   onCancel: () => void
 }) {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const isRewindPrompt = title === 'Restore Options'
+  const displayTitle = isRewindPrompt ? t('extension:rewindPrompt.title') : title
+  const displaySubtitle = isRewindPrompt ? t('extension:rewindPrompt.subtitle') : undefined
+
   useEffect(() => {
-    listRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true })
-  }, [])
-  const focusRow = (delta: number) => {
-    const rows = [...(listRef.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-    const current = rows.indexOf(document.activeElement as HTMLButtonElement)
-    rows[(current + delta + rows.length) % rows.length]?.focus()
-  }
+    setActiveIndex(0)
+    listRef.current?.querySelector<HTMLButtonElement>('button[role="option"]')?.focus({ preventScroll: true })
+  }, [title, options])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (options.length === 0) return
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setActiveIndex((cur) => {
+          const next = (cur + 1) % options.length
+          listRef.current?.querySelectorAll<HTMLButtonElement>('button[role="option"]')[next]?.focus({ preventScroll: true })
+          return next
+        })
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setActiveIndex((cur) => {
+          const prev = (cur - 1 + options.length) % options.length
+          listRef.current?.querySelectorAll<HTMLButtonElement>('button[role="option"]')[prev]?.focus({ preventScroll: true })
+          return prev
+        })
+        return
+      }
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault()
+        const target = options[activeIndex]
+        if (target !== undefined) onPick(target)
+        return
+      }
+      if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const option = options[Number(event.key) - 1]
+        if (option !== undefined) {
+          event.preventDefault()
+          onPick(option)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [activeIndex, options, onPick])
+
   return (
-    <ExtensionDialogShell title={title} onDismiss={onSuspend} wide>
-      <div
-        ref={listRef}
-        role="listbox"
-        aria-label={title}
-        className="-mx-1 flex max-h-[min(70vh,480px)] flex-col gap-1 overflow-y-auto px-1 py-0.5"
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault()
-            focusRow(event.key === 'ArrowDown' ? 1 : -1)
-          } else if (/^[1-9]$/.test(event.key) && options[Number(event.key) - 1] !== undefined) {
-            event.preventDefault()
-            onPick(options[Number(event.key) - 1])
-          }
-        }}
-      >
-        {options.map((option, index) => (
-          <button
-            key={`${index}:${option}`}
-            type="button"
-            role="option"
-            aria-selected={false}
-            className="questionnaire-option flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-left text-[13px] outline-none hover:border-border hover:bg-accent/40 focus-visible:border-primary/45 focus-visible:bg-primary/[0.06]"
-            onClick={() => onPick(option)}
-          >
-            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">{option}</span>
-            {index < 9 && (
-              <kbd className="rounded border border-border/60 px-1 font-mono text-[10px] leading-4 text-muted-foreground/60">{index + 1}</kbd>
-            )}
-          </button>
-        ))}
+    <ExtensionDialogShell
+      title={displayTitle}
+      subtitle={displaySubtitle}
+      maxWidthClass="max-w-[440px]"
+      suspendable={suspendable}
+      onSuspend={suspendable ? onSuspend : onCancel}
+    >
+      <div ref={listRef} className="flex flex-col gap-1.5" role="listbox" aria-label={displayTitle}>
+        {options.map((opt, index) => {
+          const mapped = isRewindPrompt ? mapRewindOption(opt, t) : null
+          const active = index === activeIndex
+          return (
+            <button
+              key={`${opt}-${index}`}
+              type="button"
+              role="option"
+              aria-selected={active}
+              onMouseEnter={() => setActiveIndex(index)}
+              onFocus={() => setActiveIndex(index)}
+              onClick={() => onPick(opt)}
+              className={cn(
+                'flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left outline-none transition-colors duration-[120ms]',
+                active
+                  ? mapped?.danger
+                    ? 'border-destructive/35 bg-destructive/[0.06] text-destructive'
+                    : 'border-[var(--brand)]/55 bg-[var(--brand)]/[0.07] text-foreground'
+                  : 'border-border/65 bg-background/70 text-foreground hover:border-border hover:bg-[var(--bg-hover)]',
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <div className={cn('text-[13px] font-medium leading-snug', mapped?.danger && active && 'text-destructive')}>
+                  {mapped ? mapped.label : opt}
+                </div>
+                {mapped?.description && (
+                  <div className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+                    {mapped.description}
+                  </div>
+                )}
+              </div>
+              {index < 9 && (
+                <kbd
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded border font-mono text-[10.5px]',
+                    active
+                      ? 'border-[var(--brand)]/35 bg-background text-foreground'
+                      : 'border-border/70 bg-muted/40 text-muted-foreground',
+                  )}
+                >
+                  {index + 1}
+                </kbd>
+              )}
+            </button>
+          )
+        })}
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-[11px] text-muted-foreground/55">{t('extension:selectKeys')}</span>
+      <div className="mt-3.5 flex items-center justify-between border-t border-border/50 pt-2.5 text-[11px] text-muted-foreground">
+        <span>{suspendable ? t('extension:selectKeys') : t('extension:selectKeysDirect')}</span>
         <button
           type="button"
-          className="rounded-md border border-border px-3 py-1.5 text-[12.5px] text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="rounded-md px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
           onClick={onCancel}
         >
-          {t('extension:cancelNotifyExt')}
+          {t('extension:cancel')}
         </button>
       </div>
     </ExtensionDialogShell>
   )
 }
 
-function ConfirmDialog({ title, message, onAnswer, onSuspend, onCancel }: {
+function ConfirmDialog({
+  title,
+  message,
+  suspendable,
+  onAnswer,
+  onSuspend,
+  onCancel,
+}: {
   title: string
   message: string
-  onAnswer: (confirmed: boolean) => void
+  suspendable: boolean
+  onAnswer: (ok: boolean) => void
   onSuspend: () => void
   onCancel: () => void
 }) {
   const { t } = useTranslation()
-  const yesRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    yesRef.current?.focus({ preventScroll: true })
-  }, [])
+  const rich = hasRichMarkdownSyntax(message)
   return (
-    <ExtensionDialogShell title={title} onDismiss={onSuspend} wide>
-      {message.trim() && (
-        <div className="mb-4 max-h-[min(50vh,340px)] overflow-auto rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/85">
-          {hasRichMarkdownSyntax(message) ? (
-            <QuestionnaireMarkdown content={message} compact />
-          ) : (
-            <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message}</div>
-          )}
-        </div>
-      )}
+    <ExtensionDialogShell
+      title={title}
+      maxWidthClass={rich || message.length > 180 ? 'max-w-lg' : 'max-w-md'}
+      suspendable={suspendable}
+      onSuspend={suspendable ? onSuspend : onCancel}
+    >
+      <div className="mb-4 text-[13px] leading-relaxed text-foreground-secondary">
+        {rich ? (
+          <QuestionnaireMarkdown content={message} compact plainHeadings />
+        ) : (
+          <p className="whitespace-pre-wrap break-words">{message}</p>
+        )}
+      </div>
       <div className="flex justify-end gap-2">
-        <button type="button" className="mr-auto rounded-md px-2 py-1.5 text-[12.5px] text-muted-foreground hover:text-foreground" onClick={onCancel}>
-          {t('extension:cancel')}
-        </button>
-        <button type="button" className="rounded-md border px-3 py-1.5 text-[13px] hover:bg-muted" onClick={() => onAnswer(false)}>
+        <button
+          type="button"
+          className="rounded-lg border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+          onClick={() => onAnswer(false)}
+        >
           {t('extension:no')}
         </button>
         <button
-          ref={yesRef}
           type="button"
-          className="rounded-md bg-primary px-3.5 py-1.5 text-[13px] text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-1"
+          autoFocus
+          className="rounded-lg bg-primary px-3.5 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
           onClick={() => onAnswer(true)}
         >
           {t('extension:yes')}
@@ -174,9 +301,17 @@ function ConfirmDialog({ title, message, onAnswer, onSuspend, onCancel }: {
   )
 }
 
-function InputDialog({ title, placeholder, onSubmit, onSuspend, onCancel }: {
+function InputDialog({
+  title,
+  placeholder,
+  suspendable,
+  onSubmit,
+  onSuspend,
+  onCancel,
+}: {
   title: string
   placeholder?: string
+  suspendable: boolean
   onSubmit: (value: string) => void
   onSuspend: () => void
   onCancel: () => void
@@ -184,7 +319,12 @@ function InputDialog({ title, placeholder, onSubmit, onSuspend, onCancel }: {
   const { t } = useTranslation()
   const [value, setValue] = useState('')
   return (
-    <ExtensionDialogShell title={title} onDismiss={onSuspend}>
+    <ExtensionDialogShell
+      title={title}
+      maxWidthClass="max-w-md"
+      suspendable={suspendable}
+      onSuspend={suspendable ? onSuspend : onCancel}
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -193,16 +333,23 @@ function InputDialog({ title, placeholder, onSubmit, onSuspend, onCancel }: {
       >
         <input
           autoFocus
-          className="mb-4 w-full rounded-md border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-primary/50"
+          className="mb-4 w-full rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none transition-colors focus:border-primary/55"
           value={value}
           placeholder={placeholder}
           onChange={(event) => setValue(event.target.value)}
         />
         <div className="flex justify-end gap-2">
-          <button type="button" className="rounded-md border px-3 py-1.5 text-[13px] hover:bg-muted" onClick={onCancel}>
+          <button
+            type="button"
+            className="rounded-lg border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+            onClick={onCancel}
+          >
             {t('extension:cancel')}
           </button>
-          <button type="submit" className={cn('rounded-md bg-primary px-3.5 py-1.5 text-[13px] text-primary-foreground hover:bg-primary/90')}>
+          <button
+            type="submit"
+            className="rounded-lg bg-primary px-3.5 py-1.5 text-[12.5px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
             {t('extension:confirm')}
           </button>
         </div>
@@ -213,6 +360,8 @@ function InputDialog({ title, placeholder, onSubmit, onSuspend, onCancel }: {
 
 export function ExtensionUIHost() {
   const pending = useExtensionUIStore((s) => s.activePending)
+  const inlineHostMounted = useExtensionUIStore((s) => s.inlineHostMounted)
+  const inlineQuestionnaireExpandedModal = useExtensionUIStore((s) => s.inlineQuestionnaireExpandedModal)
   const clearAfterRespond = useExtensionUIStore((s) => s.clearAfterRespond)
 
   const cancelWorker = (id: string) => {
@@ -225,14 +374,23 @@ export function ExtensionUIHost() {
 
   if (!pending) return null
 
+  const toolCtx = findToolContextForUi()
+  // Only allow "Answer later" suspension when backed by an interactive tool call.
+  // Navigation hooks like pi-rewind-hook's Restore Options have no timeline tool row and must cancel directly.
+  const canSuspend =
+    pending.method === 'ask_user_question' ||
+    pending.method === 'image_review' ||
+    Boolean(toolCtx.timelineItemId)
+
   const answer = (payload: { value?: string; confirmed?: boolean }) => {
     respond({ id: pending.id, ...payload })
     clearAfterRespond()
   }
 
-  // Keyed by request id: a new request never inherits the previous dialog's state.
   switch (pending.method) {
     case 'ask_user_question':
+      // Rendered inline above Composer when chat composer is mounted (unless user popped out modal).
+      if (inlineHostMounted && !inlineQuestionnaireExpandedModal) return null
       return (
         <QuestionnaireDialog
           key={pending.id}
@@ -269,6 +427,7 @@ export function ExtensionUIHost() {
           key={pending.id}
           title={pending.title}
           options={pending.options}
+          suspendable={canSuspend}
           onPick={(value) => answer({ value })}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}
@@ -280,6 +439,7 @@ export function ExtensionUIHost() {
           key={pending.id}
           title={pending.title}
           message={pending.message}
+          suspendable={canSuspend}
           onAnswer={(confirmed) => answer({ confirmed })}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}
@@ -291,6 +451,7 @@ export function ExtensionUIHost() {
           key={pending.id}
           title={pending.title}
           placeholder={pending.placeholder}
+          suspendable={canSuspend}
           onSubmit={(value) => answer({ value })}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}

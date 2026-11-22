@@ -13,6 +13,7 @@ type QuestionnaireOptionsProps = {
   question: AskQuestionPayload
   draft: QuestionDraft
   /** When true (preview layout + custom selected), expand custom textarea generously. */
+  focusedIndex?: number
   wideCustom?: boolean
   onChoose: (label: string) => void
   onChooseCustom: () => void
@@ -58,6 +59,7 @@ const rowClass = (checked: boolean) =>
 export function QuestionnaireOptions({
   question,
   draft,
+  focusedIndex,
   wideCustom = false,
   onChoose,
   onChooseCustom,
@@ -102,7 +104,11 @@ export function QuestionnaireOptions({
             key={option.label}
             className={cn(
               'questionnaire-option rounded-lg border transition-colors',
-              checked ? 'border-primary/45 bg-primary/[0.06]' : 'border-border/70 hover:border-border hover:bg-accent/40',
+              checked
+                ? 'border-primary/50 bg-primary/[0.07]'
+                : focusedIndex === index
+                  ? 'border-border bg-accent/55'
+                  : 'border-border/70 hover:border-border hover:bg-accent/40',
             )}
             onMouseEnter={() => onPreview(option.label)}
           >
@@ -166,7 +172,13 @@ export function QuestionnaireOptions({
         )
       })}
 
-      <div className={cn(rowClass(draft.useCustom), 'flex-col gap-0 p-0')}>
+      <div
+        className={cn(
+          rowClass(draft.useCustom),
+          !draft.useCustom && focusedIndex === question.options.length && 'border-border bg-accent/55',
+          'flex-col gap-0 p-0',
+        )}
+      >
         <button
           type="button"
           role={multi ? 'checkbox' : 'radio'}

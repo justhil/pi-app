@@ -24,8 +24,14 @@ export type ExtensionUISuspended = {
 
 type ExtensionUIState = {
   activePending: ExtensionUIPending | null
+  pendingQueue: ExtensionUIPending[]
   suspended: ExtensionUISuspended | null
+  inlineHostMounted: boolean
+  inlineQuestionnaireExpandedModal: boolean
+  setInlineHostMounted: (mounted: boolean) => void
+  setInlineQuestionnaireExpandedModal: (expanded: boolean) => void
   setActivePending: (p: ExtensionUIPending | null) => void
+  enqueuePending: (p: ExtensionUIPending) => void
   suspendActive: (meta: { toolCallId?: string; toolName?: string; timelineItemId?: string; background?: boolean }) => void
   resumeSuspended: () => void
   clearAfterRespond: () => void
@@ -38,7 +44,6 @@ type ExtensionUIState = {
   pruneStaleSuspension: () => void
 }
 
-/** 仅全屏弹窗打开时阻塞（挂起后已关弹窗，可发消息、可切会话） */
 function hasOpenExtensionDialog(): boolean {
   return useExtensionUIStore.getState().activePending != null
 }
@@ -68,21 +73,54 @@ function syncWaitingUi(sessionFile: string | undefined, waiting: boolean): void 
   useUIStore.getState().setSessionWaitingUi(file, waiting)
 }
 
+function popNextFromQueue(queue: ExtensionUIPending[]): {
+  next: ExtensionUIPending | null
+  rest: ExtensionUIPending[]
+} {
+  if (queue.length === 0) return { next: null, rest: [] }
+  return { next: queue[0], rest: queue.slice(1) }
+}
+
 function cancelPendingDialog(reason: string): void {
-  const { activePending, suspended } = useExtensionUIStore.getState()
-  const id = activePending?.id ?? suspended?.requestId
-  if (id) void ipcClient.invoke('extension.cancelUI', { id, reason }).catch(() => {})
+  const { activePending, pendingQueue, suspended } = useExtensionUIStore.getState()
+  const ids = new Set<string>()
+  if (activePending) ids.add(activePending.id)
+  for (const q of pendingQueue) ids.add(q.id)
+  if (suspended) ids.add(suspended.requestId)
+  for (const id of ids) {
+    void ipcClient.invoke('extension.cancelUI', { id, reason }).catch(() => {})
+  }
 }
 
 export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   activePending: null,
+  pendingQueue: [],
   suspended: null,
+  inlineHostMounted: false,
+  inlineQuestionnaireExpandedModal: false,
+  setInlineHostMounted: (inlineHostMounted) => set({ inlineHostMounted }),
+  setInlineQuestionnaireExpandedModal: (inlineQuestionnaireExpandedModal) =>
+    set({ inlineQuestionnaireExpandedModal }),
 
   setActivePending: (p) => {
     const prev = get().activePending
     if (prev && (!p || prev.id !== p.id)) syncWaitingUi(pendingSessionFile(prev), false)
     if (p) syncWaitingUi(pendingSessionFile(p), true)
-    set({ activePending: p })
+    set((s) => ({
+      activePending: p,
+      pendingQueue: p ? s.pendingQueue.filter((q) => q.id !== p.id) : s.pendingQueue,
+    }))
+  },
+
+  enqueuePending: (p) => {
+    const { activePending, pendingQueue } = get()
+    if (activePending?.id === p.id || pendingQueue.some((q) => q.id === p.id)) return
+    syncWaitingUi(pendingSessionFile(p), true)
+    if (!activePending) {
+      set({ activePending: p })
+      return
+    }
+    set({ pendingQueue: [...pendingQueue, p] })
   },
 
   suspendActive: (meta) => {
@@ -101,8 +139,10 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
     }
     const keepParked =
       parked && parked.requestId !== next.requestId && parked.background === true ? parked : null
+    const { next: queuedNext, rest } = popNextFromQueue(get().pendingQueue)
     set({
-      activePending: null,
+      activePending: queuedNext,
+      pendingQueue: rest,
       suspended: next.background || !keepParked ? next : keepParked,
     })
   },
@@ -110,26 +150,39 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   resumeSuspended: () => {
     const s = get().suspended
     if (!s) return
+    const prevActive = get().activePending
     syncWaitingUi(pendingSessionFile(s.pending), true)
-    set({ activePending: s.pending, suspended: null })
+    set((state) => ({
+      activePending: s.pending,
+      pendingQueue: prevActive ? [prevActive, ...state.pendingQueue] : state.pendingQueue,
+      suspended: null,
+    }))
   },
 
   clearAfterRespond: () => {
-    const { activePending, suspended } = get()
-    syncWaitingUi(pendingSessionFile(activePending), false)
+    const { activePending, pendingQueue, suspended } = get()
+    const { next, rest } = popNextFromQueue(pendingQueue)
     const keep =
       suspended &&
       suspended.background &&
       (!activePending || suspended.requestId !== activePending.id)
         ? suspended
         : null
+    const stillWaitingSameSession =
+      next &&
+      activePending &&
+      sessionFilesEqual(pendingSessionFile(next), pendingSessionFile(activePending))
+    if (!stillWaitingSameSession) {
+      syncWaitingUi(pendingSessionFile(activePending), false)
+    }
     if (!keep) syncWaitingUi(pendingSessionFile(suspended?.pending), false)
-    set({ activePending: null, suspended: keep })
+    if (next) syncWaitingUi(pendingSessionFile(next), true)
+    set({ activePending: next, pendingQueue: rest, suspended: keep, inlineQuestionnaireExpandedModal: false })
   },
 
   cancelForSession: (sessionFile) => {
-    const { activePending, suspended } = get()
-    const pending = [activePending, suspended?.pending].filter(
+    const { activePending, pendingQueue, suspended } = get()
+    const pending = [activePending, ...pendingQueue, suspended?.pending].filter(
       (p): p is ExtensionUIPending => !!p && (!p.sessionFile || sessionFilesEqual(p.sessionFile, sessionFile)),
     )
     for (const id of new Set(pending.map((p) => p.id))) {
@@ -141,21 +194,34 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   pruneStaleSuspension: () => pruneStaleSuspension(),
 
   clearAllDialogs: () => {
-    const { activePending, suspended } = get()
-    syncWaitingUi(pendingSessionFile(activePending || suspended?.pending), false)
-    set({ activePending: null, suspended: null })
+    const { activePending, pendingQueue, suspended } = get()
+    for (const p of [activePending, ...pendingQueue, suspended?.pending]) {
+      if (p) syncWaitingUi(pendingSessionFile(p), false)
+    }
+    set({ activePending: null, pendingQueue: [], suspended: null, inlineQuestionnaireExpandedModal: false })
   },
 
   dismissById: (id) => {
-    const { activePending, suspended } = get()
+    const { activePending, pendingQueue, suspended } = get()
+    const remainingQueue = pendingQueue.filter((q) => q.id !== id)
     if (activePending?.id === id) {
-      syncWaitingUi(pendingSessionFile(activePending), false)
-      set({ activePending: null })
+      const { next, rest } = popNextFromQueue(remainingQueue)
+      const sameSession =
+        next && sessionFilesEqual(pendingSessionFile(next), pendingSessionFile(activePending))
+      if (!sameSession) syncWaitingUi(pendingSessionFile(activePending), false)
+      if (next) syncWaitingUi(pendingSessionFile(next), true)
+      set({ activePending: next, pendingQueue: rest })
       return
     }
     if (suspended?.requestId === id) {
       syncWaitingUi(pendingSessionFile(suspended.pending), false)
-      set({ suspended: null })
+      set({ suspended: null, pendingQueue: remainingQueue })
+      return
+    }
+    if (remainingQueue.length !== pendingQueue.length) {
+      const removed = pendingQueue.find((q) => q.id === id)
+      if (removed) syncWaitingUi(pendingSessionFile(removed), false)
+      set({ pendingQueue: remainingQueue })
     }
   },
 
@@ -172,11 +238,12 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
   },
 
   resetForSessionContext: () => {
-    const { activePending, suspended } = get()
-    const pendingFile = pendingSessionFile(activePending || suspended?.pending)
+    const { activePending, pendingQueue, suspended } = get()
     cancelPendingDialog('session-reset')
-    syncWaitingUi(pendingFile, false)
-    set({ activePending: null, suspended: null })
+    for (const p of [activePending, ...pendingQueue, suspended?.pending]) {
+      if (p) syncWaitingUi(pendingSessionFile(p), false)
+    }
+    set({ activePending: null, pendingQueue: [], suspended: null, inlineQuestionnaireExpandedModal: false })
     void import('@renderer/lib/extension-ui-channel').then((m) => m.clearExtensionDialogDedupe())
   },
 }))
@@ -185,10 +252,8 @@ export function extensionUiBlocksComposer(): boolean {
   pruneStaleSuspension()
   if (!hasOpenExtensionDialog()) return false
   const running = useUIStore.getState().runState.status === 'running'
-  // 无弹窗宿主可渲染的 pending（如 Worker 已超时 resolve）不应阻塞
   const p = useExtensionUIStore.getState().activePending
   if (!p) return false
   if (!running) return false
   return true
 }
-

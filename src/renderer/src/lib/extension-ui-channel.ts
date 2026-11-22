@@ -170,7 +170,7 @@ export function ensureExtensionUIChannel(): void {
       useExtensionUIStore.getState().setActivePending(p)
       useExtensionUIStore.getState().suspendActive({ background: true })
     } else {
-      useExtensionUIStore.getState().setActivePending(p)
+      useExtensionUIStore.getState().enqueuePending(p)
     }
     const rawToolCallId = typeof req.toolCallId === 'string' ? req.toolCallId : undefined
     if (interactiveToolsForDialogMethod(p.method).size > 0) {

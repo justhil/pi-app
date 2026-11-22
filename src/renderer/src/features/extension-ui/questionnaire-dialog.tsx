@@ -47,8 +47,8 @@ export type QuestionnaireResult = {
   answers: AskQuestionAnswer[]
 }
 
-/** Brief pause after a single-choice pick so the check animation reads before the slide. */
-const AUTO_ADVANCE_MS = 180
+/** Crisp pause after a single-choice pick so the check settles before advancing. */
+const AUTO_ADVANCE_MS = 110
 
 const isTextField = (target: EventTarget | null): boolean =>
   target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement
@@ -76,6 +76,7 @@ export function QuestionnaireDialog({
   const [previewLabel, setPreviewLabel] = useState<string | undefined>(undefined)
   const [previewModeOverride, setPreviewModeOverride] = useState<'markdown' | 'raw' | null>(null)
   const [previewCopied, setPreviewCopied] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1)
   const primaryRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const advanceTimer = useRef<number | undefined>(undefined)
@@ -112,6 +113,7 @@ export function QuestionnaireDialog({
     if (index === tab || index < 0 || index >= questions.length) return
     setDirection(index > tab ? 'forward' : 'back')
     setTab(index)
+    setFocusedIndex(-1)
     setNotice(null)
     setPreviewLabel(undefined)
     setPreviewModeOverride(null)
@@ -147,20 +149,66 @@ export function QuestionnaireDialog({
     advanceTimer.current = window.setTimeout(() => goTo(tab + 1), AUTO_ADVANCE_MS)
   }
 
+  const totalOptionRows = q.options.length + 1 // options + "Other..."
+
   const onKeyDown = (event: ReactKeyboardEvent) => {
-    if (event.defaultPrevented || event.altKey || isTextField(event.target)) return
+    if (event.defaultPrevented || event.altKey) return
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      submit()
+      return
+    }
+    if (isTextField(event.target)) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      const nextIdx = focusedIndex < 0 ? 0 : (focusedIndex + 1) % totalOptionRows
+      setFocusedIndex(nextIdx)
+      if (nextIdx < q.options.length) {
+        setPreviewLabel(q.options[nextIdx].label)
+        setPreviewModeOverride(null)
+      }
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      const prevIdx = focusedIndex < 0 ? totalOptionRows - 1 : (focusedIndex - 1 + totalOptionRows) % totalOptionRows
+      setFocusedIndex(prevIdx)
+      if (prevIdx < q.options.length) {
+        setPreviewLabel(q.options[prevIdx].label)
+        setPreviewModeOverride(null)
+      }
+      return
+    }
+    if (event.key === 'ArrowLeft' && many && tab > 0) {
+      event.preventDefault()
+      goTo(tab - 1)
+      return
+    }
+    if (event.key === 'ArrowRight' && many && tab < questions.length - 1) {
+      event.preventDefault()
+      goTo(tab + 1)
+      return
+    }
     if (/^[1-9]$/.test(event.key) && !event.metaKey && !event.ctrlKey) {
-      const option = q.options[Number(event.key) - 1]
+      const idx = Number(event.key) - 1
+      const option = q.options[idx]
       if (option) {
         event.preventDefault()
+        setFocusedIndex(idx)
         choose(option.label)
       }
       return
     }
-    // Enter on a focused option/button activates it; elsewhere it moves on.
+    // Enter on a focused button activates it; otherwise pick the highlighted row or advance.
     if (event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) {
       event.preventDefault()
-      next()
+      if (!isAnswered(draft) && focusedIndex >= 0 && focusedIndex < q.options.length) {
+        choose(q.options[focusedIndex].label)
+      } else if (!isAnswered(draft) && focusedIndex === q.options.length) {
+        updateDraft({ ...draft, useCustom: true, selected: multi ? [] : draft.selected })
+      } else {
+        next()
+      }
     }
   }
 
@@ -263,7 +311,7 @@ export function QuestionnaireDialog({
               {q.header}
             </span>
           )}
-          <div className="max-h-[30vh] overflow-y-auto pr-1" data-independent-scroll>
+          <div className="studio-thin-scroll max-h-[30vh] overflow-y-auto pr-1" data-independent-scroll>
             {questionHasRichLayout ? (
               <div
                 id={`questionnaire-${requestId}-title`}
@@ -286,10 +334,9 @@ export function QuestionnaireDialog({
         </div>
 
         <div
-          key={tab}
           data-direction={direction}
           className={cn(
-            'questionnaire-step flex min-h-0 flex-1 flex-col px-5 py-4',
+            'studio-thin-scroll flex min-h-0 flex-1 flex-col px-5 py-4',
             !hasPreviewLayout || expandCustomFullWidth ? 'overflow-y-auto' : 'overflow-hidden',
           )}
         >
@@ -302,20 +349,30 @@ export function QuestionnaireDialog({
           >
             <div
               className={cn(
-                hasPreviewLayout && !expandCustomFullWidth && 'min-h-0 overflow-y-auto pr-1',
+                'questionnaire-step',
+                hasPreviewLayout && !expandCustomFullWidth && 'studio-thin-scroll min-h-0 overflow-y-auto pr-1',
               )}
+              data-direction={direction}
               data-independent-scroll
             >
               <QuestionnaireOptions
                 question={q}
                 draft={draft}
+                focusedIndex={focusedIndex}
                 wideCustom={expandCustomFullWidth}
-                onChoose={choose}
-                onChooseCustom={() =>
+                onChoose={(lbl) => {
+                  const idx = q.options.findIndex((o) => o.label === lbl)
+                  if (idx >= 0) setFocusedIndex(idx)
+                  choose(lbl)
+                }}
+                onChooseCustom={() => {
+                  setFocusedIndex(q.options.length)
                   updateDraft({ ...draft, useCustom: true, selected: multi ? [] : draft.selected })
-                }
+                }}
                 onCustomChange={(text) => updateDraft({ ...draft, custom: text, useCustom: true })}
                 onPreview={(lbl) => {
+                  const idx = q.options.findIndex((o) => o.label === lbl)
+                  if (idx >= 0) setFocusedIndex(idx)
                   setPreviewLabel(lbl)
                   setPreviewModeOverride(null)
                 }}
@@ -375,7 +432,7 @@ export function QuestionnaireDialog({
                   )}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-auto p-3" data-independent-scroll>
+                <div className="studio-thin-scroll min-h-0 flex-1 overflow-auto p-3" data-independent-scroll>
                   {previewText ? (
                     effectivePreviewMode === 'markdown' ? (
                       <QuestionnaireMarkdown content={previewText} compact className="text-[12.5px]" />
