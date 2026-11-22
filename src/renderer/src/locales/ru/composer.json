@@ -380,5 +380,19 @@
   "queueRestored_few": "В поле ввода возвращено сообщения из очереди: {{count}}",
   "queueRestored_many": "В поле ввода возвращено сообщений из очереди: {{count}}",
   "queueNothingToRestore": "В очереди сообщений нет",
-  "queueRestoreFailed": "Очередь не вернулась"
+  "queueRestoreFailed": "Очередь не вернулась",
+  "worktree": {
+    "title": "Среда для нового диалога",
+    "localMode": "Локально",
+    "localDesc": "Работать в текущем каталоге",
+    "newMode": "Новый Worktree",
+    "newDesc": "Создать изолированную ветку и каталог для параллельной работы",
+    "branchLabel": "Имя ветки (автоматически, если пусто)",
+    "branchPlaceholder": "напр. feat/github-pr-panel",
+    "baseBranchLabel": "Базовая ветка",
+    "currentHead": "Текущий HEAD",
+    "fromOriginLabel": "Сначала обновить и стартовать от origin",
+    "existingHeading": "Или выбрать существующий Worktree",
+    "createFailed": "Не удалось создать worktree"
+  }
 }

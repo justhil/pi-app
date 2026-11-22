@@ -1,4 +1,4 @@
-import { useEffect, useId } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
@@ -9,6 +9,7 @@ export function ConfirmDialog({
   message,
   destructive,
   confirmLabel,
+  extra,
   onConfirm,
   onCancel,
 }: {
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   destructive?: boolean
   /** Button text instead of "Confirm". */
   confirmLabel?: string
+  extra?: ReactNode
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -54,7 +56,8 @@ export function ConfirmDialog({
         <h2 id={titleId} className="mb-2 text-lg font-semibold text-foreground">
           {title}
         </h2>
-        <p className="mb-4 text-base leading-relaxed text-muted-foreground">{message}</p>
+        <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{message}</p>
+        {extra ? <div className="mb-4">{extra}</div> : null}
         <div className="flex justify-end gap-2">
           <button
             type="button"

@@ -8,13 +8,15 @@ import { ipcClient, onGitWorkspaceChanged } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { workspacePathsEqual } from '@shared/workspace-path'
+import { activateWorkspace } from '@renderer/lib/activate-workspace'
 
 type BranchStatus = { isRepo: boolean; branch: string | null; head: string; upstream: string | null; ahead: number; behind: number; dirty: number }
 type BranchRef = { name: string; remote: boolean; head: string; date: number; upstream: string | null; current: boolean; worktree: string | null }
-type SwitchReq = { name: string; remote?: boolean; create?: boolean; stash?: boolean }
+type SwitchReq = { name: string; remote?: boolean; create?: boolean; stash?: boolean; force?: boolean }
 type SwitchRes =
   | { ok: true; branch: string; stashed: boolean; restorable?: { ref: string; message: string } | null }
   | { ok: false; reason: 'dirty-conflict'; files: string[] }
+  | { ok: false; reason: 'checkout-busy'; busyCount: number; message: string }
   | { ok: false; reason: 'invalid-name' | 'git'; message: string }
 
 /** Opens the branch picker from elsewhere (command palette). */
@@ -140,7 +142,7 @@ type Pending = { kind: 'running'; req: SwitchReq } | { kind: 'dirty'; req: Switc
  * branch. Changes travel with the switch when git allows; otherwise the user may stash them first, and
  * gets them back when returning to the branch.
  */
-export function BranchStatusTrigger() {
+export function BranchStatusTrigger({ variant = 'statusbar' }: { variant?: 'statusbar' | 'inline' } = {}) {
   const { t } = useTranslation()
   const cwd = useUIStore((s) => s.currentWorkspace)
   const [status, setStatus] = useState<BranchStatus | null>(null)
@@ -199,6 +201,8 @@ export function BranchStatusTrigger() {
             },
           })
         } else if (r.stashed) toast(t('common:branches.stashed'))
+      } else if (r.reason === 'checkout-busy') {
+        setPending({ kind: 'running', req })
       } else if (r.reason === 'dirty-conflict') {
         setPending({ kind: 'dirty', req, files: r.files })
       } else {
@@ -226,7 +230,11 @@ export function BranchStatusTrigger() {
       <button
         ref={anchor}
         type="button"
-        className="workbench-status-trigger branch-status-trigger tabular-nums"
+        className={
+          variant === 'inline'
+            ? 'inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[11.5px] text-foreground-secondary tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50'
+            : 'workbench-status-trigger branch-status-trigger tabular-nums'
+        }
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={t('common:branches.trigger', { branch: label })}
@@ -253,13 +261,31 @@ export function BranchStatusTrigger() {
       <ConfirmDialog
         open={pending?.kind === 'running'}
         title={t('common:branches.runningTitle')}
-        message={t('common:branches.runningMessage', { count: running })}
-        confirmLabel={t('common:branches.switchAnyway')}
+        message={t('common:branches.runningMessage', { count: Math.max(running, 1) })}
+        confirmLabel={t('common:branches.openInWorktree')}
         onCancel={() => setPending(null)}
         onConfirm={() => {
           const req = pending?.req
           setPending(null)
-          if (req) void run(req)
+          if (!req || !cwd) return
+          const targetBranch = req.name.replace(/^origin\//, '')
+          void (async () => {
+            setBusy(true)
+            try {
+              const created = (await ipcClient.invoke('desktop.createGitWorktree', {
+                workspaceId: cwd,
+                branch: targetBranch,
+              })) as { ok?: boolean; path?: string; error?: string }
+              if (created?.ok && created.path) {
+                toast.success(t('common:branches.worktreeCreated', { branch: targetBranch }))
+                await activateWorkspace(created.path, { preferHome: true })
+              } else {
+                toast.error(created?.error || t('common:branches.failed', { error: '' }))
+              }
+            } finally {
+              setBusy(false)
+            }
+          })()
         }}
       />
       <ConfirmDialog

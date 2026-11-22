@@ -1,8 +1,10 @@
 import {
   Activity,
   FileSearch,
+  FolderGit2,
   FolderTree,
   GitBranch,
+  GitFork,
   Globe,
   ListTree,
   Network,
@@ -21,6 +23,8 @@ const CORE_PANEL_ICONS: Record<string, AppIconComponent> = {
   context: FileSearch,
   tree: ListTree,
   files: FolderTree,
+  worktrees: FolderGit2,
+  github: GitFork,
   browser: Globe,
   intercom: Network,
 }

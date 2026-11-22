@@ -26,12 +26,22 @@ import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-work
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon } from '@renderer/components/icons'
+import { FolderGit2, GitFork, Settings as SettingsIcon } from '@renderer/components/icons'
+import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
+import { cn } from '@renderer/lib/utils'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
-import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
+import {
+  normalizeTimelineMaxAutoExpandedTools,
+  normalizeTimelineUserMessageStyle,
+  normalizeTimelineVisibleTurns,
+} from '@shared/timeline-settings'
+import { normalizeUiCustomization } from '@shared/ui-customization'
+import { applyUserMessageStyleToDocument } from '@renderer/features/settings/settings-draft'
+import { applyUiCustomizationToDocument } from '@renderer/lib/theme/apply-ui-customization'
+import { usePanelNavigationSuppression } from '@renderer/lib/panel-animation-guard'
 import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { AppToaster } from '@renderer/components/app/app-toaster'
@@ -126,6 +136,7 @@ export default function App() {
   const setWorkspace = useUIStore((s) => s.setWorkspace)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
   const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
   const terminalOpen = useTerminalStore((s) => s.open)
   const terminalHeight = useTerminalStore((s) => s.height)
@@ -220,6 +231,22 @@ export default function App() {
         .invoke('settings.get', { key: 'timelineVisibleTurns' })
         .then((res) => {
           useUIStore.getState().setTimelineVisibleTurns(normalizeTimelineVisibleTurns(res?.settings?.timelineVisibleTurns))
+        })
+        .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'timelineUserMessageStyle' })
+        .then((res) => {
+          const style = normalizeTimelineUserMessageStyle(res?.settings?.timelineUserMessageStyle)
+          useUIStore.getState().setTimelineUserMessageStyle(style)
+          applyUserMessageStyleToDocument(style)
+        })
+        .catch(() => {})
+      void ipcClient
+        .invoke('settings.get', { key: 'uiCustomization' })
+        .then((res) => {
+          const cfg = normalizeUiCustomization(res?.settings?.uiCustomization)
+          useUIStore.getState().setUiCustomization(cfg)
+          applyUiCustomizationToDocument(cfg)
         })
         .catch(() => {})
       prefetchAvailableModels()
@@ -364,6 +391,7 @@ export default function App() {
   })
   const panelPrefs =
     gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
+  const navSuppressed = usePanelNavigationSuppression(`${currentWorkspace || ''}::${historySessionFile || ''}`)
   const PANELS = buildRightPanelTabs(rightPanelCatalog, panelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
@@ -435,12 +463,42 @@ export default function App() {
                 />
               </SidebarContent>
               <SidebarActiveSessionsDrawer />
-              <div className="border-t border-border/50 p-1.5">
-                <SidebarItem
-                  label={t('sidebar.settings')}
-                  icon={<SettingsIcon className="h-4 w-4" />}
-                  onClick={() => setView('settings')}
-                />
+              <div className="flex items-center gap-1 border-t border-border/50 p-1.5">
+                <div className="min-w-0 flex-1">
+                  <SidebarItem
+                    label={t('sidebar.settings')}
+                    icon={<SettingsIcon className="h-4 w-4" />}
+                    onClick={() => setView('settings')}
+                  />
+                </div>
+                {currentWorkspace && !ephemeralSandboxDraft ? (
+                  <>
+                    <button
+                      type="button"
+                      title={t('common:panel.worktrees')}
+                      aria-label={t('common:panel.worktrees')}
+                      onClick={() => usePanelIntentStore.getState().openWorktreesPanel()}
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                        !rightPanelHidden && activePanel === 'worktrees' && 'bg-[var(--bg-active)] text-foreground',
+                      )}
+                    >
+                      <FolderGit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title={t('common:panel.github')}
+                      aria-label={t('common:panel.github')}
+                      onClick={() => usePanelIntentStore.getState().openGitHubPr(null)}
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                        !rightPanelHidden && activePanel === 'github' && 'bg-[var(--bg-active)] text-foreground',
+                      )}
+                    >
+                      <GitFork className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : null}
               </div>
             </Sidebar>
           }
@@ -482,7 +540,7 @@ export default function App() {
                 setActivePanel={setActivePanel}
               />
               {!rightPanelHidden ? (
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden" data-nav-suppress={navSuppressed ? 'true' : undefined}>
                   <ErrorBoundary label="panel">
                     <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
                       <SidePanelHost item={activeCatalogItem} />

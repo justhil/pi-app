@@ -271,13 +271,87 @@ export function registerDesktopChromeHandlers(): void {
   })
 
   registerHandlerWithSchema(
-    'ipc:desktop.createGitWorktree',
-    z.object({ workspaceId: z.string().min(1), branch: z.string().min(1) }),
-    async ({ workspaceId, branch }) => {
+    'ipc:desktop.gitWorktreesDetail',
+    z.object({ workspaceId: z.string().min(1) }),
+    async ({ workspaceId }) => {
+      const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
+      const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
+      const listing = await listGitWorktrees(cwd)
+      if (!listing.ok) return listing
+      const rawHidden = configStore.get('hiddenWorktrees')
+      const hidden = Array.isArray(rawHidden) ? rawHidden : []
+      const visible = hidden.length
+        ? listing.trees.filter((tree) => !hidden.some((h) => workspacePathsEqual(h, tree.path)))
+        : listing.trees
+      const { readBranchStatus } = await import('../../git-branches')
+      const runtimeRows = workerManager.listSessionRuntime()
+      const enriched = await Promise.all(
+        visible.map(async (tree) => {
+          const st = await readBranchStatus(tree.path).catch(() => null)
+          const runningCount = runtimeRows.filter(
+            (w) => w.running && workspacePathsEqual(w.cwd, tree.path),
+          ).length
+          return {
+            ...tree,
+            dirtyCount: st?.dirty ?? 0,
+            ahead: st?.ahead ?? 0,
+            behind: st?.behind ?? 0,
+            runningCount,
+          }
+        }),
+      )
+      return { ...listing, trees: enriched }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:desktop.launchWorktreeTask',
+    z.object({
+      workspaceId: z.string().min(1),
+      branch: z.string().min(1),
+      baseBranch: z.string().optional(),
+      fromOrigin: z.boolean().optional(),
+      prompt: z.string().min(1),
+    }),
+    async ({ workspaceId, branch, baseBranch, fromOrigin, prompt }) => {
       const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
       const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
       const { createGitWorktree } = await import('../../git-worktree-ops')
-      const res = await createGitWorktree(cwd, branch)
+      const created = await createGitWorktree(cwd, branch, { baseBranch, fromOrigin })
+      if (!created.ok) return created
+      if (typeof configStore.addRecentProject === 'function') {
+        configStore.addRecentProject(created.path)
+      }
+      const sess = await workerManager.newSessionInBackground(created.path)
+      if (!sess.sessionFile) {
+        return { ok: false, error: 'Failed to create background session in worktree' }
+      }
+      void workerManager.sendPrompt(prompt, sess.sessionFile).catch((err) => {
+        console.error('[worktree-launch] sendPrompt failed:', err)
+      })
+      return {
+        ok: true,
+        path: created.path,
+        branch: created.branch,
+        sessionId: sess.sessionId,
+        sessionFile: sess.sessionFile,
+      }
+    },
+  )
+
+  registerHandlerWithSchema(
+    'ipc:desktop.createGitWorktree',
+    z.object({
+      workspaceId: z.string().min(1),
+      branch: z.string().min(1),
+      baseBranch: z.string().optional(),
+      fromOrigin: z.boolean().optional(),
+    }),
+    async ({ workspaceId, branch, baseBranch, fromOrigin }) => {
+      const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
+      const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
+      const { createGitWorktree } = await import('../../git-worktree-ops')
+      const res = await createGitWorktree(cwd, branch, { baseBranch, fromOrigin })
       if (res.ok && typeof configStore.addRecentProject === 'function') {
         configStore.addRecentProject(res.path)
       }

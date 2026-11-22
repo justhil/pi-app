@@ -84,7 +84,9 @@
       "empty": "No running or last-hour sessions",
       "justNow": "now",
       "dismiss": "Dismiss from list"
-    }
+    },
+    "deleteOrphanWorktree": "Also remove the empty Worktree folder ({{name}})",
+    "deletedWithWorktree": "Session and empty Worktree deleted"
   },
   "attention": {
     "needsYou": "Needs you",
@@ -110,7 +112,11 @@
     "filesDesc": "Workspace file preview & explorer",
     "browser": "Browser",
     "browserDesc": "Built-in browser (experimental)",
-    "unregistered": "Unregistered panel: {{id}}"
+    "unregistered": "Unregistered panel: {{id}}",
+    "github": "GitHub",
+    "githubDesc": "Inspect repo PRs, Issues, CI Checks, and launch local or Worktree chats",
+    "worktrees": "Worktrees",
+    "worktreesDesc": "Manage and dispatch parallel isolated Git worktrees"
   },
   "settings": {
     "title": "Settings",
@@ -219,7 +225,9 @@
     "restored": "Changes restored",
     "restoreFailed": "Could not restore the changes: {{error}}",
     "failed": "Could not switch branch: {{error}}",
-    "palette": "Switch branch…"
+    "palette": "Switch branch…",
+    "openInWorktree": "Open in new Worktree",
+    "worktreeCreated": "Created isolated worktree ({{branch}})"
   },
   "terminal": {
     "title": "Terminal",
@@ -439,5 +447,72 @@
     "retriesExhausted_one": "Failed after {{count}} retry",
     "retriesExhausted_other": "Failed after {{count}} retries",
     "emptyStream": "Upstream model stream ended abnormally (empty_stream)\n{{details}}"
+  },
+  "github": {
+    "title": "GitHub · PR & Issues",
+    "prs": "Pull Requests",
+    "issues": "Issues",
+    "open": "Open",
+    "closed": "Closed",
+    "merged": "Merged",
+    "all": "All",
+    "everyone": "Everyone",
+    "involved": "Involving me",
+    "authored": "Authored by me",
+    "assigned": "Assigned to me",
+    "searchPlaceholder": "Filter by title or #number…",
+    "refresh": "Refresh",
+    "noRepo": "No GitHub remote repository detected for this project.",
+    "noAuth": "No GitHub credential found. Run gh auth login or set GH_TOKEN.",
+    "emptyPrs": "No pull requests match the current filters.",
+    "emptyIssues": "No issues match the current filters.",
+    "checksTitle": "CI Checks",
+    "checksPassing": "Checks passing",
+    "checksFailing": "Checks failing",
+    "checksPending": "Checks running",
+    "checksNone": "No checks reported",
+    "checksShowPassed": "Show passed ({{count}})",
+    "checksHidePassed": "Hide passed",
+    "fixChecksInPi": "Fix failing checks with Pi",
+    "resolveConflictsInPi": "Resolve conflicts with Pi",
+    "openOnGithub": "Open on GitHub",
+    "workLocal": "Work locally",
+    "workInWorktree": "New Worktree",
+    "worktreeReady": "Created worktree for #{{number}} and prepared prompt",
+    "promptPrepared": "Prepared #{{number}} context in composer",
+    "draft": "Draft",
+    "conflicting": "Conflicts",
+    "approved": "Approved",
+    "changesRequested": "Changes requested",
+    "reviewRequired": "Review required",
+    "comments": "{{count}} comments",
+    "backToList": "Back to list",
+    "copyNumber": "Copy number",
+    "inlineQuestionCollapse": "Collapse",
+    "inlineQuestionExpand": "Expand to answer",
+    "viewCheck": "View"
+  },
+  "worktrees": {
+    "newBtn": "New",
+    "newParallel": "New parallel Worktree",
+    "manageAll": "Manage all Worktrees",
+    "quickTitle": "Parallel Worktrees",
+    "switchTo": "Switch to sibling Worktree",
+    "runningCount": "{{count}} running",
+    "promptLabel": "Initial task prompt (optional — runs in background when filled)",
+    "promptPlaceholder": "Leave empty to create & switch; enter a prompt to launch a parallel Pi worker in the background…",
+    "launchBackgroundBtn": "Run in background",
+    "createAndOpenBtn": "Create & switch",
+    "launchedBackground": "Started parallel task in Worktree ({{branch}})",
+    "stageCreating": "Creating worktree…",
+    "stageStarting": "Starting session…",
+    "stageRunning": "Running in background",
+    "notRepo": "Current workspace is not a Git repository.",
+    "empty": "No worktrees found.",
+    "newChatHere": "New chat in this Worktree",
+    "enter": "Switch to Worktree",
+    "remove": "Remove Worktree",
+    "removeConfirm": "Delete this worktree directory? Uncommitted changes will be discarded.",
+    "removed": "Removed Worktree ({{name}})"
   }
 }

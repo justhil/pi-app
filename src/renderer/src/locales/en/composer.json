@@ -379,5 +379,19 @@
   "queueRestored_one": "Pulled {{count}} queued message back into the input",
   "queueRestored_other": "Pulled {{count}} queued messages back into the input",
   "queueNothingToRestore": "No queued messages to pull back",
-  "queueRestoreFailed": "Couldn't pull the queue back"
+  "queueRestoreFailed": "Couldn't pull the queue back",
+  "worktree": {
+    "title": "Workspace mode for new chat",
+    "localMode": "Local",
+    "localDesc": "Work directly in the current checkout",
+    "newMode": "New Worktree",
+    "newDesc": "Create an isolated branch & checkout for parallel work",
+    "branchLabel": "Branch name (auto-generated if empty)",
+    "branchPlaceholder": "e.g. feat/github-pr-panel",
+    "baseBranchLabel": "Base branch",
+    "currentHead": "Current HEAD",
+    "fromOriginLabel": "Fetch and start from latest origin commit",
+    "existingHeading": "Or reuse an existing Worktree",
+    "createFailed": "Failed to create worktree"
+  }
 }

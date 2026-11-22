@@ -84,7 +84,9 @@
       "empty": "Нет запущенных сессий и сессий за последний час",
       "justNow": "сейчас",
       "dismiss": "Убрать из списка"
-    }
+    },
+    "deleteOrphanWorktree": "Также удалить пустой каталог Worktree ({{name}})",
+    "deletedWithWorktree": "Сессия и пустой Worktree удалены"
   },
   "attention": {
     "needsYou": "Нужна ваша помощь",
@@ -110,7 +112,11 @@
     "filesDesc": "Просмотр и проводник файлов проекта",
     "browser": "Browser",
     "browserDesc": "Встроенный браузер (экспериментально)",
-    "unregistered": "Неподключённая панель: {{id}}"
+    "unregistered": "Неподключённая панель: {{id}}",
+    "github": "GitHub",
+    "githubDesc": "Просмотр PR, Issues, CI-проверок и запуск задач в локальной папке или Worktree",
+    "worktrees": "Worktrees",
+    "worktreesDesc": "Управление и параллельный запуск изолированных Git worktree"
   },
   "settings": {
     "title": "Настройки",
@@ -221,7 +227,9 @@
     "restored": "Изменения восстановлены",
     "restoreFailed": "Не удалось восстановить изменения: {{error}}",
     "failed": "Не удалось переключить ветку: {{error}}",
-    "palette": "Переключить ветку…"
+    "palette": "Переключить ветку…",
+    "openInWorktree": "Открыть в новом Worktree",
+    "worktreeCreated": "Создан worktree ({{branch}})"
   },
   "terminal": {
     "title": "Терминал",
@@ -449,5 +457,72 @@
     "retriesExhausted_few": "Не удалось после {{count}} повторов",
     "retriesExhausted_many": "Не удалось после {{count}} повторов",
     "emptyStream": "Поток модели на стороне провайдера оборвался (empty_stream)\n{{details}}"
+  },
+  "github": {
+    "title": "GitHub · PR и Issues",
+    "prs": "Pull Requests",
+    "issues": "Issues",
+    "open": "Открытые",
+    "closed": "Закрытые",
+    "merged": "Слитые",
+    "all": "Все",
+    "everyone": "Все авторы",
+    "involved": "С моим участием",
+    "authored": "Мои",
+    "assigned": "Назначены мне",
+    "searchPlaceholder": "Фильтр по названию или номеру…",
+    "refresh": "Обновить",
+    "noRepo": "Для этого проекта не найден удалённый репозиторий GitHub.",
+    "noAuth": "Не найдена авторизация GitHub. Выполните gh auth login или задайте GH_TOKEN.",
+    "emptyPrs": "Нет подходящих Pull Request.",
+    "emptyIssues": "Нет подходящих Issue.",
+    "checksTitle": "Проверки CI",
+    "checksPassing": "Проверки пройдены",
+    "checksFailing": "Есть ошибки проверок",
+    "checksPending": "Проверки выполняются",
+    "checksNone": "Нет данных о проверках",
+    "checksShowPassed": "Показать пройденные ({{count}})",
+    "checksHidePassed": "Скрыть пройденные",
+    "fixChecksInPi": "Исправить проверки с Pi",
+    "resolveConflictsInPi": "Решить конфликты с Pi",
+    "openOnGithub": "Открыть на GitHub",
+    "workLocal": "Работать локально",
+    "workInWorktree": "Новый Worktree",
+    "worktreeReady": "Создан worktree для #{{number}} и подготовлен промпт",
+    "promptPrepared": "Контекст #{{number}} добавлен в поле ввода",
+    "draft": "Черновик",
+    "conflicting": "Конфликт",
+    "approved": "Одобрено",
+    "changesRequested": "Нужны правки",
+    "reviewRequired": "Ждёт ревью",
+    "comments": "Комментариев: {{count}}",
+    "backToList": "Назад к списку",
+    "copyNumber": "Скопировать номер",
+    "inlineQuestionCollapse": "Свернуть",
+    "inlineQuestionExpand": "Развернуть",
+    "viewCheck": "Открыть"
+  },
+  "worktrees": {
+    "newBtn": "Создать",
+    "newParallel": "Новый параллельный Worktree",
+    "manageAll": "Все Worktrees",
+    "quickTitle": "Параллельные Worktrees",
+    "switchTo": "Переключиться на другой Worktree",
+    "runningCount": "В работе: {{count}}",
+    "promptLabel": "Первая задача (необязательно — запустится в фоне)",
+    "promptPlaceholder": "Оставьте пустым для перехода; введите задачу для фонового параллельного запуска…",
+    "launchBackgroundBtn": "Запустить в фоне",
+    "createAndOpenBtn": "Создать и открыть",
+    "launchedBackground": "Задача запущена в Worktree ({{branch}})",
+    "stageCreating": "Создание worktree…",
+    "stageStarting": "Запуск сессии…",
+    "stageRunning": "Выполняется в фоне",
+    "notRepo": "Текущая папка не является Git-репозиторием.",
+    "empty": "Worktree не найдены.",
+    "newChatHere": "Новый диалог в этом Worktree",
+    "enter": "Перейти в Worktree",
+    "remove": "Удалить Worktree",
+    "removeConfirm": "Удалить этот каталог worktree? Несохранённые изменения будут потеряны.",
+    "removed": "Worktree ({{name}}) удалён"
   }
 }

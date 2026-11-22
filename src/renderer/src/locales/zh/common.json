@@ -84,7 +84,9 @@
       "empty": "暂无运行中或近 1 小时活跃会话",
       "justNow": "刚刚",
       "dismiss": "从列表移除"
-    }
+    },
+    "deleteOrphanWorktree": "同时删除已无其他会话的 Worktree 目录（{{name}}）",
+    "deletedWithWorktree": "会话与空 Worktree 已一并删除"
   },
   "attention": {
     "needsYou": "等你",
@@ -110,7 +112,11 @@
     "filesDesc": "工作区文件预览与浏览",
     "browser": "浏览器",
     "browserDesc": "内置浏览器（实验）",
-    "unregistered": "未注册面板: {{id}}"
+    "unregistered": "未注册面板: {{id}}",
+    "github": "GitHub",
+    "githubDesc": "查看仓库 PR / Issues 状态、CI Checks 并一键拉起会话或 Worktree",
+    "worktrees": "Worktrees",
+    "worktreesDesc": "管理并后台派发多个隔离 Git Worktree 并行任务"
   },
   "settings": {
     "title": "设置",
@@ -219,7 +225,9 @@
     "restored": "改动已恢复",
     "restoreFailed": "恢复改动失败：{{error}}",
     "failed": "切换分支失败：{{error}}",
-    "palette": "切换分支…"
+    "palette": "切换分支…",
+    "openInWorktree": "改用新建隔离 Worktree",
+    "worktreeCreated": "已创建隔离 Worktree（{{branch}}）"
   },
   "terminal": {
     "title": "终端",
@@ -431,5 +439,72 @@
     "aborted": "请求已中止（Request was aborted）",
     "retriesExhausted": "重试 {{count}} 次后仍失败",
     "emptyStream": "上游模型流异常结束（empty_stream）\n{{details}}"
+  },
+  "github": {
+    "title": "GitHub · PR & Issues",
+    "prs": "Pull Requests",
+    "issues": "Issues",
+    "open": "开放",
+    "closed": "已关闭",
+    "merged": "已合并",
+    "all": "全部",
+    "everyone": "所有人",
+    "involved": "与我相关",
+    "authored": "我创建的",
+    "assigned": "指派给我",
+    "searchPlaceholder": "按标题或编号筛选…",
+    "refresh": "刷新",
+    "noRepo": "当前项目未检测到 GitHub 远程仓库。",
+    "noAuth": "未检测到 GitHub 凭据。请安装并运行 gh auth login，或配置 GH_TOKEN 环境变量。",
+    "emptyPrs": "暂无符合条件的 Pull Request。",
+    "emptyIssues": "暂无符合条件的 Issue。",
+    "checksTitle": "CI Checks 检查项",
+    "checksPassing": "全部检查通过",
+    "checksFailing": "存在失败检查",
+    "checksPending": "检查运行中",
+    "checksNone": "暂无检查记录",
+    "checksShowPassed": "展开已通过项（{{count}}）",
+    "checksHidePassed": "收起已通过项",
+    "fixChecksInPi": "让 Pi 修复失败检查",
+    "resolveConflictsInPi": "让 Pi 解决合并冲突",
+    "openOnGithub": "在 GitHub 打开",
+    "workLocal": "在当前目录处理",
+    "workInWorktree": "新建 Worktree 处理",
+    "worktreeReady": "已为 #{{number}} 创建隔离 Worktree 并填入任务",
+    "promptPrepared": "已将 #{{number}} 任务上下文填入输入框",
+    "draft": "草稿",
+    "conflicting": "有冲突",
+    "approved": "已批准",
+    "changesRequested": "需修改",
+    "reviewRequired": "待评审",
+    "comments": "{{count}} 条评论",
+    "backToList": "返回列表",
+    "copyNumber": "复制编号",
+    "inlineQuestionCollapse": "收起",
+    "inlineQuestionExpand": "展开回答",
+    "viewCheck": "查看"
+  },
+  "worktrees": {
+    "newBtn": "新建并行",
+    "newParallel": "新建并行 Worktree",
+    "manageAll": "管理全部 Worktrees",
+    "quickTitle": "并行 Worktree 工作区",
+    "switchTo": "快速切换至其他 Worktree",
+    "runningCount": "{{count}} 运行中",
+    "promptLabel": "首条并行任务提示词（可选，填了直接后台开跑）",
+    "promptPlaceholder": "留空则创建并切入；填写任务即可不切走当前对话，后台拉起独立 Pi 立即并行执行…",
+    "launchBackgroundBtn": "后台并行开跑",
+    "createAndOpenBtn": "创建并切入",
+    "launchedBackground": "已在隔离 Worktree（{{branch}}）后台启动任务",
+    "stageCreating": "正在创建 Worktree…",
+    "stageStarting": "正在启动独立会话…",
+    "stageRunning": "已在后台运行",
+    "notRepo": "当前工作区不是 Git 仓库。",
+    "empty": "暂无 Worktree。",
+    "newChatHere": "在此 Worktree 新建对话",
+    "enter": "切换到此 Worktree",
+    "remove": "删除此 Worktree",
+    "removeConfirm": "确认删除该 Worktree 目录？未提交改动将一并清除。",
+    "removed": "已删除 Worktree（{{name}}）"
   }
 }

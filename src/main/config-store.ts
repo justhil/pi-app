@@ -4,7 +4,16 @@ import type { BackgroundSettings } from '@shared/background'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
 import { defaultAgentPurgeConfig } from '@shared/agent-purge'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
-import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
+import {
+  DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+  DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+  DEFAULT_TIMELINE_VISIBLE_TURNS,
+  type TimelineUserMessageStyle,
+} from '@shared/timeline-settings'
+import {
+  DEFAULT_UI_CUSTOMIZATION,
+  type UiCustomization,
+} from '@shared/ui-customization'
 import { projectDisplayNameKey, uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
 import { bindSecretStoreBacking } from './secret-store'
 import { nextRecentProjects, workspaceRealPathsEqual } from './recent-projects'
@@ -71,6 +80,8 @@ export interface StoreSchema {
   /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
   timelineMaxAutoExpandedTools: number
   timelineVisibleTurns: number
+  timelineUserMessageStyle: TimelineUserMessageStyle
+  uiCustomization: UiCustomization
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 侧栏项目/目录自定义显示名，键为 projectDisplayNameKey(path, isRepositoryGroup) */
@@ -128,6 +139,8 @@ const store = new Store<StoreSchema>({
       context: true,
       intercom: false,
       tree: true,
+      worktrees: true,
+      github: true,
     },
     rightPanelOrder: [],
     language: defaultAppLanguage(),
@@ -151,6 +164,8 @@ const store = new Store<StoreSchema>({
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
+    timelineUserMessageStyle: DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
     sessionDisplayNames: {},
     projectDisplayNames: {},
     hiddenWorktrees: [],

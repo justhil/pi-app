@@ -378,5 +378,19 @@
   },
   "queueRestored": "已拉回 {{count}} 条排队消息到输入框",
   "queueNothingToRestore": "没有可拉回的排队消息",
-  "queueRestoreFailed": "拉回队列失败"
+  "queueRestoreFailed": "拉回队列失败",
+  "worktree": {
+    "title": "新会话运行环境",
+    "localMode": "本地目录",
+    "localDesc": "在当前工作区直接运行",
+    "newMode": "新建隔离 Worktree",
+    "newDesc": "自动创建独立分支与目录，与当前任务并行互不干扰",
+    "branchLabel": "新分支名（留空自动生成）",
+    "branchPlaceholder": "例如 feat/github-pr-panel",
+    "baseBranchLabel": "基准分支",
+    "currentHead": "当前分支",
+    "fromOriginLabel": "先从 origin 拉取最新提交作为起点",
+    "existingHeading": "或复用已有 Worktree",
+    "createFailed": "创建 Worktree 失败"
+  }
 }

@@ -29,7 +29,7 @@ describe('CORE_RIGHT_PANEL_CATALOG tree icon', () => {
 describe('normalizeRightPanelPrefs', () => {
   it('falls back to files+run when all panels disabled', () => {
     const prefs = normalizeRightPanelPrefs(
-      { review: false, run: false, context: false, tree: false, files: false },
+      { review: false, run: false, context: false, tree: false, files: false, worktrees: false, github: false },
       CORE_RIGHT_PANEL_CATALOG,
     )
     expect(prefs.files).toBe(true)

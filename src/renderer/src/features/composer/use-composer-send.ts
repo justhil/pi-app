@@ -17,6 +17,10 @@ import {
   rollbackDraftPurgeAfterSendFailure,
 } from '@renderer/lib/agent-purge-store'
 import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
+import {
+  slugifyWorktreeBranchFromPrompt,
+  useDraftWorktreeStore,
+} from '@renderer/stores/draft-worktree-store'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import {
@@ -286,7 +290,31 @@ export function useComposerSend(opts: {
             return
           }
           if (!running && (homeMode || pendingNew) && store.currentWorkspace) {
-            if (ownsSourceView()) {
+            let targetWorkspace = store.currentWorkspace
+            const draftWt = useDraftWorktreeStore.getState()
+            if (draftWt.mode === 'new-worktree') {
+              const branch = draftWt.branchName.trim() || slugifyWorktreeBranchFromPrompt(pendMsg)
+              const created = (await ipcClient.invoke('desktop.createGitWorktree', {
+                workspaceId: store.currentWorkspace,
+                branch,
+                ...(draftWt.baseBranch ? { baseBranch: draftWt.baseBranch } : {}),
+                ...(draftWt.fromOrigin ? { fromOrigin: true } : {}),
+              })) as { ok?: boolean; path?: string; error?: string }
+              if (!created?.ok || !created.path) {
+                toast.error(created?.error || t('composer:worktree.createFailed'))
+                restoreUnsentDraft(true)
+                return
+              }
+              targetWorkspace = created.path
+              useUIStore.setState({ currentWorkspace: targetWorkspace })
+              useDraftWorktreeStore.getState().reset()
+              window.dispatchEvent(new CustomEvent('pi-desktop:sidebar-reload'))
+            } else if (draftWt.mode === 'existing-worktree' && draftWt.existingWorktreePath) {
+              targetWorkspace = draftWt.existingWorktreePath
+              useUIStore.setState({ currentWorkspace: targetWorkspace })
+              useDraftWorktreeStore.getState().reset()
+            }
+            if (ownsSourceView() || targetWorkspace !== store.currentWorkspace) {
               optimisticToken = appendOptimisticOutgoingMessage(pendMsg, {
                 bootstrap: true,
                 attachments: allAtts,
@@ -297,7 +325,7 @@ export function useComposerSend(opts: {
               useUIStore.getState().setPendingTurnStage('starting')
             }
             const { materializePendingNewSession } = await import('@renderer/lib/new-session')
-            sessionFile = await materializePendingNewSession(store.currentWorkspace, pendMsg, (nextSessionFile) => {
+            sessionFile = await materializePendingNewSession(targetWorkspace, pendMsg, (nextSessionFile) => {
               if (sendCtx) sendCtx.sessionFile = nextSessionFile
               draftKey = composerDraftContextKey({
                 ...store,

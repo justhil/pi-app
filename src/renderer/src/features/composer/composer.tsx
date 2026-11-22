@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, Upload, Plus } from '@renderer/components/icons'
+import { COMPOSER_TOOLBAR_ITEMS } from '@shared/ui-customization'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import {
@@ -22,6 +23,9 @@ import { ComposerToolsMenu } from './composer-tools-menu'
 import { ComposerMetricsInline } from './composer-metrics-inline'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { ComposerAdapterWidgetHost } from './composer-adapter-widget-host'
+import { SuspendedExtensionDialogPill } from '@renderer/features/extension-ui/suspended-dialog-pill'
+import { ComposerInlineQuestionnaire } from '@renderer/features/extension-ui/composer-inline-questionnaire'
+import { ComposerContextStrip } from './composer-context-strip'
 import { useComposerMetrics } from './use-composer-metrics'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useComposerInputHistory } from './use-composer-input-history'
@@ -408,6 +412,8 @@ export function Composer() {
     runComposerAbort,
   })
 
+  const toolbarOrder = useUIStore((s) => s.uiCustomization?.composerToolbarOrder ?? COMPOSER_TOOLBAR_ITEMS)
+  const voiceVisible = useUIStore((s) => s.uiCustomization?.composerVoiceVisible ?? true)
   const hasAttachments = attachments.length > 0
 
   return (
@@ -455,7 +461,9 @@ export function Composer() {
           )}
         </div>
       )}
-      <div className="composer-accessory-row flex min-w-0 gap-2">
+      <ComposerInlineQuestionnaire />
+      <div data-pi-slot="composer-accessory" className="composer-accessory-row flex min-w-0 gap-2">
+        <SuspendedExtensionDialogPill />
         <ComposerAdapterWidgetHost />
         <ComposerAgentActivity
           composerAnchorRef={slashPopoverAnchorRef}
@@ -464,6 +472,7 @@ export function Composer() {
       </div>
       <div
         ref={slashPopoverAnchorRef}
+        data-pi-slot="composer-shell"
         data-composer-shell=""
         className={cn(
           'composer-shell relative flex flex-col border',
@@ -487,7 +496,7 @@ export function Composer() {
           </div>
         </div>
         {hasAttachments && (
-          <div className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
+          <div data-pi-slot="composer-attachments" className="composer-attachments-strip flex flex-wrap gap-1.5 border-b border-border/25 px-3.5 pb-2.5 pt-2.5">
             {attachments.map((a, index) => {
               const staged = a.kind === 'image' ? stagedImages.find((img) => img.path === a.path) : undefined
               return (
@@ -548,50 +557,69 @@ export function Composer() {
             }
             disabled={!canSendMessages || voiceState === 'transcribing' || voiceState === 'recording'}
           />
-          <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
-            <button
-              type="button"
-              onClick={attachmentHandlers.pickAttachments}
-              disabled={!canSendMessages}
-              title={t('composer:addFile')}
-              className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
-            >
-              <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
-            </button>
-            {canSendMessages && <ComposerToolsMenu running={isRunning} />}
-            {canCompose && !readOnlySubagentPreview && (
-              <ComposerPurgeToggle draftContextKey={draftContextKey} running={isRunning} />
-            )}
-            <div className="min-w-0 flex-1">
-              {canSendMessages && (
-                <ComposerModelStrip
-                  model={model}
-                  thinkingLevel={thinkingLevel}
-                  modelPickerOpen={modelPickerOpen}
-                  thinkingPickerOpen={thinkingPickerOpen}
-                  onModelClick={() => {
-                    setThinkingPickerOpen(false)
-                    setModelPickerOpen(!modelPickerOpen)
-                  }}
-                  onThinkingClick={() => {
-                    setModelPickerOpen(false)
-                    setThinkingPickerOpen(!thinkingPickerOpen)
-                  }}
-                />
-              )}
-            </div>
-            {canCompose && (
-              <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
-            )}
-            <div className="flex shrink-0 items-center gap-1.5">
+          <div data-pi-slot="composer-toolbar" className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
+            {toolbarOrder.map((slotId) => {
+              switch (slotId) {
+                case 'attach':
+                  return (
+                    <button
+                      key="attach"
+                      type="button"
+                      data-pi-slot="composer-attach-btn"
+                      onClick={attachmentHandlers.pickAttachments}
+                      disabled={!canSendMessages}
+                      title={t('composer:addFile')}
+                      className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
+                    >
+                      <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
+                    </button>
+                  )
+                case 'tools':
+                  return canSendMessages ? <ComposerToolsMenu key="tools" running={isRunning} /> : null
+                case 'purge':
+                  return canCompose && !readOnlySubagentPreview ? (
+                    <ComposerPurgeToggle key="purge" draftContextKey={draftContextKey} running={isRunning} />
+                  ) : null
+                case 'spacer':
+                  return <div key="spacer" data-pi-slot="composer-spacer" className="min-w-1 flex-1" />
+                case 'model':
+                  return canSendMessages ? (
+                    <ComposerModelStrip
+                      key="model"
+                      model={model}
+                      thinkingLevel={thinkingLevel}
+                      modelPickerOpen={modelPickerOpen}
+                      thinkingPickerOpen={thinkingPickerOpen}
+                      onModelClick={() => {
+                        setThinkingPickerOpen(false)
+                        setModelPickerOpen(!modelPickerOpen)
+                      }}
+                      onThinkingClick={() => {
+                        setModelPickerOpen(false)
+                        setThinkingPickerOpen(!thinkingPickerOpen)
+                      }}
+                    />
+                  ) : null
+                case 'metrics':
+                  return canCompose ? (
+                    <ComposerMetricsInline
+                      key="metrics"
+                      metrics={metrics}
+                      isRunning={showComposerStop || isRunning}
+                    />
+                  ) : null
+                default:
+                  return null
+              }
+            })}
+            <div data-pi-slot="composer-send-group" className="flex shrink-0 items-center gap-1.5">
               {(() => {
                 const hasContent = !!text.trim() || hasAttachments
-                // Running: stop is the main action until there is something to queue; then
-                // "queue" is primary and stop steps back to a quiet secondary button.
                 if (!showComposerStop) return null
                 return (
                   <button
                     type="button"
+                    data-pi-slot="composer-stop-btn"
                     onClick={handleAbort}
                     title={t('composer:stop')}
                     aria-label={t('composer:stop')}
@@ -609,7 +637,7 @@ export function Composer() {
               {(() => {
                 const hasContent = !!text.trim() || hasAttachments
                 if (showComposerStop && !hasContent) return null
-                const voicePrimary = !showComposerStop && !hasContent
+                const voicePrimary = !showComposerStop && !hasContent && voiceVisible
                 if (voicePrimary) {
                   return (
                     <ComposerVoiceMicButton
@@ -624,6 +652,7 @@ export function Composer() {
                 return (
                   <button
                     type="button"
+                    data-pi-slot="composer-send-btn"
                     onClick={handleSend}
                     disabled={(!text.trim() && !hasAttachments) || !canSendMessages}
                     title={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
@@ -637,6 +666,7 @@ export function Composer() {
           </div>
         </div>
       </div>
+      <ComposerContextStrip />
       <ImageLightbox
         src={previewImage?.dataUrl ?? null}
         alt={previewImage?.name}

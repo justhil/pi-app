@@ -20,7 +20,7 @@ import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-sessio
 import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
-import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
+
 import { ShellPopover } from './shell-popover'
 
 type WorkerRow = { sessionFile: string; running: boolean; cwd: string }
@@ -181,8 +181,8 @@ export function StatusBar() {
   const live = counts.working + counts.needsYou + counts.done
 
   return (
-    <footer className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
-      <BranchStatusTrigger />
+    <footer data-pi-slot="shell-status-bar" className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
+
       <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
         {live === 0 ? (runFailed
           ? <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-destructive" />{t('common:statusBar.failed')}</span>

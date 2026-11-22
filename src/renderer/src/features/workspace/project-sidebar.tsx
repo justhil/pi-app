@@ -1,4 +1,6 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createSidebarShiftGuard } from '@renderer/lib/sidebar-shift-guard'
+import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ChevronRight, FolderOpen, Plus, Search, X } from '@renderer/components/icons'
@@ -499,8 +501,24 @@ export function ProjectSidebar({
     )
   }
 
+  const sidebarContainerRef = useRef<HTMLDivElement>(null)
+  const shiftGuardRef = useRef<ReturnType<typeof createSidebarShiftGuard> | null>(null)
+  useEffect(() => {
+    const el = sidebarContainerRef.current
+    if (!el) return
+    const guard = createSidebarShiftGuard(el)
+    shiftGuardRef.current = guard
+    return () => {
+      guard.dispose()
+      shiftGuardRef.current = null
+    }
+  }, [])
+  useLayoutEffect(() => {
+    shiftGuardRef.current?.update()
+  })
+
   return (
-    <div className="flex flex-col pb-1">
+    <div ref={sidebarContainerRef} className="flex flex-col pb-1">
       <div className="sidebar-search-block border-b border-border/40 px-3 py-3">
         <div className="workbench-search sidebar-search">
           <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -637,31 +655,51 @@ export function ProjectSidebar({
             const open = searchActive || (repositoryOpen[group.key] ?? group.key === activeRepository)
             const groupPaths = group.projects.map((p) => p.path)
             return <div key={group.key} className="sidebar-repository-group mb-2" role="group" aria-label={name} data-repository={group.repositoryPath}>
-              <button
-                type="button"
-                className="sidebar-repository-hit flex min-h-[36px] w-full min-w-0 items-center gap-0.5 rounded-lg pl-0.5 pr-1 text-left hover:bg-[var(--bg-hover)]"
-                aria-expanded={open}
-                title={group.repositoryPath}
-                onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}
-                onContextMenu={(event) =>
-                  projectMenu.open(event, group.repositoryPath!, name, {
-                    isRepositoryGroup: true,
-                    repositoryPath: group.repositoryPath!,
-                    groupPaths,
-                  })
-                }
-              >
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
-                  <ChevronRight className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/80" data-open={open ? 'true' : 'false'} />
-                </span>
-                <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-semibold">{name}</span>
-                <span
-                  className="ml-0.5 inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center text-[11px] tabular-nums text-foreground-secondary"
-                  title={t('common:sidebar.worktreeCount', { count: group.projects.length })}
+              <div className="group/repo-head relative flex items-center">
+                <button
+                  type="button"
+                  className="sidebar-repository-hit flex min-h-[36px] w-full min-w-0 items-center gap-0.5 rounded-lg pl-0.5 pr-1 text-left hover:bg-[var(--bg-hover)]"
+                  aria-expanded={open}
+                  title={group.repositoryPath}
+                  onClick={() => setRepositoryOpen((previous) => ({ ...previous, [group.key]: !open }))}
+                  onContextMenu={(event) =>
+                    projectMenu.open(event, group.repositoryPath!, name, {
+                      isRepositoryGroup: true,
+                      repositoryPath: group.repositoryPath!,
+                      groupPaths,
+                    })
+                  }
                 >
-                  {group.projects.length}
-                </span>
-              </button>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
+                    <ChevronRight className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/80" data-open={open ? 'true' : 'false'} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-semibold">{name}</span>
+                  <span
+                    className="ml-0.5 inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center text-[11px] tabular-nums text-foreground-secondary transition-opacity group-hover/repo-head:opacity-0"
+                    title={t('common:sidebar.worktreeCount', { count: group.projects.length })}
+                  >
+                    {group.projects.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  title={t('common:worktrees.newParallel')}
+                  aria-label={t('common:worktrees.newParallel')}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (group.repositoryPath && !workspacePathsEqual(currentWorkspace, group.repositoryPath)) {
+                      void activateWorkspace(group.repositoryPath).then(() => {
+                        usePanelIntentStore.getState().openWorktreesPanel({ expandCreate: true })
+                      })
+                    } else {
+                      usePanelIntentStore.getState().openWorktreesPanel({ expandCreate: true })
+                    }
+                  }}
+                  className="absolute right-1.5 flex h-6 w-6 items-center justify-center rounded-md text-foreground-secondary opacity-0 transition-opacity hover:bg-[var(--bg-active)] hover:text-foreground focus-visible:opacity-100 group-hover/repo-head:opacity-100"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <SidebarAnimatedCollapse open={open}>
                 <div className="ml-3 border-l border-border/40 pl-1.5 pt-1">
                   {projects.map((project) =>
