@@ -86,10 +86,10 @@ import { TurnActivityBlock } from './turn-activity-block'
 import { shouldShowTimelineHonestyBanner } from '@renderer/lib/timeline-honesty'
 import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
 import { EmptyState } from '@renderer/components/ui/empty-state'
-import { enrichPlainTextWithPaths } from './markdown-inline-paths'
-import { AttachmentChip } from '@renderer/features/composer/attachment-chip'
-import { ClipboardImageChip } from './clipboard-image-chip'
-import { type AttachmentMeta, type Segment } from '@renderer/features/composer/attachments'
+import { type Segment } from '@renderer/features/composer/attachments'
+import { isSessionPreviewComposeLocked } from '@renderer/lib/session-worker-sync'
+import { UserMessageBubble } from './user-message-content'
+import { TimelineSelectionToolbar } from './timeline-selection-toolbar'
 
 const MarkdownView = lazy(() => import('./markdown-view'))
 
@@ -104,6 +104,7 @@ const TimelineItemBase = memo(function TimelineItem({
   showMessageActions = true,
   /** Mid-turn prose blocks float actions over the bottom edge without adding vertical gap. */
   floatingMessageActions = false,
+  midTurnProse = false,
   isEditing = false,
   editDisabled = false,
   onStartEdit,
@@ -118,12 +119,15 @@ const TimelineItemBase = memo(function TimelineItem({
   rewindEntryId?: string
   showMessageActions?: boolean
   floatingMessageActions?: boolean
+  midTurnProse?: boolean
   isEditing?: boolean
   editDisabled?: boolean
   onStartEdit?: (itemId: string) => void
   onCancelEdit?: () => void
 }) {
   const { t } = useTranslation()
+  const userMessageStyle = useUIStore((s) => s.timelineUserMessageStyle)
+  const userActionAlign: 'left' | 'right' = userMessageStyle === 'prompt-card' ? 'left' : 'right'
   const rewindTargetFor = (row: TimelineRawItem): string | undefined =>
     rewindEntryId ?? (row.sessionEntryId as string | undefined)
   const ownEntryId = item.sessionEntryId as string | undefined
@@ -215,6 +219,7 @@ const TimelineItemBase = memo(function TimelineItem({
       : [{ type: 'text', text: String(item.text || '') }]
     return (
       <div
+        data-pi-slot="timeline-user-row"
         className="timeline-message-row timeline-user-row"
         onContextMenu={(e) =>
           openMessageContextMenu(e, {
@@ -227,14 +232,14 @@ const TimelineItemBase = memo(function TimelineItem({
         }
       >
         <MessageHoverShell
-          align="right"
+          align={userActionAlign}
           reserve={showMessageActions}
           actions={
             showMessageActions ? (
               <MessageHoverActions
                 text={String(item.text ?? '')}
                 timestamp={Number(item.timestamp ?? 0)}
-                align="right"
+                align={userActionAlign}
                 sessionEntryId={rewindTargetFor(item)}
                 editEntryId={ownEntryId}
                 editDisabled={editDisabled}
@@ -245,26 +250,7 @@ const TimelineItemBase = memo(function TimelineItem({
             ) : null
           }
         >
-          <div className="timeline-user-bubble">
-            {segments.map((s: Segment, i: number) => {
-              if (s.type === 'text') return <span key={i}>{enrichPlainTextWithPaths(s.text)}</span>
-              if (s.type === 'clipboard-image') {
-                return <ClipboardImageChip key={i} path={s.path} name={s.name} className="mx-0.5" />
-              }
-              const attachment = s.attachment as AttachmentMeta
-              if (attachment.kind === 'image') {
-                return <ClipboardImageChip key={i} path={attachment.path} name={attachment.name} className="mx-0.5" />
-              }
-              return (
-                <AttachmentChip
-                  key={i}
-                  attachment={attachment}
-                  openable
-                  className="mx-0.5"
-                />
-              )
-            })}
-          </div>
+          <UserMessageBubble segments={segments} rawText={String(item.text ?? '')} />
         </MessageHoverShell>
       </div>
     )
@@ -388,8 +374,9 @@ const TimelineItemBase = memo(function TimelineItem({
         )}
         {hasText ? (
           <div
+            data-pi-slot={midTurnProse ? 'timeline-mid-prose' : undefined}
             className={cn(
-              'min-w-0 text-[15px] leading-[1.65] timeline-text-body',
+              'min-w-0 timeline-text-body',
               streaming && 'assistant-stream-live',
             )}
           >
@@ -438,6 +425,7 @@ const TimelineItemBase = memo(function TimelineItem({
 
     return (
       <div
+        data-pi-slot="timeline-prose-row"
         className="timeline-message-row timeline-prose-row"
         onContextMenu={
           streaming
@@ -620,8 +608,24 @@ export function Timeline() {
   )
   /** Rows of history the turn window covers (what the row-based reveal/jump logic works in). */
   const renderCount = useMemo(() => rowsForTurns(segments.history, windowTurns), [segments, windowTurns])
+  const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const canQuote = useUIStore((s) => {
+    const canCompose = !!s.currentWorkspace || s.ephemeralSandboxDraft
+    if (!canCompose) return false
+    const locked =
+      !s.ephemeralSandboxDraft &&
+      !s.pendingNewSessionPlaceholder &&
+      !!s.historySessionFile &&
+      isSessionPreviewComposeLocked(
+        s.historySessionFile,
+        s.workerLiveSnapshot.sessionFile,
+        s.workerLiveSnapshot.status,
+        readOnlySubagentPreview,
+      )
+    return !locked
+  })
 
   // ---- Non-destructive view jumps from the session tree (click = view, dblclick = rewind) ----
   const viewSeqRef = useRef(0)
@@ -1182,6 +1186,7 @@ export function Timeline() {
     () => groupDisplayBlocksByTurn(displayItems),
     [displayItems],
   )
+
   const rewindEntryByItemId = useMemo(() => {
     const map = new Map<string, string | undefined>()
     const raw = items as unknown as TimelineRawItem[]
@@ -1257,11 +1262,13 @@ export function Timeline() {
     opts?: {
       showMessageActions?: boolean
       floatingMessageActions?: boolean
+      midTurnProse?: boolean
       allowBootPlaceholder?: boolean
     },
   ) => {
     const showMessageActions = opts?.showMessageActions !== false
     const floatingMessageActions = !!opts?.floatingMessageActions
+    const midTurnProse = !!opts?.midTurnProse
     const rowAgentBoot = agentBoot && !!opts?.allowBootPlaceholder
     if (block.kind === 'tool-group') {
       const groupThinking = block.thinkingText?.trim() || ''
@@ -1305,6 +1312,7 @@ export function Timeline() {
         rewindEntryId={rewindEntryByItemId.get(item.id)}
         showMessageActions={showMessageActions}
         floatingMessageActions={floatingMessageActions}
+        midTurnProse={midTurnProse}
         isEditing={activeEditingItemId === item.id}
         editDisabled={editDisabled}
         onStartEdit={onStartEditRow}
@@ -1371,7 +1379,7 @@ export function Timeline() {
   }
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <div ref={containerRef} data-pi-slot="timeline-viewport" className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <OverlayScrollHost
       className="timeline-scroll-viewport timeline-scroll-with-dock min-h-0 flex-1 w-full"
       scrollClassName="timeline-scroll-with-dock-pane w-full"
@@ -1381,6 +1389,7 @@ export function Timeline() {
     >
       <div
         ref={contentRef}
+        data-pi-slot="timeline-column"
         key={historySessionFile || 'timeline'}
         className="chat-content-column py-4"
       >
@@ -1423,6 +1432,7 @@ export function Timeline() {
             {renderDisplayBlock(block, `lead-${i}`, {
               showMessageActions: isLeadLast || isLeadMidProse,
               floatingMessageActions: isLeadMidProse,
+              midTurnProse: isLeadMidProse,
             })}
           </Fragment>
         )
@@ -1434,7 +1444,7 @@ export function Timeline() {
         const turnLastProseId = lastProseIdInTurn(turn.blocks)
         const claimBlockKey = createKeyClaimer()
         return (
-          <Fragment key={claimTopKey(turn.turnId)}>
+          <div key={claimTopKey(turn.turnId)} data-pi-slot="timeline-turn" className="timeline-turn-group" data-turn-id={turn.turnId}>
             {(() => {
               const userEntryId = turn.userItem.sessionEntryId as string | undefined
               const userRow = (
@@ -1482,6 +1492,7 @@ export function Timeline() {
                   {renderDisplayBlock(block, blockKey, {
                     showMessageActions: isLastProse || isMidTurnProse,
                     floatingMessageActions: isMidTurnProse,
+                    midTurnProse: isMidTurnProse,
                     allowBootPlaceholder: isLiveTurn && bi === turn.blocks.length - 1,
                   })}
                 </Fragment>
@@ -1502,7 +1513,7 @@ export function Timeline() {
             {turnIndex === turnGroups.length - 1 && !isLiveTurn ? (
               <TurnActivityBlock blocks={turn.blocks} />
             ) : null}
-          </Fragment>
+          </div>
         )
       })}
       {leading.length === 0 &&
@@ -1516,6 +1527,7 @@ export function Timeline() {
           return renderDisplayBlock(block, `orphan-${i}`, {
             showMessageActions: isOrphanLast || isOrphanMidProse,
             floatingMessageActions: isOrphanMidProse,
+            midTurnProse: isOrphanMidProse,
             allowBootPlaceholder: isSessionTurnLive && i === displayItems.length - 1,
           })
         })}
@@ -1536,6 +1548,12 @@ export function Timeline() {
       />
       </div>
     </OverlayScrollHost>
+    <TimelineSelectionToolbar
+      containerRef={containerRef}
+      contentRef={contentRef}
+      scrollRef={scrollRef}
+      canQuote={canQuote}
+    />
     <TimelineBottomAnchorButton
       scrollRef={scrollRef}
       followLiveRef={followLiveRef}

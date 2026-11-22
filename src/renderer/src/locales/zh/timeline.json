@@ -26,6 +26,7 @@
   },
   "collapse": "收起",
   "expand": "展开 {{count}} 行",
+  "quoteSelection": "引用",
   "thinkingChain": "思考",
   "thinkingActive": "思考中",
   "thoughtDone": "思考",
@@ -271,6 +272,8 @@
     "historyRefreshFailed": "回退后刷新历史失败",
     "doneWithText": "已回退：消息已填入输入框，可修改后重新发送",
     "doneAtNode": "已跳转到该节点，可从此继续",
+    "preparing": "正在准备回退…",
+    "alreadyAtNode": "当前已在此节点，未发生回退",
     "failed": "回退失败"
   },
   "forkFromHere": "从此 Fork 新会话",

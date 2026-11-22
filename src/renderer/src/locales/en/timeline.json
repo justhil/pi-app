@@ -26,6 +26,7 @@
   },
   "collapse": "Collapse",
   "expand": "Expand {{count}} lines",
+  "quoteSelection": "Quote",
   "thinkingChain": "Thinking",
   "thinkingActive": "Thinking",
   "thoughtDone": "Thought",
@@ -274,6 +275,8 @@
     "historyRefreshFailed": "History refresh after rewind failed",
     "doneWithText": "Rewound: the message is in the input, edit and resend",
     "doneAtNode": "Jumped to that node, continue from here",
+    "preparing": "Preparing rewind…",
+    "alreadyAtNode": "Already at this node — nothing was rewound",
     "failed": "Rewind failed"
   },
   "forkFromHere": "Fork new session from here",

@@ -30,6 +30,10 @@ import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
 import { localFilePathFromHref } from '@renderer/lib/open-workspace-path'
+import { anchorViewportBeforeCollapse } from './collapse-scroll-anchor'
+
+export const CODE_FOLD_THRESHOLD_LINES = 24
+export const CODE_PREVIEW_LINES = 14
 
 const markdownUrlTransform: UrlTransform = (url, key) =>
   key === 'href' && localFilePathFromHref(url) ? url : defaultUrlTransform(url)
@@ -78,26 +82,25 @@ function observeCodeBlockNearViewport(el: Element, onNear: () => void): () => vo
 function CodeBlock({
   className,
   children,
-  defaultExpanded,
   streaming,
 }: {
   className?: string
   children?: React.ReactNode
-  defaultExpanded?: boolean
   streaming?: boolean
 }) {
   const { t } = useTranslation()
   const surfaceRef = useRef<HTMLDivElement>(null)
-  const [expanded, setExpanded] = useState(!!defaultExpanded)
-  const [scrollActive, setScrollActive] = useState(false)
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null)
   const [copied, setCopied] = useState(false)
   const [html, setHtml] = useState<string | null>(null)
   const [nearViewport, setNearViewport] = useState(() => typeof IntersectionObserver === 'undefined')
   const lang = /language-([\w-]+)/.exec(className || '')?.[1] || ''
   const code = String(children ?? '').replace(/\n$/, '')
-  const PREVIEW_LINES = 3
   const lineCount = code.split('\n').length
-  const needsFold = lineCount > PREVIEW_LINES
+  const needsFold = !streaming && lineCount > CODE_FOLD_THRESHOLD_LINES
+  const expanded = userExpanded ?? !needsFold
+  const isCollapsed = needsFold && !expanded
+  const isExpandedFoldable = needsFold && expanded
   const themeRev = useCodeHighlightRevision()
 
   useEffect(() => {
@@ -121,24 +124,6 @@ function CodeBlock({
     }
   }, [code, lang, streaming, themeRev, nearViewport])
 
-  useEffect(() => {
-    if (!scrollActive) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (surfaceRef.current && !surfaceRef.current.contains(e.target as Node)) {
-        setScrollActive(false)
-      }
-    }
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setScrollActive(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [scrollActive])
-
   const copy = () => {
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true)
@@ -146,67 +131,109 @@ function CodeBlock({
     })
   }
 
+  const handleCollapse = () => {
+    anchorViewportBeforeCollapse(surfaceRef.current)
+    setUserExpanded(false)
+  }
+
   return (
     <div
       ref={surfaceRef}
-      data-scroll-active={scrollActive ? 'true' : undefined}
+      data-pi-slot="timeline-code-block"
       className={cn(
-        'code-surface group relative my-1.5 overflow-hidden rounded-md border border-border/45 transition-colors',
-        scrollActive && 'border-primary/45 ring-1 ring-primary/20',
+        'code-surface group relative my-2.5 rounded-lg border border-border/55 transition-colors',
+        !isExpandedFoldable && 'overflow-hidden',
       )}
       style={{ background: 'var(--code-bg, color-mix(in srgb, var(--bg-2) 55%, transparent))' }}
     >
       <div
-        className="flex items-center justify-between gap-2 border-b border-border/30 px-2 py-0.5"
-        style={{ background: 'color-mix(in srgb, var(--bg-3) 28%, transparent)' }}
+        className={cn(
+          'flex items-center justify-between gap-2 border-b border-border/35 px-3 py-1',
+          isExpandedFoldable && 'sticky top-0 z-10 rounded-t-[7px] backdrop-blur-sm',
+        )}
+        style={{
+          background: isExpandedFoldable
+            ? 'color-mix(in srgb, var(--bg-2) 92%, var(--bg-base))'
+            : 'color-mix(in srgb, var(--bg-3) 26%, transparent)',
+        }}
       >
-        <span className="font-mono text-[10px] uppercase tracking-wide text-foreground-secondary/55">
-          {lang || 'code'}
-        </span>
-        <button
-          type="button"
-          onClick={copy}
-          aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
-          title={copied ? t('timeline:copied') : t('timeline:copy')}
-          className="flex h-5 w-5 items-center justify-center rounded text-foreground-secondary/50 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-        </button>
+        <div className="flex min-w-0 items-center gap-1.5 font-mono text-[10.5px] tracking-wide text-foreground-secondary/65">
+          <span className="uppercase">{lang || t('timeline:code')}</span>
+          {lineCount > 1 && (
+            <span className="text-foreground-secondary/45">
+              · {t('timeline:previews.lines', { count: lineCount })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {isExpandedFoldable && (
+            <button
+              type="button"
+              onClick={handleCollapse}
+              className="flex h-5 items-center gap-1 rounded px-1.5 text-[11px] text-foreground-secondary/75 transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+            >
+              <ChevronDown className="h-3 w-3 rotate-180" />
+              <span>{t('timeline:collapse')}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? t('timeline:copied') : t('timeline:copy')}
+            title={copied ? t('timeline:copied') : t('timeline:copy')}
+            className={cn(
+              'flex h-5 w-5 items-center justify-center rounded text-foreground-secondary/60 transition-opacity hover:bg-[var(--bg-hover)] hover:text-foreground focus-visible:opacity-100',
+              isExpandedFoldable ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            )}
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          </button>
+        </div>
       </div>
-      {html != null && !streaming ? (
-        <div
-          data-independent-scroll={scrollActive ? '' : undefined}
-          onClick={() => setScrollActive(true)}
-          className={cn(
-            'native-code-shiki px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono [&_pre]:m-0 [&_pre]:bg-transparent [&_code]:text-[12.5px]',
-            scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
-            !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
-          )}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
-        />
-      ) : (
-        <pre
-          data-independent-scroll={scrollActive ? '' : undefined}
-          onClick={() => setScrollActive(true)}
-          className={cn(
-            'px-2.5 py-2 text-[12.5px] leading-[1.5] font-mono',
-            scrollActive ? 'overflow-auto overscroll-contain' : 'overflow-hidden',
-            !expanded && needsFold ? 'max-h-[4.5rem]' : 'max-h-80',
-          )}
-          style={{ margin: 0, color: 'var(--text-primary)' }}
-        >
-          <code>{code}</code>
-        </pre>
-      )}
+      <div className={cn('relative', isExpandedFoldable && 'overflow-hidden rounded-b-[7px]')}>
+        {html != null && !streaming ? (
+          <div
+            className={cn(
+              'native-code-shiki px-3 py-2.5 text-[12.5px] leading-[1.55] font-mono [&_pre]:m-0 [&_pre]:bg-transparent [&_pre]:overflow-x-auto [&_code]:text-[12.5px]',
+              isCollapsed ? 'max-h-[19.25rem] overflow-hidden' : 'overflow-x-auto overflow-y-visible',
+            )}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
+          />
+        ) : (
+          <pre
+            className={cn(
+              'px-3 py-2.5 text-[12.5px] leading-[1.55] font-mono',
+              isCollapsed ? 'max-h-[19.25rem] overflow-hidden' : 'overflow-x-auto overflow-y-visible',
+            )}
+            style={{ margin: 0, color: 'var(--text-primary)' }}
+          >
+            <code>{code}</code>
+          </pre>
+        )}
+        {isCollapsed && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
+            style={{
+              background:
+                'linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--bg-2) 86%, var(--bg-base)) 100%)',
+            }}
+          />
+        )}
+      </div>
       {needsFold && (
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => (expanded ? handleCollapse() : setUserExpanded(true))}
+          aria-expanded={expanded}
           aria-label={expanded ? t('timeline:collapse') : t('timeline:expand', { count: lineCount })}
-          title={expanded ? t('timeline:collapse') : t('timeline:expand', { count: lineCount })}
-          className="flex w-full items-center justify-center border-t border-border/30 py-0.5 text-foreground-secondary/45 transition-colors hover:text-foreground-secondary"
+          className={cn(
+            'flex w-full items-center justify-center gap-1.5 border-t border-border/35 py-1 text-[11.5px] text-foreground-secondary/75 transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+            isExpandedFoldable && 'rounded-b-[7px]',
+          )}
         >
           <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
+          <span>{expanded ? t('timeline:collapse') : t('timeline:expand', { count: lineCount })}</span>
         </button>
       )}
     </div>
@@ -354,18 +381,10 @@ const MarkdownView = memo(function MarkdownView({
           return <MermaidBlock code={raw} streaming={!!streaming} />
         }
         if (isInline) {
-          return (
-            <code
-              className="rounded-sm px-1 py-px font-mono text-[0.88em] text-foreground/90"
-              style={{ background: 'color-mix(in srgb, var(--bg-3) 45%, transparent)' }}
-              {...rest}
-            >
-              {ch}
-            </code>
-          )
+          return <code {...rest}>{ch}</code>
         }
         return (
-          <CodeBlock className={cn2} defaultExpanded={!!streaming} streaming={streaming}>
+          <CodeBlock className={cn2} streaming={streaming}>
             {ch}
           </CodeBlock>
         )
@@ -379,53 +398,31 @@ const MarkdownView = memo(function MarkdownView({
         </MarkdownLink>
       ),
       table: ({ children: ch }: ComponentPropsWithoutRef<'table'>) => (
-        <div className="my-2 overflow-x-auto">
-          <table className="w-full border-collapse text-[13px]">{ch}</table>
+        <div data-pi-slot="timeline-table" className="my-3 max-w-full overflow-x-auto rounded-lg border border-border/55">
+          <table className="w-max min-w-[50%] max-w-full border-collapse text-[13px]">{ch}</table>
         </div>
       ),
-      th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => (
-        <th
-          className="border border-border/40 px-2 py-1 text-left font-medium"
-          style={{ background: 'color-mix(in srgb, var(--bg-2) 40%, transparent)' }}
-        >
-          {ch}
-        </th>
-      ),
-      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => (
-        <td className="border border-border/40 px-2 py-1">{ch}</td>
-      ),
+      th: ({ children: ch }: ComponentPropsWithoutRef<'th'>) => <th>{ch}</th>,
+      td: ({ children: ch }: ComponentPropsWithoutRef<'td'>) => <td>{ch}</td>,
       img: ({ src, alt }: ComponentPropsWithoutRef<'img'>) => (
-        <img src={src} alt={alt} className="my-2 max-w-full rounded-md border border-border/40" />
+        <img src={src} alt={alt} className="my-2.5 max-w-full rounded-lg border border-border/45" />
       ),
       blockquote: ({ children: ch }: ComponentPropsWithoutRef<'blockquote'>) => (
-        <blockquote className="my-2 border-l-2 border-border/50 pl-3 text-muted-foreground">{ch}</blockquote>
+        <blockquote>{ch}</blockquote>
       ),
-      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => (
-        <ul className="my-1 ml-4 list-disc space-y-0.5">{ch}</ul>
-      ),
-      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => (
-        <ol className="my-1 ml-4 list-decimal space-y-0.5">{ch}</ol>
-      ),
-      h1: ({ children: ch }: ComponentPropsWithoutRef<'h1'>) => (
-        <h1 className="mb-1 mt-3 text-[17px] font-semibold">{ch}</h1>
-      ),
-      h2: ({ children: ch }: ComponentPropsWithoutRef<'h2'>) => (
-        <h2 className="mb-1 mt-3 text-[16px] font-semibold">{ch}</h2>
-      ),
-      h3: ({ children: ch }: ComponentPropsWithoutRef<'h3'>) => (
-        <h3 className="mb-1 mt-2 text-[15px] font-semibold">{ch}</h3>
-      ),
+      ul: ({ children: ch }: ComponentPropsWithoutRef<'ul'>) => <ul className="list-disc">{ch}</ul>,
+      ol: ({ children: ch }: ComponentPropsWithoutRef<'ol'>) => <ol className="list-decimal">{ch}</ol>,
       p: ({ children: ch }: ComponentPropsWithoutRef<'p'>) => {
         if (typeof ch === 'string') {
           return (
-            <p className="my-1 leading-relaxed">
+            <p>
               <MarkdownPathText text={ch} />
             </p>
           )
         }
-        return <p className="my-1 leading-relaxed">{ch}</p>
+        return <p>{ch}</p>
       },
-      hr: () => <hr className="my-3 border-border/35" />,
+      hr: () => <hr />,
     }),
     [streaming, baseDirectory],
   )

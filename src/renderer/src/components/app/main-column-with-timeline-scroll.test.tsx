@@ -30,6 +30,20 @@ describe('MainColumnWithTimelineScroll', () => {
     expect(event.defaultPrevented).toBe(false)
   })
 
+  it('should_not_hijack_horizontal_trackpad_scroll_on_wide_code_or_tables', () => {
+    const { getByTestId } = render(
+      <MainColumnWithTimelineScroll>
+        <pre data-testid="wide-code">horizontal code</pre>
+      </MainColumnWithTimelineScroll>,
+    )
+
+    const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 48, deltaY: 4 })
+    getByTestId('wide-code').dispatchEvent(event)
+
+    expect(scrollTimelineByDeltaMock).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it('should_forward_wheel_when_target_is_ordinary_main_column_content', () => {
     const { getByTestId } = render(
       <MainColumnWithTimelineScroll>
