@@ -6,11 +6,11 @@ import {
   isAllowedBrowserUrl,
   isDevOrigin,
   isExternalProtocolUrl,
-  isTabVisibleInSession,
   normalizeBrowserSessionKey,
   sessionHasBrowserTabs,
-  type BrowserEvent,
+  type BrowserAgentStep,
   type BrowserDownloadInfo,
+  type BrowserEvent,
   type BrowserLogEntry,
   type BrowserTabInfo,
   type BrowserViewBounds,
@@ -18,7 +18,12 @@ import {
   type PageContextResult,
 } from '@shared/browser-types'
 import { configStore } from '../config-store'
-import { configureBrowserSession, partitionForProfile, peekDownloadManager, userAgentForSessionUrl } from './electron-session'
+import {
+  configureBrowserSession,
+  partitionForProfile,
+  peekDownloadManager,
+  userAgentForSessionUrl,
+} from './electron-session'
 import { FRAMEWORK_SOURCE } from './page-scripts'
 import { computeViewBounds } from './view-layout'
 import { BrowserToolError } from './agent/errors'
@@ -29,20 +34,31 @@ import type { PageEngine } from './engines/types'
 
 interface Tab {
   info: BrowserTabInfo
-  view: WebContentsView
+  view: WebContentsView | null
   logs: BrowserLogEntry[]
-  engine: PageEngine
-  pointer: Pointer
+  engine: PageEngine | null
+  pointer: Pointer | null
   /** Serializes agent actions on this tab. */
   queue: Promise<unknown>
+  lastActiveAt: number
+  agentBusy: boolean
 }
 
-/** Layout size for tabs the user has not shown yet (agent-opened tabs still need a viewport). */
-const DEFAULT_VIEW_SIZE = { width: 1280, height: 800 }
+interface ClosedTabRecord {
+  url: string
+  title: string
+  favicon?: string
+  profileId: string
+  closedAt: number
+}
 
+const DEFAULT_VIEW_SIZE = { width: 1280, height: 800 }
 const LOG_LIMIT = 200
-/** A page blocked by alert()/confirm() never answers; fail fast instead of hanging the UI. */
 const PAGE_SCRIPT_TIMEOUT_MS = 2000
+const MAX_CLOSED_HISTORY = 20
+/** Auto-sleep background tabs idle for 15 minutes to save Chromium memory/CPU. */
+const AUTO_SLEEP_IDLE_MS = 15 * 60 * 1000
+const SLEEP_SWEEP_INTERVAL_MS = 2 * 60 * 1000
 
 export class BrowserDialogPendingError extends Error {
   constructor() {
@@ -70,22 +86,23 @@ const num = (n: number) => (Number.isFinite(n) ? Math.round(n) : 0)
 
 export type BrowserNavigateOp = { url: string } | { history: 'back' | 'forward' | 'reload' | 'stop' }
 
-/**
- * Built-in browser host (engine E). Tabs are WebContentsViews stacked on the main window;
- * only the tab whose placeholder the Renderer reports as visible is shown. No preload,
- * sandboxed, no debugger. Agent tools drive tabs through each tab's PageEngine.
- */
 export class BrowserHost implements AgentBrowserHost {
   private readonly tabs = new Map<string, Tab>()
+  private readonly closedHistory: ClosedTabRecord[] = []
   private activeTabId: string | null = null
   private activeSessionKey: string | null = null
   private readonly activeTabBySession = new Map<string, string>()
+  private readonly sleepTimer: NodeJS.Timeout
 
-  constructor(private readonly getWindow: () => BrowserWindow | null) {}
+  constructor(private readonly getWindow: () => BrowserWindow | null) {
+    this.sleepTimer = setInterval(() => this.sweepIdleTabs(), SLEEP_SWEEP_INTERVAL_MS)
+    this.sleepTimer.unref?.()
+  }
 
-  /** OS process ids of the pages in open tabs (for the app memory breakdown). */
   pageProcessIds(): number[] {
-    return [...this.tabs.values()].filter((t) => !t.view.webContents.isDestroyed()).map((t) => t.view.webContents.getOSProcessId())
+    return [...this.tabs.values()]
+      .filter((t) => t.view && !t.view.webContents.isDestroyed())
+      .map((t) => t.view!.webContents.getOSProcessId())
   }
 
   list(): { tabs: BrowserTabInfo[]; activeTabId: string | null } {
@@ -96,24 +113,20 @@ export class BrowserHost implements AgentBrowserHost {
     return sessionHasBrowserTabs([...this.tabs.values()].map((t) => t.info), sessionKey)
   }
 
-  openTab(
-    opts: {
-      url?: string
-      profileId?: string
-      focus?: boolean
-      openedBy?: BrowserTabInfo['openedBy']
-      sessionKey?: string
-      pinned?: boolean
-    } = {},
-  ): BrowserTabInfo {
+  private createViewForTab(profileId: string, tabLogs: () => BrowserLogEntry[]): {
+    view: WebContentsView
+    engine: ElectronPageEngine
+    pointer: Pointer
+  } {
     const win = this.getWindow()
     if (!win || win.isDestroyed()) throw new Error('browser: main window unavailable')
-    const profileId = opts.profileId || DEFAULT_ELECTRON_PROFILE_ID
     configureBrowserSession(profileId, {
       emit: (e) => this.emit(e),
       onNetworkProblem: (webContentsId, entry) => {
         for (const t of this.tabs.values()) {
-          if (!t.view.webContents.isDestroyed() && t.view.webContents.id === webContentsId) pushLog(t, entry)
+          if (t.view && !t.view.webContents.isDestroyed() && t.view.webContents.id === webContentsId) {
+            pushLog(t, entry)
+          }
         }
       },
     })
@@ -126,24 +139,52 @@ export class BrowserHost implements AgentBrowserHost {
         nodeIntegration: false,
         webviewTag: false,
         spellcheck: false,
+        backgroundThrottling: true,
       },
     })
     view.setVisible(false)
-    // A real page is never wider or taller than its window (innerWidth > outerWidth gives automation away).
     const content = win.getContentBounds()
-    view.setBounds({ x: 0, y: 0, width: Math.min(DEFAULT_VIEW_SIZE.width, Math.max(320, content.width - 16)), height: Math.min(DEFAULT_VIEW_SIZE.height, Math.max(240, content.height - 90)) })
+    view.setBounds({
+      x: 0,
+      y: 0,
+      width: Math.min(DEFAULT_VIEW_SIZE.width, Math.max(320, content.width - 16)),
+      height: Math.min(DEFAULT_VIEW_SIZE.height, Math.max(240, content.height - 90)),
+    })
     win.contentView.addChildView(view)
 
-    const rawOwner =
-      opts.openedBy !== undefined
-        ? opts.openedBy
-        : opts.sessionKey !== undefined
-          ? { sessionKey: normalizeBrowserSessionKey(opts.sessionKey) }
-          : this.activeSessionKey
-            ? { sessionKey: this.activeSessionKey }
-            : 'user'
+    const engine = new ElectronPageEngine(view.webContents, tabLogs, {
+      cdp: () => configStore.get('browserAgentCdp') !== 'off',
+      screenOrigin: () => {
+        const w = this.getWindow()
+        if (!w || w.isDestroyed()) return { x: 0, y: 0 }
+        const c = w.getContentBounds()
+        const v = view.getBounds()
+        return { x: c.x + v.x, y: c.y + v.y }
+      },
+    })
+    return { view, engine, pointer: new Pointer(engine) }
+  }
+
+  openTab(
+    opts: {
+      url?: string
+      profileId?: string
+      focus?: boolean
+      openedBy?: BrowserTabInfo['openedBy']
+      sessionKey?: string
+      pinned?: boolean
+    } = {},
+  ): BrowserTabInfo {
+    const profileId = opts.profileId || DEFAULT_ELECTRON_PROFILE_ID
+
+    // User-opened tabs are workspace-persistent ('user') so switching chats never hides them.
+    // Agent-opened tabs keep their sessionKey attribution while still remaining visible.
     const openedBy: BrowserTabInfo['openedBy'] =
-      rawOwner === 'user' ? 'user' : { sessionKey: normalizeBrowserSessionKey(rawOwner.sessionKey) }
+      opts.openedBy !== undefined
+        ? opts.openedBy === 'user'
+          ? 'user'
+          : { sessionKey: normalizeBrowserSessionKey(opts.openedBy.sessionKey) }
+        : 'user'
 
     const info: BrowserTabInfo = {
       tabId: randomUUID(),
@@ -154,30 +195,36 @@ export class BrowserHost implements AgentBrowserHost {
       loading: false,
       canGoBack: false,
       canGoForward: false,
+      muted: false,
+      audible: false,
+      sleeping: false,
+      loadError: null,
       openedBy,
       ...(opts.pinned ? { pinned: true } : {}),
     }
-    const engine = new ElectronPageEngine(view.webContents, () => tab.logs, {
-      cdp: () => configStore.get('browserAgentCdp') !== 'off',
-      // Where the page sits on screen, so input events carry real screenX/screenY (not 0).
-      screenOrigin: () => {
-        const w = this.getWindow()
-        if (!w || w.isDestroyed()) return { x: 0, y: 0 }
-        const c = w.getContentBounds()
-        const v = view.getBounds()
-        return { x: c.x + v.x, y: c.y + v.y }
-      },
-    })
-    const tab: Tab = { info, view, logs: [], engine, pointer: new Pointer(engine), queue: Promise.resolve() }
+
+    const tab: Tab = {
+      info,
+      view: null,
+      logs: [],
+      engine: null,
+      pointer: null,
+      queue: Promise.resolve(),
+      lastActiveAt: Date.now(),
+      agentBusy: false,
+    }
+    const created = this.createViewForTab(profileId, () => tab.logs)
+    tab.view = created.view
+    tab.engine = created.engine
+    tab.pointer = created.pointer
+
     this.tabs.set(info.tabId, tab)
     this.wire(tab)
     this.emit({ type: 'tab-updated', tab: info })
+
     const ownerKey = openedBy !== 'user' ? openedBy.sessionKey : this.activeSessionKey
     if (ownerKey) this.activeTabBySession.set(ownerKey, info.tabId)
-    const shouldFocus =
-      opts.focus !== undefined
-        ? opts.focus
-        : !this.activeSessionKey || !ownerKey || ownerKey === this.activeSessionKey || !!opts.pinned
+    const shouldFocus = opts.focus !== undefined ? opts.focus : true
     if (shouldFocus) this.focusTab(info.tabId)
 
     const url = opts.url && isAllowedBrowserUrl(opts.url) ? opts.url : 'about:blank'
@@ -185,78 +232,183 @@ export class BrowserHost implements AgentBrowserHost {
     return info
   }
 
+  duplicateTab(tabId: string): BrowserTabInfo | null {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return null
+    return this.openTab({
+      url: tab.info.url,
+      profileId: tab.info.profileId,
+      openedBy: 'user',
+      focus: true,
+    })
+  }
+
   closeTab(tabId: string): void {
     const tab = this.tabs.get(tabId)
     if (!tab) return
+    if (tab.info.url && tab.info.url !== 'about:blank' && isAllowedBrowserUrl(tab.info.url)) {
+      this.closedHistory.push({
+        url: tab.info.url,
+        title: tab.info.title,
+        favicon: tab.info.favicon,
+        profileId: tab.info.profileId,
+        closedAt: Date.now(),
+      })
+      if (this.closedHistory.length > MAX_CLOSED_HISTORY) this.closedHistory.shift()
+    }
     this.tabs.delete(tabId)
     for (const [k, id] of this.activeTabBySession) if (id === tabId) this.activeTabBySession.delete(k)
     forgetBrowserTab(tabId)
     const win = this.getWindow()
-    if (win && !win.isDestroyed()) win.contentView.removeChildView(tab.view)
-    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
+    if (tab.view) {
+      if (win && !win.isDestroyed()) win.contentView.removeChildView(tab.view)
+      if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
+    }
     this.emit({ type: 'tab-closed', tabId })
     if (this.activeTabId === tabId) {
-      const visible = [...this.tabs.values()]
-        .filter((t) => !this.activeSessionKey || isTabVisibleInSession(t.info, this.activeSessionKey))
-        .map((t) => t.info.tabId)
-      const next = visible.pop() ?? null
+      const remaining = [...this.tabs.keys()]
+      const next = remaining.at(-1) ?? null
       this.activeTabId = null
       if (next) this.focusTab(next)
       else this.emit({ type: 'tab-focused', tabId: null })
     }
   }
 
+  reopenClosedTab(): BrowserTabInfo | null {
+    const rec = this.closedHistory.pop()
+    if (!rec) return null
+    return this.openTab({ url: rec.url, profileId: rec.profileId, openedBy: 'user', focus: true })
+  }
+
+  reorderTabs(order: string[]): BrowserTabInfo[] {
+    const next = new Map<string, Tab>()
+    for (const id of order) {
+      const tab = this.tabs.get(id)
+      if (tab) next.set(id, tab)
+    }
+    for (const [id, tab] of this.tabs) {
+      if (!next.has(id)) next.set(id, tab)
+    }
+    this.tabs.clear()
+    for (const [id, tab] of next) this.tabs.set(id, tab)
+    return [...this.tabs.values()].map((t) => t.info)
+  }
+
+  setMuted(tabId: string, muted: boolean): BrowserTabInfo | null {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return null
+    if (tab.view && !tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.setAudioMuted(muted)
+    }
+    tab.info = { ...tab.info, muted }
+    this.emit({ type: 'tab-updated', tab: tab.info })
+    return tab.info
+  }
+
+  /** Put a background tab to sleep: frees its Chromium renderer process while preserving URL/title/favicon. */
+  sleepTab(tabId: string): BrowserTabInfo | null {
+    const tab = this.tabs.get(tabId)
+    if (!tab || tab.info.sleeping || tab.agentBusy) return tab?.info ?? null
+    if (tabId === this.activeTabId) return tab.info
+    const win = this.getWindow()
+    if (tab.view) {
+      if (win && !win.isDestroyed()) win.contentView.removeChildView(tab.view)
+      if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
+      tab.view = null
+      tab.engine = null
+      tab.pointer = null
+    }
+    tab.info = { ...tab.info, sleeping: true, loading: false, audible: false }
+    this.emit({ type: 'tab-updated', tab: tab.info })
+    return tab.info
+  }
+
+  /** Wake a sleeping tab on demand by rebuilding its WebContentsView and restoring its URL. */
+  private ensureAwake(tab: Tab): WebContentsView {
+    tab.lastActiveAt = Date.now()
+    if (tab.view && !tab.view.webContents.isDestroyed()) return tab.view
+    const created = this.createViewForTab(tab.info.profileId, () => tab.logs)
+    tab.view = created.view
+    tab.engine = created.engine
+    tab.pointer = created.pointer
+    if (tab.info.muted) tab.view.webContents.setAudioMuted(true)
+    tab.info = { ...tab.info, sleeping: false }
+    this.wire(tab)
+    this.emit({ type: 'tab-updated', tab: tab.info })
+    if (tab.info.url && tab.info.url !== 'about:blank' && isAllowedBrowserUrl(tab.info.url)) {
+      void this.load(tab, tab.info.url)
+    }
+    return tab.view
+  }
+
+  private sweepIdleTabs(): void {
+    const now = Date.now()
+    for (const tab of this.tabs.values()) {
+      if (
+        tab.info.tabId !== this.activeTabId &&
+        !tab.info.sleeping &&
+        !tab.info.pinned &&
+        !tab.info.audible &&
+        !tab.agentBusy &&
+        tab.info.url !== 'about:blank' &&
+        now - tab.lastActiveAt >= AUTO_SLEEP_IDLE_MS
+      ) {
+        this.sleepTab(tab.info.tabId)
+      }
+    }
+  }
+
   focusTab(tabId: string | null, opts?: { window?: boolean; sessionKey?: string }): void {
     if (tabId === null) {
-      if (this.activeTabId) this.tabs.get(this.activeTabId)?.view.setVisible(false)
+      if (this.activeTabId) this.tabs.get(this.activeTabId)?.view?.setVisible(false)
       this.activeTabId = null
       this.emit({ type: 'tab-focused', tabId: null })
       return
     }
     const tab = this.tabs.get(tabId)
     if (!tab) return
+    this.ensureAwake(tab)
     const targetSession = opts?.sessionKey
       ? normalizeBrowserSessionKey(opts.sessionKey)
-      : tab.info.openedBy !== 'user'
-        ? normalizeBrowserSessionKey(tab.info.openedBy.sessionKey)
-        : this.activeSessionKey
+      : this.activeSessionKey
     if (targetSession) this.activeTabBySession.set(targetSession, tabId)
-    if (tab.info.pinned && this.activeSessionKey) this.activeTabBySession.set(this.activeSessionKey, tabId)
-    if (opts?.sessionKey && this.activeSessionKey && targetSession !== this.activeSessionKey && !tab.info.pinned && !opts?.window) {
-      return
+    if (this.activeTabId && this.activeTabId !== tabId) {
+      const prev = this.tabs.get(this.activeTabId)
+      if (prev) {
+        prev.view?.setVisible(false)
+        prev.lastActiveAt = Date.now()
+      }
     }
-    if (this.activeTabId && this.activeTabId !== tabId) this.tabs.get(this.activeTabId)?.view.setVisible(false)
     this.activeTabId = tabId
+    tab.lastActiveAt = Date.now()
     this.emit({ type: 'tab-focused', tabId })
   }
 
   setSession(sessionKey: string | null): { activeTabId: string | null } {
     const nextKey = normalizeBrowserSessionKey(sessionKey)
     this.activeSessionKey = nextKey
-    const visible = [...this.tabs.values()].filter((t) => isTabVisibleInSession(t.info, nextKey))
+    // Keep the currently active tab alive & visible across chat switches unless none is active.
+    if (this.activeTabId && this.tabs.has(this.activeTabId)) {
+      return { activeTabId: this.activeTabId }
+    }
     const remembered = this.activeTabBySession.get(nextKey)
-    const own = visible.filter((t) => t.info.openedBy !== 'user' && normalizeBrowserSessionKey(t.info.openedBy.sessionKey) === nextKey)
     const nextTabId =
-      (remembered && visible.some((t) => t.info.tabId === remembered) ? remembered : null) ??
-      own.at(-1)?.info.tabId ??
-      visible.at(-1)?.info.tabId ??
+      (remembered && this.tabs.has(remembered) ? remembered : null) ??
+      [...this.tabs.keys()].at(-1) ??
       null
-    this.focusTab(nextTabId)
+    if (nextTabId) this.focusTab(nextTabId)
     return { activeTabId: this.activeTabId }
   }
 
   pinTab(tabId: string, pinned: boolean): BrowserTabInfo | null {
     const tab = this.tabs.get(tabId)
     if (!tab) return null
-    const openedBy = !pinned && this.activeSessionKey ? { sessionKey: this.activeSessionKey } : tab.info.openedBy
     const nextInfo: BrowserTabInfo = {
       ...tab.info,
-      openedBy,
       ...(pinned ? { pinned: true } : {}),
     }
     if (!pinned) delete nextInfo.pinned
     tab.info = nextInfo
-    if (this.activeSessionKey && pinned) this.activeTabBySession.set(this.activeSessionKey, tabId)
     this.emit({ type: 'tab-updated', tab: tab.info })
     return tab.info
   }
@@ -282,7 +434,8 @@ export class BrowserHost implements AgentBrowserHost {
 
   async navigate(tabId: string, op: BrowserNavigateOp): Promise<void> {
     const tab = this.requireTab(tabId)
-    const wc = tab.view.webContents
+    const view = this.ensureAwake(tab)
+    const wc = view.webContents
     if ('url' in op) {
       if (!isAllowedBrowserUrl(op.url)) throw new Error('browser: only http(s) pages can be opened')
       await this.load(tab, op.url)
@@ -290,15 +443,22 @@ export class BrowserHost implements AgentBrowserHost {
     }
     if (op.history === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
     else if (op.history === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
-    else if (op.history === 'reload') wc.reload()
-    else if (op.history === 'stop') wc.stop()
+    else if (op.history === 'reload') {
+      tab.info = { ...tab.info, loadError: null }
+      this.emit({ type: 'tab-updated', tab: tab.info })
+      wc.reload()
+    } else if (op.history === 'stop') wc.stop()
   }
 
-  /** Placeholder rect from the Renderer; shows the active tab there or hides it. */
   setViewBounds(bounds: BrowserViewBounds): void {
     const win = this.getWindow()
     const tab = this.tabs.get(bounds.tabId)
     if (!win || win.isDestroyed() || !tab) return
+    if (!bounds.visible) {
+      tab.view?.setVisible(false)
+      return
+    }
+    if (!tab.view || tab.view.webContents.isDestroyed()) return
     const [width, height] = win.getContentSize()
     const rect =
       bounds.tabId === this.activeTabId && tab.info.url !== 'about:blank'
@@ -310,42 +470,60 @@ export class BrowserHost implements AgentBrowserHost {
     }
     tab.view.setBounds(rect)
     const zoom = bounds.pageZoom ?? 1
-    if (Math.abs(tab.view.webContents.getZoomFactor() - zoom) > 0.001) tab.view.webContents.setZoomFactor(zoom)
+    if (Math.abs(tab.view.webContents.getZoomFactor() - zoom) > 0.001) {
+      tab.view.webContents.setZoomFactor(zoom)
+    }
     tab.view.setVisible(true)
   }
 
   hideAll(): void {
-    for (const tab of this.tabs.values()) tab.view.setVisible(false)
+    for (const tab of this.tabs.values()) tab.view?.setVisible(false)
   }
 
-  /** JPEG data URL of the active page, used as a stand-in while overlays cover the view. */
   async capture(tabId: string): Promise<string | null> {
     const tab = this.tabs.get(tabId)
-    if (!tab || tab.info.url === 'about:blank' || tab.view.webContents.isDestroyed()) return null
-    // stayHidden: the view is hidden while overlays/annotation cover it; without this the
-    // capture waits for a paint that a hidden view does not produce (seconds).
+    if (!tab || !tab.view || tab.info.url === 'about:blank' || tab.view.webContents.isDestroyed()) return null
     const image = await tab.view.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })
     return image.isEmpty() ? null : `data:image/jpeg;base64,${image.toJPEG(80).toString('base64')}`
   }
 
-  /** Element under a viewport point (isolated world). `deep` adds framework source clues on dev origins. */
-  async inspectPoint(tabId: string, x: number, y: number, deep = false): Promise<ElementDescriptor | null> {
+  async inspectPoint(
+    tabId: string,
+    x: number,
+    y: number,
+    deep = false,
+    ancestorSteps = 0,
+  ): Promise<ElementDescriptor | null> {
     const tab = this.requireTab(tabId)
-    const wc = tab.view.webContents
-    // Callers use view pixels; the page works in CSS px (they differ under the fixed-viewport zoom).
+    const view = this.ensureAwake(tab)
+    const wc = view.webContents
     const zoom = wc.getZoomFactor() || 1
     const cssX = num(x / zoom)
     const cssY = num(y / zoom)
-    const raw = await tab.engine.run<ElementDescriptor | null>(`__piBrowser.inspectAtPoint(${cssX}, ${cssY})`)
-    const found = raw && { ...raw, rect: { x: raw.rect.x * zoom, y: raw.rect.y * zoom, width: raw.rect.width * zoom, height: raw.rect.height * zoom } }
+    const raw = await tab.engine!.run<ElementDescriptor | null>(
+      `__piBrowser.inspectAtPoint(${cssX}, ${cssY}, ${Math.max(0, Math.floor(ancestorSteps || 0))})`,
+    )
+    const found =
+      raw && {
+        ...raw,
+        rect: {
+          x: raw.rect.x * zoom,
+          y: raw.rect.y * zoom,
+          width: raw.rect.width * zoom,
+          height: raw.rect.height * zoom,
+        },
+      }
     if (!found || !deep || !isDevOrigin(wc.getURL())) return found
     try {
-      // Main world, dev origins only, once per click: React fiber / Vue instance live on DOM expandos.
-      const extra = (await withTimeout(wc.executeJavaScript(`(${FRAMEWORK_SOURCE})(${cssX}, ${cssY})`), PAGE_SCRIPT_TIMEOUT_MS)) as
-        | { components: string[]; sourceHints: string[] }
-        | null
+      const extra = (await withTimeout(
+        wc.executeJavaScript(`(${FRAMEWORK_SOURCE})(${cssX}, ${cssY})`),
+        PAGE_SCRIPT_TIMEOUT_MS,
+      )) as { components: string[]; sourceHints: string[] } | null
       if (extra) {
-        const sourceHints = [...extra.sourceHints, ...found.sourceHints.filter((h) => !extra.sourceHints.includes(h))].slice(0, 4)
+        const sourceHints = [
+          ...extra.sourceHints,
+          ...found.sourceHints.filter((h) => !extra.sourceHints.includes(h)),
+        ].slice(0, 4)
         return { ...found, sourceHints, ...(extra.components.length ? { components: extra.components } : {}) }
       }
     } catch (error) {
@@ -355,15 +533,17 @@ export class BrowserHost implements AgentBrowserHost {
   }
 
   async pageContext(tabId: string, maxChars = 60_000): Promise<PageContextResult> {
-    return this.requireTab(tabId).engine.run<PageContextResult>(`__piBrowser.pageContext(${num(maxChars)})`)
+    const tab = this.requireTab(tabId)
+    this.ensureAwake(tab)
+    return tab.engine!.run<PageContextResult>(`__piBrowser.pageContext(${num(maxChars)})`)
   }
 
   agentTab(tabId: string): { info: BrowserTabInfo; engine: PageEngine; pointer: Pointer } {
     const tab = this.tabs.get(tabId)
     if (!tab) throw new BrowserToolError('browser_no_tab', 'the tab was closed; call browser_tabs action "list"')
-    // First agent use attaches the protocol, so dialogs and requests from now on are seen.
-    tab.engine.cdpTab()
-    return { info: tab.info, engine: tab.engine, pointer: tab.pointer }
+    this.ensureAwake(tab)
+    tab.engine!.cdpTab?.()
+    return { info: tab.info, engine: tab.engine!, pointer: tab.pointer! }
   }
 
   readonly kind = 'builtin' as const
@@ -376,14 +556,31 @@ export class BrowserHost implements AgentBrowserHost {
     return peekDownloadManager()?.list() ?? []
   }
 
-  /** Run agent work on a tab one at a time; tells the panel which action is running. */
   runOnTab<T>(tabId: string, action: string, work: () => Promise<T>): Promise<T> {
     const tab = this.requireTab(tabId)
     const run = tab.queue.catch(() => undefined).then(async () => {
+      const stepId = randomUUID()
+      tab.agentBusy = true
+      tab.lastActiveAt = Date.now()
       this.emit({ type: 'agent-action', tabId, action })
+      const startStep: BrowserAgentStep = { id: stepId, tabId, action, status: 'running', at: Date.now() }
+      this.emit({ type: 'agent-step', step: startStep })
       try {
-        return await work()
+        const result = await work()
+        this.emit({
+          type: 'agent-step',
+          step: { id: stepId, tabId, action, status: 'done', at: Date.now() },
+        })
+        return result
+      } catch (err) {
+        this.emit({
+          type: 'agent-step',
+          step: { id: stepId, tabId, action, status: 'error', at: Date.now() },
+        })
+        throw err
       } finally {
+        tab.agentBusy = false
+        tab.lastActiveAt = Date.now()
         this.emit({ type: 'agent-action', tabId, action: null })
       }
     })
@@ -396,31 +593,37 @@ export class BrowserHost implements AgentBrowserHost {
   }
 
   find(tabId: string, text: string, opts: { forward: boolean; findNext: boolean }): void {
-    const wc = this.tabs.get(tabId)?.view.webContents
+    const wc = this.tabs.get(tabId)?.view?.webContents
     if (!wc || wc.isDestroyed()) return
     if (!text) {
       wc.stopFindInPage('clearSelection')
       this.emit({ type: 'find-result', tabId, active: 0, matches: 0 })
       return
     }
-    // Electron's `findNext` is inverted from its name: true starts a new search session
-    // (first query or changed text), false moves within the current one.
     wc.findInPage(text, { forward: opts.forward, findNext: !opts.findNext })
   }
 
   stopFind(tabId: string): void {
-    const wc = this.tabs.get(tabId)?.view.webContents
+    const wc = this.tabs.get(tabId)?.view?.webContents
     if (wc && !wc.isDestroyed()) wc.stopFindInPage('keepSelection')
   }
 
-  /** Real wheel input at a viewport point (DOM deltaY > 0 scrolls down). */
   scroll(tabId: string, x: number, y: number, deltaY: number): void {
-    const wc = this.requireTab(tabId).view.webContents
-    // Precise deltas apply at once (no smooth-scroll animation that a following event would cut short).
-    wc.sendInputEvent({ type: 'mouseWheel', x: num(x), y: num(y), deltaX: 0, deltaY: -num(deltaY), canScroll: true, hasPreciseScrollingDeltas: true })
+    const tab = this.requireTab(tabId)
+    const wc = this.ensureAwake(tab).webContents
+    wc.sendInputEvent({
+      type: 'mouseWheel',
+      x: num(x),
+      y: num(y),
+      deltaX: 0,
+      deltaY: -num(deltaY),
+      canScroll: true,
+      hasPreciseScrollingDeltas: true,
+    })
   }
 
   shutdown(): void {
+    clearInterval(this.sleepTimer)
     for (const tabId of [...this.tabs.keys()]) this.closeTab(tabId)
     this.activeTabId = null
   }
@@ -432,18 +635,20 @@ export class BrowserHost implements AgentBrowserHost {
   }
 
   private async load(tab: Tab, url: string): Promise<void> {
-    tab.info = { ...tab.info, url, loading: true }
+    const view = this.ensureAwake(tab)
+    tab.info = { ...tab.info, url, loading: true, loadError: null }
     this.emit({ type: 'tab-updated', tab: tab.info })
     try {
-      await tab.view.webContents.loadURL(url)
+      await view.webContents.loadURL(url)
     } catch (error) {
-      // Aborted / failed loads still update state through did-fail-load; only log here.
       console.warn('[browser] load failed:', url, (error as Error)?.message)
     }
   }
 
   private wire(tab: Tab): void {
-    const wc = tab.view.webContents
+    const view = tab.view
+    if (!view) return
+    const wc = view.webContents
     const update = (patch: Partial<BrowserTabInfo> = {}) => {
       if (wc.isDestroyed()) return
       tab.info = {
@@ -459,7 +664,9 @@ export class BrowserHost implements AgentBrowserHost {
 
     wc.setWindowOpenHandler(({ url }) => {
       if (isExternalProtocolUrl(url)) void shell.openExternal(url)
-      else if (isAllowedBrowserUrl(url)) this.openTab({ url, profileId: tab.info.profileId, openedBy: tab.info.openedBy })
+      else if (isAllowedBrowserUrl(url)) {
+        this.openTab({ url, profileId: tab.info.profileId, openedBy: tab.info.openedBy })
+      }
       return { action: 'deny' }
     })
     wc.on('will-navigate', (event, url) => {
@@ -477,10 +684,21 @@ export class BrowserHost implements AgentBrowserHost {
     }
     wc.on('did-start-loading', () => update({ loading: true }))
     wc.on('did-stop-loading', () => update({ loading: false }))
+    wc.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame || errorCode === -3) return // -3 is ERR_ABORTED
+      update({
+        loading: false,
+        loadError: { code: errorCode, description: errorDescription || 'ERR_FAILED', url: validatedURL || tab.info.url },
+      })
+    })
+    wc.on('page-favicon-updated', (_e, favicons) => {
+      const icon = favicons?.find((u) => typeof u === 'string' && /^https?:|^data:image\//i.test(u))
+      if (icon && icon !== tab.info.favicon) update({ favicon: icon })
+    })
+    wc.on('media-started-playing', () => update({ audible: true }))
+    wc.on('media-paused', () => update({ audible: false }))
     wc.on('did-navigate', (_e, url) => {
-      update()
-      // If an earlier attempt hit Google's rrk=46 rejection page, clear the poisoned anti-bot cookies
-      // (__Host-GAPS / OTZ) so retrying sign-in is not short-circuited back to /signin/rejected.
+      update({ loadError: null })
       if (typeof url === 'string' && url.includes('accounts.google.com') && url.includes('signin/rejected')) {
         void wc.session.cookies
           .get({ domain: 'accounts.google.com' })
@@ -488,7 +706,12 @@ export class BrowserHost implements AgentBrowserHost {
             Promise.all(
               cookies
                 .filter((c) => c.name === '__Host-GAPS' || c.name === 'OTZ')
-                .map((c) => wc.session.cookies.remove(`https://${(c.domain ?? 'accounts.google.com').replace(/^\./, '')}${c.path ?? '/'}`, c.name)),
+                .map((c) =>
+                  wc.session.cookies.remove(
+                    `https://${(c.domain ?? 'accounts.google.com').replace(/^\./, '')}${c.path ?? '/'}`,
+                    c.name,
+                  ),
+                ),
             ),
           )
           .catch(() => {})
@@ -499,21 +722,31 @@ export class BrowserHost implements AgentBrowserHost {
     wc.on('console-message', (details) => {
       if (details.level !== 'error' && details.level !== 'warning') return
       const source = details.sourceId ? `${details.sourceId}:${details.lineNumber}` : undefined
-      pushLog(tab, { at: Date.now(), kind: 'console', level: details.level, message: details.message, ...(source ? { source } : {}) })
+      pushLog(tab, {
+        at: Date.now(),
+        kind: 'console',
+        level: details.level,
+        message: details.message,
+        ...(source ? { source } : {}),
+      })
     })
     wc.on('did-start-navigation', (details) => {
       if (details.isMainFrame && !details.isSameDocument) {
         tab.logs = []
+        tab.info = { ...tab.info, loadError: null, favicon: undefined }
         syncUaForUrl(details.url)
       }
     })
     wc.on('did-redirect-navigation', (details) => {
-      if (details.isMainFrame && !details.isSameDocument) {
-        syncUaForUrl(details.url)
-      }
+      if (details.isMainFrame && !details.isSameDocument) syncUaForUrl(details.url)
     })
     wc.on('found-in-page', (_e, result) => {
-      this.emit({ type: 'find-result', tabId: tab.info.tabId, active: result.activeMatchOrdinal ?? 0, matches: result.matches ?? 0 })
+      this.emit({
+        type: 'find-result',
+        tabId: tab.info.tabId,
+        active: result.activeMatchOrdinal ?? 0,
+        matches: result.matches ?? 0,
+      })
     })
     wc.on('render-process-gone', (_e, details) => {
       console.warn('[browser] page renderer gone:', details.reason)
@@ -541,14 +774,30 @@ function pushLog(tab: Tab, entry: BrowserLogEntry): void {
   if (tab.logs.length > LOG_LIMIT) tab.logs.splice(0, tab.logs.length - LOG_LIMIT)
 }
 
-type ShortcutAction = 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'find' | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'reload' | 'back' | 'forward'
+type ShortcutAction =
+  | 'focus-address'
+  | 'new-tab'
+  | 'close-tab'
+  | 'reopen-tab'
+  | 'toggle-stage'
+  | 'annotate'
+  | 'find'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'zoom-reset'
+  | 'reload'
+  | 'back'
+  | 'forward'
 
-/** Keys the page would swallow but users expect the browser chrome to handle. */
-export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | 'meta' | 'alt' | 'shift'>): ShortcutAction | null {
+export function shortcutAction(
+  input: Pick<Input, 'type' | 'key' | 'control' | 'meta' | 'alt' | 'shift'>,
+): ShortcutAction | null {
   if (input.type !== 'keyDown') return null
   const mod = process.platform === 'darwin' ? input.meta : input.control
   const key = input.key.toLowerCase()
   if (mod && !input.alt && input.shift && key === 'a') return 'annotate'
+  if (mod && !input.alt && input.shift && key === 't') return 'reopen-tab'
+  if (mod && !input.alt && input.shift && key === 'b') return 'toggle-stage'
   if (mod && !input.alt && !input.shift) {
     if (key === 'l') return 'focus-address'
     if (key === 't') return 'new-tab'
@@ -559,7 +808,6 @@ export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | '
     if (key === '-') return 'zoom-out'
     if (key === '0') return 'zoom-reset'
   }
-  // Ctrl+Shift+= on layouts where + needs Shift.
   if (mod && !input.alt && input.shift && (key === '+' || key === '=')) return 'zoom-in'
   if (key === 'f5' && !mod) return 'reload'
   if (input.alt && !mod && key === 'arrowleft') return 'back'
@@ -569,7 +817,6 @@ export function shortcutAction(input: Pick<Input, 'type' | 'key' | 'control' | '
 
 let host: BrowserHost | null = null
 
-/** Created on first use, so the experiment being off means no browser objects exist in Main. */
 export function getBrowserHost(getWindow: () => BrowserWindow | null): BrowserHost {
   if (!host) host = new BrowserHost(getWindow)
   return host
@@ -578,4 +825,3 @@ export function getBrowserHost(getWindow: () => BrowserWindow | null): BrowserHo
 export function peekBrowserHost(): BrowserHost | null {
   return host
 }
-

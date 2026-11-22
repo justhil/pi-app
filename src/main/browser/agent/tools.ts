@@ -395,8 +395,19 @@ function aim(pointer: Pointer, a: Aimed): { ptr: Pointer; p: { x: number; y: num
   return { ptr: pointer, p: targetPoint(a.point, a.rect) }
 }
 
+function flashHighlight(engine: PageEngine, rect: { x: number; y: number; width: number; height: number } | undefined): void {
+  if (!rect || rect.width <= 0 || rect.height <= 0) return
+  const cdp = engine.cdpTab?.()
+  if (!cdp) return
+  void cdp.highlight(rect).catch(() => undefined)
+  setTimeout(() => {
+    void cdp.highlight(null).catch(() => undefined)
+  }, 650)
+}
+
 async function clickTarget(engine: PageEngine, pointer: Pointer, target: string, opts: { button?: 'left' | 'right' | 'middle'; clickCount?: number; modifiers?: Modifier[] } = {}): Promise<Actionable> {
   const a = await actionable(engine, target)
+  flashHighlight(engine, a.rect)
   const { ptr, p } = aim(pointer, a)
   await ptr.click(p.x, p.y, opts)
   return a

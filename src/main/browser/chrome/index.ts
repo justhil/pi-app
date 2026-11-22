@@ -135,3 +135,7 @@ export function getChromeHost(): ChromeHost | null {
 export function chromeBridgeEnabled(): boolean {
   return config().enabled
 }
+
+export function getChromeBridge(): ChromeBridge | null {
+  return bridge
+}

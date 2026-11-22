@@ -3,7 +3,7 @@
 // and referer; otherwise, or when aria2 fails before receiving data, Electron downloads it.
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { accessSync, constants, existsSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { accessSync, constants, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, delimiter, dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { shell, type DownloadItem, type Session, type WebContents } from 'electron'
@@ -64,7 +64,42 @@ export class DownloadManager {
   constructor(
     private readonly emit: (event: BrowserEvent) => void,
     private readonly settings: () => DownloaderSettings,
-  ) {}
+    private readonly historyPath?: string,
+  ) {
+    this.hydrateHistory()
+  }
+
+  private hydrateHistory(): void {
+    if (!this.historyPath || !existsSync(this.historyPath)) return
+    try {
+      const raw = JSON.parse(readFileSync(this.historyPath, 'utf-8'))
+      if (!Array.isArray(raw)) return
+      for (const item of raw.slice(0, 50)) {
+        if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.fileName !== 'string') continue
+        const info: BrowserDownloadInfo = {
+          ...item,
+          state: item.state === 'progressing' ? 'cancelled' : item.state,
+          speed: 0,
+        }
+        this.entries.set(info.id, { info, lastEmit: 0, lastBytes: info.received, lastAt: info.startedAt })
+      }
+    } catch {
+      /* ignore malformed history */
+    }
+  }
+
+  private persistHistory(): void {
+    if (!this.historyPath) return
+    try {
+      mkdirSync(dirname(this.historyPath), { recursive: true })
+      const finished = this.list()
+        .filter((d) => d.state !== 'progressing')
+        .slice(0, 50)
+      writeFileSync(this.historyPath, JSON.stringify(finished, null, 2), 'utf-8')
+    } catch {
+      /* best effort */
+    }
+  }
 
   list(): BrowserDownloadInfo[] {
     return [...this.entries.values()].map((e) => e.info).sort((a, b) => b.startedAt - a.startedAt)
@@ -105,6 +140,7 @@ export class DownloadManager {
     entry.lastEmit = now
     this.emit({ type: 'download-updated', download: entry.info })
     if (patch.state === 'completed' || patch.state === 'cancelled' || patch.state === 'failed') {
+      this.persistHistory()
       this.emit({ type: 'download', fileName: entry.info.fileName, savePath: entry.info.savePath, state: patch.state === 'completed' ? 'completed' : patch.state === 'cancelled' ? 'cancelled' : 'interrupted' })
     }
   }

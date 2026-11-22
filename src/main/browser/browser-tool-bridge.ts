@@ -17,7 +17,6 @@ function hostFor(slot: { sessionFile?: string | null; poolKey: string }): AgentB
     const host = getChromeHost()
     return host ?? fail('browser_unsupported: the Chrome bridge is not running; turn My Chrome off and on in Settings → Browser')
   }
-  if (!configStore.get('rightPanelPrefs')?.browser) return fail('browser_disabled: the user has not enabled the Browser panel (Settings → Right panels)')
   return getBrowserHost(getMainWindow)
 }
 
@@ -56,4 +55,14 @@ export async function handleBrowserToolRequest(
 /** Worker → Main `browser-tool-cancel`: the turn was aborted or the worker gave up waiting. */
 export function cancelBrowserToolRequest(callId: string): void {
   inflight.get(callId)?.abort()
+}
+
+/** User clicked "Pause / Take over" in Browser Stage HUD: abort all running browser tool calls cleanly. */
+export function cancelAllInflightBrowserTools(): number {
+  let count = 0
+  for (const controller of inflight.values()) {
+    controller.abort()
+    count++
+  }
+  return count
 }

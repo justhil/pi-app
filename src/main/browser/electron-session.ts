@@ -20,11 +20,15 @@ let downloads: DownloadManager | null = null
 export function getDownloadManager(emit?: (event: BrowserEvent) => void): DownloadManager {
   if (!downloads) {
     if (!emit) throw new Error('download manager not initialised')
-    downloads = new DownloadManager(emit, () => ({
-      downloader: configStore.get('browserDownloader') ?? 'auto',
-      aria2Path: configStore.get('browserAria2Path') ?? '',
-      connections: configStore.get('browserDownloadConnections') ?? 16,
-    }))
+    downloads = new DownloadManager(
+      emit,
+      () => ({
+        downloader: configStore.get('browserDownloader') ?? 'auto',
+        aria2Path: configStore.get('browserAria2Path') ?? '',
+        connections: configStore.get('browserDownloadConnections') ?? 16,
+      }),
+      join(app.getPath('userData'), 'browser-downloads.json'),
+    )
   }
   return downloads
 }

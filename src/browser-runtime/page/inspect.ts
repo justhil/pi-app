@@ -39,10 +39,15 @@ export function selectorFor(node: Element): string {
   return parts.join(' > ')
 }
 
-/** Element under a viewport point, described for the composer. */
-export function inspectAtPoint(x: number, y: number): ElementDescriptor | null {
-  const el = document.elementFromPoint(x, y)
+/** Element under a viewport point (with optional ancestor walk depth >= 0), described for the composer. */
+export function inspectAtPoint(x: number, y: number, ancestorSteps = 0): ElementDescriptor | null {
+  let el: Element | null = document.elementFromPoint(x, y)
   if (!el) return null
+  const steps = Math.max(0, Math.min(12, Math.floor(ancestorSteps || 0)))
+  for (let i = 0; i < steps; i++) {
+    if (!el.parentElement || el.parentElement === document.documentElement || el.parentElement === document.body) break
+    el = el.parentElement
+  }
   const hints: string[] = []
   for (let a: Element | null = el, depth = 0; a && depth < 8; a = a.parentElement, depth++) {
     for (const attr of HINT_ATTRS) {
