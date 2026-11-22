@@ -248,6 +248,9 @@ export function registerSessionHandlers(): void {
           }),
         { sessionFile: req.sessionFile },
       )
+      if (req.sessionFile) {
+        workerManager.focusExistingSession(req.sessionFile)
+      }
       const result = await workerManager.navigateTree(req.targetId, {
         summarize: req.summarize === true,
         label: req.label,
@@ -255,7 +258,7 @@ export function registerSessionHandlers(): void {
         abortIfBusy: req.abortIfBusy === true,
       })
       // Persist leaf tip for disk getMessages / next loadSession (pi does not write leaf to JSONL).
-      if (!result.cancelled && req.sessionFile) {
+      if (!result.cancelled && !result.noOp && req.sessionFile) {
         const leaf = result.leafId !== undefined ? result.leafId : req.targetId
         setSessionLeafOverride(req.sessionFile, leaf)
         remoteTap.branchMoved(req.sessionFile)

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { refreshAgentContext } from './session-context-refresh.js'
 import type {
   AgentSession,
@@ -378,22 +379,44 @@ export function applyPendingAdapterCatalog(): void {
   st.statusBarHost?.resyncCatalog()
 }
 
-export async function initSession(cwd: string): Promise<void> {
+export async function initSession(
+  cwd: string,
+  initialSessionFile?: string | null,
+  initialLeafOverride?: string | null,
+): Promise<void> {
   st.promptSent = false
   await disposeRuntimeOrSession()
 
   st.currentCwd = cwd
   const sdk = st.sdk!
   const agentDir = sdk.getAgentDir()
+  let sm: ReturnType<typeof sdk.SessionManager.create>
+  let openedExisting = false
+  if (initialSessionFile && existsSync(initialSessionFile)) {
+    sm = sdk.SessionManager.open(initialSessionFile)
+    if (initialLeafOverride === null) {
+      sm.resetLeaf?.()
+    } else if (typeof initialLeafOverride === 'string' && initialLeafOverride.length > 0) {
+      try {
+        sm.branch(initialLeafOverride)
+      } catch (e) {
+        console.warn('[Worker] initSession branch override failed:', e)
+      }
+    }
+    openedExisting = true
+  } else {
+    sm = sdk.SessionManager.create(cwd)
+  }
   const createRuntime = buildRuntimeFactory()
   const runtime = await sdk.createAgentSessionRuntime(createRuntime, {
-    cwd,
+    cwd: (openedExisting ? sm.getCwd?.() : null) || cwd,
     agentDir,
-    sessionManager: sdk.SessionManager.create(cwd),
+    sessionManager: sm,
   })
   st.runtime = runtime
   wireRuntimeCallbacks(runtime)
   await rebindAfterRuntimeReplace(runtime.session)
+  if (openedExisting) st.promptSent = true
   noteModelFallbackFromRuntime()
 }
 

@@ -10,6 +10,10 @@ import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
+import { bumpSessionHydrateEpoch } from '@renderer/lib/session-shell'
+
+const rewindInFlight = new Set<string>()
 
 /**
  * Rewind / jump to a session tree entry (pi navigateTree semantics).
@@ -65,21 +69,55 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
       !!st.streamingAssistantId ||
       st.optimisticPendingUserText != null
 
-    // Bind + navigate on the session's worker (required for pi tree pointer).
-    const r = (await ipcClient.invoke('session.navigateTree', {
-      targetId,
-      sessionFile: file,
-      summarize: false,
-      ...(needAbort ? { abortIfBusy: true } : {}),
-    })) as {
+    const lockKey = file.toLowerCase()
+    if (rewindInFlight.has(lockKey)) return false
+    rewindInFlight.add(lockKey)
+
+    let loadingToastId: string | number | null = null
+    const dismissLoadingToast = () => {
+      if (loadingToastId != null) {
+        toast.dismiss(loadingToastId)
+        loadingToastId = null
+      }
+    }
+    const loadingTimer = setTimeout(() => {
+      if (!useExtensionUIStore.getState().activePending) {
+        loadingToastId = toast.loading(i18n.t('timeline:rewind.preparing'))
+      }
+    }, 220)
+    const unsubExtUi = useExtensionUIStore.subscribe((state) => {
+      if (state.activePending) {
+        clearTimeout(loadingTimer)
+        dismissLoadingToast()
+      }
+    })
+
+    let r: {
       cancelled?: boolean
+      noOp?: boolean
       error?: string
       editorText?: string
       leafId?: string | null
       sessionMeta?: { model?: string; thinkingLevel?: string }
     }
+    try {
+      // Bind + navigate on the session's worker (required for pi tree pointer).
+      r = (await ipcClient.invoke('session.navigateTree', {
+        targetId,
+        sessionFile: file,
+        summarize: false,
+        ...(needAbort ? { abortIfBusy: true } : {}),
+      })) as typeof r
+    } finally {
+      clearTimeout(loadingTimer)
+      dismissLoadingToast()
+      unsubExtUi()
+      rewindInFlight.delete(lockKey)
+    }
+
     console.log('[rewind] navigateTree response:', {
       cancelled: r?.cancelled,
+      noOp: r?.noOp,
       error: r?.error,
       leafId: r?.leafId,
       hasEditorText: !!(r?.editorText && r.editorText.length),
@@ -92,8 +130,14 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     if (r?.cancelled) {
       return false
     }
+    if (r?.noOp) {
+      toast.info(i18n.t('timeline:rewind.alreadyAtNode'))
+      return false
+    }
 
     const leafId = r?.leafId !== undefined ? r.leafId : targetId
+    // Invalidate any stale cold-start hydrateSessionView so it cannot overwrite the rewound timeline.
+    bumpSessionHydrateEpoch(file)
 
     const editorText = typeof r?.editorText === 'string' ? r.editorText : ''
     if (editorText) st.setComposerPrefill(editorText)

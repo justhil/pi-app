@@ -474,11 +474,20 @@ export async function handleNavigatetree(msg: WorkerIncomingMessage, reply: Work
           if (!navigator?.navigateTree) {
             throw new Error('navigateTree unavailable')
           }
-          const result = await navigator.navigateTree(String(msg.targetId ?? ''), navOpts)
+          const targetId = String(msg.targetId ?? '')
+          const beforeLeafId = navSession.sessionManager.getLeafId?.() ?? null
+          const result = await navigator.navigateTree(targetId, navOpts)
           const leafId = navSession.sessionManager.getLeafId?.() ?? null
+          const noOp =
+            !result.cancelled &&
+            !result.editorText &&
+            targetId.length > 0 &&
+            beforeLeafId === targetId &&
+            leafId === beforeLeafId
           reply({
             type: 'navigateTree-done',
             cancelled: result.cancelled,
+            ...(noOp ? { noOp: true } : {}),
             editorText: result.editorText,
             leafId,
             sessionMeta: navSession.model

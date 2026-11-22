@@ -253,8 +253,11 @@ export function attachWorkerHandlers(
       if (slot.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')
       slot.initResolver({
         sessionId: String(data.sessionId ?? ''),
+        sessionFile: (data.sessionFile as string | null | undefined) ?? null,
+        leafId: (data.leafId as string | null | undefined) ?? null,
         model: data.model as string | undefined,
         thinkingLevel: data.thinkingLevel as string | undefined,
+        modelFallbackMessage: data.modelFallbackMessage as string | undefined,
       })
       slot.initResolver = null
       slot.initRejecter = null
@@ -361,7 +364,7 @@ export function slotRequest(
 
 export async function forkWorkerForCwd(
   cwd: string,
-  opts?: { poolKey?: string; sessionFile?: string | null },
+  opts?: { poolKey?: string; sessionFile?: string | null; leafId?: string | null },
 ): Promise<{ slot: WorkerSlot; init: Promise<WorkerInitResult> }> {
   const poolKey = opts?.poolKey || workspacePoolKey(cwd)
   const runtime = getAgentRuntimeConfig()
@@ -412,7 +415,17 @@ export async function forkWorkerForCwd(
     }
   })
   slot.initPromise = initPromise
-  transport.postMessage({ type: 'init', cwd: workerCwd, sdkPath })
+  const initialSessionFile =
+    opts?.sessionFile && runtime.mode === 'wsl' && runtime.distro
+      ? windowsPathToWsl(runtime.distro, opts.sessionFile)
+      : opts?.sessionFile || undefined
+  transport.postMessage({
+    type: 'init',
+    cwd: workerCwd,
+    sdkPath,
+    ...(initialSessionFile ? { sessionFile: initialSessionFile } : {}),
+    ...(opts?.leafId !== undefined ? { leafId: opts.leafId } : {}),
+  })
   return { slot, init: initPromise }
 }
 

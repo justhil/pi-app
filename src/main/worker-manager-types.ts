@@ -4,8 +4,11 @@ import type { WorkerTransport } from './worker-transport'
 
 export type WorkerInitResult = {
   sessionId: string
+  sessionFile?: string | null
+  leafId?: string | null
   model?: string
   thinkingLevel?: string
+  modelFallbackMessage?: string
 }
 
 export type WorkerSlot = {

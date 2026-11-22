@@ -271,7 +271,12 @@ export class WorkerManager {
     const cap = canAcquireNewWorker(this.pool)
     if (!cap.ok) throw new Error(cap.reason)
 
-    const { slot, init } = await forkWorkerForCwd(cwd, { poolKey: sk, sessionFile: sk })
+    const initialLeaf = getSessionLeafOverride(sk)
+    const { slot, init } = await forkWorkerForCwd(cwd, {
+      poolKey: sk,
+      sessionFile: sk,
+      ...(initialLeaf !== undefined ? { leafId: initialLeaf } : {}),
+    })
     this.pool.set(sk, slot)
 
     attachWorkerHandlers(slot, slot.worker, {
@@ -282,8 +287,18 @@ export class WorkerManager {
     })
 
     try {
-      await init
-      await this.requestOnSlot(slot, 'loadSession', { sessionFile: sk })
+      const initResult = await init
+      // When cold-start init already opened the target sessionFile directly, skip the redundant
+      // second runtime creation & extension session_start cycle.
+      const boundDuringInit =
+        !!initResult.sessionFile &&
+        normalizeSessionKey(initResult.sessionFile) === sk
+      if (!boundDuringInit) {
+        await this.requestOnSlot(slot, 'loadSession', {
+          sessionFile: sk,
+          ...(initialLeaf !== undefined ? { leafId: initialLeaf } : {}),
+        })
+      }
     } catch (error) {
       if (this.pool.get(sk) === slot) this.pool.delete(sk)
       await disposeWorkerSlot(slot, this.mainWindow)
@@ -1132,6 +1147,7 @@ export class WorkerManager {
     options?: { summarize?: boolean; label?: string; sessionFile?: string; abortIfBusy?: boolean },
   ): Promise<{
     cancelled: boolean
+    noOp?: boolean
     editorText?: string
     leafId?: string | null
     sessionMeta?: { model?: string; thinkingLevel?: string }
@@ -1153,6 +1169,7 @@ export class WorkerManager {
     }
     return {
       cancelled: !!r.cancelled,
+      ...(r.noOp ? { noOp: true } : {}),
       editorText: r.editorText as string | undefined,
       leafId: (r.leafId as string | null) ?? null,
       sessionMeta: r.sessionMeta as { model?: string; thinkingLevel?: string } | undefined,

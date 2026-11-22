@@ -66,13 +66,27 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
             console.warn('[Worker] Could not resolve Pi CLI entry:', errorMessage(e))
           }
           if (!st.sharedEventBus) st.sharedEventBus = st.sdk.createEventBus()
-          await initSession(String(msg.cwd || ''))
+          const initSessionFile = typeof msg.sessionFile === 'string' && msg.sessionFile.trim() ? msg.sessionFile.trim() : null
+          const initLeafId =
+            'leafId' in msg && (typeof msg.leafId === 'string' || msg.leafId === null)
+              ? (msg.leafId as string | null)
+              : undefined
+          await initSession(String(msg.cwd || ''), initSessionFile, initLeafId)
           if (resolvedEntry) {
             const globalCfg = (st.session?.settingsManager as { getGlobalSettings?: () => Record<string, unknown> } | undefined)?.getGlobalSettings?.()
             widenHttpConnectTimeout(resolvedEntry, globalCfg?.httpConnectTimeoutMs)
           }
           console.log('[Worker] Init done, sessionId:', st.currentSessionId)
-          reply({ type: 'init-done', sessionId: st.currentSessionId, model: currentSessionModelKey(), thinkingLevel: st.session?.thinkingLevel, sdkFallback })
+          reply({
+            type: 'init-done',
+            sessionId: st.currentSessionId,
+            sessionFile: st.session?.sessionFile ?? null,
+            leafId: st.session?.sessionManager?.getLeafId?.() ?? null,
+            model: currentSessionModelKey(),
+            thinkingLevel: st.session?.thinkingLevel,
+            modelFallbackMessage: String(st.runtime?.modelFallbackMessage || '').trim() || undefined,
+            sdkFallback,
+          })
         } catch (e: unknown) {
           console.error('[Worker] Init FAILED:', errorMessage(e), e instanceof Error ? e.stack : '')
           reply({ type: 'error', error: `Init failed: ${errorMessage(e)}`, stack: e instanceof Error ? e.stack : undefined })
