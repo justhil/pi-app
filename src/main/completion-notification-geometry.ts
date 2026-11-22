@@ -1,7 +1,7 @@
-export const NOTIFICATION_HOST_WIDTH = 380
-export const NOTIFICATION_CARD_HEIGHT = 168
+export const NOTIFICATION_HOST_WIDTH = 324
+export const NOTIFICATION_CARD_HEIGHT = 104
 export const NOTIFICATION_STACK_GAP = 8
-export const NOTIFICATION_HOST_PAD = 16
+export const NOTIFICATION_HOST_PAD = 14
 export const NOTIFICATION_MAX_VISIBLE = 3
 
 export function notificationHostSize(cardCount: number): { width: number; height: number } {
@@ -9,7 +9,7 @@ export function notificationHostSize(cardCount: number): { width: number; height
   if (n === 0) return { width: NOTIFICATION_HOST_WIDTH, height: 1 }
   return {
     width: NOTIFICATION_HOST_WIDTH,
-    height: n * NOTIFICATION_CARD_HEIGHT + Math.max(0, n - 1) * NOTIFICATION_STACK_GAP + 8,
+    height: n * NOTIFICATION_CARD_HEIGHT + Math.max(0, n - 1) * NOTIFICATION_STACK_GAP + 16,
   }
 }
 

@@ -2,17 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Pi CJK Punct';
+  src: local('PingFang SC'), local('Hiragino Sans GB'), local('Microsoft YaHei UI'), local('Microsoft YaHei');
+  unicode-range: U+2018-201F, U+3000-303F, U+FF01-FF60;
+}
+
 @layer base {
   :root {
     /* Motion tokens (桌面端反馈提速: 150/200/240ms, cubic-bezier(0.22,1,0.36,1)) */
-    --motion-fast: 150ms;
-    --motion-normal: 200ms;
-    --motion-slow: 240ms;
-    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-fast: 130ms;
+    --motion-normal: 180ms;
+    --motion-slow: 220ms;
+    --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
     /* Font tokens (system stack, 参考桌面客户端 rejects Inter for thin-text issue) */
     /* *-base 为回退栈：自定义主题只把本机字体名前置，不整栈替换 */
-    --font-sans-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-sans-base: 'Pi CJK Punct', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
     --font-mono-base: 'Geist Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
     --font-sans: var(--font-sans-base);
     --font-mono: var(--font-mono-base);
@@ -20,8 +26,19 @@
     --font-serif-base: 'Tiempos Text', 'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', Georgia, 'Noto Serif CJK SC', 'Noto Serif SC', 'Songti SC', STSong, serif;
     --font-display: var(--font-sans);
     --prose-font: inherit;
-    --chat-font-size: 15px;
-    --chat-line-height: 1.65;
+    --chat-font-size: 14.5px;
+    --chat-line-height: 1.68;
+    --composer-max-height: 112px;
+    --composer-font-size: 14px;
+    --composer-line-height: 1.55;
+    --composer-toolbar-gap: 0.375rem;
+    --timeline-turn-gap: 1.25rem;
+    --timeline-paragraph-gap: 0.72em;
+    --timeline-user-max-width: 82%;
+    --prose-h1-size: 1.38em;
+    --prose-h2-size: 1.22em;
+    --prose-h3-size: 1.1em;
+    --prose-h4-size: 1.04em;
     --chat-bg: var(--bg-base);
     --code-bg: transparent;
 
@@ -110,12 +127,12 @@
       0 12px 26px -12px rgba(18, 24, 40, 0.18);
     --composer-popover-shadow: 0 1px 2px rgba(18, 24, 40, 0.06), 0 12px 32px -8px rgba(18, 24, 40, 0.18);
 
-    /* 输入框/对话：随中心列可用宽度伸缩，侧栏收起后自然扩展 */
+    /* 输入框/对话：统一垂直阅读列宽（宽屏锁在黄金阅读宽度，窄屏随可用空间自然收缩） */
     --chat-content-min: 560px;
-    --chat-content-ratio: 72%;
-    --chat-content-cap: 1280px;
-    --composer-content-ratio: 68%;
-    --composer-content-cap: 1120px;
+    --chat-content-ratio: 78%;
+    --chat-content-cap: 800px;
+    --composer-content-ratio: 78%;
+    --composer-content-cap: 800px;
     --timeline-content-max: clamp(
       min(100%, var(--chat-content-min)),
       var(--chat-content-ratio),
@@ -1005,16 +1022,55 @@
   .rich-input {
     position: relative;
     caret-color: var(--aou-6);
+    font-size: var(--composer-font-size, 14px);
+    line-height: var(--composer-line-height, 1.55);
     letter-spacing: 0.01em;
     outline: none;
     word-break: break-word;
     white-space: pre-wrap;
-    max-height: 112px;
+    max-height: var(--composer-max-height, 112px);
     overflow-y: auto;
-    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 28%, transparent) transparent;
     transition:
       color var(--motion-fast) var(--motion-ease),
       height var(--motion-fast) var(--motion-ease);
+  }
+  .rich-input::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .rich-input::-webkit-scrollbar-track,
+  .rich-input::-webkit-scrollbar-button {
+    display: none;
+    background: transparent;
+  }
+  .rich-input::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 26%, transparent);
+  }
+  .rich-input:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+  }
+  .studio-thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 24%, transparent) transparent;
+  }
+  .studio-thin-scroll::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .studio-thin-scroll::-webkit-scrollbar-track,
+  .studio-thin-scroll::-webkit-scrollbar-button {
+    display: none;
+    background: transparent;
+  }
+  .studio-thin-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 24%, transparent);
+  }
+  .studio-thin-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-secondary) 40%, transparent);
   }
   .rich-input.is-disabled {
     opacity: 0.5;
@@ -1480,17 +1536,14 @@
     to { opacity: 1; }
   }
   @keyframes picker-scale-in {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    from { opacity: 0; transform: translateY(4px) scale(0.992); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
   .picker-row {
-    transition: background-color var(--motion-fast) ease, transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
   }
   .picker-row:hover {
     background: var(--bg-hover);
-  }
-  .picker-row:active {
-    transform: scale(0.995);
   }
   .picker-row:disabled {
     opacity: 0.42;
@@ -1524,10 +1577,10 @@
     .thinking-slider-fill { transition: none; }
   }
   .thinking-picker-check {
-    animation: thinking-check-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: thinking-check-pop 160ms var(--motion-ease) both;
   }
   @keyframes thinking-check-pop {
-    from { opacity: 0; transform: scale(0.4); }
+    from { opacity: 0; transform: scale(0.72); }
   }
   @media (prefers-reduced-motion: reduce) {
     .thinking-picker-row,
@@ -1685,24 +1738,31 @@
     flex-direction: column;
     gap: 0;
   }
+  /* Turn-grouped rhythm: clear separation across turns, deliberate pause before final prose, tight activity cluster */
+  .timeline-turn-group + .timeline-turn-group {
+    margin-top: var(--timeline-turn-gap, 1.25rem);
+  }
   .timeline-prose-row {
     margin: 0;
     padding-block: 0.25rem;
   }
-  .timeline-activity-item + .timeline-prose-row,
+  .timeline-activity-item + .timeline-prose-row {
+    margin-top: 0.375rem;
+  }
   .timeline-prose-row + .timeline-activity-item {
-    /* one soft breath only — not double py + hover slot */
-    margin-top: 0.125rem;
+    margin-top: 0.25rem;
   }
   .timeline-user-row {
-    padding-block: 0.5rem 0.375rem;
+    padding-block: 0.25rem 0.25rem;
   }
   .timeline-user-row:has(.message-actions-slot--reserved) {
     padding-bottom: 0;
   }
-  .timeline-user-row + .timeline-activity-item,
+  .timeline-user-row + .timeline-activity-item {
+    margin-top: 0.25rem;
+  }
   .timeline-user-row + .timeline-prose-row {
-    margin-top: 0.125rem;
+    margin-top: 0.375rem;
   }
   .timeline-activity-label--live {
     animation: tool-live-pulse 2.4s ease-in-out infinite;
@@ -1737,18 +1797,62 @@
     opacity: 0.78;
   }
   .timeline-user-bubble {
-    max-width: 80%;
+    max-width: var(--timeline-user-max-width, 82%);
     padding: 0.5rem 0.875rem;
-    font-size: 15px;
-    line-height: 1.65;
+    font-size: var(--chat-font-size);
+    line-height: 1.62;
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
     background: var(--message-user-bg);
-    border-radius: 10px 2px 10px 10px;
+    border-radius: 12px 3px 12px 12px;
   }
   .dark .timeline-user-bubble {
     background: color-mix(in srgb, var(--message-user-bg) 92%, transparent);
+  }
+  .timeline-user-inline-code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    padding: 0.1em 0.36em;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--bg-base) 68%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 65%, transparent);
+  }
+  .dark .timeline-user-inline-code {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .timeline-user-code-fence {
+    margin-block: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.52;
+    overflow-x: auto;
+    white-space: pre;
+    background: color-mix(in srgb, var(--bg-base) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 68%, transparent);
+  }
+  .dark .timeline-user-code-fence {
+    background: rgba(0, 0, 0, 0.24);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .timeline-user-collapse-fade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--message-user-bg) 82%, transparent) 60%,
+      var(--message-user-bg) 100%
+    );
+  }
+  .dark .timeline-user-collapse-fade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--message-user-bg) 78%, var(--bg-base)) 60%,
+      color-mix(in srgb, var(--message-user-bg) 92%, var(--bg-base)) 100%
+    );
   }
 
   /* 列表行默认无入场动画，避免滚动/流式时大量 keyframes 掉帧 */
@@ -1961,29 +2065,39 @@
   }
   .prose-chat > :first-child { margin-top: 0; }
   .prose-chat > :last-child { margin-bottom: 0; }
-  .prose-chat p { margin-block: 0.45em; }
+  .prose-chat p { margin-block: var(--timeline-paragraph-gap, 0.72em); }
   .prose-chat > p:first-child { margin-top: 0; }
   .prose-chat > p:last-child { margin-bottom: 0; }
   .prose-chat strong { font-weight: 600; color: var(--text-primary); }
-  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 { font-family: var(--font-display); }
-  .prose-chat h1 { font-size: 24px; line-height: 32px; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
-  .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
-    font-size: 16px; line-height: 24px; margin-top: 20px; margin-bottom: 12px; font-weight: bold;
-  }
-  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
-  .prose-chat a:hover { text-decoration: underline; }
-  .prose-chat code:not(pre code) {
-    background: color-mix(in srgb, var(--bg-3) 42%, transparent);
+  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
+    font-family: var(--font-display);
     color: var(--text-primary);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.875em;
+    letter-spacing: -0.01em;
+  }
+  .prose-chat h1 { font-size: var(--prose-h1-size, 1.38em); line-height: 1.34; margin-top: 1.45em; margin-bottom: 0.5em; font-weight: 700; letter-spacing: -0.015em; }
+  .prose-chat h2 { font-size: var(--prose-h2-size, 1.22em); line-height: 1.38; margin-top: 1.3em; margin-bottom: 0.45em; font-weight: 700; }
+  .prose-chat h3 { font-size: var(--prose-h3-size, 1.1em); line-height: 1.44; margin-top: 1.18em; margin-bottom: 0.36em; font-weight: 650; }
+  .prose-chat h4 { font-size: var(--prose-h4-size, 1.04em); line-height: 1.48; margin-top: 1.05em; margin-bottom: 0.32em; font-weight: 650; color: var(--text-primary); }
+  .prose-chat h5, .prose-chat h6 {
+    font-size: 1em; line-height: 1.5; margin-top: 0.95em; margin-bottom: 0.28em; font-weight: 650; color: var(--text-primary);
+  }
+  .prose-chat > :is(h1, h2, h3, h4, h5, h6):first-child { margin-top: 0; }
+  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
+  .prose-chat a:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .prose-chat code:not(pre code) {
+    background: color-mix(in srgb, var(--bg-3) 38%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 58%, transparent);
+    color: var(--text-primary);
+    padding: 0.1em 0.38em;
+    border-radius: 4px;
+    font-size: 0.865em;
     font-family: var(--font-mono);
   }
   /* Dark Modern: quieter inline code wash */
   .dark .prose-chat code:not(pre code) {
-    background: color-mix(in srgb, #3c3c3c 55%, transparent);
-    color: #d0d0d0;
+    background: color-mix(in srgb, #3c3c3c 48%, transparent);
+    border-color: rgba(255, 255, 255, 0.085);
+    color: #d6d6d6;
   }
   .dark .prose-chat a {
     color: #4daafc;
@@ -1996,39 +2110,54 @@
     background: color-mix(in srgb, var(--bg-2) 45%, transparent);
   }
   .prose-chat pre {
-    margin-block: 6px;
-    border-radius: 6px;
+    margin-block: 0;
+    border-radius: 0;
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.55;
     background: transparent;
   }
   .prose-chat blockquote {
-    border-left: 2px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    padding-left: 12px;
-    color: var(--text-primary);
-    margin: 16px 0;
+    border-left: 2.5px solid color-mix(in srgb, var(--text-disabled) 55%, var(--border-base));
+    padding: 0.1em 0 0.1em 0.9em;
+    color: var(--text-secondary);
+    margin: 0.85em 0;
   }
+  .prose-chat blockquote > :first-child { margin-top: 0; }
+  .prose-chat blockquote > :last-child { margin-bottom: 0; }
   .prose-chat hr {
     border: none;
-    border-top: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    margin: 28px 0;
+    border-top: 1px solid color-mix(in srgb, var(--border-base) 75%, transparent);
+    margin: 1.35em 0;
   }
-  .prose-chat ol, .prose-chat ul { padding-inline-start: 1.35em; margin-block: 0.4em; }
-  .prose-chat li { margin-block: 0.2em; }
+  .prose-chat ol, .prose-chat ul { padding-inline-start: 1.45em; margin-block: 0.65em; }
+  .prose-chat li { margin-block: 0.28em; }
+  .prose-chat li > ul, .prose-chat li > ol { margin-block: 0.25em; }
+  .prose-chat li > p { margin-block: 0.25em; }
+  .prose-chat li > p:first-child { margin-top: 0; }
+  .prose-chat li > p:last-child { margin-bottom: 0; }
   .prose-chat table {
-    margin-block: 0.5em;
+    margin-block: 0;
     border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
   }
   .prose-chat th {
-    padding: 6px 8px;
-    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
-    font-weight: bold;
+    padding: 7px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base) 85%, transparent);
+    background: color-mix(in srgb, var(--bg-1) 75%, transparent);
+    font-weight: 600;
+    text-align: left;
   }
   .prose-chat td {
-    padding: 6px 8px;
-    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    min-width: 80px;
+    padding: 7px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base) 55%, transparent);
+    min-width: 72px;
+    vertical-align: top;
+  }
+  .prose-chat tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .prose-chat tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--bg-1) 34%, transparent);
   }
   /* ── KaTeX（行内 / 块级 / 化学式 / 错误态）── */
   .prose-chat .katex {
@@ -2719,10 +2848,53 @@
   line-height: 1;
 }
 .session-attention-dot--working {
-  border: 1.5px solid color-mix(in srgb, var(--warning-semantic) 30%, transparent);
-  border-top-color: var(--warning-semantic);
-  border-right-color: var(--warning-semantic);
-  animation: session-attention-spin 1s linear infinite;
+  border-radius: 0;
+}
+/* Sidebar & status bar: transparent-bg organic 3×3 rippling micro-dot glyph */
+.session-running-pixel-grid {
+  opacity: 0.88;
+  transition: opacity 180ms ease;
+}
+.sidebar-session-row:hover .session-running-pixel-grid,
+.nav-row-active .session-running-pixel-grid {
+  opacity: 1;
+}
+.session-running-pixel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transform: scale(0.55);
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 280ms ease;
+}
+.session-running-pixel--on {
+  background: var(--text-secondary);
+}
+.session-running-pixel--lead {
+  opacity: 0.82;
+  transform: scale(1);
+}
+.session-running-pixel--mid {
+  opacity: 0.46;
+  transform: scale(0.9);
+}
+.session-running-pixel--tail {
+  opacity: 0.2;
+  transform: scale(0.76);
+}
+.dark .session-running-pixel--lead {
+  opacity: 0.88;
+}
+.dark .session-running-pixel--mid {
+  opacity: 0.52;
+}
+.dark .session-running-pixel--tail {
+  opacity: 0.24;
 }
 .session-attention-dot--needs-you {
   border: 1px solid var(--warning-semantic);
@@ -2733,14 +2905,12 @@
   background: var(--success-semantic);
   box-shadow: inset 0 0 0 2px var(--bg-base);
 }
-@keyframes session-attention-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .session-attention-dot--working {
-    animation: none;
+  .session-running-pixel {
+    transition: none !important;
+  }
+  .session-running-pixel--on {
+    opacity: 0.75;
   }
 }
 
@@ -3803,9 +3973,11 @@ html[data-frame-style='flat'] .shell-track-right:not(.shell-track-right-rail) {
   border-top: 1px solid var(--border-base);
 }
 
-/* ── 2. Message Flow Styles: Editorial Left-Bar & Card ── */
-html[data-msg-style='editorial'] .timeline-user-row > div {
+/* ── 2. Message Flow Styles: Editorial Left-Bar, Prompt Card (Cursor/Codex/Zed) & Card ── */
+html[data-msg-style='editorial'] .timeline-user-row > div,
+html[data-user-msg-style='prompt-card'] .timeline-user-row > div {
   justify-content: flex-start !important;
+  align-items: stretch !important;
 }
 html[data-msg-style='editorial'] .timeline-user-bubble {
   max-width: 100%;
@@ -3815,11 +3987,117 @@ html[data-msg-style='editorial'] .timeline-user-bubble {
   padding: 0.55rem 0.95rem;
   background: color-mix(in srgb, var(--message-user-bg) 78%, transparent);
 }
+html[data-user-msg-style='prompt-card'] .timeline-user-bubble {
+  max-width: 100%;
+  width: 100%;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 76%, transparent);
+  padding: 0.55rem 0.875rem;
+  background: color-mix(in srgb, var(--message-user-bg) 82%, var(--chat-bg));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+html.dark[data-user-msg-style='prompt-card'] .timeline-user-bubble {
+  border-color: rgba(255, 255, 255, 0.085);
+  background: color-mix(in srgb, var(--message-user-bg) 85%, var(--chat-bg));
+  box-shadow: none;
+}
 html[data-msg-style='card'] .timeline-prose-row > div {
   border-radius: var(--radius-lg, 10px);
   border: 1px solid color-mix(in srgb, var(--border-base) 72%, transparent);
   background: color-mix(in srgb, var(--bg-1) 52%, var(--chat-bg));
   padding: 0.65rem 0.9rem;
+}
+
+/* ── 2b. Mid-turn Prose Styles (opt-in via Settings / Studio; default 'match' keeps normal prose) ── */
+html[data-mid-prose-style='muted'] [data-pi-slot='timeline-mid-prose'] {
+  font-size: var(--timeline-mid-prose-size, 13.5px);
+  line-height: 1.58;
+  color: var(--timeline-mid-prose-color, var(--text-secondary));
+}
+html[data-mid-prose-style='muted'] [data-pi-slot='timeline-mid-prose'] .prose-chat {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+html[data-mid-prose-style='rail'] [data-pi-slot='timeline-mid-prose'] {
+  font-size: var(--timeline-mid-prose-size, 13px);
+  line-height: 1.55;
+  color: var(--timeline-mid-prose-color, var(--text-secondary));
+  border-left: 2px solid color-mix(in srgb, var(--border-base) 85%, transparent);
+  padding-left: 0.65rem;
+}
+html[data-mid-prose-style='rail'] [data-pi-slot='timeline-mid-prose'] .prose-chat {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* ── 2c. Composer Shell Presets & Modular Slot Visibility (CSS-driven so Custom CSS can override) ── */
+.composer-toolbar {
+  gap: var(--composer-toolbar-gap, 0.375rem);
+}
+html[data-composer-preset='minimal'] .composer-shell {
+  --composer-shell-radius: 8px;
+  box-shadow: none !important;
+  border-color: color-mix(in srgb, var(--border-base) 90%, transparent);
+}
+html[data-composer-preset='minimal'] .composer-shell-focused {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border-base)) !important;
+}
+html[data-composer-preset='zen'] .composer-shell:not(.composer-shell-focused):not(:hover) [data-pi-slot='composer-toolbar'] > :not([data-pi-slot='composer-send-group']) {
+  opacity: 0.36;
+  transition: opacity var(--motion-fast, 150ms) var(--motion-ease, ease);
+}
+html[data-composer-preset='split'] [data-pi-slot='composer-toolbar'] {
+  margin-top: 0.25rem;
+  margin-inline: -0.625rem;
+  margin-bottom: -0.5rem;
+  padding: 0.35rem 0.625rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-base) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 62%, transparent);
+  border-radius: 0 0 calc(var(--composer-shell-radius, 14px) - 1px) calc(var(--composer-shell-radius, 14px) - 1px);
+}
+html.dark[data-composer-preset='split'] [data-pi-slot='composer-toolbar'] {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+html[data-composer-accessory='hidden'] [data-pi-slot='composer-accessory'] { display: none; }
+html[data-composer-accessory='todo-only'] [data-pi-slot='composer-activity'] { display: none; }
+html[data-composer-accessory='activity-only'] [data-pi-slot='composer-todo'] { display: none; }
+
+html[data-composer-attach='hidden'] [data-pi-slot='composer-attach-btn'] { display: none; }
+html[data-composer-tools='hidden'] [data-pi-slot='composer-tools-wrap'] { display: none; }
+html[data-composer-tools='active-only'] [data-pi-slot='composer-tools-wrap'][data-has-active='false'] { display: none; }
+html[data-composer-purge='hidden'] [data-pi-slot='composer-purge-wrap'] { display: none; }
+html[data-composer-purge='active-only'] [data-pi-slot='composer-purge-wrap'][data-active='false'] { display: none; }
+html[data-composer-purge='icon'] [data-pi-slot='composer-purge-label'] { display: none; }
+html[data-composer-model-strip='hidden'] [data-pi-slot='composer-model-strip'] { display: none; }
+html[data-composer-model-strip='model-only'] [data-pi-slot='composer-thinking-chip'] { display: none; }
+html[data-composer-model-strip='compact'] [data-pi-slot='composer-thinking-prefix'] { display: none; }
+html[data-composer-metrics='hidden'] [data-pi-slot='composer-metrics'] { display: none; }
+html[data-composer-tps='hidden'] [data-pi-slot='composer-tps'] { display: none; }
+html[data-composer-voice='hidden'] [data-pi-slot='composer-voice-wrap'] { display: none; }
+
+/* Navigation two-frame transition suppression (prevents stale slide-in ghosts on session switch) */
+[data-nav-suppress='true'],
+[data-nav-suppress='true'] * {
+  animation-duration: 0ms !important;
+  transition-duration: 0ms !important;
+}
+
+/* Native browser virtualization for high-density PR/Issue/Session lists */
+.pi-virtual-row {
+  content-visibility: auto;
+  contain-intrinsic-block-size: 56px;
+}
+
+/* Interactive slot spotlight from Settings / Live Customize Studio */
+[data-pi-slot-highlight='true'] {
+  outline: 2px solid var(--brand) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent) !important;
+  transition: outline-color 120ms ease, box-shadow 120ms ease;
 }
 
 /* ── 3. Spacing Density (Compact / Relaxed) ── */

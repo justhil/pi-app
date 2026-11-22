@@ -1,32 +1,52 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@renderer/lib/utils'
 
-/** Soft 3×3 running pulse for sidebar sessions. */
 const GRID = 3
 const CELL_COUNT = GRID * GRID
 const CELL_PX = 3
 const GAP_PX = 1.5
-const GRID_OUTER_PX = GRID * CELL_PX + (GRID - 1) * GAP_PX
+const GRID_OUTER_PX = GRID * CELL_PX + (GRID - 1) * GAP_PX // 12px
+const TRAIL_LENGTH = 4
+const STEP_MS = 320
 
-function pickLitCells(count: number, seed: number): Set<number> {
-  const indices = Array.from({ length: CELL_COUNT }, (_, i) => i)
-  let state = seed >>> 0
-  const next = () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
-    return state
+const NEIGHBORS: readonly (readonly number[])[] = [
+  [1, 3, 4],
+  [0, 2, 3, 4, 5],
+  [1, 4, 5],
+  [0, 1, 4, 6, 7],
+  [0, 1, 2, 3, 5, 6, 7, 8],
+  [1, 2, 4, 7, 8],
+  [3, 4, 7],
+  [3, 4, 5, 6, 8],
+  [4, 5, 7],
+]
+
+function pickInitialTrail(): number[] {
+  const start = Math.floor(Math.random() * CELL_COUNT)
+  const trail = [start]
+  while (trail.length < TRAIL_LENGTH) {
+    const head = trail[trail.length - 1]
+    const candidates = NEIGHBORS[head].filter((n) => !trail.includes(n))
+    const pool = candidates.length > 0 ? candidates : Array.from({ length: CELL_COUNT }, (_, i) => i).filter((n) => !trail.includes(n))
+    trail.push(pool[Math.floor(Math.random() * pool.length)])
   }
-  for (let i = CELL_COUNT - 1; i > 0; i--) {
-    const j = next() % (i + 1)
-    const tmp = indices[i]
-    indices[i] = indices[j]
-    indices[j] = tmp
-  }
-  return new Set(indices.slice(0, Math.min(count, CELL_COUNT)))
+  return trail
+}
+
+function advanceTrail(prev: number[]): number[] {
+  const dropped = prev[0]
+  const rest = prev.slice(1)
+  const head = rest[rest.length - 1] ?? 4
+  const adjacent = NEIGHBORS[head].filter((n) => !rest.includes(n) && n !== dropped)
+  const fallback = Array.from({ length: CELL_COUNT }, (_, i) => i).filter((n) => !rest.includes(n))
+  const pool = adjacent.length > 0 && Math.random() < 0.72 ? adjacent : fallback
+  const next = pool[Math.floor(Math.random() * pool.length)]
+  return [...rest, next]
 }
 
 /**
- * Quiet 3×3 grid: a few soft cells drift on/off.
- * Meant to sit beside session meta like a status glyph, not a badge.
+ * 3×3 transparent-background organic micro-dot indicator for running sessions.
+ * No grey box backdrop — 4 dots ripple smoothly across a 12×12 footprint with lead/mid/tail decay.
  */
 export function SessionRunningPixelGrid({
   className,
@@ -35,27 +55,27 @@ export function SessionRunningPixelGrid({
   className?: string
   title?: string
 }) {
-  const [epoch, setEpoch] = useState(0)
+  const [trail, setTrail] = useState<number[]>(() => pickInitialTrail())
 
   useEffect(() => {
-    const timer = window.setInterval(() => setEpoch((n) => n + 1), 1400)
+    const reduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduced) return
+    const timer = window.setInterval(() => {
+      setTrail((prev) => advanceTrail(prev))
+    }, STEP_MS)
     return () => window.clearInterval(timer)
   }, [])
 
-  const lit = useMemo(() => {
-    // Light 3–4 cells only — sparse, not a filled block.
-    const count = 3 + (epoch % 2)
-    const seed = (epoch + 1) * 2654435761
-    return pickLitCells(count, seed)
-  }, [epoch])
-
   return (
-    <div
+    <span
+      data-pi-slot="session-running-grid"
       className={cn('session-running-pixel-grid shrink-0', className)}
       title={title}
       aria-hidden
       style={{
-        display: 'grid',
+        display: 'inline-grid',
         gridTemplateColumns: `repeat(${GRID}, ${CELL_PX}px)`,
         gridTemplateRows: `repeat(${GRID}, ${CELL_PX}px)`,
         gap: `${GAP_PX}px`,
@@ -63,20 +83,27 @@ export function SessionRunningPixelGrid({
         height: GRID_OUTER_PX,
       }}
     >
-      {Array.from({ length: CELL_COUNT }, (_, index) => (
-        <span
-          key={index}
-          className={cn(
-            'session-running-pixel',
-            lit.has(index) && 'session-running-pixel--on',
-          )}
-          style={
-            lit.has(index)
-              ? { transitionDelay: `${(index % 3) * 40}ms` }
-              : { transitionDelay: `${(index % 3) * 20}ms` }
-          }
-        />
-      ))}
-    </div>
+      {Array.from({ length: CELL_COUNT }, (_, index) => {
+        const pos = trail.indexOf(index)
+        const level =
+          pos === TRAIL_LENGTH - 1
+            ? 'lead'
+            : pos >= 1
+              ? 'mid'
+              : pos === 0
+                ? 'tail'
+                : null
+        return (
+          <span
+            key={index}
+            className={cn(
+              'session-running-pixel',
+              level && 'session-running-pixel--on',
+              level && `session-running-pixel--${level}`,
+            )}
+          />
+        )
+      })}
+    </span>
   )
 }

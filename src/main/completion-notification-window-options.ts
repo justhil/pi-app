@@ -1,11 +1,12 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
+import { NOTIFICATION_HOST_WIDTH, notificationHostSize } from './completion-notification-geometry'
 
 export function completionNotificationWindowOptions(
   preload: string,
 ): BrowserWindowConstructorOptions {
   return {
-    width: 380,
-    height: 168,
+    width: NOTIFICATION_HOST_WIDTH,
+    height: notificationHostSize(1).height,
     show: false,
     frame: false,
     resizable: false,
@@ -14,8 +15,9 @@ export function completionNotificationWindowOptions(
     alwaysOnTop: true,
     fullscreenable: false,
     focusable: true,
-    transparent: false,
-    backgroundColor: '#f2f3f5',
+    transparent: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload,
       partition: 'notify',
