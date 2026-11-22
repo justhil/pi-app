@@ -76,6 +76,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.pi.remote.R
+import dev.pi.remote.app.data.LocalUiPrefs
 import dev.pi.remote.app.data.RemoteRepository
 import dev.pi.remote.app.data.SendOutcome
 import dev.pi.remote.app.theme.Pi
@@ -792,6 +793,7 @@ fun SessionContent(
     onOpenSubagents: (() -> Unit)? = null,
     onOpenUsage: (() -> Unit)? = null,
 ) {
+    val showIntermediateMessages = LocalUiPrefs.current?.showIntermediateMessages?.collectAsState()?.value ?: false
     val turns = timeline?.turns.orEmpty()
     val state = timeline?.state
     val running = state?.running == true || turns.lastOrNull()?.running == true
@@ -926,7 +928,7 @@ fun SessionContent(
                     val prev = turns.getOrNull(i - 1)
                     val divider = t.startedAt?.takeIf { TimeDividers.showDivider(prev?.startedAt, it, offset) }
                     // Only the running turn reads the ticking clock; settled turns keep skipping.
-                    TurnItem(t, expanded[t.id] == true, divider, if (t.running) now else 0L, mermaid, callbacks)
+                    TurnItem(t, expanded[t.id] == true, divider, if (t.running) now else 0L, mermaid, callbacks, showIntermediateMessages)
                 }
                 if (timeline?.hasOlder == true) {
                     item("older") {

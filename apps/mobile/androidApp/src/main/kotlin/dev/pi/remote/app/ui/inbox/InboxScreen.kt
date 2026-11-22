@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -524,6 +525,7 @@ private fun InboxMenu(
     val language by prefs.language.collectAsState()
     val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
     val grouping by prefs.grouping.collectAsState()
+    val showIntermediateMessages by prefs.showIntermediateMessages.collectAsState()
     val scope = rememberCoroutineScope()
     var cacheBytes by remember { mutableLongStateOf(0L) }
     var cleared by remember { mutableStateOf(false) }
@@ -539,6 +541,13 @@ private fun InboxMenu(
             Segmented(listOf("system" to stringResource(R.string.theme_system), "en" to "English", "zh" to "简体中文"), language, onSelect = { if (prefs.setLanguage(it)) activity?.recreate() })
             Text(stringResource(R.string.menu_grouping), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(top = 10.dp))
             Segmented(listOf("status" to stringResource(R.string.group_status), "project" to stringResource(R.string.group_project)), grouping, prefs::setGrouping)
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.menu_intermediate_messages), style = Pi.t.body.copy(color = Pi.c.fg))
+                    Text(stringResource(R.string.menu_intermediate_messages_hint), style = Pi.t.meta.copy(color = Pi.c.fg3))
+                }
+                Switch(checked = showIntermediateMessages, onCheckedChange = prefs::setShowIntermediateMessages)
+            }
             Hairline(Modifier.padding(top = 10.dp))
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
