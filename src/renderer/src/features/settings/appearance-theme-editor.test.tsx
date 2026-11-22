@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
+import { DEFAULT_UI_CUSTOMIZATION } from '@shared/ui-customization'
 import type { SettingsDraft } from './settings-draft'
 import { AppearanceThemeEditor } from './appearance-theme-editor'
 
@@ -59,6 +60,8 @@ function baseDraft(): SettingsDraft {
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: 0,
     timelineVisibleTurns: 10,
+    timelineUserMessageStyle: 'bubble',
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
     extensionOverrides: {},
     rightPanelCatalog: [],
     rightPanelPrefs: {},

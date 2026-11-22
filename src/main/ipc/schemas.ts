@@ -19,6 +19,8 @@ import {
   PURGE_THINKING_GUIDANCES,
 } from '../../../packages/shared/agent-purge.ts'
 import { CAPABILITY_IDS } from '../../../packages/shared/capabilities.ts'
+import { TIMELINE_USER_MESSAGE_STYLES } from '../../../packages/shared/timeline-settings.ts'
+import { normalizeUiCustomization } from '../../../packages/shared/ui-customization.ts'
 
 export const shellOpenPathSchema = z.object({
   path: z.string(),
@@ -318,6 +320,8 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   sessionWorkerIdleTimeoutMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   timelineMaxAutoExpandedTools: z.number().int().min(0).max(50),
   timelineVisibleTurns: z.number().int().min(1).max(200),
+  timelineUserMessageStyle: z.enum(TIMELINE_USER_MESSAGE_STYLES),
+  uiCustomization: z.record(z.string(), z.unknown()).transform((v) => normalizeUiCustomization(v)),
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),
   sessionDisplayNames: z.record(z.string()),

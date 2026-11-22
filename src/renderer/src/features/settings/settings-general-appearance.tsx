@@ -10,6 +10,10 @@ import { isSandboxPath } from '@renderer/features/workspace/project-sidebar-type
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
 import { AppearanceBackground } from '@renderer/features/settings/appearance-background'
+import {
+  WorkbenchComposerControls,
+  WorkbenchReadingControls,
+} from '@renderer/features/settings/workbench-customizer-controls'
 import { RuntimeSettingsPanel } from '@renderer/features/settings/runtime-settings-panel'
 import { SessionWorkersSection } from '@renderer/features/settings/session-workers-section'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -477,7 +481,15 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setTimelineVisibleTurns } = useSettingsDraft()
+  const {
+    draft,
+    setTheme,
+    setIconTheme,
+    setTimelineMaxAutoExpandedTools,
+    setTimelineVisibleTurns,
+    setTimelineUserMessageStyle,
+    setUiCustomization,
+  } = useSettingsDraft()
   const [zoom, setZoom] = useState(readUiZoom)
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
@@ -488,7 +500,23 @@ export function AppearanceSettings() {
 
   return (
     <div className="flex flex-col gap-8">
-      <SettingsPageHeader title={t('settings:appearance.title')} description={t('settings:appearance.description')} />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <SettingsPageHeader title={t('settings:appearance.title')} description={t('settings:appearance.description')} />
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent('pi-desktop:open-live-theme-studio', {
+                detail: { theme: draft.customTheme },
+              }),
+            )
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand)]/45 bg-[var(--brand)]/10 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-[var(--brand)]/16"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-[var(--brand)]" />
+          <span>{t('settings:appearance.workbench.openLiveStudio')}</span>
+        </button>
+      </div>
 
       <SettingsSection title={t('settings:appearance.themeTitle')}>
         <SettingRow label={t('settings:appearance.themeLabel')} description={t('settings:appearance.themeDesc')}>
@@ -572,7 +600,24 @@ export function AppearanceSettings() {
       <AppearanceThemeEditor />
       <AppearanceBackground />
 
+      <SettingsSection
+        title={t('settings:appearance.workbench.composerSectionTitle')}
+        description={t('settings:appearance.workbench.composerSectionDesc')}
+      >
+        <div className="py-2">
+          <WorkbenchComposerControls ui={draft.uiCustomization} onUiChange={setUiCustomization} />
+        </div>
+      </SettingsSection>
+
       <SettingsSection title={t('settings:appearance.timeline')}>
+        <div className="py-2">
+          <WorkbenchReadingControls
+            userMessageStyle={draft.timelineUserMessageStyle}
+            onUserMessageStyleChange={setTimelineUserMessageStyle}
+            ui={draft.uiCustomization}
+            onUiChange={setUiCustomization}
+          />
+        </div>
         <SettingRow
           label={t('settings:appearance.timelineVisibleTurns')}
           description={t('settings:appearance.timelineVisibleTurnsDesc')}

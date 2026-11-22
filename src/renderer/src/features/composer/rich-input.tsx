@@ -133,8 +133,11 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
     // Reset height to 'auto' before re-reading scrollHeight so content can shrink; the reset
     // clamps the scrollbar to 0, so restore the previous scroll position after re-clamping.
     const prevScrollTop = node.scrollTop
+    const cssMaxH =
+      typeof window !== 'undefined' ? Number.parseFloat(window.getComputedStyle(node).maxHeight) : NaN
+    const effectiveMaxHeight = Number.isFinite(cssMaxH) && cssMaxH > 0 ? cssMaxH : MAX_EDITOR_HEIGHT
     node.style.height = 'auto'
-    node.style.height = Math.min(node.scrollHeight, MAX_EDITOR_HEIGHT) + 'px'
+    node.style.height = Math.min(node.scrollHeight, effectiveMaxHeight) + 'px'
     syncRichInputEmpty(node)
     node.scrollTop = Math.min(prevScrollTop, Math.max(node.scrollHeight - node.clientHeight, 0))
     // Programmatic inserts (Shift+Enter, paste, voice input) skip the browser's caret-into-view
@@ -218,6 +221,7 @@ export const RichInput = forwardRef<HTMLDivElement, RichInputProps>(function Ric
   return (
     <div
       ref={innerRef}
+      data-pi-slot="composer-input"
       contentEditable={!disabled}
       suppressContentEditableWarning
       data-placeholder={placeholder}

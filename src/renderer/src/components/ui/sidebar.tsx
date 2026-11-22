@@ -8,7 +8,7 @@ interface SidebarProps {
 
 /** 宽度与收起动画由 MainLayoutShell 的 Grid 轨道负责 */
 export function Sidebar({ children }: SidebarProps) {
-  return <div className="flex h-full min-h-0 min-w-0 flex-col">{children}</div>
+  return <div data-pi-slot="shell-sidebar" className="flex h-full min-h-0 min-w-0 flex-col">{children}</div>
 }
 
 export function SidebarHeader({ label }: { label: string }) {
@@ -34,7 +34,7 @@ export function SidebarContent({ children }: { children: React.ReactNode }) {
 }
 
 export function RightPanel({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+  return <div data-pi-slot="shell-right-panel" className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 }
 
 export function SidebarItem({ label, active, onClick, icon }: {

@@ -31,9 +31,10 @@ function ComposerModelStripImpl({
   )
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-0.5 overflow-hidden">
+    <div data-pi-slot="composer-model-strip" className="flex min-w-0 items-center gap-0.5 overflow-hidden">
       <button
         type="button"
+        data-pi-slot="composer-model-chip"
         data-composer-model-chip=""
         onClick={onModelClick}
         aria-haspopup="dialog"
@@ -46,6 +47,7 @@ function ComposerModelStripImpl({
       </button>
       <button
         type="button"
+        data-pi-slot="composer-thinking-chip"
         data-composer-thinking-chip=""
         onClick={onThinkingClick}
         aria-haspopup="dialog"
@@ -54,7 +56,8 @@ function ComposerModelStripImpl({
         className={cn(chip, 'shrink-0', thinkingPickerOpen && 'bg-[var(--bg-active)] text-foreground')}
       >
         <span className="max-w-[88px] truncate">
-          <span className="opacity-60">{t('composer:thinkingPrefix')}</span> {thinkLabel}
+          <span data-pi-slot="composer-thinking-prefix" className="opacity-60">{t('composer:thinkingPrefix')} </span>
+          {thinkLabel}
         </span>
         <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
       </button>

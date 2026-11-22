@@ -43,6 +43,7 @@ import {
   type ThemeWindowMaterial,
 } from '@shared/custom-theme'
 import { AppearanceThemeLibrary } from './appearance-theme-library'
+import { WorkbenchCssInspectorControls } from './workbench-customizer-controls'
 
 const COLOR_RE = /^#[0-9a-f]{6}$/i
 
@@ -1022,6 +1023,10 @@ export function AppearanceThemeEditor() {
                 }
               />
             </div>
+            <WorkbenchCssInspectorControls
+              customCss={draft.customCssOverride}
+              onCustomCssChange={setCustomCssOverride}
+            />
             <textarea
               id="appearance-custom-css-value"
               rows={10}

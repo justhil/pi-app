@@ -6,6 +6,8 @@ import type { WorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import type { SessionAttention } from '@renderer/lib/session-attention'
 import type { SubagentSessionGroup } from '@renderer/lib/subagent-session-types'
 import type { SessionState } from '@renderer/stores/session-state'
+import type { TimelineUserMessageStyle } from '@shared/timeline-settings'
+import type { UiCustomization } from '@shared/ui-customization'
 
 export interface SessionItem {
   sessionId: string
@@ -203,7 +205,7 @@ export interface UIState {
   composerPrefillMode: 'replace' | 'append'
   setComposerPrefill: (text: string | null) => void
   /** Append snippet to composer (line refs, etc.) without wiping the draft */
-  appendComposerPrefill: (text: string) => void
+  appendComposerPrefill: (text: string, opts?: { preserveTrailingNewlines?: boolean }) => void
   activePanel: string
   setActivePanel: (p: string) => void
   rightPanelCatalog: RightPanelCatalogItem[]
@@ -252,6 +254,10 @@ export interface UIState {
   setTimelineMaxAutoExpandedTools: (n: number) => void
   timelineVisibleTurns: number
   setTimelineVisibleTurns: (n: number) => void
+  timelineUserMessageStyle: TimelineUserMessageStyle
+  setTimelineUserMessageStyle: (style: TimelineUserMessageStyle) => void
+  uiCustomization: UiCustomization
+  setUiCustomization: (next: UiCustomization | Partial<UiCustomization>) => void
   sidebarWidth: number
   setSidebarWidth: (w: number) => void
   sidebarCollapsed: boolean

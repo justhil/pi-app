@@ -38,6 +38,7 @@ export function ComposerDock({ className, children, heroMode }: { className?: st
   return (
     <div
       ref={hostRef}
+      data-pi-slot="composer-dock"
       className={cn(
         'composer-dock-host pointer-events-none absolute inset-x-0 bottom-0 z-30',
         heroMode && 'composer-dock-hero',

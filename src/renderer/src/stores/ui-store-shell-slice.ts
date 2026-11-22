@@ -8,7 +8,13 @@ import {
   normalizeTimelineMaxAutoExpandedTools,
   normalizeTimelineVisibleTurns,
   DEFAULT_TIMELINE_VISIBLE_TURNS,
+  normalizeTimelineUserMessageStyle,
+  DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
 } from '@shared/timeline-settings'
+import {
+  DEFAULT_UI_CUSTOMIZATION,
+  normalizeUiCustomization,
+} from '@shared/ui-customization'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import {
   currentWindowWidth,
@@ -43,6 +49,10 @@ type ShellSlice = Pick<
   | 'setTimelineMaxAutoExpandedTools'
   | 'timelineVisibleTurns'
   | 'setTimelineVisibleTurns'
+  | 'timelineUserMessageStyle'
+  | 'setTimelineUserMessageStyle'
+  | 'uiCustomization'
+  | 'setUiCustomization'
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
@@ -124,6 +134,14 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(count) }),
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
     setTimelineVisibleTurns: (count) => set({ timelineVisibleTurns: normalizeTimelineVisibleTurns(count) }),
+    timelineUserMessageStyle: DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+    setTimelineUserMessageStyle: (style) =>
+      set({ timelineUserMessageStyle: normalizeTimelineUserMessageStyle(style) }),
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
+    setUiCustomization: (next) =>
+      set((s) => ({
+        uiCustomization: normalizeUiCustomization({ ...s.uiCustomization, ...next }),
+      })),
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,

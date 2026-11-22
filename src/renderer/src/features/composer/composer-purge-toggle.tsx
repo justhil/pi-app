@@ -278,11 +278,17 @@ export function ComposerPurgeToggle({
   const relayLocked = strategy.historyMode === 'tunnel' || strategy.thinkingGuidance === 'tool_cot'
 
   return (
-    <div data-composer-purge-anchor className="relative flex shrink-0 items-center">
+    <div
+      data-composer-purge-anchor
+      data-pi-slot="composer-purge-wrap"
+      data-active={active ? 'true' : 'false'}
+      className="relative flex shrink-0 items-center"
+    >
       <button
         type="button"
         aria-expanded={menuOpen}
         aria-haspopup="dialog"
+        data-pi-slot="composer-purge-btn"
         data-testid="composer-purge-toggle"
         data-purge-state={
           active ? (midSession ? 'active-mid' : 'draft-on') : midSession ? 'off-mid' : 'draft-off'
@@ -299,12 +305,14 @@ export function ComposerPurgeToggle({
         )}
       >
         <Bot className="h-[14px] w-[14px] shrink-0" strokeWidth={1.85} />
-        <span className="max-w-[84px] truncate">
-          {active ? shortPersonaLabel(displayName) : t('composer:purge.shortLabel')}
+        <span data-pi-slot="composer-purge-label" className="inline-flex items-center gap-1">
+          <span className="max-w-[84px] truncate">
+            {active ? shortPersonaLabel(displayName) : t('composer:purge.shortLabel')}
+          </span>
+          <ChevronDown
+            className={cn('h-3 w-3 shrink-0 opacity-60 transition-transform', menuOpen && 'rotate-180')}
+          />
         </span>
-        <ChevronDown
-          className={cn('h-3 w-3 shrink-0 opacity-60 transition-transform', menuOpen && 'rotate-180')}
-        />
       </button>
 
       {menuOpen && (

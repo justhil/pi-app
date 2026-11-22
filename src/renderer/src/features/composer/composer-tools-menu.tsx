@@ -188,11 +188,16 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   const names = enabled.map(label).join(t('common:listSeparator'))
 
   return (
-    <div className="flex min-w-0 items-center">
+    <div
+      data-pi-slot="composer-tools-wrap"
+      data-has-active={enabled.length > 0 ? 'true' : 'false'}
+      className="flex min-w-0 items-center"
+    >
       {/* One icon button. Enabled capabilities show as a small count (names in the tooltip
           and the menu), so turning things on never widens the toolbar. */}
       <button
         type="button"
+        data-pi-slot="composer-tools-btn"
         data-composer-tools=""
         disabled={disabled}
         aria-haspopup="dialog"

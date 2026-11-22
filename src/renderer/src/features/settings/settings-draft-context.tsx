@@ -27,7 +27,16 @@ import type { AsrConfig } from '@shared/asr-types'
 import type { CompletionDeliveryMode, CompletionPreviewMode } from '@shared/completion-preview'
 import type { IconTheme } from '@shared/icon-theme'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
-import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
+import {
+  normalizeTimelineMaxAutoExpandedTools,
+  normalizeTimelineUserMessageStyle,
+  normalizeTimelineVisibleTurns,
+  type TimelineUserMessageStyle,
+} from '@shared/timeline-settings'
+import {
+  normalizeUiCustomization,
+  type UiCustomization,
+} from '@shared/ui-customization'
 import { setAsrConfigPreview } from '@renderer/lib/asr-config-effective'
 import {
   defaultRightPanelPrefsForCatalog,
@@ -75,6 +84,8 @@ type SettingsDraftContextValue = {
   setSessionWorkerIdleTimeoutMinutes: (n: number) => void
   setTimelineMaxAutoExpandedTools: (n: number) => void
   setTimelineVisibleTurns: (n: number) => void
+  setTimelineUserMessageStyle: (style: TimelineUserMessageStyle) => void
+  setUiCustomization: (patch: Partial<UiCustomization>) => void
   setAgentRuntime: (r: AgentRuntimeChoice) => void
   setExtensionOverride: (id: string, enabled: boolean) => void
   setRightPanelPref: (id: string, on: boolean) => void
@@ -305,6 +316,13 @@ export function SettingsDraftProvider({ children }: { children: ReactNode }) {
           timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(n),
         })),
       setTimelineVisibleTurns: (n) => patch((d) => ({ ...d, timelineVisibleTurns: normalizeTimelineVisibleTurns(n) })),
+      setTimelineUserMessageStyle: (style) =>
+        patch((d) => ({ ...d, timelineUserMessageStyle: normalizeTimelineUserMessageStyle(style) })),
+      setUiCustomization: (uiPatch) =>
+        patch((d) => ({
+          ...d,
+          uiCustomization: normalizeUiCustomization({ ...d.uiCustomization, ...uiPatch }),
+        })),
       setAgentRuntime: (r) => patch((d) => ({ ...d, agentRuntime: r })),
       setExtensionOverride: (id, enabled) =>
         patch((d) => ({
