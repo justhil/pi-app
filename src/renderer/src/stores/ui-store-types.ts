@@ -280,6 +280,15 @@ export interface UIState {
   filesPreviewChatExpand: boolean
   /** Built-in browser fills the chat column (mutually exclusive with filesPreviewChatExpand). */
   browserChatExpand: boolean
+  /** Non-intrusive Browser Stage layout: closed | split-50 (5:5) | split-70 (3:7) | full. */
+  browserStageMode: 'closed' | 'split-50' | 'split-70' | 'full'
+  /** Custom split width share for Browser Stage (0.32..0.84, default 0.50). */
+  browserStageRatio: number
+  /** Last non-closed mode remembered so toggling reopens where the user left off. */
+  browserStageLastOpenMode: 'split-50' | 'split-70' | 'full'
+  setBrowserStageMode: (mode: 'closed' | 'split-50' | 'split-70' | 'full') => void
+  setBrowserStageRatio: (ratio: number) => void
+  toggleBrowserStage: () => void
   lastModel: string | null
   lastThinking: string | null
   rememberModel: (model: string) => void

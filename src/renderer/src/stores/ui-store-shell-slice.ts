@@ -71,6 +71,18 @@ type ShellSlice = Pick<
   | 'revealRightPanel'
   | 'filesPreviewChatExpand'
   | 'browserChatExpand'
+  | 'browserStageMode'
+  | 'browserStageRatio'
+  | 'browserStageLastOpenMode'
+  | 'setBrowserStageMode'
+  | 'setBrowserStageRatio'
+  | 'toggleBrowserStage'
+  | 'browserStageMode'
+  | 'browserStageRatio'
+  | 'browserStageLastOpenMode'
+  | 'setBrowserStageMode'
+  | 'setBrowserStageRatio'
+  | 'toggleBrowserStage'
 >
 
 export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
@@ -87,6 +99,9 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
               state.rightPanelCatalog,
               state.rightPanelOrder,
             ),
+        ...(panel !== 'browser' && state.browserStageMode !== 'closed'
+          ? { browserStageMode: 'closed' as const, browserChatExpand: false }
+          : {}),
       })),
     rightPanelPrefs: defaultCoreRightPanelPrefs(),
     rightPanelOrder: [],
@@ -168,8 +183,39 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
         })
         return nextRightPanelToggle({ hidden, windowWidth })
       }),
-    revealRightPanel: () => set(revealRightPanelPatch()),
+    revealRightPanel: () => set({ ...revealRightPanelPatch(), browserStageMode: 'closed', browserChatExpand: false }),
     filesPreviewChatExpand: false,
     browserChatExpand: false,
+    browserStageMode: 'closed',
+    browserStageRatio: 0.5,
+    browserStageLastOpenMode: 'split-50',
+    setBrowserStageMode: (mode) =>
+      set((s) => {
+        if (mode === 'closed') {
+          return { browserStageMode: 'closed', browserChatExpand: false }
+        }
+        const nextRatio =
+          mode === 'split-50' ? 0.5 : mode === 'split-70' ? 0.68 : s.browserStageRatio
+        return {
+          browserStageMode: mode,
+          browserStageLastOpenMode: mode,
+          browserStageRatio: nextRatio,
+          browserChatExpand: mode === 'full',
+          filesPreviewChatExpand: false,
+          rightPanelCollapsed: true,
+        }
+      }),
+    setBrowserStageRatio: (ratio) =>
+      set({
+        browserStageRatio: Math.max(0.32, Math.min(0.84, ratio)),
+      }),
+    toggleBrowserStage: () => {
+      const s = get()
+      if (s.browserStageMode !== 'closed') {
+        s.setBrowserStageMode('closed')
+      } else {
+        s.setBrowserStageMode(s.browserStageLastOpenMode || 'split-50')
+      }
+    },
   }
 }

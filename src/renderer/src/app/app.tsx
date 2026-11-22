@@ -26,7 +26,7 @@ import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-work
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
-import { FolderGit2, GitFork, Settings as SettingsIcon } from '@renderer/components/icons'
+import { FolderGit2, GitFork, Globe, Settings as SettingsIcon } from '@renderer/components/icons'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { cn } from '@renderer/lib/utils'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
@@ -79,6 +79,9 @@ type View = 'main' | 'settings'
 const SettingsPage = lazy(() =>
   import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })),
 )
+const BrowserStagePanel = lazy(() =>
+  import('@renderer/features/browser/browser-panel').then((m) => ({ default: m.BrowserPanel })),
+)
 const ModelPicker = lazy(() =>
   import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })),
 )
@@ -118,6 +121,19 @@ export default function App() {
   const [studioSeedTheme, setStudioSeedTheme] = useState<import('@shared/custom-theme').CustomTheme | undefined>(undefined)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
+  const browserStageMode = useUIStore((s) => s.browserStageMode)
+  const toggleBrowserStage = useUIStore((s) => s.toggleBrowserStage)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
+      if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        useUIStore.getState().toggleBrowserStage()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
   const thinkingPickerOpen = useUIStore((s) => s.thinkingPickerOpen)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
@@ -497,6 +513,18 @@ export default function App() {
                     >
                       <GitFork className="h-4 w-4" />
                     </button>
+                    <button
+                      type="button"
+                      title={t('browser:stage.toggleTooltip')}
+                      aria-label={t('browser:stage.toggleTooltip')}
+                      onClick={toggleBrowserStage}
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                        browserStageMode !== 'closed' && 'bg-[var(--bg-active)] text-foreground',
+                      )}
+                    >
+                      <Globe className="h-4 w-4" />
+                    </button>
                   </>
                 ) : null}
               </div>
@@ -531,6 +559,15 @@ export default function App() {
               {!showHome ? <TimelineScrubber /> : null}
             </MainColumnWithTimelineScroll>
             </SplitView>
+          }
+          browserStage={
+            browserStageMode !== 'closed' ? (
+              <ErrorBoundary label="browser-stage">
+                <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
+                  <BrowserStagePanel />
+                </Suspense>
+              </ErrorBoundary>
+            ) : null
           }
           right={
             <RightPanel>

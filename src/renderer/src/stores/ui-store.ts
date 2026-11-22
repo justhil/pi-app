@@ -347,6 +347,8 @@ export const useUIStore = create<UIState>()(
         sidebarActiveSessionsOpen: s.sidebarActiveSessionsOpen,
         sessionLastActiveAt: pruneExpiredRecentSessions(s.sessionLastActiveAt),
         rightPanelWidth: s.rightPanelWidth,
+        browserStageRatio: s.browserStageRatio,
+        browserStageLastOpenMode: s.browserStageLastOpenMode,
         rightPanelCollapsed: s.rightPanelCollapsed,
         rightPanelRailIcons: s.rightPanelRailIcons,
         rightPanelExpandedOnNarrow: s.rightPanelExpandedOnNarrow,

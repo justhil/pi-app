@@ -23,6 +23,7 @@ export function MainLayoutShell({
   left,
   center,
   right,
+  browserStage,
   bottom,
   bottomOpen = false,
   bottomHeight = 0,
@@ -30,6 +31,8 @@ export function MainLayoutShell({
   left: ReactNode
   center: ReactNode
   right: ReactNode
+  /** First-class non-intrusive Browser Stage (Left Chat + Right Browser 5:5 / 3:7 / full). */
+  browserStage?: ReactNode
   /** Drawer under the center and right columns (built-in terminal); kept mounted while closed. */
   bottom?: ReactNode
   bottomOpen?: boolean
@@ -44,6 +47,9 @@ export function MainLayoutShell({
   const activePanel = useUIStore((s) => s.activePanel)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
+  const browserStageMode = useUIStore((s) => s.browserStageMode)
+  const browserStageRatio = useUIStore((s) => s.browserStageRatio)
+  const setBrowserStageRatio = useUIStore((s) => s.setBrowserStageRatio)
 
   const [leftDragging, setLeftDragging] = useState(false)
   const [rightDragging, setRightDragging] = useState(false)
@@ -57,9 +63,15 @@ export function MainLayoutShell({
       const zoom = Number(document.documentElement.style.zoom) || 1
       if (leftDragRef.current) setLeftWidth(e.clientX / zoom)
       if (rightDragRef.current) {
-        const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth
-        const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth / zoom - leftColW - MIN_CENTER_GAP)
-        setRightWidth(Math.min((window.innerWidth - e.clientX) / zoom, maxRight))
+        const leftColW = leftCollapsed ? 0 : leftWidth
+        const avail = Math.max(400, window.innerWidth / zoom - leftColW)
+        if (browserStageMode !== 'closed' && browserStageMode !== 'full') {
+          const desiredBrowserW = (window.innerWidth - e.clientX) / zoom
+          setBrowserStageRatio(desiredBrowserW / avail)
+        } else {
+          const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth / zoom - (leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth) - MIN_CENTER_GAP)
+          setRightWidth(Math.min((window.innerWidth - e.clientX) / zoom, maxRight))
+        }
       }
     }
     const onUp = () => {
@@ -78,7 +90,7 @@ export function MainLayoutShell({
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [setLeftWidth, setRightWidth, leftCollapsed, leftWidth])
+  }, [setLeftWidth, setRightWidth, setBrowserStageRatio, leftCollapsed, leftWidth, browserStageMode])
 
   // Adapt persisted panel widths when the window is resized: the columns are fixed px from the
   // store, so without this they either overflow the window (center collapses to 0) on smaller
@@ -108,16 +120,29 @@ export function MainLayoutShell({
     expandedOnNarrow: rightExpandedOnNarrow,
     windowWidth,
   })
+  const stageOpen = Boolean(browserStage) && browserStageMode !== 'closed'
+  const stageFull = stageOpen && browserStageMode === 'full'
   const filesChatPreview =
-    !rightCollapsed &&
-    ((activePanel === 'files' && filesPreviewChatExpand) || (activePanel === 'browser' && browserChatExpand))
+    stageFull ||
+    (!stageOpen &&
+      !rightCollapsed &&
+      ((activePanel === 'files' && filesPreviewChatExpand) || (activePanel === 'browser' && browserChatExpand)))
   const railPx = railIcons ? RIGHT_COLLAPSED_RAIL_PX : 0
-  const effectiveRight = rightCollapsed
-    ? railPx
-    : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))
+  const stageAvail = Math.max(360, layoutWidth - effectiveLeft)
+  const effectiveStageW = Math.round(
+    Math.min(
+      Math.max(360, stageAvail * browserStageRatio),
+      Math.max(360, stageAvail - 320),
+    ),
+  )
+  const effectiveRight = stageOpen
+    ? effectiveStageW
+    : rightCollapsed
+      ? railPx
+      : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))
 
   const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
-  const rightCol = rightCollapsed ? `${railPx}px` : `${effectiveRight}px`
+  const rightCol = stageOpen ? `${effectiveStageW}px` : rightCollapsed ? `${railPx}px` : `${effectiveRight}px`
   const gridCols = filesChatPreview
     ? `${leftCol} 0px minmax(0, 1fr)`
     : `${leftCol} minmax(0, 1fr) ${rightCol}`
@@ -140,12 +165,13 @@ export function MainLayoutShell({
 
   return (
     <div
+      data-browser-resizing={stageOpen && (rightDragging || leftDragging) ? 'true' : undefined}
       className={cn(
         'shell-three-col min-h-0 flex-1',
         filesChatPreview && 'shell-files-chat-preview',
         leftDragging && 'shell-left-dragging',
         rightDragging && 'shell-right-dragging',
-        rightCollapsed && !filesChatPreview && 'shell-right-rail-only',
+        !stageOpen && rightCollapsed && !filesChatPreview && 'shell-right-rail-only',
       )}
       style={{
         gridTemplateColumns: gridCols,
@@ -187,18 +213,25 @@ export function MainLayoutShell({
       <div
         className={cn(
           'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-visible',
-          rightCollapsed && 'shell-track-right-rail',
+          !stageOpen && rightCollapsed && 'shell-track-right-rail',
         )}
         style={{ background: 'var(--bg-base)' }}
       >
-        {!rightCollapsed && !filesChatPreview ? (
+        {(stageOpen && !stageFull) || (!stageOpen && !rightCollapsed && !filesChatPreview) ? (
           <PanelResizeEdge
             side="right"
             dragging={rightDragging}
             onMouseDown={startRightDrag}
           />
         ) : null}
-        {rightCollapsed && !filesChatPreview ? (
+        {stageOpen ? (
+          <div
+            data-pi-slot="browser-stage"
+            className="shell-track-inner flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-border/60"
+          >
+            {browserStage}
+          </div>
+        ) : rightCollapsed && !filesChatPreview ? (
           railIcons ? <RightPanelCollapsedRail /> : null
         ) : (
           <div className="shell-track-inner flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

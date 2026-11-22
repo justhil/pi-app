@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { PanelLeft, PanelRight } from '@renderer/components/icons'
+import { Globe, PanelLeft, PanelRight } from '@renderer/components/icons'
+import { useBrowserStore } from '@renderer/features/browser/browser-store'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { PiMark } from '@renderer/components/brand/pi-mark'
 import { WindowControls } from '@renderer/components/app/window-controls'
@@ -23,6 +24,10 @@ export function ImmersiveChrome({
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const rightHidden = useRightPanelHidden()
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
+  const browserStageMode = useUIStore((s) => s.browserStageMode)
+  const toggleBrowserStage = useUIStore((s) => s.toggleBrowserStage)
+  const browserTabCount = useBrowserStore((s) => s.order.length)
+  const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
   return (
     <div
       className="electron-drag relative z-20 flex h-9 shrink-0 items-center justify-between px-2"
@@ -56,6 +61,26 @@ export function ImmersiveChrome({
       </div>
       <div className="electron-no-drag flex h-9 items-center gap-2">
         <NotificationInbox />
+        <button
+          type="button"
+          data-pi-slot="topbar-browser-toggle"
+          onClick={toggleBrowserStage}
+          aria-pressed={browserStageMode !== 'closed'}
+          title={t('browser:stage.toggleTooltip')}
+          aria-label={t('browser:stage.toggleTooltip')}
+          className={cn(
+            'chrome-icon-btn relative flex h-7 items-center justify-center gap-1 rounded-md px-1.5 text-[11.5px] text-foreground-secondary transition-colors',
+            browserStageMode !== 'closed' && 'bg-[var(--bg-active)] text-foreground',
+          )}
+        >
+          <Globe className="h-3.5 w-3.5" />
+          {browserTabCount > 0 ? (
+            <span className="font-mono text-[10.5px] opacity-80">{browserTabCount}</span>
+          ) : null}
+          {browserAgentBusy ? (
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]" aria-hidden />
+          ) : null}
+        </button>
         <button
           type="button"
           data-right-panel-toggle=""
