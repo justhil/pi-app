@@ -223,10 +223,13 @@
     "importHtml": "导入 Chrome/Edge HTML 书签…",
     "imported": "已导入 {{count}} 条书签",
     "importFailed": "导入书签失败",
-    "emptyHint": "点击地址栏星标即可收藏常用站点，或从“更多”菜单导入 Chrome/Edge 书签。"
+    "emptyHint": "点击地址栏星标即可收藏常用站点，或从“更多”菜单导入 Chrome/Edge 书签。",
+    "openInNewTab": "在新标签页打开"
   },
   "newTab": {
-    "devServers": "检测到本机运行中的开发服务"
+    "devServers": "检测到本机运行中的开发服务",
+    "recentVisits": "最近访问",
+    "removeRecent": "移除记录"
   },
   "error": {
     "loadFailed": "页面加载失败（{{reason}}）",

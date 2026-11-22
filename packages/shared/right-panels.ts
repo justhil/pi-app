@@ -1,6 +1,6 @@
 /** 右侧栏 Tab：核心栏目 + 适配器声明的 sidePanel（合并后用于 Tab / 设置开关） */
 
-export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'worktrees', 'github', 'browser'] as const
+export const CORE_RIGHT_PANEL_IDS = ['review', 'run', 'context', 'tree', 'files', 'worktrees', 'github'] as const
 
 export type CoreRightPanelId = (typeof CORE_RIGHT_PANEL_IDS)[number]
 
@@ -30,7 +30,6 @@ export const CORE_RIGHT_PANEL_CATALOG: RightPanelCatalogItem[] = [
   { id: 'files', labelKey: 'panel.files', fallbackLabel: 'Files', description: 'Workspace file preview & explorer', descriptionKey: 'panel.filesDesc', icon: 'FolderTree', source: 'core' },
   { id: 'worktrees', labelKey: 'panel.worktrees', fallbackLabel: 'Worktrees', description: 'Manage & launch parallel Git worktrees', descriptionKey: 'panel.worktreesDesc', icon: 'FolderGit2', source: 'core' },
   { id: 'github', labelKey: 'panel.github', fallbackLabel: 'GitHub', description: 'GitHub Pull Requests, Issues & CI Checks', descriptionKey: 'panel.githubDesc', icon: 'GitFork', source: 'core' },
-  { id: 'browser', labelKey: 'panel.browser', fallbackLabel: 'Browser', description: 'Built-in browser (experimental)', descriptionKey: 'panel.browserDesc', icon: 'Globe', source: 'core' },
 ]
 
 /** @deprecated */
@@ -48,8 +47,6 @@ export function defaultCoreRightPanelPrefs(): RightPanelPrefs {
     files: true,
     worktrees: true,
     github: true,
-    // Experimental: off until the user enables it in Settings → Right panels.
-    browser: false,
   }
 }
 

@@ -13,9 +13,9 @@ import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, useTerminalStore,
 
 const isToggleKey = (e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
 
-/** Open a new tab with a shell (default: pi's), in the current project. */
-export async function openTerminalTab(profileId?: string): Promise<string | null> {
-  const cwd = useUIStore.getState().currentWorkspace ?? undefined
+/** Open a new tab with a shell (default: pi's), in the given cwd or current project. */
+export async function openTerminalTab(profileId?: string, cwdOverride?: string): Promise<string | null> {
+  const cwd = cwdOverride ?? useUIStore.getState().currentWorkspace ?? undefined
   const pane = await spawnPane(profileId, cwd)
   if ('error' in pane) {
     window.dispatchEvent(new CustomEvent('pi-desktop:terminal-error', { detail: pane.error }))

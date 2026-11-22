@@ -288,15 +288,25 @@ export function registerDesktopChromeHandlers(): void {
       const enriched = await Promise.all(
         visible.map(async (tree) => {
           const st = await readBranchStatus(tree.path).catch(() => null)
-          const runningCount = runtimeRows.filter(
-            (w) => w.running && workspacePathsEqual(w.cwd, tree.path),
-          ).length
+          const matchingRuntime = runtimeRows.filter((w) => workspacePathsEqual(w.cwd, tree.path))
+          const runningRows = matchingRuntime.filter((w) => w.running)
+          const dirtyCount = st?.dirty ?? 0
+          const ahead = st?.ahead ?? 0
+          const behind = st?.behind ?? 0
+          const runningSessions = runningRows
+            .filter((w) => w.sessionFile)
+            .map((w) => ({
+              sessionId: '',
+              sessionFile: w.sessionFile || '',
+            }))
           return {
             ...tree,
-            dirtyCount: st?.dirty ?? 0,
-            ahead: st?.ahead ?? 0,
-            behind: st?.behind ?? 0,
-            runningCount,
+            dirtyCount,
+            ahead,
+            behind,
+            runningCount: runningRows.length,
+            runningSessions,
+            isCleanIdle: !tree.isMain && runningRows.length === 0 && dirtyCount === 0 && ahead === 0,
           }
         }),
       )
@@ -346,12 +356,13 @@ export function registerDesktopChromeHandlers(): void {
       branch: z.string().min(1),
       baseBranch: z.string().optional(),
       fromOrigin: z.boolean().optional(),
+      pullRequestNumber: z.number().int().positive().optional(),
     }),
-    async ({ workspaceId, branch, baseBranch, fromOrigin }) => {
+    async ({ workspaceId, branch, baseBranch, fromOrigin, pullRequestNumber }) => {
       const known = [configStore.get('currentProject'), ...(configStore.get('recentProjects') || [])]
       const cwd = known.find((path) => workspacePathsEqual(path, workspaceId)) || workspaceId
       const { createGitWorktree } = await import('../../git-worktree-ops')
-      const res = await createGitWorktree(cwd, branch, { baseBranch, fromOrigin })
+      const res = await createGitWorktree(cwd, branch, { baseBranch, fromOrigin, pullRequestNumber })
       if (res.ok && typeof configStore.addRecentProject === 'function') {
         configStore.addRecentProject(res.path)
       }

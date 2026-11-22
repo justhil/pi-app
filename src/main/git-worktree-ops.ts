@@ -28,6 +28,7 @@ function firstErrorLine(stderr: string, stdout: string, fallback: string): strin
 export interface CreateGitWorktreeOptions {
   baseBranch?: string | null
   fromOrigin?: boolean
+  pullRequestNumber?: number | null
 }
 
 export async function createGitWorktree(
@@ -53,6 +54,21 @@ export async function createGitWorktree(
     const worktreesRoot = join(dirname(repoPath.replace(/[\\/]+$/, '')), `${repoName}.worktrees`)
     const targetPath = join(worktreesRoot, folderSlug)
     await mkdir(worktreesRoot, { recursive: true })
+
+    // When checking out a GitHub PR, fetch refs/pull/<N>/head directly so even external fork PRs work seamlessly!
+    if (options?.pullRequestNumber && options.pullRequestNumber > 0) {
+      const prFetch = await gitExec(
+        repoPath,
+        ['fetch', '--quiet', 'origin', `+refs/pull/${options.pullRequestNumber}/head:refs/heads/${branch}`],
+        { timeout: 20000 },
+      ).catch(() => ({ status: 1, stdout: '', stderr: '' }))
+      if (prFetch.status === 0) {
+        const res = await gitExec(repoPath, ['worktree', 'add', targetPath, branch], { timeout: 30000 })
+        if (res.status === 0) {
+          return { ok: true, path: targetPath, branch, baseRef: `pull/${options.pullRequestNumber}/head` }
+        }
+      }
+    }
 
     const exists = await gitExec(repoPath, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { timeout: 5000 })
     if (exists.status === 0) {

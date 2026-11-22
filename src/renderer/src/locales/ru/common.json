@@ -500,7 +500,9 @@
     "copyNumber": "Скопировать номер",
     "inlineQuestionCollapse": "Свернуть",
     "inlineQuestionExpand": "Развернуть",
-    "viewCheck": "Открыть"
+    "viewCheck": "Открыть",
+    "discussionsTitle": "Ревью и комментарии ({{count}})",
+    "checkoutPrWorktree": "Открыть PR в Worktree"
   },
   "worktrees": {
     "newBtn": "Создать",
@@ -523,6 +525,17 @@
     "enter": "Перейти в Worktree",
     "remove": "Удалить Worktree",
     "removeConfirm": "Удалить этот каталог worktree? Несохранённые изменения будут потеряны.",
-    "removed": "Worktree ({{name}}) удалён"
+    "removed": "Worktree ({{name}}) удалён",
+    "cleanIdleBtn": "Очистить ({{count}})",
+    "cleanIdleHint": "Удалить {{count}} чистых неактивных worktree",
+    "cleanIdleConfirm": "Удалить {{count}} чистых каталогов worktree?",
+    "cleanedIdle": "Очищено worktree: {{count}}",
+    "idleClean": "Свободен",
+    "shortcutHint": "Ctrl/⌘+Enter — запуск",
+    "openTerminal": "Открыть терминал здесь",
+    "openFolder": "Показать в папке",
+    "copyPath": "Копировать путь",
+    "copiedPath": "Путь Worktree скопирован",
+    "jumpRunningSession": "Открыть активную сессию #{{index}}"
   }
 }

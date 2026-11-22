@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   CircleDot,
   Clock,
   ExternalLink,
@@ -43,6 +44,12 @@ type Mode = 'prs' | 'issues'
 type StateFilter = 'open' | 'closed' | 'all'
 type InvolvementFilter = 'all' | 'involved' | 'authored' | 'assigned'
 
+// In-memory SWR cache across tab switches so reopening GitHubPanel is instant with zero white-flash
+const listCache = new Map<
+  string,
+  { repo: GitHubRepoRef | null; prs?: GitHubPullRequestSummary[]; issues?: GitHubIssueSummary[] }
+>()
+
 function formatRelativeTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   if (!Number.isFinite(ms) || ms < 0) return ''
@@ -56,6 +63,14 @@ function formatRelativeTime(iso: string): string {
   return `${Math.floor(days / 30)}mo`
 }
 
+function labelBadgeStyle(hex?: string | null): React.CSSProperties | undefined {
+  if (!hex || !/^[0-9a-f]{6}$/i.test(hex)) return undefined
+  return {
+    backgroundColor: `color-mix(in srgb, #${hex} 14%, transparent)`,
+    borderColor: `color-mix(in srgb, #${hex} 34%, transparent)`,
+  }
+}
+
 function ChecksGlyph({ state }: { state: GitHubChecksState }) {
   if (state === 'failing') return <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
   if (state === 'passing') return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -66,27 +81,27 @@ function ChecksGlyph({ state }: { state: GitHubChecksState }) {
 function PrStateBadge({ pr, t }: { pr: GitHubPullRequestSummary; t: (k: string) => string }) {
   if (pr.state === 'merged') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-[10.5px] font-medium text-violet-600 dark:text-violet-400">
+      <span className="inline-flex items-center rounded-full bg-violet-500/12 px-2 py-0.5 text-[10.5px] font-medium text-violet-600 dark:text-violet-400">
         {t('common:github.merged')}
       </span>
     )
   }
   if (pr.state === 'closed') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+      <span className="inline-flex items-center rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
         {t('common:github.closed')}
       </span>
     )
   }
   if (pr.isDraft) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
+      <span className="inline-flex items-center rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] font-medium text-muted-foreground">
         {t('common:github.draft')}
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
+    <span className="inline-flex items-center rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
       {t('common:github.open')}
     </span>
   )
@@ -115,12 +130,34 @@ export function GitHubPanel() {
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssueSummary | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [showPassedChecks, setShowPassedChecks] = useState(false)
+  const [showDiscussions, setShowDiscussions] = useState(true)
   const [busyAction, setBusyAction] = useState(false)
 
+  const listScrollRef = useRef<HTMLDivElement>(null)
+  const savedScrollTopRef = useRef(0)
+
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 260)
+    const timer = window.setTimeout(() => setDebouncedSearch(searchText.trim()), 240)
     return () => window.clearTimeout(timer)
   }, [searchText])
+
+  // Escape inside PR or Issue detail smoothly returns to the list while restoring scroll position!
+  useEffect(() => {
+    if (!selectedPr && !selectedIssue) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      e.preventDefault()
+      setSelectedPr(null)
+      setSelectedIssue(null)
+      requestAnimationFrame(() => {
+        if (listScrollRef.current) listScrollRef.current.scrollTop = savedScrollTopRef.current
+      })
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedPr, selectedIssue])
 
   const loadList = useCallback(
     async (force = false) => {
@@ -130,6 +167,13 @@ export function GitHubPanel() {
         setRepo(null)
         setErrorCode('not-git')
         return
+      }
+      const cacheKey = `${cwd}|${mode}|${stateFilter}|${involvement}|${debouncedSearch}`
+      const cached = !force ? listCache.get(cacheKey) : undefined
+      if (cached) {
+        setRepo(cached.repo)
+        if (mode === 'prs' && cached.prs) setPrs(cached.prs)
+        if (mode === 'issues' && cached.issues) setIssues(cached.issues)
       }
       setLoading(true)
       setErrorCode(null)
@@ -145,11 +189,12 @@ export function GitHubPanel() {
           })) as GitHubListPrsResult
           setRepo(res.repo ?? null)
           if (!res.ok) {
-            setPrs([])
+            if (!cached) setPrs([])
             setErrorCode(res.errorCode ?? 'api-error')
             setErrorMsg(res.error ?? null)
           } else {
             setPrs(res.items)
+            listCache.set(cacheKey, { repo: res.repo ?? null, prs: res.items })
           }
         } else {
           const res = (await ipcClient.invoke('github.listIssues', {
@@ -161,11 +206,12 @@ export function GitHubPanel() {
           })) as GitHubListIssuesResult
           setRepo(res.repo ?? null)
           if (!res.ok) {
-            setIssues([])
+            if (!cached) setIssues([])
             setErrorCode(res.errorCode ?? 'api-error')
             setErrorMsg(res.error ?? null)
           } else {
             setIssues(res.items)
+            listCache.set(cacheKey, { repo: res.repo ?? null, issues: res.items })
           }
         }
       } catch (e) {
@@ -187,6 +233,7 @@ export function GitHubPanel() {
   const openPrDetailByNumber = useCallback(
     async (prNum: number, seed?: GitHubPullRequestSummary) => {
       if (!cwd) return
+      savedScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
       setMode('prs')
       setSelectedIssue(null)
       if (seed) setSelectedPr(seed)
@@ -212,6 +259,14 @@ export function GitHubPanel() {
       void openPrDetailByNumber(target)
     }
   }, [focusedPrNumber, cwd, consumeFocusedPr, openPrDetailByNumber])
+
+  const backToList = () => {
+    setSelectedPr(null)
+    setSelectedIssue(null)
+    requestAnimationFrame(() => {
+      if (listScrollRef.current) listScrollRef.current.scrollTop = savedScrollTopRef.current
+    })
+  }
 
   const runHandoff = async (
     workspaceMode: 'local' | 'worktree',
@@ -241,18 +296,21 @@ export function GitHubPanel() {
     }
   }
 
+  /* ── PR Detail View ── */
   if (selectedPr) {
     const pr = selectedPr
     const grouped = groupGitHubChecks(pr.checks)
     const hasFailing = grouped.attention.length > 0
     const hasConflict = pr.mergeable === 'CONFLICTING'
+    const discussions = pr.discussions ?? []
 
     return (
       <div data-pi-slot="github-panel" className="flex h-full min-h-0 flex-col text-[12.5px]">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/55 px-3 py-2">
           <button
             type="button"
-            onClick={() => setSelectedPr(null)}
+            onClick={backToList}
+            title="Esc"
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -297,7 +355,8 @@ export function GitHubPanel() {
               {pr.labels.map((l) => (
                 <span
                   key={l.name}
-                  className="rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] text-foreground-secondary"
+                  style={labelBadgeStyle(l.color)}
+                  className="rounded-full border border-border/50 bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] text-foreground-secondary"
                 >
                   {l.name}
                 </span>
@@ -305,6 +364,7 @@ export function GitHubPanel() {
             </div>
           )}
 
+          {/* CI Checks */}
           <div className="mt-3.5 rounded-lg border border-border/65 bg-[var(--bg-1)]/45 p-2.5">
             <div className="flex items-center justify-between text-[11.5px]">
               <span className="flex items-center gap-1.5 font-medium text-foreground">
@@ -395,6 +455,65 @@ export function GitHubPanel() {
               <QuestionnaireMarkdown content={pr.body} compact />
             </div>
           )}
+
+          {/* Review & Comments Discussion Stream */}
+          {discussions.length > 0 && (
+            <div className="mt-3.5 border-t border-border/50 pt-3">
+              <button
+                type="button"
+                onClick={() => setShowDiscussions((v) => !v)}
+                className="flex w-full items-center justify-between text-[11.5px] font-medium text-foreground-secondary hover:text-foreground"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  <span>{t('common:github.discussionsTitle', { count: discussions.length })}</span>
+                </span>
+                <ChevronDown
+                  className={cn('h-3.5 w-3.5 transition-transform', showDiscussions && 'rotate-180')}
+                />
+              </button>
+              {showDiscussions && (
+                <div className="mt-2 flex flex-col gap-2">
+                  {discussions.map((d, idx) => (
+                    <div
+                      key={`${d.author}-${d.createdAt}-${idx}`}
+                      className="rounded-lg border border-border/55 bg-[var(--bg-1)]/40 px-2.5 py-2 text-[11.5px]"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span className="font-medium text-foreground">@{d.author}</span>
+                        <div className="flex items-center gap-1.5">
+                          {d.reviewState && (
+                            <span
+                              className={cn(
+                                'rounded px-1.5 py-0.2 text-[10px] font-medium',
+                                d.reviewState === 'APPROVED'
+                                  ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400'
+                                  : d.reviewState === 'CHANGES_REQUESTED'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                    : 'bg-[var(--bg-2)] text-muted-foreground',
+                              )}
+                            >
+                              {d.reviewState === 'APPROVED'
+                                ? t('common:github.approved')
+                                : d.reviewState === 'CHANGES_REQUESTED'
+                                  ? t('common:github.changesRequested')
+                                  : d.reviewState}
+                            </span>
+                          )}
+                          <span>{formatRelativeTime(d.createdAt)}</span>
+                        </div>
+                      </div>
+                      {d.body && (
+                        <div className="mt-1 whitespace-pre-wrap break-words text-foreground-secondary leading-relaxed">
+                          {d.body}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col gap-1.5 border-t border-border/55 bg-[var(--bg-1)]/35 px-3 py-2.5">
@@ -480,7 +599,7 @@ export function GitHubPanel() {
               className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-foreground px-2.5 text-[11.5px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               <FolderGit2 className="h-3.5 w-3.5 shrink-0" />
-              <span>{t('common:github.workInWorktree')}</span>
+              <span>{t('common:github.checkoutPrWorktree')}</span>
             </button>
           </div>
         </div>
@@ -488,6 +607,7 @@ export function GitHubPanel() {
     )
   }
 
+  /* ── Issue Detail View ── */
   if (selectedIssue) {
     const issue = selectedIssue
     return (
@@ -495,7 +615,8 @@ export function GitHubPanel() {
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/55 px-3 py-2">
           <button
             type="button"
-            onClick={() => setSelectedIssue(null)}
+            onClick={backToList}
+            title="Esc"
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -526,7 +647,8 @@ export function GitHubPanel() {
               {issue.labels.map((l) => (
                 <span
                   key={l.name}
-                  className="rounded-full bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] text-foreground-secondary"
+                  style={labelBadgeStyle(l.color)}
+                  className="rounded-full border border-border/50 bg-[var(--bg-2)] px-2 py-0.5 text-[10.5px] text-foreground-secondary"
                 >
                   {l.name}
                 </span>
@@ -545,9 +667,16 @@ export function GitHubPanel() {
             type="button"
             disabled={busyAction}
             onClick={() =>
-              void runHandoff('local', 'issue', issue.title, buildIssueWorkPrompt(issue), `issue-${issue.number}`, issue.number)
+              void runHandoff(
+                'local',
+                'issue',
+                issue.title,
+                buildIssueWorkPrompt(issue),
+                `issue-${issue.number}`,
+                issue.number,
+              )
             }
-            className="inline-flex h-7 flex-1 items-center justify-center rounded-md border border-border bg-background px-2.5 text-[11.5px] font-medium text-foreground transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
+            className="inline-flex h-7 flex-1 items-center justify-center whitespace-nowrap rounded-md border border-border bg-background px-2.5 text-[11.5px] font-medium text-foreground transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
           >
             {t('common:github.workLocal')}
           </button>
@@ -555,17 +684,28 @@ export function GitHubPanel() {
             type="button"
             disabled={busyAction}
             onClick={() =>
-              void runHandoff('worktree', 'issue', issue.title, buildIssueWorkPrompt(issue), `issue-${issue.number}`, issue.number)
+              void runHandoff(
+                'worktree',
+                'issue',
+                issue.title,
+                buildIssueWorkPrompt(issue),
+                `issue-${issue.number}`,
+                issue.number,
+              )
             }
-            className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md bg-foreground px-2.5 text-[11.5px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="inline-flex h-7 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md bg-foreground px-2.5 text-[11.5px] font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            <FolderGit2 className="h-3.5 w-3.5" />
+            <FolderGit2 className="h-3.5 w-3.5 shrink-0" />
             <span>{t('common:github.workInWorktree')}</span>
           </button>
         </div>
       </div>
     )
   }
+
+  /* ── List View (SWR zero-flicker + #number direct jump + soft label tinting) ── */
+  const listItems = mode === 'prs' ? prs : issues
+  const isInitialSkeleton = loading && listItems.length === 0
 
   return (
     <div data-pi-slot="github-panel" className="flex h-full min-h-0 flex-col text-[12.5px]">
@@ -599,7 +739,10 @@ export function GitHubPanel() {
 
         <div className="flex min-w-0 items-center gap-1">
           {repo && (
-            <span className="max-w-[130px] truncate font-mono text-[11px] text-muted-foreground" title={repo.fullName}>
+            <span
+              className="max-w-[130px] truncate font-mono text-[11px] text-muted-foreground"
+              title={repo.fullName}
+            >
               {repo.fullName}
             </span>
           )}
@@ -650,13 +793,28 @@ export function GitHubPanel() {
             type="text"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && mode === 'prs') {
+                const m = searchText.trim().match(/^#?(\d+)$/)
+                if (m) {
+                  e.preventDefault()
+                  void openPrDetailByNumber(Number(m[1]))
+                }
+              }
+            }}
             placeholder={t('common:github.searchPlaceholder')}
             className="h-7 w-full rounded-md border border-border/65 bg-background pl-7 pr-2 text-[11.5px] text-foreground outline-none focus:border-[var(--brand)]"
           />
         </div>
       </div>
 
-      <div className="studio-thin-scroll min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5">
+      <div
+        ref={listScrollRef}
+        className={cn(
+          'studio-thin-scroll min-h-0 flex-1 overflow-y-auto px-1.5 py-1.5 transition-opacity duration-150',
+          loading && listItems.length > 0 && 'opacity-70',
+        )}
+      >
         {errorCode === 'not-git' || errorCode === 'not-github' ? (
           <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
             {t('common:github.noRepo')}
@@ -669,9 +827,11 @@ export function GitHubPanel() {
           <div className="px-4 py-8 text-center text-[12px] text-destructive">
             {errorMsg || t('common:operationFailed')}
           </div>
-        ) : loading && (mode === 'prs' ? prs.length === 0 : issues.length === 0) ? (
-          <div className="px-4 py-10 text-center text-[12px] text-muted-foreground">
-            {t('common:loading')}
+        ) : isInitialSkeleton ? (
+          <div className="flex flex-col gap-1.5 px-1.5 py-1.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-12 animate-pulse rounded-lg bg-[var(--bg-hover)]/65" />
+            ))}
           </div>
         ) : mode === 'prs' ? (
           prs.length === 0 ? (
@@ -707,6 +867,15 @@ export function GitHubPanel() {
                       <span className="font-mono">#{pr.number}</span>
                       {pr.author && <span className="truncate">{pr.author.login}</span>}
                       <span className="max-w-[110px] truncate font-mono opacity-80">{pr.headRefName}</span>
+                      {pr.labels.slice(0, 2).map((l) => (
+                        <span
+                          key={l.name}
+                          style={labelBadgeStyle(l.color)}
+                          className="rounded-full border border-border/45 bg-[var(--bg-2)] px-1.5 text-[10px] text-foreground-secondary"
+                        >
+                          {l.name}
+                        </span>
+                      ))}
                       {pr.commentCount > 0 && (
                         <span className="inline-flex items-center gap-0.5">
                           <MessageSquare className="h-2.5 w-2.5" />
@@ -734,7 +903,10 @@ export function GitHubPanel() {
               <button
                 key={issue.number}
                 type="button"
-                onClick={() => setSelectedIssue(issue)}
+                onClick={() => {
+                  savedScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
+                  setSelectedIssue(issue)
+                }}
                 className="pi-virtual-row flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]/75"
               >
                 <CircleDot
@@ -755,7 +927,8 @@ export function GitHubPanel() {
                     {issue.labels.slice(0, 2).map((l) => (
                       <span
                         key={l.name}
-                        className="rounded-full bg-[var(--bg-2)] px-1.5 text-[10px] text-foreground-secondary"
+                        style={labelBadgeStyle(l.color)}
+                        className="rounded-full border border-border/45 bg-[var(--bg-2)] px-1.5 text-[10px] text-foreground-secondary"
                       >
                         {l.name}
                       </span>

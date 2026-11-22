@@ -13,7 +13,6 @@ const WorkspaceFilesPanel = lazy(() =>
 )
 const WorktreesPanel = lazy(() => import('@renderer/features/worktrees/worktrees-panel').then((m) => ({ default: m.WorktreesPanel })))
 const GitHubPanel = lazy(() => import('@renderer/features/github/github-panel').then((m) => ({ default: m.GitHubPanel })))
-const BrowserPanel = lazy(() => import('@renderer/features/browser/browser-panel').then((m) => ({ default: m.BrowserPanel })))
 
 const ADAPTER_PANEL_COMPONENTS: Record<string, React.ComponentType<import('./side-panel-registry').SidePanelComponentProps>> = {
   'workspace-tasks': WorkspaceTasksSidePanel,
@@ -45,7 +44,6 @@ export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefine
   if (item.id === 'files') return wrap(<WorkspaceFilesPanel />)
   if (item.id === 'worktrees') return wrap(<WorktreesPanel />)
   if (item.id === 'github') return wrap(<GitHubPanel />)
-  if (item.id === 'browser') return wrap(<BrowserPanel />)
 
   return <div className="p-4 text-[12px] text-muted-foreground">{t('common:panel.unregistered', { id: item.id })}</div>
 }

@@ -223,10 +223,13 @@
     "importHtml": "Import Chrome/Edge HTML bookmarks…",
     "imported": "Imported {{count}} bookmarks",
     "importFailed": "Failed to import bookmarks",
-    "emptyHint": "Star any page from the address bar, or import Chrome/Edge HTML bookmarks from More."
+    "emptyHint": "Star any page from the address bar, or import Chrome/Edge HTML bookmarks from More.",
+    "openInNewTab": "Open in new tab"
   },
   "newTab": {
-    "devServers": "Running local dev servers"
+    "devServers": "Running local dev servers",
+    "recentVisits": "Recent visits",
+    "removeRecent": "Remove from recents"
   },
   "error": {
     "loadFailed": "Page failed to load ({{reason}})",

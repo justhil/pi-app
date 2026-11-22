@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
-  Bot,
   CheckCircle2,
   ChevronDown,
   Copy,
@@ -43,11 +42,7 @@ import {
   type PageContextResult,
 } from '@shared/browser-types'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import {
-  capabilityKey,
-  setSessionCapability,
-  useSessionCapabilitiesStore,
-} from '@renderer/lib/session-capabilities'
+
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -130,6 +125,14 @@ interface TabContextMenuState {
   y: number
 }
 
+interface BookmarkContextMenuState {
+  id: string
+  url: string
+  title: string
+  x: number
+  y: number
+}
+
 export function BrowserPanel() {
   const { t } = useTranslation('browser')
   const tabs = useBrowserStore((s) => s.tabs)
@@ -148,13 +151,6 @@ export function BrowserPanel() {
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelCollapsed = useRightPanelHidden()
   const browserStageMode = useUIStore((s) => s.browserStageMode)
-  const setBrowserStageMode = useUIStore((s) => s.setBrowserStageMode)
-
-  const capKey = capabilityKey(historySessionFile)
-  const aiBrowserAware = useSessionCapabilitiesStore((s) => {
-    const caps = s.byKey[capKey]
-    return Boolean(caps && (caps.includes('browser') || caps.includes('chrome')))
-  })
 
   const order = useMemo(() => visibleTabsForSession(tabs, rawOrder, historySessionFile), [tabs, rawOrder, historySessionFile])
   const activeTabId = rawActiveTabId && order.includes(rawActiveTabId) ? rawActiveTabId : (order.at(-1) ?? null)
@@ -175,6 +171,7 @@ export function BrowserPanel() {
   const [syncDialogOpen, setSyncDialogOpen] = useState(false)
   const [stepsExpanded, setStepsExpanded] = useState(false)
   const [tabMenu, setTabMenu] = useState<TabContextMenuState | null>(null)
+  const [bookmarkMenu, setBookmarkMenu] = useState<BookmarkContextMenuState | null>(null)
   const [dragTabId, setDragTabId] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [findText, setFindText] = useState('')
@@ -245,7 +242,7 @@ export function BrowserPanel() {
   }, [])
 
   const covered = useOverlayCovering(viewportRef)
-  const viewMustHide = covered || !!annotating || !!tabMenu || syncDialogOpen || sendMenuOpen || moreMenuOpen
+  const viewMustHide = covered || !!annotating || !!tabMenu || !!bookmarkMenu || syncDialogOpen || sendMenuOpen || moreMenuOpen
 
   useEffect(() => {
     if (!viewMustHide || !activeTabId || !pageShown || cachedSnapshot) return
@@ -404,7 +401,7 @@ export function BrowserPanel() {
     } else if (e.shiftKey && (key === '+' || key === '=')) {
       e.preventDefault()
       zoom(1)
-    } else if (!e.shiftKey && key === 'l') {
+    } else if (!e.shiftKey && (key === 'l' || key === 'k')) {
       e.preventDefault()
       focusAddress()
     } else if (!e.shiftKey && key === 't') {
@@ -484,12 +481,6 @@ export function BrowserPanel() {
     }
   }
 
-  const toggleAiAwareness = () => {
-    const next = !aiBrowserAware
-    setSessionCapability(historySessionFile, 'browser', next)
-    toast.success(next ? t('agent.awareEnabled') : t('agent.awareDisabled'))
-  }
-
   const handlePauseTakeover = async () => {
     const res = await browserActions.abortAgent().catch(() => ({ aborted: 0 }))
     toast.info(res.aborted > 0 ? t('agent.takeoverDone') : t('agent.takeoverReady'))
@@ -532,8 +523,8 @@ export function BrowserPanel() {
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-background" onKeyDown={onRootKeyDown}>
-      {/* Row 1: Tab Bar + Stage Layout Switcher (5:5 / 7:3 / Full / Close) */}
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 bg-[var(--surface-sidebar)]/65 px-1.5">
+      {/* Row 1: Tab Bar (h-11 aligned cleanly with RightPanelTabs baseline) */}
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border/50 bg-[var(--surface-sidebar)]/65 px-2">
         <div
           ref={tabStripRef}
           className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
@@ -652,44 +643,6 @@ export function BrowserPanel() {
           </button>
         </div>
 
-        {/* Elastic Stage Layout Controls: 5:5 | 7:3 | Full | Hide */}
-        <div
-          data-pi-slot="browser-stage-controls"
-          className="ml-1 flex shrink-0 items-center gap-0.5 border-l border-border/50 pl-1.5"
-        >
-          <div className="flex items-center gap-0.5 rounded-md bg-[var(--bg-2)]/70 p-0.5 text-[10.5px]">
-            {(
-              [
-                ['split-50', '5:5'],
-                ['split-70', '7:3'],
-                ['full', t('stage.full')],
-              ] as const
-            ).map(([modeKey, lbl]) => (
-              <button
-                key={modeKey}
-                type="button"
-                onClick={() => setBrowserStageMode(modeKey)}
-                className={cn(
-                  'rounded px-1.5 py-0.5 font-medium transition-colors',
-                  browserStageMode === modeKey
-                    ? 'bg-background text-foreground shadow-xs'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            title={`${t('stage.hide')} (${modKeyLabel}Shift+B)`}
-            aria-label={t('stage.hide')}
-            onClick={() => setBrowserStageMode('closed')}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
       </div>
 
       {/* Row 2: Modern Omnibox + AI Awareness + Design Mode Annotate + Send + Downloads + Cookie Sync */}
@@ -881,22 +834,6 @@ export function BrowserPanel() {
             </div>
           ) : null}
         </div>
-
-        <button
-          type="button"
-          onClick={toggleAiAwareness}
-          title={aiBrowserAware ? t('agent.awareTooltipOn') : t('agent.awareTooltipOff')}
-          aria-pressed={aiBrowserAware}
-          className={cn(
-            'inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-[11px] font-medium transition-colors',
-            aiBrowserAware
-              ? 'border-[var(--brand)]/45 bg-[var(--brand)]/10 text-foreground'
-              : 'border-transparent text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground',
-          )}
-        >
-          <Bot className={cn('h-3.5 w-3.5', aiBrowserAware && 'text-[var(--brand)]')} />
-          <span className="hidden xl:inline">{t('agent.awareLabel')}</span>
-        </button>
 
         <button
           type="button"
@@ -1113,7 +1050,7 @@ export function BrowserPanel() {
         }}
       />
 
-      {bookmarksBarVisible && bookmarks.length > 0 ? (
+      {pageShown && bookmarksBarVisible && bookmarks.length > 0 ? (
         <div
           data-pi-slot="browser-bookmarks-bar"
           className="right-panel-tabs-scroll flex h-7 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/40 bg-[var(--bg-1)]/35 px-2 text-[11.5px]"
@@ -1132,8 +1069,7 @@ export function BrowserPanel() {
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
-                void browserActions.removeBookmark({ id: b.id })
-                toast.success(t('bookmarks.removed'))
+                setBookmarkMenu({ id: b.id, url: b.url, title: b.title, x: e.clientX, y: e.clientY })
               }}
               className="inline-flex h-5 max-w-[140px] shrink-0 items-center gap-1 rounded px-1.5 text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
             >
@@ -1341,7 +1277,15 @@ export function BrowserPanel() {
         {!pageShown ? (
           <BrowserNewTabPage
             bookmarks={bookmarks}
+            history={history}
             onNavigate={(raw) => void navigateOrOpen(raw)}
+            onRemoveHistory={(url) => {
+              setHistory((prev) => {
+                const next = prev.filter((item) => item.url !== url)
+                saveHistory(next)
+                return next
+              })
+            }}
             onOpenSync={() => setSyncDialogOpen(true)}
             onReopenClosed={() => void reopenClosed()}
           />
@@ -1474,6 +1418,64 @@ export function BrowserPanel() {
             </button>
           </div>
         </>,
+            document.body,
+          )
+        : null}
+
+      {bookmarkMenu && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+              <div className="fixed inset-0 z-[110]" onClick={() => setBookmarkMenu(null)} aria-hidden />
+              <div
+                role="menu"
+                data-browser-overlay=""
+                style={{
+                  left: Math.min(bookmarkMenu.x, window.innerWidth - 185),
+                  top: Math.min(bookmarkMenu.y, window.innerHeight - 140),
+                }}
+                className="fixed z-[120] w-[176px] rounded-lg border border-border/70 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    const url = bookmarkMenu.url
+                    setBookmarkMenu(null)
+                    void openTab(url)
+                  }}
+                >
+                  {t('bookmarks.openInNewTab')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    const url = bookmarkMenu.url
+                    setBookmarkMenu(null)
+                    void navigator.clipboard.writeText(url)
+                    toast.success(t('address.copiedUrl'))
+                  }}
+                >
+                  {t('address.copyUrl')}
+                </button>
+                <div className="my-1 h-px bg-border/60" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    const id = bookmarkMenu.id
+                    setBookmarkMenu(null)
+                    void browserActions.removeBookmark({ id })
+                    toast.success(t('bookmarks.removed'))
+                  }}
+                >
+                  {t('bookmarks.remove')}
+                </button>
+              </div>
+            </>,
             document.body,
           )
         : null}

@@ -251,7 +251,43 @@ function mapPullRequestNode(node: Record<string, unknown>): GitHubPullRequestSum
   const checksState = summarizeChecksState(rollup?.state, checks)
   const rawAuthor = node.author as { login?: string; avatarUrl?: string } | null | undefined
   const rawLabels = (node.labels as { nodes?: Array<{ name?: string; color?: string }> } | undefined)?.nodes ?? []
-  const rawComments = node.comments as { totalCount?: number } | undefined
+  const rawComments = node.comments as {
+    totalCount?: number
+    nodes?: Array<{ author?: { login?: string } | null; body?: string; createdAt?: string }>
+  } | undefined
+  const rawReviews = node.reviews as {
+    nodes?: Array<{ author?: { login?: string } | null; body?: string; state?: string; submittedAt?: string }>
+  } | undefined
+  const discussions: Array<{
+    kind: 'comment' | 'review'
+    author: string
+    body: string
+    createdAt: string
+    reviewState?: string | null
+  }> = []
+  for (const c of rawComments?.nodes ?? []) {
+    const body = String(c?.body || '').trim()
+    if (!body) continue
+    discussions.push({
+      kind: 'comment',
+      author: c?.author?.login || 'ghost',
+      body: body.slice(0, 1200),
+      createdAt: String(c?.createdAt || ''),
+    })
+  }
+  for (const r of rawReviews?.nodes ?? []) {
+    const body = String(r?.body || '').trim()
+    const st = String(r?.state || '')
+    if (!body && st === 'COMMENTED') continue
+    discussions.push({
+      kind: 'review',
+      author: r?.author?.login || 'ghost',
+      body: body.slice(0, 1200),
+      createdAt: String(r?.submittedAt || ''),
+      reviewState: st || null,
+    })
+  }
+  discussions.sort((a, b) => Date.parse(a.createdAt || '0') - Date.parse(b.createdAt || '0'))
   const rawReview = node.reviewDecision
   const reviewDecision: GitHubReviewDecision =
     rawReview === 'APPROVED' || rawReview === 'CHANGES_REQUESTED' || rawReview === 'REVIEW_REQUIRED'
@@ -290,6 +326,7 @@ function mapPullRequestNode(node: Record<string, unknown>): GitHubPullRequestSum
     commentCount: Number(rawComments?.totalCount || 0),
     labels: rawLabels.filter((l) => l.name).map((l) => ({ name: l.name!, color: l.color ?? null })),
     body: String(node.body || ''),
+    ...(discussions.length > 0 ? { discussions: discussions.slice(-10) } : {}),
   }
 }
 
@@ -313,7 +350,8 @@ const PR_FIELDS_WITH_CHECKS = `
   mergeable
   body
   author { login avatarUrl }
-  comments { totalCount }
+  comments(last: 8) { totalCount nodes { author { login } body createdAt } }
+  reviews(last: 8) { nodes { author { login } body state submittedAt } }
   labels(first: 8) { nodes { name color } }
   commits(last: 1) {
     nodes {

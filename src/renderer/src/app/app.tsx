@@ -27,6 +27,7 @@ import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
 import { FolderGit2, GitFork, Globe, Settings as SettingsIcon } from '@renderer/components/icons'
+import { useBrowserStore } from '@renderer/features/browser/browser-store'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { cn } from '@renderer/lib/utils'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
@@ -123,6 +124,8 @@ export default function App() {
   const rightPanelHidden = useRightPanelHidden()
   const browserStageMode = useUIStore((s) => s.browserStageMode)
   const toggleBrowserStage = useUIStore((s) => s.toggleBrowserStage)
+  const browserTabCount = useBrowserStore((s) => s.order.length)
+  const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
@@ -493,10 +496,16 @@ export default function App() {
                       type="button"
                       title={t('common:panel.worktrees')}
                       aria-label={t('common:panel.worktrees')}
-                      onClick={() => usePanelIntentStore.getState().openWorktreesPanel()}
+                      aria-pressed={!rightPanelHidden && browserStageMode === 'closed' && activePanel === 'worktrees'}
+                      onClick={() =>
+                        usePanelIntentStore.getState().toggleRightPanelTab('worktrees', !rightPanelHidden)
+                      }
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                        !rightPanelHidden && activePanel === 'worktrees' && 'bg-[var(--bg-active)] text-foreground',
+                        !rightPanelHidden &&
+                          browserStageMode === 'closed' &&
+                          activePanel === 'worktrees' &&
+                          'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
                       <FolderGit2 className="h-4 w-4" />
@@ -505,28 +514,44 @@ export default function App() {
                       type="button"
                       title={t('common:panel.github')}
                       aria-label={t('common:panel.github')}
-                      onClick={() => usePanelIntentStore.getState().openGitHubPr(null)}
+                      aria-pressed={!rightPanelHidden && browserStageMode === 'closed' && activePanel === 'github'}
+                      onClick={() =>
+                        usePanelIntentStore.getState().toggleRightPanelTab('github', !rightPanelHidden)
+                      }
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                        !rightPanelHidden && activePanel === 'github' && 'bg-[var(--bg-active)] text-foreground',
+                        !rightPanelHidden &&
+                          browserStageMode === 'closed' &&
+                          activePanel === 'github' &&
+                          'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
                       <GitFork className="h-4 w-4" />
                     </button>
-                    <button
-                      type="button"
-                      title={t('browser:stage.toggleTooltip')}
-                      aria-label={t('browser:stage.toggleTooltip')}
-                      onClick={toggleBrowserStage}
-                      className={cn(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                        browserStageMode !== 'closed' && 'bg-[var(--bg-active)] text-foreground',
-                      )}
-                    >
-                      <Globe className="h-4 w-4" />
-                    </button>
                   </>
                 ) : null}
+                <button
+                  type="button"
+                  data-pi-slot="sidebar-browser-toggle"
+                  title={t('browser:stage.toggleTooltip')}
+                  aria-label={t('browser:stage.toggleTooltip')}
+                  aria-pressed={browserStageMode !== 'closed'}
+                  onClick={toggleBrowserStage}
+                  className={cn(
+                    'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                    browserStageMode !== 'closed' && 'bg-[var(--bg-active)] text-foreground',
+                  )}
+                >
+                  <Globe className="h-4 w-4" />
+                  {browserTabCount > 0 ? (
+                    <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-foreground/85 px-0.5 font-mono text-[9px] font-semibold leading-none text-background">
+                      {browserTabCount > 9 ? '9+' : browserTabCount}
+                    </span>
+                  ) : null}
+                  {browserAgentBusy ? (
+                    <span className="absolute bottom-1 right-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]" />
+                  ) : null}
+                </button>
               </div>
             </Sidebar>
           }

@@ -25,6 +25,14 @@ export interface GitHubActor {
   avatarUrl?: string | null
 }
 
+export interface GitHubDiscussionItem {
+  kind: 'comment' | 'review'
+  author: string
+  body: string
+  createdAt: string
+  reviewState?: string | null
+}
+
 export type GitHubReviewDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
 export type GitHubMergeableState = 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN' | null
 
@@ -52,6 +60,7 @@ export interface GitHubPullRequestSummary {
   commentCount: number
   labels: GitHubLabel[]
   body: string
+  discussions?: GitHubDiscussionItem[]
 }
 
 export interface GitHubIssueSummary {

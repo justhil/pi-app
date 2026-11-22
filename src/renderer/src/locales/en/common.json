@@ -490,7 +490,9 @@
     "copyNumber": "Copy number",
     "inlineQuestionCollapse": "Collapse",
     "inlineQuestionExpand": "Expand to answer",
-    "viewCheck": "View"
+    "viewCheck": "View",
+    "discussionsTitle": "Reviews & Comments ({{count}})",
+    "checkoutPrWorktree": "Checkout PR Worktree"
   },
   "worktrees": {
     "newBtn": "New",
@@ -513,6 +515,17 @@
     "enter": "Switch to Worktree",
     "remove": "Remove Worktree",
     "removeConfirm": "Delete this worktree directory? Uncommitted changes will be discarded.",
-    "removed": "Removed Worktree ({{name}})"
+    "removed": "Removed Worktree ({{name}})",
+    "cleanIdleBtn": "Clean ({{count}})",
+    "cleanIdleHint": "Remove {{count}} clean idle worktree(s)",
+    "cleanIdleConfirm": "Delete {{count}} clean idle worktree directory(ies)?",
+    "cleanedIdle": "Cleaned {{count}} idle worktree(s)",
+    "idleClean": "Idle",
+    "shortcutHint": "Ctrl/⌘+Enter to launch",
+    "openTerminal": "Open terminal here",
+    "openFolder": "Reveal in folder",
+    "copyPath": "Copy path",
+    "copiedPath": "Worktree path copied",
+    "jumpRunningSession": "Open running session #{{index}}"
   }
 }

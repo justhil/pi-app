@@ -482,7 +482,9 @@
     "copyNumber": "复制编号",
     "inlineQuestionCollapse": "收起",
     "inlineQuestionExpand": "展开回答",
-    "viewCheck": "查看"
+    "viewCheck": "查看",
+    "discussionsTitle": "Review 与讨论（{{count}}）",
+    "checkoutPrWorktree": "检出 PR 到 Worktree"
   },
   "worktrees": {
     "newBtn": "新建并行",
@@ -505,6 +507,17 @@
     "enter": "切换到此 Worktree",
     "remove": "删除此 Worktree",
     "removeConfirm": "确认删除该 Worktree 目录？未提交改动将一并清除。",
-    "removed": "已删除 Worktree（{{name}}）"
+    "removed": "已删除 Worktree（{{name}}）",
+    "cleanIdleBtn": "清理闲置({{count}})",
+    "cleanIdleHint": "清理 {{count}} 个干净且无运行任务的闲置 Worktree",
+    "cleanIdleConfirm": "将删除 {{count}} 个干净无改动的闲置 Worktree 目录？",
+    "cleanedIdle": "已清理 {{count}} 个闲置 Worktree",
+    "idleClean": "闲置",
+    "shortcutHint": "Ctrl/⌘+Enter 直接启动",
+    "openTerminal": "在此 Worktree 打开终端",
+    "openFolder": "在文件夹中打开",
+    "copyPath": "复制目录路径",
+    "copiedPath": "已复制 Worktree 路径",
+    "jumpRunningSession": "查看运行中会话 #{{index}}"
   }
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { KeyRound, Plus, Search, Sparkles, Terminal, Undo2 } from '@renderer/components/icons'
-import { FaviconImg } from './favicon-img'
+import { History, KeyRound, Search, Sparkles, Terminal, Undo2, X } from '@renderer/components/icons'
 import type { BrowserBookmark } from '@shared/browser-types'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import type { HistoryEntry } from './browser-history'
+import { FaviconImg } from './favicon-img'
 
 interface LocalDevServer {
   port: number
@@ -12,20 +13,25 @@ interface LocalDevServer {
 }
 
 /**
- * Clean, utility-first New Tab page replacing the blank grey placeholder:
- * - Instant search/URL box
+ * Clean, utility-first New Tab page:
+ * - Auto-focused instant search/URL box
  * - Auto-detected local DevServers (localhost:5173 / 3000 / 8080...)
- * - Bookmark speed-dial grid
+ * - Recent frequent visits speed-dial (with hover remove, replacing hardcoded GitHub)
+ * - Saved bookmarks speed-dial grid
  * - Quick actions (Sync sign-ins, Reopen closed tab)
  */
 export function BrowserNewTabPage({
   bookmarks,
+  history,
   onNavigate,
+  onRemoveHistory,
   onOpenSync,
   onReopenClosed,
 }: {
   bookmarks: BrowserBookmark[]
+  history: HistoryEntry[]
   onNavigate: (rawInput: string) => void
+  onRemoveHistory: (url: string) => void
   onOpenSync: () => void
   onReopenClosed: () => void
 }) {
@@ -39,10 +45,11 @@ export function BrowserNewTabPage({
     }>).then((res) => setDevServers(res?.servers ?? []))
   }, [])
 
+  const recentSites = history.slice(0, 6)
+
   return (
     <div className="studio-thin-scroll absolute inset-0 flex flex-col items-center overflow-y-auto px-6 py-10">
       <div className="w-full max-w-[540px] space-y-6">
-        {/* Omnibox Hero Input */}
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -61,7 +68,6 @@ export function BrowserNewTabPage({
           />
         </form>
 
-        {/* Detected Local DevServers */}
         {devServers.length > 0 ? (
           <div>
             <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -84,7 +90,50 @@ export function BrowserNewTabPage({
           </div>
         ) : null}
 
-        {/* Bookmarks Speed Dial */}
+        {recentSites.length > 0 ? (
+          <div>
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <History className="h-3 w-3" />
+              <span>{t('newTab.recentVisits')}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {recentSites.map((entry) => {
+                const host = entry.url.replace(/^https?:\/\//i, '').split('/')[0]
+                return (
+                  <div
+                    key={entry.url}
+                    className="group relative flex items-center gap-2 rounded-lg border border-border/55 bg-background/80 px-2.5 py-2 transition-colors hover:border-border hover:bg-[var(--bg-hover)]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onNavigate(entry.url)}
+                      title={entry.url}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    >
+                      <FaviconImg className="h-4 w-4 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium text-foreground">
+                          {entry.title || host}
+                        </div>
+                        <div className="truncate text-[10.5px] text-muted-foreground">{host}</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      title={t('newTab.removeRecent')}
+                      aria-label={t('newTab.removeRecent')}
+                      onClick={() => onRemoveHistory(entry.url)}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-[var(--bg-active)] hover:text-foreground group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             <Sparkles className="h-3 w-3" />
@@ -104,7 +153,9 @@ export function BrowserNewTabPage({
                   >
                     <FaviconImg src={b.favicon} className="h-4 w-4 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12px] font-medium text-foreground">{b.title || host}</div>
+                      <div className="truncate text-[12px] font-medium text-foreground">
+                        {b.title || host}
+                      </div>
                       <div className="truncate text-[10.5px] text-muted-foreground">{host}</div>
                     </div>
                   </button>
@@ -118,7 +169,6 @@ export function BrowserNewTabPage({
           )}
         </div>
 
-        {/* Quick Actions */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
@@ -135,14 +185,6 @@ export function BrowserNewTabPage({
           >
             <Undo2 className="h-3.5 w-3.5" />
             <span>{t('nav.reopenTab')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigate('https://github.com')}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border/70 bg-background px-2.5 text-[11.5px] text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>GitHub</span>
           </button>
         </div>
       </div>
