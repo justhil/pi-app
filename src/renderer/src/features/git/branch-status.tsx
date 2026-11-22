@@ -142,7 +142,15 @@ type Pending = { kind: 'running'; req: SwitchReq } | { kind: 'dirty'; req: Switc
  * branch. Changes travel with the switch when git allows; otherwise the user may stash them first, and
  * gets them back when returning to the branch.
  */
-export function BranchStatusTrigger({ variant = 'statusbar' }: { variant?: 'statusbar' | 'inline' } = {}) {
+export function BranchStatusTrigger({
+  variant = 'statusbar',
+  compact = false,
+  pillStyle = false,
+}: {
+  variant?: 'statusbar' | 'inline'
+  compact?: boolean
+  pillStyle?: boolean
+} = {}) {
   const { t } = useTranslation()
   const cwd = useUIStore((s) => s.currentWorkspace)
   const [status, setStatus] = useState<BranchStatus | null>(null)
@@ -230,9 +238,12 @@ export function BranchStatusTrigger({ variant = 'statusbar' }: { variant?: 'stat
       <button
         ref={anchor}
         type="button"
+        data-pi-slot="composer-branch-btn"
         className={
           variant === 'inline'
-            ? 'inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[11.5px] text-foreground-secondary tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50'
+            ? pillStyle
+              ? 'inline-flex h-6 items-center gap-1 rounded-full border border-border/75 bg-background/85 px-2.5 text-[11.5px] text-foreground-secondary tabular-nums transition-colors hover:border-border hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50'
+              : 'inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-1.5 text-[11.5px] text-foreground-secondary tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50'
             : 'workbench-status-trigger branch-status-trigger tabular-nums'
         }
         aria-haspopup="dialog"
@@ -244,9 +255,9 @@ export function BranchStatusTrigger({ variant = 'statusbar' }: { variant?: 'stat
       >
         <GitBranch className={cn('h-3 w-3 shrink-0', busy && 'animate-pulse')} />
         <span className="max-w-[14rem] truncate">{label}</span>
-        {status.dirty ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--status-warn)]" aria-hidden /> : null}
-        {status.ahead ? <span className="text-foreground-tertiary">↑{status.ahead}</span> : null}
-        {status.behind ? <span className="text-foreground-tertiary">↓{status.behind}</span> : null}
+        {!compact && status.dirty ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--status-warn)]" aria-hidden /> : null}
+        {!compact && status.ahead ? <span className="text-foreground-tertiary">↑{status.ahead}</span> : null}
+        {!compact && status.behind ? <span className="text-foreground-tertiary">↓{status.behind}</span> : null}
       </button>
       {open ? (
         <ShellPopover title={t('common:branches.title')} anchorRef={anchor} onClose={closePicker}>

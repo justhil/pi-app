@@ -34,6 +34,11 @@ export function applyUiCustomizationToDocument(raw: UiCustomization | unknown): 
   setOrRemoveDataAttr(root, 'data-composer-metrics', cfg.composerMetricsMode, d.composerMetricsMode)
   setOrRemoveDataAttr(root, 'data-composer-tps', cfg.composerShowTps ? 'visible' : 'hidden', 'visible')
   setOrRemoveDataAttr(root, 'data-composer-voice', cfg.composerVoiceVisible ? 'visible' : 'hidden', 'visible')
+  setOrRemoveDataAttr(root, 'data-composer-context-position', cfg.composerContextPosition, d.composerContextPosition)
+  setOrRemoveDataAttr(root, 'data-composer-context-style', cfg.composerContextStyle, d.composerContextStyle)
+  setOrRemoveDataAttr(root, 'data-composer-context-swapped', cfg.composerContextSwapped ? 'swapped' : 'normal', 'normal')
+  setOrRemoveDataAttr(root, 'data-composer-worktree', cfg.composerWorktreeMode, d.composerWorktreeMode)
+  setOrRemoveDataAttr(root, 'data-composer-branch', cfg.composerBranchMode, d.composerBranchMode)
 
   if (!document.head) return
   const colVarLines =

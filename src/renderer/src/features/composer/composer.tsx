@@ -470,6 +470,7 @@ export function Composer() {
           completionPopoverOpen={fileSearch.show || slash.showPopover}
         />
       </div>
+      <ComposerContextStrip placement="above" />
       <div
         ref={slashPopoverAnchorRef}
         data-pi-slot="composer-shell"
@@ -666,7 +667,7 @@ export function Composer() {
           </div>
         </div>
       </div>
-      <ComposerContextStrip />
+      <ComposerContextStrip placement="below" />
       <ImageLightbox
         src={previewImage?.dataUrl ?? null}
         alt={previewImage?.name}

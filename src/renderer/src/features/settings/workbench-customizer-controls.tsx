@@ -21,23 +21,31 @@ import type { TimelineUserMessageStyle } from '@shared/timeline-settings'
 import type { CustomCssOverride } from '@shared/custom-theme'
 import {
   COMPOSER_ACCESSORY_MODES,
+  COMPOSER_BRANCH_MODES,
+  COMPOSER_CONTEXT_POSITIONS,
+  COMPOSER_CONTEXT_STYLES,
   COMPOSER_METRICS_MODES,
   COMPOSER_MODEL_STRIP_MODES,
   COMPOSER_PRESETS,
   COMPOSER_PURGE_MODES,
   COMPOSER_TOOLBAR_ITEMS,
   COMPOSER_TOOLS_MODES,
+  COMPOSER_WORKTREE_MODES,
   DEFAULT_UI_CUSTOMIZATION,
   MID_TURN_PROSE_STYLES,
   PI_CSS_RECIPES,
   PI_UI_SLOTS,
   type ComposerAccessoryMode,
+  type ComposerBranchMode,
+  type ComposerContextPosition,
+  type ComposerContextStyle,
   type ComposerMetricsMode,
   type ComposerModelStripMode,
   type ComposerPreset,
   type ComposerPurgeMode,
   type ComposerToolbarItemId,
   type ComposerToolsMode,
+  type ComposerWorktreeMode,
   type MidTurnProseStyle,
   type PiSlotCategory,
   type UiCustomization,
@@ -649,6 +657,125 @@ export function WorkbenchComposerControls({
             />
           </div>
         </div>
+      </div>
+
+      {/* 4. Context Strip: Worktree & Git Branch Placement / Style / Visibility */}
+      <div
+        onMouseEnter={() => highlightPiSlot('composer-context-strip')}
+        onMouseLeave={() => highlightPiSlot(null)}
+        className="flex flex-col gap-2.5 rounded-lg border border-border/70 bg-background/55 p-3"
+      >
+        <div className="flex flex-col gap-0.5">
+          <span className={cn('font-medium text-foreground', compact ? 'text-[11.5px]' : 'text-[12.5px]')}>
+            {t('settings:appearance.workbench.contextStripTitle')}
+          </span>
+          {!compact && (
+            <span className="text-[11px] text-muted-foreground/80">
+              {t('settings:appearance.workbench.contextStripDesc')}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] text-muted-foreground">
+            {t('settings:appearance.workbench.contextPositionLabel')}
+          </span>
+          <SegmentedPills
+            compact={compact}
+            value={ui.composerContextPosition}
+            onChange={(composerContextPosition: ComposerContextPosition) =>
+              onUiChange({ composerContextPosition })
+            }
+            options={COMPOSER_CONTEXT_POSITIONS.map((p) => ({
+              id: p,
+              label: t(`settings:appearance.workbench.contextPositions.${p}`),
+            }))}
+          />
+        </div>
+
+        {ui.composerContextPosition !== 'hidden' && (
+          <>
+            {ui.composerContextPosition !== 'statusbar' && (
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">
+                  {t('settings:appearance.workbench.contextStyleLabel')}
+                </span>
+                <SegmentedPills
+                  compact={compact}
+                  value={ui.composerContextStyle}
+                  onChange={(composerContextStyle: ComposerContextStyle) =>
+                    onUiChange({ composerContextStyle })
+                  }
+                  options={COMPOSER_CONTEXT_STYLES.map((st) => ({
+                    id: st,
+                    label: t(`settings:appearance.workbench.contextStyles.${st}`),
+                  }))}
+                />
+              </div>
+            )}
+
+            <div
+              onMouseEnter={(e) => {
+                e.stopPropagation()
+                highlightPiSlot('composer-worktree-btn')
+              }}
+              onMouseLeave={() => highlightPiSlot('composer-context-strip')}
+              className="flex flex-col gap-1"
+            >
+              <span className="text-[11px] text-muted-foreground">
+                {t('settings:appearance.workbench.contextWorktreeLabel')}
+              </span>
+              <SegmentedPills
+                compact
+                value={ui.composerWorktreeMode}
+                onChange={(composerWorktreeMode: ComposerWorktreeMode) =>
+                  onUiChange({ composerWorktreeMode })
+                }
+                options={COMPOSER_WORKTREE_MODES.map((m) => ({
+                  id: m,
+                  label: t(`settings:appearance.workbench.contextWorktreeModes.${m}`),
+                }))}
+              />
+            </div>
+
+            <div
+              onMouseEnter={(e) => {
+                e.stopPropagation()
+                highlightPiSlot('composer-branch-btn')
+              }}
+              onMouseLeave={() => highlightPiSlot('composer-context-strip')}
+              className="flex flex-col gap-1"
+            >
+              <span className="text-[11px] text-muted-foreground">
+                {t('settings:appearance.workbench.contextBranchLabel')}
+              </span>
+              <SegmentedPills
+                compact
+                value={ui.composerBranchMode}
+                onChange={(composerBranchMode: ComposerBranchMode) =>
+                  onUiChange({ composerBranchMode })
+                }
+                options={COMPOSER_BRANCH_MODES.map((m) => ({
+                  id: m,
+                  label: t(`settings:appearance.workbench.contextBranchModes.${m}`),
+                }))}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-0.5">
+              <span className="text-[11.5px] text-foreground-secondary">
+                {t('settings:appearance.workbench.contextSwapLabel')}
+              </span>
+              <Switch
+                checked={ui.composerContextSwapped}
+                aria-label={t('settings:appearance.workbench.contextSwapLabel')}
+                onCheckedChange={(composerContextSwapped) =>
+                  onUiChange({ composerContextSwapped })
+                }
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

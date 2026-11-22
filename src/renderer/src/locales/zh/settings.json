@@ -283,8 +283,41 @@
         "timelineCodeBlock": "Markdown 代码块",
         "shellSidebar": "左侧项目与会话栏",
         "shellRightPanel": "右侧工作台面板",
-        "shellStatusBar": "底部全局状态栏"
-      }
+        "shellStatusBar": "底部全局状态栏",
+        "composerContextStrip": "上下文条容器",
+        "composerWorktreeBtn": "Worktree 环境切换器",
+        "composerBranchBtn": "Git 分支选择器"
+      },
+      "contextStripTitle": "上下文条（Worktree 与分支）",
+      "contextStripDesc": "自定义工作区/Worktree 切换器与 Git 分支（含 PR 徽章）的停靠位置、外观样式与显示形态。",
+      "contextPositionLabel": "停靠位置",
+      "contextPositions": {
+        "below": "输入框下方",
+        "above": "输入框上方",
+        "statusbar": "底部状态栏",
+        "hidden": "隐藏"
+      },
+      "contextStyleLabel": "外观样式",
+      "contextStyles": {
+        "minimal": "无框极简",
+        "pill": "轻胶囊",
+        "tray": "托盘条"
+      },
+      "contextWorktreeLabel": "本地目录 / Worktree 切换器",
+      "contextWorktreeModes": {
+        "full": "完整",
+        "compact": "精简",
+        "icon": "仅图标",
+        "hidden": "隐藏"
+      },
+      "contextBranchLabel": "Git 分支与 PR 徽章",
+      "contextBranchModes": {
+        "full": "完整含 PR",
+        "branch-only": "仅分支",
+        "compact": "精简",
+        "hidden": "隐藏"
+      },
+      "contextSwapLabel": "左右对调位置（分支在左 / Worktree 在右）"
     },
     "timelineToolAutoExpandMax": "工具自动展开上限",
     "timelineToolAutoExpandMaxDesc": "运行中同时展开详情的工具数，0 为始终折叠。",

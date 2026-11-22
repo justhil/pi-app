@@ -283,8 +283,41 @@
         "timelineCodeBlock": "Markdown code block",
         "shellSidebar": "Left project sidebar",
         "shellRightPanel": "Right workbench panel",
-        "shellStatusBar": "Bottom global status bar"
-      }
+        "shellStatusBar": "Bottom global status bar",
+        "composerContextStrip": "Context strip container",
+        "composerWorktreeBtn": "Worktree switcher button",
+        "composerBranchBtn": "Git branch switcher"
+      },
+      "contextStripTitle": "Context Strip (Worktree & Branch)",
+      "contextStripDesc": "Customize placement, surface style, order, and visibility of the Worktree switcher and Git branch/PR strip.",
+      "contextPositionLabel": "Position",
+      "contextPositions": {
+        "below": "Below input",
+        "above": "Above input",
+        "statusbar": "Status bar",
+        "hidden": "Hidden"
+      },
+      "contextStyleLabel": "Style",
+      "contextStyles": {
+        "minimal": "Minimal",
+        "pill": "Pills",
+        "tray": "Tray"
+      },
+      "contextWorktreeLabel": "Workspace / Worktree switcher",
+      "contextWorktreeModes": {
+        "full": "Full",
+        "compact": "Compact",
+        "icon": "Icon only",
+        "hidden": "Hidden"
+      },
+      "contextBranchLabel": "Git branch & PR badge",
+      "contextBranchModes": {
+        "full": "Full + PR",
+        "branch-only": "Branch only",
+        "compact": "Compact",
+        "hidden": "Hidden"
+      },
+      "contextSwapLabel": "Swap left / right order"
     },
     "timelineToolAutoExpandMax": "Max auto-expanded tools",
     "timelineToolAutoExpandMaxDesc": "Tools expanded at once while running, 0 keeps them collapsed.",

@@ -24,6 +24,18 @@ export type ComposerModelStripMode = (typeof COMPOSER_MODEL_STRIP_MODES)[number]
 export const COMPOSER_METRICS_MODES = ['ring', 'percent', 'ring-percent', 'pill', 'hidden'] as const
 export type ComposerMetricsMode = (typeof COMPOSER_METRICS_MODES)[number]
 
+export const COMPOSER_CONTEXT_POSITIONS = ['below', 'above', 'statusbar', 'hidden'] as const
+export type ComposerContextPosition = (typeof COMPOSER_CONTEXT_POSITIONS)[number]
+
+export const COMPOSER_CONTEXT_STYLES = ['minimal', 'pill', 'tray'] as const
+export type ComposerContextStyle = (typeof COMPOSER_CONTEXT_STYLES)[number]
+
+export const COMPOSER_WORKTREE_MODES = ['full', 'compact', 'icon', 'hidden'] as const
+export type ComposerWorktreeMode = (typeof COMPOSER_WORKTREE_MODES)[number]
+
+export const COMPOSER_BRANCH_MODES = ['full', 'branch-only', 'compact', 'hidden'] as const
+export type ComposerBranchMode = (typeof COMPOSER_BRANCH_MODES)[number]
+
 export const COMPOSER_TOOLBAR_ITEMS = [
   'attach',
   'tools',
@@ -65,6 +77,16 @@ export interface UiCustomization {
   composerShowTps: boolean
   /** Show voice microphone button when input is empty. */
   composerVoiceVisible: boolean
+  /** Placement of the Worktree + Git branch context strip. */
+  composerContextPosition: ComposerContextPosition
+  /** Visual surface style of the context strip controls. */
+  composerContextStyle: ComposerContextStyle
+  /** Swap left/right order (default false = Worktree left, Branch right). */
+  composerContextSwapped: boolean
+  /** Display mode of the Worktree/environment selector. */
+  composerWorktreeMode: ComposerWorktreeMode
+  /** Display mode of the Git branch & PR badge area. */
+  composerBranchMode: ComposerBranchMode
 }
 
 export const DEFAULT_UI_CUSTOMIZATION: UiCustomization = {
@@ -83,6 +105,11 @@ export const DEFAULT_UI_CUSTOMIZATION: UiCustomization = {
   composerMetricsMode: 'ring',
   composerShowTps: true,
   composerVoiceVisible: true,
+  composerContextPosition: 'below',
+  composerContextStyle: 'minimal',
+  composerContextSwapped: false,
+  composerWorktreeMode: 'full',
+  composerBranchMode: 'full',
 }
 
 function pickEnum<T extends string>(raw: unknown, allowed: readonly T[], fallback: T): T {
@@ -168,6 +195,30 @@ export function normalizeUiCustomization(raw: unknown): UiCustomization {
       typeof src.composerVoiceVisible === 'boolean'
         ? src.composerVoiceVisible
         : DEFAULT_UI_CUSTOMIZATION.composerVoiceVisible,
+    composerContextPosition: pickEnum(
+      src.composerContextPosition,
+      COMPOSER_CONTEXT_POSITIONS,
+      DEFAULT_UI_CUSTOMIZATION.composerContextPosition,
+    ),
+    composerContextStyle: pickEnum(
+      src.composerContextStyle,
+      COMPOSER_CONTEXT_STYLES,
+      DEFAULT_UI_CUSTOMIZATION.composerContextStyle,
+    ),
+    composerContextSwapped:
+      typeof src.composerContextSwapped === 'boolean'
+        ? src.composerContextSwapped
+        : DEFAULT_UI_CUSTOMIZATION.composerContextSwapped,
+    composerWorktreeMode: pickEnum(
+      src.composerWorktreeMode,
+      COMPOSER_WORKTREE_MODES,
+      DEFAULT_UI_CUSTOMIZATION.composerWorktreeMode,
+    ),
+    composerBranchMode: pickEnum(
+      src.composerBranchMode,
+      COMPOSER_BRANCH_MODES,
+      DEFAULT_UI_CUSTOMIZATION.composerBranchMode,
+    ),
   }
 }
 
@@ -188,6 +239,11 @@ export function isDefaultUiCustomization(value: UiCustomization): boolean {
     value.composerMetricsMode === d.composerMetricsMode &&
     value.composerShowTps === d.composerShowTps &&
     value.composerVoiceVisible === d.composerVoiceVisible &&
+    value.composerContextPosition === d.composerContextPosition &&
+    value.composerContextStyle === d.composerContextStyle &&
+    value.composerContextSwapped === d.composerContextSwapped &&
+    value.composerWorktreeMode === d.composerWorktreeMode &&
+    value.composerBranchMode === d.composerBranchMode &&
     value.composerToolbarOrder.join(',') === d.composerToolbarOrder.join(',')
   )
 }
@@ -215,6 +271,9 @@ export const PI_UI_SLOTS: readonly PiSlotDescriptor[] = [
   { slot: 'composer-thinking-chip', category: 'composer', labelKey: 'composerThinkingChip', sampleCss: '[data-pi-slot="composer-thinking-chip"] {\n  opacity: 0.85;\n}' },
   { slot: 'composer-metrics', category: 'composer', labelKey: 'composerMetrics', sampleCss: '[data-pi-slot="composer-metrics"] {\n  font-size: 11px;\n}' },
   { slot: 'composer-send-btn', category: 'composer', labelKey: 'composerSendBtn', sampleCss: '[data-pi-slot="composer-send-btn"] {\n  border-radius: 999px;\n}' },
+  { slot: 'composer-context-strip', category: 'composer', labelKey: 'composerContextStrip', sampleCss: '[data-pi-slot="composer-context-strip"] {\n  padding-inline: 8px;\n  opacity: 0.9;\n}' },
+  { slot: 'composer-worktree-btn', category: 'composer', labelKey: 'composerWorktreeBtn', sampleCss: '[data-pi-slot="composer-worktree-btn"] {\n  font-weight: 500;\n}' },
+  { slot: 'composer-branch-btn', category: 'composer', labelKey: 'composerBranchBtn', sampleCss: '[data-pi-slot="composer-branch-btn"] {\n  font-family: var(--font-mono);\n}' },
   { slot: 'timeline-viewport', category: 'timeline', labelKey: 'timelineViewport', sampleCss: '[data-pi-slot="timeline-viewport"] {\n  background: var(--chat-bg);\n}' },
   { slot: 'timeline-column', category: 'timeline', labelKey: 'timelineColumn', sampleCss: '[data-pi-slot="timeline-column"] {\n  padding-inline: 24px;\n}' },
   { slot: 'timeline-turn', category: 'timeline', labelKey: 'timelineTurn', sampleCss: '[data-pi-slot="timeline-turn"] + [data-pi-slot="timeline-turn"] {\n  margin-top: 24px;\n}' },

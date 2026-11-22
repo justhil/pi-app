@@ -20,6 +20,7 @@ import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-sessio
 import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
+import { ComposerContextStrip } from '@renderer/features/composer/composer-context-strip'
 
 import { ShellPopover } from './shell-popover'
 
@@ -182,6 +183,7 @@ export function StatusBar() {
 
   return (
     <footer data-pi-slot="shell-status-bar" className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
+      <ComposerContextStrip placement="statusbar" />
 
       <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
         {live === 0 ? (runFailed

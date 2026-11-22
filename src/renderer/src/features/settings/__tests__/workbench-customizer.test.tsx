@@ -62,10 +62,20 @@ describe('ui-customization schema & DOM applier', () => {
       composerMaxHeight: 200,
       composerPurgeMode: 'icon',
       composerMetricsMode: 'pill',
+      composerContextPosition: 'statusbar',
+      composerContextStyle: 'pill',
+      composerContextSwapped: true,
+      composerWorktreeMode: 'icon',
+      composerBranchMode: 'compact',
     })
     applyUiCustomizationToDocument(cfg)
 
     expect(document.documentElement.getAttribute('data-mid-prose-style')).toBe('rail')
+    expect(document.documentElement.getAttribute('data-composer-context-position')).toBe('statusbar')
+    expect(document.documentElement.getAttribute('data-composer-context-style')).toBe('pill')
+    expect(document.documentElement.getAttribute('data-composer-context-swapped')).toBe('swapped')
+    expect(document.documentElement.getAttribute('data-composer-worktree')).toBe('icon')
+    expect(document.documentElement.getAttribute('data-composer-branch')).toBe('compact')
     expect(document.documentElement.getAttribute('data-composer-preset')).toBe('zen')
     expect(document.documentElement.getAttribute('data-composer-purge')).toBe('icon')
     expect(document.documentElement.getAttribute('data-composer-metrics')).toBe('pill')

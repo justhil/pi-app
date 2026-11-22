@@ -283,8 +283,41 @@
         "timelineCodeBlock": "Блок кода Markdown",
         "shellSidebar": "Левая боковая панель",
         "shellRightPanel": "Правая рабочая панель",
-        "shellStatusBar": "Нижняя строка состояния"
-      }
+        "shellStatusBar": "Нижняя строка состояния",
+        "composerContextStrip": "Контекстная строка",
+        "composerWorktreeBtn": "Кнопка Worktree",
+        "composerBranchBtn": "Кнопка ветки Git"
+      },
+      "contextStripTitle": "Контекстная строка (Worktree и ветка)",
+      "contextStripDesc": "Настройка расположения, стиля и отображения переключателя Worktree и ветки Git/PR.",
+      "contextPositionLabel": "Расположение",
+      "contextPositions": {
+        "below": "Под полем",
+        "above": "Над полем",
+        "statusbar": "В статус-баре",
+        "hidden": "Скрыть"
+      },
+      "contextStyleLabel": "Стиль",
+      "contextStyles": {
+        "minimal": "Минимал",
+        "pill": "Капсулы",
+        "tray": "Лоток"
+      },
+      "contextWorktreeLabel": "Переключатель Worktree",
+      "contextWorktreeModes": {
+        "full": "Полный",
+        "compact": "Краткий",
+        "icon": "Иконка",
+        "hidden": "Скрыть"
+      },
+      "contextBranchLabel": "Ветка Git и бейдж PR",
+      "contextBranchModes": {
+        "full": "Ветка + PR",
+        "branch-only": "Только ветка",
+        "compact": "Кратко",
+        "hidden": "Скрыть"
+      },
+      "contextSwapLabel": "Поменять местами (лево / право)"
     },
     "timelineToolAutoExpandMax": "Максимум авто-раскрытых инструментов",
     "timelineToolAutoExpandMaxDesc": "Сколько инструментов раскрыто одновременно во время выполнения; 0 — оставлять свёрнутыми.",
