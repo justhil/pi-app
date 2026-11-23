@@ -1,7 +1,8 @@
 import { requestOpenInPane, startSessionDrag } from '@renderer/features/split/split-dnd'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, GitFork, Plus } from '@renderer/components/icons'
+import { ChevronDown, ChevronRight, GitBranch, GitFork, Plus } from '@renderer/components/icons'
+import { BranchPickerPopover } from '@renderer/features/git/branch-picker-popover'
 import { cn } from '@renderer/lib/utils'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
@@ -406,6 +407,7 @@ export function ProjectDiskRow({
   onOpenProject,
   onNewSession,
   onProjectContextMenu,
+  onBranchSwitched,
   sessionTree,
 }: {
   path: string
@@ -418,13 +420,26 @@ export function ProjectDiskRow({
   onOpenProject?: () => void
   onNewSession: () => void
   onProjectContextMenu: (e: React.MouseEvent) => void
+  onBranchSwitched?: () => void
   sessionTree: React.ReactNode
 }) {
   const { t } = useTranslation()
+  const [branchOpen, setBranchOpen] = useState(false)
+  const [branchBusy, setBranchBusy] = useState(false)
+  const branchAnchorRef = useRef<HTMLButtonElement>(null)
+  const closeBranch = useCallback(() => setBranchOpen(false), [])
+
   const shortBranch = branch && branch !== name ? branch.replace(/^refs\/heads\//, '') : ''
+  const isDefaultBranch = shortBranch === 'main' || shortBranch === 'master'
+
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
-      <div className="group/proj nav-row flex min-h-[30px] items-center gap-0.5 rounded-md pl-1 pr-1">
+      <div
+        className={cn(
+          'group/proj nav-row flex min-h-[30px] items-center gap-0.5 rounded-md pl-1 pr-1',
+          branchOpen && 'bg-[var(--sidebar-row-hover)]',
+        )}
+      >
         <button
           type="button"
           onClick={onToggleOpen}
@@ -440,7 +455,7 @@ export function ProjectDiskRow({
         <button
           type="button"
           onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
-          className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-1.5 px-1 py-1 text-left"
+          className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-1 px-1 py-1 text-left"
           title={shortBranch ? `${path} (${shortBranch})` : path}
           aria-current={active ? 'location' : undefined}
         >
@@ -452,12 +467,40 @@ export function ProjectDiskRow({
           >
             {name}
           </span>
-          {shortBranch ? (
-            <span className="max-w-[76px] shrink-0 truncate font-mono text-[10.5px] text-foreground-secondary/50">
-              {shortBranch}
-            </span>
-          ) : null}
         </button>
+        {shortBranch ? (
+          <button
+            ref={branchAnchorRef}
+            type="button"
+            data-testid="sidebar-branch-trigger"
+            aria-haspopup="dialog"
+            aria-expanded={branchOpen}
+            aria-label={t('common:branches.trigger', { branch: shortBranch })}
+            title={t('common:branches.trigger', { branch: shortBranch })}
+            disabled={branchBusy}
+            onClick={(e) => {
+              e.stopPropagation()
+              setBranchOpen((v) => !v)
+            }}
+            className={cn(
+              'group/br inline-flex h-[22px] max-w-[84px] shrink-0 items-center gap-0.5 rounded px-1 font-mono text-[10.5px] transition-colors hover:bg-foreground/[0.08] hover:text-foreground disabled:opacity-50',
+              branchOpen
+                ? 'bg-foreground/[0.09] text-foreground'
+                : isDefaultBranch
+                  ? 'text-foreground-secondary/50'
+                  : 'text-foreground-secondary/80',
+            )}
+          >
+            <GitBranch className={cn('h-2.5 w-2.5 shrink-0 opacity-70', branchBusy && 'animate-pulse')} />
+            <span className="truncate">{shortBranch}</span>
+            <ChevronDown
+              className={cn(
+                'h-2.5 w-2.5 shrink-0 transition-opacity',
+                branchOpen ? 'opacity-80' : 'opacity-0 group-hover/br:opacity-75',
+              )}
+            />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={(e) => {
@@ -471,6 +514,17 @@ export function ProjectDiskRow({
           <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>
       </div>
+      {shortBranch && branchOpen ? (
+        <BranchPickerPopover
+          cwd={path}
+          open={branchOpen}
+          anchorRef={branchAnchorRef}
+          onClose={closeBranch}
+          currentBranchHint={shortBranch}
+          onBusyChange={setBranchBusy}
+          onSwitched={() => onBranchSwitched?.()}
+        />
+      ) : null}
       <SidebarAnimatedCollapse open={open}>{sessionTree}</SidebarAnimatedCollapse>
     </div>
   )

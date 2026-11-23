@@ -381,8 +381,18 @@ export function ProjectSidebar({
   useEffect(() => {
     const onReload = () => refreshProjects.current()
     window.addEventListener(SIDEBAR_RELOAD_EVENT, onReload)
-    return () => window.removeEventListener(SIDEBAR_RELOAD_EVENT, onReload)
-  }, [])
+    const onBranchSwitched = () => worktrees.refresh()
+    window.addEventListener('pi-desktop:git-branch-switched', onBranchSwitched)
+    const offGit =
+      typeof window.piDesktop?.onGitWorkspaceChanged === 'function'
+        ? window.piDesktop.onGitWorkspaceChanged(() => worktrees.refresh())
+        : () => {}
+    return () => {
+      window.removeEventListener(SIDEBAR_RELOAD_EVENT, onReload)
+      window.removeEventListener('pi-desktop:git-branch-switched', onBranchSwitched)
+      if (typeof offGit === 'function') offGit()
+    }
+  }, [worktrees])
 
   // Current project only on startup / workspace switch — never every recent project.
   useEffect(() => {
@@ -536,6 +546,7 @@ export function ProjectSidebar({
           siblingPaths,
         })
       }
+      onBranchSwitched={() => worktrees.refresh()}
       sessionTree={<ProjectSessionTree
         workspacePath={path}
         projectSessions={rows}
