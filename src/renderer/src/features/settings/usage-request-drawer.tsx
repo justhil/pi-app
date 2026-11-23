@@ -146,7 +146,7 @@ function MessageBlocksView({ blocks }: { blocks: readonly UsageMessageBlock[] })
             <div key={idx} className="rounded-md border border-border/60 bg-[var(--bg-elevated)]/60 px-3 py-2">
               <div className="mb-1 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t('settings:usage.blockThinking')} ·{' '}
-                {t('settings:usage.charsCount', { value: b.thinking.length.toLocaleString(i18n.language) })}
+                {t('settings:usage.charsCount', { value: b.thinking.length.toLocaleString(i18n?.language) })}
               </div>
               <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-[11.5px] leading-[1.55] text-foreground-secondary">
                 {b.thinking}
