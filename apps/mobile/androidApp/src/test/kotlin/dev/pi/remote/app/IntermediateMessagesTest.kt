@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.pi.remote.app.data.UiPrefs
 import dev.pi.remote.app.ui.session.liveActivitySteps
+import dev.pi.remote.app.ui.session.settledIntermediateProse
 import dev.pi.remote.protocol.ProseStep
 import dev.pi.remote.protocol.ThinkingStep
 import dev.pi.remote.protocol.ToolStep
@@ -42,11 +43,19 @@ class IntermediateMessagesTest {
     }
 
     @Test
-    fun `enabled keeps every prose message in order and recent activity steps`() {
+    fun `enabled keeps every non-blank prose message in order and recent activity steps`() {
+        val withBlank = steps + prose("prose-blank", "   \n ")
         assertEquals(
             listOf(firstProse, secondTool, secondProse, thought, thirdProse, thirdTool),
-            liveActivitySteps(steps, showIntermediateMessages = true),
+            liveActivitySteps(withBlank, showIntermediateMessages = true),
         )
+    }
+
+    @Test
+    fun `settled intermediate prose returns empty when disabled or when no non-blank prose exists`() {
+        assertEquals(emptyList<ProseStep>(), settledIntermediateProse(steps, showIntermediateMessages = false))
+        assertEquals(emptyList<ProseStep>(), settledIntermediateProse(listOf(firstTool, thought, prose("p-empty", "  ")), showIntermediateMessages = true))
+        assertEquals(listOf(firstProse, secondProse, thirdProse), settledIntermediateProse(steps, showIntermediateMessages = true))
     }
 
     private fun prose(id: String, text: String) = ProseStep(id, "prose", text)

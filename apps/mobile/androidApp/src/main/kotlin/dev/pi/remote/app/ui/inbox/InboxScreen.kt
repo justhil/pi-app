@@ -34,7 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Switch
+
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +76,7 @@ import dev.pi.remote.app.ui.PiSheet
 import dev.pi.remote.app.ui.PrimaryButton
 import dev.pi.remote.app.ui.PullRefresh
 import dev.pi.remote.app.ui.QuietButton
+import dev.pi.remote.app.ui.QuietSwitch
 import dev.pi.remote.app.ui.SectionLabel
 import dev.pi.remote.app.ui.Segmented
 import dev.pi.remote.app.ui.ShimmerText
@@ -541,12 +542,25 @@ private fun InboxMenu(
             Segmented(listOf("system" to stringResource(R.string.theme_system), "en" to "English", "zh" to "简体中文"), language, onSelect = { if (prefs.setLanguage(it)) activity?.recreate() })
             Text(stringResource(R.string.menu_grouping), style = Pi.t.meta.copy(color = Pi.c.fg3), modifier = Modifier.padding(top = 10.dp))
             Segmented(listOf("status" to stringResource(R.string.group_status), "project" to stringResource(R.string.group_project)), grouping, prefs::setGrouping)
-            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            val intermediateLabel = stringResource(R.string.menu_intermediate_messages)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Switch) { prefs.setShowIntermediateMessages(!showIntermediateMessages) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.menu_intermediate_messages), style = Pi.t.body.copy(color = Pi.c.fg))
+                    Text(intermediateLabel, style = Pi.t.body.copy(color = Pi.c.fg))
                     Text(stringResource(R.string.menu_intermediate_messages_hint), style = Pi.t.meta.copy(color = Pi.c.fg3))
                 }
-                Switch(checked = showIntermediateMessages, onCheckedChange = prefs::setShowIntermediateMessages)
+                Spacer(Modifier.width(12.dp))
+                QuietSwitch(
+                    on = showIntermediateMessages,
+                    onChange = prefs::setShowIntermediateMessages,
+                    description = intermediateLabel,
+                )
             }
             Hairline(Modifier.padding(top = 10.dp))
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {

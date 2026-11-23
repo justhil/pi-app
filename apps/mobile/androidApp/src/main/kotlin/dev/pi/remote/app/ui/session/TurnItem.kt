@@ -135,8 +135,15 @@ fun TurnItem(
             if (turn.running) LiveActivity(turn, now, cb, showIntermediateMessages) else ActivityRow(turn, expanded, cb)
             if (expanded && !turn.running) {
                 StepList(turn, turn.steps, cb, showIntermediateMessages = showIntermediateMessages)
-            } else if (showIntermediateMessages && !turn.running) {
-                StepList(turn, turn.steps.filterIsInstance<ProseStep>(), cb, showIntermediateMessages = true)
+            } else if (!turn.running) {
+                val proseSteps = settledIntermediateProse(turn.steps, showIntermediateMessages)
+                if (proseSteps.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (prose in proseSteps) {
+                            RichContent(prose.text, streaming = false, mermaid = mermaid)
+                        }
+                    }
+                }
             }
         }
         if (turn.answer.isNotBlank()) {
@@ -270,7 +277,14 @@ internal fun liveActivitySteps(steps: List<Step>, showIntermediateMessages: Bool
         .take(3)
         .map { it.id }
         .toSet()
-    return steps.filter { it.id in recentStepIds || (showIntermediateMessages && it is ProseStep) }
+    return steps.filter {
+        it.id in recentStepIds || (showIntermediateMessages && it is ProseStep && it.text.isNotBlank())
+    }
+}
+
+internal fun settledIntermediateProse(steps: List<Step>, showIntermediateMessages: Boolean): List<ProseStep> {
+    if (!showIntermediateMessages) return emptyList()
+    return steps.filterIsInstance<ProseStep>().filter { it.text.isNotBlank() }
 }
 
 @Composable
@@ -324,9 +338,9 @@ private fun StepList(
                         onClick = { cb.onStep(turn, s) },
                     )
                 }
-                is ProseStep -> Text(
+                is ProseStep -> if (s.text.isNotBlank()) Text(
                     if (showIntermediateMessages) s.text else s.text.lines().firstOrNull { it.isNotBlank() }.orEmpty(),
-                    style = Pi.t.secondary.copy(color = Pi.c.fg3),
+                    style = Pi.t.secondary.copy(color = if (showIntermediateMessages) Pi.c.fg2 else Pi.c.fg3),
                     maxLines = if (showIntermediateMessages) Int.MAX_VALUE else 2,
                     overflow = if (showIntermediateMessages) TextOverflow.Clip else TextOverflow.Ellipsis,
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 0.dp),
