@@ -130,7 +130,13 @@ export function SandboxContextMenuPortal({
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation()
-                      const nowPinned = toggleSessionPinned(target.sessionFile)
+                      const nowPinned = toggleSessionPinned({
+                        sessionFile: target.sessionFile!,
+                        sessionId: target.sessionId,
+                        workspacePath: target.path,
+                        title: target.label || t('common:sidebar.tempChat'),
+                        kind: 'sandbox',
+                      })
                       toast.success(nowPinned ? t('common:sidebar.pinned') : t('common:sidebar.unpinned'))
                       onClose()
                     }}

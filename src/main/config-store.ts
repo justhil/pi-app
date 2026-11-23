@@ -88,6 +88,18 @@ export interface StoreSchema {
   projectDisplayNames: Record<string, string>
   /** 侧栏收藏置顶的会话文件列表 */
   pinnedSessions: string[]
+  /** 收藏置顶会话的元数据快照（防跨项目/冷启动消失） */
+  pinnedSessionMeta: Record<
+    string,
+    {
+      sessionFile: string
+      sessionId: string
+      workspacePath: string
+      title: string
+      kind: 'project' | 'sandbox'
+      pinnedAt: number
+    }
+  >
   /** 从侧栏列表中移除/隐藏的 Git worktree 路径 */
   hiddenWorktrees: string[]
   /** 语音输入 ASR 配置 */
@@ -172,6 +184,7 @@ const store = new Store<StoreSchema>({
     sessionDisplayNames: {},
     projectDisplayNames: {},
     pinnedSessions: [],
+    pinnedSessionMeta: {},
     hiddenWorktrees: [],
     asrConfig: {
       provider: 'codex-asr-builtin',

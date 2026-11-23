@@ -327,6 +327,16 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   sessionDisplayNames: z.record(z.string()),
   projectDisplayNames: z.record(z.string()),
   pinnedSessions: z.array(z.string().max(2048)).max(500),
+  pinnedSessionMeta: z.record(
+    z.object({
+      sessionFile: z.string().max(2048),
+      sessionId: z.string().max(256),
+      workspacePath: z.string().max(2048),
+      title: z.string().max(500),
+      kind: z.enum(['project', 'sandbox']),
+      pinnedAt: z.number(),
+    }),
+  ),
   hiddenWorktrees: z.array(z.string()),
   extensionOverrides: z.record(z.boolean()),
   skillOverrides: z.record(z.boolean()),

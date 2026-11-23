@@ -212,7 +212,13 @@ export function SessionContextMenuPortal({
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
-                    const nowPinned = toggleSessionPinned(menu.target.sessionFile)
+                    const nowPinned = toggleSessionPinned({
+                      sessionFile: menu.target.sessionFile!,
+                      sessionId: menu.target.sessionId,
+                      workspacePath: menu.target.workspacePath,
+                      title: menu.target.title,
+                      kind: 'project',
+                    })
                     toast.success(nowPinned ? t('common:sidebar.pinned') : t('common:sidebar.unpinned'))
                     onClose()
                   }}

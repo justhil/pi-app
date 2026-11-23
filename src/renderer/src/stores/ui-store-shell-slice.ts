@@ -66,7 +66,9 @@ type ShellSlice = Pick<
   | 'rightPanelBrowserWidth'
   | 'setRightPanelBrowserWidth'
   | 'pinnedSessions'
+  | 'pinnedSessionMeta'
   | 'setPinnedSessions'
+  | 'upsertPinnedSessionMeta'
   | 'togglePinSession'
   | 'rightPanelCollapsed'
   | 'rightPanelRailIcons'
@@ -177,17 +179,64 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     setRightPanelBrowserWidth: (width) =>
       set({ rightPanelBrowserWidth: Math.min(Math.max(width, 320), 9999) }),
     pinnedSessions: [],
-    setPinnedSessions: (files) => set({ pinnedSessions: [...new Set(files.filter(Boolean))] }),
-    togglePinSession: (sessionFile) => {
-      const normalized = sessionFile.trim().replace(/\\/g, '/')
-      if (!normalized) return false
+    pinnedSessionMeta: {},
+    setPinnedSessions: (files, meta) =>
+      set((s) => ({
+        pinnedSessions: [...new Set(files.filter(Boolean))],
+        ...(meta ? { pinnedSessionMeta: { ...s.pinnedSessionMeta, ...meta } } : {}),
+      })),
+    upsertPinnedSessionMeta: (sessionFile, patch) => {
+      const key = normalizeSessionFileKey(sessionFile)
+      if (!key) return
+      set((s) => {
+        const prev = s.pinnedSessionMeta[key] ?? s.pinnedSessionMeta[key.toLowerCase()]
+        return {
+          pinnedSessionMeta: {
+            ...s.pinnedSessionMeta,
+            [key]: {
+              sessionFile: prev?.sessionFile || sessionFile.trim(),
+              sessionId: patch.sessionId ?? prev?.sessionId ?? '',
+              workspacePath: patch.workspacePath ?? prev?.workspacePath ?? '',
+              title: patch.title ?? prev?.title ?? '',
+              kind: patch.kind ?? prev?.kind ?? 'project',
+              pinnedAt: patch.pinnedAt ?? prev?.pinnedAt ?? Date.now(),
+            },
+          },
+        }
+      })
+    },
+    togglePinSession: (sessionFile, meta) => {
+      const trimmed = sessionFile.trim()
+      const key = normalizeSessionFileKey(trimmed)
+      if (!key) return false
       const cur = get().pinnedSessions
-      const exists = cur.some((f) => f.replace(/\\/g, '/').toLowerCase() === normalized.toLowerCase())
-      const next = exists
-        ? cur.filter((f) => f.replace(/\\/g, '/').toLowerCase() !== normalized.toLowerCase())
-        : [normalized, ...cur]
-      set({ pinnedSessions: next })
-      return !exists
+      const exists = cur.some((f) => normalizeSessionFileKey(f) === key)
+      if (exists) {
+        const nextMeta = { ...get().pinnedSessionMeta }
+        delete nextMeta[key]
+        delete nextMeta[key.toLowerCase()]
+        set({
+          pinnedSessions: cur.filter((f) => normalizeSessionFileKey(f) !== key),
+          pinnedSessionMeta: nextMeta,
+        })
+        return false
+      }
+      const nextMeta = {
+        ...get().pinnedSessionMeta,
+        [key]: {
+          sessionFile: trimmed,
+          sessionId: meta?.sessionId ?? '',
+          workspacePath: meta?.workspacePath ?? '',
+          title: meta?.title ?? '',
+          kind: meta?.kind ?? 'project',
+          pinnedAt: Date.now(),
+        },
+      }
+      set({
+        pinnedSessions: [trimmed, ...cur],
+        pinnedSessionMeta: nextMeta,
+      })
+      return true
     },
     // A fresh install starts with the conversation alone; the top bar button opens the panel.
     rightPanelCollapsed: true,

@@ -173,7 +173,7 @@ export function SidebarActiveSessionsDrawer() {
     [historySessionFile, findSession, preparedByFile, currentWorkspace],
   )
 
-  if (collapsed || !enabled) return null
+  if (collapsed || !enabled || entries.length === 0) return null
 
   const liveCount = counts.needsYou + counts.working + counts.done
 

@@ -85,7 +85,7 @@ export function createSidebarShiftGuard(container: HTMLElement): {
   const onFollowUp = (event: MouseEvent) => {
     if (event.type === 'click' && event.detail === 0) return
     const dropped =
-      event instanceof PointerEvent && event.pointerId >= 0
+      typeof PointerEvent !== 'undefined' && event instanceof PointerEvent && event.pointerId >= 0
         ? heldDrops.has(event.pointerId) || releasedDrop === event.pointerId
         : pressDropped
     if (dropped && rowOf(event.target)) swallow(event)

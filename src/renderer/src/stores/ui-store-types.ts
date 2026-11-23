@@ -9,6 +9,15 @@ import type { SessionState } from '@renderer/stores/session-state'
 import type { TimelineUserMessageStyle } from '@shared/timeline-settings'
 import type { UiCustomization } from '@shared/ui-customization'
 
+export interface PinnedSessionRecord {
+  sessionFile: string
+  sessionId: string
+  workspacePath: string
+  title: string
+  kind: 'project' | 'sandbox'
+  pinnedAt: number
+}
+
 export interface SessionItem {
   sessionId: string
   sessionFile?: string
@@ -273,8 +282,13 @@ export interface UIState {
   rightPanelBrowserWidth: number
   setRightPanelBrowserWidth: (w: number) => void
   pinnedSessions: string[]
-  setPinnedSessions: (files: string[]) => void
-  togglePinSession: (sessionFile: string) => boolean
+  pinnedSessionMeta: Record<string, PinnedSessionRecord>
+  setPinnedSessions: (files: string[], meta?: Record<string, PinnedSessionRecord>) => void
+  upsertPinnedSessionMeta: (sessionFile: string, patch: Partial<Omit<PinnedSessionRecord, 'sessionFile'>>) => void
+  togglePinSession: (
+    sessionFile: string,
+    meta?: Partial<Omit<PinnedSessionRecord, 'sessionFile' | 'pinnedAt'>>,
+  ) => boolean
   rightPanelCollapsed: boolean
   /** Keep a column of panel icons while the right panel is collapsed (default: off, nothing shows). */
   rightPanelRailIcons: boolean

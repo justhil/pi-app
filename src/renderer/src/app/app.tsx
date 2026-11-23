@@ -491,14 +491,15 @@ export default function App() {
                 />
               </SidebarContent>
               <SidebarActiveSessionsDrawer />
-              <div className="flex items-center gap-1 border-t border-border/50 p-1.5">
-                <div className="min-w-0 flex-1">
-                  <SidebarItem
-                    label={t('sidebar.settings')}
-                    icon={<SettingsIcon className="h-4 w-4" />}
-                    onClick={() => setView('settings')}
-                  />
-                </div>
+              <div className="flex h-10 shrink-0 items-center gap-0.5 border-t border-border/35 px-2">
+                <button
+                  type="button"
+                  onClick={() => setView('settings')}
+                  className="nav-row flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[12px] font-medium text-foreground-secondary transition-colors hover:text-foreground"
+                >
+                  <SettingsIcon className="h-[15px] w-[15px] shrink-0 opacity-80" strokeWidth={1.65} />
+                  <span className="sidebar-label-fade truncate">{t('sidebar.settings')}</span>
+                </button>
                 {currentWorkspace && !ephemeralSandboxDraft ? (
                   <>
                     <button
@@ -510,13 +511,13 @@ export default function App() {
                         usePanelIntentStore.getState().toggleRightPanelTab('worktrees', !rightPanelHidden)
                       }
                       className={cn(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
                         !rightPanelHidden &&
                           isPanelVisibleInRightDock('worktrees') &&
                           'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
-                      <FolderGit2 className="h-4 w-4" />
+                      <FolderGit2 className="h-[15px] w-[15px]" strokeWidth={1.65} />
                     </button>
                     <button
                       type="button"
@@ -527,40 +528,45 @@ export default function App() {
                         usePanelIntentStore.getState().toggleRightPanelTab('github', !rightPanelHidden)
                       }
                       className={cn(
-                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
                         !rightPanelHidden &&
                           isPanelVisibleInRightDock('github') &&
                           'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
-                      <GitFork className="h-4 w-4" />
+                      <GitFork className="h-[15px] w-[15px]" strokeWidth={1.65} />
                     </button>
                   </>
                 ) : null}
                 <button
                   type="button"
                   data-pi-slot="sidebar-browser-toggle"
-                  title={t('browser:stage.toggleTooltip')}
+                  title={
+                    browserTabCount > 0
+                      ? `${t('browser:stage.toggleTooltip')} (${browserTabCount})`
+                      : t('browser:stage.toggleTooltip')
+                  }
                   aria-label={t('browser:stage.toggleTooltip')}
                   aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('browser')}
                   onClick={() =>
                     usePanelIntentStore.getState().toggleRightPanelTab('browser', !rightPanelHidden)
                   }
                   className={cn(
-                    'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
+                    'relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
                     !rightPanelHidden &&
                       isPanelVisibleInRightDock('browser') &&
                       'bg-[var(--bg-active)] text-foreground',
                   )}
                 >
-                  <Globe className="h-4 w-4" />
-                  {browserTabCount > 0 ? (
-                    <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-foreground/85 px-0.5 font-mono text-[9px] font-semibold leading-none text-background">
-                      {browserTabCount > 9 ? '9+' : browserTabCount}
-                    </span>
-                  ) : null}
-                  {browserAgentBusy ? (
-                    <span className="absolute bottom-1 right-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]" />
+                  <Globe className="h-[15px] w-[15px]" strokeWidth={1.65} />
+                  {browserTabCount > 0 || browserAgentBusy ? (
+                    <span
+                      className={cn(
+                        'absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--brand)]',
+                        browserAgentBusy && 'animate-pulse',
+                      )}
+                      aria-hidden
+                    />
                   ) : null}
                 </button>
               </div>

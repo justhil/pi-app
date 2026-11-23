@@ -15,7 +15,21 @@ import { selectActiveSubagentSessionChildren } from '@renderer/lib/subagent-sess
 import type { SubagentSessionChild } from '@renderer/lib/subagent-session-types'
 import { useToolCardCatalogReady } from '@renderer/features/timeline/tool-card-registry'
 import { SessionAttentionDot } from './session-attention-dot'
-import { SessionPinGlyph, isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
+import { isSessionPinned } from '@renderer/lib/pinned-sessions'
+
+export function formatCompactSessionAge(ts: number): string {
+  if (!ts || !Number.isFinite(ts)) return ''
+  const diff = Math.max(0, Date.now() - ts)
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 1) return '刚刚'
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  const d = new Date(ts)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
@@ -76,16 +90,11 @@ export function ProjectSessionTree({
     return buildSessionTree(projectSessions, groups)
   }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath])
   const pinnedSessions = useUIStore((st) => st.pinnedSessions)
+  // Plan A: pinned sessions live exclusively in the top "Pinned" section when not searching (zero duplication!)
   const visibleRoots = useMemo(() => {
     const filtered = filterSessionTree(tree.roots, searchQuery)
-    if (!pinnedSessions.length) return filtered
-    const pinned: typeof filtered = []
-    const normal: typeof filtered = []
-    for (const node of filtered) {
-      if (isSessionPinned(pinnedSessions, node.session.sessionFile)) pinned.push(node)
-      else normal.push(node)
-    }
-    return [...pinned, ...normal]
+    if (searchQuery.trim() || !pinnedSessions.length) return filtered
+    return filtered.filter((node) => !isSessionPinned(pinnedSessions, node.session.sessionFile))
   }, [tree, searchQuery, pinnedSessions])
   const { sessionsByFile, forksBySource } = useMemo(() => {
     const byFile = new Map<string, SessionItem>()
@@ -188,10 +197,10 @@ export function ProjectSessionTree({
             })
           }
           className={cn(
-            'nav-row sidebar-session-row flex items-center gap-0.5',
-            isChild ? 'sidebar-child-row min-h-[30px] rounded-md px-0.5' : 'min-h-[38px] rounded-lg px-1 py-0.5',
+            'nav-row sidebar-session-row flex items-center gap-0.5 rounded-md px-0.5',
+            isChild ? 'sidebar-child-row min-h-[26px]' : 'min-h-[30px]',
             parentActive
-              ? 'nav-row-active'
+              ? 'nav-row-active text-foreground'
               : 'text-foreground-secondary hover:text-foreground',
           )}
         >
@@ -204,64 +213,51 @@ export function ProjectSessionTree({
               else openParentSession(s)
             }}
             aria-current={parentActive ? 'page' : undefined}
+            title={
+              s.forkedFromSessionFile
+                ? `${s.title || s.sessionId.slice(0, 8)} · ${t('common:sidebar.forkedFrom', { title: forkSourceTitle })}`
+                : s.title || s.sessionId.slice(0, 8)
+            }
             className={cn(
-              'sidebar-session-hit flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
-              isChild ? 'min-h-[30px] py-1' : 'min-h-11 py-1.5',
+              'sidebar-session-hit flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45',
+              isChild ? 'min-h-[26px] py-0.5' : 'min-h-[30px] py-1',
             )}
           >
             <div className="min-w-0 flex-1">
-              <div
-                className={cn(
-                  'flex min-w-0 items-center gap-1',
-                  isChild
-                    ? cn('text-[12px] leading-4', parentActive ? 'text-foreground' : 'text-foreground-secondary')
-                    : 'text-[13px] leading-[18px] text-foreground',
-                  attention === 'done' && 'font-semibold',
-                )}
-              >
-                {isSessionPinned(pinnedSessions, sessionFile) ? (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    title={t('common:sidebar.unpinSession')}
-                    onClick={(ev) => {
-                      ev.stopPropagation()
-                      toggleSessionPinned(sessionFile)
-                    }}
-                    className="inline-flex shrink-0 items-center text-[var(--brand)] hover:opacity-75"
-                  >
-                    <SessionPinGlyph className="h-3 w-3" />
-                  </span>
-                ) : null}
+              <div className="flex min-w-0 items-center gap-1.5">
                 {s.forkedFromSessionFile ? (
                   <GitFork
-                    className="h-3 w-3 shrink-0 text-foreground-secondary"
-                    strokeWidth={2}
+                    className="h-3 w-3 shrink-0 text-foreground-secondary/75"
+                    strokeWidth={1.8}
                     aria-label={t('common:sidebar.forkedSession')}
                   />
                 ) : null}
-                <span className="truncate">{s.title || s.sessionId.slice(0, 8)}</span>
+                <span
+                  className={cn(
+                    'min-w-0 flex-1 truncate',
+                    isChild
+                      ? cn('text-[11.5px] leading-4', parentActive ? 'text-foreground' : 'text-foreground-secondary')
+                      : cn('text-[12.5px] leading-[18px]', parentActive ? 'font-medium text-foreground' : 'text-foreground/90'),
+                    attention === 'done' && 'font-semibold text-foreground',
+                  )}
+                >
+                  {s.title || s.sessionId.slice(0, 8)}
+                </span>
               </div>
-              {isChild ? null : s.forkedFromSessionFile ? (
+              {!isChild && s.forkedFromSessionFile ? (
                 <div
-                  className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary"
+                  className="truncate text-[10.5px] leading-[14px] text-foreground-secondary/60"
                   title={`${t('common:sidebar.forkedFrom', { title: forkSourceTitle })}\n${s.forkedFromSessionFile}`}
                 >
                   {t('common:sidebar.forkedFrom', { title: forkSourceTitle })}
                 </div>
-              ) : (
-                // The title says what the conversation is (its name, or its first message); the
-                // second line is only its time, so a renamed row does not repeat the first message.
-                <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
-                  {new Date(s.updatedAt).toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
-              )}
+              ) : null}
             </div>
+            {!isChild && attention === 'idle' && s.updatedAt ? (
+              <span className="shrink-0 text-[10.5px] tabular-nums text-foreground-secondary/45">
+                {formatCompactSessionAge(s.updatedAt)}
+              </span>
+            ) : null}
             <SessionAttentionDot
               attention={attention}
               className="ml-0.5"
@@ -373,27 +369,27 @@ export function ProjectSessionTree({
   }
 
   return (
-    <div className="sidebar-session-tree ml-3 border-l border-border/40 pl-1.5 pt-0.5">
-      {error && <div role="status" className="px-2 py-2 text-xs text-foreground-secondary" title={error}>
+    <div className="sidebar-session-tree ml-2.5 border-l border-border/30 pl-1.5 pt-0.5">
+      {error && <div role="status" className="px-2 py-1.5 text-xs text-foreground-secondary" title={error}>
         <p>{t('common:sidebar.sessionReadFailed')}</p>
         <button type="button" className="workbench-button mt-1" disabled={loading} onClick={onRetry}>{t('common:retry')}</button>
       </div>}
       {pendingNew && !searchQuery.trim() ? (
         <div className="mb-0.5">
-          <div className="nav-row nav-row-active sidebar-session-row sidebar-pending-row flex min-h-[38px] items-center gap-0.5 rounded-lg px-1 py-0.5" aria-current="page">
-            <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 py-1.5">
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] leading-[18px] text-foreground">{t('common:sidebar.newSessionDraft')}</div>
-                <div className="truncate text-[11px] leading-[16px] text-foreground-secondary/85">{t('common:sidebar.firstMsgIsTitle')}</div>
-              </div>
-            </div>
+          <div className="nav-row nav-row-active sidebar-session-row sidebar-pending-row flex min-h-[30px] items-center gap-1.5 rounded-md px-2 py-1" aria-current="page">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-foreground">
+              {t('common:sidebar.newSessionDraft')}
+            </span>
           </div>
         </div>
       ) : null}
       {loading ? (
-        <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:loading')}</p>
+        <p className="px-2 py-1.5 text-[11.5px] text-foreground-secondary/65">{t('common:loading')}</p>
       ) : visibleRoots.length === 0 ? (
-        !error && !pendingNew && <p className="px-2 py-2 text-[12px] text-foreground-secondary/80">{t('common:sidebar.noSessions')}</p>
+        !error && !pendingNew && projectSessions.length === 0 && (
+          <p className="px-2 py-1.5 text-[11.5px] text-foreground-secondary/60">{t('common:sidebar.noSessions')}</p>
+        )
       ) : visibleRoots.map((node) => renderSession(node))}
     </div>
   )
@@ -425,20 +421,19 @@ export function ProjectDiskRow({
   sessionTree: React.ReactNode
 }) {
   const { t } = useTranslation()
+  const shortBranch = branch && branch !== name ? branch.replace(/^refs\/heads\//, '') : ''
   return (
     <div key={path} className="sidebar-project-row mb-0.5" data-workspace={path} onContextMenu={onProjectContextMenu}>
-      <div
-        className="nav-row flex min-h-[36px] items-center gap-0.5 rounded-lg pl-0.5 pr-1"
-      >
+      <div className="group/proj nav-row flex min-h-[30px] items-center gap-0.5 rounded-md pl-1 pr-1">
         <button
           type="button"
           onClick={onToggleOpen}
-          className="workbench-icon shrink-0"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-foreground-secondary/70 transition-colors hover:text-foreground"
           aria-label={t('common:sidebar.toggleProject', { name })}
           aria-expanded={open}
         >
           <ChevronRight
-            className="chevron-expand h-3.5 w-3.5 shrink-0 text-foreground-secondary/80"
+            className="chevron-expand h-3 w-3 shrink-0"
             data-open={open ? 'true' : 'false'}
           />
         </button>
@@ -446,13 +441,22 @@ export function ProjectDiskRow({
           type="button"
           onClick={() => guardSessionSwitch(onOpenProject || onToggleOpen)}
           className="sidebar-project-hit flex min-w-0 flex-1 items-center gap-1.5 px-1 py-1 text-left"
-          title={path}
+          title={shortBranch ? `${path} (${shortBranch})` : path}
           aria-current={active ? 'location' : undefined}
         >
-          <span className="min-w-0 flex-1">
-            <span className={cn('block truncate text-[13px] leading-5', active ? 'font-semibold text-foreground' : 'font-medium text-foreground-secondary')}>{name}</span>
-            {branch && branch !== name ? <span className="block truncate text-[11px] text-foreground-secondary" title={branch}>{branch.replace(/^refs\/heads\//, '')}</span> : null}
+          <span
+            className={cn(
+              'min-w-0 truncate text-[12.5px] leading-5',
+              active ? 'font-semibold text-foreground' : 'font-medium text-foreground-secondary',
+            )}
+          >
+            {name}
           </span>
+          {shortBranch ? (
+            <span className="max-w-[76px] shrink-0 truncate font-mono text-[10.5px] text-foreground-secondary/50">
+              {shortBranch}
+            </span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -462,7 +466,7 @@ export function ProjectDiskRow({
           }}
           aria-label={t('common:newSession')}
           title={t('common:newSession')}
-          className="sidebar-section-action ml-0.5"
+          className="sidebar-section-action ml-0.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover/proj:opacity-100"
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>
@@ -485,9 +489,7 @@ export function SandboxDialogRow({
 }) {
   const { t } = useTranslation()
   const attention = useUIStore((state) => selectSessionAttention(box.sessionFile, state.sessionAttention))
-  const pinned = useUIStore((state) => isSessionPinned(state.pinnedSessions, box.sessionFile))
-  const displayLabel =
-    box.label?.trim() || t('common:sidebar.tempChat')
+  const displayLabel = box.label?.trim() || t('common:sidebar.tempChat')
   return (
     <div
       key={box.path}
@@ -496,43 +498,26 @@ export function SandboxDialogRow({
       onClick={onOpen}
       onKeyDown={(e) => e.key === 'Enter' && onOpen()}
       onContextMenu={onContextMenu}
+      title={displayLabel}
       className={cn(
-        'nav-row sidebar-session-row mb-0.5 flex min-h-[40px] items-center gap-2.5 rounded-lg px-3 py-2',
-        active ? 'nav-row-active' : 'text-foreground-secondary hover:text-foreground',
+        'nav-row sidebar-session-row mb-0.5 flex min-h-[30px] items-center gap-1.5 rounded-md px-2 py-1',
+        active ? 'nav-row-active text-foreground' : 'text-foreground-secondary hover:text-foreground',
       )}
     >
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            'flex min-w-0 items-center gap-1 text-[13px] leading-[18px] text-foreground',
-            attention === 'done' && 'font-semibold',
-          )}
-        >
-          {pinned ? (
-            <span
-              role="button"
-              tabIndex={-1}
-              title={t('common:sidebar.unpinSession')}
-              onClick={(ev) => {
-                ev.stopPropagation()
-                toggleSessionPinned(box.sessionFile)
-              }}
-              className="inline-flex shrink-0 items-center text-[var(--brand)] hover:opacity-75"
-            >
-              <SessionPinGlyph className="h-3 w-3" />
-            </span>
-          ) : null}
-          <span className="truncate">{displayLabel}</span>
-        </div>
-        <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
-          {new Date(box.createdAt).toLocaleString(undefined, {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </div>
-      </div>
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate text-[12.5px] leading-[18px]',
+          active ? 'font-medium text-foreground' : 'text-foreground/90',
+          attention === 'done' && 'font-semibold text-foreground',
+        )}
+      >
+        {displayLabel}
+      </span>
+      {attention === 'idle' && box.createdAt ? (
+        <span className="shrink-0 text-[10.5px] tabular-nums text-foreground-secondary/45">
+          {formatCompactSessionAge(box.createdAt)}
+        </span>
+      ) : null}
       <SessionAttentionDot
         attention={attention}
         className="ml-0.5"

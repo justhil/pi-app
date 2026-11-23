@@ -2603,22 +2603,38 @@
 .workbench-search input { width: 100%; min-width: 0; min-height: 32px; border: 0; background: transparent; color: hsl(var(--foreground)); font-size: 12px; outline: none; }
 .workbench-search input::-webkit-search-cancel-button { display: none; }
 .workbench-search .workbench-icon { width: 26px; min-height: 28px; margin-right: -6px; }
-.workbench-search.sidebar-search { gap: 4px; padding-right: 0; }
-.sidebar-search input { flex: 1; width: 0; }
-.sidebar-search .workbench-icon { width: 32px; min-height: 32px; margin-right: 0; }
+.workbench-search.sidebar-search {
+  min-height: 30px;
+  gap: 5px;
+  padding: 0 2px 0 8px;
+  border-color: transparent;
+  border-radius: 6px;
+  background: hsl(var(--foreground) / 0.045);
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.workbench-search.sidebar-search:hover {
+  background: hsl(var(--foreground) / 0.068);
+}
+.workbench-search.sidebar-search:focus-within {
+  background: var(--bg-base);
+  border-color: hsl(var(--border) / 0.9);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+.sidebar-search input { flex: 1; width: 0; min-height: 28px; font-size: 12px; }
+.sidebar-search .workbench-icon { width: 26px; min-height: 26px; margin-right: 0; }
 .sidebar-search-scope {
   display: none;
   flex-shrink: 0;
-  min-width: 44px;
-  min-height: 32px;
+  min-width: 38px;
+  min-height: 26px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 8px;
-  border-left: 1px solid hsl(var(--border) / 0.6);
-  border-radius: 0 6px 6px 0;
+  gap: 4px;
+  padding: 0 7px;
+  border-left: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 0 5px 5px 0;
   color: hsl(var(--muted-foreground));
-  font-size: 11px;
+  font-size: 10.5px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -2691,20 +2707,21 @@
 /* Sidebar section headers (对话 / 项目) and their single action share one look and one column. */
 .sidebar-section-head {
   display: flex;
-  min-height: 28px;
+  min-height: 24px;
   align-items: center;
   gap: 4px;
-  padding: 0 4px 4px;
+  padding: 0 2px 2px;
 }
 .sidebar-section-title {
   font-size: 11px;
-  letter-spacing: 0.02em;
-  color: hsl(var(--foreground) / 0.5);
+  font-weight: 500;
+  letter-spacing: 0.015em;
+  color: hsl(var(--foreground) / 0.48);
 }
 .sidebar-section-action {
   display: inline-flex;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;

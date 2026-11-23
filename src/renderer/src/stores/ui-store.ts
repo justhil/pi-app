@@ -349,6 +349,7 @@ export const useUIStore = create<UIState>()(
         rightPanelWidth: s.rightPanelWidth,
         rightPanelBrowserWidth: s.rightPanelBrowserWidth,
         pinnedSessions: s.pinnedSessions,
+        pinnedSessionMeta: s.pinnedSessionMeta,
         browserStageRatio: s.browserStageRatio,
         browserStageLastOpenMode: s.browserStageLastOpenMode,
         rightPanelCollapsed: s.rightPanelCollapsed,
