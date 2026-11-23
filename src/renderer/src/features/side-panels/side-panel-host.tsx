@@ -11,6 +11,9 @@ const TreePanel = lazy(() => import('@renderer/features/rewind/tree-panel').then
 const WorkspaceFilesPanel = lazy(() =>
   import('@renderer/features/workspace-files/workspace-files-panel').then((m) => ({ default: m.WorkspaceFilesPanel })),
 )
+const BrowserPanel = lazy(() =>
+  import('@renderer/features/browser/browser-panel').then((m) => ({ default: m.BrowserPanel })),
+)
 const WorktreesPanel = lazy(() => import('@renderer/features/worktrees/worktrees-panel').then((m) => ({ default: m.WorktreesPanel })))
 const GitHubPanel = lazy(() => import('@renderer/features/github/github-panel').then((m) => ({ default: m.GitHubPanel })))
 
@@ -42,6 +45,7 @@ export function SidePanelHost({ item }: { item: RightPanelCatalogItem | undefine
   if (item.id === 'context') return wrap(<ContextPanel />)
   if (item.id === 'tree') return wrap(<TreePanel />)
   if (item.id === 'files') return wrap(<WorkspaceFilesPanel />)
+  if (item.id === 'browser') return wrap(<BrowserPanel />)
   if (item.id === 'worktrees') return wrap(<WorktreesPanel />)
   if (item.id === 'github') return wrap(<GitHubPanel />)
 

@@ -2,23 +2,25 @@ import { useMemo } from 'react'
 import { PanelRightOpen } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { resolveVisibleDockPanels, useRightDockStore } from '@renderer/stores/right-dock-store'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { useTranslation } from 'react-i18next'
 
-/**
- * Collapsed right rail: panel icons only (no run-status green pulse).
- */
 export function RightPanelCollapsedRail() {
   const { t } = useTranslation()
   const collapsed = useRightPanelHidden()
   const toggleRightPanel = useUIStore((s) => s.toggleRightPanel)
   const activePanel = useUIStore((s) => s.activePanel)
-  const setActivePanel = useUIStore((s) => s.setActivePanel)
   const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
   const rightPanelPrefs = useUIStore((s) => s.rightPanelPrefs)
   const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
   const attention = useUIStore((s) => s.sessionAttention)
+  const bottomTabIds = useRightDockStore((s) => s.bottomTabIds)
+  const dockTopActive = useRightDockStore((s) => s.topActive)
+  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
+  const activatePanelSmart = useRightDockStore((s) => s.activatePanelSmart)
+
   const attentionAlert = Object.values(attention).some(
     (value) => value === 'needs-you' || value === 'done',
   )
@@ -28,10 +30,20 @@ export function RightPanelCollapsedRail() {
     [rightPanelCatalog, rightPanelPrefs, rightPanelOrder, t],
   )
 
+  const { topActive, bottomActive } = useMemo(
+    () =>
+      resolveVisibleDockPanels(
+        panels.map((p) => p.key),
+        activePanel,
+        { bottomTabIds, topActive: dockTopActive, bottomActive: dockBottomActive },
+      ),
+    [panels, activePanel, bottomTabIds, dockTopActive, dockBottomActive],
+  )
+
   if (!collapsed) return null
 
   const openPanel = (panelKey: string) => {
-    setActivePanel(panelKey)
+    activatePanelSmart(panelKey, panels.map((p) => p.key))
     if (collapsed) toggleRightPanel()
   }
 
@@ -44,7 +56,7 @@ export function RightPanelCollapsedRail() {
       <div className="flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto overflow-x-hidden px-1">
         {panels.map((panel) => {
           const Icon = panel.icon
-          const active = activePanel === panel.key
+          const active = panel.key === topActive || panel.key === bottomActive
           return (
             <button
               key={panel.key}

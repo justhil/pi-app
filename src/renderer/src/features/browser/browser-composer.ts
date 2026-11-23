@@ -15,9 +15,7 @@ export interface ComposerFile {
  */
 export function sendToComposer(payload: { text?: string; files?: ComposerFile[] }): void {
   const ui = useUIStore.getState()
-  if (ui.browserStageMode === 'full') {
-    ui.setBrowserStageMode('split-50')
-  } else if (ui.browserChatExpand) {
+  if (ui.browserChatExpand) {
     useUIStore.setState({ browserChatExpand: false })
   }
   const key = capabilityKey(ui.historySessionFile)

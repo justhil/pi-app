@@ -19,6 +19,7 @@ import {
   Globe,
   History,
   KeyRound,
+  Maximize2,
   MessageSquarePlus,
   Moon,
   MoreHorizontal,
@@ -46,6 +47,7 @@ import { ipcClient } from '@renderer/lib/ipc-client'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { isPanelVisibleInRightDock, useRightDockStore } from '@renderer/stores/right-dock-store'
 import { SessionRunningPixelGrid } from '@renderer/features/workspace/session-running-pixel-grid'
 import { AnnotationLayer } from './annotation-layer'
 import { buildSuggestions, type Suggestion } from './address-suggestions'
@@ -150,13 +152,20 @@ export function BrowserPanel() {
   const historySessionFile = useUIStore((s) => s.historySessionFile)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelCollapsed = useRightPanelHidden()
-  const browserStageMode = useUIStore((s) => s.browserStageMode)
+  const browserChatExpand = useUIStore((s) => s.browserChatExpand)
+  const dockBottomTabs = useRightDockStore((s) => s.bottomTabIds)
+  const dockTopActive = useRightDockStore((s) => s.topActive)
+  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
 
   const order = useMemo(() => visibleTabsForSession(tabs, rawOrder, historySessionFile), [tabs, rawOrder, historySessionFile])
   const activeTabId = rawActiveTabId && order.includes(rawActiveTabId) ? rawActiveTabId : (order.at(-1) ?? null)
   const activeTab = activeTabId ? tabs[activeTabId] : undefined
   const pageShown = !!activeTab && activeTab.url !== 'about:blank' && !activeTab.sleeping
-  const isStageActive = browserStageMode !== 'closed' || (activePanel === 'browser' && !rightPanelCollapsed)
+  void activePanel
+  void dockBottomTabs
+  void dockTopActive
+  void dockBottomActive
+  const isStageActive = !rightPanelCollapsed && isPanelVisibleInRightDock('browser')
 
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
@@ -523,8 +532,8 @@ export function BrowserPanel() {
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-background" onKeyDown={onRootKeyDown}>
-      {/* Row 1: Tab Bar (h-11 aligned cleanly with RightPanelTabs baseline) */}
-      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border/50 bg-[var(--surface-sidebar)]/65 px-2">
+      {/* Row 1: Compact Browser Tab Bar inside RightDock pane */}
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/50 bg-[var(--surface-sidebar)]/55 px-1.5">
         <div
           ref={tabStripRef}
           className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
@@ -886,16 +895,40 @@ export function BrowserPanel() {
           ) : null}
         </div>
 
-        <DownloadsMenu buttonClass={navButton} />
-
+        {area.width >= 430 ? (
+          <>
+            <DownloadsMenu buttonClass={navButton} />
+            <button
+              type="button"
+              className={navButton}
+              title={t('sync.button')}
+              aria-label={t('sync.button')}
+              onClick={() => setSyncDialogOpen(true)}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+          </>
+        ) : null}
         <button
           type="button"
-          className={navButton}
-          title={t('sync.button')}
-          aria-label={t('sync.button')}
-          onClick={() => setSyncDialogOpen(true)}
+          className={cn(navButton, browserChatExpand && 'bg-[var(--bg-active)] text-foreground')}
+          title={browserChatExpand ? t('nav.collapseFromChat') : t('nav.expandOverChat')}
+          aria-label={browserChatExpand ? t('nav.collapseFromChat') : t('nav.expandOverChat')}
+          aria-pressed={browserChatExpand}
+          onClick={() =>
+            useUIStore.setState((s) => ({
+              browserChatExpand: !s.browserChatExpand,
+              filesPreviewChatExpand: false,
+            }))
+          }
         >
-          <KeyRound className="h-3.5 w-3.5" />
+          {browserChatExpand ? (
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
+              <path d="M2.5 9.5h4v4M13.5 6.5h-4v-4M6.5 9.5l-4.5 4.5M9.5 6.5l4.5-4.5" />
+            </svg>
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
         </button>
 
         <div className="relative shrink-0">
@@ -919,6 +952,20 @@ export function BrowserPanel() {
                 aria-label={t('nav.more')}
                 className="absolute right-0 top-8 z-50 w-[236px] rounded-lg border border-border/60 bg-popover p-1 text-[12px] text-popover-foreground shadow-lg"
               >
+                {area.width < 430 ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      setSyncDialogOpen(true)
+                    }}
+                  >
+                    <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="flex-1">{t('sync.button')}</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="menuitem"

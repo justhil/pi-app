@@ -270,6 +270,11 @@ export interface UIState {
   setSidebarActiveSessionsOpen: (open: boolean) => void
   rightPanelWidth: number
   setRightPanelWidth: (w: number) => void
+  rightPanelBrowserWidth: number
+  setRightPanelBrowserWidth: (w: number) => void
+  pinnedSessions: string[]
+  setPinnedSessions: (files: string[]) => void
+  togglePinSession: (sessionFile: string) => boolean
   rightPanelCollapsed: boolean
   /** Keep a column of panel icons while the right panel is collapsed (default: off, nothing shows). */
   rightPanelRailIcons: boolean

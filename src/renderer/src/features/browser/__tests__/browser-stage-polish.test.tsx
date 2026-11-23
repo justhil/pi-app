@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { useRightDockStore } from '@renderer/stores/right-dock-store'
 import { buildSuggestions } from '../address-suggestions'
 import { sendToComposer } from '../browser-composer'
 import { useBrowserStore } from '../browser-store'
@@ -26,7 +27,8 @@ vi.mock('react-i18next', async (importOriginal) => {
 afterEach(() => {
   cleanup()
   invokeMock.mockReset()
-  useUIStore.getState().setBrowserStageMode('closed')
+  useUIStore.setState({ browserChatExpand: false, activePanel: 'browser', rightPanelCollapsed: false })
+  useRightDockStore.setState({ bottomTabIds: [], topActive: 'browser', bottomActive: null })
   useBrowserStore.setState({
     tabs: {},
     order: [],
@@ -38,24 +40,12 @@ afterEach(() => {
   })
 })
 
-describe('Non-intrusive Browser Stage & Omnibox polish', () => {
-  it('defaults to 5:5 split when toggled, switches to 7:3/full, and keeps 5:5 split when sending to composer', () => {
-    const ui = useUIStore.getState()
-    ui.toggleBrowserStage()
-    expect(useUIStore.getState().browserStageMode).toBe('split-50')
-    expect(useUIStore.getState().browserStageRatio).toBe(0.5)
-
-    useUIStore.getState().setBrowserStageMode('split-70')
-    expect(useUIStore.getState().browserStageRatio).toBeGreaterThan(0.6)
-
-    // Sending to composer keeps split-70 open instead of collapsing browser!
-    sendToComposer({ text: 'Check this page' })
-    expect(useUIStore.getState().browserStageMode).toBe('split-70')
-
-    // Sending from full stage gracefully steps down to 5:5 split so Composer is immediately visible
-    useUIStore.getState().setBrowserStageMode('full')
-    sendToComposer({ text: 'From fullscreen' })
-    expect(useUIStore.getState().browserStageMode).toBe('split-50')
+describe('RightDock Browser Panel, Omnibox & HUD polish', () => {
+  it('remembers separate spacious rightPanelBrowserWidth (580px) vs regular rightPanelWidth (360px) and exits full-chat expand on sendToComposer', () => {
+    expect(useUIStore.getState().rightPanelBrowserWidth).toBe(580)
+    useUIStore.setState({ browserChatExpand: true })
+    sendToComposer({ text: 'Inspect this element' })
+    expect(useUIStore.getState().browserChatExpand).toBe(false)
   })
 
   it('merges open tabs, bookmarks, dev servers, and history in unified Omnibox suggestions', () => {
@@ -89,7 +79,6 @@ describe('Non-intrusive Browser Stage & Omnibox polish', () => {
   })
 
   it('renders live Agent Progress HUD outside the native WebContentsView viewport rect', () => {
-    useUIStore.getState().setBrowserStageMode('split-50')
     useBrowserStore.setState({
       tabs: {
         t1: {
@@ -106,8 +95,8 @@ describe('Non-intrusive Browser Stage & Omnibox polish', () => {
       },
       order: ['t1'],
       activeTabId: 't1',
-      agentAction: { tabId: 't1', action: 'browser_click' },
-      agentSteps: [{ id: 's1', tabId: 't1', action: 'browser_click', status: 'running', at: Date.now() }],
+      agentAction: { tabId: 't1', action: 'click #save' },
+      agentSteps: [{ id: 's1', tabId: 't1', action: 'click #save', status: 'running', at: Date.now() }],
       hydrated: true,
     })
 

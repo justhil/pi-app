@@ -63,6 +63,11 @@ type ShellSlice = Pick<
   | 'setSidebarActiveSessionsOpen'
   | 'rightPanelWidth'
   | 'setRightPanelWidth'
+  | 'rightPanelBrowserWidth'
+  | 'setRightPanelBrowserWidth'
+  | 'pinnedSessions'
+  | 'setPinnedSessions'
+  | 'togglePinSession'
   | 'rightPanelCollapsed'
   | 'rightPanelRailIcons'
   | 'setRightPanelRailIcons'
@@ -168,6 +173,22 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),
+    rightPanelBrowserWidth: 580,
+    setRightPanelBrowserWidth: (width) =>
+      set({ rightPanelBrowserWidth: Math.min(Math.max(width, 320), 9999) }),
+    pinnedSessions: [],
+    setPinnedSessions: (files) => set({ pinnedSessions: [...new Set(files.filter(Boolean))] }),
+    togglePinSession: (sessionFile) => {
+      const normalized = sessionFile.trim().replace(/\\/g, '/')
+      if (!normalized) return false
+      const cur = get().pinnedSessions
+      const exists = cur.some((f) => f.replace(/\\/g, '/').toLowerCase() === normalized.toLowerCase())
+      const next = exists
+        ? cur.filter((f) => f.replace(/\\/g, '/').toLowerCase() !== normalized.toLowerCase())
+        : [normalized, ...cur]
+      set({ pinnedSessions: next })
+      return !exists
+    },
     // A fresh install starts with the conversation alone; the top bar button opens the panel.
     rightPanelCollapsed: true,
     rightPanelRailIcons: false,

@@ -86,6 +86,8 @@ export interface StoreSchema {
   sessionDisplayNames: Record<string, string>
   /** 侧栏项目/目录自定义显示名，键为 projectDisplayNameKey(path, isRepositoryGroup) */
   projectDisplayNames: Record<string, string>
+  /** 侧栏收藏置顶的会话文件列表 */
+  pinnedSessions: string[]
   /** 从侧栏列表中移除/隐藏的 Git worktree 路径 */
   hiddenWorktrees: string[]
   /** 语音输入 ASR 配置 */
@@ -139,6 +141,7 @@ const store = new Store<StoreSchema>({
       context: true,
       intercom: false,
       tree: true,
+      browser: true,
       worktrees: true,
       github: true,
     },
@@ -168,6 +171,7 @@ const store = new Store<StoreSchema>({
     uiCustomization: DEFAULT_UI_CUSTOMIZATION,
     sessionDisplayNames: {},
     projectDisplayNames: {},
+    pinnedSessions: [],
     hiddenWorktrees: [],
     asrConfig: {
       provider: 'codex-asr-builtin',

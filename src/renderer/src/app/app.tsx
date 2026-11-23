@@ -32,7 +32,9 @@ import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { cn } from '@renderer/lib/utils'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
-import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
+import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
+import { RightDock } from '@renderer/features/shell/right-dock'
+import { isPanelVisibleInRightDock, useRightDockStore } from '@renderer/stores/right-dock-store'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
 import {
   normalizeTimelineMaxAutoExpandedTools,
@@ -43,7 +45,7 @@ import { normalizeUiCustomization } from '@shared/ui-customization'
 import { applyUserMessageStyleToDocument } from '@renderer/features/settings/settings-draft'
 import { applyUiCustomizationToDocument } from '@renderer/lib/theme/apply-ui-customization'
 import { usePanelNavigationSuppression } from '@renderer/lib/panel-animation-guard'
-import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
+
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
 import { AppToaster } from '@renderer/components/app/app-toaster'
 import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
@@ -80,9 +82,7 @@ type View = 'main' | 'settings'
 const SettingsPage = lazy(() =>
   import('@renderer/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })),
 )
-const BrowserStagePanel = lazy(() =>
-  import('@renderer/features/browser/browser-panel').then((m) => ({ default: m.BrowserPanel })),
-)
+
 const ModelPicker = lazy(() =>
   import('@renderer/features/composer/model-picker').then((m) => ({ default: m.ModelPicker })),
 )
@@ -122,8 +122,9 @@ export default function App() {
   const [studioSeedTheme, setStudioSeedTheme] = useState<import('@shared/custom-theme').CustomTheme | undefined>(undefined)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
-  const browserStageMode = useUIStore((s) => s.browserStageMode)
-  const toggleBrowserStage = useUIStore((s) => s.toggleBrowserStage)
+  const dockBottomTabs = useRightDockStore((s) => s.bottomTabIds)
+  const dockTopActive = useRightDockStore((s) => s.topActive)
+  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
   const browserTabCount = useBrowserStore((s) => s.order.length)
   const browserAgentBusy = useBrowserStore((s) => Boolean(s.agentAction))
   useEffect(() => {
@@ -131,7 +132,12 @@ export default function App() {
       const mod = window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
       if (mod && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        useUIStore.getState().toggleBrowserStage()
+        const hidden = isRightPanelHidden({
+          collapsed: useUIStore.getState().rightPanelCollapsed,
+          expandedOnNarrow: useUIStore.getState().rightPanelExpandedOnNarrow,
+          windowWidth: window.innerWidth,
+        })
+        usePanelIntentStore.getState().toggleRightPanelTab('browser', !hidden)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -412,7 +418,10 @@ export default function App() {
     gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
   const navSuppressed = usePanelNavigationSuppression(`${currentWorkspace || ''}::${historySessionFile || ''}`)
   const PANELS = buildRightPanelTabs(rightPanelCatalog, panelPrefs, t, rightPanelOrder)
-  const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
+  // Subscribe to dock slices so sidebar footer highlights update immediately on split/tab switch
+  void dockBottomTabs
+  void dockTopActive
+  void dockBottomActive
 
   const isHomeMode =
     !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
@@ -496,15 +505,14 @@ export default function App() {
                       type="button"
                       title={t('common:panel.worktrees')}
                       aria-label={t('common:panel.worktrees')}
-                      aria-pressed={!rightPanelHidden && browserStageMode === 'closed' && activePanel === 'worktrees'}
+                      aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('worktrees')}
                       onClick={() =>
                         usePanelIntentStore.getState().toggleRightPanelTab('worktrees', !rightPanelHidden)
                       }
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
                         !rightPanelHidden &&
-                          browserStageMode === 'closed' &&
-                          activePanel === 'worktrees' &&
+                          isPanelVisibleInRightDock('worktrees') &&
                           'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
@@ -514,15 +522,14 @@ export default function App() {
                       type="button"
                       title={t('common:panel.github')}
                       aria-label={t('common:panel.github')}
-                      aria-pressed={!rightPanelHidden && browserStageMode === 'closed' && activePanel === 'github'}
+                      aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('github')}
                       onClick={() =>
                         usePanelIntentStore.getState().toggleRightPanelTab('github', !rightPanelHidden)
                       }
                       className={cn(
                         'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
                         !rightPanelHidden &&
-                          browserStageMode === 'closed' &&
-                          activePanel === 'github' &&
+                          isPanelVisibleInRightDock('github') &&
                           'bg-[var(--bg-active)] text-foreground',
                       )}
                     >
@@ -535,11 +542,15 @@ export default function App() {
                   data-pi-slot="sidebar-browser-toggle"
                   title={t('browser:stage.toggleTooltip')}
                   aria-label={t('browser:stage.toggleTooltip')}
-                  aria-pressed={browserStageMode !== 'closed'}
-                  onClick={toggleBrowserStage}
+                  aria-pressed={!rightPanelHidden && isPanelVisibleInRightDock('browser')}
+                  onClick={() =>
+                    usePanelIntentStore.getState().toggleRightPanelTab('browser', !rightPanelHidden)
+                  }
                   className={cn(
                     'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground',
-                    browserStageMode !== 'closed' && 'bg-[var(--bg-active)] text-foreground',
+                    !rightPanelHidden &&
+                      isPanelVisibleInRightDock('browser') &&
+                      'bg-[var(--bg-active)] text-foreground',
                   )}
                 >
                   <Globe className="h-4 w-4" />
@@ -585,31 +596,14 @@ export default function App() {
             </MainColumnWithTimelineScroll>
             </SplitView>
           }
-          browserStage={
-            browserStageMode !== 'closed' ? (
-              <ErrorBoundary label="browser-stage">
-                <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
-                  <BrowserStagePanel />
-                </Suspense>
-              </ErrorBoundary>
-            ) : null
-          }
           right={
             <RightPanel>
-              <RightPanelTabs
+              <RightDock
                 panels={PANELS}
-                activePanel={activePanel}
-                setActivePanel={setActivePanel}
+                catalog={rightPanelCatalog}
+                rightPanelHidden={rightPanelHidden}
+                navSuppressed={navSuppressed}
               />
-              {!rightPanelHidden ? (
-                <div className="flex-1 overflow-hidden" data-nav-suppress={navSuppressed ? 'true' : undefined}>
-                  <ErrorBoundary label="panel">
-                    <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
-                      <SidePanelHost item={activeCatalogItem} />
-                    </Suspense>
-                  </ErrorBoundary>
-                </div>
-              ) : null}
             </RightPanel>
           }
           bottom={<TerminalDrawer />}

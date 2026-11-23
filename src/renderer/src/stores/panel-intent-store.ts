@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { useUIStore } from './ui-store'
+import { isPanelVisibleInRightDock, useRightDockStore } from './right-dock-store'
 
 interface PanelIntentState {
   focusedPrNumber: number | null
   openWorktreeCreateSignal: number
   openGitHubPr: (prNumber: number | null) => void
-  toggleRightPanelTab: (panelId: 'worktrees' | 'github', isCurrentlyVisible: boolean) => void
+  toggleRightPanelTab: (panelId: 'worktrees' | 'github' | 'browser', isRightPanelOpen: boolean) => void
   openWorktreesPanel: (opts?: { expandCreate?: boolean }) => void
   consumeFocusedPr: () => void
 }
@@ -15,27 +16,27 @@ export const usePanelIntentStore = create<PanelIntentState>((set) => ({
   openWorktreeCreateSignal: 0,
   openGitHubPr: (prNumber) => {
     set({ focusedPrNumber: prNumber })
-    const ui = useUIStore.getState()
-    ui.setActivePanel('github')
-    ui.revealRightPanel()
+    useRightDockStore.getState().activatePanelSmart('github')
+    useUIStore.getState().revealRightPanel()
   },
-  toggleRightPanelTab: (panelId, isCurrentlyVisible) => {
+  toggleRightPanelTab: (panelId, isRightPanelOpen) => {
     const ui = useUIStore.getState()
-    if (isCurrentlyVisible && ui.activePanel === panelId && ui.browserStageMode === 'closed') {
+    const dock = useRightDockStore.getState()
+    const alreadyShowing = isRightPanelOpen && isPanelVisibleInRightDock(panelId)
+    if (alreadyShowing && dock.bottomTabIds.length === 0) {
       ui.toggleRightPanel()
       return
     }
     if (panelId === 'github') set({ focusedPrNumber: null })
-    ui.setActivePanel(panelId)
+    dock.activatePanelSmart(panelId)
     ui.revealRightPanel()
   },
   openWorktreesPanel: (opts) => {
     if (opts?.expandCreate) {
       set((s) => ({ openWorktreeCreateSignal: s.openWorktreeCreateSignal + 1 }))
     }
-    const ui = useUIStore.getState()
-    ui.setActivePanel('worktrees')
-    ui.revealRightPanel()
+    useRightDockStore.getState().activatePanelSmart('worktrees')
+    useUIStore.getState().revealRightPanel()
   },
   consumeFocusedPr: () => set({ focusedPrNumber: null }),
 }))
