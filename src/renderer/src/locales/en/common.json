@@ -86,7 +86,13 @@
       "dismiss": "Dismiss from list"
     },
     "deleteOrphanWorktree": "Also remove the empty Worktree folder ({{name}})",
-    "deletedWithWorktree": "Session and empty Worktree deleted"
+    "deletedWithWorktree": "Session and empty Worktree deleted",
+    "pinSession": "Pin session",
+    "unpinSession": "Unpin session",
+    "pinned": "Session pinned",
+    "unpinned": "Session unpinned",
+    "pinnedSection": "Pinned",
+    "openInTerminal": "Open in terminal"
   },
   "attention": {
     "needsYou": "Needs you",
@@ -111,12 +117,23 @@
     "treeDesc": "Session tree / rewind (like /tree)",
     "filesDesc": "Workspace file preview & explorer",
     "browser": "Browser",
-    "browserDesc": "Built-in browser (experimental)",
+    "browserDesc": "Built-in web browser, inspector, and element annotations",
     "unregistered": "Unregistered panel: {{id}}",
     "github": "GitHub",
     "githubDesc": "Inspect repo PRs, Issues, CI Checks, and launch local or Worktree chats",
     "worktrees": "Worktrees",
-    "worktreesDesc": "Manage and dispatch parallel isolated Git worktrees"
+    "worktreesDesc": "Manage and dispatch parallel isolated Git worktrees",
+    "splitDown": "Split top & bottom",
+    "mergeSingle": "Merge to single pane",
+    "swapPanes": "Swap top & bottom panes",
+    "moveToBottom": "Move to bottom pane",
+    "moveToTop": "Move to top pane",
+    "hidePanel": "Hide this panel",
+    "dropToSplitBottom": "Drop here to open in bottom pane",
+    "doubleClickResetSplit": "Drag to resize split (double-click for 50:50)",
+    "quickJump": "Switch panel",
+    "slotTop": "Top",
+    "slotBottom": "Bottom"
   },
   "settings": {
     "title": "Settings",

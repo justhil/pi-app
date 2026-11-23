@@ -86,7 +86,13 @@
       "dismiss": "从列表移除"
     },
     "deleteOrphanWorktree": "同时删除已无其他会话的 Worktree 目录（{{name}}）",
-    "deletedWithWorktree": "会话与空 Worktree 已一并删除"
+    "deletedWithWorktree": "会话与空 Worktree 已一并删除",
+    "pinSession": "收藏置顶",
+    "unpinSession": "取消置顶",
+    "pinned": "已置顶会话",
+    "unpinned": "已取消置顶",
+    "pinnedSection": "已置顶",
+    "openInTerminal": "在终端中打开"
   },
   "attention": {
     "needsYou": "等你",
@@ -111,12 +117,23 @@
     "treeDesc": "会话树 / 回退（同 /tree）",
     "filesDesc": "工作区文件预览与浏览",
     "browser": "浏览器",
-    "browserDesc": "内置浏览器（实验）",
+    "browserDesc": "内置网页浏览、页面检查与元素标注",
     "unregistered": "未注册面板: {{id}}",
     "github": "GitHub",
     "githubDesc": "查看仓库 PR / Issues 状态、CI Checks 并一键拉起会话或 Worktree",
     "worktrees": "Worktrees",
-    "worktreesDesc": "管理并后台派发多个隔离 Git Worktree 并行任务"
+    "worktreesDesc": "管理并后台派发多个隔离 Git Worktree 并行任务",
+    "splitDown": "开启上下分栏",
+    "mergeSingle": "合并为单栏",
+    "swapPanes": "上下窗格对调",
+    "moveToBottom": "移至下半栏",
+    "moveToTop": "移回上半栏",
+    "hidePanel": "隐藏此面板",
+    "dropToSplitBottom": "松开以在下半栏打开此面板",
+    "doubleClickResetSplit": "拖动调整上下比例（双击恢复 5:5）",
+    "quickJump": "切换面板",
+    "slotTop": "上",
+    "slotBottom": "下"
   },
   "settings": {
     "title": "设置",

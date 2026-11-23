@@ -15,6 +15,7 @@ import { selectActiveSubagentSessionChildren } from '@renderer/lib/subagent-sess
 import type { SubagentSessionChild } from '@renderer/lib/subagent-session-types'
 import { useToolCardCatalogReady } from '@renderer/features/timeline/tool-card-registry'
 import { SessionAttentionDot } from './session-attention-dot'
+import { SessionPinGlyph, isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import type { SandboxEntry, SessionItem } from './project-sidebar-types'
 import type { SessionMenuFork, SessionMenuTarget } from './session-context-menu-types'
@@ -74,7 +75,18 @@ export function ProjectSessionTree({
     }
     return buildSessionTree(projectSessions, groups)
   }, [currentWorkspace, historySessionFile, liveChildren, projectSessions, subagentSessionGroup, workspacePath])
-  const visibleRoots = useMemo(() => filterSessionTree(tree.roots, searchQuery), [tree, searchQuery])
+  const pinnedSessions = useUIStore((st) => st.pinnedSessions)
+  const visibleRoots = useMemo(() => {
+    const filtered = filterSessionTree(tree.roots, searchQuery)
+    if (!pinnedSessions.length) return filtered
+    const pinned: typeof filtered = []
+    const normal: typeof filtered = []
+    for (const node of filtered) {
+      if (isSessionPinned(pinnedSessions, node.session.sessionFile)) pinned.push(node)
+      else normal.push(node)
+    }
+    return [...pinned, ...normal]
+  }, [tree, searchQuery, pinnedSessions])
   const { sessionsByFile, forksBySource } = useMemo(() => {
     const byFile = new Map<string, SessionItem>()
     const forks = new Map<string, SessionMenuFork[]>()
@@ -207,6 +219,20 @@ export function ProjectSessionTree({
                   attention === 'done' && 'font-semibold',
                 )}
               >
+                {isSessionPinned(pinnedSessions, sessionFile) ? (
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    title={t('common:sidebar.unpinSession')}
+                    onClick={(ev) => {
+                      ev.stopPropagation()
+                      toggleSessionPinned(sessionFile)
+                    }}
+                    className="inline-flex shrink-0 items-center text-[var(--brand)] hover:opacity-75"
+                  >
+                    <SessionPinGlyph className="h-3 w-3" />
+                  </span>
+                ) : null}
                 {s.forkedFromSessionFile ? (
                   <GitFork
                     className="h-3 w-3 shrink-0 text-foreground-secondary"
@@ -459,6 +485,7 @@ export function SandboxDialogRow({
 }) {
   const { t } = useTranslation()
   const attention = useUIStore((state) => selectSessionAttention(box.sessionFile, state.sessionAttention))
+  const pinned = useUIStore((state) => isSessionPinned(state.pinnedSessions, box.sessionFile))
   const displayLabel =
     box.label?.trim() || t('common:sidebar.tempChat')
   return (
@@ -477,11 +504,25 @@ export function SandboxDialogRow({
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            'truncate text-[13px] leading-[18px] text-foreground',
+            'flex min-w-0 items-center gap-1 text-[13px] leading-[18px] text-foreground',
             attention === 'done' && 'font-semibold',
           )}
         >
-          {displayLabel}
+          {pinned ? (
+            <span
+              role="button"
+              tabIndex={-1}
+              title={t('common:sidebar.unpinSession')}
+              onClick={(ev) => {
+                ev.stopPropagation()
+                toggleSessionPinned(box.sessionFile)
+              }}
+              className="inline-flex shrink-0 items-center text-[var(--brand)] hover:opacity-75"
+            >
+              <SessionPinGlyph className="h-3 w-3" />
+            </span>
+          ) : null}
+          <span className="truncate">{displayLabel}</span>
         </div>
         <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
           {new Date(box.createdAt).toLocaleString(undefined, {

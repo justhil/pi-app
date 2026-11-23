@@ -86,7 +86,13 @@
       "dismiss": "Убрать из списка"
     },
     "deleteOrphanWorktree": "Также удалить пустой каталог Worktree ({{name}})",
-    "deletedWithWorktree": "Сессия и пустой Worktree удалены"
+    "deletedWithWorktree": "Сессия и пустой Worktree удалены",
+    "pinSession": "Закрепить диалог",
+    "unpinSession": "Открепить диалог",
+    "pinned": "Диалог закреплён",
+    "unpinned": "Диалог откреплён",
+    "pinnedSection": "Закреплённые",
+    "openInTerminal": "Открыть в терминале"
   },
   "attention": {
     "needsYou": "Нужна ваша помощь",
@@ -110,13 +116,24 @@
     "contextDesc": "Предпросмотр контекста сессии",
     "treeDesc": "Дерево сессий и откат (как /tree)",
     "filesDesc": "Просмотр и проводник файлов проекта",
-    "browser": "Browser",
-    "browserDesc": "Встроенный браузер (экспериментально)",
+    "browser": "Браузер",
+    "browserDesc": "Встроенный браузер, инспектор страниц и пометки элементов",
     "unregistered": "Неподключённая панель: {{id}}",
     "github": "GitHub",
     "githubDesc": "Просмотр PR, Issues, CI-проверок и запуск задач в локальной папке или Worktree",
     "worktrees": "Worktrees",
-    "worktreesDesc": "Управление и параллельный запуск изолированных Git worktree"
+    "worktreesDesc": "Управление и параллельный запуск изолированных Git worktree",
+    "splitDown": "Разделить сверху и снизу",
+    "mergeSingle": "Объединить в одну панель",
+    "swapPanes": "Поменять верх и низ местами",
+    "moveToBottom": "Переместить вниз",
+    "moveToTop": "Вернуть наверх",
+    "hidePanel": "Скрыть панель",
+    "dropToSplitBottom": "Отпустите для открытия в нижней панели",
+    "doubleClickResetSplit": "Потяните для изменения высоты (двойной клик — 50:50)",
+    "quickJump": "Выбрать панель",
+    "slotTop": "Верх",
+    "slotBottom": "Низ"
   },
   "settings": {
     "title": "Настройки",
@@ -460,8 +477,8 @@
   },
   "github": {
     "title": "GitHub · PR и Issues",
-    "prs": "Pull Requests",
-    "issues": "Issues",
+    "prs": "Пул-реквесты",
+    "issues": "Задачи",
     "open": "Открытые",
     "closed": "Закрытые",
     "merged": "Слитые",

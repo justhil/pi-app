@@ -18,6 +18,8 @@ import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { resolveProjectDisplayName, workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { diskProjectName } from './project-sidebar-types'
 import { SessionAttentionDot } from './session-attention-dot'
+import { SessionContextMenuPortal } from './session-context-menu'
+import { useSessionContextMenu } from './use-session-context-menu'
 
 type PreparedSessionMeta = {
   sessionId: string
@@ -50,6 +52,9 @@ export function SidebarActiveSessionsDrawer() {
   const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionItem[]>>({})
   const [preparedByFile, setPreparedByFile] = useState<Record<string, PreparedSessionMeta>>({})
   const [sessionDisplayNames, setSessionDisplayNames] = useState<Record<string, string>>({})
+  const sessionMenu = useSessionContextMenu(() => {
+    window.dispatchEvent(new CustomEvent('pi-desktop:sidebar-reload'))
+  })
 
   useVisibleInterval(() => setNow(Date.now()), 30_000)
 
@@ -262,6 +267,15 @@ export function SidebarActiveSessionsDrawer() {
                   key={entry.sessionFile}
                   data-drawer-session={entry.sessionFile}
                   data-attention={entry.attention}
+                  onContextMenu={(e) => {
+                    if (!workspacePath) return
+                    sessionMenu.open(e, {
+                      sessionId: match?.sessionId || prepared?.sessionId || '',
+                      sessionFile: entry.sessionFile,
+                      title: rawTitle,
+                      workspacePath,
+                    })
+                  }}
                   className={cn(
                     'nav-row group relative flex min-h-[30px] items-center gap-2 rounded-lg px-2 py-1 text-[12.5px]',
                     isCurrent
@@ -323,6 +337,11 @@ export function SidebarActiveSessionsDrawer() {
           </div>
         )}
       </SidebarAnimatedCollapse>
+      <SessionContextMenuPortal
+        menu={sessionMenu.menu}
+        onClose={sessionMenu.close}
+        onSessionsChange={() => window.dispatchEvent(new CustomEvent('pi-desktop:sidebar-reload'))}
+      />
     </section>
   )
 }

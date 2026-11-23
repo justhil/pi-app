@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, Copy, FolderOpen, GitFork, Pencil, Play, Trash2, Columns2 } from '@renderer/components/icons'
+import { SessionPinGlyph, isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { workspacePathsEqual } from '@shared/workspace-path'
@@ -41,6 +42,7 @@ export function SessionContextMenuPortal({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
+  const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
   // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
   const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
@@ -203,6 +205,24 @@ export function SessionContextMenuPortal({
                 if (!(e.target as HTMLElement).closest('[data-fork-item]')) setForkAnchor(null)
               }}
             >
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const nowPinned = toggleSessionPinned(menu.target.sessionFile)
+                    toast.success(nowPinned ? t('common:sidebar.pinned') : t('common:sidebar.unpinned'))
+                    onClose()
+                  }}
+                >
+                  <SessionPinGlyph className="h-3 w-3 shrink-0" />
+                  {isSessionPinned(pinnedSessions, menu.target.sessionFile)
+                    ? t('common:sidebar.unpinSession')
+                    : t('common:sidebar.pinSession')}
+                </button>
+              ) : null}
               {menu.target.sessionFile &&
               selectSessionAttention(menu.target.sessionFile, useUIStore.getState().sessionAttention) !==
                 'working' ? (

@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createSidebarShiftGuard } from '@renderer/lib/sidebar-shift-guard'
+import { SessionPinGlyph, isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
+import { cn } from '@renderer/lib/utils'
 import { usePanelIntentStore } from '@renderer/stores/panel-intent-store'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -62,6 +64,8 @@ export function ProjectSidebar({
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const recentProjects = useUIStore((s) => s.recentProjects)
   const projectDisplayNames = useUIStore((s) => s.projectDisplayNames)
+  const pinnedSessions = useUIStore((s) => s.pinnedSessions)
+  const [pinnedOpen, setPinnedOpen] = useState(true)
   const sessions = useUIStore((s) => s.sessions)
   const sessionsWorkspace = useUIStore((s) => s.sessionsWorkspace)
   const currentKey = workspacePathKey(currentWorkspace)
@@ -220,6 +224,17 @@ export function ProjectSidebar({
   }, [activeInTempChats])
 
   const sessionMenu = useSessionContextMenu(refreshSessionsAfterMutation)
+  useEffect(() => {
+    void ipcClient
+      .invoke('settings.get', { key: 'pinnedSessions' })
+      .then((res) => {
+        const saved = res?.settings?.pinnedSessions as string[] | undefined
+        if (Array.isArray(saved) && saved.length > 0 && useUIStore.getState().pinnedSessions.length === 0) {
+          useUIStore.getState().setPinnedSessions(saved)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const onChanged = () => refreshSandboxes()
@@ -478,6 +493,64 @@ export function ProjectSidebar({
     />
   }
 
+  const sidebarContainerRef = useRef<HTMLDivElement>(null)
+  const shiftGuardRef = useRef<ReturnType<typeof createSidebarShiftGuard> | null>(null)
+  useEffect(() => {
+    const el = sidebarContainerRef.current
+    if (!el) return
+    const guard = createSidebarShiftGuard(el)
+    shiftGuardRef.current = guard
+    return () => {
+      guard.dispose()
+      shiftGuardRef.current = null
+    }
+  }, [collapsed])
+  useLayoutEffect(() => {
+    shiftGuardRef.current?.update()
+  })
+
+  const sortedVisibleSandboxes = useMemo(() => {
+    if (!pinnedSessions.length) return visibleSandboxes
+    const pinned: SandboxEntry[] = []
+    const rest: SandboxEntry[] = []
+    for (const box of visibleSandboxes) {
+      if (isSessionPinned(pinnedSessions, box.sessionFile)) pinned.push(box)
+      else rest.push(box)
+    }
+    return [...pinned, ...rest]
+  }, [visibleSandboxes, pinnedSessions])
+
+  const pinnedQuickItems = useMemo(() => {
+    if (!pinnedSessions.length) return []
+    const out: Array<
+      | { kind: 'project'; session: SessionItem; workspacePath: string; workspaceLabel: string }
+      | { kind: 'sandbox'; box: SandboxEntry }
+    > = []
+    for (const pinnedFile of pinnedSessions) {
+      const sb = sandboxes.find((b) => sessionFilesEqual(b.sessionFile, pinnedFile))
+      if (sb) {
+        out.push({ kind: 'sandbox', box: sb })
+        continue
+      }
+      for (const path of diskPaths) {
+        const list = workspacePathsEqual(path, currentWorkspace)
+          ? sessions
+          : (sessionsByWorkspace[workspacePathKey(path)] ?? [])
+        const hit = list.find((s) => sessionFilesEqual(s.sessionFile, pinnedFile))
+        if (hit) {
+          out.push({
+            kind: 'project',
+            session: hit,
+            workspacePath: path,
+            workspaceLabel: resolveProjectDisplayName(projectDisplayNames, path, diskProjectName(path)),
+          })
+          break
+        }
+      }
+    }
+    return out
+  }, [pinnedSessions, sandboxes, diskPaths, currentWorkspace, sessions, sessionsByWorkspace, projectDisplayNames])
+
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-1 py-1">
@@ -500,22 +573,6 @@ export function ProjectSidebar({
       </div>
     )
   }
-
-  const sidebarContainerRef = useRef<HTMLDivElement>(null)
-  const shiftGuardRef = useRef<ReturnType<typeof createSidebarShiftGuard> | null>(null)
-  useEffect(() => {
-    const el = sidebarContainerRef.current
-    if (!el) return
-    const guard = createSidebarShiftGuard(el)
-    shiftGuardRef.current = guard
-    return () => {
-      guard.dispose()
-      shiftGuardRef.current = null
-    }
-  }, [])
-  useLayoutEffect(() => {
-    shiftGuardRef.current?.update()
-  })
 
   return (
     <div ref={sidebarContainerRef} className="flex flex-col pb-1">
@@ -550,6 +607,110 @@ export function ProjectSidebar({
         </div>
       </div>
       {searchActive && !visiblePaths.length && !visibleSandboxes.length && <div className="px-4 py-6 text-center text-xs text-foreground-secondary"><p>{t('common:sidebar.noResults')}</p><button type="button" className="workbench-button mt-2" onClick={() => setSessionQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
+
+      {pinnedQuickItems.length > 0 && !searchActive ? (
+        <div className="px-3 pt-2" data-pi-slot="sidebar-pinned-section">
+          <div className="sidebar-section-head">
+            <button
+              type="button"
+              onClick={() => setPinnedOpen((v) => !v)}
+              className="sidebar-section-hit flex min-w-0 flex-1 items-center gap-1 px-1 py-0.5 text-left"
+              aria-expanded={pinnedOpen}
+            >
+              <ChevronRight
+                className="chevron-expand h-3 w-3 shrink-0 text-foreground-secondary/80"
+                data-open={pinnedOpen ? 'true' : 'false'}
+              />
+              <SessionPinGlyph className="h-3 w-3 shrink-0 text-[var(--brand)]" />
+              <span className="sidebar-section-title">{t('common:sidebar.pinnedSection')}</span>
+              <span className="text-[10px] tabular-nums text-foreground-secondary/60">
+                {pinnedQuickItems.length}
+              </span>
+            </button>
+          </div>
+          <SidebarAnimatedCollapse open={pinnedOpen}>
+            <div className="space-y-0.5 px-0.5">
+              {pinnedQuickItems.map((entry) => {
+                if (entry.kind === 'sandbox') {
+                  const active = entry.box.path === currentWorkspace && !ephemeralSandboxDraft
+                  return (
+                    <div
+                      key={entry.box.sessionFile || entry.box.path}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => void openSandboxDialog(entry.box)}
+                      onKeyDown={(e) => e.key === 'Enter' && void openSandboxDialog(entry.box)}
+                      onContextMenu={(e) => sandboxMenu.open(e, entry.box)}
+                      className={cn(
+                        'nav-row group flex min-h-[32px] items-center gap-2 rounded-lg px-2.5 py-1 text-[12.5px]',
+                        active ? 'nav-row-active text-foreground' : 'text-foreground-secondary hover:text-foreground',
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {entry.box.label?.trim() || t('common:sidebar.tempChat')}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-foreground-secondary/65">
+                        {t('common:sidebar.conversations')}
+                      </span>
+                    </div>
+                  )
+                }
+                const s = entry.session
+                const active =
+                  currentSessionId === s.sessionId && workspacePathsEqual(entry.workspacePath, currentWorkspace)
+                return (
+                  <div
+                    key={s.sessionFile || s.sessionId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() =>
+                      void activateWorkspace(entry.workspacePath, {
+                        sessionId: s.sessionId,
+                        sessionFile: s.sessionFile,
+                      })
+                    }
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' &&
+                      void activateWorkspace(entry.workspacePath, {
+                        sessionId: s.sessionId,
+                        sessionFile: s.sessionFile,
+                      })
+                    }
+                    onContextMenu={(e) =>
+                      sessionMenu.open(e, {
+                        sessionId: s.sessionId,
+                        sessionFile: s.sessionFile,
+                        title: s.title || s.sessionId.slice(0, 8),
+                        workspacePath: entry.workspacePath,
+                      })
+                    }
+                    className={cn(
+                      'nav-row group flex min-h-[32px] items-center gap-2 rounded-lg px-2.5 py-1 text-[12.5px]',
+                      active ? 'nav-row-active text-foreground' : 'text-foreground-secondary hover:text-foreground',
+                    )}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{s.title || s.sessionId.slice(0, 8)}</span>
+                    <span className="max-w-[84px] shrink-0 truncate text-[10.5px] text-foreground-secondary/65">
+                      {entry.workspaceLabel}
+                    </span>
+                    <button
+                      type="button"
+                      title={t('common:sidebar.unpinSession')}
+                      onClick={(ev) => {
+                        ev.stopPropagation()
+                        toggleSessionPinned(s.sessionFile)
+                      }}
+                      className="hidden h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground group-hover:inline-flex"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </SidebarAnimatedCollapse>
+        </div>
+      ) : null}
 
       <div className="px-3 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
         <div className="sidebar-section-head">
@@ -591,13 +752,13 @@ export function ProjectSidebar({
             {sandboxes.length === 0 && !ephemeralSandboxDraft ? (
               <p className="px-3 py-2 text-[12px] text-foreground-secondary/80">{t('sidebar.clickToAdd')}</p>
             ) : (
-              visibleSandboxes.map((box) => (
+              sortedVisibleSandboxes.map((box) => (
                 <SandboxDialogRow
                   key={box.path}
                   box={box}
                   active={box.path === currentWorkspace && !ephemeralSandboxDraft}
                   onOpen={() => void openSandboxDialog(box)}
-                  onContextMenu={(e) => sandboxMenu.open(e, box.path, box.label)}
+                  onContextMenu={(e) => sandboxMenu.open(e, box)}
                 />
               ))
             )}
