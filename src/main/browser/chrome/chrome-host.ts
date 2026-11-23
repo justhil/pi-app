@@ -57,7 +57,7 @@ export class ChromeHost implements AgentBrowserHost {
     if (!all) return
     const live = new Set(all.map((t) => key(t.tabId)))
     for (const k of [...this.tabs.keys()]) if (!live.has(k)) this.drop(k)
-    for (const t of all) if (this.tabs.has(key(t.tabId))) this.upsert(t)
+    for (const t of all) if (this.tabs.has(key(t.tabId)) || t.borrowed || t.sessionKey) this.upsert(t)
     const downloads = await this.bridge.call<BrowserDownloadInfo[]>('downloads.list').catch(() => [])
     for (const d of downloads) this.downloadList.set(d.id, d)
   }
@@ -65,7 +65,7 @@ export class ChromeHost implements AgentBrowserHost {
   private upsert(t: ExtTab, sessionKey?: string): Entry | undefined {
     const k = key(t.tabId)
     const prev = this.tabs.get(k)
-    const owner = sessionKey ?? t.sessionKey ?? (prev && prev.info.openedBy !== 'user' ? prev.info.openedBy.sessionKey : null)
+    const owner = sessionKey ?? t.sessionKey ?? (prev && prev.info.openedBy !== 'user' ? prev.info.openedBy.sessionKey : t.borrowed ? 'shared' : null)
     if (!owner) return undefined
     const info: BrowserTabInfo = {
       tabId: k,
@@ -93,6 +93,16 @@ export class ChromeHost implements AgentBrowserHost {
 
   list(): { tabs: BrowserTabInfo[]; activeTabId: string | null } {
     return { tabs: [...this.tabs.values()].map((e) => e.info), activeTabId: null }
+  }
+
+  listDetailed(): Array<{ tabId: string; title: string; url: string; borrowed: boolean; sessionKey: string | null }> {
+    return [...this.tabs.values()].map((e) => ({
+      tabId: e.info.tabId,
+      title: e.info.title,
+      url: e.info.url,
+      borrowed: e.borrowed,
+      sessionKey: e.info.openedBy !== 'user' ? e.info.openedBy.sessionKey : null,
+    }))
   }
 
   async openTab(opts: { url?: string; openedBy?: BrowserTabInfo['openedBy'] }): Promise<BrowserTabInfo> {

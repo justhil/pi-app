@@ -527,6 +527,8 @@ export function CodemodePreview({ item }: { item: ToolTimelineItem; flat?: boole
   )
 }
 
+import { BrowserToolPreview, buildBrowserToolSummary } from './browser-tool-preview'
+
 export function renderNativeToolPreview(
   item: ToolTimelineItem,
   opts?: { flat?: boolean },
@@ -540,6 +542,7 @@ export function renderNativeToolPreview(
   if (name === 'fffind' || name === 'find') return <GrepFindPreview item={item} isFind flat={flat} />
   if (name === 'bash') return <BashPreview item={item} flat={flat} />
   if (name === 'ls') return <LsPreview item={item} flat={flat} />
+  if (name.startsWith('browser_')) return <BrowserToolPreview item={item} />
   return null
 }
 
@@ -593,6 +596,9 @@ export function buildToolSummary(toolName: string, args: unknown, detail?: ToolC
   }
   if (toolName === 'codemode') {
     return firstMeaningfulCodeLine(typeof a.code === 'string' ? a.code : '')
+  }
+  if (toolName.startsWith('browser_')) {
+    return buildBrowserToolSummary(toolName, a as Record<string, unknown>)
   }
   for (const key of ['file_path', 'command', 'path', 'pattern', 'query', 'url']) {
     if (a[key] && typeof a[key] === 'string') return a[key]

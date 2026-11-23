@@ -13,7 +13,7 @@ test('expanded thinking body owns scroll and uses readable typography', () => {
   const bodyRule = css.match(/\.thinking-chain-body\s*\{([^}]*)\}/)?.[1] ?? ''
 
   assert.match(source, /data-independent-scroll/)
-  assert.match(source, /max-h-(?:40|\[[^\]]+\])/)
+  assert.match(source, /max-h-(?:40|96|\[[^\]]+\])/)
   assert.match(source, /overflow-y-auto/)
   assert.match(source, /overscroll-contain/)
   assert.match(source, /text-\[13px\]/)
@@ -33,10 +33,10 @@ function responsiveWidth(centerWidth, ratio, cap) {
 
 test('chat width formula is monotonic across target center widths', () => {
   const centerWidths = [375, 500, 560, 767, 768, 1024, 1440, 1920]
-  const expectedTimeline = [375, 500, 560, 560, 560, 737.28, 1036.8, 1280]
-  const expectedComposer = [375, 500, 560, 560, 560, 696.32, 979.2, 1120]
-  const timelineWidths = centerWidths.map((width) => responsiveWidth(width, 0.72, 1280))
-  const composerWidths = centerWidths.map((width) => responsiveWidth(width, 0.68, 1120))
+  const expectedTimeline = [375, 500, 560, 598.26, 599.04, 798.72, 800, 800]
+  const expectedComposer = [375, 500, 560, 598.26, 599.04, 798.72, 800, 800]
+  const timelineWidths = centerWidths.map((width) => Number(responsiveWidth(width, 0.78, 800).toFixed(2)))
+  const composerWidths = centerWidths.map((width) => Number(responsiveWidth(width, 0.78, 800).toFixed(2)))
 
   assert.deepEqual(timelineWidths, expectedTimeline)
   assert.deepEqual(composerWidths, expectedComposer)
@@ -53,11 +53,11 @@ test('chat widths are driven by center-column responsive CSS', () => {
   const legacyPath = join(root, 'src/renderer/src/lib/chat-content-width.ts')
 
   assert.match(css, /--chat-content-min:\s*560px/)
-  assert.match(css, /--chat-content-ratio:\s*72%/)
-  assert.match(css, /--chat-content-cap:\s*1280px/)
+  assert.match(css, /--chat-content-ratio:\s*78%/)
+  assert.match(css, /--chat-content-cap:\s*800px/)
   assert.match(css, /--timeline-content-max:\s*clamp\(/)
-  assert.match(css, /--composer-content-ratio:\s*68%/)
-  assert.match(css, /--composer-content-cap:\s*1120px/)
+  assert.match(css, /--composer-content-ratio:\s*78%/)
+  assert.match(css, /--composer-content-cap:\s*800px/)
   assert.match(css, /\.chat-content-column\s*\{[^}]*max-width:\s*var\(--timeline-content-max\)/s)
   assert.match(css, /\.composer-dock-inner\s*\{[^}]*max-width:\s*var\(--composer-content-max\)/s)
   assert.doesNotMatch(css, /@media \(max-width: 767px\)[\s\S]*?--(?:timeline|composer)-content-max:\s*100%/)

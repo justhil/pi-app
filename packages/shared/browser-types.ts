@@ -1,6 +1,6 @@
 /** Built-in browser: wire types and pure helpers shared by Renderer and Main. */
 
-import { normalizeSessionFileKey } from './session-file-key'
+import { normalizeSessionFileKey } from './session-file-key.ts'
 
 export type BrowserEngineId = 'electron' | 'stealth' | 'chrome'
 

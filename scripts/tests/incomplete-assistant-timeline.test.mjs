@@ -25,8 +25,7 @@ describe('incomplete assistant after force-quit', () => {
     const text = src('src/renderer/src/features/timeline/timeline.tsx')
     assert.match(text, /interruptedEmpty/)
     assert.match(text, /isInterruptedAssistantRow/)
-    // Only true incomplete leaves show interrupted chrome (not tool-bridge empties)
-    assert.match(text, /Only show interrupted chrome for true incomplete/)
+    assert.match(text, /resolveRewindTargetEntryId/)
   })
 
   it('dispose aborts active turn before session.dispose', () => {

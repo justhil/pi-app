@@ -204,7 +204,11 @@
     "title": "本对话正在使用：我的 Chrome",
     "hint": "AI 在你自己的 Chrome（pi 窗口）里操作。它打开的标签页（点击切到 Chrome）：",
     "disconnected": "Chrome 未连接：请打开装有 pi 扩展的 Chrome（设置 → 浏览器 → 我的 Chrome）。",
-    "noTabs": "还没有打开标签页。"
+    "noTabs": "还没有打开标签页。",
+    "borrowBtn": "借用标签页",
+    "borrowedToast": "已借用该 Chrome 标签页",
+    "noUserTabs": "未检测到可借用的 Chrome 网页标签",
+    "returnBtn": "归还"
   },
   "stage": {
     "toggleTooltip": "内置浏览器分屏（Ctrl/⌘+Shift+B）",

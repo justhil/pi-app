@@ -204,7 +204,11 @@
     "title": "Этот диалог использует «Мой Chrome»",
     "hint": "AI работает в вашем Chrome, в его окне pi. Его вкладки (клик — поднять Chrome на передний план):",
     "disconnected": "Chrome не подключён: откройте Chrome с расширением pi (Settings → Browser → My Chrome).",
-    "noTabs": "Вкладок пока нет."
+    "noTabs": "Вкладок пока нет.",
+    "borrowBtn": "Взять вкладку",
+    "borrowedToast": "Вкладка Chrome передана диалогу",
+    "noUserTabs": "Нет доступных вкладок Chrome",
+    "returnBtn": "Вернуть"
   },
   "stage": {
     "toggleTooltip": "Встроенный браузер (Ctrl/⌘+Shift+B)",

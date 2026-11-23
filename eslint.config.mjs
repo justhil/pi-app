@@ -14,6 +14,7 @@ export default tseslint.config(
       '.pi/**',
       '.pi-subagents/**',
       '.trellis/**',
+      '.vis/**',
       'test/**',
       'tmp/**',
       '参考/**',

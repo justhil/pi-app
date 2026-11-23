@@ -34,7 +34,7 @@ function ToolOutputExpanded({ item }: { item: ToolTimelineItem }) {
   const adapterPreview = tryRenderAdapterToolCard(item, adapterTpl)
   if (adapterPreview) return <>{adapterPreview}</>
   if (!adapterTpl && resolveMcpTool(name, item.toolDetails, item.toolArgs)) return <McpToolPreview item={item} />
-  if (NATIVE_TOOLS.has(name)) {
+  if (name.startsWith('browser_') || NATIVE_TOOLS.has(name)) {
     const native = renderNativeToolPreview(item, { flat: true })
     if (native) return <>{native}</>
   }

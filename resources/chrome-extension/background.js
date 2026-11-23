@@ -384,6 +384,71 @@ chrome.storage.onChanged.addListener((changes, area) => {
   state.retry = 0
   void connect()
 })
+// Local Popup control RPCs (Borrow current tab, Detach yellow debug bar, Return tabs)
+chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
+  void (async () => {
+    await hydrateSessionState()
+    const { port, token } = await chrome.storage.local.get(['port', 'token'])
+    const paired = Boolean(port && token)
+    if (!req || typeof req.cmd !== 'string') return sendResponse({})
+
+    if (req.cmd === 'popup.state') {
+      const allTabs = await chrome.tabs.query({}).catch(() => [])
+      const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => [])
+      const managed = allTabs.filter((t) => state.tabs.has(t.id)).map(tabInfo)
+      return sendResponse({
+        paired,
+        status: state.status,
+        attachedCount: state.attached.size,
+        tabs: managed,
+        activeTab: active
+          ? { tabId: active.id, url: active.url || '', title: active.title || '', managed: state.tabs.has(active.id) }
+          : null,
+      })
+    }
+    if (req.cmd === 'popup.borrowActive') {
+      const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => [])
+      if (!active || !active.id) return sendResponse({ ok: false })
+      const info = await handle('tabs.borrow', { tabId: active.id, sessionKey: 'shared' })
+      send({ event: 'tab.updated', params: info })
+      return sendResponse({ ok: true, tab: info })
+    }
+    if (req.cmd === 'popup.detachAll') {
+      for (const tabId of [...state.attached]) {
+        clearIdleDetach(tabId)
+        state.attached.delete(tabId)
+        await chrome.debugger.detach({ tabId }).catch(() => {})
+      }
+      return sendResponse({ ok: true })
+    }
+    if (req.cmd === 'popup.returnTab' && typeof req.tabId === 'number') {
+      await handle('tabs.return', { tabId: req.tabId })
+      send({ event: 'tab.removed', params: { tabId: req.tabId } })
+      return sendResponse({ ok: true })
+    }
+    if (req.cmd === 'popup.closeTab' && typeof req.tabId === 'number') {
+      await handle('tabs.close', { tabId: req.tabId })
+      send({ event: 'tab.removed', params: { tabId: req.tabId } })
+      return sendResponse({ ok: true })
+    }
+    if (req.cmd === 'popup.focusTab' && typeof req.tabId === 'number') {
+      await handle('tabs.activate', { tabId: req.tabId, focus: true })
+      return sendResponse({ ok: true })
+    }
+    if (req.cmd === 'popup.returnAll') {
+      for (const [tabId, meta] of [...state.tabs.entries()]) {
+        if (meta && meta.borrowed) {
+          await handle('tabs.return', { tabId })
+          send({ event: 'tab.removed', params: { tabId } })
+        }
+      }
+      return sendResponse({ ok: true })
+    }
+    sendResponse({})
+  })()
+  return true
+})
+
 chrome.runtime.onStartup.addListener(() => void connect())
 chrome.runtime.onInstalled.addListener(() => void connect())
 void connect()

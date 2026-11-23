@@ -7,7 +7,9 @@ const root = process.cwd()
 
 describe('Clipboard retention and image preview (H-02 M-02)', () => {
   it('timeline replays clipboard-image segments with path', () => {
-    const tl = readFileSync(join(root, 'src/renderer/src/features/timeline/timeline.tsx'), 'utf8')
+    const tl =
+      readFileSync(join(root, 'src/renderer/src/features/timeline/timeline.tsx'), 'utf8') +
+      readFileSync(join(root, 'src/renderer/src/features/timeline/user-message-content.tsx'), 'utf8')
     assert.match(tl, /clipboard-image/)
     assert.match(tl, /AttachmentChip/)
   })

@@ -4,10 +4,10 @@ import {
   type LocalizedPersonaCopy,
   type PersonaUiLanguage,
   type PurgePrimerTurn,
-} from './agent-purge-presets'
-import { normalizeSessionFileKey } from './session-file-key'
+} from './agent-purge-presets.ts'
+import { normalizeSessionFileKey } from './session-file-key.ts'
 
-export type { LocalizedPersonaCopy, PersonaUiLanguage, PurgePrimerTurn } from './agent-purge-presets'
+export type { LocalizedPersonaCopy, PersonaUiLanguage, PurgePrimerTurn } from './agent-purge-presets.ts'
 
 export const AGENT_PURGE_MODES = ['replace', 'append', 'strict'] as const
 export type AgentPurgeMode = (typeof AGENT_PURGE_MODES)[number]

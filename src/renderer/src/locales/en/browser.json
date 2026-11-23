@@ -204,7 +204,11 @@
     "title": "This conversation uses My Chrome",
     "hint": "The AI works in your own Chrome, in its pi window. Its tabs (click to bring Chrome forward):",
     "disconnected": "Chrome is not connected: open Chrome with the pi extension (Settings → Browser → My Chrome).",
-    "noTabs": "No tabs open yet."
+    "noTabs": "No tabs open yet.",
+    "borrowBtn": "Borrow tab",
+    "borrowedToast": "Borrowed Chrome tab for this chat",
+    "noUserTabs": "No borrowable Chrome http(s) tabs found",
+    "returnBtn": "Return"
   },
   "stage": {
     "toggleTooltip": "Browser Split Stage (Ctrl/⌘+Shift+B)",

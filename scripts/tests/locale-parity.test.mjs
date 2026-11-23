@@ -38,6 +38,8 @@ const UNTRANSLATED_TERMS = new Set([
   'Board',
   'Brand',
   'Browser',
+  'Worktrees',
+  'Worktree',
   'CLI',
   'CSV',
   'ChatGPT',

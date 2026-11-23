@@ -307,7 +307,7 @@
     "thinkingLabel": "Управление цепочкой мыслей",
     "thinkingModes": {
       "anchor": "Якорь",
-      "tool_cot": "Tool CoT",
+      "tool_cot": "Инструментальное мышление (CoT)",
       "suppress": "Подавить",
       "off": "Без вмешательства"
     },

@@ -53,11 +53,35 @@ export function registerBrowserHandlers(): void {
   registerHandler('ipc:browser.chrome.status', async () => chromeBridgeStatus())
   registerHandlerWithSchema('ipc:browser.chrome.setEnabled', z.object({ enabled: z.boolean() }), async (req) => setChromeBridgeEnabled(req.enabled))
   registerHandlerWithSchema('ipc:browser.chrome.tabs', z.object({ sessionFile: z.string().max(4096).optional() }), async (req) => {
-    const tabs = getChromeHost()?.list().tabs ?? []
-    // Tabs of this conversation when it has any (a draft's tabs are keyed by its worker, so fall back to all).
-    const own = req.sessionFile ? tabs.filter((t) => t.openedBy !== 'user' && t.openedBy.sessionKey === req.sessionFile) : []
-    return { tabs: (own.length ? own : tabs).map((t) => ({ tabId: t.tabId, title: t.title, url: t.url })) }
+    const all = getChromeHost()?.listDetailed() ?? []
+    const own = req.sessionFile ? all.filter((t) => t.sessionKey === req.sessionFile || t.sessionKey === 'shared') : []
+    return {
+      tabs: (own.length ? own : all).map((t) => ({
+        tabId: t.tabId,
+        title: t.title,
+        url: t.url,
+        borrowed: t.borrowed,
+      })),
+    }
   })
+  registerHandler('ipc:browser.chrome.userTabs', async () => ({
+    tabs: (await getChromeHost()?.userTabs().catch(() => [])) ?? [],
+  }))
+  registerHandlerWithSchema(
+    'ipc:browser.chrome.borrowTab',
+    z.object({ chromeTabId: z.number().int().positive(), sessionFile: z.string().max(4096).optional() }),
+    async (req) => ({
+      tab: (await getChromeHost()?.borrow(req.chromeTabId, req.sessionFile || 'shared')) ?? null,
+    }),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.chrome.returnTab',
+    z.object({ tabId: z.string().min(1).max(64) }),
+    async (req) => {
+      await getChromeHost()?.giveBack(req.tabId)
+      return { ok: true }
+    },
+  )
   registerHandlerWithSchema('ipc:browser.chrome.focusTab', z.object({ tabId: z.string().min(1).max(64) }), async (req) => {
     getChromeHost()?.focusTab(req.tabId, { window: true })
     return { ok: true }
