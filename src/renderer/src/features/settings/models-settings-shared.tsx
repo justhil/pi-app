@@ -36,15 +36,20 @@ export function maskApiKey(key?: string): string {
 }
 
 export function ProviderAvatar({ preset, label }: { preset?: ProviderPreset; label: string }) {
+  const trimmed = label.trim()
+  const firstChar = trimmed.charAt(0)
+  const avatarText = /[\u4e00-\u9fff]/.test(firstChar)
+    ? firstChar
+    : trimmed.slice(0, 2).toUpperCase()
   return (
     <span
       className={cn(
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white shadow-sm transition-transform duration-motion-fast ease-motion-ease',
-        preset?.accentClass ?? 'bg-muted-foreground/40',
+        'flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] font-bold text-white shadow-xs transition-transform duration-motion-fast ease-motion-ease',
+        preset?.accentClass ?? 'bg-muted-foreground/45',
       )}
       title={label}
     >
-      {label.slice(0, 2).toUpperCase()}
+      {avatarText}
     </span>
   )
 }

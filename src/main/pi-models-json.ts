@@ -176,8 +176,18 @@ function mergeModelWithRetained(
   return retained ? { ...retained, ...draft } : draft
 }
 
+const OWNED_PROVIDER_SCALAR_KEYS = ['name', 'baseUrl', 'api', 'apiKey'] as const
+
 function mergeProviderWithRetained(draft: PiProviderConfig, retained: PiProviderConfig | undefined): PiProviderConfig {
-  const merged = retained ? { ...retained, ...draft } : draft
+  const merged: PiProviderConfig = retained ? { ...retained, ...draft } : { ...draft }
+  if (retained) {
+    for (const field of OWNED_PROVIDER_SCALAR_KEYS) {
+      const val = draft[field]
+      if (val === undefined || (typeof val === 'string' && val.length === 0)) {
+        delete merged[field]
+      }
+    }
+  }
   if (!draft.models || !retained?.models) return merged
   const retainedById = new Map(retained.models.map((model) => [model.id, model]))
   return { ...merged, models: draft.models.map((model) => mergeModelWithRetained(model, retainedById)) }

@@ -124,6 +124,7 @@ export interface ModelInfo {
   id: string
   name: string
   provider: string
+  providerName?: string
   api?: string
   contextWindow: number
   maxOutput: number

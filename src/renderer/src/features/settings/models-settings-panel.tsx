@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
-import { Plus, RefreshCw, Search, Sparkles } from '@renderer/components/icons'
+import { Plus, RefreshCw, Sparkles } from '@renderer/components/icons'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { ipcClient, onAppEvent } from '@renderer/lib/ipc-client'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
@@ -9,14 +9,11 @@ import { useSettingsDirtySlice } from '@renderer/features/settings/use-settings-
 import { notifySettingsDirtyChanged } from '@renderer/features/settings/settings-dirty-registry'
 import type { PiModelsConfigPayload, PiModelsProviderConfig, ModelInfo } from '@shared/ipc-contract'
 import {
-  PROVIDER_PRESETS,
-  allocateProviderKey,
   clonePresetConfig,
-  guessPresetForProvider,
+  isBuiltInSdkProviderId,
   presetLabel,
-  presetTagline,
+  validateProviderKey,
   type ProviderPreset,
-  type ProviderPresetCategory,
 } from '@renderer/features/settings/model-provider-presets'
 import { ManualModelAddDialog } from '@renderer/features/settings/manual-model-add-dialog'
 import type { LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
@@ -24,15 +21,14 @@ import {
   refreshUpstreamCatalog,
   useUpstreamModelCatalogStore,
 } from '@renderer/features/settings/upstream-model-catalog'
-import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry, ProviderAvatar } from './models-settings-shared'
+import { btnOutline, btnPrimary, cloneConfig, configEqual, defaultModelEntry } from './models-settings-shared'
 import { ModelsProviderCard } from './models-provider-card'
 import { ModelsSdkProviderSection } from './models-sdk-provider-section'
+import { ProviderAddDialog } from './provider-add-dialog'
 import { saveModelsConfigDraft } from './save-models-config'
 import { ModelDefaultsSection } from './model-defaults-section'
 import { invalidateAvailableModels, prefetchAvailableModels } from '@renderer/lib/available-models-cache'
 import { cn } from '@renderer/lib/utils'
-
-type PresetFilterCategory = 'all' | ProviderPresetCategory
 
 export function ModelsSettingsPanel() {
   const { t } = useTranslation('settings')
@@ -47,10 +43,7 @@ export function ModelsSettingsPanel() {
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [fetching, setFetching] = useState<string | null>(null)
-  const [addMenuOpen, setAddMenuOpen] = useState(false)
-  const [presetQuery, setPresetQuery] = useState('')
-  const [presetCategory, setPresetCategory] = useState<PresetFilterCategory>('all')
-  const presetSearchRef = useRef<HTMLInputElement>(null)
+  const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [remoteCatalog, setRemoteCatalog] = useState<Record<string, { ids: string[]; error?: string }>>({})
   const [settingsModels, setSettingsModels] = useState<ModelInfo[]>([])
   const [expandedLocalModel, setExpandedLocalModel] = useState<Record<string, boolean>>({})
@@ -64,16 +57,6 @@ export function ModelsSettingsPanel() {
 
   const catalogSnapshot = useUpstreamModelCatalogStore((s) => s.snapshot)
   const catalogLoading = useUpstreamModelCatalogStore((s) => s.loading)
-
-  useEffect(() => {
-    if (!addMenuOpen) {
-      setPresetQuery('')
-      setPresetCategory('all')
-      return
-    }
-    const timer = window.setTimeout(() => presetSearchRef.current?.focus(), 0)
-    return () => window.clearTimeout(timer)
-  }, [addMenuOpen])
 
   const load = useCallback(async () => {
     const res = await ipcClient.invoke('pi.models.get', {})
@@ -90,7 +73,6 @@ export function ModelsSettingsPanel() {
     const keys = Object.keys(cfg.providers || {}).sort((a, b) => a.localeCompare(b))
     setExpanded((prev) => {
       const next = { ...prev }
-      // Expand only the first provider on initial load so multi-provider pages stay scannable.
       keys.forEach((k, idx) => {
         if (next[k] === undefined) next[k] = idx === 0
       })
@@ -170,36 +152,28 @@ export function ModelsSettingsPanel() {
     [sdkModelsByProvider],
   )
 
+  const sdkManagedProviderIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const [provId, list] of Object.entries(sdkModelsByProvider)) {
+      const configuredIds = new Set(
+        (baseline?.providers?.[provId]?.models ?? []).map((m) => m.id),
+      )
+      // Only a true built-in/extension provider supplies models beyond what models.json itself declared.
+      if (list.some((m) => !configuredIds.has(m.id))) {
+        set.add(provId)
+      }
+    }
+    return [...set]
+  }, [baseline, sdkModelsByProvider])
+
   const providerIds = useMemo(
     () => Object.keys(draft?.providers || {}).sort((a, b) => a.localeCompare(b)),
     [draft],
   )
 
-  const filteredPresets = useMemo(() => {
-    const needle = presetQuery.trim().toLowerCase()
-    return PROVIDER_PRESETS.filter((preset) => {
-      if (presetCategory !== 'all' && preset.category !== presetCategory) return false
-      if (!needle) return true
-      const label = presetLabel(preset, t).toLowerCase()
-      const tagline = presetTagline(preset, t).toLowerCase()
-      const hay = [
-        preset.id,
-        preset.defaultKey,
-        label,
-        tagline,
-        preset.config.baseUrl || '',
-        ...(preset.aliases || []),
-      ]
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(needle)
-    })
-  }, [presetCategory, presetQuery, t])
-
-  const addFromPreset = (preset: ProviderPreset) => {
-    const key = allocateProviderKey(draft?.providers || {}, preset.defaultKey)
+  const handleConfirmAddProvider = (key: string, config: PiModelsProviderConfig) => {
     patchDraft((c) => {
-      c.providers[key] = clonePresetConfig(preset, t, useUpstreamModelCatalogStore.getState().snapshot)
+      c.providers[key] = config
     })
     setExpanded((prev) => {
       const next: Record<string, boolean> = {}
@@ -207,8 +181,8 @@ export function ModelsSettingsPanel() {
       next[key] = true
       return next
     })
-    setAddMenuOpen(false)
-    toast.success(t('models.addedProviderToast', { label: presetLabel(preset, t), key }))
+    setAddDialogOpen(false)
+    toast.success(t('models.addedProviderToast', { label: config.name || key, key }))
   }
 
   const removeProvider = (id: string) => {
@@ -217,22 +191,68 @@ export function ModelsSettingsPanel() {
     })
   }
 
+  const renameProvider = (oldId: string, nextRaw: string): boolean => {
+    if (!draft) return false
+    const check = validateProviderKey(nextRaw, draft.providers, oldId)
+    if (!check.ok) {
+      toast.error(
+        check.reason === 'duplicate'
+          ? t('models.providerKeyDuplicate', { key: nextRaw.trim() })
+          : t('models.providerKeyInvalid'),
+      )
+      return false
+    }
+    const nextId = check.key
+    if (nextId === oldId) return true
+
+    patchDraft((c) => {
+      const entry = c.providers[oldId]
+      if (!entry) return
+      delete c.providers[oldId]
+      c.providers[nextId] = entry
+    })
+    setExpanded((prev) => {
+      const next = { ...prev, [nextId]: prev[oldId] ?? true }
+      delete next[oldId]
+      return next
+    })
+    setRemoteCatalog((prev) => {
+      if (!(oldId in prev)) return prev
+      const next = { ...prev, [nextId]: prev[oldId] }
+      delete next[oldId]
+      return next
+    })
+    setApiKeyVisible((prev) => {
+      if (!(oldId in prev)) return prev
+      const next = { ...prev, [nextId]: prev[oldId] }
+      delete next[oldId]
+      return next
+    })
+    toast.success(t('models.renamedProviderToast', { from: oldId, to: nextId }))
+    return true
+  }
+
   const updateProvider = (id: string, patch: Partial<PiModelsProviderConfig>) => {
     patchDraft((c) => {
-      c.providers[id] = { ...c.providers[id], ...patch }
+      const next = { ...c.providers[id], ...patch }
+      if (!next.name) delete next.name
+      if (!next.baseUrl) delete next.baseUrl
+      if (!next.apiKey) delete next.apiKey
+      c.providers[id] = next
     })
   }
 
   const applyPresetToExisting = (providerId: string, preset: ProviderPreset) => {
     patchDraft((c) => {
       const prev = c.providers[providerId]
-      const templ = clonePresetConfig(preset, t, useUpstreamModelCatalogStore.getState().snapshot)
-      const models = prev.models?.length ? prev.models : templ.models?.length ? templ.models : []
+      const templ = clonePresetConfig(preset)
       c.providers[providerId] = {
-        ...templ,
+        ...prev,
+        api: templ.api || prev.api,
+        baseUrl: templ.baseUrl || prev.baseUrl,
+        ...(templ.compat ? { compat: templ.compat } : {}),
         apiKey: prev.apiKey || templ.apiKey,
-        models,
-        name: templ.name || prev.name,
+        models: prev.models ?? [],
       }
     })
     toast.success(t('models.applyTemplateToast', { label: presetLabel(preset, t) }))
@@ -281,7 +301,6 @@ export function ModelsSettingsPanel() {
       const target = c.providers[providerId]
       target.models = [...(target.models || []), built]
     })
-    // Keep newly added models compact if full specs were auto-filled; expand only if manual/bare.
     if (expandAdded || built.contextWindow == null) {
       const key = `${providerId}\0${modelId}`
       setExpandedLocalModel((e) => ({ ...e, [key]: true }))
@@ -441,92 +460,22 @@ export function ModelsSettingsPanel() {
               {t('models.userProvidersDescription', { count: providerIds.length })}
             </p>
           </div>
-          <div className="relative">
-            <button type="button" className={btnPrimary} onClick={() => setAddMenuOpen((o) => !o)}>
-              <Plus className="mr-1 inline h-3 w-3" strokeWidth={2} />
-              {t('models.addProviderBtn')}
-            </button>
-            {addMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  className="backdrop-motion fixed inset-0 z-40 cursor-default bg-black/20"
-                  aria-label={t('models.close')}
-                  onClick={() => setAddMenuOpen(false)}
-                />
-                <div className="popover-motion absolute right-0 z-50 mt-2 w-[min(380px,calc(100vw-2rem))] rounded-xl border border-border/80 bg-popover p-2.5 shadow-xl">
-                  <div className="relative mb-2">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
-                    <input
-                      ref={presetSearchRef}
-                      className="settings-field h-[30px] w-full rounded-lg border border-border/70 bg-background pl-8 pr-2.5 text-[12.5px] outline-none focus:border-primary/60"
-                      placeholder={t('models.presetSearchPlaceholder')}
-                      value={presetQuery}
-                      onChange={(e) => setPresetQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') setAddMenuOpen(false)
-                        if (e.key === 'Enter' && filteredPresets.length === 1) {
-                          addFromPreset(filteredPresets[0])
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="mb-2 flex items-center gap-1">
-                    {(['all', 'official', 'relay', 'local'] as const).map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setPresetCategory(cat)}
-                        className={cn(
-                          'rounded-md px-2 py-0.5 text-[11px] transition-colors',
-                          presetCategory === cat
-                            ? 'bg-primary/12 font-medium text-primary'
-                            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                        )}
-                      >
-                        {t(`models.presetCategory.${cat}`)}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="max-h-[min(360px,56vh)] overflow-y-auto">
-                    {filteredPresets.length === 0 ? (
-                      <p className="py-5 text-center text-[12px] text-muted-foreground">
-                        {t('models.noMatchModel')}
-                      </p>
-                    ) : (
-                      filteredPresets.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          className="settings-preset-menu-item flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left"
-                          onClick={() => addFromPreset(preset)}
-                        >
-                          <ProviderAvatar preset={preset} label={presetLabel(preset, t)} />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[13px] font-medium leading-tight">{presetLabel(preset, t)}</div>
-                            <div className="mt-0.5 text-[11.5px] text-muted-foreground">{presetTagline(preset, t)}</div>
-                            <div className="mt-0.5 font-mono text-[10.5px] text-muted-foreground/65">
-                              {t('models.keyName', { key: preset.defaultKey })}
-                              {preset.starterModels?.length
-                                ? ` · ${t('models.containsModels', { count: preset.starterModels.length })}`
-                                : ` · ${t('models.needsFetch')}`}
-                            </div>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            type="button"
+            data-testid="open-add-provider-btn"
+            className={btnPrimary}
+            onClick={() => setAddDialogOpen(true)}
+          >
+            <Plus className="mr-1 inline h-3 w-3" strokeWidth={2} />
+            {t('models.addProviderBtn')}
+          </button>
         </div>
 
         {providerIds.length > 1 ? (
           <div className="flex flex-wrap items-center gap-1.5 px-0.5" role="navigation" aria-label={t('models.userProvidersTitle')}>
             {providerIds.map((pid) => {
               const p = draft!.providers[pid]
-              const label = p.name || presetLabel(guessPresetForProvider(pid, p), t) || pid
+              const label = p.name?.trim() || pid
               const active = expanded[pid] === true
               return (
                 <button
@@ -569,6 +518,7 @@ export function ModelsSettingsPanel() {
                   cardIndex={cardIndex}
                   config={draft!}
                   open={expanded[pid] === true}
+                  isBuiltInCollision={isBuiltInSdkProviderId(pid, sdkManagedProviderIds)}
                   onToggleOpen={() => setExpanded((e) => ({ ...e, [pid]: !e[pid] }))}
                   fetching={fetching === pid}
                   remoteIds={catalogIds}
@@ -590,6 +540,7 @@ export function ModelsSettingsPanel() {
                     })
                   }
                   onUpdateProvider={(patch) => updateProvider(pid, patch)}
+                  onRenameProvider={(nextId) => renameProvider(pid, nextId)}
                   onFetchRemote={() => void fetchRemoteCatalog(pid)}
                   onManualAdd={() => setManualAddProviderId(pid)}
                   onRemoveProvider={() =>
@@ -620,16 +571,20 @@ export function ModelsSettingsPanel() {
 
       <ModelsSdkProviderSection providerIds={sdkProviderIds} modelsByProvider={sdkModelsByProvider} />
 
+      <ProviderAddDialog
+        open={addDialogOpen}
+        existingProviders={draft?.providers || {}}
+        runtimeSdkProviderIds={sdkManagedProviderIds}
+        onConfirm={handleConfirmAddProvider}
+        onClose={() => setAddDialogOpen(false)}
+      />
+
       {manualAddProviderId && draft?.providers[manualAddProviderId] && (
         <ManualModelAddDialog
           open
           providerId={manualAddProviderId}
           baseUrl={draft.providers[manualAddProviderId].baseUrl}
-          providerLabel={
-            draft.providers[manualAddProviderId].name ||
-            presetLabel(guessPresetForProvider(manualAddProviderId, draft.providers[manualAddProviderId]), t) ||
-            manualAddProviderId
-          }
+          providerLabel={draft.providers[manualAddProviderId].name?.trim() || manualAddProviderId}
           existingIds={new Set((draft.providers[manualAddProviderId].models || []).map((m) => m.id))}
           onConfirm={(ids) => confirmManualModels(manualAddProviderId, ids)}
           onCancel={() => setManualAddProviderId(null)}

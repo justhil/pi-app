@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, Eye, EyeOff, Sparkles, Trash2 } from '@renderer/components/icons'
+import { AlertTriangle, ChevronRight, Eye, EyeOff, Sparkles, Trash2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import type { ModelInfo, PiModelsConfigPayload, PiModelsProviderConfig } from '@shared/ipc-contract'
 import {
@@ -9,8 +9,10 @@ import {
 } from '@shared/models-dev-catalog'
 import {
   PROVIDER_PRESETS,
+  allocateProviderKey,
   guessPresetForProvider,
   presetLabel,
+  validateProviderKey,
   type ProviderPreset,
 } from '@renderer/features/settings/model-provider-presets'
 import { ModelEntryEditor, type LocalModelEntry } from '@renderer/features/settings/model-entry-editor'
@@ -35,6 +37,7 @@ export function ModelsProviderCard({
   cardIndex,
   config,
   open,
+  isBuiltInCollision,
   onToggleOpen,
   fetching,
   remoteIds,
@@ -45,6 +48,7 @@ export function ModelsProviderCard({
   onToggleLocalModel,
   onApplyPreset,
   onUpdateProvider,
+  onRenameProvider,
   onFetchRemote,
   onManualAdd,
   onRemoveProvider,
@@ -58,6 +62,7 @@ export function ModelsProviderCard({
   cardIndex: number
   config: PiModelsConfigPayload
   open: boolean
+  isBuiltInCollision?: boolean
   onToggleOpen: () => void
   fetching: boolean
   remoteIds: string[]
@@ -68,6 +73,7 @@ export function ModelsProviderCard({
   onToggleLocalModel: (rowKey: string) => void
   onApplyPreset: (preset: ProviderPreset) => void
   onUpdateProvider: (patch: Partial<PiModelsProviderConfig>) => void
+  onRenameProvider?: (nextPid: string) => boolean
   onFetchRemote: () => void
   onManualAdd: () => void
   onRemoveProvider: () => void
@@ -82,12 +88,20 @@ export function ModelsProviderCard({
   const catalogLoading = useUpstreamModelCatalogStore((s) => s.loading)
   const p = config.providers[pid]
   const preset = guessPresetForProvider(pid, p)
-  const displayName = p.name || presetLabel(preset, t) || pid
+  // Never force presetLabel ("自定义中转") when p.name is blank — show clean `pid` just like `cpa`!
+  const displayName = p.name?.trim() || pid
   const models = p.models ?? []
   const modelCount = models.length
   const hasOverrides = p.modelOverrides && Object.keys(p.modelOverrides).length > 0
 
-  // Preload upstream catalog lazily once a provider card is open (zero unsolicited IPC on mount).
+  const [keyDraft, setKeyDraft] = useState(pid)
+  const [keyError, setKeyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setKeyDraft(pid)
+    setKeyError(null)
+  }, [pid])
+
   useEffect(() => {
     if (open) void ensureUpstreamCatalogLoaded()
   }, [open])
@@ -119,6 +133,33 @@ export function ModelsProviderCard({
       onUpdateModel(item.id, item.patch)
     }
   }
+
+  const commitKeyRename = () => {
+    const trimmed = keyDraft.trim()
+    if (!trimmed || trimmed === pid) {
+      setKeyDraft(pid)
+      setKeyError(null)
+      return
+    }
+    const v = validateProviderKey(trimmed, config.providers, pid)
+    if (!v.ok) {
+      setKeyError(
+        v.reason === 'duplicate'
+          ? t('models.providerKeyDuplicate', { key: trimmed })
+          : t('models.providerKeyInvalid'),
+      )
+      return
+    }
+    setKeyError(null)
+    if (onRenameProvider) {
+      const ok = onRenameProvider(v.key)
+      if (!ok) setKeyDraft(pid)
+    }
+  }
+
+  const suggestedIsolatedId = isBuiltInCollision
+    ? allocateProviderKey(config.providers, `${pid}-custom`)
+    : ''
 
   return (
     <div
@@ -155,12 +196,57 @@ export function ModelsProviderCard({
 
       <div className="settings-expand-grid" data-open={open}>
         <div className="settings-expand-inner">
-          <div className="settings-expand-content space-y-4 px-4 py-3.5">
-            {/* Connection block (compact 2-row grid) */}
+          <div className="settings-expand-content space-y-3.5 px-4 py-3.5">
+            {/* Built-in SDK Provider ID collision notice + 1-click isolate button */}
+            {isBuiltInCollision && onRenameProvider && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-[11.5px] leading-relaxed text-amber-800 dark:text-amber-200">
+                <div className="flex min-w-0 flex-1 items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>{t('models.sdkCollisionWarning', { key: pid })}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRenameProvider(suggestedIsolatedId)}
+                  className="shrink-0 rounded-md border border-amber-500/45 bg-background px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-[var(--bg-hover)]"
+                >
+                  {t('models.useIsolatedKeyBtn', { key: suggestedIsolatedId })}
+                </button>
+              </div>
+            )}
+
+            {/* Connection & Identity Grid */}
             <div className="grid gap-2.5 sm:grid-cols-2">
+              {onRenameProvider ? (
+                <div>
+                  <label className="mb-1 block text-[11.5px] text-foreground-secondary">
+                    {t('models.labelProviderKey')}
+                  </label>
+                  <input
+                    data-testid={`provider-key-input-${pid}`}
+                    className={cn(inputCls, fieldCls, 'font-mono text-[12px]')}
+                    value={keyDraft}
+                    onChange={(e) => {
+                      setKeyDraft(e.target.value)
+                      setKeyError(null)
+                    }}
+                    onBlur={commitKeyRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        ;(e.currentTarget as HTMLInputElement).blur()
+                      } else if (e.key === 'Escape') {
+                        setKeyDraft(pid)
+                        setKeyError(null)
+                      }
+                    }}
+                  />
+                  {keyError ? <p className="mt-1 text-[11px] text-destructive">{keyError}</p> : null}
+                </div>
+              ) : null}
+
               <div>
                 <label className="mb-1 flex items-center justify-between text-[11.5px] text-foreground-secondary">
-                  <span>{t('models.labelName')}</span>
+                  <span>{t('models.labelDisplayNameOptional')}</span>
                   <select
                     aria-label={t('models.changeTemplate')}
                     className="max-w-[9.5rem] bg-transparent text-right text-[11px] text-foreground-secondary outline-none hover:text-foreground"
@@ -179,8 +265,10 @@ export function ModelsProviderCard({
                   </select>
                 </label>
                 <input
+                  data-testid={`provider-name-input-${pid}`}
                   className={cn(inputCls, fieldCls)}
                   value={p.name || ''}
+                  placeholder={pid}
                   onChange={(e) => onUpdateProvider({ name: e.target.value || undefined })}
                 />
               </div>
@@ -201,23 +289,13 @@ export function ModelsProviderCard({
               </div>
 
               <div>
-                <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelBaseUrl')}</label>
-                <input
-                  className={cn(inputCls, fieldCls, 'font-mono text-[12px]')}
-                  value={p.baseUrl || ''}
-                  placeholder="https://api.example.com/v1"
-                  onChange={(e) => onUpdateProvider({ baseUrl: e.target.value || undefined })}
-                />
-              </div>
-
-              <div>
                 <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelApiKey')}</label>
                 <div className="relative">
                   <input
                     className={cn(inputCls, fieldCls, 'pr-8 font-mono text-[12px]')}
                     type={apiKeyVisible ? 'text' : 'password'}
                     value={p.apiKey || ''}
-                    placeholder="$OPENAI_API_KEY"
+                    placeholder={preset?.apiKeyPlaceholder || 'sk-... / $API_KEY'}
                     onChange={(e) => onUpdateProvider({ apiKey: e.target.value || undefined })}
                   />
                   <button
@@ -229,6 +307,16 @@ export function ModelsProviderCard({
                     {apiKeyVisible ? <EyeOff className="h-3 w-3" strokeWidth={2} /> : <Eye className="h-3 w-3" strokeWidth={2} />}
                   </button>
                 </div>
+              </div>
+
+              <div className={onRenameProvider ? 'sm:col-span-2' : undefined}>
+                <label className="mb-1 block text-[11.5px] text-foreground-secondary">{t('models.labelBaseUrl')}</label>
+                <input
+                  className={cn(inputCls, fieldCls, 'font-mono text-[12px]')}
+                  value={p.baseUrl || ''}
+                  placeholder="https://api.example.com/v1"
+                  onChange={(e) => onUpdateProvider({ baseUrl: e.target.value || undefined })}
+                />
               </div>
             </div>
 

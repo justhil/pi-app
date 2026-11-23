@@ -1057,7 +1057,7 @@
     "thinkingMapHint": "思考等级 → 传给模型的值",
     "invalidIdProblem": "「{{id}}」{{reason}}",
     "presetZhipu": "智谱 GLM",
-    "presetCustomRelay": "自定义中转",
+    "presetCustomRelay": "自定义渠道 / 中转",
     "presetTaglines": {
       "openai": "官方或兼容 OpenAI 协议",
       "anthropic": "Claude Messages 协议",
@@ -1066,7 +1066,23 @@
       "localOpenai": "本地兼容 OpenAI 协议",
       "openrouter": "兼容 OpenAI 的聚合网关",
       "customBaseUrl": "自定义 baseUrl"
-    }
+    },
+    "addDialogTitle": "添加模型渠道",
+    "addDialogSubtitle": "自定义渠道 ID 与协议地址；初始为 0 模型，绝不自动塞入无关默认模型",
+    "presetPickerLabel": "快速协议模板（可选）",
+    "labelProviderKey": "渠道标识 ID（Key）",
+    "providerKeyPlaceholder": "例如 cpa、newapi、oneapi",
+    "providerKeyHint": "选模与命令中使用的唯一前缀（如 cpa/gpt-5）",
+    "providerKeyDuplicate": "渠道 ID「{{key}}」已存在",
+    "providerKeyInvalid": "仅允许字母、数字、点、下划线或连字符，且以字母/数字开头",
+    "labelDisplayNameOptional": "显示名称（可选）",
+    "displayNameOptionalPlaceholder": "留空则直接显示渠道 ID",
+    "displayNameOptionalHint": "留空即像 cpa 一样简洁显示 ID",
+    "sdkCollisionWarning": "渠道 ID「{{key}}」与 Pi SDK 内置厂商同名，SDK 会将该厂商内置的几十个默认模型一并混入列表。若只需显示本渠道添加的模型，建议改用独立 ID。",
+    "useIsolatedKeyBtn": "改用独立 ID「{{key}}」",
+    "zeroPollutionHint": "创建后点击「从接口拉取」或搜索添加模型",
+    "confirmCreateProvider": "创建渠道",
+    "renamedProviderToast": "已将渠道 ID 从 {{from}} 改为 {{to}}"
   },
   "voice": {
     "advancedTitle": "高级",

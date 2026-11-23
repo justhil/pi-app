@@ -1060,7 +1060,7 @@
     "thinkingMapHint": "Уровень размышлений → значение, отправляемое модели",
     "invalidIdProblem": "«{{id}}»: {{reason}}",
     "presetZhipu": "Zhipu GLM",
-    "presetCustomRelay": "Свой прокси",
+    "presetCustomRelay": "Свой канал / прокси",
     "presetTaglines": {
       "openai": "Официальный или совместимый с OpenAI",
       "anthropic": "API сообщений Claude",
@@ -1069,7 +1069,23 @@
       "localOpenai": "Локальный совместимый с OpenAI",
       "openrouter": "Агрегатор, совместимый с OpenAI",
       "customBaseUrl": "Свой baseUrl"
-    }
+    },
+    "addDialogTitle": "Добавить провайдера",
+    "addDialogSubtitle": "Задайте свой ID канала и адрес — создаётся чистым без лишних моделей по умолчанию",
+    "presetPickerLabel": "Быстрый шаблон протокола (опционально)",
+    "labelProviderKey": "ID канала (ключ)",
+    "providerKeyPlaceholder": "напр. cpa, newapi, my-relay",
+    "providerKeyHint": "Уникальный префикс для выбора модели (напр. cpa/gpt-5)",
+    "providerKeyDuplicate": "ID канала «{{key}}» уже существует",
+    "providerKeyInvalid": "Допустимы буквы, цифры, точка, подчёркивание и дефис",
+    "labelDisplayNameOptional": "Отображаемое имя (необязательно)",
+    "displayNameOptionalPlaceholder": "Оставьте пустым для показа ID канала",
+    "displayNameOptionalHint": "Если пусто, отображается чистый ID",
+    "sdkCollisionWarning": "ID «{{key}}» совпадает со встроенным провайдером Pi SDK, поэтому встроенные модели будут добавлены в список. Используйте отдельный ID для чистого списка.",
+    "useIsolatedKeyBtn": "Использовать «{{key}}»",
+    "zeroPollutionHint": "Загрузите /models или добавьте модели после создания",
+    "confirmCreateProvider": "Создать канал",
+    "renamedProviderToast": "ID канала изменён с {{from}} на {{to}}"
   },
   "voice": {
     "advancedTitle": "Дополнительно",

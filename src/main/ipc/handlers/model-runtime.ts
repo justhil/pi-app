@@ -52,18 +52,34 @@ async function listModelsOffThread(scope: 'available' | 'catalog'): Promise<read
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
     const scope = req?.scope === 'available' ? 'available' : req?.scope === 'settings' ? 'settings' : 'catalog'
+    let providerDisplayNames: Record<string, string> = {}
+    try {
+      const { config } = readModelsConfigRaw()
+      for (const [k, prov] of Object.entries(config.providers || {})) {
+        const nm = typeof prov?.name === 'string' ? prov.name.trim() : ''
+        if (nm && nm !== k) providerDisplayNames[k] = nm
+      }
+    } catch {
+      providerDisplayNames = {}
+    }
+
     const mapRegistry = (models: readonly ModelEntry[]) =>
-      models.map((m) => ({
-        id: m.id,
-        name: m.name || m.id,
-        provider: m.provider || '',
-        ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
-        contextWindow: m.contextWindow || 0,
-        maxOutput: m.maxOutput || m.maxTokens || 0,
-        available: m.available ?? true,
-        managedBy: m.managedBy,
-        auth: m.auth,
-      }))
+      models.map((m) => {
+        const provider = m.provider || ''
+        const providerName = providerDisplayNames[provider]
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          provider,
+          ...(providerName ? { providerName } : {}),
+          ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
+          contextWindow: m.contextWindow || 0,
+          maxOutput: m.maxOutput || m.maxTokens || 0,
+          available: m.available ?? true,
+          managedBy: m.managedBy,
+          auth: m.auth,
+        }
+      })
 
     const catalogFromDisk = () => {
       const { config, parseError } = readModelsConfigRaw()

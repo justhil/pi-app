@@ -1059,7 +1059,7 @@
     "thinkingMapHint": "Thinking level → value sent to the model",
     "invalidIdProblem": "\"{{id}}\": {{reason}}",
     "presetZhipu": "Zhipu GLM",
-    "presetCustomRelay": "Custom relay",
+    "presetCustomRelay": "Custom Channel / Relay",
     "presetTaglines": {
       "openai": "Official or OpenAI-compatible",
       "anthropic": "Claude Messages API",
@@ -1068,7 +1068,23 @@
       "localOpenai": "Local OpenAI-compatible",
       "openrouter": "OpenAI-compatible aggregator",
       "customBaseUrl": "Custom baseUrl"
-    }
+    },
+    "addDialogTitle": "Add Provider Channel",
+    "addDialogSubtitle": "Configure your own Provider ID and endpoint — starts clean with 0 default models",
+    "presetPickerLabel": "Quick protocol template (optional)",
+    "labelProviderKey": "Provider ID (Key)",
+    "providerKeyPlaceholder": "e.g. cpa, newapi, my-relay",
+    "providerKeyHint": "Unique prefix used in model picker (e.g. cpa/gpt-5)",
+    "providerKeyDuplicate": "Provider ID \"{{key}}\" already exists",
+    "providerKeyInvalid": "Use letters, digits, dots, underscores, or hyphens (start with alphanumeric)",
+    "labelDisplayNameOptional": "Display Name (optional)",
+    "displayNameOptionalPlaceholder": "Leave empty to show Provider ID directly",
+    "displayNameOptionalHint": "When blank, the card & picker show the clean ID",
+    "sdkCollisionWarning": "Provider ID \"{{key}}\" matches a built-in Pi SDK provider, so Pi SDK will merge all of its built-in default models into your list. Use an isolated ID to show only models you add here.",
+    "useIsolatedKeyBtn": "Use isolated ID \"{{key}}\"",
+    "zeroPollutionHint": "Fetch /models or add models after creating",
+    "confirmCreateProvider": "Create Provider",
+    "renamedProviderToast": "Renamed provider ID from {{from}} to {{to}}"
   },
   "voice": {
     "advancedTitle": "Advanced",
