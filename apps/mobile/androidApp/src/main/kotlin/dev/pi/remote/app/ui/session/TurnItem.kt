@@ -103,7 +103,15 @@ fun categoryIcon(category: String): ImageVector = when (category) {
  * activity line (expand on tap); the running turn shows live status plus its last three steps.
  */
 @Composable
-fun TurnItem(turn: Turn, expanded: Boolean, divider: Long?, now: Long, mermaid: MermaidSource?, cb: TurnCallbacks) {
+fun TurnItem(
+    turn: Turn,
+    expanded: Boolean,
+    divider: Long?,
+    now: Long,
+    mermaid: MermaidSource?,
+    cb: TurnCallbacks,
+    showIntermediateMessages: Boolean = false,
+) {
     val haptic = LocalHapticFeedback.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         divider?.let {
@@ -124,8 +132,12 @@ fun TurnItem(turn: Turn, expanded: Boolean, divider: Long?, now: Long, mermaid: 
             )
         }
         if (turn.steps.isNotEmpty() || turn.running) {
-            if (turn.running) LiveActivity(turn, now, cb) else ActivityRow(turn, expanded, cb)
-            if (expanded && !turn.running) StepList(turn, turn.steps, cb)
+            if (turn.running) LiveActivity(turn, now, cb, showIntermediateMessages) else ActivityRow(turn, expanded, cb)
+            if (expanded && !turn.running) {
+                StepList(turn, turn.steps, cb, showIntermediateMessages = showIntermediateMessages)
+            } else if (showIntermediateMessages && !turn.running) {
+                StepList(turn, turn.steps.filterIsInstance<ProseStep>(), cb, showIntermediateMessages = true)
+            }
         }
         if (turn.answer.isNotBlank()) {
             // Links, code-copy and pi-ui controls inside consume their own taps first.
@@ -251,8 +263,18 @@ private fun ActivityRow(turn: Turn, expanded: Boolean, cb: TurnCallbacks) {
     }
 }
 
+internal fun liveActivitySteps(steps: List<Step>, showIntermediateMessages: Boolean): List<Step> {
+    val recentStepIds = steps.asReversed()
+        .asSequence()
+        .filter { it !is ProseStep }
+        .take(3)
+        .map { it.id }
+        .toSet()
+    return steps.filter { it.id in recentStepIds || (showIntermediateMessages && it is ProseStep) }
+}
+
 @Composable
-private fun LiveActivity(turn: Turn, now: Long, cb: TurnCallbacks) {
+private fun LiveActivity(turn: Turn, now: Long, cb: TurnCallbacks, showIntermediateMessages: Boolean) {
     val elapsed = turn.startedAt?.let { formatClock(now - it) }
     Row(Modifier.fillMaxWidth().heightIn(min = 30.dp), verticalAlignment = Alignment.CenterVertically) {
         Spinner()
@@ -261,12 +283,18 @@ private fun LiveActivity(turn: Turn, now: Long, cb: TurnCallbacks) {
         Text(listOf(stringResource(R.string.act_working), counts).filter { it.isNotEmpty() }.joinToString(" · "), style = Pi.t.secondary.copy(color = Pi.c.fg2), modifier = Modifier.weight(1f), maxLines = 1)
         elapsed?.let { Text(it, style = Pi.t.monoSmall.copy(color = Pi.c.fg3)) }
     }
-    val recent = turn.steps.filter { it !is ProseStep }.takeLast(3)
-    if (recent.isNotEmpty()) StepList(turn, recent, cb, liveId = turn.activity.live)
+    val recent = liveActivitySteps(turn.steps, showIntermediateMessages)
+    if (recent.isNotEmpty()) StepList(turn, recent, cb, liveId = turn.activity.live, showIntermediateMessages = showIntermediateMessages)
 }
 
 @Composable
-private fun StepList(turn: Turn, steps: List<Step>, cb: TurnCallbacks, liveId: String? = null) {
+private fun StepList(
+    turn: Turn,
+    steps: List<Step>,
+    cb: TurnCallbacks,
+    liveId: String? = null,
+    showIntermediateMessages: Boolean = false,
+) {
     Column(Modifier.fillMaxWidth().padding(start = 20.dp).animateContentSize()) {
         for (s in steps) {
             when (s) {
@@ -296,7 +324,13 @@ private fun StepList(turn: Turn, steps: List<Step>, cb: TurnCallbacks, liveId: S
                         onClick = { cb.onStep(turn, s) },
                     )
                 }
-                is ProseStep -> Text(s.text.lines().firstOrNull { it.isNotBlank() }.orEmpty(), style = Pi.t.secondary.copy(color = Pi.c.fg3), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 4.dp, horizontal = 0.dp))
+                is ProseStep -> Text(
+                    if (showIntermediateMessages) s.text else s.text.lines().firstOrNull { it.isNotBlank() }.orEmpty(),
+                    style = Pi.t.secondary.copy(color = Pi.c.fg3),
+                    maxLines = if (showIntermediateMessages) Int.MAX_VALUE else 2,
+                    overflow = if (showIntermediateMessages) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 0.dp),
+                )
                 else -> Unit
             }
         }

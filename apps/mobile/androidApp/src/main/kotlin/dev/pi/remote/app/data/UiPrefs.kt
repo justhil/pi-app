@@ -5,7 +5,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Small per-device UI preferences: theme, language, inbox grouping, the project new chats go to. */
+/** Small per-device UI preferences: theme, language, inbox grouping, timeline prose, and the project new chats go to. */
 class UiPrefs(private val context: Context) {
     private val sp = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
 
@@ -29,6 +29,13 @@ class UiPrefs(private val context: Context) {
     /** `status` | `project` */
     val grouping: StateFlow<String> = _grouping
     fun setGrouping(v: String) { _grouping.value = v; sp.edit().putString("grouping", v).apply() }
+
+    private val _showIntermediateMessages = MutableStateFlow(sp.getBoolean("showIntermediateMessages", false))
+    val showIntermediateMessages: StateFlow<Boolean> = _showIntermediateMessages
+    fun setShowIntermediateMessages(v: Boolean) {
+        _showIntermediateMessages.value = v
+        sp.edit().putBoolean("showIntermediateMessages", v).apply()
+    }
 
     /** Asked once for POST_NOTIFICATIONS (Android 13+), on the first send. */
     var askedNotifications: Boolean

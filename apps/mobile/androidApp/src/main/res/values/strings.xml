@@ -172,6 +172,8 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="menu_grouping">Group sessions</string>
+    <string name="menu_intermediate_messages">Show intermediate messages</string>
+    <string name="menu_intermediate_messages_hint">Keep the agent’s progress text visible</string>
     <string name="group_status">By status</string>
     <string name="group_project">By project</string>
     <string name="bucket_today">Today</string>
