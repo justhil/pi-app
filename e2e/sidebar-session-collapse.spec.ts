@@ -30,7 +30,8 @@ for (const language of ['en', 'zh'] as const) {
     try {
       const win = await app.firstWindow()
       await win.setViewportSize({ width: language === 'zh' ? 1000 : 1400, height: 800 })
-      await win.getByRole('button', { name: 'large-project', exact: true }).click()
+      await win.getByRole('button', { name: 'large-project', exact: true }).focus()
+      await win.keyboard.press('Enter')
       const projectRow = win.locator('.sidebar-project-row').filter({ hasText: 'large-project' })
       const list = projectRow.locator('.sidebar-session-list')
       const showMore = language === 'zh' ? '显示更多（120）' : 'Show more (120)'
@@ -67,7 +68,8 @@ for (const language of ['en', 'zh'] as const) {
       await expect(projectRow.getByRole('button', { name: showMore, exact: true })).toHaveCount(0)
       await search.clear()
       await expect(list.locator(':scope > [data-session-file]')).toHaveCount(5)
-      await next.click()
+      await next.focus()
+      await win.keyboard.press('Enter')
       await expect(next).toHaveAttribute('aria-current', 'location')
     } finally {
       await app.close()
