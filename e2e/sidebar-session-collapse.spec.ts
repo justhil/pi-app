@@ -29,6 +29,8 @@ for (const language of ['en', 'zh'] as const) {
     })
     try {
       const win = await app.firstWindow()
+      await win.setViewportSize({ width: language === 'zh' ? 1000 : 1400, height: 800 })
+      await win.getByRole('button', { name: 'large-project', exact: true }).click()
       const projectRow = win.locator('.sidebar-project-row').filter({ hasText: 'large-project' })
       const list = projectRow.locator('.sidebar-session-list')
       const showMore = language === 'zh' ? '显示更多（120）' : 'Show more (120)'
