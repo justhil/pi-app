@@ -23,6 +23,8 @@
     "revealInExplorer": "Показать в проводнике",
     "revealFailed": "Не удалось открыть путь",
     "noSessions": "Нет сессий",
+    "showMoreSessions": "Показать ещё ({{count}})",
+    "showFewerSessions": "Свернуть",
     "childSessionCount": "дочерних сессий: {{count}}",
     "toggleSubagents": "Показать или скрыть субагентов: {{title}}",
     "openSubagentSession": "Открыть сессию субагента {{agent}}",
