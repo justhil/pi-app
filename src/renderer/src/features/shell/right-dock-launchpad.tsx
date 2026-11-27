@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   FileDiff,
@@ -14,6 +15,10 @@ import { isStageRightPanelId } from '@shared/right-panels'
 import { normalizeAddressInput } from '@shared/browser-types'
 import { browserActions } from '@renderer/features/browser/browser-store'
 import { terminalActions } from '@renderer/features/terminal/terminal-store'
+import {
+  useAnchoredMenuPosition,
+  useDismissContextMenu,
+} from '@renderer/features/workspace/context-menu-shared'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import type { RightDockTabItem } from './right-dock'
@@ -38,8 +43,13 @@ export function RightDockLaunchpad({
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [moreOpen, setMoreOpen] = useState(false)
+  const moreBtnRef = useRef<HTMLButtonElement>(null)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
   const showSearch = useUIStore((s) => s.uiCustomization.shellLaunchpadShowSearch)
   const compact = useUIStore((s) => s.uiCustomization.shellLaunchpadCompact)
+
+  useDismissContextMenu(moreOpen, moreMenuRef, () => setMoreOpen(false), moreBtnRef)
+  const moreMenuPos = useAnchoredMenuPosition(moreOpen, moreBtnRef, moreMenuRef, { align: 'end', gap: 6 })
 
   const trimmed = query.trim()
   const tabByKey = useMemo(
@@ -159,7 +169,7 @@ export function RightDockLaunchpad({
             />
 
             {trimmed && (filteredTabs.length > 0 || looksLikeUrl(trimmed)) ? (
-              <div className="shell-popover absolute left-0 right-0 top-[52px] z-30 rounded-2xl border border-border/60 bg-popover p-1.5 text-[12.5px] text-popover-foreground shadow-xl">
+              <div className="absolute left-0 right-0 top-[52px] z-30 max-h-[280px] overflow-y-auto overscroll-contain rounded-2xl border border-border/60 bg-popover p-1.5 text-[12.5px] text-popover-foreground shadow-xl">
                 {looksLikeUrl(trimmed) ? (
                   <button
                     type="button"
@@ -206,6 +216,7 @@ export function RightDockLaunchpad({
           {extraTabs.length > 0 ? (
             <div className="relative">
               <button
+                ref={moreBtnRef}
                 type="button"
                 onClick={() => setMoreOpen((v) => !v)}
                 aria-expanded={moreOpen}
@@ -215,34 +226,38 @@ export function RightDockLaunchpad({
               >
                 <MoreHorizontal className="h-4 w-4" />
               </button>
-              {moreOpen ? (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} aria-hidden />
-                  <div
-                    role="menu"
-                    className="shell-popover absolute right-0 top-7 z-50 w-[188px] rounded-xl border border-border/65 bg-popover p-1.5 text-[12.5px] text-popover-foreground shadow-xl"
-                  >
-                    {extraTabs.map((item) => {
-                      const Icon = item.icon
-                      return (
-                        <button
-                          key={item.key}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setMoreOpen(false)
-                            onOpenPanel(item.key)
-                          }}
-                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-                        >
-                          {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 opacity-75" strokeWidth={1.6} /> : null}
-                          <span className="truncate">{item.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              ) : null}
+              {moreOpen && typeof document !== 'undefined'
+                ? createPortal(
+                    <div
+                      ref={moreMenuRef}
+                      role="menu"
+                      data-browser-overlay=""
+                      style={moreMenuPos}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="electron-no-drag fixed z-[500] w-[196px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-border/65 bg-popover p-1.5 text-[12.5px] text-popover-foreground shadow-xl"
+                    >
+                      {extraTabs.map((item) => {
+                        const Icon = item.icon
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setMoreOpen(false)
+                              onOpenPanel(item.key)
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                          >
+                            {Icon ? <Icon className="h-3.5 w-3.5 shrink-0 opacity-75" strokeWidth={1.6} /> : null}
+                            <span className="truncate">{item.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>,
+                    document.body,
+                  )
+                : null}
             </div>
           ) : null}
         </div>

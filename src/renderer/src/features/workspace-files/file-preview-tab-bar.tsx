@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from '@renderer/components/icons'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import { OverlayScrollHostX } from '@renderer/components/ui/overlay-scrollbar'
 import {
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from '@renderer/features/workspace/context-menu-shared'
 import { fileTreeIcon } from './file-tree-icons'
@@ -38,18 +39,7 @@ export function FilePreviewTabBar({
   const ctxRef = useRef<HTMLDivElement>(null)
 
   useDismissContextMenu(!!ctx, ctxRef, () => setCtx(null))
-
-  useLayoutEffect(() => {
-    if (!ctx || !ctxRef.current) return
-    const el = ctxRef.current
-    const pad = 8
-    const w = el.offsetWidth
-    const h = el.offsetHeight
-    const left = Math.max(pad, Math.min(ctx.x, window.innerWidth - w - pad))
-    const top = Math.max(pad, Math.min(ctx.y, window.innerHeight - h - pad))
-    el.style.left = `${left}px`
-    el.style.top = `${top}px`
-  }, [ctx])
+  const ctxPos = useContextMenuPosition(ctx, ctxRef)
 
   if (tabs.length === 0) {
     return (
@@ -144,7 +134,7 @@ export function FilePreviewTabBar({
             <div
               ref={ctxRef}
               className={contextMenuPanelClass}
-              style={{ left: ctx.x, top: ctx.y }}
+              style={ctxPos}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}

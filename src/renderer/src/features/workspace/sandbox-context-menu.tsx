@@ -29,6 +29,7 @@ import {
   contextMenuDangerItemClass,
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
@@ -54,6 +55,7 @@ export function SandboxContextMenuPortal({
   onListChange: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const [renameState, setRenameState] = useState<RenameState>(null)
@@ -61,6 +63,7 @@ export function SandboxContextMenuPortal({
   const [forkAnchor, setForkAnchor] = useState<DOMRect | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
+  const menuPos = useContextMenuPosition(menu, menuRef, [menu?.target.sessionFile])
   useEffect(() => setForkAnchor(null), [menu])
 
   const submitRename = async (label: string) => {
@@ -115,8 +118,9 @@ export function SandboxContextMenuPortal({
         ? createPortal(
             <div ref={ref}>
               <div
+                ref={menuRef}
                 className={contextMenuPanelClass}
-                style={{ left: menu.x, top: menu.y }}
+                style={menuPos}
                 role="menu"
                 onPointerDown={(e) => e.stopPropagation()}
                 onPointerOver={(e) => {

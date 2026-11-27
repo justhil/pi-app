@@ -11,6 +11,7 @@ import {
   contextMenuDangerItemClass,
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
@@ -48,6 +49,7 @@ export function ProjectContextMenuPortal({
   const [removeTarget, setRemoveTarget] = useState<ProjectMenuTarget | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
+  const menuPos = useContextMenuPosition(menu, ref, [menu?.isSecondaryWorktree])
 
   const runRevealInExplorer = async (path: string) => {
     try {
@@ -189,7 +191,7 @@ export function ProjectContextMenuPortal({
             <div
               ref={ref}
               className={contextMenuPanelClass}
-              style={{ left: menu.x, top: menu.y }}
+              style={menuPos}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
             >

@@ -7,6 +7,11 @@ import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { EmptyState } from '@renderer/components/ui/empty-state'
 import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { RightDockLaunchpad } from '@renderer/features/shell/right-dock-launchpad'
+import {
+  useAnchoredMenuPosition,
+  useContextMenuPosition,
+  useDismissContextMenu,
+} from '@renderer/features/workspace/context-menu-shared'
 import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -104,9 +109,14 @@ function DockTabStrip({
 }: TabStripProps) {
   const { t } = useTranslation()
   const stripRef = useRef<HTMLDivElement>(null)
+  const pickerBtnRef = useRef<HTMLButtonElement>(null)
+  const pickerMenuRef = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState({ start: false, end: false })
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  useDismissContextMenu(pickerOpen, pickerMenuRef, () => setPickerOpen(false), pickerBtnRef)
+  const pickerPos = useAnchoredMenuPosition(pickerOpen, pickerBtnRef, pickerMenuRef, { align: 'end', gap: 6 })
 
   const stageItems = useMemo(
     () => allAvailableTabs.filter((item) => isStageRightPanelId(item.key)),
@@ -386,6 +396,7 @@ function DockTabStrip({
           ) : (
             <div className="relative shrink-0">
               <button
+                ref={pickerBtnRef}
                 type="button"
                 data-testid="right-dock-open-tab-btn"
                 title={t('common:panel.newTab')}
@@ -403,26 +414,25 @@ function DockTabStrip({
           )
         ) : null}
 
-        {slot === 'top' && pickerOpen ? (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setPickerOpen(false)} aria-hidden />
-            <div
-              role="menu"
-              data-browser-overlay=""
-              className="fixed z-50 mt-1 w-[210px] rounded-xl border border-border/65 bg-popover p-1.5 text-[12px] text-popover-foreground shadow-xl"
-              style={{
-                top: (stripRef.current?.getBoundingClientRect().bottom ?? 76) + 4,
-                right: 14,
-              }}
-            >
-              {renderMenuGroup(t('common:panel.stageGroup'), stageItems)}
-              {stageItems.length > 0 && inspectorItems.length > 0 ? (
-                <div className="my-1 h-px bg-border/50" />
-              ) : null}
-              {renderMenuGroup(t('common:panel.inspectorGroup'), inspectorItems)}
-            </div>
-          </>
-        ) : null}
+        {slot === 'top' && pickerOpen && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                ref={pickerMenuRef}
+                role="menu"
+                data-browser-overlay=""
+                style={pickerPos}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="electron-no-drag fixed z-[500] w-[210px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-border/65 bg-popover p-1.5 text-[12px] text-popover-foreground shadow-xl"
+              >
+                {renderMenuGroup(t('common:panel.stageGroup'), stageItems)}
+                {stageItems.length > 0 && inspectorItems.length > 0 ? (
+                  <div className="my-1 h-px bg-border/50" />
+                ) : null}
+                {renderMenuGroup(t('common:panel.inspectorGroup'), inspectorItems)}
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
 
       <div className="ml-0.5 flex shrink-0 items-center gap-0.5">
@@ -535,10 +545,13 @@ export function RightDock({
   const restoreWorkspace = useRightDockStore((s) => s.restoreWorkspace)
 
   const dockRef = useRef<HTMLDivElement>(null)
+  const ctxMenuRef = useRef<HTMLDivElement>(null)
   const [dragTabId, setDragTabId] = useState<string | null>(null)
   const [dropZoneHover, setDropZoneHover] = useState(false)
   const [rowDragging, setRowDragging] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; tabId: string; slot: DockSlot } | null>(null)
+  useDismissContextMenu(!!ctxMenu, ctxMenuRef, () => setCtxMenu(null))
+  const ctxMenuPos = useContextMenuPosition(ctxMenu, ctxMenuRef, [ctxMenu?.tabId, openTabIds.length])
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
 
@@ -834,17 +847,14 @@ export function RightDock({
 
       {ctxMenu && typeof document !== 'undefined'
         ? createPortal(
-            <>
-              <div className="fixed inset-0 z-[120]" onClick={() => setCtxMenu(null)} aria-hidden />
-              <div
-                role="menu"
-                data-browser-overlay=""
-                style={{
-                  left: Math.min(ctxMenu.x, window.innerWidth - 196),
-                  top: Math.min(ctxMenu.y, window.innerHeight - 210),
-                }}
-                className="fixed z-[130] w-[186px] rounded-lg border border-border/70 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
-              >
+            <div
+              ref={ctxMenuRef}
+              role="menu"
+              data-browser-overlay=""
+              style={ctxMenuPos}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="electron-no-drag fixed z-[500] w-[186px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border border-border/70 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
+            >
                 <button
                   type="button"
                   role="menuitem"
@@ -941,8 +951,7 @@ export function RightDock({
                     </button>
                   </>
                 ) : null}
-              </div>
-            </>,
+              </div>,
             document.body,
           )
         : null}

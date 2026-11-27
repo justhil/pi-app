@@ -260,3 +260,52 @@ describe('SessionContextMenuPortal fork submenu', () => {
     expect(workspaceMocks.activateWorkspace).toHaveBeenCalledWith('/proj/a', { sessionId: 'f1', sessionFile: '/proj/a/f1.jsonl' })
   })
 })
+
+describe('SessionContextMenuPortal viewport clamping (#149)', () => {
+  const origInnerWidth = window.innerWidth
+  const origInnerHeight = window.innerHeight
+  const origRect = HTMLElement.prototype.getBoundingClientRect
+
+  afterEach(() => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: origInnerWidth })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: origInnerHeight })
+    HTMLElement.prototype.getBoundingClientRect = origRect
+    document.documentElement.style.zoom = ''
+  })
+
+  it('flips upward when opened near the bottom of the viewport and accounts for UI zoom', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 750 })
+    document.documentElement.style.zoom = '1.25'
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.getAttribute('role') === 'menu') {
+        return {
+          left: 0,
+          top: 0,
+          right: 250,
+          bottom: 350,
+          width: 250,
+          height: 350,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+        } as DOMRect
+      }
+      return origRect.call(this)
+    }
+
+    render(
+      <SessionContextMenuPortal
+        menu={{ ...MENU, x: 100, y: 700 }}
+        onClose={() => {}}
+        onSessionsChange={() => {}}
+      />,
+    )
+
+    const panel = screen.getByRole('menu')
+    // Viewport in CSS pixels: 1200/1.25=960 x 750/1.25=600; click at (80, 560), menu size 200x280 -> flips above to y=280.
+    expect(panel.style.left).toBe('80px')
+    expect(panel.style.top).toBe('280px')
+    expect(panel.style.maxHeight).toBe('584px')
+  })
+})

@@ -14,6 +14,7 @@ import {
   contextMenuDangerItemClass,
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
@@ -41,6 +42,7 @@ export function SessionContextMenuPortal({
   onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
@@ -53,6 +55,7 @@ export function SessionContextMenuPortal({
   const [forkAnchor, setForkAnchor] = useState<DOMRect | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
+  const menuPos = useContextMenuPosition(menu, menuRef, [menu?.target.sessionFile])
   useEffect(() => setForkAnchor(null), [menu])
 
   const refreshList = (path?: string) => onSessionsChange(path)
@@ -197,8 +200,9 @@ export function SessionContextMenuPortal({
             // One wrapper so outside-click dismissal treats the fork submenu as part of the menu.
             <div ref={ref}>
             <div
+              ref={menuRef}
               className={contextMenuPanelClass}
-              style={{ left: menu.x, top: menu.y }}
+              style={menuPos}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
               onPointerOver={(e) => {

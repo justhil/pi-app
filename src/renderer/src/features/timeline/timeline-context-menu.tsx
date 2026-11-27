@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@renderer/lib/utils'
+import { useContextMenuPosition } from '@renderer/features/workspace/context-menu-shared'
 import { dismissAllTimelineHovers } from './timeline-hover-guard'
 
 export type TimelineContextMenuItem =
@@ -69,7 +70,7 @@ export function getActiveTextSelection(): string {
 export function TimelineContextMenuHost() {
   const [menu, setMenu] = useState<MenuRequest | null>(() => currentMenu)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
+  const pos = useContextMenuPosition(menu, panelRef, [menu?.items.length, menu?.header])
 
   useEffect(() => {
     const listener: Listener = (next) => setMenu(next)
@@ -78,21 +79,6 @@ export function TimelineContextMenuHost() {
       listeners.delete(listener)
     }
   }, [])
-
-  useLayoutEffect(() => {
-    if (!menu) return
-    const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1
-    const vw = window.innerWidth / zoom
-    const vh = window.innerHeight / zoom
-    const rawX = menu.x / zoom
-    const rawY = menu.y / zoom
-    const rect = panelRef.current?.getBoundingClientRect()
-    const w = rect ? rect.width / zoom : 210
-    const h = rect ? rect.height / zoom : 160
-    const left = Math.max(8, Math.min(rawX, vw - w - 8))
-    const top = Math.max(8, Math.min(rawY, vh - h - 8))
-    setPos({ left, top })
-  }, [menu])
 
   useEffect(() => {
     if (!menu) return
@@ -147,8 +133,8 @@ export function TimelineContextMenuHost() {
       ref={panelRef}
       role="menu"
       data-testid="timeline-context-menu"
-      className="electron-no-drag fixed z-[140] min-w-[184px] max-w-[260px] rounded-lg border border-border/80 bg-[var(--bg-1,var(--background))] p-1 shadow-lg backdrop-blur-md"
-      style={{ left: pos.left, top: pos.top }}
+      className="electron-no-drag fixed z-[140] min-w-[184px] max-w-[260px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-lg border border-border/80 bg-[var(--bg-1,var(--background))] p-1 shadow-lg backdrop-blur-md"
+      style={pos}
       onContextMenu={(e) => e.preventDefault()}
     >
       {menu.header ? (
