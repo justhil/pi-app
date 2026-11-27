@@ -24,7 +24,18 @@
     "icon": "BrainCircuit"
   },
   "config": {
-    "note": "思考链数据由扩展工具输出；桌面按工具结果渲染。"
+    "note": "思考链数据由扩展工具输出；桌面按工具结果渲染。",
+    "i18n": {
+      "zh": {
+        "note": "思考链数据由扩展工具输出；桌面按工具结果渲染。"
+      },
+      "en": {
+        "note": "Chain-of-thought data is emitted by the extension tools; the desktop renders the tool results."
+      },
+      "ru": {
+        "note": "Данные цепочки рассуждений выводятся инструментами расширения; desktop отображает их по результатам инструментов."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -34,6 +45,10 @@
     "en": {
       "displayName": "Sequential Thinking",
       "description": "Structured thinking tool (stage and chain-of-thought cards)"
+    },
+    "ru": {
+      "displayName": "Sequential Thinking",
+      "description": "Инструмент структурированного мышления (карточки этапов и цепочки рассуждений)"
     }
   }
 }

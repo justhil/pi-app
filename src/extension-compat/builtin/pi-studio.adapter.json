@@ -21,13 +21,28 @@
       "/studio-current"
     ]
   },
+  "install": {
+    "source": "npm:pi-studio",
+    "homepage": "https://github.com/omaclaren/pi-studio"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "default",
     "icon": "Terminal"
   },
   "config": {
-    "note": "Studio REPL/导出由扩展工具执行；桌面无 tmux 终端，仅结果卡片与打开产物。"
+    "note": "Studio REPL/导出由扩展工具执行；桌面无 tmux 终端，仅结果卡片与打开产物。",
+    "i18n": {
+      "zh": {
+        "note": "Studio REPL/导出由扩展工具执行；桌面无 tmux 终端，仅结果卡片与打开产物。"
+      },
+      "en": {
+        "note": "Studio REPL and export run in extension tools; the desktop has no tmux terminal and shows result cards with actions to open generated files."
+      },
+      "ru": {
+        "note": "REPL и экспорт Studio выполняются инструментами расширения; в desktop нет терминала tmux, отображаются только карточки результатов и открытие созданных файлов."
+      }
+    }
   },
   "slash": {
     "/studio": "config-page",
@@ -44,7 +59,11 @@
     },
     "en": {
       "displayName": "Studio",
-      "description": "REPL and PDF/HTML export tool (screenshot + open file)"
+      "description": "REPL and PDF/HTML export tool (result cards + open artifact)"
+    },
+    "ru": {
+      "displayName": "Studio",
+      "description": "REPL и экспорт в PDF/HTML (карточки результатов + открытие артефакта)"
     }
   }
 }

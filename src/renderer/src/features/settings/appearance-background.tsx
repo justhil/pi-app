@@ -121,7 +121,7 @@ export function AppearanceBackground() {
                   <Switch aria-label={t('settings:appearance.bgFullCover')} checked={img.fullCover} onCheckedChange={(fullCover) => patchSlot(slot, { fullCover })} />
                 </SettingRow>
                 <SettingRow label={t('settings:appearance.bgUiOpacity')} description={t('settings:appearance.bgUiOpacityDesc')}>
-                  <Slider label={t('settings:appearance.bgUiOpacity')} value={img.uiOpacity} min={0.5} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { uiOpacity })} />
+                  <Slider label={t('settings:appearance.bgUiOpacity')} value={img.uiOpacity} min={0.15} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { uiOpacity })} />
                 </SettingRow>
                 <SettingRow label={t('settings:appearance.bgMaterial')} description={t('settings:appearance.bgMaterialDesc')}>
                   <MaterialSelect label={t('settings:appearance.bgMaterial')} value={img.material} onChange={(material) => patchSlot(slot, { material })} />
@@ -139,7 +139,7 @@ export function AppearanceBackground() {
                 {img.content ? (
                   <>
                     <SettingRow label={t('settings:appearance.bgContentOpacity')}>
-                      <Slider label={t('settings:appearance.bgContentOpacity')} value={img.content.uiOpacity} min={0.3} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { content: { ...img.content!, uiOpacity } })} />
+                      <Slider label={t('settings:appearance.bgContentOpacity')} value={img.content.uiOpacity} min={0.15} max={1} step={0.02} format={pct} onChange={(uiOpacity) => patchSlot(slot, { content: { ...img.content!, uiOpacity } })} />
                     </SettingRow>
                     <SettingRow label={t('settings:appearance.bgContentMaterial')}>
                       <MaterialSelect label={t('settings:appearance.bgContentMaterial')} value={img.content.material} onChange={(material) => patchSlot(slot, { content: { ...img.content!, material } })} />

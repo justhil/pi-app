@@ -298,7 +298,7 @@ export function ComposerAgentActivity({
   }
 
   return (
-    <div className="composer-agent-activity-launcher ml-auto flex min-h-7 shrink-0 items-center">
+    <div data-pi-slot="composer-activity" className="composer-agent-activity-launcher ml-auto flex min-h-7 shrink-0 items-center">
       <button
         ref={triggerRef}
         type="button"

@@ -1,147 +1,1212 @@
+import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { mkdir, open, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
-import type { UsageBucket, UsageSummary } from '@shared/usage-summary'
+import { dirname, isAbsolute, join } from 'node:path'
+import type {
+  UsageBucket,
+  UsageCostBreakdown,
+  UsageLogPage,
+  UsageLogQuery,
+  UsageLogRow,
+  UsageLogSortField,
+  UsageStatsBucket,
+  UsageStopStatus,
+  UsageSummary,
+} from '@shared/usage-summary'
 
-/** One assistant reply's usage (pi `AssistantMessage.usage`). */
-type Rec = { key: string; ts: number; model: string; input: number; output: number; cacheRead: number; cacheWrite: number; reasoning: number; cost: number }
-type FileUsage = { mtimeMs: number; size: number; project: string; title: string; created: number; records: Rec[] }
+/** One assistant reply's usage & latency metadata from a session `.jsonl` line. */
+type Rec = {
+  key: string
+  entryId: string
+  parentId: string | null
+  ts: number
+  api: string
+  provider: string
+  modelId: string
+  model: string
+  responseModel?: string
+  responseId?: string
+  thinkingLevel?: string
+  stopReason: string
+  status: UsageStopStatus
+  errorMessage?: string
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  cacheWrite1h: number
+  reasoning: number
+  cost: number
+  costBreakdown: UsageCostBreakdown & { totalFromProvider?: boolean }
+  durationMs: number | null
+  ttftMs: number | null
+  firstTokenKind?: 'thinking' | 'text' | 'toolCall'
+}
+
+type FileUsage = {
+  mtimeMs: number
+  size: number
+  /** Hex of last up to 64 bytes (ending with '\n' when tail-appendable) for safe incremental reads. */
+  tailSig?: string
+  /** Number of lines parsed so far (used for deterministic fallback `@line:N` entryIds on append). */
+  lineCount?: number
+  /** True once `title` came from an explicit `session_info` rename entry. */
+  hasNamedTitle?: boolean
+  project: string
+  title: string
+  created: number
+  records: Rec[]
+}
+
+/**
+ * Compact persisted disk index (v2):
+ * Interns repeated strings (`api`, `provider`, `modelId`, `stopReason`, etc.) into a shared
+ * `strings` table and stores each record as a dense positional array rather than a 24-key object,
+ * shrinking 120k-call indices by ~80% (~82 MB -> ~14 MB) and cutting cold-start parse time ~4x.
+ */
+type CompactFileEntry = [
+  mtimeMs: number,
+  size: number,
+  tailSig: string,
+  lineCount: number,
+  flags: number, // bit 0: hasNamedTitle
+  projectIdx: number,
+  title: string,
+  created: number,
+  records: unknown[][],
+]
+
+interface PersistedUsageIndexV2 {
+  version: 2
+  agentDir: string
+  savedAt: number
+  strings: string[]
+  files: Record<string, CompactFileEntry>
+}
+
+const INDEX_VERSION = 2
+const DAY = 86_400_000
+const MAX_FALLBACK_DURATION_MS = 3_600_000
+const CHUNK_BYTES = 256 * 1024
+const TAIL_SIG_BYTES = 64
+const STAT_CONCURRENCY = 24
+const PRIORITY_SCAN_CONCURRENCY = 8
+const BACKGROUND_SCAN_CONCURRENCY = 3
+
+const NEEDLE_USAGE = Buffer.from('"usage"')
+const NEEDLE_ASSISTANT = Buffer.from('"assistant"')
+const NEEDLE_SESSION_INFO = Buffer.from('"session_info"')
+const NEEDLE_USER = Buffer.from('"user"')
 
 const cache = new Map<string, FileUsage>()
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
+let loadedIndexPath: string | null = null
+let activePriorityScan: Promise<RefreshUsageAsyncResult> | null = null
+let backgroundScanRunning = false
+let backgroundPendingCount = 0
+let backgroundTotalFiles = 0
+let backgroundQueue: Array<{ file: string; mtimeMs: number; size: number }> = []
+let backgroundCachePath: string | null = null
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+let persistDirty = false
+let activePersist: Promise<void> | null = null
 
-function textOf(content: unknown): string {
+export type RefreshUsageAsyncResult = {
+  files: number
+  read: number
+  appended: number
+  deferred: number
+  loadedFromDiskIndex: boolean
+}
+
+export function __resetUsageCacheForTest(): void {
+  cache.clear()
+  loadedIndexPath = null
+  activePriorityScan = null
+  backgroundScanRunning = false
+  backgroundPendingCount = 0
+  backgroundTotalFiles = 0
+  backgroundQueue = []
+  backgroundCachePath = null
+  persistDirty = false
+  activePersist = null
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+}
+
+export function getUsageIndexingState(): { pendingFiles: number; totalFiles: number } | undefined {
+  if (!backgroundScanRunning && backgroundPendingCount <= 0) return undefined
+  return {
+    pendingFiles: Math.max(backgroundPendingCount, backgroundQueue.length),
+    totalFiles: backgroundTotalFiles,
+  }
+}
+
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0)
+
+function firstUserLine(content: unknown): string {
   if (typeof content === 'string') return content
-  if (Array.isArray(content)) return content.map((c: { type?: string; text?: string }) => (c?.type === 'text' ? c.text ?? '' : '')).join(' ')
+  if (!Array.isArray(content)) return ''
+  for (const part of content) {
+    if (part && typeof part === 'object' && (part as { type?: unknown }).type === 'text') {
+      const t = (part as { text?: unknown }).text
+      if (typeof t === 'string' && t.trim()) return t
+    }
+  }
   return ''
 }
 
-/** Usage records of one session file (header cwd, first prompt as title). */
-export function scanUsageFile(text: string): Omit<FileUsage, 'mtimeMs' | 'size'> {
-  let project = ''
-  let title = ''
-  let created = 0
-  const records: Rec[] = []
-  for (const line of text.split('\n')) {
-    if (!line || (!line.includes('"usage"') && !line.includes('"session"') && title)) continue
-    let e: { type?: string; id?: string; cwd?: string; timestamp?: string | number; message?: { role?: string; content?: unknown; usage?: Record<string, unknown>; model?: string; provider?: string; timestamp?: number } }
-    try {
-      e = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (e.type === 'session') {
-      project = typeof e.cwd === 'string' ? e.cwd : project
-      created = Date.parse(String(e.timestamp ?? '')) || 0
-      continue
-    }
-    const m = e.message
-    if (e.type !== 'message' || !m) continue
-    if (!title && m.role === 'user') title = textOf(m.content).replace(/\s+/g, ' ').trim().slice(0, 80)
-    if (m.role !== 'assistant' || !m.usage) continue
-    const u = m.usage
-    const cost = u.cost && typeof u.cost === 'object' ? num((u.cost as { total?: unknown }).total) : 0
-    const ts = typeof m.timestamp === 'number' ? m.timestamp : Date.parse(String(e.timestamp ?? ''))
-    if (!Number.isFinite(ts)) continue
-    records.push({
-      // Forks copy earlier entries (same id and timestamp) into the new file: this key dedupes them.
-      key: `${e.id ?? ''}:${ts}:${m.model ?? ''}`,
-      ts,
-      model: [m.provider, m.model].filter(Boolean).join('/') || 'unknown',
-      input: num(u.input),
-      output: num(u.output),
-      cacheRead: num(u.cacheRead),
-      cacheWrite: num(u.cacheWrite),
-      reasoning: num(u.reasoning),
-      cost,
-    })
-  }
-  return { project, title, created, records }
+function classifyStopStatus(stopReason: string): UsageStopStatus {
+  if (stopReason === 'error') return 'error'
+  if (stopReason === 'aborted') return 'aborted'
+  if (stopReason === 'length') return 'length'
+  return 'ok'
 }
 
-/** `.jsonl` files in `dir` and one level of sub-folders (pi's per-project layout, or a flat `sessionDir`). */
-function jsonlFiles(dir: string, out: Set<string>): void {
-  let names: string[] = []
-  try {
-    names = readdirSync(dir)
-  } catch {
+function parseFirstTokenKind(v: unknown): 'thinking' | 'text' | 'toolCall' | undefined {
+  return v === 'thinking' || v === 'text' || v === 'toolCall' ? v : undefined
+}
+
+interface ScanAccumulator {
+  project: string
+  title: string
+  named: string
+  created: number
+  records: Rec[]
+  lineIdx: number
+}
+
+function ingestParsedLine(e: Record<string, unknown>, currentLine: number, acc: ScanAccumulator): void {
+  if (e.type === 'session') {
+    if (typeof e.cwd === 'string') acc.project = e.cwd
+    const t = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : NaN
+    if (Number.isFinite(t)) acc.created = t
     return
   }
-  for (const n of names) {
-    const p = join(dir, n)
-    if (n.endsWith('.jsonl')) out.add(p)
-    else {
-      try {
-        if (statSync(p).isDirectory()) for (const m of readdirSync(p)) if (m.endsWith('.jsonl')) out.add(join(p, m))
-      } catch {
-        /* skip */
-      }
-    }
+  if (e.type === 'session_info' && typeof e.name === 'string' && e.name.trim()) {
+    acc.named = e.name.trim()
+    return
   }
-}
-
-/** A custom `sessionDir` from pi's settings.json (the CLI and the desktop both honour it). */
-export function customSessionDir(agentDir: string): string | null {
-  try {
-    const dir = (JSON.parse(readFileSync(join(agentDir, 'settings.json'), 'utf8')) as { sessionDir?: unknown }).sessionDir
-    if (typeof dir !== 'string' || !dir.trim()) return null
-    const d = dir.trim().replace(/^~(?=$|[\\/])/, homedir())
-    return isAbsolute(d) ? d : join(agentDir, d)
-  } catch {
-    return null
+  if (e.type !== 'message' || !e.message || typeof e.message !== 'object') return
+  const m = e.message as Record<string, unknown>
+  if (m.role === 'user' && !acc.title) {
+    acc.title = firstUserLine(m.content).replace(/\s+/g, ' ').trim().slice(0, 80)
+    return
   }
+  if (m.role !== 'assistant' || !m.usage || typeof m.usage !== 'object') return
+  const u = m.usage as Record<string, unknown>
+  const c = u.cost && typeof u.cost === 'object' ? (u.cost as Record<string, unknown>) : undefined
+  const msgTs = typeof m.timestamp === 'number' && Number.isFinite(m.timestamp) ? m.timestamp : NaN
+  const entryTs = typeof e.timestamp === 'string' ? Date.parse(e.timestamp) : NaN
+  const ts = Number.isFinite(msgTs) ? msgTs : entryTs
+  if (!Number.isFinite(ts)) return
+
+  const provider = typeof m.provider === 'string' ? m.provider : ''
+  const modelId = typeof m.model === 'string' ? m.model : 'unknown'
+  const rawEntryId = typeof e.id === 'string' && e.id ? e.id : ''
+  const entryId = rawEntryId || `@line:${currentLine}`
+  const parentId = typeof e.parentId === 'string' ? e.parentId : null
+
+  let durationMs: number | null = null
+  if (typeof m.durationMs === 'number' && Number.isFinite(m.durationMs) && m.durationMs >= 0) {
+    durationMs = Math.round(m.durationMs)
+  } else if (Number.isFinite(entryTs) && Number.isFinite(msgTs) && entryTs >= msgTs) {
+    const delta = Math.round(entryTs - msgTs)
+    if (delta <= MAX_FALLBACK_DURATION_MS) durationMs = delta
+  }
+
+  const rawTtft =
+    typeof m.ttftMs === 'number' && Number.isFinite(m.ttftMs) && m.ttftMs >= 0
+      ? Math.round(m.ttftMs)
+      : null
+  const ttftMs =
+    rawTtft !== null && durationMs !== null ? Math.min(rawTtft, durationMs) : rawTtft
+
+  const stopReason = typeof m.stopReason === 'string' && m.stopReason ? m.stopReason : 'stop'
+  const respModel =
+    typeof m.responseModel === 'string' && m.responseModel && m.responseModel !== modelId
+      ? m.responseModel
+      : undefined
+  const responseId = typeof m.responseId === 'string' && m.responseId ? m.responseId : undefined
+  const thinkingLevel =
+    typeof m.thinkingLevel === 'string' && m.thinkingLevel && m.thinkingLevel !== 'off'
+      ? m.thinkingLevel
+      : typeof m.providerThinkingLevel === 'string' && m.providerThinkingLevel
+        ? m.providerThinkingLevel
+        : undefined
+  const errorMessage =
+    typeof m.errorMessage === 'string' && m.errorMessage.trim()
+      ? m.errorMessage.trim().slice(0, 240)
+      : undefined
+
+  acc.records.push({
+    key: `${rawEntryId}@${ts}`,
+    entryId,
+    parentId,
+    ts,
+    api: typeof m.api === 'string' ? m.api : '',
+    provider,
+    modelId,
+    model: provider ? `${provider}/${modelId}` : modelId,
+    ...(respModel ? { responseModel: respModel } : {}),
+    ...(responseId ? { responseId } : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
+    stopReason,
+    status: classifyStopStatus(stopReason),
+    ...(errorMessage ? { errorMessage } : {}),
+    input: num(u.input),
+    output: num(u.output),
+    cacheRead: num(u.cacheRead),
+    cacheWrite: num(u.cacheWrite),
+    cacheWrite1h: num(u.cacheWrite1h),
+    reasoning: num(u.reasoning),
+    cost: num(c?.total),
+    costBreakdown: {
+      input: num(c?.input),
+      output: num(c?.output),
+      cacheRead: num(c?.cacheRead),
+      cacheWrite: num(c?.cacheWrite),
+      ...(typeof c?.totalFromProvider === 'boolean' ? { totalFromProvider: c.totalFromProvider } : {}),
+    },
+    durationMs,
+    ttftMs,
+    ...(parseFirstTokenKind(m.firstTokenKind) ? { firstTokenKind: parseFirstTokenKind(m.firstTokenKind) } : {}),
+  })
 }
 
-/** Every session file pi may have written: `<agentDir>/sessions/<project>/`, plus a custom `sessionDir`. */
-function sessionFiles(agentDir: string): string[] {
-  const out = new Set<string>()
-  jsonlFiles(join(agentDir, 'sessions'), out)
-  const custom = customSessionDir(agentDir)
-  if (custom) jsonlFiles(custom, out)
-  return [...out]
+function shouldParseStringLine(line: string, lineIdx: number, needsTitle: boolean): boolean {
+  if (lineIdx === 0) return true
+  if (line.includes('"usage"') && line.includes('"assistant"')) return true
+  if (line.includes('"session_info"')) return true
+  if (needsTitle && line.includes('"user"')) return true
+  return false
 }
 
-/** Refresh the per-file cache: only files whose size or mtime changed are read again. */
-export function refreshUsage(agentDir: string): { files: number; read: number } {
-  const files = sessionFiles(agentDir)
-  const live = new Set(files)
-  for (const f of cache.keys()) if (!live.has(f)) cache.delete(f)
-  let read = 0
-  for (const f of files) {
-    let st: { mtimeMs: number; size: number }
+function shouldParseBufferLine(lineBuf: Buffer, lineIdx: number, needsTitle: boolean): boolean {
+  if (lineIdx === 0) return true
+  if (lineBuf.includes(NEEDLE_USAGE) && lineBuf.includes(NEEDLE_ASSISTANT)) return true
+  if (lineBuf.includes(NEEDLE_SESSION_INFO)) return true
+  if (needsTitle && lineBuf.includes(NEEDLE_USER)) return true
+  return false
+}
+
+export function scanUsageFile(raw: string): Omit<FileUsage, 'mtimeMs' | 'size'> {
+  const acc: ScanAccumulator = {
+    project: '',
+    title: '',
+    named: '',
+    created: Infinity,
+    records: [],
+    lineIdx: 0,
+  }
+
+  for (let start = 0; start < raw.length; ) {
+    const nl = raw.indexOf('\n', start)
+    const line = raw.slice(start, nl < 0 ? raw.length : nl).trim()
+    start = nl < 0 ? raw.length : nl + 1
+    const currentLine = acc.lineIdx++
+    if (!line) continue
+    if (!shouldParseStringLine(line, currentLine, !acc.title)) continue
+    let e: Record<string, unknown>
     try {
-      st = statSync(f)
+      e = JSON.parse(line) as Record<string, unknown>
     } catch {
       continue
     }
-    const prev = cache.get(f)
+    ingestParsedLine(e, currentLine, acc)
+  }
+  if (!Number.isFinite(acc.created)) acc.created = acc.records[0]?.ts ?? 0
+  return {
+    project: acc.project,
+    title: acc.named || acc.title,
+    created: acc.created,
+    records: acc.records,
+    lineCount: acc.lineIdx,
+    ...(acc.named ? { hasNamedTitle: true } : {}),
+  }
+}
+
+/**
+ * Stream-scan a `.jsonl` file in 256KB Buffer chunks with zero-copy C++ `Buffer.includes`
+ * pre-filtering (skips ~92%+ of bytes such as toolResult/base64 images before UTF-8 decode or
+ * JSON.parse). When `prev` is provided and its 64-byte tail fingerprint still matches at
+ * `prev.size`, only newly appended trailing bytes are read.
+ */
+async function scanUsageFileAsync(
+  filePath: string,
+  size: number,
+  mtimeMs: number,
+  prev?: FileUsage,
+): Promise<{ usage: FileUsage; appended: boolean }> {
+  const fh = await open(filePath, 'r')
+  try {
+    let startOffset = 0
+    let appended = false
+    const acc: ScanAccumulator = {
+      project: '',
+      title: '',
+      named: '',
+      created: Infinity,
+      records: [],
+      lineIdx: 0,
+    }
+
+    // Attempt safe tail-append when file grew and previous snapshot ended cleanly on '\n'.
+    if (
+      prev &&
+      prev.size > 0 &&
+      size > prev.size &&
+      prev.tailSig &&
+      prev.tailSig.endsWith('0a') &&
+      typeof prev.lineCount === 'number'
+    ) {
+      const sigBytes = Math.min(TAIL_SIG_BYTES, prev.size)
+      const checkBuf = Buffer.allocUnsafe(sigBytes)
+      const { bytesRead } = await fh.read(checkBuf, 0, sigBytes, prev.size - sigBytes)
+      if (bytesRead === sigBytes && checkBuf.toString('hex') === prev.tailSig) {
+        startOffset = prev.size
+        appended = true
+        acc.project = prev.project
+        acc.title = prev.title
+        acc.named = prev.hasNamedTitle ? prev.title : ''
+        acc.created = prev.created
+        acc.records = prev.records.slice()
+        acc.lineIdx = prev.lineCount
+      }
+    }
+
+    const readBuf = Buffer.allocUnsafe(Math.min(CHUNK_BYTES, Math.max(4096, size - startOffset)))
+    let pos = startOffset
+    let carry: Buffer<ArrayBufferLike> = Buffer.alloc(0)
+    // Track last TAIL_SIG_BYTES bytes seen across chunks so we compute tailSig in a single pass.
+    let tailWindow: Buffer<ArrayBufferLike> = Buffer.alloc(0)
+
+    const processLineBuf = (lineBuf: Buffer) => {
+      const currentLine = acc.lineIdx++
+      if (lineBuf.length === 0) return
+      if (!shouldParseBufferLine(lineBuf, currentLine, !acc.title)) return
+      const lineStr = lineBuf.toString('utf8').trim()
+      if (!lineStr) return
+      let e: Record<string, unknown>
+      try {
+        e = JSON.parse(lineStr) as Record<string, unknown>
+      } catch {
+        return
+      }
+      ingestParsedLine(e, currentLine, acc)
+    }
+
+    while (pos < size) {
+      const toRead = Math.min(readBuf.length, size - pos)
+      const { bytesRead } = await fh.read(readBuf, 0, toRead, pos)
+      if (bytesRead <= 0) break
+      pos += bytesRead
+      const chunk = readBuf.subarray(0, bytesRead)
+
+      // Maintain rolling last 64 bytes for tailSig
+      if (bytesRead >= TAIL_SIG_BYTES) {
+        tailWindow = Buffer.from(chunk.subarray(bytesRead - TAIL_SIG_BYTES))
+      } else {
+        const combined = Buffer.concat([tailWindow, chunk])
+        tailWindow =
+          combined.length > TAIL_SIG_BYTES
+            ? combined.subarray(combined.length - TAIL_SIG_BYTES)
+            : combined
+      }
+
+      const buf = carry.length > 0 ? Buffer.concat([carry, chunk]) : chunk
+      let lineStart = 0
+      while (lineStart < buf.length) {
+        const nl = buf.indexOf(0x0a, lineStart)
+        if (nl < 0) break
+        const end = nl > lineStart && buf[nl - 1] === 0x0d ? nl - 1 : nl
+        processLineBuf(buf.subarray(lineStart, end))
+        lineStart = nl + 1
+      }
+      carry = lineStart < buf.length ? Buffer.from(buf.subarray(lineStart)) : Buffer.alloc(0)
+    }
+
+    if (carry.length > 0) {
+      const end = carry[carry.length - 1] === 0x0d ? carry.length - 1 : carry.length
+      processLineBuf(carry.subarray(0, end))
+    }
+
+    // If tail-appended < 64 bytes, fill tailSig by reading exact last min(64, size) bytes.
+    let tailSig: string | undefined
+    if (size > 0) {
+      if (tailWindow.length >= Math.min(TAIL_SIG_BYTES, size)) {
+        tailSig = tailWindow.subarray(tailWindow.length - Math.min(TAIL_SIG_BYTES, size)).toString('hex')
+      } else {
+        const sigLen = Math.min(TAIL_SIG_BYTES, size)
+        const sigBuf = Buffer.allocUnsafe(sigLen)
+        const { bytesRead } = await fh.read(sigBuf, 0, sigLen, size - sigLen)
+        if (bytesRead === sigLen) tailSig = sigBuf.toString('hex')
+      }
+    }
+
+    if (!Number.isFinite(acc.created)) acc.created = acc.records[0]?.ts ?? 0
+    return {
+      usage: {
+        mtimeMs,
+        size,
+        ...(tailSig ? { tailSig } : {}),
+        lineCount: acc.lineIdx,
+        ...(acc.named ? { hasNamedTitle: true } : {}),
+        project: acc.project,
+        title: acc.named || acc.title,
+        created: acc.created,
+        records: acc.records,
+      },
+      appended,
+    }
+  } finally {
+    await fh.close()
+  }
+}
+
+function expandHome(p: string): string {
+  if (p === '~') return homedir()
+  if (p.startsWith('~/') || p.startsWith('~\\')) return join(homedir(), p.slice(2))
+  return p
+}
+
+/** Directories where pi stores `.jsonl` sessions: `<agentDir>/sessions/*` plus optional `sessionDir` in settings. */
+export function resolveSessionRoots(agentDir: string): string[] {
+  const roots = [join(agentDir, 'sessions')]
+  try {
+    const s = JSON.parse(readFileSync(join(agentDir, 'settings.json'), 'utf8')) as { sessionDir?: unknown }
+    if (typeof s.sessionDir === 'string' && s.sessionDir.trim()) {
+      const p = expandHome(s.sessionDir.trim())
+      roots.push(isAbsolute(p) ? p : join(agentDir, p))
+    }
+  } catch {
+    /* optional */
+  }
+  return [...new Set(roots)]
+}
+
+async function resolveSessionRootsAsync(agentDir: string): Promise<string[]> {
+  const roots = [join(agentDir, 'sessions')]
+  try {
+    const raw = await readFile(join(agentDir, 'settings.json'), 'utf8')
+    const s = JSON.parse(raw) as { sessionDir?: unknown }
+    if (typeof s.sessionDir === 'string' && s.sessionDir.trim()) {
+      const p = expandHome(s.sessionDir.trim())
+      roots.push(isAbsolute(p) ? p : join(agentDir, p))
+    }
+  } catch {
+    /* optional */
+  }
+  return [...new Set(roots)]
+}
+
+function listJsonl(roots: readonly string[]): string[] {
+  const out: string[] = []
+  const walk = (dir: string, depth: number): void => {
+    let entries
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const d of entries) {
+      const full = join(dir, d.name)
+      if (d.isDirectory() && depth < 2) walk(full, depth + 1)
+      else if (d.isFile() && d.name.endsWith('.jsonl')) out.push(full)
+    }
+  }
+  for (const r of roots) walk(r, 0)
+  return out
+}
+
+async function listJsonlAsync(roots: readonly string[]): Promise<string[]> {
+  const out: string[] = []
+  const walk = async (dir: string, depth: number): Promise<void> => {
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    const subdirs: string[] = []
+    for (const d of entries) {
+      const full = join(dir, d.name)
+      if (d.isDirectory() && depth < 2) subdirs.push(full)
+      else if (d.isFile() && d.name.endsWith('.jsonl')) out.push(full)
+    }
+    if (subdirs.length > 0) {
+      await Promise.all(subdirs.map((sub) => walk(sub, depth + 1)))
+    }
+  }
+  await Promise.all(roots.map((r) => walk(r, 0)))
+  return out
+}
+
+function usageIndexFilePath(agentDir: string, cacheDir?: string): string | null {
+  if (!cacheDir || !agentDir) return null
+  const hash = createHash('sha1').update(agentDir).digest('hex').slice(0, 12)
+  return join(cacheDir, `usage-index-v${INDEX_VERSION}-${hash}.json`)
+}
+
+function encodeFirstTokenBits(kind?: 'thinking' | 'text' | 'toolCall'): number {
+  if (kind === 'thinking') return 1
+  if (kind === 'text') return 2
+  if (kind === 'toolCall') return 3
+  return 0
+}
+
+function decodeFirstTokenBits(bits: number): 'thinking' | 'text' | 'toolCall' | undefined {
+  if (bits === 1) return 'thinking'
+  if (bits === 2) return 'text'
+  if (bits === 3) return 'toolCall'
+  return undefined
+}
+
+function serializeCompactIndex(agentDir: string): PersistedUsageIndexV2 {
+  const strings: string[] = ['']
+  const strMap = new Map<string, number>([['', 0]])
+  const intern = (s: string | undefined): number => {
+    if (!s) return 0
+    const hit = strMap.get(s)
+    if (hit !== undefined) return hit
+    const idx = strings.length
+    strings.push(s)
+    strMap.set(s, idx)
+    return idx
+  }
+
+  const filesObj: Record<string, CompactFileEntry> = {}
+  for (const [file, entry] of cache.entries()) {
+    const compactRecs: unknown[][] = new Array(entry.records.length)
+    for (let i = 0; i < entry.records.length; i++) {
+      const r = entry.records[i]
+      const flags =
+        (r.costBreakdown.totalFromProvider === true ? 1 : r.costBreakdown.totalFromProvider === false ? 2 : 0) |
+        (encodeFirstTokenBits(r.firstTokenKind) << 2)
+      const row: unknown[] = [
+        r.entryId,
+        r.parentId ?? '',
+        r.ts,
+        intern(r.api),
+        intern(r.provider),
+        intern(r.modelId),
+        intern(r.stopReason),
+        r.input,
+        r.output,
+        r.cacheRead,
+        r.cacheWrite,
+        r.cacheWrite1h,
+        r.reasoning,
+        r.cost,
+        r.costBreakdown.input,
+        r.costBreakdown.output,
+        r.costBreakdown.cacheRead,
+        r.costBreakdown.cacheWrite,
+        r.durationMs ?? -1,
+        r.ttftMs ?? -1,
+        flags,
+      ]
+      if (r.responseModel || r.responseId || r.thinkingLevel || r.errorMessage) {
+        row.push(
+          intern(r.responseModel),
+          r.responseId ?? '',
+          intern(r.thinkingLevel),
+          r.errorMessage ?? '',
+        )
+      }
+      compactRecs[i] = row
+    }
+    filesObj[file] = [
+      entry.mtimeMs,
+      entry.size,
+      entry.tailSig ?? '',
+      entry.lineCount ?? 0,
+      entry.hasNamedTitle ? 1 : 0,
+      intern(entry.project),
+      entry.title,
+      entry.created,
+      compactRecs,
+    ]
+  }
+
+  return {
+    version: 2,
+    agentDir,
+    savedAt: Date.now(),
+    strings,
+    files: filesObj,
+  }
+}
+
+function hydrateCompactIndex(parsed: PersistedUsageIndexV2): number {
+  const strings = parsed.strings
+  const str = (idx: unknown): string => (typeof idx === 'number' && idx >= 0 && idx < strings.length ? strings[idx] : '')
+  let restored = 0
+  for (const [file, rawEntry] of Object.entries(parsed.files)) {
+    if (!Array.isArray(rawEntry) || rawEntry.length < 9) continue
+    const [mtimeMs, size, tailSig, lineCount, fileFlags, projectIdx, title, created, rawRecs] = rawEntry
+    if (typeof mtimeMs !== 'number' || typeof size !== 'number' || !Array.isArray(rawRecs)) continue
+    const records: Rec[] = new Array(rawRecs.length)
+    let outIdx = 0
+    for (let i = 0; i < rawRecs.length; i++) {
+      const row = rawRecs[i]
+      if (!Array.isArray(row) || row.length < 21) continue
+      const entryId = String(row[0] ?? '')
+      const parentRaw = String(row[1] ?? '')
+      const ts = Number(row[2])
+      if (!Number.isFinite(ts)) continue
+      const api = str(row[3])
+      const provider = str(row[4])
+      const modelId = str(row[5]) || 'unknown'
+      const stopReason = str(row[6]) || 'stop'
+      const flags = Number(row[20]) || 0
+      const tfpBits = flags & 3
+      const firstTokenKind = decodeFirstTokenBits((flags >> 2) & 3)
+      const responseModel = row.length > 21 ? str(row[21]) : ''
+      const responseId = row.length > 22 ? String(row[22] ?? '') : ''
+      const thinkingLevel = row.length > 23 ? str(row[23]) : ''
+      const errorMessage = row.length > 24 ? String(row[24] ?? '') : ''
+      const dur = Number(row[18])
+      const ttft = Number(row[19])
+      const rawEntryId = entryId.startsWith('@line:') ? '' : entryId
+
+      records[outIdx++] = {
+        key: `${rawEntryId}@${ts}`,
+        entryId,
+        parentId: parentRaw || null,
+        ts,
+        api,
+        provider,
+        modelId,
+        model: provider ? `${provider}/${modelId}` : modelId,
+        ...(responseModel ? { responseModel } : {}),
+        ...(responseId ? { responseId } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
+        stopReason,
+        status: classifyStopStatus(stopReason),
+        ...(errorMessage ? { errorMessage } : {}),
+        input: Number(row[7]) || 0,
+        output: Number(row[8]) || 0,
+        cacheRead: Number(row[9]) || 0,
+        cacheWrite: Number(row[10]) || 0,
+        cacheWrite1h: Number(row[11]) || 0,
+        reasoning: Number(row[12]) || 0,
+        cost: Number(row[13]) || 0,
+        costBreakdown: {
+          input: Number(row[14]) || 0,
+          output: Number(row[15]) || 0,
+          cacheRead: Number(row[16]) || 0,
+          cacheWrite: Number(row[17]) || 0,
+          ...(tfpBits === 1 ? { totalFromProvider: true } : tfpBits === 2 ? { totalFromProvider: false } : {}),
+        },
+        durationMs: dur >= 0 ? dur : null,
+        ttftMs: ttft >= 0 ? ttft : null,
+        ...(firstTokenKind ? { firstTokenKind } : {}),
+      }
+    }
+    if (outIdx < records.length) records.length = outIdx
+    cache.set(file, {
+      mtimeMs,
+      size,
+      ...(tailSig ? { tailSig: String(tailSig) } : {}),
+      ...(typeof lineCount === 'number' && lineCount > 0 ? { lineCount } : {}),
+      ...((Number(fileFlags) & 1) ? { hasNamedTitle: true } : {}),
+      project: str(projectIdx),
+      title: String(title ?? ''),
+      created: typeof created === 'number' ? created : 0,
+      records,
+    })
+    restored++
+  }
+  return restored
+}
+
+async function ensureDiskIndexLoaded(indexPath: string | null, agentDir: string): Promise<boolean> {
+  if (!indexPath) return false
+  if (loadedIndexPath === indexPath && cache.size > 0) return false
+  if (loadedIndexPath && loadedIndexPath !== indexPath) {
+    cache.clear()
+  }
+  loadedIndexPath = indexPath
+  try {
+    const raw = await readFile(indexPath, 'utf8')
+    const parsed = JSON.parse(raw) as PersistedUsageIndexV2
+    if (
+      parsed &&
+      parsed.version === INDEX_VERSION &&
+      parsed.agentDir === agentDir &&
+      Array.isArray(parsed.strings) &&
+      parsed.files &&
+      typeof parsed.files === 'object'
+    ) {
+      return hydrateCompactIndex(parsed) > 0
+    }
+  } catch {
+    /* cold start or invalid cache */
+  }
+  return false
+}
+
+async function flushDiskIndexNow(indexPath: string, agentDir: string): Promise<void> {
+  if (activePersist) await activePersist
+  if (!persistDirty) return
+  persistDirty = false
+  const payload = serializeCompactIndex(agentDir)
+  const tmp = `${indexPath}.${process.pid}.${Date.now()}.tmp`
+  const work = (async () => {
+    try {
+      await mkdir(dirname(indexPath), { recursive: true })
+      await writeFile(tmp, JSON.stringify(payload), 'utf8')
+      await rename(tmp, indexPath)
+    } catch {
+      /* best-effort cache persistence */
+    }
+  })()
+  activePersist = work
+  try {
+    await work
+  } finally {
+    if (activePersist === work) activePersist = null
+  }
+}
+
+function scheduleDiskIndexPersist(indexPath: string | null, agentDir: string, immediate = false): void {
+  if (!indexPath) return
+  persistDirty = true
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+  if (immediate) {
+    void flushDiskIndexNow(indexPath, agentDir)
+    return
+  }
+  persistTimer = setTimeout(() => {
+    persistTimer = null
+    void flushDiskIndexNow(indexPath, agentDir)
+  }, 500)
+}
+
+function yieldEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
+async function runPool<T>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+  yieldEvery = 0,
+): Promise<void> {
+  let cursor = 0
+  let completed = 0
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const idx = cursor++
+      await worker(items[idx])
+      completed++
+      if (yieldEvery > 0 && completed % yieldEvery === 0) {
+        await yieldEventLoop()
+      }
+    }
+  })
+  await Promise.all(runners)
+}
+
+function startBackgroundDeferredScan(
+  deferred: Array<{ file: string; mtimeMs: number; size: number }>,
+  agentDir: string,
+  indexPath: string | null,
+  totalFiles: number,
+): void {
+  if (deferred.length === 0) return
+  // Merge into queue without duplicates, newest first so recent history warms earliest.
+  const queuedSet = new Set(backgroundQueue.map((q) => q.file))
+  for (const item of deferred) {
+    if (!queuedSet.has(item.file)) {
+      backgroundQueue.push(item)
+      queuedSet.add(item.file)
+    }
+  }
+  backgroundQueue.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  backgroundTotalFiles = totalFiles
+  backgroundPendingCount = backgroundQueue.length
+  backgroundCachePath = indexPath
+
+  if (backgroundScanRunning) return
+  backgroundScanRunning = true
+
+  void (async () => {
+    try {
+      let dirty = false
+      while (backgroundQueue.length > 0) {
+        const batch = backgroundQueue.splice(0, BACKGROUND_SCAN_CONCURRENCY * 2)
+        await runPool(
+          batch,
+          BACKGROUND_SCAN_CONCURRENCY,
+          async (item) => {
+            const prev = cache.get(item.file)
+            if (prev && prev.mtimeMs === item.mtimeMs && prev.size === item.size) return
+            try {
+              const { usage } = await scanUsageFileAsync(item.file, item.size, item.mtimeMs, prev)
+              cache.set(item.file, usage)
+              dirty = true
+            } catch {
+              cache.delete(item.file)
+            }
+          },
+          2,
+        )
+        backgroundPendingCount = backgroundQueue.length
+        await yieldEventLoop()
+      }
+      if (dirty && backgroundCachePath) {
+        scheduleDiskIndexPersist(backgroundCachePath, agentDir, true)
+      }
+    } finally {
+      backgroundScanRunning = false
+      backgroundPendingCount = 0
+    }
+  })()
+}
+
+/**
+ * High-performance async usage refresh for Preview/WSL processes:
+ * 1. Hydrates persisted disk index from `cacheDir` (if present, < 40ms across 1,600+ sessions).
+ * 2. Stats session files concurrently and skips unchanged `(mtimeMs, size)` files.
+ * 3. Scans only changed files relevant to `[from - 1d, ∞)` immediately (using 256KB streaming
+ *    Buffer pre-filtering + 64B tail-append), yielding to the event loop so Preview stays snappy.
+ * 4. Defers unchanged-window older files (`mtimeMs < from - 1d`) to a low-priority background
+ *    pass and persists the full disk index atomically so subsequent cold starts take < 50ms.
+ */
+export async function refreshUsageAsync(
+  agentDir: string,
+  opts?: { from?: number; cacheDir?: string; awaitBackground?: boolean },
+): Promise<RefreshUsageAsyncResult> {
+  if (activePriorityScan) {
+    const first = await activePriorityScan
+    // If caller asks for an older range (e.g. "All time" from=0) while older files were deferred,
+    // fall through and scan any newly required priority files.
+    const wantsOlder = (opts?.from ?? 0) <= 0 && backgroundQueue.length > 0
+    if (!wantsOlder) return first
+  }
+
+  const run = (async (): Promise<RefreshUsageAsyncResult> => {
+    const indexPath = usageIndexFilePath(agentDir, opts?.cacheDir)
+    const loadedFromDiskIndex = await ensureDiskIndexLoaded(indexPath, agentDir)
+
+    const roots = await resolveSessionRootsAsync(agentDir)
+    const files = await listJsonlAsync(roots)
+    const live = new Set(files)
+    let mutated = false
+    for (const k of cache.keys()) {
+      if (!live.has(k)) {
+        cache.delete(k)
+        mutated = true
+      }
+    }
+
+    // Remove deleted files from any pending background queue too
+    if (backgroundQueue.length > 0) {
+      backgroundQueue = backgroundQueue.filter((q) => live.has(q.file))
+    }
+
+    const fromMs = typeof opts?.from === 'number' && Number.isFinite(opts.from) ? opts.from : 0
+    // 24h safety cushion for clock skew / timezone offsets
+    const cutoffMs = fromMs > 0 ? fromMs - DAY : 0
+
+    const priority: Array<{ file: string; mtimeMs: number; size: number }> = []
+    const deferred: Array<{ file: string; mtimeMs: number; size: number }> = []
+
+    await runPool(files, STAT_CONCURRENCY, async (file) => {
+      let st
+      try {
+        st = await stat(file)
+      } catch {
+        if (cache.delete(file)) mutated = true
+        return
+      }
+      const prev = cache.get(file)
+      if (prev && prev.mtimeMs === st.mtimeMs && prev.size === st.size) return
+      const item = { file, mtimeMs: st.mtimeMs, size: st.size }
+      if (cutoffMs > 0 && st.mtimeMs < cutoffMs) deferred.push(item)
+      else priority.push(item)
+    })
+
+    // Scan newest priority files first; remove them from background queue if already queued
+    if (priority.length > 0 && backgroundQueue.length > 0) {
+      const pSet = new Set(priority.map((p) => p.file))
+      backgroundQueue = backgroundQueue.filter((q) => !pSet.has(q.file))
+    }
+    priority.sort((a, b) => b.mtimeMs - a.mtimeMs)
+
+    let read = 0
+    let appended = 0
+    await runPool(
+      priority,
+      PRIORITY_SCAN_CONCURRENCY,
+      async (item) => {
+        const prev = cache.get(item.file)
+        if (prev && prev.mtimeMs === item.mtimeMs && prev.size === item.size) return
+        try {
+          const res = await scanUsageFileAsync(item.file, item.size, item.mtimeMs, prev)
+          cache.set(item.file, res.usage)
+          read++
+          if (res.appended) appended++
+          mutated = true
+        } catch {
+          if (cache.delete(item.file)) mutated = true
+        }
+      },
+      4,
+    )
+
+    if (deferred.length > 0) {
+      if (opts?.awaitBackground) {
+        await runPool(
+          deferred,
+          PRIORITY_SCAN_CONCURRENCY,
+          async (item) => {
+            const prev = cache.get(item.file)
+            if (prev && prev.mtimeMs === item.mtimeMs && prev.size === item.size) return
+            try {
+              const res = await scanUsageFileAsync(item.file, item.size, item.mtimeMs, prev)
+              cache.set(item.file, res.usage)
+              read++
+              if (res.appended) appended++
+              mutated = true
+            } catch {
+              cache.delete(item.file)
+            }
+          },
+          4,
+        )
+        if (mutated && indexPath) {
+          persistDirty = true
+          await flushDiskIndexNow(indexPath, agentDir)
+        }
+      } else {
+        if (mutated) scheduleDiskIndexPersist(indexPath, agentDir, false)
+        startBackgroundDeferredScan(deferred, agentDir, indexPath, files.length)
+      }
+    } else if (mutated && indexPath) {
+      if (opts?.awaitBackground) {
+        persistDirty = true
+        await flushDiskIndexNow(indexPath, agentDir)
+      } else {
+        scheduleDiskIndexPersist(indexPath, agentDir, true)
+      }
+    }
+
+    return {
+      files: files.length,
+      read,
+      appended,
+      deferred: opts?.awaitBackground ? 0 : deferred.length,
+      loadedFromDiskIndex,
+    }
+  })()
+
+  activePriorityScan = run
+  try {
+    return await run
+  } finally {
+    if (activePriorityScan === run) activePriorityScan = null
+  }
+}
+
+/** Synchronous scan preserved for backward-compatible tests and simple single-call callers. */
+export function refreshUsage(agentDir: string): { files: number; read: number } {
+  const files = listJsonl(resolveSessionRoots(agentDir))
+  const live = new Set(files)
+  for (const k of cache.keys()) if (!live.has(k)) cache.delete(k)
+  let read = 0
+  for (const file of files) {
+    let st
+    try {
+      st = statSync(file)
+    } catch {
+      cache.delete(file)
+      continue
+    }
+    const prev = cache.get(file)
     if (prev && prev.mtimeMs === st.mtimeMs && prev.size === st.size) continue
     try {
-      cache.set(f, { mtimeMs: st.mtimeMs, size: st.size, ...scanUsageFile(readFileSync(f, 'utf8')) })
+      cache.set(file, { mtimeMs: st.mtimeMs, size: st.size, ...scanUsageFile(readFileSync(file, 'utf8')) })
       read++
     } catch {
-      /* unreadable: skip */
+      cache.delete(file)
     }
   }
   return { files: files.length, read }
 }
 
-const emptyBucket = (): UsageBucket => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost: 0, calls: 0 })
-function add(b: UsageBucket, r: Rec): void {
+const emptyBucket = (): UsageBucket => ({
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+  reasoning: 0,
+  cost: 0,
+  calls: 0,
+})
+
+function addSimple(b: UsageBucket, r: Rec): void {
   b.input += r.input
   b.output += r.output
   b.cacheRead += r.cacheRead
   b.cacheWrite += r.cacheWrite
   b.reasoning += r.reasoning
   b.cost += r.cost
-  b.calls++
+  b.calls += 1
 }
 
-const DAY = 86_400_000
+function streamedGenTokensOf(r: Rec): number {
+  if (r.firstTokenKind && r.firstTokenKind !== 'thinking' && r.reasoning > 0) {
+    return Math.max(0, r.output - r.reasoning)
+  }
+  return r.output
+}
 
-/** Local calendar day (yyyy-mm-dd) of a timestamp, for a UTC offset in minutes (east positive). */
+function calcRowTotalTps(r: Rec): number | null {
+  if (r.durationMs == null || r.durationMs <= 0 || r.output <= 0) return null
+  return r.output / (r.durationMs / 1000)
+}
+
+function calcRowGenTps(r: Rec): number | null {
+  if (r.ttftMs == null || r.durationMs == null) return null
+  const tokens = streamedGenTokensOf(r)
+  if (tokens <= 0) return null
+  const decodeMs = Math.max(r.durationMs - r.ttftMs, 100)
+  return tokens / (decodeMs / 1000)
+}
+
+type StatsAcc = {
+  bucket: UsageBucket
+  cacheWrite1h: number
+  costBreakdown: UsageCostBreakdown
+  successCalls: number
+  errorCalls: number
+  abortedCalls: number
+  lengthCalls: number
+  durations: number[]
+  ttfts: number[]
+  validOutputTokens: number
+  validDurationSec: number
+  validGenTokens: number
+  validGenSec: number
+}
+
+function createAcc(): StatsAcc {
+  return {
+    bucket: emptyBucket(),
+    cacheWrite1h: 0,
+    costBreakdown: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    successCalls: 0,
+    errorCalls: 0,
+    abortedCalls: 0,
+    lengthCalls: 0,
+    durations: [],
+    ttfts: [],
+    validOutputTokens: 0,
+    validDurationSec: 0,
+    validGenTokens: 0,
+    validGenSec: 0,
+  }
+}
+
+function addAcc(acc: StatsAcc, r: Rec): void {
+  addSimple(acc.bucket, r)
+  acc.cacheWrite1h += r.cacheWrite1h
+  acc.costBreakdown.input += r.costBreakdown.input
+  acc.costBreakdown.output += r.costBreakdown.output
+  acc.costBreakdown.cacheRead += r.costBreakdown.cacheRead
+  acc.costBreakdown.cacheWrite += r.costBreakdown.cacheWrite
+
+  if (r.status === 'error') {
+    acc.errorCalls++
+    return
+  }
+  if (r.status === 'aborted') {
+    acc.abortedCalls++
+    return
+  }
+  if (r.status === 'length') acc.lengthCalls++
+  acc.successCalls++
+
+  // Latency & TPS averages exclude error/aborted calls so partial failures do not skew throughput.
+  if (r.durationMs != null && r.durationMs > 0) {
+    acc.durations.push(r.durationMs)
+    if (r.output > 0) {
+      acc.validOutputTokens += r.output
+      acc.validDurationSec += r.durationMs / 1000
+    }
+  }
+  if (r.ttftMs != null) {
+    acc.ttfts.push(r.ttftMs)
+    if (r.durationMs != null) {
+      const genTokens = streamedGenTokensOf(r)
+      if (genTokens > 0) {
+        acc.validGenTokens += genTokens
+        acc.validGenSec += Math.max(r.durationMs - r.ttftMs, 100) / 1000
+      }
+    }
+  }
+}
+
+function quantile(sorted: readonly number[], q: number): number | null {
+  if (sorted.length === 0) return null
+  if (sorted.length === 1) return sorted[0]
+  const pos = (sorted.length - 1) * q
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  if (lo === hi) return sorted[lo]
+  return Math.round(sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo))
+}
+
+function mean(vals: readonly number[]): number | null {
+  if (vals.length === 0) return null
+  let sum = 0
+  for (const v of vals) sum += v
+  return Math.round(sum / vals.length)
+}
+
+function finalizeAcc(acc: StatsAcc): UsageStatsBucket {
+  const promptTotal = acc.bucket.input + acc.bucket.cacheRead + acc.bucket.cacheWrite
+  const sortedDur = acc.durations.length > 1 ? [...acc.durations].sort((a, b) => a - b) : acc.durations
+  const sortedTtft = acc.ttfts.length > 1 ? [...acc.ttfts].sort((a, b) => a - b) : acc.ttfts
+
+  return {
+    ...acc.bucket,
+    cacheWrite1h: acc.cacheWrite1h,
+    costBreakdown: acc.costBreakdown,
+    successCalls: acc.successCalls,
+    errorCalls: acc.errorCalls,
+    abortedCalls: acc.abortedCalls,
+    lengthCalls: acc.lengthCalls,
+    cacheHitRate: promptTotal > 0 ? acc.bucket.cacheRead / promptTotal : null,
+    writeCacheRate: promptTotal > 0 ? acc.bucket.cacheWrite / promptTotal : null,
+    durationCalls: acc.durations.length,
+    avgDurationMs: mean(acc.durations),
+    p50DurationMs: quantile(sortedDur, 0.5),
+    ttftCalls: acc.ttfts.length,
+    avgTtftMs: mean(acc.ttfts),
+    p50TtftMs: quantile(sortedTtft, 0.5),
+    p90TtftMs: quantile(sortedTtft, 0.9),
+    totalTps: acc.validDurationSec > 0 ? acc.validOutputTokens / acc.validDurationSec : null,
+    genTps: acc.validGenSec > 0 ? acc.validGenTokens / acc.validGenSec : null,
+  }
+}
+
+/** Local YYYY-MM-DD for `ts` given `offsetMin` = minutes ahead of UTC (`-Date.getTimezoneOffset()`). */
 export function dayOf(ts: number, offsetMin: number): string {
-  return new Date(ts + offsetMin * 60_000).toISOString().slice(0, 10)
+  const d = new Date(ts + offsetMin * 60_000)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
+function sortedCachedFiles(): [string, FileUsage][] {
+  return [...cache].sort((a, b) => a[1].created - b[1].created || a[0].localeCompare(b[0]))
 }
 
 /**
@@ -149,59 +1214,238 @@ export function dayOf(ts: number, offsetMin: number): string {
  * means since the first record. Replies copied into forks are counted once, for the oldest session.
  */
 export function summarizeUsage(from: number, to: number, offsetMin: number): UsageSummary {
-  const total = emptyBucket()
-  const days = new Map<string, UsageBucket>()
-  const models = new Map<string, UsageBucket>()
-  const projects = new Map<string, UsageBucket>()
-  const sessions = new Map<string, UsageBucket & { title: string; project: string }>()
-  const heat = { calls: new Array<number>(168).fill(0), cost: new Array<number>(168).fill(0), tokens: new Array<number>(168).fill(0) }
+  const totalAcc = createAcc()
+  const days = new Map<string, StatsAcc>()
+  const models = new Map<string, { acc: StatsAcc; provider: string; modelId: string }>()
+  const projects = new Map<string, StatsAcc>()
+  const sessions = new Map<string, { acc: StatsAcc; title: string; project: string }>()
+  const heat = {
+    calls: new Array<number>(168).fill(0),
+    cost: new Array<number>(168).fill(0),
+    tokens: new Array<number>(168).fill(0),
+  }
   const seen = new Set<string>()
-  const files = [...cache].sort((a, b) => a[1].created - b[1].created || a[0].localeCompare(b[0]))
+  const files = sortedCachedFiles()
   let first = Infinity
   for (const [, f] of files) for (const r of f.records) if (r.ts < first) first = r.ts
-  // "All time": from the local midnight of the first reply.
-  const start = from > 0 ? from : Number.isFinite(first) ? Math.floor((first + offsetMin * 60_000) / DAY) * DAY - offsetMin * 60_000 : to - DAY
-  for (const [file, f] of files) {
+  const start = from > 0 ? from : Number.isFinite(first) ? first - ((first + offsetMin * 60_000) % DAY + DAY) % DAY : to
+
+  for (const [path, f] of files) {
     for (const r of f.records) {
-      if (r.ts < start || r.ts >= to || seen.has(r.key)) continue
-      seen.add(r.key)
-      add(total, r)
-      const d = dayOf(r.ts, offsetMin)
-      add(days.get(d) ?? days.set(d, emptyBucket()).get(d)!, r)
-      add(models.get(r.model) ?? models.set(r.model, emptyBucket()).get(r.model)!, r)
-      const p = f.project || '—'
-      add(projects.get(p) ?? projects.set(p, emptyBucket()).get(p)!, r)
-      if (!sessions.has(file)) sessions.set(file, { ...emptyBucket(), title: f.title, project: f.project })
-      add(sessions.get(file)!, r)
-      // Weekday (Monday = 0) × local hour.
-      const local = new Date(r.ts + offsetMin * 60_000)
-      const cell = ((local.getUTCDay() + 6) % 7) * 24 + local.getUTCHours()
-      heat.calls[cell]++
+      // A reply without an entry id cannot be matched across files; keep it rather than drop real spend.
+      if (!r.key.startsWith('@')) {
+        if (seen.has(r.key)) continue
+        seen.add(r.key)
+      }
+      if (r.ts < start || r.ts >= to) continue
+      const day = dayOf(r.ts, offsetMin)
+      addAcc(totalAcc, r)
+
+      let dayAcc = days.get(day)
+      if (!dayAcc) {
+        dayAcc = createAcc()
+        days.set(day, dayAcc)
+      }
+      addAcc(dayAcc, r)
+
+      let modelEntry = models.get(r.model)
+      if (!modelEntry) {
+        modelEntry = { acc: createAcc(), provider: r.provider, modelId: r.modelId }
+        models.set(r.model, modelEntry)
+      }
+      addAcc(modelEntry.acc, r)
+
+      const proj = f.project || '(unknown)'
+      let projAcc = projects.get(proj)
+      if (!projAcc) {
+        projAcc = createAcc()
+        projects.set(proj, projAcc)
+      }
+      addAcc(projAcc, r)
+
+      let sessEntry = sessions.get(path)
+      if (!sessEntry) {
+        sessEntry = { acc: createAcc(), title: f.title, project: proj }
+        sessions.set(path, sessEntry)
+      }
+      addAcc(sessEntry.acc, r)
+
+      const loc = new Date(r.ts + offsetMin * 60_000)
+      const cell = ((loc.getUTCDay() + 6) % 7) * 24 + loc.getUTCHours()
+      heat.calls[cell] += 1
       heat.cost[cell] += r.cost
       heat.tokens[cell] += r.input + r.output + r.cacheRead + r.cacheWrite
     }
   }
-  // Every day in range, so the charts have no gaps.
+
+  const emptyStats = finalizeAcc(createAcc())
   const byDay: UsageSummary['byDay'] = []
   for (let t = start; t < to; t += DAY) {
     const d = dayOf(t, offsetMin)
-    if (!byDay.length || byDay[byDay.length - 1].day !== d) byDay.push({ day: d, ...(days.get(d) ?? emptyBucket()) })
+    if (!byDay.length || byDay[byDay.length - 1].day !== d) {
+      const acc = days.get(d)
+      byDay.push({ day: d, ...(acc ? finalizeAcc(acc) : emptyStats) })
+    }
   }
-  const byCost = (a: UsageBucket, b: UsageBucket) => b.cost - a.cost || b.input + b.output - (a.input + a.output)
-  const inputAll = total.input + total.cacheRead + total.cacheWrite
+
+  const byCost = (a: UsageBucket, b: UsageBucket) =>
+    b.cost - a.cost || b.input + b.output - (a.input + a.output)
+  const finalizedTotal = finalizeAcc(totalAcc)
+  const indexing = getUsageIndexingState()
+
   return {
     from: start,
     to,
-    total,
-    cacheHitRate: inputAll > 0 ? total.cacheRead / inputAll : null,
+    total: finalizedTotal,
+    cacheHitRate: finalizedTotal.cacheHitRate,
     activeDays: days.size,
     sessions: sessions.size,
     firstAt: Number.isFinite(first) ? first : null,
     byDay,
     heat,
-    byModel: [...models].map(([model, b]) => ({ model, ...b })).sort(byCost).slice(0, 12),
-    byProject: [...projects].map(([project, b]) => ({ project, ...b })).sort(byCost).slice(0, 12),
-    topSessions: [...sessions].map(([sessionFile, b]) => ({ sessionFile, ...b })).sort(byCost).slice(0, 10),
+    byModel: [...models]
+      .map(([model, v]) => ({ model, provider: v.provider, modelId: v.modelId, ...finalizeAcc(v.acc) }))
+      .sort(byCost),
+    byProject: [...projects]
+      .map(([project, acc]) => ({ project, ...finalizeAcc(acc) }))
+      .sort(byCost),
+    topSessions: [...sessions]
+      .map(([sessionFile, v]) => ({ sessionFile, title: v.title, project: v.project, ...finalizeAcc(v.acc) }))
+      .sort(byCost)
+      .slice(0, 10),
+    ...(indexing ? { indexing } : {}),
+  }
+}
+
+function toLogRow(sessionFile: string, f: FileUsage, r: Rec): UsageLogRow {
+  const promptTotal = r.input + r.cacheRead + r.cacheWrite
+  const totalTokens = promptTotal + r.output
+  return {
+    id: `${sessionFile}::${r.entryId}`,
+    sessionFile,
+    entryId: r.entryId,
+    parentId: r.parentId,
+    sessionTitle: f.title,
+    project: f.project || '(unknown)',
+    ts: r.ts,
+    api: r.api,
+    provider: r.provider,
+    model: r.model,
+    modelId: r.modelId,
+    ...(r.responseModel ? { responseModel: r.responseModel } : {}),
+    ...(r.responseId ? { responseId: r.responseId } : {}),
+    ...(r.thinkingLevel ? { thinkingLevel: r.thinkingLevel } : {}),
+    stopReason: r.stopReason,
+    status: r.status,
+    ...(r.errorMessage ? { errorMessage: r.errorMessage } : {}),
+    input: r.input,
+    output: r.output,
+    reasoning: r.reasoning,
+    cacheRead: r.cacheRead,
+    cacheWrite: r.cacheWrite,
+    cacheWrite1h: r.cacheWrite1h,
+    totalTokens,
+    cacheHitRate: promptTotal > 0 ? r.cacheRead / promptTotal : null,
+    writeCacheRate: promptTotal > 0 ? r.cacheWrite / promptTotal : null,
+    cost: r.cost,
+    costBreakdown: r.costBreakdown,
+    durationMs: r.durationMs,
+    ttftMs: r.ttftMs,
+    ...(r.firstTokenKind ? { firstTokenKind: r.firstTokenKind } : {}),
+    totalTps: calcRowTotalTps(r),
+    genTps: calcRowGenTps(r),
+  }
+}
+
+function sortMetricOf(row: UsageLogRow, field: UsageLogSortField): number {
+  switch (field) {
+    case 'ts':
+      return row.ts
+    case 'tokens':
+      return row.totalTokens
+    case 'cacheRead':
+      return row.cacheRead
+    case 'cacheWrite':
+      return row.cacheWrite
+    case 'duration':
+      return row.durationMs ?? -1
+    case 'ttft':
+      return row.ttftMs ?? -1
+    case 'tps':
+      return row.genTps ?? row.totalTps ?? -1
+    case 'cost':
+      return row.cost
+  }
+}
+
+export type QueryUsageLogsInput = Omit<UsageLogQuery, 'days'> & {
+  from: number
+  to: number
+}
+
+export function queryUsageLogs(input: QueryUsageLogsInput): UsageLogPage {
+  const seen = new Set<string>()
+  const files = sortedCachedFiles()
+  const start = input.from > 0 ? input.from : 0
+  const to = input.to
+
+  const modelSet = new Set<string>()
+  const projectSet = new Set<string>()
+  const apiSet = new Set<string>()
+  const windowRows: UsageLogRow[] = []
+
+  const qSearch = input.search?.trim().toLowerCase() || ''
+  const qModel = input.model?.trim() || ''
+  const qProject = input.project?.trim() || ''
+  const qApi = input.api?.trim() || ''
+  const qStatus = input.status && input.status !== 'all' ? input.status : ''
+
+  for (const [sessionFile, f] of files) {
+    const proj = f.project || '(unknown)'
+    for (const r of f.records) {
+      if (!r.key.startsWith('@')) {
+        if (seen.has(r.key)) continue
+        seen.add(r.key)
+      }
+      if (r.ts < start || r.ts >= to) continue
+
+      modelSet.add(r.model)
+      projectSet.add(proj)
+      if (r.api) apiSet.add(r.api)
+
+      if (qModel && r.model !== qModel) continue
+      if (qProject && proj !== qProject) continue
+      if (qApi && r.api !== qApi) continue
+      if (qStatus && r.status !== qStatus) continue
+      if (qSearch) {
+        const hay = `${r.model} ${r.responseModel || ''} ${f.title} ${proj} ${r.responseId || ''} ${r.errorMessage || ''}`.toLowerCase()
+        if (!hay.includes(qSearch)) continue
+      }
+      windowRows.push(toLogRow(sessionFile, f, r))
+    }
+  }
+
+  const sortBy: UsageLogSortField = input.sortBy || 'ts'
+  const mul = input.sortDir === 'asc' ? 1 : -1
+  windowRows.sort((a, b) => {
+    const diff = sortMetricOf(a, sortBy) - sortMetricOf(b, sortBy)
+    if (diff !== 0) return diff * mul
+    return (b.ts - a.ts) || a.id.localeCompare(b.id)
+  })
+
+  const offset = Math.max(0, Math.floor(input.offset ?? 0))
+  const limit = Math.min(200, Math.max(1, Math.floor(input.limit ?? 50)))
+
+  return {
+    totalCount: windowRows.length,
+    offset,
+    limit,
+    rows: windowRows.slice(offset, offset + limit),
+    facets: {
+      models: [...modelSet].sort(),
+      projects: [...projectSet].sort(),
+      apis: [...apiSet].sort(),
+    },
   }
 }
 
@@ -210,13 +1454,9 @@ export function sessionUsage(file: string): UsageBucket | null {
   try {
     const { records } = scanUsageFile(readFileSync(file, 'utf8'))
     const b = emptyBucket()
-    for (const r of records) add(b, r)
+    for (const r of records) addSimple(b, r)
     return b
   } catch {
     return null
   }
-}
-
-export function __resetUsageCacheForTest(): void {
-  cache.clear()
 }

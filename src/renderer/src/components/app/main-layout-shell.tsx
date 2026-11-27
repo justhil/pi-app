@@ -1,24 +1,17 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@renderer/lib/utils'
+import { isStageRightPanelId } from '@shared/right-panels'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { resolveOpenTabIds, resolveVisibleDockPanels, useRightDockStore } from '@renderer/stores/right-dock-store'
 import { PanelResizeEdge } from '@renderer/components/app/panel-resize-edge'
 import { RightPanelCollapsedRail } from '@renderer/components/app/right-panel-collapsed-rail'
 import { isRightPanelHidden } from '@renderer/lib/right-panel-visibility'
 
-/** Collapsed right rail width — keep in sync with RightPanelCollapsedRail (w-10 = 40px) */
 const RIGHT_COLLAPSED_RAIL_PX = 40
-
-/** Minimum width the center column keeps next to a panel while dragging / resizing the window. */
 const MIN_CENTER_GAP = 120
-
-/** Minimum panel widths (mirror the clamps in ui-store-shell-slice). */
 const MIN_SIDEBAR_PX = 200
 const MIN_RIGHT_PANEL_PX = 280
 
-/**
- * 三栏 Grid：侧栏用 0fr ↔ 固定宽 过渡，中间列 1fr 由浏览器插值，避免 width 动画每帧重排 Timeline。
- * Cursor UI 实验：右栏收起时保留窄 icon rail（状态点 + 面板入口），不完全消失。
- */
 export function MainLayoutShell({
   left,
   center,
@@ -30,7 +23,6 @@ export function MainLayoutShell({
   left: ReactNode
   center: ReactNode
   right: ReactNode
-  /** Drawer under the center and right columns (built-in terminal); kept mounted while closed. */
   bottom?: ReactNode
   bottomOpen?: boolean
   bottomHeight?: number
@@ -40,26 +32,60 @@ export function MainLayoutShell({
   const rightCollapsedPref = useUIStore((s) => s.rightPanelCollapsed)
   const rightExpandedOnNarrow = useUIStore((s) => s.rightPanelExpandedOnNarrow)
   const rightWidth = useUIStore((s) => s.rightPanelWidth)
+  const rightBrowserWidth = useUIStore((s) => s.rightPanelBrowserWidth)
   const railIcons = useUIStore((s) => s.rightPanelRailIcons)
   const activePanel = useUIStore((s) => s.activePanel)
+  const rightPanelCatalog = useUIStore((s) => s.rightPanelCatalog)
+  const rightPanelOrder = useUIStore((s) => s.rightPanelOrder)
   const filesPreviewChatExpand = useUIStore((s) => s.filesPreviewChatExpand)
   const browserChatExpand = useUIStore((s) => s.browserChatExpand)
 
+  const openTabIds = useRightDockStore((s) => s.openTabIds)
+  const bottomTabIds = useRightDockStore((s) => s.bottomTabIds)
+  const dockTopActive = useRightDockStore((s) => s.topActive)
+  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
+
+  const { browserShowingInDock, stageShowingInDock } = useMemo(() => {
+    const baseOrder = rightPanelOrder.length ? rightPanelOrder : rightPanelCatalog.map((c) => c.id)
+    const catalogIds = rightPanelCatalog.map((c) => c.id)
+    const availableIds = [...baseOrder, ...catalogIds.filter((id) => !baseOrder.includes(id))]
+    const openIds = resolveOpenTabIds(availableIds, openTabIds)
+    const { topActive, bottomActive } = resolveVisibleDockPanels(openIds, activePanel, {
+      bottomTabIds,
+      topActive: dockTopActive,
+      bottomActive: dockBottomActive,
+    })
+    return {
+      browserShowingInDock: topActive === 'browser' || bottomActive === 'browser',
+      stageShowingInDock: isStageRightPanelId(topActive) || isStageRightPanelId(bottomActive),
+    }
+  }, [rightPanelOrder, rightPanelCatalog, openTabIds, activePanel, rightCollapsedPref, bottomTabIds, dockTopActive, dockBottomActive])
+
   const [leftDragging, setLeftDragging] = useState(false)
   const [rightDragging, setRightDragging] = useState(false)
+  const shellRef = useRef<HTMLDivElement>(null)
   const leftDragRef = useRef(false)
   const rightDragRef = useRef(false)
   const setLeftWidth = useUIStore((s) => s.setSidebarWidth)
   const setRightWidth = useUIStore((s) => s.setRightPanelWidth)
+  const setRightBrowserWidth = useUIStore((s) => s.setRightPanelBrowserWidth)
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const zoom = Number(document.documentElement.style.zoom) || 1
-      if (leftDragRef.current) setLeftWidth(e.clientX / zoom)
+      const shellRect = shellRef.current?.getBoundingClientRect()
+      const leftOrigin = shellRect ? shellRect.left : 0
+      const rightEdge = shellRect ? shellRect.right : window.innerWidth
+      const availableW = (shellRect && shellRect.width > 0 ? shellRect.width : window.innerWidth) / zoom
+      if (leftDragRef.current) setLeftWidth((e.clientX - leftOrigin) / zoom)
       if (rightDragRef.current) {
-        const leftColW = leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth
-        const maxRight = Math.max(MIN_RIGHT_PANEL_PX, window.innerWidth / zoom - leftColW - MIN_CENTER_GAP)
-        setRightWidth(Math.min((window.innerWidth - e.clientX) / zoom, maxRight))
+        const maxRight = Math.max(
+          MIN_RIGHT_PANEL_PX,
+          availableW - (leftCollapsed ? RIGHT_COLLAPSED_RAIL_PX : leftWidth) - MIN_CENTER_GAP,
+        )
+        const nextW = Math.min((rightEdge - e.clientX) / zoom, maxRight)
+        if (stageShowingInDock) setRightBrowserWidth(nextW)
+        else setRightWidth(nextW)
       }
     }
     const onUp = () => {
@@ -78,22 +104,18 @@ export function MainLayoutShell({
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [setLeftWidth, setRightWidth, leftCollapsed, leftWidth])
+  }, [setLeftWidth, setRightWidth, setRightBrowserWidth, leftCollapsed, leftWidth, stageShowingInDock])
 
-  // Adapt persisted panel widths when the window is resized: the columns are fixed px from the
-  // store, so without this they either overflow the window (center collapses to 0) on smaller
-  // windows or stay disproportionately small on larger ones.
-  // 注意：窗口缩小只是“临时生效的展示值”，不得写回持久化首选宽度——否则缩小一次就永久
-  // 丢失用户设置（放大后无法恢复）。resize 只触发重渲染，实际 clamp 在渲染时实时计算。
   const [{ width: windowWidth, zoom }, setWindowMetrics] = useState(() => ({
     width: window.innerWidth,
     zoom: Number(document.documentElement.style.zoom) || 1,
   }))
   useEffect(() => {
-    const onWindowResize = () => setWindowMetrics({
-      width: window.innerWidth,
-      zoom: Number(document.documentElement.style.zoom) || 1,
-    })
+    const onWindowResize = () =>
+      setWindowMetrics({
+        width: window.innerWidth,
+        zoom: Number(document.documentElement.style.zoom) || 1,
+      })
     window.addEventListener('resize', onWindowResize)
     return () => window.removeEventListener('resize', onWindowResize)
   }, [])
@@ -110,11 +132,12 @@ export function MainLayoutShell({
   })
   const filesChatPreview =
     !rightCollapsed &&
-    ((activePanel === 'files' && filesPreviewChatExpand) || (activePanel === 'browser' && browserChatExpand))
+    ((activePanel === 'files' && filesPreviewChatExpand) || browserChatExpand)
   const railPx = railIcons ? RIGHT_COLLAPSED_RAIL_PX : 0
+  const preferredRightW = stageShowingInDock ? rightBrowserWidth : rightWidth
   const effectiveRight = rightCollapsed
     ? railPx
-    : Math.min(rightWidth, maxRight, Math.max(0, layoutWidth - effectiveLeft))
+    : Math.min(preferredRightW, maxRight, Math.max(0, layoutWidth - effectiveLeft))
 
   const leftCol = leftCollapsed ? '0px' : `${effectiveLeft}px`
   const rightCol = rightCollapsed ? `${railPx}px` : `${effectiveRight}px`
@@ -140,12 +163,14 @@ export function MainLayoutShell({
 
   return (
     <div
+      ref={shellRef}
+      data-browser-resizing={browserShowingInDock && (rightDragging || leftDragging) ? 'true' : undefined}
       className={cn(
         'shell-three-col min-h-0 flex-1',
         filesChatPreview && 'shell-files-chat-preview',
         leftDragging && 'shell-left-dragging',
         rightDragging && 'shell-right-dragging',
-        rightCollapsed && !filesChatPreview && 'shell-right-rail-only',
+        rightCollapsed && !filesChatPreview && (railIcons ? 'shell-right-rail-only' : 'shell-right-hidden-clean'),
       )}
       style={{
         gridTemplateColumns: gridCols,
@@ -189,14 +214,10 @@ export function MainLayoutShell({
           'shell-track-right relative flex min-w-0 flex-row items-stretch overflow-visible',
           rightCollapsed && 'shell-track-right-rail',
         )}
-        style={{ background: 'var(--bg-base)' }}
+        style={{ background: rightCollapsed ? 'var(--surface-sidebar)' : 'var(--bg-base)' }}
       >
         {!rightCollapsed && !filesChatPreview ? (
-          <PanelResizeEdge
-            side="right"
-            dragging={rightDragging}
-            onMouseDown={startRightDrag}
-          />
+          <PanelResizeEdge side="right" dragging={rightDragging} onMouseDown={startRightDrag} />
         ) : null}
         {rightCollapsed && !filesChatPreview ? (
           railIcons ? <RightPanelCollapsedRail /> : null

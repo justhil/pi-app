@@ -3,22 +3,45 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { hostname } from 'node:os'
-import type { CacheWarming, UiResponse } from '@shared/remote'
+import type { CacheWarming, FileReadResult, PurgeSend, PurgeStateResult, UiResponse, UsageSummaryResult } from '@shared/remote'
+import type { UsageSummary } from '@shared/usage-summary'
+import { personaCopy, personaLanguage } from '@shared/agent-purge'
+import { getMainUiLanguage } from '@shared/main-language'
 import { normalizeSessionFileKey } from '@shared/session-file-key'
 import { normalizeCapabilities } from '@shared/capabilities'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { findAdapterByTool } from '../extension-compat/adapter-loader'
+import {
+  getActivePurgeForSession,
+  getAgentPurgeConfig,
+  inheritPurgedSession,
+  maybeLockPurgedSessionOnSend,
+  removePurgedSession,
+  sessionFileHasPriorTurns,
+  setPurgedSession,
+} from './agent-purge-service'
 import { capabilityCatalog, capabilitySectionMap, capabilityToolFamilies } from './capabilities/catalog'
 import { readRemoteAttachment, writeRemoteAttachment } from './clipboard-temp-images'
 import { configStore } from './config-store'
+import { renamePiSessionOnDisk } from './rename-pi-session'
+import { clearSessionDisplayName } from './session-display-names'
 import { getSessionLeafOverride, setSessionLeafOverride } from './session-leaf-override'
-import { workspaceFsListDir } from './workspace-fs'
+import {
+  admitRemoteProject,
+  browseHostDirectory,
+  describeRemoteProject,
+  listKnownRemoteProjectsSync,
+  refreshKnownRemoteProjects,
+  registerRemoteAuthorizedProject,
+} from './remote-project-registry'
+import { remoteTap } from './remote/tap'
+import { workspaceFsListDir, workspaceFsReadText } from './workspace-fs'
 import { workspaceFsSearch } from './workspace-file-search'
 import { scanStaticSlashCommands } from './commands-catalog'
 import { probeExtensionsShared } from './extension-probe-cache'
 import { getDesktopSkillOverrides, isSkillEnabled } from './pi-skill-overrides'
 import { awaitWslVm } from './wsl/wsl-env'
-import { isSandboxWorkspacePath, sandboxLabel } from './sandbox-workspaces'
+import { isSandboxWorkspacePath, renameSandboxWorkspace } from './sandbox-workspaces'
 import { invokeHandler } from './ipc/registry'
 import type { HostLiveState, HostModelList, HostSessionHistory, HostSessionRow, HostTimelineItem, RemoteHostPort, SendMode } from './remote/host-port'
 import { sessionPreviewProcess } from './session-preview-process'
@@ -60,17 +83,18 @@ function safeStorageAvailable(): boolean {
 const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 const comparable = (p: string) => normalizeSessionFileKey(p).replace(/\/+$/, '').toLowerCase()
 
-type ListedSession = { sessionFile: string; title: string; createdAt: number; updatedAt: number; firstMessage?: string }
+type ListedSession = {
+  sessionFile: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  firstMessage?: string
+  parentSessionFile?: string
+  forkedFromSessionFile?: string
+}
 
 function trustedProjects(): string[] {
-  const all = [getTrustedWorkspaceRoot(), ...(configStore.get('recentProjects') || [])].filter((p): p is string => !!p)
-  const seen = new Set<string>()
-  return all.filter((p) => {
-    const k = comparable(p)
-    if (seen.has(k)) return false
-    seen.add(k)
-    return true
-  })
+  return listKnownRemoteProjectsSync()
 }
 
 function sendToRenderer(channel: string, payload: unknown): void {
@@ -83,8 +107,17 @@ export function createElectronRemoteHost(): RemoteHostPort {
     hostName: () => hostname(),
     appVersion: () => app.getVersion(),
     trustedProjects,
+    refreshProjects: () => refreshKnownRemoteProjects(),
+    admitProject: (projectId: string) => admitRemoteProject(projectId),
+    browseHostDir: (path?: string, dotfiles?: boolean) => browseHostDirectory(path, dotfiles),
+
+    liveRunningSessions(): Set<string> {
+      const slots = typeof workerManager.listSessionRuntime === 'function' ? workerManager.listSessionRuntime() : []
+      return new Set(slots.filter((s) => s.running && s.sessionFile).map((s) => normalizeSessionFileKey(s.sessionFile)))
+    },
 
     async listSessions(projectId: string): Promise<HostSessionRow[]> {
+      registerRemoteAuthorizedProject(projectId)
       const r = await invokeHandler<{ sessions?: ListedSession[] }>('ipc:session.list', { workspaceId: projectId })
       return (r.sessions ?? []).map((s) => ({
         sessionFile: s.sessionFile,
@@ -93,13 +126,13 @@ export function createElectronRemoteHost(): RemoteHostPort {
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         ...(s.firstMessage ? { firstMessage: s.firstMessage } : {}),
+        ...(s.parentSessionFile ? { parentSessionFile: s.parentSessionFile } : {}),
+        ...(s.forkedFromSessionFile ? { forkedFromSessionFile: s.forkedFromSessionFile } : {}),
       }))
     },
 
     projectInfo(path: string) {
-      if (!isSandboxWorkspacePath(path)) return {}
-      const label = sandboxLabel(path)
-      return { temporary: true, ...(label ? { label } : {}) }
+      return describeRemoteProject(path)
     },
 
     async sessionProject(sessionFile: string): Promise<string | null> {
@@ -140,14 +173,31 @@ export function createElectronRemoteHost(): RemoteHostPort {
       }
     },
 
-    async send(sessionFile: string, text: string, mode: SendMode, capabilities: string[], projectId: string): Promise<void> {
+    async send(
+      sessionFile: string,
+      text: string,
+      mode: SendMode,
+      capabilities: string[],
+      projectId: string,
+      agentPurge?: PurgeSend,
+    ): Promise<void> {
       // Same sequence as the prompt handlers, minus the pending-bind bookkeeping that belongs
-      // to the desktop UI: bind this session's worker (no foreground change), apply capabilities, send.
-      // A session created from the phone has a live worker but no file until its first reply:
-      // re-loading it would read a missing header, so only cold sessions go through loadSession.
+      // to the desktop UI: lock first-turn Agent Purge if requested, bind this session's worker
+      // (no foreground change), apply capabilities, send.
+      registerRemoteAuthorizedProject(projectId)
+      if (mode === 'prompt' && agentPurge !== undefined) {
+        setPurgedSession(sessionFile, agentPurge)
+        this.notifySettingsChanged('purge', sessionFile)
+        remoteTap.settingsChanged('purge', sessionFile)
+      }
       if (!workerManager.hasLiveSessionWorker(sessionFile)) await workerManager.loadSession(sessionFile, { cwd: projectId })
       noteBrowserTarget(sessionFile, capabilities)
-      await workerManager.setCapabilities(capabilitySectionMap(capabilities), capabilityToolFamilies(capabilities), sessionFile)
+      await workerManager.setCapabilities(
+        capabilitySectionMap(capabilities),
+        capabilityToolFamilies(capabilities),
+        sessionFile,
+        getActivePurgeForSession(sessionFile),
+      )
       if (mode === 'steer') await workerManager.steer(text, sessionFile)
       else if (mode === 'followUp') await workerManager.followUp(text, sessionFile)
       else await workerManager.sendPrompt(text, sessionFile)
@@ -195,22 +245,119 @@ export function createElectronRemoteHost(): RemoteHostPort {
       // Forking before the first message is just a new session with that message to edit.
       const forked = entry.parentId ? sm.createBranchedSession(entry.parentId) : undefined
       const file = forked ?? (await this.createSession(projectId))
+      if (forked) inheritPurgedSession(sessionFile, file)
       void sessionPreviewProcess.invalidateListSessions(projectId).catch(() => {})
       return { sessionFile: file, ...(editorText ? { editorText } : {}) }
     },
 
-    async clearQueue(sessionFile: string): Promise<string[]> {
+    async clearQueue(sessionFile: string, index?: number): Promise<string[]> {
       // Never spawn a worker just to read an empty queue.
       if (!workerManager.hasLiveSessionWorker(sessionFile)) return []
       const q = await workerManager.clearPromptQueue(sessionFile)
-      return [...q.steering, ...q.followUp].filter(Boolean)
+      const steering = q.steering.filter(Boolean)
+      const followUp = q.followUp.filter(Boolean)
+      const all = [
+        ...steering.map((text) => ({ text, mode: 'steer' as const })),
+        ...followUp.map((text) => ({ text, mode: 'followUp' as const })),
+      ]
+      if (index === undefined) return all.map((x) => x.text)
+      if (index < 0 || index >= all.length) {
+        for (const item of all) {
+          if (item.mode === 'steer') await workerManager.steer(item.text, sessionFile)
+          else await workerManager.followUp(item.text, sessionFile)
+        }
+        return []
+      }
+      const picked = all[index]
+      for (let i = 0; i < all.length; i++) {
+        if (i === index) continue
+        if (all[i].mode === 'steer') await workerManager.steer(all[i].text, sessionFile)
+        else await workerManager.followUp(all[i].text, sessionFile)
+      }
+      return [picked.text]
     },
 
     async createSession(projectId: string): Promise<string> {
+      registerRemoteAuthorizedProject(projectId)
       const result = await workerManager.newSessionInBackground(projectId)
       if (!result.sessionFile) throw new Error('session_not_created')
       void sessionPreviewProcess.invalidateListSessions(projectId).catch(() => {})
       return result.sessionFile
+    },
+
+    async renameSession(sessionFile: string, title: string, projectId: string): Promise<string> {
+      if (isSandboxWorkspacePath(projectId)) {
+        renameSandboxWorkspace(projectId, title)
+      }
+      const r = await renamePiSessionOnDisk(sessionFile, title, projectId)
+      if (!r.ok) throw new Error(r.error || 'rename_failed')
+      clearSessionDisplayName(sessionFile)
+      await sessionPreviewProcess.invalidateListSessions(projectId).catch(() => {})
+      return title
+    },
+
+    async deleteSession(sessionFile: string, projectId: string): Promise<boolean> {
+      const r = await workerManager.deleteSessionFile(sessionFile)
+      if (!r.ok) throw new Error(r.error || 'delete_failed')
+      clearSessionDisplayName(sessionFile)
+      removePurgedSession(sessionFile)
+      await sessionPreviewProcess.invalidateListSessions(projectId).catch(() => {})
+      return true
+    },
+
+    async getPurgeState(sessionFile?: string): Promise<PurgeStateResult> {
+      const cfg = getAgentPurgeConfig()
+      const lang = personaLanguage(getMainUiLanguage())
+      const base = {
+        defaultPersonaId: cfg.defaultPersonaId,
+        defaultMode: cfg.defaultMode,
+        personas: cfg.personas.map((p) => {
+          const copy = personaCopy(p, lang)
+          return {
+            id: p.id,
+            name: copy.name,
+            ...(copy.description ? { description: copy.description } : {}),
+          }
+        }),
+      }
+      if (!sessionFile) return base
+      const active = getActivePurgeForSession(sessionFile)
+      if (active) {
+        const matched = cfg.personas.find((p) => p.id === active.personaId)
+        return {
+          ...base,
+          session: {
+            locked: 'on',
+            personaId: active.personaId,
+            personaName: matched ? personaCopy(matched, lang).name : active.personaName,
+            mode: active.mode,
+          },
+        }
+      }
+      const live = await this.liveState(sessionFile).catch(() => ({ running: false }))
+      const lockedOff = live.running || sessionFileHasPriorTurns(sessionFile)
+      return {
+        ...base,
+        session: { locked: lockedOff ? 'off' : 'draft' },
+      }
+    },
+
+    async setPurgeState(sessionFile: string, req: PurgeSend): Promise<PurgeStateResult> {
+      setPurgedSession(sessionFile, req)
+      if (workerManager.hasLiveSessionWorker(sessionFile)) {
+        const caps = this.sessionCapabilities(sessionFile)
+        await workerManager
+          .setCapabilities(
+            capabilitySectionMap(caps),
+            capabilityToolFamilies(caps),
+            sessionFile,
+            getActivePurgeForSession(sessionFile),
+          )
+          .catch(() => {})
+      }
+      this.notifySettingsChanged('purge', sessionFile)
+      remoteTap.settingsChanged('purge', sessionFile)
+      return this.getPurgeState!(sessionFile)
     },
 
     async listModels(sessionFile: string): Promise<HostModelList> {
@@ -312,6 +459,57 @@ export function createElectronRemoteHost(): RemoteHostPort {
     async searchFiles(projectId: string, query: string) {
       const r = await workspaceFsSearch({ workspaceRoot: projectId, query, maxResults: 60 })
       return r.ok ? r.entries.map((e) => ({ name: e.name, path: e.path, dir: e.isDirectory })) : []
+    },
+
+    async readFile(projectId: string, path: string): Promise<
+      { ok: true; value: FileReadResult } | { ok: false; code: 'not_found' | 'forbidden' | 'bad_request'; message: string }
+    > {
+      const cleanPath = path.trim().replace(/^[/\\]+(?=[A-Za-z0-9_.-]+\/)/, '')
+      const r = await workspaceFsReadText({ workspaceRoot: projectId, path: cleanPath || path })
+      if (!r.ok) {
+        if (r.error === 'binary') {
+          return { ok: true, value: { path, content: '', size: 0, truncated: false, binary: true } }
+        }
+        if (r.error === 'outside_workspace') {
+          return { ok: false, code: 'forbidden', message: 'path outside workspace' }
+        }
+        if (r.error === 'not_found' || r.error === 'not_a_file') {
+          return { ok: false, code: 'not_found', message: r.error }
+        }
+        return { ok: false, code: 'bad_request', message: r.error }
+      }
+      return { ok: true, value: { path, content: r.content, size: r.size, truncated: r.truncated } }
+    },
+
+    async usageSummary(days: number): Promise<UsageSummaryResult> {
+      const s = await invokeHandler<UsageSummary>('ipc:usage.summary', { days })
+      return {
+        days,
+        calls: Math.round(s.total.calls),
+        sessions: Math.round(s.sessions),
+        input: Math.round(s.total.input),
+        output: Math.round(s.total.output),
+        cacheRead: Math.round(s.total.cacheRead),
+        cacheWrite: Math.round(s.total.cacheWrite),
+        cost: s.total.cost,
+        cacheHitRate: s.cacheHitRate,
+        avgTtftMs: s.total.avgTtftMs == null ? null : Math.round(s.total.avgTtftMs),
+        genTps: s.total.genTps,
+        byModel: s.byModel.slice(0, 12).map((m) => ({
+          model: m.model,
+          calls: Math.round(m.calls),
+          input: Math.round(m.input),
+          output: Math.round(m.output),
+          cacheRead: Math.round(m.cacheRead),
+          cost: m.cost,
+        })),
+        byDay: s.byDay.slice(-31).map((d) => ({
+          day: d.day,
+          calls: Math.round(d.calls),
+          tokens: Math.round(d.input + d.output + d.cacheRead + d.cacheWrite),
+          cost: d.cost,
+        })),
+      }
     },
 
     capabilityCatalog,

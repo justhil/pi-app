@@ -15,7 +15,9 @@ import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
 import { annotateExtensionInventory } from '../main/adapter-resource-inventory'
 import { buildSystemPromptPreview } from '../main/system-prompt-preview'
-import { refreshUsage, summarizeUsage } from '../main/usage-scan'
+import { queryUsageLogs, refreshUsageAsync, summarizeUsage } from '../main/usage-scan'
+import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
+import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
 if (!process.parentPort) throw new Error('preview worker requires parentPort')
 
@@ -34,6 +36,8 @@ type PreviewRequest = {
     | 'warm'
     | 'system.prompt'
     | 'usage.summary'
+    | 'usage.logs'
+    | 'usage.requestDetail'
   payload: Record<string, unknown>
   userDataDir: string
   activeSdkPath?: string | null
@@ -98,6 +102,7 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
         id: m.id,
         name: m.name,
         provider: m.provider,
+        ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
         contextWindow: m.contextWindow,
         maxOutput: m.maxOutput,
         maxTokens: m.maxTokens,
@@ -133,6 +138,22 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
       const probes = probeExtensions(cwd)
       const sdk = message.activeSdkPath ? await import(pathToFileURL(message.activeSdkPath).href) : await import('@earendil-works/pi-coding-agent')
       result = await annotateExtensionInventory(sdk, cwd, agentDir, probes)
+    } else if (message.type === 'extensions.install') {
+      const sdk = message.activeSdkPath
+        ? await import(pathToFileURL(message.activeSdkPath).href)
+        : await import('@earendil-works/pi-coding-agent')
+      const cwd = String(message.payload.cwd || process.cwd())
+      const agentDir = String(message.payload.agentDir || sdk.getAgentDir())
+      const source = String(message.payload.source || '').trim()
+      const local = message.payload.local === true
+      const settingsManager = sdk.SettingsManager.create(cwd, agentDir, { projectTrusted: local })
+      const pkgManager = new sdk.DefaultPackageManager({ cwd, agentDir, settingsManager })
+      await pkgManager.installAndPersist(source, { local })
+      await settingsManager.flush()
+      const targetScope = local ? 'project' : 'global'
+      const errors = settingsManager.drainErrors().filter((entry: { scope: string }) => entry.scope === targetScope)
+      if (errors.length > 0) throw errors[0].error
+      result = { ok: true }
     } else if (message.type === 'pi.settings.get') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)
@@ -154,9 +175,34 @@ process.parentPort.on('message', async (event: { data?: PreviewRequest } | Previ
       )
       result = null
     } else if (message.type === 'usage.summary') {
-      // Incremental: only session files that changed since the last call are read again.
-      refreshUsage(String(message.payload.agentDir || ''))
-      result = summarizeUsage(Number(message.payload.from), Number(message.payload.to), Number(message.payload.offsetMin) || 0)
+      // Async priority-window scan with disk index persistence and tail-append incremental reads.
+      const from = Number(message.payload.from) || 0
+      const cacheDir = typeof message.payload.cacheDir === 'string' ? message.payload.cacheDir : undefined
+      await refreshUsageAsync(String(message.payload.agentDir || ''), { from, cacheDir })
+      result = summarizeUsage(from, Number(message.payload.to), Number(message.payload.offsetMin) || 0)
+    } else if (message.type === 'usage.logs') {
+      const from = Number(message.payload.from) || 0
+      const cacheDir = typeof message.payload.cacheDir === 'string' ? message.payload.cacheDir : undefined
+      await refreshUsageAsync(String(message.payload.agentDir || ''), { from, cacheDir })
+      result = queryUsageLogs({
+        from: Number(message.payload.from) || 0,
+        to: Number(message.payload.to) || Date.now(),
+        model: typeof message.payload.model === 'string' ? message.payload.model : undefined,
+        project: typeof message.payload.project === 'string' ? message.payload.project : undefined,
+        api: typeof message.payload.api === 'string' ? message.payload.api : undefined,
+        status: typeof message.payload.status === 'string' ? (message.payload.status as 'all' | UsageStopStatus) : undefined,
+        search: typeof message.payload.search === 'string' ? message.payload.search : undefined,
+        sortBy: typeof message.payload.sortBy === 'string' ? (message.payload.sortBy as UsageLogSortField) : undefined,
+        sortDir: message.payload.sortDir === 'asc' ? 'asc' : 'desc',
+        offset: typeof message.payload.offset === 'number' ? message.payload.offset : 0,
+        limit: typeof message.payload.limit === 'number' ? message.payload.limit : 50,
+      })
+    } else if (message.type === 'usage.requestDetail') {
+      result = await readUsageRequestDetailFromFile(
+        String(message.payload.sessionFile || ''),
+        String(message.payload.entryId || ''),
+        message.activeSdkPath ?? null,
+      )
     } else if (message.type === 'system.prompt') {
       const sdk = message.activeSdkPath
         ? await import(pathToFileURL(message.activeSdkPath).href)

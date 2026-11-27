@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ChevronRight, Copy, FolderOpen, GitFork, Pencil, Play, Trash2, Columns2 } from '@renderer/components/icons'
+import { SessionPinGlyph, isSessionPinned, toggleSessionPinned } from '@renderer/lib/pinned-sessions'
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { workspacePathsEqual } from '@shared/workspace-path'
@@ -13,6 +14,7 @@ import {
   contextMenuDangerItemClass,
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
@@ -40,15 +42,20 @@ export function SessionContextMenuPortal({
   onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
+  const pinnedSessions = useUIStore((s) => s.pinnedSessions)
   const [renameTarget, setRenameTarget] = useState<SessionMenuTarget | null>(null)
   // In-app confirm: a native window.confirm leaves Windows Electron pages untypable (#94).
   const [deleteTarget, setDeleteTarget] = useState<SessionMenuTarget | null>(null)
+  const [orphanWorktree, setOrphanWorktree] = useState<{ path: string; label: string } | null>(null)
+  const [alsoRemoveWorktree, setAlsoRemoveWorktree] = useState(false)
 
   // Row box of the "Fork" item while its submenu is open.
   const [forkAnchor, setForkAnchor] = useState<DOMRect | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
+  const menuPos = useContextMenuPosition(menu, menuRef, [menu?.target.sessionFile])
   useEffect(() => setForkAnchor(null), [menu])
 
   const refreshList = (path?: string) => onSessionsChange(path)
@@ -83,12 +90,47 @@ export function SessionContextMenuPortal({
   }
 
   const requestDelete = (target: SessionMenuTarget) => {
-    if (!target.sessionFile) toast.error(t('common:sidebar.deleteMissingFile'))
-    else setDeleteTarget(target)
+    if (!target.sessionFile) {
+      toast.error(t('common:sidebar.deleteMissingFile'))
+      onClose()
+      return
+    }
+    setOrphanWorktree(null)
+    setAlsoRemoveWorktree(false)
+    setDeleteTarget(target)
     onClose()
+    // Check asynchronously if this is the last session in a secondary Git worktree.
+    const ws = target.workspacePath
+    if (ws) {
+      void (async () => {
+        try {
+          const [wtRes, sessRes] = await Promise.all([
+            ipcClient.invoke('desktop.gitWorktrees', { workspaceId: ws }) as Promise<{
+              ok?: boolean
+              trees?: Array<{ path: string; branch?: string; isMain?: boolean }>
+            }>,
+            ipcClient.invoke('session.list', { workspaceId: ws }) as Promise<{
+              sessions?: Array<{ sessionId?: string; sessionFile?: string }>
+            }>,
+          ])
+          const matchedWt = wtRes?.trees?.find((tr) => workspacePathsEqual(tr.path, ws))
+          const remaining = (sessRes?.sessions ?? []).filter(
+            (s) => s.sessionId !== target.sessionId && (!s.sessionFile || s.sessionFile !== target.sessionFile),
+          )
+          if (matchedWt && !matchedWt.isMain && remaining.length === 0) {
+            setOrphanWorktree({
+              path: matchedWt.path,
+              label: matchedWt.branch || matchedWt.path.split(/[\\/]/).pop() || matchedWt.path,
+            })
+          }
+        } catch {
+          /* ignore */
+        }
+      })()
+    }
   }
 
-  const runDelete = async (target: SessionMenuTarget) => {
+  const runDelete = async (target: SessionMenuTarget, removeWtPath?: string | null) => {
     if (!target.sessionFile) return
     // 确认后立即乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等；
     // 完成或失败后再以整列表刷新校准。
@@ -101,16 +143,40 @@ export function SessionContextMenuPortal({
       if (r?.ok) {
         const cur = useUIStore.getState().currentSessionId
         if (cur === target.sessionId) {
-          useUIStore.getState().setCurrentSession('')
-          useUIStore.getState().clearTimeline()
-          useUIStore.getState().loadHistoryItems([])
-          useUIStore.getState().setHistoryMeta(0, 0, null)
+          useUIStore.setState({
+            currentSessionId: '',
+            historySessionFile: null,
+            historyTotalCount: 0,
+            historyLoadedCount: 0,
+            timelineItems: [],
+            streamingAssistantId: null,
+            optimisticPendingUserText: null,
+            agentTurnBootstrapping: false,
+            pendingTurnStage: null,
+          })
           void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
         }
         // Drop the deleted session's per-session state so late events cannot resurrect it.
         const deletedFile = target.sessionFile
         void import('@renderer/stores/session-scope').then((m) => m.removeSessionState(deletedFile))
-        toast.success(t('common:sidebar.deleted'))
+        if (removeWtPath) {
+          const wtDel = (await ipcClient.invoke('desktop.removeGitWorktree', {
+            workspaceId: target.workspacePath,
+            worktreePath: removeWtPath,
+          })) as { ok?: boolean; repositoryPath?: string | null; error?: string }
+          if (wtDel?.ok) {
+            toast.success(t('common:sidebar.deletedWithWorktree'))
+            window.dispatchEvent(new CustomEvent('pi-desktop:sidebar-reload'))
+            if (wtDel.repositoryPath && workspacePathsEqual(useUIStore.getState().currentWorkspace, removeWtPath)) {
+              void activateWorkspace(wtDel.repositoryPath, { preferHome: true })
+            }
+          } else {
+            toast.success(t('common:sidebar.deleted'))
+            if (wtDel?.error) toast.error(wtDel.error)
+          }
+        } else {
+          toast.success(t('common:sidebar.deleted'))
+        }
         refreshList(target.workspacePath)
       } else {
         toast.error(r?.error || t('common:sidebar.deleteFailed'))
@@ -134,14 +200,39 @@ export function SessionContextMenuPortal({
             // One wrapper so outside-click dismissal treats the fork submenu as part of the menu.
             <div ref={ref}>
             <div
+              ref={menuRef}
               className={contextMenuPanelClass}
-              style={{ left: menu.x, top: menu.y }}
+              style={menuPos}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
               onPointerOver={(e) => {
                 if (!(e.target as HTMLElement).closest('[data-fork-item]')) setForkAnchor(null)
               }}
             >
+              {menu.target.sessionFile ? (
+                <button
+                  type="button"
+                  className={itemClass}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const nowPinned = toggleSessionPinned({
+                      sessionFile: menu.target.sessionFile!,
+                      sessionId: menu.target.sessionId,
+                      workspacePath: menu.target.workspacePath,
+                      title: menu.target.title,
+                      kind: 'project',
+                    })
+                    toast.success(nowPinned ? t('common:sidebar.pinned') : t('common:sidebar.unpinned'))
+                    onClose()
+                  }}
+                >
+                  <SessionPinGlyph className="h-3 w-3 shrink-0" />
+                  {isSessionPinned(pinnedSessions, menu.target.sessionFile)
+                    ? t('common:sidebar.unpinSession')
+                    : t('common:sidebar.pinSession')}
+                </button>
+              ) : null}
               {menu.target.sessionFile &&
               selectSessionAttention(menu.target.sessionFile, useUIStore.getState().sessionAttention) !==
                 'working' ? (
@@ -287,12 +378,34 @@ export function SessionContextMenuPortal({
           name: deleteTarget?.title || deleteTarget?.sessionId.slice(0, 8) || '',
         })}
         destructive
+        extra={
+          orphanWorktree ? (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border/70 bg-muted/35 p-2.5 text-[12px] text-foreground">
+              <input
+                type="checkbox"
+                checked={alsoRemoveWorktree}
+                onChange={(e) => setAlsoRemoveWorktree(e.target.checked)}
+                className="mt-0.5 accent-destructive"
+              />
+              <span>
+                {t('common:sidebar.deleteOrphanWorktree', { name: orphanWorktree.label })}
+              </span>
+            </label>
+          ) : null
+        }
         onConfirm={() => {
           const target = deleteTarget
+          const removePath = alsoRemoveWorktree ? orphanWorktree?.path ?? null : null
           setDeleteTarget(null)
-          if (target) void runDelete(target)
+          setOrphanWorktree(null)
+          setAlsoRemoveWorktree(false)
+          if (target) void runDelete(target, removePath)
         }}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => {
+          setDeleteTarget(null)
+          setOrphanWorktree(null)
+          setAlsoRemoveWorktree(false)
+        }}
       />
     </>
   )

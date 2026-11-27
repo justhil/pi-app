@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest'
-import { RECENT_PROJECTS_CAP, isSandboxProjectPath, nextRecentProjects } from './recent-projects'
+import { afterEach, describe, expect, it } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  RECENT_PROJECTS_CAP,
+  nextRecentProjects,
+  replaceRecentProjectInPlace,
+  workspaceRealPathsEqual,
+} from './recent-projects'
+
+const tempRoots: string[] = []
+afterEach(() => {
+  for (const dir of tempRoots.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
 
 describe('nextRecentProjects', () => {
   describe('MRU mode (default, fixedOrder=false)', () => {
@@ -11,12 +24,28 @@ describe('nextRecentProjects', () => {
       expect(nextRecentProjects(['a', 'b'], 'c', false)).toEqual(['c', 'a', 'b'])
     })
 
-    it('caps at the most recent 10', () => {
+    it('retains 15 and 50 projects without silent eviction', () => {
+      let list: string[] = []
+      for (let i = 0; i < 15; i++) list = nextRecentProjects(list, `/proj/${i}`, false)
+      expect(list).toHaveLength(15)
+      expect(list[0]).toBe('/proj/14')
+      expect(list[14]).toBe('/proj/0')
+
+      for (let i = 15; i < 50; i++) list = nextRecentProjects(list, `/proj/${i}`, false)
+      expect(list).toHaveLength(50)
+      expect(list[0]).toBe('/proj/49')
+      expect(list[49]).toBe('/proj/0')
+    })
+
+    it('caps at RECENT_PROJECTS_CAP by dropping the oldest tail entry', () => {
+      expect(RECENT_PROJECTS_CAP).toBeGreaterThanOrEqual(50)
       const full = Array.from({ length: RECENT_PROJECTS_CAP }, (_, i) => `p${i}`)
       const next = nextRecentProjects(full, 'new', false)
       expect(next).toHaveLength(RECENT_PROJECTS_CAP)
       expect(next[0]).toBe('new')
-      expect(next).not.toContain('p9')
+      expect(next).toContain('p0')
+      expect(next).toContain(`p${RECENT_PROJECTS_CAP - 2}`)
+      expect(next).not.toContain(`p${RECENT_PROJECTS_CAP - 1}`)
     })
   })
 
@@ -30,12 +59,27 @@ describe('nextRecentProjects', () => {
       expect(nextRecentProjects(['a', 'b'], 'c', true)).toEqual(['a', 'b', 'c'])
     })
 
-    it('caps by dropping the oldest (first) entry', () => {
+    it('retains 15 and 50 projects in exact insertion order', () => {
+      let list: string[] = []
+      for (let i = 0; i < 50; i++) list = nextRecentProjects(list, `/proj/${i}`, true)
+      expect(list).toHaveLength(50)
+      expect(list[0]).toBe('/proj/0')
+      expect(list[49]).toBe('/proj/49')
+    })
+
+    it('preserves the top/head entries and retains the newly opened project at cap', () => {
+      const capped = nextRecentProjects(['p0', 'p1', 'p2', 'p3', 'p4'], 'new', true, 5)
+      expect(capped).toEqual(['p0', 'p1', 'p2', 'p3', 'new'])
+      expect(capped[0]).toBe('p0')
+      expect(capped[capped.length - 1]).toBe('new')
+      expect(capped).not.toContain('p4')
+
       const full = Array.from({ length: RECENT_PROJECTS_CAP }, (_, i) => `p${i}`)
       const next = nextRecentProjects(full, 'new', true)
       expect(next).toHaveLength(RECENT_PROJECTS_CAP)
+      expect(next[0]).toBe('p0')
       expect(next[next.length - 1]).toBe('new')
-      expect(next).not.toContain('p0')
+      expect(next).not.toContain(`p${RECENT_PROJECTS_CAP - 1}`)
     })
 
     it('deduplicates Windows paths with different slash styles', () => {
@@ -49,45 +93,30 @@ describe('nextRecentProjects', () => {
       ])
     })
   })
+})
 
-  describe('temporary chat folders', () => {
-    const box = (id: string) => `C:\\Users\\me\\AppData\\Roaming\\pi-desktop\\sandbox-workspaces\\${id}`
-    // The list a fixed-order user had: real projects first, then folders of temp chats.
-    const filled = ['D:\\作业', 'E:/myproject/pi-app', box('a'), box('b'), box('c'), box('d'), box('e'), 'E:\\myproject\\AegisGate', box('f'), 'E:\\myproject\\面经爬虫']
+describe('replaceRecentProjectInPlace', () => {
+  it('replaces a removed worktree at its original position', () => {
+    expect(replaceRecentProjectInPlace(['p0', 'wt1', 'p2'], ['wt1'], 'wt2')).toEqual(['p0', 'wt2', 'p2'])
+    expect(replaceRecentProjectInPlace(['wt1', 'p1'], ['wt1'], 'wt2')).toEqual(['wt2', 'p1'])
+    expect(replaceRecentProjectInPlace(['p0', 'wt1'], ['wt1'], 'wt2')).toEqual(['p0', 'wt2'])
+  })
 
-    it('should_drop_the_oldest_temp_chat_instead_of_a_project_when_a_new_temp_chat_fills_the_list', () => {
-      const next = nextRecentProjects(filled, box('new'), true)
-      expect(next).toHaveLength(RECENT_PROJECTS_CAP)
-      expect(next).toContain('D:\\作业')
-      expect(next).not.toContain(box('a'))
-      expect(next[next.length - 1]).toBe(box('new'))
-    })
+  it('does not insert a duplicate if a sibling is already present', () => {
+    expect(replaceRecentProjectInPlace(['p0', 'wt1', 'wt2', 'p3'], ['wt1'], 'wt2')).toEqual(['p0', 'wt2', 'p3'])
+  })
+})
 
-    it('should_keep_every_project_when_opening_a_new_folder_in_a_list_full_of_temp_chats', () => {
-      const next = nextRecentProjects(filled, 'E:\\myproject\\个人作品集合', true)
-      expect(next.filter((p) => !p.includes('sandbox-workspaces'))).toEqual([
-        'D:\\作业', 'E:/myproject/pi-app', 'E:\\myproject\\AegisGate', 'E:\\myproject\\面经爬虫', 'E:\\myproject\\个人作品集合',
-      ])
-    })
+describe('workspaceRealPathsEqual', () => {
+  it('matches directory symlinks / Windows junctions against their canonical target', () => {
+    const root = mkdtempSync(join(tmpdir(), 'pi-realpath-'))
+    tempRoots.push(root)
+    const realDir = join(root, 'real-project')
+    const linkDir = join(root, 'linked-project')
+    mkdirSync(realDir, { recursive: true })
+    symlinkSync(realDir, linkDir, process.platform === 'win32' ? 'junction' : 'dir')
 
-    it('should_drop_the_least_recent_temp_chat_first_in_mru_mode', () => {
-      const mru = [box('newest'), 'E:\\p1', box('mid'), 'E:\\p2', 'E:\\p3', 'E:\\p4', 'E:\\p5', 'E:\\p6', box('oldest'), 'E:\\p7']
-      const next = nextRecentProjects(mru, box('fresh'), false)
-      expect(next[0]).toBe(box('fresh'))
-      expect(next).toContain('E:\\p7')
-      expect(next).not.toContain(box('oldest'))
-    })
-
-    it('should_still_drop_the_oldest_project_once_real_projects_alone_exceed_the_cap', () => {
-      const projects = Array.from({ length: RECENT_PROJECTS_CAP }, (_, i) => `E:\\p${i}`)
-      expect(nextRecentProjects(projects, 'E:\\new', true)).not.toContain('E:\\p0')
-    })
-
-    it('should_recognise_host_and_wsl_temp_chat_folders', () => {
-      expect(isSandboxProjectPath(box('03c1e10b'))).toBe(true)
-      expect(isSandboxProjectPath('\\\\wsl.localhost\\Ubuntu\\home\\me\\.pi\\desktop\\sandbox-workspaces\\x1')).toBe(true)
-      expect(isSandboxProjectPath('E:\\myproject\\sandbox-workspaces-notes')).toBe(false)
-      expect(isSandboxProjectPath('E:\\myproject\\面经爬虫')).toBe(false)
-    })
+    expect(workspaceRealPathsEqual(linkDir, realDir.replace(/\\/g, '/'))).toBe(true)
+    expect(workspaceRealPathsEqual(linkDir, join(root, 'other'))).toBe(false)
   })
 })

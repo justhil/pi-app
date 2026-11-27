@@ -13,7 +13,18 @@
     "icon": "Scissors"
   },
   "config": {
-    "note": "精简审查由扩展工具触发；桌面按工具结果渲染。"
+    "note": "精简审查由扩展工具触发；桌面按工具结果渲染。",
+    "i18n": {
+      "zh": {
+        "note": "精简审查由扩展工具触发；桌面按工具结果渲染。"
+      },
+      "en": {
+        "note": "Simplification reviews are triggered by the extension tool; the desktop renders the tool results."
+      },
+      "ru": {
+        "note": "Ревью упрощения запускается инструментом расширения; desktop отображает результаты в карточке инструмента."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -22,7 +33,11 @@
     },
     "en": {
       "displayName": "Simplify",
-      "description": "Code precision review (success-tool pattern); list and entry included"
+      "description": "Code simplification review (triggered by tool, no slash command)"
+    },
+    "ru": {
+      "displayName": "Simplify",
+      "description": "Ревью упрощения кода (запускается инструментом, без slash-команды)"
     }
   }
 }

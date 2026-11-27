@@ -38,11 +38,25 @@ describe('startup language hydration', () => {
     expect(document.documentElement.lang).toBe('en')
   })
 
+  it('should_use_saved_russian_when_current_language_is_english', async () => {
+    await i18n.changeLanguage('en')
+    const invokeMock = vi.spyOn(ipcClient, 'invoke').mockResolvedValue({
+      settings: { language: 'ru' },
+    })
+
+    const resolvedLanguage = await hydrateLanguageFromSettings()
+
+    expect(resolvedLanguage).toBe('ru')
+    expect(i18n.resolvedLanguage).toBe('ru')
+    expect(document.documentElement.lang).toBe('ru')
+    expect(i18n.t('common:composer.send')).toBe('Отправить')
+  })
+
   it('should_fall_back_without_blocking_when_settings_read_fails', async () => {
     const originalLanguage = i18n.resolvedLanguage
     vi.spyOn(ipcClient, 'invoke').mockRejectedValue(new Error('settings unavailable'))
 
-    await expect(hydrateLanguageFromSettings()).resolves.toMatch(/^(zh|en)$/)
+    await expect(hydrateLanguageFromSettings()).resolves.toMatch(/^(zh|en|ru)$/)
     expect(i18n.resolvedLanguage).toBe(originalLanguage)
   })
 })

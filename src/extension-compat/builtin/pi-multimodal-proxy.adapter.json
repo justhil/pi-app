@@ -10,6 +10,10 @@
       "analyze_image"
     ]
   },
+  "install": {
+    "source": "npm:pi-multimodal-proxy",
+    "homepage": "https://github.com/pungggi/pi-multimodal-proxy"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "media",
@@ -77,7 +81,10 @@
             "title": "代理模式"
           },
           "en": {
-            "title": "Proxy Settings"
+            "title": "Proxy Mode"
+          },
+          "ru": {
+            "title": "Режим прокси"
           }
         }
       },
@@ -133,7 +140,10 @@
             "title": "图像模型"
           },
           "en": {
-            "title": "Endpoints"
+            "title": "Image Model"
+          },
+          "ru": {
+            "title": "Модель изображений"
           }
         }
       },
@@ -158,7 +168,10 @@
             "title": "视频模型"
           },
           "en": {
-            "title": "Models"
+            "title": "Video Model"
+          },
+          "ru": {
+            "title": "Видеомодель"
           }
         }
       },
@@ -177,7 +190,10 @@
             "title": "桌面卡片"
           },
           "en": {
-            "title": "Status"
+            "title": "Desktop Card"
+          },
+          "ru": {
+            "title": "Карточка в desktop"
           }
         }
       }
@@ -188,7 +204,10 @@
         "note": "配置写入 ~/.pi/agent/multimodal-proxy.json（与扩展共享）。provider/modelId 需对应已 pi --login 的模型。showInlinePreview 为桌面本地开关。"
       },
       "en": {
-        "note": "Reads ~/.pi/agent/multimodal-proxy.json."
+        "note": "Writes ~/.pi/agent/multimodal-proxy.json (shared with the extension). provider/modelId must match a model signed in via pi --login. showInlinePreview is a desktop-only toggle."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/multimodal-proxy.json (общий с расширением). provider/modelId должны соответствовать модели, авторизованной через pi --login. showInlinePreview — локальный переключатель desktop."
       }
     }
   },
@@ -199,11 +218,72 @@
   "i18n": {
     "zh": {
       "displayName": "Multimodal Vision",
-      "description": "图像/视频分析代理（配置 ~/.pi/agent/multimodal-proxy.json）"
+      "description": "图像/视频分析代理（配置 ~/.pi/agent/multimodal-proxy.json）",
+      "fieldLabels": {
+        "mode": "代理模式",
+        "tool": "工具调用",
+        "provider": "Provider",
+        "modelId": "图像分析模型 ID",
+        "systemPrompt": "系统提示词",
+        "includeContext": "包含会话上下文",
+        "maxImagesPerCall": "每次调用最大图片数",
+        "maxBatch": "最大批处理数",
+        "cacheSize": "缓存大小",
+        "videoProvider": "视频 Provider",
+        "videoModelId": "视频分析模型 ID",
+        "showInlinePreview": "时间线内联图像预览"
+      },
+      "fieldDescriptions": {
+        "mode": "fallback=仅当模型不支持图时启用；always=总是启用；off=关闭",
+        "provider": "模型提供商标识（如 anthropic / CloseAI），需已 pi --login",
+        "systemPrompt": "留空使用扩展默认"
+      }
     },
     "en": {
       "displayName": "Multimodal Vision",
-      "description": "Image/audio proxy tool; reads ~/.pi/agent/multimodal-proxy.json"
+      "description": "Image/video analysis proxy (settings in ~/.pi/agent/multimodal-proxy.json)",
+      "fieldLabels": {
+        "mode": "Proxy mode",
+        "tool": "Tool calls",
+        "provider": "Provider",
+        "modelId": "Image analysis model ID",
+        "systemPrompt": "System prompt",
+        "includeContext": "Include session context",
+        "maxImagesPerCall": "Max images per call",
+        "maxBatch": "Max batch size",
+        "cacheSize": "Cache size",
+        "videoProvider": "Video provider",
+        "videoModelId": "Video analysis model ID",
+        "showInlinePreview": "Inline image preview in timeline"
+      },
+      "fieldDescriptions": {
+        "mode": "fallback = enable only when the active model lacks vision; always = always enable; off = disabled",
+        "provider": "Model provider ID (e.g. anthropic / CloseAI), must be signed in via pi --login",
+        "systemPrompt": "Leave blank to use the extension default"
+      }
+    },
+    "ru": {
+      "displayName": "Multimodal Vision",
+      "description": "Прокси анализа изображений и видео (настройки в ~/.pi/agent/multimodal-proxy.json)",
+      "fieldLabels": {
+        "mode": "Режим прокси",
+        "tool": "Вызов инструментов",
+        "provider": "Провайдер",
+        "modelId": "ID модели анализа изображений",
+        "systemPrompt": "Системный промпт",
+        "includeContext": "Включать контекст сессии",
+        "maxImagesPerCall": "Макс. изображений за вызов",
+        "maxBatch": "Макс. размер пакета",
+        "cacheSize": "Размер кэша",
+        "videoProvider": "Видеопровайдер",
+        "videoModelId": "ID модели анализа видео",
+        "showInlinePreview": "Встроенный предпросмотр изображений в таймлайне"
+      },
+      "fieldDescriptions": {
+        "mode": "fallback = включать, только если модель не поддерживает изображения; always = всегда включено; off = выключено",
+        "provider": "Идентификатор провайдера (например anthropic / CloseAI), требуется вход через pi --login",
+        "systemPrompt": "Оставьте пустым для значения расширения по умолчанию"
+      }
     }
   }
 }

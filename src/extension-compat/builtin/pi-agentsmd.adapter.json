@@ -7,9 +7,24 @@
       "pi-agentsmd"
     ]
   },
+  "install": {
+    "source": "npm:pi-agentsmd",
+    "homepage": "https://github.com/jvm/pi-mono"
+  },
   "tier": "headless",
   "config": {
-    "note": "AGENTS.md 生成由扩展自管；桌面无配置项。"
+    "note": "AGENTS.md 生成由扩展自管；桌面无配置项。",
+    "i18n": {
+      "zh": {
+        "note": "AGENTS.md 生成由扩展自管；桌面无配置项。"
+      },
+      "en": {
+        "note": "AGENTS.md generation is managed by the extension; there are no desktop settings."
+      },
+      "ru": {
+        "note": "Генерация AGENTS.md управляется самим расширением; в desktop настроек нет."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -18,7 +33,11 @@
     },
     "en": {
       "displayName": "Agents.md",
-      "description": "AGENTS.md generator; list and entry included"
+      "description": "AGENTS.md generator (no slash command)"
+    },
+    "ru": {
+      "displayName": "Agents.md",
+      "description": "Генератор AGENTS.md (без slash-команды)"
     }
   }
 }

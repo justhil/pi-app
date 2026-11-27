@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_UI_CUSTOMIZATION } from '@shared/ui-customization'
 import type { SettingsDraft } from '../settings-draft'
 
 const invokeMock = vi.fn()
@@ -19,6 +20,8 @@ vi.mock('@renderer/stores/ui-store', () => ({
       setTheme: vi.fn(),
       setTimelineMaxAutoExpandedTools: vi.fn(),
       setTimelineVisibleTurns: vi.fn(),
+      setTimelineUserMessageStyle: vi.fn(),
+      setUiCustomization: vi.fn(),
       applyRightPanelRuntime: vi.fn(),
     }),
   },
@@ -50,6 +53,8 @@ function draft(): SettingsDraft {
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: 3,
     timelineVisibleTurns: 10,
+    timelineUserMessageStyle: 'bubble',
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
     extensionOverrides: {},
     rightPanelCatalog: [],
     rightPanelPrefs: {},

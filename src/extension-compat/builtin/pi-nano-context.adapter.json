@@ -9,7 +9,18 @@
   },
   "tier": "none",
   "config": {
-    "note": "TUI 编辑器下方的上下文进度条；桌面在 Run 面板显示上下文占用。"
+    "note": "TUI 编辑器下方的上下文进度条；桌面在 Run 面板显示上下文占用。",
+    "i18n": {
+      "zh": {
+        "note": "TUI 编辑器下方的上下文进度条；桌面在 Run 面板显示上下文占用。"
+      },
+      "en": {
+        "note": "Context usage bar beneath the TUI editor; the desktop shows context usage in the Run panel."
+      },
+      "ru": {
+        "note": "Шкала контекста под редактором TUI; в desktop-клиенте использование контекста отображается на панели Run."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -19,6 +30,10 @@
     "en": {
       "displayName": "Nano Context",
       "description": "TUI context bar under the editor (the desktop shows context in the Run panel)"
+    },
+    "ru": {
+      "displayName": "Nano Context",
+      "description": "Шкала контекста в TUI под редактором (в desktop использование контекста показано на панели Run)"
     }
   }
 }

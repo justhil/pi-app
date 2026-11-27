@@ -84,6 +84,7 @@ export function reduceSubagentSessionGroupToolEvent(
   group: SubagentSessionGroup,
   event: ToolEvent,
 ): SubagentSessionGroup {
+  if (event.phase === 'entry') return group
   if (!event.sessionFile || !sessionFilesEqual(event.sessionFile, group.parentSessionFile)) {
     return group
   }

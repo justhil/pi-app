@@ -51,4 +51,28 @@ describe('theme extras', () => {
       }
     }
   })
+
+  it('derives Amp light and dark agent presets with serif display headings and high-density UI prose', () => {
+    const ampLight = presetVariant('amp', 'light')!
+    const ampDark = presetVariant('amp', 'dark')!
+    expect(ampLight).toBeDefined()
+    expect(ampDark).toBeDefined()
+
+    const lightVars = vars(ampLight)
+    expect(lightVars['--bg-base']).toBe('#fafaf8')
+    expect(lightVars['--text-primary']).toBe('#0b0d0b')
+    expect(lightVars['--surface-sidebar']).toBe('#f1f2ed')
+    expect(lightVars['--font-display']).toBe('var(--font-serif-base)')
+    expect(lightVars['--prose-font']).toBeUndefined()
+    expect(lightVars['--chat-font-size']).toBe('14px')
+    expect(lightVars['--radius']).toBe('8px')
+
+    const darkVars = vars(ampDark)
+    expect(darkVars['--bg-base']).toBe('#101310')
+    expect(darkVars['--surface-sidebar']).toBe('#0b0d0b')
+    expect(darkVars['--code-bg']).toBe('#0b0d0b')
+    expect(darkVars['--text-primary']).toBe('#f6fff5')
+    expect(darkVars['--brand']).toBe('#f6833b')
+    expect(darkVars['--prose-font']).toBeUndefined()
+  })
 })

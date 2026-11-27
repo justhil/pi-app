@@ -146,4 +146,53 @@ describe('QuestionnaireDialog', () => {
     )
     expect(`${baseElement.textContent} ${attrs.join(' ')}`).not.toMatch(/[一-鿿]/)
   })
+
+  it('renders Markdown in question, option descriptions, and preview, with raw toggle and long description folding', () => {
+    const longDesc = `${'Detailed **architectural** trade-off with `inline_code`. '.repeat(8)}`
+    const richQuestions: AskQuestionPayload[] = [
+      {
+        question: 'Choose the **deployment** strategy:\n\n- Option `A` keeps zero downtime\n- Option `B` rebuilds cleanly',
+        header: 'Deploy',
+        options: [
+          {
+            label: 'Blue-Green',
+            description: longDesc,
+            preview: '### Blue-Green\n\n| Step | Target |\n| --- | --- |\n| 1 | `staging` |\n\n```bash\nnpm run deploy\n```',
+          },
+          {
+            label: 'ASCII Diagram',
+            description: 'Simple `box` wireframe',
+            preview: '+--------+     +--------+\n| Client | --> | Server |\n+--------+     +--------+',
+          },
+        ],
+      },
+    ]
+
+    const { container } = setup('req-md', richQuestions)
+
+    // Question Markdown renders bold + inline code + list inside semantic level-2 heading
+    const heading = screen.getByRole('heading', { level: 2 })
+    expect(heading.querySelector('strong')?.textContent).toBe('deployment')
+    expect(heading.querySelectorAll('code').length).toBeGreaterThanOrEqual(2)
+
+    // Preview renders Markdown table + fenced code by default
+    expect(container.querySelector('table')).not.toBeNull()
+    expect(screen.getByText('Raw')).toBeInTheDocument()
+
+    // Toggle preview to Raw monospace mode
+    fireEvent.click(screen.getByText('Raw'))
+    expect(container.querySelector('table')).toBeNull()
+    expect(screen.getByText('Rendered')).toBeInTheDocument()
+
+    // Expanding a long option description must NOT select the option
+    const expandBtn = screen.getByRole('button', { name: 'Show more' })
+    fireEvent.click(expandBtn)
+    expect(screen.getByRole('button', { name: 'Show less' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Blue-Green/ })).toHaveAttribute('aria-checked', 'false')
+
+    // Picking custom answer hides the side preview so the textarea gets full width
+    fireEvent.click(screen.getByRole('radio', { name: /Other/ }))
+    expect(screen.queryByText('Rendered')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type your answer')).toBeInTheDocument()
+  })
 })

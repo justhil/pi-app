@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
 data class SlashItem(val name: String, val description: String?, val category: String)
 
 /** Phone-native commands: they open a sheet or start a chat instead of being sent. */
-val BUILTIN_SLASH = listOf("/model", "/thinking", "/tools", "/new")
+val BUILTIN_SLASH = listOf("/model", "/thinking", "/tools", "/persona", "/new")
 
 fun slashItems(commands: List<CommandInfo>, builtinDesc: (String) -> String): List<SlashItem> =
     BUILTIN_SLASH.map { SlashItem(it, builtinDesc(it), "builtin") } +
@@ -114,8 +114,19 @@ fun builtinSlashDesc(): (String) -> String {
     val model = stringResource(R.string.slash_model)
     val thinking = stringResource(R.string.slash_thinking)
     val tools = stringResource(R.string.slash_tools)
+    val persona = stringResource(R.string.slash_persona)
     val new = stringResource(R.string.slash_new)
-    return remember(model) { { n -> when (n) { "/model" -> model; "/thinking" -> thinking; "/tools" -> tools; else -> new } } }
+    return remember(model, persona) {
+        { n ->
+            when (n) {
+                "/model" -> model
+                "/thinking" -> thinking
+                "/tools" -> tools
+                "/persona" -> persona
+                else -> new
+            }
+        }
+    }
 }
 
 @Composable

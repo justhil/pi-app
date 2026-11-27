@@ -2,6 +2,7 @@ import { isAbsolute, posix, resolve } from 'path'
 import { existsSync } from 'fs'
 import { isWslWindowsPath, wslPathToWindows, wslWindowsPathDistro } from '@shared/wsl-path'
 import { configStore } from './config-store'
+import { isRemoteAuthorizedProject } from './remote-project-registry'
 import { isSandboxWorkspacePath } from './sandbox-workspaces'
 import { readSessionMetaFromFile } from './session-file-meta'
 import { workerManager } from './worker-manager'
@@ -45,17 +46,26 @@ function workspacePathsEqual(a: string, b: string): boolean {
   return windowsPath ? left.toLowerCase() === right.toLowerCase() : left === right
 }
 
-/** The active workspace, a recent project or a sandbox folder (renderer-chosen project paths). */
+/** The active workspace, currentProject, live worker cwds, recent projects, or a sandbox folder. */
 export function authorizeProjectCwd(reqCwd: string | undefined): { ok: true; cwd: string } | { ok: false; error: string } {
   const target = normalizeWorkspaceCwd(String(reqCwd || ''))
   if (!target) return authorizeTrustedCwd(reqCwd)
+  const liveWorkerCwds =
+    typeof workerManager.listSessionRuntime === 'function'
+      ? workerManager.listSessionRuntime().map((slot) => slot.cwd)
+      : []
   const trusted = [
     getTrustedWorkspaceRoot(),
+    configStore.get('currentProject'),
     ...(configStore.get('recentProjects') || []),
+    ...liveWorkerCwds,
   ].map((workspace) => workspace ? normalizeWorkspaceCwd(workspace) : null)
     .find((workspace) => workspace && workspacePathsEqual(workspace, target))
   if (trusted) return { ok: true, cwd: trusted }
   if (isPortableAbsolutePath(target) && isSandboxWorkspacePath(target) && existsSync(target)) {
+    return { ok: true, cwd: target }
+  }
+  if (isPortableAbsolutePath(target) && isRemoteAuthorizedProject(target)) {
     return { ok: true, cwd: target }
   }
   return { ok: false, error: 'cwd_not_trusted' }
@@ -75,7 +85,23 @@ export async function authorizeTrustedSessionFile(
   }
 
   const meta = await readSessionMetaFromFile(sessionFile)
-  if (!meta?.cwd) return { ok: false, error: 'invalid_session' }
+  if (!meta?.cwd) {
+    // Pi SessionManager delays flushing a brand-new session JSONL until the first assistant
+    // message is appended. If a live worker slot already owns this exact sessionFile for the
+    // authorized workspace, allow reading its empty tree without falsely throwing `invalid_session`.
+    const liveSlots =
+      typeof workerManager.listSessionRuntime === 'function' ? workerManager.listSessionRuntime() : []
+    const matchedLive = liveSlots.find((slot) => {
+      if (!slot.sessionFile || !slot.cwd) return false
+      const normalizedSlotCwd = normalizeWorkspaceCwd(slot.cwd)
+      if (!workspacePathsEqual(normalizedSlotCwd, authorizedCwd.cwd)) return false
+      return workspacePathsEqual(slot.sessionFile, sessionFile)
+    })
+    if (matchedLive) {
+      return { ok: true, cwd: authorizedCwd.cwd, sessionFile }
+    }
+    return { ok: false, error: 'invalid_session' }
+  }
   const fileDistro = wslWindowsPathDistro(sessionFile)
   const sessionCwd = fileDistro
     ? wslPathToWindows(fileDistro, meta.cwd)

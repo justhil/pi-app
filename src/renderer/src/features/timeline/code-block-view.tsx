@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
+import { useCodeHighlightRevision } from '@renderer/lib/theme/use-code-highlight-revision'
 
 type Props = {
   code: string
@@ -52,6 +53,7 @@ function CodeBlockViewImpl({
   // Highlight what is shown. Streaming tool output appends below a collapsed preview; keying on the
   // visible slice (not the whole output) skips re-highlighting an unchanged preview on every update.
   const visible = expanded || !needsFold ? code : lines.slice(0, previewLines).join('\n')
+  const themeRev = useCodeHighlightRevision()
 
   useEffect(() => {
     let cancelled = false
@@ -61,7 +63,7 @@ function CodeBlockViewImpl({
     return () => {
       cancelled = true
     }
-  }, [visible, lang])
+  }, [visible, lang, themeRev])
 
   const copy = () => {
     navigator.clipboard.writeText(code).then(() => {
@@ -75,11 +77,11 @@ function CodeBlockViewImpl({
       ref={surfaceRef}
       data-scroll-active={scrollActive ? 'true' : undefined}
       className={cn(
-        'code-surface group overflow-hidden rounded-md border border-border/35 transition-colors',
+        'code-surface group overflow-hidden rounded-md border border-border/45 transition-colors',
         scrollActive && 'border-primary/45 ring-1 ring-primary/20',
         className,
       )}
-      style={{ background: 'color-mix(in srgb, var(--bg-2) 55%, transparent)' }}
+      style={{ background: 'var(--code-bg, color-mix(in srgb, var(--bg-2) 55%, transparent))' }}
     >
       <div
         className="flex items-center justify-between border-b border-border/30 px-2 py-0.5"

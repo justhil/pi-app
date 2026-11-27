@@ -18,6 +18,7 @@ import {
   queueStreamDelta,
 } from '@renderer/stores/ui-store-stream'
 import { createShellSlice, DEFAULT_RIGHT_PANEL_WIDTH } from '@renderer/stores/ui-store-shell-slice'
+import { pruneExpiredRecentSessions } from '@renderer/lib/session-attention'
 import { createRuntimeSlice } from '@renderer/stores/ui-store-runtime-slice'
 import { workspacePathKey } from '@shared/workspace-path'
 import { isAbortQueueIgnoreActive } from '@renderer/lib/abort-ui-hold'
@@ -259,22 +260,23 @@ export const useUIStore = create<UIState>()(
   rewindLoadingTree: false,
   rewindTreeError: undefined,
   setRewindMeta: (patch) =>
-    set((s) => ({
-      ...(patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
-      ...(patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
-      ...(patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
-      ...(patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
-      ...(patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
-      ...(patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
-      ...(patch.treeError !== undefined ? { rewindTreeError: patch.treeError } : {}),
+    set(() => ({
+      ...('rewindKey' in patch && patch.rewindKey !== undefined ? { rewindKey: patch.rewindKey } : {}),
+      ...('checkpoints' in patch && patch.checkpoints !== undefined ? { rewindCheckpoints: patch.checkpoints } : {}),
+      ...('treeNodes' in patch && patch.treeNodes !== undefined ? { rewindTreeNodes: patch.treeNodes } : {}),
+      ...('workerBound' in patch && patch.workerBound !== undefined ? { rewindWorkerBound: patch.workerBound } : {}),
+      ...('loadingCheckpoints' in patch && patch.loadingCheckpoints !== undefined ? { rewindLoadingCheckpoints: patch.loadingCheckpoints } : {}),
+      ...('loadingTree' in patch && patch.loadingTree !== undefined ? { rewindLoadingTree: patch.loadingTree } : {}),
+      ...('treeError' in patch ? { rewindTreeError: patch.treeError || undefined } : {}),
     })),
 
   composerPrefill: null,
   composerPrefillMode: 'replace' as const,
   setComposerPrefill: (text) => set({ composerPrefill: text, composerPrefillMode: 'replace' }),
-  appendComposerPrefill: (text) => {
-    const snippet = String(text || '').trimEnd()
-    if (!snippet) return
+  appendComposerPrefill: (text, opts) => {
+    const raw = String(text || '')
+    const snippet = opts?.preserveTrailingNewlines ? raw : raw.trimEnd()
+    if (!snippet.trim()) return
     set((s) => {
       if (s.composerPrefill != null && s.composerPrefillMode === 'append') {
         return {
@@ -341,25 +343,40 @@ export const useUIStore = create<UIState>()(
         theme: s.theme,
         sidebarWidth: s.sidebarWidth,
         sidebarCollapsed: s.sidebarCollapsed,
+        sidebarActiveSessionsDrawer: s.sidebarActiveSessionsDrawer,
+        sidebarActiveSessionsOpen: s.sidebarActiveSessionsOpen,
+        sessionLastActiveAt: pruneExpiredRecentSessions(s.sessionLastActiveAt),
         rightPanelWidth: s.rightPanelWidth,
+        rightPanelBrowserWidth: s.rightPanelBrowserWidth,
+        pinnedSessions: s.pinnedSessions,
+        pinnedSessionMeta: s.pinnedSessionMeta,
+        browserStageRatio: s.browserStageRatio,
+        browserStageLastOpenMode: s.browserStageLastOpenMode,
         rightPanelCollapsed: s.rightPanelCollapsed,
         rightPanelRailIcons: s.rightPanelRailIcons,
         rightPanelExpandedOnNarrow: s.rightPanelExpandedOnNarrow,
         lastModel: s.lastModel,
         lastThinking: s.lastThinking,
       }),
-      version: 4,
+      version: 7,
       migrate: (persistedState, version) => {
         const p = persistedState as Partial<UIState>
+        if (version >= 7) return p as UIState
         if (version >= 3) {
-          // v4 widened the default right panel; keep widths the user already dragged wider.
-          return { ...p, rightPanelWidth: Math.max(p.rightPanelWidth ?? 0, DEFAULT_RIGHT_PANEL_WIDTH) } as UIState
+          // v7 opens the right pane with the clean New Tab Launchpad by default and hides the collapsed edge rail.
+          return {
+            ...p,
+            rightPanelWidth: Math.max(p.rightPanelWidth ?? 0, DEFAULT_RIGHT_PANEL_WIDTH),
+            rightPanelCollapsed: false,
+            rightPanelRailIcons: false,
+          } as UIState
         }
         return {
           ...p,
           currentWorkspace: null,
           rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
           rightPanelCollapsed: false,
+          rightPanelRailIcons: false,
         } as UIState
       },
     },

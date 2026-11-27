@@ -236,7 +236,7 @@ export function ContextRoleLegend({
         return (
           <li
             key={row.key}
-            className="grid grid-cols-[8px_minmax(0,1fr)_auto_3.5ch] items-center gap-x-2 text-[12px] leading-5"
+            className="grid grid-cols-[8px_minmax(0,1fr)_auto_4.5ch] items-center gap-x-2 text-[12px] leading-5"
           >
             <span
               className="h-2 w-2 shrink-0 rounded-full"

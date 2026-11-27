@@ -1,9 +1,30 @@
-import type { HighlighterCore, LanguageRegistration } from 'shiki/core'
+import type { HighlighterCore, LanguageRegistration, ThemeRegistration } from 'shiki/core'
+import type { ShikiThemeId } from '@shared/custom-theme'
+import { getActiveCodeTheme } from './theme/render-fx-engine'
 
 let highlighter: HighlighterCore | null = null
 let loadPromise: Promise<HighlighterCore> | null = null
 
 type LangModule = { default: LanguageRegistration | LanguageRegistration[] }
+type ThemeModule = { default: ThemeRegistration }
+
+const THEME_LOADERS: Record<ShikiThemeId, () => Promise<ThemeModule>> = {
+  'github-light': () => import('shiki/themes/github-light.mjs'),
+  'github-dark': () => import('shiki/themes/github-dark.mjs'),
+  'vitesse-light': () => import('shiki/themes/vitesse-light.mjs'),
+  'vitesse-dark': () => import('shiki/themes/vitesse-dark.mjs'),
+  'everforest-light': () => import('shiki/themes/everforest-light.mjs'),
+  'everforest-dark': () => import('shiki/themes/everforest-dark.mjs'),
+  'catppuccin-latte': () => import('shiki/themes/catppuccin-latte.mjs'),
+  'catppuccin-mocha': () => import('shiki/themes/catppuccin-mocha.mjs'),
+  'rose-pine-dawn': () => import('shiki/themes/rose-pine-dawn.mjs'),
+  'rose-pine': () => import('shiki/themes/rose-pine.mjs'),
+  'tokyo-night': () => import('shiki/themes/tokyo-night.mjs'),
+  'kanagawa-wave': () => import('shiki/themes/kanagawa-wave.mjs'),
+  vesper: () => import('shiki/themes/vesper.mjs'),
+  nord: () => import('shiki/themes/nord.mjs'),
+  'one-dark-pro': () => import('shiki/themes/one-dark-pro.mjs'),
+}
 
 /**
  * Explicit loaders so Vite can code-split grammars (dynamic path import is unreliable).
@@ -432,21 +453,45 @@ export function wrapPlainCodeHtml(text: string): string {
   return `<pre class="shiki"><code>${escapeHtml(text)}</code></pre>`
 }
 
+async function ensureTheme(instance: HighlighterCore, themeId: ShikiThemeId): Promise<string> {
+  const loaded = instance.getLoadedThemes()
+  if (loaded.includes(themeId)) return themeId
+  const loader = THEME_LOADERS[themeId]
+  if (!loader) return isDark() ? 'github-dark' : 'github-light'
+  try {
+    const mod = await loader()
+    await instance.loadTheme(mod.default)
+    return instance.getLoadedThemes().includes(themeId)
+      ? themeId
+      : isDark()
+        ? 'github-dark'
+        : 'github-light'
+  } catch {
+    return isDark() ? 'github-dark' : 'github-light'
+  }
+}
+
 /** Highlight code to HTML; falls back to escaped plain text on failure. */
-export async function highlightCodeToHtml(code: string, lang?: string): Promise<string> {
+export async function highlightCodeToHtml(
+  code: string,
+  lang?: string,
+  explicitTheme?: ShikiThemeId,
+): Promise<string> {
   const trimmed = code.replace(/\n$/, '')
   if (!trimmed) return ''
   const requested = resolveLangId(lang)
   try {
     const instance = await getHighlighter()
     const useLanguage = await ensureLanguage(instance, requested)
-    const theme = isDark() ? 'github-dark' : 'github-light'
     if (useLanguage === 'text') {
       return wrapPlainCodeHtml(trimmed)
     }
+    const desiredTheme: ShikiThemeId =
+      explicitTheme ?? getActiveCodeTheme() ?? (isDark() ? 'github-dark' : 'github-light')
+    const activeTheme = await ensureTheme(instance, desiredTheme)
     return instance.codeToHtml(trimmed, {
       lang: useLanguage,
-      theme: theme as 'github-dark' | 'github-light',
+      theme: activeTheme,
     })
   } catch {
     return wrapPlainCodeHtml(trimmed)

@@ -69,6 +69,7 @@ describe('repository / checkout / session sidebar', () => {
   it('keeps one scope switch inside the search frame and returns focus after clearing', async () => {
     const { container } = sidebar()
     await screen.findByText('/copies/feature question')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     const input = screen.getByRole('searchbox')
     fireEvent.focus(input)
     const scope = screen.getByRole('switch', { name: 'All projects' })
@@ -92,6 +93,7 @@ describe('repository / checkout / session sidebar', () => {
   it('searches other known checkouts only in all-project search and opens the right directory', async () => {
     const { container } = sidebar()
     await screen.findByText('/copies/feature question')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.focus(screen.getByRole('searchbox'))
     fireEvent.click(screen.getByRole('switch', { name: 'All projects' }))
     expect(mocks.invoke.mock.calls.filter(([method]) => method === 'session.list')).toHaveLength(1)
@@ -118,10 +120,11 @@ describe('repository / checkout / session sidebar', () => {
     const { container } = sidebar()
     await screen.findByText('Build sidebar')
     expectCollapsedChild('Review findings')
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'needle' } })
     expect(screen.getByText('Build sidebar')).toBeInTheDocument()
     expect(screen.getByText('Review findings')).toBeInTheDocument()
-    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(1)
+    expect(container.querySelectorAll('.sidebar-session-list > [data-session-file]')).toHaveLength(1)
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } })
     expectCollapsedChild('Review findings')
   })
@@ -225,5 +228,57 @@ describe('repository / checkout / session sidebar', () => {
         worktreePath: '/copies/feature',
       }),
     )
+  })
+
+  it('should_collapse_expanded_project_when_clicking_project_name', async () => {
+    const { container } = sidebar()
+    await screen.findByText('/copies/feature question')
+
+    const featureCollapse = () => container.querySelector('[data-workspace="/copies/feature"] .sidebar-collapse')
+    const featureHit = container.querySelector('[data-workspace="/copies/feature"] .sidebar-project-hit')!
+    expect(featureCollapse()).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(featureHit)
+    expect(featureCollapse()).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(featureHit)
+    expect(featureCollapse()).toHaveAttribute('data-open', 'true')
+
+    const notesCollapse = () => container.querySelector('[data-workspace="/notes"] .sidebar-collapse')
+    const notesHit = container.querySelector('[data-workspace="/notes"] .sidebar-project-hit')!
+    expect(notesCollapse()).toHaveAttribute('data-open', 'false')
+
+    fireEvent.click(notesHit)
+    expect(notesCollapse()).toHaveAttribute('data-open', 'true')
+    expect(mocks.activate).toHaveBeenCalledWith('/notes')
+
+    mocks.activate.mockClear()
+    fireEvent.click(notesHit)
+    expect(notesCollapse()).toHaveAttribute('data-open', 'false')
+    expect(mocks.activate).not.toHaveBeenCalled()
+  })
+
+  it('should_render_pinned_section_above_projects_when_pinned_sessions_exist', async () => {
+    useUIStore.setState({
+      pinnedSessions: ['/copies/feature/session.jsonl'],
+      pinnedSessionMeta: {
+        '/copies/feature/session.jsonl': {
+          sessionFile: '/copies/feature/session.jsonl',
+          sessionId: '/copies/feature',
+          workspacePath: '/copies/feature',
+          title: 'Pinned task',
+          kind: 'project',
+          pinnedAt: 1,
+        },
+      },
+    })
+
+    const { container } = sidebar()
+    await screen.findAllByText('/copies/feature question')
+
+    const pinnedSection = container.querySelector('[data-pi-slot="sidebar-pinned-section"]')!
+    const projectsHeading = screen.getByText('Projects')
+    expect(pinnedSection).not.toBeNull()
+    expect(pinnedSection.compareDocumentPosition(projectsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

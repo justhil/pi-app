@@ -24,7 +24,18 @@
     "icon": "Hash"
   },
   "config": {
-    "note": "工具协议由扩展在 Worker 内替换；桌面仅美化时间线输出。安装：pi install npm:@jerryan/pi-hashline-edit。可用 pi config 或 settings.packages 启用 extensions/core.ts、insert.ts、grep.ts 等子模块。"
+    "note": "工具协议由扩展在 Worker 内替换；桌面仅美化时间线输出。安装：pi install npm:@jerryan/pi-hashline-edit。可用 pi config 或 settings.packages 启用 extensions/core.ts、insert.ts、grep.ts 等子模块。",
+    "i18n": {
+      "zh": {
+        "note": "工具协议由扩展在 Worker 内替换；桌面仅美化时间线输出。安装：pi install npm:@jerryan/pi-hashline-edit。可用 pi config 或 settings.packages 启用 extensions/core.ts、insert.ts、grep.ts 等子模块。"
+      },
+      "en": {
+        "note": "Tool protocols are replaced by the extension inside the Worker; the desktop only formats timeline output. Install via pi install npm:@jerryan/pi-hashline-edit. Enable submodules like extensions/core.ts, insert.ts, grep.ts via pi config or settings.packages."
+      },
+      "ru": {
+        "note": "Протокол инструментов заменяется расширением внутри Worker; desktop лишь оформляет вывод в таймлайне. Установка: pi install npm:@jerryan/pi-hashline-edit. Подмодули extensions/core.ts, insert.ts, grep.ts можно включить через pi config или settings.packages."
+      }
+    }
   },
   "slash": {
     "/tool-usage": "notify"
@@ -36,7 +47,11 @@
     },
     "en": {
       "displayName": "Hashline Edit",
-      "description": "Hash-anchor read/edit/insert/grep; temporary file dedicated hashline preview"
+      "description": "Hash-anchored read/edit/insert/grep; dedicated timeline hashline preview"
+    },
+    "ru": {
+      "displayName": "Hashline Edit",
+      "description": "Хеш-привязка для read/edit/insert/grep; специальный предпросмотр hashline в таймлайне"
     }
   }
 }

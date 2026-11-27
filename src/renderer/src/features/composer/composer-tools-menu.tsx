@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CapabilityId, CapabilityInfo } from '@shared/capabilities'
-import { Clock, Globe, Monitor, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
+import { Clock, Globe, Layers, Monitor, SlidersHorizontal, Sparkles, type AppIconComponent } from '@renderer/components/icons'
 import { Switch } from '@renderer/components/ui/switch'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useBrowserStore } from '@renderer/features/browser/browser-store'
@@ -17,7 +17,7 @@ import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ComposerPopover } from './composer-popover'
 
-const ICONS: Record<CapabilityId, AppIconComponent> = { 'pi-ui': Sparkles, browser: Globe, chrome: Monitor }
+const ICONS: Record<CapabilityId, AppIconComponent> = { 'pi-ui': Sparkles, canvas: Layers, browser: Globe, chrome: Monitor }
 const EMPTY: CapabilityId[] = []
 
 let catalogCache: CapabilityInfo[] | null = null
@@ -146,7 +146,7 @@ function BrowserModeRow({ builtin, chrome, enabled, sessionFile }: { builtin: Ca
         })}
       </div>
       {cost ? <div className="mt-1 text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
-      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}：{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
+      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}{t('common:colon')}{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
     </div>
   )
 }
@@ -185,14 +185,19 @@ export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; r
   }, [open])
 
   const label = (id: CapabilityId) => t(`composer:tools.items.${id}.name`)
-  const names = enabled.map(label).join('、')
+  const names = enabled.map(label).join(t('common:listSeparator'))
 
   return (
-    <div className="flex min-w-0 items-center">
+    <div
+      data-pi-slot="composer-tools-wrap"
+      data-has-active={enabled.length > 0 ? 'true' : 'false'}
+      className="flex min-w-0 items-center"
+    >
       {/* One icon button. Enabled capabilities show as a small count (names in the tooltip
           and the menu), so turning things on never widens the toolbar. */}
       <button
         type="button"
+        data-pi-slot="composer-tools-btn"
         data-composer-tools=""
         disabled={disabled}
         aria-haspopup="dialog"

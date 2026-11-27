@@ -112,4 +112,51 @@ describe('ToolCallRow for codemode', () => {
     const touched = collectTouchedPaths([], tools, 'run-1')
     expect(touched).toEqual(['src/edited.ts'])
   })
+
+  it('should_render_add_and_delete_line_counts_on_codemode_row_and_nested_calls_and_turn_summary', () => {
+    const item = {
+      id: 'cm-diff',
+      type: 'tool-call' as const,
+      toolName: 'codemode',
+      toolPhase: 'end' as const,
+      runId: 'run-diff',
+      toolArgs: { code: 'await tools.edit({ path: "src/edited.ts", edits: [{ oldText: "a\\nb", newText: "a\\nc\\nd" }] })' },
+      toolDetails: {
+        calls: [
+          {
+            id: 'cm-diff/1',
+            name: 'edit',
+            args: '{"path":"src/edited.ts","edits":[{"oldText":"a\\nb","newText":"a\\nc\\nd"}]}',
+            status: 'ok',
+            durationMs: 12,
+          },
+          {
+            id: 'cm-diff/2',
+            name: 'write',
+            args: '{"path":"src/created.ts","content":"x\\ny\\nz\\n"}',
+            status: 'ok',
+            durationMs: 9,
+          },
+        ],
+      },
+      timestamp: 3,
+    }
+
+    render(<ToolCallRow item={item} />)
+    const row = screen.getByRole('button')
+    expect(row.textContent).toContain('+5')
+    expect(row.textContent).toContain('-1')
+
+    fireEvent.click(row)
+    expect(document.body.textContent).toContain('+2')
+    expect(document.body.textContent).toContain('+3')
+
+    const summary = buildToolListActivitySummary(
+      [item],
+      [{ path: 'src/edited.ts', source: 'edit', changeType: 'modified', runId: 'run-diff' }],
+      '/workspace',
+    )
+    expect(summary.additions).toBe(5)
+    expect(summary.deletions).toBe(1)
+  })
 })

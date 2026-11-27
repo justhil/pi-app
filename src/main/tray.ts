@@ -1,6 +1,6 @@
 import { app, Menu, Tray } from 'electron'
 import { resolveAppIcon } from './app-icon'
-import { configStore } from './config-store'
+import { resolveUiLanguage } from './ui-language'
 import { getMainWindow } from './window'
 
 let appTray: Tray | null = null
@@ -16,14 +16,17 @@ export function focusMainWindow(): void {
 function openTrayMenu(): void {
   const window = getMainWindow()
   const visible = window?.isVisible() ?? false
-  const zh = configStore.get('language') === 'zh'
+  const language = resolveUiLanguage()
+  const label = (zh: string, en: string, ru: string) => (language === 'zh' ? zh : language === 'ru' ? ru : en)
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: visible ? (zh ? '隐藏窗口' : 'Hide Window') : (zh ? '显示窗口' : 'Show Window'),
+      label: visible
+        ? label('隐藏窗口', 'Hide Window', 'Скрыть окно')
+        : label('显示窗口', 'Show Window', 'Показать окно'),
       click: visible ? () => getMainWindow()?.hide() : focusMainWindow,
     },
     { type: 'separator' },
-    { label: zh ? '退出' : 'Quit', click: () => app.quit() },
+    { label: label('退出', 'Quit', 'Выход'), click: () => app.quit() },
   ]
   Menu.buildFromTemplate(template).popup()
 }

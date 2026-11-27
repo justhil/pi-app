@@ -1,0 +1,6 @@
+{
+  "schema": "usage.summary/params",
+  "value": {
+    "days": 30
+  }
+}

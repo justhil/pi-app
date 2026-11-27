@@ -75,7 +75,10 @@
     "cloneCancelled": "已取消 Clone",
     "cloneFailed": "Clone 失败",
     "cloned": "已 Clone 到新会话",
-    "nothingToClone": "当前没有可 Clone 的内容"
+    "nothingToClone": "当前没有可 Clone 的内容",
+    "forkSelectorFailed": "无法打开 Fork 选择器",
+    "panelSwitched": "已切换到 {{panel}} 面板",
+    "openSettingsFromSidebar": "请从左侧栏打开设置"
   },
   "voice": {
     "start": "开始录音",
@@ -212,6 +215,11 @@
         "desc": "用图表、指标卡、表格等结构化块作答",
         "short": "可视化"
       },
+      "canvas": {
+        "name": "AI 画布投射",
+        "desc": "调用 canvas_* 工具向右侧画布投射手机屏、委派树、组件或交互原型",
+        "short": "画布"
+      },
       "browser": {
         "name": "浏览器操控",
         "desc": "读取并操作内置浏览器的页面",
@@ -249,5 +257,145 @@
     }
   },
   "thinkingShort": "思考 {{level}}",
-  "thinkingPrefix": "思考"
+  "thinkingPrefix": "思考",
+  "purge": {
+    "shortLabel": "人设",
+    "choosePersona": "选择注入人设与抗拦截策略",
+    "menuTitle": "人设与破限",
+    "personaSectionLabel": "人设模板",
+    "advancedTitle": "高级微调",
+    "openFullSettings": "完整设置 →",
+    "footerFirstTurn": "首轮无限制 · 零缓存损耗",
+    "footerMid": "会话中 · 改前缀项会提示缓存影响",
+    "firstTurnFreeBadge": "首轮无限制",
+    "switchOn": "已开启",
+    "switchOff": "已关闭",
+    "primerBadge": "含示范轮",
+    "openSettings": "完整设置",
+    "modeLabel": "系统注入模式",
+    "modes": {
+      "replace": "换身份",
+      "append": "追加",
+      "strict": "只留人设"
+    },
+    "strategyPresetLabel": "抗拦截强度",
+    "showAdvanced": "高级微调",
+    "hideAdvanced": "收起微调",
+    "presetShort": {
+      "standard": "轻度",
+      "relay_push": "中度",
+      "tunnel": "强力"
+    },
+    "presetSub": {
+      "standard": "稳缓存",
+      "relay_push": "防截断",
+      "tunnel": "全通道"
+    },
+    "historyShort": {
+      "none": "保持原样",
+      "push": "尾轮推入",
+      "tunnel": "全封装"
+    },
+    "presets": {
+      "standard": "轻度 · 稳缓存",
+      "relay_push": "中度 · 防截断",
+      "tunnel": "强力 · 全通道",
+      "custom": "自定义组合"
+    },
+    "presetHints": {
+      "standard": "仅注入人设与首轮示范对话，不改消息结构；日常首选，全程命中提示词缓存。",
+      "relay_push": "将当前问题前移为历史并追加“已确认”引导，改用虚拟工具出字后实时还原正文，绕开正文流审查。",
+      "tunnel": "关闭原生思考，将系统提示与全部历史封装进工具调用链并经工具出字（仅 OpenAI 兼容接口生效）。",
+      "custom": "当前为手动微调组合，可展开下方细项查看或一键切回预设档位。"
+    },
+    "tunnelApiDowngradeNotice": "当前模型使用 {{api}} 接口，「强力 · 全通道」仅支持 OpenAI 兼容接口，发送时将自动降级为「中度 · 防截断 + 工具借壳思考」。",
+    "thinkingLabel": "思维链引导",
+    "thinkingModes": {
+      "anchor": "起手锚定",
+      "tool_cot": "工具借壳",
+      "suppress": "压制思考",
+      "off": "不干预"
+    },
+    "thinkingHints": {
+      "anchor": "保留模型原生思考与智商，在系统提示词锚定思考起手方向，抑制内部规则自检。",
+      "tool_cot": "关闭模型原生思考，改为写入虚拟工具 think_chain 参数并还原到思考面板，全接口通用。",
+      "suppress": "直接压低/关闭模型原生思考，避免在长推理中自我说服拒答，快速直出结论。",
+      "off": "完全保持当前模型自身的思考等级与默认推理方式，不做额外引导。"
+    },
+    "badges": {
+      "cacheSafe": "保前缀缓存",
+      "tailNoCache": "尾轮无缓存",
+      "midBreak": "中途切破缓存",
+      "midSwitchBreaksCache": "中途切换会重算缓存",
+      "notRecommendedDrift": "易偏航·不建议"
+    },
+    "opts": {
+      "primer": "首轮示范对话",
+      "scrub": "自动清理历史拒答",
+      "toolRelay": "用虚拟工具代出正文",
+      "historyMode": "历史消息包装",
+      "autoRetry": "被拒自动升档重试",
+      "cipher": "关键词替换"
+    },
+    "optHints": {
+      "primer": "开头插入一问一答定调（开启工具代出时自动示范调用 purge_reply），首轮固定后全程命中缓存。",
+      "scrub": "发包前仅在内存中抹掉之前失败的拒答与摘要拦截句，防止越聊越容易拒（不改本地记录）。",
+      "toolRelay": "让模型把正文写进虚拟工具参数，客户端实时流式还原为正常消息；查文件/跑命令仍照常执行。",
+      "historyMode": "选择是否把末轮问题前移，或把全部历史封装进工具调用链。",
+      "autoRetry": "前 180 字检出拒答、空回包或策略报错时，静默升档至工具借壳/隧道重试 1 次。"
+    },
+    "historyModes": {
+      "none": "保持原样（保缓存）",
+      "push": "末尾补确认轮（尾轮无缓存）",
+      "tunnel": "全历史工具封装（仅 OpenAI 兼容）"
+    },
+    "cipherLevels": {
+      "off": "关（推荐）",
+      "minimal": "仅当前提问",
+      "full": "全历史 [破缓存]"
+    },
+    "cipherDriftWarn": "注意：关键词替换会改写输入原词，容易引发模型理解跑偏、代码标识符失真与行为偏移，不建议日常开启；优先用「中度 · 防截断」或「工具借壳」。",
+    "cipherFullDriftAndCacheWarn": "高风险：全历史替换会改写整段历史与动态词表，每轮破坏提示词缓存且显著加剧语义与行为偏移，强烈不建议开启。",
+    "tailPushMidNotice": "已切换为「末尾补确认轮」：更早历史的前缀缓存保持有效，仅最新 1 轮不入下轮静态缓存。",
+    "midConfirmTitle": "会话中途变更将重建提示词缓存",
+    "midConfirmCancel": "取消",
+    "midConfirmApply": "确认切换",
+    "impactReasons": {
+      "toggle_enable": "当前会话已有对话记录：中途开启人设注入会改写顶部系统提示词，导致已有提示词缓存立即重算。",
+      "toggle_disable": "当前会话已有对话记录：中途关闭人设注入会还原系统提示词，导致已有提示词缓存重算。",
+      "switch_persona": "当前会话已有对话记录：切换人设模板会替换系统提示词与示范前缀，已有缓存将立即重算。",
+      "switch_mode": "当前会话已有对话记录：切换系统注入模式会改变系统提示词结构，已有缓存将立即重算。",
+      "toggle_primer": "当前会话已有对话记录：中途开关「首轮示范对话」会增删历史最前端消息，使整段前缀偏移并重建缓存。",
+      "switch_thinking_guidance": "当前会话已有对话记录：切换思维链引导方式会改动系统锚定指令或虚拟工具声明，触发前缀缓存重建。",
+      "switch_tunnel": "当前会话已有对话记录：中途切换「强力 · 全通道」会将全部历史重排为工具链，已有前缀缓存立即失效。",
+      "toggle_relay": "当前会话已有对话记录：中途开关「虚拟工具代出正文」会增删虚拟工具与示范格式，触发前缀缓存重建。",
+      "switch_cipher_full": "切换「全历史替换」会改写前序历史并动态变更词表，立即破坏缓存且极易引起语义偏航（不建议）。",
+      "switch_push": "启用「末尾补确认轮」仅在每轮尾部追加临时引导，不影响更早轮次缓存。"
+    },
+    "firstTurnNote": "首轮发送前可自由切换任意模板与通道策略（不设限、零缓存损耗）；发送首条消息后固定配置即可全程命中缓存。",
+    "cacheBreakWarn": "当前会话已有历史记录：标注「中途切破缓存」或「破缓存」的项在切换时会提示缓存与行为影响。",
+    "inactiveDraftHint": "点击为本新对话启用人设注入（默认：{{name}}，首轮前可自由调整）",
+    "activeDraftHint": "将在首条消息注入：{{name}}（{{mode}}），点击可取消",
+    "inactiveMidHint": "点击为当前会话启用人设注入（默认：{{name}}，将提示缓存影响）",
+    "activeMidHint": "当前生效：{{name}}（{{mode}}）· 点击关闭或展开调整策略",
+    "lockedOnHint": "本会话已注入：{{name}}（{{mode}}）",
+    "lockedOffHint": "当前会话未启用人设注入"
+  },
+  "queueRestored": "已拉回 {{count}} 条排队消息到输入框",
+  "queueNothingToRestore": "没有可拉回的排队消息",
+  "queueRestoreFailed": "拉回队列失败",
+  "worktree": {
+    "title": "新会话运行环境",
+    "localMode": "本地目录",
+    "localDesc": "在当前工作区直接运行",
+    "newMode": "新建隔离 Worktree",
+    "newDesc": "自动创建独立分支与目录，与当前任务并行互不干扰",
+    "branchLabel": "新分支名（留空自动生成）",
+    "branchPlaceholder": "例如 feat/github-pr-panel",
+    "baseBranchLabel": "基准分支",
+    "currentHead": "当前分支",
+    "fromOriginLabel": "先从 origin 拉取最新提交作为起点",
+    "existingHeading": "或复用已有 Worktree",
+    "createFailed": "创建 Worktree 失败"
+  }
 }

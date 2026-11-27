@@ -3,6 +3,8 @@ import { join } from 'path'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'crypto'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { resolveActiveDesktopDir } from './agent-dir'
 import { isWslRuntimeActive } from './wsl/runtime-config'
 
@@ -77,7 +79,7 @@ export function createSandboxWorkspace(label?: string): {
   mkdirSync(dir, { recursive: true })
   const meta: SandboxMeta = {
     id,
-    label: label?.trim() || `临时对话 ${id}`,
+    label: label?.trim() || mainLabel(getMainUiLanguage(), 'sandbox.tempChatTitle', { id }),
     createdAt: Date.now(),
     kind: 'sandbox',
   }

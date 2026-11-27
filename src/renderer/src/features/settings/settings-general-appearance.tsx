@@ -2,21 +2,31 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { showAppUpdateDialog } from '@renderer/lib/app-update-notify'
 
 import { useSettingsDraft } from '@renderer/features/settings/settings-draft-context'
+import { isSandboxPath } from '@renderer/features/workspace/project-sidebar-types'
 import { PiSettingsPanel } from '@renderer/features/settings/pi-settings-panel'
 import { AppearanceThemeEditor } from '@renderer/features/settings/appearance-theme-editor'
 import { AppearanceBackground } from '@renderer/features/settings/appearance-background'
+import {
+  WorkbenchComposerControls,
+  WorkbenchReadingControls,
+  WorkbenchShellControls,
+  SHELL_LAYOUT_PRESETS,
+} from '@renderer/features/settings/workbench-customizer-controls'
 import { RuntimeSettingsPanel } from '@renderer/features/settings/runtime-settings-panel'
+import { SessionWorkersSection } from '@renderer/features/settings/session-workers-section'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
-import { btnOutline, numberInputCls } from '@renderer/features/settings/settings-controls'
+import { btnCompact, btnOutline, numberInputCls } from '@renderer/features/settings/settings-controls'
 import { Switch } from '@renderer/components/ui/switch'
 import {
   Folder,
   Monitor,
   Moon,
+  RotateCcw,
   Sparkles,
   Sun,
   ThemedIcon,
@@ -99,14 +109,13 @@ export function GeneralSettings() {
     setCompletionNotificationOnlyWhenUnfocused,
     setCompletionNotificationDndMinutes,
     setCompletionNotificationDelivery,
-    setMaxSessionWorkers,
-    setSessionWorkerIdleTimeoutMinutes,
   } = useSettingsDraft()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
-  const [fixedOrder, setFixedOrder] = useState(false)
+  const [fixedOrder, setFixedOrder] = useState(true)
+  const activeSessionsDrawer = useUIStore((s) => s.sidebarActiveSessionsDrawer)
+  const setActiveSessionsDrawer = useUIStore((s) => s.setSidebarActiveSessionsDrawer)
   const [updateCheck, setUpdateCheck] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [testingAlert, setTestingAlert] = useState(false)
   const [alertTestFeedback, setAlertTestFeedback] = useState<'sent' | 'failed' | null>(null)
   const updateCheckAttemptRef = useRef(0)
@@ -121,14 +130,29 @@ export function GeneralSettings() {
   }, [])
 
   useEffect(() => {
-    ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
-      if (res?.settings?.recentProjects) setRecentProjects(res.settings.recentProjects)
-    })
+    const loadRecentProjects = () => {
+      ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((res) => {
+        if (!mountedRef.current) return
+        if (Array.isArray(res?.settings?.recentProjects)) {
+          setRecentProjects(res.settings.recentProjects.filter((p: string) => !isSandboxPath(p)))
+        }
+      })
+    }
+    loadRecentProjects()
     ipcClient.invoke('settings.get', { key: 'recentProjectsFixedOrder' }).then((res) => {
+      if (!mountedRef.current) return
       if (typeof res?.settings?.recentProjectsFixedOrder === 'boolean') {
         setFixedOrder(res.settings.recentProjectsFixedOrder)
       }
     })
+    const onSettingsChanged = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { key?: string } | undefined
+      if (!detail?.key || detail.key === 'recentProjects') {
+        loadRecentProjects()
+      }
+    }
+    window.addEventListener('pi-desktop:settings-changed', onSettingsChanged)
+    return () => window.removeEventListener('pi-desktop:settings-changed', onSettingsChanged)
   }, [])
 
   const toggleFixedOrder = (next: boolean) => {
@@ -393,58 +417,7 @@ export function GeneralSettings() {
         </SettingRow>
       </SettingsSection>
 
-      <SettingsSection
-        title={t('settings:general.workersAdvanced')}
-        action={
-          <button
-            type="button"
-            className="text-xs text-muted-foreground/70 hover:text-foreground"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen}
-          >
-            {advancedOpen ? t('settings:general.hideAdvanced') : t('settings:general.showAdvanced')}
-          </button>
-        }
-      >
-        {advancedOpen ? (
-          <>
-            <SettingRow
-              label={t('settings:general.maxSessionWorkers')}
-              description={t('settings:general.maxSessionWorkersDesc')}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={draft.maxSessionWorkers}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
-                  setMaxSessionWorkers(n)
-                }}
-                className={numberInputCls}
-              />
-            </SettingRow>
-            <SettingRow
-              label={t('settings:general.sessionWorkerIdleTimeout')}
-              description={t('settings:general.sessionWorkerIdleTimeoutDesc')}
-            >
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={draft.sessionWorkerIdleTimeoutMinutes}
-                onChange={(e) => {
-                  const n = Number(e.target.value)
-                  if (!Number.isFinite(n)) return
-                  setSessionWorkerIdleTimeoutMinutes(n)
-                }}
-                className={numberInputCls}
-              />
-            </SettingRow>
-          </>
-        ) : null}
-      </SettingsSection>
+      <SessionWorkersSection />
 
       <SettingsSection title={t('settings:general.language')}>
         <SettingRow label={t('settings:general.language')} description={t('settings:general.languageDesc')}>
@@ -452,6 +425,7 @@ export function GeneralSettings() {
             {[
               { key: 'zh' as const, label: t('settings:general.langZh') },
               { key: 'en' as const, label: t('settings:general.langEn') },
+              { key: 'ru' as const, label: t('settings:general.langRu') },
             ].map((l) => (
               <button
                 key={l.key}
@@ -478,13 +452,19 @@ export function GeneralSettings() {
       <RuntimeSettingsPanel />
 
       <SettingsSection title={t('settings:general.recentProjects')}>
+        <SettingRow
+          label={t('settings:general.activeSessionsDrawer')}
+          description={t('settings:general.activeSessionsDrawerDesc')}
+        >
+          <Switch checked={activeSessionsDrawer} onCheckedChange={setActiveSessionsDrawer} />
+        </SettingRow>
         <SettingRow label={t('settings:general.fixedOrder')} description={t('settings:general.fixedOrderDesc')}>
           <Switch checked={fixedOrder} onCheckedChange={toggleFixedOrder} />
         </SettingRow>
         {recentProjects.length > 0 ? (
-          <div className="space-y-1 py-3">
-            {recentProjects.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--bg-hover)]">
+          <div className="max-h-64 space-y-1 overflow-y-auto py-3">
+            {recentProjects.map((p) => (
+              <div key={p} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[var(--bg-hover)]">
                 <Folder className="h-3 w-3 shrink-0 text-muted-foreground/50" strokeWidth={2} />
                 <span className="truncate font-mono text-muted-foreground">{p}</span>
               </div>
@@ -504,7 +484,15 @@ export function GeneralSettings() {
 
 export function AppearanceSettings() {
   const { t } = useTranslation()
-  const { draft, setTheme, setIconTheme, setTimelineMaxAutoExpandedTools, setTimelineVisibleTurns } = useSettingsDraft()
+  const {
+    draft,
+    setTheme,
+    setIconTheme,
+    setTimelineMaxAutoExpandedTools,
+    setTimelineVisibleTurns,
+    setTimelineUserMessageStyle,
+    setUiCustomization,
+  } = useSettingsDraft()
   const [zoom, setZoom] = useState(readUiZoom)
 
   const themes: { key: 'light' | 'dark' | 'system'; icon: AppIconComponent }[] = [
@@ -513,11 +501,63 @@ export function AppearanceSettings() {
     { key: 'system', icon: Monitor },
   ]
 
-  return (
-    <div className="flex flex-col gap-8">
-      <SettingsPageHeader title={t('settings:appearance.title')} description={t('settings:appearance.description')} />
+  const jumpAnchors = [
+    { id: 'appearance-base', label: t('settings:appearance.jump.base') },
+    { id: 'appearance-shell', label: t('settings:appearance.jump.shell') },
+    { id: 'appearance-themes', label: t('settings:appearance.jump.themes') },
+    { id: 'appearance-background', label: t('settings:appearance.jump.background') },
+    { id: 'appearance-composer', label: t('settings:appearance.jump.composer') },
+    { id: 'appearance-timeline', label: t('settings:appearance.jump.timeline') },
+  ] as const
 
-      <SettingsSection title={t('settings:appearance.themeTitle')}>
+  const scrollToAnchor = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <div className="flex flex-col gap-7">
+      <div>
+        <SettingsPageHeader
+          title={t('settings:appearance.title')}
+          description={t('settings:appearance.description')}
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('pi-desktop:open-live-theme-studio', {
+                    detail: { theme: draft.customTheme },
+                  }),
+                )
+              }}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--brand)]/40 bg-[var(--brand)]/10 px-3 text-[12.5px] font-medium text-foreground transition-colors hover:bg-[var(--brand)]/16"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[var(--brand)]" />
+              <span>{t('settings:appearance.workbench.openLiveStudio')}</span>
+            </button>
+          }
+        />
+
+        {/* Compact quick-jump bar for navigating appearance subsections */}
+        <div
+          aria-label={t('settings:appearance.jump.label')}
+          className="flex flex-wrap items-center gap-1.5 border-b border-[var(--shell-hairline)] pb-4"
+        >
+          {jumpAnchors.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => scrollToAnchor(a.id)}
+              className="rounded-lg bg-foreground/[0.04] px-2.5 py-1 text-[12px] text-foreground-secondary transition-colors hover:bg-foreground/[0.08] hover:text-foreground"
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 1. Base Appearance: Mode, Icons, Zoom */}
+      <SettingsSection id="appearance-base" title={t('settings:appearance.themeTitle')}>
         <SettingRow label={t('settings:appearance.themeLabel')} description={t('settings:appearance.themeDesc')}>
           <div className="flex flex-wrap gap-1.5">
             {themes.map(({ key, icon: Icon }) => (
@@ -527,21 +567,18 @@ export function AppearanceSettings() {
                 aria-pressed={draft.theme === key}
                 onClick={() => setTheme(key)}
                 className={cn(
-                  'settings-chip flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-all duration-motion-fast ease-motion-ease',
+                  'settings-chip flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] transition-all duration-motion-fast ease-motion-ease',
                   draft.theme === key
-                    ? 'border-primary bg-primary/5 text-foreground'
-                    : 'border-border text-muted-foreground hover:bg-accent/50'
+                    ? 'border-[var(--brand)]/60 bg-[var(--brand)]/10 font-medium text-foreground'
+                    : 'border-border/75 text-foreground-secondary hover:bg-foreground/[0.04] hover:text-foreground',
                 )}
               >
-                <Icon className="h-4 w-4" strokeWidth={1.5} />
+                <Icon className="h-3.5 w-3.5" strokeWidth={1.6} />
                 {t(`settings:appearance.theme${key.charAt(0).toUpperCase() + key.slice(1)}`)}
               </button>
             ))}
           </div>
         </SettingRow>
-      </SettingsSection>
-
-      <SettingsSection title={t('settings:appearance.iconThemeTitle')}>
         <SettingRow
           label={t('settings:appearance.iconThemeLabel')}
           description={t('settings:appearance.iconThemeDesc')}
@@ -554,10 +591,10 @@ export function AppearanceSettings() {
                 aria-pressed={draft.iconTheme === theme}
                 onClick={() => setIconTheme(theme)}
                 className={cn(
-                  'settings-chip flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-all duration-motion-fast ease-motion-ease',
+                  'settings-chip flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[13px] transition-all duration-motion-fast ease-motion-ease',
                   draft.iconTheme === theme
-                    ? 'border-primary bg-primary/5 text-foreground'
-                    : 'border-border text-muted-foreground hover:bg-accent/50',
+                    ? 'border-[var(--brand)]/60 bg-[var(--brand)]/10 font-medium text-foreground'
+                    : 'border-border/75 text-foreground-secondary hover:bg-foreground/[0.04] hover:text-foreground',
                 )}
               >
                 <span className="flex items-center gap-0.5" aria-hidden="true">
@@ -570,9 +607,6 @@ export function AppearanceSettings() {
             ))}
           </div>
         </SettingRow>
-      </SettingsSection>
-
-      <SettingsSection title={t('settings:appearance.density')}>
         <SettingRow label={t('settings:appearance.zoom')} description={t('settings:appearance.zoomDesc')}>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings:appearance.zoom')}>
             {([0.9, 1, 1.1] as const).map((n) => (
@@ -581,8 +615,10 @@ export function AppearanceSettings() {
                 type="button"
                 aria-pressed={zoom === n}
                 className={cn(
-                  'settings-chip rounded-md border px-2.5 py-1.5 text-sm',
-                  zoom === n ? 'border-primary bg-primary/5' : 'border-border text-muted-foreground',
+                  'settings-chip rounded-lg border px-2.5 py-1.5 text-[13px] transition-colors',
+                  zoom === n
+                    ? 'border-[var(--brand)]/60 bg-[var(--brand)]/10 font-medium text-foreground'
+                    : 'border-border/75 text-foreground-secondary hover:bg-foreground/[0.04] hover:text-foreground',
                 )}
                 onClick={() => {
                   setZoom(n)
@@ -596,10 +632,58 @@ export function AppearanceSettings() {
         </SettingRow>
       </SettingsSection>
 
-      <AppearanceThemeEditor />
-      <AppearanceBackground />
+      {/* 2. Workbench Shell & New Panels Customization */}
+      <SettingsSection
+        id="appearance-shell"
+        title={t('settings:appearance.workbench.shellSectionTitle')}
+        description={t('settings:appearance.workbench.shellSectionDesc')}
+        action={
+          <button
+            type="button"
+            onClick={() => setUiCustomization(SHELL_LAYOUT_PRESETS[0].patch)}
+            className={btnCompact}
+          >
+            <RotateCcw className="h-3 w-3" />
+            <span>{t('settings:appearance.workbench.resetDefault')}</span>
+          </button>
+        }
+      >
+        <div className="py-2">
+          <WorkbenchShellControls ui={draft.uiCustomization} onUiChange={setUiCustomization} />
+        </div>
+      </SettingsSection>
 
-      <SettingsSection title={t('settings:appearance.timeline')}>
+      {/* 3. Theme Library, Presets, Effects & Advanced CSS */}
+      <div id="appearance-themes" className="scroll-mt-6">
+        <AppearanceThemeEditor />
+      </div>
+
+      {/* 4. Wallpaper Background */}
+      <div id="appearance-background" className="scroll-mt-6">
+        <AppearanceBackground />
+      </div>
+
+      {/* 5. Composer Customization */}
+      <SettingsSection
+        id="appearance-composer"
+        title={t('settings:appearance.workbench.composerSectionTitle')}
+        description={t('settings:appearance.workbench.composerSectionDesc')}
+      >
+        <div className="py-2">
+          <WorkbenchComposerControls ui={draft.uiCustomization} onUiChange={setUiCustomization} />
+        </div>
+      </SettingsSection>
+
+      {/* 6. Timeline & Reading */}
+      <SettingsSection id="appearance-timeline" title={t('settings:appearance.timeline')}>
+        <div className="py-2">
+          <WorkbenchReadingControls
+            userMessageStyle={draft.timelineUserMessageStyle}
+            onUserMessageStyleChange={setTimelineUserMessageStyle}
+            ui={draft.uiCustomization}
+            onUiChange={setUiCustomization}
+          />
+        </div>
         <SettingRow
           label={t('settings:appearance.timelineVisibleTurns')}
           description={t('settings:appearance.timelineVisibleTurnsDesc')}

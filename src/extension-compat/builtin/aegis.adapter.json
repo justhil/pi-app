@@ -14,7 +14,18 @@
     "icon": "ShieldCheck"
   },
   "config": {
-    "note": "Aegis 能力由其扩展与技能集合定义；桌面按已注册工具渲染，复用通用与 trellis 卡。"
+    "note": "Aegis 能力由其扩展与技能集合定义；桌面按已注册工具渲染，复用通用与 trellis 卡。",
+    "i18n": {
+      "zh": {
+        "note": "Aegis 能力由其扩展与技能集合定义；桌面按已注册工具渲染，复用通用与 trellis 卡。"
+      },
+      "en": {
+        "note": "Aegis capabilities are defined by its extension and skill bundle; the desktop renders registered tools using generic and Trellis cards."
+      },
+      "ru": {
+        "note": "Возможности Aegis определяются его набором расширений и скиллов; desktop-клиент отображает зарегистрированные инструменты через общие карточки и карточки Trellis."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -23,7 +34,11 @@
     },
     "en": {
       "displayName": "Aegis",
-      "description": "Aegis workflow extensions (reuses the generic and Trellis cards)"
+      "description": "Aegis workflow extensions (reuses generic and Trellis cards)"
+    },
+    "ru": {
+      "displayName": "Aegis",
+      "description": "Набор расширений рабочего процесса Aegis (использует общие карточки и карточки Trellis)"
     }
   }
 }

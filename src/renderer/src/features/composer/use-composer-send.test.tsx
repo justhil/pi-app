@@ -510,6 +510,40 @@ describe('useComposerSend submission arbitration', () => {
     expect(mocks.invoke).not.toHaveBeenCalledWith('prompt.send', expect.anything())
   })
 
+  it('cancels an in-flight new-session materialization when abort is clicked mid-cold-start', async () => {
+    const newSessionDeferred = deferred<{ session: { sessionId: string; sessionFile: string } }>()
+    useUIStore.setState({
+      currentWorkspace: 'D:/workspace',
+      currentSessionId: '__pending_new__',
+      historySessionFile: null,
+      pendingNewSessionPlaceholder: true,
+    })
+    mocks.invoke.mockImplementation(async (method) => {
+      if (method === 'session.new') return newSessionDeferred.promise
+      return {}
+    })
+
+    const editor = createEditor('cold start prompt')
+    const { result } = renderSender(editor)
+
+    let sending!: Promise<void>
+    act(() => {
+      sending = result.current.sendCurrent()
+    })
+    await vi.waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith('session.new', { workspaceId: 'D:/workspace' }))
+
+    await act(async () => {
+      await result.current.runComposerAbort('')
+      newSessionDeferred.resolve({
+        session: { sessionId: 'new-id', sessionFile: 'C:/sessions/aborted-cold.jsonl' },
+      })
+      await sending
+    })
+
+    expect(mocks.invoke.mock.calls.some(([method]) => method === 'prompt.send')).toBe(false)
+    expect(serializeRichInput(editor).displayText).toBe('cold start prompt')
+  })
+
   it('does not roll back a prompt accepted before display refresh fails', async () => {
     mocks.afterPromptSent.mockRejectedValue(new Error('Display refresh failed'))
     const editor = createEditor('accepted prompt')

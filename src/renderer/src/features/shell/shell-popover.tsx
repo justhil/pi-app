@@ -25,14 +25,24 @@ export function ShellPopover({ title, anchorRef, onClose, children }: ShellPopov
       const rect = anchor.getBoundingClientRect()
       const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1
       const width = Math.min(380, window.innerWidth / zoom - 24)
+      const fromLeftRail = rect.left / zoom < 56
       const above = rect.top > window.innerHeight / 2
-      const available = (above ? rect.top - 20 : window.innerHeight - rect.bottom - 20) / zoom
+      const available = (fromLeftRail
+        ? window.innerHeight - 24
+        : above
+          ? rect.top - 20
+          : window.innerHeight - rect.bottom - 20) / zoom
       const maxHeight = Math.max(100, Math.min(520, available))
       const height = Math.min(panel.scrollHeight + 2, maxHeight)
-      const top = above ? rect.top / zoom - height - 8 : rect.bottom / zoom + 8
+      const rawLeft = fromLeftRail ? rect.right / zoom + 10 : rect.left / zoom
+      const rawTop = fromLeftRail
+        ? rect.bottom / zoom - height
+        : above
+          ? rect.top / zoom - height - 8
+          : rect.bottom / zoom + 8
       setPosition({
-        left: Math.max(12, Math.min(rect.left / zoom, window.innerWidth / zoom - width - 12)),
-        top: Math.max(12, Math.min(top, window.innerHeight / zoom - height - 12)),
+        left: Math.max(12, Math.min(rawLeft, window.innerWidth / zoom - width - 12)),
+        top: Math.max(12, Math.min(rawTop, window.innerHeight / zoom - height - 12)),
         maxHeight,
         width,
       })

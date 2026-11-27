@@ -1,8 +1,10 @@
 import { CAPABILITY_IDS, normalizeCapabilities, type CapabilityId, type CapabilityInfo } from '@shared/capabilities'
 import { BROWSER_CORE_TOOLS, BROWSER_DEFERRED_TOOLS, BROWSER_TOOL_DEFS, BROWSER_TOOL_NAMES, leanSchema } from '@shared/browser-tools'
+import { CANVAS_TOOL_DEFS, CANVAS_TOOL_NAMES } from '@shared/canvas-tools'
 import piUiPrompt from './pi-ui.md?raw'
 
 const BROWSER_TOOL_COUNT = BROWSER_TOOL_NAMES.length
+const CANVAS_TOOL_COUNT = CANVAS_TOOL_NAMES.length
 
 /** Rough token estimate (~4 characters per token for English text and JSON). */
 const estimateTokens = (chars: number) => Math.round(chars / 4)
@@ -26,6 +28,16 @@ const TOOL_SEARCH_TOKENS = 185
 const SECTION_WRAPPER_TOKENS = 10
 
 const TOOL_DEF_TOKENS = (id: CapabilityId): number => {
+  if (id === 'canvas') {
+    return estimateTokens(
+      JSON.stringify(
+        CANVAS_TOOL_DEFS.map((d) => ({
+          type: 'function',
+          function: { name: d.name, description: d.description, parameters: d.parameters },
+        })),
+      ).length,
+    )
+  }
   if (id !== 'browser' && id !== 'chrome') return 0
   return deferTools() ? toolDefTokens(BROWSER_CORE_TOOLS) + TOOL_SEARCH_TOKENS : toolDefTokens(BROWSER_TOOL_NAMES)
 }
@@ -40,6 +52,14 @@ const BROWSER_DEFERRED_NOTE = [
 /** Prompt text appended to the system prompt while a capability is on (strip the source comment). */
 const PROMPTS: Partial<Record<CapabilityId, string>> = {
   'pi-ui': piUiPrompt.replace(/^<!--[\s\S]*?-->\s*/, '').trim(),
+  canvas: [
+    '# AI Canvas',
+    'The canvas_* tools project persistent visual surfaces onto pi Desktop\'s right-side AI Canvas stage so the user can watch live state alongside the chat.',
+    '- canvas_present({ id, title, kind, payload, focus?, pin? }) creates or replaces a surface. Kinds: "ui-block" (any pi-ui chart/stat-grid/data-table/gantt/diff), "delegation-tree" (live subagent tree or snapshot), "device-stream" (ADB phone screen / media stream with optional overlay markers), "diagram" (mermaid/svg), "html" (sandboxed interactive HTML/JS), "markdown".',
+    '- canvas_update({ id, payloadPatch }) patches an existing surface incrementally (e.g. update progress, push new frameDataUrl or tap markers).',
+    '- canvas_read({ id? }) returns open surfaces and user interaction events (tapped phone coordinates, clicked nodes, form state).',
+    '- canvas_close({ id? | all? }) removes surfaces.',
+  ].join('\n'),
   browser: [
     '# Built-in browser',
     'The browser_* tools drive the browser panel in pi Desktop. The user can watch and take over; tabs keep their sign-ins. Tabs you open belong to this conversation.',
@@ -67,7 +87,7 @@ function promptFor(id: CapabilityId): string | undefined {
 }
 
 /** Tool families a capability switches on in the worker (active tool set). */
-const TOOL_FAMILIES: Partial<Record<CapabilityId, string>> = { browser: 'browser', chrome: 'browser' }
+const TOOL_FAMILIES: Partial<Record<CapabilityId, string>> = { browser: 'browser', chrome: 'browser', canvas: 'canvas' }
 
 let browserPanelEnabled: () => boolean = () => false
 let chromeBridgeEnabled: () => boolean = () => false
@@ -94,7 +114,7 @@ export function capabilityCatalog(): CapabilityInfo[] {
       available: a.ok,
       ...(a.reason ? { reason: a.reason } : {}),
       promptTokens: (promptFor(id) ? estimateTokens(promptFor(id)!.length) + SECTION_WRAPPER_TOKENS : 0) + TOOL_DEF_TOKENS(id),
-      tools: id === 'browser' || id === 'chrome' ? BROWSER_TOOL_COUNT : 0,
+      tools: id === 'browser' || id === 'chrome' ? BROWSER_TOOL_COUNT : id === 'canvas' ? CANVAS_TOOL_COUNT : 0,
       ...((id === 'browser' || id === 'chrome') && deferTools() ? { coreTools: BROWSER_CORE_TOOLS.length } : {}),
     }
   })

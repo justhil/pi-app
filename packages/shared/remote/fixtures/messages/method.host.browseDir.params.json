@@ -1,0 +1,6 @@
+{
+  "schema": "host.browseDir/params",
+  "value": {
+    "path": "/work"
+  }
+}

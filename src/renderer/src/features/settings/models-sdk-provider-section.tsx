@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight } from '@renderer/components/icons'
+import { ChevronRight, Search } from '@renderer/components/icons'
 import type { ModelInfo } from '@shared/ipc-contract'
 import { cn } from '@renderer/lib/utils'
 
@@ -11,18 +12,46 @@ interface ModelsSdkProviderSectionProps {
 /** The active SDK's built-in providers: read-only, one compact row each, signed-in ones first. */
 export function ModelsSdkProviderSection({ providerIds, modelsByProvider }: ModelsSdkProviderSectionProps) {
   const { t } = useTranslation('settings')
+  const [query, setQuery] = useState('')
   const authOf = (id: string) => modelsByProvider[id]?.find((model) => model.auth)?.auth
-  const ordered = [...providerIds].sort((a, b) => Number(!!authOf(b)?.configured) - Number(!!authOf(a)?.configured))
+
+  const ordered = useMemo(() => {
+    const sorted = [...providerIds].sort((a, b) => Number(!!authOf(b)?.configured) - Number(!!authOf(a)?.configured))
+    const q = query.trim().toLowerCase()
+    if (!q) return sorted
+    return sorted.filter(
+      (pid) =>
+        pid.toLowerCase().includes(q) ||
+        (modelsByProvider[pid] || []).some((m) => m.id.toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q)),
+    )
+  }, [modelsByProvider, providerIds, query])
 
   return (
     <section className="settings-section" data-testid="sdk-provider-section">
-      <div className="mb-2.5 px-1">
-        <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{t('models.sdkProvidersTitle')}</h3>
-        <p className="mt-0.5 text-[12.5px] leading-[1.6] text-foreground-secondary">{t('models.sdkProvidersDescription', { count: providerIds.length })}</p>
+      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2 px-1">
+        <div>
+          <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{t('models.sdkProvidersTitle')}</h3>
+          <p className="mt-0.5 text-[12.5px] leading-[1.6] text-foreground-secondary">
+            {t('models.sdkProvidersDescription', { count: providerIds.length })}
+          </p>
+        </div>
+        {providerIds.length > 5 ? (
+          <div className="relative w-48">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/60" />
+            <input
+              className="settings-field h-[28px] w-full rounded-md border border-border/65 bg-background pl-7 pr-2 text-[12px] outline-none focus:border-primary/50"
+              placeholder={t('models.searchPlaceholder')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+        ) : null}
       </div>
 
       {providerIds.length === 0 ? (
         <p className="settings-card px-4 py-3 text-[12.5px] text-foreground-secondary">{t('models.sdkProvidersEmpty')}</p>
+      ) : ordered.length === 0 ? (
+        <p className="settings-card px-4 py-3 text-[12.5px] text-foreground-secondary">{t('models.noMatchModel')}</p>
       ) : (
         <div className="settings-card">
           {ordered.map((providerId) => {
@@ -43,8 +72,12 @@ export function ModelsSdkProviderSection({ providerIds, modelsByProvider }: Mode
                   <ChevronRight className="h-3 w-3 shrink-0 text-foreground-secondary transition-transform group-open:rotate-90" strokeWidth={2} />
                   <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', configured ? 'bg-emerald-500/80' : 'bg-foreground/15')} />
                   <span className="min-w-0 truncate font-mono text-[12.5px] text-foreground">{providerId}</span>
-                  <span className="shrink-0 text-[12px] tabular-nums text-foreground-secondary">{t('models.sdkAvailableModelCount', { count: models.length })}</span>
-                  <span className={cn('ml-auto shrink-0 truncate text-[12px]', configured ? 'text-foreground' : 'text-foreground-secondary')}>{authDetail}</span>
+                  <span className="shrink-0 text-[12px] tabular-nums text-foreground-secondary">
+                    {t('models.sdkAvailableModelCount', { count: models.length })}
+                  </span>
+                  <span className={cn('ml-auto shrink-0 truncate text-[12px]', configured ? 'text-foreground' : 'text-foreground-secondary')}>
+                    {authDetail}
+                  </span>
                 </summary>
                 <ul className="grid max-h-[min(260px,40vh)] gap-x-4 gap-y-0.5 overflow-y-auto px-4 pb-3 pl-[2.6rem] sm:grid-cols-2">
                   {models.map((model) => (

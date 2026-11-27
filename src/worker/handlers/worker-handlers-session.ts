@@ -1,4 +1,6 @@
 import { refreshAgentContext } from '../session-context-refresh.js'
+import { applySessionMessageEditToEntry, type EditableMessageRole } from '@shared/session-message-edit'
+import { rewriteSessionMessageFileAtomically } from '@shared/session-message-edit-io'
 import { sessionTreePreview, type PiSessionMessage } from '@shared/worker-message'
 import { buildTimelinePageFromSessionFile, sessionTimelineError } from '@shared/session-jsonl-timeline'
 import { projectTimelineItems } from '@shared/timeline-projection'
@@ -6,7 +8,7 @@ import { toolCallDetailFromPi } from '@shared/tool-call-detail'
 import { errorMessage } from '@shared/error-message'
 import type { SettingsManager } from '@earendil-works/pi-coding-agent'
 import { sessionFilePathsEqual } from '@shared/session-file-path'
-import { timelineItemsFromBranchPath } from '../worker-timeline.js'
+import { extractBranchTouchedFiles, timelineItemsFromBranchPath } from '../worker-timeline.js'
 import { boundThinkingLevel } from '../worker-model-thinking.js'
 import type { WorkerIncomingMessage } from '../worker-port-types.js'
 import type { WorkerReply } from '../worker-handler-types.js'
@@ -246,6 +248,94 @@ export async function handleSessionrenamefile(msg: WorkerIncomingMessage, reply:
 }
 
 
+export async function handleSessioneditmessage(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
+        try {
+          const file = String(msg.sessionFile ?? '').trim()
+          const entryId = String(msg.entryId ?? '').trim()
+          const text = typeof msg.text === 'string' ? msg.text : ''
+          if (!file || !entryId) {
+            reply({ type: 'sessionEditMessage-done', ok: false, error: 'missing_params' })
+            return
+          }
+
+          const ownsLive = !!st.session && sessionFilePathsEqual(st.session.sessionFile, file)
+          if (ownsLive && isSessionBusy()) {
+            reply({ type: 'sessionEditMessage-done', ok: false, error: 'SESSION_BUSY' })
+            return
+          }
+
+          const fs = await import('node:fs')
+          if (ownsLive && st.session) {
+            const sm = st.session.sessionManager
+            const smInternal = sm as unknown as {
+              setSessionFile?: (p: string) => void
+              fileEntries?: unknown[]
+              _rewriteFile?: () => void
+              _buildIndex?: () => void
+              flushed?: boolean
+            }
+            const liveFile = st.session.sessionFile || file
+            const prevLeafId = sm.getLeafId?.() ?? null
+            let role: EditableMessageRole | undefined
+
+            if (fs.existsSync(liveFile)) {
+              const res = await rewriteSessionMessageFileAtomically(liveFile, entryId, text)
+              if (!res.ok) {
+                reply({ type: 'sessionEditMessage-done', ok: false, error: res.error })
+                return
+              }
+              role = res.role
+              smInternal.setSessionFile?.(liveFile)
+            } else if (Array.isArray(smInternal.fileEntries)) {
+              const idx = smInternal.fileEntries.findIndex(
+                (e: unknown) => typeof e === 'object' && e !== null && (e as { id?: unknown }).id === entryId,
+              )
+              if (idx < 0) {
+                reply({ type: 'sessionEditMessage-done', ok: false, error: 'entry_not_found' })
+                return
+              }
+              const applied = applySessionMessageEditToEntry(smInternal.fileEntries[idx], text)
+              if (!applied.ok) {
+                reply({ type: 'sessionEditMessage-done', ok: false, error: applied.error })
+                return
+              }
+              role = applied.role
+              smInternal.fileEntries[idx] = applied.entry
+              smInternal._rewriteFile?.()
+              smInternal.flushed = true
+              smInternal._buildIndex?.()
+            } else {
+              reply({ type: 'sessionEditMessage-done', ok: false, error: 'entry_not_found' })
+              return
+            }
+
+            if (prevLeafId === null) {
+              sm.resetLeaf?.()
+            } else if (typeof prevLeafId === 'string' && prevLeafId.length > 0) {
+              try {
+                sm.branch(prevLeafId)
+              } catch {
+                /* keep default tip if previous leaf is unavailable */
+              }
+            }
+            const ctx = sm.buildSessionContext?.()
+            if (ctx?.messages) refreshAgentContext(st.session as never, ctx.messages)
+            reply({ type: 'sessionEditMessage-done', ok: true, role })
+            return
+          }
+
+          const res = await rewriteSessionMessageFileAtomically(file, entryId, text)
+          if (!res.ok) {
+            reply({ type: 'sessionEditMessage-done', ok: false, error: res.error })
+            return
+          }
+          reply({ type: 'sessionEditMessage-done', ok: true, role: res.role })
+        } catch (e: unknown) {
+          reply({ type: 'sessionEditMessage-done', ok: false, error: errorMessage(e) })
+        }
+}
+
+
 export async function handleSessiondeletefile(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           const file = msg.sessionFile as string
@@ -338,21 +428,66 @@ export async function handleNavigatetree(msg: WorkerIncomingMessage, reply: Work
         const navSession = st.session
         if (!navSession) { reply({ type: 'error', error: 'No session' }); return }
         if (isSessionBusy()) {
-          reply({ type: 'error', error: 'SESSION_BUSY' })
-          return
+          if (msg.abortIfBusy === true) {
+            st.abortingTurn = true
+            st.cancelledPromptTicket = st.promptTicket
+            try {
+              navSession.clearQueue?.()
+              if (st.promptPreflightActive) {
+                st.abortAfterPreflight = true
+                st.abortedTurnSeq = st.turnSeq
+              }
+              await navSession.abort()
+              const { waitForWorkerTurnIdle } = await import('./worker-handlers-turn.js')
+              await waitForWorkerTurnIdle(navSession, 8_000)
+            } catch (abortErr) {
+              console.warn('[Worker] navigateTree abortIfBusy failed:', abortErr)
+            } finally {
+              if (!isSessionBusy()) st.abortingTurn = false
+            }
+          }
+          if (isSessionBusy()) {
+            reply({ type: 'error', error: 'SESSION_BUSY' })
+            return
+          }
         }
         try {
+          type NavigateTreeOpts = Parameters<NonNullable<typeof st.session>['navigateTree']>[1]
+          type NavigateTreeFn = (
+            targetId: string,
+            opts?: NavigateTreeOpts,
+          ) => ReturnType<NonNullable<typeof st.session>['navigateTree']>
           const navOpts = {
             summarize: msg.summarize === true,
             customInstructions: typeof msg.customInstructions === 'string' ? msg.customInstructions : undefined,
             replaceInstructions: typeof msg.replaceInstructions === 'string' ? msg.replaceInstructions : undefined,
             label: typeof msg.label === 'string' ? msg.label : undefined,
-          } as Parameters<typeof navSession.navigateTree>[1]
-          const result = await navSession.navigateTree(String(msg.targetId ?? ''), navOpts)
+          } as NavigateTreeOpts
+          const sessionNav = navSession as unknown as { navigateTree?: NavigateTreeFn }
+          const runtimeNav = st.runtime as unknown as { navigateTree?: NavigateTreeFn } | null
+          const navigator =
+            typeof sessionNav.navigateTree === 'function'
+              ? sessionNav
+              : runtimeNav && typeof runtimeNav.navigateTree === 'function'
+                ? runtimeNav
+                : null
+          if (!navigator?.navigateTree) {
+            throw new Error('navigateTree unavailable')
+          }
+          const targetId = String(msg.targetId ?? '')
+          const beforeLeafId = navSession.sessionManager.getLeafId?.() ?? null
+          const result = await navigator.navigateTree(targetId, navOpts)
           const leafId = navSession.sessionManager.getLeafId?.() ?? null
+          const noOp =
+            !result.cancelled &&
+            !result.editorText &&
+            targetId.length > 0 &&
+            beforeLeafId === targetId &&
+            leafId === beforeLeafId
           reply({
             type: 'navigateTree-done',
             cancelled: result.cancelled,
+            ...(noOp ? { noOp: true } : {}),
             editorText: result.editorText,
             leafId,
             sessionMeta: navSession.model
@@ -544,6 +679,7 @@ export async function handleGetmessages(msg: WorkerIncomingMessage, reply: Worke
               activeSdkPath: st.activeSdkPath,
             },
             timelineItemsFromBranchPath,
+            extractBranchTouchedFiles,
           )
           const projected = projectTimelineItems(page.items as Parameters<typeof projectTimelineItems>[0])
           const items = projected.map((row) => {

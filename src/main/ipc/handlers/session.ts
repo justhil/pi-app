@@ -1,10 +1,13 @@
 import { configStore } from '../../config-store'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { workerManager } from '../../worker-manager'
 import { listRewindCheckpoints } from '../../pi-rewind-read'
 import { listMessageAnchorsFromSessionFile } from '../../session-branch-anchors'
 import { readSessionIdFromFile } from '../../session-file-meta'
 import { resolvePreparedSessionFile } from '../../session-prepare'
 import { clearSessionDisplayName, resolveSessionListTitle } from '../../session-display-names'
+import { editPiSessionMessageOnDisk } from '../../session-edit-message'
 import { renamePiSessionOnDisk } from '../../rename-pi-session'
 import {
   bindSandboxSession,
@@ -19,8 +22,12 @@ import {
 } from '../../session-bind-state'
 import { setVisibleSessionFile } from '../../completion-notification-events'
 import { sessionPreviewProcess } from '../../session-preview-process'
+import { inheritPurgedSession, removePurgedSession } from '../../agent-purge-service'
+import { invalidateKnownRemoteProjects } from '../../remote-project-registry'
+import { remoteTap } from '../../remote/tap'
 import { listForkCandidatesFromSessionFile } from '../../session-fork-candidates'
 import { getSessionLeafOverride, setSessionLeafOverride } from '../../session-leaf-override'
+import { bumpPromptAbortEpoch } from '../../prompt-abort-epoch'
 import type { SessionOnDiskRow } from '../sdk-session'
 import { sessionPreviewText } from '@shared/session-preview-text'
 import type { PiSessionMessage } from '@shared/worker-message'
@@ -28,6 +35,7 @@ import { registerHandler, registerHandlerWithSchema } from '../registry'
 import {
   sessionCompactSchema,
   sessionDeleteSchema,
+  sessionEditMessageSchema,
   sessionExportSchema,
   sessionGetMessagesSchema,
   sessionNavigateTreeSchema,
@@ -37,7 +45,8 @@ import {
 } from '../schemas'
 import { authorizeTrustedSessionFile } from '../../trusted-workspace'
 import { errorMessage } from '@shared/error-message'
-import { workspacePathsEqual } from '@shared/workspace-path'
+import { uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
+import { replaceRecentProjectInPlace, workspaceRealPathsEqual } from '../../recent-projects'
 import { wslPathToWindows } from '@shared/wsl-path'
 import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 
@@ -197,6 +206,16 @@ export function registerSessionHandlers(): void {
           cwd,
           leafId: leafOverride,
         })
+        if (r.nodes.length === 0 && workerManager.hasLiveSessionWorker(sessionFile)) {
+          const liveTree = await workerManager.getSessionTree(sessionFile).catch(() => null)
+          if (liveTree && !liveTree.error && liveTree.nodes.length > 0) {
+            return {
+              nodes: liveTree.nodes,
+              leafId: liveTree.leafId,
+              workerBound: true,
+            }
+          }
+        }
         return { nodes: r.nodes, leafId: r.leafId, workerBound: workerSessionFile === sessionFile }
       } catch (e: unknown) {
         return { nodes: [], leafId: null, error: errorMessage(e) }
@@ -215,6 +234,9 @@ export function registerSessionHandlers(): void {
 
   registerHandlerWithSchema('ipc:session.navigateTree', sessionNavigateTreeSchema, async (req) => {
     try {
+      if (req.abortIfBusy !== false && req.sessionFile) {
+        bumpPromptAbortEpoch(req.sessionFile)
+      }
       // Bind the *requested* session worker, then navigate on that same slot.
       // Passing sessionFile through avoids foreground-fallback / wrong-worker races.
       // Pass explicit cwd so rewind works after cold open without a pre-started Worker.
@@ -226,15 +248,20 @@ export function registerSessionHandlers(): void {
           }),
         { sessionFile: req.sessionFile },
       )
+      if (req.sessionFile) {
+        workerManager.focusExistingSession(req.sessionFile)
+      }
       const result = await workerManager.navigateTree(req.targetId, {
         summarize: req.summarize === true,
         label: req.label,
         sessionFile: req.sessionFile,
+        abortIfBusy: req.abortIfBusy === true,
       })
       // Persist leaf tip for disk getMessages / next loadSession (pi does not write leaf to JSONL).
-      if (!result.cancelled && req.sessionFile) {
+      if (!result.cancelled && !result.noOp && req.sessionFile) {
         const leaf = result.leafId !== undefined ? result.leafId : req.targetId
         setSessionLeafOverride(req.sessionFile, leaf)
+        remoteTap.branchMoved(req.sessionFile)
       }
       return result
     } catch (e: unknown) {
@@ -306,6 +333,7 @@ export function registerSessionHandlers(): void {
         sourceCount: disk.items.length,
         totalCount: disk.totalCount,
         sessionMeta: disk.sessionMeta,
+        ...(disk.touchedFiles ? { touchedFiles: disk.touchedFiles } : {}),
       }
     } catch (e: unknown) {
       console.error('[IPC] session.getMessages failed:', e)
@@ -327,12 +355,13 @@ export function registerSessionHandlers(): void {
     if (isSandboxWorkspacePath(workspaceId)) {
       bindSandboxSession(workspaceId, result.sessionId, sessionFile)
     }
+    remoteTap.sessionsChanged(workspaceId)
     return {
       session: {
         sessionId: result.sessionId,
         sessionFile,
         workspaceId,
-        title: '新会话',
+        title: mainLabel(getMainUiLanguage(), 'session.newTitle'),
         createdAt: Date.now(),
         updatedAt: Date.now(),
         modelId: '',
@@ -415,8 +444,10 @@ export function registerSessionHandlers(): void {
           },
         }
       }
+      inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
+      remoteTap.sessionsChanged(workspaceId)
       return {
         cancelled: false,
         editorText: result.editorText,
@@ -505,8 +536,10 @@ export function registerSessionHandlers(): void {
           },
         }
       }
+      inheritPurgedSession(sessionFile, result.sessionFile)
       setPendingWorkerSessionFile(null)
       await sessionPreviewProcess.invalidateListSessions(workspaceId)
+      remoteTap.sessionsChanged(workspaceId)
       return {
         cancelled: false,
         sessionId: result.sessionId,
@@ -558,10 +591,14 @@ export function registerSessionHandlers(): void {
     const cwd = workerManager.cwd || configStore.get('currentProject') || ''
     if (req.sandboxPath && isSandboxWorkspacePath(req.sandboxPath)) {
       renameSandboxWorkspace(req.sandboxPath, title)
+      invalidateKnownRemoteProjects()
+      remoteTap.settingsChanged('projects')
       return { ok: true, title }
     }
     if (isSandboxWorkspacePath(cwd) && !req.sessionFile) {
       renameSandboxWorkspace(cwd, title)
+      invalidateKnownRemoteProjects()
+      remoteTap.settingsChanged('projects')
       return { ok: true, title }
     }
     const file = req.sessionFile as string | undefined
@@ -575,6 +612,7 @@ export function registerSessionHandlers(): void {
     if (!r.ok) return { ok: false, title, error: r.error || 'rename failed' }
     clearSessionDisplayName(file)
     await sessionPreviewProcess.invalidateListSessions(workspaceCwd)
+    remoteTap.sessionsChanged(workspaceCwd)
     return { ok: true, title }
   })
 
@@ -584,9 +622,28 @@ export function registerSessionHandlers(): void {
     const r = await workerManager.deleteSessionFile(authorized.sessionFile)
     if (r.ok) {
       clearSessionDisplayName(authorized.sessionFile)
+      removePurgedSession(authorized.sessionFile)
       await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
+      remoteTap.sessionsChanged(authorized.cwd, authorized.sessionFile)
     }
     return { ok: !!r.ok, error: r.error }
+  })
+
+  registerHandlerWithSchema('ipc:session.editMessage', sessionEditMessageSchema, async (req) => {
+    const workspaceId =
+      req.workspaceId || workerManager.cwd || (configStore.get('currentProject') as string | undefined) || ''
+    const authorized = await authorizeTrustedSessionFile(workspaceId, req.sessionFile)
+    if (!authorized.ok) return { ok: false, error: authorized.error }
+    const r = await editPiSessionMessageOnDisk({
+      sessionFile: authorized.sessionFile,
+      entryId: req.entryId,
+      text: req.text,
+    })
+    if (r.ok) {
+      await sessionPreviewProcess.invalidateListSessions(authorized.cwd)
+      remoteTap.sessionsChanged(authorized.cwd, authorized.sessionFile)
+    }
+    return r
   })
 
   registerHandler('ipc:session.reloadFromDisk', async (req) => {
@@ -608,38 +665,51 @@ export function registerSessionHandlers(): void {
     const path = (req.path as string | undefined)?.trim()
     if (!path) return { ok: false, error: 'missing path' }
     const isRepositoryGroup = req.isRepositoryGroup === true
+    const isSecondaryWorktree = req.isSecondaryWorktree === true
     const groupPaths = Array.isArray(req.groupPaths)
       ? (req.groupPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
       : []
     const siblingPaths = Array.isArray(req.siblingPaths)
       ? (req.siblingPaths as unknown[]).filter((p): p is string => typeof p === 'string' && !!p.trim())
       : []
-    const removedPaths = isRepositoryGroup ? [path, ...groupPaths] : [path]
-    for (const target of removedPaths) {
-      configStore.removeRecentProject(target)
-      if (!isRepositoryGroup && typeof configStore.hideWorktree === 'function') {
+    const removedPaths = isRepositoryGroup ? uniqueWorkspacePaths([path, ...groupPaths]) : [path]
+    const beforeRecent = (configStore.get('recentProjects') || []).filter(
+      (p) => typeof p === 'string' && !!p.trim() && !isSandboxWorkspacePath(p),
+    )
+    if (!isRepositoryGroup && (siblingPaths.length > 0 || isSecondaryWorktree) && typeof configStore.hideWorktree === 'function') {
+      for (const target of removedPaths) {
         configStore.hideWorktree(target)
       }
     }
+    const isRemoved = (candidate: string) => removedPaths.some((rem) => workspaceRealPathsEqual(candidate, rem))
+    let nextRecent: string[]
     if (!isRepositoryGroup && siblingPaths.length > 0) {
-      const recentAfter = configStore.get('recentProjects') || []
-      const hasSiblingInRecent = siblingPaths.some((sib) =>
-        recentAfter.some((r) => workspacePathsEqual(r, sib)),
+      const hasRemainingSibling = siblingPaths.some((sib) =>
+        beforeRecent.some((r) => !isRemoved(r) && workspaceRealPathsEqual(r, sib)),
       )
-      if (!hasSiblingInRecent) {
-        configStore.addRecentProject(siblingPaths[0])
+      if (hasRemainingSibling) {
+        nextRecent = beforeRecent.filter((r) => !isRemoved(r))
+      } else {
+        nextRecent = replaceRecentProjectInPlace(beforeRecent, removedPaths, siblingPaths[0], workspaceRealPathsEqual)
       }
+    } else {
+      nextRecent = beforeRecent.filter((r) => !isRemoved(r))
     }
+    configStore.set('recentProjects', nextRecent)
     const cur = configStore.get('currentProject')
-    if (cur && removedPaths.some((target) => workspacePathsEqual(cur, target))) {
-      const recent = configStore.get('recentProjects') || []
-      const next = recent.find((p) => p && !removedPaths.some((target) => workspacePathsEqual(p, target))) || null
+    if (cur && isRemoved(cur)) {
+      const next =
+        (!isRepositoryGroup ? siblingPaths[0] : undefined) ||
+        nextRecent.find((p) => p && !isSandboxWorkspacePath(p) && !isRemoved(p)) ||
+        null
       configStore.set('currentProject', next)
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return {
       ok: true,
       currentProject: configStore.get('currentProject'),
-      recentProjects: configStore.get('recentProjects') || [],
+      recentProjects: nextRecent,
     }
   })
 
@@ -651,6 +721,8 @@ export function registerSessionHandlers(): void {
     if (typeof configStore.setProjectDisplayName === 'function') {
       configStore.setProjectDisplayName(path, name, isRepositoryGroup)
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return {
       ok: true,
       projectDisplayNames: configStore.get('projectDisplayNames') || {},

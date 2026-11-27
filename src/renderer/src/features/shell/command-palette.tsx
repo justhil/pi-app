@@ -14,6 +14,7 @@ import {
 import { cn } from '@renderer/lib/utils'
 import { OPEN_BRANCH_PICKER } from '@renderer/features/git/branch-status'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 import { listAttentionSessions } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -29,9 +30,7 @@ export type CommandPaletteAction = {
 }
 
 function openRightPanel(panelId: string) {
-  const store = useUIStore.getState()
-  store.setActivePanel(panelId)
-  store.revealRightPanel()
+  showRightPanelTab(panelId)
 }
 
 function focusComposer() {
@@ -110,7 +109,7 @@ export function CommandPalette({
         label: t('common:commandPalette.settings'),
         hint: t('common:sidebar.settings'),
         icon: Settings,
-        keywords: 'settings preferences 设置',
+        keywords: t('common:commandPalette.keywords.settings'),
         run: () => {
           onOpenSettings()
           onClose()
@@ -120,7 +119,7 @@ export function CommandPalette({
         id: 'composer',
         label: t('common:commandPalette.focusComposer'),
         icon: MessageSquare,
-        keywords: 'composer input message 输入',
+        keywords: t('common:commandPalette.keywords.composer'),
         run: () => {
           focusComposer()
           onClose()
@@ -130,7 +129,7 @@ export function CommandPalette({
         id: 'panel-files',
         label: t('common:commandPalette.openPanel', { panel: t('common:panel.files') }),
         icon: FolderTree,
-        keywords: 'files panel 文件',
+        keywords: t('common:commandPalette.keywords.files'),
         run: () => {
           openRightPanel('files')
           onClose()
@@ -140,7 +139,7 @@ export function CommandPalette({
         id: 'panel-run',
         label: t('common:commandPalette.openPanel', { panel: t('common:panel.run') }),
         icon: Activity,
-        keywords: 'run status 运行',
+        keywords: t('common:commandPalette.keywords.run'),
         run: () => {
           openRightPanel('run')
           onClose()
@@ -160,7 +159,7 @@ export function CommandPalette({
         id: 'git-switch-branch',
         label: t('common:branches.palette'),
         icon: GitBranch,
-        keywords: 'git branch checkout switch 分支 切换',
+        keywords: t('common:commandPalette.keywords.git'),
         run: () => {
           onClose()
           window.dispatchEvent(new Event(OPEN_BRANCH_PICKER))
@@ -206,7 +205,7 @@ export function CommandPalette({
         label: t('common:commandPalette.shortcuts'),
         hint: 'Ctrl+/',
         icon: Keyboard,
-        keywords: 'shortcuts keyboard help 快捷键',
+        keywords: t('common:commandPalette.keywords.shortcuts'),
         run: () => {
           onOpenShortcuts()
           onClose()

@@ -4,13 +4,16 @@
     "projects": [
       {
         "id": "/work/pi-app",
-        "name": "pi-app"
+        "name": "pi-app",
+        "branch": "main",
+        "repo": "/work/pi-app"
       },
       {
         "id": "/home/me/.config/pi-desktop/sandbox-workspaces/02c9a317",
         "name": "帮我看下这个报错",
         "temporary": true
       }
-    ]
+    ],
+    "allowAllProjects": true
   }
 }

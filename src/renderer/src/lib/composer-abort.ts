@@ -1,6 +1,11 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { applyComposerAbortUi } from '@renderer/lib/composer-queue-restore'
-import { abortUiHoldRemainingMs, isAbortUiHoldActive } from '@renderer/lib/abort-ui-hold'
+import {
+  abortUiHoldRemainingMs,
+  clearAbortQueueIgnore,
+  clearAbortUiHold,
+  isAbortUiHoldActive,
+} from '@renderer/lib/abort-ui-hold'
 import { applyLiveSnapshotToView, composerTurnActive, fetchWorkerLiveSnapshot } from '@renderer/lib/session-worker-sync'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -23,17 +28,38 @@ export async function abortAgentTurn(opts?: {
 }): Promise<void> {
   const store = useUIStore.getState()
   const sessionFile = store.historySessionFile
-  if (!sessionFile) return
-  if (isComposerAbortCooldown(sessionFile)) return
-  if (
-    !composerTurnActive({
-      historySessionFile: sessionFile,
-      workerLiveSnapshot: store.workerLiveSnapshot,
-      sessionRuntimeRunning: store.sessionRuntimeRunning,
-    })
-  )
+  if (!sessionFile) {
+    // Allow cancelling a cold-start / pre-materialized pending send that has not bound a file yet.
+    if (store.pendingTurnStage || store.agentTurnBootstrapping || store.optimisticPendingUserText) {
+      useUIStore.setState({
+        streamingAssistantId: null,
+        agentTurnBootstrapping: false,
+        pendingTurnStage: null,
+        optimisticPendingUserText: null,
+        runState: {
+          ...store.runState,
+          status: 'idle',
+          activeRunId: undefined,
+          activeTool: undefined,
+          activeToolStatus: undefined,
+        },
+      })
+      store.pruneEmptyAssistantBubbles()
+    }
     return
-  abortCooldownUntil.set(normalizeSessionFileKey(sessionFile), Date.now() + 700)
+  }
+  if (isComposerAbortCooldown(sessionFile)) return
+  const turnActive = composerTurnActive({
+    historySessionFile: sessionFile,
+    workerLiveSnapshot: store.workerLiveSnapshot,
+    sessionRuntimeRunning: store.sessionRuntimeRunning,
+  })
+  const hasLocalOutbound =
+    !!store.pendingTurnStage ||
+    store.agentTurnBootstrapping ||
+    store.optimisticPendingUserText != null
+  if (!turnActive && !hasLocalOutbound) return
+  abortCooldownUntil.set(normalizeSessionFileKey(sessionFile), Date.now() + 500)
   const queued = [...store.pendingSteering, ...store.pendingFollowUp].filter(Boolean)
   const merged = [queued.join('\n'), (opts?.restoreEditorText || '').trim()].filter(Boolean).join('\n')
 
@@ -41,6 +67,7 @@ export async function abortAgentTurn(opts?: {
 
   if (merged && opts?.setEditorText) opts.setEditorText(merged)
 
+  let abortSettled = false
   try {
     const result = await ipcClient.invoke('prompt.abort', {
       sessionId: '',
@@ -50,10 +77,31 @@ export async function abortAgentTurn(opts?: {
       console.warn('[composer-abort] prompt.abort ignored by main', result)
       // Force local idle again — user clicked Stop; never leave chrome stuck running.
       if (isAbortUiHoldActive(sessionFile)) applyComposerAbortUi(sessionFile)
+    } else {
+      abortSettled = true
     }
   } catch (e) {
     console.error('[composer-abort] prompt.abort failed:', e)
     if (isAbortUiHoldActive(sessionFile)) applyComposerAbortUi(sessionFile)
+  }
+
+  // Once prompt.abort resolves cleanly and the worker reports idle, release the hold mask early
+  // so a quick re-send / rewind never runs under a lingering suppression timer.
+  if (abortSettled) {
+    try {
+      const snap = await fetchWorkerLiveSnapshot(useUIStore.getState().currentWorkspace, sessionFile)
+      const s = useUIStore.getState()
+      if (snap.status === 'idle') {
+        clearAbortUiHold(sessionFile)
+        clearAbortQueueIgnore(sessionFile)
+        if (sessionFilesEqual(s.historySessionFile, sessionFile)) {
+          applyLiveSnapshotToView(s.historySessionFile, snap, s)
+        }
+        return
+      }
+    } catch {
+      /* fall through to hold-expiry probe */
+    }
   }
 
   // Do not re-apply a late getState that might re-light running for this session
@@ -65,6 +113,12 @@ export async function abortAgentTurn(opts?: {
         const s = useUIStore.getState()
         if (!sessionFilesEqual(s.historySessionFile, sessionFile)) return
         if (!isAbortUiHoldActive(sessionFile)) return
+        if (snap.status === 'idle') {
+          clearAbortUiHold(sessionFile)
+          clearAbortQueueIgnore(sessionFile)
+          applyLiveSnapshotToView(s.historySessionFile, snap, s)
+          return
+        }
         // Abort holds UI idle; ignore streaming=true for a short hold window
         applyLiveSnapshotToView(s.historySessionFile, { ...snap, status: 'idle' }, s)
       })

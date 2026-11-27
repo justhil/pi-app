@@ -3,6 +3,8 @@ import type { AppEvent } from '@shared/app-events'
 import { remoteTap } from './remote/tap'
 import type { WorkerResponsePayload } from '@shared/worker-rpc-types'
 import { windowsPathToWsl } from '@shared/wsl-path'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { resolveActiveSdk } from './sdk-loader'
 import type { WorkerInitResult, WorkerSlot } from './worker-manager-types'
 import { readMaxSessionWorkers, minutesToIdleDelayMs, readSessionWorkerIdleTimeoutMinutes } from './worker-pool-config'
@@ -246,13 +248,32 @@ export function attachWorkerHandlers(
         .catch(() => undefined)
     }
 
+    if (data.type === 'canvas-tool-request') {
+      void import('./canvas/canvas-tool-bridge')
+        .then(({ handleCanvasToolRequest }) =>
+          handleCanvasToolRequest(data, slot, (message) => {
+            if (slot.worker === transport) transport.postMessage(message)
+          }),
+        )
+        .catch((error) => safeWrite(`[WorkerManager] canvas tool failed: ${String(error)}`))
+    }
+
+    if (data.type === 'canvas-tool-cancel') {
+      void import('./canvas/canvas-tool-bridge')
+        .then(({ cancelCanvasToolRequest }) => cancelCanvasToolRequest(String(data.callId ?? '')))
+        .catch(() => undefined)
+    }
+
     if (data.type === 'init-done' && slot.initResolver) {
       slot.sdkFallback = !!data.sdkFallback
       if (slot.sdkFallback) safeWrite('[WorkerManager] Target SDK import failed, worker fell back to builtin')
       slot.initResolver({
         sessionId: String(data.sessionId ?? ''),
+        sessionFile: (data.sessionFile as string | null | undefined) ?? null,
+        leafId: (data.leafId as string | null | undefined) ?? null,
         model: data.model as string | undefined,
         thinkingLevel: data.thinkingLevel as string | undefined,
+        modelFallbackMessage: data.modelFallbackMessage as string | undefined,
       })
       slot.initResolver = null
       slot.initRejecter = null
@@ -359,7 +380,7 @@ export function slotRequest(
 
 export async function forkWorkerForCwd(
   cwd: string,
-  opts?: { poolKey?: string; sessionFile?: string | null },
+  opts?: { poolKey?: string; sessionFile?: string | null; leafId?: string | null },
 ): Promise<{ slot: WorkerSlot; init: Promise<WorkerInitResult> }> {
   const poolKey = opts?.poolKey || workspacePoolKey(cwd)
   const runtime = getAgentRuntimeConfig()
@@ -370,12 +391,12 @@ export async function forkWorkerForCwd(
     const sdk = await resolveWslActiveSdk(runtime.distro)
     if (!sdk) {
       throw new Error(
-        `[WSL] 发行版 ${runtime.distro} 内未找到 pi-coding-agent，请在 WSL 中执行 npm i -g @earendil-works/pi-coding-agent`,
+        mainLabel(getMainUiLanguage(), 'wsl.sdkMissingInstall', { distro: runtime.distro }),
       )
     }
     const workerWslPath = await syncWorkerBundleToWsl(runtime.distro)
     if (!workerWslPath) {
-      throw new Error('[WSL] 无法将 worker 同步到 WSL 发行版（检查 out/main/worker.mjs）')
+      throw new Error(mainLabel(getMainUiLanguage(), 'wsl.workerSyncFailed'))
     }
     const wslCwd = windowsPathToWsl(runtime.distro, cwd)
     workerCwd = wslCwd
@@ -410,7 +431,17 @@ export async function forkWorkerForCwd(
     }
   })
   slot.initPromise = initPromise
-  transport.postMessage({ type: 'init', cwd: workerCwd, sdkPath })
+  const initialSessionFile =
+    opts?.sessionFile && runtime.mode === 'wsl' && runtime.distro
+      ? windowsPathToWsl(runtime.distro, opts.sessionFile)
+      : opts?.sessionFile || undefined
+  transport.postMessage({
+    type: 'init',
+    cwd: workerCwd,
+    sdkPath,
+    ...(initialSessionFile ? { sessionFile: initialSessionFile } : {}),
+    ...(opts?.leafId !== undefined ? { leafId: opts.leafId } : {}),
+  })
   return { slot, init: initPromise }
 }
 
@@ -504,6 +535,6 @@ export function canAcquireNewWorker(
   }
   return {
     ok: false,
-    reason: `Worker pool full (${max} running sessions). Stop a turn or raise maxSessionWorkers.`,
+    reason: mainLabel(getMainUiLanguage(), 'workers.poolLimit', { max }),
   }
 }

@@ -16,6 +16,10 @@
       "/devin-search-import-key"
     ]
   },
+  "install": {
+    "source": "git:github.com/justhil/pi-devin-search",
+    "homepage": "https://github.com/justhil/pi-devin-search"
+  },
   "tier": "headless",
   "toolCard": {
     "template": "list",
@@ -55,6 +59,9 @@
           },
           "en": {
             "title": "Credentials"
+          },
+          "ru": {
+            "title": "Учётные данные и источник"
           }
         }
       }
@@ -66,6 +73,9 @@
       },
       "en": {
         "note": "Writes ~/.pi/agent/devin-search.json (shared with the CLI). Resolution order: DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → project config → global config → Windsurf state.vscdb."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/devin-search.json (общий с CLI). Приоритет: DEVIN_SEARCH_API_KEY / WINDSURF_API_KEY → конфиг проекта → глобальный конфиг → автообнаружение из Windsurf state.vscdb."
       }
     }
   },
@@ -98,6 +108,18 @@
       "fieldDescriptions": {
         "apiKey": "Devin / Windsurf search credential; leave blank to discover from env or Windsurf local db",
         "dbPath": "Optional path to Windsurf state.vscdb for automatic credential discovery"
+      }
+    },
+    "ru": {
+      "displayName": "Devin Search",
+      "description": "Веб-поиск Devin / Windsurf: карточки инструмента devin_search, настройки в ~/.pi/agent/devin-search.json",
+      "fieldLabels": {
+        "apiKey": "API-ключ",
+        "dbPath": "Путь к state.vscdb"
+      },
+      "fieldDescriptions": {
+        "apiKey": "Ключ поиска Devin / Windsurf; оставьте пустым для поиска в переменных окружения или локальной БД Windsurf",
+        "dbPath": "Необязательно: свой путь к Windsurf state.vscdb для автоизвлечения ключа"
       }
     }
   }

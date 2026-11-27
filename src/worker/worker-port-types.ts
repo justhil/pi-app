@@ -7,6 +7,7 @@ export type WorkerIncomingMessage = {
   text?: string
   options?: unknown
   sessionFile?: string
+  entryId?: string
   offset?: number
   limit?: number
   targetId?: string

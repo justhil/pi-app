@@ -11,10 +11,12 @@ import {
   contextMenuDangerItemClass,
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from './context-menu-shared'
 import { RenamePromptDialog } from './rename-prompt-dialog'
 import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
+import { isSandboxPath } from './project-sidebar-types'
 import type { ProjectMenuState, ProjectMenuTarget } from './use-project-context-menu'
 
 function pickTarget(menu: NonNullable<ProjectMenuState>): ProjectMenuTarget {
@@ -47,6 +49,7 @@ export function ProjectContextMenuPortal({
   const [removeTarget, setRemoveTarget] = useState<ProjectMenuTarget | null>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
+  const menuPos = useContextMenuPosition(menu, ref, [menu?.isSecondaryWorktree])
 
   const runRevealInExplorer = async (path: string) => {
     try {
@@ -111,6 +114,7 @@ export function ProjectContextMenuPortal({
       const r = await ipcClient.invoke('project.removeRecent', {
         path: target.path,
         isRepositoryGroup: target.isRepositoryGroup,
+        isSecondaryWorktree: target.isSecondaryWorktree,
         groupPaths: target.groupPaths,
         siblingPaths: target.siblingPaths,
       })
@@ -120,22 +124,32 @@ export function ProjectContextMenuPortal({
       }
       const removedPaths = target.isRepositoryGroup && target.groupPaths?.length ? [target.path, ...target.groupPaths] : [target.path]
       const store = useUIStore.getState()
-      const nextRecent = Array.isArray(r.recentProjects)
+      const rawNext = Array.isArray(r.recentProjects)
         ? r.recentProjects
         : store.recentProjects.filter((p) => !removedPaths.some((rem) => workspacePathsEqual(p, rem)))
+      const nextRecent = rawNext.filter((p: string) => !isSandboxPath(p))
       useUIStore.setState({ recentProjects: nextRecent })
       if (store.currentWorkspace && removedPaths.some((rem) => workspacePathsEqual(store.currentWorkspace, rem))) {
         const nextPath = (!target.isRepositoryGroup && target.siblingPaths?.[0]) || nextRecent[0]
         if (nextPath) await activateWorkspace(nextPath, { preferHome: true })
         else {
-          store.setWorkspace(null)
-          store.setCurrentSession(null)
-          store.clearTimeline()
-          store.setHistoryMeta(0, 0, null)
-          store.setSessions([])
+          useUIStore.setState({
+            currentWorkspace: null,
+            currentSessionId: null,
+            historySessionFile: null,
+            historyTotalCount: 0,
+            historyLoadedCount: 0,
+            timelineItems: [],
+            streamingAssistantId: null,
+            optimisticPendingUserText: null,
+            agentTurnBootstrapping: false,
+            pendingTurnStage: null,
+            sessions: [],
+          })
           await ipcClient.invoke('settings.set', { key: 'currentProject', value: null }).catch(() => {})
         }
       }
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
       toast.success(t('common:sidebar.removed'))
       onListChange()
     } catch {
@@ -154,11 +168,15 @@ export function ProjectContextMenuPortal({
         return
       }
       const store = useUIStore.getState()
-      if (Array.isArray(r.recentProjects)) useUIStore.setState({ recentProjects: r.recentProjects })
+      if (Array.isArray(r.recentProjects)) {
+        useUIStore.setState({ recentProjects: r.recentProjects.filter((p: string) => !isSandboxPath(p)) })
+      }
       if (store.currentWorkspace && workspacePathsEqual(store.currentWorkspace, target.path)) {
-        const nextPath = target.repositoryPath || target.siblingPaths?.[0] || r.currentProject
+        const fallbackCurrent = r.currentProject && !isSandboxPath(r.currentProject) ? r.currentProject : null
+        const nextPath = target.repositoryPath || target.siblingPaths?.[0] || fallbackCurrent
         if (nextPath) await activateWorkspace(nextPath, { preferHome: true })
       }
+      window.dispatchEvent(new CustomEvent('pi-desktop:settings-changed', { detail: { key: 'recentProjects' } }))
       toast.success(t('common:sidebar.deleted'))
       onListChange()
     } catch {
@@ -173,7 +191,7 @@ export function ProjectContextMenuPortal({
             <div
               ref={ref}
               className={contextMenuPanelClass}
-              style={{ left: menu.x, top: menu.y }}
+              style={menuPos}
               role="menu"
               onPointerDown={(e) => e.stopPropagation()}
             >

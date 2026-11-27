@@ -203,17 +203,86 @@ describe('buildTimelineDisplayItems — flat until prose seals', () => {
     ])
   })
 
-  it('does not merge tools across user messages', () => {
+  it('does not merge tools across user messages, and seals tools interrupted by the next user message', () => {
     const blocks = buildTimelineDisplayItems([
       tool('t1', 'read'),
+      thinking('th-abort', 'interrupted thinking right before user message'),
       user('u2', 'next'),
       tool('t2', 'bash'),
     ])
-    expect(blocks.map((block) => (block.kind === 'single' ? block.item.id : block.kind))).toEqual([
-      't1',
-      'u2',
-      't2',
+    expect(blocks.map((block) => block.kind)).toEqual([
+      'tool-group',
+      'single',
+      'single',
     ])
+    if (blocks[0].kind === 'tool-group') {
+      expect(blocks[0].tools.map((r) => r.id)).toEqual(['t1'])
+      expect(blocks[0].thinkingText).toContain('interrupted thinking right before user message')
+      expect(blocks[0].children.every((c) => c.kind !== 'thinking' || !c.streaming)).toBe(true)
+    }
+    expect(blocks[1]).toMatchObject({ kind: 'single', item: { id: 'u2' } })
+    expect(blocks[2]).toMatchObject({ kind: 'single', item: { id: 't2' } })
+  })
+
+  it('should_seal_tools_before_abort_or_error_status_row', () => {
+    const abortError: TimelineRawItem = {
+      id: 'err-1',
+      type: 'error',
+      errorKind: 'aborted',
+      text: '已中止',
+      timestamp: 5,
+    }
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'run'),
+      thinking('th1', 'step 1'),
+      tool('t1', 'read'),
+      tool('t2', 'bash', 'start'),
+      thinking('th2', 'interrupted mid-thought'),
+      abortError,
+    ], { turnSettled: true })
+
+    expect(blocks.map((b) => b.kind)).toEqual(['single', 'tool-group', 'single'])
+    if (blocks[1].kind === 'tool-group') {
+      expect(blocks[1].tools.map((r) => r.id)).toEqual(['t1', 't2'])
+      expect(blocks[1].thinkingText).toContain('interrupted mid-thought')
+    }
+    expect(blocks[2]).toMatchObject({ kind: 'single', item: { id: 'err-1' } })
+  })
+
+  it('should_seal_tools_before_interrupted_empty_assistant_without_swallowing_it', () => {
+    const interruptedLeaf: TimelineRawItem = {
+      id: 'a-interrupted',
+      type: 'assistant-message',
+      text: '',
+      thinkingText: '',
+      incomplete: true,
+      stopReason: 'aborted',
+      sessionEntryId: 'e-abort',
+      timestamp: 5,
+    }
+    const blocks = buildTimelineDisplayItems([
+      user('u1', 'run'),
+      tool('t1', 'read'),
+      tool('t2', 'bash'),
+      interruptedLeaf,
+    ], { turnSettled: true })
+
+    expect(blocks.map((b) => b.kind)).toEqual(['single', 'tool-group', 'single'])
+    expect(blocks[2]).toMatchObject({ kind: 'single', item: { id: 'a-interrupted' } })
+  })
+
+  it('should_seal_trailing_tool_only_turn_once_turn_settled_while_keeping_live_tail_flat', () => {
+    const items: TimelineRawItem[] = [
+      user('u1', 'do it silently'),
+      thinking('th1', 'checking'),
+      tool('t1', 'read'),
+      tool('t2', 'edit'),
+    ]
+    const whileLive = buildTimelineDisplayItems(items, { turnSettled: false })
+    expect(whileLive.map((b) => b.kind)).toEqual(['single', 'single', 'single', 'single'])
+
+    const afterSettled = buildTimelineDisplayItems(items, { turnSettled: true })
+    expect(afterSettled.map((b) => b.kind)).toEqual(['single', 'tool-group'])
   })
 
   it('keeps orphan thinking as single when no tools follow', () => {

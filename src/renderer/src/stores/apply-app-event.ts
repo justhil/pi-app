@@ -15,6 +15,8 @@ import { handleSessionRun } from '@renderer/stores/apply-app-event-session-run'
 import { markSessionTurnEnded, sessionStoreApi } from '@renderer/stores/session-scope'
 import { sessionKeyOf } from '@renderer/stores/session-state'
 import { applyExtensionWidgetEvent, getSessionComposerWidget } from '@renderer/lib/extension-widget-cache'
+import { applyBackgroundTasksEvent } from '@renderer/stores/background-tasks-store'
+import { applyExtensionStatusEvent } from '@renderer/stores/adapter-status-bar-store'
 import { isAbortQueueIgnoreActive, shouldIgnoreAppEventAfterAbort } from '@renderer/lib/abort-ui-hold'
 import { reduceSubagentSessionGroupToolEvent } from '@renderer/lib/subagent-session-activity'
 import type { StoreApi } from '@renderer/stores/apply-app-event-types'
@@ -85,6 +87,17 @@ function applySessionEvent(
     case 'extension_widget':
       applyExtensionWidgetEvent(event)
       api.get().setComposerWidget(getSessionComposerWidget(sessionFile))
+      break
+    case 'background_tasks':
+      applyBackgroundTasksEvent(sessionFile, event.tasks, {
+        hasActiveAdapter: event.hasActiveAdapter,
+        adapterId: event.adapterId,
+        icon: event.icon,
+        title: event.title,
+      })
+      break
+    case 'extension_status':
+      applyExtensionStatusEvent(sessionFile, event)
       break
   }
 }

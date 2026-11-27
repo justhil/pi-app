@@ -7,7 +7,22 @@
       "pi-rewind-hook"
     ]
   },
-  "tier": "partial",
+  "install": {
+    "source": "npm:pi-rewind-hook",
+    "homepage": "https://github.com/nicobailon/pi-rewind-hook"
+  },
+  "tier": "native",
+  "statusBar": {
+    "protocol": "status-pill-v1",
+    "statusKeys": [
+      "rewind"
+    ],
+    "icon": "GitBranch",
+    "title": "Rewind 快照",
+    "clickAction": {
+      "type": "config-page"
+    }
+  },
   "config": {
     "configFile": "~/.pi/agent/settings.json",
     "fileKeyMap": {
@@ -70,6 +85,9 @@
           },
           "en": {
             "title": "Checkpoints & Retention"
+          },
+          "ru": {
+            "title": "Контрольные точки и хранение"
           }
         }
       }
@@ -81,6 +99,9 @@
       },
       "en": {
         "note": "Automatically records git snapshots (refs/pi-rewind/store) around turns; tree navigation and forking prompt whether to restore files, conversation, or both."
+      },
+      "ru": {
+        "note": "Автоматически записывает Git-снимки (refs/pi-rewind/store) до и после каждого хода; при переходе по дереву или форке появляется диалог восстановления файлов, диалога или обоих."
       }
     }
   },
@@ -98,6 +119,9 @@
       },
       "fieldDescriptions": {
         "silentCheckpoints": "开启后隐藏创建检查点时的状态提示"
+      },
+      "statusBar": {
+        "title": "Rewind 快照"
       }
     },
     "en": {
@@ -113,6 +137,27 @@
       },
       "fieldDescriptions": {
         "silentCheckpoints": "Suppress status notifications when creating checkpoints"
+      },
+      "statusBar": {
+        "title": "Rewind Snapshots"
+      }
+    },
+    "ru": {
+      "displayName": "Rewind Hook",
+      "description": "Автоматические Git-снимки и откат файлов/диалога (настройки rewind в ~/.pi/agent/settings.json)",
+      "fieldLabels": {
+        "silentCheckpoints": "Тихие контрольные точки",
+        "maxSnapshots": "Максимум снимков",
+        "maxAgeDays": "Срок хранения снимков (дни)",
+        "pinLabeledEntries": "Закреплять помеченные узлы",
+        "scanMode": "Область сканирования очистки",
+        "startupBudgetMs": "Бюджет очистки при запуске (мс)"
+      },
+      "fieldDescriptions": {
+        "silentCheckpoints": "Скрывать уведомления о статусе при создании контрольных точек"
+      },
+      "statusBar": {
+        "title": "Снимки Rewind"
       }
     }
   }

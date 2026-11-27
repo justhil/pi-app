@@ -23,6 +23,10 @@ files:
   - '!**/bignumber.js/doc/**'
   - '!**/readable-stream/**/doc/**'
 
+# Unpack the Pi SDK runtime dependency closure dynamically so external Node child processes
+# spawned by extensions can read SDK modules from app.asar.unpacked instead of app.asar.
+beforePack: ./scripts/before-pack.mjs
+
 # Native pty binaries (pty.node, conpty.dll, spawn-helper) cannot load from inside the asar.
 asarUnpack:
   - '**/node_modules/@lydell/node-pty*/**'
@@ -61,10 +65,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+  # Use hyphenated prefix so Windows installers sort at the top of GitHub Release Assets.
+  artifactName: pi-Desktop-Setup-${version}-${arch}.${ext}
 
 portable:
-  artifactName: ${productName}-Portable-${version}-${arch}.${ext}
+  artifactName: pi-Desktop-Portable-${version}-${arch}.${ext}
 
 mac:
   target:

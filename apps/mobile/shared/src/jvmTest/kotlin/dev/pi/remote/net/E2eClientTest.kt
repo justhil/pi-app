@@ -62,6 +62,11 @@ class E2eClientTest {
                     assertTrue(paired)
                     val api = RemoteApi(c1)
                     assertTrue(api.projects().isNotEmpty())
+                    val purge = api.purge(null)
+                    assertTrue(purge.personas.isNotEmpty())
+                    val usage = api.usageSummary(7)
+                    assertEquals(7, usage.days)
+                    c1.kick(immediateProbe = true)
                     val sessions = api.watchList()
                     val target = sessions.last()
                     val open = api.open(target.sessionKey, null)
@@ -87,6 +92,10 @@ class E2eClientTest {
                     assertTrue(last.answer.isNotBlank())
                     val cursorMid = mid!!
                     assertTrue(cursorMid.seq < timeline.seq)
+                    val renamed = api.renameSession(target.sessionKey, "E2E Renamed")
+                    assertEquals("E2E Renamed", renamed.title)
+                    val previewed = api.readFile(target.sessionKey, "src/auth.ts")
+                    assertTrue(previewed.content.contains("line2"))
                     c1.stop()
 
                     // Second connection: device key only (no pairing token), resume from a cursor.

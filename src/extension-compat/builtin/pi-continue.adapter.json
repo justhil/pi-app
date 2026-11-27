@@ -88,7 +88,10 @@
             "title": "续跑"
           },
           "en": {
-            "title": "Continue Settings"
+            "title": "Continue"
+          },
+          "ru": {
+            "title": "Продолжение"
           }
         }
       },
@@ -138,7 +141,10 @@
             "title": "产物与指南"
           },
           "en": {
-            "title": "Behavior"
+            "title": "Artifacts & Guides"
+          },
+          "ru": {
+            "title": "Артефакты и инструкции"
           }
         }
       },
@@ -169,7 +175,10 @@
             "title": "上下文标签"
           },
           "en": {
-            "title": "Status"
+            "title": "Context Tags"
+          },
+          "ru": {
+            "title": "Теги контекста"
           }
         }
       }
@@ -180,7 +189,10 @@
         "note": "配置写入 ~/.pi/agent/extensions/pi-continue.json（项目级 .pi/extensions/pi-continue.json 优先，与扩展 /continue config 共享）。"
       },
       "en": {
-        "note": "Reads ~/.pi/agent/extensions/pi-continue.json."
+        "note": "Writes ~/.pi/agent/extensions/pi-continue.json (project-level .pi/extensions/pi-continue.json takes precedence; shared with /continue config)."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/extensions/pi-continue.json (проектный .pi/extensions/pi-continue.json имеет приоритет; общий с /continue config)."
       }
     }
   },
@@ -191,11 +203,72 @@
   "i18n": {
     "zh": {
       "displayName": "Continue",
-      "description": "中途续跑（配置 ~/.pi/agent/extensions/pi-continue.json）"
+      "description": "中途续跑（配置 ~/.pi/agent/extensions/pi-continue.json）",
+      "fieldLabels": {
+        "enabled": "启用续跑",
+        "summarizerModel": "交接模型",
+        "reasoning": "推理等级",
+        "historyMaxTokens": "历史最大 token",
+        "midRunGuardEnabled": "中途守卫",
+        "showAfterCompact": "压缩后显示",
+        "continuationArtifactMode": "续跑产物写入",
+        "agentGuidePath": "AGENTS.md 路径",
+        "agentGuideSyncMode": "指南同步模式",
+        "promptOverridePolicy": "提示词覆盖策略",
+        "appendCompactionMetadata": "附加压缩元数据",
+        "appendReadFileTags": "附加读取文件标签",
+        "appendModifiedFileTags": "附加修改文件标签"
+      },
+      "fieldDescriptions": {
+        "summarizerModel": "provider/model 或 inherit 继承当前模型",
+        "historyMaxTokens": "留空/0 用 Pi 默认"
+      }
     },
     "en": {
       "displayName": "Continue",
-      "description": "Mid-task continue; reads ~/.pi/agent/extensions/pi-continue.json"
+      "description": "Mid-run continuation (settings in ~/.pi/agent/extensions/pi-continue.json)",
+      "fieldLabels": {
+        "enabled": "Enable continuation",
+        "summarizerModel": "Handoff model",
+        "reasoning": "Reasoning level",
+        "historyMaxTokens": "Max history tokens",
+        "midRunGuardEnabled": "Mid-run guard",
+        "showAfterCompact": "Show after compaction",
+        "continuationArtifactMode": "Continuation artifact output",
+        "agentGuidePath": "AGENTS.md path",
+        "agentGuideSyncMode": "Guide sync mode",
+        "promptOverridePolicy": "Prompt override policy",
+        "appendCompactionMetadata": "Append compaction metadata",
+        "appendReadFileTags": "Append read-file tags",
+        "appendModifiedFileTags": "Append modified-file tags"
+      },
+      "fieldDescriptions": {
+        "summarizerModel": "provider/model or inherit to use the current model",
+        "historyMaxTokens": "Leave blank or 0 to use the Pi default"
+      }
+    },
+    "ru": {
+      "displayName": "Continue",
+      "description": "Продолжение с середины задачи (настройки в ~/.pi/agent/extensions/pi-continue.json)",
+      "fieldLabels": {
+        "enabled": "Включить продолжение",
+        "summarizerModel": "Модель передачи",
+        "reasoning": "Уровень рассуждений",
+        "historyMaxTokens": "Макс. токенов истории",
+        "midRunGuardEnabled": "Защита посреди выполнения",
+        "showAfterCompact": "Показывать после компакции",
+        "continuationArtifactMode": "Запись артефактов продолжения",
+        "agentGuidePath": "Путь к AGENTS.md",
+        "agentGuideSyncMode": "Режим синхронизации инструкции",
+        "promptOverridePolicy": "Политика переопределения промпта",
+        "appendCompactionMetadata": "Добавлять метаданные компакции",
+        "appendReadFileTags": "Добавлять теги прочитанных файлов",
+        "appendModifiedFileTags": "Добавлять теги изменённых файлов"
+      },
+      "fieldDescriptions": {
+        "summarizerModel": "provider/model или inherit для наследования текущей модели",
+        "historyMaxTokens": "Оставьте пустым или 0 для значения Pi по умолчанию"
+      }
     }
   }
 }

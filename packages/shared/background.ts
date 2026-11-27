@@ -63,7 +63,7 @@ function normalizeLayer(raw: unknown): PaneLayer | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const v = raw as Record<string, unknown>
   const d = BACKGROUND_DEFAULTS
-  return { uiOpacity: clamp(v.uiOpacity, 0.3, 1, d.uiOpacity), paneBlur: Math.round(clamp(v.paneBlur, 0, 40, d.paneBlur)), material: material(v.material) }
+  return { uiOpacity: clamp(v.uiOpacity, 0.15, 1, d.uiOpacity), paneBlur: Math.round(clamp(v.paneBlur, 0, 40, d.paneBlur)), material: material(v.material) }
 }
 
 export function normalizeBackgroundImage(raw: unknown): BackgroundImage | undefined {
@@ -75,7 +75,7 @@ export function normalizeBackgroundImage(raw: unknown): BackgroundImage | undefi
     file: v.file,
     opacity: clamp(v.opacity, 0.05, 1, d.opacity),
     blur: Math.round(clamp(v.blur, 0, 24, d.blur)),
-    uiOpacity: clamp(v.uiOpacity, 0.5, 1, d.uiOpacity),
+    uiOpacity: clamp(v.uiOpacity, 0.15, 1, d.uiOpacity),
     fit: v.fit === 'contain' || v.fit === 'tile' || v.fit === 'center' ? v.fit : 'cover',
     position: v.position === 'top' || v.position === 'bottom' ? v.position : 'center',
     brightness: clamp(v.brightness, 0.4, 1.3, d.brightness),

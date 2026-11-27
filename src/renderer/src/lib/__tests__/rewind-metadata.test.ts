@@ -92,4 +92,19 @@ describe('refreshSessionTree concurrency guard', () => {
     expect(useUIStore.getState().rewindTreeNodes).toEqual([])
     expect(useUIStore.getState().rewindKey).toBe('')
   })
+
+  it('should_clear_previous_treeError_when_subsequent_refresh_or_switch_succeeds', async () => {
+    const pFail = refreshSessionTree('/unflushed.jsonl')
+    pending[0].resolve({ nodes: [], leafId: null, error: 'invalid_session' })
+    await pFail
+    expect(useUIStore.getState().rewindTreeError).toBe('invalid_session')
+
+    // Subsequent refresh of a flushed session returns no `error` field (`error: undefined`):
+    // must wipe `rewindTreeError` instead of leaving the UI permanently poisoned.
+    const pOk = refreshSessionTree('/flushed.jsonl')
+    pending[1].resolve({ nodes: [{ id: 'u1', entryType: 'message', role: 'user', isLeaf: true }] })
+    await pOk
+    expect(useUIStore.getState().rewindTreeError).toBeUndefined()
+    expect(useUIStore.getState().rewindTreeNodes).toHaveLength(1)
+  })
 })

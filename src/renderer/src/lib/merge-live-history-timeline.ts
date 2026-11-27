@@ -24,7 +24,37 @@ function usersMatch(a: TimelineItem, b: TimelineItem): boolean {
   if (a.sessionEntryId && b.sessionEntryId) {
     return a.sessionEntryId === b.sessionEntryId
   }
-  return normalizeTimelineMessageText(a.text) === normalizeTimelineMessageText(b.text)
+  const aText = normalizeTimelineMessageText(a.text)
+  const bText = normalizeTimelineMessageText(b.text)
+  if (aText && aText === bText) return true
+  const aPayload = normalizeTimelineMessageText(a.payloadText || a.text)
+  const bPayload = normalizeTimelineMessageText(b.payloadText || b.text)
+  return !!aPayload && aPayload === bPayload
+}
+
+function preserveUserRichSegments(base: TimelineItem[], live: TimelineItem[]): TimelineItem[] {
+  const richByEntry = new Map<string, TimelineItem>()
+  for (const row of live) {
+    if (row.type === 'user-message' && row.sessionEntryId && (row.segments?.length || row.attachments?.length)) {
+      richByEntry.set(row.sessionEntryId, row)
+    }
+  }
+  if (richByEntry.size === 0) return base
+  let changed = false
+  const next = base.map((row) => {
+    if (row.type !== 'user-message' || !row.sessionEntryId || row.segments?.length) return row
+    const rich = richByEntry.get(row.sessionEntryId)
+    if (!rich) return row
+    changed = true
+    return {
+      ...row,
+      text: rich.text || row.text,
+      ...(rich.payloadText || row.text ? { payloadText: rich.payloadText || row.text } : {}),
+      ...(rich.segments ? { segments: rich.segments } : {}),
+      ...(rich.attachments ? { attachments: rich.attachments } : {}),
+    }
+  })
+  return changed ? next : base
 }
 
 function countByType(items: TimelineItem[], type: TimelineItem['type']): number {
@@ -158,12 +188,26 @@ export function mergeLiveTimelineWithHistoryTail(
         const histAfterAnchor = hist.slice(histUserIdx + 1)
         const liveAfterAnchor = live.slice(liveAnchorIdx + 1)
         if (!hasPersistedIdentityConflict(histAfterAnchor, liveAfterAnchor)) {
-          return dedupeAdjacentUserMessages([
-            ...hist.slice(0, histUserIdx + 1),
-            ...liveAfterAnchor,
-          ])
+          // If the user previously loaded older pages (live starts earlier than hist[0]),
+          // keep that loaded prefix ahead of hist[0] when its anchor matches cleanly.
+          const firstHistEntryId = hist[0]?.sessionEntryId
+          const liveHeadAnchorIdx = firstHistEntryId
+            ? live.findIndex((item) => item.sessionEntryId === firstHistEntryId)
+            : -1
+          const olderPrefix =
+            options?.preserveLivePrefix !== false &&
+            liveHeadAnchorIdx > 0 &&
+            !hasPersistedIdentityConflict(hist.slice(0, histUserIdx + 1), live.slice(liveHeadAnchorIdx, liveAnchorIdx + 1))
+              ? live.slice(0, liveHeadAnchorIdx)
+              : []
+          return dedupeAdjacentUserMessages(
+            preserveUserRichSegments(
+              [...olderPrefix, ...hist.slice(0, histUserIdx + 1), ...liveAfterAnchor],
+              live,
+            ),
+          )
         }
-        return dedupeAdjacentUserMessages(hist)
+        return dedupeAdjacentUserMessages(preserveUserRichSegments(hist, live))
       }
 
       const overlapAnchorIdx = persistedEntryOverlap.lastIndexOf(histUser.sessionEntryId)
@@ -197,18 +241,23 @@ export function mergeLiveTimelineWithHistoryTail(
           persistedTimelineEntryIds(liveAfterUser),
         )
       ) {
-        return dedupeAdjacentUserMessages(hist)
+        return dedupeAdjacentUserMessages(preserveUserRichSegments(hist, live))
       }
 
       // A switch-away capture may predate the persisted tool steps of this turn.
       // Keep its loaded prefix, but do not let its shorter tail erase the newer disk rows.
       if (histAfterUser.length > liveAfterUser.length) {
-        return dedupeAdjacentUserMessages([
-          ...(options?.preserveLivePrefix !== false && liveThroughUser.length > histThroughUser.length
-            ? liveThroughUser
-            : histThroughUser),
-          ...histAfterUser,
-        ])
+        return dedupeAdjacentUserMessages(
+          preserveUserRichSegments(
+            [
+              ...(options?.preserveLivePrefix !== false && liveThroughUser.length > histThroughUser.length
+                ? liveThroughUser
+                : histThroughUser),
+              ...histAfterUser,
+            ],
+            live,
+          ),
+        )
       }
 
       // live 前缀更完整（capture 了更长历史）→ 用 live 前缀 + live 尾

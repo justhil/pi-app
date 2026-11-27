@@ -61,22 +61,34 @@ function NumCell({
 /**
  * Collapsible "Advanced" block of a model entry: sampling (base + per thinking level), image input
  * limits, and compatibility switches for OpenAI-compatible endpoints.
+ * When `embedded` is true, renders directly inside the parent's unified collapsible advanced drawer.
  */
-export function ModelAdvancedFields({ model, onChange }: { model: LocalModelEntry; onChange: (patch: Partial<LocalModelEntry>) => void }) {
+export function ModelAdvancedFields({
+  model,
+  onChange,
+  embedded = false,
+}: {
+  model: LocalModelEntry
+  onChange: (patch: Partial<LocalModelEntry>) => void
+  embedded?: boolean
+}) {
   const { t } = useTranslation('settings')
-  const [open, setOpen] = useState(() => hasAdvanced(model))
+  const [open, setOpen] = useState(() => embedded || hasAdvanced(model))
   const hasImage = Array.isArray(model.input) && model.input.includes('image')
   const levels = model.reasoning ? LEVELS : (['off'] as const)
   const compatValue = (key: string) => getIn(model.compat, [key])
+  const isShown = embedded || open
 
   return (
-    <div data-model-advanced="" className="border-t border-[var(--settings-divider)] pt-3">
-      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[12px] text-foreground-secondary hover:text-foreground">
-        <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} strokeWidth={2} />
-        {t('models.advanced.title')}
-      </button>
-      {open ? (
-        <div className="mt-3 space-y-5">
+    <div data-model-advanced="" className={embedded ? 'space-y-4 pt-1' : 'border-t border-[var(--settings-divider)] pt-3'}>
+      {!embedded ? (
+        <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex items-center gap-1 text-[12px] text-foreground-secondary hover:text-foreground">
+          <ChevronRight className={cn('h-3 w-3 transition-transform', open && 'rotate-90')} strokeWidth={2} />
+          {t('models.advanced.title')}
+        </button>
+      ) : null}
+      {isShown ? (
+        <div className={embedded ? 'space-y-4' : 'mt-3 space-y-5'}>
           <section>
             <h4 className={titleCls}>{t('models.advanced.sampling')}</h4>
             <p className={hintCls}>{t('models.advanced.samplingHint')}</p>

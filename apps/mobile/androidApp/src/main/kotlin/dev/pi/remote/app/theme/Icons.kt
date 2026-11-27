@@ -78,6 +78,9 @@ object PiIcons {
     val Pause get() = icon("pause", paths = arrayOf("M7 5h3v14H7z", "M14 5h3v14h-3z"))
     val Expand get() = icon("expand", paths = arrayOf("M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"))
     val Wifi get() = icon("wifi", paths = arrayOf("M12 20h.01", "M2 8.82a15 15 0 0 1 20 0", "M5 12.859a10 10 0 0 1 14 0", "M8.5 16.429a5 5 0 0 1 7 0"))
+    val User get() = icon("user-round", paths = arrayOf(circle(12f, 8f, 5f), "M20 21a8 8 0 0 0-16 0"))
+    val Globe get() = icon("globe", paths = arrayOf(circle(12f, 12f, 10f), "M2 12h20", "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"))
+    val Trash get() = icon("trash-2", paths = arrayOf("M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2", "M10 11v6", "M14 11v6"))
     val X get() = icon("x", paths = arrayOf("M18 6 6 18", "m6 6 12 12"))
 }
 

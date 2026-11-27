@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { markAbortQueueIgnore, markAbortUiHold } from '@renderer/lib/abort-ui-hold'
 import { markSessionTurnEnded } from '@renderer/stores/session-scope'
@@ -10,8 +11,8 @@ import { flushStreamPendingSync } from '@renderer/stores/ui-store-stream'
 /** 对齐 TUI：abort 后立刻让 Composer 可交互（不等 run idle 事件） */
 export function applyComposerAbortUi(sessionFile: string): void {
   const store = useUIStore.getState()
-  markAbortUiHold(sessionFile)
-  markAbortQueueIgnore(sessionFile)
+  markAbortUiHold(sessionFile, 900)
+  markAbortQueueIgnore(sessionFile, 2500)
   store.setSessionRuntimeRunning(sessionFile, false)
   markSessionTurnEnded(sessionFile, 'idle')
   if (!sessionFilesEqual(store.historySessionFile, sessionFile)) return
@@ -30,6 +31,7 @@ export function applyComposerAbortUi(sessionFile: string): void {
   useUIStore.setState({
     streamingAssistantId: null,
     agentTurnBootstrapping: false,
+    pendingTurnStage: null,
     optimisticPendingUserText: null,
   })
   store.clearPendingQueue()
@@ -65,13 +67,13 @@ export async function restoreQueuedToComposer(options?: {
     if (!options?.abort) useUIStore.getState().clearPendingQueue()
     if (combined && options?.setText) options.setText(combined)
     if (!options?.quiet) {
-      if (n > 0 && !options?.abort) toast.info(`已拉回 ${n} 条排队消息到输入框`)
-      else if (!options?.abort) toast.message('没有可拉回的排队消息')
+      if (n > 0 && !options?.abort) toast.info(i18n.t('composer:queueRestored', { count: n }))
+      else if (!options?.abort) toast.message(i18n.t('composer:queueNothingToRestore'))
     }
     return n
   } catch (e) {
     console.error('dequeueClearQueue failed', e)
-    toast.error('拉回队列失败')
+    toast.error(i18n.t('composer:queueRestoreFailed'))
     return 0
   }
 }

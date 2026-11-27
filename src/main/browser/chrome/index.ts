@@ -5,7 +5,9 @@ import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { app } from 'electron'
 import { BROWSER_EVENT_CHANNEL, type BrowserEvent } from '@shared/browser-types'
+import { mainLabel } from '@shared/main-labels'
 import { configStore } from '../../config-store'
+import { resolveUiLanguage } from '../../ui-language'
 import { getMainWindow } from '../../window'
 import { respondHelp } from '../agent/help'
 import { ChromeBridge } from './bridge'
@@ -35,15 +37,15 @@ const send = (event: BrowserEvent) => {
   toRenderer(event)
   if (!bridge?.connected()) return
   if (event.type === 'help-request' && event.request.where === 'chrome') {
-    const zh = configStore.get('language') !== 'en'
+    const lang = resolveUiLanguage()
     const r = event.request
     void bridge
       .call('help.show', {
         id: r.id,
-        title: zh ? 'pi 需要你操作一下' : 'pi needs you',
-        message: [r.prompt, r.target ? (zh ? `位置：${r.target}` : `At: ${r.target}`) : ''].filter(Boolean).join('\n'),
-        yes: r.confirm ? (zh ? '允许' : 'Allow') : zh ? '完成' : 'Done',
-        no: r.confirm ? (zh ? '拒绝' : 'Deny') : zh ? '放弃' : 'Give up',
+        title: mainLabel(lang, 'chrome.helpTitle'),
+        message: [r.prompt, r.target ? mainLabel(lang, 'chrome.helpAt', { target: r.target }) : ''].filter(Boolean).join('\n'),
+        yes: mainLabel(lang, r.confirm ? 'chrome.allow' : 'chrome.done'),
+        no: mainLabel(lang, r.confirm ? 'chrome.deny' : 'chrome.giveUp'),
       })
       .catch(() => undefined)
   } else if (event.type === 'help-ended') void bridge.call('help.clear', { id: event.id }).catch(() => undefined)
@@ -132,4 +134,8 @@ export function getChromeHost(): ChromeHost | null {
 
 export function chromeBridgeEnabled(): boolean {
   return config().enabled
+}
+
+export function getChromeBridge(): ChromeBridge | null {
+  return bridge
 }

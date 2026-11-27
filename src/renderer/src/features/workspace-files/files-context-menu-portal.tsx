@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import {
   contextMenuItemClass,
   contextMenuPanelClass,
+  useContextMenuPosition,
   useDismissContextMenu,
 } from '@renderer/features/workspace/context-menu-shared'
 
@@ -31,18 +32,6 @@ type Props = {
   onOpenInNewTab?: () => void
 }
 
-function clampMenuPosition(x: number, y: number, el: HTMLElement | null) {
-  const pad = 8
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const w = el?.offsetWidth ?? 200
-  const h = el?.offsetHeight ?? 160
-  return {
-    left: Math.max(pad, Math.min(x, vw - w - pad)),
-    top: Math.max(pad, Math.min(y, vh - h - pad)),
-  }
-}
-
 export function FilesContextMenuPortal({
   menu,
   onClose,
@@ -61,13 +50,7 @@ export function FilesContextMenuPortal({
   const ref = useRef<HTMLDivElement>(null)
 
   useDismissContextMenu(!!menu, ref, onClose)
-
-  useLayoutEffect(() => {
-    if (!menu || !ref.current) return
-    const { left, top } = clampMenuPosition(menu.x, menu.y, ref.current)
-    ref.current.style.left = `${left}px`
-    ref.current.style.top = `${top}px`
-  }, [menu])
+  const menuPos = useContextMenuPosition(menu, ref, [menu?.isDirectory])
 
   if (!menu) return null
 
@@ -78,7 +61,7 @@ export function FilesContextMenuPortal({
     <div
       ref={ref}
       className={contextMenuPanelClass}
-      style={{ left: menu.x, top: menu.y }}
+      style={menuPos}
       role="menu"
       onPointerDown={stop}
     >

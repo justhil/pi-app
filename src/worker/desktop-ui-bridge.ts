@@ -2,6 +2,7 @@
 
 import type { EventBus, Theme } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
+import type { InteractDefaults } from '../extension-compat/adapter-schema.js'
 import type {
   ExtensionUIQuestion,
   ExtensionUIQuestionnaireResult,
@@ -46,8 +47,13 @@ export type DesktopUIBridge = {
     signal?: AbortSignal,
   ) => Promise<ExtensionUIQuestionnaireResult>
   /** Cache interact args extracted by Worker (driven by adapter.json interact.fields). */
-  setInteractArgs: (schema: 'questions' | 'review' | 'clarify', args: Record<string, unknown> | null) => void
+  setInteractArgs: (
+    schema: 'questions' | 'review' | 'clarify',
+    args: Record<string, unknown> | null,
+    defaults?: InteractDefaults,
+  ) => void
   attachWidgetHost: (host: { setWidget: (key: string, content: unknown) => void; dispose: () => void } | null) => void
+  setStatusListener: (listener: ((key: string, text: string | undefined) => void) | null) => void
   dispose: () => void
 }
 
@@ -130,8 +136,9 @@ export function createDesktopUIBridge(
   const pending = new Map<string, Pending>()
   let lastAskPayload: { questions: unknown } | null = null
   /** Interact args cached by Worker from adapter.json interact.fields, keyed by schema type. */
-  let interactArgs: { schema: string; args: Record<string, unknown> } | null = null
+  let interactArgs: { schema: string; args: Record<string, unknown>; defaults?: InteractDefaults } | null = null
   let widgetHost: { setWidget: (key: string, content: unknown) => void; dispose: () => void } | null = null
+  let statusListener: ((key: string, text: string | undefined) => void) | null = null
 
   const emitReq = (req: ExtensionUIRequest) => {
     onRequest(req)
@@ -198,7 +205,9 @@ export function createDesktopUIBridge(
 
     onTerminalInput: () => () => {},
 
-    setStatus: () => {},
+    setStatus: (key: string, text?: string) => {
+      statusListener?.(String(key || ''), text === undefined ? undefined : String(text))
+    },
     setWorkingMessage: () => {},
     setWorkingVisible: () => {},
     setWorkingIndicator: () => {},
@@ -216,29 +225,36 @@ export function createDesktopUIBridge(
       // Route by interact schema (cached by Worker from adapter.json interact.fields).
       if (interactArgs?.schema === 'review') {
         const a = interactArgs.args
+        const defs = interactArgs.defaults
         interactArgs = null
-        const opts = (Array.isArray(a.options) && a.options.length > 0)
-          ? a.options.slice(0, 4)
-          : ['通过', '需要修改', '重做', '取消']
+        const defaultOpts =
+          defs?.options && defs.options.length > 0
+            ? defs.options.slice(0, 4)
+            : ['Approve', 'Revise', 'Redo', 'Cancel']
+        const opts =
+          Array.isArray(a.options) && a.options.length > 0
+            ? a.options.slice(0, 4)
+            : defaultOpts
+        const cancelLabel = defs?.cancelLabel || defaultOpts[defaultOpts.length - 1] || 'Cancel'
         const req: ExtensionUIRequest = {
           id, method: 'custom', kind: 'image_review',
           image: String(a.image || ''),
-          title: String(a.title || '').trim() || '图片审查',
-          question: String(a.question || '').trim() || '这张图片是否可用？',
+          title: String(a.title || '').trim() || defs?.title || 'Review',
+          question: String(a.question || '').trim() || defs?.question || 'Approve this item?',
           context: a.context ? String(a.context).trim() || undefined : undefined,
           options: opts as string[],
-          allowFeedback: a.allow_feedback !== false,
+          allowFeedback: a.allow_feedback !== undefined ? a.allow_feedback !== false : defs?.allowFeedback !== false,
         }
         return createDialogPromise(
           emitReq,
           pending,
           req,
           (r) => {
-            if (r.cancelled) return { choice: 'cancel', label: '取消' } as T
+            if (r.cancelled) return { choice: 'cancel', label: cancelLabel } as T
             const res = (r.result || {}) as { choice?: string; label?: string; feedback?: string }
             return { choice: res.choice, label: res.label, feedback: res.feedback } as T
           },
-          { choice: 'cancel', label: '取消' } as T,
+          { choice: 'cancel', label: cancelLabel } as T,
           dismissOpts,
         )
       }
@@ -312,16 +328,20 @@ export function createDesktopUIBridge(
         { signal, ...dismissOpts },
       )
     },
-    setInteractArgs(schema, args) {
-      interactArgs = args ? { schema, args } : null
+    setInteractArgs(schema, args, defaults) {
+      interactArgs = args ? { schema, args, defaults } : null
     },
     attachWidgetHost(host) {
       widgetHost?.dispose()
       widgetHost = host
     },
+    setStatusListener(listener) {
+      statusListener = listener
+    },
     dispose() {
       unsubAsk()
       interactArgs = null
+      statusListener = null
       widgetHost?.dispose()
       widgetHost = null
       for (const p of pending.values()) {

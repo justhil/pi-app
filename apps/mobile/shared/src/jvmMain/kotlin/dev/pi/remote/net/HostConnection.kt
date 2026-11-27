@@ -20,11 +20,13 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -86,6 +88,8 @@ class HostConnection(
     private var pairToken = pairToken
     private var loop: Job? = null
     private val kicks = Channel<Unit>(Channel.CONFLATED)
+    private val probes = Channel<Unit>(Channel.CONFLATED)
+    private val resetBackoff = AtomicBoolean(false)
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Frame>>()
     private val ids = AtomicLong()
     private val sendLock = Mutex()
@@ -106,15 +110,23 @@ class HostConnection(
         _state.value = State.Idle
     }
 
-    /** Skip the backoff wait (app came to the foreground, network changed, user tapped retry). */
-    fun kick() {
+    /**
+     * Skip the backoff wait (app came to the foreground, network changed, user tapped retry).
+     * When [immediateProbe] is true and the link is currently [State.Ready], sends a 3 s probe
+     * ping immediately so a half-open TCP socket fails fast instead of waiting up to 31 s.
+     */
+    fun kick(immediateProbe: Boolean = false) {
+        resetBackoff.set(true)
         kicks.trySend(Unit)
+        if (immediateProbe && _state.value is State.Ready) probes.trySend(Unit)
         if (loop?.isActive != true && _state.value !is State.Refused) start()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun runLoop() {
         var attempt = 0
         while (true) {
+            if (resetBackoff.getAndSet(false)) attempt = 0
             var lastError: String? = null
             for (ep in probeOrder(endpoints.toList())) {
                 _state.value = State.Connecting(ep, attempt)
@@ -137,11 +149,11 @@ class HostConnection(
                     failPending()
                 }
             }
-            attempt++
-            val waitMs = 1000L * min(30, 1 shl min(attempt - 1, 5))
+            if (resetBackoff.getAndSet(false)) attempt = 0 else attempt++
+            val waitMs = 1000L * min(30, 1 shl min((attempt - 1).coerceAtLeast(0), 5))
             _state.value = State.Backoff(attempt, System.currentTimeMillis() + waitMs, lastError)
             select {
-                kicks.onReceive { }
+                kicks.onReceive { attempt = 0 }
                 onTimeout(waitMs) { }
             }
         }
@@ -194,6 +206,7 @@ class HostConnection(
             channel = ch
             sender = { bytes -> send(WsFrame.Binary(true, bytes)) }
             val lastPong = AtomicLong(System.currentTimeMillis())
+            val pongs = Channel<Unit>(Channel.CONFLATED)
 
             val reader = launch {
                 for (f in incoming) {
@@ -211,7 +224,10 @@ class HostConnection(
                     }
                     when (frame.k) {
                         "res" -> frame.id?.let { pending.remove(it)?.complete(frame) }
-                        "pong" -> lastPong.set(System.currentTimeMillis())
+                        "pong" -> {
+                            lastPong.set(System.currentTimeMillis())
+                            pongs.trySend(Unit)
+                        }
                         "evt" -> if (frame.m != null && frame.p != null) _events.emit(Event(frame.m, frame.p))
                     }
                 }
@@ -223,16 +239,36 @@ class HostConnection(
                         close()
                         return@launch
                     }
-                    rawSend(Frame(v = PROTOCOL_VERSION, k = "ping", id = "p${ids.incrementAndGet()}"))
+                    runCatching { rawSend(Frame(v = PROTOCOL_VERSION, k = "ping", id = "p${ids.incrementAndGet()}")) }
+                        .onFailure { close(); return@launch }
+                }
+            }
+            val prober = launch {
+                for (u in probes) {
+                    while (pongs.tryReceive().isSuccess) { /* drain stale signal */ }
+                    val sentAt = System.currentTimeMillis()
+                    val sent = runCatching { rawSend(Frame(v = PROTOCOL_VERSION, k = "ping", id = "probe_${ids.incrementAndGet()}")) }.isSuccess
+                    if (!sent) {
+                        close()
+                        return@launch
+                    }
+                    val alive = kotlinx.coroutines.withTimeoutOrNull(PROBE_PING_TIMEOUT_MS) { pongs.receive() } != null || lastPong.get() >= sentAt
+                    if (!alive) {
+                        close()
+                        return@launch
+                    }
                 }
             }
             try {
+                // Drain any probe queued before handshake completed.
+                while (probes.tryReceive().isSuccess) { /* fresh handshake already verified liveness */ }
                 val helloResult = typedCall("host.hello", HelloParams.serializer(), hello, HelloResult.serializer(), 15_000)
                 _state.value = State.Ready(endpoint, identityPayload, helloResult)
                 // Prefer the endpoint that worked next time.
                 endpoints = listOf(endpoint) + endpoints.filter { it != endpoint }
                 reader.join()
             } finally {
+                prober.cancel()
                 heartbeat.cancel()
                 reader.cancel()
                 sender = null
@@ -273,6 +309,7 @@ class HostConnection(
 
     companion object {
         private const val PROBE_TIMEOUT_MS = 1500
+        private const val PROBE_PING_TIMEOUT_MS = 3000L
 
         fun defaultHttpClient(): HttpClient = HttpClient(OkHttp) {
             install(WebSockets)

@@ -8,6 +8,32 @@ export function markExtensionNotifyAppReady(): void {
   recentKeys.clear()
 }
 
+const GIT_CRLF_WARNING_RE =
+  /warning:\s+in the working copy of '[^']*',\s*(?:CRLF will be replaced by LF|LF will be replaced by CRLF) the next time Git touches it\s*/gi
+
+const VERBOSE_GIT_CMD_RE =
+  /Command failed:\s*git(?:\s+-c\s+[^\s]+)+\s+/gi
+
+/**
+ * Strip noisy Git CRLF warnings and verbose `-c key=val` flags from extension notifications
+ * so a failed git command in an extension never balloons into a full-screen toast.
+ */
+export function formatExtensionNotifyMessage(rawMessage: string, maxChars = 320): string {
+  if (!rawMessage) return ''
+  let cleaned = rawMessage
+    .replace(GIT_CRLF_WARNING_RE, '')
+    .replace(VERBOSE_GIT_CMD_RE, 'git ')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .trim()
+  if (cleaned.length > maxChars) {
+    cleaned = `${cleaned.slice(0, maxChars - 1)}…`
+  }
+  return cleaned
+}
+
 function key(message: string, notifyType: string): string {
   return `${notifyType}::${message.trim()}`
 }

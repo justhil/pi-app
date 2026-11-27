@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+import { clearTimelineHistoryPageCache } from '@renderer/lib/session-timeline-sync'
 import { useUIStore } from '@renderer/stores/ui-store'
 
 export interface GetMessagesResult {
@@ -7,6 +8,7 @@ export interface GetMessagesResult {
   sourceCount: number
   totalCount: number
   sessionMeta?: { model?: string; thinkingLevel?: string }
+  touchedFiles?: Array<{ path: string; source: 'edit' | 'write'; changeType: 'created' | 'modified' }>
   error?: string
 }
 
@@ -18,11 +20,13 @@ const sliceCache = new Map<
     items: unknown[]
     at: number
     sessionMeta?: GetMessagesResult['sessionMeta']
+    touchedFiles?: GetMessagesResult['touchedFiles']
   }
 >()
 const SLICE_TTL_MS = 120_000
 const INITIAL_TAIL = 80
 const PAGE = 80
+const inflightOlderPrefetches = new Map<string, Promise<GetMessagesResult>>()
 
 function activeWorkspace(): string | undefined {
   return useUIStore.getState().currentWorkspace || undefined
@@ -52,6 +56,7 @@ export async function fetchSessionHistoryTail(
         sourceCount: hit.sourceCount,
         totalCount: hit.totalCount,
         sessionMeta: hit.sessionMeta,
+        touchedFiles: hit.touchedFiles,
       }
     }
   }
@@ -69,14 +74,15 @@ export async function fetchSessionHistoryTail(
       : items.length
   const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : sourceCount
   const sessionMeta = res?.sessionMeta
+  const touchedFiles = (res as { touchedFiles?: GetMessagesResult['touchedFiles'] })?.touchedFiles
   const err = (res as { error?: string })?.error
   if (err) {
     return { items: [], sourceCount: 0, totalCount: 0, sessionMeta, error: err }
   }
   if (sourceCount > 0 || totalCount > 0) {
-    sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now(), sessionMeta })
+    sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now(), sessionMeta, touchedFiles })
   }
-  return { items, sourceCount, totalCount, sessionMeta }
+  return { items, sourceCount, totalCount, sessionMeta, touchedFiles }
 }
 
 export async function fetchSessionHistoryOlder(
@@ -89,24 +95,48 @@ export async function fetchSessionHistoryOlder(
   if (hit && Date.now() - hit.at < SLICE_TTL_MS) {
     return { items: hit.items, sourceCount: hit.sourceCount, totalCount: hit.totalCount }
   }
-  const res = await ipcClient.invoke('session.getMessages', {
-    sessionFile,
-    workspaceId: activeWorkspace(),
-    offset,
-    limit,
-  })
-  const items = res?.items || []
-  const sourceCount =
-    typeof (res as { sourceCount?: number })?.sourceCount === 'number'
-      ? (res as { sourceCount: number }).sourceCount
-      : items.length
-  const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : sourceCount
-  const sessionMeta = res?.sessionMeta
-  sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now() })
-  return { items, sourceCount, totalCount, sessionMeta }
+  const existing = inflightOlderPrefetches.get(key)
+  if (existing) return existing
+  const req = ipcClient
+    .invoke('session.getMessages', {
+      sessionFile,
+      workspaceId: activeWorkspace(),
+      offset,
+      limit,
+    })
+    .then((res) => {
+      const items = res?.items || []
+      const sourceCount =
+        typeof (res as { sourceCount?: number })?.sourceCount === 'number'
+          ? (res as { sourceCount: number }).sourceCount
+          : items.length
+      const totalCount = typeof res?.totalCount === 'number' ? res.totalCount : sourceCount
+      const sessionMeta = res?.sessionMeta
+      sliceCache.set(key, { items, sourceCount, totalCount, at: Date.now() })
+      return { items, sourceCount, totalCount, sessionMeta }
+    })
+    .finally(() => {
+      if (inflightOlderPrefetches.get(key) === req) inflightOlderPrefetches.delete(key)
+    })
+  inflightOlderPrefetches.set(key, req)
+  return req
+}
+
+/** Silently warm the next older disk page into `sliceCache` without mutating UI state or DOM. */
+export function prefetchSessionHistoryOlder(
+  sessionFile: string,
+  offset: number,
+  limit = PAGE,
+): void {
+  const key = cacheKey(sessionFile, offset, limit)
+  const hit = sliceCache.get(key)
+  if (hit && Date.now() - hit.at < SLICE_TTL_MS) return
+  if (inflightOlderPrefetches.has(key)) return
+  void fetchSessionHistoryOlder(sessionFile, offset, limit).catch(() => {})
 }
 
 export function clearSessionHistoryCache(sessionFile?: string): void {
+  clearTimelineHistoryPageCache(sessionFile)
   if (!sessionFile) {
     sliceCache.clear()
     return

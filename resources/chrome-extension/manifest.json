@@ -1,17 +1,22 @@
 {
   "manifest_version": 3,
   "name": "pi Desktop Browser Bridge",
-  "description": "Lets the AI in pi Desktop work in this Chrome (your sign-ins) in its own window. Pair it from pi Desktop → Settings → Browser.",
-  "version": "1.1.0",
+  "description": "Lets the AI in pi Desktop work in this Chrome (your sign-ins) in its own window and sync selected site sign-ins. Pair from pi Desktop → Settings → Browser.",
+  "version": "1.3.0",
   "minimum_chrome_version": "125",
   "permissions": [
     "debugger",
     "tabs",
     "tabGroups",
+    "cookies",
     "storage",
     "alarms",
     "downloads",
     "notifications"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"

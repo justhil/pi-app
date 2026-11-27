@@ -68,7 +68,10 @@
             "title": "API 连接"
           },
           "en": {
-            "title": "ACE Capabilities"
+            "title": "API Connection"
+          },
+          "ru": {
+            "title": "Подключение к API"
           }
         }
       },
@@ -104,7 +107,10 @@
             "title": "提示词增强"
           },
           "en": {
-            "title": "Connectivity Test"
+            "title": "Prompt Enhancer"
+          },
+          "ru": {
+            "title": "Улучшение промптов"
           }
         }
       }
@@ -128,7 +134,10 @@
         "note": "配置写入 ~/.pi/agent/ace-tool.json（与扩展共享）。apiMode=official-oauth 需先在终端 /ace-login 完成 OAuth。"
       },
       "en": {
-        "note": "Writes ~/.pi/agent/ace-tool.json. Connectivity test verifies the endpoint is reachable."
+        "note": "Writes ~/.pi/agent/ace-tool.json (shared with the extension). When apiMode=official-oauth, complete OAuth in the terminal with /ace-login first."
+      },
+      "ru": {
+        "note": "Записывает в ~/.pi/agent/ace-tool.json (общий с расширением). При apiMode=official-oauth сначала выполните OAuth-вход командой /ace-login в терминале."
       }
     }
   },
@@ -136,15 +145,67 @@
     "zh": {
       "displayName": "ACE Tool",
       "description": "ACE 代码智能工具（配置 ~/.pi/agent/ace-tool.json + 连通性测试）",
+      "fieldLabels": {
+        "apiMode": "API 模式",
+        "baseUrl": "Compat Base URL",
+        "token": "Compat Token",
+        "autoIndexOnSessionStart": "会话开始自动索引",
+        "promptEnhancerMode": "增强模式",
+        "promptEnhancerModel": "增强模型",
+        "promptEnhancerIncludeSearchContext": "增强时包含搜索上下文"
+      },
+      "fieldDescriptions": {
+        "apiMode": "auto=按可用凭证自动选择；compat=兼容代理；official-oauth=官方 OAuth",
+        "baseUrl": "compat 模式的中转地址（含尾斜杠）",
+        "token": "输入 - 清除已保存 token",
+        "promptEnhancerModel": "provider/model 格式"
+      },
       "actionLabels": {
         "test": "测试连接"
       }
     },
     "en": {
       "displayName": "ACE Tool",
-      "description": "ACE tool capability manager; writes ~/.pi/agent/ace-tool.json + connectivity test",
+      "description": "ACE code intelligence tool (settings in ~/.pi/agent/ace-tool.json + connectivity test)",
+      "fieldLabels": {
+        "apiMode": "API mode",
+        "baseUrl": "Compat base URL",
+        "token": "Compat token",
+        "autoIndexOnSessionStart": "Auto-index on session start",
+        "promptEnhancerMode": "Enhancer mode",
+        "promptEnhancerModel": "Enhancer model",
+        "promptEnhancerIncludeSearchContext": "Include search context when enhancing"
+      },
+      "fieldDescriptions": {
+        "apiMode": "auto = pick by available credentials; compat = compatible proxy; official-oauth = official OAuth",
+        "baseUrl": "Proxy URL for compat mode (include trailing slash)",
+        "token": "Enter - to clear the saved token",
+        "promptEnhancerModel": "provider/model format"
+      },
       "actionLabels": {
-        "test": "测试连接"
+        "test": "Test connection"
+      }
+    },
+    "ru": {
+      "displayName": "ACE Tool",
+      "description": "Инструмент анализа кода ACE (настройки в ~/.pi/agent/ace-tool.json + проверка соединения)",
+      "fieldLabels": {
+        "apiMode": "Режим API",
+        "baseUrl": "Базовый URL compat",
+        "token": "Compat-токен",
+        "autoIndexOnSessionStart": "Автоиндексация при старте сессии",
+        "promptEnhancerMode": "Режим улучшения",
+        "promptEnhancerModel": "Модель улучшения",
+        "promptEnhancerIncludeSearchContext": "Включать контекст поиска при улучшении"
+      },
+      "fieldDescriptions": {
+        "apiMode": "auto = выбор по доступным учётным данным; compat = совместимый прокси; official-oauth = официальный OAuth",
+        "baseUrl": "URL прокси для режима compat (со слешем на конце)",
+        "token": "Введите -, чтобы очистить сохранённый токен",
+        "promptEnhancerModel": "Формат provider/model"
+      },
+      "actionLabels": {
+        "test": "Проверить соединение"
       }
     }
   }

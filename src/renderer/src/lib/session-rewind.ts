@@ -10,6 +10,10 @@ import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { getSessionNavigationToken, isSessionNavigationCurrent } from '@renderer/lib/session-navigation'
 import { sanitizeHistoryTimeline } from '@renderer/lib/timeline-dedupe'
+import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
+import { bumpSessionHydrateEpoch } from '@renderer/lib/session-shell'
+
+const rewindInFlight = new Set<string>()
 
 /**
  * Rewind / jump to a session tree entry (pi navigateTree semantics).
@@ -43,39 +47,97 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     })
 
     if (!file) {
-      toast.warning('未找到会话文件，无法刷新时间线')
+      toast.warning(i18n.t('timeline:rewind.needFile'))
       return false
     }
     if (!targetId || !String(targetId).trim()) {
-      toast.warning('无法回退：缺少消息节点 id')
+      toast.warning(i18n.t('timeline:rewind.needEntryId'))
       return false
     }
 
-    // Bind + navigate on the session's worker (required for pi tree pointer).
-    const r = (await ipcClient.invoke('session.navigateTree', {
-      targetId,
-      sessionFile: file,
-      summarize: false,
-    })) as {
+    const { clearAbortQueueIgnore, clearAbortUiHold } = await import('@renderer/lib/abort-ui-hold')
+    clearAbortUiHold(file)
+    clearAbortQueueIgnore(file)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('pi-desktop:cancel-pending-send', { detail: { sessionFile: file } }))
+    }
+    const needAbort =
+      st.runState.status === 'running' ||
+      st.sessionRuntimeRunning[file] === true ||
+      st.workerLiveSnapshot.status === 'running' ||
+      st.agentTurnBootstrapping ||
+      !!st.streamingAssistantId ||
+      st.optimisticPendingUserText != null
+
+    const lockKey = file.toLowerCase()
+    if (rewindInFlight.has(lockKey)) return false
+    rewindInFlight.add(lockKey)
+
+    let loadingToastId: string | number | null = null
+    const dismissLoadingToast = () => {
+      if (loadingToastId != null) {
+        toast.dismiss(loadingToastId)
+        loadingToastId = null
+      }
+    }
+    const loadingTimer = setTimeout(() => {
+      if (!useExtensionUIStore.getState().activePending) {
+        loadingToastId = toast.loading(i18n.t('timeline:rewind.preparing'))
+      }
+    }, 220)
+    const unsubExtUi = useExtensionUIStore.subscribe((state) => {
+      if (state.activePending) {
+        clearTimeout(loadingTimer)
+        dismissLoadingToast()
+      }
+    })
+
+    let r: {
       cancelled?: boolean
+      noOp?: boolean
       error?: string
       editorText?: string
       leafId?: string | null
       sessionMeta?: { model?: string; thinkingLevel?: string }
     }
+    try {
+      // Bind + navigate on the session's worker (required for pi tree pointer).
+      r = (await ipcClient.invoke('session.navigateTree', {
+        targetId,
+        sessionFile: file,
+        summarize: false,
+        ...(needAbort ? { abortIfBusy: true } : {}),
+      })) as typeof r
+    } finally {
+      clearTimeout(loadingTimer)
+      dismissLoadingToast()
+      unsubExtUi()
+      rewindInFlight.delete(lockKey)
+    }
+
     console.log('[rewind] navigateTree response:', {
       cancelled: r?.cancelled,
+      noOp: r?.noOp,
       error: r?.error,
       leafId: r?.leafId,
       hasEditorText: !!(r?.editorText && r.editorText.length),
     })
     if (!stillCurrent()) return false
-    if (r?.cancelled || r?.error) {
-      toast.error(r?.error || '跳转已取消')
+    if (r?.error) {
+      toast.error(r.error)
+      return false
+    }
+    if (r?.cancelled) {
+      return false
+    }
+    if (r?.noOp) {
+      toast.info(i18n.t('timeline:rewind.alreadyAtNode'))
       return false
     }
 
     const leafId = r?.leafId !== undefined ? r.leafId : targetId
+    // Invalidate any stale cold-start hydrateSessionView so it cannot overwrite the rewound timeline.
+    bumpSessionHydrateEpoch(file)
 
     const editorText = typeof r?.editorText === 'string' ? r.editorText : ''
     if (editorText) st.setComposerPrefill(editorText)
@@ -126,7 +188,7 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
         const disk = await getSessionMessagesFromDiskViaIpc(file, leafId)
         if (!stillCurrent()) return false
         if (disk.error) {
-          toast.error(hist.error || '回退后刷新历史失败')
+          toast.error(hist.error || i18n.t('timeline:rewind.historyRefreshFailed'))
           return false
         }
         const items = sanitizeHistoryTimeline((disk.items || []) as TimelineItem[])
@@ -155,14 +217,14 @@ export async function navigateSessionToEntry(targetId: string): Promise<boolean>
     if (!stillCurrent()) return false
     toast.success(
       editorText
-        ? '已回退：消息已填入输入框，可修改后重新发送'
-        : '已跳转到该节点，可从此继续',
+        ? i18n.t('timeline:rewind.doneWithText')
+        : i18n.t('timeline:rewind.doneAtNode'),
     )
     return true
   } catch (e: unknown) {
     if (!stillCurrent()) return false
     console.error('[rewind] navigateSessionToEntry error:', e)
-    toast.error((e instanceof Error ? e.message : String(e)) || '回退失败')
+    toast.error((e instanceof Error ? e.message : String(e)) || i18n.t('timeline:rewind.failed'))
     return false
   }
 }

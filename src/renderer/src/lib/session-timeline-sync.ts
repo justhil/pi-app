@@ -1,4 +1,5 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import type { TimelineItem } from '@renderer/stores/ui-store-types'
 import { useUIStore } from '@renderer/stores/ui-store'
 import {
@@ -17,12 +18,67 @@ export type HistoryPage = {
   error?: string
 }
 
+const OLDER_PAGE_TTL_MS = 90_000
+const olderPageCache = new Map<string, { page: HistoryPage; at: number }>()
+const inflightOlderPages = new Map<string, Promise<HistoryPage>>()
+
+function olderPageKey(sessionFile: string, offset: number, limit: number): string {
+  const norm = normalizeSessionFileKey(sessionFile) || sessionFile
+  return `${norm}|${offset}|${limit}`
+}
+
+export function clearTimelineHistoryPageCache(sessionFile?: string): void {
+  if (!sessionFile) {
+    olderPageCache.clear()
+    return
+  }
+  const prefix = `${normalizeSessionFileKey(sessionFile) || sessionFile}|`
+  for (const k of olderPageCache.keys()) {
+    if (k.startsWith(prefix)) olderPageCache.delete(k)
+  }
+}
+
 export async function fetchTimelineHistoryPage(
   sessionFile: string,
   offset: number,
   limit: number = TIMELINE_FETCH_PAGE_SIZE,
 ): Promise<HistoryPage> {
+  if (offset > 0) {
+    const key = olderPageKey(sessionFile, offset, limit)
+    const hit = olderPageCache.get(key)
+    if (hit && Date.now() - hit.at < OLDER_PAGE_TTL_MS) {
+      return hit.page
+    }
+    const existing = inflightOlderPages.get(key)
+    if (existing) return existing
+    const req = fetchPage(sessionFile, offset, limit)
+      .then((page) => {
+        if (!page.error && page.items.length > 0) {
+          olderPageCache.set(key, { page, at: Date.now() })
+        }
+        return page
+      })
+      .finally(() => {
+        if (inflightOlderPages.get(key) === req) inflightOlderPages.delete(key)
+      })
+    inflightOlderPages.set(key, req)
+    return req
+  }
   return fetchPage(sessionFile, offset, limit)
+}
+
+/** Silently warm the next older disk page into memory without mutating UI store or DOM. */
+export function prefetchTimelineHistoryPage(
+  sessionFile: string,
+  offset: number,
+  limit: number = TIMELINE_FETCH_PAGE_SIZE,
+): void {
+  if (offset <= 0) return
+  const key = olderPageKey(sessionFile, offset, limit)
+  const hit = olderPageCache.get(key)
+  if (hit && Date.now() - hit.at < OLDER_PAGE_TTL_MS) return
+  if (inflightOlderPages.has(key)) return
+  void fetchTimelineHistoryPage(sessionFile, offset, limit).catch(() => {})
 }
 
 async function fetchPage(sessionFile: string, offset: number, limit: number): Promise<HistoryPage> {

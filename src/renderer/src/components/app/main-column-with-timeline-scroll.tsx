@@ -17,6 +17,7 @@ export function MainColumnWithTimelineScroll({
     const el = ref.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
+      if (e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
       const t = e.target as HTMLElement
       if (
         t.closest(

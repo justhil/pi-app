@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CheckSquare, ListTree, BookOpen, RefreshCw, ChevronRight } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -24,12 +25,7 @@ interface TasksPanelState {
   recentJournals?: { title: string; date: string; lines: number; preview: string }[]
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  in_progress: '进行中',
-  planning: '规划中',
-  review: '审查中',
-  completed: '已完成',
-}
+// Task status labels come from adapters:tasks.status.* so the panel follows the UI language.
 
 const STATUS_COLORS: Record<string, string> = {
   in_progress: 'bg-green-500/15 text-green-600 dark:text-green-400',
@@ -44,6 +40,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
   const [loading, setLoading] = useState(false)
   const [expandedTask, setExpandedTask] = useState<string | null>(null)
   const workspace = useUIStore((s) => s.currentWorkspace)
+  const { t } = useTranslation()
 
   const fetchData = async () => {
     if (!workspace || !adapterId) return
@@ -80,13 +77,13 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
   }, [workspace, adapterId])
 
   if (!adapterId) {
-    return <div className="p-4 text-[12px] text-muted-foreground">未绑定 adapterId（{panelId}）</div>
+    return <div className="p-4 text-[12px] text-muted-foreground">{t('adapters:tasks.noAdapterId', { panelId })}</div>
   }
 
   if (!workspace) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <span className="text-[12px] text-muted-foreground/50">请先打开项目</span>
+        <span className="text-[12px] text-muted-foreground/50">{t('adapters:tasks.openProjectFirst')}</span>
       </div>
     )
   }
@@ -94,9 +91,9 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
   if (loadError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <span className="text-[12px] text-muted-foreground/50">无法加载面板状态</span>
+        <span className="text-[12px] text-muted-foreground/50">{t('adapters:tasks.loadFailed')}</span>
         <span className="text-[10px] font-mono text-muted-foreground/40">{loadError}</span>
-        <button type="button" onClick={fetchData} className="text-[11px] text-primary hover:underline">重试</button>
+        <button type="button" onClick={fetchData} className="text-[11px] text-primary hover:underline">{t('adapters:tasks.retry')}</button>
       </div>
     )
   }
@@ -104,8 +101,8 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
   if (!data.ready) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center">
-        <span className="text-[12px] text-muted-foreground/50">当前项目无任务工作区布局</span>
-        <span className="text-[10px] text-muted-foreground/40">需在项目根存在 `.trellis/`（stateProvider: workspace-trellis）</span>
+        <span className="text-[12px] text-muted-foreground/50">{t('adapters:tasks.noLayout')}</span>
+        <span className="text-[10px] text-muted-foreground/40">{t('adapters:tasks.needsTrellis')}</span>
       </div>
     )
   }
@@ -127,7 +124,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
       {data.tasks.length > 0 && (
         <div className="px-2 py-1.5 space-y-1">
           <div className="px-1 pb-1 text-[12px] text-foreground-secondary">
-            活跃任务 ({data.tasks.length})
+            {t('adapters:tasks.activeCount', { count: data.tasks.length })}
           </div>
           {data.tasks.map((task) => {
             const isExpanded = expandedTask === task.name
@@ -144,19 +141,19 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       {task.isCurrent && (
-                        <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-green-500" title="当前任务" />
+                        <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-green-500" title={t('adapters:tasks.currentTask')} />
                       )}
                       <span className="truncate text-[12px] font-medium leading-tight">{task.title}</span>
                     </div>
                     <div className="mt-1 flex items-center gap-1.5">
                       <span className={cn('rounded px-1.5 py-0.5 text-[9px] font-medium', STATUS_COLORS[task.status] || 'bg-muted text-muted-foreground')}>
-                        {STATUS_LABELS[task.status] || task.status}
+                        {t(`adapters:tasks.status.${task.status}`, { defaultValue: task.status })}
                       </span>
                       {task.priority && (
                         <span className="text-[9px] font-mono text-muted-foreground/50">{task.priority}</span>
                       )}
                       {task.subtasks && task.subtasks.length > 0 && (
-                        <span className="text-[9px] text-muted-foreground/50">{task.subtasks.length} 子任务</span>
+                        <span className="text-[9px] text-muted-foreground/50">{t('adapters:tasks.subtaskCount', { count: task.subtasks.length })}</span>
                       )}
                     </div>
                   </div>
@@ -174,7 +171,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
                       <div>
                         <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-1">
                           <ListTree className="h-3 w-3" />
-                          子任务
+                          {t('adapters:tasks.subtasks')}
                         </div>
                         {task.subtasks.map((st, i) => (
                           <div key={i} className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground/70">
@@ -190,7 +187,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
                       <div>
                         <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-1">
                           <CheckSquare className="h-3 w-3" />
-                          验收条件
+                          {t('adapters:tasks.acceptance')}
                         </div>
                         {task.acceptanceCriteria.map((ac, i) => (
                           <div key={i} className="flex items-start gap-1.5 py-0.5 text-[11px] text-muted-foreground/80">
@@ -217,7 +214,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
       {/* Empty tasks */}
       {data.tasks.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 p-4 text-center">
-          <span className="text-[12px] text-foreground-secondary/70">暂无活跃任务</span>
+          <span className="text-[12px] text-foreground-secondary/70">{t('adapters:tasks.empty')}</span>
         </div>
       )}
 
@@ -225,7 +222,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
       {data.recentJournals && data.recentJournals.length > 0 && (
         <div className="px-2 py-1.5 space-y-1 border-t border-border/40 mt-1">
           <div className="px-1 pb-1 text-[12px] text-foreground-secondary">
-            最近日志
+            {t('adapters:tasks.journals')}
           </div>
           {data.recentJournals.map((j, i) => (
             <div key={i} className="rounded-lg border border-border/30 bg-card/20 px-2.5 py-1.5">
@@ -235,7 +232,7 @@ export function WorkspaceTasksSidePanel({ panelId, adapterId }: SidePanelCompone
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/40">
                 <span className="font-mono">{j.date}</span>
-                <span>{j.lines} 行</span>
+                <span>{t('adapters:tasks.lines', { count: j.lines })}</span>
               </div>
               {j.preview && (
                 <p className="mt-0.5 truncate text-[10px] text-muted-foreground/40">{j.preview}</p>

@@ -58,12 +58,12 @@ function normalizeGitData(diff: RawGitDiff): ReviewGitData {
 const FRESH_MS = 2000
 const sharedDiff = new Map<string, { at: number; settled: boolean; promise: Promise<RawGitDiff> }>()
 
-function fetchSharedGitDiff(identity: string, force: boolean): Promise<RawGitDiff> {
+function fetchSharedGitDiff(identity: string, cwd: string, force: boolean): Promise<RawGitDiff> {
   const hit = sharedDiff.get(identity)
   if (hit && (!hit.settled || (!force && Date.now() - hit.at < FRESH_MS))) return hit.promise
   const entry = { at: Date.now(), settled: false, promise: Promise.resolve({} as RawGitDiff) }
   entry.promise = ipcClient
-    .invoke('review.getDiff', { sessionId: '', scope: 'git' })
+    .invoke('review.getDiff', { sessionId: '', scope: 'git', cwd })
     .then((response) => (response?.diff || {}) as RawGitDiff)
     .finally(() => {
       entry.settled = true
@@ -89,6 +89,8 @@ export function useReviewGitData(options: {
   const identity = enabled && workspace ? workspace.replace(/\\/g, '/') : ''
   const identityRef = useRef(identity)
   identityRef.current = identity
+  const workspaceRef = useRef(workspace || '')
+  workspaceRef.current = workspace || ''
   const dataRef = useRef<{ identity: string; data: ReviewGitData | null }>({
     identity: '',
     data: null,
@@ -105,7 +107,8 @@ export function useReviewGitData(options: {
 
   const load = useCallback(async (force: boolean): Promise<void> => {
     const requestIdentity = identityRef.current
-    if (!requestIdentity) return
+    const requestWorkspace = workspaceRef.current
+    if (!requestIdentity || !requestWorkspace) return
     if (inFlightRef.current) {
       queuedRef.current = true
       return inFlightRef.current
@@ -120,7 +123,7 @@ export function useReviewGitData(options: {
     })
     const request = (async () => {
       try {
-        const diff = await fetchSharedGitDiff(requestIdentity, force)
+        const diff = await fetchSharedGitDiff(requestIdentity, requestWorkspace, force)
         if (identityRef.current !== requestIdentity) return
         const next = normalizeGitData(diff)
         const previous = dataRef.current.identity === requestIdentity ? dataRef.current.data : null

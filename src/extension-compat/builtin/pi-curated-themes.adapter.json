@@ -10,7 +10,18 @@
   },
   "tier": "none",
   "config": {
-    "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。"
+    "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。",
+    "i18n": {
+      "zh": {
+        "note": "pi 终端主题包；桌面用独立 Appearance 设置，不复刻终端主题。"
+      },
+      "en": {
+        "note": "pi terminal theme package; the desktop app uses its own Appearance settings and does not mirror terminal themes."
+      },
+      "ru": {
+        "note": "Пакет тем терминала pi; desktop-клиент использует собственные настройки Appearance и не дублирует темы терминала."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -20,6 +31,10 @@
     "en": {
       "displayName": "Curated Themes",
       "description": "pi terminal themes (the desktop app uses its own Appearance settings)"
+    },
+    "ru": {
+      "displayName": "Curated Themes",
+      "description": "Набор тем терминала pi (desktop использует собственные настройки Appearance)"
     }
   }
 }

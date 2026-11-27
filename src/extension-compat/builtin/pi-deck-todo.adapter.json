@@ -23,6 +23,7 @@
   },
   "i18n": {
     "zh": { "displayName": "PiDeck Todo", "description": "在输入框上方显示当前会话 Todo" },
-    "en": { "displayName": "PiDeck Todo", "description": "Show the current session Todo list above the composer" }
+    "en": { "displayName": "PiDeck Todo", "description": "Show the current session Todo list above the composer" },
+    "ru": { "displayName": "PiDeck Todo", "description": "Показывать список Todo текущей сессии над композером" }
   }
 }

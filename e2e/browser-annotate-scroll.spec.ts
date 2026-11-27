@@ -1,15 +1,13 @@
-import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test'
+import { test, expect, type ElectronApplication } from '@playwright/test'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { createRequire } from 'node:module'
+import { launchCleanApp } from './helpers/clean-launch'
 import { root } from './helpers/scripted-agent'
 
-const require = createRequire(import.meta.url)
-const electronExecutable = require('electron') as string
-const mainEntry = path.join(root, 'out/main/index.js')
+
 
 /**
  * Annotation mode scrolling: same long page, same wheel gesture (15 × 100px at 16 ms), measured
@@ -32,12 +30,7 @@ test('annotation mode scrolls without stalling', async () => {
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   const configHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-e2e-annot-'))
-  const app = await electron.launch({
-    executablePath: electronExecutable,
-    args: [mainEntry, '--ozone-platform=x11', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])],
-    env: { ...process.env, PI_E2E: '1', XDG_CONFIG_HOME: configHome, ELECTRON_DISABLE_SECURITY_WARNINGS: '1' },
-    timeout: 60_000,
-  })
+  const app = await launchCleanApp({ env: { XDG_CONFIG_HOME: configHome } })
   try {
     const win = await app.firstWindow({ timeout: 45_000 })
     await win.waitForFunction(() => !!(window as unknown as { __piE2E?: unknown }).__piE2E, null, { timeout: 45_000 })

@@ -42,6 +42,48 @@ afterEach(() => {
 })
 
 describe('active SDK model config persistence', () => {
+  it('deletes cleared provider name/apiKey instead of resurrecting stale values from retained models.json', async () => {
+    const agentDir = createAgentDir()
+    const sdk = createSdk()
+    writeFileSync(
+      join(agentDir, 'models.json'),
+      JSON.stringify({
+        providers: {
+          'my-proxy': {
+            name: '自定义中转',
+            baseUrl: 'https://relay.invalid/v1',
+            api: 'openai-completions',
+            apiKey: '$OLD_KEY',
+            compat: { supportsDeveloperRole: false },
+            models: [{ id: 'm1' }],
+          },
+        },
+      }),
+      'utf8',
+    )
+
+    await expect(
+      writeModelsConfigWithSdk(
+        {
+          providers: {
+            'my-proxy': {
+              baseUrl: 'https://relay.invalid/v1',
+              api: 'openai-completions',
+              models: [{ id: 'm1' }],
+            },
+          },
+        },
+        sdk,
+        agentDir,
+      ),
+    ).resolves.toMatchObject({ ok: true })
+
+    const saved = JSON.parse(readFileSync(join(agentDir, 'models.json'), 'utf8'))
+    expect(saved.providers['my-proxy'].name).toBeUndefined()
+    expect(saved.providers['my-proxy'].apiKey).toBeUndefined()
+    expect(saved.providers['my-proxy'].compat).toEqual({ supportsDeveloperRole: false })
+  })
+
   it('writes provider config to the active SDK agent dir without rewriting values', async () => {
     const agentDir = createAgentDir()
     const sdk = createSdk()

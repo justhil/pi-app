@@ -40,7 +40,7 @@ function sameInboxItems(previous: InboxItem[], next: InboxItem[]): boolean {
   return previous.every((item, index) => JSON.stringify(item) === JSON.stringify(next[index]))
 }
 
-export function NotificationInbox() {
+export function NotificationInbox({ buttonClassName }: { buttonClassName?: string } = {}) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<InboxItem[]>([])
@@ -144,8 +144,17 @@ export function NotificationInbox() {
 
   return (
     <>
-      <button ref={anchorRef} type="button" className="chrome-icon-btn notification-trigger workbench-icon" title={t('common:notification.inbox')} aria-label={t('common:notification.inbox')} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setOpen((v) => !v); void load() }}>
-        <Inbox className="h-4 w-4" />
+      <button
+        ref={anchorRef}
+        type="button"
+        className={buttonClassName || 'chrome-icon-btn notification-trigger workbench-icon'}
+        title={t('common:notification.inbox')}
+        aria-label={t('common:notification.inbox')}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => { setOpen((v) => !v); void load() }}
+      >
+        <Inbox className="h-[15px] w-[15px]" strokeWidth={1.65} />
         {unread > 0 && <span className="notification-unread-dot" />}
       </button>
       {open && <ShellPopover title={t('common:notification.inbox')} anchorRef={anchorRef} onClose={close}>

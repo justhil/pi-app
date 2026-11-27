@@ -1,8 +1,10 @@
 import { app, BrowserWindow } from 'electron'
 import { configStore } from './config-store'
+import { resolveUiLanguage } from './ui-language'
 import { traceAudio } from './audio-trace'
 import { presentCompletionCard } from './completion-notification-delivery'
 import { buildCompletionNotificationCopy } from '@shared/completion-preview'
+import { mainLabel } from '@shared/main-labels'
 
 export type DesktopAlertKind = 'extension_ui' | 'run_idle'
 
@@ -61,7 +63,7 @@ export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopA
   if (!scenario || (!doNotify && !doSound)) return
 
   ensureNotificationIdentity()
-  const language = configStore.get('language') === 'en' ? 'en' : 'zh'
+  const language = resolveUiLanguage()
   const copy = buildCompletionNotificationCopy({
     language,
     outcome: 'success',
@@ -81,7 +83,7 @@ export function deliverDesktopAlert(win: BrowserWindow | null, payload: DesktopA
         title: payload.title || copy.title,
         body: payload.body || copy.body,
         projectLabel: 'pi Desktop',
-        openLabel: language === 'zh' ? '返回应用' : 'Back to app',
+        openLabel: mainLabel(language, 'alert.open'),
       },
     },
     doNotify ? 'auto' : 'custom',

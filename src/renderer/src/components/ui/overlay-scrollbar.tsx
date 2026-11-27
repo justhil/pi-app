@@ -92,6 +92,10 @@ export function OverlayScrollbarRail({
   }, [targetRef, update])
 
   useEffect(() => {
+    if (hostHover || railHover) update()
+  }, [hostHover, railHover, update])
+
+  useEffect(() => {
     if (!dragging) return
     const onMove = (e: MouseEvent) => {
       const el = targetRef.current
@@ -244,6 +248,10 @@ export function OverlayScrollbarRailH({
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [targetRef, update])
+
+  useEffect(() => {
+    if (hostHover || railHover) update()
+  }, [hostHover, railHover, update])
 
   useEffect(() => {
     if (!dragging) return

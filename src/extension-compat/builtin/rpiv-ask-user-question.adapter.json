@@ -11,6 +11,10 @@
       "ask_user_question"
     ]
   },
+  "install": {
+    "source": "npm:@juicesharp/rpiv-ask-user-question",
+    "homepage": "https://github.com/juicesharp/rpiv-mono"
+  },
   "tier": "native",
   "toolCard": {
     "template": "kv",
@@ -27,7 +31,18 @@
     }
   },
   "config": {
-    "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。"
+    "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。",
+    "i18n": {
+      "zh": {
+        "note": "问卷交互由 Worker 注入 uiContext 并转发 extension-ui-request；桌面 QuestionnaireDialog 渲染，无需配置。"
+      },
+      "en": {
+        "note": "Questionnaire interactions are injected via Worker uiContext and forwarded as extension-ui-request; rendered by the desktop QuestionnaireDialog with no configuration needed."
+      },
+      "ru": {
+        "note": "Взаимодействие с опросником передаётся Worker'ом через uiContext и extension-ui-request; в desktop отображается через QuestionnaireDialog и не требует настройки."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -37,6 +52,10 @@
     "en": {
       "displayName": "Ask User Question",
       "description": "Structured questionnaire (desktop question dialog with option previews)"
+    },
+    "ru": {
+      "displayName": "Ask User Question",
+      "description": "Структурированный опросник (диалог вопросов в desktop с предпросмотром вариантов)"
     }
   }
 }

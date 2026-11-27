@@ -10,6 +10,25 @@ import { sessionPreviewProcess } from '../../session-preview-process'
 import { registerHandler, registerHandlerWithSchema, sendEvent } from '../registry'
 import { settingsSetSchema } from '../schemas'
 import { remoteTap } from '../../remote/tap'
+import { isSandboxWorkspacePath } from '../../sandbox-workspaces'
+import { resolveUiLanguage } from '../../ui-language'
+
+function isSandboxPathSafe(path: string): boolean {
+  try {
+    return isSandboxWorkspacePath(path)
+  } catch {
+    return path.replace(/\\/g, '/').includes('sandbox-workspaces/')
+  }
+}
+
+function readCleanRecentProjects(): string[] {
+  const raw = configStore.get('recentProjects') || []
+  const cleaned = raw.filter((p) => typeof p === 'string' && !!p.trim() && !isSandboxPathSafe(p))
+  if (cleaned.length !== raw.length) {
+    configStore.set('recentProjects', cleaned)
+  }
+  return cleaned
+}
 
 export function registerSettingsHandlers(): void {
   registerHandler('ipc:settings.get', async (req) => {
@@ -18,9 +37,13 @@ export function registerSettingsHandlers(): void {
       if (key === 'asrConfig') {
         return { settings: { asrConfig: asrConfigForSettingsResponse(loadAsrConfig()) } }
       }
+      if (key === 'recentProjects') {
+        return { settings: { recentProjects: readCleanRecentProjects() } }
+      }
       return { settings: { [req.key]: configStore.get(key) } }
     }
     const all = { ...configStore.getAll() }
+    all.recentProjects = readCleanRecentProjects()
     all.asrConfig = asrConfigForSettingsResponse(loadAsrConfig())
     return { settings: all }
   })
@@ -65,6 +88,7 @@ export function registerSettingsHandlers(): void {
       return { key: req.key, value: next }
     }
     configStore.set(key, req.value as StoreSchema[typeof key])
+    if (key === 'language') resolveUiLanguage()
     if (key === 'sessionCapabilities') remoteTap.settingsChanged('capabilities')
     return { key: req.key, value: req.value }
   })

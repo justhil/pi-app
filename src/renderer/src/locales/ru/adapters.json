@@ -1,0 +1,49 @@
+{
+  "title": "Adapters",
+  "panel": {
+    "openProject": "Сначала откройте проект",
+    "unavailable": "Объявление панели недоступно",
+    "refresh": "Обновить",
+    "empty": "Данных пока нет",
+    "readFailed": "Не удалось прочитать данные панели",
+    "errors": {
+      "outside_workspace": "Панели могут читать файлы только внутри текущего проекта",
+      "not_found": "Объявленный файл данных ещё не существует",
+      "too_large": "Файл данных больше 1 МБ. Уменьшите его и повторите",
+      "invalid_json": "Файл данных не является корректным JSON",
+      "items_not_array": "Путь к списку не указывает на массив"
+    }
+  },
+  "openConfig": "Открыть конфиг",
+  "tier": {
+    "native": "Полная",
+    "partial": "Частичная",
+    "headless": "Только выполнение",
+    "none": "Нет"
+  },
+  "desktop": "Desktop",
+  "probe": "проба",
+  "version": "версия",
+  "tasks": {
+    "status": {
+      "in_progress": "В работе",
+      "planning": "Планируется",
+      "review": "На проверке",
+      "completed": "Завершено"
+    },
+    "noAdapterId": "Адаптер не привязан ({{panelId}})",
+    "openProjectFirst": "Сначала откройте проект",
+    "loadFailed": "Состояние панели не загрузилось",
+    "retry": "Повторить",
+    "noLayout": "В этом проекте нет структуры рабочей области задач",
+    "needsTrellis": "Нужен `.trellis/` в корне проекта (stateProvider: workspace-trellis)",
+    "activeCount": "Активные задачи ({{count}})",
+    "currentTask": "Текущая задача",
+    "subtaskCount": "подзадач: {{count}}",
+    "subtasks": "Подзадачи",
+    "acceptance": "Критерии приёмки",
+    "empty": "Активных задач нет",
+    "journals": "Свежие журналы",
+    "lines": "строк: {{count}}"
+  }
+}

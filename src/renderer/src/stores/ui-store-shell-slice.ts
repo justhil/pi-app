@@ -8,7 +8,13 @@ import {
   normalizeTimelineMaxAutoExpandedTools,
   normalizeTimelineVisibleTurns,
   DEFAULT_TIMELINE_VISIBLE_TURNS,
+  normalizeTimelineUserMessageStyle,
+  DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
 } from '@shared/timeline-settings'
+import {
+  DEFAULT_UI_CUSTOMIZATION,
+  normalizeUiCustomization,
+} from '@shared/ui-customization'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
 import {
   currentWindowWidth,
@@ -43,12 +49,27 @@ type ShellSlice = Pick<
   | 'setTimelineMaxAutoExpandedTools'
   | 'timelineVisibleTurns'
   | 'setTimelineVisibleTurns'
+  | 'timelineUserMessageStyle'
+  | 'setTimelineUserMessageStyle'
+  | 'uiCustomization'
+  | 'setUiCustomization'
   | 'sidebarWidth'
   | 'setSidebarWidth'
   | 'sidebarCollapsed'
   | 'toggleSidebar'
+  | 'sidebarActiveSessionsDrawer'
+  | 'setSidebarActiveSessionsDrawer'
+  | 'sidebarActiveSessionsOpen'
+  | 'setSidebarActiveSessionsOpen'
   | 'rightPanelWidth'
   | 'setRightPanelWidth'
+  | 'rightPanelBrowserWidth'
+  | 'setRightPanelBrowserWidth'
+  | 'pinnedSessions'
+  | 'pinnedSessionMeta'
+  | 'setPinnedSessions'
+  | 'upsertPinnedSessionMeta'
+  | 'togglePinSession'
   | 'rightPanelCollapsed'
   | 'rightPanelRailIcons'
   | 'setRightPanelRailIcons'
@@ -57,6 +78,12 @@ type ShellSlice = Pick<
   | 'revealRightPanel'
   | 'filesPreviewChatExpand'
   | 'browserChatExpand'
+  | 'browserStageMode'
+  | 'browserStageRatio'
+  | 'browserStageLastOpenMode'
+  | 'setBrowserStageMode'
+  | 'setBrowserStageRatio'
+  | 'toggleBrowserStage'
 >
 
 export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
@@ -64,16 +91,22 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
     activePanel: 'review',
     rightPanelCatalog: [...CORE_RIGHT_PANEL_CATALOG],
     setActivePanel: (panel) =>
-      set((state) => ({
-        activePanel: state.rightPanelPrefs[panel]
-          ? panel
-          : coerceActivePanel(
-              panel,
-              state.rightPanelPrefs,
-              state.rightPanelCatalog,
-              state.rightPanelOrder,
-            ),
-      })),
+      set((state) => {
+        const known = state.rightPanelCatalog.some((c) => c.id === panel)
+        return {
+          activePanel: known
+            ? panel
+            : coerceActivePanel(
+                panel,
+                state.rightPanelPrefs,
+                state.rightPanelCatalog,
+                state.rightPanelOrder,
+              ),
+          ...(panel !== 'browser' && panel !== 'canvas' && state.browserStageMode !== 'closed'
+            ? { browserStageMode: 'closed' as const, browserChatExpand: false }
+            : {}),
+        }
+      }),
     rightPanelPrefs: defaultCoreRightPanelPrefs(),
     rightPanelOrder: [],
     applyRightPanelRuntime: (catalog, prefs, order) =>
@@ -120,15 +153,90 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
       set({ timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(count) }),
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
     setTimelineVisibleTurns: (count) => set({ timelineVisibleTurns: normalizeTimelineVisibleTurns(count) }),
+    timelineUserMessageStyle: DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+    setTimelineUserMessageStyle: (style) =>
+      set({ timelineUserMessageStyle: normalizeTimelineUserMessageStyle(style) }),
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
+    setUiCustomization: (next) =>
+      set((s) => ({
+        uiCustomization: normalizeUiCustomization({ ...s.uiCustomization, ...next }),
+      })),
     sidebarWidth: 260,
     setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 200), 360) }),
     sidebarCollapsed: false,
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+    sidebarActiveSessionsDrawer: true,
+    setSidebarActiveSessionsDrawer: (on) => set({ sidebarActiveSessionsDrawer: on }),
+    sidebarActiveSessionsOpen: true,
+    setSidebarActiveSessionsOpen: (open) => set({ sidebarActiveSessionsOpen: open }),
     rightPanelWidth: DEFAULT_RIGHT_PANEL_WIDTH,
     setRightPanelWidth: (width) =>
       set({ rightPanelWidth: Math.min(Math.max(width, 280), 9999) }),
-    // A fresh install starts with the conversation alone; the top bar button opens the panel.
-    rightPanelCollapsed: true,
+    rightPanelBrowserWidth: 580,
+    setRightPanelBrowserWidth: (width) =>
+      set({ rightPanelBrowserWidth: Math.min(Math.max(width, 320), 9999) }),
+    pinnedSessions: [],
+    pinnedSessionMeta: {},
+    setPinnedSessions: (files, meta) =>
+      set((s) => ({
+        pinnedSessions: [...new Set(files.filter(Boolean))],
+        ...(meta ? { pinnedSessionMeta: { ...s.pinnedSessionMeta, ...meta } } : {}),
+      })),
+    upsertPinnedSessionMeta: (sessionFile, patch) => {
+      const key = normalizeSessionFileKey(sessionFile)
+      if (!key) return
+      set((s) => {
+        const prev = s.pinnedSessionMeta[key] ?? s.pinnedSessionMeta[key.toLowerCase()]
+        return {
+          pinnedSessionMeta: {
+            ...s.pinnedSessionMeta,
+            [key]: {
+              sessionFile: prev?.sessionFile || sessionFile.trim(),
+              sessionId: patch.sessionId ?? prev?.sessionId ?? '',
+              workspacePath: patch.workspacePath ?? prev?.workspacePath ?? '',
+              title: patch.title ?? prev?.title ?? '',
+              kind: patch.kind ?? prev?.kind ?? 'project',
+              pinnedAt: patch.pinnedAt ?? prev?.pinnedAt ?? Date.now(),
+            },
+          },
+        }
+      })
+    },
+    togglePinSession: (sessionFile, meta) => {
+      const trimmed = sessionFile.trim()
+      const key = normalizeSessionFileKey(trimmed)
+      if (!key) return false
+      const cur = get().pinnedSessions
+      const exists = cur.some((f) => normalizeSessionFileKey(f) === key)
+      if (exists) {
+        const nextMeta = { ...get().pinnedSessionMeta }
+        delete nextMeta[key]
+        delete nextMeta[key.toLowerCase()]
+        set({
+          pinnedSessions: cur.filter((f) => normalizeSessionFileKey(f) !== key),
+          pinnedSessionMeta: nextMeta,
+        })
+        return false
+      }
+      const nextMeta = {
+        ...get().pinnedSessionMeta,
+        [key]: {
+          sessionFile: trimmed,
+          sessionId: meta?.sessionId ?? '',
+          workspacePath: meta?.workspacePath ?? '',
+          title: meta?.title ?? '',
+          kind: meta?.kind ?? 'project',
+          pinnedAt: Date.now(),
+        },
+      }
+      set({
+        pinnedSessions: [trimmed, ...cur],
+        pinnedSessionMeta: nextMeta,
+      })
+      return true
+    },
+    // Default to right pane open (showing Codex-style New Tab Launchpad when empty) and edge icon rail off.
+    rightPanelCollapsed: false,
     rightPanelRailIcons: false,
     setRightPanelRailIcons: (on) => set({ rightPanelRailIcons: on }),
     rightPanelExpandedOnNarrow: false,
@@ -142,8 +250,39 @@ export function createShellSlice(set: StoreSet, get: StoreGet): ShellSlice {
         })
         return nextRightPanelToggle({ hidden, windowWidth })
       }),
-    revealRightPanel: () => set(revealRightPanelPatch()),
+    revealRightPanel: () => set({ ...revealRightPanelPatch(), browserStageMode: 'closed', browserChatExpand: false }),
     filesPreviewChatExpand: false,
     browserChatExpand: false,
+    browserStageMode: 'closed',
+    browserStageRatio: 0.5,
+    browserStageLastOpenMode: 'split-50',
+    setBrowserStageMode: (mode) =>
+      set((s) => {
+        if (mode === 'closed') {
+          return { browserStageMode: 'closed', browserChatExpand: false }
+        }
+        const nextRatio =
+          mode === 'split-50' ? 0.5 : mode === 'split-70' ? 0.68 : s.browserStageRatio
+        return {
+          browserStageMode: mode,
+          browserStageLastOpenMode: mode,
+          browserStageRatio: nextRatio,
+          browserChatExpand: mode === 'full',
+          filesPreviewChatExpand: false,
+          rightPanelCollapsed: true,
+        }
+      }),
+    setBrowserStageRatio: (ratio) =>
+      set({
+        browserStageRatio: Math.max(0.32, Math.min(0.84, ratio)),
+      }),
+    toggleBrowserStage: () => {
+      const s = get()
+      if (s.browserStageMode !== 'closed') {
+        s.setBrowserStageMode('closed')
+      } else {
+        s.setBrowserStageMode(s.browserStageLastOpenMode || 'split-50')
+      }
+    },
   }
 }

@@ -14,6 +14,12 @@ import { writeClipboardTempText } from '../../clipboard-temp-images'
 import { openHelpRequests, respondHelp } from '../../browser/agent/help'
 import { chromeBridgeEnabled, chromeBridgeStatus, extensionPath, getChromeHost, regenerateChromeToken, setChromeBridgeEnabled, startChromeBridge } from '../../browser/chrome'
 import { configureSiteNotes, deleteSiteNotes, listSiteNotes, readSiteNotes } from '../../browser/agent/site-notes'
+import { addBookmark, configureBookmarks, importHtmlBookmarks, listBookmarks, removeBookmark, updateBookmark } from '../../browser/bookmarks'
+import { detectLocalDevServers } from '../../browser/dev-servers'
+import { listImportSources, previewImport, runImport } from '../../browser/cookie-import/service'
+import { listLiveChromeCookieSites, syncLiveChromeCookies } from '../../browser/cookie-import/chrome-live-sync'
+import { cancelAllInflightBrowserTools } from '../../browser/browser-tool-bridge'
+import { browserDownloadDir } from '../../browser/electron-session'
 
 function sdkAtLeast(version: string, min: [number, number, number]): boolean {
   const v = version.replace(/^v/, '').split(/[.-]/).slice(0, 3).map((x) => Number.parseInt(x, 10) || 0)
@@ -26,15 +32,16 @@ const profileId = z.string().regex(/^[a-z0-9-]{1,48}$/)
 const host = () => getBrowserHost(getMainWindow)
 
 export function registerBrowserHandlers(): void {
-  // Browser control is only offered while the experimental Browser panel is switched on.
+  // Built-in Browser Stage is a first-class workspace capability (always available).
   configureCapabilities({
-    browserPanelEnabled: () => !!configStore.get('rightPanelPrefs')?.browser,
+    browserPanelEnabled: () => true,
     chromeBridgeEnabled: () => chromeBridgeEnabled(),
     // tool_search arrived in pi 0.99; older runtimes get every browser tool declared.
     deferTools: () => sdkAtLeast(resolveActiveSdk(app.getPath('userData')).version, [0, 99, 0]),
   })
 
   configureSiteNotes(join(app.getPath('userData'), 'browser-site-notes'))
+  configureBookmarks(join(app.getPath('userData'), 'browser-bookmarks.json'))
   registerHandler('ipc:browser.siteNotes.list', async () => ({ sites: await listSiteNotes() }))
   const siteHost = z.string().regex(/^[a-z0-9.-]{1,253}$/)
   registerHandlerWithSchema('ipc:browser.siteNotes.read', z.object({ host: siteHost }), async (req) => ({ text: await readSiteNotes(req.host) }))
@@ -46,11 +53,35 @@ export function registerBrowserHandlers(): void {
   registerHandler('ipc:browser.chrome.status', async () => chromeBridgeStatus())
   registerHandlerWithSchema('ipc:browser.chrome.setEnabled', z.object({ enabled: z.boolean() }), async (req) => setChromeBridgeEnabled(req.enabled))
   registerHandlerWithSchema('ipc:browser.chrome.tabs', z.object({ sessionFile: z.string().max(4096).optional() }), async (req) => {
-    const tabs = getChromeHost()?.list().tabs ?? []
-    // Tabs of this conversation when it has any (a draft's tabs are keyed by its worker, so fall back to all).
-    const own = req.sessionFile ? tabs.filter((t) => t.openedBy !== 'user' && t.openedBy.sessionKey === req.sessionFile) : []
-    return { tabs: (own.length ? own : tabs).map((t) => ({ tabId: t.tabId, title: t.title, url: t.url })) }
+    const all = getChromeHost()?.listDetailed() ?? []
+    const own = req.sessionFile ? all.filter((t) => t.sessionKey === req.sessionFile || t.sessionKey === 'shared') : []
+    return {
+      tabs: (own.length ? own : all).map((t) => ({
+        tabId: t.tabId,
+        title: t.title,
+        url: t.url,
+        borrowed: t.borrowed,
+      })),
+    }
   })
+  registerHandler('ipc:browser.chrome.userTabs', async () => ({
+    tabs: (await getChromeHost()?.userTabs().catch(() => [])) ?? [],
+  }))
+  registerHandlerWithSchema(
+    'ipc:browser.chrome.borrowTab',
+    z.object({ chromeTabId: z.number().int().positive(), sessionFile: z.string().max(4096).optional() }),
+    async (req) => ({
+      tab: (await getChromeHost()?.borrow(req.chromeTabId, req.sessionFile || 'shared')) ?? null,
+    }),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.chrome.returnTab',
+    z.object({ tabId: z.string().min(1).max(64) }),
+    async (req) => {
+      await getChromeHost()?.giveBack(req.tabId)
+      return { ok: true }
+    },
+  )
   registerHandlerWithSchema('ipc:browser.chrome.focusTab', z.object({ tabId: z.string().min(1).max(64) }), async (req) => {
     getChromeHost()?.focusTab(req.tabId, { window: true })
     return { ok: true }
@@ -86,6 +117,102 @@ export function registerBrowserHandlers(): void {
 
   registerHandlerWithSchema('ipc:browser.tabs.pin', z.object({ tabId, pinned: z.boolean() }), async (req) => ({
     tab: peekBrowserHost()?.pinTab(req.tabId, req.pinned) ?? null,
+  }))
+
+  registerHandlerWithSchema('ipc:browser.tabs.mute', z.object({ tabId, muted: z.boolean() }), async (req) => ({
+    tab: peekBrowserHost()?.setMuted(req.tabId, req.muted) ?? null,
+  }))
+
+  registerHandlerWithSchema('ipc:browser.tabs.sleep', z.object({ tabId }), async (req) => ({
+    tab: peekBrowserHost()?.sleepTab(req.tabId) ?? null,
+  }))
+
+  registerHandlerWithSchema('ipc:browser.tabs.duplicate', z.object({ tabId }), async (req) => ({
+    tab: peekBrowserHost()?.duplicateTab(req.tabId) ?? null,
+  }))
+
+  registerHandlerWithSchema('ipc:browser.tabs.reorder', z.object({ order: z.array(tabId).max(200) }), async (req) => ({
+    tabs: peekBrowserHost()?.reorderTabs(req.order) ?? [],
+  }))
+
+  registerHandler('ipc:browser.tabs.reopen', async () => ({
+    tab: peekBrowserHost()?.reopenClosedTab() ?? null,
+  }))
+
+  registerHandler('ipc:browser.bookmarks.list', async () => ({ bookmarks: listBookmarks() }))
+  registerHandlerWithSchema(
+    'ipc:browser.bookmarks.add',
+    z.object({
+      url: z.string().min(1).max(8192),
+      title: z.string().max(300).optional(),
+      folder: z.string().max(120).optional(),
+      favicon: z.string().max(4096).optional(),
+    }),
+    async (req) => ({ bookmarks: addBookmark(req) }),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.bookmarks.remove',
+    z.object({ id: z.string().max(64).optional(), url: z.string().max(8192).optional() }),
+    async (req) => ({ bookmarks: removeBookmark(req) }),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.bookmarks.update',
+    z.object({
+      id: z.string().min(1).max(64),
+      title: z.string().max(300).optional(),
+      url: z.string().max(8192).optional(),
+      folder: z.string().max(120).optional(),
+    }),
+    async (req) => ({ bookmarks: updateBookmark(req.id, req) }),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.bookmarks.importHtml',
+    z.object({ html: z.string().max(2_000_000) }),
+    async (req) => importHtmlBookmarks(req.html),
+  )
+
+  registerHandler('ipc:browser.cookies.sources', async () => ({ sources: listImportSources() }))
+  registerHandlerWithSchema(
+    'ipc:browser.cookies.preview',
+    z.object({ sourceId: z.string().min(1).max(64), profileDir: z.string().min(1).max(256) }),
+    async (req) => previewImport(req.sourceId, req.profileDir),
+  )
+  registerHandlerWithSchema(
+    'ipc:browser.cookies.import',
+    z.object({
+      sourceId: z.string().min(1).max(64),
+      profileDir: z.string().min(1).max(256),
+      sites: z.array(z.string().max(253)).max(300),
+      targetProfileId: profileId.optional(),
+      replace: z.boolean().optional(),
+    }),
+    async (req) =>
+      runImport({
+        sourceId: req.sourceId,
+        profileDir: req.profileDir,
+        sites: req.sites,
+        targetProfileId: req.targetProfileId ?? DEFAULT_ELECTRON_PROFILE_ID,
+        replace: req.replace === true,
+      }),
+  )
+  registerHandler('ipc:browser.cookies.chromeSites', async () => listLiveChromeCookieSites())
+  registerHandlerWithSchema(
+    'ipc:browser.cookies.chromeSync',
+    z.object({
+      sites: z.array(z.string().max(253)).max(200),
+      targetProfileId: profileId.optional(),
+      replace: z.boolean().optional(),
+    }),
+    async (req) => syncLiveChromeCookies(req),
+  )
+
+  registerHandler('ipc:browser.devServers', async () => ({ servers: await detectLocalDevServers() }))
+  registerHandler('ipc:browser.downloads.openDir', async () => {
+    await shell.openPath(browserDownloadDir())
+    return { ok: true }
+  })
+  registerHandler('ipc:browser.agent.abort', async () => ({
+    aborted: cancelAllInflightBrowserTools(),
   }))
 
   registerHandlerWithSchema(
@@ -144,9 +271,13 @@ export function registerBrowserHandlers(): void {
 
   const point = { tabId, x: z.number().finite(), y: z.number().finite() }
 
-  registerHandlerWithSchema('ipc:browser.inspectPoint', z.object({ ...point, deep: z.boolean().optional() }), async (req) => ({
-    element: await host().inspectPoint(req.tabId, req.x, req.y, req.deep === true),
-  }))
+  registerHandlerWithSchema(
+    'ipc:browser.inspectPoint',
+    z.object({ ...point, deep: z.boolean().optional(), ancestorSteps: z.number().int().min(0).max(12).optional() }),
+    async (req) => ({
+      element: await host().inspectPoint(req.tabId, req.x, req.y, req.deep === true, req.ancestorSteps ?? 0),
+    }),
+  )
 
   registerHandlerWithSchema('ipc:browser.scroll', z.object({ ...point, deltaY: z.number().finite() }), async (req) => {
     host().scroll(req.tabId, req.x, req.y, req.deltaY)

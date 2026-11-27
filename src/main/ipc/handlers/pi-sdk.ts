@@ -6,6 +6,7 @@ import { workerManager } from '../../worker-manager'
 import { configStore } from '../../config-store'
 import { readPiInfo, readResourceList } from '../../pi-info'
 import { readModelsConfig, writeModelsConfig, fetchRemoteModelIds } from '../../pi-models-json'
+import { getUpstreamModelCatalog } from '../../models-dev-catalog'
 import { remoteTap } from '../../remote/tap'
 import { clearGlobalSdkPathCache, readSdkSelection } from '../../sdk-loader'
 import {
@@ -26,6 +27,7 @@ import { getAgentRuntimeConfig } from '../../wsl/runtime-config'
 import { assertWslSdkAvailable } from '../../wsl/sdk-resolve'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { flattenRawPiSettings } from '../../../worker/pi-settings-snapshot'
+import { cleanupObsoleteGoogleAiPlanExtension } from '../../google-ai-plan/service'
 
 function sendSdkRuntimeChanged(): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -96,6 +98,10 @@ export function registerPiSdkHandlers(): void {
     }),
   )
 
+  registerHandler('ipc:pi.models.catalog', async (req) =>
+    getUpstreamModelCatalog({ force: req?.force === true }),
+  )
+
   registerHandler('ipc:sdk.status', async (req) => {
     const refresh = req?.refresh === true
     if (refresh) clearGlobalSdkPathCache()
@@ -148,6 +154,10 @@ export function registerPiSdkHandlers(): void {
         rollbackSelection: switchTo,
       })
       finalizeVersionInstall(installed.userDir, true)
+      if (cleanupObsoleteGoogleAiPlanExtension().removed && workerManager.isRunning) {
+        await workerManager.reloadResources().catch(() => {})
+        await workerManager.reloadModels().catch(() => {})
+      }
       if (win) sendEvent(win, { type: 'sdk-install-progress', version, done: true })
       sendSdkRuntimeChanged()
       return { ok: true, active }
@@ -176,6 +186,10 @@ export function registerPiSdkHandlers(): void {
         verifySelection: verifySelectedSdk,
         rollbackSelection: switchTo,
       })
+      if (cleanupObsoleteGoogleAiPlanExtension().removed && workerManager.isRunning) {
+        await workerManager.reloadResources().catch(() => {})
+        await workerManager.reloadModels().catch(() => {})
+      }
       sendSdkRuntimeChanged()
       return { ok: true, active }
     } catch (e: unknown) {

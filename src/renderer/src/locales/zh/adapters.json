@@ -23,5 +23,27 @@
   },
   "desktop": "桌面",
   "probe": "probe",
-  "version": "版本"
+  "version": "版本",
+  "tasks": {
+    "status": {
+      "in_progress": "进行中",
+      "planning": "规划中",
+      "review": "审查中",
+      "completed": "已完成"
+    },
+    "noAdapterId": "未绑定 adapterId（{{panelId}}）",
+    "openProjectFirst": "请先打开项目",
+    "loadFailed": "无法加载面板状态",
+    "retry": "重试",
+    "noLayout": "当前项目无任务工作区布局",
+    "needsTrellis": "需在项目根存在 `.trellis/`（stateProvider: workspace-trellis）",
+    "activeCount": "活跃任务 ({{count}})",
+    "currentTask": "当前任务",
+    "subtaskCount": "{{count}} 子任务",
+    "subtasks": "子任务",
+    "acceptance": "验收条件",
+    "empty": "暂无活跃任务",
+    "journals": "最近日志",
+    "lines": "{{count}} 行"
+  }
 }

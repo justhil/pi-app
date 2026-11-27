@@ -15,7 +15,18 @@
     "/rewind": "notify"
   },
   "config": {
-    "note": "扩展需写入 settings.packages 并由 Worker 加载。桌面 /rewind 作为扩展命令透传给 pi（非 App builtin）。恢复选项依赖通用 Extension UI（select/confirm）。"
+    "note": "扩展需写入 settings.packages 并由 Worker 加载。桌面 /rewind 作为扩展命令透传给 pi（非 App builtin）。恢复选项依赖通用 Extension UI（select/confirm）。",
+    "i18n": {
+      "zh": {
+        "note": "扩展需写入 settings.packages 并由 Worker 加载。桌面 /rewind 作为扩展命令透传给 pi（非 App builtin）。恢复选项依赖通用 Extension UI（select/confirm）。"
+      },
+      "en": {
+        "note": "The extension must be listed in settings.packages and loaded by the Worker. /rewind is forwarded to pi as an extension command (not an app built-in). Restore options rely on the generic Extension UI (select/confirm)."
+      },
+      "ru": {
+        "note": "Расширение должно быть указано в settings.packages и загружено Worker'ом. Команда /rewind передаётся в pi как команда расширения (не встроенная). Выбор режима восстановления работает через общий Extension UI (select/confirm)."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -25,6 +36,10 @@
     "en": {
       "displayName": "pi-rewind",
       "description": "Git checkpoints + /rewind: desktop dialogs for restore mode (files / conversation / both). Tree/Fork may prompt to restore files. TUI footer decoration is not replicated."
+    },
+    "ru": {
+      "displayName": "pi-rewind",
+      "description": "Контрольные точки Git + /rewind: диалог выбора режима отката (файлы / диалог / оба); при переходе по дереву или форке может предлагать восстановить файлы. Декор строки состояния TUI не дублируется."
     }
   }
 }

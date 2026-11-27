@@ -2,7 +2,10 @@ import { normalizeSessionFilePath } from './session-file-path'
 
 /** Comparison key only; retain the original path for disk access and display. */
 export function workspacePathKey(value: string | null | undefined): string {
-  const path = normalizeSessionFilePath(value).replace(/\/$/, '')
+  const path = normalizeSessionFilePath(value)
+    .replace(/\/$/, '')
+    .replace(/^\/\/[?.]\/unc\//i, '//')
+    .replace(/^\/\/[?.]\/(?=[a-z]:)/i, '')
   const wsl = path.match(/^\/\/(?:wsl\$|wsl\.localhost)\/([^/]+)(.*)$/i)
   if (wsl) return `//wsl.localhost/${wsl[1].toLowerCase()}${wsl[2]}`
   return /^[a-z]:/i.test(path) || path.startsWith('//') ? path.toLowerCase() : path || (value === '/' ? '/' : '')

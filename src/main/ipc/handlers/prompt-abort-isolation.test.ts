@@ -30,11 +30,10 @@ vi.mock('../../clipboard-temp-images', () => ({
 vi.mock('../../browser/browser-host', () => ({
   peekBrowserHost: () => null,
 }))
-vi.mock('../../config-store', () => ({
-  configStore: { get: vi.fn() },
-}))
+vi.mock('../../config-store', () => ({ configStore: { get: vi.fn(), set: vi.fn() } }))
 
 import { registerPromptHandlers } from './prompt'
+import { bumpPromptAbortEpoch } from '../../prompt-abort-epoch'
 
 describe('prompt.abort session isolation', () => {
   beforeEach(() => {
@@ -72,5 +71,17 @@ describe('prompt.abort session isolation', () => {
 
     expect(result).toEqual({ aborted: true })
     expect(mocks.abort).toHaveBeenCalledWith('/sessions/current.jsonl')
+  })
+
+  it('bumps prompt abort epoch when aborting a session so pre-send checks can cancel', async () => {
+    const handler = mocks.handlers.get('ipc:prompt.abort')!
+    mocks.getState.mockResolvedValue({
+      sessionFile: '/sessions/current.jsonl',
+      isStreaming: true,
+    })
+    const before = bumpPromptAbortEpoch('/sessions/current.jsonl')
+    await handler({ sessionId: 'current', sessionFile: '/sessions/current.jsonl' })
+    const after = bumpPromptAbortEpoch('/sessions/current.jsonl')
+    expect(after).toBeGreaterThan(before + 1)
   })
 })

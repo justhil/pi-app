@@ -1,14 +1,17 @@
 import { useState } from 'react'
+import type { SandboxEntry } from './project-sidebar-types'
 
-type MenuState = { x: number; y: number; path: string; label: string } | null
+export type SandboxMenuTarget = SandboxEntry
+
+type MenuState = { x: number; y: number; target: SandboxMenuTarget } | null
 
 export function useSandboxContextMenu(onListChange: () => void) {
   const [menu, setMenu] = useState<MenuState>(null)
 
-  const open = (e: React.MouseEvent, path: string, label: string) => {
+  const open = (e: React.MouseEvent, target: SandboxMenuTarget) => {
     e.preventDefault()
     e.stopPropagation()
-    setMenu({ x: e.clientX, y: e.clientY, path, label })
+    setMenu({ x: e.clientX, y: e.clientY, target })
   }
 
   const close = () => setMenu(null)

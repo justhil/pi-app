@@ -5,7 +5,10 @@
     "suggestions": "地址联想",
     "open": "打开 {{url}}",
     "search": "搜索“{{query}}”",
-    "switchTab": "切换到此标签"
+    "switchTab": "切换到此标签",
+    "copyUrl": "复制链接",
+    "copiedUrl": "已复制链接",
+    "openExternal": "在系统浏览器中打开"
   },
   "nav": {
     "back": "后退",
@@ -19,11 +22,19 @@
     "tabs": "标签页",
     "expand": "展开",
     "collapse": "收起",
-    "more": "更多"
+    "more": "更多",
+    "reopenTab": "恢复刚关闭的标签页",
+    "nothingToReopen": "没有可恢复的已关闭标签页"
   },
   "tab": {
     "untitled": "新标签页",
-    "loading": "加载中…"
+    "loading": "加载中…",
+    "duplicate": "复制标签页",
+    "mute": "静音此标签页",
+    "unmute": "取消静音",
+    "sleep": "立即休眠（释放内存）",
+    "closeOthers": "关闭其他标签页",
+    "closeRight": "关闭右侧标签页"
   },
   "empty": {
     "title": "输入网址或搜索"
@@ -101,7 +112,15 @@
     "exit": "退出",
     "finish": "插入输入框",
     "captureFailed": "无法截取页面，页面可能正在显示弹窗",
-    "exportFailed": "生成批注失败"
+    "exportFailed": "生成批注失败",
+    "hintRich": "点选元素（↑↓ 切换父子节点 · Shift 多选）或拖出区域标画",
+    "multiHint": "已多选 {{count}} 个元素，点击下一个完成打包或按 Esc 取消",
+    "tool": {
+      "select": "选取",
+      "arrow": "箭头",
+      "rect": "框选",
+      "ellipse": "圈选"
+    }
   },
   "send": {
     "menu": "发送到对话",
@@ -135,7 +154,17 @@
     "helpAllow": "允许",
     "helpDeny": "拒绝",
     "helpInChrome": "请在你的 Chrome 窗口里完成",
-    "helpOtherTab": "切到该标签页"
+    "helpOtherTab": "切到该标签页",
+    "awareLabel": "Pi 感知",
+    "awareTooltipOn": "当前对话已感知浏览器（点击关闭）",
+    "awareTooltipOff": "点击让当前对话的 Pi 可读取并操控此浏览器",
+    "awareEnabled": "已开启当前对话的浏览器感知能力",
+    "awareDisabled": "已关闭当前对话的浏览器感知能力",
+    "openedByPi": "由 Pi 打开的标签页",
+    "recentSteps": "Pi 最近执行了 {{count}} 步浏览器操作",
+    "takeover": "暂停 · 我来接管",
+    "takeoverDone": "已暂停 Pi 的浏览器操作，你现在可以直接操作页面",
+    "takeoverReady": "当前无进行中的自动操作，可直接操作页面"
   },
   "viewport": {
     "title": "页面视口尺寸",
@@ -156,7 +185,9 @@
       "cancelled": "已取消",
       "failed": "失败",
       "progressing": "下载中"
-    }
+    },
+    "openFolder": "打开目录",
+    "empty": "暂无下载记录"
   },
   "find": {
     "label": "在页面中查找",
@@ -173,6 +204,61 @@
     "title": "本对话正在使用：我的 Chrome",
     "hint": "AI 在你自己的 Chrome（pi 窗口）里操作。它打开的标签页（点击切到 Chrome）：",
     "disconnected": "Chrome 未连接：请打开装有 pi 扩展的 Chrome（设置 → 浏览器 → 我的 Chrome）。",
-    "noTabs": "还没有打开标签页。"
+    "noTabs": "还没有打开标签页。",
+    "borrowBtn": "借用标签页",
+    "borrowedToast": "已借用该 Chrome 标签页",
+    "noUserTabs": "未检测到可借用的 Chrome 网页标签",
+    "returnBtn": "归还"
+  },
+  "stage": {
+    "toggleTooltip": "内置浏览器分屏（Ctrl/⌘+Shift+B）",
+    "full": "全屏",
+    "hide": "收起浏览器（保持页面后台存活）"
+  },
+  "bookmarks": {
+    "title": "书签",
+    "badge": "书签",
+    "add": "收藏此页到书签",
+    "remove": "移除书签",
+    "added": "已加入书签",
+    "removed": "已移除书签",
+    "showBar": "显示书签栏",
+    "hideBar": "隐藏书签栏",
+    "importHtml": "导入 Chrome/Edge HTML 书签…",
+    "imported": "已导入 {{count}} 条书签",
+    "importFailed": "导入书签失败",
+    "emptyHint": "点击地址栏星标即可收藏常用站点，或从“更多”菜单导入 Chrome/Edge 书签。",
+    "openInNewTab": "在新标签页打开"
+  },
+  "newTab": {
+    "devServers": "检测到本机运行中的开发服务",
+    "recentVisits": "最近访问",
+    "removeRecent": "移除记录"
+  },
+  "error": {
+    "loadFailed": "页面加载失败（{{reason}}）",
+    "askPi": "让 Pi 排查",
+    "askPiPrompt": "内置浏览器打开 {{url}} 失败（{{reason}}），请帮我排查原因（例如本地服务是否未启动或端口问题）。"
+  },
+  "sync": {
+    "button": "同步登录态",
+    "openBtn": "同步本机登录态…",
+    "title": "同步本机浏览器登录态",
+    "subtitle": "按站点将你本机 Chrome / Edge / Firefox 的登录 Cookie 安全导入内置浏览器",
+    "tabExtension": "Chrome / Edge 扩展同步（推荐）",
+    "tabDisk": "本地磁盘导入（Firefox / 非 v20）",
+    "extNotConnectedTitle": "尚未连接 pi Chrome 扩展",
+    "extNotConnectedDesc": "Windows Chrome/Edge 127+ 启用了 v20 应用绑定加密，磁盘文件无法外部解密；通过已配对的 pi 扩展在浏览器内按站点读取即可安全同步登录态。",
+    "openBrowserSettings": "前往设置开启并配对扩展",
+    "v20Warning": "检测到 {{count}} 条 Windows Chrome/Edge v20 加密 Cookie，磁盘方式无法直接解密。",
+    "switchToExtension": "切到扩展同步 →",
+    "searchPlaceholder": "搜索域名（例如 github.com）…",
+    "excludedSensitive": "敏感金融站已保护",
+    "replaceExisting": "替换内置浏览器里同站点的旧 Cookie",
+    "noSites": "未找到可导入的站点 Cookie。",
+    "privacyNote": "仅同步你勾选的站点，绝不落明文日志",
+    "importSelected": "同步已选（{{count}}）",
+    "done": "已同步 {{sites}} 个站点（共 {{count}} 条 Cookie）",
+    "failed": "同步登录态失败"
   }
 }

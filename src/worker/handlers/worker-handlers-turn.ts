@@ -1,5 +1,9 @@
-import { fileURLToPath } from 'node:url'
-import { preparePiCliEntry } from '../worker-cli-entry.js'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import {
+  preferUnpackedAsarPath,
+  preparePiCliEntry,
+  resolveBuiltinSdkEntry,
+} from '../worker-cli-entry.js'
 import { widenHttpConnectTimeout } from '../worker-http-connect.js'
 import { errorMessage } from '@shared/error-message'
 import { normalizeUserMessageDisplayText } from '@shared/worker-message'
@@ -15,6 +19,19 @@ import {
   currentSessionModelKey,
 } from '../worker-runtime.js'
 
+async function loadBuiltinSdk() {
+  try {
+    const rawBuiltinEntry = fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+    const preferredEntry = preferUnpackedAsarPath(rawBuiltinEntry)
+    if (preferredEntry !== rawBuiltinEntry) {
+      return import(pathToFileURL(preferredEntry).href)
+    }
+  } catch {
+    // Fall back to standard bare specifier import when resolve is unavailable in test mocks.
+  }
+  return import('@earendil-works/pi-coding-agent')
+}
+
 export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         try {
           console.log('[Worker] Initializing st.session for:', msg.cwd)
@@ -23,38 +40,53 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
           try {
             if (st.activeSdkPath) {
               const { isAbsolute } = await import('node:path')
-              const { pathToFileURL } = await import('node:url')
               if (isAbsolute(st.activeSdkPath)) {
-                st.sdk = await import(pathToFileURL(st.activeSdkPath).href)
+                st.sdk = await import(pathToFileURL(preferUnpackedAsarPath(st.activeSdkPath)).href)
               } else {
                 st.sdk = await import(st.activeSdkPath)
               }
             } else {
-              st.sdk = await import('@earendil-works/pi-coding-agent')
+              st.sdk = await loadBuiltinSdk()
             }
           } catch (e: unknown) {
             console.error('[Worker] Dynamic import SDK failed, fallback to builtin:', errorMessage(e))
             st.activeSdkPath = null
-            st.sdk = await import('@earendil-works/pi-coding-agent')
+            st.sdk = await loadBuiltinSdk()
             sdkFallback = true
           }
           if (!st.sdk) throw new Error('SDK load failed')
           let resolvedEntry: string | null = null
           try {
-            resolvedEntry = st.activeSdkPath ?? fileURLToPath(import.meta.resolve('@earendil-works/pi-coding-agent'))
+            resolvedEntry = st.activeSdkPath
+              ? preferUnpackedAsarPath(st.activeSdkPath)
+              : resolveBuiltinSdkEntry()
             await preparePiCliEntry(resolvedEntry)
             widenHttpConnectTimeout(resolvedEntry)
           } catch (e) {
             console.warn('[Worker] Could not resolve Pi CLI entry:', errorMessage(e))
           }
           if (!st.sharedEventBus) st.sharedEventBus = st.sdk.createEventBus()
-          await initSession(String(msg.cwd || ''))
+          const initSessionFile = typeof msg.sessionFile === 'string' && msg.sessionFile.trim() ? msg.sessionFile.trim() : null
+          const initLeafId =
+            'leafId' in msg && (typeof msg.leafId === 'string' || msg.leafId === null)
+              ? (msg.leafId as string | null)
+              : undefined
+          await initSession(String(msg.cwd || ''), initSessionFile, initLeafId)
           if (resolvedEntry) {
             const globalCfg = (st.session?.settingsManager as { getGlobalSettings?: () => Record<string, unknown> } | undefined)?.getGlobalSettings?.()
             widenHttpConnectTimeout(resolvedEntry, globalCfg?.httpConnectTimeoutMs)
           }
           console.log('[Worker] Init done, sessionId:', st.currentSessionId)
-          reply({ type: 'init-done', sessionId: st.currentSessionId, model: currentSessionModelKey(), thinkingLevel: st.session?.thinkingLevel, sdkFallback })
+          reply({
+            type: 'init-done',
+            sessionId: st.currentSessionId,
+            sessionFile: st.session?.sessionFile ?? null,
+            leafId: st.session?.sessionManager?.getLeafId?.() ?? null,
+            model: currentSessionModelKey(),
+            thinkingLevel: st.session?.thinkingLevel,
+            modelFallbackMessage: String(st.runtime?.modelFallbackMessage || '').trim() || undefined,
+            sdkFallback,
+          })
         } catch (e: unknown) {
           console.error('[Worker] Init FAILED:', errorMessage(e), e instanceof Error ? e.stack : '')
           reply({ type: 'error', error: `Init failed: ${errorMessage(e)}`, stack: e instanceof Error ? e.stack : undefined })
@@ -62,6 +94,49 @@ export async function handleInit(msg: WorkerIncomingMessage, reply: WorkerReply)
         return
 }
 
+
+async function waitForPreviousTurnSettled(session: {
+  isStreaming?: boolean
+  waitForIdle?: () => Promise<void>
+}): Promise<void> {
+  const previousTurn = st.activeTurnPromise
+  if (previousTurn) {
+    await previousTurn.catch(() => {})
+  }
+  if (session.isStreaming && typeof session.waitForIdle === 'function') {
+    await session.waitForIdle().catch(() => {})
+  }
+  // Allow emitSettledRun's microtask to emit the previous turn's settled event
+  // before the next turn publishes run.started.
+  await Promise.resolve()
+}
+
+export async function waitForWorkerTurnIdle(
+  session: { isStreaming?: boolean; waitForIdle?: () => Promise<void> },
+  timeoutMs = 8_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (st.activeTurnPromise) {
+      await Promise.race([
+        st.activeTurnPromise.catch(() => {}),
+        new Promise((r) => setTimeout(r, Math.max(25, deadline - Date.now()))),
+      ])
+    }
+    if (session.isStreaming && typeof session.waitForIdle === 'function') {
+      await Promise.race([
+        session.waitForIdle().catch(() => {}),
+        new Promise((r) => setTimeout(r, Math.max(25, deadline - Date.now()))),
+      ])
+    }
+    await Promise.resolve()
+    if (!st.agentTurnActive && !session.isStreaming && !st.promptPreflightActive) {
+      return true
+    }
+    await new Promise((r) => setTimeout(r, 25))
+  }
+  return !st.agentTurnActive && !session.isStreaming && !st.promptPreflightActive
+}
 
 export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerReply): Promise<void> {
         const promptSession = st.session
@@ -78,18 +153,50 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
           })
         }
         st.promptSent = true
+        // When a previous turn is aborting or in the async agent_settled window (!isStreaming && agentTurnActive),
+        // never attach this prompt as followUp on the dying run — wait for settle and run as a fresh turn.
+        const needsSerialWait =
+          st.abortingTurn ||
+          (st.abortedTurnSeq > 0 && st.abortedTurnSeq === st.turnSeq) ||
+          (!promptSession.isStreaming && st.agentTurnActive) ||
+          st.pendingFreshPrompts > 0
         // 在首个 stream 事件前就标 busy，避免切会话/evict 误杀；streamingBehavior 须用标记前的状态
-        const alreadyStreaming = promptSession.isStreaming || st.agentTurnActive
-        if (!alreadyStreaming) {
+        const alreadyStreaming = !needsSerialWait && (promptSession.isStreaming || st.agentTurnActive)
+        let myTurnSeq = 0
+        const ticket = needsSerialWait ? ++st.promptTicket : 0
+        if (needsSerialWait) {
+          st.pendingFreshPrompts += 1
+        } else if (!alreadyStreaming) {
           beginRunIdentity()
+          myTurnSeq = ++st.turnSeq
           st.agentTurnActive = true
           st.promptPreflightActive = true
           st.abortAfterPreflight = false
+          st.abortedTurnSeq = 0
           emit({ ...baseEvent(), type: 'run', phase: 'started' })
         }
         reply({ type: 'prompt-done' })
-        void (async () => {
+        let executionPromise: Promise<void> | null = null
+        let executionSettled = false
+        const runExecution = (async () => {
+          let queuedDecremented = false
           try {
+            if (needsSerialWait) {
+              await waitForPreviousTurnSettled(promptSession)
+              st.pendingFreshPrompts = Math.max(0, st.pendingFreshPrompts - 1)
+              queuedDecremented = true
+              if (st.cancelledPromptTicket >= ticket || st.session !== promptSession) {
+                emit({ ...baseEvent(), type: 'run', phase: 'cancelled' })
+                return
+              }
+              beginRunIdentity()
+              myTurnSeq = ++st.turnSeq
+              st.agentTurnActive = true
+              st.promptPreflightActive = true
+              st.abortAfterPreflight = false
+              st.abortedTurnSeq = 0
+              emit({ ...baseEvent(), type: 'run', phase: 'started' })
+            }
             const extra = msg.options as Parameters<typeof promptSession.prompt>[1]
             const merged =
               alreadyStreaming && !extra?.streamingBehavior
@@ -97,10 +204,12 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
                 : extra
             await promptSession.prompt(promptText, merged)
             if (!alreadyStreaming && st.promptPreflightActive) {
+              const abortedDuringPreflight = st.abortAfterPreflight && st.abortedTurnSeq === myTurnSeq
               st.promptPreflightActive = false
               st.abortAfterPreflight = false
+              st.abortedTurnSeq = 0
               st.agentTurnActive = false
-              emit({ ...baseEvent(), type: 'run', phase: 'idle' })
+              emit({ ...baseEvent(), type: 'run', phase: abortedDuringPreflight ? 'cancelled' : 'idle' })
             }
             if (slashMatch) {
               emit({
@@ -117,6 +226,7 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
             if (st.promptPreflightActive) {
               st.promptPreflightActive = false
               st.abortAfterPreflight = false
+              st.abortedTurnSeq = 0
               st.agentTurnActive = false
               emit({
                 ...baseEvent(),
@@ -136,8 +246,23 @@ export async function handlePrompt(msg: WorkerIncomingMessage, reply: WorkerRepl
                 text: `执行失败: ${errText}`,
               })
             }
+          } finally {
+            executionSettled = true
+            if (needsSerialWait && !queuedDecremented) {
+              st.pendingFreshPrompts = Math.max(0, st.pendingFreshPrompts - 1)
+            }
+            if (!alreadyStreaming) {
+              if (executionPromise && st.activeTurnPromise === executionPromise) st.activeTurnPromise = null
+              if (st.turnSeq === myTurnSeq && st.abortingTurn && !st.agentTurnActive && !promptSession.isStreaming) {
+                st.abortingTurn = false
+              }
+            }
           }
         })()
+        executionPromise = runExecution
+        if (!alreadyStreaming && !executionSettled) {
+          st.activeTurnPromise = runExecution
+        }
         return
 }
 
@@ -149,13 +274,24 @@ export async function handleAbort(msg: WorkerIncomingMessage, reply: WorkerReply
     return
   }
   try {
+    st.abortingTurn = true
+    st.cancelledPromptTicket = st.promptTicket
     session.clearQueue()
     // prompt() is still in preflight (input handlers, routing): pi has no run to abort yet and
     // would start one right after. Abort that run as soon as it starts.
-    if (st.promptPreflightActive) st.abortAfterPreflight = true
+    if (st.promptPreflightActive) {
+      st.abortAfterPreflight = true
+      st.abortedTurnSeq = st.turnSeq
+    }
     await session.abort()
+    if (!st.promptPreflightActive && !st.agentTurnActive && !session.isStreaming) {
+      st.abortingTurn = false
+    }
     reply({ type: 'abort-done' })
   } catch (error: unknown) {
+    if (!st.promptPreflightActive && !st.agentTurnActive && !session.isStreaming) {
+      st.abortingTurn = false
+    }
     console.error('[Worker] abort failed:', error)
     reply({ type: 'error', error: `abort failed: ${errorMessage(error)}` })
   }

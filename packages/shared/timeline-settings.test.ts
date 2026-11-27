@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+  DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
   normalizeTimelineMaxAutoExpandedTools,
+  normalizeTimelineUserMessageStyle,
 } from './timeline-settings'
 
 describe('normalizeTimelineMaxAutoExpandedTools', () => {
@@ -16,5 +18,14 @@ describe('normalizeTimelineMaxAutoExpandedTools', () => {
     expect(normalizeTimelineMaxAutoExpandedTools(-3)).toBe(0)
     expect(normalizeTimelineMaxAutoExpandedTools(99)).toBe(50)
     expect(normalizeTimelineMaxAutoExpandedTools(20)).toBe(20)
+  })
+})
+
+describe('normalizeTimelineUserMessageStyle', () => {
+  it('defaults to right-aligned bubble and accepts prompt-card', () => {
+    expect(DEFAULT_TIMELINE_USER_MESSAGE_STYLE).toBe('bubble')
+    expect(normalizeTimelineUserMessageStyle(undefined)).toBe('bubble')
+    expect(normalizeTimelineUserMessageStyle('other')).toBe('bubble')
+    expect(normalizeTimelineUserMessageStyle('prompt-card')).toBe('prompt-card')
   })
 })

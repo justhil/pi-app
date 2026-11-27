@@ -1,7 +1,9 @@
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import { registerHandlerWithSchema } from '../registry'
+import { workspacePathsEqual } from '@shared/workspace-path'
 import { authorizeProjectCwd } from '../../trusted-workspace'
+import { workerManager } from '../../worker-manager'
 import { findSwitchStash, listBranches, readBranchStatus, restoreSwitchStash, switchBranch } from '../../git-branches'
 
 const cwdSchema = z.object({ cwd: z.string().optional() }).passthrough()
@@ -11,6 +13,7 @@ const switchSchema = z.object({
   remote: z.boolean().optional(),
   create: z.boolean().optional(),
   stash: z.boolean().optional(),
+  force: z.boolean().optional(),
 })
 const restoreSchema = z.object({ cwd: z.string().optional(), ref: z.string().regex(/^stash@\{\d+\}$/) })
 
@@ -34,6 +37,19 @@ export function registerGitBranchHandlers(): void {
   registerHandlerWithSchema('ipc:git.switchBranch', switchSchema, async (req) => {
     const cwd = authorizeProjectCwd(req.cwd)
     if (!cwd.ok) return { ok: false, reason: 'git', message: cwd.error }
+    if (!req.force) {
+      const busy = workerManager
+        .listSessionRuntime()
+        .filter((w) => w.running && workspacePathsEqual(w.cwd, cwd.cwd))
+      if (busy.length > 0) {
+        return {
+          ok: false,
+          reason: 'checkout-busy' as const,
+          busyCount: busy.length,
+          message: `${busy.length} active session(s) are still running in this checkout.`,
+        }
+      }
+    }
     const r = await switchBranch(cwd.cwd, req)
     if (!r.ok) return r
     announce(cwd.cwd)

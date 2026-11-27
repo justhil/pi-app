@@ -1,16 +1,58 @@
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
+import { currentAdapterCatalog } from '@renderer/lib/adapter-catalog'
 
-export const INTERACTIVE_EXTENSION_TOOLS = new Set(['ask_user_question', 'image_review'])
+const FALLBACK_INTERACTIVE_TOOLS = new Set(['ask_user_question', 'image_review'])
 
-/** 弹窗打开时绑定到最近一条仍在运行的交互式工具行 */
-export function linkExtensionDialogToToolRow(requestId: string, toolName: string): void {
+/** Resolve all tool names declared via adapter `interact.trigger.tool`, plus core fallbacks. */
+export function getInteractiveExtensionTools(): Set<string> {
+  const names = new Set(FALLBACK_INTERACTIVE_TOOLS)
+  for (const adapter of currentAdapterCatalog()) {
+    const tool = adapter.interact?.trigger?.tool?.trim()
+    if (tool) names.add(tool)
+  }
+  return names
+}
+
+/** Resolve tool names whose adapter `interact.schema` maps to a desktop dialog method. */
+export function interactiveToolsForDialogMethod(method: string): Set<string> {
+  const targetSchema =
+    method === 'ask_user_question'
+      ? 'questions'
+      : method === 'image_review'
+        ? 'review'
+        : null
+  const out = new Set<string>()
+  if (FALLBACK_INTERACTIVE_TOOLS.has(method)) out.add(method)
+  if (!targetSchema) return out
+  for (const adapter of currentAdapterCatalog()) {
+    if (adapter.interact?.schema === targetSchema && adapter.interact.trigger?.tool) {
+      out.add(adapter.interact.trigger.tool)
+    }
+  }
+  return out
+}
+
+export function isInteractiveExtensionTool(toolName: string | undefined): boolean {
+  if (!toolName) return false
+  return getInteractiveExtensionTools().has(toolName)
+}
+
+/** 弹窗打开时绑定到最近一条仍在运行的交互式工具行（优先按 toolCallId 精准匹配，其次按适配器声明工具名匹配） */
+export function linkExtensionDialogToToolRow(
+  requestId: string,
+  dialogMethod: string,
+  toolCallId?: string,
+): void {
   const items = useUIStore.getState().timelineItems
+  const candidateTools = interactiveToolsForDialogMethod(dialogMethod)
   for (let i = items.length - 1; i >= 0; i--) {
     const it = items[i]
     if (it.type !== 'tool-call') continue
-    if (it.toolName !== toolName) continue
     if (it.toolPhase !== 'start' && it.toolPhase !== 'update') continue
+    const matchesCall = Boolean(toolCallId && it.toolCallId === toolCallId)
+    const matchesTool = Boolean(it.toolName && candidateTools.has(it.toolName))
+    if (!matchesCall && !matchesTool) continue
     useUIStore.getState().updateTimelineItem(it.id, {
       extensionUiRequestId: requestId,
       extensionUiSuspended: false,
@@ -45,11 +87,12 @@ export function reconcileStaleInteractiveToolRows(requestId?: string): void {
     const { activePending, suspended } = useExtensionUIStore.getState()
     if (activePending || suspended) return
 
+    const interactiveTools = getInteractiveExtensionTools()
     const items = useUIStore.getState().timelineItems
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i]
       if (it.type !== 'tool-call') continue
-      if (!INTERACTIVE_EXTENSION_TOOLS.has(it.toolName || '')) continue
+      if (!interactiveTools.has(it.toolName || '')) continue
       if (it.toolPhase !== 'start' && it.toolPhase !== 'update') continue
       if (requestId && it.extensionUiRequestId && it.extensionUiRequestId !== requestId) continue
       finishStaleRow(it)
@@ -62,11 +105,12 @@ export function reconcileAllStaleInteractiveToolRows(): void {
   requestAnimationFrame(() => {
     const { activePending, suspended } = useExtensionUIStore.getState()
     if (activePending || suspended) return
+    const interactiveTools = getInteractiveExtensionTools()
     const items = useUIStore.getState().timelineItems
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i]
       if (it.type !== 'tool-call') continue
-      if (!INTERACTIVE_EXTENSION_TOOLS.has(it.toolName || '')) continue
+      if (!interactiveTools.has(it.toolName || '')) continue
       if (it.toolPhase !== 'start' && it.toolPhase !== 'update') continue
       finishStaleRow(it)
     }

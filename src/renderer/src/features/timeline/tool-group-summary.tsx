@@ -1,9 +1,16 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { ChevronRight } from '@renderer/components/icons'
+import { ChevronDown, ChevronRight, Undo2 } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
 import { normalizeSessionFileKey } from '@renderer/lib/session-file-key'
+import { navigateSessionToEntry } from '@renderer/lib/session-rewind'
+import { isCurrentSubagentSessionPreview } from '@renderer/lib/subagent-session-preview'
+import {
+  openTimelineContextMenu,
+  shouldBypassTimelineContextMenu,
+  type TimelineContextMenuItem,
+} from './timeline-context-menu'
 import { ToolCallRow } from './tool-call-row'
 import { ThinkingChainBlock } from './thinking-chain-block'
 import type { ToolTimelineItem } from '@renderer/stores/ui-store-types'
@@ -14,6 +21,7 @@ import {
 } from './timeline-turn-activity'
 import { DiffStatBadge } from './diff-stat-badge'
 import { displayToolName } from './mcp-tool'
+import { anchorViewportBeforeCollapse } from './collapse-scroll-anchor'
 
 const toolKey = (tool: ToolTimelineItem) => tool.toolCallId || tool.id
 
@@ -57,6 +65,7 @@ function ToolGroupSummaryImpl({
   foldedAssistantTexts?: string[]
 }) {
   const { t } = useTranslation()
+  const rootRef = useRef<HTMLDivElement>(null)
   const userExpanded = useUIStore((s) => {
     const sessionKey = normalizeSessionFileKey(s.historySessionFile || '') || s.historySessionFile || '__none__'
     return groupExpanded(s.toolExpandBySession[sessionKey], groupId, tools)
@@ -100,6 +109,7 @@ function ToolGroupSummaryImpl({
           toolName: tool.toolName,
           toolPhase: tool.toolPhase,
           toolArgs: tool.toolArgs,
+          toolDetails: tool.toolDetails,
           toolDetail: tool.toolDetail,
           toolOutput: tool.toolOutput,
           toolCallId: tool.toolCallId,
@@ -107,6 +117,8 @@ function ToolGroupSummaryImpl({
           isError: tool.isError,
           toolStatusLine: tool.toolStatusLine,
           extensionUiSuspended: tool.extensionUiSuspended,
+          sessionEntryId: tool.sessionEntryId,
+          toolResultEntryId: tool.toolResultEntryId,
         },
       })
     }
@@ -117,12 +129,60 @@ function ToolGroupSummaryImpl({
     return legacy
   }, [clusterChildren, thinkingText, foldedAssistantTexts, tools])
 
+  const lastGroupRewindEntryId = useMemo(() => {
+    for (let i = tools.length - 1; i >= 0; i--) {
+      const id = tools[i]?.toolResultEntryId || tools[i]?.sessionEntryId
+      if (id) return id
+    }
+    return undefined
+  }, [tools])
+
+  const groupRunning = tools.some((tool) => tool.toolPhase === 'start' || tool.toolPhase === 'update')
+
+  const handleGroupContextMenu = (e: ReactMouseEvent) => {
+    if (shouldBypassTimelineContextMenu(e.target)) return
+    const menuItems: TimelineContextMenuItem[] = [
+      {
+        id: 'toggle-group',
+        label: userExpanded
+          ? t('timeline:contextMenu.collapseToolGroup')
+          : t('timeline:contextMenu.expandToolGroup'),
+        icon: userExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />,
+        onSelect: () => setToolCallExpanded(groupId, !userExpanded),
+      },
+    ]
+    if (lastGroupRewindEntryId) {
+      menuItems.push({ type: 'separator', id: 'sep-group-rewind' })
+      menuItems.push({
+        id: 'rewind-tool-group',
+        label: t('timeline:contextMenu.rewindToToolGroup'),
+        icon: <Undo2 className="h-3.5 w-3.5" />,
+        disabled: groupRunning || isCurrentSubagentSessionPreview(),
+        onSelect: () => void navigateSessionToEntry(lastGroupRewindEntryId),
+      })
+    }
+    e.preventDefault()
+    e.stopPropagation()
+    openTimelineContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      header: activityLabel,
+      items: menuItems,
+    })
+  }
+
+  const handleCollapseGroup = () => {
+    anchorViewportBeforeCollapse(rootRef.current)
+    setToolCallExpanded(groupId, false)
+  }
+
   return (
-    <div className="py-0">
+    <div ref={rootRef} data-pi-slot="timeline-tool-group" className="py-0">
       <button
         type="button"
         aria-expanded={userExpanded}
-        onClick={() => setToolCallExpanded(groupId, !userExpanded)}
+        onClick={() => (userExpanded ? handleCollapseGroup() : setToolCallExpanded(groupId, true))}
+        onContextMenu={handleGroupContextMenu}
         className={cn(
           'group timeline-activity-row tool-group-hit w-full',
           hasError && 'tool-group-hit--error',
@@ -190,6 +250,16 @@ function ToolGroupSummaryImpl({
               </div>
             )
           })}
+          {orderedChildren.length >= 4 && (
+            <button
+              type="button"
+              onClick={handleCollapseGroup}
+              className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-foreground-secondary/70 transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+            >
+              <ChevronDown className="h-3 w-3 rotate-180" />
+              <span>{t('timeline:collapse')}</span>
+            </button>
+          )}
         </div>
       ) : null}
     </div>

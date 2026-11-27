@@ -118,7 +118,7 @@ export function ComposerAdapterWidgetHost() {
         ? t('composer:adapterWidget.next', { text: next.text })
         : ''
   return (
-    <section className="adapter-widget-shell min-w-0" data-open={expanded ? 'true' : 'false'} data-done={allDone ? 'true' : 'false'}>
+    <section data-pi-slot="composer-todo" className="adapter-widget-shell min-w-0" data-open={expanded ? 'true' : 'false'} data-done={allDone ? 'true' : 'false'}>
       <div className="adapter-widget-expand" data-open={expanded ? 'true' : 'false'} aria-hidden={!expanded}>
         <div className="adapter-widget-expand-inner">
           {expanded ? <TodoListProjection items={items} /> : null}

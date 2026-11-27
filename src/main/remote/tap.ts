@@ -1,6 +1,6 @@
 import type { AppEvent } from '@shared/app-events'
 import type { UiRequest } from '@shared/remote'
-import type { RemoteTapSink } from './host-port'
+import type { RemoteSettingsKey, RemoteTapSink } from './host-port'
 
 /**
  * One-line hooks the desktop calls at its existing event exits (worker-manager, pool,
@@ -40,7 +40,14 @@ export const remoteTap = {
     if (!id) return
     guard((s) => s.uiResolved(id, by))
   },
-  settingsChanged(key: 'cacheWarming' | 'capabilities', sessionFile?: string): void {
+  settingsChanged(key: RemoteSettingsKey, sessionFile?: string): void {
     guard((s) => s.settingsChanged(key, sessionFile))
+  },
+  sessionsChanged(projectId?: string, removedSessionFile?: string): void {
+    guard((s) => s.sessionsChanged?.(projectId, removedSessionFile))
+  },
+  branchMoved(sessionFile: string | undefined): void {
+    if (!sessionFile) return
+    guard((s) => s.branchMoved?.(sessionFile))
   },
 }

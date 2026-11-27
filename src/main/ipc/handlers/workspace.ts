@@ -16,6 +16,8 @@ import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
 import { getMainWindow } from '../../window'
 import { refreshGitWorkspaceWatch } from '../../git-workspace-watch'
+import { invalidateKnownRemoteProjects } from '../../remote-project-registry'
+import { remoteTap } from '../../remote/tap'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -34,7 +36,9 @@ export function registerWorkspaceHandlers(): void {
   registerHandlerWithSchema('ipc:workspace.open', workspaceOpenSchema, async (req) => {
     const path = req.path
     const name = path.split(/[\\/]/).pop() || path
-    configStore.addRecentProject(path)
+    if (!isSandboxWorkspacePath(path)) {
+      configStore.addRecentProject(path)
+    }
     configStore.set('currentProject', path)
     try {
       sqliteIndex.upsertWorkspace(path, name, path)
@@ -55,6 +59,8 @@ export function registerWorkspaceHandlers(): void {
     } else {
       void refreshGitWorkspaceWatch(getMainWindow())
     }
+    invalidateKnownRemoteProjects()
+    remoteTap.settingsChanged('projects')
     return { workspaceId: path, path, name }
   })
 
@@ -99,7 +105,9 @@ export function registerWorkspaceHandlers(): void {
   })
 
   registerHandlerWithSchema('ipc:workspace.sandbox.delete', workspaceSandboxDeleteSchema, async (req) => {
-    return { ok: deleteSandboxWorkspace(req.path) }
+    const ok = deleteSandboxWorkspace(req.path)
+    if (ok) configStore.removeRecentProject(req.path)
+    return { ok }
   })
 
   registerHandler('ipc:workspace.isSandbox', async (req) => {

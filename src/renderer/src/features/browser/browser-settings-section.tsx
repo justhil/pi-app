@@ -7,12 +7,14 @@ import { ConfirmDialog } from '@renderer/features/settings/confirm-dialog'
 import { btnDanger, btnOutline, selectCls } from '@renderer/features/settings/settings-controls'
 import { SettingRow, SettingsSection } from '@renderer/features/settings/settings-page-shared'
 import { AgentBrowserSettings } from './agent-settings'
+import { CookieSyncDialog } from './cookie-sync-dialog'
 
 /** Built-in browser options; saved immediately (not part of the settings draft). */
 export function BrowserSettingsSection() {
   const { t } = useTranslation('browser')
   const [engine, setEngine] = useState<BrowserSearchEngine>('bing')
   const [confirmClear, setConfirmClear] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
   const [downloader, setDownloader] = useState<BrowserDownloader>('auto')
   const [aria2Path, setAria2Path] = useState('')
   const [connections, setConnections] = useState(16)
@@ -154,6 +156,12 @@ export function BrowserSettingsSection() {
         </>
       ) : null}
       <AgentBrowserSettings />
+      <SettingRow label={t('sync.button')} description={t('sync.subtitle')}>
+        <button type="button" className={btnOutline} onClick={() => setSyncOpen(true)}>
+          {t('sync.openBtn')}
+        </button>
+      </SettingRow>
+      <CookieSyncDialog open={syncOpen} onClose={() => setSyncOpen(false)} />
       <SettingRow label={t('settings.clearData')} description={t('settings.clearDataDesc')}>
         <button type="button" className={btnDanger} onClick={() => setConfirmClear(true)}>
           {t('settings.clearDataAction')}

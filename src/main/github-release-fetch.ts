@@ -1,7 +1,12 @@
 import { errorMessage } from '@shared/error-message'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 
 const API = 'https://api.github.com'
-const RELEASE_ERROR = '无法读取 GitHub Releases'
+
+function releaseFetchError(detail: string): GitHubReleaseFetchResult {
+  return { ok: false, error: mainLabel(getMainUiLanguage(), 'release.fetchFailed'), detail }
+}
 
 export type GhAsset = {
   name?: string
@@ -46,34 +51,34 @@ export async function fetchLatestGitHubRelease(
     if (includePrerelease) {
       const list = await fetch(`${API}/repos/${slug}/releases?per_page=10`, { headers, signal })
       if (!list.ok) {
-        return { ok: false, error: RELEASE_ERROR, detail: `list_http_${list.status}` }
+        return releaseFetchError(`list_http_${list.status}`)
       }
       const releases = (await list.json()) as GhRelease[]
       const release = releases.find((row) => row?.tag_name && !row.draft)
-      if (!release?.tag_name) return { ok: false, error: RELEASE_ERROR, detail: 'no_release' }
+      if (!release?.tag_name) return releaseFetchError('no_release')
       return { ok: true, release: release as GhRelease & { tag_name: string } }
     }
     const response = await fetch(`${API}/repos/${slug}/releases/latest`, { headers, signal })
     if (response.status === 404) {
       const list = await fetch(`${API}/repos/${slug}/releases?per_page=5`, { headers, signal })
       if (!list.ok) {
-        return { ok: false, error: RELEASE_ERROR, detail: `list_http_${list.status}` }
+        return releaseFetchError(`list_http_${list.status}`)
       }
       const releases = (await list.json()) as GhRelease[]
       const release = releases.find(
         (row) => row?.tag_name && !row.draft && !row.prerelease && !String(row.tag_name).includes('draft'),
       )
-      if (!release?.tag_name) return { ok: false, error: RELEASE_ERROR, detail: 'no_release' }
+      if (!release?.tag_name) return releaseFetchError('no_release')
       return { ok: true, release: release as GhRelease & { tag_name: string } }
     }
     if (!response.ok) {
-      return { ok: false, error: RELEASE_ERROR, detail: `latest_http_${response.status}` }
+      return releaseFetchError(`latest_http_${response.status}`)
     }
     const release = (await response.json()) as GhRelease
-    if (!release?.tag_name) return { ok: false, error: RELEASE_ERROR, detail: 'no_release' }
+    if (!release?.tag_name) return releaseFetchError('no_release')
     return { ok: true, release: release as GhRelease & { tag_name: string } }
   } catch (error: unknown) {
     const detail = errorMessage(error)
-    return { ok: false, error: RELEASE_ERROR, detail }
+    return releaseFetchError(detail)
   }
 }

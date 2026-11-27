@@ -39,6 +39,69 @@ describe('Link preview', () => {
     expect(parseLinkPreview('<title>Plain page</title><meta name="twitter:description" content="Summary">', 'https://example.com')).toMatchObject({ title: 'Plain page', description: 'Summary' })
   })
 
+  it('resolves relative share images against the first valid <base href> in head while keeping the page URL', () => {
+    const html = `<head>
+      <!-- <base href="https://comment.example.com/"> -->
+      <script>const s = '<base href="https://script.example.com/">'</script>
+      <base target="_blank">
+      <base href="https://cdn.example.com/assets/">
+      <base href="https://second.example.com/ignored/">
+      <meta property="og:image" content="share.png?a=1&amp;b=2">
+    </head><base href="https://body.example.com/">`
+    expect(parseLinkPreview(html, 'https://example.com/articles/post')).toEqual({
+      url: 'https://example.com/articles/post',
+      title: undefined,
+      description: undefined,
+      imageUrl: 'https://cdn.example.com/assets/share.png?a=1&b=2',
+    })
+    expect(parseLinkPreview('<head><base href="/media/"><meta property="og:image" content="card.png"></head>', 'https://example.com/articles/post'))
+      .toMatchObject({ url: 'https://example.com/articles/post', imageUrl: 'https://example.com/media/card.png' })
+    expect(parseLinkPreview('<head><base href="javascript:alert(1)"><meta property="og:image" content="/fallback.png"></head>', 'https://example.com/page'))
+      .toMatchObject({ url: 'https://example.com/page', imageUrl: 'https://example.com/fallback.png' })
+    expect(parseLinkPreview('<head><base href="https://user:pass@evil.example/a/"><meta property="og:image" content="card.png"></head>', 'https://example.com/page'))
+      .toMatchObject({ url: 'https://example.com/page', imageUrl: 'https://example.com/card.png' })
+  })
+
+  it('decodes non-UTF-8 pages from Content-Type charset, <meta charset>, http-equiv, and BOM', async () => {
+    respond([{ type: 'text/html; charset=shift_jis', body: Buffer.concat([Buffer.from('<title>'), Buffer.from([0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/charset-shift-jis')).toMatchObject({ title: '日本語' })
+
+    respond([{ type: 'text/html', body: Buffer.concat([Buffer.from('<meta charset="gbk"><title>'), Buffer.from([0xd6, 0xd0, 0xce, 0xc4]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/charset-gbk')).toMatchObject({ title: '中文' })
+
+    respond([{ type: 'text/html', body: Buffer.concat([Buffer.from('<meta http-equiv="Content-Type" content="text/html; charset=big5"><title>'), Buffer.from([0xc1, 0x63, 0xc5, 0xe9]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/charset-big5')).toMatchObject({ title: '繁體' })
+
+    respond([{ type: 'text/html; charset=not-a-real-charset', body: Buffer.concat([Buffer.from('<meta charset="euc-kr"><title>'), Buffer.from([0xc7, 0xd1, 0xb1, 0xb9, 0xbe, 0xee]), Buffer.from('</title></head>')]) }])
+    expect(await getLinkPreview('https://example.com/charset-euc-kr')).toMatchObject({ title: '한국어' })
+
+    respond([{ type: 'text/html; charset=shift_jis', body: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('<title>中文</title></head>', 'utf16le')]) }])
+    expect(await getLinkPreview('https://example.com/charset-utf16le-bom')).toMatchObject({ title: '中文' })
+
+    respond([{ type: 'text/html', body: Buffer.from('<!-- <meta charset="gbk"> --><meta charset="utf-16"><title>中文 UTF-8</title></head>', 'utf8') }])
+    expect(await getLinkPreview('https://example.com/charset-utf8-meta-edge')).toMatchObject({ title: '中文 UTF-8' })
+  })
+
+  it('fetches share images resolved against <base href> and keeps valid og:type=image HTML pages', async () => {
+    respond([
+      { body: '<head><base href="https://cdn.example.com/assets/"><meta property="og:type" content="image"><meta property="og:title" content="Photo"><meta property="og:image" content="share.png"></head>' },
+      { type: 'image/png', body: Buffer.from([1]) },
+    ])
+    expect(await getLinkPreview('https://example.com/base-href-fetch')).toEqual({
+      url: 'https://example.com/base-href-fetch',
+      title: 'Photo',
+      description: undefined,
+      image: 'data:image/png;base64,AQ==',
+    })
+    expect(mocks.fetch.mock.calls[1][0]).toBe('https://cdn.example.com/assets/share.png')
+
+    respond([{ body: '<head><base href="http://127.0.0.1/internal/"><meta property="og:title" content="Safe"><meta property="og:image" content="secret.png"></head>' }])
+    const privateBase = await getLinkPreview('https://example.com/base-href-private')
+    expect(privateBase.title).toBe('Safe')
+    expect(privateBase.image).toBeUndefined()
+    expect(mocks.fetch).toHaveBeenCalledTimes(3)
+  })
+
   it.each(['127.0.0.1', '10.1.1.1', '169.254.169.254', '172.16.0.1', '192.168.1.1', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', 'fc00::1', 'fe80::1', '::ffff:127.0.0.1'])('rejects non-public preview addresses: %s', (address) => {
     expect(isPublicPreviewAddress(address)).toBe(false)
   })

@@ -56,6 +56,18 @@ export function handleTool(event: ToolEvent, api: StoreApi): void {
     return
   }
   const state = api.get()
+  if (event.phase === 'entry') {
+    if (event.sessionEntryId) {
+      const target = findLiveToolRowByCallId(state.timelineItems, event.toolCallId)
+      if (target?.id) {
+        state.updateTimelineItem(target.id, {
+          toolResultEntryId: event.sessionEntryId,
+          sessionEntryId: event.sessionEntryId,
+        })
+      }
+    }
+    return
+  }
   if (event.phase === 'update') {
     const items = state.timelineItems
     const lastTool = findLiveToolRowByCallId(items, event.toolCallId)

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { refreshAgentContext } from './session-context-refresh.js'
 import type {
   AgentSession,
@@ -13,6 +14,7 @@ import type { AppEvent } from '@shared/app-events'
 import { formatSessionModelKey, type SessionModelRef } from '@shared/worker-model'
 import { createDesktopUIBridge, type DesktopUIBridge } from './desktop-ui-bridge.js'
 import { createDesktopWidgetHost } from './desktop-widget-host.js'
+import { createDesktopStatusBarHost } from './desktop-status-bar-host.js'
 import { applySkillsOverride } from './skill-override.js'
 import { decorateQuestionnaireTools } from './questionnaire-tool-decorator.js'
 import {
@@ -21,12 +23,17 @@ import {
   resetSessionEventTracking,
 } from './worker-session-events.js'
 import { errorMessage } from '@shared/error-message'
+import { removeWindowsReservedDeviceFiles } from '@shared/windows-reserved-files'
 import { sendToMain } from './worker-transport.js'
 import { translateEventPaths } from './worker-path-bridge.js'
 import { prepareAdapterCatalog, installAdapterCatalog } from '../extension-compat/adapter-loader.js'
 import { capabilitiesExtension } from './worker-capabilities.js'
+import { createPurgeStreamWrapper, type PurgeModelLike, type PurgeStreamFn } from './worker-purge-stream.js'
 import { modelRoutersExtension } from './worker-model-routers.js'
 import { browserToolsExtension } from './worker-browser-tools.js'
+import { canvasToolsExtension } from './worker-canvas-tools.js'
+import { codemodeStatsExtension } from './worker-codemode-stats.js'
+import { usageMetricsExtension } from './worker-usage-metrics.js'
 
 
 
@@ -47,6 +54,7 @@ export type WorkerMutableState = {
   runtime: AgentSessionRuntime | null
   uiBridge: DesktopUIBridge | null
   widgetHost: ReturnType<typeof createDesktopWidgetHost> | null
+  statusBarHost: ReturnType<typeof createDesktopStatusBarHost> | null
   pendingAdapterCatalog: import('../extension-compat/adapter-schema').AdapterCatalog | null
   seq: number
   currentCwd: string
@@ -58,6 +66,20 @@ export type WorkerMutableState = {
   promptPreflightActive: boolean
   /** Stop arrived while prompt() was still in preflight — there was no agent run to abort yet. */
   abortAfterPreflight: boolean
+  /** Monotonic counter per top-level agent turn so deferred aborts never hit a newer turn. */
+  turnSeq: number
+  /** Turn seq explicitly targeted by an abort during preflight. */
+  abortedTurnSeq: number
+  /** True while handleAbort / abort-on-rewind is draining an in-flight turn. */
+  abortingTurn: boolean
+  /** Current top-level prompt promise (preflight + run + settle cleanup). */
+  activeTurnPromise: Promise<void> | null
+  /** Monotonic ticket for queued fresh prompts waiting on a settling/aborting turn. */
+  promptTicket: number
+  /** Highest ticket invalidated by abort / rewind before starting. */
+  cancelledPromptTicket: number
+  /** Count of fresh prompts waiting for previous turn to finish settling. */
+  pendingFreshPrompts: number
   promptSent: boolean
 }
 
@@ -70,6 +92,7 @@ export const st: WorkerMutableState = {
   runtime: null,
   uiBridge: null,
   widgetHost: null,
+  statusBarHost: null,
   pendingAdapterCatalog: null,
   seq: 0,
   currentCwd: '',
@@ -80,6 +103,13 @@ export const st: WorkerMutableState = {
   agentTurnActive: false,
   promptPreflightActive: false,
   abortAfterPreflight: false,
+  turnSeq: 0,
+  abortedTurnSeq: 0,
+  abortingTurn: false,
+  activeTurnPromise: null,
+  promptTicket: 0,
+  cancelledPromptTicket: 0,
+  pendingFreshPrompts: 0,
   promptSent: false,
 }
 
@@ -127,6 +157,38 @@ function detachSessionSubscription(): void {
   }
 }
 
+const wrappedPurgeAgents = new WeakSet<object>()
+
+function installPurgeStreamWrapper(session: AgentSession): void {
+  const agent = (session as unknown as { agent?: { streamFunction?: PurgeStreamFn } }).agent
+  if (!agent || typeof agent.streamFunction !== 'function' || wrappedPurgeAgents.has(agent)) return
+  const baseFn = agent.streamFunction.bind(agent)
+  agent.streamFunction = createPurgeStreamWrapper(baseFn, async (spec) => {
+    const trimmed = spec.trim()
+    if (!trimmed) return null
+    const all = st.modelRuntime?.getModels?.() ?? []
+    const slash = trimmed.indexOf('/')
+    const matched =
+      slash > 0
+        ? all.find((m) => m.provider === trimmed.slice(0, slash) && m.id === trimmed.slice(slash + 1))
+        : all.find((m) => m.id === trimmed)
+    if (!matched) return null
+    let apiKey: string | undefined
+    try {
+      const authRes = await (
+        session.modelRuntime as unknown as {
+          getAuth?: (m: unknown) => Promise<{ auth?: { apiKey?: string } } | null | undefined>
+        }
+      )?.getAuth?.(matched)
+      apiKey = authRes?.auth?.apiKey
+    } catch {
+      /* fallback to caller auth */
+    }
+    return { model: matched as unknown as PurgeModelLike, ...(apiKey ? { apiKey } : {}) }
+  })
+  wrappedPurgeAgents.add(agent)
+}
+
 /** After Runtime replaces the AgentSession: resubscribe + rebind desktop extensions. */
 export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<void> {
   detachSessionSubscription()
@@ -134,7 +196,10 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   resetCompletionTurnTracking()
   st.widgetHost?.dispose()
   st.widgetHost = null
+  st.statusBarHost?.dispose()
+  st.statusBarHost = null
   st.session = session
+  installPurgeStreamWrapper(session)
   st.modelRuntime = st.runtime?.services.modelRuntime ?? session.modelRuntime ?? null
   st.currentSessionId = session.sessionId
   st.currentRunId = ''
@@ -142,12 +207,17 @@ export async function rebindAfterRuntimeReplace(session: AgentSession): Promise<
   st.agentTurnActive = false
   st.promptPreflightActive = false
   st.abortAfterPreflight = false
+  st.abortedTurnSeq = 0
+  st.abortingTurn = false
+  st.activeTurnPromise = null
+  st.pendingFreshPrompts = 0
   try {
     const cwd = session.sessionManager?.getCwd?.()
     if (typeof cwd === 'string' && cwd.length > 0) st.currentCwd = cwd
   } catch {
     /* ignore */
   }
+  await removeWindowsReservedDeviceFiles(st.currentCwd).catch(() => {})
   await prepareAdapterCatalog(st.currentCwd, { refresh: true })
   await bindDesktopExtensions(session)
   st.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -218,13 +288,14 @@ function piBuiltinExtensions(sdk: unknown): InlineExtension[] {
 function buildRuntimeFactory(): CreateAgentSessionRuntimeFactory {
   const sdk = st.sdk!
   return async ({ cwd, agentDir, sessionManager, sessionStartEvent }) => {
+    await removeWindowsReservedDeviceFiles(cwd).catch(() => {})
     await prepareAdapterCatalog(cwd, { refresh: true })
     const services = await sdk.createAgentSessionServices({
       cwd,
       agentDir,
       resourceLoaderOptions: {
         eventBus: st.sharedEventBus!,
-        extensionFactories: [...piBuiltinExtensions(sdk), capabilitiesExtension, browserToolsExtension, modelRoutersExtension(agentDir)],
+        extensionFactories: [...piBuiltinExtensions(sdk), codemodeStatsExtension, capabilitiesExtension, browserToolsExtension, canvasToolsExtension, modelRoutersExtension(agentDir), usageMetricsExtension],
         extensionsOverride: (result) => decorateQuestionnaireTools(result, cwd),
         skillsOverride: applySkillsOverride as never,
       },
@@ -250,6 +321,10 @@ function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
     st.agentTurnActive = false
     st.promptPreflightActive = false
     st.abortAfterPreflight = false
+    st.abortedTurnSeq = 0
+    st.abortingTurn = false
+    st.activeTurnPromise = null
+    st.pendingFreshPrompts = 0
   })
   runtime.setRebindSession(async (session) => {
     await rebindAfterRuntimeReplace(session)
@@ -258,9 +333,17 @@ function wireRuntimeCallbacks(runtime: AgentSessionRuntime): void {
 
 async function disposeRuntimeOrSession(): Promise<void> {
   detachSessionSubscription()
+  st.widgetHost?.dispose()
+  st.widgetHost = null
+  st.statusBarHost?.dispose()
+  st.statusBarHost = null
   st.agentTurnActive = false
   st.promptPreflightActive = false
   st.abortAfterPreflight = false
+  st.abortedTurnSeq = 0
+  st.abortingTurn = false
+  st.activeTurnPromise = null
+  st.pendingFreshPrompts = 0
   if (st.runtime) {
     try {
       st.runtime.setRebindSession(undefined)
@@ -294,24 +377,47 @@ export function applyPendingAdapterCatalog(): void {
   if (!st.pendingAdapterCatalog || isSessionBusy()) return
   installAdapterCatalog(st.currentCwd, st.pendingAdapterCatalog)
   st.pendingAdapterCatalog = null
+  st.statusBarHost?.resyncCatalog()
 }
 
-export async function initSession(cwd: string): Promise<void> {
+export async function initSession(
+  cwd: string,
+  initialSessionFile?: string | null,
+  initialLeafOverride?: string | null,
+): Promise<void> {
   st.promptSent = false
   await disposeRuntimeOrSession()
 
   st.currentCwd = cwd
   const sdk = st.sdk!
   const agentDir = sdk.getAgentDir()
+  let sm: ReturnType<typeof sdk.SessionManager.create>
+  let openedExisting = false
+  if (initialSessionFile && existsSync(initialSessionFile)) {
+    sm = sdk.SessionManager.open(initialSessionFile)
+    if (initialLeafOverride === null) {
+      sm.resetLeaf?.()
+    } else if (typeof initialLeafOverride === 'string' && initialLeafOverride.length > 0) {
+      try {
+        sm.branch(initialLeafOverride)
+      } catch (e) {
+        console.warn('[Worker] initSession branch override failed:', e)
+      }
+    }
+    openedExisting = true
+  } else {
+    sm = sdk.SessionManager.create(cwd)
+  }
   const createRuntime = buildRuntimeFactory()
   const runtime = await sdk.createAgentSessionRuntime(createRuntime, {
-    cwd,
+    cwd: (openedExisting ? sm.getCwd?.() : null) || cwd,
     agentDir,
-    sessionManager: sdk.SessionManager.create(cwd),
+    sessionManager: sm,
   })
   st.runtime = runtime
   wireRuntimeCallbacks(runtime)
   await rebindAfterRuntimeReplace(runtime.session)
+  if (openedExisting) st.promptSent = true
   noteModelFallbackFromRuntime()
 }
 
@@ -481,7 +587,15 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
     projectDir: st.currentCwd,
     theme: (st.uiBridge.uiContext as { theme?: unknown }).theme ?? {},
   })
+  st.statusBarHost?.dispose()
+  st.statusBarHost = createDesktopStatusBarHost({
+    emit,
+    baseEvent,
+    getSession: () => st.session,
+    projectDir: st.currentCwd,
+  })
   st.uiBridge.attachWidgetHost(st.widgetHost)
+  st.uiBridge.setStatusListener?.((key, text) => st.statusBarHost?.setStatus(key, text))
   await sess.bindExtensions({
     uiContext: st.uiBridge.uiContext as never,
     mode: 'rpc',
@@ -489,7 +603,12 @@ export async function bindDesktopExtensions(sess: AgentSession): Promise<void> {
   })
   try {
     const entries = sess.sessionManager?.getBranch?.() ?? sess.messages ?? []
-    st.widgetHost.reconstructFromBranch(Array.isArray(entries) ? entries : [])
+    const entryList = Array.isArray(entries) ? entries : []
+    st.widgetHost.reconstructFromBranch(entryList)
+    await st.statusBarHost.reconstructFromBranch(
+      entryList,
+      sess.sessionManager?.getSessionFile?.() ?? undefined,
+    )
   } catch {
     /* history reconstruction is best-effort */
   }
@@ -502,10 +621,17 @@ function sessionEventDeps() {
     getSession: () => st.session,
     getSessionModelKey: currentSessionModelKey,
     getUiBridge: () => st.uiBridge,
-    captureAdapterTool: (toolName: string, payload: unknown) => st.widgetHost?.captureTool(toolName, payload),
+    captureAdapterTool: (toolName: string, payload: unknown) => {
+      st.widgetHost?.captureTool(toolName, payload)
+      st.statusBarHost?.captureTool(toolName, payload)
+    },
+    captureAdapterCustomMessage: (msg: unknown) => {
+      st.statusBarHost?.captureCustomMessage(msg)
+    },
     isAgentTurnActive: () => st.agentTurnActive,
     setAgentTurnActive: (v: boolean) => {
       st.agentTurnActive = v
+      if (!v) st.abortingTurn = false
     },
     setPromptPreflightActive: (value: boolean) => {
       st.promptPreflightActive = value
@@ -521,9 +647,14 @@ function sessionEventDeps() {
 }
 
 export function handleSessionEvent(event: AgentSessionEvent): void {
-  if (event.type === 'agent_start' && st.abortAfterPreflight) {
+  if (
+    event.type === 'agent_start' &&
+    st.abortAfterPreflight &&
+    (!st.abortedTurnSeq || st.abortedTurnSeq === st.turnSeq)
+  ) {
     // The run the user already stopped has just begun: abort it now instead of letting it stream.
     st.abortAfterPreflight = false
+    st.abortedTurnSeq = 0
     const session = st.session
     if (session) {
       queueMicrotask(() => {

@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, Cpu, RefreshCw, ArrowUp, Terminal } from '@renderer/components/icons'
 import { openTerminalTab } from '@renderer/features/terminal/terminal-drawer'
 import { terminalActions, useTerminalStore } from '@renderer/features/terminal/terminal-store'
+import {
+  collectVisibleBackgroundTasks,
+  useBackgroundTasksStore,
+} from '@renderer/stores/background-tasks-store'
+import { BackgroundTasksPopoverContent } from './background-tasks-popover'
+import { StatusBarAdapterSlots } from './status-bar-adapter-slots'
 import type { SessionItem } from '@renderer/stores/ui-store-types'
 import { ipcClient, onAppUpdateAvailable } from '@renderer/lib/ipc-client'
 import { useVisibleInterval } from '@renderer/hooks/use-visible-interval'
@@ -14,7 +20,8 @@ import { loadWorkspaceSessionList } from '@renderer/lib/refresh-workspace-sessio
 import { workspacePathKey, workspacePathsEqual } from '@shared/workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SessionAttentionDot } from '@renderer/features/workspace/session-attention-dot'
-import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
+import { ComposerContextStrip } from '@renderer/features/composer/composer-context-strip'
+
 import { ShellPopover } from './shell-popover'
 
 type WorkerRow = { sessionFile: string; running: boolean; cwd: string }
@@ -37,7 +44,7 @@ function sameDesktopStatus(previous: DesktopStatus | null, next: DesktopStatus):
     })
   )
 }
-type Popover = 'workers' | 'board' | null
+type Popover = 'workers' | 'board' | 'bg-tasks' | null
 const GROUPS: SessionAttention[] = ['needs-you', 'working', 'done']
 
 export function StatusBar() {
@@ -47,6 +54,12 @@ export function StatusBar() {
   const attention = useUIStore((s) => s.sessionAttention)
   const sessions = useUIStore((s) => s.sessions)
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
+  const activeSessionFile = useUIStore((s) => s.historySessionFile)
+  const statusBarVisible = useUIStore((s) => s.uiCustomization.shellStatusBarVisible)
+  const tasksBySession = useBackgroundTasksStore((s) => s.tasksBySession)
+  const activeAdapterBySession = useBackgroundTasksStore((s) => s.activeAdapterBySession)
+  const bgTasksLoading = useBackgroundTasksStore((s) => s.loading)
+  const bgSummary = collectVisibleBackgroundTasks(tasksBySession, activeAdapterBySession, activeSessionFile)
   const counts = countAttention(attention)
   const [status, setStatus] = useState<DesktopStatus | null>(null)
   const [sessionsByWorkspace, setSessionsByWorkspace] = useState<Record<string, SessionItem[]>>({})
@@ -58,6 +71,7 @@ export function StatusBar() {
   const [stopping, setStopping] = useState(false)
   const boardAnchor = useRef<HTMLButtonElement>(null)
   const workersAnchor = useRef<HTMLButtonElement>(null)
+  const bgTasksAnchor = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => {
     setPopover(null)
     setConfirmStop(null)
@@ -168,9 +182,12 @@ export function StatusBar() {
   const level = ratio >= 0.8 ? 'critical' : ratio >= 0.6 ? 'warning' : 'normal'
   const live = counts.working + counts.needsYou + counts.done
 
+  if (!statusBarVisible) return null
+
   return (
-    <footer className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
-      <BranchStatusTrigger />
+    <footer data-pi-slot="shell-status-bar" className="workbench-statusbar electron-no-drag" aria-label={t('common:statusBar.title')}>
+      <ComposerContextStrip placement="statusbar" />
+
       <button ref={boardAnchor} type="button" className="workbench-status-trigger" aria-haspopup="dialog" aria-expanded={popover === 'board'} aria-label={t('common:board.title')} onClick={() => setPopover((v) => v === 'board' ? null : 'board')}>
         {live === 0 ? (runFailed
           ? <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-destructive" />{t('common:statusBar.failed')}</span>
@@ -184,6 +201,12 @@ export function StatusBar() {
         <ChevronDown className="h-3 w-3 shrink-0 rotate-180 opacity-60" />
       </button>
       <div className="ml-auto flex shrink-0 items-center">
+        <StatusBarAdapterSlots
+          activeSessionFile={activeSessionFile}
+          bgTasksOpen={popover === 'bg-tasks'}
+          bgTasksAnchor={bgTasksAnchor}
+          onToggleBgTasks={() => setPopover((v) => (v === 'bg-tasks' ? null : 'bg-tasks'))}
+        />
         <button type="button" className="workbench-status-trigger" aria-pressed={terminalOpen} title={t('common:terminal.toggle')} aria-label={t('common:terminal.toggle')} onClick={() => (!terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle())}>
           <Terminal className="h-3 w-3" />{terminalTabs > 0 ? <span className="tabular-nums">{terminalTabs}</span> : null}
         </button>
@@ -194,9 +217,36 @@ export function StatusBar() {
       </div>
 
       {popover && (
-        <ShellPopover title={popover === 'board' ? t('common:board.title') : t('common:statusBar.resources')} anchorRef={popover === 'board' ? boardAnchor : workersAnchor} onClose={close}>
+        <ShellPopover
+          title={
+            popover === 'board'
+              ? t('common:board.title')
+              : popover === 'bg-tasks'
+                ? t('common:bgTasks.title')
+                : t('common:statusBar.resources')
+          }
+          anchorRef={
+            popover === 'board'
+              ? boardAnchor
+              : popover === 'bg-tasks'
+                ? bgTasksAnchor
+                : workersAnchor
+          }
+          onClose={close}
+        >
           {actionError && <p role="alert" className="workbench-error">{actionError}</p>}
-          {popover === 'board' ? (
+          {popover === 'bg-tasks' ? (
+            <BackgroundTasksPopoverContent
+              activeSessionFile={activeSessionFile}
+              workspaceId={currentWorkspace}
+              currentSessionTasks={bgSummary.currentSession}
+              otherRunningTasks={bgSummary.otherRunning}
+              loading={bgTasksLoading}
+              sessionTitleForFile={(file) => findSession(file)?.title}
+              onOpenSession={(file) => void openSession(file)}
+              onClose={close}
+            />
+          ) : popover === 'board' ? (
             live === 0 ? <div className="workbench-empty"><SessionAttentionDot attention="done" /><p>{t('common:board.empty')}</p><span>{t('common:board.emptyHint')}</span></div> : (
               GROUPS.map((kind) => {
                 const files = listAttentionSessions(attention, kind)

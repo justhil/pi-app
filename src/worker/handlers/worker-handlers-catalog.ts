@@ -35,10 +35,11 @@ export async function handleGetmodels(msg: WorkerIncomingMessage, reply: WorkerR
             : []
           reply({
             type: 'getModels-done',
-            models: models.map((m: { id: string; name?: string; provider: string; contextWindow?: number; maxOutput?: number }) => ({
+            models: models.map((m: { id: string; name?: string; provider: string; api?: string; contextWindow?: number; maxOutput?: number }) => ({
               id: m.id,
               name: m.name || m.id,
               provider: m.provider,
+              ...(m.api ? { api: m.api } : {}),
               contextWindow: m.contextWindow || 0,
               maxOutput: m.maxOutput || 0,
               available: true,

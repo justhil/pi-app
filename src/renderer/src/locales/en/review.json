@@ -49,5 +49,7 @@
     "turn": "Turn",
     "session": "Session",
     "git": "Git"
-  }
+  },
+  "inlineDraftTitle": "Inline comment draft",
+  "inlineDraftPlaceholder": "Comment draft…"
 }

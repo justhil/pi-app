@@ -69,7 +69,6 @@ jobs:
           path: |
             dist/*Setup*.exe
             dist/*Portable*.exe
-            dist/*.blockmap
           if-no-files-found: error
 
   build-mac:
@@ -180,7 +179,6 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
-            dist/*.blockmap
           if-no-files-found: error
 
   build-linux:
@@ -226,7 +224,6 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.deb
-            dist/*.blockmap
           if-no-files-found: error
 
   build-android:
@@ -315,7 +312,7 @@ jobs:
 
       - name: Prepare release assets (no auto-update metadata)
         run: |
-          find release-assets -type f \( -name 'latest.yml' -o -name 'latest-mac.yml' -o -name 'latest-linux.yml' \) -delete
+          find release-assets -type f \( -name 'latest.yml' -o -name 'latest-mac.yml' -o -name 'latest-linux.yml' -o -name '*.blockmap' \) -delete
           find release-assets -type f | sort
 
       - name: Generate SBOM

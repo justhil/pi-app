@@ -34,6 +34,10 @@
       "/pi-subagents-bridge"
     ]
   },
+  "install": {
+    "source": "npm:pi-subagents",
+    "homepage": "https://github.com/nicobailon/pi-subagents"
+  },
   "tier": "partial",
   "toolCard": {
     "template": "tree",
@@ -101,6 +105,9 @@
           },
           "en": {
             "title": "Defaults"
+          },
+          "ru": {
+            "title": "По умолчанию"
           }
         }
       }
@@ -112,6 +119,9 @@
       },
       "en": {
         "note": "Subagents run in the extension; the desktop follows runId / progress to show child sessions. Edit the file for the other settings (forkContext, intercomBridge…)."
+      },
+      "ru": {
+        "note": "Субагенты запускаются в расширении; desktop отслеживает дочерние сессии по runId / progress. Остальные параметры (forkContext, intercomBridge и др.) редактируйте напрямую в файле конфигурации."
       }
     }
   },
@@ -125,6 +135,9 @@
         "defaultSubagentContext": "子代理上下文",
         "maxSubagentDepth": "最大子代理嵌套深度",
         "worktree": "在独立 worktree 中运行"
+      },
+      "fieldDescriptions": {
+        "defaultSubagentContext": "fresh 从空白开始；fork 带上当前会话。未设置时按各代理自己的默认值"
       }
     },
     "en": {
@@ -139,6 +152,20 @@
       },
       "fieldDescriptions": {
         "defaultSubagentContext": "fresh starts empty; fork carries the current session. Unset uses each agent's own default"
+      }
+    },
+    "ru": {
+      "displayName": "Subagents",
+      "description": "Делегирование субагентам: карточки subagent отслеживают дочерние сессии; настройки в ~/.pi/agent/extensions/subagent/config.json",
+      "fieldLabels": {
+        "asyncByDefault": "Запускать в фоне по умолчанию",
+        "forceTopLevelAsync": "Принудительный фоновый режим верхнего уровня",
+        "defaultSubagentContext": "Контекст субагента",
+        "maxSubagentDepth": "Макс. глубина вложенности субагентов",
+        "worktree": "Запускать в отдельном worktree"
+      },
+      "fieldDescriptions": {
+        "defaultSubagentContext": "fresh начинает с пустого контекста; fork переносит текущую сессию. Если не задано, используется значение по умолчанию каждого агента"
       }
     }
   }

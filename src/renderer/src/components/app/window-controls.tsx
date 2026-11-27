@@ -35,29 +35,29 @@ export function WindowControls({ className }: { className?: string }) {
         type="button"
         title={t('common:window.minimize')}
         onClick={minimize}
-        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
+        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary/80 hover:bg-foreground/[0.06] hover:text-foreground"
       >
-        <Minus className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <Minus className="h-3.5 w-3.5" strokeWidth={1.5} />
       </button>
       <button
         type="button"
         title={maximized ? t('common:window.restore') : t('common:window.maximize')}
         onClick={toggleMax}
-        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
+        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary/80 hover:bg-foreground/[0.06] hover:text-foreground"
       >
         {maximized ? (
-          <Copy className="h-3 w-3 rotate-180" strokeWidth={1.75} />
+          <Copy className="h-3 w-3 rotate-180" strokeWidth={1.5} />
         ) : (
-          <Square className="h-3 w-3" strokeWidth={1.75} />
+          <Square className="h-3 w-3" strokeWidth={1.5} />
         )}
       </button>
       <button
         type="button"
         title={t('common:window.close')}
         onClick={close}
-        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-red-600 hover:text-white"
+        className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary/80 hover:bg-red-600 hover:text-white"
       >
-        <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <X className="h-3.5 w-3.5" strokeWidth={1.5} />
       </button>
     </div>
   )

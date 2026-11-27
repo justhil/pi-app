@@ -2,17 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Pi CJK Punct';
+  src: local('PingFang SC'), local('Hiragino Sans GB'), local('Microsoft YaHei UI'), local('Microsoft YaHei');
+  unicode-range: U+2018-201F, U+3000-303F, U+FF01-FF60;
+}
+
 @layer base {
   :root {
     /* Motion tokens (桌面端反馈提速: 150/200/240ms, cubic-bezier(0.22,1,0.36,1)) */
-    --motion-fast: 150ms;
-    --motion-normal: 200ms;
-    --motion-slow: 240ms;
-    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-fast: 130ms;
+    --motion-normal: 180ms;
+    --motion-slow: 220ms;
+    --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
     /* Font tokens (system stack, 参考桌面客户端 rejects Inter for thin-text issue) */
     /* *-base 为回退栈：自定义主题只把本机字体名前置，不整栈替换 */
-    --font-sans-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    --font-sans-base: 'Pi CJK Punct', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
     --font-mono-base: 'Geist Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
     --font-sans: var(--font-sans-base);
     --font-mono: var(--font-mono-base);
@@ -20,8 +26,19 @@
     --font-serif-base: 'Tiempos Text', 'Source Serif 4', 'Source Serif Pro', 'Iowan Old Style', Georgia, 'Noto Serif CJK SC', 'Noto Serif SC', 'Songti SC', STSong, serif;
     --font-display: var(--font-sans);
     --prose-font: inherit;
-    --chat-font-size: 15px;
-    --chat-line-height: 1.65;
+    --chat-font-size: 14px;
+    --chat-line-height: 1.66;
+    --composer-max-height: 112px;
+    --composer-font-size: 14px;
+    --composer-line-height: 1.55;
+    --composer-toolbar-gap: 0.375rem;
+    --timeline-turn-gap: 1.25rem;
+    --timeline-paragraph-gap: 0.72em;
+    --timeline-user-max-width: 82%;
+    --prose-h1-size: 1.38em;
+    --prose-h2-size: 1.22em;
+    --prose-h3-size: 1.1em;
+    --prose-h4-size: 1.04em;
     --chat-bg: var(--bg-base);
     --code-bg: transparent;
 
@@ -77,11 +94,9 @@
     --focus-shadow: 0 2px 20px rgba(225, 224, 255, 0.6);
 
     /* Main paper surface + Composer shell curves */
-    --main-chat-surface-radius: 16px;
-    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(18, 24, 40, 0.1);
-    --main-chat-surface-shadow:
-      -3px 0 8px -4px rgba(18, 24, 40, 0.14),
-      var(--main-chat-surface-shadow-top);
+    --main-chat-surface-radius: 0px;
+    --main-chat-surface-shadow-top: none;
+    --main-chat-surface-shadow: none;
     --composer-shell-radius: 14px;
     --composer-shell-border: color-mix(in srgb, var(--border-base) 70%, #a9aeb9);
     --composer-shell-border-hover: color-mix(in srgb, var(--border-base) 70%, #9aa0ab);
@@ -110,12 +125,12 @@
       0 12px 26px -12px rgba(18, 24, 40, 0.18);
     --composer-popover-shadow: 0 1px 2px rgba(18, 24, 40, 0.06), 0 12px 32px -8px rgba(18, 24, 40, 0.18);
 
-    /* 输入框/对话：随中心列可用宽度伸缩，侧栏收起后自然扩展 */
+    /* 输入框/对话：统一垂直阅读列宽（宽屏锁在黄金阅读宽度，窄屏随可用空间自然收缩） */
     --chat-content-min: 560px;
-    --chat-content-ratio: 72%;
-    --chat-content-cap: 1280px;
-    --composer-content-ratio: 68%;
-    --composer-content-cap: 1120px;
+    --chat-content-ratio: 78%;
+    --chat-content-cap: 800px;
+    --composer-content-ratio: 78%;
+    --composer-content-cap: 800px;
     --timeline-content-max: clamp(
       min(100%, var(--chat-content-min)),
       var(--chat-content-ratio),
@@ -153,17 +168,18 @@
     --radius-lg: 0.625rem;
     --radius-xl: 0.75rem;
 
-    /* Surface elevation tiers (参考跨端客户端-inspired) */
+    /* Seamless L-shaped chrome (#F8F8F9) framing the pure white workspace (#FFFFFF) with zero hard grid lines */
     --surface-0: 0 0% 100%;
     --surface-1: 240 20% 98%;
     --surface-2: 240 4.8% 96%;
     --surface-3: 240 5.9% 92%;
-    --surface-sidebar: #F3F3F3;
-    /* Sidebar rows: borderless neutral fills (chat-app convention); selected is one clear step
-       darker than hover, so the two never read alike. */
-    --sidebar-row-hover: #ececef;
-    --sidebar-row-press: #e4e4e8;
-    --sidebar-row-selected: #dedfe6;
+    --surface-frame: #F8F8F9;
+    --surface-sidebar: #F8F8F9;
+    --shell-hairline: rgba(18, 20, 26, 0.055);
+    /* Sidebar rows: borderless neutral fills; selected is one clear quiet step above hover. */
+    --sidebar-row-hover: rgba(18, 20, 26, 0.042);
+    --sidebar-row-press: rgba(18, 20, 26, 0.072);
+    --sidebar-row-selected: rgba(18, 20, 26, 0.068);
     /* Selection elsewhere (file tree, lists on white panels): tonal fill. */
     --list-row-selected: #eceef2;
 
@@ -237,10 +253,8 @@
     --focus-border: #3794ff;
     --focus-shadow: 0 0 0 1px #3794ff55, 0 2px 12px rgba(0, 0, 0, 0.35);
 
-    --main-chat-surface-shadow-top: 0 -2px 6px -3px rgba(0, 0, 0, 0.2);
-    --main-chat-surface-shadow:
-      -3px 0 8px -4px rgba(0, 0, 0, 0.28),
-      var(--main-chat-surface-shadow-top);
+    --main-chat-surface-shadow-top: none;
+    --main-chat-surface-shadow: none;
     --composer-shell-border: #3a3a3a;
     --composer-shell-border-hover: #48484c;
     --composer-shell-border-focus: color-mix(in srgb, var(--brand) 38%, #6a6a70);
@@ -292,11 +306,13 @@
     --surface-1: 0 0% 14%;
     --surface-2: 0 0% 17%;
     --surface-3: 0 0% 19%;
-    /* sideBar.background / activityBar.background */
-    --surface-sidebar: #181818;
-    --sidebar-row-hover: #212124;
-    --sidebar-row-press: #29292d;
-    --sidebar-row-selected: #313137;
+    /* Seamless dark chrome framing the elevated workspace without harsh grid lines */
+    --surface-frame: #161618;
+    --surface-sidebar: #161618;
+    --shell-hairline: rgba(255, 255, 255, 0.058);
+    --sidebar-row-hover: rgba(255, 255, 255, 0.045);
+    --sidebar-row-press: rgba(255, 255, 255, 0.078);
+    --sidebar-row-selected: rgba(255, 255, 255, 0.085);
     --list-row-selected: #2a2b2f;
 
     --text-secondary-hsl: 0 0% 67%;
@@ -381,6 +397,36 @@
   .message-actions-slot--reserved .message-actions-slot-inner {
     position: static;
   }
+  /* Mid-turn prose: zero flow-height floating pill docked bottom-right so left-aligned tool rows below stay unobstructed. */
+  .message-actions-slot--floating {
+    position: absolute;
+    right: 0;
+    left: auto;
+    bottom: -14px;
+    height: auto;
+    z-index: 12;
+  }
+  .message-actions-slot--floating .message-actions-slot-inner {
+    height: 26px;
+    padding: 0 5px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--bg-1, var(--background)) 94%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(6px);
+  }
+  .dark .message-actions-slot--floating .message-actions-slot-inner {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
+  }
+  /* Scroll-hover suppression: keep the timeline completely quiet while scrolling. */
+  [data-scrolling='true'] .message-actions-slot {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transition-duration: 70ms !important;
+  }
+  [data-scrolling='true'] .message-actions-slot-inner > * {
+    pointer-events: none !important;
+  }
   @media (prefers-reduced-motion: reduce) {
     .message-actions-slot,
     .message-actions-slot-inner {
@@ -433,6 +479,7 @@
   /* 左栏与对话区 grid 贴齐；主纸面左上角露出 center 的侧栏衬底 */
   .shell-track-left {
     box-shadow: none;
+    border-right: none;
   }
   .shell-track-center {
     position: relative;
@@ -441,9 +488,9 @@
     contain: layout;
     padding: 0;
     overflow: visible;
-    background: var(--surface-sidebar);
+    background: var(--surface-frame);
   }
-  /* 聊天列与右栏分界：画在 center 列右缘（grid 接缝），避免被卡片 overflow 吃掉 */
+  /* Only keep a whisper-thin 1px divider between center chat and an open right pane */
   .shell-track-center::after {
     content: '';
     position: absolute;
@@ -451,7 +498,7 @@
     right: 0;
     bottom: 0;
     width: 1px;
-    background: var(--border-base);
+    background: var(--shell-hairline);
     z-index: 90;
     pointer-events: none;
   }
@@ -459,18 +506,43 @@
     display: none;
   }
   .shell-track-center .main-chat-column {
-    /* Codex-like paper surface: cast onto sidebar/top chrome, keep right/bottom continuous */
     position: relative;
     z-index: 1;
-    border-radius: var(--main-chat-surface-radius) 0 0 0;
+    border-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px)) 0 0 0;
     background: var(--chat-bg);
     overflow: hidden;
     height: 100%;
-    box-shadow: var(--main-chat-surface-shadow);
+    box-shadow: none;
+  }
+  .shell-right-rail-only .shell-track-center .main-chat-column,
+  .shell-right-hidden-clean .shell-track-center .main-chat-column {
+    border-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px)) 0 0 0;
+  }
+  html[data-shell-corner-custom='on'] .shell-track-center .main-chat-column,
+  html[data-shell-corner-custom='on'] .settings-main {
+    border-top-left-radius: var(--shell-corner-radius, 12px) !important;
+  }
+  html[data-shell-corner-custom='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+  html[data-shell-corner-custom='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+    border-radius: var(--shell-corner-radius, 12px) !important;
+  }
+  html[data-shell-hairlines='hidden'] .shell-track-center::after,
+  html[data-shell-hairlines='hidden'] .shell-files-chat-preview .shell-track-right::before {
+    display: none !important;
+  }
+  html[data-shell-status-bar-compact='compact'] .workbench-statusbar {
+    height: 22px;
+    font-size: 11px;
+  }
+  .shell-right-rail-only .shell-track-center::after,
+  .shell-right-hidden-clean .shell-track-center::after {
+    display: none;
   }
   .shell-track-right {
     position: relative;
-    border-top: 1px solid var(--border-base);
+  }
+  .shell-track-right:not(.shell-track-right-rail) {
+    border-top: none;
   }
   /* 文件预览铺满聊天列时 center 宽为 0，改在右栏左缘画同一条线 */
   .shell-files-chat-preview .shell-track-right:not(.shell-track-collapsed)::before {
@@ -480,7 +552,7 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: var(--border-base);
+    background: var(--shell-hairline);
     z-index: 90;
     pointer-events: none;
   }
@@ -742,9 +814,12 @@
     background: transparent;
   }
   .panel-resize-edge--left {
-    flex-shrink: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
   }
-  /* 右栏：手柄中心落在 grid 接缝（= 主对话区 box-shadow 右缘） */
+  /* 右栏：手柄中心落在 grid 接缝（= 主对话区右缘） */
   .panel-resize-edge--right {
     position: absolute;
     left: -3px;
@@ -975,16 +1050,55 @@
   .rich-input {
     position: relative;
     caret-color: var(--aou-6);
+    font-size: var(--composer-font-size, 14px);
+    line-height: var(--composer-line-height, 1.55);
     letter-spacing: 0.01em;
     outline: none;
     word-break: break-word;
     white-space: pre-wrap;
-    max-height: 112px;
+    max-height: var(--composer-max-height, 112px);
     overflow-y: auto;
-    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 28%, transparent) transparent;
     transition:
       color var(--motion-fast) var(--motion-ease),
       height var(--motion-fast) var(--motion-ease);
+  }
+  .rich-input::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .rich-input::-webkit-scrollbar-track,
+  .rich-input::-webkit-scrollbar-button {
+    display: none;
+    background: transparent;
+  }
+  .rich-input::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 26%, transparent);
+  }
+  .rich-input:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+  }
+  .studio-thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 24%, transparent) transparent;
+  }
+  .studio-thin-scroll::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .studio-thin-scroll::-webkit-scrollbar-track,
+  .studio-thin-scroll::-webkit-scrollbar-button {
+    display: none;
+    background: transparent;
+  }
+  .studio-thin-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-secondary) 24%, transparent);
+  }
+  .studio-thin-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-secondary) 40%, transparent);
   }
   .rich-input.is-disabled {
     opacity: 0.5;
@@ -1450,17 +1564,14 @@
     to { opacity: 1; }
   }
   @keyframes picker-scale-in {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    from { opacity: 0; transform: translateY(4px) scale(0.992); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
   .picker-row {
-    transition: background-color var(--motion-fast) ease, transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
   }
   .picker-row:hover {
     background: var(--bg-hover);
-  }
-  .picker-row:active {
-    transform: scale(0.995);
   }
   .picker-row:disabled {
     opacity: 0.42;
@@ -1494,10 +1605,10 @@
     .thinking-slider-fill { transition: none; }
   }
   .thinking-picker-check {
-    animation: thinking-check-pop 240ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    animation: thinking-check-pop 160ms var(--motion-ease) both;
   }
   @keyframes thinking-check-pop {
-    from { opacity: 0; transform: scale(0.4); }
+    from { opacity: 0; transform: scale(0.72); }
   }
   @media (prefers-reduced-motion: reduce) {
     .thinking-picker-row,
@@ -1655,24 +1766,31 @@
     flex-direction: column;
     gap: 0;
   }
+  /* Turn-grouped rhythm: clear separation across turns, deliberate pause before final prose, tight activity cluster */
+  .timeline-turn-group + .timeline-turn-group {
+    margin-top: var(--timeline-turn-gap, 1.25rem);
+  }
   .timeline-prose-row {
     margin: 0;
     padding-block: 0.25rem;
   }
-  .timeline-activity-item + .timeline-prose-row,
+  .timeline-activity-item + .timeline-prose-row {
+    margin-top: 0.375rem;
+  }
   .timeline-prose-row + .timeline-activity-item {
-    /* one soft breath only — not double py + hover slot */
-    margin-top: 0.125rem;
+    margin-top: 0.25rem;
   }
   .timeline-user-row {
-    padding-block: 0.5rem 0.375rem;
+    padding-block: 0.25rem 0.25rem;
   }
   .timeline-user-row:has(.message-actions-slot--reserved) {
     padding-bottom: 0;
   }
-  .timeline-user-row + .timeline-activity-item,
+  .timeline-user-row + .timeline-activity-item {
+    margin-top: 0.25rem;
+  }
   .timeline-user-row + .timeline-prose-row {
-    margin-top: 0.125rem;
+    margin-top: 0.375rem;
   }
   .timeline-activity-label--live {
     animation: tool-live-pulse 2.4s ease-in-out infinite;
@@ -1707,18 +1825,62 @@
     opacity: 0.78;
   }
   .timeline-user-bubble {
-    max-width: 80%;
+    max-width: var(--timeline-user-max-width, 82%);
     padding: 0.5rem 0.875rem;
-    font-size: 15px;
-    line-height: 1.65;
+    font-size: var(--chat-font-size);
+    line-height: 1.62;
     color: var(--text-primary);
     white-space: pre-wrap;
     word-break: break-word;
     background: var(--message-user-bg);
-    border-radius: 10px 2px 10px 10px;
+    border-radius: 12px 3px 12px 12px;
   }
   .dark .timeline-user-bubble {
     background: color-mix(in srgb, var(--message-user-bg) 92%, transparent);
+  }
+  .timeline-user-inline-code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    padding: 0.1em 0.36em;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--bg-base) 68%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 65%, transparent);
+  }
+  .dark .timeline-user-inline-code {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .timeline-user-code-fence {
+    margin-block: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.52;
+    overflow-x: auto;
+    white-space: pre;
+    background: color-mix(in srgb, var(--bg-base) 78%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 68%, transparent);
+  }
+  .dark .timeline-user-code-fence {
+    background: rgba(0, 0, 0, 0.24);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .timeline-user-collapse-fade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--message-user-bg) 82%, transparent) 60%,
+      var(--message-user-bg) 100%
+    );
+  }
+  .dark .timeline-user-collapse-fade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--message-user-bg) 78%, var(--bg-base)) 60%,
+      color-mix(in srgb, var(--message-user-bg) 92%, var(--bg-base)) 100%
+    );
   }
 
   /* 列表行默认无入场动画，避免滚动/流式时大量 keyframes 掉帧 */
@@ -1730,7 +1892,9 @@
     contain: layout style;
   }
   /* 向下滚到底：最后一条停在输入框上方（留白 + scroll-padding）；向上滚：内容可穿过悬浮层由渐变+模糊处理 */
+  /* 禁用 Chromium 原生 overflow-anchor，避免与元素级视口锚定叠加造成向上加载历史时双重补偿跳页 */
   .timeline-scroll-with-dock .overlay-scroll-pane {
+    overflow-anchor: none;
     padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
     scroll-padding-bottom: calc(var(--composer-dock-h, 11rem) + 1rem);
   }
@@ -1929,29 +2093,39 @@
   }
   .prose-chat > :first-child { margin-top: 0; }
   .prose-chat > :last-child { margin-bottom: 0; }
-  .prose-chat p { margin-block: 0.45em; }
+  .prose-chat p { margin-block: var(--timeline-paragraph-gap, 0.72em); }
   .prose-chat > p:first-child { margin-top: 0; }
   .prose-chat > p:last-child { margin-bottom: 0; }
   .prose-chat strong { font-weight: 600; color: var(--text-primary); }
-  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 { font-family: var(--font-display); }
-  .prose-chat h1 { font-size: 24px; line-height: 32px; margin-top: 24px; margin-bottom: 16px; font-weight: bold; }
-  .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
-    font-size: 16px; line-height: 24px; margin-top: 20px; margin-bottom: 12px; font-weight: bold;
-  }
-  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
-  .prose-chat a:hover { text-decoration: underline; }
-  .prose-chat code:not(pre code) {
-    background: color-mix(in srgb, var(--bg-3) 42%, transparent);
+  .prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4, .prose-chat h5, .prose-chat h6 {
+    font-family: var(--font-display);
     color: var(--text-primary);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.875em;
+    letter-spacing: -0.01em;
+  }
+  .prose-chat h1 { font-size: var(--prose-h1-size, 1.38em); line-height: 1.34; margin-top: 1.45em; margin-bottom: 0.5em; font-weight: 700; letter-spacing: -0.015em; }
+  .prose-chat h2 { font-size: var(--prose-h2-size, 1.22em); line-height: 1.38; margin-top: 1.3em; margin-bottom: 0.45em; font-weight: 700; }
+  .prose-chat h3 { font-size: var(--prose-h3-size, 1.1em); line-height: 1.44; margin-top: 1.18em; margin-bottom: 0.36em; font-weight: 650; }
+  .prose-chat h4 { font-size: var(--prose-h4-size, 1.04em); line-height: 1.48; margin-top: 1.05em; margin-bottom: 0.32em; font-weight: 650; color: var(--text-primary); }
+  .prose-chat h5, .prose-chat h6 {
+    font-size: 1em; line-height: 1.5; margin-top: 0.95em; margin-bottom: 0.28em; font-weight: 650; color: var(--text-primary);
+  }
+  .prose-chat > :is(h1, h2, h3, h4, h5, h6):first-child { margin-top: 0; }
+  .prose-chat a { color: var(--primary-semantic); text-decoration: none; }
+  .prose-chat a:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .prose-chat code:not(pre code) {
+    background: color-mix(in srgb, var(--bg-3) 38%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-base) 58%, transparent);
+    color: var(--text-primary);
+    padding: 0.1em 0.38em;
+    border-radius: 4px;
+    font-size: 0.865em;
     font-family: var(--font-mono);
   }
   /* Dark Modern: quieter inline code wash */
   .dark .prose-chat code:not(pre code) {
-    background: color-mix(in srgb, #3c3c3c 55%, transparent);
-    color: #d0d0d0;
+    background: color-mix(in srgb, #3c3c3c 48%, transparent);
+    border-color: rgba(255, 255, 255, 0.085);
+    color: #d6d6d6;
   }
   .dark .prose-chat a {
     color: #4daafc;
@@ -1964,39 +2138,54 @@
     background: color-mix(in srgb, var(--bg-2) 45%, transparent);
   }
   .prose-chat pre {
-    margin-block: 6px;
-    border-radius: 6px;
+    margin-block: 0;
+    border-radius: 0;
     font-size: 12.5px;
-    line-height: 1.5;
+    line-height: 1.55;
     background: transparent;
   }
   .prose-chat blockquote {
-    border-left: 2px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    padding-left: 12px;
-    color: var(--text-primary);
-    margin: 16px 0;
+    border-left: 2.5px solid color-mix(in srgb, var(--text-disabled) 55%, var(--border-base));
+    padding: 0.1em 0 0.1em 0.9em;
+    color: var(--text-secondary);
+    margin: 0.85em 0;
   }
+  .prose-chat blockquote > :first-child { margin-top: 0; }
+  .prose-chat blockquote > :last-child { margin-bottom: 0; }
   .prose-chat hr {
     border: none;
-    border-top: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    margin: 28px 0;
+    border-top: 1px solid color-mix(in srgb, var(--border-base) 75%, transparent);
+    margin: 1.35em 0;
   }
-  .prose-chat ol, .prose-chat ul { padding-inline-start: 1.35em; margin-block: 0.4em; }
-  .prose-chat li { margin-block: 0.2em; }
+  .prose-chat ol, .prose-chat ul { padding-inline-start: 1.45em; margin-block: 0.65em; }
+  .prose-chat li { margin-block: 0.28em; }
+  .prose-chat li > ul, .prose-chat li > ol { margin-block: 0.25em; }
+  .prose-chat li > p { margin-block: 0.25em; }
+  .prose-chat li > p:first-child { margin-top: 0; }
+  .prose-chat li > p:last-child { margin-bottom: 0; }
   .prose-chat table {
-    margin-block: 0.5em;
+    margin-block: 0;
     border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
   }
   .prose-chat th {
-    padding: 6px 8px;
-    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
-    font-weight: bold;
+    padding: 7px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base) 85%, transparent);
+    background: color-mix(in srgb, var(--bg-1) 75%, transparent);
+    font-weight: 600;
+    text-align: left;
   }
   .prose-chat td {
-    padding: 6px 8px;
-    border: 1px solid color-mix(in srgb, var(--bg-3) 70%, transparent);
-    min-width: 80px;
+    padding: 7px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-base) 55%, transparent);
+    min-width: 72px;
+    vertical-align: top;
+  }
+  .prose-chat tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .prose-chat tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--bg-1) 34%, transparent);
   }
   /* ── KaTeX（行内 / 块级 / 化学式 / 错误态）── */
   .prose-chat .katex {
@@ -2442,22 +2631,39 @@
 .workbench-search input { width: 100%; min-width: 0; min-height: 32px; border: 0; background: transparent; color: hsl(var(--foreground)); font-size: 12px; outline: none; }
 .workbench-search input::-webkit-search-cancel-button { display: none; }
 .workbench-search .workbench-icon { width: 26px; min-height: 28px; margin-right: -6px; }
-.workbench-search.sidebar-search { gap: 4px; padding-right: 0; }
-.sidebar-search input { flex: 1; width: 0; }
-.sidebar-search .workbench-icon { width: 32px; min-height: 32px; margin-right: 0; }
+.workbench-search.sidebar-search {
+  min-height: 30px;
+  gap: 6px;
+  padding: 0 3px 0 9px;
+  border-color: hsl(var(--border) / 0.35);
+  border-radius: 8px;
+  background: hsl(var(--foreground) / 0.035);
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.workbench-search.sidebar-search:hover {
+  background: hsl(var(--foreground) / 0.055);
+  border-color: hsl(var(--border) / 0.55);
+}
+.workbench-search.sidebar-search:focus-within {
+  background: var(--bg-base);
+  border-color: hsl(var(--border) / 0.9);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+.sidebar-search input { flex: 1; width: 0; min-height: 28px; font-size: 12px; }
+.sidebar-search .workbench-icon { width: 26px; min-height: 26px; margin-right: 0; }
 .sidebar-search-scope {
   display: none;
   flex-shrink: 0;
-  min-width: 44px;
-  min-height: 32px;
+  min-width: 38px;
+  min-height: 26px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 8px;
-  border-left: 1px solid hsl(var(--border) / 0.6);
-  border-radius: 0 6px 6px 0;
+  gap: 4px;
+  padding: 0 7px;
+  border-left: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 0 5px 5px 0;
   color: hsl(var(--muted-foreground));
-  font-size: 11px;
+  font-size: 10.5px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -2534,20 +2740,21 @@
 
 .sidebar-section-head {
   display: flex;
-  min-height: 28px;
+  min-height: 22px;
   align-items: center;
   gap: 4px;
-  padding: 0 4px 4px;
+  padding: 0 2px 5px 8px;
 }
 .sidebar-section-title {
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: hsl(var(--foreground) / 0.5);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: hsl(var(--foreground) / 0.45);
 }
 .sidebar-section-action {
   display: inline-flex;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -2578,16 +2785,16 @@
 }
 .workbench-statusbar {
   display: flex;
-  height: 24px;
+  height: 22px;
   min-width: 0;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-top: 1px solid hsl(var(--border) / 0.55);
-  background: var(--surface-sidebar);
-  padding: 0 8px;
-  color: hsl(var(--muted-foreground));
+  border-top: none;
+  background: var(--surface-frame);
+  padding: 0 12px;
+  color: hsl(var(--muted-foreground) / 0.65);
   font-size: 11px;
 }
 .workbench-status-trigger {
@@ -2691,10 +2898,53 @@
   line-height: 1;
 }
 .session-attention-dot--working {
-  border: 1.5px solid color-mix(in srgb, var(--warning-semantic) 30%, transparent);
-  border-top-color: var(--warning-semantic);
-  border-right-color: var(--warning-semantic);
-  animation: session-attention-spin 1s linear infinite;
+  border-radius: 0;
+}
+/* Sidebar & status bar: transparent-bg organic 3×3 rippling micro-dot glyph */
+.session-running-pixel-grid {
+  opacity: 0.88;
+  transition: opacity 180ms ease;
+}
+.sidebar-session-row:hover .session-running-pixel-grid,
+.nav-row-active .session-running-pixel-grid {
+  opacity: 1;
+}
+.session-running-pixel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: transparent;
+  opacity: 0;
+  transform: scale(0.55);
+  transition:
+    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 280ms ease;
+}
+.session-running-pixel--on {
+  background: var(--text-secondary);
+}
+.session-running-pixel--lead {
+  opacity: 0.82;
+  transform: scale(1);
+}
+.session-running-pixel--mid {
+  opacity: 0.46;
+  transform: scale(0.9);
+}
+.session-running-pixel--tail {
+  opacity: 0.2;
+  transform: scale(0.76);
+}
+.dark .session-running-pixel--lead {
+  opacity: 0.88;
+}
+.dark .session-running-pixel--mid {
+  opacity: 0.52;
+}
+.dark .session-running-pixel--tail {
+  opacity: 0.24;
 }
 .session-attention-dot--needs-you {
   border: 1px solid var(--warning-semantic);
@@ -2705,14 +2955,12 @@
   background: var(--success-semantic);
   box-shadow: inset 0 0 0 2px var(--bg-base);
 }
-@keyframes session-attention-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .session-attention-dot--working {
-    animation: none;
+  .session-running-pixel {
+    transition: none !important;
+  }
+  .session-running-pixel--on {
+    opacity: 0.75;
   }
 }
 
@@ -3268,29 +3516,54 @@
   .review-skeleton span { animation: none; }
 }
 
-/* ── Settings visual system: card-grouped sections, nav indicator, page transitions ── */
-.settings-page-enter { animation: settings-page-in 260ms var(--motion-ease) both; }
-@keyframes settings-page-in { from { opacity: 0; transform: translateY(6px); } }
+/* ── Tree panel ── */
+.tree-panel { container: tree-panel / inline-size; }
+@container tree-panel (max-width: 360px) {
+  .tree-panel-toolbar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .tree-panel-refresh {
+    margin-left: auto;
+    order: 2;
+  }
+  .tree-panel-hint {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
+}
+
+/* ── Settings visual system: seamless L-frame + quiet rounded paper workspace ── */
+.settings-page-enter { animation: settings-page-in 240ms var(--motion-ease) both; }
+@keyframes settings-page-in { from { opacity: 0; transform: translateY(5px); } }
 .settings-section + .settings-section { margin-top: 2px; }
-/* Settings sit on a tinted page with solid cards: the page/card step gives the layout weight. */
-.settings-main { --settings-divider: color-mix(in srgb, var(--border-base) 80%, transparent); }
-:root:not(.dark) .settings-main { background: color-mix(in srgb, var(--bg-2) 55%, var(--bg-base)) !important; }
+.settings-main {
+  --settings-divider: var(--shell-hairline);
+  border-top-left-radius: var(--main-chat-surface-radius, var(--shell-corner-radius, 12px));
+  background: var(--bg-base);
+}
 .settings-card {
   overflow: hidden;
-  border: 1px solid var(--border-base);
+  border: 1px solid color-mix(in srgb, var(--border-base) 68%, transparent);
   border-radius: 12px;
-  background: var(--bg-base);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  background: color-mix(in srgb, var(--bg-1) 42%, var(--bg-base));
+  box-shadow: none;
 }
-.dark .settings-card { background: var(--bg-1); box-shadow: none; }
-.settings-card > * + * { border-top: 1px solid color-mix(in srgb, var(--border-base) 70%, transparent); }
+.dark .settings-card {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--bg-1) 75%, var(--bg-base));
+  box-shadow: none;
+}
+.settings-card > * + * { border-top: 1px solid var(--shell-hairline); }
 .settings-card > .settings-row {
-  min-height: 60px;
-  padding: 13px 16px;
+  min-height: 54px;
+  padding: 12px 16px;
   transition: background-color var(--motion-fast) ease;
 }
-.settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 32%, transparent); }
-.settings-card > :not(.settings-row) { padding: 14px 16px; }
+.settings-card > .settings-row:hover { background: color-mix(in srgb, var(--bg-hover) 28%, transparent); }
+.settings-card > :not(.settings-row):not(.settings-flush) { padding: 14px 16px; }
+:where(.settings-card > .settings-flush) { padding: 0; }
 
 /* WSL runtime environment checklist (settings → 通用 → Agent 运行时). */
 .wsl-env-card { animation: wsl-check-in 220ms var(--motion-ease) both; }
@@ -3486,12 +3759,15 @@
 .settings-segmented { background: var(--bg-2); }
 .settings-segmented-item { color: hsl(var(--text-secondary-hsl)); transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .settings-segmented-item:hover { color: var(--text-primary); }
-.settings-segmented-item[aria-checked='true'] {
+.settings-segmented-item[aria-checked='true'],
+.settings-segmented-item[aria-selected='true'] {
   background: var(--bg-base);
   color: var(--text-primary);
+  font-weight: 500;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 0 0 0.5px var(--border-base);
 }
-.dark .settings-segmented-item[aria-checked='true'] { background: #46474d; box-shadow: none; }
+.dark .settings-segmented-item[aria-checked='true'],
+.dark .settings-segmented-item[aria-selected='true'] { background: #46474d; box-shadow: none; }
 .settings-check { accent-color: hsl(var(--foreground)); }
 .settings-model-entry {
   border-color: var(--border-base);
@@ -3605,40 +3881,96 @@ html[data-bg='on'] #root { position: relative; z-index: 1; }
 
 /* Elements that paint the sidebar colour themselves would stack a second tint. */
 html[data-bg='on'] .shell-track-center,
-html[data-bg='on'] .split-view { background: transparent !important; }
+html[data-bg='on'] .split-view,
+html[data-bg='on'] .shell-track-right-rail,
+html[data-bg='on'] [data-testid='sidebar-active-sessions-drawer'],
+html[data-backdrop-preset] [data-testid='sidebar-active-sessions-drawer'] {
+  background: transparent !important;
+}
+html[data-bg='on'] .shell-track-right-rail {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
 
-html[data-bg-cover='frame'] .app-viewport { background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important; }
+/* Frame mode (default): .app-viewport paints ONE unified translucent veil across topbar, sidebar,
+   island gaps & statusbar (zero dark seam strips around rounded island corners!), while content panes
+   add a light frost sheet so the wallpaper shines clearly through every pane! */
+html[data-bg-cover='frame'] .app-viewport {
+  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 62%), transparent) !important;
+}
 html[data-bg-cover='frame'] .app-viewport .electron-drag,
+html[data-bg-cover='frame'] [data-pi-slot='left-activity-rail'],
 html[data-bg-cover='frame'] .shell-track-left,
-html[data-bg-cover='frame'] .workbench-statusbar { background: transparent !important; }
+html[data-bg-cover='frame'] .workbench-statusbar {
+  background: transparent !important;
+}
+html[data-bg-cover='frame'] [data-pi-slot='main-chat-header'],
+html[data-bg-cover='frame'] [data-pi-slot='right-dock-tabs'],
+html[data-bg-cover='frame'] [data-pi-slot='right-dock-launchpad'],
+html[data-bg-cover='frame'] [data-pi-slot='ai-canvas-panel'],
+html[data-bg-cover='frame'] [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
+html[data-bg-cover='frame'] .shell-track-center .main-chat-column,
+html[data-bg-cover='frame'] .shell-track-right:not(.shell-track-right-rail),
+html[data-bg-cover='frame'] .terminal-drawer {
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 42%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.12);
+}
 
-html[data-bg-cover='full'] .app-viewport { background: transparent !important; }
-html[data-bg-cover='full'] .app-viewport > .electron-drag,
+/* Full cover mode: .app-viewport carries outer pane blur + --ui-alpha uniformly so island gaps match seamlessly */
+html[data-bg-cover='full'] .app-viewport {
+  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 65%), transparent) !important;
+  backdrop-filter: blur(var(--pane-blur)) saturate(1.08);
+}
+html[data-bg-cover='full'][data-bg-material='clear'] .app-viewport { backdrop-filter: none; }
+html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport {
+  backdrop-filter: blur(var(--pane-blur)) saturate(1.65) brightness(1.03);
+}
+html[data-bg-cover='full'] .app-viewport .electron-drag,
+html[data-bg-cover='full'] [data-pi-slot='left-activity-rail'],
 html[data-bg-cover='full'] .shell-track-left,
 html[data-bg-cover='full'] .workbench-statusbar {
-  background: color-mix(in srgb, var(--surface-sidebar) calc(var(--ui-alpha) * 100%), transparent) !important;
-  backdrop-filter: blur(var(--pane-blur)) saturate(1.05);
+  background: transparent !important;
+  backdrop-filter: none !important;
 }
-html[data-bg-cover='full'][data-bg-material='clear'] .app-viewport > .electron-drag,
-html[data-bg-cover='full'][data-bg-material='clear'] .shell-track-left,
-html[data-bg-cover='full'][data-bg-material='clear'] .workbench-statusbar { backdrop-filter: none; }
-html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left { box-shadow: inset -1px 0 0 var(--glass-edge); }
-html[data-bg-cover='full'][data-bg-material='glass'] .app-viewport > .electron-drag,
-html[data-bg-cover='full'][data-bg-material='glass'] .shell-track-left,
-html[data-bg-cover='full'][data-bg-material='glass'] .workbench-statusbar { backdrop-filter: blur(var(--pane-blur)) saturate(1.8) brightness(1.04); }
+html[data-bg-cover='full'] [data-pi-slot='main-chat-header'],
+html[data-bg-cover='full'] [data-pi-slot='right-dock-tabs'],
+html[data-bg-cover='full'] [data-pi-slot='right-dock-launchpad'],
+html[data-bg-cover='full'] [data-pi-slot='ai-canvas-panel'],
+html[data-bg-cover='full'] [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
+html[data-bg-cover='full'] .shell-track-center .main-chat-column,
+html[data-bg-cover='full'] .shell-track-right:not(.shell-track-right-rail),
+html[data-bg-cover='full'] .terminal-drawer {
+  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 45%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.12);
+}
 
-/* Content panes: chat column, right panel, terminal drawer. */
-html[data-bg='on'] .shell-track-center .main-chat-column,
-html[data-bg='on'] .shell-track-right,
-html[data-bg='on'] .terminal-drawer {
-  background: color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 100%), transparent) !important;
-  backdrop-filter: blur(var(--content-blur)) saturate(1.05);
+/* Settings view & sidebar search pill also let the wallpaper breathe through */
+html[data-bg='on'] .settings-nav {
+  background: transparent !important;
+}
+html[data-bg='on'] .settings-main,
+:root:not(.dark)[data-bg='on'] .settings-main {
+  background: color-mix(in srgb, var(--bg-base) calc(var(--content-alpha) * 46%), transparent) !important;
+  backdrop-filter: blur(var(--content-blur)) saturate(1.08);
+}
+html[data-bg='on'] .settings-card {
+  background: color-mix(in srgb, var(--bg-base) 68%, transparent) !important;
+}
+html:not(.dark)[data-bg='on'] .shell-track-left input {
+  background: rgba(255, 255, 255, 0.56) !important;
+}
+html.dark[data-bg='on'] .shell-track-left input {
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 html[data-bg-content-material='clear'] .shell-track-center .main-chat-column,
-html[data-bg-content-material='clear'] .shell-track-right,
+html[data-bg-content-material='clear'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='clear'] .terminal-drawer { backdrop-filter: none; }
 html[data-bg-content-material='glass'] .shell-track-center .main-chat-column,
-html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='glass'] .terminal-drawer {
   background:
     linear-gradient(160deg, var(--glass-sheen), transparent 38%),
@@ -3646,12 +3978,566 @@ html[data-bg-content-material='glass'] .terminal-drawer {
   backdrop-filter: blur(var(--content-blur)) saturate(1.8) brightness(1.04);
 }
 html[data-bg-content-material='glass'] .shell-track-center .main-chat-column { box-shadow: var(--main-chat-surface-shadow), inset 0 1px 0 var(--glass-highlight), inset 0 0 0 1px var(--glass-edge); }
-html[data-bg-content-material='glass'] .shell-track-right,
+html[data-bg-content-material='glass'] .shell-track-right:not(.shell-track-right-rail),
 html[data-bg-content-material='glass'] .terminal-drawer { box-shadow: inset 0 1px 0 var(--glass-highlight), inset 1px 0 0 var(--glass-edge); }
 html[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.16); --glass-highlight: rgba(255, 255, 255, 0.55); --glass-edge: rgba(255, 255, 255, 0.18); }
 html.dark[data-bg='on'] { --glass-sheen: rgba(255, 255, 255, 0.06); --glass-highlight: rgba(255, 255, 255, 0.14); --glass-edge: rgba(255, 255, 255, 0.07); }
 html[data-bg='on'] .composer-dock-fade { background: linear-gradient(to top, color-mix(in srgb, var(--chat-bg) calc(var(--content-alpha) * 85%), transparent), transparent) !important; }
-/* Full cover: the chat column is a layer of its own, so its paper corner would show the bare image. */
-html[data-bg-cover='full'] .shell-track-center .main-chat-column { border-radius: 0; }
+/* Full cover: keep rounded island corners when `data-frame-style='island'`, flatten only in default paper mode. */
+html[data-bg-cover='full']:not([data-frame-style='island']) .shell-track-center .main-chat-column { border-radius: 0; }
 /* The fade's scrollbar gap would leave an untinted strip on the image. */
 html[data-bg='on'] .composer-dock-fade { right: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Built-in Render Primitives: Frame Geometry, Message Layout, Optical Glass,
+ * Hardware Bevel, Procedural Backdrop Stage & OS Window Compositor Materials
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fx-glass-refraction: 24;
+  --fx-glass-frost: 10px;
+  --fx-glass-tint-alpha: 0.56;
+  --fx-glass-specular: 0.65;
+  --fx-backdrop-intensity: 0.55;
+}
+html.dark {
+  --fx-glass-tint-alpha: 0.48;
+  --fx-glass-specular: 0.45;
+}
+
+/* ── 1. Frame Geometry: Island (Arc/Craft floating panes) & Flat (Zed/Linear IDE) ── */
+html[data-frame-style='island'] .shell-track-center {
+  padding: 2px 7px 7px 4px;
+  background: transparent !important;
+}
+html[data-frame-style='island'] .split-view,
+html[data-frame-style='island'] .shell-track-right-rail {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+html[data-frame-style='island'] .shell-track-center::after {
+  display: none;
+}
+html[data-frame-style='island'] .shell-track-center .main-chat-column {
+  border-radius: var(--main-chat-surface-radius, 15px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 78%, transparent);
+  box-shadow:
+    0 4px 18px -6px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  margin: 2px 7px 7px 0;
+  border-radius: var(--main-chat-surface-radius, 15px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 78%, transparent);
+  box-shadow: 0 4px 16px -6px rgba(15, 23, 42, 0.055);
+  overflow: hidden;
+}
+
+html[data-frame-style='flat'] .shell-track-center .main-chat-column {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-left: 1px solid var(--border-base);
+  border-top: 1px solid var(--border-base);
+}
+html[data-frame-style='flat'] .shell-track-right:not(.shell-track-right-rail) {
+  box-shadow: none !important;
+  border-top: 1px solid var(--border-base);
+}
+
+/* ── 2. Message Flow Styles: Editorial Left-Bar, Prompt Card (Cursor/Codex/Zed) & Card ── */
+html[data-msg-style='editorial'] .timeline-user-row > div,
+html[data-user-msg-style='prompt-card'] .timeline-user-row > div {
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+html[data-msg-style='editorial'] .timeline-user-bubble {
+  max-width: 100%;
+  width: 100%;
+  border-radius: 2px var(--radius-md, 8px) var(--radius-md, 8px) 2px;
+  border-left: 2.5px solid var(--brand);
+  padding: 0.55rem 0.95rem;
+  background: color-mix(in srgb, var(--message-user-bg) 78%, transparent);
+}
+html[data-user-msg-style='prompt-card'] .timeline-user-bubble {
+  max-width: 100%;
+  width: 100%;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 76%, transparent);
+  padding: 0.55rem 0.875rem;
+  background: color-mix(in srgb, var(--message-user-bg) 82%, var(--chat-bg));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+html.dark[data-user-msg-style='prompt-card'] .timeline-user-bubble {
+  border-color: rgba(255, 255, 255, 0.085);
+  background: color-mix(in srgb, var(--message-user-bg) 85%, var(--chat-bg));
+  box-shadow: none;
+}
+html[data-msg-style='card'] .timeline-prose-row > div {
+  border-radius: var(--radius-lg, 10px);
+  border: 1px solid color-mix(in srgb, var(--border-base) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 52%, var(--chat-bg));
+  padding: 0.65rem 0.9rem;
+}
+
+/* ── 2b. Mid-turn Prose Styles (opt-in via Settings / Studio; default 'match' keeps normal prose) ── */
+html[data-mid-prose-style='muted'] [data-pi-slot='timeline-mid-prose'] {
+  font-size: var(--timeline-mid-prose-size, 13.5px);
+  line-height: 1.58;
+  color: var(--timeline-mid-prose-color, var(--text-secondary));
+}
+html[data-mid-prose-style='muted'] [data-pi-slot='timeline-mid-prose'] .prose-chat {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+html[data-mid-prose-style='rail'] [data-pi-slot='timeline-mid-prose'] {
+  font-size: var(--timeline-mid-prose-size, 13px);
+  line-height: 1.55;
+  color: var(--timeline-mid-prose-color, var(--text-secondary));
+  border-left: 2px solid color-mix(in srgb, var(--border-base) 85%, transparent);
+  padding-left: 0.65rem;
+}
+html[data-mid-prose-style='rail'] [data-pi-slot='timeline-mid-prose'] .prose-chat {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+
+/* ── 2c. Composer Shell Presets & Modular Slot Visibility (CSS-driven so Custom CSS can override) ── */
+.composer-toolbar {
+  gap: var(--composer-toolbar-gap, 0.375rem);
+}
+html[data-composer-preset='minimal'] .composer-shell {
+  --composer-shell-radius: 8px;
+  box-shadow: none !important;
+  border-color: color-mix(in srgb, var(--border-base) 90%, transparent);
+}
+html[data-composer-preset='minimal'] .composer-shell-focused {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--border-base)) !important;
+}
+html[data-composer-preset='zen'] .composer-shell:not(.composer-shell-focused):not(:hover) [data-pi-slot='composer-toolbar'] > :not([data-pi-slot='composer-send-group']) {
+  opacity: 0.36;
+  transition: opacity var(--motion-fast, 150ms) var(--motion-ease, ease);
+}
+html[data-composer-preset='split'] [data-pi-slot='composer-toolbar'] {
+  margin-top: 0.25rem;
+  margin-inline: -0.625rem;
+  margin-bottom: -0.5rem;
+  padding: 0.35rem 0.625rem;
+  border-top: 1px solid color-mix(in srgb, var(--border-base) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 62%, transparent);
+  border-radius: 0 0 calc(var(--composer-shell-radius, 14px) - 1px) calc(var(--composer-shell-radius, 14px) - 1px);
+}
+html.dark[data-composer-preset='split'] [data-pi-slot='composer-toolbar'] {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+html[data-composer-accessory='hidden'] [data-pi-slot='composer-accessory'] { display: none; }
+html[data-composer-accessory='todo-only'] [data-pi-slot='composer-activity'] { display: none; }
+html[data-composer-accessory='activity-only'] [data-pi-slot='composer-todo'] { display: none; }
+
+html[data-composer-attach='hidden'] [data-pi-slot='composer-attach-btn'] { display: none; }
+html[data-composer-tools='hidden'] [data-pi-slot='composer-tools-wrap'] { display: none; }
+html[data-composer-tools='active-only'] [data-pi-slot='composer-tools-wrap'][data-has-active='false'] { display: none; }
+html[data-composer-purge='hidden'] [data-pi-slot='composer-purge-wrap'] { display: none; }
+html[data-composer-purge='active-only'] [data-pi-slot='composer-purge-wrap'][data-active='false'] { display: none; }
+html[data-composer-purge='icon'] [data-pi-slot='composer-purge-label'] { display: none; }
+html[data-composer-model-strip='hidden'] [data-pi-slot='composer-model-strip'] { display: none; }
+html[data-composer-model-strip='model-only'] [data-pi-slot='composer-thinking-chip'] { display: none; }
+html[data-composer-model-strip='compact'] [data-pi-slot='composer-thinking-prefix'] { display: none; }
+html[data-composer-metrics='hidden'] [data-pi-slot='composer-metrics'] { display: none; }
+html[data-composer-tps='hidden'] [data-pi-slot='composer-tps'] { display: none; }
+html[data-composer-voice='hidden'] [data-pi-slot='composer-voice-wrap'] { display: none; }
+
+/* Navigation two-frame transition suppression (prevents stale slide-in ghosts on session switch) */
+[data-nav-suppress='true'],
+[data-nav-suppress='true'] * {
+  animation-duration: 0ms !important;
+  transition-duration: 0ms !important;
+}
+
+/* Native browser virtualization for high-density PR/Issue/Session lists */
+.pi-virtual-row {
+  content-visibility: auto;
+  contain-intrinsic-block-size: 56px;
+}
+
+/* Interactive slot spotlight from Settings / Live Customize Studio */
+[data-pi-slot-highlight='true'] {
+  outline: 2px solid var(--brand) !important;
+  outline-offset: 2px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 18%, transparent) !important;
+  transition: outline-color 120ms ease, box-shadow 120ms ease;
+}
+
+/* ── 3. Spacing Density (Compact / Relaxed) ── */
+html[data-density='compact'] .timeline-user-row { padding-block: 0.3rem 0.2rem; }
+html[data-density='compact'] .timeline-prose-row { padding-block: 0.15rem; }
+html[data-density='compact'] .sidebar-session-hit { min-height: 28px; padding-block: 3px; }
+html[data-density='relaxed'] .timeline-user-row { padding-block: 0.8rem 0.55rem; }
+html[data-density='relaxed'] .timeline-prose-row { padding-block: 0.45rem; }
+
+/* ── 4. Accent Presence (Balanced / Vivid) ── */
+html[data-accent-presence='balanced'] .shell-track-left .nav-row-active,
+html[data-accent-presence='vivid'] .shell-track-left .nav-row-active {
+  background-color: color-mix(in srgb, var(--brand) 12%, transparent) !important;
+  box-shadow: inset 2.5px 0 0 var(--brand);
+}
+html[data-accent-presence='balanced'] .left-rail-btn--active,
+html[data-accent-presence='vivid'] .left-rail-btn--active {
+  background-color: color-mix(in srgb, var(--brand) 14%, transparent) !important;
+  color: var(--brand) !important;
+}
+html[data-accent-presence='balanced'] .settings-nav-item[aria-current='page'],
+html[data-accent-presence='vivid'] .settings-nav-item[aria-current='page'] {
+  background-color: color-mix(in srgb, var(--brand) 11%, transparent) !important;
+}
+html[data-accent-presence='balanced'] .composer-toolbar-send:not(:disabled),
+html[data-accent-presence='vivid'] .composer-toolbar-send:not(:disabled) {
+  background-color: var(--brand) !important;
+  color: #ffffff !important;
+}
+html[data-accent-presence='balanced'] ::selection,
+html[data-accent-presence='vivid'] ::selection {
+  background: color-mix(in srgb, var(--brand) 28%, transparent);
+}
+html[data-accent-presence='vivid'] [data-panel-tab][aria-selected='true'],
+html[data-accent-presence='vivid'] [data-panel-tab] [role='tab'][aria-selected='true'] {
+  color: var(--brand) !important;
+}
+html[data-accent-presence='vivid'] [data-dock-tabstrip='top'] [data-panel-tab]:has([aria-selected='true']) {
+  background-color: color-mix(in srgb, var(--brand) 11%, transparent) !important;
+}
+html[data-accent-presence='vivid'] .timeline-user-bubble {
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, var(--message-user-bg));
+}
+
+/* ── 5. Hardware Bevel Material (Asymmetric 1px top specular highlight) ── */
+html[data-surface-material='bevel'] .composer-shell,
+html[data-surface-material='bevel'] .shell-popover,
+html[data-surface-material='bevel'] .overlay-panel,
+html[data-surface-material='bevel'] .settings-card,
+html[data-surface-material='bevel'] .launchpad-tile,
+html[data-surface-material='bevel'] .launchpad-search-input,
+html[data-surface-material='bevel'] .code-surface {
+  box-shadow:
+    0 6px 20px -8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+}
+html:not(.dark)[data-surface-material='bevel'] .composer-shell,
+html:not(.dark)[data-surface-material='bevel'] .launchpad-tile,
+html:not(.dark)[data-surface-material='bevel'] .launchpad-search-input,
+html:not(.dark)[data-surface-material='bevel'] .settings-card {
+  box-shadow:
+    0 4px 14px -6px rgba(16, 24, 40, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(16, 24, 40, 0.05);
+}
+
+/* ── 6. Optical Frosted & True Refractive Liquid Glass (Scoped to Floating Chrome!) ── */
+html[data-surface-material='frosted'] .composer-shell,
+html[data-surface-material='frosted'] .shell-popover,
+html[data-surface-material='frosted'] .overlay-panel,
+html[data-surface-material='frosted'] .launchpad-search-input,
+html[data-surface-material='frosted'] .launchpad-tile,
+html[data-surface-material='frosted'] .left-rail-floating-pill,
+html[data-surface-material='frosted'] .live-theme-studio {
+  background-clip: padding-box;
+  background: color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(155%);
+}
+
+/* Outer soft drop-shadow lives on the unclipped wrapper so `clip-path: inset(0 round R)` on `.composer-shell`
+   can cleanly trim Skia's rectangular SVG `backdrop-filter: url(#pi-liquid-lens)` surface with ZERO corner ears! */
+html:not(.dark)[data-surface-material='liquid-glass'] .composer-dock-panel {
+  filter: drop-shadow(0 8px 20px rgba(15, 23, 42, 0.065));
+}
+html.dark[data-surface-material='liquid-glass'] .composer-dock-panel {
+  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.36));
+}
+
+/* Light-mode Crystal Liquid Glass: neutral mineral quartz, crisp specular rim, zero cold hospital tint */
+html:not(.dark)[data-surface-material='liquid-glass'] .composer-shell,
+html:not(.dark)[data-surface-material='liquid-glass'] .shell-popover,
+html:not(.dark)[data-surface-material='liquid-glass'] .overlay-panel,
+html:not(.dark)[data-surface-material='liquid-glass'] .live-theme-studio {
+  isolation: isolate;
+  overflow: hidden;
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--composer-shell-radius, 14px));
+  background:
+    linear-gradient(
+      138deg,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.76)) 0%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.22)) 42%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.42)) 100%
+    ),
+    color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  border-color: rgba(15, 23, 42, 0.085) !important;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.72),
+    inset 1px 0 0 rgba(255, 255, 255, 0.75),
+    inset -1px 0 0 rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(165%) brightness(1.02);
+}
+
+/* Cohesive Tier-2 Tactile Quartz family (zero backdrop-filter cost inside scrolling lists!) */
+html:not(.dark)[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active,
+html:not(.dark)[data-surface-material='liquid-glass'] .left-rail-btn--active,
+html:not(.dark)[data-surface-material='liquid-glass'] .launchpad-tile {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.62)) !important;
+  border: 1px solid rgba(15, 23, 42, 0.065);
+  box-shadow:
+    0 2px 8px -2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+html.dark[data-surface-material='liquid-glass'] .shell-track-left .nav-row-active,
+html.dark[data-surface-material='liquid-glass'] .left-rail-btn--active,
+html.dark[data-surface-material='liquid-glass'] .launchpad-tile {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.095), rgba(255, 255, 255, 0.04)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 4px 12px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+html:not(.dark)[data-surface-material='liquid-glass']:not([data-msg-style='editorial']) .timeline-user-bubble {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(240, 243, 248, 0.78)) !important;
+  border: 1px solid rgba(15, 23, 42, 0.075);
+  box-shadow:
+    0 2px 10px -3px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+html.dark[data-surface-material='liquid-glass']:not([data-msg-style='editorial']) .timeline-user-bubble {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(24, 28, 36, 0.78)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 4px 14px -4px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+html:not(.dark)[data-surface-material='liquid-glass'] .code-surface {
+  background: linear-gradient(180deg, rgba(246, 248, 251, 0.88), rgba(240, 243, 248, 0.72)) !important;
+  border-color: rgba(15, 23, 42, 0.07) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+html.dark[data-surface-material='liquid-glass'] .code-surface {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Dark-mode Obsidian Liquid Glass */
+html.dark[data-surface-material='liquid-glass'] .composer-shell,
+html.dark[data-surface-material='liquid-glass'] .shell-popover,
+html.dark[data-surface-material='liquid-glass'] .overlay-panel,
+html.dark[data-surface-material='liquid-glass'] .live-theme-studio {
+  isolation: isolate;
+  overflow: hidden;
+  background-clip: padding-box;
+  clip-path: inset(0 round var(--composer-shell-radius, 14px));
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.24)) 0%,
+      rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.04)) 34%,
+      transparent 64%
+    ),
+    color-mix(in srgb, var(--bg-base) calc(var(--fx-glass-tint-alpha) * 100%), transparent) !important;
+  border-color: rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.22)) !important;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.46)),
+    inset 0 -1px 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.14)),
+    inset 1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.1)),
+    inset -1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.1)) !important;
+  backdrop-filter: blur(var(--fx-glass-frost)) saturate(180%) brightness(1.05);
+}
+
+html[data-surface-material='liquid-glass'] .shell-popover,
+html[data-surface-material='liquid-glass'] .overlay-panel,
+html[data-surface-material='liquid-glass'] .live-theme-studio {
+  clip-path: inset(0 round 12px);
+}
+
+/* Note: #pi-liquid-lens already embeds edgeMode="duplicate" frosted blur + saturation + clamped alpha inside SVG! */
+@supports (backdrop-filter: url('#pi-liquid-lens')) {
+  html[data-surface-material='liquid-glass'] .composer-shell,
+  html[data-surface-material='liquid-glass'] .shell-popover,
+  html[data-surface-material='liquid-glass'] .overlay-panel,
+  html[data-surface-material='liquid-glass'] .live-theme-studio {
+    backdrop-filter: url('#pi-liquid-lens');
+  }
+}
+
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .composer-shell,
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .shell-popover,
+html.dark[data-surface-material='liquid-glass'][data-glass-dispersion='on'] .live-theme-studio {
+  box-shadow:
+    inset 0 1px 0.75px rgba(255, 232, 212, calc(var(--fx-glass-specular) * 0.48)),
+    inset 0 -1px 0.75px rgba(188, 230, 255, calc(var(--fx-glass-specular) * 0.22)),
+    inset 1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.12)),
+    inset -1px 0 0.5px rgba(255, 255, 255, calc(var(--fx-glass-specular) * 0.12)) !important;
+}
+
+/* Completely hide the opaque dock gradient under glass/frosted composer so scrolling messages refract cleanly! */
+html[data-surface-material='liquid-glass'] .composer-dock-fade,
+html[data-surface-material='frosted'] .composer-dock-fade {
+  display: none !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-surface-material='liquid-glass'] .composer-shell,
+  html[data-surface-material='liquid-glass'] .shell-popover,
+  html[data-surface-material='liquid-glass'] .overlay-panel,
+  html[data-surface-material='liquid-glass'] .live-theme-studio,
+  html[data-surface-material='frosted'] .composer-shell {
+    background: var(--bg-base) !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* ── 7. Built-in Procedural Backdrop Stage (`#pi-fx-backdrop`, zero external images) ──
+   Yields 100% to user-uploaded wallpaper (`html[data-bg='on']`) so custom backgrounds are NEVER occluded! */
+#pi-fx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--fx-backdrop-intensity, 0.55);
+}
+html[data-bg='on'] #pi-fx-backdrop {
+  display: none !important;
+}
+
+/* CRITICAL: Paint ONE continuous outer frame tint on `.app-viewport` ONLY when no user wallpaper is active! */
+html[data-backdrop-preset]:not([data-bg='on']) .app-viewport {
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-sidebar) 44%, transparent) !important;
+}
+html[data-backdrop-preset]:not([data-bg='on']) .app-viewport .electron-drag,
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='left-activity-rail'],
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-left,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center,
+html[data-backdrop-preset]:not([data-bg='on']) .split-view,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right-rail,
+html[data-backdrop-preset]:not([data-bg='on']) .settings-nav,
+html[data-backdrop-preset]:not([data-bg='on']) .workbench-statusbar {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border-color: transparent !important;
+}
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='main-chat-header'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='right-dock-tabs'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='right-dock-launchpad'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='ai-canvas-panel'],
+html[data-backdrop-preset]:not([data-bg='on']) [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-center .main-chat-column,
+html[data-backdrop-preset]:not([data-bg='on']) .settings-main,
+html[data-backdrop-preset]:not([data-bg='on']) .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  background: color-mix(in srgb, var(--chat-bg) 86%, transparent) !important;
+  backdrop-filter: none !important;
+}
+html:not(.dark)[data-backdrop-preset][data-frame-style='island'] .shell-track-center .main-chat-column,
+html:not(.dark)[data-backdrop-preset][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail),
+html:not(.dark)[data-bg='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+html:not(.dark)[data-bg='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow:
+    0 4px 18px -6px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+}
+html.dark[data-backdrop-preset][data-frame-style='island'] .shell-track-center .main-chat-column,
+html.dark[data-backdrop-preset][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail),
+html.dark[data-bg='on'][data-frame-style='island'] .shell-track-center .main-chat-column,
+html.dark[data-bg='on'][data-frame-style='island'] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    0 10px 28px -10px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+/* Smooth, wide-aperture atmospheric wash — NO dark corner blobs near window controls! */
+html:not(.dark)[data-backdrop-preset='ambient'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 80% 70% at 18% 22%, rgba(168, 212, 206, 0.22), transparent 75%),
+    radial-gradient(ellipse 85% 70% at 52% 88%, rgba(236, 214, 194, 0.2), transparent 75%),
+    linear-gradient(180deg, #eff1f5 0%, #eceff3 55%, #efeeec 100%);
+}
+html.dark[data-backdrop-preset='ambient'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 80% 70% at 20% 24%, rgba(36, 82, 94, 0.24), transparent 75%),
+    radial-gradient(ellipse 85% 70% at 55% 88%, rgba(44, 62, 102, 0.2), transparent 75%),
+    linear-gradient(180deg, #0b0d11 0%, #0d0f14 55%, #101013 100%);
+}
+/* Aurora: wide northern-lights mineral mist calibrated for frosted & liquid glass */
+html:not(.dark)[data-backdrop-preset='aurora'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 72% 58% at 14% 18%, rgba(125, 196, 228, 0.28), transparent 72%),
+    radial-gradient(ellipse 68% 60% at 82% 24%, rgba(163, 214, 196, 0.24), transparent 72%),
+    radial-gradient(ellipse 75% 65% at 48% 92%, rgba(188, 194, 232, 0.22), transparent 74%),
+    linear-gradient(180deg, #eef3f8 0%, #f1f4f8 50%, #edf1f6 100%);
+}
+html.dark[data-backdrop-preset='aurora'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 72% 58% at 16% 18%, rgba(56, 132, 168, 0.28), transparent 72%),
+    radial-gradient(ellipse 68% 60% at 84% 26%, rgba(62, 146, 132, 0.22), transparent 72%),
+    radial-gradient(ellipse 78% 65% at 50% 94%, rgba(78, 86, 152, 0.22), transparent 74%),
+    linear-gradient(180deg, #0c1016 0%, #10151e 50%, #0d1118 100%);
+}
+/* Accent-adaptive mesh: follows the active theme's --brand hue automatically */
+html[data-backdrop-preset='mesh'] #pi-fx-backdrop {
+  background:
+    radial-gradient(ellipse 68% 58% at 18% 22%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 74%),
+    radial-gradient(ellipse 64% 58% at 84% 78%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 76%),
+    linear-gradient(180deg, var(--surface-frame), var(--bg-1));
+}
+html[data-backdrop-preset='dots'] #pi-fx-backdrop {
+  background-image: radial-gradient(color-mix(in srgb, var(--text-primary) 18%, transparent) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+html[data-backdrop-preset='grid'] #pi-fx-backdrop {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--text-primary) 9%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+html[data-backdrop-preset='grain'] #pi-fx-backdrop {
+  opacity: calc(var(--fx-backdrop-intensity, 0.55) * 0.14);
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
+/* ── 8. Native OS Compositor Window Materials (Win11 Mica / Acrylic / macOS Vibrancy) ── */
+html[data-win-material] body,
+html[data-win-material] .app-viewport {
+  background: transparent !important;
+}
+html[data-win-material] .app-viewport .electron-drag,
+html[data-win-material] [data-pi-slot='left-activity-rail'],
+html[data-win-material] .shell-track-left,
+html[data-win-material] .shell-track-center,
+html[data-win-material] .split-view,
+html[data-win-material] .shell-track-right-rail,
+html[data-win-material] .settings-nav,
+html[data-win-material] .workbench-statusbar {
+  background: transparent !important;
+}
+html[data-win-material] [data-pi-slot='main-chat-header'],
+html[data-win-material] [data-pi-slot='right-dock-tabs'],
+html[data-win-material] [data-pi-slot='right-dock-launchpad'],
+html[data-win-material] [data-pi-slot='ai-canvas-panel'],
+html[data-win-material] [data-pi-slot='ai-canvas-tabs'] {
+  background: transparent !important;
+}
+html[data-win-material] .shell-track-center .main-chat-column,
+html[data-win-material] .settings-main,
+html[data-win-material] .shell-track-right:not(.shell-track-collapsed):not(.shell-track-right-rail) {
+  background: color-mix(in srgb, var(--chat-bg) 88%, transparent) !important;
+}
+

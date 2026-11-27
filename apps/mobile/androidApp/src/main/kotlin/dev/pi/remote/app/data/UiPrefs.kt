@@ -5,7 +5,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/** Small per-device UI preferences: theme, language, inbox grouping, the project new chats go to. */
+/** Small per-device UI preferences: theme, language, inbox grouping, timeline prose, and the project new chats go to. */
 class UiPrefs(private val context: Context) {
     private val sp = context.getSharedPreferences("ui", Context.MODE_PRIVATE)
 
@@ -30,6 +30,13 @@ class UiPrefs(private val context: Context) {
     val grouping: StateFlow<String> = _grouping
     fun setGrouping(v: String) { _grouping.value = v; sp.edit().putString("grouping", v).apply() }
 
+    private val _showIntermediateMessages = MutableStateFlow(sp.getBoolean("showIntermediateMessages", false))
+    val showIntermediateMessages: StateFlow<Boolean> = _showIntermediateMessages
+    fun setShowIntermediateMessages(v: Boolean) {
+        _showIntermediateMessages.value = v
+        sp.edit().putBoolean("showIntermediateMessages", v).apply()
+    }
+
     /** Asked once for POST_NOTIFICATIONS (Android 13+), on the first send. */
     var askedNotifications: Boolean
         get() = sp.getBoolean("askedNotif", false)
@@ -38,6 +45,14 @@ class UiPrefs(private val context: Context) {
     var lastProject: String?
         get() = sp.getString("lastProject", null)
         set(v) { sp.edit().putString("lastProject", v).apply() }
+
+    private val _collapsedProjects = MutableStateFlow(sp.getStringSet("collapsedProjects", emptySet())?.toSet().orEmpty())
+    val collapsedProjects: StateFlow<Set<String>> = _collapsedProjects
+    fun setProjectCollapsed(projectId: String, collapsed: Boolean) {
+        val next = if (collapsed) _collapsedProjects.value + projectId else _collapsedProjects.value - projectId
+        _collapsedProjects.value = next
+        sp.edit().putStringSet("collapsedProjects", next).apply()
+    }
 }
 
 val LocalUiPrefs = staticCompositionLocalOf<UiPrefs?> { null }

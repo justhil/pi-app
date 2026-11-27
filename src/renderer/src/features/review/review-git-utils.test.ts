@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { parseGitDiff } from '@shared/diff-model'
-import { listConflictPaths, parseGitStatus } from './review-git-utils'
+import {
+  collectTouchedPaths,
+  filterReviewGroups,
+  groupReviewFiles,
+  listConflictPaths,
+  parseGitStatus,
+} from './review-git-utils'
 
 const quoted = '"\\344\\270\\255\\346\\226\\207.txt"'
 it('decodes Git UTF-8 octal paths for status, conflicts and diff', () => {
@@ -25,3 +31,28 @@ describe('listConflictPaths', () => {
     expect(parseGitStatus(status).map((row) => row.path)).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts'])
   })
 })
+
+describe('session touched path matching', () => {
+  it('should_match_windows_paths_case_insensitively_and_ignore_failed_or_other_workspace_tools', () => {
+    const touched = collectTouchedPaths(
+      [],
+      [
+        { toolName: 'edit', toolArgs: { path: './src/Foo.ts' } },
+        { toolName: 'write', toolArgs: { path: 'd:\\workspace\\pi-app\\src\\Bar.ts' } },
+        { toolName: 'edit', isError: true, toolArgs: { path: 'src/Failed.ts' } },
+        { toolName: 'write', toolArgs: { path: 'D:\\workspace\\other-repo\\src\\SameName.ts' } },
+      ],
+      null,
+      'D:\\workspace\\pi-app',
+    )
+
+    const allGroups = groupReviewFiles({
+      status: ' M src/foo.ts\n?? src/bar.ts\n M src/Failed.ts\n M src/SameName.ts\n',
+      unstagedRaw: '',
+      stagedRaw: '',
+    })
+    const filtered = filterReviewGroups(allGroups, touched)
+    expect(filtered.unstaged.map((r) => r.path)).toEqual(['src/foo.ts', 'src/bar.ts'])
+  })
+})
+

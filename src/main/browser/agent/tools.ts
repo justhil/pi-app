@@ -395,8 +395,19 @@ function aim(pointer: Pointer, a: Aimed): { ptr: Pointer; p: { x: number; y: num
   return { ptr: pointer, p: targetPoint(a.point, a.rect) }
 }
 
+function flashHighlight(engine: PageEngine, rect: { x: number; y: number; width: number; height: number } | undefined): void {
+  if (!rect || rect.width <= 0 || rect.height <= 0) return
+  const cdp = engine.cdpTab?.()
+  if (!cdp) return
+  void cdp.highlight(rect).catch(() => undefined)
+  setTimeout(() => {
+    void cdp.highlight(null).catch(() => undefined)
+  }, 650)
+}
+
 async function clickTarget(engine: PageEngine, pointer: Pointer, target: string, opts: { button?: 'left' | 'right' | 'middle'; clickCount?: number; modifiers?: Modifier[] } = {}): Promise<Actionable> {
   const a = await actionable(engine, target)
+  flashHighlight(engine, a.rect)
   const { ptr, p } = aim(pointer, a)
   await ptr.click(p.x, p.y, opts)
   return a
@@ -688,7 +699,8 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
       host.focusTab(id, { sessionKey })
     }
     const { engine } = host.agentTab(id)
-    return host.runOnTab(id, 'navigate', async () => {
+    const shortHost = String(a.url).replace(/^https?:\/\//i, '').slice(0, 42)
+    return host.runOnTab(id, `navigate → ${shortHost}`, async () => {
       // Start recording (requests, dialogs) before the page loads, not after.
       await Promise.race([engine.cdpTab()?.start().catch(() => undefined), sleep(3000)])
       await engine.navigate(a.url)
@@ -780,7 +792,7 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
         return text([pageSection(engine, undefined, tabsCtx), `### Snapshot\n\`\`\`yaml\n${snap.yaml || '(empty page)'}\n\`\`\``, hover, snapshotNotes(snap, id)].filter(Boolean).join('\n'))
       })
     case 'browser_click':
-      return host.runOnTab(id, tool, () =>
+      return host.runOnTab(id, a.target ? `click ${String(a.target).slice(0, 32)}` : 'click', () =>
         act(id, engine, async () => {
           if (!a.target) {
             if (a.x === undefined || a.y === undefined) throw new BrowserToolError('browser_denied', 'pass target, or x and y from the last screenshot')
@@ -804,15 +816,17 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
             const hint = opts.length ? ` (options: ${opts.join(', ')})` : ''
             throw new BrowserToolError('browser_denied', `this is a <select>${hint}; use browser_select_option with target=${js(a.target)}`)
           }
+          flashHighlight(engine, probe.rect)
           const { ptr, p } = aim(pointer, probe)
           await ptr.click(p.x, p.y, { button: a.button, clickCount: a.doubleClick ? 2 : 1, modifiers: toModifiers(a.modifiers) })
           return `${a.doubleClick ? 'Double-clicked' : 'Clicked'} ${probe.description}`
         }),
       )
     case 'browser_hover':
-      return host.runOnTab(id, tool, () =>
+      return host.runOnTab(id, `hover ${String(a.target || '').slice(0, 32)}`, () =>
         act(id, engine, async () => {
           const probe = await actionable(engine, a.target)
+          flashHighlight(engine, probe.rect)
           const { ptr, p } = aim(pointer, probe)
           await ptr.moveTo(p.x, p.y)
           return `Hovered ${probe.description}`
@@ -828,7 +842,7 @@ async function execute(host: AgentBrowserHost, call: BrowserToolCall): Promise<T
         }),
       )
     case 'browser_type':
-      return host.runOnTab(id, tool, () =>
+      return host.runOnTab(id, `type → ${String(a.target || '').slice(0, 30)}`, () =>
         act(id, engine, async () => {
           const what = await typeInto(engine, pointer, a.target, a.text, { append: a.slowly, submit: a.submit })
           return `Typed ${a.text.length} character(s) into ${what}${a.submit ? ' and pressed Enter' : ''}`

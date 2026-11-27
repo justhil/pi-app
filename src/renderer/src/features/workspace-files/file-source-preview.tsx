@@ -3,6 +3,7 @@ import { cn } from '@renderer/lib/utils'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
 import { highlightCodeToHtml } from '@renderer/lib/shiki-highlighter'
+import { useCodeHighlightRevision } from '@renderer/lib/theme/use-code-highlight-revision'
 import { LineGutterAddButton } from '@renderer/components/ui/line-gutter-add'
 import { PREVIEW_SHIKI_MAX_CHARS } from './file-preview-limits'
 
@@ -39,6 +40,8 @@ export function FileSourcePreview({
     setHtml(null)
   }, [code])
 
+  const themeRev = useCodeHighlightRevision()
+
   useEffect(() => {
     if (!useShiki) {
       setHtml(null)
@@ -51,7 +54,7 @@ export function FileSourcePreview({
     return () => {
       cancelled = true
     }
-  }, [displayCode, lang, useShiki])
+  }, [displayCode, lang, useShiki, themeRev])
 
   useEffect(() => {
     if (!targetLine) return

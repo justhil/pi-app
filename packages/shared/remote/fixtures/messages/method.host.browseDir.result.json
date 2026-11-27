@@ -1,0 +1,23 @@
+{
+  "schema": "host.browseDir/result",
+  "value": {
+    "path": "/work",
+    "parent": "/",
+    "roots": [
+      "/",
+      "/home/me"
+    ],
+    "entries": [
+      {
+        "name": "pi-app",
+        "path": "/work/pi-app",
+        "git": true
+      },
+      {
+        "name": "notes",
+        "path": "/work/notes"
+      }
+    ],
+    "truncated": false
+  }
+}

@@ -1,4 +1,10 @@
-import { parseCodemodeCalls, stripCodemodeOutputHeader, summarizeCodemodeCalls, toolCallDetailFromPi } from '@shared/tool-call-detail'
+import {
+  parseCodemodeCalls,
+  stripCodemodeOutputHeader,
+  sumCodemodeDiffStats,
+  summarizeCodemodeCalls,
+  toolCallDetailFromPi,
+} from '@shared/tool-call-detail'
 import type { RenderNode, StepStatus, ToolStep } from '@shared/remote'
 import type { ToolCardDef } from '../../extension-compat/adapter-schema'
 import { applyToolCardFields, extractTextFromToolOutput } from '../../extension-compat/json-path'
@@ -166,7 +172,8 @@ export function buildRenderNode(input: ToolCallInput, card?: ToolCardDef): Rende
       }
     }
     case 'codemode': {
-      const calls = parseCodemodeCalls(input.details)
+      const calls = parseCodemodeCalls(input.details, detail.code)
+      const diff = sumCodemodeDiffStats(calls)
       const stripped = stripCodemodeOutputHeader(outputText(input.output) || text)
       const summary = summarizeCodemodeCalls(calls, {
         isRunning: input.phase !== 'end',
@@ -180,6 +187,8 @@ export function buildRenderNode(input: ToolCallInput, card?: ToolCardDef): Rende
         fields: {
           command: detail.code,
           ...(calls.length > 0 ? { calls: calls.length } : {}),
+          ...(diff.additions > 0 ? { add: diff.additions } : {}),
+          ...(diff.deletions > 0 ? { del: diff.deletions } : {}),
         },
         ...(out.text ? { preview: out.text } : {}),
         ...(out.clipped ? { detail: true } : {}),

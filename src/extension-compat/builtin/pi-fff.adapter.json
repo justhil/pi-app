@@ -12,6 +12,10 @@
       "/fff-rescan"
     ]
   },
+  "install": {
+    "source": "npm:@ff-labs/pi-fff",
+    "homepage": "https://github.com/dmtrKovalenko/fff"
+  },
   "tier": "headless",
   "config": {
     "piSettingsKey": "fff-mode",
@@ -31,10 +35,32 @@
               "override"
             ]
           }
-        ]
+        ],
+        "i18n": {
+          "zh": {
+            "title": "FFF 模式"
+          },
+          "en": {
+            "title": "FFF Mode"
+          },
+          "ru": {
+            "title": "Режим FFF"
+          }
+        }
       }
     ],
-    "note": "写入 ~/.pi/agent/settings.json 的 fff-mode（与扩展 /fff-mode 共享），下次会话生效。"
+    "note": "写入 ~/.pi/agent/settings.json 的 fff-mode（与扩展 /fff-mode 共享），下次会话生效。",
+    "i18n": {
+      "zh": {
+        "note": "写入 ~/.pi/agent/settings.json 的 fff-mode（与扩展 /fff-mode 共享），下次会话生效。"
+      },
+      "en": {
+        "note": "Writes fff-mode to ~/.pi/agent/settings.json (shared with /fff-mode); takes effect in the next session."
+      },
+      "ru": {
+        "note": "Записывает fff-mode в ~/.pi/agent/settings.json (общий с /fff-mode); вступает в силу со следующей сессии."
+      }
+    }
   },
   "slash": {
     "/fff-mode": "config-page",
@@ -44,11 +70,33 @@
   "i18n": {
     "zh": {
       "displayName": "FFF",
-      "description": "模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag）"
+      "description": "模糊路径搜索模式（读写 ~/.pi/agent/settings.json 的 fff-mode flag）",
+      "fieldLabels": {
+        "fff-mode": "搜索工具模式"
+      },
+      "fieldDescriptions": {
+        "fff-mode": "tools-and-ui=注册 fffind/fffgrep 覆盖 find/grep；tools-only=仅注册；override=保留原工具"
+      }
     },
     "en": {
       "displayName": "FFF",
-      "description": "Fuzzy path search mode (reads and writes the fff-mode flag in ~/.pi/agent/settings.json)"
+      "description": "Fuzzy path search mode (reads and writes the fff-mode flag in ~/.pi/agent/settings.json)",
+      "fieldLabels": {
+        "fff-mode": "Search tool mode"
+      },
+      "fieldDescriptions": {
+        "fff-mode": "tools-and-ui = register fffind/fffgrep and override find/grep; tools-only = register only; override = keep original tools"
+      }
+    },
+    "ru": {
+      "displayName": "FFF",
+      "description": "Режим нечёткого поиска путей (чтение и запись флага fff-mode в ~/.pi/agent/settings.json)",
+      "fieldLabels": {
+        "fff-mode": "Режим инструментов поиска"
+      },
+      "fieldDescriptions": {
+        "fff-mode": "tools-and-ui = зарегистрировать fffind/fffgrep вместо find/grep; tools-only = только регистрация; override = оставить исходные инструменты"
+      }
     }
   }
 }

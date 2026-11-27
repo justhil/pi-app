@@ -18,11 +18,21 @@ import kotlinx.coroutines.SupervisorJob
 /** Hand-written dependency graph (no DI framework: keeps the APK small and startup fast). */
 class AppGraph(context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val cacheRoot = File(context.filesDir, "remote-cache").also { dest ->
+        // One-time migration from volatile cacheDir/timeline to persistent filesDir/remote-cache.
+        val legacy = File(context.cacheDir, "timeline")
+        if (legacy.exists()) {
+            runCatching {
+                if (!dest.exists()) legacy.copyRecursively(dest, overwrite = false)
+                legacy.deleteRecursively()
+            }
+        }
+    }
     val repository = RemoteRepository(
         scope = scope,
         hostStore = HostStore(File(context.filesDir, "hosts")),
         keyVault = KeyVault(File(context.noBackupFilesDir, "keys"), KeystoreKeyWrapper()),
-        cache = TimelineCache(File(context.cacheDir, "timeline")),
+        cache = TimelineCache(cacheRoot),
         assetDir = File(context.filesDir, "assets"),
         deviceName = (Build.MODEL ?: "Android").take(60),
         platform = "android-${Build.VERSION.SDK_INT}",

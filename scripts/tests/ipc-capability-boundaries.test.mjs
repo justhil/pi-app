@@ -16,7 +16,7 @@ describe('IPC capability boundaries', () => {
   it('review mutations gate cwd against trusted workspace', () => {
     const review = readFileSync(join(root, 'src/main/ipc/handlers/review.ts'), 'utf8')
     assert.match(review, /reviewMutationSchema/)
-    assert.match(review, /authorizeTrustedCwd/)
+    assert.match(review, /authorize(?:Trusted|Project)Cwd/)
     const tw = readFileSync(join(root, 'src/main/trusted-workspace.ts'), 'utf8')
     assert.match(tw, /cwd_not_trusted/)
   })

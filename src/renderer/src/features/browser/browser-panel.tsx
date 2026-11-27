@@ -1,225 +1,282 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Globe,
+  History,
+  KeyRound,
+  Maximize2,
+  MessageSquarePlus,
+  Moon,
+  MoreHorizontal,
+  PencilLine,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Terminal,
+  Undo2,
+  X,
+  XCircle,
+} from '@renderer/components/icons'
+import {
   browserSearchUrl,
   formatLogsForComposer,
-  formatSelectionForComposer,
   normalizeAddressInput,
-  normalizeBrowserSessionKey,
-  type BrowserEvent,
   type BrowserLogEntry,
+  type BrowserTabInfo,
+  type ComposerLabels,
   type PageContextResult,
 } from '@shared/browser-types'
-import { ArrowLeft, ArrowRight, ChevronDown, ChevronRight, Globe, History, Maximize2, MessageSquarePlus, MoreHorizontal, PencilLine, Plus, RefreshCw, Search, X } from '@renderer/components/icons'
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { wheelToHorizontal } from '@renderer/lib/horizontal-wheel'
+
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { browserActions, ensureBrowserSubscription, onBrowserSideEvent, useBrowserStore, visibleTabOrder } from './browser-store'
-import { useOverlayCovering, useViewPlacement } from './use-view-placement'
+import { isPanelVisibleInRightDock, useRightDockStore } from '@renderer/stores/right-dock-store'
+import { SessionRunningPixelGrid } from '@renderer/features/workspace/session-running-pixel-grid'
 import { AnnotationLayer } from './annotation-layer'
+import { buildSuggestions, type Suggestion } from './address-suggestions'
 import { saveImageAttachment, sendToComposer } from './browser-composer'
+import { loadHistory, recordVisit, saveHistory, type HistoryEntry } from './browser-history'
+import { BrowserNewTabPage } from './browser-new-tab'
+import {
+  browserActions,
+  onBrowserShortcut,
+  useBrowserStore,
+  visibleTabsForSession,
+} from './browser-store'
+import { ChromeModeBanner } from './chrome-mode-banner'
+import { createPortal } from 'react-dom'
+import { CookieSyncDialog } from './cookie-sync-dialog'
+import { FaviconImg } from './favicon-img'
 import { DownloadsMenu } from './downloads-menu'
 import { HelpBar } from './help-bar'
-import { ChromeModeBanner } from './chrome-mode-banner'
-import { buildSuggestions, type Suggestion } from './address-suggestions'
-import { loadHistory, recordVisit, saveHistory, type HistoryEntry } from './browser-history'
-import { clampViewport, fitViewport, loadViewportMode, saveViewportMode, type ViewportMode } from './viewport-mode'
+import { useOverlayCovering, useViewPlacement } from './use-view-placement'
+import {
+  clampViewport,
+  fitViewport,
+  loadViewportMode,
+  saveViewportMode,
+  type ViewportMode,
+} from './viewport-mode'
 
-const isMod = (e: { ctrlKey: boolean; metaKey: boolean }) =>
+const isMod = (e: { metaKey: boolean; ctrlKey: boolean }) =>
   window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
+
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+
+function nextZoom(current: number, delta: -1 | 0 | 1): number {
+  if (delta === 0) return 1
+  if (delta > 0) return ZOOM_STEPS.find((z) => z > current + 0.001) ?? ZOOM_STEPS[ZOOM_STEPS.length - 1]
+  for (let i = ZOOM_STEPS.length - 1; i >= 0; i--) if (ZOOM_STEPS[i] < current - 0.001) return ZOOM_STEPS[i]
+  return ZOOM_STEPS[0]
+}
 
 function PinIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M9.5 2.5L13.5 6.5L12 8L9.5 7.5L6.5 10.5L7 13L5.5 14.5L3.5 10.5L1.5 12.5L3.5 10.5L1.5 8.5L3 7L5.5 7.5L8.5 4.5L8 2L9.5 2.5Z" />
+      <path d="M9.8 2.4 13.6 6.2 12.2 7.6 10.6 7 7.6 10 8.2 11.6 6.8 13 4.6 10.8 2 14l3.2-2.6L3 9.2 4.4 7.8 6 8.4 9 5.4 8.4 3.8Z" />
     </svg>
   )
 }
 
+function StarIcon({ filled, className }: { filled?: boolean; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M8 1.8l1.85 3.75 4.14.6-3 2.92.71 4.12L8 11.24l-3.7 1.95.71-4.12-3-2.92 4.14-.6L8 1.8z" />
+    </svg>
+  )
+}
+
+function SpeakerIcon({ muted, className }: { muted?: boolean; className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M2.5 6v4h2.8l3.2 2.6V3.4L5.3 6H2.5z" />
+      {muted ? <path d="M11 6l3 4M14 6l-3 4" /> : <path d="M11 5.6a3.2 3.2 0 0 1 0 4.8M12.8 3.8a5.6 5.6 0 0 1 0 8.4" />}
+    </svg>
+  )
+}
+
+interface TabContextMenuState {
+  tabId: string
+  x: number
+  y: number
+}
+
+interface BookmarkContextMenuState {
+  id: string
+  url: string
+  title: string
+  x: number
+  y: number
+}
+
 export function BrowserPanel() {
   const { t } = useTranslation('browser')
-  const rootRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const areaRef = useRef<HTMLDivElement>(null)
-  const tabStripRef = useRef<HTMLDivElement>(null)
-  const addressRef = useRef<HTMLInputElement>(null)
-  const expandButtonRef = useRef<HTMLButtonElement>(null)
-
-  const sessionFile = useUIStore((s) => s.historySessionFile)
-  const sessionKey = normalizeBrowserSessionKey(sessionFile)
   const tabs = useBrowserStore((s) => s.tabs)
   const rawOrder = useBrowserStore((s) => s.order)
-  const storeActiveTabId = useBrowserStore((s) => s.activeTabId)
-  const order = visibleTabOrder({ tabs, order: rawOrder }, sessionKey)
-  const activeTabId =
-    storeActiveTabId && order.includes(storeActiveTabId)
-      ? storeActiveTabId
-      : order.at(-1) ?? null
-  const activeTab = activeTabId ? tabs[activeTabId] : undefined
-  const pageShown = !!activeTab && activeTab.url !== 'about:blank'
+  const rawActiveTabId = useBrowserStore((s) => s.activeTabId)
+  const bookmarks = useBrowserStore((s) => s.bookmarks)
+  const bookmarksBarVisible = useBrowserStore((s) => s.bookmarksBarVisible)
+  const setBookmarksBarVisible = useBrowserStore((s) => s.setBookmarksBarVisible)
+  const findResult = useBrowserStore((s) => s.findResult)
+  const agentAction = useBrowserStore((s) => s.agentAction)
+  const agentSteps = useBrowserStore((s) => s.agentSteps)
+  const clearAgentSteps = useBrowserStore((s) => s.clearAgentSteps)
+  const hydrate = useBrowserStore((s) => s.hydrate)
 
+  const historySessionFile = useUIStore((s) => s.historySessionFile)
   const activePanel = useUIStore((s) => s.activePanel)
-  const browserChatExpand = useUIStore((s) => s.browserChatExpand)
   const rightPanelCollapsed = useRightPanelHidden()
-  const revealRightPanel = useUIStore((s) => s.revealRightPanel)
+  const browserChatExpand = useUIStore((s) => s.browserChatExpand)
+  const dockOpenTabs = useRightDockStore((s) => s.openTabIds)
+  const dockBottomTabs = useRightDockStore((s) => s.bottomTabIds)
+  const dockTopActive = useRightDockStore((s) => s.topActive)
+  const dockBottomActive = useRightDockStore((s) => s.bottomActive)
+
+  const order = useMemo(() => visibleTabsForSession(tabs, rawOrder, historySessionFile), [tabs, rawOrder, historySessionFile])
+  const activeTabId = rawActiveTabId && order.includes(rawActiveTabId) ? rawActiveTabId : (order.at(-1) ?? null)
+  const activeTab = activeTabId ? tabs[activeTabId] : undefined
+  const pageShown = !!activeTab && activeTab.url !== 'about:blank' && !activeTab.sleeping
+  void activePanel
+  void dockOpenTabs
+  void dockBottomTabs
+  void dockTopActive
+  void dockBottomActive
+  const isStageActive = !rightPanelCollapsed && isPanelVisibleInRightDock('browser')
 
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
-  const [area, setArea] = useState({ width: 0, height: 0 })
-  const [viewportMode, setViewportModeState] = useState<ViewportMode>(loadViewportMode)
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
-  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
   const [highlight, setHighlight] = useState(0)
+  const [history, setHistory] = useState<HistoryEntry[]>(loadHistory)
+  const [devServers, setDevServers] = useState<Array<{ url: string; label: string }>>([])
+  const [searchUrl, setSearchUrl] = useState(browserSearchUrl(undefined))
+  const [cachedSnapshot, setCachedSnapshot] = useState<string | null>(null)
+  const [annotating, setAnnotating] = useState<{ tabId: string; snapshot: string } | null>(null)
+  const [sendMenuOpen, setSendMenuOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false)
+  const [stepsExpanded, setStepsExpanded] = useState(false)
+  const [tabMenu, setTabMenu] = useState<TabContextMenuState | null>(null)
+  const [bookmarkMenu, setBookmarkMenu] = useState<BookmarkContextMenuState | null>(null)
+  const [dragTabId, setDragTabId] = useState<string | null>(null)
   const [findOpen, setFindOpen] = useState(false)
   const [findText, setFindText] = useState('')
-  const [findResult, setFindResult] = useState<{ active: number; matches: number } | null>(null)
+  const [userZoom, setUserZoom] = useState(1)
+  const [viewportMode, setViewportModeState] = useState<ViewportMode>(loadViewportMode)
+  const [area, setArea] = useState({ width: 0, height: 0 })
+
+  const rootRef = useRef<HTMLDivElement>(null)
+  const areaRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const addressRef = useRef<HTMLInputElement>(null)
   const findRef = useRef<HTMLInputElement>(null)
-  // Page zoom per tab (Ctrl/⌘ + / − / 0), on top of the fixed-viewport scale.
-  const [zoomByTab, setZoomByTab] = useState<Record<string, number>>({})
-  const [snapshot, setSnapshot] = useState<string | null>(null)
-  const [hiddenForOverlay, setHiddenForOverlay] = useState(false)
-  const [searchUrl, setSearchUrl] = useState(() => browserSearchUrl(undefined))
-  const [annotating, setAnnotating] = useState<{ snapshot: string; tabId: string } | null>(null)
-  const [sendMenuOpen, setSendMenuOpen] = useState(false)
-  const [agentAction, setAgentAction] = useState<{ tabId: string; action: string } | null>(null)
-  const covered = useOverlayCovering(viewportRef)
+  const tabStripRef = useRef<HTMLDivElement>(null)
+  const importBookmarkInputRef = useRef<HTMLInputElement>(null)
+  const recordedRef = useRef<Record<string, string>>({})
+
+  const setViewportMode = (next: ViewportMode) => {
+    setViewportModeState(next)
+    saveViewportMode(next)
+  }
 
   useEffect(() => {
-    ensureBrowserSubscription()
-    // Settings live on another view; re-read on mount so a changed engine applies next time.
+    void hydrate()
     void ipcClient
       .invoke('settings.get', { key: 'browserSearchEngine' })
-      .then((res: { settings?: { browserSearchEngine?: string } } | undefined) => setSearchUrl(browserSearchUrl(res?.settings?.browserSearchEngine)))
+      .then((res: { settings?: { browserSearchEngine?: string } } | undefined) => {
+        setSearchUrl(browserSearchUrl(res?.settings?.browserSearchEngine))
+      })
       .catch(() => {})
-  }, [])
+    void (ipcClient.invoke('browser.devServers').catch(() => ({ servers: [] })) as Promise<{
+      servers?: Array<{ url: string; label: string }>
+    }>).then((res) => setDevServers(res?.servers ?? []))
+  }, [hydrate])
 
-  // Keep the browser view bound to the active conversation (switching chats switches tabs).
   useEffect(() => {
-    void browserActions.setSession(sessionKey).catch(() => {})
-  }, [sessionKey])
-
-  // Overlays (dialogs, menus) would sit under the native view: freeze a snapshot, then hide the view.
-  useEffect(() => {
-    if (!covered || !activeTabId || !pageShown) {
-      setHiddenForOverlay(false)
-      return
-    }
-    let cancelled = false
-    void ipcClient
-      .invoke('browser.capture', { tabId: activeTabId })
-      .catch(() => null)
-      .then((res: { dataUrl?: string | null } | null) => {
-        if (cancelled) return
-        setSnapshot(res?.dataUrl ?? null)
-        setHiddenForOverlay(true)
+    if (!activeTab || activeTab.loading || !activeTab.url || activeTab.url === 'about:blank' || activeTab.sleeping) return
+    const key = `${activeTab.url}\0${activeTab.title}`
+    if (recordedRef.current[activeTab.tabId] !== key) {
+      recordedRef.current[activeTab.tabId] = key
+      setHistory((prev) => {
+        const next = recordVisit(prev, activeTab.url, activeTab.title)
+        saveHistory(next)
+        return next
       })
-    return () => {
-      cancelled = true
     }
-  }, [covered, activeTabId, pageShown])
-
-  const fitted = fitViewport(viewportMode, area)
-  const userZoom = (activeTabId && zoomByTab[activeTabId]) || 1
-  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay && !annotating, fitted.zoom * userZoom)
-
-  const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
-  const zoom = useCallback(
-    (dir: 1 | -1 | 0) => {
-      if (!activeTabId) return
-      setZoomByTab((prev) => {
-        const cur = prev[activeTabId] ?? 1
-        const next = dir === 0 ? 1 : dir > 0 ? (ZOOM_STEPS.find((z) => z > cur + 0.001) ?? cur) : ([...ZOOM_STEPS].reverse().find((z) => z < cur - 0.001) ?? cur)
-        return { ...prev, [activeTabId]: next }
-      })
-    },
-    [activeTabId],
-  )
-
-  const openFind = useCallback(() => {
-    if (!pageShown) return
-    setFindOpen(true)
-    requestAnimationFrame(() => {
-      findRef.current?.focus()
-      findRef.current?.select()
-    })
-  }, [pageShown])
-  const closeFind = useCallback(() => {
-    setFindOpen(false)
-    setFindResult(null)
-    if (activeTabId) void ipcClient.invoke('browser.find.stop', { tabId: activeTabId }).catch(() => {})
-  }, [activeTabId])
-  const runFind = useCallback(
-    (text: string, opts: { forward?: boolean; findNext?: boolean } = {}) => {
-      if (!activeTabId) return
-      void ipcClient.invoke('browser.find', { tabId: activeTabId, text, forward: opts.forward ?? true, findNext: opts.findNext ?? false }).catch(() => {})
-    },
-    [activeTabId],
-  )
-  useEffect(
-    () =>
-      onBrowserSideEvent((event) => {
-        if (event.type === 'find-result' && event.tabId === activeTabId) setFindResult({ active: event.active, matches: event.matches })
-      }),
-    [activeTabId],
-  )
-  // A find belongs to one tab; clear address draft when the last tab closes.
-  useEffect(() => {
-    setFindOpen(false)
-    setFindResult(null)
-    if (!activeTabId) {
-      setDraft('')
-      setEditing(false)
-    }
-  }, [activeTabId])
+    const timer = window.setTimeout(() => {
+      void ipcClient
+        .invoke('browser.capture', { tabId: activeTab.tabId })
+        .then((res: { dataUrl?: string | null }) => {
+          if (res?.dataUrl) setCachedSnapshot(res.dataUrl)
+        })
+        .catch(() => {})
+    }, 280)
+    return () => window.clearTimeout(timer)
+  }, [activeTab])
 
   useEffect(() => {
     const el = areaRef.current
     if (!el) return
-    const observer = new ResizeObserver(() => setArea({ width: el.clientWidth, height: el.clientHeight }))
-    observer.observe(el)
-    return () => observer.disconnect()
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      setArea({ width: r.width, height: r.height })
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
-  const setViewportMode = (mode: ViewportMode) => {
-    setViewportModeState(mode)
-    saveViewportMode(mode)
-  }
+  const covered = useOverlayCovering(viewportRef)
+  const viewMustHide = covered || !!annotating || !!tabMenu || !!bookmarkMenu || syncDialogOpen || sendMenuOpen || moreMenuOpen
 
-  // Remember finished page loads for address suggestions (this device only).
-  useEffect(
-    () =>
-      onBrowserSideEvent((event) => {
-        if (event.type !== 'tab-updated' || event.tab.loading || !/^https?:/i.test(event.tab.url)) return
-        setHistory((prev) => {
-          if (prev[0]?.url === event.tab.url && prev[0]?.title === event.tab.title) return prev
-          const next = prev[0]?.url === event.tab.url ? [{ ...prev[0], title: event.tab.title || prev[0].title }, ...prev.slice(1)] : recordVisit(prev, event.tab.url, event.tab.title)
-          saveHistory(next)
-          return next
-        })
-      }),
-    [],
-  )
+  useEffect(() => {
+    if (!viewMustHide || !activeTabId || !pageShown || cachedSnapshot) return
+    void ipcClient
+      .invoke('browser.capture', { tabId: activeTabId })
+      .then((res: { dataUrl?: string | null }) => {
+        if (res?.dataUrl) setCachedSnapshot(res.dataUrl)
+      })
+      .catch(() => {})
+  }, [viewMustHide, activeTabId, pageShown, cachedSnapshot])
 
-  // Tab strip: wheel scrolls sideways; the active tab stays in view.
   useEffect(() => {
-    const strip = tabStripRef.current
-    if (!strip) return
-    const onWheel = (e: WheelEvent) => {
-      const dx = wheelToHorizontal(e, strip)
-      if (dx === null) return
-      e.preventDefault()
-      strip.scrollLeft += dx
-    }
-    strip.addEventListener('wheel', onWheel, { passive: false })
-    return () => strip.removeEventListener('wheel', onWheel)
-  }, [order.length > 0])
+    setCachedSnapshot(null)
+    if (annotating && annotating.tabId !== activeTabId) setAnnotating(null)
+  }, [activeTabId, annotating])
+
+  const fitted = fitViewport(viewportMode, area)
+  const viewVisible = isStageActive && pageShown && !viewMustHide
+  useViewPlacement(viewportRef, activeTabId, viewVisible, fitted.zoom * userZoom)
+
   useEffect(() => {
-    if (!activeTabId) return
-    tabStripRef.current?.querySelector<HTMLElement>(`[data-browser-tab="${CSS.escape(activeTabId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [activeTabId])
+    if (!isStageActive) void browserActions.hideAll().catch(() => {})
+  }, [isStageActive])
 
   const focusAddress = useCallback(() => {
     addressRef.current?.focus()
@@ -229,219 +286,283 @@ export function BrowserPanel() {
   const openTab = useCallback(
     async (url?: string) => {
       try {
-        await browserActions.open(url, sessionKey)
-        if (!url) requestAnimationFrame(focusAddress)
+        await browserActions.openTab(url)
+        if (!url) requestAnimationFrame(() => focusAddress())
       } catch {
         toast.error(t('toast.navigateFailed'))
       }
     },
-    [focusAddress, sessionKey, t],
+    [focusAddress, t],
   )
+
+  const navigateOrOpen = useCallback(
+    async (raw: string) => {
+      const url = normalizeAddressInput(raw, searchUrl)
+      if (!url || url === 'about:blank') return
+      try {
+        let id = activeTabId
+        if (!id) {
+          const created = await browserActions.openTab(url)
+          id = created.tabId
+        } else {
+          await browserActions.navigate(id, url)
+        }
+        setEditing(false)
+        addressRef.current?.blur()
+      } catch {
+        toast.error(t('toast.navigateFailed'))
+      }
+    },
+    [activeTabId, searchUrl, t],
+  )
+
+  const suggestions = useMemo(
+    () =>
+      editing
+        ? buildSuggestions(draft, {
+            tabs: Object.values(tabs),
+            activeTabId,
+            bookmarks,
+            devServers,
+            history,
+            searchUrl,
+          })
+        : [],
+    [editing, draft, tabs, activeTabId, bookmarks, devServers, history, searchUrl],
+  )
+  const showSuggestions = editing && suggestions.length > 0
+
+  const go = async (picked?: Suggestion) => {
+    if (picked?.kind === 'tab') {
+      setEditing(false)
+      addressRef.current?.blur()
+      void browserActions.focus(picked.tabId)
+      return
+    }
+    const target = picked ? picked.url : normalizeAddressInput(draft, searchUrl)
+    await navigateOrOpen(target)
+  }
 
   const closeActive = useCallback(() => {
     if (activeTabId) void browserActions.close(activeTabId)
   }, [activeTabId])
 
-  const suggestions: Suggestion[] = editing
-    ? buildSuggestions(draft, { tabs: order.map((id) => tabs[id]).filter(Boolean), activeTabId, history, searchUrl })
-    : []
-  // The input still shows the current URL right after focus: no suggestions until the user types.
-  const showSuggestions = editing && suggestions.length > 0 && draft !== (activeTab?.url ?? '')
-
-  const go = useCallback(
-    async (s: Suggestion | undefined) => {
-      const url = s ? s.url : normalizeAddressInput(draft, searchUrl)
-      setEditing(false)
-      addressRef.current?.blur()
-      if (url === 'about:blank') return
-      try {
-        if (s?.kind === 'tab') await browserActions.focus(s.tabId)
-        else if (activeTabId) await browserActions.navigate(activeTabId, url)
-        else await browserActions.open(url, sessionKey)
-      } catch {
-        toast.error(t('toast.navigateFailed'))
-      }
-    },
-    [draft, searchUrl, activeTabId, sessionKey, t],
-  )
+  const reopenClosed = useCallback(async () => {
+    const restored = await browserActions.reopenClosed()
+    if (!restored) toast.info(t('nav.nothingToReopen'))
+  }, [t])
 
   const toggleAnnotate = useCallback(async () => {
-    if (annotating) {
-      setAnnotating(null)
-      return
-    }
+    if (annotating) return setAnnotating(null)
     if (!activeTabId || !pageShown) return
-    const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId }).catch(() => null)) as { dataUrl?: string | null } | null
-    if (res?.dataUrl) setAnnotating({ snapshot: res.dataUrl, tabId: activeTabId })
-    else toast.error(t('annotate.captureFailed'))
+    const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId }).catch(() => null)) as {
+      dataUrl?: string | null
+    } | null
+    if (!res?.dataUrl) return toast.error(t('annotate.captureFailed'))
+    setCachedSnapshot(res.dataUrl)
+    setAnnotating({ tabId: activeTabId, snapshot: res.dataUrl })
   }, [annotating, activeTabId, pageShown, t])
 
-  // A draft typed for one tab must not carry over to another (e.g. after closing a tab).
-  useEffect(() => {
-    if (document.activeElement !== addressRef.current) setEditing(false)
-    else setDraft(pageShown ? (activeTab?.url ?? '') : '')
+  const openFind = useCallback(() => {
+    if (!pageShown) return
+    setFindOpen(true)
+    requestAnimationFrame(() => {
+      findRef.current?.focus()
+      findRef.current?.select()
+    })
+  }, [pageShown])
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    if (activeTabId) void browserActions.stopFind(activeTabId)
   }, [activeTabId])
 
-  // Leave annotation mode when the tab changes or navigates away.
-  useEffect(() => {
-    if (annotating && annotating.tabId !== activeTabId) setAnnotating(null)
-  }, [annotating, activeTabId])
+  const runFind = (text: string, opts?: { forward?: boolean; findNext?: boolean }) => {
+    if (activeTabId) void browserActions.find(activeTabId, text, opts)
+  }
 
-  const sendAction = useCallback(
-    async (kind: 'screenshot' | 'page' | 'selection' | 'logs') => {
-      setSendMenuOpen(false)
-      if (!activeTabId || !activeTab) return
-      try {
-        if (kind === 'screenshot') {
-          const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId })) as { dataUrl?: string | null }
-          if (!res?.dataUrl) throw new Error('capture failed')
-          sendToComposer({ files: [await saveImageAttachment(res.dataUrl, `browser-${Date.now()}.jpg`)] })
-        } else if (kind === 'page') {
-          const res = (await ipcClient.invoke('browser.pageContext', { tabId: activeTabId, saveText: true })) as PageContextResult & { path: string | null }
-          if (!res.path) throw new Error('page text unavailable')
-          const name = `${(res.title || 'page').replace(/[\\/:*?"<>|]+/g, ' ').trim().slice(0, 60) || 'page'}.md`
-          sendToComposer({ files: [{ path: res.path, name }] })
-        } else if (kind === 'selection') {
-          const res = (await ipcClient.invoke('browser.pageContext', { tabId: activeTabId })) as PageContextResult
-          if (!res.selection) {
-            toast.message(t('send.noSelection'))
-            return
-          }
-          sendToComposer({ text: formatSelectionForComposer(res.url, res.selection) })
-        } else {
-          const res = (await ipcClient.invoke('browser.logs', { tabId: activeTabId })) as { entries: BrowserLogEntry[] }
-          sendToComposer({
-            text: formatLogsForComposer(activeTab.url, res.entries ?? [], {
-              annotations: t('composer.annotations'),
-              logs: t('composer.logs'),
-              noLogs: t('composer.noLogs'),
-              area: t('composer.area'),
-              page: t('composer.page'),
-              noComment: t('composer.noComment'),
-            }),
-          })
-        }
-      } catch (error) {
-        console.warn('[browser] send to composer failed:', error)
-        toast.error(t(String(error).includes('dialog_pending') ? 'send.dialogPending' : 'send.failed'))
-      }
-    },
-    [activeTabId, activeTab, t],
-  )
+  const zoom = useCallback((delta: -1 | 0 | 1) => setUserZoom((z) => nextZoom(z, delta)), [])
 
-  // Shortcuts pressed while the page had focus arrive from Main; downloads surface as toasts.
   useEffect(
     () =>
-      onBrowserSideEvent((event: BrowserEvent) => {
-        if (event.type === 'agent-action') {
-          setAgentAction(event.action ? { tabId: event.tabId, action: event.action } : null)
-          return
-        }
-        if (event.type === 'shortcut') {
-          if (event.action === 'focus-address') focusAddress()
-          else if (event.action === 'new-tab') void openTab()
-          else if (event.action === 'close-tab') closeActive()
-          else if (event.action === 'annotate') void toggleAnnotate()
-          else if (event.action === 'find') openFind()
-          else if (event.action === 'zoom-in') zoom(1)
-          else if (event.action === 'zoom-out') zoom(-1)
-          else if (event.action === 'zoom-reset') zoom(0)
-        } else if (event.type === 'download') {
-          if (event.state === 'completed') toast.success(t('toast.downloaded', { name: event.fileName }), { description: event.savePath })
-          else toast.error(t('toast.downloadFailed', { name: event.fileName }))
-        }
+      onBrowserShortcut((action) => {
+        if (!isStageActive) return
+        if (action === 'focus-address') focusAddress()
+        else if (action === 'new-tab') void openTab()
+        else if (action === 'close-tab') closeActive()
+        else if (action === 'reopen-tab') void reopenClosed()
+        else if (action === 'annotate') void toggleAnnotate()
+        else if (action === 'find') openFind()
+        else if (action === 'zoom-in') zoom(1)
+        else if (action === 'zoom-out') zoom(-1)
+        else if (action === 'zoom-reset') zoom(0)
       }),
-    [focusAddress, openTab, closeActive, toggleAnnotate, openFind, zoom, t],
+    [isStageActive, focusAddress, openTab, closeActive, reopenClosed, toggleAnnotate, openFind, zoom],
   )
-
-  // Expanded mode belongs to this panel only; Esc returns to the side panel.
-  useEffect(() => {
-    if (activePanel !== 'browser') useUIStore.setState({ browserChatExpand: false })
-  }, [activePanel])
-  useEffect(() => () => { useUIStore.setState({ browserChatExpand: false }) }, [])
-  useEffect(() => {
-    if (!browserChatExpand) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"], input')) return
-      event.preventDefault()
-      useUIStore.setState({ browserChatExpand: false })
-      expandButtonRef.current?.focus()
-    }
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [browserChatExpand])
-
-  const toggleExpand = () => {
-    if (!browserChatExpand && rightPanelCollapsed) revealRightPanel()
-    useUIStore.setState({ browserChatExpand: !browserChatExpand, filesPreviewChatExpand: false })
-  }
 
   const onRootKeyDown = (e: ReactKeyboardEvent) => {
     if (!isMod(e) || e.altKey) return
     const key = e.key.toLowerCase()
-    if (e.shiftKey) {
-      if (key === 'a') {
-        e.preventDefault()
-        void toggleAnnotate()
-      }
-      return
+    if (e.shiftKey && key === 'a') {
+      e.preventDefault()
+      void toggleAnnotate()
+    } else if (e.shiftKey && key === 't') {
+      e.preventDefault()
+      void reopenClosed()
+    } else if (e.shiftKey && (key === '+' || key === '=')) {
+      e.preventDefault()
+      zoom(1)
+    } else if (!e.shiftKey && (key === 'l' || key === 'k')) {
+      e.preventDefault()
+      focusAddress()
+    } else if (!e.shiftKey && key === 't') {
+      e.preventDefault()
+      void openTab()
+    } else if (!e.shiftKey && key === 'w') {
+      e.preventDefault()
+      closeActive()
+    } else if (!e.shiftKey && key === 'f') {
+      e.preventDefault()
+      openFind()
+    } else if (!e.shiftKey && (key === '=' || key === '+')) {
+      e.preventDefault()
+      zoom(1)
+    } else if (!e.shiftKey && key === '-') {
+      e.preventDefault()
+      zoom(-1)
+    } else if (!e.shiftKey && key === '0') {
+      e.preventDefault()
+      zoom(0)
     }
-    if (key === 'f') openFind()
-    else if (key === '=' || key === '+') zoom(1)
-    else if (key === '-') zoom(-1)
-    else if (key === '0') zoom(0)
-    else if (key === 'l') focusAddress()
-    else if (key === 't') void openTab()
-    else if (key === 'w' && activeTabId) closeActive()
-    else return
-    e.preventDefault()
   }
 
-  // At rest the field shows the URL without its scheme so a narrow panel keeps the host readable.
-  const addressValue = editing ? draft : pageShown ? (activeTab?.url ?? '').replace(/^https?:\/\//i, '') : ''
-  const modKeyLabel = window.piDesktop?.platform === 'darwin' ? '⌘' : 'Ctrl+'
-  // Narrow side panel: forward and expand move into "more" so the address keeps its width.
-  const compact = area.width > 0 && area.width < 440 && !browserChatExpand
-  const navButton = 'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md disabled:opacity-40'
-  const scaled = fitted.zoom < 0.999
-  const viewportLabel =
-    viewportMode.kind === 'fit'
-      ? t('viewport.fit')
-      : `${viewportMode.width}×${viewportMode.height}${scaled ? ` · ${Math.round(fitted.zoom * 100)}%` : ''}`
-  // The tab row keeps the short form: the scale when scaled, else the size.
-  const viewportShort = viewportMode.kind === 'fit' ? '' : scaled ? `${Math.round(fitted.zoom * 100)}%` : `${viewportMode.width}×${viewportMode.height}`
-
-  // Esc closes the small menus of the toolbar.
-  useEffect(() => {
-    if (!moreMenuOpen && !sendMenuOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      setMoreMenuOpen(false)
-      setSendMenuOpen(false)
+  const sendAction = async (kind: 'screenshot' | 'page' | 'selection' | 'logs') => {
+    setSendMenuOpen(false)
+    if (!activeTabId || !activeTab) return
+    const labels: ComposerLabels = {
+      annotations: t('composer.annotations'),
+      logs: t('composer.logs'),
+      noLogs: t('composer.noLogs'),
+      area: t('composer.area'),
+      page: t('composer.page'),
+      noComment: t('composer.noComment'),
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [moreMenuOpen, sendMenuOpen])
+    try {
+      if (kind === 'screenshot') {
+        const res = (await ipcClient.invoke('browser.capture', { tabId: activeTabId })) as { dataUrl?: string | null }
+        if (!res?.dataUrl) return toast.error(t('annotate.captureFailed'))
+        const file = await saveImageAttachment(res.dataUrl, `browser-${Date.now()}.jpg`)
+        sendToComposer({ text: `${t('composer.page')}: ${activeTab.title || activeTab.url} (${activeTab.url})`, files: [file] })
+      } else if (kind === 'logs') {
+        const res = (await ipcClient.invoke('browser.logs', { tabId: activeTabId, max: 30 })) as { entries?: BrowserLogEntry[] }
+        sendToComposer({ text: formatLogsForComposer(activeTab.url, res?.entries ?? [], labels) })
+      } else {
+        const ctx = (await ipcClient.invoke('browser.pageContext', { tabId: activeTabId, saveText: kind === 'page' })) as PageContextResult & { path?: string | null }
+        if (kind === 'selection') {
+          if (!ctx.selection) return toast.error(t('send.noSelection'))
+          sendToComposer({
+            text: `${t('composer.page')}: ${ctx.title || ctx.url} (${ctx.url})\n\n> ${ctx.selection.replace(/\n/g, '\n> ')}`,
+          })
+        } else if (ctx.path) {
+          sendToComposer({
+            text: `${t('composer.page')}: ${ctx.title || ctx.url} (${ctx.url})`,
+            files: [{ path: ctx.path, name: `${(ctx.title || 'page').slice(0, 40)}.md` }],
+          })
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ''
+      toast.error(msg.includes('browser_dialog_pending') ? t('send.dialogPending') : t('send.failed'))
+    }
+  }
+
+  const isBookmarked = Boolean(activeTab?.url && bookmarks.some((b) => b.url === activeTab.url))
+  const toggleBookmark = async () => {
+    if (!activeTab || !pageShown) return
+    if (isBookmarked) {
+      await browserActions.removeBookmark({ url: activeTab.url })
+      toast.success(t('bookmarks.removed'))
+    } else {
+      await browserActions.addBookmark({
+        url: activeTab.url,
+        title: activeTab.title || activeTab.url,
+        favicon: activeTab.favicon,
+      })
+      toast.success(t('bookmarks.added'))
+    }
+  }
+
+  const handlePauseTakeover = async () => {
+    const res = await browserActions.abortAgent().catch(() => ({ aborted: 0 }))
+    toast.info(res.aborted > 0 ? t('agent.takeoverDone') : t('agent.takeoverReady'))
+  }
+
+  const handleTabDrop = (targetId: string) => {
+    if (!dragTabId || dragTabId === targetId) return
+    const next = order.filter((id) => id !== dragTabId)
+    const idx = next.indexOf(targetId)
+    if (idx < 0) return
+    next.splice(idx, 0, dragTabId)
+    setDragTabId(null)
+    void browserActions.reorder(next)
+  }
+
+  const handleImportBookmarkHtml = async (file: File) => {
+    try {
+      const html = await file.text()
+      const added = await browserActions.importHtmlBookmarks(html)
+      toast.success(t('bookmarks.imported', { count: added }))
+    } catch {
+      toast.error(t('bookmarks.importFailed'))
+    }
+  }
+
+  const openExternal = (url: string) => {
+    if (!url || url === 'about:blank') return
+    void ipcClient.invoke('desktop.openExternal', { url }).catch(() => window.open(url, '_blank', 'noopener'))
+  }
+
+  const addressValue = editing ? draft : pageShown ? (activeTab?.url ?? '').replace(/^https?:\/\//i, '') : ''
+  const isHttps = Boolean(activeTab?.url?.startsWith('https://'))
+  const isLocal = Boolean(activeTab?.url && /^http:\/\/(localhost|127\.0\.0\.1)/i.test(activeTab.url))
+  const modKeyLabel = window.piDesktop?.platform === 'darwin' ? '⌘' : 'Ctrl+'
+  const navButton =
+    'chrome-icon-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:text-foreground disabled:opacity-35'
+
+  const recentTabSteps = agentSteps.filter((st) => !activeTabId || st.tabId === activeTabId).slice(-8)
+  const menuTab: BrowserTabInfo | null = tabMenu ? (tabs[tabMenu.tabId] ?? null) : null
 
   return (
-    <div ref={rootRef} className="flex h-full min-h-0 flex-col" onKeyDown={onRootKeyDown}>
-      {/* Tab strip: always shown whenever at least one tab is open, so single tabs can be closed or pinned and new tabs added. */}
-      {order.length > 0 ? (
-      <div className="flex h-9 shrink-0 items-center border-b border-border/40 px-1.5">
-        <div ref={tabStripRef} className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto" role="tablist" aria-label={t('nav.tabs')}>
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-background" onKeyDown={onRootKeyDown}>
+      {/* Show inner browser tab strip only when multiple web tabs are open (avoids double tab bars). */}
+      {order.length > 1 ? (
+        <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border/25 bg-[var(--bg-base)] px-2">
+          <div
+            ref={tabStripRef}
+            className="right-panel-tabs-scroll flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+            role="tablist"
+            aria-label={t('nav.tabs')}
+          >
           {order.map((id) => {
             const tab = tabs[id]
+            if (!tab) return null
             const active = id === activeTabId
-            const pinned = !!tab?.pinned
-            const label = tab?.title || (tab?.url !== 'about:blank' ? tab?.url : '') || t('tab.untitled')
+            const pinned = !!tab.pinned
+            const isAgentTab = tab.openedBy !== 'user'
+            const label =
+              tab.title || (tab.url !== 'about:blank' ? tab.url.replace(/^https?:\/\//i, '') : '') || t('tab.untitled')
             return (
               <div
                 key={id}
-                data-browser-tab={id}
-                data-pinned={pinned ? 'true' : undefined}
-                // Middle click closes, like every browser. Its defaults (autoscroll on mousedown,
-                // X11 primary-selection paste on mouseup into the focused address bar) are blocked.
+                draggable
+                onDragStart={() => setDragTabId(id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleTabDrop(id)}
+                onDragEnd={() => setDragTabId(null)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setTabMenu({ tabId: id, x: e.clientX, y: e.clientY })
+                }}
                 onMouseDown={(e) => e.button === 1 && e.preventDefault()}
                 onMouseUp={(e) => e.button === 1 && e.preventDefault()}
                 onAuxClick={(e) => {
@@ -449,67 +570,136 @@ export function BrowserPanel() {
                   e.preventDefault()
                   void browserActions.close(id)
                 }}
+                data-browser-tab={id}
+                data-pinned={pinned ? 'true' : undefined}
                 className={cn(
-                  'group flex h-7 min-w-[56px] max-w-[180px] flex-1 basis-[160px] items-center gap-1 rounded-md pl-2 pr-0.5 text-[12px]',
-                  active ? 'bg-[var(--bg-active)] text-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',
+                  'group flex h-6 min-w-[72px] max-w-[186px] flex-1 basis-[140px] items-center gap-1.5 rounded-md pl-2 pr-1 text-[11.5px] transition-colors',
+                  active
+                    ? 'bg-background font-medium text-foreground shadow-[0_0_0_0.5px_hsl(var(--border)/0.75)]'
+                    : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
+                  tab.sleeping && 'opacity-60',
                 )}
               >
-                {tab?.loading ? <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden /> : null}
-                <button type="button" role="tab" aria-selected={active} className="min-w-0 flex-1 truncate text-left"
-                  title={tab?.url} onClick={() => void browserActions.focus(id)}>
-                  {label}
-                </button>
+                {tab.loading ? (
+                  <SessionRunningPixelGrid className="shrink-0" />
+                ) : tab.sleeping ? (
+                  <Moon className="h-3 w-3 shrink-0 text-muted-foreground" />
+                ) : (
+                  <FaviconImg src={tab.favicon} className="h-3.5 w-3.5 shrink-0" />
+                )}
+
                 <button
                   type="button"
-                  aria-label={pinned ? t('nav.unpinTab') : t('nav.pinTab')}
-                  title={pinned ? t('nav.unpinTab') : t('nav.pinTab')}
-                  aria-pressed={pinned}
-                  className={cn(
-                    'flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-[var(--bg-hover)] focus-visible:opacity-100',
-                    pinned ? 'text-primary opacity-100' : 'opacity-0 group-hover:opacity-60',
-                  )}
-                  onClick={() => void browserActions.pin(id, !pinned)}
+                  role="tab"
+                  aria-selected={active}
+                  className="min-w-0 flex-1 truncate text-left"
+                  title={tab.url !== 'about:blank' ? `${label}\n${tab.url}` : label}
+                  onClick={() => void browserActions.focus(id)}
                 >
-                  <PinIcon className="h-3 w-3" />
+                  {label}
                 </button>
-                <button type="button" aria-label={t('nav.closeTab')} title={t('nav.closeTab')}
+
+                {isAgentTab ? (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand)]" title={t('agent.openedByPi')} />
+                ) : null}
+
+                {tab.audible || tab.muted ? (
+                  <button
+                    type="button"
+                    title={tab.muted ? t('tab.unmute') : t('tab.mute')}
+                    aria-label={tab.muted ? t('tab.unmute') : t('tab.mute')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void browserActions.mute(id, !tab.muted)
+                    }}
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground"
+                  >
+                    <SpeakerIcon muted={tab.muted} className="h-3 w-3" />
+                  </button>
+                ) : null}
+
+                {pinned ? (
+                  <button
+                    type="button"
+                    title={t('nav.unpinTab')}
+                    onClick={() => void browserActions.pin(id, false)}
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--brand)] hover:bg-[var(--bg-hover)]"
+                  >
+                    <PinIcon className="h-2.5 w-2.5" />
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  aria-label={t('nav.closeTab')}
+                  title={t('nav.closeTab')}
                   className={cn(
-                    'flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-[var(--bg-hover)] focus-visible:opacity-100',
-                    active ? 'opacity-60' : 'opacity-0 group-hover:opacity-60',
+                    'flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-[var(--bg-hover)]',
+                    active ? 'opacity-65 hover:opacity-100' : 'opacity-0 group-hover:opacity-65 hover:!opacity-100',
                   )}
-                  onClick={() => void browserActions.close(id)}>
+                  onClick={() => void browserActions.close(id)}
+                >
                   <X className="h-3 w-3" />
                 </button>
               </div>
             )
           })}
-          <button type="button" className={navButton} title={t('nav.newTab')} aria-label={t('nav.newTab')} onClick={() => void openTab()}>
+          <button
+            type="button"
+            className={navButton}
+            title={`${t('nav.newTab')} (${modKeyLabel}T)`}
+            aria-label={t('nav.newTab')}
+            onClick={() => void openTab()}
+          >
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
       ) : null}
 
-      {/* Toolbar: navigation, the address with suggestions, page actions; the rest under "more". */}
-      <div className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border/40 px-1.5">
-        <button type="button" className={navButton} title={t('nav.back')} aria-label={t('nav.back')}
-          disabled={!activeTab?.canGoBack} onClick={() => activeTabId && void browserActions.history(activeTabId, 'back')}>
+      {/* Slim Omnibox + Page Actions */}
+      <div className="flex h-9 shrink-0 items-center gap-1 bg-[var(--bg-base)] px-2.5">
+        <button
+          type="button"
+          className={navButton}
+          title={t('nav.back')}
+          aria-label={t('nav.back')}
+          disabled={!activeTab?.canGoBack}
+          onClick={() => activeTabId && void browserActions.history(activeTabId, 'back')}
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
         </button>
-        {compact ? null : (
-          <button type="button" className={navButton} title={t('nav.forward')} aria-label={t('nav.forward')}
-            disabled={!activeTab?.canGoForward} onClick={() => activeTabId && void browserActions.history(activeTabId, 'forward')}>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        )}
-        <button type="button" className={navButton}
+        <button
+          type="button"
+          className={navButton}
+          title={t('nav.forward')}
+          aria-label={t('nav.forward')}
+          disabled={!activeTab?.canGoForward}
+          onClick={() => activeTabId && void browserActions.history(activeTabId, 'forward')}
+        >
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className={navButton}
           title={activeTab?.loading ? t('nav.stop') : t('nav.reload')}
           aria-label={activeTab?.loading ? t('nav.stop') : t('nav.reload')}
           disabled={!pageShown}
-          onClick={() => activeTabId && void browserActions.history(activeTabId, activeTab?.loading ? 'stop' : 'reload')}>
+          onClick={() => activeTabId && void browserActions.history(activeTabId, activeTab?.loading ? 'stop' : 'reload')}
+        >
           {activeTab?.loading ? <X className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
         </button>
-        <div className="relative mx-1 min-w-0 flex-1">
+
+        <div className="relative mx-0.5 flex min-w-0 flex-1 items-center">
+          <span className="pointer-events-none absolute left-2 z-10 text-muted-foreground">
+            {isLocal ? (
+              <Terminal className="h-3 w-3 text-emerald-500" />
+            ) : isHttps ? (
+              <ShieldCheck className="h-3 w-3 opacity-65" />
+            ) : (
+              <Globe className="h-3 w-3 opacity-55" />
+            )}
+          </span>
           <input
             ref={addressRef}
             type="text"
@@ -549,39 +739,126 @@ export function BrowserPanel() {
                 e.currentTarget.blur()
               }
             }}
-            className="h-7 w-full rounded-md border border-transparent bg-[var(--bg-hover)] px-2.5 text-[12px] text-foreground outline-none placeholder:text-foreground-tertiary focus:border-ring focus:bg-background"
+            className="h-[26px] w-full rounded-lg border border-transparent bg-[var(--bg-2)]/75 pl-6 pr-16 text-[12px] text-foreground outline-none transition-colors placeholder:text-foreground-tertiary hover:bg-[var(--bg-hover)] focus:border-ring/70 focus:bg-background"
           />
+
+          {pageShown && !editing ? (
+            <div className="absolute right-1 flex items-center gap-0.5">
+              <button
+                type="button"
+                title={isBookmarked ? t('bookmarks.remove') : t('bookmarks.add')}
+                aria-label={isBookmarked ? t('bookmarks.remove') : t('bookmarks.add')}
+                onClick={() => void toggleBookmark()}
+                className={cn(
+                  'flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-[var(--bg-active)] hover:text-foreground',
+                  isBookmarked && 'text-amber-500 hover:text-amber-500',
+                )}
+              >
+                <StarIcon filled={isBookmarked} className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                title={t('address.copyUrl')}
+                aria-label={t('address.copyUrl')}
+                onClick={() => {
+                  if (!activeTab?.url) return
+                  void navigator.clipboard.writeText(activeTab.url)
+                  toast.success(t('address.copiedUrl'))
+                }}
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-[var(--bg-active)] hover:text-foreground"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                title={t('address.openExternal')}
+                aria-label={t('address.openExternal')}
+                onClick={() => activeTab?.url && openExternal(activeTab.url)}
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-[var(--bg-active)] hover:text-foreground"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
+          ) : null}
+
           {showSuggestions ? (
-            <div id="browser-address-suggestions" role="listbox" aria-label={t('address.suggestions')}
-              className="absolute left-0 top-8 z-50 w-full min-w-[280px] overflow-hidden rounded-lg border border-border/60 bg-popover py-1 text-[12px] text-popover-foreground shadow-lg">
+            <div
+              id="browser-address-suggestions"
+              role="listbox"
+              data-browser-overlay=""
+              aria-label={t('address.suggestions')}
+              className="absolute left-0 top-8 z-50 w-full min-w-[300px] overflow-hidden rounded-lg border border-border/70 bg-popover py-1 text-[12px] text-popover-foreground shadow-xl"
+            >
               {suggestions.map((s, i) => {
-                const Icon = s.kind === 'search' ? Search : s.kind === 'history' ? History : Globe
-                const primary = s.kind === 'search' ? t('address.search', { query: s.query }) : s.kind === 'open' ? t('address.open', { url: s.url }) : s.title || s.url
-                const secondary = s.kind === 'tab' ? t('address.switchTab') : s.kind === 'history' ? s.url.replace(/^https?:\/\//, '') : ''
+                const Icon =
+                  s.kind === 'search'
+                    ? Search
+                    : s.kind === 'history'
+                      ? History
+                      : s.kind === 'devserver'
+                        ? Terminal
+                        : Globe
+                const primary =
+                  s.kind === 'search'
+                    ? t('address.search', { query: s.query })
+                    : s.kind === 'open'
+                      ? t('address.open', { url: s.url })
+                      : s.title || s.url
+                const badge =
+                  s.kind === 'tab'
+                    ? t('address.switchTab')
+                    : s.kind === 'bookmark'
+                      ? t('bookmarks.badge')
+                      : s.kind === 'devserver'
+                        ? 'DevServer'
+                        : s.kind === 'history'
+                          ? s.url.replace(/^https?:\/\//, '')
+                          : ''
                 return (
-                  <div key={`${s.kind}-${s.url}`} role="option" aria-selected={i === highlight}
-                    className={cn('flex cursor-default items-center gap-2 px-2.5 py-1.5', i === highlight && 'bg-[var(--bg-active)]')}
+                  <div
+                    key={`${s.kind}-${s.url}-${i}`}
+                    role="option"
+                    aria-selected={i === highlight}
+                    className={cn(
+                      'flex cursor-default items-center gap-2 px-2.5 py-1.5',
+                      i === highlight && 'bg-[var(--bg-active)]',
+                    )}
                     onMouseEnter={() => setHighlight(i)}
-                    // mousedown, not click: the input's blur would close the list first.
                     onMouseDown={(e) => {
                       e.preventDefault()
                       void go(s)
-                    }}>
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                    }}
+                  >
+                    {s.kind === 'bookmark' ? (
+                      <StarIcon filled className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    ) : (
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
+                    )}
                     <span className="min-w-0 flex-1 truncate">{primary}</span>
-                    {secondary ? <span className="ml-2 max-w-[45%] shrink-0 truncate text-[11px] text-foreground-tertiary">{secondary}</span> : null}
+                    {badge ? (
+                      <span className="ml-2 max-w-[42%] shrink-0 truncate text-[11px] text-foreground-tertiary">
+                        {badge}
+                      </span>
+                    ) : null}
                   </div>
                 )
               })}
             </div>
           ) : null}
         </div>
-        {userZoom !== 1 ? (
-          <button type="button" className="chrome-icon-btn h-7 shrink-0 rounded-md px-1.5 text-[11px] tabular-nums text-foreground-secondary"
-            title={t('zoom.reset')} aria-label={t('zoom.reset')} onClick={() => zoom(0)}>
-            {Math.round(userZoom * 100)}%
+
+        {order.length <= 1 ? (
+          <button
+            type="button"
+            className={navButton}
+            title={`${t('nav.newTab')} (${modKeyLabel}T)`}
+            aria-label={t('nav.newTab')}
+            onClick={() => void openTab()}
+          >
+            <Plus className="h-3.5 w-3.5" />
           </button>
         ) : null}
+
         <button
           type="button"
           className={cn(navButton, annotating && 'bg-[var(--bg-active)] text-foreground')}
@@ -593,10 +870,11 @@ export function BrowserPanel() {
         >
           <PencilLine className="h-3.5 w-3.5" />
         </button>
+
         <div className="relative shrink-0">
           <button
             type="button"
-            className={cn(navButton, sendMenuOpen && 'bg-[var(--bg-active)]')}
+            className={cn(navButton, sendMenuOpen && 'bg-[var(--bg-active)] text-foreground')}
             title={t('send.menu')}
             aria-label={t('send.menu')}
             aria-haspopup="menu"
@@ -609,12 +887,20 @@ export function BrowserPanel() {
           {sendMenuOpen ? (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setSendMenuOpen(false)} aria-hidden />
-              <div role="menu" aria-label={t('send.menu')}
-                className="absolute right-0 top-8 z-50 min-w-[190px] rounded-lg border border-border/60 bg-popover text-popover-foreground p-1 shadow-lg">
+              <div
+                role="menu"
+                data-browser-overlay=""
+                aria-label={t('send.menu')}
+                className="absolute right-0 top-8 z-50 min-w-[205px] rounded-lg border border-border/60 bg-popover p-1 text-popover-foreground shadow-lg"
+              >
                 {(['screenshot', 'page', 'selection', 'logs'] as const).map((kind) => (
-                  <button key={kind} type="button" role="menuitem"
+                  <button
+                    key={kind}
+                    type="button"
+                    role="menuitem"
                     className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-                    onClick={() => void sendAction(kind)}>
+                    onClick={() => void sendAction(kind)}
+                  >
                     <span className="text-[12px] text-foreground">{t(`send.${kind}`)}</span>
                     <span className="text-[11px] text-foreground-tertiary">{t(`send.${kind}Desc`)}</span>
                   </button>
@@ -623,66 +909,146 @@ export function BrowserPanel() {
             </>
           ) : null}
         </div>
-        <DownloadsMenu buttonClass={navButton} />
+
+        {area.width >= 430 ? (
+          <>
+            <DownloadsMenu buttonClass={navButton} />
+            <button
+              type="button"
+              className={navButton}
+              title={t('sync.button')}
+              aria-label={t('sync.button')}
+              onClick={() => setSyncDialogOpen(true)}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+          </>
+        ) : null}
+        <button
+          type="button"
+          className={cn(navButton, browserChatExpand && 'bg-[var(--bg-active)] text-foreground')}
+          title={browserChatExpand ? t('nav.collapseFromChat') : t('nav.expandOverChat')}
+          aria-label={browserChatExpand ? t('nav.collapseFromChat') : t('nav.expandOverChat')}
+          aria-pressed={browserChatExpand}
+          onClick={() =>
+            useUIStore.setState((s) => ({
+              browserChatExpand: !s.browserChatExpand,
+              filesPreviewChatExpand: false,
+            }))
+          }
+        >
+          {browserChatExpand ? (
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden>
+              <path d="M2.5 9.5h4v4M13.5 6.5h-4v-4M6.5 9.5l-4.5 4.5M9.5 6.5l4.5-4.5" />
+            </svg>
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
+        </button>
+
         <div className="relative shrink-0">
           <button
             type="button"
-            className={cn(navButton, 'w-auto min-w-7 px-1 text-[11px] tabular-nums', moreMenuOpen && 'bg-[var(--bg-active)]')}
-            title={viewportMode.kind === 'fit' ? t('nav.more') : `${t('nav.more')} · ${t('viewport.title')}：${viewportLabel}`}
+            className={cn(navButton, moreMenuOpen && 'bg-[var(--bg-active)] text-foreground')}
+            title={t('nav.more')}
             aria-label={t('nav.more')}
             aria-haspopup="menu"
             aria-expanded={moreMenuOpen}
             onClick={() => setMoreMenuOpen((o) => !o)}
           >
-            {viewportMode.kind === 'fit' ? <MoreHorizontal className="h-3.5 w-3.5" /> : viewportShort}
+            <MoreHorizontal className="h-3.5 w-3.5" />
           </button>
           {moreMenuOpen ? (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} aria-hidden />
-              <div role="menu" aria-label={t('nav.more')}
-                className="absolute right-0 top-8 z-50 w-[220px] rounded-lg border border-border/60 bg-popover p-1 text-[12px] text-popover-foreground shadow-lg">
-                <button type="button" role="menuitem"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-                  onClick={() => { setMoreMenuOpen(false); void openTab() }}>
-                  <Plus className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
-                  <span className="flex-1">{t('nav.newTab')}</span>
-                  <span className="text-[11px] text-foreground-tertiary">{modKeyLabel}T</span>
-                </button>
-                {activeTabId ? (
-                  <button type="button" role="menuitem"
+              <div
+                role="menu"
+                data-browser-overlay=""
+                aria-label={t('nav.more')}
+                className="absolute right-0 top-8 z-50 w-[236px] rounded-lg border border-border/60 bg-popover p-1 text-[12px] text-popover-foreground shadow-lg"
+              >
+                {area.width < 430 ? (
+                  <button
+                    type="button"
+                    role="menuitem"
                     className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-                    onClick={() => { setMoreMenuOpen(false); closeActive() }}>
-                    <X className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
-                    <span className="flex-1">{t('nav.closeTab')}</span>
-                    <span className="text-[11px] text-foreground-tertiary">{modKeyLabel}W</span>
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      setSyncDialogOpen(true)
+                    }}
+                  >
+                    <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="flex-1">{t('sync.button')}</span>
                   </button>
                 ) : null}
-                {compact ? (
-                  <>
-                    <button type="button" role="menuitem" disabled={!activeTab?.canGoForward}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)] disabled:pointer-events-none disabled:opacity-40"
-                      onClick={() => { setMoreMenuOpen(false); if (activeTabId) void browserActions.history(activeTabId, 'forward') }}>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
-                      <span className="flex-1">{t('nav.forward')}</span>
-                    </button>
-                    <button type="button" role="menuitem"
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
-                      onClick={() => { setMoreMenuOpen(false); toggleExpand() }}>
-                      <Maximize2 className="h-3.5 w-3.5 shrink-0 text-foreground-tertiary" />
-                      <span className="flex-1">{t('nav.expand')}</span>
-                    </button>
-                  </>
-                ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    setBookmarksBarVisible(!bookmarksBarVisible)
+                  }}
+                >
+                  <StarIcon filled={bookmarksBarVisible} className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="flex-1">
+                    {bookmarksBarVisible ? t('bookmarks.hideBar') : t('bookmarks.showBar')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    importBookmarkInputRef.current?.click()
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex-1">{t('bookmarks.importHtml')}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    void reopenClosed()
+                  }}
+                >
+                  <Undo2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex-1">{t('nav.reopenTab')}</span>
+                  <span className="text-[10.5px] text-muted-foreground">{modKeyLabel}Shift+T</span>
+                </button>
                 <div className="my-1 h-px bg-border/60" role="separator" />
                 <div className="px-2 pb-0.5 pt-1 text-[11px] text-foreground-tertiary">{t('viewport.title')}</div>
-                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fit'}
-                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fit' && 'font-medium')}
-                  onClick={() => { setViewportMode({ kind: 'fit' }); setMoreMenuOpen(false) }}>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={viewportMode.kind === 'fit'}
+                  className={cn(
+                    'flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]',
+                    viewportMode.kind === 'fit' && 'font-medium',
+                  )}
+                  onClick={() => {
+                    setViewportMode({ kind: 'fit' })
+                    setMoreMenuOpen(false)
+                  }}
+                >
                   {t('viewport.fit')}
                 </button>
-                <button type="button" role="menuitemradio" aria-checked={viewportMode.kind === 'fixed'}
-                  className={cn('flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]', viewportMode.kind === 'fixed' && 'font-medium')}
-                  onClick={() => viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', width: 1280, height: 800 })}>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={viewportMode.kind === 'fixed'}
+                  className={cn(
+                    'flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]',
+                    viewportMode.kind === 'fixed' && 'font-medium',
+                  )}
+                  onClick={() =>
+                    viewportMode.kind === 'fit' && setViewportMode({ kind: 'fixed', width: 1280, height: 800 })
+                  }
+                >
                   {t('viewport.fixed')}
                 </button>
                 {viewportMode.kind === 'fixed' ? (
@@ -697,31 +1063,195 @@ export function BrowserPanel() {
                           min={key === 'width' ? 320 : 240}
                           className="h-6 w-[68px] rounded border border-border/50 bg-transparent px-1.5 tabular-nums outline-none focus:border-ring"
                           onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-                          onBlur={(e) => setViewportMode({ kind: 'fixed', ...clampViewport(key === 'width' ? Number(e.target.value) : viewportMode.width, key === 'height' ? Number(e.target.value) : viewportMode.height) })}
+                          onBlur={(e) =>
+                            setViewportMode({
+                              kind: 'fixed',
+                              ...clampViewport(
+                                key === 'width' ? Number(e.target.value) : viewportMode.width,
+                                key === 'height' ? Number(e.target.value) : viewportMode.height,
+                              ),
+                            })
+                          }
                         />
                       </label>
                     ))}
                   </div>
                 ) : null}
-                <div className="px-2 pb-1 text-[11px] leading-4 text-foreground-tertiary">{t('viewport.hint')}</div>
+                {userZoom !== 1 ? (
+                  <>
+                    <div className="my-1 h-px bg-border/60" role="separator" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                      onClick={() => {
+                        zoom(0)
+                        setMoreMenuOpen(false)
+                      }}
+                    >
+                      <span>{t('zoom.reset')}</span>
+                      <span className="font-mono text-[11px]">{Math.round(userZoom * 100)}%</span>
+                    </button>
+                  </>
+                ) : null}
               </div>
             </>
           ) : null}
         </div>
-        {compact ? null : (
-        <button
-          ref={expandButtonRef}
-          type="button"
-          className={cn('chrome-icon-btn flex h-7 shrink-0 items-center justify-center gap-1 rounded-md', browserChatExpand ? 'bg-[var(--bg-active)] px-2 text-[11px] text-foreground' : 'w-7')}
-          title={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
-          aria-label={browserChatExpand ? t('nav.collapse') : t('nav.expand')}
-          aria-expanded={browserChatExpand}
-          onClick={toggleExpand}
-        >
-          {browserChatExpand ? <><ChevronRight className="h-3.5 w-3.5" /><span>{t('nav.collapse')}</span></> : <Maximize2 className="h-3.5 w-3.5" />}
-        </button>
-        )}
       </div>
+
+      <input
+        ref={importBookmarkInputRef}
+        type="file"
+        accept=".html,.htm"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void handleImportBookmarkHtml(file)
+        }}
+      />
+
+      {pageShown && bookmarksBarVisible && bookmarks.length > 0 ? (
+        <div
+          data-pi-slot="browser-bookmarks-bar"
+          className="right-panel-tabs-scroll flex h-7 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/40 bg-[var(--bg-1)]/35 px-2 text-[11.5px]"
+        >
+          {bookmarks.slice(0, 24).map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              title={b.url}
+              onClick={() => void navigateOrOpen(b.url)}
+              onAuxClick={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  void openTab(b.url)
+                }
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setBookmarkMenu({ id: b.id, url: b.url, title: b.title, x: e.clientX, y: e.clientY })
+              }}
+              className="inline-flex h-5 max-w-[140px] shrink-0 items-center gap-1 rounded px-1.5 text-foreground-secondary transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground"
+            >
+              <FaviconImg src={b.favicon} className="h-3 w-3 shrink-0" />
+              <span className="truncate">{b.title}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Independent HUD above WebContentsView (never occluded by native page layer) */}
+      <div className="relative h-[2px] w-full shrink-0 overflow-hidden bg-transparent">
+        {activeTab?.loading ? <div className="h-full w-full animate-pulse bg-[var(--brand)]" /> : null}
+      </div>
+
+      {agentAction || recentTabSteps.length > 0 ? (
+        <div
+          data-pi-slot="browser-agent-hud"
+          className="shrink-0 border-b border-border/50 bg-[var(--brand)]/[0.05] px-3 py-1.5 text-[11.5px]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setStepsExpanded((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+            >
+              {agentAction ? (
+                <SessionRunningPixelGrid />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+              )}
+              <span className="truncate font-medium text-foreground">
+                {agentAction
+                  ? t('agent.acting', { action: agentAction.action })
+                  : t('agent.recentSteps', { count: recentTabSteps.length })}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
+                  stepsExpanded && 'rotate-180',
+                )}
+              />
+            </button>
+
+            <div className="flex shrink-0 items-center gap-1">
+              {agentAction ? (
+                <button
+                  type="button"
+                  onClick={() => void handlePauseTakeover()}
+                  className="inline-flex h-6 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-medium text-foreground hover:bg-[var(--bg-hover)]"
+                >
+                  <span>{t('agent.takeover')}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={clearAgentSteps}
+                  className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-[var(--bg-hover)] hover:text-foreground"
+                >
+                  {t('downloads.clear')}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {stepsExpanded && recentTabSteps.length > 0 ? (
+            <div className="mt-1.5 flex max-h-[110px] flex-col gap-0.5 overflow-y-auto border-t border-border/40 pt-1.5 font-mono text-[11px]">
+              {recentTabSteps.map((step) => (
+                <div key={step.id} className="flex items-center gap-1.5 text-foreground-secondary">
+                  {step.status === 'running' ? (
+                    <SessionRunningPixelGrid className="scale-75" />
+                  ) : step.status === 'error' ? (
+                    <XCircle className="h-3 w-3 shrink-0 text-destructive" />
+                  ) : (
+                    <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                  )}
+                  <span className="truncate">{step.action}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab?.loadError ? (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-[12px]"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="truncate text-foreground">
+              {t('error.loadFailed', { reason: activeTab.loadError.description })}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5 text-[11.5px]">
+            <button
+              type="button"
+              onClick={() => activeTabId && void browserActions.history(activeTabId, 'reload')}
+              className="rounded-md border border-border bg-background px-2 py-0.5 text-foreground hover:bg-[var(--bg-hover)]"
+            >
+              {t('nav.reload')}
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                sendToComposer({
+                  text: t('error.askPiPrompt', {
+                    url: activeTab.loadError!.url,
+                    reason: activeTab.loadError!.description,
+                  }),
+                })
+              }
+              className="rounded-md bg-foreground px-2 py-0.5 font-medium text-background hover:opacity-90"
+            >
+              {t('error.askPi')}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {findOpen ? (
         <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border/40 px-2" role="search">
@@ -748,13 +1278,25 @@ export function BrowserPanel() {
           <span className="w-14 shrink-0 text-center text-[11px] tabular-nums text-foreground-tertiary" aria-live="polite">
             {findText && findResult ? (findResult.matches ? `${findResult.active}/${findResult.matches}` : t('find.none')) : ''}
           </span>
-          <button type="button" className={navButton} aria-label={t('find.prev')} title={t('find.prev')} disabled={!findResult?.matches} onClick={() => runFind(findText, { forward: false, findNext: true })}>
+          <button
+            type="button"
+            className={navButton}
+            aria-label={t('find.prev')}
+            disabled={!findResult?.matches}
+            onClick={() => runFind(findText, { forward: false, findNext: true })}
+          >
             <ChevronDown className="h-3.5 w-3.5 rotate-180" />
           </button>
-          <button type="button" className={navButton} aria-label={t('find.next')} title={t('find.next')} disabled={!findResult?.matches} onClick={() => runFind(findText, { forward: true, findNext: true })}>
+          <button
+            type="button"
+            className={navButton}
+            aria-label={t('find.next')}
+            disabled={!findResult?.matches}
+            onClick={() => runFind(findText, { forward: true, findNext: true })}
+          >
             <ChevronDown className="h-3.5 w-3.5" />
           </button>
-          <button type="button" className={navButton} aria-label={t('find.close')} title={t('find.close')} onClick={closeFind}>
+          <button type="button" className={navButton} aria-label={t('find.close')} onClick={closeFind}>
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -763,38 +1305,244 @@ export function BrowserPanel() {
       <HelpBar activeTabId={activeTabId} where="builtin" />
       <ChromeModeBanner />
 
-      <div ref={areaRef} className={cn('relative min-h-0 flex-1 overflow-hidden', viewportMode.kind === 'fixed' && 'bg-[var(--bg-hover)]')}>
-      <div ref={viewportRef} className="absolute overflow-hidden" data-browser-viewport=""
-        style={{ left: fitted.left, top: fitted.top, width: fitted.width, height: fitted.height }}>
-        {agentAction && agentAction.tabId === activeTabId ? (
-          <div className="pointer-events-none absolute right-2 top-2 z-30 flex items-center gap-1.5 rounded-full bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground shadow-md" role="status">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" aria-hidden />
-            {t('agent.acting', { action: agentAction.action })}
-          </div>
-        ) : null}
-        {activeTab?.loading ? (
-          <div className="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-primary" aria-hidden />
-        ) : null}
-        {annotating && activeTab ? (
-          <AnnotationLayer
-            key={annotating.tabId}
-            tabId={annotating.tabId}
-            page={{ title: activeTab.title, url: activeTab.url }}
-            initialSnapshot={annotating.snapshot}
-            onExit={() => setAnnotating(null)}
+      <div
+        ref={areaRef}
+        className={cn(
+          'relative min-h-0 flex-1 overflow-hidden',
+          viewportMode.kind === 'fixed' && 'bg-[var(--bg-hover)]',
+        )}
+      >
+        <div
+          ref={viewportRef}
+          className="absolute overflow-hidden"
+          data-browser-viewport=""
+          style={{ left: fitted.left, top: fitted.top, width: fitted.width, height: fitted.height }}
+        >
+          {annotating && activeTab ? (
+            <AnnotationLayer
+              key={annotating.tabId}
+              tabId={annotating.tabId}
+              page={{ title: activeTab.title, url: activeTab.url }}
+              initialSnapshot={annotating.snapshot}
+              onExit={() => setAnnotating(null)}
+            />
+          ) : null}
+          {pageShown && viewMustHide && !annotating && cachedSnapshot ? (
+            <img
+              src={cachedSnapshot}
+              alt=""
+              className="pointer-events-none h-full w-full object-cover object-left-top"
+            />
+          ) : null}
+        </div>
+
+        {!pageShown ? (
+          <BrowserNewTabPage
+            bookmarks={bookmarks}
+            history={history}
+            onNavigate={(raw) => void navigateOrOpen(raw)}
+            onRemoveHistory={(url) => {
+              setHistory((prev) => {
+                const next = prev.filter((item) => item.url !== url)
+                saveHistory(next)
+                return next
+              })
+            }}
+            onOpenSync={() => setSyncDialogOpen(true)}
+            onReopenClosed={() => void reopenClosed()}
           />
         ) : null}
-        {pageShown && hiddenForOverlay && snapshot ? (
-          <img src={snapshot} alt="" className="pointer-events-none h-full w-full object-cover object-left-top" />
-        ) : null}
       </div>
-      {!pageShown ? (
-        <button type="button" onClick={focusAddress}
-          className="absolute inset-0 flex items-center justify-center text-[12px] text-foreground-tertiary hover:text-foreground-secondary">
-          {t('empty.title')}
-        </button>
-      ) : null}
-      </div>
+
+      {tabMenu && menuTab && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+          <div className="fixed inset-0 z-[110]" onClick={() => setTabMenu(null)} aria-hidden />
+          <div
+            role="menu"
+            data-browser-overlay=""
+            style={{
+              left: Math.min(tabMenu.x, window.innerWidth - 200),
+              top: Math.min(tabMenu.y, window.innerHeight - 280),
+            }}
+            className="fixed z-[120] w-[190px] rounded-lg border border-border/70 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                void browserActions.history(menuTab.tabId, 'reload')
+              }}
+            >
+              {t('nav.reload')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                void browserActions.duplicate(menuTab.tabId)
+              }}
+            >
+              {t('tab.duplicate')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                void browserActions.pin(menuTab.tabId, !menuTab.pinned)
+              }}
+            >
+              {menuTab.pinned ? t('nav.unpinTab') : t('nav.pinTab')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                void browserActions.mute(menuTab.tabId, !menuTab.muted)
+              }}
+            >
+              {menuTab.muted ? t('tab.unmute') : t('tab.mute')}
+            </button>
+            {menuTab.tabId !== activeTabId && !menuTab.sleeping ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                onClick={() => {
+                  setTabMenu(null)
+                  void browserActions.sleep(menuTab.tabId)
+                }}
+              >
+                {t('tab.sleep')}
+              </button>
+            ) : null}
+            <div className="my-1 h-px bg-border/60" />
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                if (menuTab.url) {
+                  void navigator.clipboard.writeText(menuTab.url)
+                  toast.success(t('address.copiedUrl'))
+                }
+              }}
+            >
+              {t('address.copyUrl')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                openExternal(menuTab.url)
+              }}
+            >
+              {t('address.openExternal')}
+            </button>
+            <div className="my-1 h-px bg-border/60" />
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                for (const otherId of order) {
+                  if (otherId !== menuTab.tabId) void browserActions.close(otherId)
+                }
+              }}
+            >
+              {t('tab.closeOthers')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+              onClick={() => {
+                setTabMenu(null)
+                const idx = order.indexOf(menuTab.tabId)
+                if (idx >= 0) {
+                  for (const rightId of order.slice(idx + 1)) void browserActions.close(rightId)
+                }
+              }}
+            >
+              {t('tab.closeRight')}
+            </button>
+          </div>
+        </>,
+            document.body,
+          )
+        : null}
+
+      {bookmarkMenu && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+              <div className="fixed inset-0 z-[110]" onClick={() => setBookmarkMenu(null)} aria-hidden />
+              <div
+                role="menu"
+                data-browser-overlay=""
+                style={{
+                  left: Math.min(bookmarkMenu.x, window.innerWidth - 185),
+                  top: Math.min(bookmarkMenu.y, window.innerHeight - 140),
+                }}
+                className="fixed z-[120] w-[176px] rounded-lg border border-border/70 bg-popover p-1 text-[12px] text-popover-foreground shadow-xl"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    const url = bookmarkMenu.url
+                    setBookmarkMenu(null)
+                    void openTab(url)
+                  }}
+                >
+                  {t('bookmarks.openInNewTab')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-[var(--bg-hover)]"
+                  onClick={() => {
+                    const url = bookmarkMenu.url
+                    setBookmarkMenu(null)
+                    void navigator.clipboard.writeText(url)
+                    toast.success(t('address.copiedUrl'))
+                  }}
+                >
+                  {t('address.copyUrl')}
+                </button>
+                <div className="my-1 h-px bg-border/60" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    const id = bookmarkMenu.id
+                    setBookmarkMenu(null)
+                    void browserActions.removeBookmark({ id })
+                    toast.success(t('bookmarks.removed'))
+                  }}
+                >
+                  {t('bookmarks.remove')}
+                </button>
+              </div>
+            </>,
+            document.body,
+          )
+        : null}
+
+      <CookieSyncDialog open={syncDialogOpen} onClose={() => setSyncDialogOpen(false)} />
     </div>
   )
 }

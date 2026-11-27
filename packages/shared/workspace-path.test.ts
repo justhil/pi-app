@@ -4,7 +4,14 @@ import { projectDisplayNameKey, resolveProjectDisplayName, workspacePathKey, wor
 describe('workspace identity', () => {
   it('normalizes Windows drive, separators and trailing slash', () => {
     expect(workspacePathsEqual('d:\\REPO\\feature\\', 'D:/repo/feature')).toBe(true)
+    expect(workspacePathsEqual('D:\\Projects\\B', 'D:/Projects/B')).toBe(true)
+    expect(workspacePathsEqual('D:\\Projects\\B', 'd:/projects/b/')).toBe(true)
     expect(workspacePathsEqual('D:/repo/feature', 'D:/repo/main')).toBe(false)
+  })
+  it('normalizes Windows extended-length device and UNC paths', () => {
+    expect(workspacePathsEqual('\\\\?\\D:\\Projects\\B', 'D:/Projects/B')).toBe(true)
+    expect(workspacePathsEqual('\\\\.\\D:\\Projects\\B\\', 'd:\\projects\\b')).toBe(true)
+    expect(workspacePathsEqual('\\\\?\\UNC\\Server\\Share\\Repo', '//server/share/repo')).toBe(true)
   })
   it('preserves Linux and WSL directory case while normalizing WSL host aliases', () => {
     expect(workspacePathsEqual('/repo/A', '/repo/a')).toBe(false)

@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import i18n from '@renderer/lib/i18n'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { showRightPanelTab } from '@renderer/stores/right-dock-store'
 
 export type DesktopSlashRouteResult = { handled: true } | { handled: false }
 
@@ -45,7 +46,7 @@ export async function routeDesktopSlashBeforeSend(line: string): Promise<Desktop
       toast.error(i18n.t('composer:toast.slashNoPanel'))
       return { handled: true }
     }
-    store.setActivePanel(panel)
+    showRightPanelTab(panel)
     toast.info(meta?.desktopSupport || i18n.t('composer:toast.openedPanel', { panel }))
     return { handled: true }
   }

@@ -19,6 +19,7 @@ import {
   resolveAvailableModels,
   resolveCatalogModels,
 } from '../../active-sdk-models'
+import { augmentModelsWithGoogleAiPlan } from '../../google-ai-plan/service'
 
 /**
  * SDK model listing runs in the preview utility process: importing the SDK on the main process
@@ -52,17 +53,34 @@ async function listModelsOffThread(scope: 'available' | 'catalog'): Promise<read
 export function registerModelRuntimeHandlers(): void {
   registerHandler('ipc:model.list', async (req) => {
     const scope = req?.scope === 'available' ? 'available' : req?.scope === 'settings' ? 'settings' : 'catalog'
+    let providerDisplayNames: Record<string, string> = {}
+    try {
+      const { config } = readModelsConfigRaw()
+      for (const [k, prov] of Object.entries(config.providers || {})) {
+        const nm = typeof prov?.name === 'string' ? prov.name.trim() : ''
+        if (nm && nm !== k) providerDisplayNames[k] = nm
+      }
+    } catch {
+      providerDisplayNames = {}
+    }
+
     const mapRegistry = (models: readonly ModelEntry[]) =>
-      models.map((m) => ({
-        id: m.id,
-        name: m.name || m.id,
-        provider: m.provider || '',
-        contextWindow: m.contextWindow || 0,
-        maxOutput: m.maxOutput || m.maxTokens || 0,
-        available: m.available ?? true,
-        managedBy: m.managedBy,
-        auth: m.auth,
-      }))
+      models.map((m) => {
+        const provider = m.provider || ''
+        const providerName = providerDisplayNames[provider]
+        return {
+          id: m.id,
+          name: m.name || m.id,
+          provider,
+          ...(providerName ? { providerName } : {}),
+          ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
+          contextWindow: m.contextWindow || 0,
+          maxOutput: m.maxOutput || m.maxTokens || 0,
+          available: m.available ?? true,
+          managedBy: m.managedBy,
+          auth: m.auth,
+        }
+      })
 
     const catalogFromDisk = () => {
       const { config, parseError } = readModelsConfigRaw()
@@ -72,12 +90,11 @@ export function registerModelRuntimeHandlers(): void {
 
     if (scope === 'settings' && workerManager.isRunning) {
       try {
+        const workerSnapshot = (await workerManager.getModelSettingsSnapshot()).filter(
+          (model): model is typeof model & { id: string } => typeof model.id === 'string',
+        )
         return {
-          models: mapRegistry(
-            (await workerManager.getModelSettingsSnapshot()).filter(
-              (model): model is typeof model & { id: string } => typeof model.id === 'string',
-            ),
-          ),
+          models: mapRegistry(augmentModelsWithGoogleAiPlan(workerSnapshot, 'settings')),
         }
       } catch (error) {
         console.error('[IPC] model.list settings worker failed:', error)
@@ -87,7 +104,7 @@ export function registerModelRuntimeHandlers(): void {
     if (scope === 'catalog' || scope === 'settings') {
       const models = await resolveCatalogModels({
         sdk: async () => {
-          const catalog = await listModelsOffThread('catalog')
+          const catalog = augmentModelsWithGoogleAiPlan(await listModelsOffThread('catalog'), scope)
           return scope === 'settings'
             ? mapRegistry(catalog)
             : catalog.map((model) => ({
@@ -99,7 +116,7 @@ export function registerModelRuntimeHandlers(): void {
                 available: true,
               }))
         },
-        catalog: () => catalogFromDisk().models,
+        catalog: () => mapRegistry(augmentModelsWithGoogleAiPlan(catalogFromDisk().models, scope)),
         onSdkError: (error) => console.error('[IPC] model.list catalog failed:', error),
       })
       return { models }
@@ -109,12 +126,15 @@ export function registerModelRuntimeHandlers(): void {
       worker: workerManager.isRunning
         ? async () =>
             mapRegistry(
-              (await workerManager.getModels()).filter(
-                (model): model is typeof model & { id: string } => typeof model.id === 'string',
+              augmentModelsWithGoogleAiPlan(
+                (await workerManager.getModels()).filter(
+                  (model): model is typeof model & { id: string } => typeof model.id === 'string',
+                ),
+                'available',
               ),
             )
         : undefined,
-      sdk: async () => mapRegistry(await listModelsOffThread('available')),
+      sdk: async () => mapRegistry(augmentModelsWithGoogleAiPlan(await listModelsOffThread('available'), 'available')),
       onWorkerError: (error) => console.error('[IPC] model.list worker failed:', error),
       onSdkError: (error) => console.error('[IPC] model.list failed:', error),
     })
@@ -145,6 +165,8 @@ export function registerModelRuntimeHandlers(): void {
       await workerManager.start(cwd)
     }
     const actualModel = await workerManager.setModel(provider, modelId, sessionFile)
+    const { remoteTap } = await import('../../remote/tap')
+    remoteTap.settingsChanged('models', sessionFile)
     return { modelId: actualModel }
   })
 
@@ -157,6 +179,8 @@ export function registerModelRuntimeHandlers(): void {
     const sessionFile = String(req.sessionFile || '').trim()
     if (!sessionFile) throw new Error('SESSION_FILE_REQUIRED')
     await workerManager.setThinkingLevel(req.level, sessionFile)
+    const { remoteTap } = await import('../../remote/tap')
+    remoteTap.settingsChanged('models', sessionFile)
     return { level: req.level }
   })
 

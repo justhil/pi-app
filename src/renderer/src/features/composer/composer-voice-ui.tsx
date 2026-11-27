@@ -34,7 +34,7 @@ export function ComposerVoiceMicButton({ voiceState, disabled, onClick, onHoldSt
   }
 
   return (
-    <div className={cn('composer-voice-mic-wrap relative flex h-8 w-8 items-center justify-center', recording && 'is-recording')}>
+    <div data-pi-slot="composer-voice-wrap" className={cn('composer-voice-mic-wrap relative flex h-8 w-8 items-center justify-center', recording && 'is-recording')}>
       {recording && (
         <>
           <span className="composer-voice-ripple" aria-hidden />
@@ -43,6 +43,7 @@ export function ComposerVoiceMicButton({ voiceState, disabled, onClick, onHoldSt
       )}
       <button
         type="button"
+        data-pi-slot="composer-voice-btn"
         onClick={onClick}
         onPointerDown={(e) => {
           if (disabled || !onHoldStart) return

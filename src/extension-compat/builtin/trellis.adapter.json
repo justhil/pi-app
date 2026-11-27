@@ -43,7 +43,10 @@
             "title": "桌面面板"
           },
           "en": {
-            "title": "Trellis Settings"
+            "title": "Desktop Panel"
+          },
+          "ru": {
+            "title": "Панель desktop"
           }
         }
       }
@@ -53,7 +56,10 @@
         "note": "Trellis 任务数据由扩展/工作区 .trellis 自管；桌面只读面板读取 task.py current 与最近日志。"
       },
       "en": {
-        "note": "Trellis sub-agent manager. Settings persist in the project .trellis/ directory."
+        "note": "Trellis task data is managed by the extension and workspace .trellis directory; the read-only desktop panel reads task.py current and recent journal logs."
+      },
+      "ru": {
+        "note": "Данные задач Trellis управляются расширением и каталогом .trellis рабочей области; панель desktop только для чтения считывает task.py current и последние записи журнала."
       }
     }
   },
@@ -72,11 +78,39 @@
   "i18n": {
     "zh": {
       "displayName": "Trellis",
-      "description": "Trellis 子代理进度与任务状态（只读面板 + 工具卡片）"
+      "description": "Trellis 子代理进度与任务状态（只读面板 + 工具卡片）",
+      "fieldLabels": {
+        "showRecentJournal": "显示最近日志",
+        "journalLimit": "日志条数上限"
+      },
+      "sidePanel": {
+        "label": "Trellis",
+        "description": "任务与阶段（只读）"
+      }
     },
     "en": {
       "displayName": "Trellis",
-      "description": "Trellis sub-agent manager; status read-only side panel + tool cards"
+      "description": "Trellis subagent progress & task status (read-only panel + tool cards)",
+      "fieldLabels": {
+        "showRecentJournal": "Show recent journal",
+        "journalLimit": "Journal entry limit"
+      },
+      "sidePanel": {
+        "label": "Trellis",
+        "description": "Tasks & stages (read-only)"
+      }
+    },
+    "ru": {
+      "displayName": "Trellis",
+      "description": "Прогресс субагентов и статус задач Trellis (панель только для чтения + карточки инструментов)",
+      "fieldLabels": {
+        "showRecentJournal": "Показывать недавний журнал",
+        "journalLimit": "Лимит записей журнала"
+      },
+      "sidePanel": {
+        "label": "Trellis",
+        "description": "Задачи и этапы (только чтение)"
+      }
     }
   }
 }

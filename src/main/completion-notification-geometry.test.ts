@@ -7,13 +7,14 @@ import {
 
 describe('notification host geometry', () => {
   it('sizes the stack for 1-3 cards and pins it to the work-area corner', () => {
-    expect(notificationHostSize(1).width).toBe(380)
+    expect(notificationHostSize(1).width).toBe(324)
+    expect(notificationHostSize(1).height).toBe(120)
     expect(notificationHostSize(3).height).toBeGreaterThan(notificationHostSize(1).height)
     expect(notificationHostSize(8)).toEqual(notificationHostSize(3))
 
     const bounds = notificationHostBounds({ x: 100, y: 40, width: 1200, height: 800 }, 2)
-    expect(bounds.x + bounds.width).toBe(100 + 1200 - 16)
-    expect(bounds.y + bounds.height).toBe(40 + 800 - 16)
+    expect(bounds.x + bounds.width).toBe(100 + 1200 - 14)
+    expect(bounds.y + bounds.height).toBe(40 + 800 - 14)
     expect(notificationBoundsLookLegal(bounds, { x: 100, y: 40, width: 1200, height: 800 })).toBe(true)
   })
 

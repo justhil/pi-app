@@ -1,6 +1,7 @@
 package dev.pi.remote.app.ui.session
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.gestures.Orientation
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -74,22 +76,37 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.pi.remote.R
+import dev.pi.remote.app.data.LocalUiPrefs
 import dev.pi.remote.app.data.RemoteRepository
 import dev.pi.remote.app.data.SendOutcome
 import dev.pi.remote.app.theme.Pi
 import dev.pi.remote.app.theme.PiIcon
 import dev.pi.remote.app.theme.PiIcons
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
+import dev.pi.remote.app.data.OutboxEntry
 import dev.pi.remote.app.ui.Banner
 import dev.pi.remote.app.ui.ConnectionBanner
 import dev.pi.remote.app.ui.Dot
+import dev.pi.remote.app.ui.Hairline
 import dev.pi.remote.app.ui.IconAction
+import dev.pi.remote.app.ui.PiSheet
 import dev.pi.remote.app.ui.QuietButton
+import dev.pi.remote.app.ui.Spinner
 import dev.pi.remote.app.ui.TopBar
+import dev.pi.remote.app.ui.reducedMotion
+import dev.pi.remote.app.ui.rich.FileTarget
+import dev.pi.remote.app.ui.rich.LocalFileOpen
 import dev.pi.remote.app.ui.rich.MermaidSource
+import dev.pi.remote.app.ui.rich.parseFileTarget
 import dev.pi.remote.app.ui.useTicker
 import dev.pi.remote.net.HostConnection
 import dev.pi.remote.protocol.CapabilityRow
 import dev.pi.remote.protocol.ModelListResult
+import dev.pi.remote.protocol.PurgeSend
+import dev.pi.remote.protocol.PurgeStateResult
+import dev.pi.remote.protocol.SessionSummary
 import dev.pi.remote.protocol.ToolStep
 import dev.pi.remote.protocol.Turn
 import dev.pi.remote.protocol.UiNotify
@@ -111,21 +128,40 @@ private suspend fun <T> retrying(block: suspend () -> T?): T? {
 }
 
 @Composable
-fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit, onOpenSession: (String) -> Unit = {}) {
+fun SessionScreen(
+    repo: RemoteRepository,
+    sessionKey: String,
+    onBack: () -> Unit,
+    onOpenSession: (String) -> Unit = {},
+    onPushSession: (String) -> Unit = onOpenSession,
+) {
     val timelines by repo.timelines.collectAsState()
     val connection by repo.connection.collectAsState()
     val inbox by repo.inbox.collectAsState()
     val settingsVersion by repo.settingsVersion.collectAsState()
     val pendingSends by repo.pendingSends.collectAsState()
+    val allOutbox by repo.outbox.collectAsState()
     val scope = rememberCoroutineScope()
     val timeline = timelines[sessionKey]
     val summary = inbox.sessions.firstOrNull { it.sessionKey == sessionKey }
-    var draft by remember(sessionKey) { mutableStateOf(TextFieldValue("")) }
+    val hostMeta by repo.hostMeta.collectAsState()
+    var draft by remember(sessionKey) {
+        val initial = repo.draftOf(sessionKey)
+        mutableStateOf(TextFieldValue(initial, androidx.compose.ui.text.TextRange(initial.length)))
+    }
+    fun updateDraft(next: TextFieldValue) {
+        draft = next
+        repo.saveDraft(sessionKey, next.text)
+    }
     var notice by remember { mutableStateOf<String?>(null) }
     var sheet by remember { mutableStateOf<String?>(null) }
-    var caps by remember { mutableStateOf<List<CapabilityRow>>(emptyList()) }
-    var cache by remember { mutableStateOf<String?>(null) }
-    var models by remember { mutableStateOf<ModelListResult?>(null) }
+    var caps by remember(sessionKey) { mutableStateOf(hostMeta.capabilitiesBySession[sessionKey].orEmpty()) }
+    var cache by remember(sessionKey) { mutableStateOf(hostMeta.cacheWarming) }
+    var models by remember(sessionKey) { mutableStateOf(hostMeta.models) }
+    var purge by remember(sessionKey) { mutableStateOf(hostMeta.purge) }
+    var purgeEnabled by rememberSaveable(sessionKey) { mutableStateOf(false) }
+    var purgePersonaId by rememberSaveable(sessionKey) { mutableStateOf(hostMeta.purge?.defaultPersonaId.orEmpty()) }
+    var purgeMode by rememberSaveable(sessionKey) { mutableStateOf(hostMeta.purge?.defaultMode ?: "replace") }
     var deferred by remember { mutableStateOf(setOf<String>()) }
     val context = LocalContext.current
     val attachments = remember(sessionKey) { mutableStateListOf<Attachment>() }
@@ -192,7 +228,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     // Content shared from another app lands in the first session opened afterwards.
     LaunchedEffect(sessionKey) {
         repo.takeShare()?.let { s ->
-            if (s.text.isNotBlank()) draft = TextFieldValue(listOf(draft.text, s.text).filter { it.isNotBlank() }.joinToString("\n"))
+            if (s.text.isNotBlank()) updateDraft(TextFieldValue(listOf(draft.text, s.text).filter { it.isNotBlank() }.joinToString("\n")))
             addAll(s.uris)
         }
     }
@@ -215,7 +251,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     fun restore(texts: List<String>) {
         if (texts.isEmpty()) return
         val merged = (texts + draft.text.trim()).filter { it.isNotBlank() }.joinToString("\n")
-        draft = TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length))
+        updateDraft(TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length)))
     }
     val maybeLost = stringResource(R.string.maybe_not_sent)
 
@@ -224,11 +260,28 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         if (ready) {
             caps = repo.capabilities(sessionKey)
             cache = repo.cacheWarming()
+            repo.purgeState(sessionKey)?.let { p ->
+                purge = p
+                val sess = p.session
+                if (sess?.locked == "on") {
+                    purgeEnabled = true
+                    sess.personaId?.takeIf { it.isNotEmpty() }?.let { purgePersonaId = it }
+                    sess.mode?.takeIf { it.isNotEmpty() }?.let { purgeMode = it }
+                } else if (sess?.locked == "off") {
+                    purgeEnabled = false
+                }
+                if (purgePersonaId.isEmpty() || p.personas.none { it.id == purgePersonaId }) purgePersonaId = p.defaultPersonaId
+                if (purgeMode.isEmpty()) purgeMode = p.defaultMode
+            }
+            repo.models(sessionKey)?.let { models = it }
         }
     }
     var commands by remember(sessionKey) { mutableStateOf(repo.cachedCommands(sessionKey)) }
     var commandSheet by remember { mutableStateOf(false) }
     var filePicker by remember { mutableStateOf(false) }
+    var previewTarget by remember { mutableStateOf<FileTarget?>(null) }
+    var subagentSheet by remember { mutableStateOf(false) }
+    var usageSheet by remember { mutableStateOf(false) }
     var stats by remember(sessionKey) { mutableStateOf<ContextStats?>(null) }
     var usage by remember(sessionKey) { mutableStateOf<SessionUsage?>(null) }
     var changes by remember(sessionKey) { mutableStateOf<ReviewDiffResult?>(null) }
@@ -252,6 +305,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
             "/model" -> { sheet = "model"; scope.launch { models = repo.models(sessionKey) } }
             "/thinking" -> { sheet = "thinking"; scope.launch { models = repo.models(sessionKey) } }
             "/tools" -> sheet = "tools"
+            "/persona" -> { sheet = "purge"; scope.launch { repo.purgeState(sessionKey)?.let { purge = it } } }
             "/new" -> {
                 val project = summary?.projectId
                 if (project != null && !creating) {
@@ -267,12 +321,64 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
     }
     fun pickSlash(item: SlashItem) {
         if (item.category == "builtin") {
-            draft = stripSlash(draft)
+            updateDraft(stripSlash(draft))
             runBuiltin(item.name)
-        } else draft = insertSlash(draft, item.name)
+        } else updateDraft(insertSlash(draft, item.name))
     }
     androidx.compose.runtime.DisposableEffect(sessionKey) { onDispose { repo.closeSession(sessionKey) } }
 
+    val hasPurgeSupport = purge?.personas?.isNotEmpty() == true
+    val selectedPersona = purge?.personas?.firstOrNull { it.id == purgePersonaId } ?: purge?.personas?.firstOrNull { it.id == purge?.defaultPersonaId } ?: purge?.personas?.firstOrNull()
+    val draftModeLabel = purgeModeLabel(purgeMode)
+    val draftPurgeSummary = selectedPersona?.let { "${it.name} · $draftModeLabel" }
+    val lockedPersonaSummary = if (purgeEnabled && selectedPersona != null) {
+        "${selectedPersona.name} · $draftModeLabel"
+    } else if (purge?.session?.locked == "on") {
+        val name = purge?.session?.personaName ?: purge?.session?.personaId.orEmpty()
+        val m = purgeModeLabel(purge?.session?.mode)
+        if (name.isNotBlank()) "$name · $m" else null
+    } else null
+
+    fun applyPurge(enabled: Boolean, personaId: String? = selectedPersona?.id, mode: String = purgeMode) {
+        purgeEnabled = enabled
+        if (!personaId.isNullOrEmpty()) purgePersonaId = personaId
+        purgeMode = mode
+        scope.launch {
+            repo.setPurge(sessionKey, enabled, personaId, mode)?.let { purge = it }
+        }
+    }
+    val activeSessions = remember(inbox.sessions, sessionKey) {
+        inbox.sessions.filter { it.sessionKey != sessionKey && it.status != "idle" && it.parentSessionKey == null }
+    }
+    val parentSummary = remember(inbox.sessions, summary?.parentSessionKey) {
+        val pk = summary?.parentSessionKey ?: return@remember null
+        inbox.sessions.firstOrNull { it.sessionKey == pk }
+    }
+    val childSessions = remember(inbox.sessions, sessionKey) {
+        inbox.sessions.filter { it.parentSessionKey == sessionKey }.sortedByDescending { it.updatedAt }
+    }
+    val sessionOutbox = remember(allOutbox, sessionKey) {
+        allOutbox.filter { it.sessionKey == sessionKey }
+    }
+    val projectRoot = summary?.projectId.orEmpty()
+    val parentUriHandler = LocalUriHandler.current
+    val sessionUriHandler = remember(parentUriHandler, projectRoot) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                val ft = parseFileTarget(uri, projectRoot)
+                if (ft != null) previewTarget = ft else parentUriHandler.openUri(uri)
+            }
+        }
+    }
+    val commitPromptText = stringResource(R.string.review_commit_prompt)
+
+    CompositionLocalProvider(
+        LocalFileOpen provides { ft ->
+            val norm = parseFileTarget(ft.path, projectRoot)
+            previewTarget = if (norm != null) norm.copy(lineStart = ft.lineStart, lineEnd = ft.lineEnd) else ft
+        },
+        LocalUriHandler provides sessionUriHandler,
+    ) {
     SessionContent(
         title = timeline?.title?.ifEmpty { null } ?: summary?.title?.ifEmpty { null } ?: stringResource(R.string.session_untitled),
         project = summary?.projectId?.trimEnd('/', '\\')?.substringAfterLast('/')?.substringAfterLast('\\').orEmpty(),
@@ -280,7 +386,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         connection = connection,
         canWrite = repo.canWrite,
         draft = draft,
-        onDraft = { draft = it },
+        onDraft = ::updateDraft,
         notice = notice,
         toolsOn = caps.count { it.enabled },
         deferredUi = deferred,
@@ -300,7 +406,7 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         onSend = { mode ->
             val typed = draft.text.trim()
             if (typed in BUILTIN_SLASH && attachments.isEmpty()) {
-                draft = TextFieldValue("")
+                updateDraft(TextFieldValue(""))
                 runBuiltin(typed)
             } else if (typed.isNotEmpty() || attachments.isNotEmpty()) {
                 askNotificationsOnce()
@@ -314,14 +420,21 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                     val sent = attachments.toList()
                     val text = PromptAttachments.compose(typed, sent.mapNotNull { it.path })
                     if (text.isEmpty()) return@launch
-                    draft = TextFieldValue("")
+                    val purgePayload = if (mode == "prompt" && hasPurgeSupport) {
+                        PurgeSend(enabled = purgeEnabled, personaId = selectedPersona?.id, mode = purgeMode)
+                    } else null
+                    updateDraft(TextFieldValue(""))
                     attachments.clear()
-                    when (val r = repo.send(sessionKey, text, mode)) {
-                        SendOutcome.Sent -> notice = null
+                    when (val r = repo.send(sessionKey, text, mode, purgePayload)) {
+                        SendOutcome.Sent -> {
+                            notice = null
+                            if (purgePayload != null) repo.purgeState(sessionKey)?.let { purge = it }
+                        }
+                        SendOutcome.Queued -> notice = null
                         SendOutcome.Unknown -> notice = maybeLost
                         is SendOutcome.Failed -> {
                             notice = r.message
-                            draft = TextFieldValue(typed)
+                            updateDraft(TextFieldValue(typed))
                             attachments.addAll(sent)
                         }
                     }
@@ -387,13 +500,23 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 repo.rewind(sessionKey, anchor)
                     .onSuccess { text ->
                         val body = PromptAttachments.split(text).first
-                        if (body.isNotBlank()) draft = TextFieldValue(body, androidx.compose.ui.text.TextRange(body.length))
+                        if (body.isNotBlank()) updateDraft(TextFieldValue(body, androidx.compose.ui.text.TextRange(body.length)))
                         notice = null
                     }
                     .onFailure { notice = rewindFailed.replace("%s", it.message ?: "") }
             }
         },
         onDequeue = { scope.launch { repo.dequeue(sessionKey)?.let(::restore) } },
+        onEditQueued = { idx -> scope.launch { repo.dequeue(sessionKey, idx)?.let(::restore) } },
+        onRemoveQueued = { idx -> scope.launch { repo.dequeue(sessionKey, idx) } },
+        outbox = sessionOutbox,
+        onEditOutbox = { id ->
+            repo.removeOutbox(id)?.let { entry ->
+                val body = PromptAttachments.split(entry.text).first
+                restore(listOf(body))
+            }
+        },
+        onCancelOutbox = { id -> repo.removeOutbox(id) },
         onModel = {
             sheet = "model"
             scope.launch { models = repo.models(sessionKey) }
@@ -403,11 +526,24 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
             scope.launch { models = repo.models(sessionKey) }
         },
         onTools = { sheet = "tools" },
+        purgeDraft = purgeEnabled,
+        purgeLabel = draftPurgeSummary,
+        onTogglePurge = if (hasPurgeSupport) ({ applyPurge(!purgeEnabled) }) else null,
+        onOpenPurge = if (hasPurgeSupport) ({ sheet = "purge"; scope.launch { repo.purgeState(sessionKey)?.let { purge = it } } }) else null,
+        lockedPersona = lockedPersonaSummary,
+        activeSessions = activeSessions,
+        onSwitchSession = onOpenSession,
+        parentSummary = parentSummary,
+        onOpenParent = parentSummary?.let { p -> ({ onOpenSession(p.sessionKey) }) },
+        childSessions = childSessions,
+        onOpenSubagents = if (childSessions.isNotEmpty()) ({ subagentSheet = true }) else null,
+        onOpenUsage = { usageSheet = true },
         onAnswer = { resp -> scope.launch { repo.respondUi(sessionKey, resp) } },
         onSkip = { id -> scope.launch { repo.cancelUi(sessionKey, id) } },
         onDefer = { id -> deferred = deferred + id },
         loadDetail = { step -> repo.toolDetail(sessionKey, step.toolCallId)?.output },
     )
+    }
 
     if (branchSheet) {
         BranchSheet(
@@ -435,9 +571,30 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
             onInsert = { text ->
                 val base = draft.text.trimEnd()
                 val merged = if (base.isEmpty()) text else "$base\n\n$text"
-                draft = TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length))
+                updateDraft(TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length)))
             },
             onDismiss = { review = null },
+            onGenerateCommit = if (repo.canWrite) ({
+                scope.launch {
+                    val mode = if (runningNow) "followUp" else "prompt"
+                    repo.send(sessionKey, commitPromptText, mode)
+                }
+            }) else null,
+        )
+    }
+
+    previewTarget?.let { target ->
+        FilePreviewScreen(
+            target = target,
+            canWrite = repo.canWrite,
+            load = { path -> repo.readFile(sessionKey, path) },
+            onInsert = { text ->
+                val base = draft.text.trimEnd()
+                val sep = if (base.isEmpty()) "" else if (text.startsWith("@")) " " else "\n\n"
+                val merged = "$base$sep$text"
+                updateDraft(TextFieldValue(merged, androidx.compose.ui.text.TextRange(merged.length)))
+            },
+            onDismiss = { previewTarget = null },
         )
     }
 
@@ -446,8 +603,49 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
             projectName = summary?.projectId?.trimEnd('/', '\\')?.substringAfterLast('/')?.substringAfterLast('\\').orEmpty(),
             load = { path -> repo.listFiles(sessionKey, path) },
             search = { q -> repo.searchFiles(sessionKey, q) },
-            onInsert = { paths -> draft = insertMentions(draft, paths) },
+            onInsert = { paths -> updateDraft(insertMentions(draft, paths)) },
             onDismiss = { filePicker = false },
+            onPreview = { path -> previewTarget = FileTarget(path) },
+        )
+    }
+
+    if (subagentSheet && childSessions.isNotEmpty()) {
+        PiSheet(onDismiss = { subagentSheet = false }) {
+            Column(Modifier.padding(bottom = 18.dp)) {
+                Text(stringResource(R.string.subagents_count, childSessions.size), style = Pi.t.bodyMedium.copy(color = Pi.c.fg), modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                Hairline()
+                for (c in childSessions) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button) {
+                            subagentSheet = false
+                            onPushSession(c.sessionKey)
+                        }.padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        when (c.status) {
+                            "needsInput" -> PiIcon(PiIcons.Question, Pi.c.warn, 14.dp)
+                            "failed" -> PiIcon(PiIcons.Alert, Pi.c.bad, 14.dp)
+                            "running" -> Spinner(Pi.c.blue, 14.dp)
+                            else -> Dot(Pi.c.fg3, 6.dp)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(c.title.ifEmpty { stringResource(R.string.session_untitled) }, style = Pi.t.body.copy(color = Pi.c.fg), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val sub = (if (c.status == "running") c.live else c.preview)?.takeIf { it.isNotBlank() }
+                            if (sub != null) Text(sub, style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 14.dp)
+                    }
+                }
+            }
+        }
+    }
+
+    if (usageSheet) {
+        UsageSheet(
+            load = { days -> repo.usageSummary(days) },
+            cached30d = hostMeta.usage30d,
+            onDismiss = { usageSheet = false },
         )
     }
 
@@ -474,7 +672,14 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
         "tools" -> ToolsSheet(
             caps, cache, repo.canWrite,
             onCapability = { id, on ->
-                caps = caps.map { if (it.id == id) it.copy(enabled = on) else it }
+                caps = caps.map {
+                    when {
+                        it.id == id -> it.copy(enabled = on)
+                        on && id == "browser" && it.id == "chrome" -> it.copy(enabled = false)
+                        on && id == "chrome" && it.id == "browser" -> it.copy(enabled = false)
+                        else -> it
+                    }
+                }
                 scope.launch { repo.setCapability(sessionKey, id, on) }
             },
             onCache = { mode ->
@@ -482,6 +687,23 @@ fun SessionScreen(repo: RemoteRepository, sessionKey: String, onBack: () -> Unit
                 scope.launch { repo.setCacheWarming(mode) }
             },
             onDismiss = { sheet = null },
+            purgeSummary = if (purgeEnabled) draftPurgeSummary else null,
+            onOpenPurge = if (hasPurgeSupport) ({ sheet = "purge" }) else null,
+        )
+        "purge" -> PurgeSheet(
+            state = purge,
+            draftEnabled = purgeEnabled,
+            draftPersonaId = selectedPersona?.id.orEmpty(),
+            draftMode = purgeMode,
+            canWrite = repo.canWrite,
+            onToggle = { on -> applyPurge(on) },
+            onSelectPersona = { id ->
+                applyPurge(true, id, purgeMode)
+                sheet = null
+            },
+            onSelectMode = { mode -> applyPurge(purgeEnabled, selectedPersona?.id, mode) },
+            onDismiss = { sheet = null },
+            midSession = !timeline?.turns.isNullOrEmpty() || runningNow,
         )
         "model" -> ModelSheet(
             models, repo.canWrite,
@@ -529,6 +751,11 @@ fun SessionContent(
     onStop: () -> Unit,
     stopping: Boolean = false,
     onDequeue: () -> Unit = {},
+    onEditQueued: ((Int) -> Unit)? = null,
+    onRemoveQueued: ((Int) -> Unit)? = null,
+    outbox: List<OutboxEntry> = emptyList(),
+    onEditOutbox: ((String) -> Unit)? = null,
+    onCancelOutbox: ((String) -> Unit)? = null,
     slashItems: List<SlashItem> = emptyList(),
     onSlashPick: (SlashItem) -> Unit = {},
     onCommands: () -> Unit = {},
@@ -553,7 +780,20 @@ fun SessionContent(
     loadDetail: suspend (ToolStep) -> String?,
     listState: LazyListState = rememberLazyListState(),
     initialExpanded: Set<String> = emptySet(),
+    purgeDraft: Boolean = false,
+    purgeLabel: String? = null,
+    onTogglePurge: (() -> Unit)? = null,
+    onOpenPurge: (() -> Unit)? = null,
+    lockedPersona: String? = null,
+    activeSessions: List<SessionSummary> = emptyList(),
+    onSwitchSession: ((String) -> Unit)? = null,
+    parentSummary: SessionSummary? = null,
+    onOpenParent: (() -> Unit)? = null,
+    childSessions: List<SessionSummary> = emptyList(),
+    onOpenSubagents: (() -> Unit)? = null,
+    onOpenUsage: (() -> Unit)? = null,
 ) {
+    val showIntermediateMessages = LocalUiPrefs.current?.showIntermediateMessages?.collectAsState()?.value ?: false
     val turns = timeline?.turns.orEmpty()
     val state = timeline?.state
     val running = state?.running == true || turns.lastOrNull()?.running == true
@@ -593,6 +833,7 @@ fun SessionContent(
     }
 
     val density = LocalDensity.current
+    val still = reducedMotion()
     val panel = remember { Animatable(0f) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val panelWidth = minOf(maxWidth * 0.86f, 340.dp)
@@ -603,7 +844,14 @@ fun SessionContent(
             velocity > 700f -> 0f
             else -> if (panel.value > 0.5f) 1f else 0f
         }
-        scope.launch { panel.animateTo(target, spring(dampingRatio = 0.92f, stiffness = 420f), initialVelocity = -velocity / panelPx) }
+        scope.launch {
+            if (still) panel.snapTo(target)
+            else panel.animateTo(
+                target,
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 500f),
+                initialVelocity = (-velocity / panelPx).coerceIn(-8f, 8f),
+            )
+        }
     }
     val dragState = rememberDraggableState { delta -> scope.launch { panel.snapTo((panel.value - delta / panelPx).coerceIn(0f, 1f)) } }
     LaunchedEffect(panel) {
@@ -625,13 +873,48 @@ fun SessionContent(
                     }
                     Dot(color, 6.dp)
                     Spacer(Modifier.width(6.dp))
-                    Text(listOf(project, text).filter { it.isNotEmpty() }.joinToString(" · "), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    val personaShort = lockedPersona?.substringBefore(" · ")?.takeIf { it.isNotBlank() }
+                    Text(listOfNotNull(project.takeIf { it.isNotEmpty() }, personaShort, text).joinToString(" · "), style = Pi.t.meta.copy(color = Pi.c.fg3), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             },
             onBack = onBack,
             backLabel = stringResource(R.string.back),
         ) { IconAction(PiIcons.More, stringResource(R.string.panel_title), { settlePanel(-1000f) }) }
         ConnectionBanner(connection, onRetry)
+        if (parentSummary != null && onOpenParent != null) {
+            Row(
+                Modifier.fillMaxWidth().background(Pi.c.surface).clickable(role = Role.Button, onClick = onOpenParent).padding(horizontal = 16.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PiIcon(PiIcons.ChevronLeft, Pi.c.fg3, 13.dp)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.subagent_parent_bar, parentSummary.title.ifEmpty { stringResource(R.string.session_untitled) }),
+                    style = Pi.t.meta.copy(color = Pi.c.fg2),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Hairline()
+        }
+        if (childSessions.isNotEmpty() && onOpenSubagents != null) {
+            val childRunning = childSessions.count { it.status == "running" }
+            Row(
+                Modifier.fillMaxWidth().background(Pi.c.surface).clickable(role = Role.Button, onClick = onOpenSubagents).padding(horizontal = 16.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (childRunning > 0) Spinner(Pi.c.blue, 12.dp) else PiIcon(PiIcons.Branch, Pi.c.fg3, 13.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (childRunning > 0) stringResource(R.string.subagents_running, childSessions.size, childRunning)
+                    else stringResource(R.string.subagents_count, childSessions.size),
+                    style = Pi.t.meta.copy(color = if (childRunning > 0) Pi.c.fg else Pi.c.fg2),
+                    modifier = Modifier.weight(1f),
+                )
+                PiIcon(PiIcons.ChevronRight, Pi.c.fg3, 13.dp)
+            }
+            Hairline()
+        }
         notice?.let { Banner(it) }
         if (!canWrite) Banner(stringResource(R.string.readonly))
 
@@ -645,7 +928,7 @@ fun SessionContent(
                     val prev = turns.getOrNull(i - 1)
                     val divider = t.startedAt?.takeIf { TimeDividers.showDivider(prev?.startedAt, it, offset) }
                     // Only the running turn reads the ticking clock; settled turns keep skipping.
-                    TurnItem(t, expanded[t.id] == true, divider, if (t.running) now else 0L, mermaid, callbacks)
+                    TurnItem(t, expanded[t.id] == true, divider, if (t.running) now else 0L, mermaid, callbacks, showIntermediateMessages)
                 }
                 if (timeline?.hasOlder == true) {
                     item("older") {
@@ -710,6 +993,16 @@ fun SessionContent(
                 onRemoveAttachment = onRemoveAttachment,
                 onRetryAttachment = onRetryAttachment,
                 onReceiveUris = onReceiveUris,
+                purgeDraft = purgeDraft,
+                purgeLabel = purgeLabel,
+                onTogglePurge = onTogglePurge,
+                onOpenPurge = onOpenPurge,
+                onEditQueued = onEditQueued,
+                onRemoveQueued = onRemoveQueued,
+                outbox = outbox,
+                onEditOutbox = onEditOutbox,
+                onCancelOutbox = onCancelOutbox,
+                canQueueOffline = !running,
             )
         }
     }
@@ -723,13 +1016,16 @@ fun SessionContent(
     SessionPanel(
         progress = { panel.value },
         width = panelWidth,
-        facts = sessionFacts(title, projectPath.ifEmpty { project }, statusText, statusColor, timeline, toolsOn),
+        facts = sessionFacts(title, projectPath.ifEmpty { project }, statusText, statusColor, timeline, toolsOn, lockedPersona),
         stats = stats,
         usage = usage,
+        onOpenUsage = onOpenUsage,
         statsLoading = statsLoading,
         onClose = { settlePanel(1000f) },
         changes = changes,
         branchCount = branchCount,
+        activeSessions = activeSessions,
+        onSwitchSession = onSwitchSession,
         onBranches = {
             settlePanel(1000f)
             onBranches()

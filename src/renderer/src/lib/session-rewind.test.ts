@@ -6,7 +6,8 @@ vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: mocks.invoke }
 vi.mock('@renderer/lib/session-history', () => ({
   fetchSessionHistoryTail: mocks.fetch, getSessionMessagesFromDiskViaIpc: mocks.disk, clearSessionHistoryCache: vi.fn(),
 }))
-vi.mock('@renderer/lib/session-shell', () => ({ captureFocusFromUiStore: vi.fn() }))
+vi.mock('@renderer/lib/session-shell', () => ({
+  bumpSessionHydrateEpoch: vi.fn(), captureFocusFromUiStore: vi.fn() }))
 vi.mock('@renderer/lib/session-display-meta', () => ({ applyComposerDisplayMeta: mocks.meta }))
 vi.mock('@renderer/lib/rewind-metadata', () => ({ refreshSessionTree: vi.fn() }))
 vi.mock('@renderer/lib/subagent-session-preview', () => ({ isCurrentSubagentSessionPreview: () => false }))

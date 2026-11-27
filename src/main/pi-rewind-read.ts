@@ -1,10 +1,55 @@
 /**
  * Read pi-rewind git checkpoints (bounded — avoid N×git on main thread).
  */
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { runGit } from './git-workspace'
 
 const REF_PREFIX = 'refs/pi-checkpoints/'
 const MAX_CHECKPOINTS = 24
+
+function resolveGitDirFast(cwd: string): string | null {
+  try {
+    const dotGit = join(cwd, '.git')
+    if (!existsSync(dotGit)) return null
+    const st = statSync(dotGit)
+    if (st.isDirectory()) return dotGit
+    if (st.isFile()) {
+      const line = readFileSync(dotGit, 'utf8').trim()
+      const m = line.match(/^gitdir:\s*(.+)$/i)
+      if (m?.[1]) return resolve(cwd, m[1].trim())
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+/** Avoid spawning git on repositories that have never recorded any pi-rewind checkpoint ref. */
+function hasRewindCheckpointRefs(cwd: string): boolean {
+  const gitDir = resolveGitDirFast(cwd)
+  if (!gitDir) return false
+  try {
+    if (existsSync(join(gitDir, 'refs', 'pi-checkpoints'))) return true
+    const packedPath = join(gitDir, 'packed-refs')
+    if (existsSync(packedPath)) {
+      const content = readFileSync(packedPath, 'utf8')
+      if (content.includes(REF_PREFIX)) return true
+    }
+    // Worktrees share common refs under `commondir`.
+    const commonFile = join(gitDir, 'commondir')
+    if (existsSync(commonFile)) {
+      const commonDir = resolve(gitDir, readFileSync(commonFile, 'utf8').trim())
+      if (existsSync(join(commonDir, 'refs', 'pi-checkpoints'))) return true
+      const commonPacked = join(commonDir, 'packed-refs')
+      if (existsSync(commonPacked) && readFileSync(commonPacked, 'utf8').includes(REF_PREFIX)) return true
+    }
+  } catch {
+    /* fall through to git when uncertain */
+    return true
+  }
+  return false
+}
 
 export type RewindCheckpointRow = {
   id: string
@@ -40,6 +85,7 @@ function parseCommitMessage(msg: string, refName: string): RewindCheckpointRow |
 
 /** List recent checkpoints; caps count and uses one batch cat-file when possible. */
 export function listRewindCheckpoints(cwd: string, sessionId?: string): RewindCheckpointRow[] {
+  if (!hasRewindCheckpointRefs(cwd)) return []
   const listR = runGit(
     cwd,
     ['for-each-ref', '--format=%(refname)', 'refs/pi-checkpoints', '--sort=-committerdate'],

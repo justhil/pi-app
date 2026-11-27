@@ -31,8 +31,8 @@ class MainActivity : ComponentActivity() {
 
     /** A `pidesk://pair#…` link opened from the camera app or another QR scanner. */
     private val incomingLink = mutableStateOf<String?>(null)
-    /** Session to open from a notification tap. */
-    private val incomingSession = mutableStateOf<String?>(null)
+    /** Host + session to open from a notification or home-screen widget tap. */
+    private val incomingTarget = mutableStateOf<dev.pi.remote.app.ui.OpenTarget?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
             }
             PiTheme(dark = dark) {
                 CompositionLocalProvider(LocalUriHandler provides uriHandler, LocalAttachmentImages provides graph.images, LocalUiPrefs provides graph.prefs) {
-                    PiRemoteNav(repo, incomingLink.value, { incomingLink.value = null }, incomingSession.value) { incomingSession.value = null }
+                    PiRemoteNav(repo, incomingLink.value, { incomingLink.value = null }, incomingTarget.value) { incomingTarget.value = null }
                 }
             }
         }
@@ -86,7 +86,11 @@ class MainActivity : ComponentActivity() {
 
     private fun intake(intent: Intent) {
         if (intent.action == RunNotifier.ACTION_OPEN) {
-            intent.getStringExtra(RunNotifier.EXTRA_SESSION)?.let { incomingSession.value = it }
+            val host = intent.getStringExtra(RunNotifier.EXTRA_HOST)
+            val session = intent.getStringExtra(RunNotifier.EXTRA_SESSION)
+            if (host != null || session != null) {
+                incomingTarget.value = dev.pi.remote.app.ui.OpenTarget(host, session)
+            }
             return
         }
         if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {

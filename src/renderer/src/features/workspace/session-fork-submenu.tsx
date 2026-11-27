@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, MessageSquare, GitFork, ListTree, Loader2 } from '@renderer/components/icons'
 import { cloneCurrentSession, forkSessionFromEntry, loadForkCandidates, type ForkSource } from '@renderer/lib/session-fork'
@@ -6,7 +6,7 @@ import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-
 import { guardSessionSwitch } from '@renderer/lib/session-switch-guard'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { workspacePathsEqual } from '@shared/workspace-path'
-import { contextMenuItemClass, contextMenuPanelClass } from './context-menu-shared'
+import { contextMenuItemClass, contextMenuPanelClass, useSubmenuPosition } from './context-menu-shared'
 import type { SessionMenuTarget } from './session-context-menu-types'
 
 /** Most recent user messages offered inline; the rest stay behind "choose another message". */
@@ -30,7 +30,7 @@ export function SessionForkSubmenu({
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
   const [points, setPoints] = useState<Array<{ entryId: string; text: string }> | null>(null)
-  const [position, setPosition] = useState({ left: anchor.right - 4, top: anchor.top - 4 })
+  const position = useSubmenuPosition(anchor, ref, [points?.length, target.forks?.length])
   const source: ForkSource = { sessionFile: target.sessionFile, workspacePath: target.workspacePath }
 
   useEffect(() => {
@@ -43,16 +43,6 @@ export function SessionForkSubmenu({
       cancelled = true
     }
   }, [target.sessionFile, target.workspacePath])
-
-  // Open to the right of the row; flip left / shift up when that would leave the window.
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const left = anchor.right - 4 + width > window.innerWidth ? Math.max(4, anchor.left - width + 4) : anchor.right - 4
-    const top = Math.max(4, Math.min(anchor.top - 4, window.innerHeight - height - 4))
-    setPosition((prev) => (prev.left === left && prev.top === top ? prev : { left, top }))
-  }, [anchor, points])
 
   const afterBranch = (ok: boolean) => {
     if (ok) onSessionsChange(target.workspacePath)

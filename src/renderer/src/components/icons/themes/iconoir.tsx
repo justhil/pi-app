@@ -81,6 +81,9 @@ import {
   Wifi,
   Wrench as I54,
   X as I55,
+  NavArrowDown,
+  NavArrowLeft,
+  NavArrowRight,
   MoreHoriz as IMoreH,
 } from 'iconoir-react/regular'
 import type { ThemeIconMap } from '../types'
@@ -104,9 +107,9 @@ export const iconoirIcons = {
   'check-check': I8,
   'check-circle2': I9,
   'check-square': I10,
-  'chevron-down': I5,
-  'chevron-left': I5,
-  'chevron-right': I5,
+  'chevron-down': NavArrowDown,
+  'chevron-left': NavArrowLeft,
+  'chevron-right': NavArrowRight,
   'circle': I11,
   'circle-dot': DashboardDots,
   'clipboard': PasteClipboard,

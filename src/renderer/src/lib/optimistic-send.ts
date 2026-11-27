@@ -15,11 +15,14 @@ export type OptimisticSendOpts = {
   attachments?: { path: string; name: string; kind: string }[]
   /** 文中分段（文本+附件位置），时间线按此渲染 */
   segments?: TimelineItem['segments']
+  /** 实际提交给 Worker 的 payload 文本（含附件路径/@line-ref），用于匹配 Worker echo */
+  payloadText?: string
 }
 
 export type OptimisticSendToken = {
   sessionFile: string | null
   assistantId: string
+  userId: string
 }
 
 function markOptimisticSessionRunning(sessionFile: string): void {
@@ -43,16 +46,20 @@ export function appendOptimisticOutgoingMessage(
   opts?: OptimisticSendOpts,
 ): OptimisticSendToken | null {
   const trimmed = text.trim()
-  if (!trimmed) return null
+  const payloadTrimmed = opts?.payloadText?.trim() || ''
+  const hasAttachments = !!(opts?.attachments?.length || opts?.segments?.length)
+  if (!trimmed && !hasAttachments && !payloadTrimmed) return null
   const store = useUIStore.getState()
   const ts = Date.now()
   const userId = `opt-user-${++optSeq}`
   const assistantId = `opt-asst-${optSeq}`
+  const pendingMarker = payloadTrimmed || trimmed || '[attachment]'
 
   store.appendTimeline({
     id: userId,
     type: 'user-message',
     text: trimmed,
+    ...(payloadTrimmed && payloadTrimmed !== trimmed ? { payloadText: payloadTrimmed } : {}),
     attachments: opts?.attachments,
     segments: opts?.segments,
     timestamp: ts,
@@ -65,7 +72,7 @@ export function appendOptimisticOutgoingMessage(
     timestamp: ts + 1,
   })
   useUIStore.setState({
-    optimisticPendingUserText: trimmed,
+    optimisticPendingUserText: pendingMarker,
     // Always show optimistic thinking wait chrome until first token / tool / idle.
     agentTurnBootstrapping: true,
     // First-message flows switch this to 'starting' while they create the session.
@@ -80,7 +87,7 @@ export function appendOptimisticOutgoingMessage(
   if (store.runState.status !== 'running') {
     store.setRunState({ status: 'running', startTime: ts })
   }
-  return { sessionFile: store.historySessionFile, assistantId }
+  return { sessionFile: store.historySessionFile, assistantId, userId }
 }
 
 function removeOptimisticTurn(items: TimelineItem[], assistantId: string): TimelineItem[] {

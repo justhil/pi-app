@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
-import { preparePiCliEntry } from './worker-cli-entry'
+import { preferUnpackedAsarPath, preparePiCliEntry } from './worker-cli-entry'
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
@@ -60,5 +60,47 @@ describe('worker Pi CLI identity', () => {
     const argv = ['node', 'worker.mjs']
     await preparePiCliEntry(entry, argv)
     expect(argv[1]).toBe('worker.mjs')
+  })
+
+  it('prefers app.asar.unpacked when an unpacked file exists on disk (#140)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'pi-asar-prefer-'))
+    roots.push(root)
+    const asarEntry = join(root, 'resources', 'app.asar', 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'index.js')
+    const unpackedEntry = join(root, 'resources', 'app.asar.unpacked', 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'index.js')
+    mkdirSync(join(asarEntry, '..'), { recursive: true })
+    mkdirSync(join(unpackedEntry, '..'), { recursive: true })
+    writeFileSync(asarEntry, '')
+    writeFileSync(unpackedEntry, '')
+
+    expect(preferUnpackedAsarPath(asarEntry)).toBe(unpackedEntry)
+    expect(preferUnpackedAsarPath(join(root, 'resources', 'app.asar', 'missing.js'))).toBe(
+      join(root, 'resources', 'app.asar', 'missing.js'),
+    )
+    expect(preferUnpackedAsarPath(join(root, 'plain', 'index.js'))).toBe(join(root, 'plain', 'index.js'))
+  })
+
+  it('rewrites simulated app.asar SDK entry to app.asar.unpacked CLI in preparePiCliEntry (#140)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'pi-asar-cli-'))
+    roots.push(root)
+    const pkgRel = join('node_modules', '@earendil-works', 'pi-coding-agent')
+    const asarRoot = join(root, 'resources', 'app.asar', pkgRel)
+    const unpackedRoot = join(root, 'resources', 'app.asar.unpacked', pkgRel)
+
+    mkdirSync(join(asarRoot, 'dist', 'bundle'), { recursive: true })
+    mkdirSync(join(unpackedRoot, 'dist', 'bundle'), { recursive: true })
+
+    const manifest = JSON.stringify({ name: '@earendil-works/pi-coding-agent', bin: { pi: 'dist/bundle/cli.js' } })
+    writeFileSync(join(asarRoot, 'package.json'), manifest)
+    writeFileSync(join(asarRoot, 'dist', 'index.js'), '')
+    writeFileSync(join(asarRoot, 'dist', 'bundle', 'cli.js'), '')
+
+    writeFileSync(join(unpackedRoot, 'package.json'), manifest)
+    writeFileSync(join(unpackedRoot, 'dist', 'index.js'), '')
+    const unpackedCli = join(unpackedRoot, 'dist', 'bundle', 'cli.js')
+    writeFileSync(unpackedCli, '')
+
+    const argv = ['pi Desktop.exe', 'worker.mjs']
+    await preparePiCliEntry(join(asarRoot, 'dist', 'index.js'), argv)
+    expect(await realpath(argv[1]!)).toBe(await realpath(unpackedCli))
   })
 })

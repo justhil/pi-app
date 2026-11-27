@@ -1,8 +1,26 @@
 import { z } from 'zod'
-import { normalizeFontName } from '../../../packages/shared/custom-theme.ts'
+import {
+  ACCENT_PRESENCES,
+  BACKDROP_PRESETS,
+  FRAME_STYLES,
+  MESSAGE_STYLES,
+  normalizeFontName,
+  SHIKI_THEME_IDS,
+  SURFACE_MATERIALS,
+  THEME_DENSITIES,
+  WINDOW_MATERIALS,
+} from '../../../packages/shared/custom-theme.ts'
 import { ICON_THEMES } from '../../../packages/shared/icon-theme.ts'
 import { BROWSER_SEARCH_ENGINE_IDS, type BrowserSearchEngine } from '../../../packages/shared/browser-types.ts'
+import {
+  AGENT_PURGE_MODES,
+  PURGE_CIPHER_LEVELS,
+  PURGE_HISTORY_MODES,
+  PURGE_THINKING_GUIDANCES,
+} from '../../../packages/shared/agent-purge.ts'
 import { CAPABILITY_IDS } from '../../../packages/shared/capabilities.ts'
+import { TIMELINE_USER_MESSAGE_STYLES } from '../../../packages/shared/timeline-settings.ts'
+import { normalizeUiCustomization } from '../../../packages/shared/ui-customization.ts'
 
 export const shellOpenPathSchema = z.object({
   path: z.string(),
@@ -59,6 +77,7 @@ export const sessionNavigateTreeSchema = z.object({
   sessionFile: z.string().optional(),
   summarize: z.boolean().optional(),
   label: z.string().optional(),
+  abortIfBusy: z.boolean().optional(),
 })
 
 export const sessionTreeSchema = z
@@ -90,6 +109,15 @@ export const sessionDeleteSchema = z
   })
   .strict()
 
+export const sessionEditMessageSchema = z
+  .object({
+    sessionFile: z.string().trim().min(1),
+    workspaceId: z.string().trim().min(1).optional(),
+    entryId: z.string().trim().min(1).max(256),
+    text: z.string().max(1_000_000),
+  })
+  .strict()
+
 export const sessionPrepareSchema = z.object({
   sessionFile: z.string().min(1),
   bind: z.boolean().optional(),
@@ -111,11 +139,32 @@ export const workspaceSandboxDeleteSchema = z.object({
   path: z.string().min(1),
 })
 
+export const purgeStrategyPatchSchema = z
+  .object({
+    primerEnabled: z.boolean().optional(),
+    scrubHistory: z.boolean().optional(),
+    thinkingGuidance: z.enum(PURGE_THINKING_GUIDANCES).optional(),
+    historyMode: z.enum(PURGE_HISTORY_MODES).optional(),
+    toolOutputRelay: z.boolean().optional(),
+    cipherLevel: z.enum(PURGE_CIPHER_LEVELS).optional(),
+    autoRetry: z.boolean().optional(),
+  })
+  .strict()
+
 export const promptTextSchema = z.object({
   text: z.string(),
   sessionFile: z.string().optional(),
   /** Session capabilities switched on in the composer; omitted = leave the worker's set unchanged. */
   capabilities: z.array(z.enum(CAPABILITY_IDS)).max(8).optional(),
+  /** First-turn Agent Purge activation for a brand-new conversation (ignored on existing sessions). */
+  agentPurge: z
+    .object({
+      enabled: z.boolean(),
+      personaId: z.string().max(128).optional(),
+      mode: z.enum(AGENT_PURGE_MODES).optional(),
+      strategy: purgeStrategyPatchSchema.optional(),
+    })
+    .optional(),
 })
 
 const CLIPBOARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
@@ -186,6 +235,7 @@ const themeVariantSchema = z
         userBubble: hexColorSchema.optional(),
         codeBg: hexColorSchema.optional(),
         border: hexColorSchema.optional(),
+        frame: hexColorSchema.optional(),
       })
       .strict()
       .optional(),
@@ -193,8 +243,23 @@ const themeVariantSchema = z
     proseFont: z.enum(['ui', 'display']).optional(),
     chatFontSize: z.number().min(12).max(18).optional(),
     chatLineHeight: z.number().min(1.3).max(2).optional(),
-    radius: z.number().min(0).max(16).optional(),
+    radius: z.number().min(0).max(20).optional(),
     shadow: z.number().min(0).max(100).optional(),
+    frameStyle: z.enum(FRAME_STYLES).optional(),
+    messageStyle: z.enum(MESSAGE_STYLES).optional(),
+    contentWidth: z.union([z.literal(0), z.number().min(640).max(1400)]).optional(),
+    density: z.enum(THEME_DENSITIES).optional(),
+    accentPresence: z.enum(ACCENT_PRESENCES).optional(),
+    surfaceMaterial: z.enum(SURFACE_MATERIALS).optional(),
+    windowMaterial: z.enum(WINDOW_MATERIALS).optional(),
+    glassRefraction: z.number().min(0).max(48).optional(),
+    glassFrost: z.number().min(0).max(28).optional(),
+    glassTintAlpha: z.number().min(0.15).max(0.96).optional(),
+    glassSpecular: z.number().min(0).max(1).optional(),
+    glassDispersion: z.boolean().optional(),
+    backdropPreset: z.enum(BACKDROP_PRESETS).optional(),
+    backdropIntensity: z.number().min(0.05).max(1).optional(),
+    codeTheme: z.enum(SHIKI_THEME_IDS).optional(),
   })
   .strict()
 
@@ -205,7 +270,7 @@ const backgroundImageSchema = z
     file: z.string().regex(/^[a-f0-9]{16,64}\.(png|jpe?g|webp|gif|avif)$/),
     opacity: z.number().min(0.05).max(1),
     blur: z.number().min(0).max(24),
-    uiOpacity: z.number().min(0.5).max(1),
+    uiOpacity: z.number().min(0.15).max(1),
     fit: z.enum(['cover', 'contain', 'tile', 'center']),
     position: z.enum(['center', 'top', 'bottom']),
     brightness: z.number().min(0.4).max(1.3).optional(),
@@ -214,7 +279,7 @@ const backgroundImageSchema = z
     material: paneMaterialSchema.optional(),
     paneBlur: z.number().min(0).max(40).optional(),
     fullCover: z.boolean().optional(),
-    content: z.object({ uiOpacity: z.number().min(0.3).max(1), paneBlur: z.number().min(0).max(40), material: paneMaterialSchema }).strict().optional(),
+    content: z.object({ uiOpacity: z.number().min(0.15).max(1), paneBlur: z.number().min(0).max(40), material: paneMaterialSchema }).strict().optional(),
   })
   .strict()
 
@@ -233,7 +298,7 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
       dark: backgroundImageSchema.optional(),
     })
     .strict(),
-  language: z.enum(['zh', 'en']),
+  language: z.enum(['zh', 'en', 'ru']),
   currentProject: z.string().nullable(),
   recentProjects: z.array(z.string()),
   recentProjectsFixedOrder: z.boolean(),
@@ -256,10 +321,23 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
   sessionWorkerIdleTimeoutMinutes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   timelineMaxAutoExpandedTools: z.number().int().min(0).max(50),
   timelineVisibleTurns: z.number().int().min(1).max(200),
+  timelineUserMessageStyle: z.enum(TIMELINE_USER_MESSAGE_STYLES),
+  uiCustomization: z.record(z.string(), z.unknown()).transform((v) => normalizeUiCustomization(v)),
   rightPanelPrefs: z.record(z.boolean()),
   rightPanelOrder: z.array(z.string()),
   sessionDisplayNames: z.record(z.string()),
   projectDisplayNames: z.record(z.string()),
+  pinnedSessions: z.array(z.string().max(2048)).max(500),
+  pinnedSessionMeta: z.record(
+    z.object({
+      sessionFile: z.string().max(2048),
+      sessionId: z.string().max(256),
+      workspacePath: z.string().max(2048),
+      title: z.string().max(500),
+      kind: z.enum(['project', 'sandbox']),
+      pinnedAt: z.number(),
+    }),
+  ),
   hiddenWorktrees: z.array(z.string()),
   extensionOverrides: z.record(z.boolean()),
   skillOverrides: z.record(z.boolean()),
@@ -273,6 +351,8 @@ const settingsValueSchemas: Record<string, z.ZodTypeAny> = {
     .nullable(),
   asrConfig: z.record(z.unknown()),
   sessionCapabilities: z.record(z.array(z.enum(CAPABILITY_IDS)).max(8)),
+  agentPurgeConfig: z.record(z.unknown()),
+  purgedSessions: z.record(z.record(z.unknown())),
   browserSearchEngine: z.enum(BROWSER_SEARCH_ENGINE_IDS as [BrowserSearchEngine, ...BrowserSearchEngine[]]),
   browserDownloader: z.enum(['auto', 'electron']),
   browserAria2Path: z.string().max(4096),

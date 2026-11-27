@@ -2,13 +2,23 @@ import Store from 'electron-store'
 import type { AsrConfig } from '@shared/asr-types'
 import type { BackgroundSettings } from '@shared/background'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
+import { defaultAgentPurgeConfig } from '@shared/agent-purge'
 import { DEFAULT_ICON_THEME, type IconTheme } from '@shared/icon-theme'
-import { DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS, DEFAULT_TIMELINE_VISIBLE_TURNS } from '@shared/timeline-settings'
+import {
+  DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
+  DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+  DEFAULT_TIMELINE_VISIBLE_TURNS,
+  type TimelineUserMessageStyle,
+} from '@shared/timeline-settings'
+import {
+  DEFAULT_UI_CUSTOMIZATION,
+  type UiCustomization,
+} from '@shared/ui-customization'
 import { projectDisplayNameKey, uniqueWorkspacePaths, workspacePathsEqual } from '@shared/workspace-path'
 import { sshDistroHost } from '@shared/wsl-path'
 import { bindSshPersistence } from './ssh/ssh-config'
 import { bindSecretStoreBacking } from './secret-store'
-import { nextRecentProjects } from './recent-projects'
+import { nextRecentProjects, workspaceRealPathsEqual } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
 
 export interface StoreSchema {
@@ -37,7 +47,7 @@ export interface StoreSchema {
   /** 右侧栏 Tab 顺序（panel id 列表） */
   rightPanelOrder: string[]
   /** 界面语言（设置保存后写入） */
-  language: 'zh' | 'en'
+  language: 'zh' | 'en' | 'ru'
   /** 启动时打开上次项目 */
   autoOpenLastProject: boolean
   /** 启动时检查 GitHub Releases 是否有新版本 */
@@ -72,10 +82,26 @@ export interface StoreSchema {
   /** 时间线当前 run 内同时自动展开的工具详情数量上限 */
   timelineMaxAutoExpandedTools: number
   timelineVisibleTurns: number
+  timelineUserMessageStyle: TimelineUserMessageStyle
+  uiCustomization: UiCustomization
   /** 侧栏会话显示名，键为规范化后的 sessionFile 绝对路径 */
   sessionDisplayNames: Record<string, string>
   /** 侧栏项目/目录自定义显示名，键为 projectDisplayNameKey(path, isRepositoryGroup) */
   projectDisplayNames: Record<string, string>
+  /** 侧栏收藏置顶的会话文件列表 */
+  pinnedSessions: string[]
+  /** 收藏置顶会话的元数据快照（防跨项目/冷启动消失） */
+  pinnedSessionMeta: Record<
+    string,
+    {
+      sessionFile: string
+      sessionId: string
+      workspacePath: string
+      title: string
+      kind: 'project' | 'sandbox'
+      pinnedAt: number
+    }
+  >
   /** 从侧栏列表中移除/隐藏的 Git worktree 路径 */
   hiddenWorktrees: string[]
   /** 语音输入 ASR 配置 */
@@ -93,6 +119,10 @@ export interface StoreSchema {
   browserDownloadConnections: number
   /** Composer Tools menu: capabilities switched on per session file (absent = all off). */
   sessionCapabilities: Record<string, import('@shared/capabilities').CapabilityId[]>
+  /** Per-conversation Agent Purge persona library & defaults. */
+  agentPurgeConfig: import('@shared/agent-purge').AgentPurgeConfig
+  /** Sessions locked with Agent Purge on their first message (sessionFileKey → snapshot). */
+  purgedSessions: Record<string, import('@shared/agent-purge').PurgedSessionRecord>
   /** Mobile remote gateway (off unless the user enables it in Settings → 手机连接). */
   remote?: import('./remote/auth-store').RemoteStoredConfig
   /** 每个 WSL 发行版解析出的用户环境（home / PATH / node …），见 wsl/wsl-env.ts */
@@ -107,7 +137,7 @@ const store = new Store<StoreSchema>({
   name: 'pi-desktop',
   defaults: {
     recentProjects: [],
-    recentProjectsFixedOrder: false,
+    recentProjectsFixedOrder: true,
     currentProject: null,
     windowBounds: null,
     theme: 'system',
@@ -127,6 +157,9 @@ const store = new Store<StoreSchema>({
       context: true,
       intercom: false,
       tree: true,
+      browser: true,
+      worktrees: true,
+      github: true,
     },
     rightPanelOrder: [],
     language: defaultAppLanguage(),
@@ -150,8 +183,12 @@ const store = new Store<StoreSchema>({
     sessionWorkerIdleTimeoutMinutes: 15,
     timelineMaxAutoExpandedTools: DEFAULT_TIMELINE_MAX_AUTO_EXPANDED_TOOLS,
     timelineVisibleTurns: DEFAULT_TIMELINE_VISIBLE_TURNS,
+    timelineUserMessageStyle: DEFAULT_TIMELINE_USER_MESSAGE_STYLE,
+    uiCustomization: DEFAULT_UI_CUSTOMIZATION,
     sessionDisplayNames: {},
     projectDisplayNames: {},
+    pinnedSessions: [],
+    pinnedSessionMeta: {},
     hiddenWorktrees: [],
     asrConfig: {
       provider: 'codex-asr-builtin',
@@ -167,6 +204,8 @@ const store = new Store<StoreSchema>({
     browserChromeBridge: { enabled: false, port: 19825, token: '' },
     browserDownloadConnections: 16,
     sessionCapabilities: {},
+    agentPurgeConfig: defaultAgentPurgeConfig(),
+    purgedSessions: {},
   },
 })
 
@@ -204,7 +243,7 @@ export const configStore = {
   },
 
   removeRecentProject(path: string): void {
-    const recent = (store.get('recentProjects') || []).filter((p: string) => !workspacePathsEqual(p, path))
+    const recent = (store.get('recentProjects') || []).filter((p: string) => !workspaceRealPathsEqual(p, path))
     store.set('recentProjects', recent)
   },
 

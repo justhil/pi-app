@@ -3,24 +3,128 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      body { font: 13px system-ui, sans-serif; width: 300px; margin: 12px; color: #222; }
-      h1 { font-size: 14px; margin: 0 0 8px; }
-      label { display: block; margin: 8px 0 4px; color: #555; }
-      input { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 6px; font: inherit; }
-      button { margin-top: 10px; padding: 6px 12px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font: inherit; cursor: pointer; }
-      #status { margin-top: 10px; color: #555; }
-      .ok { color: #15803d !important; }
-      .bad { color: #b91c1c !important; }
-      p.hint { color: #666; margin: 4px 0 0; }
+      :root {
+        --bg: #ffffff;
+        --bg-sub: #f6f7f9;
+        --bg-hover: #eef0f4;
+        --text: #14161a;
+        --muted: #646b78;
+        --border: #e2e5ec;
+        --brand: #2563eb;
+        --ok: #15803d;
+        --ok-bg: rgba(21, 128, 61, 0.1);
+        --warn: #b45309;
+        --warn-bg: rgba(180, 83, 9, 0.12);
+        --bad: #dc2626;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16181d;
+          --bg-sub: #1e2128;
+          --bg-hover: #272b35;
+          --text: #eceef2;
+          --muted: #939aa8;
+          --border: #2c313d;
+          --brand: #3b82f6;
+          --ok: #4ade80;
+          --ok-bg: rgba(74, 222, 128, 0.12);
+          --warn: #fbbf24;
+          --warn-bg: rgba(251, 191, 36, 0.14);
+          --bad: #f87171;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        font: 12.5px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        width: 332px;
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+      .brand { font-size: 13.5px; font-weight: 650; letter-spacing: -0.01em; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500;
+        background: var(--bg-sub); color: var(--muted); border: 1px solid var(--border);
+      }
+      .pill.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+      .pill.bad { color: var(--bad); }
+      .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+      .card {
+        background: var(--bg-sub); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 8px;
+      }
+      .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        height: 30px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--border);
+        background: var(--bg); color: var(--text); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+      }
+      .btn:hover { background: var(--bg-hover); }
+      .btn:disabled { opacity: 0.45; cursor: default; }
+      .btn-primary { width: 100%; background: var(--text); color: var(--bg); border-color: transparent; }
+      .btn-primary:hover { opacity: 0.9; background: var(--text); }
+      .row-actions { display: flex; gap: 6px; margin-top: 6px; }
+      .row-actions .btn { flex: 1; height: 27px; font-size: 11.5px; }
+      .sec-title { font-size: 11px; font-weight: 600; color: var(--muted); margin: 8px 0 5px; display: flex; justify-content: space-between; }
+      .tab-list { max-height: 156px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+      .tab-item {
+        display: flex; align-items: center; gap: 6px; padding: 5px 7px;
+        border-radius: 7px; background: var(--bg-sub); border: 1px solid transparent;
+      }
+      .tab-item:hover { border-color: var(--border); }
+      .tab-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; cursor: pointer; }
+      .tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); flex-shrink: 0; }
+      .mini-btn {
+        border: 0; background: transparent; color: var(--muted); font-size: 11px; padding: 2px 5px; border-radius: 4px; cursor: pointer;
+      }
+      .mini-btn:hover { background: var(--bg-hover); color: var(--text); }
+      input {
+        width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--border);
+        border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; font-family: ui-monospace, monospace; font-size: 11.5px;
+      }
+      .hint { font-size: 11.5px; color: var(--muted); margin: 0 0 7px; }
+      .pair-toggle { border: 0; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; padding: 2px 0; }
+      .pair-toggle:hover { color: var(--text); }
+      .hidden { display: none !important; }
+      #msg { font-size: 11px; color: var(--muted); margin-top: 6px; }
     </style>
   </head>
   <body>
-    <h1>pi Desktop</h1>
-    <p class="hint">Paste the pairing code from pi Desktop → Settings → Browser → My Chrome.</p>
-    <label for="code">Pairing code</label>
-    <input id="code" placeholder="pi-bridge:19825:…" autocomplete="off" />
-    <button id="save">Connect</button>
-    <div id="status"></div>
+    <div class="head">
+      <span class="brand">pi Desktop Bridge</span>
+      <span id="statusPill" class="pill"><span class="dot"></span><span id="statusText">…</span></span>
+    </div>
+
+    <div id="connectedPane" class="hidden">
+      <div class="card">
+        <button id="borrowBtn" class="btn btn-primary"></button>
+        <div class="row-actions">
+          <button id="detachBtn" class="btn"></button>
+          <button id="returnAllBtn" class="btn"></button>
+        </div>
+      </div>
+
+      <div class="sec-title">
+        <span id="tabsHeading"></span>
+        <span id="tabsCount">0</span>
+      </div>
+      <div id="tabList" class="tab-list"></div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+      <button id="togglePairBtn" class="pair-toggle hidden"></button>
+    </div>
+
+    <div id="pairPane" class="card" style="margin-top:6px;">
+      <p id="pairHint" class="hint"></p>
+      <div style="display:flex; gap:6px;">
+        <input id="code" placeholder="pi-bridge:19825:…" autocomplete="off" />
+        <button id="save" class="btn" style="flex-shrink:0;"></button>
+      </div>
+      <div id="msg"></div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

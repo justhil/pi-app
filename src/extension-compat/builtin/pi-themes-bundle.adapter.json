@@ -10,7 +10,18 @@
   },
   "tier": "none",
   "config": {
-    "note": "pi 终端主题 bundle；主题资源在 Resources 只读列表，桌面用独立 Appearance 设置。"
+    "note": "pi 终端主题 bundle；主题资源在 Resources 只读列表，桌面用独立 Appearance 设置。",
+    "i18n": {
+      "zh": {
+        "note": "pi 终端主题 bundle；主题资源在 Resources 只读列表，桌面用独立 Appearance 设置。"
+      },
+      "en": {
+        "note": "pi terminal theme bundle; theme assets appear read-only in Resources while the desktop app uses its own Appearance settings."
+      },
+      "ru": {
+        "note": "Набор тем терминала pi; ресурсы тем доступны только для чтения в Resources, а desktop-клиент использует собственные настройки Appearance."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -20,6 +31,10 @@
     "en": {
       "displayName": "Themes Bundle",
       "description": "pi terminal theme bundle (the desktop app uses its own Appearance settings)"
+    },
+    "ru": {
+      "displayName": "Themes Bundle",
+      "description": "Набор тем терминала pi (desktop использует собственные настройки Appearance)"
     }
   }
 }

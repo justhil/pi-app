@@ -6,6 +6,7 @@ import {
 } from '@shared/custom-theme'
 import { isCustomThemeDisabled } from './theme-runtime-state'
 import { generateThemeCss } from './generate-theme-css'
+import { applyRenderFxForTheme } from './render-fx-engine'
 
 export { CUSTOM_THEME_CSS_CACHE_KEY, CUSTOM_THEME_STYLE_ID } from '@shared/custom-theme'
 
@@ -33,4 +34,5 @@ export function injectCustomTheme(css: string): void {
 
 export function applyCustomTheme(theme: CustomTheme): void {
   injectCustomTheme(generateThemeCss(theme))
+  applyRenderFxForTheme(theme)
 }

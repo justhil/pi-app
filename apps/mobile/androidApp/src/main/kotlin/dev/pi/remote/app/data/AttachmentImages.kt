@@ -83,6 +83,13 @@ class AttachmentStore(
 
     override suspend fun full(src: ImageSource): ImageBitmap? = decode(src, 4096)
 
+    fun totalBytes(): Long = TimelineCache.dirBytes(root)
+
+    fun clear() {
+        thumbs.evictAll()
+        runCatching { root.deleteRecursively() }
+    }
+
     private fun keyOf(src: ImageSource) = when (src) {
         is ImageSource.Remote -> "r:${src.path}"
         is ImageSource.Local -> "l:${src.uri}"

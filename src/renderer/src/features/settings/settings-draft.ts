@@ -22,7 +22,18 @@ import {
   type CompletionDeliveryMode,
   type CompletionPreviewMode,
 } from '@shared/completion-preview'
-import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
+import {
+  normalizeTimelineMaxAutoExpandedTools,
+  normalizeTimelineUserMessageStyle,
+  normalizeTimelineVisibleTurns,
+  type TimelineUserMessageStyle,
+} from '@shared/timeline-settings'
+import {
+  DEFAULT_UI_CUSTOMIZATION,
+  normalizeUiCustomization,
+  type UiCustomization,
+} from '@shared/ui-customization'
+import { applyUiCustomizationToDocument } from '@renderer/lib/theme/apply-ui-customization'
 import {
   normalizeRightPanelOrder,
   normalizeRightPanelPrefs,
@@ -31,7 +42,7 @@ import {
 } from '@shared/right-panels'
 
 export type ThemeChoice = 'light' | 'dark' | 'system'
-export type LanguageChoice = 'zh' | 'en'
+export type LanguageChoice = 'zh' | 'en' | 'ru'
 
 export type AgentRuntimeChoice = { mode: 'host' | 'wsl'; distro: string | null }
 
@@ -60,6 +71,8 @@ export type SettingsDraft = {
   sessionWorkerIdleTimeoutMinutes: number
   timelineMaxAutoExpandedTools: number
   timelineVisibleTurns: number
+  timelineUserMessageStyle: TimelineUserMessageStyle
+  uiCustomization: UiCustomization
   extensionOverrides: Record<string, boolean>
   rightPanelCatalog: RightPanelCatalogItem[]
   rightPanelPrefs: RightPanelPrefs
@@ -72,6 +85,7 @@ function normalizeLanguage(raw: unknown, fallback: LanguageChoice): LanguageChoi
   const s = String(raw || '').toLowerCase()
   if (s.startsWith('zh')) return 'zh'
   if (s.startsWith('en')) return 'en'
+  if (s.startsWith('ru')) return 'ru'
   return fallback
 }
 
@@ -134,6 +148,8 @@ export function draftSignature(d: SettingsDraft): string {
     sessionWorkerIdleTimeoutMinutes: d.sessionWorkerIdleTimeoutMinutes,
     timelineMaxAutoExpandedTools: d.timelineMaxAutoExpandedTools,
     timelineVisibleTurns: d.timelineVisibleTurns,
+    timelineUserMessageStyle: d.timelineUserMessageStyle,
+    uiCustomization: d.uiCustomization,
     extensionOverrides: d.extensionOverrides,
     rightPanelPrefs: d.rightPanelPrefs,
     rightPanelOrder: d.rightPanelOrder,
@@ -177,6 +193,8 @@ export async function loadSettingsDraftFromDisk(i18nLanguage: string): Promise<S
     sessionWorkerIdleTimeoutMinutes: normalizeIdleTimeoutMinutesUi(s.sessionWorkerIdleTimeoutMinutes),
     timelineMaxAutoExpandedTools: normalizeTimelineMaxAutoExpandedTools(s.timelineMaxAutoExpandedTools),
     timelineVisibleTurns: normalizeTimelineVisibleTurns(s.timelineVisibleTurns),
+    timelineUserMessageStyle: normalizeTimelineUserMessageStyle(s.timelineUserMessageStyle),
+    uiCustomization: normalizeUiCustomization(s.uiCustomization ?? DEFAULT_UI_CUSTOMIZATION),
     extensionOverrides: { ...(s.extensionOverrides || {}) },
     rightPanelCatalog: cat,
     rightPanelPrefs: prefs,
@@ -258,6 +276,15 @@ export function watchSystemTheme(): () => void {
   return () => mq.removeEventListener('change', onChange)
 }
 
+export function applyUserMessageStyleToDocument(style: TimelineUserMessageStyle): void {
+  if (typeof document === 'undefined' || !document.documentElement) return
+  if (style === 'prompt-card') {
+    document.documentElement.setAttribute('data-user-msg-style', 'prompt-card')
+  } else {
+    document.documentElement.removeAttribute?.('data-user-msg-style')
+  }
+}
+
 /** 仅界面预览，不写盘 */
 export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
   applyThemeToDocument(draft.theme)
@@ -265,6 +292,10 @@ export function previewDraftUi(draft: SettingsDraft, i18n: I18n): void {
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)
   applyBackground(draft.background)
+  applyUserMessageStyleToDocument(draft.timelineUserMessageStyle)
+  applyUiCustomizationToDocument(draft.uiCustomization)
+  useUIStore.getState().setTimelineUserMessageStyle?.(draft.timelineUserMessageStyle)
+  useUIStore.getState().setUiCustomization?.(draft.uiCustomization)
   if (i18n.language !== draft.language) void i18n.changeLanguage(draft.language)
 }
 
@@ -323,6 +354,14 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
     value: draft.timelineMaxAutoExpandedTools,
   })
   await ipcClient.invoke('settings.set', { key: 'timelineVisibleTurns', value: normalizeTimelineVisibleTurns(draft.timelineVisibleTurns) })
+  await ipcClient.invoke('settings.set', {
+    key: 'timelineUserMessageStyle',
+    value: normalizeTimelineUserMessageStyle(draft.timelineUserMessageStyle),
+  })
+  await ipcClient.invoke('settings.set', {
+    key: 'uiCustomization',
+    value: normalizeUiCustomization(draft.uiCustomization),
+  })
   await ipcClient.invoke('settings.set', { key: 'extensionOverrides', value: draft.extensionOverrides })
   await ipcClient.invoke('rightPanels.saveLayout', {
     prefs: draft.rightPanelPrefs,
@@ -339,6 +378,10 @@ export async function commitSettingsDraft(draft: SettingsDraft, i18n: I18n): Pro
   applyIconTheme(draft.iconTheme)
   useUIStore.getState().setTimelineMaxAutoExpandedTools(draft.timelineMaxAutoExpandedTools)
   useUIStore.getState().setTimelineVisibleTurns(draft.timelineVisibleTurns)
+  useUIStore.getState().setTimelineUserMessageStyle?.(draft.timelineUserMessageStyle)
+  useUIStore.getState().setUiCustomization?.(draft.uiCustomization)
+  applyUserMessageStyleToDocument(draft.timelineUserMessageStyle)
+  applyUiCustomizationToDocument(draft.uiCustomization)
   applyThemeToDocument(draft.theme)
   applyCustomTheme(draft.customTheme)
   injectCustomCssOverride(draft.customCssOverride)

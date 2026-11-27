@@ -1,7 +1,7 @@
 {
   "id": "@bytetrue/pi-background-terminal",
   "displayName": "Background Terminal",
-  "description": "后台命令管理：background_run / status / kill 工具卡片，任务结束自动唤醒下一轮",
+  "description": "后台命令管理：background_run / status / kill 工具卡片、底栏状态面板与内置终端实时日志追更",
   "match": {
     "names": [
       "@bytetrue/pi-background-terminal",
@@ -16,33 +16,77 @@
       "/background"
     ]
   },
-  "tier": "partial",
+  "install": {
+    "source": "npm:@bytetrue/pi-background-terminal",
+    "homepage": "https://github.com/ByteTrue/pi-package-mono"
+  },
+  "tier": "native",
   "toolCard": {
     "template": "default",
     "icon": "Terminal"
+  },
+  "statusBar": {
+    "protocol": "background-jobs-v1",
+    "icon": "Activity",
+    "title": "后台终端命令",
+    "tools": [
+      "background_run",
+      "background_status",
+      "background_kill"
+    ],
+    "exitMessageTypes": [
+      "background-exit"
+    ],
+    "statusKeys": [
+      "background-terminal"
+    ],
+    "actions": {
+      "inspectTool": "background_status",
+      "killTool": "background_kill"
+    },
+    "logFile": {
+      "dirName": "pi-background-terminal",
+      "filePattern": "^bg_[a-f0-9]+\\.log$"
+    }
   },
   "slash": {
     "/background": "execute"
   },
   "config": {
-    "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。执行 /background 可查看运行中的后台命令或终止任务。",
+    "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。点击底栏后台命令图标可随时查看状态、在内置终端跟踪日志或停止任务。",
     "i18n": {
       "zh": {
-        "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。执行 /background 可查看运行中的后台命令或终止任务。"
+        "note": "后台任务最长运行 8 小时，退出或超时后通过 follow-up 消息自动唤醒当前会话。点击底栏后台命令图标可随时查看状态、在内置终端跟踪日志或停止任务。"
       },
       "en": {
-        "note": "Background commands run for up to 8 hours and wake the session with a follow-up message on exit. Run /background to inspect or stop active commands."
+        "note": "Background commands run for up to 8 hours and wake the session with a follow-up message on exit. Click the status bar icon to inspect live status, follow output in the built-in terminal, or stop active tasks."
+      },
+      "ru": {
+        "note": "Фоновые задачи выполняются до 8 часов и автоматически пробуждают текущую сессию follow-up сообщением при выходе или таймауте. Нажмите значок в строке состояния, чтобы просмотреть статус, логи во встроенном терминале или остановить задачу."
       }
     }
   },
   "i18n": {
     "zh": {
       "displayName": "Background Terminal",
-      "description": "后台命令管理：background_run / status / kill 工具卡片，任务结束自动唤醒下一轮"
+      "description": "后台命令管理：background_run / status / kill 工具卡片、底栏状态面板与内置终端实时日志追更",
+      "statusBar": {
+        "title": "后台终端命令"
+      }
     },
     "en": {
       "displayName": "Background Terminal",
-      "description": "Background shell commands: background_run / status / kill tool cards with automatic exit notifications"
+      "description": "Background shell commands: tool cards, status bar monitor popover, and built-in terminal log follower",
+      "statusBar": {
+        "title": "Background commands"
+      }
+    },
+    "ru": {
+      "displayName": "Background Terminal",
+      "description": "Фоновые команды оболочки: карточки инструментов, панель статуса и просмотр логов во встроенном терминале",
+      "statusBar": {
+        "title": "Фоновые команды"
+      }
     }
   }
 }

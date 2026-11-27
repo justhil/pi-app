@@ -3,6 +3,7 @@ import type { FitAddon } from '@xterm/addon-fit'
 import type { SearchAddon } from '@xterm/addon-search'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { terminalActions, useTerminalStore } from './terminal-store'
+import { stopBackgroundTaskLogFollower } from './background-task-terminal'
 
 export type TerminalInstance = { term: Terminal; host: HTMLDivElement; fit: FitAddon; search: SearchAddon; dispose: () => void }
 
@@ -60,6 +61,11 @@ function closePaneNow(ptyId: string): void {
   const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
   terminalActions.closePane(ptyId)
   disposeTerminalInstance(ptyId)
+  // A background task's log pane has no process of its own: stop following its log instead.
+  if (pane?.backgroundTask) {
+    stopBackgroundTaskLogFollower(ptyId)
+    return
+  }
   if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
 }
 

@@ -34,6 +34,10 @@
       "/pi-ext-docs"
     ]
   },
+  "install": {
+    "source": "git:github.com/justhil/pi-search",
+    "homepage": "https://github.com/justhil/pi-search"
+  },
   "tier": "partial",
   "config": {
     "configFile": "~/.config/pi-search/config.json",
@@ -170,6 +174,9 @@
           },
           "en": {
             "title": "Search API"
+          },
+          "ru": {
+            "title": "Основной API поиска"
           }
         }
       },
@@ -239,6 +246,9 @@
           },
           "en": {
             "title": "Extra sources"
+          },
+          "ru": {
+            "title": "Дополнительные источники"
           }
         }
       },
@@ -262,6 +272,9 @@
           },
           "en": {
             "title": "Capability Status"
+          },
+          "ru": {
+            "title": "Статус возможностей"
           }
         }
       }
@@ -290,6 +303,9 @@
       },
       "en": {
         "note": "Writes the same ~/.config/pi-search/config.json as the extension; environment variables still win. Leave a key blank to keep the saved one."
+      },
+      "ru": {
+        "note": "Записывает в тот же ~/.config/pi-search/config.json, что и расширение pi-search; переменные окружения имеют приоритет. Оставьте ключ пустым, чтобы сохранить текущее значение."
       }
     }
   },
@@ -357,6 +373,33 @@
       },
       "actionLabels": {
         "test": "Test connection"
+      }
+    },
+    "ru": {
+      "displayName": "Pi Search",
+      "description": "AI-поиск, поиск документации и загрузка страниц (чтение и запись ~/.config/pi-search/config.json)",
+      "fieldLabels": {
+        "searchApiUrl": "URL API поиска",
+        "searchApiKey": "Ключ API поиска",
+        "searchApiProtocol": "Протокол API",
+        "searchModel": "Модель поиска",
+        "thinkingLevel": "Уровень рассуждений",
+        "searchProfile": "Режим поиска",
+        "fallbackMode": "Резервный режим",
+        "minimumProfile": "Минимальный профиль",
+        "tavilyApiUrl": "URL Tavily",
+        "tavilyApiKey": "Ключ Tavily",
+        "firecrawlApiUrl": "URL Firecrawl",
+        "firecrawlApiKey": "Ключ Firecrawl",
+        "context7BaseUrl": "URL Context7",
+        "context7ApiKey": "Ключ Context7",
+        "exaBaseUrl": "URL Exa",
+        "exaApiKey": "Ключ Exa",
+        "context7ResolveTtlHours": "Кэш поиска библиотек Context7 (часы)",
+        "context7DocsTtlHours": "Кэш документации Context7 (часы)"
+      },
+      "actionLabels": {
+        "test": "Проверить соединение"
       }
     }
   }

@@ -139,7 +139,7 @@ function SelectField({ field, value, adapterId, onChange }: { field: ConfigField
         value={currentVal}
         onChange={(e) => onChange(e.target.value)}
       >
-        {!currentInList && currentVal && <option value={currentVal}>{currentVal}（{t('extension:current')}）</option>}
+        {!currentInList && currentVal && <option value={currentVal}>{currentVal}{t('common:parenOpen')}{t('extension:current')}{t('common:parenClose')}</option>}
         {!currentVal && <option value="">{t('extension:selectPlaceholder')}</option>}
         {isDynamic && options.length === 0 && !fetching && <option value="" disabled>{t('extension:clickToFetch')}</option>}
         {options.map((o) => <option key={o} value={o}>{o}</option>)}

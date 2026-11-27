@@ -25,18 +25,28 @@ import dev.pi.remote.app.ui.hosts.HostsScreen
 import dev.pi.remote.app.ui.inbox.InboxScreen
 import dev.pi.remote.app.ui.session.SessionScreen
 
+data class OpenTarget(val hostId: String?, val sessionKey: String?)
+
 @Composable
-fun PiRemoteNav(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: () -> Unit, incomingSession: String? = null, onSessionConsumed: () -> Unit = {}) {
+fun PiRemoteNav(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: () -> Unit, incomingTarget: OpenTarget? = null, onTargetConsumed: () -> Unit = {}) {
     val nav = rememberNavController()
     val active by repo.active.collectAsState()
     val start = remember { if (active == null) "hosts" else "inbox" }
 
-    LaunchedEffect(incomingSession) {
-        val key = incomingSession ?: return@LaunchedEffect
-        if (repo.active.value != null) {
-            nav.navigate("session/${Uri.encode(key)}") { popUpTo("inbox") { inclusive = false }; launchSingleTop = true }
+    LaunchedEffect(incomingTarget) {
+        val t = incomingTarget ?: return@LaunchedEffect
+        if (t.hostId != null && repo.active.value?.hostId != t.hostId) {
+            repo.select(t.hostId)
         }
-        onSessionConsumed()
+        if (repo.active.value != null) {
+            val key = t.sessionKey
+            if (key != null) {
+                nav.navigate("session/${Uri.encode(key)}") { popUpTo("inbox") { inclusive = false }; launchSingleTop = true }
+            } else if (nav.currentDestination?.route != "inbox") {
+                nav.navigate("inbox") { popUpTo(0) { inclusive = true } }
+            }
+        }
+        onTargetConsumed()
     }
     LaunchedEffect(incomingLink) {
         if (incomingLink != null && nav.currentDestination?.route != "hosts") nav.navigate("hosts")
@@ -69,8 +79,11 @@ fun PiRemoteNav(repo: RemoteRepository, incomingLink: String?, onLinkConsumed: (
             composable("session/{key}") { entry ->
                 val key = Uri.decode(entry.arguments?.getString("key").orEmpty())
                 SessionScreen(
-                    repo = repo, sessionKey = key, onBack = { nav.popBackStack() },
+                    repo = repo,
+                    sessionKey = key,
+                    onBack = { nav.popBackStack() },
                     onOpenSession = { next -> nav.navigate("session/${Uri.encode(next)}") { popUpTo("inbox") { inclusive = false } } },
+                    onPushSession = { child -> nav.navigate("session/${Uri.encode(child)}") },
                 )
             }
         }

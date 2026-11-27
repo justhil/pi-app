@@ -217,6 +217,8 @@ data class SessionSummary(
     val title: String,
     val status: String,
     val updatedAt: Long,
+    val parentSessionKey: String? = null,
+    val forkedFromSessionKey: String? = null,
     val preview: String? = null,
     val live: String? = null,
     val liveCategory: String? = null,
@@ -229,4 +231,10 @@ data class SessionSummary(
 data class Cursor(val epoch: String, val seq: Long)
 
 @Serializable
-data class ProjectInfo(val id: String, val name: String, val temporary: Boolean = false)
+data class ProjectInfo(
+    val id: String,
+    val name: String,
+    val temporary: Boolean = false,
+    val branch: String? = null,
+    val repo: String? = null,
+)

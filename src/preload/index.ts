@@ -3,6 +3,7 @@ import type { AppEvent } from '@shared/app-events'
 import { CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT } from '@shared/custom-theme'
 import { isAllowedIpcChannel } from '@shared/ipc-channels'
 import { BROWSER_EVENT_CHANNEL, type BrowserEvent } from '@shared/browser-types'
+import { CANVAS_EVENT_CHANNEL, type CanvasEvent } from '@shared/canvas-types'
 
 const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
@@ -88,6 +89,12 @@ const api = {
     const handler = (_event: unknown, data: BrowserEvent): void => callback(data)
     ipcRenderer.on(BROWSER_EVENT_CHANNEL, handler)
     return () => ipcRenderer.off(BROWSER_EVENT_CHANNEL, handler)
+  },
+
+  onCanvasEvent(callback: (event: CanvasEvent) => void): () => void {
+    const handler = (_event: unknown, data: CanvasEvent): void => callback(data)
+    ipcRenderer.on(CANVAS_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(CANVAS_EVENT_CHANNEL, handler)
   },
 
   onGitWorkspaceChanged(callback: (payload: { cwd: string }) => void): () => void {

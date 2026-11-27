@@ -4,15 +4,45 @@ import { normalizeSessionFileKey } from './session-file-key.ts'
 
 export type BrowserEngineId = 'electron' | 'stealth' | 'chrome'
 
+export type BrowserStageMode = 'closed' | 'split-50' | 'split-70' | 'full'
+
+export interface BrowserBookmark {
+  id: string
+  title: string
+  url: string
+  folder: string
+  favicon?: string
+  createdAt: number
+}
+
+export interface BrowserLoadError {
+  code: number
+  description: string
+  url: string
+}
+
+export interface BrowserAgentStep {
+  id: string
+  tabId: string
+  action: string
+  status: 'running' | 'done' | 'error'
+  at: number
+}
+
 export interface BrowserTabInfo {
   tabId: string
   engine: BrowserEngineId
   profileId: string
   url: string
   title: string
+  favicon?: string
   loading: boolean
   canGoBack: boolean
   canGoForward: boolean
+  muted?: boolean
+  audible?: boolean
+  sleeping?: boolean
+  loadError?: BrowserLoadError | null
   openedBy: 'user' | { sessionKey: string }
   /** Pinned tabs stay visible and usable across every conversation. */
   pinned?: boolean
@@ -68,10 +98,25 @@ export type BrowserEvent =
   | { type: 'download'; fileName: string; savePath: string; state: 'completed' | 'cancelled' | 'interrupted' }
   | { type: 'download-updated'; download: BrowserDownloadInfo }
   /** Shortcut pressed while the page itself had focus (the Renderer never sees those keys). */
-  | { type: 'shortcut'; action: 'focus-address' | 'new-tab' | 'close-tab' | 'annotate' | 'find' | 'zoom-in' | 'zoom-out' | 'zoom-reset' }
+  | {
+      type: 'shortcut'
+      action:
+        | 'focus-address'
+        | 'new-tab'
+        | 'close-tab'
+        | 'reopen-tab'
+        | 'toggle-stage'
+        | 'annotate'
+        | 'find'
+        | 'zoom-in'
+        | 'zoom-out'
+        | 'zoom-reset'
+    }
   | { type: 'find-result'; tabId: string; active: number; matches: number }
   /** The agent is acting on a tab (`action` null when it finished). */
   | { type: 'agent-action'; tabId: string; action: string | null }
+  /** Granular step stream emitted for live progress HUD. */
+  | { type: 'agent-step'; step: BrowserAgentStep }
   /** The agent asks the user to do a step in the browser (login, CAPTCHA…). */
   | { type: 'help-request'; request: BrowserHelpRequest }
   | { type: 'help-ended'; id: string; outcome: BrowserHelpOutcome }

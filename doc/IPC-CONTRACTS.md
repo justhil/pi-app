@@ -61,6 +61,20 @@ Main → Renderer 的事件走 `ipc:browser-event`（`BrowserEvent`：`tab-updat
 
 Renderer 内部事件 `pi-desktop:composer-attach-files` 的 `detail` 为 `{ files?: {path,name,kind}[]; text?: string }`：`text` 插在附件之前，可以只带 `text`。浏览器的截图、页面正文、批注、日志都通过这个事件放进输入框，**不会自动发送**。
 
+## Google AI Ultra 方案（`ipc:googleAiPlan.*`，预览）
+
+扩展代码来自上游 PR 的 head 提交（通常在作者的 fork 上），安装后以 pi 扩展的全部权限运行，所以安装必须经用户按提交确认。
+
+| Channel | Request | Response |
+|---------|---------|----------|
+| `ipc:googleAiPlan.status` | `{}` | `GoogleAiPlanStatus` |
+| `ipc:googleAiPlan.previewSync` | `{}` | `GoogleAiPlanSyncPreviewResponse`：`upstream` 给出将要下载的仓库和完整提交号；拿不到确切提交号（GitHub API 不可达）时 `sha` 为 `null`。只查询，不下载 |
+| `ipc:googleAiPlan.syncExtension` | `{ sha }`（用户在预览中确认的提交） | `GoogleAiPlanActionResponse`；PR head 已不是该提交时返回 `UPSTREAM_CHANGED`，拿不到确切提交号时返回 `UPSTREAM_SHA_UNAVAILABLE`，都不安装 |
+| `ipc:googleAiPlan.removeExtension` | `{}` | `GoogleAiPlanActionResponse` |
+| `ipc:googleAiPlan.loginStart` | `{}` | `GoogleAiPlanActionResponse`；未安装扩展时返回 `EXTENSION_NOT_INSTALLED`，从不自行下载 |
+| `ipc:googleAiPlan.loginSubmitUrl` | `{ callbackUrl }` | `GoogleAiPlanActionResponse` |
+| `ipc:googleAiPlan.loginCancel` / `ipc:googleAiPlan.logout` | `{}` | `GoogleAiPlanActionResponse` |
+
 ## 回归
 
 `scripts/tests/ipc-channel-sync.test.mjs` — allowlist ↔ `registerHandler` 双向一致。

@@ -20,6 +20,8 @@ import {
 import { listRevisions, pushRevision, restoreRevision, readRevision } from '../../resource-revisions'
 import type { ResourceSource } from '../../pi-resources-editor'
 import { errorMessage } from '@shared/error-message'
+import { mainLabel } from '@shared/main-labels'
+import { getMainUiLanguage } from '@shared/main-language'
 import { normalizeSessionKey } from '../../worker-session-key'
 import { sessionPreviewProcess } from '../../session-preview-process'
 import { resolveActiveAgentDir } from '../../agent-dir'
@@ -151,7 +153,7 @@ export function registerSkillsResourceHandlers(): void {
     for (const a of listAgentsContextFiles(cwd)) push(a)
     for (const b of listPiBuiltinPromptFiles(cwd, projectTrusted)) {
       if (b.id === 'builtin:system:default' && defaultSystemPreview) {
-        push({ ...b, description: '当前会话实际组装的 system 提示词（只读预览）' })
+        push({ ...b, description: mainLabel(getMainUiLanguage(), 'prompts.systemDefaultPreviewDesc') })
       } else push(b)
     }
     for (const plug of listPluginInjectedPromptFiles(cwd)) push(plug)
@@ -215,7 +217,7 @@ export function registerSkillsResourceHandlers(): void {
           normalizeSessionKey(workerManager.cwd || '') === normalizeSessionKey(cwd)
         ) {
           const ctx = await workerManager.getContextPrompts()
-          return { content: String(ctx.builtSystemPreview || '（空）'), path, revisions: [] }
+          return { content: String(ctx.builtSystemPreview || mainLabel(getMainUiLanguage(), 'prompts.emptyPreview')), path, revisions: [] }
         }
         return {
           content: await sessionPreviewProcess.getSystemPrompt({
@@ -233,9 +235,7 @@ export function registerSkillsResourceHandlers(): void {
     const resolved = resolve(path)
     const isGlobalSystem = resolved.toLowerCase() === resolve(getGlobalSystemMd()).toLowerCase()
     if (isGlobalSystem && !existsSync(resolved)) {
-      let seed =
-        '# pi 系统提示词\n\n' +
-        '保存本文件后将替换 pi 内置 harness 默认文案（与终端 pi 的 SYSTEM.md 一致）。\n\n'
+      let seed = mainLabel(getMainUiLanguage(), 'prompts.globalSystemSeed')
       const cwd = configStore.get('currentProject') || workerManager.cwd || process.cwd()
       if (
         workerManager.isRunning &&
@@ -272,11 +272,11 @@ export function registerSkillsResourceHandlers(): void {
 
   registerHandler('ipc:resource.write', async (req) => {
     const path = String(req.path || '')
-    if (path.startsWith('pi-desktop://')) return { ok: false, error: '只读预览不可保存' }
+    if (path.startsWith('pi-desktop://')) return { ok: false, error: mainLabel(getMainUiLanguage(), 'prompts.readOnlyCannotSave') }
     const content = String(req.content ?? '')
     if (!path) return { ok: false, error: 'missing path' }
     try {
-      pushRevision(path, req.revisionLabel || '保存前')
+      pushRevision(path, req.revisionLabel || mainLabel(getMainUiLanguage(), 'revision.beforeSave'))
       writeTextFileSafe(path, content)
       if (workerManager.isRunning) await workerManager.reloadResources().catch(() => {})
       return { ok: true, revisions: listRevisions(path) }

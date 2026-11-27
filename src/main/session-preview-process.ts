@@ -1,4 +1,5 @@
 import { app, utilityProcess, type UtilityProcess } from 'electron'
+import { join } from 'node:path'
 import { resolveUtilityEntry } from './utility-entry-path'
 import { resolveActiveSdk } from './sdk-loader'
 import { isWslRuntimeActive } from './wsl/runtime-config'
@@ -7,7 +8,12 @@ import type { ModelEntry } from './active-sdk-models-core'
 import type { SessionContextPreview } from '@shared/session-context-preview'
 import { emitOperationEvent } from './operation-events'
 import type { FlatTreeNode } from './session-tree-from-file'
-import type { UsageSummary } from '@shared/usage-summary'
+import type {
+  UsageLogPage,
+  UsageLogQuery,
+  UsageRequestDetail,
+  UsageSummary,
+} from '@shared/usage-summary'
 import type { SessionOnDiskRow } from './ipc/sdk-session'
 import type { DiskSessionMessages } from './session-messages-from-disk'
 
@@ -131,6 +137,7 @@ export class SessionPreviewProcess {
       | 'pi.settings.get'
       | 'pi.settings.set'
       | 'extensions.probe'
+      | 'extensions.install'
       | 'model.list'
       | 'context.preview'
       | 'warm'
@@ -140,7 +147,9 @@ export class SessionPreviewProcess {
       | 'fs.readText'
       | 'fs.create'
       | 'fs.rename'
-      | 'fs.search',
+      | 'fs.search'
+      | 'usage.logs'
+      | 'usage.requestDetail',
     payload: Record<string, unknown>,
     /** Host-side work (e.g. extension probing over UNC paths) that must not go to the WSL runner. */
     opts?: { local?: boolean },
@@ -216,9 +225,29 @@ export class SessionPreviewProcess {
     return this.request('session.getMessages', { ...payload, cwd: payload.cwd })
   }
 
-  /** Usage across every session under `agentDir` (always in the host preview process). */
+  private usageCacheDir(): string | undefined {
+    try {
+      return join(app.getPath('userData'), 'usage-cache')
+    } catch {
+      return undefined
+    }
+  }
+
+  /** Usage across every session under `agentDir` (routes to WSL preview when WSL runtime is active). */
   usageSummary(payload: { agentDir: string; from: number; to: number; offsetMin: number }): Promise<UsageSummary> {
-    return this.request('usage.summary', payload, { local: true })
+    const cacheDir = isWslRuntimeActive() ? undefined : this.usageCacheDir()
+    return this.request('usage.summary', { ...payload, ...(cacheDir ? { cacheDir } : {}) })
+  }
+
+  usageLogs(
+    payload: Omit<UsageLogQuery, 'days'> & { agentDir: string; from: number; to: number },
+  ): Promise<UsageLogPage> {
+    const cacheDir = isWslRuntimeActive() ? undefined : this.usageCacheDir()
+    return this.request('usage.logs', { ...payload, ...(cacheDir ? { cacheDir } : {}) })
+  }
+
+  usageRequestDetail(payload: { sessionFile: string; entryId: string }): Promise<UsageRequestDetail> {
+    return this.request('usage.requestDetail', payload)
   }
 
   getTree(payload: {
@@ -244,6 +273,15 @@ export class SessionPreviewProcess {
     homeDir: string
   }): Promise<ExtensionProbeResult[]> {
     return this.request('extensions.probe', payload)
+  }
+
+  installExtensionPackage(payload: {
+    cwd: string
+    agentDir: string
+    source: string
+    local?: boolean
+  }): Promise<{ ok: boolean }> {
+    return this.request('extensions.install', payload)
   }
 
   warm(): Promise<void> {

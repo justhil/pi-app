@@ -69,6 +69,89 @@ describe('ProjectSessionTree subagent rows', () => {
     })
   })
 
+  it('limits large projects and keeps the collapse control outside the scrollable list', () => {
+    useUIStore.setState({ historySessionFile: null, subagentSessionGroup: null, pinnedSessions: [] })
+    const { container } = render(<ProjectSessionTree workspacePath="/workspace" loading={false}
+      currentWorkspace="/workspace" currentSessionId={null} onSessionContextMenu={vi.fn()}
+      projectSessions={Array.from({ length: 125 }, (_, i) => ({
+        sessionId: `session-${i}`, sessionFile: `/sessions/${i}.jsonl`, title: `Conversation ${i}`, updatedAt: 125 - i, modelId: '',
+      }))}
+    />)
+    const toggle = screen.getByRole('button', { name: 'Show more (120)' })
+    const list = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    expect(list.querySelectorAll('[data-session-file]')).toHaveLength(5)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(list).not.toHaveClass('overflow-y-auto')
+    fireEvent.click(toggle)
+    expect(list.querySelectorAll('[data-session-file]')).toHaveLength(125)
+    expect(toggle).toHaveTextContent('Show less')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(list).toHaveClass('overlay-scroll-pane', 'max-h-80', 'overflow-y-auto')
+    expect(container.querySelector('.overlay-scrollbar-rail')).not.toBeNull()
+    expect(list).not.toContainElement(toggle)
+    fireEvent.click(toggle)
+    expect(container.querySelector('.overlay-scrollbar-rail')).toBeNull()
+    expect(container.querySelectorAll('[data-session-file]')).toHaveLength(5)
+    expect(toggle).toHaveTextContent('Show more (120)')
+  })
+
+  it('keeps an older selected child and its root visible without expanding the entire project', async () => {
+    useUIStore.setState({ historySessionFile: '/sessions/child.jsonl', subagentSessionGroup: null, pinnedSessions: [] })
+    render(<ProjectSessionTree workspacePath="/workspace" loading={false}
+      currentWorkspace="/workspace" currentSessionId="child" onSessionContextMenu={vi.fn()}
+      projectSessions={[
+        ...Array.from({ length: 10 }, (_, i) => ({
+          sessionId: `root-${i}`, sessionFile: `/sessions/root-${i}.jsonl`, title: `Conversation ${i}`, updatedAt: 10 - i, modelId: '',
+        })),
+        { sessionId: 'child', sessionFile: '/sessions/child.jsonl', parentSessionFile: '/sessions/root-9.jsonl', title: 'Selected child', updatedAt: 1, modelId: '' },
+      ]}
+    />)
+    expect(await screen.findByRole('button', { current: 'page' })).toHaveTextContent('Selected child')
+    expect(screen.getByText('Conversation 9')).toBeInTheDocument()
+    expect(screen.queryByText('Conversation 8')).not.toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: 'Show more (4)' })
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { current: 'page' })).toHaveTextContent('Selected child')
+  })
+
+  it('shows every search match and restores the previous list expansion when cleared', () => {
+    useUIStore.setState({ historySessionFile: null, subagentSessionGroup: null, pinnedSessions: [] })
+    const props = {
+      workspacePath: '/workspace', loading: false, currentWorkspace: '/workspace', currentSessionId: null,
+      onSessionContextMenu: vi.fn(), projectSessions: Array.from({ length: 12 }, (_, i) => ({
+        sessionId: `session-${i}`, sessionFile: `/sessions/${i}.jsonl`, title: `Needle ${i}`, updatedAt: 12 - i, modelId: '',
+      })),
+    }
+    const { container, rerender } = render(<ProjectSessionTree {...props} />)
+    rerender(<ProjectSessionTree {...props} searchQuery="needle" />)
+    expect(container.querySelectorAll('[data-session-file]')).toHaveLength(12)
+    expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
+    rerender(<ProjectSessionTree {...props} searchQuery="" />)
+    expect(container.querySelectorAll('[data-session-file]')).toHaveLength(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more (7)' }))
+    rerender(<ProjectSessionTree {...props} searchQuery="needle" />)
+    expect(container.querySelector('.sidebar-session-list')).not.toHaveClass('overflow-y-auto')
+    rerender(<ProjectSessionTree {...props} searchQuery="" />)
+    expect(screen.getByRole('button', { name: 'Show less' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('keeps pinned root sessions in place and needs no toggle for five or fewer', () => {
+    useUIStore.setState({ historySessionFile: null, subagentSessionGroup: null, pinnedSessions: ['/sessions/0.jsonl'] })
+    const props = {
+      workspacePath: '/workspace', loading: false, currentWorkspace: '/workspace', currentSessionId: null,
+      onSessionContextMenu: vi.fn(), projectSessions: Array.from({ length: 7 }, (_, i) => ({
+        sessionId: `session-${i}`, sessionFile: `/sessions/${i}.jsonl`, title: `Conversation ${i}`, updatedAt: 7 - i, modelId: '',
+      })),
+    }
+    const { rerender } = render(<ProjectSessionTree {...props} />)
+    expect(screen.getByText('Conversation 0')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more (2)' })).toBeInTheDocument()
+    rerender(<ProjectSessionTree {...props} projectSessions={props.projectSessions.slice(0, 5)} />)
+    expect(screen.queryByRole('button', { name: /Show more|Show less/ })).not.toBeInTheDocument()
+    act(() => useUIStore.setState({ pinnedSessions: [] }))
+  })
+
   it('nests persisted children under their parent and keeps them collapsed by default', () => {
     useUIStore.setState({ currentSessionId: 'parent-session', historySessionFile: '/sessions/parent.jsonl', subagentSessionGroup: null })
     const { container } = render(<ProjectSessionTree
@@ -85,7 +168,7 @@ describe('ProjectSessionTree subagent rows', () => {
     expect(toggle).toHaveTextContent('1')
     fireEvent.click(toggle)
     expect(screen.getByText('Finished review')).toBeInTheDocument()
-    expect(container.querySelectorAll('.sidebar-session-tree > [data-session-file]')).toHaveLength(1)
+    expect(container.querySelectorAll('.sidebar-session-list > [data-session-file]')).toHaveLength(1)
     fireEvent.click(toggle)
     expectCollapsedChild('Finished review')
   })

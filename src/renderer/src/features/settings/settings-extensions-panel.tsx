@@ -3,15 +3,18 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { useAdapterCatalog } from '@renderer/lib/adapter-catalog'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { SettingsPageHeader } from '@renderer/features/settings/settings-shell'
 import { btnDanger } from '@renderer/features/settings/settings-controls'
 import { Switch } from '@renderer/components/ui/switch'
 import { Check, Dot } from '@renderer/components/icons'
+import { AdaptedExtensionsInstaller } from './adapted-extensions-installer'
 
 export function ExtensionsSettings() {
   const { t } = useTranslation()
   const workspaceId = useUIStore((state) => state.currentWorkspace) || ''
+  const adapterCatalog = useAdapterCatalog(workspaceId)
   const generation = useRef(0)
   interface ExtRow {
     id: string
@@ -102,6 +105,22 @@ export function ExtensionsSettings() {
         title={t('settings:extensions.title')}
         description={t('settings:extensions.description')}
       />
+      {(adapterCatalog?.errors.length ?? 0) > 0 && (
+        <div
+          role="alert"
+          data-testid="adapter-catalog-errors"
+          className="mb-3 rounded-lg border border-destructive/35 bg-destructive/8 p-3 text-xs text-destructive"
+        >
+          <div className="font-medium">{t('settings:adapters.loadErrorsTitle')}</div>
+          <ul className="mt-1 space-y-0.5 font-mono text-[11px]">
+            {adapterCatalog?.errors.map((err, idx) => (
+              <li key={`${err.adapterId}-${idx}`}>
+                {err.adapterId} ({err.source}): {err.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {missingRuntime.length > 0 && (
         <div className="mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3">
           <div className="text-sm font-medium text-amber-800 dark:text-amber-200">{t('settings:extensions.missingRuntime')}</div>
@@ -151,6 +170,11 @@ export function ExtensionsSettings() {
           ))}
         </div>
       </div>
+      <AdaptedExtensionsInstaller
+        workspaceId={workspaceId || null}
+        extensions={extensions}
+        onInstalled={refreshExtensions}
+      />
       {extensions.length === 0 ? (
         <div className="py-4 text-sm text-muted-foreground/70">
           {t('settings:extensions.empty')}

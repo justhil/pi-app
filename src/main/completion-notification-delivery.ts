@@ -54,6 +54,7 @@ function sendUpdate(): void {
       outcome: card.outcome,
       copy: card.copy,
       sound: card.sound,
+      timeoutMs: card.timeoutMs,
     })),
   )
 }

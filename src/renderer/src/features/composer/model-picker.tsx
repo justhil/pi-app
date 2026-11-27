@@ -20,7 +20,7 @@ import { sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { commitSessionDisplayMeta } from '@renderer/lib/session-display-meta'
 import { boundThinkingLevelFor, loadModelThinkingBindings } from '@renderer/lib/model-thinking-bindings'
 
-type ModelRow = { id: string; provider: string; name?: string; available?: boolean }
+type ModelRow = { id: string; provider: string; providerName?: string; name?: string; available?: boolean }
 
 // 跨卸载的模型切换请求状态：picker 关闭后 App 条件卸载组件，局部 state 会丢失；
 // 旧请求晚结算时可能覆盖用户随后发起的新选择，或污染已切换会话的 runState。
@@ -33,7 +33,7 @@ type PendingModelSwitch = {
 let modelSwitchToken = 0
 let pendingModelSwitch: PendingModelSwitch | null = null
 
-function groupByProvider(models: ModelRow[]): { provider: string; models: ModelRow[] }[] {
+function groupByProvider(models: ModelRow[]): { provider: string; providerName?: string; models: ModelRow[] }[] {
   const map = new Map<string, ModelRow[]>()
   for (const m of models) {
     const p = m.provider || 'unknown'
@@ -45,6 +45,7 @@ function groupByProvider(models: ModelRow[]): { provider: string; models: ModelR
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([provider, rows]) => ({
       provider,
+      providerName: rows.find((r) => r.providerName)?.providerName,
       models: rows.sort((x, y) => x.id.localeCompare(y.id)),
     }))
 }
@@ -106,7 +107,8 @@ export function ModelPicker() {
       (m) =>
         `${m.provider}/${m.id}`.toLowerCase().includes(q) ||
         (m.name || '').toLowerCase().includes(q) ||
-        m.provider.toLowerCase().includes(q),
+        m.provider.toLowerCase().includes(q) ||
+        (m.providerName || '').toLowerCase().includes(q),
     )
   }, [models, query])
 
@@ -294,7 +296,7 @@ export function ModelPicker() {
             <div className="px-3 pb-0.5 pt-1 text-[10.5px] text-muted-foreground/70">{t('composer:allModels')}</div>
           </>
         ) : null}
-        {groups.map(({ provider, models: rows }) => {
+        {groups.map(({ provider, providerName, models: rows }) => {
           const openGroup = isProviderOpen(provider)
           const activeInGroup = rows.some((m) => currentModel === `${m.provider}/${m.id}`)
           const firstNav = navCursor
@@ -308,7 +310,9 @@ export function ModelPicker() {
                 aria-expanded={openGroup}
               >
                 <ChevronRight className="settings-chevron h-3.5 w-3.5 shrink-0 text-muted-foreground" data-open={openGroup} />
-                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground-secondary">{provider}</span>
+                <span className="min-w-0 flex-1 truncate text-[12px] text-foreground-secondary">
+                  {providerName ? `${providerName} (${provider})` : provider}
+                </span>
                 {activeInGroup && !openGroup && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
                 <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
                   {t('composer:providerModelCount', { count: rows.length })}

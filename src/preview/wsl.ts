@@ -21,6 +21,11 @@ import type { WorkerIncomingMessage } from '../worker/worker-port-types'
 import { listAvailableModelsWithSdk, listCatalogModelsWithSdk, type ModelEntry } from '../main/active-sdk-models-core'
 import { buildSessionContextPreview } from '@shared/session-context-preview'
 import type { PiSessionMessage } from '@shared/worker-message'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { queryUsageLogs, refreshUsageAsync, summarizeUsage } from '../main/usage-scan'
+import { readUsageRequestDetailFromFile } from '../main/usage-request-detail'
+import type { UsageLogSortField, UsageStopStatus } from '@shared/usage-summary'
 
 if (process.env[WORKER_STDIO_ENV] !== '1') throw new Error('WSL preview requires stdio mode')
 const distro = process.env[WORKER_WSL_DISTRO_ENV]
@@ -44,6 +49,9 @@ type WslPreviewRequest = WorkerIncomingMessage & {
     | 'fs.create'
     | 'fs.rename'
     | 'fs.search'
+    | 'usage.summary'
+    | 'usage.logs'
+    | 'usage.requestDetail'
   userDataDir: string
   sdkPath: string
   workspaceId?: string
@@ -114,6 +122,7 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
         id: m.id,
         name: m.name,
         provider: m.provider,
+        ...(typeof (m as { api?: unknown }).api === 'string' ? { api: String((m as { api?: unknown }).api) } : {}),
         contextWindow: m.contextWindow,
         maxOutput: m.maxOutput,
         maxTokens: m.maxTokens,
@@ -137,6 +146,21 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
     } else if (message.type === 'pi.settings.get') {
       const sdk = await import(message.sdkPath)
       result = piSettingsSnapshot(sdk.SettingsManager.create(String(message.cwd || '/'), sdk.getAgentDir()))
+    } else if (message.type === 'extensions.install') {
+      const m = message as unknown as Record<string, unknown>
+      const sdk = await import(message.sdkPath)
+      const cwd = String(m.cwd || '/')
+      const agentDir = String(m.agentDir || sdk.getAgentDir())
+      const source = String(m.source || '').trim()
+      const local = m.local === true
+      const settingsManager = sdk.SettingsManager.create(cwd, agentDir, { projectTrusted: local })
+      const pkgManager = new sdk.DefaultPackageManager({ cwd, agentDir, settingsManager })
+      await pkgManager.installAndPersist(source, { local })
+      await settingsManager.flush()
+      const targetScope = local ? 'project' : 'global'
+      const errors = settingsManager.drainErrors().filter((entry: { scope: string }) => entry.scope === targetScope)
+      if (errors.length > 0) throw errors[0].error
+      result = { ok: true }
     } else if (message.type === 'pi.settings.set') {
       const sdk = await import(message.sdkPath)
       const manager = sdk.SettingsManager.create(
@@ -146,6 +170,37 @@ async function handleRequest(message: WslPreviewRequest): Promise<void> {
       )
       await applyPiSettingsPatch(manager, (message.patch as Record<string, unknown>) || {})
       result = null
+    } else if (message.type === 'usage.summary') {
+      const m = message as unknown as Record<string, unknown>
+      const from = Number(m.from) || 0
+      const cacheDir = join(homedir(), '.cache', 'pi-desktop', 'usage-cache')
+      await refreshUsageAsync(String(m.agentDir || ''), { from, cacheDir })
+      result = summarizeUsage(from, Number(m.to), Number(m.offsetMin) || 0)
+    } else if (message.type === 'usage.logs') {
+      const m = message as unknown as Record<string, unknown>
+      const from = Number(m.from) || 0
+      const cacheDir = join(homedir(), '.cache', 'pi-desktop', 'usage-cache')
+      await refreshUsageAsync(String(m.agentDir || ''), { from, cacheDir })
+      result = queryUsageLogs({
+        from: Number(m.from) || 0,
+        to: Number(m.to) || Date.now(),
+        model: typeof m.model === 'string' ? m.model : undefined,
+        project: typeof m.project === 'string' ? m.project : undefined,
+        api: typeof m.api === 'string' ? m.api : undefined,
+        status: typeof m.status === 'string' ? (m.status as 'all' | UsageStopStatus) : undefined,
+        search: typeof m.search === 'string' ? m.search : undefined,
+        sortBy: typeof m.sortBy === 'string' ? (m.sortBy as UsageLogSortField) : undefined,
+        sortDir: m.sortDir === 'asc' ? 'asc' : 'desc',
+        offset: typeof m.offset === 'number' ? m.offset : 0,
+        limit: typeof m.limit === 'number' ? m.limit : 50,
+      })
+    } else if (message.type === 'usage.requestDetail') {
+      const m = message as unknown as Record<string, unknown>
+      result = await readUsageRequestDetailFromFile(
+        String(m.sessionFile || ''),
+        String(m.entryId || ''),
+        message.sdkPath,
+      )
     } else if (message.type === 'system.prompt') {
       const sdk = await import(message.sdkPath)
       result = await buildSystemPromptPreview(

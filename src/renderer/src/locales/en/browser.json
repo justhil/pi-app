@@ -5,7 +5,10 @@
     "suggestions": "Address suggestions",
     "open": "Open {{url}}",
     "search": "Search “{{query}}”",
-    "switchTab": "Switch to tab"
+    "switchTab": "Switch to tab",
+    "copyUrl": "Copy URL",
+    "copiedUrl": "URL copied",
+    "openExternal": "Open in system browser"
   },
   "nav": {
     "back": "Back",
@@ -19,11 +22,19 @@
     "tabs": "Tabs",
     "expand": "Expand",
     "collapse": "Collapse",
-    "more": "More"
+    "more": "More",
+    "reopenTab": "Reopen closed tab",
+    "nothingToReopen": "No recently closed tabs to reopen"
   },
   "tab": {
     "untitled": "New tab",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "duplicate": "Duplicate tab",
+    "mute": "Mute tab",
+    "unmute": "Unmute tab",
+    "sleep": "Sleep tab (free memory)",
+    "closeOthers": "Close other tabs",
+    "closeRight": "Close tabs to the right"
   },
   "empty": {
     "title": "Type an address or search"
@@ -101,7 +112,15 @@
     "exit": "Exit",
     "finish": "Insert into composer",
     "captureFailed": "Could not capture the page; it may be showing a dialog",
-    "exportFailed": "Could not build the annotations"
+    "exportFailed": "Could not build the annotations",
+    "hintRich": "Click an element (↑↓ parent/child · Shift multi-select) or drag to mark",
+    "multiHint": "{{count}} elements selected — click next to group or press Esc",
+    "tool": {
+      "select": "Pick",
+      "arrow": "Arrow",
+      "rect": "Box",
+      "ellipse": "Circle"
+    }
   },
   "send": {
     "menu": "Send to chat",
@@ -135,7 +154,17 @@
     "helpAllow": "Allow",
     "helpDeny": "Deny",
     "helpInChrome": "Do this in your Chrome window",
-    "helpOtherTab": "Show the tab"
+    "helpOtherTab": "Show the tab",
+    "awareLabel": "Pi Aware",
+    "awareTooltipOn": "Pi can read and drive this browser in this chat (click to disable)",
+    "awareTooltipOff": "Enable browser awareness for Pi in this chat",
+    "awareEnabled": "Pi browser awareness enabled for this chat",
+    "awareDisabled": "Pi browser awareness disabled",
+    "openedByPi": "Opened by Pi",
+    "recentSteps": "Pi ran {{count}} browser step(s)",
+    "takeover": "Pause · Take over",
+    "takeoverDone": "Paused Pi browser action — you have control",
+    "takeoverReady": "No active browser action — ready for manual control"
   },
   "viewport": {
     "title": "Page viewport size",
@@ -156,7 +185,9 @@
       "cancelled": "Cancelled",
       "failed": "Failed",
       "progressing": "Downloading"
-    }
+    },
+    "openFolder": "Open folder",
+    "empty": "No downloads yet"
   },
   "find": {
     "label": "Find in page",
@@ -173,6 +204,61 @@
     "title": "This conversation uses My Chrome",
     "hint": "The AI works in your own Chrome, in its pi window. Its tabs (click to bring Chrome forward):",
     "disconnected": "Chrome is not connected: open Chrome with the pi extension (Settings → Browser → My Chrome).",
-    "noTabs": "No tabs open yet."
+    "noTabs": "No tabs open yet.",
+    "borrowBtn": "Borrow tab",
+    "borrowedToast": "Borrowed Chrome tab for this chat",
+    "noUserTabs": "No borrowable Chrome http(s) tabs found",
+    "returnBtn": "Return"
+  },
+  "stage": {
+    "toggleTooltip": "Browser Split Stage (Ctrl/⌘+Shift+B)",
+    "full": "Full",
+    "hide": "Hide browser (keep tabs alive)"
+  },
+  "bookmarks": {
+    "title": "Bookmarks",
+    "badge": "Bookmark",
+    "add": "Bookmark this page",
+    "remove": "Remove bookmark",
+    "added": "Bookmark saved",
+    "removed": "Bookmark removed",
+    "showBar": "Show bookmarks bar",
+    "hideBar": "Hide bookmarks bar",
+    "importHtml": "Import Chrome/Edge HTML bookmarks…",
+    "imported": "Imported {{count}} bookmarks",
+    "importFailed": "Failed to import bookmarks",
+    "emptyHint": "Star any page from the address bar, or import Chrome/Edge HTML bookmarks from More.",
+    "openInNewTab": "Open in new tab"
+  },
+  "newTab": {
+    "devServers": "Running local dev servers",
+    "recentVisits": "Recent visits",
+    "removeRecent": "Remove from recents"
+  },
+  "error": {
+    "loadFailed": "Page failed to load ({{reason}})",
+    "askPi": "Ask Pi",
+    "askPiPrompt": "The built-in browser failed to load {{url}} ({{reason}}). Please help diagnose why (e.g. dev server not running or port issue)."
+  },
+  "sync": {
+    "button": "Sync sign-ins",
+    "openBtn": "Sync browser sign-ins…",
+    "title": "Sync local browser sign-ins",
+    "subtitle": "Import cookies for selected sites from Chrome, Edge, or Firefox into the built-in browser",
+    "tabExtension": "Chrome / Edge Extension (Recommended)",
+    "tabDisk": "Local Disk Import (Firefox / non-v20)",
+    "extNotConnectedTitle": "pi Chrome extension is not connected",
+    "extNotConnectedDesc": "Windows Chrome/Edge 127+ uses v20 app-bound encryption that external processes cannot decrypt from disk. Pair the pi extension to sync chosen sites safely.",
+    "openBrowserSettings": "Open Browser Settings",
+    "v20Warning": "Detected {{count}} Windows v20 app-bound cookies that cannot be decrypted from disk.",
+    "switchToExtension": "Switch to Extension Sync →",
+    "searchPlaceholder": "Filter domains (e.g. github.com)…",
+    "excludedSensitive": "Protected sensitive site",
+    "replaceExisting": "Replace existing cookies for selected sites",
+    "noSites": "No importable site cookies found.",
+    "privacyNote": "Only selected sites are transferred; never logged",
+    "importSelected": "Sync selected ({{count}})",
+    "done": "Synced {{sites}} site(s) ({{count}} cookies)",
+    "failed": "Failed to sync sign-ins"
   }
 }

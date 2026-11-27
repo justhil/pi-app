@@ -2,6 +2,7 @@
 
 import type { CompletionOutcome } from './completion-preview'
 import type { AdapterWidgetProjection, AdapterWidgetProtocol } from './adapter-widget'
+import type { BackgroundTaskSnapshot, StatusBarClickAction } from './background-tasks'
 
 export interface AppEventBase {
   seq: number
@@ -29,11 +30,13 @@ export interface ToolEvent extends AppEventBase {
   type: 'tool'
   toolCallId: string
   toolName: string
-  phase: 'start' | 'update' | 'end'
+  phase: 'start' | 'update' | 'end' | 'entry'
   input?: unknown
   output?: unknown
   details?: unknown
   isError?: boolean
+  /** pi JSONL entry id of the persisted toolResult message (used for step-level /tree rewind). */
+  sessionEntryId?: string
 }
 
 export interface FileEvent extends AppEventBase {
@@ -131,6 +134,27 @@ export interface ExtensionWidgetEvent extends AppEventBase {
   state?: AdapterWidgetProjection
 }
 
+export interface BackgroundTasksEvent extends AppEventBase {
+  type: 'background_tasks'
+  tasks: BackgroundTaskSnapshot[]
+  /** True when the live session runtime actually registered a tool from a background-jobs-v1 adapter. */
+  hasActiveAdapter?: boolean
+  adapterId?: string
+  icon?: string
+  title?: string
+}
+
+export interface ExtensionStatusEvent extends AppEventBase {
+  type: 'extension_status'
+  phase: 'set' | 'clear'
+  adapterId: string
+  statusKey: string
+  text?: string
+  icon?: string
+  title?: string
+  clickAction?: StatusBarClickAction
+}
+
 // SDK 安装进度（设置页 UI 用，与会话无关，不继承 AppEventBase）
 export interface SdkInstallProgressEvent {
   type: 'sdk-install-progress'
@@ -154,7 +178,7 @@ export interface AdapterCatalogChangedEvent {
 /** A remote (phone) client changed a setting the renderer caches; reload it. */
 export interface RemoteSettingsChangedEvent {
   type: 'remote-settings-changed'
-  key: 'capabilities' | 'cacheWarming' | 'sessions' | 'rewound'
+  key: 'capabilities' | 'cacheWarming' | 'sessions' | 'rewound' | 'purge'
   sessionFile?: string
   /** For `sessions`: the workspace whose session list changed. */
   workspaceId?: string
@@ -172,6 +196,8 @@ export type AppEvent =
   | AgentErrorEvent
   | CompletionEvent
   | ExtensionWidgetEvent
+  | BackgroundTasksEvent
+  | ExtensionStatusEvent
   | SdkInstallProgressEvent
   | SdkRuntimeChangedEvent
   | AdapterCatalogChangedEvent

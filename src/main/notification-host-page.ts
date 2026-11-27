@@ -9,114 +9,215 @@ export function notificationHostPageHtml(): string {
   <style>
     :root {
       color-scheme: light dark;
-      --surface: #f7f8fa;
-      --surface-hover: #fcfcfd;
-      --fg: #171a21;
-      --muted: #5d6473;
-      --subtle: #7a8291;
-      --line: #dde0e6;
-      --accent: #58658f;
-      --accent-hover: #4d597f;
-      --accent-fg: #f7f8fb;
-      --danger: #c9294f;
-      --shadow: 0 10px 28px rgb(24 29 41 / 16%);
+      --surface: rgba(251, 252, 253, 0.96);
+      --surface-hover: #ffffff;
+      --fg: #14171f;
+      --muted: #576071;
+      --subtle: #7d8696;
+      --line: rgba(18, 24, 38, 0.11);
+      --accent: #181c26;
+      --accent-hover: #2c3345;
+      --accent-fg: #f8fafc;
+      --ok: #16a34a;
+      --danger: #d9385a;
+      --ghost-hover: rgba(18, 24, 38, 0.06);
+      --shadow: 0 8px 22px rgba(15, 23, 42, 0.13), 0 1px 3px rgba(15, 23, 42, 0.07);
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --surface: #20232b;
-        --surface-hover: #252932;
-        --fg: #eceef2;
-        --muted: #b0b6c3;
-        --subtle: #8c95a5;
-        --line: #353a46;
-        --accent: #9aa6d1;
-        --accent-hover: #aeb8dc;
-        --accent-fg: #171a21;
-        --danger: #ff6b8b;
-        --shadow: 0 12px 30px rgb(0 0 0 / 30%);
+        --surface: rgba(28, 31, 38, 0.96);
+        --surface-hover: #232731;
+        --fg: #eef1f6;
+        --muted: #a6aebf;
+        --subtle: #7f8899;
+        --line: rgba(255, 255, 255, 0.11);
+        --accent: #e5e9f2;
+        --accent-hover: #ffffff;
+        --accent-fg: #14171f;
+        --ok: #4ade80;
+        --danger: #fb7185;
+        --ghost-hover: rgba(255, 255, 255, 0.09);
+        --shadow: 0 10px 26px rgba(0, 0, 0, 0.42), 0 1px 3px rgba(0, 0, 0, 0.25);
       }
     }
     html, body {
       margin: 0;
+      padding: 0;
       background: transparent;
       color: var(--fg);
-      font: 13px/1.45 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font: 12.5px/1.4 system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       overflow: hidden;
       user-select: none;
     }
-    #stack { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+    #stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 6px 10px 10px;
+    }
     .card {
-      height: 168px;
+      position: relative;
+      height: 104px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
       overflow: hidden;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: 10px;
       background: var(--surface);
-      padding: 11px 12px 10px;
+      padding: 9px 11px 8px 13px;
       box-shadow: var(--shadow);
-      opacity: 0;
-      transform: translateY(8px) scale(.985);
-      animation: card-in 180ms cubic-bezier(.22,1,.36,1) forwards;
-      transition: transform 120ms ease, opacity 120ms ease;
+      cursor: pointer;
+      transition: background-color 130ms ease, border-color 130ms ease, transform 140ms cubic-bezier(.16,1,.3,1);
     }
-    .card:hover { transform: translateY(-1px); background: var(--surface-hover); }
+    .card.is-entering {
+      opacity: 0;
+      transform: translateX(12px) scale(.985);
+      animation: card-in 175ms cubic-bezier(.16,1,.3,1) forwards;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--ok);
+      opacity: .85;
+    }
+    .card.is-failed::before { background: var(--danger); }
+    .card:hover {
+      background: var(--surface-hover);
+      transform: translateY(-1px);
+    }
+    .head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      min-height: 18px;
+    }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      flex: 1;
+      color: var(--subtle);
+      font-size: 10.5px;
+      letter-spacing: .01em;
+    }
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+    .card.is-failed .status-dot { background: var(--danger); }
     .project {
       overflow: hidden;
-      color: var(--subtle);
-      font-size: 11px;
-      letter-spacing: .025em;
       text-overflow: ellipsis;
       white-space: nowrap;
+      font-weight: 500;
+    }
+    .meta {
+      flex-shrink: 0;
+      opacity: .85;
+      white-space: nowrap;
+    }
+    .meta.failed { color: var(--danger); opacity: 1; }
+    .top-tools {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex-shrink: 0;
     }
     .title {
       overflow: hidden;
-      font-size: 14px;
-      font-weight: 650;
+      font-size: 13px;
+      font-weight: 600;
       line-height: 1.3;
       text-overflow: ellipsis;
       white-space: nowrap;
+      padding-right: 4px;
+    }
+    .foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: auto;
+      min-height: 24px;
     }
     .body {
-      display: -webkit-box;
+      flex: 1;
+      min-width: 0;
       overflow: hidden;
       color: var(--muted);
-      line-height: 1.4;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-    }
-    .meta {
-      overflow: hidden;
-      color: var(--subtle);
-      font-size: 11px;
+      font-size: 11.5px;
+      line-height: 1.35;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .meta.failed { color: var(--danger); }
-    .actions { display: flex; gap: 6px; margin-top: auto; }
     button {
-      min-height: 44px;
-      min-width: 44px;
       border: 1px solid transparent;
-      border-radius: 7px;
-      padding: 0 10px;
+      border-radius: 6px;
       font: inherit;
-      font-weight: 550;
       cursor: pointer;
-      transition: transform 100ms ease, opacity 100ms ease;
+      transition: background-color 110ms ease, color 110ms ease, opacity 110ms ease, transform 100ms ease;
     }
-    button:hover { opacity: .9; }
-    button:active { transform: scale(.98); }
-    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .open { flex: 1; background: var(--accent); color: var(--accent-fg); }
+    button:active { transform: scale(.97); }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .open {
+      height: 24px;
+      padding: 0 9px;
+      flex-shrink: 0;
+      font-size: 11.5px;
+      font-weight: 550;
+      background: var(--accent);
+      color: var(--accent-fg);
+    }
     .open:hover { background: var(--accent-hover); }
-    .ghost { border-color: var(--line); background: transparent; color: var(--muted); }
-    @keyframes card-in { to { opacity: 1; transform: translateY(0) scale(1); } }
+    .ghost {
+      height: 20px;
+      padding: 0 5px;
+      font-size: 10.5px;
+      color: var(--subtle);
+      background: transparent;
+    }
+    .ghost:hover {
+      background: var(--ghost-hover);
+      color: var(--fg);
+    }
+    .progress {
+      position: absolute;
+      left: 3px;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: transparent;
+      pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 100%;
+      transform-origin: left center;
+      background: var(--line);
+      animation: timer-shrink var(--ttl, 8000ms) linear forwards;
+    }
+    .card:hover .progress-bar { animation-play-state: paused; }
+    @keyframes card-in {
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes timer-shrink {
+      from { transform: scaleX(1); }
+      to { transform: scaleX(0); }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .card { animation: none; opacity: 1; transform: none; transition: none; }
-      button { transition: none; }
+      .card.is-entering { animation: none; opacity: 1; transform: none; }
+      .card, button { transition: none; }
+      .progress-bar { animation: none; }
     }
   </style>
 </head>
@@ -126,6 +227,7 @@ export function notificationHostPageHtml(): string {
     const api = window.piNotify
     const stack = document.getElementById('stack')
     const playedSoundIds = new Set()
+    const mountedCards = new Map()
     function beep() {
       try {
         const Ctx = window.AudioContext || window.webkitAudioContext
@@ -136,49 +238,94 @@ export function notificationHostPageHtml(): string {
         osc.type = 'sine'
         osc.frequency.value = 880
         gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.01)
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.16)
+        gain.gain.exponentialRampToValueAtTime(0.06, ctx.currentTime + 0.01)
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.14)
         osc.connect(gain)
         gain.connect(ctx.destination)
         osc.start()
-        osc.stop(ctx.currentTime + 0.18)
+        osc.stop(ctx.currentTime + 0.16)
       } catch (e) {}
+    }
+    function buildCard(card) {
+      const el = document.createElement('article')
+      el.className = 'card is-entering'
+      el.dataset.id = card.notificationId
+      el.innerHTML =
+        '<div class="head"><div class="eyebrow"><span class="status-dot"></span><span class="project"></span><span class="meta"></span></div><div class="top-tools"></div></div>' +
+        '<div class="title"></div>' +
+        '<div class="foot"><div class="body"></div></div>' +
+        '<div class="progress"><div class="progress-bar"></div></div>'
+
+      const topTools = el.querySelector('.top-tools')
+      const mute = document.createElement('button')
+      mute.className = 'ghost mute-btn'
+      mute.addEventListener('click', (e) => {
+        e.stopPropagation()
+        api.action(card.notificationId, 'mute')
+      })
+      const dismiss = document.createElement('button')
+      dismiss.className = 'ghost dismiss-btn'
+      dismiss.addEventListener('click', (e) => {
+        e.stopPropagation()
+        api.action(card.notificationId, 'dismiss')
+      })
+      topTools.append(mute, dismiss)
+
+      const foot = el.querySelector('.foot')
+      const open = document.createElement('button')
+      open.className = 'open'
+      open.addEventListener('click', (e) => {
+        e.stopPropagation()
+        api.action(card.notificationId, 'open')
+      })
+      foot.append(open)
+
+      el.addEventListener('click', () => api.action(card.notificationId, 'open'))
+      el.addEventListener('mouseenter', () => api.hover(true))
+      el.addEventListener('mouseleave', () => api.hover(false))
+      el.addEventListener('animationend', () => el.classList.remove('is-entering'), { once: true })
+      return el
+    }
+    function syncCard(el, card) {
+      const failed = card.outcome === 'failed'
+      el.classList.toggle('is-failed', failed)
+      el.querySelector('.project').textContent = card.copy.projectLabel
+      el.querySelector('.title').textContent = card.copy.title
+      el.querySelector('.body').textContent = card.copy.body
+      const meta = el.querySelector('.meta')
+      meta.textContent = card.copy.meta ? '· ' + card.copy.meta : ''
+      meta.classList.toggle('failed', failed)
+      const open = el.querySelector('.open')
+      open.textContent = card.copy.openLabel
+      const mute = el.querySelector('.mute-btn')
+      mute.textContent = card.copy.muteLabel
+      mute.title = card.copy.muteLabel
+      const dismiss = el.querySelector('.dismiss-btn')
+      dismiss.textContent = '×'
+      dismiss.title = card.copy.dismissLabel
+      dismiss.setAttribute('aria-label', card.copy.dismissLabel)
+      if (card.timeoutMs > 0) {
+        el.style.setProperty('--ttl', card.timeoutMs + 'ms')
+      }
     }
     function render(cards) {
       const visibleIds = new Set(cards.map((card) => card.notificationId))
       for (const id of playedSoundIds) {
         if (!visibleIds.has(id)) playedSoundIds.delete(id)
       }
-      stack.replaceChildren()
+      for (const [id, node] of mountedCards) {
+        if (!visibleIds.has(id)) {
+          node.remove()
+          mountedCards.delete(id)
+        }
+      }
       for (const card of cards) {
-        const el = document.createElement('article')
-        el.className = 'card'
-        el.dataset.id = card.notificationId
-        const failed = card.outcome === 'failed'
-        el.innerHTML =
-          '<div class="project"></div><div class="title"></div><div class="body"></div><div class="meta"></div><div class="actions"></div>'
-        el.querySelector('.project').textContent = card.copy.projectLabel
-        el.querySelector('.title').textContent = card.copy.title
-        el.querySelector('.body').textContent = card.copy.body
-        const meta = el.querySelector('.meta')
-        meta.textContent = card.copy.meta
-        if (failed) meta.classList.add('failed')
-        const actions = el.querySelector('.actions')
-        const open = document.createElement('button')
-        open.className = 'open'
-        open.textContent = card.copy.openLabel
-        open.addEventListener('click', () => api.action(card.notificationId, 'open'))
-        const dismiss = document.createElement('button')
-        dismiss.className = 'ghost'
-        dismiss.textContent = card.copy.dismissLabel
-        dismiss.addEventListener('click', () => api.action(card.notificationId, 'dismiss'))
-        const mute = document.createElement('button')
-        mute.className = 'ghost'
-        mute.textContent = card.copy.muteLabel
-        mute.addEventListener('click', () => api.action(card.notificationId, 'mute'))
-        actions.append(dismiss, mute, open)
-        el.addEventListener('mouseenter', () => api.hover(true))
-        el.addEventListener('mouseleave', () => api.hover(false))
+        let el = mountedCards.get(card.notificationId)
+        if (!el) {
+          el = buildCard(card)
+          mountedCards.set(card.notificationId, el)
+        }
+        syncCard(el, card)
         stack.append(el)
         if (card.sound && !playedSoundIds.has(card.notificationId)) {
           playedSoundIds.add(card.notificationId)

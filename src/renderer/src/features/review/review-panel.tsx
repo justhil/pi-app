@@ -34,7 +34,14 @@ import { sendComposerPrompt } from '@renderer/lib/send-composer-prompt'
 
 const SCOPES = ['turn', 'session', 'git'] as const
 type Scope = (typeof SCOPES)[number]
-type ToolTouchRow = { toolName?: string; runId?: string; toolDetail?: unknown; toolArgs?: unknown }
+type ToolTouchRow = {
+  toolName?: string
+  runId?: string
+  toolDetails?: unknown
+  toolDetail?: unknown
+  toolArgs?: unknown
+  isError?: boolean
+}
 
 const EMPTY_GROUPS: ReviewFileGroups = { staged: [], unstaged: [], cleanTouched: [] }
 let memoItems: TimelineItem[] | null = null
@@ -49,14 +56,21 @@ function selectToolTouchRows(items: TimelineItem[]): ToolTouchRow[] {
   if (items === memoItems) return memoRows
   memoItems = items
   const tools = items.filter((item) => item.type === 'tool-call')
-  const signature = tools.map((item) => `${item.id}:${item.toolPhase ?? ''}:${item.runId ?? ''}`).join('|')
+  const signature = tools
+    .map(
+      (item) =>
+        `${item.id}:${item.toolPhase ?? ''}:${item.runId ?? ''}:${item.isError ? '1' : '0'}:${item.toolDetails ? 'd' : ''}`,
+    )
+    .join('|')
   if (signature !== memoSignature) {
     memoSignature = signature
     memoRows = tools.map((item) => ({
       toolName: item.toolName,
       runId: item.runId,
+      toolDetails: item.toolDetails,
       toolDetail: item.toolDetail,
       toolArgs: item.toolArgs,
+      isError: item.isError,
     }))
   }
   return memoRows
@@ -65,11 +79,13 @@ function selectToolTouchRows(items: TimelineItem[]): ToolTouchRow[] {
 function totals(groups: ReviewFileGroups): { files: number; additions: number; deletions: number } {
   let additions = 0
   let deletions = 0
+  const uniquePaths = new Set<string>()
   for (const row of [...groups.staged, ...groups.unstaged]) {
+    uniquePaths.add(row.path)
     additions += row.file?.additions ?? 0
     deletions += row.file?.deletions ?? 0
   }
-  return { files: groups.staged.length + groups.unstaged.length, additions, deletions }
+  return { files: uniquePaths.size, additions, deletions }
 }
 
 function ReviewSkeleton() {
@@ -165,12 +181,12 @@ export function ReviewPanel() {
     [gitData?.status, gitData?.raw, gitData?.stagedRaw],
   )
   const groupsByScope = useMemo<Record<Scope, ReviewFileGroups>>(() => {
-    const session = filterReviewGroups(allGroups, collectTouchedPaths(fileChanges, tools, null))
+    const session = filterReviewGroups(allGroups, collectTouchedPaths(fileChanges, tools, null, cwd))
     const turn = turnRunId
-      ? filterReviewGroups(allGroups, collectTouchedPaths(fileChanges, tools, turnRunId))
+      ? filterReviewGroups(allGroups, collectTouchedPaths(fileChanges, tools, turnRunId, cwd))
       : EMPTY_GROUPS
     return { git: allGroups, session, turn }
-  }, [allGroups, fileChanges, tools, turnRunId])
+  }, [allGroups, fileChanges, tools, turnRunId, cwd])
   const groups = groupsByScope[scope]
   const summary = useMemo(() => totals(groups), [groups])
 

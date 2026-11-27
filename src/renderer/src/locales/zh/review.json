@@ -49,5 +49,7 @@
     "turn": "本轮",
     "session": "本对话",
     "git": "Git"
-  }
+  },
+  "inlineDraftTitle": "行内评论草稿",
+  "inlineDraftPlaceholder": "评论草稿…"
 }

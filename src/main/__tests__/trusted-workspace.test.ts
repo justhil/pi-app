@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   sandboxPath: '' as string,
   runtime: { mode: 'host' as 'host' | 'wsl', distro: null as string | null },
   readSessionMetaFromFile: vi.fn(),
+  liveRuntime: [] as Array<{ sessionFile: string; running: boolean; cwd: string }>,
 }))
 
 vi.mock('../worker-manager', () => ({
@@ -19,6 +20,7 @@ vi.mock('../worker-manager', () => ({
     get cwd() {
       return mocks.cwd
     },
+    listSessionRuntime: () => mocks.liveRuntime,
   },
 }))
 
@@ -50,6 +52,7 @@ describe('trusted workspace authorization', () => {
     mocks.sandboxPath = join(sandboxRoot, 'managed')
     mkdirSync(mocks.sandboxPath, { recursive: true })
     mocks.runtime = { mode: 'host', distro: null }
+    mocks.liveRuntime = []
     mocks.readSessionMetaFromFile.mockReset()
     mocks.readSessionMetaFromFile.mockResolvedValue({ sessionId: 'session-a', cwd: '/workspace' })
   })
@@ -187,5 +190,21 @@ describe('trusted workspace authorization', () => {
         '\\\\wsl.localhost\\Debian\\home\\u\\.pi\\agent\\sessions\\a.jsonl',
       ),
     ).toEqual({ ok: false, error: 'session_workspace_mismatch' })
+  })
+
+  it('should_authorize_newly_created_unflushed_session_bound_to_live_worker_while_still_rejecting_unknown_unflushed_path', async () => {
+    mocks.readSessionMetaFromFile.mockResolvedValue(null)
+    mocks.liveRuntime = [{ sessionFile: '/sessions/new-unflushed.jsonl', running: false, cwd: '/workspace' }]
+
+    expect(await authorizeTrustedSessionFile('/workspace', '/sessions/new-unflushed.jsonl')).toEqual({
+      ok: true,
+      cwd: '/workspace',
+      sessionFile: '/sessions/new-unflushed.jsonl',
+    })
+
+    expect(await authorizeTrustedSessionFile('/workspace', '/sessions/forged-missing.jsonl')).toEqual({
+      ok: false,
+      error: 'invalid_session',
+    })
   })
 })

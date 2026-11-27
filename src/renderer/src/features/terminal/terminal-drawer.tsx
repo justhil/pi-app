@@ -1,9 +1,12 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronDown, Columns2, MessageSquarePlus, Plus, Terminal as TerminalIcon, X } from '@renderer/components/icons'
+import { Activity, ChevronDown, Columns2, ExternalLink, MessageSquarePlus, Plus, Square, Terminal as TerminalIcon, X } from '@renderer/components/icons'
 import { sendToComposer } from '@renderer/features/browser/browser-composer'
+import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
+import { upsertSingleBackgroundTask } from '@renderer/stores/background-tasks-store'
+import type { BackgroundTaskSnapshot } from '@shared/background-tasks'
 import { loadProfiles, spawnPane } from './terminal-bridge'
 import { disposeTerminalInstance, onTerminalSelection, terminalSelection, useClosePane } from './terminal-instances'
 import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, useTerminalStore, type ShellProfile, type TerminalTab } from './terminal-store'
@@ -13,9 +16,9 @@ const TerminalPane = lazy(() => import('./terminal-pane').then((m) => ({ default
 
 const isToggleKey =(e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
 
-/** Open a new tab with a shell (default: pi's), in the current project. */
-export async function openTerminalTab(profileId?: string): Promise<string | null> {
-  const cwd = useUIStore.getState().currentWorkspace ?? undefined
+/** Open a new tab with a shell (default: pi's), in the given cwd or current project. */
+export async function openTerminalTab(profileId?: string, cwdOverride?: string): Promise<string | null> {
+  const cwd = cwdOverride ?? useUIStore.getState().currentWorkspace ?? undefined
   const pane = await spawnPane(profileId, cwd)
   if ('error' in pane) {
     window.dispatchEvent(new CustomEvent('pi-desktop:terminal-error', { detail: pane.error }))
@@ -163,7 +166,9 @@ export function TerminalDrawer() {
   const [hasSelection, setHasSelection] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const tab = tabs.find((x) => x.id === activeTab) ?? null
-  const activePty = tab?.panes[tab.activePane]?.ptyId
+  const activePaneState = tab?.panes[tab.activePane] ?? null
+  const activePty = activePaneState?.ptyId
+  const activeBgTask = activePaneState?.backgroundTask ?? null
 
   useEffect(() => {
     setHasSelection(false)
@@ -229,11 +234,14 @@ export function TerminalDrawer() {
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {tabs.map((x) => {
             const exited = x.panes.every((p) => p.exited !== undefined)
+            const bgMeta = x.panes[x.activePane]?.backgroundTask ?? x.panes[0]?.backgroundTask
+            const bgRunning = bgMeta && bgMeta.status === 'running' && !exited
             return (
               <div
                 key={x.id}
                 role="tab"
                 aria-selected={x.id === activeTab}
+                title={bgMeta ? `${bgMeta.command} (${bgMeta.taskId})` : undefined}
                 className={cn(
                   'group/tab flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-1 text-[12px]',
                   x.id === activeTab ? 'bg-muted text-foreground' : 'text-foreground-secondary hover:bg-muted/60',
@@ -241,8 +249,16 @@ export function TerminalDrawer() {
                 onClick={() => terminalActions.focusTab(x.id)}
                 onAuxClick={(e) => e.button === 1 && x.panes.map((p) => p.ptyId).forEach(closePane)}
               >
-                <TerminalIcon className={cn('h-3 w-3', exited && 'opacity-40')} />
-                <span className={cn('max-w-[10rem] truncate', exited && 'text-foreground-tertiary')}>
+                {bgMeta ? (
+                  bgRunning ? (
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" aria-hidden />
+                  ) : (
+                    <Activity className={cn('h-3 w-3', exited && 'opacity-45')} />
+                  )
+                ) : (
+                  <TerminalIcon className={cn('h-3 w-3', exited && 'opacity-40')} />
+                )}
+                <span className={cn('max-w-[12rem] truncate', exited && 'text-foreground-tertiary')}>
                   {tabTitle(x)}
                 </span>
                 <button
@@ -264,6 +280,33 @@ export function TerminalDrawer() {
           </IconButton>
         </div>
         {error ? <span className="max-w-[16rem] truncate text-[11.5px] text-destructive" title={error}>{t('common:terminal.failed', { error })}</span> : null}
+        {activeBgTask && activeBgTask.status === 'running' && activeBgTask.sessionFile ? (
+          <IconButton
+            label={t('common:bgTasks.kill')}
+            onClick={() => {
+              void ipcClient
+                .invoke('backgroundTasks.kill', {
+                  sessionFile: activeBgTask.sessionFile,
+                  taskId: activeBgTask.taskId,
+                })
+                .then((res) => {
+                  const task = (res as { task?: BackgroundTaskSnapshot | null } | undefined)?.task
+                  if (task) upsertSingleBackgroundTask(task)
+                })
+                .catch(() => {})
+            }}
+          >
+            <Square className="h-3 w-3 fill-current text-destructive" />
+          </IconButton>
+        ) : null}
+        {activeBgTask?.outputPath ? (
+          <IconButton
+            label={t('common:bgTasks.openLog')}
+            onClick={() => void ipcClient.invoke('shell.openPath', { path: activeBgTask.outputPath }).catch(() => {})}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </IconButton>
+        ) : null}
         {hasSelection && activePty ? (
           <IconButton label={t('common:terminal.sendSelection')} onClick={() => sendToComposer({ text: `\`\`\`\n${terminalSelection(activePty).trimEnd()}\n\`\`\`` })}>
             <MessageSquarePlus className="h-3.5 w-3.5" />

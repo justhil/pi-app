@@ -15,6 +15,7 @@
         "reason": "browser-panel-off",
         "promptTokens": 3100,
         "tools": 24,
+        "coreTools": 6,
         "enabled": false
       }
     ]

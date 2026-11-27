@@ -1,8 +1,23 @@
 import { create } from 'zustand'
+import type { BackgroundTaskStatus } from '@shared/background-tasks'
 
 export type ShellProfile = { id: string; name: string; path: string; args: string[]; kind: string; piDefault?: boolean }
-/** One pty, shown in a pane. `exited` keeps the pane (with its output) until the user closes it. */
-export type TerminalPaneState = { ptyId: string; profile: ShellProfile; exited?: number }
+export type BackgroundTaskPaneMeta = {
+  taskId: string
+  command: string
+  outputPath?: string
+  sessionFile?: string
+  cwd?: string
+  status: BackgroundTaskStatus
+  exitCode: number | null
+}
+/** One pty (or virtual background-task log viewer), shown in a pane. `exited` keeps the pane until closed. */
+export type TerminalPaneState = {
+  ptyId: string
+  profile: ShellProfile
+  exited?: number
+  backgroundTask?: BackgroundTaskPaneMeta
+}
 /** `sizes`: each pane's share of the tab width (sums to 1). */
 export type TerminalTab = { id: string; panes: TerminalPaneState[]; activePane: number; sizes: number[] }
 
@@ -103,6 +118,18 @@ export const terminalActions = {
   },
   markExited(ptyId: string, code: number) {
     set((s) => ({ tabs: s.tabs.map((t) => ({ ...t, panes: t.panes.map((p) => (p.ptyId === ptyId ? { ...p, exited: code } : p)) })) }))
+  },
+  updateBackgroundTask(ptyId: string, patch: Partial<BackgroundTaskPaneMeta>) {
+    set((s) => ({
+      tabs: s.tabs.map((t) => ({
+        ...t,
+        panes: t.panes.map((p) =>
+          p.ptyId === ptyId && p.backgroundTask
+            ? { ...p, backgroundTask: { ...p.backgroundTask, ...patch } }
+            : p,
+        ),
+      })),
+    }))
   },
   /**
    * Remove a pane: its width goes to the neighbours (proportionally) and focus to the pane that took

@@ -19,13 +19,31 @@ import { exportThemeString, parseThemeString, type ParsedThemeString } from '@re
 import { mixColors } from '@renderer/lib/theme/derive-theme'
 import { presetsFor, presetVariant, type ThemePreset } from '@renderer/lib/theme/presets'
 import {
+  ACCENT_PRESENCES,
+  BACKDROP_PRESETS,
+  FRAME_STYLES,
+  MESSAGE_STYLES,
   normalizeFontName,
+  SHIKI_THEME_IDS,
+  SURFACE_MATERIALS,
   THEME_COLOR_KEYS,
+  THEME_DENSITIES,
+  WINDOW_MATERIALS,
+  type ThemeAccentPresence,
+  type ThemeBackdropPreset,
   type ThemeColorOverrides,
   type CustomTheme,
+  type ThemeDensity,
+  type ThemeFrameStyle,
+  type ThemeMessageStyle,
+  type ShikiThemeId,
+  type ThemeSurfaceMaterial,
   type ThemeVariant,
   type ThemeVariantKey,
+  type ThemeWindowMaterial,
 } from '@shared/custom-theme'
+import { AppearanceThemeLibrary } from './appearance-theme-library'
+import { WorkbenchCssInspectorControls } from './workbench-customizer-controls'
 
 const COLOR_RE = /^#[0-9a-f]{6}$/i
 
@@ -361,7 +379,7 @@ function PresetCard({ preset, variant, selected, onPick }: { preset: ThemePreset
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1 px-2 pt-2">
           <div className="ml-auto h-2.5 w-1/2 rounded" style={{ background: bubble }} />
-          <div className="text-[11px] leading-none" style={{ color: ink, fontFamily: serif ? 'var(--font-serif-base)' : undefined }}>Aa 文</div>
+          <div className="text-[11px] leading-none" style={{ color: ink, fontFamily: serif ? 'var(--font-serif-base)' : undefined }}>{t('settings:appearance.sampleGlyph')}</div>
           <div className="h-1 w-4/5 rounded-full" style={{ background: mixColors(surface, ink, 0.22) }} />
           <div className="mt-auto mb-1.5 h-1.5 w-6 rounded-full" style={{ background: accent }} />
         </div>
@@ -424,6 +442,233 @@ const COLOR_LABEL: Record<(typeof THEME_COLOR_KEYS)[number], string> = {
   userBubble: 'colorUserBubble',
   codeBg: 'colorCode',
   border: 'colorBorder',
+  frame: 'colorFrame',
+}
+
+/** Real-time miniature workbench preview reflecting colors, frame geometry, materials, backdrop & message style. */
+function ThemeLivePreviewCard({
+  variant,
+  configured,
+}: {
+  variant: ThemeVariantKey
+  configured: ThemeVariant
+}) {
+  const { t } = useTranslation()
+  const surface = configured.surface
+  const ink = configured.ink
+  const accent = configured.accent
+  const sidebar = configured.colors?.sidebar ?? mixColors(surface, '#000000', 0.045)
+  const frame = configured.colors?.frame ?? sidebar
+  const chatBg = configured.colors?.chat ?? surface
+  const bubbleBg = configured.colors?.userBubble ?? mixColors(surface, ink, 0.04)
+  const codeBg = configured.colors?.codeBg ?? mixColors(surface, ink, 0.03)
+  const border = configured.colors?.border ?? mixColors(surface, ink, 0.12)
+  const mutedInk = mixColors(ink, surface, 0.45)
+  const frameStyle = configured.frameStyle ?? 'paper'
+  const messageStyle = configured.messageStyle ?? 'bubble'
+  const material = configured.surfaceMaterial ?? 'solid'
+  const backdrop = configured.backdropPreset ?? 'none'
+  const accentPresence = configured.accentPresence ?? 'subtle'
+  const r = configured.radius ?? 10
+  const isDark = variant === 'dark'
+
+  const backdropCss = (() => {
+    if (backdrop === 'aurora') {
+      return isDark
+        ? 'radial-gradient(circle at 20% 20%, rgba(64,148,184,0.45), transparent 60%), radial-gradient(circle at 80% 75%, rgba(84,98,176,0.38), transparent 60%), ' + frame
+        : 'radial-gradient(circle at 20% 20%, rgba(125,196,228,0.45), transparent 60%), radial-gradient(circle at 80% 75%, rgba(180,192,235,0.38), transparent 60%), ' + frame
+    }
+    if (backdrop === 'ambient') {
+      return isDark
+        ? 'radial-gradient(circle at 22% 24%, rgba(44,98,112,0.42), transparent 65%), radial-gradient(circle at 75% 84%, rgba(56,74,118,0.35), transparent 65%), ' + frame
+        : 'radial-gradient(circle at 22% 24%, rgba(168,212,206,0.4), transparent 65%), radial-gradient(circle at 75% 84%, rgba(236,214,194,0.38), transparent 65%), ' + frame
+    }
+    if (backdrop === 'mesh') {
+      return `radial-gradient(circle at 22% 22%, ${accent}38, transparent 62%), radial-gradient(circle at 82% 78%, ${accent}26, transparent 62%), ${frame}`
+    }
+    if (backdrop === 'dots') {
+      return `radial-gradient(${mutedInk}40 1px, transparent 1px), ${frame}`
+    }
+    if (backdrop === 'grid') {
+      return `linear-gradient(to right, ${mutedInk}22 1px, transparent 1px), linear-gradient(to bottom, ${mutedInk}22 1px, transparent 1px), ${frame}`
+    }
+    return frame
+  })()
+
+  const composerBg =
+    material === 'liquid-glass' || material === 'frosted'
+      ? isDark
+        ? `${surface}99`
+        : `${surface}cc`
+      : surface
+  const composerShadow =
+    material === 'bevel'
+      ? isDark
+        ? 'inset 0 1px 0 rgba(255,255,255,0.16), 0 4px 10px rgba(0,0,0,0.28)'
+        : 'inset 0 1px 0 rgba(255,255,255,0.92), 0 3px 8px rgba(15,23,42,0.08)'
+      : material === 'liquid-glass'
+        ? isDark
+          ? 'inset 0 1px 0 rgba(255,255,255,0.32), 0 4px 14px rgba(0,0,0,0.35)'
+          : 'inset 0 1px 0 rgba(255,255,255,0.95), 0 3px 10px rgba(15,23,42,0.08)'
+        : 'none'
+
+  return (
+    <div className="settings-row">
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-[11.5px] text-foreground-secondary">
+          <span className="font-medium text-foreground">{t('settings:appearance.livePreviewTitle')}</span>
+          <span className="font-mono text-[10.5px] text-foreground-secondary/75">
+            {[frameStyle, material, backdrop !== 'none' ? backdrop : null].filter(Boolean).join(' · ')}
+          </span>
+        </div>
+        <div
+          aria-hidden
+          className="relative flex h-[132px] w-full overflow-hidden rounded-xl border"
+          style={{
+            background: backdropCss,
+            backgroundSize: backdrop === 'dots' ? '10px 10px' : backdrop === 'grid' ? '14px 14px' : undefined,
+            borderColor: border,
+            padding: frameStyle === 'island' ? '6px' : '0',
+            gap: frameStyle === 'island' ? '6px' : '0',
+          }}
+        >
+          {/* Far-left Activity Rail */}
+          <div className="flex w-7 shrink-0 flex-col items-center justify-between py-2.5">
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="h-3.5 w-3.5 rounded-[4px]" style={{ background: mixColors(frame, ink, 0.14) }} />
+              <span
+                className="h-3.5 w-3.5 rounded-[4px]"
+                style={{
+                  background: accentPresence === 'subtle' ? mixColors(frame, ink, 0.12) : `${accent}26`,
+                  border: accentPresence === 'vivid' ? `1px solid ${accent}60` : undefined,
+                }}
+              />
+              <span className="h-3 w-3 rounded-[4px]" style={{ background: mixColors(frame, ink, 0.08) }} />
+            </div>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: mixColors(frame, ink, 0.2) }} />
+          </div>
+
+          {/* Left Sidebar */}
+          <div
+            className="hidden w-[112px] shrink-0 flex-col gap-1.5 px-2 py-2.5 sm:flex"
+            style={{ background: backdrop === 'none' ? sidebar : 'transparent' }}
+          >
+            <div className="text-[10px] font-semibold" style={{ color: ink }}>pi</div>
+            <div
+              className="h-4 rounded-md px-1.5"
+              style={{
+                background: accentPresence === 'subtle' ? mixColors(sidebar, ink, 0.08) : `${accent}20`,
+                borderLeft: accentPresence !== 'subtle' ? `2px solid ${accent}` : undefined,
+              }}
+            />
+            <div className="h-2.5 w-4/5 rounded" style={{ background: mixColors(sidebar, ink, 0.1) }} />
+            <div className="h-2.5 w-2/3 rounded" style={{ background: mixColors(sidebar, ink, 0.08) }} />
+          </div>
+
+          {/* Center Chat Surface */}
+          <div
+            className="flex min-w-0 flex-1 flex-col justify-between px-3 py-2.5"
+            style={{
+              background: backdrop !== 'none' ? `${chatBg}dc` : chatBg,
+              borderRadius:
+                frameStyle === 'flat'
+                  ? '0px'
+                  : frameStyle === 'island'
+                    ? `${Math.min(14, r)}px`
+                    : `${Math.min(14, r)}px 0 0 0`,
+              border: frameStyle === 'island' ? `1px solid ${border}` : undefined,
+              borderLeft: frameStyle === 'flat' ? `1px solid ${border}` : undefined,
+            }}
+          >
+            <div className="flex flex-col gap-1.5">
+              {/* User message */}
+              <div
+                className={cn(
+                  'px-2 py-1 text-[9.5px] leading-tight',
+                  messageStyle === 'bubble' ? 'ml-auto max-w-[68%] rounded-lg' : 'w-full rounded-md',
+                )}
+                style={{
+                  background: accentPresence === 'vivid' ? `${accent}1c` : bubbleBg,
+                  color: ink,
+                  borderLeft: messageStyle === 'editorial' ? `2px solid ${accent}` : undefined,
+                }}
+              >
+                {t('settings:appearance.livePreviewPrompt')}
+              </div>
+
+              {/* Assistant prose + mini code pill */}
+              <div
+                className="flex flex-col gap-1 rounded-md px-1.5 py-1"
+                style={{
+                  border: messageStyle === 'card' ? `1px solid ${border}` : undefined,
+                  fontFamily:
+                    configured.proseFont === 'display' && configured.fontDisplay
+                      ? configured.fontDisplay === 'serif'
+                        ? 'var(--font-serif-base)'
+                        : configured.fontDisplay
+                      : undefined,
+                }}
+              >
+                <div className="text-[10px] leading-snug" style={{ color: ink }}>
+                  {t('settings:appearance.livePreviewReply')}
+                </div>
+                <div
+                  className="flex items-center gap-1.5 rounded px-1.5 py-0.5 font-mono text-[8.5px]"
+                  style={{ background: codeBg, color: mutedInk, border: `1px solid ${border}` }}
+                >
+                  <span style={{ color: configured.diffAdded ?? '#22c55e' }}>+12</span>
+                  <span style={{ color: configured.diffRemoved ?? '#ef4444' }}>-3</span>
+                  <span className="truncate">theme.derive()</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Composer mini preview */}
+            <div
+              className="flex h-6 items-center justify-between px-2"
+              style={{
+                background: composerBg,
+                border: `1px solid ${border}`,
+                borderRadius: `${Math.min(12, Math.max(4, r))}px`,
+                boxShadow: composerShadow,
+              }}
+            >
+              <span className="h-1.5 w-16 rounded-full" style={{ background: `${mutedInk}66` }} />
+              <span
+                className="h-3.5 w-3.5 rounded-full"
+                style={{ background: accentPresence === 'subtle' ? ink : accent }}
+              />
+            </div>
+          </div>
+
+          {/* Mini Right Dock Launchpad */}
+          <div
+            className="hidden w-[96px] shrink-0 flex-col gap-1.5 p-2 md:flex"
+            style={{
+              background: backdrop !== 'none' ? `${chatBg}d4` : chatBg,
+              borderLeft: frameStyle !== 'island' ? `1px solid ${border}` : undefined,
+              border: frameStyle === 'island' ? `1px solid ${border}` : undefined,
+              borderRadius: frameStyle === 'island' ? `${Math.min(14, r)}px` : undefined,
+            }}
+          >
+            <div className="h-3 w-full rounded-full" style={{ border: `1px solid ${border}` }} />
+            <div className="mt-1 grid flex-1 grid-cols-2 gap-1.5">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-lg"
+                  style={{
+                    background: mixColors(chatBg, ink, 0.05),
+                    border: material === 'bevel' ? `1px solid ${border}` : undefined,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionProps) {
@@ -477,6 +722,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
         userBubble: mixColors(configured.surface, configured.ink, 0.035),
         codeBg: mixColors(configured.surface, configured.ink, 0.03),
         border: mixColors(configured.surface, configured.ink, 0.11),
+        frame: configured.colors?.sidebar ?? mixColors(configured.surface, '#000000', 0.045),
       }
     : null
   const displayMode = !configured?.fontDisplay ? 'ui' : configured.fontDisplay === 'serif' ? 'serif' : 'custom'
@@ -517,6 +763,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 
         {configured && derived ? (
           <>
+            <ThemeLivePreviewCard variant={variant} configured={configured} />
             <GroupHeading>{t('settings:appearance.groupColors')}</GroupHeading>
             <SettingRow label={t('settings:appearance.accent')} description={t('settings:appearance.accentDesc')}>
               <ColorField
@@ -642,7 +889,7 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 
             <GroupHeading>{t('settings:appearance.groupShape')}</GroupHeading>
             <SettingRow label={t('settings:appearance.radius')} description={t('settings:appearance.radiusDesc')}>
-              <RangeField label={t('settings:appearance.radius')} value={configured.radius} fallback={10} min={0} max={16} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('radius', v)} />
+              <RangeField label={t('settings:appearance.radius')} value={configured.radius} fallback={10} min={0} max={20} step={1} format={(n) => `${n}px`} onChange={(v) => changeField('radius', v)} />
             </SettingRow>
             <SettingRow label={t('settings:appearance.shadow')} description={t('settings:appearance.shadowDesc')}>
               <RangeField label={t('settings:appearance.shadow')} value={configured.shadow} fallback={50} min={0} max={100} step={5} format={(n) => String(n)} onChange={(v) => changeField('shadow', v)} />
@@ -657,6 +904,225 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
                 onCheckedChange={(value) => changeField('translucentSidebar', value)}
               />
             </SettingRow>
+
+            <GroupHeading>{t('settings:appearance.groupLayout')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.frameStyle')} description={t('settings:appearance.frameStyleDesc')}>
+              <select
+                aria-label={t('settings:appearance.frameStyle')}
+                value={configured.frameStyle ?? 'paper'}
+                className={selectCls}
+                onChange={(e) => changeField('frameStyle', e.target.value as ThemeFrameStyle)}
+              >
+                {FRAME_STYLES.map((fs) => (
+                  <option key={fs} value={fs}>
+                    {t(`settings:appearance.frameOptions.${fs}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.messageStyle')} description={t('settings:appearance.messageStyleDesc')}>
+              <select
+                aria-label={t('settings:appearance.messageStyle')}
+                value={configured.messageStyle ?? 'bubble'}
+                className={selectCls}
+                onChange={(e) => changeField('messageStyle', e.target.value as ThemeMessageStyle)}
+              >
+                {MESSAGE_STYLES.map((ms) => (
+                  <option key={ms} value={ms}>
+                    {t(`settings:appearance.messageOptions.${ms}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.contentWidth')} description={t('settings:appearance.contentWidthDesc')}>
+              <div className="flex flex-wrap items-center gap-3">
+                {configured.contentWidth !== 0 ? (
+                  <RangeField
+                    label={t('settings:appearance.contentWidth')}
+                    value={configured.contentWidth}
+                    fallback={820}
+                    min={640}
+                    max={1400}
+                    step={20}
+                    format={(n) => `${n}px`}
+                    onChange={(v) => changeField('contentWidth', v)}
+                  />
+                ) : null}
+                <label className="inline-flex cursor-pointer items-center gap-2 text-[12px] text-foreground-secondary">
+                  <Switch
+                    checked={configured.contentWidth === 0}
+                    onCheckedChange={(full) => changeField('contentWidth', full ? 0 : 840)}
+                  />
+                  <span>{t('settings:appearance.fullWidth')}</span>
+                </label>
+              </div>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.spacingDensity')}>
+              <select
+                aria-label={t('settings:appearance.spacingDensity')}
+                value={configured.density ?? 'default'}
+                className={selectCls}
+                onChange={(e) => changeField('density', e.target.value as ThemeDensity)}
+              >
+                {THEME_DENSITIES.map((d) => (
+                  <option key={d} value={d}>
+                    {t(`settings:appearance.densityOptions.${d}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.accentPresence')} description={t('settings:appearance.accentPresenceDesc')}>
+              <select
+                aria-label={t('settings:appearance.accentPresence')}
+                value={configured.accentPresence ?? 'subtle'}
+                className={selectCls}
+                onChange={(e) => changeField('accentPresence', e.target.value as ThemeAccentPresence)}
+              >
+                {ACCENT_PRESENCES.map((ap) => (
+                  <option key={ap} value={ap}>
+                    {t(`settings:appearance.accentOptions.${ap}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.codeTheme')} description={t('settings:appearance.codeThemeDesc')}>
+              <select
+                aria-label={t('settings:appearance.codeTheme')}
+                value={configured.codeTheme ?? (variant === 'dark' ? 'github-dark' : 'github-light')}
+                className={cn(selectCls, 'font-mono text-[12px]')}
+                onChange={(e) => changeField('codeTheme', e.target.value as ShikiThemeId)}
+              >
+                {SHIKI_THEME_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+
+            <GroupHeading>{t('settings:appearance.groupMaterials')}</GroupHeading>
+            <SettingRow label={t('settings:appearance.surfaceMaterial')} description={t('settings:appearance.surfaceMaterialDesc')}>
+              <select
+                aria-label={t('settings:appearance.surfaceMaterial')}
+                value={configured.surfaceMaterial ?? 'solid'}
+                className={selectCls}
+                onChange={(e) => changeField('surfaceMaterial', e.target.value as ThemeSurfaceMaterial)}
+              >
+                {SURFACE_MATERIALS.map((sm) => (
+                  <option key={sm} value={sm}>
+                    {t(`settings:appearance.materialOptions.${sm}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            {(configured.surfaceMaterial === 'liquid-glass' || configured.surfaceMaterial === 'frosted') ? (
+              <>
+                {configured.surfaceMaterial === 'liquid-glass' ? (
+                  <SettingRow label={t('settings:appearance.glassRefraction')} description={t('settings:appearance.glassRefractionDesc')}>
+                    <RangeField
+                      label={t('settings:appearance.glassRefraction')}
+                      value={configured.glassRefraction}
+                      fallback={24}
+                      min={0}
+                      max={48}
+                      step={2}
+                      format={(n) => String(n)}
+                      onChange={(v) => changeField('glassRefraction', v)}
+                    />
+                  </SettingRow>
+                ) : null}
+                <SettingRow label={t('settings:appearance.glassFrost')}>
+                  <RangeField
+                    label={t('settings:appearance.glassFrost')}
+                    value={configured.glassFrost}
+                    fallback={10}
+                    min={0}
+                    max={28}
+                    step={1}
+                    format={(n) => `${n}px`}
+                    onChange={(v) => changeField('glassFrost', v)}
+                  />
+                </SettingRow>
+                <SettingRow label={t('settings:appearance.glassTintAlpha')}>
+                  <RangeField
+                    label={t('settings:appearance.glassTintAlpha')}
+                    value={configured.glassTintAlpha}
+                    fallback={variant === 'dark' ? 0.48 : 0.56}
+                    min={0.15}
+                    max={0.96}
+                    step={0.02}
+                    format={(n) => `${Math.round(n * 100)}%`}
+                    onChange={(v) => changeField('glassTintAlpha', v)}
+                  />
+                </SettingRow>
+                {configured.surfaceMaterial === 'liquid-glass' ? (
+                  <>
+                    <SettingRow label={t('settings:appearance.glassSpecular')}>
+                      <RangeField
+                        label={t('settings:appearance.glassSpecular')}
+                        value={configured.glassSpecular}
+                        fallback={variant === 'dark' ? 0.48 : 0.68}
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        format={(n) => `${Math.round(n * 100)}%`}
+                        onChange={(v) => changeField('glassSpecular', v)}
+                      />
+                    </SettingRow>
+                    <SettingRow label={t('settings:appearance.glassDispersion')} description={t('settings:appearance.glassDispersionDesc')}>
+                      <Switch
+                        aria-label={t('settings:appearance.glassDispersion')}
+                        checked={Boolean(configured.glassDispersion)}
+                        onCheckedChange={(v) => changeField('glassDispersion', v)}
+                      />
+                    </SettingRow>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+            <SettingRow label={t('settings:appearance.windowMaterial')} description={t('settings:appearance.windowMaterialDesc')}>
+              <select
+                aria-label={t('settings:appearance.windowMaterial')}
+                value={configured.windowMaterial ?? 'none'}
+                className={selectCls}
+                onChange={(e) => changeField('windowMaterial', e.target.value as ThemeWindowMaterial)}
+              >
+                {WINDOW_MATERIALS.map((wm) => (
+                  <option key={wm} value={wm}>
+                    {t(`settings:appearance.windowMaterialOptions.${wm}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            <SettingRow label={t('settings:appearance.backdropPreset')} description={t('settings:appearance.backdropPresetDesc')}>
+              <select
+                aria-label={t('settings:appearance.backdropPreset')}
+                value={configured.backdropPreset ?? 'none'}
+                className={selectCls}
+                onChange={(e) => changeField('backdropPreset', e.target.value as ThemeBackdropPreset)}
+              >
+                {BACKDROP_PRESETS.map((bp) => (
+                  <option key={bp} value={bp}>
+                    {t(`settings:appearance.backdropOptions.${bp}`)}
+                  </option>
+                ))}
+              </select>
+            </SettingRow>
+            {configured.backdropPreset && configured.backdropPreset !== 'none' ? (
+              <SettingRow label={t('settings:appearance.backdropIntensity')}>
+                <RangeField
+                  label={t('settings:appearance.backdropIntensity')}
+                  value={configured.backdropIntensity}
+                  fallback={0.55}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  format={(n) => `${Math.round(n * 100)}%`}
+                  onChange={(v) => changeField('backdropIntensity', v)}
+                />
+              </SettingRow>
+            ) : null}
+
             <SettingRow
               label={t('settings:appearance.restoreDefault')}
               description={t('settings:appearance.restoreDefaultDesc')}
@@ -696,7 +1162,10 @@ function ThemeVariantSection({ variant, theme, onChange }: ThemeVariantSectionPr
 const CSS_VARIABLES: { name: string; key: string }[] = [
   { name: '--bg-base', key: 'varSurface' },
   { name: '--chat-bg', key: 'varChat' },
+  { name: '--surface-frame', key: 'varFrame' },
   { name: '--surface-sidebar', key: 'varSidebar' },
+  { name: '--shell-hairline', key: 'varHairline' },
+  { name: '--shell-corner-radius', key: 'varShellCorner' },
   { name: '--message-user-bg', key: 'varUserBubble' },
   { name: '--code-bg', key: 'varCode' },
   { name: '--text-primary', key: 'varText' },
@@ -712,6 +1181,9 @@ const CSS_VARIABLES: { name: string; key: string }[] = [
   { name: '--radius', key: 'varRadius' },
   { name: '--main-chat-surface-radius', key: 'varPaperRadius' },
   { name: '--main-chat-surface-shadow', key: 'varPaperShadow' },
+  { name: '--timeline-content-max', key: 'varTimelineMax' },
+  { name: '--fx-glass-refraction', key: 'varGlassRefraction' },
+  { name: '--fx-glass-frost', key: 'varGlassFrost' },
   { name: '--diff-added', key: 'varDiffAdded' },
   { name: '--diff-removed', key: 'varDiffRemoved' },
 ]
@@ -723,6 +1195,16 @@ export function AppearanceThemeEditor() {
 
   return (
     <div className="flex flex-col gap-8">
+      <AppearanceThemeLibrary
+        theme={draft.customTheme}
+        customCss={draft.customCssOverride}
+        onApplyPack={(nextTheme, nextCss) => {
+          setCustomTheme(nextTheme)
+          if (typeof nextCss === 'string') {
+            setCustomCssOverride({ enabled: Boolean(nextCss.trim()), css: nextCss })
+          }
+        }}
+      />
       <ThemeVariantSection variant="light" theme={draft.customTheme} onChange={setCustomTheme} />
       <ThemeVariantSection variant="dark" theme={draft.customTheme} onChange={setCustomTheme} />
 
@@ -773,6 +1255,10 @@ export function AppearanceThemeEditor() {
                 }
               />
             </div>
+            <WorkbenchCssInspectorControls
+              customCss={draft.customCssOverride}
+              onCustomCssChange={setCustomCssOverride}
+            />
             <textarea
               id="appearance-custom-css-value"
               rows={10}

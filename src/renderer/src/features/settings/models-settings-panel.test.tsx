@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import {
@@ -23,6 +23,7 @@ vi.mock('sonner', () => ({
 
 // Defaults & thinking bindings have their own slice and test (model-defaults-section.test).
 vi.mock('./model-defaults-section', () => ({ ModelDefaultsSection: () => null }))
+vi.mock('./google-ai-plan-section', () => ({ GoogleAiPlanSection: () => null }))
 
 vi.mock('./models-provider-card', () => ({
   ModelsProviderCard: ({
@@ -370,5 +371,50 @@ describe('ModelsSettingsPanel save', () => {
       ['model.list', { scope: 'settings' }],
       ['model.list', { scope: 'available' }],
     ])
+  })
+
+  it('reloads straight away on an SDK runtime change when nothing is unsaved', async () => {
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: [] })
+      .mockResolvedValueOnce({ path: 'models.json', config: normalizedConfig })
+      .mockResolvedValueOnce({ models: [] })
+
+    render(<ModelsSettingsPanel />)
+    await screen.findByText('Original provider')
+
+    await act(async () => {
+      for (const listener of appEventListeners) listener({ type: 'sdk-runtime-changed' })
+    })
+
+    await screen.findByText('Changed provider')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('asks before an SDK runtime change throws away unsaved edits', async () => {
+    const changedOnDisk = { providers: { custom: { ...initialConfig.providers.custom, name: 'Disk provider' } } }
+    vi.mocked(ipcClient.invoke)
+      .mockResolvedValueOnce({ path: 'models.json', config: initialConfig })
+      .mockResolvedValueOnce({ models: [] })
+      .mockResolvedValueOnce({ path: 'models.json', config: changedOnDisk })
+      .mockResolvedValueOnce({ models: [] })
+
+    render(<ModelsSettingsPanel />)
+    fireEvent.click(await screen.findByRole('button', { name: 'edit provider' }))
+    await screen.findByText('Changed provider')
+
+    await act(async () => {
+      for (const listener of appEventListeners) listener({ type: 'sdk-runtime-changed' })
+    })
+
+    // The edit survives until the user agrees to discard it.
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Model config changed elsewhere')
+    expect(screen.getByText('Changed provider')).toBeTruthy()
+    expect(getRequest('pi.models.get')).toHaveLength(1)
+
+    const dialogButtons = within(screen.getByRole('dialog')).getAllByRole('button')
+    fireEvent.click(dialogButtons[dialogButtons.length - 1])
+    await screen.findByText('Disk provider')
+    expect(getRequest('pi.models.get')).toHaveLength(2)
   })
 })

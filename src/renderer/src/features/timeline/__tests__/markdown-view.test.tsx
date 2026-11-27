@@ -1,28 +1,36 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import MarkdownView from '../markdown-view'
+import MarkdownView, { CODE_FOLD_THRESHOLD_LINES } from '../markdown-view'
 
 describe('MarkdownView code block', () => {
-  it('scrolls globally by default, activates internal scroll on click, and exits on outside click', () => {
-    render(
-      <div>
-        <div data-testid="outside">Outside</div>
-        <MarkdownView>{'```json\n{"ok": true}\n```'}</MarkdownView>
-      </div>,
-    )
+  it('shows blocks up to the fold threshold in full with horizontal-only overflow (no wheel hijack)', () => {
+    const shortCode = Array.from({ length: 12 }, (_, i) => `const line${i + 1} = ${i + 1}`).join('\n')
+    render(<MarkdownView>{`\`\`\`ts\n${shortCode}\n\`\`\``}</MarkdownView>)
 
-    const code = screen.getByText('{"ok": true}')
-    const scrollContainer = code.closest('pre')!
-    expect(scrollContainer).not.toHaveAttribute('data-independent-scroll')
-    expect(scrollContainer).toHaveClass('overflow-hidden')
+    const pre = screen.getByText(/const line1 = 1/).closest('pre')!
+    expect(pre).toHaveClass('overflow-x-auto', 'overflow-y-visible')
+    expect(pre).not.toHaveClass('overflow-hidden', 'max-h-[4.5rem]')
+    expect(screen.queryByRole('button', { name: /expand|展开|Показать/i })).toBeNull()
+  })
 
-    fireEvent.click(scrollContainer)
-    expect(scrollContainer).toHaveAttribute('data-independent-scroll')
-    expect(scrollContainer).toHaveClass('overflow-auto', 'overscroll-contain')
+  it('folds blocks exceeding the threshold with an explicit line-count button and sticky collapse bar when expanded', () => {
+    const longCode = Array.from(
+      { length: CODE_FOLD_THRESHOLD_LINES + 6 },
+      (_, i) => `console.log("row-${i + 1}")`,
+    ).join('\n')
+    const { container } = render(<MarkdownView>{`\`\`\`ts\n${longCode}\n\`\`\``}</MarkdownView>)
 
-    fireEvent.pointerDown(screen.getByTestId('outside'))
-    expect(scrollContainer).not.toHaveAttribute('data-independent-scroll')
-    expect(scrollContainer).toHaveClass('overflow-hidden')
+    const pre = screen.getByText(/row-1/).closest('pre')!
+    expect(pre).toHaveClass('max-h-[19.25rem]', 'overflow-hidden')
+
+    const expandBtns = container.querySelectorAll('button[aria-expanded="false"]')
+    expect(expandBtns.length).toBe(1)
+    fireEvent.click(expandBtns[0])
+
+    expect(pre).toHaveClass('overflow-x-auto', 'overflow-y-visible')
+    const stickyHeader = container.querySelector('.code-surface > .sticky')
+    expect(stickyHeader).not.toBeNull()
+    expect(container.querySelectorAll('button[aria-expanded="true"]').length).toBe(1)
   })
 })
 
@@ -44,11 +52,10 @@ describe('MarkdownView pi-ui blocks', () => {
     expect(container.textContent).not.toContain('"component"')
   })
 
-  it('keeps ordinary code fences in the regular code block and activates scroll on click', () => {
+  it('keeps ordinary code fences in the regular code block with horizontal scroll ready', () => {
     render(<MarkdownView>{'```pi\nnot a ui block\n```'}</MarkdownView>)
     const pre = screen.getByText('not a ui block').closest('pre')!
     expect(pre).not.toBeNull()
-    fireEvent.click(pre)
-    expect(pre).toHaveAttribute('data-independent-scroll')
+    expect(pre).toHaveClass('overflow-x-auto')
   })
 })

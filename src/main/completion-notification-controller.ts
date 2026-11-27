@@ -1,4 +1,5 @@
 import type { CompletionEvent } from '@shared/app-events'
+import type { CompletionUiLanguage } from '@shared/completion-preview'
 import {
   buildCompletionNotificationCopy,
   type CompletionCopy,
@@ -20,7 +21,7 @@ export type CompletionNotificationSettings = {
   onlyWhenUnfocused: boolean
   dndUntil: number | null
   delivery: CompletionDeliveryMode
-  language: 'zh' | 'en'
+  language: CompletionUiLanguage
 }
 
 export type CompletionCard = {

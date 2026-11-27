@@ -46,6 +46,34 @@ export function rowsForTurns(history: readonly { type: string }[], turns: number
 }
 
 /**
+ * Adaptive turn reveal step when scrolling upward into history:
+ * - Never splits a user turn in half (always reveals at least 1 full turn).
+ * - Advances up to `maxTurnsStep` turns while keeping newly revealed rows within `rowBudget`.
+ *   Short chat turns (2 rows each) reveal a full `maxTurnsStep` (e.g. 10 turns = 20 rows),
+ *   whereas heavy tool-call turns (25-40 rows each) reveal 2-3 turns per batch so main-thread
+ *   layout stays smooth instead of mounting 250+ DOM nodes in a single frame.
+ */
+export function nextTurnWindowStep(
+  history: readonly { type: string }[],
+  currentTurns: number,
+  maxTurnsStep: number,
+  rowBudget = 56,
+): number {
+  const stepCap = Math.max(1, maxTurnsStep)
+  const currentRows = rowsForTurns(history, currentTurns)
+  let bestTurns = currentTurns + 1
+  for (let add = 1; add <= stepCap; add++) {
+    const candidateTurns = currentTurns + add
+    const candidateRows = rowsForTurns(history, candidateTurns)
+    const addedRows = candidateRows - currentRows
+    bestTurns = candidateTurns
+    if (candidateRows >= history.length) break
+    if (addedRows >= rowBudget) break
+  }
+  return bestTurns
+}
+
+/**
  * Turns needed so the window includes the row `rows` from the end (view jumps): count user
  * messages from the turn that row belongs to through the end. A row before any user
  * message (session preamble) needs every turn plus one.

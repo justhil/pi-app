@@ -7,10 +7,25 @@
       "pi-mcp-adapter"
     ]
   },
+  "install": {
+    "source": "npm:pi-mcp-adapter",
+    "homepage": "https://github.com/nicobailon/pi-mcp-adapter"
+  },
   "tier": "headless",
   "config": {
     "note": "MCP 连接与服务器配置由扩展在 pi/TUI 自管；桌面配置页仅展示诊断说明。",
-    "customRenderer": "mcp-diagnostics"
+    "customRenderer": "mcp-diagnostics",
+    "i18n": {
+      "zh": {
+        "note": "MCP 连接与服务器配置由扩展在 pi/TUI 自管；桌面配置页仅展示诊断说明。"
+      },
+      "en": {
+        "note": "MCP connections and server configuration are managed by the extension in pi/TUI; the desktop settings page shows read-only diagnostics."
+      },
+      "ru": {
+        "note": "Подключения и конфигурация MCP-серверов управляются расширением в pi/TUI; страница настроек в desktop показывает только диагностику."
+      }
+    }
   },
   "i18n": {
     "zh": {
@@ -19,7 +34,11 @@
     },
     "en": {
       "displayName": "MCP Adapter",
-      "description": "MCP server manager; start/stop and status display"
+      "description": "MCP server adapter (read-only connection diagnostics)"
+    },
+    "ru": {
+      "displayName": "MCP Adapter",
+      "description": "Адаптер MCP-серверов (диагностика подключений только для чтения)"
     }
   }
 }
